@@ -7,4 +7,7 @@ export type Project = {
   status: ProjectStatus;
   updatedAt: string;
   tags: string[];
+  stakeholderId: string;
+  leadId: string;
+  memberIds: string[];
 };
