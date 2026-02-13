@@ -3,7 +3,9 @@ import { ArrowLeft } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/projects/status-badge";
+import { ProjectTeamSection } from "@/components/projects/project-team-section";
 import { getProjectById } from "@/lib/services/project-service";
+import { getPersonsByProject } from "@/lib/services/person-service";
 
 type ProjectDetailPageProps = {
   params: Promise<{ id: string }>;
@@ -14,6 +16,7 @@ export default async function ProjectDetailPage({
 }: ProjectDetailPageProps) {
   const { id } = await params;
   const project = getProjectById(id);
+  const team = getPersonsByProject(id);
 
   if (!project) {
     return (
@@ -60,6 +63,8 @@ export default async function ProjectDetailPage({
           Last updated: {project.updatedAt}
         </p>
       </div>
+
+      <ProjectTeamSection team={team} />
     </div>
   );
 }

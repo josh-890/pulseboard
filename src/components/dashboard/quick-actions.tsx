@@ -11,6 +11,12 @@ export function QuickActions() {
           <ArrowRight size={16} className="ml-1" />
         </Link>
       </Button>
+      <Button variant="outline" asChild>
+        <Link href="/people">
+          View All People
+          <ArrowRight size={16} className="ml-1" />
+        </Link>
+      </Button>
     </div>
   );
 }

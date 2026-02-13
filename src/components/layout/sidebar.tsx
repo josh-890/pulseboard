@@ -1,11 +1,12 @@
 "use client";
 
-import { LayoutDashboard, FolderKanban, Settings } from "lucide-react";
+import { LayoutDashboard, FolderKanban, Users, Settings } from "lucide-react";
 import { NavLink } from "./nav-link";
 
 const navItems = [
   { href: "/", icon: <LayoutDashboard size={20} />, label: "Dashboard" },
   { href: "/projects", icon: <FolderKanban size={20} />, label: "Projects" },
+  { href: "/people", icon: <Users size={20} />, label: "People" },
   { href: "/settings", icon: <Settings size={20} />, label: "Settings" },
 ];
 
