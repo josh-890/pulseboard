@@ -174,6 +174,89 @@ type EmptyStateProps = {
 
 ---
 
+### People Components (`components/people/`)
+
+#### `PersonAvatar`
+Colored circle with initials. Supports three sizes.
+
+```typescript
+type PersonAvatarProps = {
+  firstName: string;
+  lastName: string;
+  avatarColor: string;
+  size?: "sm" | "md" | "lg";
+};
+```
+
+#### `RoleBadge`
+Colored badge showing project role (purple=Stakeholder, blue=Lead, slate=Member).
+
+```typescript
+type RoleBadgeProps = {
+  role: ProjectRole;
+};
+```
+
+#### `PersonCard`
+Glass card displaying person summary with avatar, name, email, and role badges. Links to person detail.
+
+```typescript
+type PersonCardProps = {
+  person: Person;
+  roles: PersonProjectAssignment[];
+};
+```
+
+#### `PersonList`
+Responsive grid of `PersonCard` components. Handles empty state.
+
+```typescript
+type PersonListProps = {
+  persons: Person[];
+  personRoles: Map<string, PersonProjectAssignment[]>;
+};
+```
+
+#### `PersonSearch`
+Search input for filtering people by name or email.
+
+```typescript
+type PersonSearchProps = {
+  value: string;
+  onChange: (value: string) => void;
+};
+```
+
+#### `RoleFilter`
+Filter buttons for filtering people by role.
+
+```typescript
+type RoleFilterProps = {
+  value: ProjectRole | "all";
+  onChange: (role: ProjectRole | "all") => void;
+};
+```
+
+#### `EmptyState` (People)
+Placeholder shown when no people match the current search/filter. Uses `UserX` icon.
+
+```typescript
+type EmptyStateProps = {
+  message?: string;
+};
+```
+
+#### `ProjectTeamSection` (in `components/projects/`)
+Team section for project detail page showing all assigned people with avatars and role badges.
+
+```typescript
+type ProjectTeamSectionProps = {
+  team: { person: Person; role: ProjectRole }[];
+};
+```
+
+---
+
 ### Settings Components (`components/settings/`)
 
 #### `ThemeToggle`
@@ -190,18 +273,18 @@ Switch for toggling between light and dark mode. Reads/writes to theme context.
 ```
 AppShell
 ├── Sidebar
-│   ├── NavLink (x3: Dashboard, Projects, Settings)
+│   ├── NavLink (x4: Dashboard, Projects, People, Settings)
 │   └── ThemeToggle (optional)
 ├── MobileDrawer
-│   └── NavLink (x3)
+│   └── NavLink (x4)
 └── Main Content
     ├── Dashboard Page
     │   ├── KpiGrid
-    │   │   └── KpiCard (x4)
+    │   │   └── KpiCard (x5)
     │   ├── ActivityFeed
     │   │   └── ActivityItem (xN)
     │   └── QuickActions
-    │       └── Button (shadcn)
+    │       └── Button (shadcn, x2)
     ├── Projects Page
     │   ├── ProjectSearch
     │   │   └── Input (shadcn)
@@ -214,7 +297,24 @@ AppShell
     │   └── EmptyState
     ├── Project Detail Page
     │   ├── Badge (shadcn, status + tags)
-    │   └── Card (shadcn)
+    │   ├── Card (shadcn)
+    │   └── ProjectTeamSection
+    │       ├── PersonAvatar (xN)
+    │       └── RoleBadge (xN)
+    ├── People Page
+    │   ├── PersonSearch
+    │   │   └── Input (shadcn)
+    │   ├── RoleFilter
+    │   │   └── Button (shadcn, x4)
+    │   ├── PersonList
+    │   │   └── PersonCard (xN)
+    │   │       ├── PersonAvatar
+    │   │       └── RoleBadge (xN)
+    │   └── EmptyState (people)
+    ├── Person Detail Page
+    │   ├── PersonAvatar (lg)
+    │   ├── StatusBadge (xN)
+    │   └── RoleBadge (xN)
     └── Settings Page
         ├── Card (shadcn)
         └── ThemeToggle
