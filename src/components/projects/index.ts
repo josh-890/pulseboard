@@ -5,3 +5,4 @@ export { ProjectSearch } from "./project-search";
 export { StatusFilter } from "./status-filter";
 export { EmptyState } from "./empty-state";
 export { ProjectTeamSection } from "./project-team-section";
+export { ProjectForm } from "./project-form";

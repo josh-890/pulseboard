@@ -5,3 +5,4 @@ export { PersonList } from "./person-list";
 export { PersonSearch } from "./person-search";
 export { RoleFilter } from "./role-filter";
 export { EmptyState } from "./empty-state";
+export { PersonForm } from "./person-form";

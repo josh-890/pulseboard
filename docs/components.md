@@ -255,6 +255,96 @@ Switch for toggling between light and dark mode. Reads/writes to theme context.
 
 ---
 
+### Shared Components (`components/shared/`)
+
+#### `TagInput`
+Text input that tokenizes on Enter/comma, renders tags as removable badges.
+
+```typescript
+type TagInputProps = {
+  value: string[];
+  onChange: (tags: string[]) => void;
+  placeholder?: string;
+  maxTags?: number;
+};
+```
+
+#### `ColorPicker`
+Grid of circular color swatches with ring indicator on selected.
+
+```typescript
+type ColorPickerProps = {
+  value: string;
+  onChange: (color: string) => void;
+  colors: readonly string[];
+};
+```
+
+#### `PersonSelect`
+Dropdown showing person avatar + name. Wraps shadcn `Select`.
+
+```typescript
+type PersonSelectProps = {
+  persons: Person[];
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+};
+```
+
+#### `MemberMultiSelect`
+Popover with scrollable checkbox list for multi-selecting team members.
+
+```typescript
+type MemberMultiSelectProps = {
+  persons: Person[];
+  value: string[];
+  onChange: (ids: string[]) => void;
+  excludeIds?: string[];
+};
+```
+
+#### `DeleteButton`
+Destructive button that opens an AlertDialog for confirmation before executing a server action.
+
+```typescript
+type DeleteButtonProps = {
+  title: string;
+  description: string;
+  onDelete: () => Promise<{ success: boolean; error?: string }>;
+  redirectTo: string;
+};
+```
+
+---
+
+### Form Components
+
+#### `ProjectForm` (`components/projects/project-form.tsx`)
+Client Component for creating and editing projects. Uses react-hook-form with Zod validation.
+
+```typescript
+type ProjectFormProps = {
+  mode: "create" | "edit";
+  defaultValues?: ProjectFormValues;
+  projectId?: string;
+  persons: Person[];
+};
+```
+
+#### `PersonForm` (`components/people/person-form.tsx`)
+Client Component for creating and editing people. Includes live avatar preview.
+
+```typescript
+type PersonFormProps = {
+  mode: "create" | "edit";
+  defaultValues?: PersonFormValues;
+  personId?: string;
+};
+```
+
+---
+
 ## Component Dependency Map
 
 ```

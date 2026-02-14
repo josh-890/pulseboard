@@ -20,11 +20,18 @@ app/
 │   │   ├── Project Cards   # Grid of project cards
 │   │   └── Empty State     # Shown when no results match
 │   │
+│   ├── new/
+│   │   └── page.tsx        # /projects/new — New Project form (Server Component → ProjectForm)
+│   │
 │   └── [id]/
-│       └── page.tsx        # /projects/[id] — Project Detail (async Server Component)
-│           ├── Project Header (name, status, tags)
-│           ├── Project Info (description, updated date)
-│           └── Project Team Section (assigned people)
+│       ├── page.tsx        # /projects/[id] — Project Detail + Edit/Delete buttons
+│       │   ├── Project Header (name, status, tags)
+│       │   ├── Project Info (description, updated date)
+│       │   ├── Project Team Section (assigned people)
+│       │   └── Edit Link + DeleteButton
+│       │
+│       └── edit/
+│           └── page.tsx    # /projects/[id]/edit — Edit Project form (Server Component → ProjectForm)
 │
 ├── people/
 │   ├── page.tsx            # /people — People List (async Server Component)
@@ -33,10 +40,17 @@ app/
 │   │   ├── Person Cards    # Grid of person cards
 │   │   └── Empty State     # Shown when no results match
 │   │
+│   ├── new/
+│   │   └── page.tsx        # /people/new — New Person form (PersonForm)
+│   │
 │   └── [id]/
-│       └── page.tsx        # /people/[id] — Person Detail (async Server Component)
-│           ├── Person Header (avatar, name, email)
-│           └── Project Assignments (project name, status, role)
+│       ├── page.tsx        # /people/[id] — Person Detail + Edit/Delete buttons
+│       │   ├── Person Header (avatar, name, email)
+│       │   ├── Project Assignments (project name, status, role)
+│       │   └── Edit Link + DeleteButton
+│       │
+│       └── edit/
+│           └── page.tsx    # /people/[id]/edit — Edit Person form (Server Component → PersonForm)
 │
 └── settings/
     └── page.tsx            # /settings — Settings
@@ -89,23 +103,39 @@ components/
 │   ├── project-search.tsx  # Self-managing URL-driven search (Client Component)
 │   ├── status-filter.tsx   # Self-managing URL-driven filter (Client Component)
 │   ├── project-team-section.tsx  # Team list on project detail
+│   ├── project-form.tsx    # Create/edit project form (Client Component)
 │   └── empty-state.tsx     # No results placeholder
 │
-└── people/                 # People page components
-    ├── person-avatar.tsx   # Initials circle (sm/md/lg)
-    ├── role-badge.tsx      # Colored role badge
-    ├── person-card.tsx     # Person summary card
-    ├── person-list.tsx     # Grid of person cards
-    ├── person-search.tsx   # Self-managing URL-driven search (Client Component)
-    ├── role-filter.tsx     # Self-managing URL-driven filter (Client Component)
-    └── empty-state.tsx     # No results placeholder
+├── people/                 # People page components
+│   ├── person-avatar.tsx   # Initials circle (sm/md/lg)
+│   ├── role-badge.tsx      # Colored role badge
+│   ├── person-card.tsx     # Person summary card
+│   ├── person-list.tsx     # Grid of person cards
+│   ├── person-search.tsx   # Self-managing URL-driven search (Client Component)
+│   ├── role-filter.tsx     # Self-managing URL-driven filter (Client Component)
+│   ├── person-form.tsx     # Create/edit person form (Client Component)
+│   └── empty-state.tsx     # No results placeholder
+│
+└── shared/                 # Reusable form sub-components
+    ├── tag-input.tsx       # Tag tokenizer with badges (Client Component)
+    ├── color-picker.tsx    # Color swatch grid (Client Component)
+    ├── person-select.tsx   # Person dropdown with avatar (Client Component)
+    ├── member-multi-select.tsx  # Multi-select checkbox popover (Client Component)
+    └── delete-button.tsx   # Destructive button with AlertDialog (Client Component)
 ```
 
 ## Data Flow
 
 ```
-PostgreSQL  →  Prisma Client  →  async services  →  Server Components  →  UI
-                (lib/db.ts)      (lib/services/)     (app/ pages)
+Read path:
+  PostgreSQL  →  Prisma Client  →  async services  →  Server Components  →  UI
+                  (lib/db.ts)      (lib/services/)     (app/ pages)
+
+Write path:
+  Form submit  →  Server Action  →  Prisma Client  →  PostgreSQL
+  (Client)        (lib/actions/)    (lib/db.ts)        + Activity log
+                  + Zod validation                     + revalidatePath()
+                  (lib/validations/)
 ```
 
 ### Database Layer
@@ -131,6 +161,33 @@ export async function getPersonById(id: string): Promise<Person | null> { ... }
 export async function searchPersons(query: string, role?: ProjectRole | "all"): Promise<Person[]> { ... }
 export async function getPersonRoles(personId: string): Promise<PersonProjectAssignment[]> { ... }
 export async function getPersonsByProject(projectId: string): Promise<{ person: Person; role: ProjectRole }[]> { ... }
+```
+
+### Server Actions (`lib/actions/`)
+
+Mutation functions using `"use server"` directive, called from Client Components:
+
+```typescript
+// lib/actions/project-actions.ts
+export async function createProject(data: unknown): Promise<ActionResult> { ... }
+export async function updateProject(id: string, data: unknown): Promise<ActionResult> { ... }
+export async function deleteProject(id: string): Promise<ActionResult> { ... }
+
+// lib/actions/person-actions.ts
+export async function createPerson(data: unknown): Promise<ActionResult> { ... }
+export async function updatePerson(id: string, data: unknown): Promise<ActionResult> { ... }
+export async function deletePerson(id: string): Promise<ActionResult> { ... }
+```
+
+Each action: validates with Zod → mutates via Prisma → logs Activity → calls `revalidatePath()`.
+
+### Validation Schemas (`lib/validations/`)
+
+Zod schemas for form validation, used by both server actions (server-side) and react-hook-form (client-side):
+
+```typescript
+// lib/validations/project.ts — projectFormSchema + ProjectFormValues
+// lib/validations/person.ts  — personFormSchema + PersonFormValues + AVATAR_COLORS
 ```
 
 **Why a service layer?**

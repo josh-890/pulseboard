@@ -90,6 +90,30 @@ Person (1) ──< lead >────────── (N) Project
 Person (N) ──< member >──────── (N) Project  [join table: ProjectMember]
 ```
 
+## Soft Delete
+
+All models include a `deletedAt DateTime?` field. The Prisma client extension in `lib/prisma-extensions.ts` auto-filters `deletedAt: null` on all read queries (`findMany`, `findFirst`, `findUnique`, `count`). Write operations (create, update, delete) are **not** affected by the extension.
+
+**Soft delete pattern:** Instead of `prisma.model.delete()`, use `prisma.model.update({ data: { deletedAt: new Date() } })`.
+
+When deleting a **Project**: soft-delete the project and all associated `ProjectMember` records.
+
+When deleting a **Person**: guard against deletion if person is a stakeholder or lead on any project. If safe, soft-delete the person and their `ProjectMember` records.
+
+## Mutations (Server Actions)
+
+All mutations are in `lib/actions/` and follow this pattern:
+1. Validate input with Zod schema
+2. Perform database mutation via Prisma
+3. Log an `Activity` record (type: `task` for creates, `note` for updates/deletes)
+4. Call `revalidatePath()` to refresh affected routes
+
+### Member Sync on Project Update
+
+When updating project members, use `prisma.projectMember.upsert()` with the unique `[projectId, personId]` constraint to handle re-adding previously soft-deleted members (sets `deletedAt: null`). Members no longer in the list are soft-deleted.
+
+## ER Diagram
+
 A person can be:
 - Stakeholder of multiple projects
 - Lead of multiple projects

@@ -1,12 +1,14 @@
 import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Pencil } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/projects/status-badge";
 import { ProjectTeamSection } from "@/components/projects/project-team-section";
+import { DeleteButton } from "@/components/shared";
 import { formatRelativeTime } from "@/lib/utils";
 import { getProjectById } from "@/lib/services/project-service";
 import { getPersonsByProject } from "@/lib/services/person-service";
+import { deleteProject } from "@/lib/actions/project-actions";
 
 type ProjectDetailPageProps = {
   params: Promise<{ id: string }>;
@@ -47,7 +49,21 @@ export default async function ProjectDetailPage({
       <div className="rounded-2xl border border-white/30 bg-card/70 p-6 shadow-lg backdrop-blur-md md:p-8 dark:border-white/10">
         <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
           <h1 className="text-3xl font-bold">{project.name}</h1>
-          <StatusBadge status={project.status} />
+          <div className="flex items-center gap-2">
+            <StatusBadge status={project.status} />
+            <Button variant="outline" size="sm" asChild>
+              <Link href={`/projects/${project.id}/edit`}>
+                <Pencil size={14} className="mr-1" />
+                Edit
+              </Link>
+            </Button>
+            <DeleteButton
+              title="Delete project?"
+              description={`This will permanently remove "${project.name}" and all associated member assignments.`}
+              onDelete={deleteProject.bind(null, project.id)}
+              redirectTo="/projects"
+            />
+          </div>
         </div>
 
         <p className="mb-6 text-muted-foreground">{project.description}</p>

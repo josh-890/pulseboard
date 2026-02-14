@@ -1,4 +1,7 @@
+"use client";
+
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import type { Person, PersonProjectAssignment } from "@/lib/types";
 import { PersonAvatar } from "./person-avatar";
 import { RoleBadge } from "./role-badge";
@@ -9,8 +12,28 @@ type PersonCardProps = {
 };
 
 export function PersonCard({ person, roles }: PersonCardProps) {
+  const router = useRouter();
+  const uniqueRoles = [...new Set(roles.map((r) => r.role))];
+
+  function handleCardClick() {
+    router.push(`/people/${person.id}`);
+  }
+
+  function handleCardKeyDown(e: React.KeyboardEvent) {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      router.push(`/people/${person.id}`);
+    }
+  }
+
   return (
-    <Link href={`/people/${person.id}`} className="group block">
+    <div
+      role="link"
+      tabIndex={0}
+      onClick={handleCardClick}
+      onKeyDown={handleCardKeyDown}
+      className="group block cursor-pointer"
+    >
       <div className="rounded-2xl border border-white/30 bg-card/70 p-4 shadow-lg backdrop-blur-md transition-all duration-150 hover:-translate-y-0.5 hover:shadow-xl md:p-6 dark:border-white/10">
         <div className="mb-3 flex items-center gap-3">
           <PersonAvatar
@@ -28,11 +51,17 @@ export function PersonCard({ person, roles }: PersonCardProps) {
           </div>
         </div>
         <div className="flex flex-wrap gap-1.5">
-          {roles.map((assignment) => (
-            <RoleBadge key={assignment.project.id} role={assignment.role} />
+          {uniqueRoles.map((role) => (
+            <Link
+              key={role}
+              href={`/people/${person.id}?role=${role}`}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <RoleBadge role={role} />
+            </Link>
           ))}
         </div>
       </div>
-    </Link>
+    </div>
   );
 }
