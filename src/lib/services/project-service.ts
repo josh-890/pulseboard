@@ -1,32 +1,53 @@
-import { projects } from "@/lib/data/projects";
+import { prisma } from "@/lib/db";
 import type { Project, ProjectStatus } from "@/lib/types";
 
-export function getProjects(): Project[] {
-  return projects;
+export async function getProjects(): Promise<Project[]> {
+  return prisma.project.findMany({ orderBy: { updatedAt: "desc" } });
 }
 
-export function getProjectById(id: string): Project | undefined {
-  return projects.find((p) => p.id === id);
+export async function getProjectById(id: string): Promise<Project | null> {
+  return prisma.project.findUnique({ where: { id } });
 }
 
-export function getProjectsByStatus(status: ProjectStatus): Project[] {
-  return projects.filter((p) => p.status === status);
+export async function getProjectsByStatus(
+  status: ProjectStatus,
+): Promise<Project[]> {
+  return prisma.project.findMany({ where: { status } });
 }
 
-export function searchProjects(
+export async function searchProjects(
   query: string,
   status?: ProjectStatus | "all",
-): Project[] {
-  const normalizedQuery = query.toLowerCase().trim();
+): Promise<Project[]> {
+  const trimmedQuery = query.trim();
+  const normalizedQuery = trimmedQuery.toLowerCase();
 
-  return projects.filter((p) => {
-    const matchesStatus = !status || status === "all" || p.status === status;
-    const matchesQuery =
-      !normalizedQuery ||
-      p.name.toLowerCase().includes(normalizedQuery) ||
-      p.description.toLowerCase().includes(normalizedQuery) ||
-      p.tags.some((tag) => tag.toLowerCase().includes(normalizedQuery));
+  const statusFilter =
+    status && status !== "all" ? { status } : {};
 
-    return matchesStatus && matchesQuery;
+  if (!normalizedQuery) {
+    return prisma.project.findMany({
+      where: statusFilter,
+      orderBy: { updatedAt: "desc" },
+    });
+  }
+
+  const titleCaseQuery =
+    normalizedQuery.charAt(0).toUpperCase() + normalizedQuery.slice(1);
+
+  return prisma.project.findMany({
+    where: {
+      ...statusFilter,
+      OR: [
+        { name: { contains: normalizedQuery, mode: "insensitive" } },
+        { description: { contains: normalizedQuery, mode: "insensitive" } },
+        {
+          tags: {
+            hasSome: [normalizedQuery, trimmedQuery, titleCaseQuery],
+          },
+        },
+      ],
+    },
+    orderBy: { updatedAt: "desc" },
   });
 }
