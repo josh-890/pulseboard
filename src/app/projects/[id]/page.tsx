@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/projects/status-badge";
 import { ProjectTeamSection } from "@/components/projects/project-team-section";
+import { formatRelativeTime } from "@/lib/utils";
 import { getProjectById } from "@/lib/services/project-service";
 import { getPersonsByProject } from "@/lib/services/person-service";
 
@@ -15,8 +16,8 @@ export default async function ProjectDetailPage({
   params,
 }: ProjectDetailPageProps) {
   const { id } = await params;
-  const project = getProjectById(id);
-  const team = getPersonsByProject(id);
+  const project = await getProjectById(id);
+  const team = await getPersonsByProject(id);
 
   if (!project) {
     return (
@@ -60,7 +61,7 @@ export default async function ProjectDetailPage({
         </div>
 
         <p className="text-sm text-muted-foreground">
-          Last updated: {project.updatedAt}
+          Last updated: {formatRelativeTime(project.updatedAt)}
         </p>
       </div>
 

@@ -89,19 +89,18 @@ type KpiCardProps = {
 ```
 
 #### `KpiGrid`
-Responsive grid that renders multiple `KpiCard` components with computed stats from the project data.
+Async Server Component. Responsive grid that renders multiple `KpiCard` components with computed stats from the database.
 
 ```typescript
-// No props — fetches data internally via services
+// No props — async, fetches data internally via services
 ```
 
 #### `ActivityFeed`
-Renders a list of recent activity items.
+Renders a list of recent activity items. Limiting is done at the service/DB level.
 
 ```typescript
 type ActivityFeedProps = {
   items: ActivityItem[];
-  limit?: number;
 };
 ```
 
@@ -144,23 +143,17 @@ type ProjectListProps = {
 ```
 
 #### `ProjectSearch`
-Search input for filtering projects by name. Controlled component.
+Self-managing Client Component. Reads/writes URL searchParams (`?q=...`). Debounces input by 300ms, uses `router.replace` to update URL.
 
 ```typescript
-type ProjectSearchProps = {
-  value: string;
-  onChange: (value: string) => void;
-};
+// No props — reads from useSearchParams(), writes via useRouter()
 ```
 
 #### `StatusFilter`
-Filter buttons/tabs for filtering projects by status. Supports "All" + each `ProjectStatus` value.
+Self-managing Client Component. Reads/writes URL searchParams (`?status=...`). Uses `router.push` for filter changes.
 
 ```typescript
-type StatusFilterProps = {
-  value: ProjectStatus | "all";
-  onChange: (status: ProjectStatus | "all") => void;
-};
+// No props — reads from useSearchParams(), writes via useRouter()
 ```
 
 #### `EmptyState`
@@ -218,23 +211,17 @@ type PersonListProps = {
 ```
 
 #### `PersonSearch`
-Search input for filtering people by name or email.
+Self-managing Client Component. Reads/writes URL searchParams (`?q=...`). Debounces input by 300ms, uses `router.replace` to update URL.
 
 ```typescript
-type PersonSearchProps = {
-  value: string;
-  onChange: (value: string) => void;
-};
+// No props — reads from useSearchParams(), writes via useRouter()
 ```
 
 #### `RoleFilter`
-Filter buttons for filtering people by role.
+Self-managing Client Component. Reads/writes URL searchParams (`?role=...`). Uses `router.push` for filter changes.
 
 ```typescript
-type RoleFilterProps = {
-  value: ProjectRole | "all";
-  onChange: (role: ProjectRole | "all") => void;
-};
+// No props — reads from useSearchParams(), writes via useRouter()
 ```
 
 #### `EmptyState` (People)

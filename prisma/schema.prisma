@@ -1,0 +1,90 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Person {
+  id          String @id @default(cuid())
+  firstName   String
+  lastName    String
+  email       String @unique
+  avatarColor String
+
+  stakeholderOf Project[]       @relation("ProjectStakeholder")
+  leadOf        Project[]       @relation("ProjectLead")
+  memberships   ProjectMember[]
+
+  createdAt DateTime  @default(now())
+  deletedAt DateTime?
+
+  @@index([lastName, firstName])
+  @@index([deletedAt])
+}
+
+model Project {
+  id          String        @id @default(cuid())
+  name        String
+  description String
+  status      ProjectStatus
+  tags        String[]
+
+  stakeholderId String
+  stakeholder   Person @relation("ProjectStakeholder", fields: [stakeholderId], references: [id])
+  leadId        String
+  lead          Person @relation("ProjectLead", fields: [leadId], references: [id])
+  members       ProjectMember[]
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([status])
+  @@index([updatedAt])
+  @@index([stakeholderId])
+  @@index([leadId])
+  @@index([deletedAt])
+}
+
+model ProjectMember {
+  id        String  @id @default(cuid())
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id])
+  personId  String
+  person    Person  @relation(fields: [personId], references: [id])
+
+  deletedAt DateTime?
+
+  @@unique([projectId, personId])
+  @@index([personId])
+  @@index([deletedAt])
+}
+
+model Activity {
+  id    String       @id @default(cuid())
+  title String
+  time  DateTime
+  type  ActivityType
+
+  createdAt DateTime  @default(now())
+  deletedAt DateTime?
+
+  @@index([time])
+  @@index([type])
+  @@index([deletedAt])
+}
+
+enum ProjectStatus {
+  active
+  paused
+  done
+}
+
+enum ActivityType {
+  deploy
+  note
+  task
+}

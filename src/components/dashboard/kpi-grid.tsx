@@ -8,9 +8,11 @@ import {
 import { getDashboardStats, getPeopleStats } from "@/lib/services/stats-service";
 import { KpiCard } from "./kpi-card";
 
-export function KpiGrid() {
-  const stats = getDashboardStats();
-  const peopleStats = getPeopleStats();
+export async function KpiGrid() {
+  const [stats, peopleStats] = await Promise.all([
+    getDashboardStats(),
+    getPeopleStats(),
+  ]);
 
   return (
     <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">

@@ -1,17 +1,15 @@
-import { projects } from "@/lib/data/projects";
-import { persons } from "@/lib/data/persons";
+import { prisma } from "@/lib/db";
 
-export function getDashboardStats() {
-  return {
-    total: projects.length,
-    active: projects.filter((p) => p.status === "active").length,
-    paused: projects.filter((p) => p.status === "paused").length,
-    done: projects.filter((p) => p.status === "done").length,
-  };
+export async function getDashboardStats() {
+  const [total, active, paused, done] = await Promise.all([
+    prisma.project.count(),
+    prisma.project.count({ where: { status: "active" } }),
+    prisma.project.count({ where: { status: "paused" } }),
+    prisma.project.count({ where: { status: "done" } }),
+  ]);
+  return { total, active, paused, done };
 }
 
-export function getPeopleStats() {
-  return {
-    totalPeople: persons.length,
-  };
+export async function getPeopleStats() {
+  return { totalPeople: await prisma.person.count() };
 }

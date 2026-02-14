@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "./status-badge";
+import { formatRelativeTime } from "@/lib/utils";
 import type { Project } from "@/lib/types";
 
 type ProjectCardProps = {
@@ -28,7 +29,7 @@ export function ProjectCard({ project }: ProjectCardProps) {
           ))}
         </div>
         <p className="mt-3 text-xs text-muted-foreground">
-          Updated {project.updatedAt}
+          Updated {formatRelativeTime(project.updatedAt)}
         </p>
       </div>
     </Link>

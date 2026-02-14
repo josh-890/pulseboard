@@ -1,76 +1,102 @@
-import { persons } from "@/lib/data/persons";
-import { projects } from "@/lib/data/projects";
+import { prisma } from "@/lib/db";
 import type { Person, ProjectRole, PersonProjectAssignment } from "@/lib/types";
 
-export function getPersons(): Person[] {
-  return persons;
+export async function getPersons(): Promise<Person[]> {
+  return prisma.person.findMany({ orderBy: { lastName: "asc" } });
 }
 
-export function getPersonById(id: string): Person | undefined {
-  return persons.find((p) => p.id === id);
+export async function getPersonById(id: string): Promise<Person | null> {
+  return prisma.person.findUnique({ where: { id } });
 }
 
-export function getPersonRoles(personId: string): PersonProjectAssignment[] {
+export async function getPersonRoles(
+  personId: string,
+): Promise<PersonProjectAssignment[]> {
   const assignments: PersonProjectAssignment[] = [];
 
-  for (const project of projects) {
-    if (project.stakeholderId === personId) {
-      assignments.push({ project, role: "stakeholder" });
-    }
-    if (project.leadId === personId) {
-      assignments.push({ project, role: "lead" });
-    }
-    if (project.memberIds.includes(personId)) {
-      assignments.push({ project, role: "member" });
-    }
+  const [stakeholderProjects, leadProjects, memberProjects] = await Promise.all(
+    [
+      prisma.project.findMany({ where: { stakeholderId: personId } }),
+      prisma.project.findMany({ where: { leadId: personId } }),
+      prisma.projectMember.findMany({
+        where: { personId },
+        include: { project: true },
+      }),
+    ],
+  );
+
+  for (const project of stakeholderProjects) {
+    assignments.push({ project, role: "stakeholder" });
+  }
+  for (const project of leadProjects) {
+    assignments.push({ project, role: "lead" });
+  }
+  for (const membership of memberProjects) {
+    assignments.push({ project: membership.project, role: "member" });
   }
 
   return assignments;
 }
 
-export function getPersonsByProject(
+export async function getPersonsByProject(
   projectId: string,
-): { person: Person; role: ProjectRole }[] {
-  const project = projects.find((p) => p.id === projectId);
+): Promise<{ person: Person; role: ProjectRole }[]> {
+  const project = await prisma.project.findUnique({
+    where: { id: projectId },
+    include: {
+      stakeholder: true,
+      lead: true,
+      members: { include: { person: true } },
+    },
+  });
+
   if (!project) return [];
 
   const result: { person: Person; role: ProjectRole }[] = [];
 
-  const stakeholder = persons.find((p) => p.id === project.stakeholderId);
-  if (stakeholder) result.push({ person: stakeholder, role: "stakeholder" });
+  result.push({ person: project.stakeholder, role: "stakeholder" });
+  result.push({ person: project.lead, role: "lead" });
 
-  const lead = persons.find((p) => p.id === project.leadId);
-  if (lead) result.push({ person: lead, role: "lead" });
-
-  for (const memberId of project.memberIds) {
-    const member = persons.find((p) => p.id === memberId);
-    if (member) result.push({ person: member, role: "member" });
+  for (const membership of project.members) {
+    result.push({ person: membership.person, role: "member" });
   }
 
   return result;
 }
 
-export function searchPersons(
+export async function searchPersons(
   query: string,
   role?: ProjectRole | "all",
-): Person[] {
+): Promise<Person[]> {
   const normalizedQuery = query.toLowerCase().trim();
 
-  return persons.filter((person) => {
-    const matchesQuery =
-      !normalizedQuery ||
-      person.firstName.toLowerCase().includes(normalizedQuery) ||
-      person.lastName.toLowerCase().includes(normalizedQuery) ||
-      person.email.toLowerCase().includes(normalizedQuery) ||
-      `${person.firstName} ${person.lastName}`
-        .toLowerCase()
-        .includes(normalizedQuery);
+  const queryFilter = normalizedQuery
+    ? {
+        OR: [
+          {
+            firstName: { contains: normalizedQuery, mode: "insensitive" as const },
+          },
+          {
+            lastName: { contains: normalizedQuery, mode: "insensitive" as const },
+          },
+          { email: { contains: normalizedQuery, mode: "insensitive" as const } },
+        ],
+      }
+    : {};
 
-    if (!matchesQuery) return false;
-
-    if (!role || role === "all") return true;
-
-    const roles = getPersonRoles(person.id);
-    return roles.some((r) => r.role === role);
+  const persons = await prisma.person.findMany({
+    where: queryFilter,
+    orderBy: { lastName: "asc" },
   });
+
+  if (!role || role === "all") return persons;
+
+  const filtered: Person[] = [];
+  for (const person of persons) {
+    const roles = await getPersonRoles(person.id);
+    if (roles.some((r) => r.role === role)) {
+      filtered.push(person);
+    }
+  }
+  return filtered;
 }

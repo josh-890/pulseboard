@@ -1,14 +1,8 @@
+export type { Person } from "@/generated/prisma/client";
+
 export type ProjectRole = "stakeholder" | "lead" | "member";
 
-export type Person = {
-  id: string;
-  firstName: string;
-  lastName: string;
-  email: string;
-  avatarColor: string;
-};
-
 export type PersonProjectAssignment = {
-  project: import("./project").Project;
+  project: import("@/generated/prisma/client").Project;
   role: ProjectRole;
 };

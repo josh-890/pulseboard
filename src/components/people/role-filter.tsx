@@ -1,11 +1,9 @@
+"use client";
+
+import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { ProjectRole } from "@/lib/types";
-
-type RoleFilterProps = {
-  value: ProjectRole | "all";
-  onChange: (role: ProjectRole | "all") => void;
-};
 
 const roles: { value: ProjectRole | "all"; label: string }[] = [
   { value: "all", label: "All" },
@@ -14,17 +12,31 @@ const roles: { value: ProjectRole | "all"; label: string }[] = [
   { value: "member", label: "Member" },
 ];
 
-export function RoleFilter({ value, onChange }: RoleFilterProps) {
+export function RoleFilter() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const current = (searchParams.get("role") as ProjectRole | "all") ?? "all";
+
+  function handleChange(role: ProjectRole | "all") {
+    const params = new URLSearchParams(searchParams.toString());
+    if (role === "all") {
+      params.delete("role");
+    } else {
+      params.set("role", role);
+    }
+    router.push(`/people?${params.toString()}`);
+  }
+
   return (
     <div className="flex flex-wrap gap-2">
       {roles.map((role) => (
         <Button
           key={role.value}
-          variant={value === role.value ? "default" : "outline"}
+          variant={current === role.value ? "default" : "outline"}
           size="sm"
-          onClick={() => onChange(role.value)}
+          onClick={() => handleChange(role.value)}
           className={cn(
-            value !== role.value &&
+            current !== role.value &&
               "bg-card/50 backdrop-blur-sm hover:bg-card/80",
           )}
         >

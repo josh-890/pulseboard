@@ -8,32 +8,33 @@ app/
 │   ├── ThemeProvider       # Dark/light mode context
 │   └── AppShell            # Sidebar (desktop) + Drawer (mobile)
 │
-├── page.tsx                # / — Overview Dashboard
+├── page.tsx                # / — Overview Dashboard (async Server Component)
 │   ├── KPI Cards           # Summary stats (total projects, active, etc.)
 │   ├── Activity Feed       # Recent activity list
 │   └── Quick Actions       # Shortcut buttons
 │
 ├── projects/
-│   ├── page.tsx            # /projects — Project List
-│   │   ├── Search Bar      # Client-side text search
-│   │   ├── Status Filter   # Filter by active/paused/done
+│   ├── page.tsx            # /projects — Project List (async Server Component)
+│   │   ├── Search Bar      # Client Component — URL-driven search
+│   │   ├── Status Filter   # Client Component — URL-driven filter
 │   │   ├── Project Cards   # Grid of project cards
 │   │   └── Empty State     # Shown when no results match
 │   │
 │   └── [id]/
-│       └── page.tsx        # /projects/[id] — Project Detail
+│       └── page.tsx        # /projects/[id] — Project Detail (async Server Component)
 │           ├── Project Header (name, status, tags)
-│           └── Project Info (description, updated date)
+│           ├── Project Info (description, updated date)
+│           └── Project Team Section (assigned people)
 │
 ├── people/
-│   ├── page.tsx            # /people — People List
-│   │   ├── Search Bar      # Client-side text search
-│   │   ├── Role Filter     # Filter by stakeholder/lead/member
+│   ├── page.tsx            # /people — People List (async Server Component)
+│   │   ├── Search Bar      # Client Component — URL-driven search
+│   │   ├── Role Filter     # Client Component — URL-driven filter
 │   │   ├── Person Cards    # Grid of person cards
 │   │   └── Empty State     # Shown when no results match
 │   │
 │   └── [id]/
-│       └── page.tsx        # /people/[id] — Person Detail
+│       └── page.tsx        # /people/[id] — Person Detail (async Server Component)
 │           ├── Person Header (avatar, name, email)
 │           └── Project Assignments (project name, status, role)
 │
@@ -77,7 +78,7 @@ components/
 │
 ├── dashboard/              # Overview page components
 │   ├── kpi-card.tsx        # Single stat card
-│   ├── kpi-grid.tsx        # Grid of KPI cards
+│   ├── kpi-grid.tsx        # Grid of KPI cards (async Server Component)
 │   ├── activity-feed.tsx   # Recent activity list
 │   ├── activity-item.tsx   # Single activity entry
 │   └── quick-actions.tsx   # Action button group
@@ -85,8 +86,8 @@ components/
 ├── projects/               # Project page components
 │   ├── project-card.tsx    # Single project card
 │   ├── project-list.tsx    # Grid of project cards
-│   ├── project-search.tsx  # Search input
-│   ├── status-filter.tsx   # Status filter buttons/tabs
+│   ├── project-search.tsx  # Self-managing URL-driven search (Client Component)
+│   ├── status-filter.tsx   # Self-managing URL-driven filter (Client Component)
 │   ├── project-team-section.tsx  # Team list on project detail
 │   └── empty-state.tsx     # No results placeholder
 │
@@ -95,89 +96,64 @@ components/
     ├── role-badge.tsx      # Colored role badge
     ├── person-card.tsx     # Person summary card
     ├── person-list.tsx     # Grid of person cards
-    ├── person-search.tsx   # Search input
-    ├── role-filter.tsx     # Role filter buttons
+    ├── person-search.tsx   # Self-managing URL-driven search (Client Component)
+    ├── role-filter.tsx     # Self-managing URL-driven filter (Client Component)
     └── empty-state.tsx     # No results placeholder
 ```
 
 ## Data Flow
 
 ```
-lib/data/*.ts          →  lib/services/*.ts       →  Components
-(raw mock data)           (accessor functions)        (consume via props)
+PostgreSQL  →  Prisma Client  →  async services  →  Server Components  →  UI
+                (lib/db.ts)      (lib/services/)     (app/ pages)
 ```
 
-### Mock Data Layer (`lib/data/`)
+### Database Layer
 
-Static TypeScript arrays/objects that represent the database:
-
-```typescript
-// lib/data/projects.ts
-export const projects: Project[] = [
-  { id: "1", name: "Pulseboard", status: "active", ... },
-  { id: "2", name: "Blog Engine", status: "paused", ... },
-];
-
-// lib/data/activities.ts
-export const activities: ActivityItem[] = [
-  { id: "1", title: "Deployed v1.2", type: "deploy", ... },
-];
-
-// lib/data/persons.ts
-export const persons: Person[] = [
-  { id: "p1", firstName: "Sarah", lastName: "Chen", ... },
-];
-```
+PostgreSQL database with schema defined in `prisma/schema.prisma`. Models: `Person`, `Project`, `ProjectMember` (join table), `Activity`. Enums: `ProjectStatus`, `ActivityType`.
 
 ### Service Layer (`lib/services/`)
 
-Typed accessor functions that mirror a real API layer:
+Async accessor functions that query the database via Prisma:
 
 ```typescript
 // lib/services/project-service.ts
-export function getProjects(): Project[] { ... }
-export function getProjectById(id: string): Project | undefined { ... }
-export function getProjectsByStatus(status: ProjectStatus): Project[] { ... }
+export async function getProjects(): Promise<Project[]> { ... }
+export async function getProjectById(id: string): Promise<Project | null> { ... }
+export async function searchProjects(query: string, status?: ProjectStatus | "all"): Promise<Project[]> { ... }
 
 // lib/services/activity-service.ts
-export function getRecentActivities(limit?: number): ActivityItem[] { ... }
+export async function getRecentActivities(limit?: number): Promise<ActivityItem[]> { ... }
 
 // lib/services/person-service.ts
-export function getPersons(): Person[] { ... }
-export function getPersonById(id: string): Person | undefined { ... }
-export function searchPersons(query: string, role?: ProjectRole | "all"): Person[] { ... }
-export function getPersonRoles(personId: string): PersonProjectAssignment[] { ... }
-export function getPersonsByProject(projectId: string): { person: Person; role: ProjectRole }[] { ... }
+export async function getPersons(): Promise<Person[]> { ... }
+export async function getPersonById(id: string): Promise<Person | null> { ... }
+export async function searchPersons(query: string, role?: ProjectRole | "all"): Promise<Person[]> { ... }
+export async function getPersonRoles(personId: string): Promise<PersonProjectAssignment[]> { ... }
+export async function getPersonsByProject(projectId: string): Promise<{ person: Person; role: ProjectRole }[]> { ... }
 ```
 
 **Why a service layer?**
-- Components never import raw data directly
-- Easy to swap mock data for real API calls later
-- Centralizes data access logic (filtering, sorting)
+- Components never import Prisma client directly
+- Centralizes data access logic (filtering, sorting, joins)
 - Keeps components focused on rendering
+- All functions return Promises — consumed with `await` in Server Components
 
 ### Types (`lib/types/`)
 
+Types are re-exported from Prisma-generated types:
+
 ```typescript
 // lib/types/project.ts
-export type ProjectStatus = "active" | "paused" | "done";
-
-export type Project = {
-  id: string;
-  name: string;
-  description: string;
-  status: ProjectStatus;
-  updatedAt: string;
-  tags: string[];
-};
+export type { Project, ProjectStatus } from "@/generated/prisma/client";
 
 // lib/types/activity.ts
-export type ActivityItem = {
-  id: string;
-  title: string;
-  time: string;
-  type: "deploy" | "note" | "task";
-};
+export type { Activity as ActivityItem } from "@/generated/prisma/client";
+
+// lib/types/person.ts — also includes computed types
+export type { Person } from "@/generated/prisma/client";
+export type ProjectRole = "stakeholder" | "lead" | "member";
+export type PersonProjectAssignment = { project: Project; role: ProjectRole };
 ```
 
 ## State Management
@@ -185,10 +161,11 @@ export type ActivityItem = {
 | State | Scope | Mechanism |
 |---|---|---|
 | Theme (dark/light) | Global | React Context (`ThemeProvider`) |
-| Search query | `/projects` page | `useState` in page component |
-| Status filter | `/projects` page | `useState` in page component |
-| Search query (people) | `/people` page | `useState` in page component |
-| Role filter | `/people` page | `useState` in page component |
+| Search query | `/projects` page | URL searchParams (`?q=...`) |
+| Status filter | `/projects` page | URL searchParams (`?status=...`) |
+| Search query (people) | `/people` page | URL searchParams (`?q=...`) |
+| Role filter | `/people` page | URL searchParams (`?role=...`) |
+| Search input value | Client Components | `useState` with 300ms debounce |
 | Sidebar open/closed (mobile) | Layout | `useState` in `AppShell` |
 
 ### Theme Context
@@ -209,14 +186,16 @@ type ThemeContextValue = {
 
 ## Rendering Strategy
 
-All pages are **client-rendered** for this project:
-- No API routes needed (mock data is local)
-- Interactive features (search, filter, theme toggle) require client state
-- Pages that need interactivity use `"use client"` directive
+Pages use **async Server Components** with data fetched via Prisma:
+- Page components are `async` functions that `await` service calls
+- Search/filter state is driven by URL searchParams (enables server-side filtering)
+- Client Components (`"use client"`) are used only for interactive controls (search input, filter buttons)
+- Client Components are wrapped in `<Suspense>` boundaries where needed
 
 ## Key Patterns
 
 1. **Composition over configuration** — Build pages by composing small, focused components
-2. **Props down, events up** — Data flows down via props; user actions bubble up via callbacks
-3. **Service abstraction** — Components call services, not raw data
-4. **Responsive-first** — Mobile layout is the base; desktop adds sidebar via breakpoints
+2. **Server-first data fetching** — Data is fetched in Server Components, passed down as props
+3. **URL-driven state** — Search/filter state lives in URL searchParams for shareability and SSR
+4. **Service abstraction** — Components call async services, never Prisma directly
+5. **Responsive-first** — Mobile layout is the base; desktop adds sidebar via breakpoints

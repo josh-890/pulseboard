@@ -1,5 +1,6 @@
 import { Rocket, StickyNote, CheckSquare } from "lucide-react";
 import type { ActivityItem as ActivityItemType } from "@/lib/types";
+import { formatRelativeTime } from "@/lib/utils";
 
 type ActivityItemProps = {
   item: ActivityItemType;
@@ -17,7 +18,9 @@ export function ActivityItem({ item }: ActivityItemProps) {
       <div className="mt-0.5">{typeIcons[item.type]}</div>
       <div className="flex-1">
         <p className="text-sm">{item.title}</p>
-        <p className="text-xs text-muted-foreground">{item.time}</p>
+        <p className="text-xs text-muted-foreground">
+          {formatRelativeTime(item.time)}
+        </p>
       </div>
     </div>
   );

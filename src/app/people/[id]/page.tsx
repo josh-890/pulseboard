@@ -17,7 +17,7 @@ export default async function PersonDetailPage({
   params,
 }: PersonDetailPageProps) {
   const { id } = await params;
-  const person = getPersonById(id);
+  const person = await getPersonById(id);
 
   if (!person) {
     return (
@@ -35,7 +35,7 @@ export default async function PersonDetailPage({
     );
   }
 
-  const assignments = getPersonRoles(person.id);
+  const assignments = await getPersonRoles(person.id);
 
   return (
     <div className="space-y-6">

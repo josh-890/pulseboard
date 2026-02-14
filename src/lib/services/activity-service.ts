@@ -1,9 +1,11 @@
-import { activities } from "@/lib/data/activities";
+import { prisma } from "@/lib/db";
 import type { ActivityItem } from "@/lib/types";
 
-export function getRecentActivities(limit?: number): ActivityItem[] {
-  if (limit) {
-    return activities.slice(0, limit);
-  }
-  return activities;
+export async function getRecentActivities(
+  limit?: number,
+): Promise<ActivityItem[]> {
+  return prisma.activity.findMany({
+    orderBy: { time: "desc" },
+    ...(limit ? { take: limit } : {}),
+  });
 }

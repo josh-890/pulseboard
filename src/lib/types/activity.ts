@@ -1,6 +1,1 @@
-export type ActivityItem = {
-  id: string;
-  title: string;
-  time: string;
-  type: "deploy" | "note" | "task";
-};
+export type { Activity as ActivityItem } from "@/generated/prisma/client";
