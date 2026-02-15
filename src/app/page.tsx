@@ -3,6 +3,8 @@ import { ActivityFeed } from "@/components/dashboard/activity-feed";
 import { QuickActions } from "@/components/dashboard/quick-actions";
 import { getRecentActivities } from "@/lib/services/activity-service";
 
+export const dynamic = "force-dynamic";
+
 export default async function Home() {
   const activities = await getRecentActivities(6);
 

@@ -4,6 +4,8 @@ import { Button } from "@/components/ui/button";
 import { ProjectForm } from "@/components/projects";
 import { getPersons } from "@/lib/services/person-service";
 
+export const dynamic = "force-dynamic";
+
 export default async function NewProjectPage() {
   const persons = await getPersons();
 
