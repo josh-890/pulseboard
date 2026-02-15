@@ -39,4 +39,4 @@ COPY --from=builder --chown=nextjs:nodejs /app/src/generated ./src/generated
 USER nextjs
 EXPOSE 3000
 
-CMD ["sh", "-c", "npx prisma migrate deploy && node server.js"]
+CMD ["sh", "-c", "node node_modules/prisma/build/index.js migrate deploy && node server.js"]
