@@ -92,10 +92,10 @@ docker compose down
 
 ### Run database migrations
 
-Migrations run automatically on container start (`prisma migrate deploy`). To run manually:
+Migrations are **not** run automatically on container start (the prisma CLI has too many dependencies for the minimal image). Run them from your dev machine before deploying:
 
 ```bash
-docker compose exec pulseboard npx prisma migrate deploy
+npx prisma migrate deploy
 ```
 
 ### Change the port
