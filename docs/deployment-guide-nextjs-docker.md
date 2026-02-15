@@ -10,7 +10,7 @@ A reusable guide for deploying Next.js App Router applications with Prisma ORM a
 4. [Docker Compose](#docker-compose)
 5. [Supporting Files](#supporting-files)
 6. [Build and Deploy](#build-and-deploy)
-7. [Updating the App](#updating-the-app)
+7. [Development and Maintenance Workflow](#development-and-maintenance-workflow)
 8. [Database Migrations](#database-migrations)
 9. [Gotchas and Lessons Learned](#gotchas-and-lessons-learned)
 10. [Troubleshooting](#troubleshooting)
@@ -205,17 +205,204 @@ docker compose logs -f app     # Watch for errors
 curl http://localhost:3000      # Should return HTML
 ```
 
-## Updating the App
+## Development and Maintenance Workflow
 
-After pushing code changes to git:
+### Overview
+
+Development happens entirely on your local machine. Docker is only used for production on the server. The two environments are connected through git.
+
+```
+Local (dev machine)                    Server (Unraid/Docker)
+───────────────────                    ──────────────────────
+npm run dev                            docker compose up -d
+  ↓ hot reload                           ↓ serves production build
+edit code → see changes instantly      static build, no hot reload
+  ↓                                      ↑
+git push  ──────────────────────────→  git pull && docker compose up -d --build
+```
+
+### Day-to-Day: Code Changes (no schema changes)
+
+This is the most common workflow — editing components, fixing bugs, adding features.
+
+**On your dev machine:**
 
 ```bash
+# 1. Start the dev server
+npm run dev
+
+# 2. Make your changes
+#    - Edit components, pages, styles, services
+#    - Browser auto-refreshes at http://localhost:3000
+
+# 3. When satisfied, commit and push
+git add src/components/dashboard/kpi-card.tsx
+git commit -m "fix: correct KPI card alignment on mobile"
+git push
+```
+
+**On the server:**
+
+```bash
+# 4. Pull and rebuild
+cd /path/to/myapp
+git pull
+docker compose up -d --build
+
+# 5. Verify (optional)
+docker compose logs -f app
+```
+
+That's it. No database steps, no migration steps. The rebuild takes 1-2 minutes thanks to Docker layer caching (only the build stage re-runs if just source code changed).
+
+### Schema Changes (database migrations)
+
+When you modify `prisma/schema.prisma` — adding tables, fields, or changing relations.
+
+**On your dev machine:**
+
+```bash
+# 1. Edit the schema
+#    prisma/schema.prisma
+
+# 2. Create the migration (updates your local dev DB too)
+npx prisma migrate dev --name add-status-field
+
+# 3. Test locally
+npm run dev
+# Verify the new field/table works as expected
+
+# 4. Apply migration to the production database
+#    Point to the production DB and deploy
+DATABASE_URL="postgresql://user:pass@db-host:5432/dbname" npx prisma migrate deploy
+
+# 5. Commit everything (schema + migration files)
+git add prisma/
+git commit -m "feat: add status field to projects"
+git push
+```
+
+**On the server:**
+
+```bash
+# 6. Pull and rebuild (migration already applied in step 4)
 cd /path/to/myapp
 git pull
 docker compose up -d --build
 ```
 
-Docker layer caching makes rebuilds fast — only changed layers are rebuilt.
+**Important:** Always apply migrations (step 4) **before** rebuilding the container (step 6). The new code expects the new schema to exist.
+
+### Adding Dependencies
+
+When you `npm install` a new package.
+
+**On your dev machine:**
+
+```bash
+# 1. Install the package
+npm install some-package
+
+# 2. Test locally
+npm run dev
+
+# 3. Commit and push (both package.json and package-lock.json)
+git add package.json package-lock.json
+git commit -m "feat: add some-package for XYZ"
+git push
+```
+
+**On the server:**
+
+```bash
+# 4. Pull and rebuild — Docker will re-run npm ci because package.json changed
+cd /path/to/myapp
+git pull
+docker compose up -d --build
+```
+
+This rebuild is slower than a code-only change because the `deps` stage cache is invalidated and all dependencies are reinstalled.
+
+### Adding New Pages with Database Queries
+
+When you create a new Server Component page that fetches data.
+
+```bash
+# 1. Create the page
+#    src/app/reports/page.tsx
+
+# 2. If the page fetches data at render time, mark it dynamic
+#    Add to the top of the file:
+#    export const dynamic = "force-dynamic";
+
+# 3. Test locally
+npm run dev
+
+# 4. Verify the build still works
+npm run build
+#    Check the route table — your new page should show ƒ (dynamic), not ○ (static)
+
+# 5. Commit and push, then rebuild on server
+```
+
+**Rule of thumb:** If a page has `await someService()` in the component body, it needs `force-dynamic`.
+
+### Routine Maintenance
+
+#### Checking container health
+
+```bash
+# Is it running?
+docker compose ps
+
+# Recent logs
+docker compose logs --tail 50 app
+
+# Resource usage
+docker stats
+```
+
+#### Restarting without rebuilding
+
+If the container is misbehaving but code hasn't changed:
+
+```bash
+docker compose restart
+```
+
+#### Full clean rebuild
+
+If something seems cached incorrectly or you want a fresh start:
+
+```bash
+docker compose down
+docker compose build --no-cache
+docker compose up -d
+```
+
+#### Checking disk space
+
+Docker images accumulate over time. Clean up old ones:
+
+```bash
+# Remove unused images (safe — won't remove running containers' images)
+docker image prune -f
+
+# Nuclear option — remove all unused images, containers, networks
+docker system prune -f
+```
+
+### Quick Reference
+
+| Task | Dev machine | Server |
+|------|------------|--------|
+| Code change | Edit, test with `npm run dev`, push | `git pull && docker compose up -d --build` |
+| Schema change | `npx prisma migrate dev`, apply to prod DB, push | `git pull && docker compose up -d --build` |
+| New dependency | `npm install`, push | `git pull && docker compose up -d --build` |
+| Rollback | `git revert`, push | `git pull && docker compose up -d --build` |
+| View logs | — | `docker compose logs -f app` |
+| Restart | — | `docker compose restart` |
+| Full rebuild | — | `docker compose build --no-cache && docker compose up -d` |
 
 ## Database Migrations
 
