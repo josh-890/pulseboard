@@ -1,0 +1,13 @@
+node_modules
+.next
+.git
+.gitignore
+.env
+.env.*
+*.md
+docs
+.eslintrc*
+.prettierrc*
+.vscode
+.claude
+screenshots
