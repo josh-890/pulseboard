@@ -1,8 +1,11 @@
 export { PersonAvatar } from "./person-avatar";
 export { RoleBadge } from "./role-badge";
 export { PersonCard } from "./person-card";
+export { PersonCardSkeleton } from "./person-card-skeleton";
 export { PersonList } from "./person-list";
+export { PersonListSkeleton } from "./person-list-skeleton";
 export { PersonSearch } from "./person-search";
 export { RoleFilter } from "./role-filter";
 export { EmptyState } from "./empty-state";
+export { PersonResults } from "./person-results";
 export { PersonForm } from "./person-form";

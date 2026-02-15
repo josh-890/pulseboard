@@ -4,8 +4,8 @@ import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ProjectSearch } from "@/components/projects/project-search";
 import { StatusFilter } from "@/components/projects/status-filter";
-import { ProjectList } from "@/components/projects/project-list";
-import { searchProjects } from "@/lib/services/project-service";
+import { ProjectResults } from "@/components/projects/project-results";
+import { ProjectListSkeleton } from "@/components/projects/project-list-skeleton";
 import type { ProjectStatus } from "@/lib/types";
 
 type ProjectsPageProps = {
@@ -16,10 +16,8 @@ export default async function ProjectsPage({
   searchParams,
 }: ProjectsPageProps) {
   const { q, status } = await searchParams;
-  const projects = await searchProjects(
-    q ?? "",
-    (status as ProjectStatus | "all") ?? "all",
-  );
+  const query = q ?? "";
+  const statusFilter = (status as ProjectStatus | "all") ?? "all";
 
   return (
     <div className="space-y-6">
@@ -40,7 +38,12 @@ export default async function ProjectsPage({
           <StatusFilter />
         </div>
       </Suspense>
-      <ProjectList projects={projects} />
+      <Suspense
+        key={query + statusFilter}
+        fallback={<ProjectListSkeleton />}
+      >
+        <ProjectResults q={query} status={statusFilter} />
+      </Suspense>
     </div>
   );
 }

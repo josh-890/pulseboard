@@ -4,12 +4,9 @@ import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PersonSearch } from "@/components/people/person-search";
 import { RoleFilter } from "@/components/people/role-filter";
-import { PersonList } from "@/components/people/person-list";
-import {
-  searchPersons,
-  getPersonRoles,
-} from "@/lib/services/person-service";
-import type { ProjectRole, PersonProjectAssignment } from "@/lib/types";
+import { PersonResults } from "@/components/people/person-results";
+import { PersonListSkeleton } from "@/components/people/person-list-skeleton";
+import type { ProjectRole } from "@/lib/types";
 
 type PeoplePageProps = {
   searchParams: Promise<{ q?: string; role?: string }>;
@@ -17,20 +14,8 @@ type PeoplePageProps = {
 
 export default async function PeoplePage({ searchParams }: PeoplePageProps) {
   const { q, role } = await searchParams;
-  const persons = await searchPersons(
-    q ?? "",
-    (role as ProjectRole | "all") ?? "all",
-  );
-
-  const personRolesEntries = await Promise.all(
-    persons.map(async (person) => {
-      const roles = await getPersonRoles(person.id);
-      return [person.id, roles] as [string, PersonProjectAssignment[]];
-    }),
-  );
-  const personRoles = new Map<string, PersonProjectAssignment[]>(
-    personRolesEntries,
-  );
+  const query = q ?? "";
+  const roleFilter = (role as ProjectRole | "all") ?? "all";
 
   return (
     <div className="space-y-6">
@@ -51,7 +36,9 @@ export default async function PeoplePage({ searchParams }: PeoplePageProps) {
           <RoleFilter />
         </div>
       </Suspense>
-      <PersonList persons={persons} personRoles={personRoles} />
+      <Suspense key={query + roleFilter} fallback={<PersonListSkeleton />}>
+        <PersonResults q={query} role={roleFilter} />
+      </Suspense>
     </div>
   );
 }
