@@ -1,5 +1,7 @@
 # Pulseboard — Deployment Guide
 
+> For a general-purpose guide covering this tech stack (Next.js + Prisma + Docker), see [deployment-guide-nextjs-docker.md](./deployment-guide-nextjs-docker.md).
+
 ## Architecture
 
 ```
