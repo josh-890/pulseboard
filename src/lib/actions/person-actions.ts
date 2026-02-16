@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
+import { createPersona } from "@/lib/services/persona-service";
 import { personFormSchema } from "@/lib/validations/person";
 
 type ActionResult = { success: true } | { success: false; error: string };
@@ -15,8 +16,15 @@ export async function createPerson(data: unknown): Promise<ActionResult> {
   const { firstName, lastName, email, avatarColor } = parsed.data;
 
   try {
-    await prisma.person.create({
+    const person = await prisma.person.create({
       data: { firstName, lastName, email, avatarColor },
+    });
+
+    // Auto-create baseline persona (seq 0) so profile is never empty
+    await createPersona({
+      personId: person.id,
+      effectiveDate: new Date(),
+      note: "Initial profile",
     });
 
     await prisma.activity.create({

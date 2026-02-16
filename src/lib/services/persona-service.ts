@@ -36,30 +36,61 @@ type TxClient = {
   personaTrait: {
     updateMany: typeof prisma.personaTrait.updateMany;
   };
+  $queryRaw: typeof prisma.$queryRaw;
 };
 
-async function renumberPersonas(personId: string, tx: TxClient): Promise<void> {
-  const personas = await tx.persona.findMany({
-    where: { personId, deletedAt: null },
-    orderBy: [{ effectiveDate: "asc" }, { createdAt: "asc" }],
-    select: { id: true },
-  });
+async function renumberPersonas(
+  personId: string,
+  tx: TxClient,
+  deletedInTx: Set<string> = new Set(),
+): Promise<void> {
+  // Fetch ALL personas including soft-deleted via raw SQL on the tx client
+  // (bypasses soft-delete extension AND sees uncommitted tx changes)
+  // to avoid unique constraint conflicts on @@unique([personId, sequenceNum])
+  const allPersonas = await tx.$queryRaw<
+    Array<{ id: string; deletedAt: Date | null }>
+  >(
+    Prisma.sql`
+      SELECT id, "deletedAt"
+      FROM "Persona"
+      WHERE "personId" = ${personId}
+      ORDER BY "effectiveDate" ASC, "createdAt" ASC
+    `,
+  );
 
-  if (personas.length === 0) return;
+  if (allPersonas.length === 0) return;
 
-  // Phase 1: Set all to temporary high numbers to avoid unique constraint violations
-  for (let i = 0; i < personas.length; i++) {
+  // Phase 1: Move ALL personas (including deleted) to temp high numbers
+  for (let i = 0; i < allPersonas.length; i++) {
     await tx.persona.update({
-      where: { id: personas[i].id },
+      where: { id: allPersonas[i].id },
       data: { sequenceNum: 100000 + i },
     });
   }
 
-  // Phase 2: Set final sequential numbers
-  for (let i = 0; i < personas.length; i++) {
+  // Phase 2: Set active personas to final sequential numbers,
+  // deleted ones get numbers above the active count.
+  // Include deletedInTx set for personas soft-deleted in the current
+  // transaction (not yet visible to the raw query above).
+  const active = allPersonas.filter(
+    (p) => p.deletedAt === null && !deletedInTx.has(p.id),
+  );
+  const deleted = allPersonas.filter(
+    (p) => p.deletedAt !== null || deletedInTx.has(p.id),
+  );
+
+  for (let i = 0; i < active.length; i++) {
     await tx.persona.update({
-      where: { id: personas[i].id },
+      where: { id: active[i].id },
       data: { sequenceNum: i },
+    });
+  }
+
+  // Push deleted personas to high sequence numbers so they don't conflict
+  for (let i = 0; i < deleted.length; i++) {
+    await tx.persona.update({
+      where: { id: deleted[i].id },
+      data: { sequenceNum: 900000 + i },
     });
   }
 }
@@ -396,8 +427,12 @@ export async function deletePersona(personaId: string): Promise<{ personId: stri
       data: { deletedAt: new Date() },
     });
 
-    // Renumber remaining personas
-    await renumberPersonas(existing.personId, tx as unknown as TxClient);
+    // Renumber remaining personas — pass deleted ID so raw query can exclude it
+    await renumberPersonas(
+      existing.personId,
+      tx as unknown as TxClient,
+      new Set([personaId]),
+    );
   });
 
   await rebuildSnapshot(existing.personId);
