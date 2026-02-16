@@ -139,11 +139,51 @@ Make sure PostgreSQL is configured to accept connections from Docker's network:
    ```
 3. Restart PostgreSQL
 
+## Database Environments
+
+Two separate PostgreSQL databases on the same Proxmox server (`10.66.20.182`):
+
+| | Development | Production |
+|---|---|---|
+| Database | `pulseboard_dev` | `pulseboard` |
+| Env file | `.env` (default) | `.env.production` |
+| Safety | Reset/migrate freely | Backup before migrating |
+
+**Principle:** Dev by default, prod by explicit opt-in. All Prisma CLI commands (`migrate dev`, `db seed`, `studio`) use `.env` and target the dev database automatically.
+
+### Developing a schema change
+
+```bash
+# 1. Edit prisma/schema.prisma
+# 2. Create and apply migration to dev DB
+npm run db:migrate
+
+# 3. Test the feature
+npm run dev
+
+# 4. If you mess up — drops, re-migrates, re-seeds dev DB
+npm run db:reset
+```
+
+### Deploying migrations to production
+
+```bash
+# 1. Back up prod database
+bash scripts/db-backup.sh
+
+# 2. Apply migrations to prod (with confirmation prompt)
+bash scripts/deploy-migrations.sh
+
+# 3. On Unraid: rebuild the container
+git pull && docker compose up -d --build
+```
+
 ## Development vs Production
 
 | | Development | Production (Docker) |
 |---|---|---|
 | Command | `npm run dev` | `docker compose up -d` |
+| Database | `pulseboard_dev` | `pulseboard` |
 | Port | 3000 | 3000 (configurable) |
 | Hot reload | Yes | No (rebuild required) |
 | CSS | JIT compiled | Pre-built static files |

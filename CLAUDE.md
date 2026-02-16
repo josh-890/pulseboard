@@ -81,6 +81,9 @@ src/
 
 ### Data Layer
 - PostgreSQL database accessed via Prisma ORM
+- **Two databases:** `.env` → `pulseboard_dev` (default), `.env.production` → `pulseboard` (prod)
+- All Prisma CLI commands use `.env` (dev) by default — safe for experimentation
+- Use `scripts/deploy-migrations.sh` to apply migrations to production (prompts for confirmation)
 - All service functions in `lib/services/` are **async** (return Promises)
 - Access data through service functions — never import Prisma client directly in components
 - Date fields (`updatedAt`, `time`) are `Date` objects — use `formatRelativeTime()` for display
@@ -96,6 +99,7 @@ src/
 - `docs/style-guide.md` — Design tokens, color palette, glassmorphism system
 - `docs/components.md` — Full component inventory with props
 - `docs/data-model.md` — Database schema and relationships
+- `docs/ux-ui-skill.md` — **UX/UI design skill** — apply to all UI work (layout, interactions, image handling, accessibility)
 
 ## Browser Verification (Playwright MCP)
 
@@ -116,11 +120,19 @@ After making UI changes, verify effects in the browser using Playwright MCP tool
 | `/people` | People list renders, search works, role filter works |
 | `/people/[id]` | Detail page loads, project assignments show |
 
+## UX/UI Design Standards
+- **Always follow `docs/ux-ui-skill.md`** when creating or modifying any UI component
+- Every element must have all interaction states (hover, active, focus, disabled, loading, empty, error)
+- Images: carousel with thumbnails, favorite selection, lightbox — see skill doc section 8
+- Accessibility: WCAG AA contrast, keyboard navigation, semantic HTML, aria-labels
+- Motion: purposeful transitions (150-250ms), respect prefers-reduced-motion
+
 ## Acceptance Criteria
 - Zero TypeScript errors
 - Responsive layout (mobile + desktop)
 - Search and status filter work together on /projects
 - No `any` types anywhere in the codebase
+- UI follows UX/UI skill guidelines (`docs/ux-ui-skill.md`)
 
 ## Context searches
 - Always use Context7 MCP when I need library/API documentation, code generation, setup or configuration steps without me having to explicitly ask.

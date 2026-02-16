@@ -10,6 +10,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "db:migrate": "npx prisma migrate dev",
+    "db:reset": "npx prisma migrate reset",
     "db:push": "npx prisma db push",
     "db:seed": "npx prisma db seed",
     "db:studio": "npx prisma studio"
