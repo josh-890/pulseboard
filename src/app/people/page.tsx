@@ -4,18 +4,22 @@ import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PersonSearch } from "@/components/people/person-search";
 import { RoleFilter } from "@/components/people/role-filter";
+import { TraitCategoryFilter } from "@/components/people/trait-category-filter";
 import { PersonResults } from "@/components/people/person-results";
 import { PersonListSkeleton } from "@/components/people/person-list-skeleton";
+import { getTraitCategories } from "@/lib/services/trait-category-service";
 import type { ProjectRole } from "@/lib/types";
 
 type PeoplePageProps = {
-  searchParams: Promise<{ q?: string; role?: string }>;
+  searchParams: Promise<{ q?: string; role?: string; traitCategory?: string }>;
 };
 
 export default async function PeoplePage({ searchParams }: PeoplePageProps) {
-  const { q, role } = await searchParams;
+  const { q, role, traitCategory } = await searchParams;
   const query = q ?? "";
   const roleFilter = (role as ProjectRole | "all") ?? "all";
+  const traitCategoryFilter = traitCategory ?? "";
+  const categories = await getTraitCategories();
 
   return (
     <div className="space-y-6">
@@ -35,9 +39,17 @@ export default async function PeoplePage({ searchParams }: PeoplePageProps) {
           </div>
           <RoleFilter />
         </div>
+        <TraitCategoryFilter categories={categories} />
       </Suspense>
-      <Suspense key={query + roleFilter} fallback={<PersonListSkeleton />}>
-        <PersonResults q={query} role={roleFilter} />
+      <Suspense
+        key={query + roleFilter + traitCategoryFilter}
+        fallback={<PersonListSkeleton />}
+      >
+        <PersonResults
+          q={query}
+          role={roleFilter}
+          traitCategory={traitCategoryFilter}
+        />
       </Suspense>
     </div>
   );

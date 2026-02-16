@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { Prisma } from "@/generated/prisma/client";
 import type { Person, ProjectRole, PersonProjectAssignment } from "@/lib/types";
 
 export async function getPersons(): Promise<Person[]> {
@@ -64,28 +65,96 @@ export async function getPersonsByProject(
   return result;
 }
 
+async function findPersonIdsBySnapshotFields(
+  query: string,
+): Promise<string[]> {
+  const pattern = `%${query.toLowerCase()}%`;
+  const rows = await prisma.$queryRaw<Array<{ personId: string }>>(
+    Prisma.sql`
+      SELECT DISTINCT ps."personId"
+      FROM "PersonSnapshot" ps
+      WHERE ps."deletedAt" IS NULL
+        AND (
+          LOWER(ps."jobTitle") LIKE ${pattern}
+          OR LOWER(ps."department") LIKE ${pattern}
+          OR LOWER(ps."address") LIKE ${pattern}
+        )
+    `,
+  );
+  return rows.map((r) => r.personId);
+}
+
+async function findPersonIdsByTraitName(query: string): Promise<string[]> {
+  const pattern = `%${query.toLowerCase()}%`;
+  const rows = await prisma.$queryRaw<Array<{ personId: string }>>(
+    Prisma.sql`
+      SELECT DISTINCT ps."personId"
+      FROM "PersonSnapshot" ps,
+           jsonb_array_elements(ps."activeTraits") AS t
+      WHERE ps."deletedAt" IS NULL
+        AND LOWER(t->>'name') LIKE ${pattern}
+    `,
+  );
+  return rows.map((r) => r.personId);
+}
+
+async function findPersonIdsByTraitCategory(
+  categoryId: string,
+): Promise<string[]> {
+  const rows = await prisma.$queryRaw<Array<{ personId: string }>>(
+    Prisma.sql`
+      SELECT DISTINCT ps."personId"
+      FROM "PersonSnapshot" ps,
+           jsonb_array_elements(ps."activeTraits") AS t
+      WHERE ps."deletedAt" IS NULL
+        AND t->>'traitCategoryId' = ${categoryId}
+    `,
+  );
+  return rows.map((r) => r.personId);
+}
+
 export async function searchPersons(
   query: string,
   role?: ProjectRole | "all",
+  traitCategory?: string,
 ): Promise<Person[]> {
   const normalizedQuery = query.toLowerCase().trim();
 
-  const queryFilter = normalizedQuery
-    ? {
-        OR: [
-          {
-            firstName: { contains: normalizedQuery, mode: "insensitive" as const },
-          },
-          {
-            lastName: { contains: normalizedQuery, mode: "insensitive" as const },
-          },
-          { email: { contains: normalizedQuery, mode: "insensitive" as const } },
-        ],
-      }
-    : {};
+  // Build the where clause
+  const conditions: Prisma.PersonWhereInput[] = [];
+
+  if (normalizedQuery) {
+    // Get snapshot-matching person IDs via raw SQL
+    const [snapshotFieldIds, traitMatchIds] = await Promise.all([
+      findPersonIdsBySnapshotFields(normalizedQuery),
+      findPersonIdsByTraitName(normalizedQuery),
+    ]);
+
+    const snapshotMatchIds = [
+      ...new Set([...snapshotFieldIds, ...traitMatchIds]),
+    ];
+
+    const orConditions: Prisma.PersonWhereInput[] = [
+      { firstName: { contains: normalizedQuery, mode: "insensitive" } },
+      { lastName: { contains: normalizedQuery, mode: "insensitive" } },
+      { email: { contains: normalizedQuery, mode: "insensitive" } },
+    ];
+
+    if (snapshotMatchIds.length > 0) {
+      orConditions.push({ id: { in: snapshotMatchIds } });
+    }
+
+    conditions.push({ OR: orConditions });
+  }
+
+  if (traitCategory) {
+    const categoryMatchIds =
+      await findPersonIdsByTraitCategory(traitCategory);
+    conditions.push({ id: { in: categoryMatchIds } });
+  }
 
   const persons = await prisma.person.findMany({
-    where: queryFilter,
+    where: conditions.length > 0 ? { AND: conditions } : {},
     orderBy: { lastName: "asc" },
   });
 

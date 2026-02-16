@@ -6,8 +6,13 @@ export type {
   PersonaTrait,
   TraitCategory,
   TraitAction,
+  PersonSnapshot,
+  SnapshotTrait,
+  SnapshotRemovedTrait,
   ComputedTrait,
+  RemovedTrait,
   CurrentPersonState,
   PersonaTimelineEntry,
   CreatePersonaInput,
+  UpdatePersonaInput,
 } from "./persona";

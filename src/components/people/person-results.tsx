@@ -8,10 +8,11 @@ import type { ProjectRole, PersonProjectAssignment } from "@/lib/types";
 type PersonResultsProps = {
   q: string;
   role: ProjectRole | "all";
+  traitCategory?: string;
 };
 
-export async function PersonResults({ q, role }: PersonResultsProps) {
-  const persons = await searchPersons(q, role);
+export async function PersonResults({ q, role, traitCategory }: PersonResultsProps) {
+  const persons = await searchPersons(q, role, traitCategory || undefined);
 
   const personRolesEntries = await Promise.all(
     persons.map(async (person) => {

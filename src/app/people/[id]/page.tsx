@@ -3,12 +3,19 @@ import { ArrowLeft, Pencil, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PersonAvatar } from "@/components/people/person-avatar";
 import { RoleBadge } from "@/components/people/role-badge";
+import { PersonaCurrentState } from "@/components/people/persona-current-state";
+import { PersonaTimeline } from "@/components/people/persona-timeline";
 import { StatusBadge } from "@/components/projects/status-badge";
 import { DeleteButton } from "@/components/shared";
 import {
   getPersonById,
   getPersonRoles,
 } from "@/lib/services/person-service";
+import {
+  getCurrentPersonState,
+  getPersonaTimeline,
+} from "@/lib/services/persona-service";
+import { getTraitCategories } from "@/lib/services/trait-category-service";
 import { deletePerson } from "@/lib/actions/person-actions";
 import type { ProjectRole } from "@/lib/types";
 
@@ -25,7 +32,14 @@ export default async function PersonDetailPage({
 }: PersonDetailPageProps) {
   const { id } = await params;
   const { role: roleParam } = await searchParams;
-  const person = await getPersonById(id);
+  const [person, allAssignments, personaState, timeline, categories] =
+    await Promise.all([
+      getPersonById(id),
+      getPersonRoles(id),
+      getCurrentPersonState(id),
+      getPersonaTimeline(id),
+      getTraitCategories(),
+    ]);
 
   if (!person) {
     return (
@@ -42,8 +56,6 @@ export default async function PersonDetailPage({
       </div>
     );
   }
-
-  const allAssignments = await getPersonRoles(person.id);
   const activeRole =
     roleParam && validRoles.includes(roleParam as ProjectRole)
       ? (roleParam as ProjectRole)
@@ -132,6 +144,14 @@ export default async function PersonDetailPage({
           </div>
         </div>
       )}
+
+      {personaState && <PersonaCurrentState state={personaState} />}
+
+      <PersonaTimeline
+        entries={timeline}
+        personId={id}
+        categories={categories}
+      />
     </div>
   );
 }

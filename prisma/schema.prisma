@@ -20,6 +20,7 @@ model Person {
   leadOf        Project[]       @relation("ProjectLead")
   memberships   ProjectMember[]
   personas      Persona[]
+  snapshot      PersonSnapshot?
 
   createdAt DateTime  @default(now())
   deletedAt DateTime?
@@ -151,5 +152,29 @@ model PersonaTrait {
 
   @@index([personaId])
   @@index([traitCategoryId, name])
+  @@index([deletedAt])
+}
+
+model PersonSnapshot {
+  id        String @id @default(cuid())
+  personId  String @unique
+  person    Person @relation(fields: [personId], references: [id])
+
+  jobTitle   String?
+  department String?
+  phone      String?
+  address    String?
+
+  activeTraits  Json // SnapshotTrait[]
+  removedTraits Json // SnapshotRemovedTrait[]
+
+  personaCount      Int
+  latestPersonaDate DateTime?
+
+  updatedAt DateTime @updatedAt
+  deletedAt DateTime?
+
+  @@index([jobTitle])
+  @@index([department])
   @@index([deletedAt])
 }

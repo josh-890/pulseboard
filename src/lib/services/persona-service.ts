@@ -3,9 +3,13 @@ import { Prisma } from "@/generated/prisma/client";
 import type {
   Persona,
   ComputedTrait,
+  RemovedTrait,
   CurrentPersonState,
   PersonaTimelineEntry,
   CreatePersonaInput,
+  UpdatePersonaInput,
+  SnapshotTrait,
+  SnapshotRemovedTrait,
 } from "@/lib/types";
 
 type PersonaWithTraits = Persona & {
@@ -22,6 +26,90 @@ type PersonaWithTraits = Persona & {
 };
 
 const SCALAR_FIELDS = ["jobTitle", "department", "phone", "address"] as const;
+
+// Transaction client type — compatible with both prisma and tx inside $transaction
+type TxClient = {
+  persona: {
+    findMany: typeof prisma.persona.findMany;
+    update: typeof prisma.persona.update;
+  };
+  personaTrait: {
+    updateMany: typeof prisma.personaTrait.updateMany;
+  };
+};
+
+async function renumberPersonas(personId: string, tx: TxClient): Promise<void> {
+  const personas = await tx.persona.findMany({
+    where: { personId, deletedAt: null },
+    orderBy: [{ effectiveDate: "asc" }, { createdAt: "asc" }],
+    select: { id: true },
+  });
+
+  if (personas.length === 0) return;
+
+  // Phase 1: Set all to temporary high numbers to avoid unique constraint violations
+  for (let i = 0; i < personas.length; i++) {
+    await tx.persona.update({
+      where: { id: personas[i].id },
+      data: { sequenceNum: 100000 + i },
+    });
+  }
+
+  // Phase 2: Set final sequential numbers
+  for (let i = 0; i < personas.length; i++) {
+    await tx.persona.update({
+      where: { id: personas[i].id },
+      data: { sequenceNum: i },
+    });
+  }
+}
+
+export async function rebuildSnapshot(personId: string): Promise<void> {
+  const state = await getCurrentPersonState(personId);
+
+  if (!state || state.personaCount === 0) {
+    // Delete snapshot if it exists
+    await prisma.personSnapshot
+      .delete({ where: { personId } })
+      .catch(() => {
+        // Ignore if not found
+      });
+    return;
+  }
+
+  const activeTraits: SnapshotTrait[] = state.traits.map((t) => ({
+    traitCategoryId: t.traitCategoryId,
+    categoryName: t.categoryName,
+    name: t.name,
+    metadata: t.metadata,
+  }));
+
+  const removedTraits: SnapshotRemovedTrait[] = state.removedTraits.map((t) => ({
+    traitCategoryId: t.traitCategoryId,
+    categoryName: t.categoryName,
+    name: t.name,
+    metadata: t.metadata,
+    addedDate: t.addedDate.toISOString(),
+    removedDate: t.removedDate.toISOString(),
+  }));
+
+  const snapshotData = {
+    jobTitle: state.jobTitle,
+    department: state.department,
+    phone: state.phone,
+    address: state.address,
+    activeTraits: activeTraits as unknown as Prisma.InputJsonValue,
+    removedTraits: removedTraits as unknown as Prisma.InputJsonValue,
+    personaCount: state.personaCount,
+    latestPersonaDate: state.latestPersonaDate,
+  };
+
+  await prisma.personSnapshot.upsert({
+    where: { personId },
+    create: { personId, ...snapshotData },
+    update: snapshotData,
+  });
+}
 
 export async function getPersonaChain(
   personId: string,
@@ -54,6 +142,7 @@ export async function getCurrentPersonState(
 
   // Collapse traits: Map<"categoryId:name", ComputedTrait>
   const traitMap = new Map<string, ComputedTrait>();
+  const removedTraits: RemovedTrait[] = [];
 
   for (const persona of chain) {
     if (persona.jobTitle !== null) jobTitle = persona.jobTitle;
@@ -71,9 +160,21 @@ export async function getCurrentPersonState(
           metadata: trait.metadata as Record<string, unknown> | null,
           lastModifiedPersonaId: persona.id,
           lastModifiedDate: persona.effectiveDate,
+          addedDate: persona.effectiveDate,
         });
       } else {
-        traitMap.delete(key);
+        const existing = traitMap.get(key);
+        if (existing) {
+          removedTraits.push({
+            traitCategoryId: existing.traitCategoryId,
+            categoryName: existing.categoryName,
+            name: existing.name,
+            metadata: existing.metadata,
+            addedDate: existing.addedDate,
+            removedDate: persona.effectiveDate,
+          });
+          traitMap.delete(key);
+        }
       }
     }
   }
@@ -92,9 +193,41 @@ export async function getCurrentPersonState(
     phone,
     address,
     traits: Array.from(traitMap.values()),
+    removedTraits,
     personaCount: chain.length,
     latestPersonaDate: latestPersona?.effectiveDate ?? null,
   };
+}
+
+export async function getActiveTraitsAtSequence(
+  personId: string,
+  beforeSequenceNum: number,
+): Promise<ComputedTrait[]> {
+  const chain = await getPersonaChain(personId);
+  const traitMap = new Map<string, ComputedTrait>();
+
+  for (const persona of chain) {
+    if (persona.sequenceNum >= beforeSequenceNum) break;
+
+    for (const trait of persona.traits) {
+      const key = `${trait.traitCategoryId}:${trait.name}`;
+      if (trait.action === "add") {
+        traitMap.set(key, {
+          traitCategoryId: trait.traitCategoryId,
+          categoryName: trait.traitCategory.name,
+          name: trait.name,
+          metadata: trait.metadata as Record<string, unknown> | null,
+          lastModifiedPersonaId: persona.id,
+          lastModifiedDate: persona.effectiveDate,
+          addedDate: persona.effectiveDate,
+        });
+      } else {
+        traitMap.delete(key);
+      }
+    }
+  }
+
+  return Array.from(traitMap.values());
 }
 
 export async function getPersonaTimeline(
@@ -112,6 +245,7 @@ export async function getPersonaTimeline(
 
     const traitChanges: PersonaTimelineEntry["traitChanges"] = persona.traits.map(
       (trait) => ({
+        traitCategoryId: trait.traitCategoryId,
         categoryName: trait.traitCategory.name,
         name: trait.name,
         action: trait.action,
@@ -136,18 +270,12 @@ export async function createPersona(data: CreatePersonaInput): Promise<Persona> 
   });
   if (!person) throw new Error(`Person ${data.personId} not found`);
 
-  // Auto-assign next sequenceNum in a transaction
-  return prisma.$transaction(async (tx) => {
-    const lastPersona = await tx.persona.findFirst({
-      where: { personId: data.personId },
-      orderBy: { sequenceNum: "desc" },
-    });
-    const nextSeq = lastPersona ? lastPersona.sequenceNum + 1 : 0;
-
-    const persona = await tx.persona.create({
+  // Create with temp sequenceNum, then renumber by date
+  const persona = await prisma.$transaction(async (tx) => {
+    const created = await tx.persona.create({
       data: {
         personId: data.personId,
-        sequenceNum: nextSeq,
+        sequenceNum: 999999,
         effectiveDate: data.effectiveDate,
         note: data.note,
         jobTitle: data.jobTitle,
@@ -168,8 +296,113 @@ export async function createPersona(data: CreatePersonaInput): Promise<Persona> 
       include: { traits: true },
     });
 
-    return persona;
+    await renumberPersonas(data.personId, tx as unknown as TxClient);
+
+    return created;
   });
+
+  await rebuildSnapshot(data.personId);
+
+  return persona;
+}
+
+export async function getPersonaById(id: string): Promise<PersonaWithTraits | null> {
+  return prisma.persona.findUnique({
+    where: { id },
+    include: {
+      traits: {
+        where: { deletedAt: null },
+        include: { traitCategory: true },
+      },
+    },
+  }) as Promise<PersonaWithTraits | null>;
+}
+
+export async function updatePersona(
+  id: string,
+  data: UpdatePersonaInput,
+): Promise<Persona> {
+  const persona = await prisma.$transaction(async (tx) => {
+    const existing = await tx.persona.findUnique({ where: { id } });
+    if (!existing) throw new Error(`Persona ${id} not found`);
+
+    // Update scalar fields
+    const updated = await tx.persona.update({
+      where: { id },
+      data: {
+        effectiveDate: data.effectiveDate ?? undefined,
+        note: data.note !== undefined ? data.note : undefined,
+        jobTitle: data.jobTitle !== undefined ? data.jobTitle : undefined,
+        department: data.department !== undefined ? data.department : undefined,
+        phone: data.phone !== undefined ? data.phone : undefined,
+        address: data.address !== undefined ? data.address : undefined,
+      },
+    });
+
+    // Replace traits: soft-delete existing, create new
+    if (data.traits !== undefined) {
+      await tx.personaTrait.updateMany({
+        where: { personaId: id, deletedAt: null },
+        data: { deletedAt: new Date() },
+      });
+
+      if (data.traits.length > 0) {
+        await tx.personaTrait.createMany({
+          data: data.traits.map((t) => ({
+            personaId: id,
+            traitCategoryId: t.traitCategoryId,
+            name: t.name,
+            action: t.action,
+            metadata: (t.metadata as Prisma.InputJsonValue) ?? undefined,
+          })),
+        });
+      }
+    }
+
+    // If effectiveDate changed, renumber the chain
+    if (data.effectiveDate && data.effectiveDate.getTime() !== existing.effectiveDate.getTime()) {
+      await renumberPersonas(existing.personId, tx as unknown as TxClient);
+    }
+
+    return updated;
+  });
+
+  // Get personId from the updated persona to rebuild snapshot
+  const full = await prisma.persona.findUnique({ where: { id } });
+  if (full) {
+    await rebuildSnapshot(full.personId);
+  }
+
+  return persona;
+}
+
+export async function deletePersona(personaId: string): Promise<{ personId: string }> {
+  const existing = await prisma.persona.findUnique({
+    where: { id: personaId },
+    select: { id: true, personId: true },
+  });
+  if (!existing) throw new Error(`Persona ${personaId} not found`);
+
+  await prisma.$transaction(async (tx) => {
+    // Soft-delete the persona
+    await tx.persona.update({
+      where: { id: personaId },
+      data: { deletedAt: new Date() },
+    });
+
+    // Soft-delete its traits
+    await tx.personaTrait.updateMany({
+      where: { personaId, deletedAt: null },
+      data: { deletedAt: new Date() },
+    });
+
+    // Renumber remaining personas
+    await renumberPersonas(existing.personId, tx as unknown as TxClient);
+  });
+
+  await rebuildSnapshot(existing.personId);
+
+  return { personId: existing.personId };
 }
 
 export async function findPeopleByTrait(
