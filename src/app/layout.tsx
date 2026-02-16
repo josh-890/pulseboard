@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import { ThemeProvider } from "@/components/layout/theme-provider";
+import { PaletteProvider } from "@/components/layout/palette-provider";
 import { AppShell } from "@/components/layout/app-shell";
 import { Toaster } from "@/components/ui/sonner";
 import "./globals.css";
@@ -24,8 +25,10 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <body className={`${inter.variable} font-sans antialiased`}>
         <ThemeProvider>
-          <AppShell>{children}</AppShell>
-          <Toaster richColors />
+          <PaletteProvider>
+            <AppShell>{children}</AppShell>
+            <Toaster richColors />
+          </PaletteProvider>
         </ThemeProvider>
       </body>
     </html>
