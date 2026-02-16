@@ -14,9 +14,12 @@ model Person {
   email       String @unique
   avatarColor String
 
+  birthdate   DateTime?
+
   stakeholderOf Project[]       @relation("ProjectStakeholder")
   leadOf        Project[]       @relation("ProjectLead")
   memberships   ProjectMember[]
+  personas      Persona[]
 
   createdAt DateTime  @default(now())
   deletedAt DateTime?
@@ -87,4 +90,66 @@ enum ActivityType {
   deploy
   note
   task
+}
+
+enum TraitAction {
+  add
+  remove
+}
+
+model TraitCategory {
+  id          String  @id @default(cuid())
+  name        String  @unique
+  description String?
+  icon        String?
+
+  traits PersonaTrait[]
+
+  createdAt DateTime  @default(now())
+  deletedAt DateTime?
+
+  @@index([name])
+  @@index([deletedAt])
+}
+
+model Persona {
+  id            String   @id @default(cuid())
+  personId      String
+  person        Person   @relation(fields: [personId], references: [id])
+  sequenceNum   Int
+  effectiveDate DateTime
+  note          String?
+
+  jobTitle   String?
+  department String?
+  phone      String?
+  address    String?
+
+  traits PersonaTrait[]
+
+  createdAt DateTime  @default(now())
+  deletedAt DateTime?
+
+  @@unique([personId, sequenceNum])
+  @@index([personId, effectiveDate])
+  @@index([personId, sequenceNum])
+  @@index([deletedAt])
+}
+
+model PersonaTrait {
+  id              String        @id @default(cuid())
+  personaId       String
+  persona         Persona       @relation(fields: [personaId], references: [id])
+  traitCategoryId String
+  traitCategory   TraitCategory @relation(fields: [traitCategoryId], references: [id])
+  name            String
+  action          TraitAction
+  metadata        Json?
+
+  createdAt DateTime  @default(now())
+  deletedAt DateTime?
+
+  @@index([personaId])
+  @@index([traitCategoryId, name])
+  @@index([deletedAt])
 }

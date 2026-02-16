@@ -304,6 +304,307 @@ async function main() {
   }
   console.log(`Seeded ${activities.length} activities`);
 
+  // 5. Seed trait categories
+  const traitCategories = [
+    {
+      id: "tc-skill",
+      name: "Skill",
+      description: "Technical or professional skills",
+      icon: "zap",
+    },
+    {
+      id: "tc-cert",
+      name: "Certificate",
+      description: "Professional certifications and credentials",
+      icon: "award",
+    },
+    {
+      id: "tc-bodymod",
+      name: "Body Modification",
+      description: "Tattoos, piercings, and other body modifications",
+      icon: "palette",
+    },
+    {
+      id: "tc-physical",
+      name: "Physical Characteristic",
+      description: "Notable physical traits and appearance",
+      icon: "eye",
+    },
+    {
+      id: "tc-lang",
+      name: "Language",
+      description: "Spoken and written languages",
+      icon: "globe",
+    },
+    {
+      id: "tc-interest",
+      name: "Interest",
+      description: "Hobbies, interests, and passions",
+      icon: "heart",
+    },
+  ];
+
+  for (const tc of traitCategories) {
+    await prisma.traitCategory.upsert({
+      where: { id: tc.id },
+      update: tc,
+      create: tc,
+    });
+  }
+  console.log(`Seeded ${traitCategories.length} trait categories`);
+
+  // 6. Seed persona chains (clear first to avoid duplicates on re-seed)
+  await prisma.personaTrait.deleteMany();
+  await prisma.persona.deleteMany();
+
+  // Sarah Chen (p1): 3 personas — baseline → promotion + cert → transfer + language + tattoo
+  await prisma.persona.create({
+    data: {
+      personId: "p1",
+      sequenceNum: 0,
+      effectiveDate: parseRelativeTime("6 months ago"),
+      note: "Initial profile",
+      jobTitle: "Frontend Developer",
+      department: "Engineering",
+      phone: "+1-555-0101",
+      traits: {
+        create: [
+          {
+            traitCategoryId: "tc-skill",
+            name: "React",
+            action: "add",
+            metadata: { proficiency: "advanced" },
+          },
+          {
+            traitCategoryId: "tc-skill",
+            name: "TypeScript",
+            action: "add",
+            metadata: { proficiency: "intermediate" },
+          },
+          {
+            traitCategoryId: "tc-lang",
+            name: "English",
+            action: "add",
+            metadata: { level: "native" },
+          },
+          {
+            traitCategoryId: "tc-lang",
+            name: "Mandarin",
+            action: "add",
+            metadata: { level: "native" },
+          },
+          {
+            traitCategoryId: "tc-interest",
+            name: "Rock Climbing",
+            action: "add",
+          },
+        ],
+      },
+    },
+  });
+
+  await prisma.persona.create({
+    data: {
+      personId: "p1",
+      sequenceNum: 1,
+      effectiveDate: parseRelativeTime("3 months ago"),
+      note: "Promoted to Senior, earned AWS cert",
+      jobTitle: "Senior Frontend Developer",
+      traits: {
+        create: [
+          {
+            traitCategoryId: "tc-skill",
+            name: "TypeScript",
+            action: "add",
+            metadata: { proficiency: "expert" },
+          },
+          {
+            traitCategoryId: "tc-cert",
+            name: "AWS Solutions Architect",
+            action: "add",
+            metadata: {
+              issuingBody: "Amazon Web Services",
+              expiryDate: "2027-03-15",
+            },
+          },
+          {
+            traitCategoryId: "tc-skill",
+            name: "Next.js",
+            action: "add",
+            metadata: { proficiency: "advanced" },
+          },
+        ],
+      },
+    },
+  });
+
+  await prisma.persona.create({
+    data: {
+      personId: "p1",
+      sequenceNum: 2,
+      effectiveDate: parseRelativeTime("2 weeks ago"),
+      note: "Transferred to Berlin office, started German, got tattoo",
+      department: "Engineering (Berlin)",
+      address: "Friedrichstraße 42, 10117 Berlin",
+      phone: "+49-30-555-0101",
+      traits: {
+        create: [
+          {
+            traitCategoryId: "tc-lang",
+            name: "German",
+            action: "add",
+            metadata: { level: "A2" },
+          },
+          {
+            traitCategoryId: "tc-bodymod",
+            name: "Dragon tattoo",
+            action: "add",
+            metadata: { location: "left forearm", description: "Japanese-style dragon" },
+          },
+        ],
+      },
+    },
+  });
+
+  // Marcus Johnson (p2): 2 personas — baseline → new skill + role change
+  await prisma.persona.create({
+    data: {
+      personId: "p2",
+      sequenceNum: 0,
+      effectiveDate: parseRelativeTime("4 months ago"),
+      note: "Initial profile",
+      jobTitle: "Backend Developer",
+      department: "Engineering",
+      phone: "+1-555-0202",
+      traits: {
+        create: [
+          {
+            traitCategoryId: "tc-skill",
+            name: "Node.js",
+            action: "add",
+            metadata: { proficiency: "expert" },
+          },
+          {
+            traitCategoryId: "tc-skill",
+            name: "PostgreSQL",
+            action: "add",
+            metadata: { proficiency: "advanced" },
+          },
+          {
+            traitCategoryId: "tc-lang",
+            name: "English",
+            action: "add",
+            metadata: { level: "native" },
+          },
+          {
+            traitCategoryId: "tc-interest",
+            name: "Chess",
+            action: "add",
+          },
+        ],
+      },
+    },
+  });
+
+  await prisma.persona.create({
+    data: {
+      personId: "p2",
+      sequenceNum: 1,
+      effectiveDate: parseRelativeTime("1 month ago"),
+      note: "Moved to tech lead role, picked up Rust",
+      jobTitle: "Tech Lead",
+      department: "Platform Engineering",
+      traits: {
+        create: [
+          {
+            traitCategoryId: "tc-skill",
+            name: "Rust",
+            action: "add",
+            metadata: { proficiency: "beginner" },
+          },
+          {
+            traitCategoryId: "tc-cert",
+            name: "Kubernetes Administrator (CKA)",
+            action: "add",
+            metadata: {
+              issuingBody: "CNCF",
+              expiryDate: "2028-01-20",
+            },
+          },
+        ],
+      },
+    },
+  });
+
+  // Aisha Patel (p3): 1 persona — baseline only (minimal case)
+  await prisma.persona.create({
+    data: {
+      personId: "p3",
+      sequenceNum: 0,
+      effectiveDate: parseRelativeTime("5 months ago"),
+      note: "Initial profile",
+      jobTitle: "UX Designer",
+      department: "Design",
+      phone: "+1-555-0303",
+      traits: {
+        create: [
+          {
+            traitCategoryId: "tc-skill",
+            name: "Figma",
+            action: "add",
+            metadata: { proficiency: "expert" },
+          },
+          {
+            traitCategoryId: "tc-skill",
+            name: "User Research",
+            action: "add",
+            metadata: { proficiency: "advanced" },
+          },
+          {
+            traitCategoryId: "tc-lang",
+            name: "English",
+            action: "add",
+            metadata: { level: "native" },
+          },
+          {
+            traitCategoryId: "tc-lang",
+            name: "Hindi",
+            action: "add",
+            metadata: { level: "native" },
+          },
+        ],
+      },
+    },
+  });
+
+  // Auto-generated baseline personas for remaining 7 people
+  const baselinePersonas = [
+    { personId: "p4", jobTitle: "Full-Stack Developer", department: "Engineering" },
+    { personId: "p5", jobTitle: "DevOps Engineer", department: "Infrastructure" },
+    { personId: "p6", jobTitle: "Product Manager", department: "Product" },
+    { personId: "p7", jobTitle: "QA Engineer", department: "Engineering" },
+    { personId: "p8", jobTitle: "Data Analyst", department: "Analytics" },
+    { personId: "p9", jobTitle: "Mobile Developer", department: "Engineering" },
+    { personId: "p10", jobTitle: "Security Engineer", department: "Infrastructure" },
+  ];
+
+  for (const bp of baselinePersonas) {
+    await prisma.persona.create({
+      data: {
+        personId: bp.personId,
+        sequenceNum: 0,
+        effectiveDate: parseRelativeTime("3 months ago"),
+        note: "Initial profile",
+        jobTitle: bp.jobTitle,
+        department: bp.department,
+      },
+    });
+  }
+
+  const personaCount = await prisma.persona.count();
+  const traitCount = await prisma.personaTrait.count();
+  console.log(`Seeded ${personaCount} personas with ${traitCount} traits`);
+
   console.log("Seeding complete!");
 }
 
