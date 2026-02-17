@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { ThemeToggle } from "@/components/settings/theme-toggle";
 import { PaletteSelector } from "@/components/settings/palette-selector";
+import { DensitySelector } from "@/components/settings/density-selector";
 
 export default function SettingsPage() {
   return (
@@ -24,6 +25,11 @@ export default function SettingsPage() {
             </Link>
           </div>
         </div>
+      </div>
+
+      <div className="rounded-2xl border border-white/30 bg-card/70 p-4 shadow-lg backdrop-blur-md md:p-6 dark:border-white/10">
+        <h2 className="mb-4 text-lg font-semibold">Display Density</h2>
+        <DensitySelector />
       </div>
     </div>
   );

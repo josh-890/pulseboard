@@ -15,6 +15,7 @@ model Person {
   avatarColor String
 
   birthdate   DateTime?
+  birthplace  String?
 
   stakeholderOf Project[]       @relation("ProjectStakeholder")
   leadOf        Project[]       @relation("ProjectLead")

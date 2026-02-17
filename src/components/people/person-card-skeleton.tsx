@@ -2,17 +2,12 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 export function PersonCardSkeleton() {
   return (
-    <div className="rounded-2xl border border-white/30 bg-card/70 p-4 shadow-lg backdrop-blur-md md:p-6 dark:border-white/10">
-      <div className="mb-3 flex items-center gap-3">
-        <Skeleton className="h-10 w-10 rounded-full" />
-        <div className="min-w-0">
-          <Skeleton className="h-5 w-32" />
-          <Skeleton className="mt-1 h-4 w-44" />
-        </div>
-      </div>
-      <div className="flex flex-wrap gap-1.5">
-        <Skeleton className="h-5 w-16 rounded-full" />
-        <Skeleton className="h-5 w-20 rounded-full" />
+    <div className="flex h-[136px] overflow-hidden rounded-xl border border-white/30 bg-card/70 shadow-lg backdrop-blur-md dark:border-white/10">
+      <Skeleton className="h-full w-[100px] shrink-0 rounded-l-xl rounded-r-none" />
+      <div className="flex flex-1 flex-col justify-center p-3">
+        <Skeleton className="h-5 w-32" />
+        <Skeleton className="mt-1.5 h-4 w-44" />
+        <Skeleton className="mt-1.5 h-4 w-36" />
       </div>
     </div>
   );

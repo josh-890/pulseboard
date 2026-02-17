@@ -8,7 +8,12 @@ export type {
   PhotoWithUrls,
 } from "./photo";
 export type { ActivityItem } from "./activity";
-export type { Person, ProjectRole, PersonProjectAssignment } from "./person";
+export type {
+  Person,
+  ProjectRole,
+  PersonProjectAssignment,
+  PersonBrowserItem,
+} from "./person";
 export type {
   Persona,
   PersonaTrait,

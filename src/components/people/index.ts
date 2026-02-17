@@ -8,6 +8,7 @@ export { PersonSearch } from "./person-search";
 export { RoleFilter } from "./role-filter";
 export { EmptyState } from "./empty-state";
 export { PersonResults } from "./person-results";
+export { PersonBrowser } from "./person-browser";
 export { PersonForm } from "./person-form";
 export { TraitBadge } from "./trait-badge";
 export { PersonaCurrentState } from "./persona-current-state";

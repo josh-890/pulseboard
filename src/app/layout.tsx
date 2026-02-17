@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import { ThemeProvider } from "@/components/layout/theme-provider";
 import { PaletteProvider } from "@/components/layout/palette-provider";
+import { DensityProvider } from "@/components/layout/density-provider";
 import { AppShell } from "@/components/layout/app-shell";
 import { Toaster } from "@/components/ui/sonner";
 import "./globals.css";
@@ -26,8 +27,10 @@ export default function RootLayout({
       <body className={`${inter.variable} font-sans antialiased`}>
         <ThemeProvider>
           <PaletteProvider>
-            <AppShell>{children}</AppShell>
-            <Toaster richColors />
+            <DensityProvider>
+              <AppShell>{children}</AppShell>
+              <Toaster richColors />
+            </DensityProvider>
           </PaletteProvider>
         </ThemeProvider>
       </body>
