@@ -9,9 +9,10 @@ import { RoleBadge } from "./role-badge";
 type PersonCardProps = {
   person: Person;
   roles: PersonProjectAssignment[];
+  photoUrl?: string | null;
 };
 
-export function PersonCard({ person, roles }: PersonCardProps) {
+export function PersonCard({ person, roles, photoUrl }: PersonCardProps) {
   const router = useRouter();
   const uniqueRoles = [...new Set(roles.map((r) => r.role))];
 
@@ -40,6 +41,7 @@ export function PersonCard({ person, roles }: PersonCardProps) {
             firstName={person.firstName}
             lastName={person.lastName}
             avatarColor={person.avatarColor}
+            photoUrl={photoUrl}
           />
           <div className="min-w-0">
             <h3 className="truncate text-lg font-semibold group-hover:text-primary">

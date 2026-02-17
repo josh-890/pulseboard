@@ -5,9 +5,10 @@ import { EmptyState } from "./empty-state";
 type PersonListProps = {
   persons: Person[];
   personRoles: Map<string, PersonProjectAssignment[]>;
+  personPhotos: Map<string, string>;
 };
 
-export function PersonList({ persons, personRoles }: PersonListProps) {
+export function PersonList({ persons, personRoles, personPhotos }: PersonListProps) {
   if (persons.length === 0) {
     return <EmptyState />;
   }
@@ -19,6 +20,7 @@ export function PersonList({ persons, personRoles }: PersonListProps) {
           key={person.id}
           person={person}
           roles={personRoles.get(person.id) ?? []}
+          photoUrl={personPhotos.get(person.id) ?? null}
         />
       ))}
     </div>
