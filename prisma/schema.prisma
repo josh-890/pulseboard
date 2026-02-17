@@ -26,6 +26,7 @@ model Person {
   deletedAt DateTime?
 
   @@index([lastName, firstName])
+  @@index([firstName, lastName])
   @@index([deletedAt])
 }
 
@@ -91,6 +92,11 @@ enum ActivityType {
   deploy
   note
   task
+}
+
+enum EntityType {
+  person
+  project
 }
 
 enum TraitAction {
@@ -177,4 +183,33 @@ model PersonSnapshot {
   @@index([jobTitle])
   @@index([department])
   @@index([deletedAt])
+}
+
+model Photo {
+  id         String     @id @default(cuid())
+  entityType EntityType
+  entityId   String
+
+  filename       String
+  mimeType       String
+  size           Int
+  originalWidth  Int
+  originalHeight Int
+  variants       Json
+
+  tags             String[]
+  linkedEntityType String?
+  linkedEntityId   String?
+
+  caption    String?
+  isFavorite Boolean   @default(false)
+  sortOrder  Int       @default(0)
+
+  createdAt DateTime  @default(now())
+  deletedAt DateTime?
+
+  @@index([entityType, entityId])
+  @@index([entityType, entityId, isFavorite])
+  @@index([deletedAt])
+  @@index([tags], type: Gin)
 }
