@@ -9,6 +9,7 @@ export async function loadMorePersons(
   role?: string,
   traitCategory?: string,
   cursor?: string,
+  photoTag?: string,
 ): Promise<PersonSearchPage> {
   const roleFilter =
     role && role !== "all" ? (role as ProjectRole) : undefined;
@@ -17,5 +18,7 @@ export async function loadMorePersons(
     roleFilter,
     traitCategory || undefined,
     cursor,
+    60,
+    photoTag || "p-img01",
   );
 }

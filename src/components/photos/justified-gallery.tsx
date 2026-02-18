@@ -5,11 +5,13 @@ import Image from "next/image";
 import { Lightbox } from "./lightbox";
 import { setFavorite } from "@/lib/actions/photo-actions";
 import type { PhotoWithUrls } from "@/lib/types";
+import type { ProfileImageLabel } from "@/lib/services/setting-service";
 
 type JustifiedGalleryProps = {
   photos: PhotoWithUrls[];
   entityType: "person" | "project";
   entityId: string;
+  profileLabels: ProfileImageLabel[];
 };
 
 const GAP = 8;
@@ -67,10 +69,33 @@ export function JustifiedGallery({
   photos,
   entityType,
   entityId,
+  profileLabels,
 }: JustifiedGalleryProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [containerWidth, setContainerWidth] = useState(0);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+  const [photoTagOverrides, setPhotoTagOverrides] = useState<
+    Map<string, string[]>
+  >(new Map());
+
+  // Reset overrides when photos prop changes
+  const photosRef = useRef(photos);
+  useEffect(() => {
+    if (photosRef.current !== photos) {
+      photosRef.current = photos;
+      setPhotoTagOverrides(new Map());
+    }
+  }, [photos]);
+
+  // Merge overrides with photo data
+  const photosWithOverrides = useMemo(() => {
+    if (photoTagOverrides.size === 0) return photos;
+    return photos.map((p) => {
+      const override = photoTagOverrides.get(p.id);
+      if (override) return { ...p, tags: override };
+      return p;
+    });
+  }, [photos, photoTagOverrides]);
 
   // Measure container width
   useEffect(() => {
@@ -91,16 +116,16 @@ export function JustifiedGallery({
   const targetHeight = isMobile ? MOBILE_TARGET : TARGET_ROW_HEIGHT;
 
   const rows = useMemo(
-    () => computeRows(photos, containerWidth, targetHeight),
-    [photos, containerWidth, targetHeight],
+    () => computeRows(photosWithOverrides, containerWidth, targetHeight),
+    [photosWithOverrides, containerWidth, targetHeight],
   );
 
   // Build flat index map for lightbox
   const flatIndex = useMemo(() => {
     const map = new Map<string, number>();
-    photos.forEach((p, i) => map.set(p.id, i));
+    photosWithOverrides.forEach((p, i) => map.set(p.id, i));
     return map;
-  }, [photos]);
+  }, [photosWithOverrides]);
 
   const handleImageClick = useCallback(
     (photoId: string) => {
@@ -117,6 +142,17 @@ export function JustifiedGallery({
     [entityType, entityId],
   );
 
+  const handleTagsChanged = useCallback(
+    (photoId: string, newTags: string[]) => {
+      setPhotoTagOverrides((prev) => {
+        const next = new Map(prev);
+        next.set(photoId, newTags);
+        return next;
+      });
+    },
+    [],
+  );
+
   return (
     <>
       <div ref={containerRef} className="w-full">
@@ -131,6 +167,13 @@ export function JustifiedGallery({
               const renderWidth = row.height * aspect;
               const imgSrc =
                 photo.urls.gallery_512 ?? photo.urls.original;
+
+              const hasProfileSlot = photo.tags.some((t) =>
+                t.startsWith("p-img"),
+              );
+              const contentTagCount = photo.tags.filter(
+                (t) => !t.startsWith("p-img"),
+              ).length;
 
               return (
                 <button
@@ -152,6 +195,26 @@ export function JustifiedGallery({
                     className="h-full w-full object-contain"
                     unoptimized
                   />
+
+                  {/* Tag indicator badges */}
+                  <div className="absolute bottom-1.5 right-1.5 flex items-center gap-1">
+                    {hasProfileSlot && (
+                      <span
+                        className="flex h-5 w-5 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground"
+                        aria-label="Has profile slot"
+                      >
+                        P
+                      </span>
+                    )}
+                    {contentTagCount > 0 && (
+                      <span
+                        className="flex h-5 min-w-5 items-center justify-center rounded-full bg-white/20 px-1 text-[10px] font-medium text-white backdrop-blur-sm"
+                        aria-label={`${contentTagCount} tag${contentTagCount !== 1 ? "s" : ""}`}
+                      >
+                        {contentTagCount}
+                      </span>
+                    )}
+                  </div>
                 </button>
               );
             })}
@@ -161,10 +224,14 @@ export function JustifiedGallery({
 
       {lightboxIndex !== null && (
         <Lightbox
-          photos={photos}
+          photos={photosWithOverrides}
           initialIndex={lightboxIndex}
           onClose={() => setLightboxIndex(null)}
           onFavoriteToggle={handleFavoriteToggle}
+          entityType={entityType}
+          entityId={entityId}
+          profileLabels={profileLabels}
+          onTagsChanged={handleTagsChanged}
         />
       )}
     </>

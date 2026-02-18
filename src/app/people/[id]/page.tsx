@@ -17,7 +17,7 @@ import {
   getPersonaTimeline,
 } from "@/lib/services/persona-service";
 import { getTraitCategories } from "@/lib/services/trait-category-service";
-import { getPhotosForEntity } from "@/lib/services/photo-service";
+import { getPhotosByTags } from "@/lib/services/photo-service";
 import { deletePerson } from "@/lib/actions/person-actions";
 import type { ProjectRole } from "@/lib/types";
 
@@ -41,7 +41,7 @@ export default async function PersonDetailPage({
       getCurrentPersonState(id),
       getPersonaTimeline(id),
       getTraitCategories(),
-      getPhotosForEntity("person", id),
+      getPhotosByTags("person", id, ["outtake"]),
     ]);
 
   if (!person) {
@@ -67,6 +67,11 @@ export default async function PersonDetailPage({
     ? allAssignments.filter((a) => a.role === activeRole)
     : allAssignments;
 
+  // Strip server-only fields (variants) before passing to client components.
+  // CarouselHeader/Lightbox only use `urls` for display — variants is redundant
+  // and bloats the RSC payload.
+  const clientPhotos = photos.map(({ variants: _variants, ...rest }) => rest);
+
   return (
     <div className="space-y-6">
       <Button variant="ghost" asChild>
@@ -82,7 +87,7 @@ export default async function PersonDetailPage({
             {/* Desktop: carousel header replacing avatar */}
             <div className="hidden md:block">
               <CarouselHeader
-                photos={photos}
+                photos={clientPhotos}
                 entityType="person"
                 entityId={id}
                 fallbackColor={person.avatarColor}

@@ -8,10 +8,11 @@ type NavLinkProps = {
   href: string;
   icon: React.ReactNode;
   label: string;
+  collapsed?: boolean;
   onClick?: () => void;
 };
 
-export function NavLink({ href, icon, label, onClick }: NavLinkProps) {
+export function NavLink({ href, icon, label, collapsed, onClick }: NavLinkProps) {
   const pathname = usePathname();
   const isActive = href === "/" ? pathname === "/" : pathname.startsWith(href);
 
@@ -19,15 +20,17 @@ export function NavLink({ href, icon, label, onClick }: NavLinkProps) {
     <Link
       href={href}
       onClick={onClick}
+      title={collapsed ? label : undefined}
       className={cn(
-        "flex items-center gap-3 rounded-xl px-3 py-2 transition-colors",
+        "flex items-center rounded-xl py-2 transition-all duration-200",
+        collapsed ? "justify-center px-2" : "gap-3 px-3",
         isActive
           ? "bg-primary/10 font-medium text-primary"
           : "text-muted-foreground hover:bg-muted/50 hover:text-foreground",
       )}
     >
       {icon}
-      <span>{label}</span>
+      {!collapsed && <span>{label}</span>}
     </Link>
   );
 }

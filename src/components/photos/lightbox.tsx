@@ -3,15 +3,23 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import Image from "next/image";
-import { ChevronLeft, ChevronRight, Heart, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Heart, Tag, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { LightboxTagPanel } from "./lightbox-tag-panel";
 import type { PhotoWithUrls } from "@/lib/types";
+import type { ProfileImageLabel } from "@/lib/services/setting-service";
+
+type ClientPhoto = Omit<PhotoWithUrls, "variants">;
 
 type LightboxProps = {
-  photos: PhotoWithUrls[];
+  photos: ClientPhoto[];
   initialIndex: number;
   onClose: () => void;
   onFavoriteToggle: (photoId: string) => void;
+  entityType?: "person" | "project";
+  entityId?: string;
+  profileLabels?: ProfileImageLabel[];
+  onTagsChanged?: (photoId: string, newTags: string[]) => void;
 };
 
 export function Lightbox({
@@ -19,8 +27,13 @@ export function Lightbox({
   initialIndex,
   onClose,
   onFavoriteToggle,
+  entityType,
+  entityId,
+  profileLabels,
+  onTagsChanged,
 }: LightboxProps) {
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
+  const [tagPanelOpen, setTagPanelOpen] = useState(false);
   const overlayRef = useRef<HTMLDivElement>(null);
   const touchStartX = useRef<number | null>(null);
 
@@ -28,17 +41,23 @@ export function Lightbox({
 
   const goNext = useCallback(() => {
     setCurrentIndex((i) => Math.min(photos.length - 1, i + 1));
+    setTagPanelOpen(false);
   }, [photos.length]);
 
   const goPrev = useCallback(() => {
     setCurrentIndex((i) => Math.max(0, i - 1));
+    setTagPanelOpen(false);
   }, []);
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       switch (e.key) {
         case "Escape":
-          onClose();
+          if (tagPanelOpen) {
+            setTagPanelOpen(false);
+          } else {
+            onClose();
+          }
           break;
         case "ArrowLeft":
           goPrev();
@@ -51,7 +70,7 @@ export function Lightbox({
 
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [onClose, goNext, goPrev]);
+  }, [onClose, goNext, goPrev, tagPanelOpen]);
 
   useEffect(() => {
     const original = document.body.style.overflow;
@@ -80,7 +99,13 @@ export function Lightbox({
   }
 
   function handleOverlayClick(e: React.MouseEvent) {
-    if (e.target === overlayRef.current) onClose();
+    if (e.target === overlayRef.current) {
+      if (tagPanelOpen) {
+        setTagPanelOpen(false);
+      } else {
+        onClose();
+      }
+    }
   }
 
   if (!item) return null;
@@ -131,46 +156,85 @@ export function Lightbox({
         </button>
       )}
 
-      <div className="relative max-h-[85vh] max-w-[90vw]">
+      <div
+        className={cn(
+          "relative max-w-[90vw] transition-all duration-200",
+          tagPanelOpen ? "max-h-[60vh]" : "max-h-[85vh]",
+        )}
+      >
         <Image
           src={displayUrl}
           alt={item.caption ?? `Photo ${currentIndex + 1}`}
           width={item.originalWidth}
           height={item.originalHeight}
-          className="max-h-[85vh] w-auto object-contain"
+          className={cn(
+            "w-auto object-contain transition-all duration-200",
+            tagPanelOpen ? "max-h-[60vh]" : "max-h-[85vh]",
+          )}
           unoptimized
           priority
         />
       </div>
 
-      <div className="absolute bottom-4 left-0 right-0 flex flex-col items-center gap-2">
-        {item.caption && (
-          <p className="max-w-lg text-center text-sm text-white/80">
-            {item.caption}
-          </p>
-        )}
-        <div className="flex items-center gap-4">
-          {photos.length > 1 && (
-            <span className="text-sm text-white/70">
-              {currentIndex + 1} / {photos.length}
-            </span>
+      {/* Bottom section: action bar + tag panel */}
+      <div className="absolute bottom-0 left-0 right-0 z-10 flex flex-col items-stretch">
+        {/* Action bar */}
+        <div className="flex flex-col items-center gap-2 pb-4 pt-2">
+          {item.caption && (
+            <p className="max-w-lg text-center text-sm text-white/80">
+              {item.caption}
+            </p>
           )}
-          <button
-            type="button"
-            onClick={() => onFavoriteToggle(item.id)}
-            aria-label={
-              item.isFavorite ? "Remove from favorites" : "Set as favorite"
-            }
-            className="rounded-full bg-white/10 p-2 text-white transition-colors hover:bg-white/20"
-          >
-            <Heart
-              size={18}
-              className={cn(
-                item.isFavorite && "fill-red-500 text-red-500",
-              )}
-            />
-          </button>
+          <div className="flex items-center gap-4">
+            {photos.length > 1 && (
+              <span className="text-sm text-white/70">
+                {currentIndex + 1} / {photos.length}
+              </span>
+            )}
+            <button
+              type="button"
+              onClick={() => onFavoriteToggle(item.id)}
+              aria-label={
+                item.isFavorite ? "Remove from favorites" : "Set as favorite"
+              }
+              className="rounded-full bg-white/10 p-2 text-white transition-colors hover:bg-white/20"
+            >
+              <Heart
+                size={18}
+                className={cn(
+                  item.isFavorite && "fill-red-500 text-red-500",
+                )}
+              />
+            </button>
+            {onTagsChanged && (
+              <button
+                type="button"
+                onClick={() => setTagPanelOpen((prev) => !prev)}
+                aria-label={tagPanelOpen ? "Close tag panel" : "Open tag panel"}
+                className={cn(
+                  "rounded-full p-2 text-white transition-colors",
+                  tagPanelOpen
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-white/10 hover:bg-white/20",
+                )}
+              >
+                <Tag size={18} />
+              </button>
+            )}
+          </div>
         </div>
+
+        {/* Tag panel */}
+        {tagPanelOpen && entityType && entityId && profileLabels && onTagsChanged && (
+          <LightboxTagPanel
+            photo={item}
+            entityType={entityType}
+            entityId={entityId}
+            profileLabels={profileLabels}
+            onTagsChanged={onTagsChanged}
+            onClose={() => setTagPanelOpen(false)}
+          />
+        )}
       </div>
     </div>,
     document.body,

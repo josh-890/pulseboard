@@ -205,13 +205,92 @@ export async function getPhotosByTags(
   return photos.map(toPhotoWithUrls);
 }
 
+const PROFILE_SLOT_TAGS = [
+  "p-img01",
+  "p-img02",
+  "p-img03",
+  "p-img04",
+  "p-img05",
+];
+
 export async function updatePhotoTags(
   photoId: string,
   tags: string[],
+  entityType?: "person" | "project",
+  entityId?: string,
 ): Promise<PhotoWithUrls> {
+  // If adding a profile slot tag, enforce one-image-per-slot
+  const profileSlots = tags.filter((t) => PROFILE_SLOT_TAGS.includes(t));
+  if (profileSlots.length > 0 && entityType && entityId) {
+    await prisma.$transaction(async (tx) => {
+      for (const slot of profileSlots) {
+        // Remove the slot tag from any other photo of this entity
+        const others = await tx.photo.findMany({
+          where: {
+            entityType,
+            entityId,
+            id: { not: photoId },
+            tags: { has: slot },
+          },
+        });
+        for (const other of others) {
+          await tx.photo.update({
+            where: { id: other.id },
+            data: { tags: other.tags.filter((t) => t !== slot) },
+          });
+        }
+      }
+      await tx.photo.update({
+        where: { id: photoId },
+        data: { tags },
+      });
+    });
+    const updated = await prisma.photo.findUniqueOrThrow({
+      where: { id: photoId },
+    });
+    return toPhotoWithUrls(updated);
+  }
+
   const photo = await prisma.photo.update({
     where: { id: photoId },
     data: { tags },
   });
   return toPhotoWithUrls(photo);
+}
+
+export async function assignProfileSlot(
+  photoId: string,
+  entityType: "person" | "project",
+  entityId: string,
+  slot: string,
+): Promise<void> {
+  await prisma.$transaction(async (tx) => {
+    // Remove the slot tag from any other photo of this entity
+    const others = await tx.photo.findMany({
+      where: {
+        entityType,
+        entityId,
+        id: { not: photoId },
+        tags: { has: slot },
+      },
+    });
+    for (const other of others) {
+      await tx.photo.update({
+        where: { id: other.id },
+        data: { tags: other.tags.filter((t) => t !== slot) },
+      });
+    }
+
+    // Add the slot tag to the target photo
+    const target = await tx.photo.findUniqueOrThrow({
+      where: { id: photoId },
+    });
+    const newTags = target.tags.includes(slot)
+      ? target.tags
+      : [...target.tags, slot];
+    await tx.photo.update({
+      where: { id: photoId },
+      data: { tags: newTags },
+    });
+  });
 }

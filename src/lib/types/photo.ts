@@ -1,6 +1,17 @@
 export type { Photo, EntityType } from "@/generated/prisma/client";
 
-export type PhotoTag = "portrait" | "diploma" | "tattoo" | "document" | "general";
+export type PhotoTag =
+  | "portrait"
+  | "diploma"
+  | "tattoo"
+  | "document"
+  | "general"
+  | "outtake"
+  | "p-img01"
+  | "p-img02"
+  | "p-img03"
+  | "p-img04"
+  | "p-img05";
 
 export type PhotoVariants = {
   original: string;

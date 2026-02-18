@@ -8,8 +8,10 @@ import { Lightbox } from "./lightbox";
 import { setFavorite } from "@/lib/actions/photo-actions";
 import type { PhotoWithUrls } from "@/lib/types";
 
+type ClientPhoto = Omit<PhotoWithUrls, "variants">;
+
 type CarouselHeaderProps = {
-  photos: PhotoWithUrls[];
+  photos: ClientPhoto[];
   entityType: "person" | "project";
   entityId: string;
   fallbackColor?: string;

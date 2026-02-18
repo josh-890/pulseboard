@@ -1,7 +1,16 @@
 "use client";
 
-import { LayoutDashboard, FolderKanban, Users, Settings } from "lucide-react";
+import {
+  LayoutDashboard,
+  FolderKanban,
+  Users,
+  Settings,
+  ChevronsLeft,
+  ChevronsRight,
+} from "lucide-react";
 import { NavLink } from "./nav-link";
+import { useSidebar } from "./sidebar-provider";
+import { cn } from "@/lib/utils";
 
 const navItems = [
   { href: "/", icon: <LayoutDashboard size={20} />, label: "Dashboard" },
@@ -11,14 +20,34 @@ const navItems = [
 ];
 
 export function Sidebar() {
+  const { collapsed, toggleCollapsed } = useSidebar();
+
   return (
-    <aside className="hidden w-64 flex-col border-r border-white/20 bg-card/50 backdrop-blur-sm md:flex">
-      <div className="p-6">
-        <h1 className="text-xl font-bold text-foreground">Pulseboard</h1>
+    <aside
+      className={cn(
+        "relative hidden flex-col overflow-visible border-r border-white/20 bg-card/50 backdrop-blur-sm transition-all duration-200 md:flex",
+        collapsed ? "w-16" : "w-64",
+      )}
+    >
+      <button
+        onClick={toggleCollapsed}
+        title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+        className="absolute -right-3 top-7 z-10 flex h-6 w-6 items-center justify-center rounded-full border border-white/20 bg-card text-muted-foreground transition-colors duration-200 hover:bg-muted/80 hover:text-foreground"
+      >
+        {collapsed ? <ChevronsRight size={14} /> : <ChevronsLeft size={14} />}
+      </button>
+
+      <div className={cn("p-6", collapsed && "flex justify-center px-2")}>
+        {collapsed ? (
+          <span className="text-xl font-bold text-foreground">P</span>
+        ) : (
+          <h1 className="text-xl font-bold text-foreground">Pulseboard</h1>
+        )}
       </div>
-      <nav className="flex flex-col gap-1 px-3">
+
+      <nav className={cn("flex flex-1 flex-col gap-1", collapsed ? "px-2" : "px-3")}>
         {navItems.map((item) => (
-          <NavLink key={item.href} {...item} />
+          <NavLink key={item.href} {...item} collapsed={collapsed} />
         ))}
       </nav>
     </aside>

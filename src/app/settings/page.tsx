@@ -1,11 +1,13 @@
-"use client";
-
 import Link from "next/link";
 import { ThemeToggle } from "@/components/settings/theme-toggle";
 import { PaletteSelector } from "@/components/settings/palette-selector";
 import { DensitySelector } from "@/components/settings/density-selector";
+import { ProfileImageLabels } from "@/components/settings/profile-image-labels";
+import { getProfileImageLabels } from "@/lib/services/setting-service";
 
-export default function SettingsPage() {
+export default async function SettingsPage() {
+  const labels = await getProfileImageLabels();
+
   return (
     <div className="space-y-8">
       <h1 className="text-4xl font-bold">Settings</h1>
@@ -30,6 +32,15 @@ export default function SettingsPage() {
       <div className="rounded-2xl border border-white/30 bg-card/70 p-4 shadow-lg backdrop-blur-md md:p-6 dark:border-white/10">
         <h2 className="mb-4 text-lg font-semibold">Display Density</h2>
         <DensitySelector />
+      </div>
+
+      <div className="rounded-2xl border border-white/30 bg-card/70 p-4 shadow-lg backdrop-blur-md md:p-6 dark:border-white/10">
+        <h2 className="mb-4 text-lg font-semibold">Profile Image Slots</h2>
+        <p className="mb-4 text-sm text-muted-foreground">
+          Customize the display names for each profile image slot. These labels
+          appear in the slot selector on the People page.
+        </p>
+        <ProfileImageLabels labels={labels} />
       </div>
     </div>
   );

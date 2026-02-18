@@ -16,4 +16,5 @@ export { PersonaTimelineEntry } from "./persona-timeline-entry";
 export { PersonaTimeline } from "./persona-timeline";
 export { PersonaDialog } from "./persona-dialog";
 export { TraitCategoryFilter } from "./trait-category-filter";
+export { ProfileImageSelector } from "./profile-image-selector";
 export { PersonaDeleteButton } from "./persona-delete-button";

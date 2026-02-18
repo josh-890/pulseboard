@@ -201,6 +201,7 @@ export async function searchPersonsPaginated(
   traitCategory?: string,
   cursor?: string,
   pageSize = 60,
+  photoTag = "p-img01",
 ): Promise<PersonSearchPage> {
   // Step 1: Collect person ID filters from search + trait category
   let filterIds: string[] | null = null;
@@ -324,7 +325,8 @@ export async function searchPersonsPaginated(
         WHERE ph2."entityType" = 'person'
           AND ph2."entityId" = p."id"
           AND ph2."deletedAt" IS NULL
-        ORDER BY ph2."isFavorite" DESC, ph2."sortOrder" ASC
+          AND ${photoTag} = ANY(ph2."tags")
+        ORDER BY ph2."sortOrder" ASC
         LIMIT 1
       ) ph ON true
       WHERE p."deletedAt" IS NULL

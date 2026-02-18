@@ -9,3 +9,4 @@ export { CarouselHeader } from "./carousel-header";
 export { TagSelector } from "./tag-selector";
 export { JustifiedGallery } from "./justified-gallery";
 export { GalleryFilterBar } from "./gallery-filter-bar";
+export { LightboxTagPanel } from "./lightbox-tag-panel";

@@ -8,7 +8,19 @@ const ALLOWED_MIME_TYPES = [
 ];
 const MAX_FILE_SIZE = 25 * 1024 * 1024; // 25MB
 
-const photoTagValues = ["portrait", "diploma", "tattoo", "document", "general"] as const;
+const photoTagValues = [
+  "portrait",
+  "diploma",
+  "tattoo",
+  "document",
+  "general",
+  "outtake",
+  "p-img01",
+  "p-img02",
+  "p-img03",
+  "p-img04",
+  "p-img05",
+] as const;
 
 export const photoUploadSchema = z.object({
   entityType: z.enum(["person", "project"]),
@@ -48,6 +60,17 @@ export type ReorderPhotosValues = z.infer<typeof reorderPhotosSchema>;
 export const updateTagsSchema = z.object({
   photoId: z.string().min(1),
   tags: z.array(z.enum(photoTagValues)),
+  entityType: z.enum(["person", "project"]).optional(),
+  entityId: z.string().min(1).optional(),
 });
 
 export type UpdateTagsValues = z.infer<typeof updateTagsSchema>;
+
+export const assignProfileSlotSchema = z.object({
+  photoId: z.string().min(1),
+  entityType: z.enum(["person", "project"]),
+  entityId: z.string().min(1),
+  slot: z.string().regex(/^p-img0[1-5]$/, "Invalid slot"),
+});
+
+export type AssignProfileSlotValues = z.infer<typeof assignProfileSlotSchema>;

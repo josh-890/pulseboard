@@ -16,16 +16,29 @@ type PersonBrowserProps = {
   query: string;
   role: string;
   traitCategory: string;
+  photoTag?: string;
 };
 
 type SavedState = {
   items: PersonBrowserItem[];
   nextCursor: string | null;
   scrollY: number;
+  /** Fingerprint of the first page IDs — used to detect stale data */
+  firstPageFingerprint?: string;
 };
 
-function storageKey(query: string, role: string, traitCategory: string) {
-  return `people-browse-${query}-${role}-${traitCategory}`;
+function storageKey(
+  query: string,
+  role: string,
+  traitCategory: string,
+  photoTag: string,
+) {
+  return `people-browse-${query}-${role}-${traitCategory}-${photoTag}`;
+}
+
+/** Build a fingerprint from the first page of items to detect stale data */
+function buildFingerprint(items: PersonBrowserItem[]): string {
+  return items.map((i) => `${i.id}:${i.photoUrl ?? ""}`).join("|");
 }
 
 export function PersonBrowser({
@@ -34,6 +47,7 @@ export function PersonBrowser({
   query,
   role,
   traitCategory,
+  photoTag = "p-img01",
 }: PersonBrowserProps) {
   const { density } = useDensity();
   const [items, setItems] = useState<PersonBrowserItem[]>(initialItems);
@@ -46,12 +60,24 @@ export function PersonBrowser({
     if (restoredRef.current) return;
     restoredRef.current = true;
 
-    const key = storageKey(query, role, traitCategory);
+    const key = storageKey(query, role, traitCategory, photoTag);
     const raw = sessionStorage.getItem(key);
     if (!raw) return;
 
     try {
       const saved: SavedState = JSON.parse(raw);
+
+      // Check if the server data changed since we cached
+      const currentFingerprint = buildFingerprint(initialItems);
+      if (
+        saved.firstPageFingerprint &&
+        saved.firstPageFingerprint !== currentFingerprint
+      ) {
+        // Server data changed — discard stale cache
+        sessionStorage.removeItem(key);
+        return;
+      }
+
       // Restore dates (JSON.parse loses Date objects)
       const restored = saved.items.map((item) => ({
         ...item,
@@ -66,31 +92,36 @@ export function PersonBrowser({
     } catch {
       sessionStorage.removeItem(key);
     }
-  }, [query, role, traitCategory]);
+  }, [query, role, traitCategory, photoTag, initialItems]);
 
   // Reset when filters change (new initial data from server)
-  const prevFiltersRef = useRef(`${query}-${role}-${traitCategory}`);
+  const prevFiltersRef = useRef(
+    `${query}-${role}-${traitCategory}-${photoTag}`,
+  );
   useEffect(() => {
-    const currentKey = `${query}-${role}-${traitCategory}`;
+    const currentKey = `${query}-${role}-${traitCategory}-${photoTag}`;
     if (prevFiltersRef.current !== currentKey) {
       prevFiltersRef.current = currentKey;
       setItems(initialItems);
       setNextCursor(initialCursor);
       restoredRef.current = true; // skip restore
-      sessionStorage.removeItem(storageKey(query, role, traitCategory));
+      sessionStorage.removeItem(
+        storageKey(query, role, traitCategory, photoTag),
+      );
     }
-  }, [query, role, traitCategory, initialItems, initialCursor]);
+  }, [query, role, traitCategory, photoTag, initialItems, initialCursor]);
 
   // Save state before navigating to a card
   const saveState = useCallback(() => {
-    const key = storageKey(query, role, traitCategory);
+    const key = storageKey(query, role, traitCategory, photoTag);
     const state: SavedState = {
       items,
       nextCursor,
       scrollY: window.scrollY,
+      firstPageFingerprint: buildFingerprint(initialItems),
     };
     sessionStorage.setItem(key, JSON.stringify(state));
-  }, [items, nextCursor, query, role, traitCategory]);
+  }, [items, nextCursor, query, role, traitCategory, photoTag, initialItems]);
 
   // Listen for clicks on person cards → save state
   useEffect(() => {
@@ -114,6 +145,7 @@ export function PersonBrowser({
         role || undefined,
         traitCategory || undefined,
         nextCursor,
+        photoTag,
       );
       setItems((prev) => [...prev, ...page.items]);
       setNextCursor(page.nextCursor);
@@ -135,7 +167,7 @@ export function PersonBrowser({
 
       <div
         className={cn(
-          "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5",
+          "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 3xl:grid-cols-6",
           density === "comfortable" ? "gap-3" : "gap-2",
         )}
       >

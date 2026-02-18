@@ -186,6 +186,12 @@ model PersonSnapshot {
   @@index([deletedAt])
 }
 
+model Setting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+}
+
 model Photo {
   id         String     @id @default(cuid())
   entityType EntityType

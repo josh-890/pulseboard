@@ -605,6 +605,24 @@ async function main() {
   const traitCount = await prisma.personaTrait.count();
   console.log(`Seeded ${personaCount} personas with ${traitCount} traits`);
 
+  // 7. Seed default profile image slot labels
+  const profileImageLabels = [
+    { key: "p-img01-label", value: "Photo 1" },
+    { key: "p-img02-label", value: "Photo 2" },
+    { key: "p-img03-label", value: "Photo 3" },
+    { key: "p-img04-label", value: "Photo 4" },
+    { key: "p-img05-label", value: "Photo 5" },
+  ];
+
+  for (const label of profileImageLabels) {
+    await prisma.setting.upsert({
+      where: { key: label.key },
+      update: {},
+      create: label,
+    });
+  }
+  console.log(`Seeded ${profileImageLabels.length} profile image labels`);
+
   console.log("Seeding complete!");
 }
 

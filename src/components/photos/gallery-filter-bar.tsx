@@ -14,6 +14,7 @@ const TAG_FILTERS = [
   { value: "tattoo", label: "Tattoo" },
   { value: "document", label: "Document" },
   { value: "general", label: "General" },
+  { value: "outtake", label: "Outtake" },
 ];
 
 export function GalleryFilterBar({ basePath }: GalleryFilterBarProps) {

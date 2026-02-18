@@ -9,6 +9,7 @@ import {
   getPhotosForEntity,
   getPhotosByTags,
 } from "@/lib/services/photo-service";
+import { getProfileImageLabels } from "@/lib/services/setting-service";
 
 type ProjectGalleryPageProps = {
   params: Promise<{ id: string }>;
@@ -37,9 +38,12 @@ export default async function ProjectGalleryPage({
     );
   }
 
-  const photos = tag
-    ? await getPhotosByTags("project", id, [tag])
-    : await getPhotosForEntity("project", id);
+  const [photos, profileLabels] = await Promise.all([
+    tag
+      ? getPhotosByTags("project", id, [tag])
+      : getPhotosForEntity("project", id),
+    getProfileImageLabels(),
+  ]);
 
   return (
     <div className="space-y-6">
@@ -80,6 +84,7 @@ export default async function ProjectGalleryPage({
             photos={photos}
             entityType="project"
             entityId={id}
+            profileLabels={profileLabels}
           />
         )}
       </div>
