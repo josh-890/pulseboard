@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-Pulseboard is a personal dashboard UI built to master Next.js App Router, TypeScript, and component-based UI development. Data is stored in PostgreSQL and accessed via Prisma ORM.
+Pulseboard is a personal dashboard for tracking projects and team members, with a persona-based people system and photo management. Data is stored in PostgreSQL and accessed via Prisma ORM.
 
 ## Tech Stack
 
