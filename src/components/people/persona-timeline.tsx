@@ -89,11 +89,13 @@ export function PersonaTimeline({
                       </Button>
                     }
                   />
-                  <PersonaDeleteButton
-                    personaId={entry.id}
-                    personId={personId}
-                    label={`#${entry.sequenceNum} — ${entry.effectiveDate.toLocaleDateString()}`}
-                  />
+                  {index !== reversed.length - 1 && (
+                    <PersonaDeleteButton
+                      personaId={entry.id}
+                      personId={personId}
+                      label={`#${entry.sequenceNum} — ${entry.effectiveDate.toLocaleDateString()}`}
+                    />
+                  )}
                 </div>
               }
             />

@@ -414,6 +414,14 @@ export async function deletePersona(personaId: string): Promise<{ personId: stri
   });
   if (!existing) throw new Error(`Persona ${personaId} not found`);
 
+  // Guard: cannot delete the only persona
+  const count = await prisma.persona.count({
+    where: { personId: existing.personId },
+  });
+  if (count <= 1) {
+    throw new Error("Cannot delete the only persona");
+  }
+
   await prisma.$transaction(async (tx) => {
     // Soft-delete the persona
     await tx.persona.update({
