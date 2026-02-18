@@ -14,7 +14,7 @@ type ClientPhoto = Omit<PhotoWithUrls, "variants">;
 
 type LightboxTagPanelProps = {
   photo: ClientPhoto;
-  entityType: "person" | "project";
+  entityType: "person" | "set";
   entityId: string;
   profileLabels: ProfileImageLabel[];
   onTagsChanged: (photoId: string, newTags: string[]) => void;

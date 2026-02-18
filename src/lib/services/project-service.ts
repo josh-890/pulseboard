@@ -1,53 +1,68 @@
 import { prisma } from "@/lib/db";
-import type { Project, ProjectStatus } from "@/lib/types";
+import type { Prisma, ProjectStatus } from "@/generated/prisma/client";
 
-export async function getProjects(): Promise<Project[]> {
-  return prisma.project.findMany({ orderBy: { updatedAt: "desc" } });
-}
+export type ProjectFilters = {
+  q?: string;
+  status?: ProjectStatus | "all";
+};
 
-export async function getProjectById(id: string): Promise<Project | null> {
-  return prisma.project.findUnique({ where: { id } });
-}
+export async function getProjects(filters: ProjectFilters = {}) {
+  const { q, status } = filters;
 
-export async function getProjectsByStatus(
-  status: ProjectStatus,
-): Promise<Project[]> {
-  return prisma.project.findMany({ where: { status } });
-}
+  const where: Prisma.ProjectWhereInput = {};
 
-export async function searchProjects(
-  query: string,
-  status?: ProjectStatus | "all",
-): Promise<Project[]> {
-  const trimmedQuery = query.trim();
-  const normalizedQuery = trimmedQuery.toLowerCase();
-
-  const statusFilter =
-    status && status !== "all" ? { status } : {};
-
-  if (!normalizedQuery) {
-    return prisma.project.findMany({
-      where: statusFilter,
-      orderBy: { updatedAt: "desc" },
-    });
+  if (status && status !== "all") {
+    where.status = status;
   }
 
-  const titleCaseQuery =
-    normalizedQuery.charAt(0).toUpperCase() + normalizedQuery.slice(1);
+  if (q) {
+    where.name = { contains: q, mode: "insensitive" };
+  }
 
   return prisma.project.findMany({
-    where: {
-      ...statusFilter,
-      OR: [
-        { name: { contains: normalizedQuery, mode: "insensitive" } },
-        { description: { contains: normalizedQuery, mode: "insensitive" } },
-        {
-          tags: {
-            hasSome: [normalizedQuery, trimmedQuery, titleCaseQuery],
-          },
+    where,
+    include: {
+      labels: { include: { label: true } },
+      sessions: {
+        include: {
+          sets: { select: { id: true, type: true, title: true } },
         },
-      ],
+        orderBy: { date: "desc" },
+      },
     },
     orderBy: { updatedAt: "desc" },
   });
+}
+
+export async function getProjectById(id: string) {
+  return prisma.project.findUnique({
+    where: { id },
+    include: {
+      labels: { include: { label: true } },
+      sessions: {
+        include: {
+          sets: {
+            include: {
+              contributions: {
+                include: {
+                  person: {
+                    include: {
+                      aliases: { where: { isPrimary: true, deletedAt: null }, take: 1 },
+                    },
+                  },
+                },
+                take: 4,
+              },
+            },
+            orderBy: { releaseDate: "desc" },
+          },
+        },
+        orderBy: { date: "desc" },
+      },
+    },
+  });
+}
+
+export async function countProjects(): Promise<number> {
+  return prisma.project.count();
 }

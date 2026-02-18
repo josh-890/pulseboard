@@ -7,195 +7,279 @@ datasource db {
   provider = "postgresql"
 }
 
+// ─── Enums ────────────────────────────────────────────────────────────────────
+
+enum PersonStatus {
+  active
+  inactive
+  wishlist
+  archived
+}
+
+enum ContributionRole {
+  main
+  supporting
+  background
+}
+
+enum SetType {
+  photo
+  video
+}
+
+enum RelationshipSource {
+  derived
+  manual
+}
+
+enum ProjectStatus {
+  active
+  paused
+  completed
+}
+
+enum ActivityType {
+  person_added
+  set_added
+  project_added
+  label_added
+  note
+}
+
+enum EntityType {
+  person
+  set
+}
+
+// ─── Person & Aliases ─────────────────────────────────────────────────────────
+
 model Person {
-  id          String @id @default(cuid())
+  id          String  @id @default(cuid())
   firstName   String
   lastName    String
-  email       String @unique
-  avatarColor String
-
   birthdate   DateTime?
-  birthplace  String?
+  nationality String?
+  ethnicity   String?
+  location    String?
+  height      Int?
+  hairColor   String?
+  eyeColor    String?
+  bodyType    String?
+  measurements String?
+  activeSince Int?
+  specialization String?
+  status      PersonStatus @default(active)
+  rating      Int?
+  notes       String?
+  tags        String[]
 
-  stakeholderOf Project[]       @relation("ProjectStakeholder")
-  leadOf        Project[]       @relation("ProjectLead")
-  memberships   ProjectMember[]
+  aliases       PersonAlias[]
   personas      Persona[]
-  snapshot      PersonSnapshot?
+  contributions SetContribution[]
+  relationships PersonRelationship[] @relation("PersonA")
+  relatedTo     PersonRelationship[] @relation("PersonB")
 
   createdAt DateTime  @default(now())
   deletedAt DateTime?
 
   @@index([lastName, firstName])
   @@index([firstName, lastName])
-  @@index([deletedAt])
-}
-
-model Project {
-  id          String        @id @default(cuid())
-  name        String
-  description String
-  status      ProjectStatus
-  tags        String[]
-
-  stakeholderId String
-  stakeholder   Person @relation("ProjectStakeholder", fields: [stakeholderId], references: [id])
-  leadId        String
-  lead          Person @relation("ProjectLead", fields: [leadId], references: [id])
-  members       ProjectMember[]
-
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  deletedAt DateTime?
-
   @@index([status])
-  @@index([updatedAt])
-  @@index([stakeholderId])
-  @@index([leadId])
   @@index([deletedAt])
 }
 
-model ProjectMember {
+model PersonAlias {
   id        String  @id @default(cuid())
-  projectId String
-  project   Project @relation(fields: [projectId], references: [id])
   personId  String
   person    Person  @relation(fields: [personId], references: [id])
-
+  name      String
+  isPrimary Boolean @default(false)
   deletedAt DateTime?
 
-  @@unique([projectId, personId])
   @@index([personId])
-  @@index([deletedAt])
-}
-
-model Activity {
-  id    String       @id @default(cuid())
-  title String
-  time  DateTime
-  type  ActivityType
-
-  createdAt DateTime  @default(now())
-  deletedAt DateTime?
-
-  @@index([time])
-  @@index([type])
-  @@index([deletedAt])
-}
-
-enum ProjectStatus {
-  active
-  paused
-  done
-}
-
-enum ActivityType {
-  deploy
-  note
-  task
-}
-
-enum EntityType {
-  person
-  project
-}
-
-enum TraitAction {
-  add
-  remove
-}
-
-model TraitCategory {
-  id          String  @id @default(cuid())
-  name        String  @unique
-  description String?
-  icon        String?
-
-  traits PersonaTrait[]
-
-  createdAt DateTime  @default(now())
-  deletedAt DateTime?
-
   @@index([name])
   @@index([deletedAt])
 }
 
 model Persona {
-  id            String   @id @default(cuid())
-  personId      String
-  person        Person   @relation(fields: [personId], references: [id])
-  sequenceNum   Int
-  effectiveDate DateTime
-  note          String?
+  id          String  @id @default(cuid())
+  personId    String
+  person      Person  @relation(fields: [personId], references: [id])
+  name        String
+  description String?
+  notes       String?
+  isBaseline  Boolean @default(false)
+  createdAt   DateTime  @default(now())
+  deletedAt   DateTime?
 
-  jobTitle   String?
-  department String?
-  phone      String?
-  address    String?
-
-  traits PersonaTrait[]
-
-  createdAt DateTime  @default(now())
-  deletedAt DateTime?
-
-  @@unique([personId, sequenceNum])
-  @@index([personId, effectiveDate])
-  @@index([personId, sequenceNum])
+  @@index([personId])
   @@index([deletedAt])
 }
 
-model PersonaTrait {
-  id              String        @id @default(cuid())
-  personaId       String
-  persona         Persona       @relation(fields: [personaId], references: [id])
-  traitCategoryId String
-  traitCategory   TraitCategory @relation(fields: [traitCategoryId], references: [id])
-  name            String
-  action          TraitAction
-  metadata        Json?
+model PersonRelationship {
+  id            String             @id @default(cuid())
+  personAId     String
+  personA       Person             @relation("PersonA", fields: [personAId], references: [id])
+  personBId     String
+  personB       Person             @relation("PersonB", fields: [personBId], references: [id])
+  source        RelationshipSource @default(derived)
+  label         String?
+  sharedSetCount Int               @default(0)
+  deletedAt     DateTime?
 
-  createdAt DateTime  @default(now())
-  deletedAt DateTime?
-
-  @@index([personaId])
-  @@index([traitCategoryId, name])
+  @@unique([personAId, personBId])
+  @@index([personAId])
+  @@index([personBId])
   @@index([deletedAt])
 }
 
-model PersonSnapshot {
-  id        String @id @default(cuid())
-  personId  String @unique
-  person    Person @relation(fields: [personId], references: [id])
+// ─── Organizations ────────────────────────────────────────────────────────────
 
-  jobTitle   String?
-  department String?
-  phone      String?
-  address    String?
+model Network {
+  id          String  @id @default(cuid())
+  name        String
+  description String?
+  website     String?
+  deletedAt   DateTime?
 
-  activeTraits  Json // SnapshotTrait[]
-  removedTraits Json // SnapshotRemovedTrait[]
+  labelMemberships LabelNetwork[]
 
-  personaCount      Int
-  latestPersonaDate DateTime?
-
-  updatedAt DateTime @updatedAt
-  deletedAt DateTime?
-
-  @@index([jobTitle])
-  @@index([department])
+  @@index([name])
   @@index([deletedAt])
 }
 
-model Setting {
-  key       String   @id
-  value     String
-  updatedAt DateTime @updatedAt
+model Label {
+  id          String  @id @default(cuid())
+  name        String
+  description String?
+  website     String?
+  deletedAt   DateTime?
+
+  networks  LabelNetwork[]
+  channels  Channel[]
+  projects  ProjectLabel[]
+
+  @@index([name])
+  @@index([deletedAt])
 }
+
+model LabelNetwork {
+  labelId   String
+  label     Label   @relation(fields: [labelId], references: [id])
+  networkId String
+  network   Network @relation(fields: [networkId], references: [id])
+
+  @@id([labelId, networkId])
+}
+
+model Channel {
+  id       String  @id @default(cuid())
+  labelId  String
+  label    Label   @relation(fields: [labelId], references: [id])
+  name     String
+  url      String?
+  platform String?
+  deletedAt DateTime?
+
+  sets Set[]
+
+  @@index([labelId])
+  @@index([deletedAt])
+}
+
+// ─── Production ───────────────────────────────────────────────────────────────
+
+model Project {
+  id          String        @id @default(cuid())
+  name        String
+  description String?
+  status      ProjectStatus @default(active)
+  tags        String[]
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  deletedAt   DateTime?
+
+  labels   ProjectLabel[]
+  sessions Session[]
+
+  @@index([status])
+  @@index([updatedAt])
+  @@index([deletedAt])
+}
+
+model ProjectLabel {
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id])
+  labelId   String
+  label     Label   @relation(fields: [labelId], references: [id])
+
+  @@id([projectId, labelId])
+}
+
+model Session {
+  id          String    @id @default(cuid())
+  projectId   String
+  project     Project   @relation(fields: [projectId], references: [id])
+  name        String
+  description String?
+  date        DateTime?
+  createdAt   DateTime  @default(now())
+  deletedAt   DateTime?
+
+  sets Set[]
+
+  @@index([projectId])
+  @@index([date])
+  @@index([deletedAt])
+}
+
+model Set {
+  id          String    @id @default(cuid())
+  sessionId   String
+  session     Session   @relation(fields: [sessionId], references: [id])
+  channelId   String?
+  channel     Channel?  @relation(fields: [channelId], references: [id])
+  type        SetType
+  title       String
+  description String?
+  notes       String?
+  releaseDate DateTime?
+  category    String?
+  genre       String?
+  tags        String[]
+  createdAt   DateTime  @default(now())
+  deletedAt   DateTime?
+
+  contributions SetContribution[]
+
+  @@index([sessionId])
+  @@index([channelId])
+  @@index([type])
+  @@index([releaseDate])
+  @@index([deletedAt])
+}
+
+model SetContribution {
+  id       String           @id @default(cuid())
+  setId    String
+  set      Set              @relation(fields: [setId], references: [id])
+  personId String
+  person   Person           @relation(fields: [personId], references: [id])
+  role     ContributionRole @default(main)
+  deletedAt DateTime?
+
+  @@unique([setId, personId])
+  @@index([setId])
+  @@index([personId])
+  @@index([deletedAt])
+}
+
+// ─── Photos ───────────────────────────────────────────────────────────────────
 
 model Photo {
   id         String     @id @default(cuid())
   entityType EntityType
-  entityId   String
+  entityId   String     // polymorphic: points to Person.id or Set.id depending on entityType
 
   filename       String
   mimeType       String
@@ -219,4 +303,26 @@ model Photo {
   @@index([entityType, entityId, isFavorite])
   @@index([deletedAt])
   @@index([tags], type: Gin)
+}
+
+// ─── System ───────────────────────────────────────────────────────────────────
+
+model Setting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+}
+
+model Activity {
+  id    String       @id @default(cuid())
+  title String
+  time  DateTime
+  type  ActivityType
+
+  createdAt DateTime  @default(now())
+  deletedAt DateTime?
+
+  @@index([time])
+  @@index([type])
+  @@index([deletedAt])
 }

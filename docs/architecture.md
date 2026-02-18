@@ -4,58 +4,83 @@
 
 ```
 app/
-├── layout.tsx              # Root layout
-│   ├── ThemeProvider       # Dark/light mode context
-│   └── AppShell            # Sidebar (desktop) + Drawer (mobile)
+├── layout.tsx                    # Root layout
+│   ├── ThemeProvider             # Dark/light mode context
+│   └── AppShell                  # Sidebar (desktop) + Drawer (mobile)
 │
-├── page.tsx                # / — Overview Dashboard (async Server Component)
-│   ├── KPI Cards           # Summary stats (total projects, active, etc.)
-│   ├── Activity Feed       # Recent activity list
-│   └── Quick Actions       # Shortcut buttons
-│
-├── projects/
-│   ├── page.tsx            # /projects — Project List (async Server Component)
-│   │   ├── Search Bar      # Client Component — URL-driven search
-│   │   ├── Status Filter   # Client Component — URL-driven filter
-│   │   ├── Project Cards   # Grid of project cards
-│   │   └── Empty State     # Shown when no results match
-│   │
-│   ├── new/
-│   │   └── page.tsx        # /projects/new — New Project form (Server Component → ProjectForm)
-│   │
-│   └── [id]/
-│       ├── page.tsx        # /projects/[id] — Project Detail + Edit/Delete buttons
-│       │   ├── Project Header (name, status, tags)
-│       │   ├── Project Info (description, updated date)
-│       │   ├── Project Team Section (assigned people)
-│       │   └── Edit Link + DeleteButton
-│       │
-│       └── edit/
-│           └── page.tsx    # /projects/[id]/edit — Edit Project form (Server Component → ProjectForm)
+├── page.tsx                      # / — Dashboard (async Server Component)
+│   ├── KPI Cards                 # Total persons, sets, labels, recent additions
+│   ├── Activity Feed             # Recent activity list
+│   └── Quick Actions             # Shortcut buttons
 │
 ├── people/
-│   ├── page.tsx            # /people — People List (async Server Component)
-│   │   ├── Search Bar      # Client Component — URL-driven search
-│   │   ├── Role Filter     # Client Component — URL-driven filter
-│   │   ├── Person Cards    # Grid of person cards
-│   │   └── Empty State     # Shown when no results match
-│   │
-│   ├── new/
-│   │   └── page.tsx        # /people/new — New Person form (PersonForm)
+│   ├── page.tsx                  # /people — People browser (async Server Component)
+│   │   ├── PersonSearch          # Client: URL-driven text search
+│   │   ├── StatusFilter          # Client: URL-driven status filter
+│   │   ├── AttributeFilters      # Client: hair/body/ethnicity filters
+│   │   └── PersonList            # Grid of person cards
 │   │
 │   └── [id]/
-│       ├── page.tsx        # /people/[id] — Person Detail + Edit/Delete buttons
-│       │   ├── Person Header (avatar, name, email)
-│       │   ├── Project Assignments (project name, status, role)
-│       │   └── Edit Link + DeleteButton
-│       │
-│       └── edit/
-│           └── page.tsx    # /people/[id]/edit — Edit Person form (Server Component → PersonForm)
+│       └── page.tsx              # /people/[id] — Person detail
+│           ├── PersonHeader      # Primary alias, avatar, status badge, rating
+│           ├── ProfileSection    # Demographics, physical, career
+│           ├── PersonasSection   # Working identities list
+│           ├── AliasesSection    # All known names
+│           ├── PhotoGallery      # Profile/reference photos with lightbox
+│           ├── WorkHistory       # Sets they appeared in, with role + date
+│           ├── Affiliations      # Labels derived from set contributions
+│           ├── Connections       # Co-workers (shared sets + manual relationships)
+│           └── NotesSection      # Rating, notes, personal tags
+│
+├── sets/
+│   ├── page.tsx                  # /sets — Set gallery (async Server Component)
+│   │   ├── TypeFilter            # Client: photo / video filter
+│   │   ├── SetSearch             # Client: URL-driven text search
+│   │   └── SetGrid               # Gallery of set cards
+│   │
+│   └── [id]/
+│       └── page.tsx              # /sets/[id] — Set detail
+│           ├── SetHeader         # Title, type badge, release date, channel
+│           ├── PhotoGallery      # Photos with lightbox (photo sets)
+│           ├── CastSection       # People in this set with roles
+│           └── SetMeta           # Description, notes, tags, session/project links
+│
+├── projects/
+│   ├── page.tsx                  # /projects — Project list (async Server Component)
+│   │   ├── ProjectSearch         # Client: URL-driven text search
+│   │   ├── StatusFilter          # Client: URL-driven status filter
+│   │   └── ProjectList           # List of project cards
+│   │
+│   └── [id]/
+│       └── page.tsx              # /projects/[id] — Project detail
+│           ├── ProjectHeader     # Name, status, tags
+│           ├── LabelsSection     # Co-owning labels
+│           └── SessionsList      # Sessions with their sets
+│
+├── labels/
+│   ├── page.tsx                  # /labels — Label browser
+│   │
+│   └── [id]/
+│       └── page.tsx              # /labels/[id] — Label detail
+│           ├── LabelHeader       # Name, description, website
+│           ├── ChannelsSection   # Channels owned by this label
+│           ├── ProjectsSection   # Projects co-owned by this label
+│           └── PeopleSection     # People associated via sets
+│
+├── networks/
+│   ├── page.tsx                  # /networks — Network browser
+│   │
+│   └── [id]/
+│       └── page.tsx              # /networks/[id] — Network detail
+│           ├── NetworkHeader     # Name, description
+│           ├── LabelsSection     # Member labels
+│           └── StatsSection      # Aggregated stats (set count, person count)
 │
 └── settings/
-    └── page.tsx            # /settings — Settings
-        └── Dark Mode Toggle
+    └── page.tsx                  # /settings — Settings
 ```
+
+---
 
 ## Component Hierarchy
 
@@ -63,66 +88,97 @@ app/
 RootLayout
 ├── ThemeProvider (context)
 └── AppShell
-    ├── Sidebar (desktop: fixed left)
-    │   ├── Logo / App Title
-    │   ├── Nav Links (/, /projects, /people, /settings)
-    │   └── Theme Toggle (optional)
+    ├── Sidebar (desktop: fixed left, collapsible)
+    │   ├── Logo
+    │   ├── Nav Links (/, /people, /sets, /projects, /labels, /networks, /settings)
+    │   └── Collapse Toggle
     │
     ├── MobileDrawer (mobile: hamburger → slide-out)
-    │   └── Same nav content as Sidebar
+    │   └── Same nav as Sidebar
     │
     └── Main Content Area
         └── {page content}
 ```
 
-### Component Folder Organization
+---
+
+## Component Folder Organization
 
 ```
 components/
-├── ui/                     # shadcn/ui auto-generated primitives
-│   ├── button.tsx          # Do not edit — regenerate via CLI
-│   ├── card.tsx
+├── ui/                           # shadcn/ui auto-generated primitives (do not edit)
+│
+├── layout/                       # App shell and navigation
+│   ├── app-shell.tsx
+│   ├── sidebar.tsx
+│   ├── mobile-drawer.tsx
+│   └── nav-link.tsx
+│
+├── dashboard/                    # Overview page components
+│   ├── kpi-card.tsx
+│   ├── kpi-grid.tsx
+│   ├── activity-feed.tsx
+│   ├── activity-item.tsx
+│   └── quick-actions.tsx
+│
+├── people/                       # People browser + detail
+│   ├── person-card.tsx           # Person summary card
+│   ├── person-list.tsx           # Grid of person cards
+│   ├── person-search.tsx         # URL-driven search (Client)
+│   ├── status-filter.tsx         # URL-driven status filter (Client)
+│   ├── attribute-filters.tsx     # Physical attribute filters (Client)
+│   ├── person-header.tsx         # Detail page header
+│   ├── profile-section.tsx       # Demographics + physical attributes
+│   ├── personas-section.tsx      # Working identities list
+│   ├── aliases-section.tsx       # Known names list
+│   ├── work-history.tsx          # Sets they appeared in
+│   ├── affiliations-section.tsx  # Label affiliations
+│   ├── connections-section.tsx   # Co-workers
+│   ├── notes-section.tsx         # Rating, notes, tags
+│   └── empty-state.tsx
+│
+├── sets/                         # Sets gallery + detail
+│   ├── set-card.tsx
+│   ├── set-grid.tsx
+│   ├── set-search.tsx
+│   ├── type-filter.tsx
+│   ├── set-header.tsx
+│   ├── cast-section.tsx
+│   └── empty-state.tsx
+│
+├── projects/                     # Projects list + detail
+│   ├── project-card.tsx
+│   ├── project-list.tsx
+│   ├── project-search.tsx
+│   ├── status-filter.tsx
+│   ├── sessions-list.tsx
+│   └── empty-state.tsx
+│
+├── labels/                       # Labels browser + detail
+│   ├── label-card.tsx
+│   ├── label-list.tsx
+│   ├── channels-section.tsx
+│   └── empty-state.tsx
+│
+├── networks/                     # Networks browser + detail
+│   ├── network-card.tsx
+│   ├── network-list.tsx
+│   └── empty-state.tsx
+│
+├── photos/                       # Photo infrastructure (reused across person + set)
+│   ├── image-carousel.tsx
+│   ├── image-gallery.tsx
+│   ├── lightbox.tsx
+│   ├── image-upload.tsx
 │   └── ...
 │
-├── layout/                 # App shell and navigation
-│   ├── app-shell.tsx       # Wraps sidebar + main content
-│   ├── sidebar.tsx         # Desktop sidebar navigation
-│   ├── mobile-drawer.tsx   # Mobile slide-out navigation
-│   └── nav-link.tsx        # Single nav item with active state
-│
-├── dashboard/              # Overview page components
-│   ├── kpi-card.tsx        # Single stat card
-│   ├── kpi-grid.tsx        # Grid of KPI cards (async Server Component)
-│   ├── activity-feed.tsx   # Recent activity list
-│   ├── activity-item.tsx   # Single activity entry
-│   └── quick-actions.tsx   # Action button group
-│
-├── projects/               # Project page components
-│   ├── project-card.tsx    # Single project card
-│   ├── project-list.tsx    # Grid of project cards
-│   ├── project-search.tsx  # Self-managing URL-driven search (Client Component)
-│   ├── status-filter.tsx   # Self-managing URL-driven filter (Client Component)
-│   ├── project-team-section.tsx  # Team list on project detail
-│   ├── project-form.tsx    # Create/edit project form (Client Component)
-│   └── empty-state.tsx     # No results placeholder
-│
-├── people/                 # People page components
-│   ├── person-avatar.tsx   # Initials circle (sm/md/lg)
-│   ├── role-badge.tsx      # Colored role badge
-│   ├── person-card.tsx     # Person summary card
-│   ├── person-list.tsx     # Grid of person cards
-│   ├── person-search.tsx   # Self-managing URL-driven search (Client Component)
-│   ├── role-filter.tsx     # Self-managing URL-driven filter (Client Component)
-│   ├── person-form.tsx     # Create/edit person form (Client Component)
-│   └── empty-state.tsx     # No results placeholder
-│
-└── shared/                 # Reusable form sub-components
-    ├── tag-input.tsx       # Tag tokenizer with badges (Client Component)
-    ├── color-picker.tsx    # Color swatch grid (Client Component)
-    ├── person-select.tsx   # Person dropdown with avatar (Client Component)
-    ├── member-multi-select.tsx  # Multi-select checkbox popover (Client Component)
-    └── delete-button.tsx   # Destructive button with AlertDialog (Client Component)
+└── shared/                       # Reusable cross-domain components
+    ├── tag-input.tsx
+    ├── delete-button.tsx
+    └── ...
 ```
+
+---
 
 ## Data Flow
 
@@ -135,124 +191,70 @@ Write path:
   Form submit  →  Server Action  →  Prisma Client  →  PostgreSQL
   (Client)        (lib/actions/)    (lib/db.ts)        + Activity log
                   + Zod validation                     + revalidatePath()
-                  (lib/validations/)
 ```
 
-### Database Layer
+---
 
-PostgreSQL database with schema defined in `prisma/schema.prisma`. Models: `Person`, `Project`, `ProjectMember` (join table), `Activity`. Enums: `ProjectStatus`, `ActivityType`.
-
-### Service Layer (`lib/services/`)
-
-Async accessor functions that query the database via Prisma:
+## Service Layer (`lib/services/`)
 
 ```typescript
-// lib/services/project-service.ts
-export async function getProjects(): Promise<Project[]> { ... }
-export async function getProjectById(id: string): Promise<Project | null> { ... }
-export async function searchProjects(query: string, status?: ProjectStatus | "all"): Promise<Project[]> { ... }
+// person-service.ts
+getPersons(filters?)                        // people browser list
+getPersonById(id)                           // detail page
+getPersonWorkHistory(personId)              // sets they appeared in
+getPersonAffiliations(personId)             // labels via set contributions
+getPersonConnections(personId)              // related people
 
-// lib/services/activity-service.ts
-export async function getRecentActivities(limit?: number): Promise<ActivityItem[]> { ... }
+// set-service.ts
+getSets(filters?)                           // sets gallery list
+getSetById(id)                              // detail page with cast
 
-// lib/services/person-service.ts
-export async function getPersons(): Promise<Person[]> { ... }
-export async function getPersonById(id: string): Promise<Person | null> { ... }
-export async function searchPersons(query: string, role?: ProjectRole | "all"): Promise<Person[]> { ... }
-export async function getPersonRoles(personId: string): Promise<PersonProjectAssignment[]> { ... }
-export async function getPersonsByProject(projectId: string): Promise<{ person: Person; role: ProjectRole }[]> { ... }
+// project-service.ts
+getProjects(filters?)                       // project list
+getProjectById(id)                          // detail with sessions + sets
+
+// label-service.ts
+getLabels(filters?)                         // label browser
+getLabelById(id)                            // detail with channels + projects
+
+// network-service.ts
+getNetworks(filters?)                       // network browser
+getNetworkById(id)                          // detail with member labels
+
+// activity-service.ts
+getRecentActivities(limit?)                 // dashboard feed
+
+// stats-service.ts
+getDashboardStats()                         // KPI counts
 ```
 
-### Server Actions (`lib/actions/`)
-
-Mutation functions using `"use server"` directive, called from Client Components:
-
-```typescript
-// lib/actions/project-actions.ts
-export async function createProject(data: unknown): Promise<ActionResult> { ... }
-export async function updateProject(id: string, data: unknown): Promise<ActionResult> { ... }
-export async function deleteProject(id: string): Promise<ActionResult> { ... }
-
-// lib/actions/person-actions.ts
-export async function createPerson(data: unknown): Promise<ActionResult> { ... }
-export async function updatePerson(id: string, data: unknown): Promise<ActionResult> { ... }
-export async function deletePerson(id: string): Promise<ActionResult> { ... }
-```
-
-Each action: validates with Zod → mutates via Prisma → logs Activity → calls `revalidatePath()`.
-
-### Validation Schemas (`lib/validations/`)
-
-Zod schemas for form validation, used by both server actions (server-side) and react-hook-form (client-side):
-
-```typescript
-// lib/validations/project.ts — projectFormSchema + ProjectFormValues
-// lib/validations/person.ts  — personFormSchema + PersonFormValues + AVATAR_COLORS
-```
-
-**Why a service layer?**
-- Components never import Prisma client directly
-- Centralizes data access logic (filtering, sorting, joins)
-- Keeps components focused on rendering
-- All functions return Promises — consumed with `await` in Server Components
-
-### Types (`lib/types/`)
-
-Types are re-exported from Prisma-generated types:
-
-```typescript
-// lib/types/project.ts
-export type { Project, ProjectStatus } from "@/generated/prisma/client";
-
-// lib/types/activity.ts
-export type { Activity as ActivityItem } from "@/generated/prisma/client";
-
-// lib/types/person.ts — also includes computed types
-export type { Person } from "@/generated/prisma/client";
-export type ProjectRole = "stakeholder" | "lead" | "member";
-export type PersonProjectAssignment = { project: Project; role: ProjectRole };
-```
+---
 
 ## State Management
 
 | State | Scope | Mechanism |
 |---|---|---|
 | Theme (dark/light) | Global | React Context (`ThemeProvider`) |
-| Search query | `/projects` page | URL searchParams (`?q=...`) |
-| Status filter | `/projects` page | URL searchParams (`?status=...`) |
-| Search query (people) | `/people` page | URL searchParams (`?q=...`) |
-| Role filter | `/people` page | URL searchParams (`?role=...`) |
+| Search query | List pages | URL searchParams (`?q=...`) |
+| Status filter | `/people`, `/projects` | URL searchParams (`?status=...`) |
+| Type filter | `/sets` | URL searchParams (`?type=...`) |
+| Attribute filters | `/people` | URL searchParams |
 | Search input value | Client Components | `useState` with 300ms debounce |
 | Sidebar open/closed (mobile) | Layout | `useState` in `AppShell` |
 
-### Theme Context
-
-```typescript
-// lib/context/theme-context.tsx
-type Theme = "light" | "dark";
-
-type ThemeContextValue = {
-  theme: Theme;
-  toggleTheme: () => void;
-};
-```
-
-- Stored in `localStorage` for persistence
-- Applied via a `data-theme` attribute or Tailwind `dark:` class strategy
-- Toggle available in Settings page and optionally in Sidebar
+---
 
 ## Rendering Strategy
 
-Pages use **async Server Components** with data fetched via Prisma:
-- Page components are `async` functions that `await` service calls
-- Search/filter state is driven by URL searchParams (enables server-side filtering)
-- Client Components (`"use client"`) are used only for interactive controls (search input, filter buttons)
-- Client Components are wrapped in `<Suspense>` boundaries where needed
+- Pages are **async Server Components** — data fetched server-side via Prisma services
+- Search/filter state lives in URL searchParams (SSR-friendly, shareable)
+- Client Components (`"use client"`) used only for interactive controls
+- Client Components wrapped in `<Suspense>` where needed for streaming
 
 ## Key Patterns
 
-1. **Composition over configuration** — Build pages by composing small, focused components
-2. **Server-first data fetching** — Data is fetched in Server Components, passed down as props
-3. **URL-driven state** — Search/filter state lives in URL searchParams for shareability and SSR
-4. **Service abstraction** — Components call async services, never Prisma directly
-5. **Responsive-first** — Mobile layout is the base; desktop adds sidebar via breakpoints
+1. **Server-first data fetching** — `await` service calls in page components
+2. **URL-driven state** — filters/search in URL params for SSR and shareability
+3. **Service abstraction** — components never import Prisma directly
+4. **Responsive-first** — mobile base layout, desktop adds sidebar via breakpoints
+5. **Soft-delete transparent** — extension filters `deletedAt: null` automatically

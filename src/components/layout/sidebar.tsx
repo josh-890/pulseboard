@@ -4,6 +4,9 @@ import {
   LayoutDashboard,
   FolderKanban,
   Users,
+  ImageIcon,
+  Building2,
+  Network,
   Settings,
   ChevronsLeft,
   ChevronsRight,
@@ -14,8 +17,11 @@ import { cn } from "@/lib/utils";
 
 const navItems = [
   { href: "/", icon: <LayoutDashboard size={20} />, label: "Dashboard" },
-  { href: "/projects", icon: <FolderKanban size={20} />, label: "Projects" },
   { href: "/people", icon: <Users size={20} />, label: "People" },
+  { href: "/sets", icon: <ImageIcon size={20} />, label: "Sets" },
+  { href: "/projects", icon: <FolderKanban size={20} />, label: "Projects" },
+  { href: "/labels", icon: <Building2 size={20} />, label: "Labels" },
+  { href: "/networks", icon: <Network size={20} />, label: "Networks" },
   { href: "/settings", icon: <Settings size={20} />, label: "Settings" },
 ];
 

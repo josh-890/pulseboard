@@ -23,15 +23,19 @@ export function withSoftDelete(prisma: PrismaClient) {
   return prisma.$extends({
     query: {
       person: softDeleteOverrides,
-      project: softDeleteOverrides,
-      projectMember: softDeleteOverrides,
-      activity: softDeleteOverrides,
-      traitCategory: softDeleteOverrides,
+      personAlias: softDeleteOverrides,
       persona: softDeleteOverrides,
-      personaTrait: softDeleteOverrides,
-      personSnapshot: softDeleteOverrides,
+      personRelationship: softDeleteOverrides,
+      network: softDeleteOverrides,
+      label: softDeleteOverrides,
+      channel: softDeleteOverrides,
+      project: softDeleteOverrides,
+      session: softDeleteOverrides,
+      set: softDeleteOverrides,
+      setContribution: softDeleteOverrides,
+      activity: softDeleteOverrides,
       photo: softDeleteOverrides,
-      // Setting intentionally excluded — no deletedAt field
+      // Setting, LabelNetwork, ProjectLabel intentionally excluded — no deletedAt field
     },
   });
 }

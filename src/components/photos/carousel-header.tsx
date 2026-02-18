@@ -3,7 +3,6 @@
 import { useCallback, useState } from "react";
 import Image from "next/image";
 import { ChevronLeft, ChevronRight, ImageIcon } from "lucide-react";
-import { cn } from "@/lib/utils";
 import { Lightbox } from "./lightbox";
 import { setFavorite } from "@/lib/actions/photo-actions";
 import type { PhotoWithUrls } from "@/lib/types";
@@ -12,7 +11,7 @@ type ClientPhoto = Omit<PhotoWithUrls, "variants">;
 
 type CarouselHeaderProps = {
   photos: ClientPhoto[];
-  entityType: "person" | "project";
+  entityType: "person" | "set";
   entityId: string;
   fallbackColor?: string;
   fallbackInitials?: string;

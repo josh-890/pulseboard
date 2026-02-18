@@ -1,159 +1,106 @@
-"use client";
-
-import { useState } from "react";
-import Image from "next/image";
-import { useRouter } from "next/navigation";
-import type { PersonBrowserItem } from "@/lib/types";
-import type { DensityMode } from "@/components/layout/density-provider";
+import Link from "next/link";
+import { MapPin, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
+import type { PersonWithPrimaryAlias, PersonStatus } from "@/lib/types";
 
 type PersonCardProps = {
-  person: PersonBrowserItem;
-  density: DensityMode;
+  person: PersonWithPrimaryAlias;
 };
 
-const densityConfig = {
-  comfortable: {
-    card: "h-[136px]",
-    imageW: "w-[100px]",
-    padding: "p-3",
-    name: "text-base",
-    meta: "text-sm",
-    metaLines: 2,
-  },
-  compact: {
-    card: "h-[100px]",
-    imageW: "w-[76px]",
-    padding: "p-2",
-    name: "text-sm",
-    meta: "text-xs",
-    metaLines: 1,
-  },
-} as const;
+const STATUS_STYLES: Record<PersonStatus, string> = {
+  active: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30",
+  inactive: "bg-slate-500/15 text-slate-600 dark:text-slate-400 border-slate-500/30",
+  wishlist: "bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30",
+  archived: "bg-red-500/15 text-red-600 dark:text-red-400 border-red-500/30",
+};
 
-function MetaSeparator() {
-  return <span className="mx-1.5 text-muted-foreground/50">&middot;</span>;
+const STATUS_LABELS: Record<PersonStatus, string> = {
+  active: "Active",
+  inactive: "Inactive",
+  wishlist: "Wishlist",
+  archived: "Archived",
+};
+
+function getInitials(firstName: string, lastName: string): string {
+  return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
 }
 
-function formatBirthdate(date: Date): string {
-  return new Date(date).toLocaleDateString(undefined, {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
-}
-
-export function PersonCard({ person, density }: PersonCardProps) {
-  const router = useRouter();
-  const [imgError, setImgError] = useState(false);
-  const config = densityConfig[density];
-  const initials = `${person.firstName[0]}${person.lastName[0]}`;
-  const showImage = person.photoUrl && !imgError;
-
-  // Build metadata line 1: jobTitle · department
-  const line1Parts: string[] = [];
-  if (person.jobTitle) line1Parts.push(person.jobTitle);
-  if (person.department) line1Parts.push(person.department);
-
-  // Build metadata line 2: birthdate · email (comfortable only)
-  const line2Parts: string[] = [];
-  if (person.birthdate) line2Parts.push(formatBirthdate(person.birthdate));
-  if (person.email) line2Parts.push(person.email);
-
-  function handleClick() {
-    router.push(`/people/${person.id}`);
-  }
-
-  function handleKeyDown(e: React.KeyboardEvent) {
-    if (e.key === "Enter" || e.key === " ") {
-      e.preventDefault();
-      router.push(`/people/${person.id}`);
-    }
-  }
+export function PersonCard({ person }: PersonCardProps) {
+  const displayName = person.primaryAlias ?? `${person.firstName} ${person.lastName}`;
+  const initials = getInitials(person.firstName, person.lastName);
+  const visibleTags = person.tags.slice(0, 3);
 
   return (
-    <div
-      role="link"
-      tabIndex={0}
-      onClick={handleClick}
-      onKeyDown={handleKeyDown}
-      className={cn(
-        "group flex cursor-pointer overflow-hidden rounded-xl border border-white/30 bg-card/70 shadow-lg backdrop-blur-md transition-all duration-150 hover:-translate-y-0.5 hover:shadow-xl dark:border-white/10",
-        config.card,
-      )}
-    >
-      {/* 4:5 aspect image / fallback */}
+    <Link href={`/people/${person.id}`} className="group block focus-visible:outline-none">
       <div
         className={cn(
-          "relative shrink-0 overflow-hidden rounded-l-xl",
-          config.imageW,
+          "rounded-2xl border border-white/20 bg-card/70 p-5 shadow-md backdrop-blur-sm",
+          "transition-all duration-200",
+          "hover:border-white/30 hover:bg-card/90 hover:shadow-lg hover:-translate-y-0.5",
+          "focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+          "group-focus-visible:ring-2 group-focus-visible:ring-ring group-focus-visible:ring-offset-2",
         )}
-        style={{ backgroundColor: showImage ? undefined : person.avatarColor }}
       >
-        {showImage ? (
-          <Image
-            src={person.photoUrl!}
-            alt={`${person.firstName} ${person.lastName}`}
-            fill
-            className="object-cover"
-            onError={() => setImgError(true)}
-            unoptimized
-          />
-        ) : (
-          <div className="flex h-full items-center justify-center text-lg font-semibold text-white">
+        <div className="flex items-start gap-4">
+          {/* Avatar */}
+          <div
+            className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-primary/15 text-lg font-bold text-primary ring-2 ring-primary/20"
+            aria-hidden="true"
+          >
             {initials}
           </div>
-        )}
-      </div>
 
-      {/* Content */}
-      <div
-        className={cn(
-          "flex min-w-0 flex-1 flex-col justify-center",
-          config.padding,
-        )}
-      >
-        <h3
-          className={cn(
-            "truncate font-semibold leading-tight group-hover:text-primary",
-            config.name,
-          )}
-        >
-          {person.firstName} {person.lastName}
-        </h3>
-
-        {line1Parts.length > 0 && (
-          <p
-            className={cn(
-              "mt-0.5 truncate text-muted-foreground",
-              config.meta,
-            )}
-          >
-            {line1Parts.map((part, i) => (
-              <span key={i}>
-                {i > 0 && <MetaSeparator />}
-                {part}
+          {/* Content */}
+          <div className="min-w-0 flex-1">
+            <div className="mb-1.5 flex items-start justify-between gap-2">
+              <p className="truncate text-base font-semibold leading-tight">{displayName}</p>
+              <span
+                className={cn(
+                  "inline-flex shrink-0 items-center rounded-full border px-2 py-0.5 text-xs font-medium",
+                  STATUS_STYLES[person.status],
+                )}
+              >
+                {STATUS_LABELS[person.status]}
               </span>
-            ))}
-          </p>
-        )}
+            </div>
 
-        {config.metaLines >= 2 && line2Parts.length > 0 && (
-          <p
-            className={cn(
-              "mt-0.5 truncate text-muted-foreground",
-              config.meta,
+            {/* Meta row */}
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
+              {person.hairColor && (
+                <span className="flex items-center gap-1">
+                  <Sparkles size={12} className="shrink-0" />
+                  {person.hairColor}
+                </span>
+              )}
+              {person.location && (
+                <span className="flex items-center gap-1">
+                  <MapPin size={12} className="shrink-0" />
+                  {person.location}
+                </span>
+              )}
+            </div>
+
+            {/* Tags */}
+            {visibleTags.length > 0 && (
+              <div className="mt-2.5 flex flex-wrap gap-1.5">
+                {visibleTags.map((tag) => (
+                  <span
+                    key={tag}
+                    className="inline-flex items-center rounded-full border border-white/10 bg-muted/60 px-2 py-0.5 text-xs text-muted-foreground"
+                  >
+                    {tag}
+                  </span>
+                ))}
+                {person.tags.length > 3 && (
+                  <span className="inline-flex items-center rounded-full border border-white/10 bg-muted/60 px-2 py-0.5 text-xs text-muted-foreground">
+                    +{person.tags.length - 3}
+                  </span>
+                )}
+              </div>
             )}
-          >
-            {line2Parts.map((part, i) => (
-              <span key={i}>
-                {i > 0 && <MetaSeparator />}
-                {part}
-              </span>
-            ))}
-          </p>
-        )}
+          </div>
+        </div>
       </div>
-    </div>
+    </Link>
   );
 }

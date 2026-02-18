@@ -2,6 +2,7 @@
 
 import {
   createContext,
+  startTransition,
   useCallback,
   useContext,
   useEffect,
@@ -77,7 +78,7 @@ export function PaletteProvider({ children }: PaletteProviderProps) {
   useEffect(() => {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored && getPaletteByName(stored)) {
-      setPaletteNameState(stored);
+      startTransition(() => setPaletteNameState(stored));
     }
   }, []);
 

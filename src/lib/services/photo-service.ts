@@ -12,7 +12,7 @@ function toPhotoWithUrls(photo: PrismaPhoto): PhotoWithUrls {
   const variants = photo.variants as PhotoVariants;
   return {
     id: photo.id,
-    entityType: photo.entityType as "person" | "project",
+    entityType: photo.entityType as "person" | "set",
     entityId: photo.entityId,
     filename: photo.filename,
     mimeType: photo.mimeType,
@@ -42,7 +42,7 @@ function toPhotoWithUrls(photo: PrismaPhoto): PhotoWithUrls {
 }
 
 export async function getPhotosForEntity(
-  entityType: "person" | "project",
+  entityType: "person" | "set",
   entityId: string,
 ): Promise<PhotoWithUrls[]> {
   const photos = await prisma.photo.findMany({
@@ -53,7 +53,7 @@ export async function getPhotosForEntity(
 }
 
 export async function getFavoritePhoto(
-  entityType: "person" | "project",
+  entityType: "person" | "set",
   entityId: string,
 ): Promise<PhotoWithUrls | null> {
   const favorite = await prisma.photo.findFirst({
@@ -104,7 +104,7 @@ export async function getPhotoById(
 
 export async function createPhoto(data: {
   id: string;
-  entityType: "person" | "project";
+  entityType: "person" | "set";
   entityId: string;
   filename: string;
   mimeType: string;
@@ -143,7 +143,7 @@ export async function createPhoto(data: {
 
 export async function setFavoritePhoto(
   photoId: string,
-  entityType: "person" | "project",
+  entityType: "person" | "set",
   entityId: string,
 ): Promise<void> {
   await prisma.$transaction(async (tx) => {
@@ -159,7 +159,7 @@ export async function setFavoritePhoto(
 }
 
 export async function reorderPhotos(
-  entityType: "person" | "project",
+  entityType: "person" | "set",
   entityId: string,
   orderedIds: string[],
 ): Promise<void> {
@@ -181,7 +181,7 @@ export async function deletePhoto(id: string): Promise<void> {
 }
 
 export async function getPhotoCount(
-  entityType: "person" | "project",
+  entityType: "person" | "set",
   entityId: string,
 ): Promise<number> {
   return prisma.photo.count({
@@ -190,7 +190,7 @@ export async function getPhotoCount(
 }
 
 export async function getPhotosByTags(
-  entityType: "person" | "project",
+  entityType: "person" | "set",
   entityId: string,
   tags: string[],
 ): Promise<PhotoWithUrls[]> {
@@ -216,7 +216,7 @@ const PROFILE_SLOT_TAGS = [
 export async function updatePhotoTags(
   photoId: string,
   tags: string[],
-  entityType?: "person" | "project",
+  entityType?: "person" | "set",
   entityId?: string,
 ): Promise<PhotoWithUrls> {
   // If adding a profile slot tag, enforce one-image-per-slot
@@ -260,7 +260,7 @@ export async function updatePhotoTags(
 
 export async function assignProfileSlot(
   photoId: string,
-  entityType: "person" | "project",
+  entityType: "person" | "set",
   entityId: string,
   slot: string,
 ): Promise<void> {

@@ -1,45 +1,35 @@
-import {
-  FolderKanban,
-  Zap,
-  PauseCircle,
-  CheckCircle2,
-  Users,
-} from "lucide-react";
-import { getDashboardStats, getPeopleStats } from "@/lib/services/stats-service";
+import { Users, ImageIcon, Building2, FolderKanban } from "lucide-react";
+import { getDashboardStats } from "@/lib/services/stats-service";
 import { KpiCard } from "./kpi-card";
 
 export async function KpiGrid() {
-  const [stats, peopleStats] = await Promise.all([
-    getDashboardStats(),
-    getPeopleStats(),
-  ]);
+  const stats = await getDashboardStats();
 
   return (
-    <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
+    <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
       <KpiCard
-        label="Total Projects"
-        value={stats.total}
-        icon={<FolderKanban size={20} />}
-      />
-      <KpiCard
-        label="Active"
-        value={stats.active}
-        icon={<Zap size={20} />}
-      />
-      <KpiCard
-        label="Paused"
-        value={stats.paused}
-        icon={<PauseCircle size={20} />}
-      />
-      <KpiCard
-        label="Done"
-        value={stats.done}
-        icon={<CheckCircle2 size={20} />}
-      />
-      <KpiCard
-        label="Team Members"
-        value={peopleStats.totalPeople}
+        label="People"
+        value={stats.persons}
         icon={<Users size={20} />}
+        href="/people"
+      />
+      <KpiCard
+        label="Sets"
+        value={stats.sets}
+        icon={<ImageIcon size={20} />}
+        href="/sets"
+      />
+      <KpiCard
+        label="Labels"
+        value={stats.labels}
+        icon={<Building2 size={20} />}
+        href="/labels"
+      />
+      <KpiCard
+        label="Projects"
+        value={stats.projects}
+        icon={<FolderKanban size={20} />}
+        href="/projects"
       />
     </div>
   );

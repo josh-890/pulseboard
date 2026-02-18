@@ -68,10 +68,9 @@ Cards must be horizontally oriented.
 
 ```
 +--------------------------------------+
-| [Image]  Name                        |
-|          Birth date                  |
-|          Birth place                 |
-|          Optional metadata           |
+| [Image]  Name (primary alias)        |
+|          Status • Specialization     |
+|          Location • Active Since     |
 +--------------------------------------+
 ```
 
@@ -163,7 +162,8 @@ Rules:
 Preferred format:
 
 ```
-Birth date • Birth place
+Status • Location
+Hair color • Active since year
 ```
 
 instead of stacked labels.

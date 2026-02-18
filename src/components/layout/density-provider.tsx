@@ -2,6 +2,7 @@
 
 import {
   createContext,
+  startTransition,
   useCallback,
   useContext,
   useEffect,
@@ -29,7 +30,7 @@ export function DensityProvider({ children }: DensityProviderProps) {
   useEffect(() => {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored === "comfortable" || stored === "compact") {
-      setDensityState(stored);
+      startTransition(() => setDensityState(stored as DensityMode));
     }
   }, []);
 

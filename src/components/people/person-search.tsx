@@ -1,47 +1,70 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Search } from "lucide-react";
+import { Search, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
 
 export function PersonSearch() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const searchParamsRef = useRef(searchParams);
   const [value, setValue] = useState(searchParams.get("q") ?? "");
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    searchParamsRef.current = searchParams;
-  }, [searchParams]);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
 
-  useEffect(() => {
-    const timeout = setTimeout(() => {
-      const params = new URLSearchParams(searchParamsRef.current.toString());
-      if (value) {
-        params.set("q", value);
+    debounceRef.current = setTimeout(() => {
+      const params = new URLSearchParams(searchParams.toString());
+      if (value.trim()) {
+        params.set("q", value.trim());
       } else {
         params.delete("q");
       }
-      router.replace(`/people?${params.toString()}`);
+      router.push(`/people?${params.toString()}`);
     }, 300);
 
-    return () => clearTimeout(timeout);
-  }, [value, router]);
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, [value, searchParams, router]);
+
+  function handleClear() {
+    setValue("");
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("q");
+    router.push(`/people?${params.toString()}`);
+  }
 
   return (
     <div className="relative">
       <Search
         size={16}
-        className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+        className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+        aria-hidden="true"
       />
       <Input
-        type="text"
+        type="search"
         placeholder="Search people..."
         value={value}
         onChange={(e) => setValue(e.target.value)}
-        className="pl-9"
+        className={cn(
+          "pl-9",
+          value && "pr-8",
+        )}
+        aria-label="Search people by name or alias"
       />
+      {value && (
+        <button
+          type="button"
+          onClick={handleClear}
+          aria-label="Clear search"
+          className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5 text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <X size={14} />
+        </button>
+      )}
     </div>
   );
 }

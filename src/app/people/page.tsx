@@ -1,71 +1,89 @@
 import { Suspense } from "react";
-import Link from "next/link";
-import { Plus } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Users } from "lucide-react";
+import {
+  getPersons,
+  getDistinctHairColors,
+  getDistinctBodyTypes,
+  getDistinctEthnicities,
+} from "@/lib/services/person-service";
+import type { PersonStatus } from "@/lib/types";
+import { PersonList } from "@/components/people/person-list";
 import { PersonSearch } from "@/components/people/person-search";
-import { RoleFilter } from "@/components/people/role-filter";
-import { TraitCategoryFilter } from "@/components/people/trait-category-filter";
-import { ProfileImageSelector } from "@/components/people/profile-image-selector";
-import { PersonResults } from "@/components/people/person-results";
-import { PersonListSkeleton } from "@/components/people/person-list-skeleton";
-import { getTraitCategories } from "@/lib/services/trait-category-service";
-import { getProfileImageLabels } from "@/lib/services/setting-service";
-import type { ProjectRole } from "@/lib/types";
+import { StatusFilter } from "@/components/people/status-filter";
+
+export const dynamic = "force-dynamic";
 
 type PeoplePageProps = {
   searchParams: Promise<{
     q?: string;
-    role?: string;
-    traitCategory?: string;
-    pimg?: string;
+    status?: string;
+    hairColor?: string;
+    bodyType?: string;
+    ethnicity?: string;
   }>;
 };
 
+const VALID_STATUSES = new Set<string>(["active", "inactive", "wishlist", "archived"]);
+
+function isPersonStatus(value: string): value is PersonStatus {
+  return VALID_STATUSES.has(value);
+}
+
 export default async function PeoplePage({ searchParams }: PeoplePageProps) {
-  const { q, role, traitCategory, pimg } = await searchParams;
-  const query = q ?? "";
-  const roleFilter = (role as ProjectRole | "all") ?? "all";
-  const traitCategoryFilter = traitCategory ?? "";
-  const photoTag = pimg ?? "p-img01";
-  const [categories, labels] = await Promise.all([
-    getTraitCategories(),
-    getProfileImageLabels(),
+  const { q, status, hairColor, bodyType, ethnicity } = await searchParams;
+
+  const resolvedStatus =
+    status && isPersonStatus(status) ? status : undefined;
+
+  const [persons, hairColors, bodyTypes, ethnicities] = await Promise.all([
+    getPersons({
+      q: q?.trim() || undefined,
+      status: resolvedStatus ?? "all",
+      hairColor: hairColor || undefined,
+      bodyType: bodyType || undefined,
+      ethnicity: ethnicity || undefined,
+    }),
+    getDistinctHairColors(),
+    getDistinctBodyTypes(),
+    getDistinctEthnicities(),
   ]);
+
+  // Suppress unused variable warnings — filter dropdowns available for future use
+  void hairColors;
+  void bodyTypes;
+  void ethnicities;
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-4xl font-bold">People</h1>
-        <Button asChild>
-          <Link href="/people/new">
-            <Plus size={16} className="mr-1" />
-            New Person
-          </Link>
-        </Button>
-      </div>
-      <Suspense fallback={null}>
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="w-full sm:max-w-xs">
-            <PersonSearch />
+      {/* Page header */}
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/15">
+            <Users size={20} className="text-primary" />
           </div>
-          <RoleFilter />
+          <div>
+            <h1 className="text-2xl font-bold leading-tight">People</h1>
+            <p className="text-sm text-muted-foreground">
+              {persons.length} {persons.length === 1 ? "person" : "people"}
+            </p>
+          </div>
         </div>
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <ProfileImageSelector labels={labels} />
-          <TraitCategoryFilter categories={categories} />
+      </div>
+
+      {/* Filter bar */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
+        <div className="w-full sm:max-w-xs">
+          <Suspense>
+            <PersonSearch />
+          </Suspense>
         </div>
-      </Suspense>
-      <Suspense
-        key={query + roleFilter + traitCategoryFilter + photoTag}
-        fallback={<PersonListSkeleton />}
-      >
-        <PersonResults
-          q={query}
-          role={roleFilter}
-          traitCategory={traitCategoryFilter}
-          photoTag={photoTag}
-        />
-      </Suspense>
+        <Suspense>
+          <StatusFilter />
+        </Suspense>
+      </div>
+
+      {/* People grid */}
+      <PersonList persons={persons} />
     </div>
   );
 }

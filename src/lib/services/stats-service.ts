@@ -1,15 +1,22 @@
-import { prisma } from "@/lib/db";
+import { countPersons } from "./person-service";
+import { countSets } from "./set-service";
+import { countLabels } from "./label-service";
+import { countProjects } from "./project-service";
 
-export async function getDashboardStats() {
-  const [total, active, paused, done] = await Promise.all([
-    prisma.project.count(),
-    prisma.project.count({ where: { status: "active" } }),
-    prisma.project.count({ where: { status: "paused" } }),
-    prisma.project.count({ where: { status: "done" } }),
+export type DashboardStats = {
+  persons: number;
+  sets: number;
+  labels: number;
+  projects: number;
+};
+
+export async function getDashboardStats(): Promise<DashboardStats> {
+  const [persons, sets, labels, projects] = await Promise.all([
+    countPersons(),
+    countSets(),
+    countLabels(),
+    countProjects(),
   ]);
-  return { total, active, paused, done };
-}
 
-export async function getPeopleStats() {
-  return { totalPeople: await prisma.person.count() };
+  return { persons, sets, labels, projects };
 }

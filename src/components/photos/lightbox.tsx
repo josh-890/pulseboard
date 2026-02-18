@@ -16,7 +16,7 @@ type LightboxProps = {
   initialIndex: number;
   onClose: () => void;
   onFavoriteToggle: (photoId: string) => void;
-  entityType?: "person" | "project";
+  entityType?: "person" | "set";
   entityId?: string;
   profileLabels?: ProfileImageLabel[];
   onTagsChanged?: (photoId: string, newTags: string[]) => void;

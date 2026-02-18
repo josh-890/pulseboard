@@ -1,1 +1,1 @@
-export type { Activity as ActivityItem } from "@/generated/prisma/client";
+export type { Activity as ActivityItem, ActivityType } from "@/generated/prisma/client";

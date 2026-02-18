@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import { Lightbox } from "./lightbox";
 import { setFavorite } from "@/lib/actions/photo-actions";
@@ -9,7 +9,7 @@ import type { ProfileImageLabel } from "@/lib/services/setting-service";
 
 type JustifiedGalleryProps = {
   photos: PhotoWithUrls[];
-  entityType: "person" | "project";
+  entityType: "person" | "set";
   entityId: string;
   profileLabels: ProfileImageLabel[];
 };
@@ -83,7 +83,7 @@ export function JustifiedGallery({
   useEffect(() => {
     if (photosRef.current !== photos) {
       photosRef.current = photos;
-      setPhotoTagOverrides(new Map());
+      startTransition(() => setPhotoTagOverrides(new Map()));
     }
   }, [photos]);
 

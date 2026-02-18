@@ -11,10 +11,10 @@ type TagSelectorProps = {
 
 const ALL_TAGS: { value: PhotoTag; label: string }[] = [
   { value: "portrait", label: "Portrait" },
-  { value: "diploma", label: "Diploma" },
   { value: "tattoo", label: "Tattoo" },
   { value: "document", label: "Document" },
   { value: "general", label: "General" },
+  { value: "outtake", label: "Outtake" },
 ];
 
 export function TagSelector({ selected, onChange, className }: TagSelectorProps) {

@@ -2,7 +2,6 @@ export type { Photo, EntityType } from "@/generated/prisma/client";
 
 export type PhotoTag =
   | "portrait"
-  | "diploma"
   | "tattoo"
   | "document"
   | "general"
@@ -37,7 +36,7 @@ export type PhotoUrls = {
 
 export type PhotoWithUrls = {
   id: string;
-  entityType: "person" | "project";
+  entityType: "person" | "set";
   entityId: string;
   filename: string;
   mimeType: string;

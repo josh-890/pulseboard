@@ -2,6 +2,7 @@
 
 import {
   createContext,
+  startTransition,
   useCallback,
   useContext,
   useEffect,
@@ -28,7 +29,7 @@ export function SidebarProvider({ children }: SidebarProviderProps) {
   useEffect(() => {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored === "true") {
-      setCollapsedState(true);
+      startTransition(() => setCollapsedState(true));
     }
   }, []);
 

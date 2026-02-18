@@ -14,7 +14,7 @@ import type { PhotoWithUrls } from "@/lib/types";
 
 type ImageGalleryProps = {
   photos: PhotoWithUrls[];
-  entityType: "person" | "project";
+  entityType: "person" | "set";
   entityId: string;
 };
 

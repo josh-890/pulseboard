@@ -1,49 +1,63 @@
 import { Suspense } from "react";
-import Link from "next/link";
-import { Plus } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { FolderKanban } from "lucide-react";
+import { getProjects } from "@/lib/services/project-service";
+import type { ProjectStatus } from "@/lib/types";
+import { ProjectList } from "@/components/projects/project-list";
 import { ProjectSearch } from "@/components/projects/project-search";
 import { StatusFilter } from "@/components/projects/status-filter";
-import { ProjectResults } from "@/components/projects/project-results";
-import { ProjectListSkeleton } from "@/components/projects/project-list-skeleton";
-import type { ProjectStatus } from "@/lib/types";
+
+export const dynamic = "force-dynamic";
 
 type ProjectsPageProps = {
   searchParams: Promise<{ q?: string; status?: string }>;
 };
 
-export default async function ProjectsPage({
-  searchParams,
-}: ProjectsPageProps) {
+const VALID_STATUSES = new Set<string>(["active", "paused", "completed"]);
+
+function isProjectStatus(value: string): value is ProjectStatus {
+  return VALID_STATUSES.has(value);
+}
+
+export default async function ProjectsPage({ searchParams }: ProjectsPageProps) {
   const { q, status } = await searchParams;
-  const query = q ?? "";
-  const statusFilter = (status as ProjectStatus | "all") ?? "all";
+
+  const resolvedStatus =
+    status && isProjectStatus(status) ? status : undefined;
+
+  const projects = await getProjects({
+    q: q?.trim() || undefined,
+    status: resolvedStatus ?? "all",
+  });
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-4xl font-bold">Projects</h1>
-        <Button asChild>
-          <Link href="/projects/new">
-            <Plus size={16} className="mr-1" />
-            New Project
-          </Link>
-        </Button>
-      </div>
-      <Suspense fallback={null}>
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="w-full sm:max-w-xs">
-            <ProjectSearch />
-          </div>
-          <StatusFilter />
+      {/* Page header */}
+      <div className="flex items-center gap-3">
+        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/15">
+          <FolderKanban size={20} className="text-primary" />
         </div>
-      </Suspense>
-      <Suspense
-        key={query + statusFilter}
-        fallback={<ProjectListSkeleton />}
-      >
-        <ProjectResults q={query} status={statusFilter} />
-      </Suspense>
+        <div>
+          <h1 className="text-2xl font-bold leading-tight">Projects</h1>
+          <p className="text-sm text-muted-foreground">
+            {projects.length} {projects.length === 1 ? "project" : "projects"}
+          </p>
+        </div>
+      </div>
+
+      {/* Filter bar */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
+        <div className="w-full sm:max-w-xs">
+          <Suspense>
+            <ProjectSearch />
+          </Suspense>
+        </div>
+        <Suspense>
+          <StatusFilter />
+        </Suspense>
+      </div>
+
+      {/* List */}
+      <ProjectList projects={projects} />
     </div>
   );
 }

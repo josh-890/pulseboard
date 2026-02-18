@@ -1,4 +1,27 @@
-export type { Project, ProjectStatus } from "./project";
+export type {
+  Person,
+  PersonAlias,
+  Persona,
+  PersonRelationship,
+  PersonStatus,
+  RelationshipSource,
+  ContributionRole,
+  PersonWithPrimaryAlias,
+  PersonWorkHistoryItem,
+  PersonAffiliation,
+  PersonConnection,
+} from "./person";
+
+export type {
+  Project,
+  ProjectStatus,
+  Session,
+  Set,
+  SetType,
+} from "./project";
+
+export type { Label, Network, Channel, LabelNetwork } from "./label";
+
 export type {
   Photo,
   EntityType,
@@ -7,25 +30,7 @@ export type {
   PhotoUrls,
   PhotoWithUrls,
 } from "./photo";
-export type { ActivityItem } from "./activity";
-export type {
-  Person,
-  ProjectRole,
-  PersonProjectAssignment,
-  PersonBrowserItem,
-} from "./person";
-export type {
-  Persona,
-  PersonaTrait,
-  TraitCategory,
-  TraitAction,
-  PersonSnapshot,
-  SnapshotTrait,
-  SnapshotRemovedTrait,
-  ComputedTrait,
-  RemovedTrait,
-  CurrentPersonState,
-  PersonaTimelineEntry,
-  CreatePersonaInput,
-  UpdatePersonaInput,
-} from "./persona";
+
+export type { ActivityItem, ActivityType } from "./activity";
+
+export type { PaletteConfig, PaletteModeConfig } from "./palette";

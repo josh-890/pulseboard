@@ -1,36 +1,97 @@
 import Link from "next/link";
-import { Badge } from "@/components/ui/badge";
-import { StatusBadge } from "./status-badge";
-import { formatRelativeTime } from "@/lib/utils";
-import type { Project } from "@/lib/types";
+import { cn } from "@/lib/utils";
+import type { getProjects } from "@/lib/services/project-service";
+import type { ProjectStatus } from "@/lib/types";
+
+type ProjectItem = Awaited<ReturnType<typeof getProjects>>[number];
 
 type ProjectCardProps = {
-  project: Project;
+  project: ProjectItem;
+};
+
+const STATUS_STYLES: Record<ProjectStatus, string> = {
+  active:
+    "border-emerald-500/30 bg-emerald-500/15 text-emerald-600 dark:text-emerald-400",
+  paused:
+    "border-amber-500/30 bg-amber-500/15 text-amber-600 dark:text-amber-400",
+  completed:
+    "border-slate-500/30 bg-slate-500/15 text-slate-600 dark:text-slate-400",
+};
+
+const STATUS_LABELS: Record<ProjectStatus, string> = {
+  active: "Active",
+  paused: "Paused",
+  completed: "Completed",
 };
 
 export function ProjectCard({ project }: ProjectCardProps) {
+  const visibleLabels = project.labels.slice(0, 2);
+  const totalSets = project.sessions.reduce(
+    (sum, session) => sum + session.sets.length,
+    0,
+  );
+
   return (
-    <Link href={`/projects/${project.id}`} className="group block">
-      <div className="rounded-2xl border border-white/30 bg-card/70 p-4 shadow-lg backdrop-blur-md transition-all duration-150 hover:-translate-y-0.5 hover:shadow-xl md:p-6 dark:border-white/10">
-        <div className="mb-3 flex items-start justify-between">
-          <h3 className="text-lg font-semibold group-hover:text-primary">
+    <Link
+      href={`/projects/${project.id}`}
+      className="group block focus-visible:outline-none"
+    >
+      <div
+        className={cn(
+          "rounded-2xl border border-white/20 bg-card/70 p-5 shadow-md backdrop-blur-sm",
+          "transition-all duration-200",
+          "hover:border-white/30 hover:bg-card/90 hover:shadow-lg hover:-translate-y-0.5",
+          "group-focus-visible:ring-2 group-focus-visible:ring-ring group-focus-visible:ring-offset-2",
+        )}
+      >
+        {/* Name + status */}
+        <div className="mb-3 flex items-start justify-between gap-2">
+          <h3 className="line-clamp-2 text-base font-semibold leading-snug">
             {project.name}
           </h3>
-          <StatusBadge status={project.status} />
+          <span
+            className={cn(
+              "inline-flex shrink-0 items-center rounded-full border px-2 py-0.5 text-xs font-medium",
+              STATUS_STYLES[project.status],
+            )}
+          >
+            {STATUS_LABELS[project.status]}
+          </span>
         </div>
-        <p className="mb-4 line-clamp-2 text-sm text-muted-foreground">
-          {project.description}
-        </p>
-        <div className="flex flex-wrap items-center gap-2">
-          {project.tags.map((tag) => (
-            <Badge key={tag} variant="secondary" className="text-xs">
-              {tag}
-            </Badge>
-          ))}
+
+        {/* Labels */}
+        {visibleLabels.length > 0 && (
+          <div className="mb-2.5 flex flex-wrap gap-1.5">
+            {visibleLabels.map(({ label }) => (
+              <span
+                key={label.id}
+                className="inline-flex items-center rounded-full border border-white/10 bg-muted/60 px-2 py-0.5 text-xs text-muted-foreground"
+              >
+                {label.name}
+              </span>
+            ))}
+            {project.labels.length > 2 && (
+              <span className="inline-flex items-center rounded-full border border-white/10 bg-muted/60 px-2 py-0.5 text-xs text-muted-foreground">
+                +{project.labels.length - 2}
+              </span>
+            )}
+          </div>
+        )}
+
+        {/* Stats row */}
+        <div className="flex items-center gap-3 text-xs text-muted-foreground">
+          <span>
+            <span className="font-semibold text-foreground/80">
+              {project.sessions.length}
+            </span>{" "}
+            {project.sessions.length === 1 ? "session" : "sessions"}
+          </span>
+          <span className="text-white/20">·</span>
+          <span>
+            <span className="font-semibold text-foreground/80">{totalSets}</span>{" "}
+            {totalSets === 1 ? "set" : "sets"}
+          </span>
         </div>
-        <p className="mt-3 text-xs text-muted-foreground">
-          Updated {formatRelativeTime(project.updatedAt)}
-        </p>
       </div>
     </Link>
   );

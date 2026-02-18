@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-Pulseboard is a personal dashboard for tracking projects and team members, with a persona-based people system and photo management. Data is stored in PostgreSQL and accessed via Prisma ORM.
+Pulseboard is a personal information management tool for tracking people in art/creative production — their profiles, work history, inter-personal connections, and the organizations/sets they're associated with. Data is stored in PostgreSQL and accessed via Prisma ORM.
 
 ## Tech Stack
 
@@ -23,22 +23,39 @@ src/
 ├── app/                    # Next.js App Router pages
 │   ├── layout.tsx          # Root layout (sidebar, theme provider)
 │   ├── page.tsx            # / — Overview Dashboard
-│   ├── projects/
-│   │   ├── page.tsx        # /projects — Project list (Server Component)
-│   │   └── [id]/
-│   │       └── page.tsx    # /projects/[id] — Project detail
 │   ├── people/
-│   │   ├── page.tsx        # /people — People list (Server Component)
+│   │   ├── page.tsx        # /people — People browser
 │   │   └── [id]/
 │   │       └── page.tsx    # /people/[id] — Person detail
+│   ├── sets/
+│   │   ├── page.tsx        # /sets — Sets gallery
+│   │   └── [id]/
+│   │       └── page.tsx    # /sets/[id] — Set detail
+│   ├── projects/
+│   │   ├── page.tsx        # /projects — Project list
+│   │   └── [id]/
+│   │       └── page.tsx    # /projects/[id] — Project detail
+│   ├── labels/
+│   │   ├── page.tsx        # /labels — Label browser
+│   │   └── [id]/
+│   │       └── page.tsx    # /labels/[id] — Label detail
+│   ├── networks/
+│   │   ├── page.tsx        # /networks — Network browser
+│   │   └── [id]/
+│   │       └── page.tsx    # /networks/[id] — Network detail
 │   └── settings/
 │       └── page.tsx        # /settings — Settings
 ├── components/
 │   ├── ui/                 # shadcn/ui primitives (auto-generated)
 │   ├── layout/             # Sidebar, Drawer, Shell
 │   ├── dashboard/          # KPI cards, Activity feed, Quick actions
-│   ├── projects/           # Project card, Project list, Filters
-│   └── people/             # Person card, Person list, Filters
+│   ├── people/             # Person browser + detail components
+│   ├── sets/               # Sets gallery + detail components
+│   ├── projects/           # Project list + detail components
+│   ├── labels/             # Label browser + detail components
+│   ├── networks/           # Network browser + detail components
+│   ├── photos/             # Photo upload, gallery, lightbox (reused)
+│   └── shared/             # TagInput, DeleteButton, etc.
 ├── generated/
 │   └── prisma/             # Prisma-generated client (gitignored)
 ├── lib/
@@ -115,10 +132,12 @@ After making UI changes, verify effects in the browser using Playwright MCP tool
 | Route | What to check |
 |---|---|
 | `/` | KPI counts match DB, activity feed shows recent items |
-| `/projects` | Project cards render, search filters work, status filter works |
-| `/projects/[id]` | Detail page loads, team section shows members |
-| `/people` | People list renders, search works, role filter works |
-| `/people/[id]` | Detail page loads, project assignments show |
+| `/people` | Person cards render, search and filters work |
+| `/people/[id]` | All sections visible, photos render |
+| `/sets` | Set cards render, type filter works |
+| `/sets/[id]` | Gallery renders, cast section shows persons |
+| `/projects` | Project cards render, search and status filter work |
+| `/labels/[id]` | Channels shown, linked projects visible |
 
 ## UX/UI Design Standards
 - **Always follow `docs/ux-ui-skill.md`** when creating or modifying any UI component
@@ -130,7 +149,7 @@ After making UI changes, verify effects in the browser using Playwright MCP tool
 ## Acceptance Criteria
 - Zero TypeScript errors
 - Responsive layout (mobile + desktop)
-- Search and status filter work together on /projects
+- Search and filters work on /people and /sets
 - No `any` types anywhere in the codebase
 - UI follows UX/UI skill guidelines (`docs/ux-ui-skill.md`)
 

@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 import type { PhotoWithUrls } from "@/lib/types";
 
 type ImageUploadProps = {
-  entityType: "person" | "project";
+  entityType: "person" | "set";
   entityId: string;
   onUploadComplete: (photo: PhotoWithUrls) => void;
   currentCount: number;
