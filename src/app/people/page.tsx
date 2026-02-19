@@ -2,7 +2,7 @@ import { Suspense } from "react";
 import { Users } from "lucide-react";
 import {
   getPersons,
-  getDistinctHairColors,
+  getDistinctNaturalHairColors,
   getDistinctBodyTypes,
   getDistinctEthnicities,
 } from "@/lib/services/person-service";
@@ -10,6 +10,7 @@ import type { PersonStatus } from "@/lib/types";
 import { PersonList } from "@/components/people/person-list";
 import { PersonSearch } from "@/components/people/person-search";
 import { StatusFilter } from "@/components/people/status-filter";
+import { AddPersonSheet } from "@/components/people/add-person-sheet";
 
 export const dynamic = "force-dynamic";
 
@@ -39,11 +40,11 @@ export default async function PeoplePage({ searchParams }: PeoplePageProps) {
     getPersons({
       q: q?.trim() || undefined,
       status: resolvedStatus ?? "all",
-      hairColor: hairColor || undefined,
+      naturalHairColor: hairColor || undefined,
       bodyType: bodyType || undefined,
       ethnicity: ethnicity || undefined,
     }),
-    getDistinctHairColors(),
+    getDistinctNaturalHairColors(),
     getDistinctBodyTypes(),
     getDistinctEthnicities(),
   ]);
@@ -68,6 +69,7 @@ export default async function PeoplePage({ searchParams }: PeoplePageProps) {
             </p>
           </div>
         </div>
+        <AddPersonSheet />
       </div>
 
       {/* Filter bar */}

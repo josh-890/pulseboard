@@ -3,6 +3,9 @@ import Link from "next/link";
 import { Building2, ExternalLink, Network, Radio } from "lucide-react";
 import { getNetworkById } from "@/lib/services/network-service";
 import { cn } from "@/lib/utils";
+import { EditNetworkSheet } from "@/components/networks/edit-network-sheet";
+import { DeleteButton } from "@/components/shared/delete-button";
+import { deleteNetwork } from "@/lib/actions/network-actions";
 
 export const dynamic = "force-dynamic";
 
@@ -68,14 +71,25 @@ export default async function NetworkDetailPage({
 
   return (
     <div className="space-y-6">
-      {/* Back link */}
-      <Link
-        href="/networks"
-        className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-      >
-        <span aria-hidden="true">←</span>
-        Back to Networks
-      </Link>
+      {/* Back link + actions row */}
+      <div className="flex items-center justify-between gap-4">
+        <Link
+          href="/networks"
+          className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+        >
+          <span aria-hidden="true">←</span>
+          Back to Networks
+        </Link>
+        <div className="flex items-center gap-2">
+          <EditNetworkSheet network={network} />
+          <DeleteButton
+            title="Delete network?"
+            description="This will permanently remove the network. Label memberships linked to this network will be removed. This action cannot be undone."
+            onDelete={deleteNetwork.bind(null, id)}
+            redirectTo="/networks"
+          />
+        </div>
+      </div>
 
       {/* Header card */}
       <div className="rounded-2xl border border-white/20 bg-card/70 p-6 shadow-md backdrop-blur-sm">

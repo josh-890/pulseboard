@@ -4,6 +4,9 @@ import { Building2, ExternalLink, Network, Radio, FolderKanban } from "lucide-re
 import { getLabelById } from "@/lib/services/label-service";
 import { cn } from "@/lib/utils";
 import type { ProjectStatus } from "@/lib/types";
+import { EditLabelSheet } from "@/components/labels/edit-label-sheet";
+import { DeleteButton } from "@/components/shared/delete-button";
+import { deleteLabel } from "@/lib/actions/label-actions";
 
 export const dynamic = "force-dynamic";
 
@@ -73,14 +76,25 @@ export default async function LabelDetailPage({
 
   return (
     <div className="space-y-6">
-      {/* Back link */}
-      <Link
-        href="/labels"
-        className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-      >
-        <span aria-hidden="true">←</span>
-        Back to Labels
-      </Link>
+      {/* Back link + actions row */}
+      <div className="flex items-center justify-between gap-4">
+        <Link
+          href="/labels"
+          className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+        >
+          <span aria-hidden="true">←</span>
+          Back to Labels
+        </Link>
+        <div className="flex items-center gap-2">
+          <EditLabelSheet label={label} />
+          <DeleteButton
+            title="Delete label?"
+            description="This will permanently remove the label. Channels and projects linked to this label will be affected. This action cannot be undone."
+            onDelete={deleteLabel.bind(null, id)}
+            redirectTo="/labels"
+          />
+        </div>
+      </div>
 
       {/* Header card */}
       <div className="rounded-2xl border border-white/20 bg-card/70 p-6 shadow-md backdrop-blur-sm">

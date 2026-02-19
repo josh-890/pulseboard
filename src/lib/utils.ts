@@ -24,3 +24,17 @@ export function formatRelativeTime(date: Date): string {
     return `${diffWeeks} week${diffWeeks === 1 ? "" : "s"} ago`;
   return `${diffMonths} month${diffMonths === 1 ? "" : "s"} ago`;
 }
+
+/** Returns "Common Name (ICG-ID)" display string. */
+export function getDisplayName(commonAlias: string | null, icgId: string): string {
+  if (commonAlias) return `${commonAlias} (${icgId})`;
+  return icgId;
+}
+
+/** Returns up to 2 initials from the first two words of a name. */
+export function getInitialsFromName(name: string): string {
+  const parts = name.trim().split(/\s+/);
+  if (parts.length === 0 || !parts[0]) return "?";
+  if (parts.length === 1) return parts[0].charAt(0).toUpperCase();
+  return `${parts[0].charAt(0)}${parts[1].charAt(0)}`.toUpperCase();
+}

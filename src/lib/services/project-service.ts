@@ -47,7 +47,7 @@ export async function getProjectById(id: string) {
                 include: {
                   person: {
                     include: {
-                      aliases: { where: { isPrimary: true, deletedAt: null }, take: 1 },
+                      aliases: { where: { type: "common", deletedAt: null }, take: 1 },
                     },
                   },
                 },
@@ -65,4 +65,44 @@ export async function getProjectById(id: string) {
 
 export async function countProjects(): Promise<number> {
   return prisma.project.count();
+}
+
+export async function createProjectRecord(data: {
+  name: string;
+  description?: string;
+  status?: ProjectStatus;
+  tags?: string[];
+}) {
+  return prisma.project.create({
+    data: {
+      name: data.name,
+      description: data.description,
+      status: data.status ?? "active",
+      tags: data.tags ?? [],
+    },
+  });
+}
+
+export async function updateProjectRecord(id: string, data: {
+  name?: string;
+  description?: string | null;
+  status?: ProjectStatus;
+  tags?: string[];
+}) {
+  return prisma.project.update({
+    where: { id },
+    data: {
+      name: data.name,
+      description: data.description,
+      status: data.status,
+      tags: data.tags,
+    },
+  });
+}
+
+export async function deleteProjectRecord(id: string) {
+  return prisma.project.update({
+    where: { id },
+    data: { deletedAt: new Date() },
+  });
 }

@@ -1,11 +1,14 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { Camera, Film, Tag, Users } from "lucide-react";
-import { getSetById } from "@/lib/services/set-service";
+import { getSetById, getSessionsForSelect, getChannelsForSelect } from "@/lib/services/set-service";
 import { getPhotosForEntity } from "@/lib/services/photo-service";
 import { ImageGallery } from "@/components/photos/image-gallery";
 import { cn } from "@/lib/utils";
 import type { ContributionRole, SetType } from "@/lib/types";
+import { EditSetSheet } from "@/components/sets/edit-set-sheet";
+import { DeleteButton } from "@/components/shared/delete-button";
+import { deleteSet } from "@/lib/actions/set-actions";
 
 export const dynamic = "force-dynamic";
 
@@ -23,8 +26,11 @@ function formatReleaseDate(date: Date): string {
   });
 }
 
-function getInitials(firstName: string, lastName: string): string {
-  return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
+function getInitialsForPerson(name: string): string {
+  const parts = name.trim().split(/\s+/);
+  if (parts.length === 0 || !parts[0]) return "?";
+  if (parts.length === 1) return parts[0].charAt(0).toUpperCase();
+  return `${parts[0].charAt(0)}${parts[1].charAt(0)}`.toUpperCase();
 }
 
 type SetTypeConfig = {
@@ -95,9 +101,11 @@ function SectionCard({ title, icon, children, className }: SectionCardProps) {
 export default async function SetDetailPage({ params }: SetDetailPageProps) {
   const { id } = await params;
 
-  const [set, photos] = await Promise.all([
+  const [set, photos, sessions, channels] = await Promise.all([
     getSetById(id),
     getPhotosForEntity("set", id),
+    getSessionsForSelect(),
+    getChannelsForSelect(),
   ]);
 
   if (!set) notFound();
@@ -110,14 +118,41 @@ export default async function SetDetailPage({ params }: SetDetailPageProps) {
 
   return (
     <div className="space-y-6">
-      {/* Back link */}
-      <Link
-        href="/sets"
-        className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-      >
-        <span aria-hidden="true">←</span>
-        Back to Sets
-      </Link>
+      {/* Back link + actions row */}
+      <div className="flex items-center justify-between gap-4">
+        <Link
+          href="/sets"
+          className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+        >
+          <span aria-hidden="true">←</span>
+          Back to Sets
+        </Link>
+        <div className="flex items-center gap-2">
+          <EditSetSheet
+            set={{
+              id: set.id,
+              type: set.type,
+              title: set.title,
+              sessionId: set.sessionId,
+              channelId: set.channelId,
+              description: set.description,
+              notes: set.notes,
+              releaseDate: set.releaseDate,
+              category: set.category,
+              genre: set.genre,
+              tags: set.tags,
+            }}
+            sessions={sessions}
+            channels={channels}
+          />
+          <DeleteButton
+            title="Delete set?"
+            description="This will permanently remove the set and all contributions. This action cannot be undone."
+            onDelete={deleteSet.bind(null, id)}
+            redirectTo="/sets"
+          />
+        </div>
+      </div>
 
       {/* Header card */}
       <div className="rounded-2xl border border-white/20 bg-card/70 p-6 shadow-md backdrop-blur-sm">
@@ -220,16 +255,11 @@ export default async function SetDetailPage({ params }: SetDetailPageProps) {
         >
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {set.contributions.map((contribution) => {
-              const primary = contribution.person.aliases.find(
-                (a) => a.isPrimary,
+              const common = contribution.person.aliases.find(
+                (a) => a.type === "common",
               );
-              const displayName =
-                primary?.name ??
-                `${contribution.person.firstName} ${contribution.person.lastName}`;
-              const initials = getInitials(
-                contribution.person.firstName,
-                contribution.person.lastName,
-              );
+              const displayName = common?.name ?? contribution.person.icgId;
+              const initials = getInitialsForPerson(displayName);
               return (
                 <Link
                   key={contribution.id}

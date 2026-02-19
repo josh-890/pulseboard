@@ -20,9 +20,8 @@ function formatReleaseDate(date: Date): string {
 function getCastName(
   person: SetItem["contributions"][number]["person"],
 ): string {
-  const primary = person.aliases.find((a) => a.isPrimary);
-  if (primary) return primary.name;
-  return `${person.firstName} ${person.lastName}`;
+  const common = person.aliases.find((a) => a.type === "common");
+  return common?.name ?? person.icgId;
 }
 
 export function SetCard({ set }: SetCardProps) {

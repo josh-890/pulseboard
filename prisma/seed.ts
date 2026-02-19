@@ -51,28 +51,175 @@ async function main() {
     },
   });
 
-  // Seed a sample Person
+  // Seed a sample Person (with icgId)
   const person = await prisma.person.upsert({
     where: { id: "seed-person-1" },
-    update: {},
-    create: {
-      id: "seed-person-1",
-      firstName: "Jane",
-      lastName: "Doe",
+    update: {
+      icgId: "JD-96ABF",
       status: "active",
       specialization: "Photographer",
       location: "Los Angeles, CA",
+      sexAtBirth: "female",
+      birthPlace: "Chicago, IL",
+      naturalHairColor: "brunette",
+      eyeColor: "brown",
+      height: 168,
+      birthdate: new Date("1996-03-14"),
+      nationality: "USA",
+      ethnicity: "Caucasian",
+    },
+    create: {
+      id: "seed-person-1",
+      icgId: "JD-96ABF",
+      status: "active",
+      specialization: "Photographer",
+      location: "Los Angeles, CA",
+      sexAtBirth: "female",
+      birthPlace: "Chicago, IL",
+      naturalHairColor: "brunette",
+      eyeColor: "brown",
+      height: 168,
+      birthdate: new Date("1996-03-14"),
+      nationality: "USA",
+      ethnicity: "Caucasian",
+    },
+  });
+
+  // Aliases: common (display name), birth, and a stage alias
+  await prisma.personAlias.upsert({
+    where: { id: "seed-alias-1" },
+    update: { name: "Jane", type: "common" },
+    create: {
+      id: "seed-alias-1",
+      personId: person.id,
+      name: "Jane",
+      type: "common",
     },
   });
 
   await prisma.personAlias.upsert({
-    where: { id: "seed-alias-1" },
-    update: {},
+    where: { id: "seed-alias-2" },
+    update: { name: "Jane Doe", type: "birth" },
     create: {
-      id: "seed-alias-1",
+      id: "seed-alias-2",
       personId: person.id,
       name: "Jane Doe",
-      isPrimary: true,
+      type: "birth",
+    },
+  });
+
+  await prisma.personAlias.upsert({
+    where: { id: "seed-alias-3" },
+    update: { name: "JD Star", type: "alias" },
+    create: {
+      id: "seed-alias-3",
+      personId: person.id,
+      name: "JD Star",
+      type: "alias",
+    },
+  });
+
+  // Baseline persona
+  const baselinePersona = await prisma.persona.upsert({
+    where: { id: "seed-persona-1" },
+    update: {},
+    create: {
+      id: "seed-persona-1",
+      personId: person.id,
+      label: "Baseline",
+      isBaseline: true,
+      date: new Date("2020-01-01"),
+      notes: "Starting profile data",
+    },
+  });
+
+  // Event persona (physical change)
+  const eventPersona = await prisma.persona.upsert({
+    where: { id: "seed-persona-2" },
+    update: {},
+    create: {
+      id: "seed-persona-2",
+      personId: person.id,
+      label: "2024 Update",
+      isBaseline: false,
+      date: new Date("2024-06-01"),
+      notes: "Updated hair and fitness level",
+    },
+  });
+
+  // Physical change for the event persona
+  await prisma.personaPhysical.upsert({
+    where: { id: "seed-persona-physical-1" },
+    update: {},
+    create: {
+      id: "seed-persona-physical-1",
+      personaId: eventPersona.id,
+      currentHairColor: "blonde",
+      weight: 57.0,
+      build: "athletic",
+      fitnessLevel: "high",
+    },
+  });
+
+  // Body mark (tattoo, added at baseline)
+  const bodyMark = await prisma.bodyMark.upsert({
+    where: { id: "seed-bodymark-1" },
+    update: {},
+    create: {
+      id: "seed-bodymark-1",
+      personId: person.id,
+      type: "tattoo",
+      bodyRegion: "arm",
+      side: "left",
+      position: "upper",
+      motif: "dragon",
+      description: "Small dragon tattoo on upper left arm",
+      colors: ["black", "grey"],
+      size: "small",
+      status: "present",
+    },
+  });
+
+  // Body mark event: tattoo was added at baseline
+  await prisma.bodyMarkEvent.upsert({
+    where: { id: "seed-bodymark-event-1" },
+    update: {},
+    create: {
+      id: "seed-bodymark-event-1",
+      bodyMarkId: bodyMark.id,
+      personaId: baselinePersona.id,
+      eventType: "added",
+      notes: "Present at initial record",
+    },
+  });
+
+  // Digital identity
+  await prisma.personDigitalIdentity.upsert({
+    where: { id: "seed-digital-id-1" },
+    update: {},
+    create: {
+      id: "seed-digital-id-1",
+      personId: person.id,
+      personaId: baselinePersona.id,
+      platform: "Instagram",
+      handle: "@janestar",
+      url: "https://instagram.com/janestar",
+      status: "active",
+    },
+  });
+
+  // Skill
+  await prisma.personSkill.upsert({
+    where: { id: "seed-skill-1" },
+    update: {},
+    create: {
+      id: "seed-skill-1",
+      personId: person.id,
+      personaId: baselinePersona.id,
+      name: "Photography",
+      category: "creative",
+      level: "professional",
+      evidence: "Portfolio published on official website",
     },
   });
 
@@ -135,7 +282,7 @@ async function main() {
 
   // Seed Activity entries
   const activities = [
-    { id: "seed-activity-1", title: "Jane Doe added to database", type: "person_added" as const, time: new Date() },
+    { id: "seed-activity-1", title: "Jane added to database", type: "person_added" as const, time: new Date() },
     { id: "seed-activity-2", title: "Sample Photoset published", type: "set_added" as const, time: new Date(Date.now() - 3600000) },
     { id: "seed-activity-3", title: "Sample Project created", type: "project_added" as const, time: new Date(Date.now() - 7200000) },
     { id: "seed-activity-4", title: "Sample Studio added", type: "label_added" as const, time: new Date(Date.now() - 86400000) },

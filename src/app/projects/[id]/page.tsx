@@ -2,8 +2,13 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { Camera, Film, FolderKanban, Tag } from "lucide-react";
 import { getProjectById } from "@/lib/services/project-service";
+import { getChannelsForSelect } from "@/lib/services/set-service";
 import { cn } from "@/lib/utils";
 import type { ProjectStatus, SetType } from "@/lib/types";
+import { EditProjectSheet } from "@/components/projects/edit-project-sheet";
+import { DeleteButton } from "@/components/shared/delete-button";
+import { deleteProject } from "@/lib/actions/project-actions";
+import { AddSetToSessionSheet } from "@/components/sets/add-set-to-session-sheet";
 
 export const dynamic = "force-dynamic";
 
@@ -49,7 +54,10 @@ export default async function ProjectDetailPage({
 }: ProjectDetailPageProps) {
   const { id } = await params;
 
-  const project = await getProjectById(id);
+  const [project, channels] = await Promise.all([
+    getProjectById(id),
+    getChannelsForSelect(),
+  ]);
 
   if (!project) notFound();
 
@@ -60,14 +68,25 @@ export default async function ProjectDetailPage({
 
   return (
     <div className="space-y-6">
-      {/* Back link */}
-      <Link
-        href="/projects"
-        className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-      >
-        <span aria-hidden="true">←</span>
-        Back to Projects
-      </Link>
+      {/* Back link + actions row */}
+      <div className="flex items-center justify-between gap-4">
+        <Link
+          href="/projects"
+          className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+        >
+          <span aria-hidden="true">←</span>
+          Back to Projects
+        </Link>
+        <div className="flex items-center gap-2">
+          <EditProjectSheet project={project} />
+          <DeleteButton
+            title="Delete project?"
+            description="This will permanently remove the project and all associated sessions and sets. This action cannot be undone."
+            onDelete={deleteProject.bind(null, id)}
+            redirectTo="/projects"
+          />
+        </div>
+      </div>
 
       {/* Header card */}
       <div className="rounded-2xl border border-white/20 bg-card/70 p-6 shadow-md backdrop-blur-sm">
@@ -166,9 +185,21 @@ export default async function ProjectDetailPage({
                     </p>
                   )}
                 </div>
-                <span className="rounded-full border border-white/15 bg-muted/50 px-2.5 py-0.5 text-xs text-muted-foreground">
-                  {session.sets.length} {session.sets.length === 1 ? "set" : "sets"}
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className="rounded-full border border-white/15 bg-muted/50 px-2.5 py-0.5 text-xs text-muted-foreground">
+                    {session.sets.length} {session.sets.length === 1 ? "set" : "sets"}
+                  </span>
+                  <AddSetToSessionSheet
+                    session={{
+                      id: session.id,
+                      name: session.name,
+                      projectId: project.id,
+                      projectName: project.name,
+                      labelIds: project.labels.map((l) => l.labelId),
+                    }}
+                    channels={channels}
+                  />
+                </div>
               </div>
 
               {/* Sets list */}

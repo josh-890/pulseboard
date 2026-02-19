@@ -1,23 +1,27 @@
 import { prisma } from "@/lib/db";
 import type {
-  Person,
-  PersonWithPrimaryAlias,
+  PersonWithCommonAlias,
   PersonWorkHistoryItem,
   PersonAffiliation,
   PersonConnection,
+  BodyMarkWithEvents,
+  PersonDigitalIdentityItem,
+  PersonSkillItem,
+  PersonCurrentState,
 } from "@/lib/types";
 import type { PersonStatus, Prisma } from "@/generated/prisma/client";
+import type { CreatePersonInput, UpdatePersonInput } from "@/lib/validations/person";
 
 export type PersonFilters = {
   q?: string;
   status?: PersonStatus | "all";
-  hairColor?: string;
+  naturalHairColor?: string;
   bodyType?: string;
   ethnicity?: string;
 };
 
-export async function getPersons(filters: PersonFilters = {}): Promise<PersonWithPrimaryAlias[]> {
-  const { q, status, hairColor, bodyType, ethnicity } = filters;
+export async function getPersons(filters: PersonFilters = {}): Promise<PersonWithCommonAlias[]> {
+  const { q, status, naturalHairColor, bodyType, ethnicity } = filters;
 
   const where: Prisma.PersonWhereInput = {};
 
@@ -25,8 +29,8 @@ export async function getPersons(filters: PersonFilters = {}): Promise<PersonWit
     where.status = status;
   }
 
-  if (hairColor) {
-    where.hairColor = { equals: hairColor, mode: "insensitive" };
+  if (naturalHairColor) {
+    where.naturalHairColor = { equals: naturalHairColor, mode: "insensitive" };
   }
 
   if (bodyType) {
@@ -39,8 +43,7 @@ export async function getPersons(filters: PersonFilters = {}): Promise<PersonWit
 
   if (q) {
     where.OR = [
-      { firstName: { contains: q, mode: "insensitive" } },
-      { lastName: { contains: q, mode: "insensitive" } },
+      { icgId: { contains: q, mode: "insensitive" } },
       {
         aliases: {
           some: {
@@ -56,32 +59,31 @@ export async function getPersons(filters: PersonFilters = {}): Promise<PersonWit
     where,
     include: {
       aliases: {
-        where: { isPrimary: true, deletedAt: null },
+        where: { type: "common", deletedAt: null },
         take: 1,
       },
     },
-    orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
+    orderBy: { createdAt: "asc" },
   });
 
   return persons.map((p) => ({
     id: p.id,
-    firstName: p.firstName,
-    lastName: p.lastName,
+    icgId: p.icgId,
     status: p.status,
     rating: p.rating,
     tags: p.tags,
-    hairColor: p.hairColor,
+    naturalHairColor: p.naturalHairColor,
     bodyType: p.bodyType,
     ethnicity: p.ethnicity,
     location: p.location,
     activeSince: p.activeSince,
     specialization: p.specialization,
     createdAt: p.createdAt,
-    primaryAlias: p.aliases[0]?.name ?? null,
+    commonAlias: p.aliases[0]?.name ?? null,
   }));
 }
 
-export async function getPersonById(id: string): Promise<Person | null> {
+export async function getPersonById(id: string) {
   return prisma.person.findUnique({ where: { id } });
 }
 
@@ -89,10 +91,152 @@ export async function getPersonWithDetails(id: string) {
   return prisma.person.findUnique({
     where: { id },
     include: {
-      aliases: { orderBy: [{ isPrimary: "desc" }, { name: "asc" }] },
-      personas: { orderBy: [{ isBaseline: "desc" }, { name: "asc" }] },
+      aliases: { orderBy: [{ type: "asc" }, { name: "asc" }] },
+      personas: {
+        orderBy: [{ isBaseline: "desc" }, { date: "asc" }],
+        include: {
+          physicalChange: true,
+          bodyMarkEvents: {
+            include: { bodyMark: true },
+          },
+          digitalIdentities: true,
+          skills: true,
+        },
+      },
     },
   });
+}
+
+export async function getPersonBodyMarks(personId: string): Promise<BodyMarkWithEvents[]> {
+  const marks = await prisma.bodyMark.findMany({
+    where: { personId },
+    include: {
+      events: {
+        include: {
+          persona: { select: { id: true, label: true, date: true } },
+        },
+        orderBy: { persona: { date: "asc" } },
+      },
+    },
+    orderBy: { createdAt: "asc" },
+  });
+
+  return marks.map((m) => ({
+    id: m.id,
+    type: m.type,
+    bodyRegion: m.bodyRegion,
+    side: m.side,
+    position: m.position,
+    description: m.description,
+    motif: m.motif,
+    colors: m.colors,
+    size: m.size,
+    status: m.status,
+    events: m.events.map((e) => ({
+      id: e.id,
+      eventType: e.eventType,
+      notes: e.notes,
+      persona: { id: e.persona.id, label: e.persona.label, date: e.persona.date },
+    })),
+  }));
+}
+
+export async function getPersonDigitalIdentities(personId: string): Promise<PersonDigitalIdentityItem[]> {
+  const identities = await prisma.personDigitalIdentity.findMany({
+    where: { personId },
+    include: { persona: { select: { label: true } } },
+    orderBy: { validFrom: "asc" },
+  });
+
+  return identities.map((i) => ({
+    id: i.id,
+    platform: i.platform,
+    handle: i.handle,
+    url: i.url,
+    status: i.status,
+    validFrom: i.validFrom,
+    validTo: i.validTo,
+    personaLabel: i.persona?.label ?? null,
+  }));
+}
+
+export async function getPersonSkills(personId: string): Promise<PersonSkillItem[]> {
+  const skills = await prisma.personSkill.findMany({
+    where: { personId },
+    include: { persona: { select: { label: true } } },
+    orderBy: { name: "asc" },
+  });
+
+  return skills.map((s) => ({
+    id: s.id,
+    name: s.name,
+    category: s.category,
+    level: s.level,
+    evidence: s.evidence,
+    validFrom: s.validFrom,
+    validTo: s.validTo,
+    personaLabel: s.persona?.label ?? null,
+  }));
+}
+
+export async function computePersonCurrentState(personId: string): Promise<PersonCurrentState> {
+  const [allPersonas, bodyMarks, digitalIdentities, skills] = await Promise.all([
+    prisma.persona.findMany({
+      where: { personId },
+      orderBy: [{ isBaseline: "desc" }, { date: "asc" }],
+      include: { physicalChange: true },
+    }),
+    getPersonBodyMarks(personId),
+    getPersonDigitalIdentities(personId),
+    getPersonSkills(personId),
+  ]);
+
+  // Fold physical changes: later personas win
+  let currentHairColor: string | null = null;
+  let weight: number | null = null;
+  let build: string | null = null;
+  let visionAids: string | null = null;
+  let fitnessLevel: string | null = null;
+
+  for (const persona of allPersonas) {
+    if (persona.physicalChange) {
+      const p = persona.physicalChange;
+      if (p.currentHairColor !== null) currentHairColor = p.currentHairColor;
+      if (p.weight !== null) weight = p.weight;
+      if (p.build !== null) build = p.build;
+      if (p.visionAids !== null) visionAids = p.visionAids;
+      if (p.fitnessLevel !== null) fitnessLevel = p.fitnessLevel;
+    }
+  }
+
+  const now = new Date();
+
+  // Active body marks: status = present and not soft-deleted
+  const activeBodyMarks = bodyMarks.filter((m) => m.status === "present");
+
+  // Active digital identities: status = active, no validTo or validTo in future
+  const activeDigitalIdentities = digitalIdentities.filter((i) => {
+    if (i.status !== "active") return false;
+    if (i.validTo && i.validTo <= now) return false;
+    return true;
+  });
+
+  // Active skills: no validTo or validTo in future
+  const activeSkills = skills.filter((s) => {
+    if (s.validTo && s.validTo <= now) return false;
+    return true;
+  });
+
+  return {
+    currentHairColor,
+    weight,
+    build,
+    visionAids,
+    fitnessLevel,
+    activeBodyMarks,
+    activeDigitalIdentities,
+    activeSkills,
+  };
 }
 
 export async function getPersonWorkHistory(personId: string): Promise<PersonWorkHistoryItem[]> {
@@ -164,12 +308,12 @@ export async function getPersonConnections(personId: string): Promise<PersonConn
     include: {
       personA: {
         include: {
-          aliases: { where: { isPrimary: true, deletedAt: null }, take: 1 },
+          aliases: { where: { type: "common", deletedAt: null }, take: 1 },
         },
       },
       personB: {
         include: {
-          aliases: { where: { isPrimary: true, deletedAt: null }, take: 1 },
+          aliases: { where: { type: "common", deletedAt: null }, take: 1 },
         },
       },
     },
@@ -180,9 +324,8 @@ export async function getPersonConnections(personId: string): Promise<PersonConn
     const other = r.personAId === personId ? r.personB : r.personA;
     return {
       personId: other.id,
-      firstName: other.firstName,
-      lastName: other.lastName,
-      primaryAlias: other.aliases[0]?.name ?? null,
+      icgId: other.icgId,
+      commonAlias: other.aliases[0]?.name ?? null,
       sharedSetCount: r.sharedSetCount,
       source: r.source,
       label: r.label,
@@ -194,14 +337,152 @@ export async function countPersons(): Promise<number> {
   return prisma.person.count();
 }
 
-export async function getDistinctHairColors(): Promise<string[]> {
-  const result = await prisma.person.findMany({
-    where: { hairColor: { not: null } },
-    select: { hairColor: true },
-    distinct: ["hairColor"],
-    orderBy: { hairColor: "asc" },
+export async function createPersonRecord(data: CreatePersonInput) {
+  return prisma.$transaction(async (tx) => {
+    const person = await tx.person.create({
+      data: {
+        icgId: data.icgId,
+        status: data.status,
+        sexAtBirth: data.sexAtBirth,
+        birthdate: data.birthdate ? new Date(data.birthdate) : undefined,
+        birthPlace: data.birthPlace,
+        nationality: data.nationality,
+        ethnicity: data.ethnicity,
+        eyeColor: data.eyeColor,
+        naturalHairColor: data.naturalHairColor,
+        height: data.height,
+      },
+    });
+
+    await tx.personAlias.create({
+      data: { personId: person.id, name: data.commonName, type: "common" },
+    });
+
+    if (data.birthName) {
+      await tx.personAlias.create({
+        data: { personId: person.id, name: data.birthName, type: "birth" },
+      });
+    }
+
+    const persona = await tx.persona.create({
+      data: {
+        personId: person.id,
+        label: data.personaLabel,
+        isBaseline: true,
+        date: new Date(),
+      },
+    });
+
+    const hasPhysical =
+      data.weight !== undefined ||
+      data.build !== undefined ||
+      data.currentHairColor !== undefined ||
+      data.visionAids !== undefined ||
+      data.fitnessLevel !== undefined;
+
+    if (hasPhysical) {
+      await tx.personaPhysical.create({
+        data: {
+          personaId: persona.id,
+          weight: data.weight,
+          build: data.build,
+          currentHairColor: data.currentHairColor,
+          visionAids: data.visionAids,
+          fitnessLevel: data.fitnessLevel,
+        },
+      });
+    }
+
+    return person;
   });
-  return result.map((r) => r.hairColor!).filter(Boolean);
+}
+
+export async function updatePersonRecord(id: string, data: UpdatePersonInput) {
+  return prisma.$transaction(async (tx) => {
+    await tx.person.update({
+      where: { id },
+      data: {
+        status: data.status,
+        sexAtBirth: data.sexAtBirth,
+        birthdate: data.birthdate ? new Date(data.birthdate) : null,
+        birthPlace: data.birthPlace,
+        nationality: data.nationality,
+        ethnicity: data.ethnicity,
+        eyeColor: data.eyeColor,
+        naturalHairColor: data.naturalHairColor,
+        height: data.height,
+        location: data.location,
+        notes: data.notes,
+        activeSince: data.activeSince,
+        specialization: data.specialization,
+        rating: data.rating,
+      },
+    });
+
+    // Update common alias if provided
+    if (data.commonName !== undefined) {
+      const commonAlias = await tx.personAlias.findFirst({
+        where: { personId: id, type: "common", deletedAt: null },
+      });
+      if (commonAlias) {
+        await tx.personAlias.update({
+          where: { id: commonAlias.id },
+          data: { name: data.commonName },
+        });
+      }
+    }
+
+    // Upsert PersonaPhysical on baseline persona
+    const hasPhysical =
+      data.weight !== undefined ||
+      data.build !== undefined ||
+      data.currentHairColor !== undefined ||
+      data.visionAids !== undefined ||
+      data.fitnessLevel !== undefined;
+
+    if (hasPhysical) {
+      const baselinePersona = await tx.persona.findFirst({
+        where: { personId: id, isBaseline: true },
+      });
+      if (baselinePersona) {
+        await tx.personaPhysical.upsert({
+          where: { personaId: baselinePersona.id },
+          create: {
+            personaId: baselinePersona.id,
+            weight: data.weight,
+            build: data.build,
+            currentHairColor: data.currentHairColor,
+            visionAids: data.visionAids,
+            fitnessLevel: data.fitnessLevel,
+          },
+          update: {
+            weight: data.weight ?? null,
+            build: data.build ?? null,
+            currentHairColor: data.currentHairColor ?? null,
+            visionAids: data.visionAids ?? null,
+            fitnessLevel: data.fitnessLevel ?? null,
+          },
+        });
+      }
+    }
+  });
+}
+
+export async function deletePersonRecord(id: string) {
+  return prisma.person.update({
+    where: { id },
+    data: { deletedAt: new Date() },
+  });
+}
+
+export async function getDistinctNaturalHairColors(): Promise<string[]> {
+  const result = await prisma.person.findMany({
+    where: { naturalHairColor: { not: null } },
+    select: { naturalHairColor: true },
+    distinct: ["naturalHairColor"],
+    orderBy: { naturalHairColor: "asc" },
+  });
+  return result.map((r) => r.naturalHairColor!).filter(Boolean);
 }
 
 export async function getDistinctBodyTypes(): Promise<string[]> {

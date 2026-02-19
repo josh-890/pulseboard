@@ -16,6 +16,12 @@ enum PersonStatus {
   archived
 }
 
+enum AliasType {
+  common
+  birth
+  alias
+}
+
 enum ContributionRole {
   main
   supporting
@@ -51,49 +57,72 @@ enum EntityType {
   set
 }
 
+enum BodyMarkType {
+  tattoo
+  scar
+  mark
+  burn
+  deformity
+  other
+}
+
+enum BodyMarkStatus {
+  present
+  modified
+  removed
+}
+
+enum BodyMarkEventType {
+  added
+  modified
+  removed
+}
+
 // ─── Person & Aliases ─────────────────────────────────────────────────────────
 
 model Person {
-  id          String  @id @default(cuid())
-  firstName   String
-  lastName    String
-  birthdate   DateTime?
-  nationality String?
-  ethnicity   String?
-  location    String?
-  height      Int?
-  hairColor   String?
-  eyeColor    String?
-  bodyType    String?
-  measurements String?
-  activeSince Int?
+  id             String  @id @default(cuid())
+  icgId          String  @unique
+  birthdate      DateTime?
+  sexAtBirth     String?
+  birthPlace     String?
+  nationality    String?
+  ethnicity      String?
+  location       String?
+  height         Int?
+  naturalHairColor String?
+  eyeColor       String?
+  bodyType       String?
+  measurements   String?
+  activeSince    Int?
   specialization String?
-  status      PersonStatus @default(active)
-  rating      Int?
-  notes       String?
-  tags        String[]
+  status         PersonStatus @default(active)
+  rating         Int?
+  notes          String?
+  tags           String[]
 
-  aliases       PersonAlias[]
-  personas      Persona[]
-  contributions SetContribution[]
-  relationships PersonRelationship[] @relation("PersonA")
-  relatedTo     PersonRelationship[] @relation("PersonB")
+  aliases          PersonAlias[]
+  personas         Persona[]
+  contributions    SetContribution[]
+  relationships    PersonRelationship[] @relation("PersonA")
+  relatedTo        PersonRelationship[] @relation("PersonB")
+  bodyMarks        BodyMark[]
+  digitalIdentities PersonDigitalIdentity[]
+  skills           PersonSkill[]
 
   createdAt DateTime  @default(now())
   deletedAt DateTime?
 
-  @@index([lastName, firstName])
-  @@index([firstName, lastName])
   @@index([status])
   @@index([deletedAt])
 }
 
 model PersonAlias {
-  id        String  @id @default(cuid())
+  id        String    @id @default(cuid())
   personId  String
-  person    Person  @relation(fields: [personId], references: [id])
+  person    Person    @relation(fields: [personId], references: [id])
   name      String
-  isPrimary Boolean @default(false)
+  type      AliasType @default(alias)
   deletedAt DateTime?
 
   @@index([personId])
@@ -102,17 +131,109 @@ model PersonAlias {
 }
 
 model Persona {
-  id          String  @id @default(cuid())
-  personId    String
-  person      Person  @relation(fields: [personId], references: [id])
-  name        String
-  description String?
-  notes       String?
-  isBaseline  Boolean @default(false)
-  createdAt   DateTime  @default(now())
-  deletedAt   DateTime?
+  id         String    @id @default(cuid())
+  personId   String
+  person     Person    @relation(fields: [personId], references: [id])
+  label      String
+  notes      String?
+  isBaseline Boolean   @default(false)
+  date       DateTime?
+  createdAt  DateTime  @default(now())
+  deletedAt  DateTime?
+
+  physicalChange    PersonaPhysical?
+  bodyMarkEvents    BodyMarkEvent[]
+  digitalIdentities PersonDigitalIdentity[]
+  skills            PersonSkill[]
 
   @@index([personId])
+  @@index([deletedAt])
+}
+
+model PersonaPhysical {
+  id              String  @id @default(cuid())
+  personaId       String  @unique
+  persona         Persona @relation(fields: [personaId], references: [id])
+  weight          Float?
+  currentHairColor String?
+  build           String?
+  visionAids      String?
+  fitnessLevel    String?
+}
+
+model BodyMark {
+  id          String         @id @default(cuid())
+  personId    String
+  person      Person         @relation(fields: [personId], references: [id])
+  type        BodyMarkType
+  bodyRegion  String
+  side        String?
+  position    String?
+  description String?
+  motif       String?
+  colors      String[]
+  size        String?
+  status      BodyMarkStatus @default(present)
+  deletedAt   DateTime?
+  createdAt   DateTime       @default(now())
+
+  events BodyMarkEvent[]
+
+  @@index([personId])
+  @@index([status])
+  @@index([deletedAt])
+}
+
+model BodyMarkEvent {
+  id          String            @id @default(cuid())
+  bodyMarkId  String
+  bodyMark    BodyMark          @relation(fields: [bodyMarkId], references: [id])
+  personaId   String
+  persona     Persona           @relation(fields: [personaId], references: [id])
+  eventType   BodyMarkEventType
+  notes       String?
+  deletedAt   DateTime?
+
+  @@index([bodyMarkId])
+  @@index([personaId])
+  @@index([deletedAt])
+}
+
+model PersonDigitalIdentity {
+  id        String    @id @default(cuid())
+  personId  String
+  person    Person    @relation(fields: [personId], references: [id])
+  personaId String?
+  persona   Persona?  @relation(fields: [personaId], references: [id])
+  platform  String
+  handle    String?
+  url       String?
+  status    String    @default("active")
+  validFrom DateTime?
+  validTo   DateTime?
+  deletedAt DateTime?
+
+  @@index([personId])
+  @@index([personaId])
+  @@index([deletedAt])
+}
+
+model PersonSkill {
+  id        String    @id @default(cuid())
+  personId  String
+  person    Person    @relation(fields: [personId], references: [id])
+  personaId String?
+  persona   Persona?  @relation(fields: [personaId], references: [id])
+  name      String
+  category  String?
+  level     String?
+  evidence  String?
+  validFrom DateTime?
+  validTo   DateTime?
+  deletedAt DateTime?
+
+  @@index([personId])
+  @@index([personaId])
   @@index([deletedAt])
 }
 

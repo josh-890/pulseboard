@@ -1,9 +1,9 @@
 import { Users } from "lucide-react";
 import { PersonCard } from "./person-card";
-import type { PersonWithPrimaryAlias } from "@/lib/types";
+import type { PersonWithCommonAlias } from "@/lib/types";
 
 type PersonListProps = {
-  persons: PersonWithPrimaryAlias[];
+  persons: PersonWithCommonAlias[];
 };
 
 export function PersonList({ persons }: PersonListProps) {

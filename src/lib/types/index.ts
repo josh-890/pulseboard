@@ -4,12 +4,20 @@ export type {
   Persona,
   PersonRelationship,
   PersonStatus,
+  AliasType,
   RelationshipSource,
   ContributionRole,
-  PersonWithPrimaryAlias,
+  BodyMarkType,
+  BodyMarkStatus,
+  BodyMarkEventType,
+  PersonWithCommonAlias,
   PersonWorkHistoryItem,
   PersonAffiliation,
   PersonConnection,
+  BodyMarkWithEvents,
+  PersonDigitalIdentityItem,
+  PersonSkillItem,
+  PersonCurrentState,
 } from "./person";
 
 export type {

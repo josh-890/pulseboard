@@ -1,10 +1,11 @@
 import { Suspense } from "react";
 import { ImageIcon } from "lucide-react";
-import { getSets } from "@/lib/services/set-service";
+import { getSets, getChannelsForSelect } from "@/lib/services/set-service";
 import type { SetType } from "@/lib/types";
 import { SetGrid } from "@/components/sets/set-grid";
 import { SetSearch } from "@/components/sets/set-search";
 import { TypeFilter } from "@/components/sets/type-filter";
+import { AddSetSheet } from "@/components/sets/add-set-sheet";
 
 export const dynamic = "force-dynamic";
 
@@ -23,24 +24,27 @@ export default async function SetsPage({ searchParams }: SetsPageProps) {
 
   const resolvedType = type && isSetType(type) ? type : undefined;
 
-  const sets = await getSets({
-    q: q?.trim() || undefined,
-    type: resolvedType ?? "all",
-  });
+  const [sets, channels] = await Promise.all([
+    getSets({ q: q?.trim() || undefined, type: resolvedType ?? "all" }),
+    getChannelsForSelect(),
+  ]);
 
   return (
     <div className="space-y-6">
       {/* Page header */}
-      <div className="flex items-center gap-3">
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/15">
-          <ImageIcon size={20} className="text-primary" />
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/15">
+            <ImageIcon size={20} className="text-primary" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold leading-tight">Sets</h1>
+            <p className="text-sm text-muted-foreground">
+              {sets.length} {sets.length === 1 ? "set" : "sets"}
+            </p>
+          </div>
         </div>
-        <div>
-          <h1 className="text-2xl font-bold leading-tight">Sets</h1>
-          <p className="text-sm text-muted-foreground">
-            {sets.length} {sets.length === 1 ? "set" : "sets"}
-          </p>
-        </div>
+        <AddSetSheet channels={channels} />
       </div>
 
       {/* Filter bar */}

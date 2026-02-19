@@ -41,3 +41,39 @@ export async function getNetworkById(id: string) {
 export async function countNetworks(): Promise<number> {
   return prisma.network.count();
 }
+
+export async function createNetworkRecord(data: {
+  name: string;
+  description?: string;
+  website?: string;
+}) {
+  return prisma.network.create({
+    data: {
+      name: data.name,
+      description: data.description,
+      website: data.website,
+    },
+  });
+}
+
+export async function updateNetworkRecord(id: string, data: {
+  name?: string;
+  description?: string | null;
+  website?: string | null;
+}) {
+  return prisma.network.update({
+    where: { id },
+    data: {
+      name: data.name,
+      description: data.description,
+      website: data.website,
+    },
+  });
+}
+
+export async function deleteNetworkRecord(id: string) {
+  return prisma.network.update({
+    where: { id },
+    data: { deletedAt: new Date() },
+  });
+}

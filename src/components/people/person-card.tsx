@@ -1,10 +1,10 @@
 import Link from "next/link";
 import { MapPin, Sparkles } from "lucide-react";
-import { cn } from "@/lib/utils";
-import type { PersonWithPrimaryAlias, PersonStatus } from "@/lib/types";
+import { cn, getInitialsFromName } from "@/lib/utils";
+import type { PersonWithCommonAlias, PersonStatus } from "@/lib/types";
 
 type PersonCardProps = {
-  person: PersonWithPrimaryAlias;
+  person: PersonWithCommonAlias;
 };
 
 const STATUS_STYLES: Record<PersonStatus, string> = {
@@ -21,13 +21,13 @@ const STATUS_LABELS: Record<PersonStatus, string> = {
   archived: "Archived",
 };
 
-function getInitials(firstName: string, lastName: string): string {
-  return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
-}
-
 export function PersonCard({ person }: PersonCardProps) {
-  const displayName = person.primaryAlias ?? `${person.firstName} ${person.lastName}`;
-  const initials = getInitials(person.firstName, person.lastName);
+  const displayName = person.commonAlias
+    ? `${person.commonAlias} (${person.icgId})`
+    : person.icgId;
+  const initials = person.commonAlias
+    ? getInitialsFromName(person.commonAlias)
+    : person.icgId.charAt(0).toUpperCase();
   const visibleTags = person.tags.slice(0, 3);
 
   return (
@@ -66,10 +66,10 @@ export function PersonCard({ person }: PersonCardProps) {
 
             {/* Meta row */}
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
-              {person.hairColor && (
+              {person.naturalHairColor && (
                 <span className="flex items-center gap-1">
                   <Sparkles size={12} className="shrink-0" />
-                  {person.hairColor}
+                  {person.naturalHairColor}
                 </span>
               )}
               {person.location && (

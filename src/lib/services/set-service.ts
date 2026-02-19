@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db";
-import type { Prisma, SetType } from "@/generated/prisma/client";
+import type { Prisma, SetType, ContributionRole } from "@/generated/prisma/client";
 
 export type SetFilters = {
   q?: string;
@@ -33,7 +33,7 @@ export async function getSets(filters: SetFilters = {}) {
         include: {
           person: {
             include: {
-              aliases: { where: { isPrimary: true, deletedAt: null }, take: 1 },
+              aliases: { where: { type: "common", deletedAt: null }, take: 1 },
             },
           },
         },
@@ -55,7 +55,7 @@ export async function getSetById(id: string) {
         include: {
           person: {
             include: {
-              aliases: { where: { isPrimary: true, deletedAt: null }, take: 1 },
+              aliases: { where: { type: "common", deletedAt: null }, take: 1 },
             },
           },
         },
@@ -67,4 +67,243 @@ export async function getSetById(id: string) {
 
 export async function countSets(): Promise<number> {
   return prisma.set.count();
+}
+
+export async function createSetRecord(data: {
+  sessionId: string;
+  type: "photo" | "video";
+  title: string;
+  channelId?: string;
+  description?: string;
+  notes?: string;
+  releaseDate?: string;
+  category?: string;
+  genre?: string;
+  tags?: string[];
+}) {
+  return prisma.set.create({
+    data: {
+      sessionId: data.sessionId,
+      type: data.type,
+      title: data.title,
+      channelId: data.channelId,
+      description: data.description,
+      notes: data.notes,
+      releaseDate: data.releaseDate ? new Date(data.releaseDate) : undefined,
+      category: data.category,
+      genre: data.genre,
+      tags: data.tags ?? [],
+    },
+  });
+}
+
+export async function updateSetRecord(id: string, data: {
+  sessionId?: string;
+  title?: string;
+  channelId?: string | null;
+  description?: string | null;
+  notes?: string | null;
+  releaseDate?: string | null;
+  category?: string | null;
+  genre?: string | null;
+  tags?: string[];
+}) {
+  return prisma.set.update({
+    where: { id },
+    data: {
+      sessionId: data.sessionId,
+      title: data.title,
+      channelId: data.channelId,
+      description: data.description,
+      notes: data.notes,
+      releaseDate: data.releaseDate ? new Date(data.releaseDate) : data.releaseDate === null ? null : undefined,
+      category: data.category,
+      genre: data.genre,
+      tags: data.tags,
+    },
+  });
+}
+
+export async function deleteSetRecord(id: string) {
+  return prisma.set.update({
+    where: { id },
+    data: { deletedAt: new Date() },
+  });
+}
+
+export async function getSessionsForSelect() {
+  const sessions = await prisma.session.findMany({
+    include: { project: { select: { name: true } } },
+    orderBy: [{ project: { name: "asc" } }, { name: "asc" }],
+  });
+  return sessions.map((s) => ({
+    id: s.id,
+    name: s.name,
+    projectName: s.project.name,
+  }));
+}
+
+export async function getChannelsForSelect() {
+  const channels = await prisma.channel.findMany({
+    include: { label: { select: { id: true, name: true } } },
+    orderBy: [{ label: { name: "asc" } }, { name: "asc" }],
+  });
+  return channels.map((c) => ({
+    id: c.id,
+    name: c.name,
+    labelName: c.label.name,
+    labelId: c.label.id,
+  }));
+}
+
+// Flow A — standalone: auto-creates project + session from set data
+export async function createSetWithContextRecord(data: {
+  channelId: string;
+  type: "photo" | "video";
+  title: string;
+  description?: string;
+  notes?: string;
+  releaseDate?: string;
+  category?: string;
+  genre?: string;
+  tags?: string[];
+}) {
+  return prisma.$transaction(async (tx) => {
+    const channel = await tx.channel.findUnique({ where: { id: data.channelId } });
+    if (!channel) throw new Error("Channel not found");
+
+    const project = await tx.project.create({
+      data: { name: data.title, status: "active" },
+    });
+
+    await tx.projectLabel.create({
+      data: { projectId: project.id, labelId: channel.labelId },
+    });
+
+    const session = await tx.session.create({
+      data: {
+        projectId: project.id,
+        name: data.title,
+        date: data.releaseDate ? new Date(data.releaseDate) : undefined,
+      },
+    });
+
+    const set = await tx.set.create({
+      data: {
+        sessionId: session.id,
+        channelId: data.channelId,
+        type: data.type,
+        title: data.title,
+        releaseDate: data.releaseDate ? new Date(data.releaseDate) : undefined,
+        category: data.category,
+        genre: data.genre,
+        description: data.description,
+        notes: data.notes,
+        tags: data.tags ?? [],
+      },
+    });
+
+    return { setId: set.id, projectId: project.id };
+  });
+}
+
+// Flow B — in-session: set belongs to a known session
+export async function createSetForSessionRecord(data: {
+  sessionId: string;
+  projectId: string;
+  channelId?: string;
+  newChannel?: { name: string; platform?: string; labelId: string };
+  type: "photo" | "video";
+  title: string;
+  description?: string;
+  notes?: string;
+  releaseDate?: string;
+  category?: string;
+  genre?: string;
+  tags?: string[];
+}) {
+  return prisma.$transaction(async (tx) => {
+    let finalChannelId = data.channelId;
+
+    if (data.newChannel) {
+      const created = await tx.channel.create({
+        data: {
+          labelId: data.newChannel.labelId,
+          name: data.newChannel.name,
+          platform: data.newChannel.platform,
+        },
+      });
+      finalChannelId = created.id;
+    }
+
+    if (finalChannelId) {
+      const channel = await tx.channel.findUnique({ where: { id: finalChannelId } });
+      if (channel) {
+        await tx.projectLabel.upsert({
+          where: {
+            projectId_labelId: { projectId: data.projectId, labelId: channel.labelId },
+          },
+          create: { projectId: data.projectId, labelId: channel.labelId },
+          update: {},
+        });
+      }
+    }
+
+    const set = await tx.set.create({
+      data: {
+        sessionId: data.sessionId,
+        channelId: finalChannelId,
+        type: data.type,
+        title: data.title,
+        releaseDate: data.releaseDate ? new Date(data.releaseDate) : undefined,
+        category: data.category,
+        genre: data.genre,
+        description: data.description,
+        notes: data.notes,
+        tags: data.tags ?? [],
+      },
+    });
+
+    return { setId: set.id };
+  });
+}
+
+export async function addContributions(
+  setId: string,
+  contributions: { personId: string; role: ContributionRole }[],
+) {
+  if (contributions.length === 0) return;
+  await prisma.setContribution.createMany({
+    data: contributions.map((c) => ({ setId, personId: c.personId, role: c.role })),
+    skipDuplicates: true,
+  });
+}
+
+export async function searchPersonsForSelect(q: string) {
+  const persons = await prisma.person.findMany({
+    where: {
+      OR: [
+        { icgId: { contains: q, mode: "insensitive" } },
+        {
+          aliases: {
+            some: {
+              name: { contains: q, mode: "insensitive" },
+              type: "common",
+              deletedAt: null,
+            },
+          },
+        },
+      ],
+    },
+    include: {
+      aliases: { where: { type: "common", deletedAt: null }, take: 1 },
+    },
+    take: 20,
+    orderBy: { createdAt: "asc" },
+  });
+  return persons.map((p) => ({
+    id: p.id,
+    icgId: p.icgId,
+    commonAlias: p.aliases[0]?.name ?? null,
+  }));
 }
