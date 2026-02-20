@@ -95,6 +95,33 @@ export async function getFavoritePhotosForPersons(
   return result;
 }
 
+export async function getFavoritePhotosForSets(
+  setIds: string[],
+): Promise<Map<string, string>> {
+  if (setIds.length === 0) return new Map();
+
+  const photos = await prisma.photo.findMany({
+    where: {
+      entityType: "set",
+      entityId: { in: setIds },
+    },
+    orderBy: [{ isFavorite: "desc" }, { sortOrder: "asc" }],
+  });
+
+  const result = new Map<string, string>();
+  for (const p of photos) {
+    if (!result.has(p.entityId)) {
+      const variants = p.variants as PhotoVariants;
+      const url = variants.gallery_512
+        ? buildUrl(variants.gallery_512)
+        : buildUrl(variants.original);
+      result.set(p.entityId, url);
+    }
+  }
+
+  return result;
+}
+
 export async function getPhotoById(
   id: string,
 ): Promise<PhotoWithUrls | null> {

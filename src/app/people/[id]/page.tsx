@@ -3,11 +3,12 @@ import Link from "next/link";
 import {
   getPersonWithDetails,
   getPersonWorkHistory,
-  getPersonAffiliations,
   getPersonConnections,
-  computePersonCurrentState,
+  deriveCurrentState,
+  deriveAffiliations,
 } from "@/lib/services/person-service";
 import { getPhotosForEntity } from "@/lib/services/photo-service";
+import { getProfileImageLabels } from "@/lib/services/setting-service";
 import { PersonDetailTabs } from "@/components/people/person-detail-tabs";
 import { EditPersonSheet } from "@/components/people/edit-person-sheet";
 import { DeleteButton } from "@/components/shared/delete-button";
@@ -22,17 +23,19 @@ type PersonDetailPageProps = {
 export default async function PersonDetailPage({ params }: PersonDetailPageProps) {
   const { id } = await params;
 
-  const [person, currentState, workHistory, affiliations, connections, photos] =
+  const [person, workHistory, connections, photos, profileLabels] =
     await Promise.all([
       getPersonWithDetails(id),
-      computePersonCurrentState(id),
       getPersonWorkHistory(id),
-      getPersonAffiliations(id),
       getPersonConnections(id),
       getPhotosForEntity("person", id),
+      getProfileImageLabels(),
     ]);
 
   if (!person) notFound();
+
+  const currentState = deriveCurrentState(person);
+  const affiliations = deriveAffiliations(workHistory);
 
   // Strip variants from photos before passing to client component (RSC payload safety)
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -67,6 +70,7 @@ export default async function PersonDetailPage({ params }: PersonDetailPageProps
         affiliations={affiliations}
         connections={connections}
         photos={photoProps as Parameters<typeof PersonDetailTabs>[0]["photos"]}
+        profileLabels={profileLabels}
       />
     </div>
   );

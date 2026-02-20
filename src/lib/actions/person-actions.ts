@@ -7,7 +7,10 @@ import {
   createPersonRecord,
   updatePersonRecord,
   deletePersonRecord,
+  getPersonsPaginated,
 } from "@/lib/services/person-service";
+import type { PersonFilters } from "@/lib/services/person-service";
+import { getFavoritePhotosForPersons } from "@/lib/services/photo-service";
 import { prisma } from "@/lib/db";
 
 type ActionResult =
@@ -104,4 +107,20 @@ export async function createMinimalPerson(
     }
     return { success: false, error: "Unexpected error" };
   }
+}
+
+export async function loadMorePersons(
+  filters: PersonFilters,
+  cursor: string,
+) {
+  const result = await getPersonsPaginated(filters, cursor, 50);
+  const photoMapRaw = await getFavoritePhotosForPersons(
+    result.items.map((p) => p.id),
+  );
+  const photoMap = Object.fromEntries(photoMapRaw);
+  return {
+    items: result.items,
+    nextCursor: result.nextCursor,
+    photoMap,
+  };
 }

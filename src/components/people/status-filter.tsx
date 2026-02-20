@@ -28,7 +28,7 @@ export function StatusFilter() {
     } else {
       params.set("status", value);
     }
-    router.push(`/people?${params.toString()}`);
+    router.replace(`/people?${params.toString()}`);
   }
 
   return (

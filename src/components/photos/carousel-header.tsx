@@ -6,6 +6,7 @@ import { ChevronLeft, ChevronRight, ImageIcon } from "lucide-react";
 import { Lightbox } from "./lightbox";
 import { setFavorite } from "@/lib/actions/photo-actions";
 import type { PhotoWithUrls } from "@/lib/types";
+import type { ProfileImageLabel } from "@/lib/services/setting-service";
 
 type ClientPhoto = Omit<PhotoWithUrls, "variants">;
 
@@ -15,6 +16,8 @@ type CarouselHeaderProps = {
   entityId: string;
   fallbackColor?: string;
   fallbackInitials?: string;
+  profileLabels?: ProfileImageLabel[];
+  onTagsChanged?: (photoId: string, newTags: string[]) => void;
 };
 
 export function CarouselHeader({
@@ -23,6 +26,8 @@ export function CarouselHeader({
   entityId,
   fallbackColor,
   fallbackInitials,
+  profileLabels,
+  onTagsChanged,
 }: CarouselHeaderProps) {
   // Sort so favorite comes first
   const sorted = [...photos].sort((a, b) => {
@@ -122,6 +127,10 @@ export function CarouselHeader({
           initialIndex={lightboxIndex}
           onClose={() => setLightboxIndex(null)}
           onFavoriteToggle={handleFavoriteToggle}
+          entityType={entityType}
+          entityId={entityId}
+          profileLabels={profileLabels}
+          onTagsChanged={onTagsChanged}
         />
       )}
     </>

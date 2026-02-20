@@ -264,9 +264,140 @@ export async function getPersonWorkHistory(personId: string): Promise<PersonWork
     role: c.role,
     releaseDate: c.set.releaseDate,
     channelName: c.set.channel?.name ?? null,
+    labelId: c.set.channel?.label.id ?? null,
     labelName: c.set.channel?.label.name ?? null,
     projectName: c.set.session.project.name,
   }));
+}
+
+/**
+ * Derives current physical state from an already-loaded person with details.
+ * Pure sync function — no DB access. Replaces the async `computePersonCurrentState`.
+ */
+export function deriveCurrentState(
+  person: NonNullable<Awaited<ReturnType<typeof getPersonWithDetails>>>,
+): PersonCurrentState {
+  let currentHairColor: string | null = null;
+  let weight: number | null = null;
+  let build: string | null = null;
+  let visionAids: string | null = null;
+  let fitnessLevel: string | null = null;
+
+  for (const persona of person.personas) {
+    if (persona.physicalChange) {
+      const p = persona.physicalChange;
+      if (p.currentHairColor !== null) currentHairColor = p.currentHairColor;
+      if (p.weight !== null) weight = p.weight;
+      if (p.build !== null) build = p.build;
+      if (p.visionAids !== null) visionAids = p.visionAids;
+      if (p.fitnessLevel !== null) fitnessLevel = p.fitnessLevel;
+    }
+  }
+
+  const now = new Date();
+
+  const activeBodyMarks: BodyMarkWithEvents[] = [];
+  const seenMarkIds = new Set<string>();
+  for (const persona of person.personas) {
+    for (const event of persona.bodyMarkEvents) {
+      if (seenMarkIds.has(event.bodyMark.id)) continue;
+      seenMarkIds.add(event.bodyMark.id);
+      const mark = event.bodyMark;
+      if (mark.status !== "present") continue;
+      // Collect all events for this mark across all personas
+      const allEvents = person.personas.flatMap((p) =>
+        p.bodyMarkEvents
+          .filter((e) => e.bodyMark.id === mark.id)
+          .map((e) => ({
+            id: e.id,
+            eventType: e.eventType,
+            notes: e.notes,
+            persona: { id: p.id, label: p.label, date: p.date },
+          })),
+      );
+      activeBodyMarks.push({
+        id: mark.id,
+        type: mark.type,
+        bodyRegion: mark.bodyRegion,
+        side: mark.side,
+        position: mark.position,
+        description: mark.description,
+        motif: mark.motif,
+        colors: mark.colors,
+        size: mark.size,
+        status: mark.status,
+        events: allEvents,
+      });
+    }
+  }
+
+  const activeDigitalIdentities: PersonDigitalIdentityItem[] = [];
+  for (const persona of person.personas) {
+    for (const i of persona.digitalIdentities) {
+      if (i.status !== "active") continue;
+      if (i.validTo && i.validTo <= now) continue;
+      activeDigitalIdentities.push({
+        id: i.id,
+        platform: i.platform,
+        handle: i.handle,
+        url: i.url,
+        status: i.status,
+        validFrom: i.validFrom,
+        validTo: i.validTo,
+        personaLabel: persona.label,
+      });
+    }
+  }
+
+  const activeSkills: PersonSkillItem[] = [];
+  for (const persona of person.personas) {
+    for (const s of persona.skills) {
+      if (s.validTo && s.validTo <= now) continue;
+      activeSkills.push({
+        id: s.id,
+        name: s.name,
+        category: s.category,
+        level: s.level,
+        evidence: s.evidence,
+        validFrom: s.validFrom,
+        validTo: s.validTo,
+        personaLabel: persona.label,
+      });
+    }
+  }
+
+  return {
+    currentHairColor,
+    weight,
+    build,
+    visionAids,
+    fitnessLevel,
+    activeBodyMarks,
+    activeDigitalIdentities,
+    activeSkills,
+  };
+}
+
+/**
+ * Derives label affiliations from already-loaded work history items.
+ * Pure sync function — no DB access. Replaces the async `getPersonAffiliations`.
+ */
+export function deriveAffiliations(workHistory: PersonWorkHistoryItem[]): PersonAffiliation[] {
+  const labelMap = new Map<string, PersonAffiliation>();
+  for (const item of workHistory) {
+    if (!item.labelId || !item.labelName) continue;
+    const existing = labelMap.get(item.labelId);
+    if (existing) {
+      existing.setCount++;
+    } else {
+      labelMap.set(item.labelId, {
+        labelId: item.labelId,
+        labelName: item.labelName,
+        setCount: 1,
+      });
+    }
+  }
+  return Array.from(labelMap.values()).sort((a, b) => b.setCount - a.setCount);
 }
 
 export async function getPersonAffiliations(personId: string): Promise<PersonAffiliation[]> {
@@ -473,6 +604,92 @@ export async function deletePersonRecord(id: string) {
     where: { id },
     data: { deletedAt: new Date() },
   });
+}
+
+export type PaginatedPersons = {
+  items: PersonWithCommonAlias[];
+  nextCursor: string | null;
+  totalCount: number;
+};
+
+export async function getPersonsPaginated(
+  filters: PersonFilters = {},
+  cursor?: string,
+  limit = 50,
+): Promise<PaginatedPersons> {
+  const { q, status, naturalHairColor, bodyType, ethnicity } = filters;
+
+  const where: Prisma.PersonWhereInput = {};
+
+  if (status && status !== "all") {
+    where.status = status;
+  }
+
+  if (naturalHairColor) {
+    where.naturalHairColor = { equals: naturalHairColor, mode: "insensitive" };
+  }
+
+  if (bodyType) {
+    where.bodyType = { equals: bodyType, mode: "insensitive" };
+  }
+
+  if (ethnicity) {
+    where.ethnicity = { equals: ethnicity, mode: "insensitive" };
+  }
+
+  if (q) {
+    where.OR = [
+      { icgId: { contains: q, mode: "insensitive" } },
+      {
+        aliases: {
+          some: {
+            name: { contains: q, mode: "insensitive" },
+            deletedAt: null,
+          },
+        },
+      },
+    ];
+  }
+
+  const [totalCount, persons] = await Promise.all([
+    prisma.person.count({ where }),
+    prisma.person.findMany({
+      where,
+      include: {
+        aliases: {
+          where: { type: "common", deletedAt: null },
+          take: 1,
+        },
+      },
+      orderBy: { createdAt: "asc" },
+      take: limit + 1,
+      ...(cursor ? { skip: 1, cursor: { id: cursor } } : {}),
+    }),
+  ]);
+
+  const hasMore = persons.length > limit;
+  const items = hasMore ? persons.slice(0, limit) : persons;
+  const nextCursor = hasMore ? items[items.length - 1]!.id : null;
+
+  return {
+    items: items.map((p) => ({
+      id: p.id,
+      icgId: p.icgId,
+      status: p.status,
+      rating: p.rating,
+      tags: p.tags,
+      naturalHairColor: p.naturalHairColor,
+      bodyType: p.bodyType,
+      ethnicity: p.ethnicity,
+      location: p.location,
+      activeSince: p.activeSince,
+      specialization: p.specialization,
+      createdAt: p.createdAt,
+      commonAlias: p.aliases[0]?.name ?? null,
+    })),
+    nextCursor,
+    totalCount,
+  };
 }
 
 export async function getDistinctNaturalHairColors(): Promise<string[]> {

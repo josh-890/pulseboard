@@ -34,8 +34,12 @@ import {
   Activity,
 } from "lucide-react";
 import Link from "next/link";
-import { ImageGallery } from "@/components/photos/image-gallery";
+import { useRouter } from "next/navigation";
+import { CarouselHeader } from "@/components/photos/carousel-header";
+import { JustifiedGallery } from "@/components/photos/justified-gallery";
+import { ImageUpload } from "@/components/photos/image-upload";
 import type { PhotoWithUrls } from "@/lib/types";
+import type { ProfileImageLabel } from "@/lib/services/setting-service";
 
 type PersonData = NonNullable<Awaited<ReturnType<typeof getPersonWithDetails>>>;
 type PhotoProps = Omit<PhotoWithUrls, "variants">;
@@ -47,6 +51,7 @@ type PersonDetailTabsProps = {
   affiliations: PersonAffiliation[];
   connections: PersonConnection[];
   photos: PhotoProps[];
+  profileLabels: ProfileImageLabel[];
 };
 
 // ── Style maps ──────────────────────────────────────────────────────────────
@@ -174,6 +179,7 @@ function ProfileTab({
   affiliations,
   connections,
   photos,
+  profileLabels,
 }: {
   person: PersonData;
   currentState: PersonCurrentState;
@@ -181,7 +187,9 @@ function ProfileTab({
   affiliations: PersonAffiliation[];
   connections: PersonConnection[];
   photos: PhotoProps[];
+  profileLabels: ProfileImageLabel[];
 }) {
+  const router = useRouter();
   const commonAlias = person.aliases.find((a) => a.type === "common");
   const birthAlias = person.aliases.find((a) => a.type === "birth");
   const otherAliases = person.aliases.filter((a) => !a.deletedAt && a.type === "alias");
@@ -417,10 +425,21 @@ function ProfileTab({
       )}
 
       {/* Photos */}
-      <ImageGallery
-        photos={photos as Parameters<typeof ImageGallery>[0]["photos"]}
+      {photos.length > 0 && (
+        <SectionCard title={`Photos (${photos.length})`} icon={<Camera size={18} />}>
+          <JustifiedGallery
+            photos={photos as PhotoWithUrls[]}
+            entityType="person"
+            entityId={person.id}
+            profileLabels={profileLabels}
+          />
+        </SectionCard>
+      )}
+      <ImageUpload
         entityType="person"
         entityId={person.id}
+        onUploadComplete={() => router.refresh()}
+        currentCount={photos.length}
       />
 
       {/* Work History */}
@@ -618,6 +637,7 @@ export function PersonDetailTabs({
   affiliations,
   connections,
   photos,
+  profileLabels,
 }: PersonDetailTabsProps) {
   const [activeTab, setActiveTab] = useState<"profile" | "history">("profile");
 
@@ -637,12 +657,13 @@ export function PersonDetailTabs({
       {/* Header card */}
       <div className="rounded-2xl border border-white/20 bg-card/70 p-6 shadow-md backdrop-blur-sm">
         <div className="flex flex-col items-center gap-3 text-center sm:flex-row sm:text-left">
-          <div
-            className="flex h-20 w-20 shrink-0 items-center justify-center rounded-full bg-primary/15 text-3xl font-bold text-primary ring-4 ring-primary/20"
-            aria-hidden="true"
-          >
-            {initials}
-          </div>
+          <CarouselHeader
+            photos={photos as (Omit<PhotoWithUrls, "variants">)[]}
+            entityType="person"
+            entityId={person.id}
+            fallbackInitials={initials}
+            profileLabels={profileLabels}
+          />
           <div className="flex-1">
             <h1 className="text-2xl font-bold leading-tight">{displayName}</h1>
             <div className="mt-2 flex flex-wrap items-center justify-center gap-2 sm:justify-start">
@@ -702,6 +723,7 @@ export function PersonDetailTabs({
             affiliations={affiliations}
             connections={connections}
             photos={photos}
+            profileLabels={profileLabels}
           />
         )}
       </div>

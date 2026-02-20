@@ -35,6 +35,7 @@ export type PersonWorkHistoryItem = {
   role: import("@/generated/prisma/client").ContributionRole;
   releaseDate: Date | null;
   channelName: string | null;
+  labelId: string | null;
   labelName: string | null;
   projectName: string | null;
 };

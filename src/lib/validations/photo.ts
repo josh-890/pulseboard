@@ -10,6 +10,7 @@ const MAX_FILE_SIZE = 25 * 1024 * 1024; // 25MB
 
 const photoTagValues = [
   "portrait",
+  "diploma",
   "tattoo",
   "document",
   "general",

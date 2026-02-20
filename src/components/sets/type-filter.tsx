@@ -26,7 +26,7 @@ export function TypeFilter() {
     } else {
       params.set("type", value);
     }
-    router.push(`/sets?${params.toString()}`);
+    router.replace(`/sets?${params.toString()}`);
   }
 
   return (

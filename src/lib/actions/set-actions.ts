@@ -16,7 +16,10 @@ import {
   createSetForSessionRecord,
   addContributions,
   searchPersonsForSelect,
+  getSetsPaginated,
 } from "@/lib/services/set-service";
+import type { SetFilters } from "@/lib/services/set-service";
+import { getFavoritePhotosForSets } from "@/lib/services/photo-service";
 import { z } from "zod";
 
 type ActionResult =
@@ -126,4 +129,20 @@ export async function deleteSet(id: string): Promise<DeleteResult> {
   } catch {
     return { success: false, error: "Failed to delete set" };
   }
+}
+
+export async function loadMoreSets(
+  filters: SetFilters,
+  cursor: string,
+) {
+  const result = await getSetsPaginated(filters, cursor, 50);
+  const photoMapRaw = await getFavoritePhotosForSets(
+    result.items.map((s) => s.id),
+  );
+  const photoMap = Object.fromEntries(photoMapRaw);
+  return {
+    items: result.items,
+    nextCursor: result.nextCursor,
+    photoMap,
+  };
 }

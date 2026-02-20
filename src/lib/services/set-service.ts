@@ -45,6 +45,65 @@ export async function getSets(filters: SetFilters = {}) {
   });
 }
 
+export type PaginatedSets = {
+  items: Awaited<ReturnType<typeof getSets>>;
+  nextCursor: string | null;
+  totalCount: number;
+};
+
+export async function getSetsPaginated(
+  filters: SetFilters = {},
+  cursor?: string,
+  limit = 50,
+): Promise<PaginatedSets> {
+  const { q, type, labelId } = filters;
+
+  const where: Prisma.SetWhereInput = {};
+
+  if (type && type !== "all") {
+    where.type = type;
+  }
+
+  if (q) {
+    where.title = { contains: q, mode: "insensitive" };
+  }
+
+  if (labelId) {
+    where.channel = { labelId };
+  }
+
+  const [totalCount, sets] = await Promise.all([
+    prisma.set.count({ where }),
+    prisma.set.findMany({
+      where,
+      include: {
+        channel: { include: { label: true } },
+        session: { include: { project: true } },
+        contributions: {
+          include: {
+            person: {
+              include: {
+                aliases: { where: { type: "common", deletedAt: null }, take: 1 },
+              },
+            },
+          },
+          orderBy: { role: "asc" },
+          take: 5,
+        },
+      },
+      orderBy: { releaseDate: "desc" },
+      take: limit + 1,
+      ...(cursor ? { skip: 1, cursor: { id: cursor } } : {}),
+    }),
+  ]);
+
+  const hasMore = sets.length > limit;
+  const items = hasMore ? sets.slice(0, limit) : sets;
+  const nextCursor = hasMore ? items[items.length - 1]!.id : null;
+
+  return { items, nextCursor, totalCount };
+}
+
 export async function getSetById(id: string) {
   return prisma.set.findUnique({
     where: { id },

@@ -1,11 +1,12 @@
 import { Suspense } from "react";
 import { Users } from "lucide-react";
 import {
-  getPersons,
+  getPersonsPaginated,
   getDistinctNaturalHairColors,
   getDistinctBodyTypes,
   getDistinctEthnicities,
 } from "@/lib/services/person-service";
+import { getFavoritePhotosForPersons } from "@/lib/services/photo-service";
 import type { PersonStatus } from "@/lib/types";
 import { PersonList } from "@/components/people/person-list";
 import { PersonSearch } from "@/components/people/person-search";
@@ -14,6 +15,9 @@ import { AddPersonSheet } from "@/components/people/add-person-sheet";
 
 export const dynamic = "force-dynamic";
 
+const PAGE_SIZE = 50;
+const MAX_LOADED = 500;
+
 type PeoplePageProps = {
   searchParams: Promise<{
     q?: string;
@@ -21,6 +25,7 @@ type PeoplePageProps = {
     hairColor?: string;
     bodyType?: string;
     ethnicity?: string;
+    loaded?: string;
   }>;
 };
 
@@ -31,19 +36,26 @@ function isPersonStatus(value: string): value is PersonStatus {
 }
 
 export default async function PeoplePage({ searchParams }: PeoplePageProps) {
-  const { q, status, hairColor, bodyType, ethnicity } = await searchParams;
+  const { q, status, hairColor, bodyType, ethnicity, loaded } = await searchParams;
+
+  const limit = Math.min(
+    Math.max(PAGE_SIZE, parseInt(loaded ?? "", 10) || PAGE_SIZE),
+    MAX_LOADED,
+  );
 
   const resolvedStatus =
     status && isPersonStatus(status) ? status : undefined;
 
-  const [persons, hairColors, bodyTypes, ethnicities] = await Promise.all([
-    getPersons({
-      q: q?.trim() || undefined,
-      status: resolvedStatus ?? "all",
-      naturalHairColor: hairColor || undefined,
-      bodyType: bodyType || undefined,
-      ethnicity: ethnicity || undefined,
-    }),
+  const filters = {
+    q: q?.trim() || undefined,
+    status: resolvedStatus ?? ("all" as const),
+    naturalHairColor: hairColor || undefined,
+    bodyType: bodyType || undefined,
+    ethnicity: ethnicity || undefined,
+  };
+
+  const [paginated, hairColors, bodyTypes, ethnicities] = await Promise.all([
+    getPersonsPaginated(filters, undefined, limit),
     getDistinctNaturalHairColors(),
     getDistinctBodyTypes(),
     getDistinctEthnicities(),
@@ -53,6 +65,10 @@ export default async function PeoplePage({ searchParams }: PeoplePageProps) {
   void hairColors;
   void bodyTypes;
   void ethnicities;
+
+  // Batch-load profile photos for initial chunk
+  const photoMapRaw = await getFavoritePhotosForPersons(paginated.items.map((p) => p.id));
+  const photoMap = Object.fromEntries(photoMapRaw);
 
   return (
     <div className="space-y-6">
@@ -65,7 +81,7 @@ export default async function PeoplePage({ searchParams }: PeoplePageProps) {
           <div>
             <h1 className="text-2xl font-bold leading-tight">People</h1>
             <p className="text-sm text-muted-foreground">
-              {persons.length} {persons.length === 1 ? "person" : "people"}
+              {paginated.totalCount} {paginated.totalCount === 1 ? "person" : "people"}
             </p>
           </div>
         </div>
@@ -85,7 +101,13 @@ export default async function PeoplePage({ searchParams }: PeoplePageProps) {
       </div>
 
       {/* People grid */}
-      <PersonList persons={persons} />
+      <PersonList
+        persons={paginated.items}
+        photoMap={photoMap}
+        nextCursor={paginated.nextCursor}
+        totalCount={paginated.totalCount}
+        filters={filters}
+      />
     </div>
   );
 }

@@ -3,9 +3,10 @@ import Link from "next/link";
 import { Camera, Film, Tag, Users } from "lucide-react";
 import { getSetById, getSessionsForSelect, getChannelsForSelect } from "@/lib/services/set-service";
 import { getPhotosForEntity } from "@/lib/services/photo-service";
-import { ImageGallery } from "@/components/photos/image-gallery";
+import { getProfileImageLabels } from "@/lib/services/setting-service";
+import { SetDetailGallery } from "@/components/sets/set-detail-gallery";
 import { cn } from "@/lib/utils";
-import type { ContributionRole, SetType } from "@/lib/types";
+import type { ContributionRole, SetType, PhotoWithUrls } from "@/lib/types";
 import { EditSetSheet } from "@/components/sets/edit-set-sheet";
 import { DeleteButton } from "@/components/shared/delete-button";
 import { deleteSet } from "@/lib/actions/set-actions";
@@ -101,11 +102,12 @@ function SectionCard({ title, icon, children, className }: SectionCardProps) {
 export default async function SetDetailPage({ params }: SetDetailPageProps) {
   const { id } = await params;
 
-  const [set, photos, sessions, channels] = await Promise.all([
+  const [set, photos, sessions, channels, profileLabels] = await Promise.all([
     getSetById(id),
     getPhotosForEntity("set", id),
     getSessionsForSelect(),
     getChannelsForSelect(),
+    getProfileImageLabels(),
   ]);
 
   if (!set) notFound();
@@ -238,14 +240,12 @@ export default async function SetDetailPage({ params }: SetDetailPageProps) {
         </div>
       )}
 
-      {/* Photo gallery — only for photo sets */}
-      {set.type === "photo" && (
-        <ImageGallery
-          photos={photoProps as Parameters<typeof ImageGallery>[0]["photos"]}
-          entityType="set"
-          entityId={id}
-        />
-      )}
+      {/* Photo gallery */}
+      <SetDetailGallery
+        photos={photoProps as PhotoWithUrls[]}
+        entityId={id}
+        profileLabels={profileLabels}
+      />
 
       {/* Cast section */}
       {set.contributions.length > 0 && (

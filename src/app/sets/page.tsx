@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import { ImageIcon } from "lucide-react";
-import { getSets, getChannelsForSelect } from "@/lib/services/set-service";
+import { getSetsPaginated, getChannelsForSelect } from "@/lib/services/set-service";
+import { getFavoritePhotosForSets } from "@/lib/services/photo-service";
 import type { SetType } from "@/lib/types";
 import { SetGrid } from "@/components/sets/set-grid";
 import { SetSearch } from "@/components/sets/set-search";
@@ -9,8 +10,11 @@ import { AddSetSheet } from "@/components/sets/add-set-sheet";
 
 export const dynamic = "force-dynamic";
 
+const PAGE_SIZE = 50;
+const MAX_LOADED = 500;
+
 type SetsPageProps = {
-  searchParams: Promise<{ q?: string; type?: string }>;
+  searchParams: Promise<{ q?: string; type?: string; loaded?: string }>;
 };
 
 const VALID_TYPES = new Set<string>(["photo", "video"]);
@@ -20,14 +24,28 @@ function isSetType(value: string): value is SetType {
 }
 
 export default async function SetsPage({ searchParams }: SetsPageProps) {
-  const { q, type } = await searchParams;
+  const { q, type, loaded } = await searchParams;
+
+  const limit = Math.min(
+    Math.max(PAGE_SIZE, parseInt(loaded ?? "", 10) || PAGE_SIZE),
+    MAX_LOADED,
+  );
 
   const resolvedType = type && isSetType(type) ? type : undefined;
 
-  const [sets, channels] = await Promise.all([
-    getSets({ q: q?.trim() || undefined, type: resolvedType ?? "all" }),
+  const filters = {
+    q: q?.trim() || undefined,
+    type: resolvedType ?? ("all" as const),
+  };
+
+  const [paginated, channels] = await Promise.all([
+    getSetsPaginated(filters, undefined, limit),
     getChannelsForSelect(),
   ]);
+
+  // Batch-load thumbnail photos for initial chunk
+  const photoMapRaw = await getFavoritePhotosForSets(paginated.items.map((s) => s.id));
+  const photoMap = Object.fromEntries(photoMapRaw);
 
   return (
     <div className="space-y-6">
@@ -40,7 +58,7 @@ export default async function SetsPage({ searchParams }: SetsPageProps) {
           <div>
             <h1 className="text-2xl font-bold leading-tight">Sets</h1>
             <p className="text-sm text-muted-foreground">
-              {sets.length} {sets.length === 1 ? "set" : "sets"}
+              {paginated.totalCount} {paginated.totalCount === 1 ? "set" : "sets"}
             </p>
           </div>
         </div>
@@ -60,7 +78,13 @@ export default async function SetsPage({ searchParams }: SetsPageProps) {
       </div>
 
       {/* Grid */}
-      <SetGrid sets={sets} />
+      <SetGrid
+        sets={paginated.items}
+        photoMap={photoMap}
+        nextCursor={paginated.nextCursor}
+        totalCount={paginated.totalCount}
+        filters={filters}
+      />
     </div>
   );
 }
