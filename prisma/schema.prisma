@@ -98,6 +98,7 @@ model Person {
   specialization String?
   status         PersonStatus @default(active)
   rating         Int?
+  pgrade         Int?
   notes          String?
   tags           String[]
 

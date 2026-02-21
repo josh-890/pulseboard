@@ -31,6 +31,17 @@ export function getDisplayName(commonAlias: string | null, icgId: string): strin
   return icgId;
 }
 
+/** Computes age in years from a birthdate. */
+export function computeAge(birthdate: Date): number {
+  const now = new Date();
+  let age = now.getFullYear() - birthdate.getFullYear();
+  const monthDiff = now.getMonth() - birthdate.getMonth();
+  if (monthDiff < 0 || (monthDiff === 0 && now.getDate() < birthdate.getDate())) {
+    age--;
+  }
+  return age;
+}
+
 /** Returns up to 2 initials from the first two words of a name. */
 export function getInitialsFromName(name: string): string {
   const parts = name.trim().split(/\s+/);

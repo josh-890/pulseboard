@@ -3,6 +3,7 @@ import { Inter } from "next/font/google";
 import { ThemeProvider } from "@/components/layout/theme-provider";
 import { PaletteProvider } from "@/components/layout/palette-provider";
 import { DensityProvider } from "@/components/layout/density-provider";
+import { HeroLayoutProvider } from "@/components/layout/hero-layout-provider";
 import { SidebarProvider } from "@/components/layout/sidebar-provider";
 import { AppShell } from "@/components/layout/app-shell";
 import { Toaster } from "@/components/ui/sonner";
@@ -29,10 +30,12 @@ export default function RootLayout({
         <ThemeProvider>
           <PaletteProvider>
             <DensityProvider>
-              <SidebarProvider>
-                <AppShell>{children}</AppShell>
-                <Toaster richColors />
-              </SidebarProvider>
+              <HeroLayoutProvider>
+                <SidebarProvider>
+                  <AppShell>{children}</AppShell>
+                  <Toaster richColors />
+                </SidebarProvider>
+              </HeroLayoutProvider>
             </DensityProvider>
           </PaletteProvider>
         </ThemeProvider>

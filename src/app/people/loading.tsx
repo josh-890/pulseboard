@@ -38,9 +38,12 @@ export default function PeopleLoading() {
                 <Skeleton className="h-5 w-32" />
                 <Skeleton className="h-5 w-14 shrink-0 rounded-full" />
               </div>
-              <div className="mt-2 flex gap-3">
+              <Skeleton className="mt-1 h-3 w-24" />
+              <div className="mt-1.5 flex gap-3">
+                <Skeleton className="h-4 w-14" />
+                <Skeleton className="h-4 w-10" />
                 <Skeleton className="h-4 w-16" />
-                <Skeleton className="h-4 w-20" />
+                <Skeleton className="h-4 w-16" />
               </div>
               <div className="mt-2 flex gap-1">
                 <Skeleton className="h-4 w-12 rounded-full" />

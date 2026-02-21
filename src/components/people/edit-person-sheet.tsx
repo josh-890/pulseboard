@@ -82,6 +82,7 @@ export function EditPersonSheet({ person }: EditPersonSheetProps) {
     activeSince: person.activeSince ?? undefined,
     specialization: person.specialization ?? "",
     rating: person.rating ?? undefined,
+    pgrade: person.pgrade ?? undefined,
     weight: physical?.weight ?? undefined,
     build: physical?.build ?? undefined,
     currentHairColor: physical?.currentHairColor ?? "",
@@ -192,7 +193,83 @@ export function EditPersonSheet({ person }: EditPersonSheetProps) {
                   </div>
                 </section>
 
-                {/* Section 2 — Origin */}
+                {/* Section 2 — Career & Rating */}
+                <section className="rounded-xl border bg-muted/30 dark:bg-muted/20 p-4 space-y-4">
+                  <SectionHeader>Career &amp; Rating</SectionHeader>
+                  <div className="grid grid-cols-3 gap-3">
+                    <FormField
+                      control={form.control}
+                      name="activeSince"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Active Since</FormLabel>
+                          <FormControl>
+                            <Input
+                              type="number"
+                              placeholder="e.g. 2018"
+                              {...field}
+                              value={(field.value as number | undefined) ?? ""}
+                              onChange={(e) =>
+                                field.onChange(e.target.value === "" ? undefined : e.target.value)
+                              }
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="rating"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Rating (1–5)</FormLabel>
+                          <FormControl>
+                            <Input
+                              type="number"
+                              min={1}
+                              max={5}
+                              placeholder="1–5"
+                              {...field}
+                              value={(field.value as number | undefined) ?? ""}
+                              onChange={(e) =>
+                                field.onChange(e.target.value === "" ? undefined : e.target.value)
+                              }
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="pgrade"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>PGRADE (1–10)</FormLabel>
+                          <FormControl>
+                            <Input
+                              type="number"
+                              min={1}
+                              max={10}
+                              placeholder="1–10"
+                              {...field}
+                              value={(field.value as number | undefined) ?? ""}
+                              onChange={(e) =>
+                                field.onChange(e.target.value === "" ? undefined : e.target.value)
+                              }
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                </section>
+
+                {/* Section 3 — Origin */}
                 <section className="rounded-xl border bg-muted/30 dark:bg-muted/20 p-4 space-y-4">
                   <SectionHeader>Origin</SectionHeader>
                   <div className="grid grid-cols-2 gap-3">
@@ -295,7 +372,7 @@ export function EditPersonSheet({ person }: EditPersonSheetProps) {
                   </div>
                 </section>
 
-                {/* Section 3 — Appearance */}
+                {/* Section 4 — Appearance */}
                 <section className="rounded-xl border bg-muted/30 dark:bg-muted/20 p-4 space-y-4">
                   <SectionHeader>Appearance</SectionHeader>
                   <div className="grid grid-cols-2 gap-3">

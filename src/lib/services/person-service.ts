@@ -59,8 +59,7 @@ export async function getPersons(filters: PersonFilters = {}): Promise<PersonWit
     where,
     include: {
       aliases: {
-        where: { type: "common", deletedAt: null },
-        take: 1,
+        where: { deletedAt: null, type: { in: ["common", "birth"] } },
       },
     },
     orderBy: { createdAt: "asc" },
@@ -79,7 +78,10 @@ export async function getPersons(filters: PersonFilters = {}): Promise<PersonWit
     activeSince: p.activeSince,
     specialization: p.specialization,
     createdAt: p.createdAt,
-    commonAlias: p.aliases[0]?.name ?? null,
+    commonAlias: p.aliases.find((a) => a.type === "common")?.name ?? null,
+    birthdate: p.birthdate,
+    nationality: p.nationality,
+    birthAlias: p.aliases.find((a) => a.type === "birth")?.name ?? null,
   }));
 }
 
@@ -547,6 +549,7 @@ export async function updatePersonRecord(id: string, data: UpdatePersonInput) {
         activeSince: data.activeSince,
         specialization: data.specialization,
         rating: data.rating,
+        pgrade: data.pgrade,
       },
     });
 
@@ -657,8 +660,7 @@ export async function getPersonsPaginated(
       where,
       include: {
         aliases: {
-          where: { type: "common", deletedAt: null },
-          take: 1,
+          where: { deletedAt: null, type: { in: ["common", "birth"] } },
         },
       },
       orderBy: { createdAt: "asc" },
@@ -685,7 +687,10 @@ export async function getPersonsPaginated(
       activeSince: p.activeSince,
       specialization: p.specialization,
       createdAt: p.createdAt,
-      commonAlias: p.aliases[0]?.name ?? null,
+      commonAlias: p.aliases.find((a) => a.type === "common")?.name ?? null,
+      birthdate: p.birthdate,
+      nationality: p.nationality,
+      birthAlias: p.aliases.find((a) => a.type === "birth")?.name ?? null,
     })),
     nextCursor,
     totalCount,

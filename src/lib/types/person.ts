@@ -26,6 +26,9 @@ export type PersonWithCommonAlias = {
   specialization: string | null;
   createdAt: Date;
   commonAlias: string | null;
+  birthdate: Date | null;
+  nationality: string | null;
+  birthAlias: string | null;
 };
 
 export type PersonWorkHistoryItem = {

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { ThemeToggle } from "@/components/settings/theme-toggle";
 import { PaletteSelector } from "@/components/settings/palette-selector";
 import { DensitySelector } from "@/components/settings/density-selector";
+import { HeroLayoutSelector } from "@/components/settings/hero-layout-selector";
 import { ProfileImageLabels } from "@/components/settings/profile-image-labels";
 import { getProfileImageLabels } from "@/lib/services/setting-service";
 
@@ -34,6 +35,14 @@ export default async function SettingsPage() {
       <div className="rounded-2xl border border-white/30 bg-card/70 p-4 shadow-lg backdrop-blur-md md:p-6 dark:border-white/10">
         <h2 className="mb-4 text-lg font-semibold">Display Density</h2>
         <DensitySelector />
+      </div>
+
+      <div className="rounded-2xl border border-white/30 bg-card/70 p-4 shadow-lg backdrop-blur-md md:p-6 dark:border-white/10">
+        <h2 className="mb-2 text-lg font-semibold">Person Detail Layout</h2>
+        <p className="mb-4 text-sm text-muted-foreground">
+          Choose the information density for the person detail hero card.
+        </p>
+        <HeroLayoutSelector />
       </div>
 
       <div className="rounded-2xl border border-white/30 bg-card/70 p-4 shadow-lg backdrop-blur-md md:p-6 dark:border-white/10">

@@ -18,6 +18,8 @@ type CarouselHeaderProps = {
   fallbackInitials?: string;
   profileLabels?: ProfileImageLabel[];
   onTagsChanged?: (photoId: string, newTags: string[]) => void;
+  width?: number;
+  height?: number;
 };
 
 export function CarouselHeader({
@@ -28,6 +30,8 @@ export function CarouselHeader({
   fallbackInitials,
   profileLabels,
   onTagsChanged,
+  width = 200,
+  height = 250,
 }: CarouselHeaderProps) {
   // Sort so favorite comes first
   const sorted = [...photos].sort((a, b) => {
@@ -50,8 +54,8 @@ export function CarouselHeader({
   if (sorted.length === 0) {
     return (
       <div
-        className="flex h-[250px] w-[200px] shrink-0 items-center justify-center overflow-hidden rounded-2xl"
-        style={{ backgroundColor: fallbackColor ?? "#6366f1" }}
+        className="flex shrink-0 items-center justify-center overflow-hidden rounded-2xl"
+        style={{ width, height, backgroundColor: fallbackColor ?? "#6366f1" }}
       >
         {fallbackInitials ? (
           <span className="text-4xl font-bold text-white">{fallbackInitials}</span>
@@ -70,7 +74,10 @@ export function CarouselHeader({
 
   return (
     <>
-      <div className="group relative h-[250px] w-[200px] shrink-0 overflow-hidden rounded-2xl">
+      <div
+        className="group relative shrink-0 overflow-hidden rounded-2xl"
+        style={{ width, height }}
+      >
         <button
           type="button"
           onClick={() => setLightboxIndex(activeIndex)}
