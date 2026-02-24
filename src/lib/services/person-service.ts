@@ -11,6 +11,13 @@ import type {
 } from "@/lib/types";
 import type { PersonStatus, Prisma } from "@/generated/prisma/client";
 import type { CreatePersonInput, UpdatePersonInput } from "@/lib/validations/person";
+import {
+  cascadeDeletePhotos,
+  cascadeDeleteBodyModifications,
+  cascadeDeleteCosmeticProcedures,
+  cascadeDeletePersonExtras,
+  cascadeDeleteRelationshipEvents,
+} from "./cascade-helpers";
 
 export type PersonFilters = {
   q?: string;
@@ -93,16 +100,25 @@ export async function getPersonWithDetails(id: string) {
   return prisma.person.findUnique({
     where: { id },
     include: {
-      aliases: { orderBy: [{ type: "asc" }, { name: "asc" }] },
+      aliases: {
+        where: { deletedAt: null },
+        orderBy: [{ type: "asc" }, { name: "asc" }],
+      },
       personas: {
+        where: { deletedAt: null },
         orderBy: [{ isBaseline: "desc" }, { date: "asc" }],
         include: {
           physicalChange: true,
           bodyMarkEvents: {
+            where: { deletedAt: null },
             include: { bodyMark: true },
           },
-          digitalIdentities: true,
-          skills: true,
+          digitalIdentities: {
+            where: { deletedAt: null },
+          },
+          skills: {
+            where: { deletedAt: null },
+          },
         },
       },
     },
@@ -114,6 +130,7 @@ export async function getPersonBodyMarks(personId: string): Promise<BodyMarkWith
     where: { personId },
     include: {
       events: {
+        where: { deletedAt: null },
         include: {
           persona: { select: { id: true, label: true, date: true } },
         },
@@ -259,17 +276,19 @@ export async function getPersonWorkHistory(personId: string): Promise<PersonWork
     orderBy: { set: { releaseDate: "desc" } },
   });
 
-  return contributions.map((c) => ({
-    setId: c.set.id,
-    setTitle: c.set.title,
-    setType: c.set.type,
-    role: c.role,
-    releaseDate: c.set.releaseDate,
-    channelName: c.set.channel?.name ?? null,
-    labelId: c.set.channel?.label.id ?? null,
-    labelName: c.set.channel?.label.name ?? null,
-    projectName: c.set.session.project.name,
-  }));
+  return contributions
+    .filter((c) => !c.set.deletedAt)
+    .map((c) => ({
+      setId: c.set.id,
+      setTitle: c.set.title,
+      setType: c.set.type,
+      role: c.role,
+      releaseDate: c.set.releaseDate,
+      channelName: c.set.channel?.name ?? null,
+      labelId: c.set.channel?.label.id ?? null,
+      labelName: c.set.channel?.label.name ?? null,
+      projectName: c.set.session.project.name,
+    }));
 }
 
 /**
@@ -416,6 +435,7 @@ export async function getPersonAffiliations(personId: string): Promise<PersonAff
 
   const labelMap = new Map<string, PersonAffiliation>();
   for (const c of contributions) {
+    if (c.set.deletedAt) continue;
     const label = c.set.channel?.label;
     if (!label) continue;
     const existing = labelMap.get(label.id);
@@ -453,17 +473,22 @@ export async function getPersonConnections(personId: string): Promise<PersonConn
     orderBy: { sharedSetCount: "desc" },
   });
 
-  return relationships.map((r) => {
-    const other = r.personAId === personId ? r.personB : r.personA;
-    return {
-      personId: other.id,
-      icgId: other.icgId,
-      commonAlias: other.aliases[0]?.name ?? null,
-      sharedSetCount: r.sharedSetCount,
-      source: r.source,
-      label: r.label,
-    };
-  });
+  return relationships
+    .filter((r) => {
+      const other = r.personAId === personId ? r.personB : r.personA;
+      return !other.deletedAt;
+    })
+    .map((r) => {
+      const other = r.personAId === personId ? r.personB : r.personA;
+      return {
+        personId: other.id,
+        icgId: other.icgId,
+        commonAlias: other.aliases[0]?.name ?? null,
+        sharedSetCount: r.sharedSetCount,
+        source: r.source,
+        label: r.label,
+      };
+    });
 }
 
 export async function countPersons(): Promise<number> {
@@ -603,9 +628,92 @@ export async function updatePersonRecord(id: string, data: UpdatePersonInput) {
 }
 
 export async function deletePersonRecord(id: string) {
-  return prisma.person.update({
-    where: { id },
-    data: { deletedAt: new Date() },
+  const deletedAt = new Date();
+
+  return prisma.$transaction(async (tx) => {
+    // Soft-delete aliases
+    await tx.personAlias.updateMany({
+      where: { personId: id, deletedAt: null },
+      data: { deletedAt },
+    });
+
+    // Fetch persona IDs for cascading
+    const personas = await tx.persona.findMany({
+      where: { personId: id, deletedAt: null },
+      select: { id: true },
+    });
+    const personaIds = personas.map((p) => p.id);
+
+    if (personaIds.length > 0) {
+      // Hard-delete PersonaPhysical (no deletedAt column)
+      await tx.personaPhysical.deleteMany({
+        where: { personaId: { in: personaIds } },
+      });
+
+      // Soft-delete body mark events via personaId
+      await tx.bodyMarkEvent.updateMany({
+        where: { personaId: { in: personaIds }, deletedAt: null },
+        data: { deletedAt },
+      });
+
+      // Soft-delete personas
+      await tx.persona.updateMany({
+        where: { id: { in: personaIds } },
+        data: { deletedAt },
+      });
+    }
+
+    // Soft-delete body marks
+    await tx.bodyMark.updateMany({
+      where: { personId: id, deletedAt: null },
+      data: { deletedAt },
+    });
+
+    // Soft-delete body modifications + events
+    await cascadeDeleteBodyModifications(tx, id, personaIds, deletedAt);
+
+    // Soft-delete cosmetic procedures + events
+    await cascadeDeleteCosmeticProcedures(tx, id, personaIds, deletedAt);
+
+    // Soft-delete education, awards, interests
+    await cascadeDeletePersonExtras(tx, id, deletedAt);
+
+    // Soft-delete digital identities
+    await tx.personDigitalIdentity.updateMany({
+      where: { personId: id, deletedAt: null },
+      data: { deletedAt },
+    });
+
+    // Soft-delete skills
+    await tx.personSkill.updateMany({
+      where: { personId: id, deletedAt: null },
+      data: { deletedAt },
+    });
+
+    // Soft-delete set contributions
+    await tx.setContribution.updateMany({
+      where: { personId: id, deletedAt: null },
+      data: { deletedAt },
+    });
+
+    // Soft-delete relationship events, then relationships
+    await cascadeDeleteRelationshipEvents(tx, id, deletedAt);
+    await tx.personRelationship.updateMany({
+      where: {
+        OR: [{ personAId: id }, { personBId: id }],
+        deletedAt: null,
+      },
+      data: { deletedAt },
+    });
+
+    // Soft-delete photos
+    await cascadeDeletePhotos(tx, "person", id, deletedAt);
+
+    // Soft-delete the person
+    return tx.person.update({
+      where: { id },
+      data: { deletedAt },
+    });
   });
 }
 

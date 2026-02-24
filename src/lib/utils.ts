@@ -42,6 +42,56 @@ export function computeAge(birthdate: Date): number {
   return age;
 }
 
+/** Formats a date with partial precision support. */
+export function formatPartialDate(date: Date | null, precision: string): string {
+  if (!date || precision === "UNKNOWN") return "Unknown";
+  if (precision === "YEAR") return date.getFullYear().toString();
+  if (precision === "MONTH") {
+    return date.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+  }
+  return date.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+}
+
+/** Computes age from a partial birthdate. Returns "~29" for imprecise dates, "29" for exact. */
+export function computeAgeFromPartialDate(
+  birthdate: Date | null,
+  precision: string,
+  asOf: Date = new Date(),
+): string {
+  if (!birthdate || precision === "UNKNOWN") return "Unknown";
+  let age = asOf.getFullYear() - birthdate.getFullYear();
+  if (precision === "DAY") {
+    const monthDiff = asOf.getMonth() - birthdate.getMonth();
+    if (monthDiff < 0 || (monthDiff === 0 && asOf.getDate() < birthdate.getDate())) {
+      age--;
+    }
+    return age.toString();
+  }
+  return `~${age}`;
+}
+
+/** Computes age at a specific event, with "~" prefix when either date is imprecise. */
+export function computeAgeAtEvent(
+  birthdate: Date | null,
+  birthPrec: string,
+  eventDate: Date | null,
+  eventPrec: string,
+): string {
+  if (!birthdate || !eventDate) return "Unknown";
+  if (birthPrec === "UNKNOWN" || eventPrec === "UNKNOWN") return "Unknown";
+  let age = eventDate.getFullYear() - birthdate.getFullYear();
+  if (birthPrec === "DAY") {
+    const monthDiff = eventDate.getMonth() - birthdate.getMonth();
+    if (monthDiff < 0 || (monthDiff === 0 && eventDate.getDate() < birthdate.getDate())) {
+      age--;
+    }
+  }
+  if (birthPrec !== "DAY" || eventPrec !== "DAY") {
+    return `~${age}`;
+  }
+  return age.toString();
+}
+
 /** Returns up to 2 initials from the first two words of a name. */
 export function getInitialsFromName(name: string): string {
   const parts = name.trim().split(/\s+/);

@@ -55,6 +55,8 @@ enum ActivityType {
 enum EntityType {
   person
   set
+  bodyModification
+  cosmeticProcedure
 }
 
 enum BodyMarkType {
@@ -78,12 +80,86 @@ enum BodyMarkEventType {
   removed
 }
 
+enum DatePrecision {
+  UNKNOWN
+  YEAR
+  MONTH
+  DAY
+}
+
+enum BodyModificationType {
+  piercing
+  stretching
+  branding
+  scarification
+  implant
+  teeth
+  jewelry
+  other
+}
+
+enum BodyModificationStatus {
+  present
+  removed
+  overgrown
+  modified
+}
+
+enum BodyModificationEventType {
+  added
+  modified
+  removed
+}
+
+enum CosmeticProcedureEventType {
+  performed
+  revised
+  reversed
+}
+
+enum EducationType {
+  primary
+  secondary
+  undergraduate
+  graduate
+  postgraduate
+  vocational
+  continuing
+  other
+}
+
+enum AwardType {
+  degree
+  certificate
+  license
+  award
+  honor
+  other
+}
+
+enum RelationshipType {
+  professional
+  personal
+  familial
+  other
+}
+
+enum RelationshipEventType {
+  started
+  married
+  separated
+  divorced
+  ended
+  other
+}
+
 // ─── Person & Aliases ─────────────────────────────────────────────────────────
 
 model Person {
   id             String  @id @default(cuid())
   icgId          String  @unique
   birthdate      DateTime?
+  birthdatePrecision DatePrecision @default(UNKNOWN)
   sexAtBirth     String?
   birthPlace     String?
   nationality    String?
@@ -95,6 +171,8 @@ model Person {
   bodyType       String?
   measurements   String?
   activeSince    Int?
+  retiredIn      Int?
+  birthMarks     String?
   specialization String?
   status         PersonStatus @default(active)
   rating         Int?
@@ -110,6 +188,11 @@ model Person {
   bodyMarks        BodyMark[]
   digitalIdentities PersonDigitalIdentity[]
   skills           PersonSkill[]
+  bodyModifications    BodyModification[]
+  cosmeticProcedures   CosmeticProcedure[]
+  education            PersonEducation[]
+  awards               PersonAward[]
+  interests            PersonInterest[]
 
   createdAt DateTime  @default(now())
   deletedAt DateTime?
@@ -139,6 +222,7 @@ model Persona {
   notes      String?
   isBaseline Boolean   @default(false)
   date       DateTime?
+  datePrecision DatePrecision @default(UNKNOWN)
   createdAt  DateTime  @default(now())
   deletedAt  DateTime?
 
@@ -146,6 +230,8 @@ model Persona {
   bodyMarkEvents    BodyMarkEvent[]
   digitalIdentities PersonDigitalIdentity[]
   skills            PersonSkill[]
+  bodyModificationEvents    BodyModificationEvent[]
+  cosmeticProcedureEvents   CosmeticProcedureEvent[]
 
   @@index([personId])
   @@index([deletedAt])
@@ -211,7 +297,9 @@ model PersonDigitalIdentity {
   url       String?
   status    String    @default("active")
   validFrom DateTime?
+  validFromPrecision DatePrecision @default(UNKNOWN)
   validTo   DateTime?
+  validToPrecision   DatePrecision @default(UNKNOWN)
   deletedAt DateTime?
 
   @@index([personId])
@@ -230,7 +318,9 @@ model PersonSkill {
   level     String?
   evidence  String?
   validFrom DateTime?
+  validFromPrecision DatePrecision @default(UNKNOWN)
   validTo   DateTime?
+  validToPrecision   DatePrecision @default(UNKNOWN)
   deletedAt DateTime?
 
   @@index([personId])
@@ -245,13 +335,174 @@ model PersonRelationship {
   personBId     String
   personB       Person             @relation("PersonB", fields: [personBId], references: [id])
   source        RelationshipSource @default(derived)
+  type          RelationshipType?
   label         String?
   sharedSetCount Int               @default(0)
+  validFrom     DateTime?
+  validFromPrecision DatePrecision @default(UNKNOWN)
+  validTo       DateTime?
+  validToPrecision   DatePrecision @default(UNKNOWN)
+  context       String?
   deletedAt     DateTime?
+
+  events RelationshipEvent[]
 
   @@unique([personAId, personBId])
   @@index([personAId])
   @@index([personBId])
+  @@index([deletedAt])
+}
+
+// ─── Body Modifications ──────────────────────────────────────────────────────
+
+model BodyModification {
+  id          String  @id @default(cuid())
+  personId    String
+  person      Person  @relation(fields: [personId], references: [id])
+  type        BodyModificationType
+  bodyRegion  String
+  side        String?
+  position    String?
+  description String?
+  material    String?
+  gauge       String?
+  status      BodyModificationStatus @default(present)
+  deletedAt   DateTime?
+  createdAt   DateTime  @default(now())
+
+  events BodyModificationEvent[]
+
+  @@index([personId])
+  @@index([type])
+  @@index([status])
+  @@index([deletedAt])
+}
+
+model BodyModificationEvent {
+  id                 String  @id @default(cuid())
+  bodyModificationId String
+  bodyModification   BodyModification @relation(fields: [bodyModificationId], references: [id])
+  personaId          String
+  persona            Persona @relation(fields: [personaId], references: [id])
+  eventType          BodyModificationEventType
+  notes              String?
+  deletedAt          DateTime?
+
+  @@index([bodyModificationId])
+  @@index([personaId])
+  @@index([deletedAt])
+}
+
+// ─── Cosmetic Procedures ─────────────────────────────────────────────────────
+
+model CosmeticProcedure {
+  id          String  @id @default(cuid())
+  personId    String
+  person      Person  @relation(fields: [personId], references: [id])
+  type        String
+  bodyRegion  String
+  description String?
+  provider    String?
+  status      String  @default("completed")
+  deletedAt   DateTime?
+  createdAt   DateTime  @default(now())
+
+  events CosmeticProcedureEvent[]
+
+  @@index([personId])
+  @@index([deletedAt])
+}
+
+model CosmeticProcedureEvent {
+  id                  String  @id @default(cuid())
+  cosmeticProcedureId String
+  cosmeticProcedure   CosmeticProcedure @relation(fields: [cosmeticProcedureId], references: [id])
+  personaId           String
+  persona             Persona @relation(fields: [personaId], references: [id])
+  eventType           CosmeticProcedureEventType
+  notes               String?
+  deletedAt           DateTime?
+
+  @@index([cosmeticProcedureId])
+  @@index([personaId])
+  @@index([deletedAt])
+}
+
+// ─── Education & Awards ──────────────────────────────────────────────────────
+
+model PersonEducation {
+  id            String  @id @default(cuid())
+  personId      String
+  person        Person  @relation(fields: [personId], references: [id])
+  type          EducationType
+  institution   String
+  field         String?
+  degree        String?
+  startDate     DateTime?
+  startDatePrecision DatePrecision @default(UNKNOWN)
+  endDate       DateTime?
+  endDatePrecision   DatePrecision @default(UNKNOWN)
+  notes         String?
+  deletedAt     DateTime?
+  createdAt     DateTime @default(now())
+
+  @@index([personId])
+  @@index([deletedAt])
+}
+
+model PersonAward {
+  id            String  @id @default(cuid())
+  personId      String
+  person        Person  @relation(fields: [personId], references: [id])
+  type          AwardType
+  name          String
+  issuer        String?
+  date          DateTime?
+  datePrecision DatePrecision @default(UNKNOWN)
+  context       String?
+  url           String?
+  deletedAt     DateTime?
+  createdAt     DateTime @default(now())
+
+  @@index([personId])
+  @@index([deletedAt])
+}
+
+// ─── Interests ───────────────────────────────────────────────────────────────
+
+model PersonInterest {
+  id            String  @id @default(cuid())
+  personId      String
+  person        Person  @relation(fields: [personId], references: [id])
+  name          String
+  category      String?
+  level         String?
+  validFrom     DateTime?
+  validFromPrecision DatePrecision @default(UNKNOWN)
+  validTo       DateTime?
+  validToPrecision   DatePrecision @default(UNKNOWN)
+  notes         String?
+  deletedAt     DateTime?
+  createdAt     DateTime @default(now())
+
+  @@index([personId])
+  @@index([deletedAt])
+}
+
+// ─── Relationship Events ─────────────────────────────────────────────────────
+
+model RelationshipEvent {
+  id              String  @id @default(cuid())
+  relationshipId  String
+  relationship    PersonRelationship @relation(fields: [relationshipId], references: [id])
+  eventType       RelationshipEventType
+  date            DateTime?
+  datePrecision   DatePrecision @default(UNKNOWN)
+  notes           String?
+  deletedAt       DateTime?
+  createdAt       DateTime @default(now())
+
+  @@index([relationshipId])
   @@index([deletedAt])
 }
 
@@ -345,6 +596,7 @@ model Session {
   name        String
   description String?
   date        DateTime?
+  datePrecision DatePrecision @default(UNKNOWN)
   createdAt   DateTime  @default(now())
   deletedAt   DateTime?
 
@@ -366,6 +618,7 @@ model Set {
   description String?
   notes       String?
   releaseDate DateTime?
+  releaseDatePrecision DatePrecision @default(UNKNOWN)
   category    String?
   genre       String?
   tags        String[]
