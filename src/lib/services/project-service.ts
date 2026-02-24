@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import type { Prisma, ProjectStatus } from "@/generated/prisma/client";
+import { cascadeDeleteSession } from "./cascade-helpers";
 
 export type ProjectFilters = {
   q?: string;
@@ -22,10 +23,17 @@ export async function getProjects(filters: ProjectFilters = {}) {
   return prisma.project.findMany({
     where,
     include: {
-      labels: { include: { label: true } },
+      labels: {
+        where: { label: { deletedAt: null } },
+        include: { label: true },
+      },
       sessions: {
+        where: { deletedAt: null },
         include: {
-          sets: { select: { id: true, type: true, title: true } },
+          sets: {
+            where: { deletedAt: null },
+            select: { id: true, type: true, title: true },
+          },
         },
         orderBy: { date: "desc" },
       },
@@ -38,12 +46,18 @@ export async function getProjectById(id: string) {
   return prisma.project.findUnique({
     where: { id },
     include: {
-      labels: { include: { label: true } },
+      labels: {
+        where: { label: { deletedAt: null } },
+        include: { label: true },
+      },
       sessions: {
+        where: { deletedAt: null },
         include: {
           sets: {
+            where: { deletedAt: null },
             include: {
               contributions: {
+                where: { deletedAt: null, person: { deletedAt: null } },
                 include: {
                   person: {
                     include: {
@@ -101,8 +115,27 @@ export async function updateProjectRecord(id: string, data: {
 }
 
 export async function deleteProjectRecord(id: string) {
-  return prisma.project.update({
-    where: { id },
-    data: { deletedAt: new Date() },
+  const deletedAt = new Date();
+
+  return prisma.$transaction(async (tx) => {
+    // Find non-deleted sessions
+    const sessions = await tx.session.findMany({
+      where: { projectId: id, deletedAt: null },
+      select: { id: true },
+    });
+
+    // Cascade-delete each session (sets + contributions + photos)
+    for (const session of sessions) {
+      await cascadeDeleteSession(tx, session.id, deletedAt);
+    }
+
+    // Hard-delete join table rows (no deletedAt column)
+    await tx.projectLabel.deleteMany({ where: { projectId: id } });
+
+    // Soft-delete the project
+    return tx.project.update({
+      where: { id },
+      data: { deletedAt },
+    });
   });
 }

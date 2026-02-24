@@ -7,6 +7,9 @@ import type { ProjectStatus } from "@/lib/types";
 import { EditLabelSheet } from "@/components/labels/edit-label-sheet";
 import { DeleteButton } from "@/components/shared/delete-button";
 import { deleteLabel } from "@/lib/actions/label-actions";
+import { deleteChannel } from "@/lib/actions/channel-actions";
+import { AddChannelSheet } from "@/components/channels/add-channel-sheet";
+import { EditChannelSheet } from "@/components/channels/edit-channel-sheet";
 
 export const dynamic = "force-dynamic";
 
@@ -36,11 +39,12 @@ const STATUS_LABELS: Record<ProjectStatus, string> = {
 type SectionCardProps = {
   title: string;
   icon: React.ReactNode;
+  action?: React.ReactNode;
   children: React.ReactNode;
   className?: string;
 };
 
-function SectionCard({ title, icon, children, className }: SectionCardProps) {
+function SectionCard({ title, icon, action, children, className }: SectionCardProps) {
   return (
     <div
       className={cn(
@@ -48,11 +52,14 @@ function SectionCard({ title, icon, children, className }: SectionCardProps) {
         className,
       )}
     >
-      <div className="mb-4 flex items-center gap-2">
-        <span className="text-muted-foreground" aria-hidden="true">
-          {icon}
-        </span>
-        <h2 className="text-lg font-semibold">{title}</h2>
+      <div className="mb-4 flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <span className="text-muted-foreground" aria-hidden="true">
+            {icon}
+          </span>
+          <h2 className="text-lg font-semibold">{title}</h2>
+        </div>
+        {action}
       </div>
       {children}
     </div>
@@ -74,6 +81,8 @@ export default async function LabelDetailPage({
 
   if (!label) notFound();
 
+  const labelOption = [{ id: label.id, name: label.name }];
+
   return (
     <div className="space-y-6">
       {/* Back link + actions row */}
@@ -82,7 +91,7 @@ export default async function LabelDetailPage({
           href="/labels"
           className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
         >
-          <span aria-hidden="true">←</span>
+          <span aria-hidden="true">&larr;</span>
           Back to Labels
         </Link>
         <div className="flex items-center gap-2">
@@ -150,6 +159,7 @@ export default async function LabelDetailPage({
       <SectionCard
         title={`Channels (${label.channels.length})`}
         icon={<Radio size={18} />}
+        action={<AddChannelSheet labels={labelOption} defaultLabelId={label.id} />}
       >
         {label.channels.length === 0 ? (
           <EmptyState message="No channels for this label." />
@@ -161,7 +171,12 @@ export default async function LabelDetailPage({
                 className="rounded-xl border border-white/15 bg-card/40 p-4"
               >
                 <div className="mb-1 flex items-center justify-between gap-2">
-                  <span className="font-medium">{channel.name}</span>
+                  <Link
+                    href={`/channels/${channel.id}`}
+                    className="font-medium transition-colors hover:text-primary"
+                  >
+                    {channel.name}
+                  </Link>
                   <div className="flex items-center gap-2">
                     {channel.platform && (
                       <span className="rounded-full border border-white/15 bg-muted/50 px-2 py-0.5 text-xs text-muted-foreground">
@@ -185,6 +200,17 @@ export default async function LabelDetailPage({
                     {channel.url}
                   </a>
                 )}
+                <div className="mt-2 flex items-center gap-1.5">
+                  <EditChannelSheet
+                    channel={channel}
+                    labels={labelOption}
+                  />
+                  <DeleteButton
+                    title="Delete channel?"
+                    description="This will detach all sets from this channel and permanently remove it. This action cannot be undone."
+                    onDelete={deleteChannel.bind(null, channel.id)}
+                  />
+                </div>
               </div>
             ))}
           </div>

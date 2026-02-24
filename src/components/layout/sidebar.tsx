@@ -6,6 +6,7 @@ import {
   Users,
   ImageIcon,
   Building2,
+  Radio,
   Network,
   Settings,
   ChevronsLeft,
@@ -21,6 +22,7 @@ const navItems = [
   { href: "/sets", icon: <ImageIcon size={20} />, label: "Sets" },
   { href: "/projects", icon: <FolderKanban size={20} />, label: "Projects" },
   { href: "/labels", icon: <Building2 size={20} />, label: "Labels" },
+  { href: "/channels", icon: <Radio size={20} />, label: "Channels" },
   { href: "/networks", icon: <Network size={20} />, label: "Networks" },
   { href: "/settings", icon: <Settings size={20} />, label: "Settings" },
 ];

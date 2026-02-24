@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Menu, LayoutDashboard, FolderKanban, Users, ImageIcon, Building2, Network, Settings } from "lucide-react";
+import { Menu, LayoutDashboard, FolderKanban, Users, ImageIcon, Building2, Radio, Network, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
@@ -18,6 +18,7 @@ const navItems = [
   { href: "/sets", icon: <ImageIcon size={20} />, label: "Sets" },
   { href: "/projects", icon: <FolderKanban size={20} />, label: "Projects" },
   { href: "/labels", icon: <Building2 size={20} />, label: "Labels" },
+  { href: "/channels", icon: <Radio size={20} />, label: "Channels" },
   { href: "/networks", icon: <Network size={20} />, label: "Networks" },
   { href: "/settings", icon: <Settings size={20} />, label: "Settings" },
 ];

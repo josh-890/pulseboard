@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import type { Prisma, SetType, ContributionRole } from "@/generated/prisma/client";
+import { cascadeDeleteSet } from "./cascade-helpers";
 
 export type SetFilters = {
   q?: string;
@@ -30,6 +31,7 @@ export async function getSets(filters: SetFilters = {}) {
       channel: { include: { label: true } },
       session: { include: { project: true } },
       contributions: {
+        where: { deletedAt: null, person: { deletedAt: null } },
         include: {
           person: {
             include: {
@@ -80,6 +82,7 @@ export async function getSetsPaginated(
         channel: { include: { label: true } },
         session: { include: { project: true } },
         contributions: {
+          where: { deletedAt: null },
           include: {
             person: {
               include: {
@@ -111,6 +114,7 @@ export async function getSetById(id: string) {
       channel: { include: { label: true } },
       session: { include: { project: true } },
       contributions: {
+        where: { deletedAt: null, person: { deletedAt: null } },
         include: {
           person: {
             include: {
@@ -184,9 +188,9 @@ export async function updateSetRecord(id: string, data: {
 }
 
 export async function deleteSetRecord(id: string) {
-  return prisma.set.update({
-    where: { id },
-    data: { deletedAt: new Date() },
+  const deletedAt = new Date();
+  return prisma.$transaction(async (tx) => {
+    await cascadeDeleteSet(tx, id, deletedAt);
   });
 }
 

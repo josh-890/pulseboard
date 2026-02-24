@@ -11,17 +11,15 @@ export function ProjectSearch() {
   const searchParams = useSearchParams();
   const [value, setValue] = useState(searchParams.get("q") ?? "");
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const searchParamsRef = useRef(searchParams);
-  searchParamsRef.current = searchParams;
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
 
     debounceRef.current = setTimeout(() => {
-      const currentQ = searchParamsRef.current.get("q") ?? "";
+      const currentQ = searchParams.get("q") ?? "";
       const trimmed = value.trim();
       if (trimmed === currentQ) return;
-      const params = new URLSearchParams(searchParamsRef.current.toString());
+      const params = new URLSearchParams(searchParams.toString());
       if (trimmed) {
         params.set("q", trimmed);
       } else {
@@ -33,7 +31,7 @@ export function ProjectSearch() {
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
-  }, [value, router]);
+  }, [value, router, searchParams]);
 
   function handleClear() {
     setValue("");

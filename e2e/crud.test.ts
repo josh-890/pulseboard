@@ -107,7 +107,7 @@ test.describe("Labels CRUD", () => {
   test("edit label", async ({ page }) => {
     await page.goto("/labels/seed-label-1");
 
-    await page.getByRole("button", { name: /edit/i }).click();
+    await page.getByRole("button", { name: /edit/i }).first().click();
     const dialog = page.getByRole("dialog");
     await expect(dialog).toBeVisible();
 
@@ -121,7 +121,7 @@ test.describe("Labels CRUD", () => {
     await waitForToast(page, "Label updated");
 
     // Revert
-    await page.getByRole("button", { name: /edit/i }).click();
+    await page.getByRole("button", { name: /edit/i }).first().click();
     await dialog.getByLabel(/^name/i).fill(original);
     await dialog.getByRole("button", { name: /save changes/i }).click();
     await waitForToast(page, "Label updated");
@@ -306,7 +306,7 @@ test.describe("Delete confirmation dialog", () => {
   test("delete dialog appears and can be cancelled", async ({ page }) => {
     await page.goto("/labels/seed-label-1");
 
-    await page.getByRole("button", { name: /delete/i }).click();
+    await page.getByRole("button", { name: /delete/i }).first().click();
     const alertDialog = page.getByRole("alertdialog");
     await expect(alertDialog).toBeVisible();
     await expect(alertDialog.getByText(/delete label/i)).toBeVisible();

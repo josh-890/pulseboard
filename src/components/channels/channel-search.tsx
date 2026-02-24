@@ -6,7 +6,7 @@ import { Search, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 
-export function SetSearch() {
+export function ChannelSearch() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [value, setValue] = useState(searchParams.get("q") ?? "");
@@ -25,7 +25,7 @@ export function SetSearch() {
       } else {
         params.delete("q");
       }
-      router.replace(`/sets?${params.toString()}`);
+      router.replace(`/channels?${params.toString()}`);
     }, 300);
 
     return () => {
@@ -37,7 +37,7 @@ export function SetSearch() {
     setValue("");
     const params = new URLSearchParams(searchParams.toString());
     params.delete("q");
-    router.replace(`/sets?${params.toString()}`);
+    router.replace(`/channels?${params.toString()}`);
   }
 
   return (
@@ -49,11 +49,11 @@ export function SetSearch() {
       />
       <Input
         type="search"
-        placeholder="Search sets..."
+        placeholder="Search channels..."
         value={value}
         onChange={(e) => setValue(e.target.value)}
         className={cn("pl-9", value && "pr-8")}
-        aria-label="Search sets by title"
+        aria-label="Search channels by name"
       />
       {value && (
         <button

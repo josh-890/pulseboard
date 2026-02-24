@@ -5,9 +5,15 @@ export async function getNetworks(q?: string) {
     where: q ? { name: { contains: q, mode: "insensitive" } } : undefined,
     include: {
       labelMemberships: {
+        where: { label: { deletedAt: null } },
         include: {
           label: {
-            include: { channels: { select: { id: true } } },
+            include: {
+              channels: {
+                where: { deletedAt: null },
+                select: { id: true },
+              },
+            },
           },
         },
       },
@@ -21,15 +27,23 @@ export async function getNetworkById(id: string) {
     where: { id },
     include: {
       labelMemberships: {
+        where: { label: { deletedAt: null } },
         include: {
           label: {
             include: {
               channels: {
+                where: { deletedAt: null },
                 include: {
-                  sets: { select: { id: true, type: true } },
+                  sets: {
+                    where: { deletedAt: null },
+                    select: { id: true, type: true },
+                  },
                 },
               },
-              projects: { include: { project: true } },
+              projects: {
+                where: { project: { deletedAt: null } },
+                include: { project: true },
+              },
             },
           },
         },
@@ -72,8 +86,16 @@ export async function updateNetworkRecord(id: string, data: {
 }
 
 export async function deleteNetworkRecord(id: string) {
-  return prisma.network.update({
-    where: { id },
-    data: { deletedAt: new Date() },
+  const deletedAt = new Date();
+
+  return prisma.$transaction(async (tx) => {
+    // Hard-delete join table rows (no deletedAt column)
+    await tx.labelNetwork.deleteMany({ where: { networkId: id } });
+
+    // Soft-delete the network
+    return tx.network.update({
+      where: { id },
+      data: { deletedAt },
+    });
   });
 }

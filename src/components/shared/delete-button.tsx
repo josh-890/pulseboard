@@ -21,7 +21,7 @@ type DeleteButtonProps = {
   title: string;
   description: string;
   onDelete: () => Promise<{ success: boolean; error?: string }>;
-  redirectTo: string;
+  redirectTo?: string;
 };
 
 export function DeleteButton({
@@ -40,7 +40,11 @@ export function DeleteButton({
 
     if (result.success) {
       toast.success("Deleted successfully");
-      router.push(redirectTo);
+      if (redirectTo) {
+        router.push(redirectTo);
+      } else {
+        router.refresh();
+      }
     } else {
       toast.error(result.error ?? "Delete failed");
     }
