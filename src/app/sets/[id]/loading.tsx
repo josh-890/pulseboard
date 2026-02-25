@@ -20,7 +20,19 @@ export default function SetDetailLoading() {
         </div>
         <Skeleton className="h-7 w-48" />
         <Skeleton className="mt-2 h-4 w-36" />
-        <Skeleton className="mt-1 h-4 w-40" />
+      </div>
+
+      {/* Production / Session assignment */}
+      <div className="rounded-2xl border border-white/20 bg-card/70 p-6 shadow-md backdrop-blur-sm">
+        <div className="mb-4 flex items-center gap-2">
+          <Skeleton className="h-5 w-5 rounded" />
+          <Skeleton className="h-5 w-24" />
+        </div>
+        <Skeleton className="h-4 w-48" />
+        <div className="mt-2 flex items-center gap-2">
+          <Skeleton className="h-7 w-28 rounded-md" />
+          <Skeleton className="h-7 w-28 rounded-md" />
+        </div>
       </div>
 
       {/* Gallery placeholder */}
@@ -33,20 +45,23 @@ export default function SetDetailLoading() {
         </div>
       </div>
 
-      {/* Cast section */}
+      {/* Credits & Participants section */}
       <div className="rounded-2xl border border-white/20 bg-card/70 p-6 shadow-md backdrop-blur-sm">
-        <Skeleton className="h-5 w-20 mb-4" />
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="mb-4 flex items-center gap-2">
+          <Skeleton className="h-5 w-5 rounded" />
+          <Skeleton className="h-5 w-24" />
+        </div>
+        <div className="space-y-2">
           {Array.from({ length: 3 }).map((_, i) => (
             <div
               key={i}
-              className="flex items-center gap-3 rounded-xl border border-white/15 bg-card/40 p-3"
+              className="flex items-center justify-between gap-2 rounded-lg border border-white/15 bg-card/40 p-3"
             >
-              <Skeleton className="h-10 w-10 shrink-0 rounded-full" />
-              <div className="flex-1">
-                <Skeleton className="h-4 w-24" />
-                <Skeleton className="mt-1 h-4 w-16 rounded-full" />
+              <div className="flex items-center gap-2">
+                <Skeleton className="h-4 w-28" />
+                <Skeleton className="h-4 w-16 rounded-full" />
               </div>
+              <Skeleton className="h-6 w-16 rounded-md" />
             </div>
           ))}
         </div>

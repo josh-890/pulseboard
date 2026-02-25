@@ -35,7 +35,7 @@ type EditChannelSheetProps = {
   channel: {
     id: string;
     name: string;
-    labelId: string;
+    labelId: string | null;
     platform: string | null;
     url: string | null;
   };
@@ -59,7 +59,7 @@ export function EditChannelSheet({ channel, labels }: EditChannelSheetProps) {
     resolver: zodResolver(updateChannelSchema),
     defaultValues: {
       id: channel.id,
-      labelId: channel.labelId,
+      labelId: channel.labelId ?? "",
       name: channel.name,
       platform: channel.platform ?? "",
       url: channel.url ?? "",
@@ -87,7 +87,7 @@ export function EditChannelSheet({ channel, labels }: EditChannelSheetProps) {
       if (v) {
         form.reset({
           id: channel.id,
-          labelId: channel.labelId,
+          labelId: channel.labelId ?? "",
           name: channel.name,
           platform: channel.platform ?? "",
           url: channel.url ?? "",

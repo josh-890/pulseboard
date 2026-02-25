@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import { ImageIcon } from "lucide-react";
-import { getSetsPaginated, getChannelsForSelect } from "@/lib/services/set-service";
+import { getSetsPaginated, getChannelsWithLabelMaps } from "@/lib/services/set-service";
 import { getFavoritePhotosForSets } from "@/lib/services/photo-service";
 import type { SetType } from "@/lib/types";
 import { SetGrid } from "@/components/sets/set-grid";
@@ -40,7 +40,7 @@ export default async function SetsPage({ searchParams }: SetsPageProps) {
 
   const [paginated, channels] = await Promise.all([
     getSetsPaginated(filters, undefined, limit),
-    getChannelsForSelect(),
+    getChannelsWithLabelMaps(),
   ]);
 
   // Batch-load thumbnail photos for initial chunk

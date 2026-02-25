@@ -259,6 +259,7 @@ model PersonAlias {
 
   @@index([personId])
   @@index([name])
+  @@index([nameNorm])
   @@index([deletedAt])
 }
 
@@ -567,6 +568,7 @@ model Network {
   labelMemberships LabelNetwork[]
 
   @@index([name])
+  @@index([nameNorm])
   @@index([deletedAt])
 }
 
@@ -587,6 +589,7 @@ model Label {
   labelEvidence   SetLabelEvidence[]
 
   @@index([name])
+  @@index([nameNorm])
   @@index([deletedAt])
 }
 
@@ -614,6 +617,7 @@ model Channel {
   labelMaps ChannelLabelMap[]
 
   @@index([labelId])
+  @@index([nameNorm])
   @@index([deletedAt])
 }
 
@@ -664,6 +668,7 @@ model Project {
 
   @@index([status])
   @@index([updatedAt])
+  @@index([nameNorm])
   @@index([deletedAt])
   @@index([labelId])
 }
@@ -707,8 +712,8 @@ model Session {
 
 model Set {
   id          String    @id @default(cuid())
-  sessionId   String
-  session     Session   @relation(fields: [sessionId], references: [id])
+  sessionId   String?
+  session     Session?  @relation(fields: [sessionId], references: [id])
   channelId   String?
   channel     Channel?  @relation(fields: [channelId], references: [id])
   type        SetType
@@ -738,6 +743,7 @@ model Set {
   @@index([channelId])
   @@index([type])
   @@index([releaseDate])
+  @@index([titleNorm])
   @@index([deletedAt])
   @@index([coverMediaItemId])
 }
@@ -847,6 +853,7 @@ model SetCreditRaw {
 
   @@index([setId])
   @@index([resolutionStatus])
+  @@index([rawNameNorm])
   @@index([resolvedPersonId])
   @@index([deletedAt])
 }

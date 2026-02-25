@@ -1,15 +1,18 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { Camera, Film, Tag, Users } from "lucide-react";
+import { Camera, Film, Tag, Users, FileText, Link2 } from "lucide-react";
 import { getSetById, getSessionsForSelect, getChannelsForSelect } from "@/lib/services/set-service";
 import { getPhotosForEntity } from "@/lib/services/photo-service";
 import { getProfileImageLabels } from "@/lib/services/setting-service";
 import { SetDetailGallery } from "@/components/sets/set-detail-gallery";
+import { CreditResolutionPanel } from "@/components/sets/credit-resolution-panel";
+import { SessionAssignmentPanel } from "@/components/sets/session-assignment-panel";
 import { cn, formatPartialDate } from "@/lib/utils";
 import type { ContributionRole, SetType, PhotoWithUrls } from "@/lib/types";
 import { EditSetSheet } from "@/components/sets/edit-set-sheet";
 import { DeleteButton } from "@/components/shared/delete-button";
 import { deleteSet } from "@/lib/actions/set-actions";
+import { Badge } from "@/components/ui/badge";
 
 export const dynamic = "force-dynamic";
 
@@ -110,6 +113,11 @@ export default async function SetDetailPage({ params }: SetDetailPageProps) {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const photoProps = photos.map(({ variants, ...rest }) => rest);
 
+  // Determine if we have new-style credits or only legacy contributions
+  const hasNewCredits = set.creditsRaw.length > 0;
+  const hasLegacyContributions = set.contributions.length > 0;
+  const hasParticipants = set.participants.length > 0;
+
   return (
     <div className="space-y-6">
       {/* Back link + actions row */}
@@ -191,29 +199,50 @@ export default async function SetDetailPage({ params }: SetDetailPageProps) {
               </p>
             )}
 
-            {/* Session / project */}
-            {set.session && (
-              <p className="mt-1 text-sm text-muted-foreground">
-                <span className="text-muted-foreground/70">Session: </span>
-                <span className="font-medium text-foreground/80">
-                  {set.session.name}
-                </span>
-                {set.session.project && (
-                  <>
-                    {" · "}
-                    <Link
-                      href={`/projects/${set.session.project.id}`}
-                      className="hover:text-foreground hover:underline underline-offset-2 transition-colors"
-                    >
-                      {set.session.project.name}
-                    </Link>
-                  </>
-                )}
-              </p>
+            {/* Label evidence badges */}
+            {set.labelEvidence.length > 0 && (
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {set.labelEvidence.map((ev) => (
+                  <Badge
+                    key={`${ev.setId}-${ev.labelId}-${ev.evidenceType}`}
+                    variant="outline"
+                    className={cn(
+                      "text-xs",
+                      ev.evidenceType === "CHANNEL_MAP"
+                        ? "border-sky-500/30 bg-sky-500/10 text-sky-600 dark:text-sky-400"
+                        : "border-purple-500/30 bg-purple-500/10 text-purple-600 dark:text-purple-400",
+                    )}
+                  >
+                    {ev.label.name}
+                    <span className="ml-1 opacity-60">
+                      {ev.evidenceType === "CHANNEL_MAP" ? "channel" : "manual"}
+                    </span>
+                  </Badge>
+                ))}
+              </div>
             )}
           </div>
         </div>
       </div>
+
+      {/* Session assignment */}
+      <SectionCard title="Production" icon={<Link2 size={18} />}>
+        <SessionAssignmentPanel
+          setId={id}
+          currentSession={
+            set.session
+              ? {
+                  id: set.session.id,
+                  name: set.session.name,
+                  project: set.session.project
+                    ? { id: set.session.project.id, name: set.session.project.name }
+                    : null,
+                }
+              : null
+          }
+          hasParticipants={hasParticipants}
+        />
+      </SectionCard>
 
       {/* Description + notes */}
       {(set.description || set.notes) && (
@@ -248,8 +277,35 @@ export default async function SetDetailPage({ params }: SetDetailPageProps) {
         profileLabels={profileLabels}
       />
 
-      {/* Cast section */}
-      {set.contributions.length > 0 && (
+      {/* Credits & Participants (new-style) */}
+      {hasNewCredits && (
+        <SectionCard
+          title={`Credits (${set.creditsRaw.length})`}
+          icon={<FileText size={18} />}
+        >
+          <CreditResolutionPanel
+            credits={set.creditsRaw.map((c) => ({
+              id: c.id,
+              role: c.role,
+              rawName: c.rawName,
+              resolutionStatus: c.resolutionStatus,
+              resolvedPerson: c.resolvedPerson
+                ? {
+                    id: c.resolvedPerson.id,
+                    icgId: c.resolvedPerson.icgId,
+                    aliases: c.resolvedPerson.aliases.map((a) => ({
+                      name: a.name,
+                      type: a.type,
+                    })),
+                  }
+                : null,
+            }))}
+          />
+        </SectionCard>
+      )}
+
+      {/* Legacy cast section (for sets created before the new credit system) */}
+      {!hasNewCredits && hasLegacyContributions && (
         <SectionCard
           title={`Cast (${set.contributions.length})`}
           icon={<Users size={18} />}

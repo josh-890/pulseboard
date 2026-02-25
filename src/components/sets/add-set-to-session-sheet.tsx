@@ -41,7 +41,7 @@ import { createSetForSession } from "@/lib/actions/set-actions";
 import { ContributorsStep } from "./contributors-step";
 import { PartialDateInput } from "@/components/shared/partial-date-input";
 
-type ChannelOption = { id: string; name: string; labelName: string; labelId: string };
+type ChannelOption = { id: string; name: string; labelName: string | null; labelId: string | null };
 
 type SessionInfo = {
   id: string;
@@ -111,7 +111,7 @@ export function AddSetToSessionSheet({ session, channels }: AddSetToSessionSheet
 
     // Check co-production: channel's label not in project labels
     const channel = channels.find((c) => c.id === value);
-    if (channel && !session.labelIds.includes(channel.labelId)) {
+    if (channel && channel.labelId && !session.labelIds.includes(channel.labelId)) {
       setCoprodLabelName(channel.labelName);
     } else {
       setCoprodLabelName(null);

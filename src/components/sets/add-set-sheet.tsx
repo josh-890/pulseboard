@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Plus, X } from "lucide-react";
+import { Plus, X, Check, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -33,18 +33,27 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  createSetWithContextSchema,
-  type CreateSetWithContextFormValues,
-  type CreateSetWithContextInput,
+  createSetStandaloneSchema,
+  type CreateSetStandaloneFormValues,
+  type CreateSetStandaloneInput,
+  type LabelEvidenceEntry,
 } from "@/lib/validations/set";
-import { createSetWithContext } from "@/lib/actions/set-actions";
-import { ContributorsStep } from "./contributors-step";
+import { createSetStandalone, saveSetLabelEvidence } from "@/lib/actions/set-actions";
+import { CreditEntryStep } from "./credit-entry-step";
 import { PartialDateInput } from "@/components/shared/partial-date-input";
 
-type ChannelOption = { id: string; name: string; labelName: string; labelId: string };
+type LabelMapEntry = { labelId: string; labelName: string; confidence: number };
+
+export type ChannelOptionWithMaps = {
+  id: string;
+  name: string;
+  labelName: string | null;
+  labelId: string | null;
+  labelMaps: LabelMapEntry[];
+};
 
 type AddSetSheetProps = {
-  channels: ChannelOption[];
+  channels: ChannelOptionWithMaps[];
 };
 
 function SectionHeader({ children }: { children: React.ReactNode }) {
@@ -62,8 +71,12 @@ export function AddSetSheet({ channels }: AddSetSheetProps) {
   const [createdSetId, setCreatedSetId] = useState<string | null>(null);
   const [tagInput, setTagInput] = useState("");
 
-  const form = useForm<CreateSetWithContextFormValues, unknown, CreateSetWithContextInput>({
-    resolver: zodResolver(createSetWithContextSchema),
+  // Label evidence from ChannelLabelMap suggestions
+  const [suggestedLabels, setSuggestedLabels] = useState<LabelMapEntry[]>([]);
+  const [confirmedLabelIds, setConfirmedLabelIds] = useState<Set<string>>(new Set());
+
+  const form = useForm<CreateSetStandaloneFormValues, unknown, CreateSetStandaloneInput>({
+    resolver: zodResolver(createSetStandaloneSchema),
     defaultValues: {
       channelId: "",
       title: "",
@@ -77,6 +90,30 @@ export function AddSetSheet({ channels }: AddSetSheetProps) {
 
   const { isSubmitting } = form.formState;
   const tags = form.watch("tags") ?? [];
+
+  const handleChannelChange = useCallback((channelId: string) => {
+    const channel = channels.find((c) => c.id === channelId);
+    if (channel && channel.labelMaps.length > 0) {
+      setSuggestedLabels(channel.labelMaps);
+      // Auto-confirm all by default
+      setConfirmedLabelIds(new Set(channel.labelMaps.map((m) => m.labelId)));
+    } else {
+      setSuggestedLabels([]);
+      setConfirmedLabelIds(new Set());
+    }
+  }, [channels]);
+
+  function toggleLabelConfirmation(labelId: string) {
+    setConfirmedLabelIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(labelId)) {
+        next.delete(labelId);
+      } else {
+        next.add(labelId);
+      }
+      return next;
+    });
+  }
 
   function addTag() {
     const trimmed = tagInput.trim();
@@ -93,20 +130,35 @@ export function AddSetSheet({ channels }: AddSetSheetProps) {
     setOpen(false);
     setStep(1);
     setCreatedSetId(null);
+    setSuggestedLabels([]);
+    setConfirmedLabelIds(new Set());
     form.reset();
     setTagInput("");
   }
 
-  async function onSubmit(values: CreateSetWithContextInput) {
-    const result = await createSetWithContext(values);
+  async function onSubmit(values: CreateSetStandaloneInput) {
+    const result = await createSetStandalone(values);
 
-    if (result.success) {
-      setCreatedSetId(result.setId);
-      setStep(2);
+    if (!result.success) {
+      toast.error(typeof result.error === "string" ? result.error : "Failed to create set");
       return;
     }
 
-    toast.error(typeof result.error === "string" ? result.error : "Failed to create set");
+    // Save confirmed label evidence
+    const confirmedEvidence: LabelEvidenceEntry[] = suggestedLabels
+      .filter((l) => confirmedLabelIds.has(l.labelId))
+      .map((l) => ({
+        labelId: l.labelId,
+        evidenceType: "CHANNEL_MAP" as const,
+        confidence: l.confidence,
+      }));
+
+    if (confirmedEvidence.length > 0) {
+      await saveSetLabelEvidence(result.setId, confirmedEvidence);
+    }
+
+    setCreatedSetId(result.setId);
+    setStep(2);
   }
 
   return (
@@ -120,7 +172,7 @@ export function AddSetSheet({ channels }: AddSetSheetProps) {
           <SheetTitle className="text-lg font-semibold">Add Set</SheetTitle>
           <SheetDescription className="text-xs text-muted-foreground">
             Step {step} of 2 —{" "}
-            {step === 1 ? "Set details & context" : "Add contributors"}
+            {step === 1 ? "Set details" : "Add credits"}
           </SheetDescription>
         </SheetHeader>
 
@@ -223,7 +275,13 @@ export function AddSetSheet({ channels }: AddSetSheetProps) {
                         render={({ field }) => (
                           <FormItem>
                             <FormLabel>Channel <span className="text-destructive">*</span></FormLabel>
-                            <Select onValueChange={field.onChange} value={field.value ?? ""}>
+                            <Select
+                              onValueChange={(v) => {
+                                field.onChange(v);
+                                handleChannelChange(v);
+                              }}
+                              value={field.value ?? ""}
+                            >
                               <FormControl>
                                 <SelectTrigger className="w-full">
                                   <SelectValue placeholder="Select channel…" />
@@ -232,7 +290,7 @@ export function AddSetSheet({ channels }: AddSetSheetProps) {
                               <SelectContent>
                                 {channels.map((c) => (
                                   <SelectItem key={c.id} value={c.id}>
-                                    {c.name} ({c.labelName})
+                                    {c.name}{c.labelName ? ` (${c.labelName})` : ""}
                                   </SelectItem>
                                 ))}
                               </SelectContent>
@@ -241,6 +299,49 @@ export function AddSetSheet({ channels }: AddSetSheetProps) {
                           </FormItem>
                         )}
                       />
+
+                      {/* Label evidence suggestions from ChannelLabelMap */}
+                      {suggestedLabels.length > 0 && (
+                        <div className="space-y-2">
+                          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                            Label suggestions
+                          </p>
+                          {suggestedLabels.map((label) => {
+                            const isConfirmed = confirmedLabelIds.has(label.labelId);
+                            return (
+                              <div
+                                key={label.labelId}
+                                className={`flex items-center justify-between gap-2 rounded-lg border px-3 py-2 transition-colors ${
+                                  isConfirmed
+                                    ? "border-emerald-500/30 bg-emerald-500/10"
+                                    : "border-white/15 bg-card/40 opacity-60"
+                                }`}
+                              >
+                                <div className="flex items-center gap-2 min-w-0">
+                                  <span className="text-sm font-medium">{label.labelName}</span>
+                                  <span className="text-xs text-muted-foreground">
+                                    {Math.round(label.confidence * 100)}%
+                                  </span>
+                                </div>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-7 w-7 p-0"
+                                  onClick={() => toggleLabelConfirmation(label.labelId)}
+                                  aria-label={isConfirmed ? `Dismiss ${label.labelName}` : `Confirm ${label.labelName}`}
+                                >
+                                  {isConfirmed ? (
+                                    <Check size={14} className="text-emerald-500" />
+                                  ) : (
+                                    <XCircle size={14} className="text-muted-foreground" />
+                                  )}
+                                </Button>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
 
                       <FormField
                         control={form.control}
@@ -328,7 +429,7 @@ export function AddSetSheet({ channels }: AddSetSheetProps) {
         )}
 
         {step === 2 && createdSetId && (
-          <ContributorsStep setId={createdSetId} onClose={handleClose} />
+          <CreditEntryStep setId={createdSetId} onClose={handleClose} />
         )}
       </SheetContent>
     </Sheet>

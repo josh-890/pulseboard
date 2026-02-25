@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db";
-import type { Prisma, SetType, ContributionRole } from "@/generated/prisma/client";
+import type { Prisma, SetType, ContributionRole, ParticipantRole, ResolutionStatus } from "@/generated/prisma/client";
 import { cascadeDeleteSet } from "./cascade-helpers";
 
 export type SetFilters = {
@@ -124,6 +124,30 @@ export async function getSetById(id: string) {
         },
         orderBy: { role: "asc" },
       },
+      creditsRaw: {
+        where: { deletedAt: null },
+        include: {
+          resolvedPerson: {
+            include: {
+              aliases: { where: { type: "common", deletedAt: null }, take: 1 },
+            },
+          },
+        },
+        orderBy: { createdAt: "asc" },
+      },
+      participants: {
+        include: {
+          person: {
+            include: {
+              aliases: { where: { type: "common", deletedAt: null }, take: 1 },
+            },
+          },
+        },
+      },
+      labelEvidence: {
+        include: { label: true },
+        orderBy: { createdAt: "asc" },
+      },
     },
   });
 }
@@ -160,6 +184,35 @@ export async function createSetRecord(data: {
       tags: data.tags ?? [],
     },
   });
+}
+
+export async function createSetStandaloneRecord(data: {
+  channelId: string;
+  type: "photo" | "video";
+  title: string;
+  description?: string;
+  notes?: string;
+  releaseDate?: string;
+  releaseDatePrecision?: string;
+  category?: string;
+  genre?: string;
+  tags?: string[];
+}) {
+  const set = await prisma.set.create({
+    data: {
+      type: data.type,
+      title: data.title,
+      channelId: data.channelId,
+      description: data.description,
+      notes: data.notes,
+      releaseDate: data.releaseDate ? new Date(data.releaseDate) : undefined,
+      releaseDatePrecision: (data.releaseDatePrecision as "UNKNOWN" | "YEAR" | "MONTH" | "DAY") ?? "UNKNOWN",
+      category: data.category,
+      genre: data.genre,
+      tags: data.tags ?? [],
+    },
+  });
+  return { setId: set.id };
 }
 
 export async function updateSetRecord(id: string, data: {
@@ -223,7 +276,30 @@ export async function getChannelsForSelect() {
   }));
 }
 
-// Flow A — standalone: auto-creates project + session from set data
+export async function getChannelsWithLabelMaps() {
+  const channels = await prisma.channel.findMany({
+    include: {
+      label: { select: { id: true, name: true } },
+      labelMaps: {
+        include: { label: { select: { id: true, name: true } } },
+      },
+    },
+    orderBy: [{ label: { name: "asc" } }, { name: "asc" }],
+  });
+  return channels.map((c) => ({
+    id: c.id,
+    name: c.name,
+    labelName: c.label?.name ?? null,
+    labelId: c.label?.id ?? null,
+    labelMaps: c.labelMaps.map((m) => ({
+      labelId: m.labelId,
+      labelName: m.label.name,
+      confidence: m.confidence,
+    })),
+  }));
+}
+
+// Flow A — standalone: auto-creates project + session from set data (legacy)
 export async function createSetWithContextRecord(data: {
   channelId: string;
   type: "photo" | "video";
@@ -380,4 +456,213 @@ export async function searchPersonsForSelect(q: string) {
     icgId: p.icgId,
     commonAlias: p.aliases[0]?.name ?? null,
   }));
+}
+
+// ── SetCreditRaw / SetParticipant operations ────────────────────────────────
+
+export async function createSetCreditsRaw(
+  setId: string,
+  credits: { role: ParticipantRole; rawName: string; resolvedPersonId?: string }[],
+) {
+  if (credits.length === 0) return;
+
+  await prisma.$transaction(async (tx) => {
+    for (const credit of credits) {
+      const isResolved = !!credit.resolvedPersonId;
+      await tx.setCreditRaw.create({
+        data: {
+          setId,
+          role: credit.role,
+          rawName: credit.rawName,
+          resolvedPersonId: credit.resolvedPersonId ?? null,
+          resolutionStatus: isResolved ? "RESOLVED" : "UNRESOLVED",
+        },
+      });
+
+      if (isResolved && credit.resolvedPersonId) {
+        await tx.setParticipant.upsert({
+          where: {
+            setId_personId_role: {
+              setId,
+              personId: credit.resolvedPersonId,
+              role: credit.role,
+            },
+          },
+          create: { setId, personId: credit.resolvedPersonId, role: credit.role },
+          update: {},
+        });
+      }
+    }
+  });
+}
+
+export async function createSetLabelEvidence(
+  setId: string,
+  evidence: { labelId: string; evidenceType: "CHANNEL_MAP" | "MANUAL"; confidence: number }[],
+) {
+  if (evidence.length === 0) return;
+  await prisma.setLabelEvidence.createMany({
+    data: evidence.map((e) => ({
+      setId,
+      labelId: e.labelId,
+      evidenceType: e.evidenceType,
+      confidence: e.confidence,
+    })),
+    skipDuplicates: true,
+  });
+}
+
+export async function resolveCreditRaw(creditId: string, personId: string) {
+  return prisma.$transaction(async (tx) => {
+    const credit = await tx.setCreditRaw.update({
+      where: { id: creditId },
+      data: {
+        resolutionStatus: "RESOLVED" as ResolutionStatus,
+        resolvedPersonId: personId,
+      },
+    });
+
+    await tx.setParticipant.upsert({
+      where: {
+        setId_personId_role: {
+          setId: credit.setId,
+          personId,
+          role: credit.role,
+        },
+      },
+      create: { setId: credit.setId, personId, role: credit.role },
+      update: {},
+    });
+
+    return credit;
+  });
+}
+
+export async function ignoreCreditRaw(creditId: string) {
+  return prisma.setCreditRaw.update({
+    where: { id: creditId },
+    data: { resolutionStatus: "IGNORED" as ResolutionStatus },
+  });
+}
+
+export async function unresolveCreditRaw(creditId: string) {
+  return prisma.$transaction(async (tx) => {
+    const credit = await tx.setCreditRaw.findUniqueOrThrow({ where: { id: creditId } });
+
+    // Remove the SetParticipant if this was the only credit pointing to that person
+    if (credit.resolvedPersonId) {
+      const otherCredits = await tx.setCreditRaw.count({
+        where: {
+          setId: credit.setId,
+          role: credit.role,
+          resolvedPersonId: credit.resolvedPersonId,
+          resolutionStatus: "RESOLVED",
+          id: { not: creditId },
+          deletedAt: null,
+        },
+      });
+
+      if (otherCredits === 0) {
+        await tx.setParticipant.deleteMany({
+          where: {
+            setId: credit.setId,
+            personId: credit.resolvedPersonId,
+            role: credit.role,
+          },
+        });
+      }
+    }
+
+    return tx.setCreditRaw.update({
+      where: { id: creditId },
+      data: {
+        resolutionStatus: "UNRESOLVED" as ResolutionStatus,
+        resolvedPersonId: null,
+      },
+    });
+  });
+}
+
+export async function getSetCredits(setId: string) {
+  return prisma.setCreditRaw.findMany({
+    where: { setId, deletedAt: null },
+    include: {
+      resolvedPerson: {
+        include: {
+          aliases: { where: { type: "common", deletedAt: null }, take: 1 },
+        },
+      },
+    },
+    orderBy: { createdAt: "asc" },
+  });
+}
+
+// ── Session assignment ──────────────────────────────────────────────────────
+
+export async function assignSessionToSet(setId: string, sessionId: string) {
+  return prisma.set.update({
+    where: { id: setId },
+    data: { sessionId },
+  });
+}
+
+export async function unlinkSessionFromSet(setId: string) {
+  return prisma.set.update({
+    where: { id: setId },
+    data: { sessionId: null },
+  });
+}
+
+export async function copyParticipantsToSession(setId: string, sessionId: string) {
+  const participants = await prisma.setParticipant.findMany({
+    where: { setId },
+  });
+
+  if (participants.length === 0) return;
+
+  await prisma.sessionParticipant.createMany({
+    data: participants.map((p) => ({
+      sessionId,
+      personId: p.personId,
+      role: p.role,
+    })),
+    skipDuplicates: true,
+  });
+}
+
+export async function searchSessions(q: string) {
+  if (!q.trim()) return [];
+  return prisma.session.findMany({
+    where: {
+      deletedAt: null,
+      OR: [
+        { name: { contains: q, mode: "insensitive" } },
+        { project: { name: { contains: q, mode: "insensitive" } } },
+      ],
+    },
+    include: {
+      project: { select: { id: true, name: true } },
+    },
+    take: 20,
+    orderBy: { updatedAt: "desc" },
+  });
+}
+
+export async function createSessionRecord(data: {
+  name: string;
+  date?: string;
+  datePrecision?: string;
+  projectId?: string;
+  labelId?: string;
+}) {
+  return prisma.session.create({
+    data: {
+      name: data.name,
+      projectId: data.projectId,
+      labelId: data.labelId,
+      date: data.date ? new Date(data.date) : undefined,
+      datePrecision: (data.datePrecision as "UNKNOWN" | "YEAR" | "MONTH" | "DAY") ?? "UNKNOWN",
+      status: "DRAFT",
+    },
+  });
 }

@@ -2,20 +2,13 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { UserPlus, X, UserSearch, Loader2 } from "lucide-react";
+import { UserPlus, X, UserSearch, Loader2, Camera, User } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-// Badge removed — not used in this component
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
 import { SheetFooter } from "@/components/ui/sheet";
-import { saveContributions, searchPersonsAction } from "@/lib/actions/set-actions";
+import { saveSetCredits, searchPersonsAction } from "@/lib/actions/set-actions";
 import { createMinimalPerson } from "@/lib/actions/person-actions";
 
 type PersonResult = {
@@ -24,56 +17,59 @@ type PersonResult = {
   commonAlias: string | null;
 };
 
-type Contributor = {
-  personId: string;
-  displayName: string;
-  icgId: string;
-  role: "main" | "supporting" | "background";
+type CreditItem = {
+  tempId: string;
+  role: "MODEL" | "PHOTOGRAPHER";
+  rawName: string;
+  resolvedPersonId?: string;
+  resolvedPersonName?: string;
 };
 
-const ROLE_LABELS: Record<Contributor["role"], string> = {
-  main: "Main",
-  supporting: "Supporting",
-  background: "Background",
-};
-
-const ROLE_STYLES: Record<Contributor["role"], string> = {
-  main: "border-emerald-500/30 bg-emerald-500/15 text-emerald-600 dark:text-emerald-400",
-  supporting: "border-sky-500/30 bg-sky-500/15 text-sky-600 dark:text-sky-400",
-  background: "border-slate-500/30 bg-slate-500/15 text-slate-600 dark:text-slate-400",
-};
-
-type ContributorsStepProps = {
+type CreditEntryStepProps = {
   setId: string;
   onClose: () => void;
 };
 
-export function ContributorsStep({ setId, onClose }: ContributorsStepProps) {
+const ROLE_CONFIG = {
+  MODEL: {
+    label: "Models",
+    icon: <User size={14} />,
+    badge: "border-blue-500/30 bg-blue-500/15 text-blue-600 dark:text-blue-400",
+  },
+  PHOTOGRAPHER: {
+    label: "Photographer",
+    icon: <Camera size={14} />,
+    badge: "border-amber-500/30 bg-amber-500/15 text-amber-600 dark:text-amber-400",
+  },
+} as const;
+
+export function CreditEntryStep({ setId, onClose }: CreditEntryStepProps) {
   const router = useRouter();
+
+  // Role tab
+  const [activeRole, setActiveRole] = useState<"MODEL" | "PHOTOGRAPHER">("MODEL");
 
   // Search state
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<PersonResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
-  const [selectedPerson, setSelectedPerson] = useState<PersonResult | null>(null);
-  const [pendingRole, setPendingRole] = useState<Contributor["role"]>("main");
 
-  // New person form state
+  // New person form
   const [showNewPersonForm, setShowNewPersonForm] = useState(false);
   const [newIcgId, setNewIcgId] = useState("");
   const [newName, setNewName] = useState("");
-  const [newPersonRole, setNewPersonRole] = useState<Contributor["role"]>("main");
   const [isCreatingPerson, setIsCreatingPerson] = useState(false);
 
-  // Contributors list
-  const [contributors, setContributors] = useState<Contributor[]>([]);
+  // Credits list
+  const [credits, setCredits] = useState<CreditItem[]>([]);
 
   // Footer state
   const [isSaving, setIsSaving] = useState(false);
 
   const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const nextTempId = useRef(0);
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -87,7 +83,6 @@ export function ContributorsStep({ setId, onClose }: ContributorsStepProps) {
 
   function handleSearchChange(q: string) {
     setSearchQuery(q);
-    setSelectedPerson(null);
     if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
     if (!q.trim()) {
       setSearchResults([]);
@@ -103,31 +98,72 @@ export function ContributorsStep({ setId, onClose }: ContributorsStepProps) {
     }, 300);
   }
 
-  function selectPerson(person: PersonResult) {
-    setSelectedPerson(person);
-    setSearchQuery(person.commonAlias ?? person.icgId);
-    setShowDropdown(false);
-    setSearchResults([]);
-  }
-
-  function addSelectedPerson() {
-    if (!selectedPerson) return;
-    if (contributors.some((c) => c.personId === selectedPerson.id)) {
-      toast.error("Person already added");
+  function addResolvedCredit(person: PersonResult) {
+    const displayName = person.commonAlias ?? person.icgId;
+    // Check if already added for same role
+    if (credits.some((c) => c.resolvedPersonId === person.id && c.role === activeRole)) {
+      toast.error("Person already added for this role");
       return;
     }
-    setContributors([
-      ...contributors,
+    setCredits([
+      ...credits,
       {
-        personId: selectedPerson.id,
-        displayName: selectedPerson.commonAlias ?? selectedPerson.icgId,
-        icgId: selectedPerson.icgId,
-        role: pendingRole,
+        tempId: String(nextTempId.current++),
+        role: activeRole,
+        rawName: displayName,
+        resolvedPersonId: person.id,
+        resolvedPersonName: displayName,
       },
     ]);
-    setSelectedPerson(null);
     setSearchQuery("");
-    setPendingRole("main");
+    setSearchResults([]);
+    setShowDropdown(false);
+  }
+
+  function addUnresolvedCredit(name: string) {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    setCredits([
+      ...credits,
+      {
+        tempId: String(nextTempId.current++),
+        role: activeRole,
+        rawName: trimmed,
+      },
+    ]);
+    setSearchQuery("");
+    setSearchResults([]);
+    setShowDropdown(false);
+  }
+
+  function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      const q = searchQuery.trim();
+      if (!q) return;
+
+      // If comma-separated, bulk add as unresolved
+      if (q.includes(",")) {
+        const names = q.split(",").map((n) => n.trim()).filter(Boolean);
+        const newCredits: CreditItem[] = names.map((name) => ({
+          tempId: String(nextTempId.current++),
+          role: activeRole,
+          rawName: name,
+        }));
+        setCredits([...credits, ...newCredits]);
+        setSearchQuery("");
+        setSearchResults([]);
+        setShowDropdown(false);
+        return;
+      }
+
+      // Otherwise, add as single unresolved credit
+      addUnresolvedCredit(q);
+    }
+  }
+
+  function removeCredit(tempId: string) {
+    setCredits(credits.filter((c) => c.tempId !== tempId));
   }
 
   async function handleCreateAndAdd() {
@@ -142,33 +178,36 @@ export function ContributorsStep({ setId, onClose }: ContributorsStepProps) {
       setIsCreatingPerson(false);
       return;
     }
-    setContributors([
-      ...contributors,
+    setCredits([
+      ...credits,
       {
-        personId: result.id,
-        displayName: newName.trim(),
-        icgId: newIcgId.trim(),
-        role: newPersonRole,
+        tempId: String(nextTempId.current++),
+        role: activeRole,
+        rawName: newName.trim(),
+        resolvedPersonId: result.id,
+        resolvedPersonName: newName.trim(),
       },
     ]);
     setNewIcgId("");
     setNewName("");
-    setNewPersonRole("main");
     setShowNewPersonForm(false);
     setIsCreatingPerson(false);
     toast.success("Person created and added");
   }
 
-  function removeContributor(personId: string) {
-    setContributors(contributors.filter((c) => c.personId !== personId));
-  }
-
   async function handleDone() {
     setIsSaving(true);
-    if (contributors.length > 0) {
-      const result = await saveContributions(setId, contributors);
+    if (credits.length > 0) {
+      const result = await saveSetCredits(
+        setId,
+        credits.map((c) => ({
+          role: c.role,
+          rawName: c.rawName,
+          resolvedPersonId: c.resolvedPersonId,
+        })),
+      );
       if (!result.success) {
-        toast.error(result.error ?? "Failed to save contributors");
+        toast.error(result.error ?? "Failed to save credits");
         setIsSaving(false);
         return;
       }
@@ -182,17 +221,40 @@ export function ContributorsStep({ setId, onClose }: ContributorsStepProps) {
     onClose();
   }
 
-  const isAlreadyAdded = (id: string) => contributors.some((c) => c.personId === id);
+  const modelCredits = credits.filter((c) => c.role === "MODEL");
+  const photographerCredits = credits.filter((c) => c.role === "PHOTOGRAPHER");
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
       <div className="flex-1 overflow-y-auto px-4 py-4">
         <div className="space-y-5">
+
+          {/* Role tabs */}
+          <div className="flex gap-1 rounded-lg border bg-muted/30 p-1">
+            {(["MODEL", "PHOTOGRAPHER"] as const).map((role) => (
+              <button
+                key={role}
+                type="button"
+                onClick={() => setActiveRole(role)}
+                className={`flex flex-1 items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+                  activeRole === role
+                    ? "bg-background shadow-sm text-foreground"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {ROLE_CONFIG[role].icon}
+                {ROLE_CONFIG[role].label}
+              </button>
+            ))}
+          </div>
+
           {/* Search section */}
           <section className="rounded-xl border bg-muted/30 dark:bg-muted/20 p-4 space-y-3">
             <div className="flex items-center gap-2">
               <span className="h-4 w-0.5 rounded-full bg-primary" />
-              <h3 className="text-sm font-semibold text-foreground">Search People</h3>
+              <h3 className="text-sm font-semibold text-foreground">
+                Search or type name
+              </h3>
             </div>
 
             <div className="relative" ref={dropdownRef}>
@@ -202,10 +264,11 @@ export function ContributorsStep({ setId, onClose }: ContributorsStepProps) {
                   className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none"
                 />
                 <Input
-                  placeholder="Search by name or ICG-ID…"
+                  placeholder="Search person, or type raw name and press Enter…"
                   value={searchQuery}
                   onChange={(e) => handleSearchChange(e.target.value)}
                   onFocus={() => searchResults.length > 0 && setShowDropdown(true)}
+                  onKeyDown={handleKeyDown}
                   className="pl-8 pr-8"
                 />
                 {isSearching && (
@@ -219,7 +282,6 @@ export function ContributorsStep({ setId, onClose }: ContributorsStepProps) {
                     type="button"
                     onClick={() => {
                       setSearchQuery("");
-                      setSelectedPerson(null);
                       setSearchResults([]);
                       setShowDropdown(false);
                     }}
@@ -239,16 +301,14 @@ export function ContributorsStep({ setId, onClose }: ContributorsStepProps) {
                       <li key={person.id}>
                         <button
                           type="button"
-                          onClick={() => selectPerson(person)}
-                          disabled={isAlreadyAdded(person.id)}
-                          className="w-full flex items-center justify-between gap-2 px-3 py-2 text-sm hover:bg-muted/50 disabled:opacity-40 disabled:cursor-not-allowed text-left transition-colors"
+                          onClick={() => addResolvedCredit(person)}
+                          className="w-full flex items-center justify-between gap-2 px-3 py-2 text-sm hover:bg-muted/50 text-left transition-colors"
                         >
                           <span className="font-medium">
                             {person.commonAlias ?? person.icgId}
                           </span>
                           <span className="text-xs text-muted-foreground shrink-0">
                             {person.icgId}
-                            {isAlreadyAdded(person.id) && " · added"}
                           </span>
                         </button>
                       </li>
@@ -259,36 +319,14 @@ export function ContributorsStep({ setId, onClose }: ContributorsStepProps) {
 
               {showDropdown && searchResults.length === 0 && !isSearching && searchQuery.trim() && (
                 <div className="absolute z-50 mt-1 w-full rounded-lg border border-white/20 bg-card shadow-lg px-3 py-2 text-sm text-muted-foreground">
-                  No results for &ldquo;{searchQuery}&rdquo;
+                  No results — press Enter to add as raw name
                 </div>
               )}
             </div>
 
-            {/* Role + Add row — shown when a person is selected */}
-            {selectedPerson && (
-              <div className="flex items-center gap-2">
-                <div className="flex-1 rounded-md border bg-muted/40 px-3 py-1.5 text-sm text-foreground/80">
-                  {selectedPerson.commonAlias ?? selectedPerson.icgId}{" "}
-                  <span className="text-muted-foreground">({selectedPerson.icgId})</span>
-                </div>
-                <Select
-                  value={pendingRole}
-                  onValueChange={(v) => setPendingRole(v as Contributor["role"])}
-                >
-                  <SelectTrigger className="w-36">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="main">Main</SelectItem>
-                    <SelectItem value="supporting">Supporting</SelectItem>
-                    <SelectItem value="background">Background</SelectItem>
-                  </SelectContent>
-                </Select>
-                <Button type="button" size="sm" onClick={addSelectedPerson}>
-                  Add
-                </Button>
-              </div>
-            )}
+            <p className="text-xs text-muted-foreground">
+              Tip: paste comma-separated names and press Enter to bulk-add
+            </p>
           </section>
 
           {/* New person form */}
@@ -299,7 +337,7 @@ export function ContributorsStep({ setId, onClose }: ContributorsStepProps) {
               className="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
             >
               <UserPlus size={15} />
-              {showNewPersonForm ? "Cancel new person" : "Add new person…"}
+              {showNewPersonForm ? "Cancel new person" : "Create new person…"}
             </button>
 
             {showNewPersonForm && (
@@ -326,77 +364,47 @@ export function ContributorsStep({ setId, onClose }: ContributorsStepProps) {
                     />
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Select
-                    value={newPersonRole}
-                    onValueChange={(v) => setNewPersonRole(v as Contributor["role"])}
-                  >
-                    <SelectTrigger className="w-40">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="main">Main</SelectItem>
-                      <SelectItem value="supporting">Supporting</SelectItem>
-                      <SelectItem value="background">Background</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <Button
-                    type="button"
-                    size="sm"
-                    onClick={handleCreateAndAdd}
-                    disabled={isCreatingPerson}
-                  >
-                    {isCreatingPerson ? (
-                      <Loader2 size={14} className="animate-spin" />
-                    ) : (
-                      "Create & Add"
-                    )}
-                  </Button>
-                </div>
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={handleCreateAndAdd}
+                  disabled={isCreatingPerson}
+                >
+                  {isCreatingPerson ? (
+                    <Loader2 size={14} className="animate-spin" />
+                  ) : (
+                    "Create & Add"
+                  )}
+                </Button>
               </div>
             )}
           </section>
 
-          {/* Contributors list */}
-          {contributors.length > 0 && (
-            <section className="space-y-2">
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                Contributors ({contributors.length})
-              </p>
-              <ul className="space-y-1.5">
-                {contributors.map((c) => (
-                  <li
-                    key={c.personId}
-                    className="flex items-center justify-between gap-2 rounded-lg border border-white/15 bg-card/60 px-3 py-2"
-                  >
-                    <div className="flex items-center gap-2 min-w-0">
-                      <span className="text-sm font-medium truncate">{c.displayName}</span>
-                      <span className="text-xs text-muted-foreground shrink-0">{c.icgId}</span>
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <span
-                        className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${ROLE_STYLES[c.role]}`}
-                      >
-                        {ROLE_LABELS[c.role]}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => removeContributor(c.personId)}
-                        className="text-muted-foreground hover:text-destructive transition-colors"
-                        aria-label={`Remove ${c.displayName}`}
-                      >
-                        <X size={14} />
-                      </button>
-                    </div>
-                  </li>
-                ))}
-              </ul>
+          {/* Credits list */}
+          {credits.length > 0 && (
+            <section className="space-y-4">
+              {modelCredits.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                    Models ({modelCredits.length})
+                  </p>
+                  <CreditList credits={modelCredits} onRemove={removeCredit} />
+                </div>
+              )}
+              {photographerCredits.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                    Photographer ({photographerCredits.length})
+                  </p>
+                  <CreditList credits={photographerCredits} onRemove={removeCredit} />
+                </div>
+              )}
             </section>
           )}
 
-          {contributors.length === 0 && (
+          {credits.length === 0 && (
             <p className="text-center text-sm text-muted-foreground py-4">
-              No contributors added yet. Search above or skip to finish.
+              No credits added yet. Search above or skip to finish.
             </p>
           )}
         </div>
@@ -410,9 +418,56 @@ export function ContributorsStep({ setId, onClose }: ContributorsStepProps) {
           {isSaving ? (
             <Loader2 size={14} className="animate-spin mr-1" />
           ) : null}
-          {isSaving ? "Saving…" : contributors.length > 0 ? "Done" : "Finish"}
+          {isSaving ? "Saving…" : credits.length > 0 ? "Done" : "Finish"}
         </Button>
       </SheetFooter>
     </div>
+  );
+}
+
+// ── Credit list sub-component ────────────────────────────────────────────────
+
+type CreditListProps = {
+  credits: CreditItem[];
+  onRemove: (tempId: string) => void;
+};
+
+function CreditList({ credits, onRemove }: CreditListProps) {
+  return (
+    <ul className="space-y-1.5">
+      {credits.map((c) => (
+        <li
+          key={c.tempId}
+          className="flex items-center justify-between gap-2 rounded-lg border border-white/15 bg-card/60 px-3 py-2"
+        >
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="text-sm font-medium truncate">{c.rawName}</span>
+            {c.resolvedPersonId ? (
+              <Badge
+                variant="outline"
+                className="border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-xs"
+              >
+                Resolved
+              </Badge>
+            ) : (
+              <Badge
+                variant="outline"
+                className="border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400 text-xs"
+              >
+                Unresolved
+              </Badge>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={() => onRemove(c.tempId)}
+            className="text-muted-foreground hover:text-destructive transition-colors shrink-0"
+            aria-label={`Remove ${c.rawName}`}
+          >
+            <X size={14} />
+          </button>
+        </li>
+      ))}
+    </ul>
   );
 }

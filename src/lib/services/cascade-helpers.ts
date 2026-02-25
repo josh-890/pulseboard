@@ -26,7 +26,7 @@ export async function cascadeDeletePhotos(
 }
 
 /**
- * Cascade soft-delete a set: contributions + photos, then the set itself.
+ * Cascade soft-delete a set: contributions, credits, participants, evidence, photos, then the set itself.
  */
 export async function cascadeDeleteSet(
   tx: TxClient,
@@ -36,6 +36,22 @@ export async function cascadeDeleteSet(
   await tx.setContribution.updateMany({
     where: { setId, deletedAt: null },
     data: { deletedAt },
+  });
+
+  // Soft-delete SetCreditRaw records
+  await tx.setCreditRaw.updateMany({
+    where: { setId, deletedAt: null },
+    data: { deletedAt },
+  });
+
+  // Hard-delete SetParticipant records (no deletedAt column)
+  await tx.setParticipant.deleteMany({
+    where: { setId },
+  });
+
+  // Hard-delete SetLabelEvidence records (no deletedAt column)
+  await tx.setLabelEvidence.deleteMany({
+    where: { setId },
   });
 
   await cascadeDeletePhotos(tx, "set", setId, deletedAt);

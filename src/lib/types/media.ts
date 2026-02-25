@@ -6,4 +6,8 @@ export type {
   EvidenceType,
   PersonMediaUsage,
   AliasSource,
+  SetCreditRaw,
+  SetParticipant,
+  SetLabelEvidence,
+  ChannelLabelMap,
 } from "@/generated/prisma/client";

@@ -57,6 +57,10 @@ export type {
   ResolutionStatus,
   EvidenceType,
   PersonMediaUsage,
+  SetCreditRaw,
+  SetParticipant,
+  SetLabelEvidence,
+  ChannelLabelMap,
 } from "./media";
 
 export type { ActivityItem, ActivityType } from "./activity";

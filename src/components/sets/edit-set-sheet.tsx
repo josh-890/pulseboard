@@ -42,15 +42,15 @@ import { updateSet } from "@/lib/actions/set-actions";
 import type { SetType } from "@/lib/types";
 import { PartialDateInput } from "@/components/shared/partial-date-input";
 
-type SessionOption = { id: string; name: string; projectName: string };
-type ChannelOption = { id: string; name: string; labelName: string };
+type SessionOption = { id: string; name: string; projectName: string | null };
+type ChannelOption = { id: string; name: string; labelName: string | null };
 
 type EditSetSheetProps = {
   set: {
     id: string;
     type: SetType;
     title: string;
-    sessionId: string;
+    sessionId: string | null;
     channelId: string | null;
     description: string | null;
     notes: string | null;
@@ -80,7 +80,7 @@ export function EditSetSheet({ set, sessions, channels }: EditSetSheetProps) {
 
   const getDefaults = () => ({
     id: set.id,
-    sessionId: set.sessionId,
+    sessionId: set.sessionId ?? undefined,
     title: set.title,
     channelId: set.channelId ?? undefined,
     description: set.description ?? "",
@@ -220,17 +220,21 @@ export function EditSetSheet({ set, sessions, channels }: EditSetSheetProps) {
                       name="sessionId"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Session <span className="text-destructive">*</span></FormLabel>
-                          <Select onValueChange={field.onChange} value={field.value}>
+                          <FormLabel>Session</FormLabel>
+                          <Select
+                            onValueChange={(v) => field.onChange(v === "_none" ? undefined : v)}
+                            value={field.value ?? "_none"}
+                          >
                             <FormControl>
                               <SelectTrigger className="w-full">
                                 <SelectValue placeholder="Select session…" />
                               </SelectTrigger>
                             </FormControl>
                             <SelectContent>
+                              <SelectItem value="_none">— none —</SelectItem>
                               {sessions.map((s) => (
                                 <SelectItem key={s.id} value={s.id}>
-                                  {s.name} — {s.projectName}
+                                  {s.name}{s.projectName ? ` — ${s.projectName}` : ""}
                                 </SelectItem>
                               ))}
                             </SelectContent>

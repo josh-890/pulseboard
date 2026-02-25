@@ -237,7 +237,7 @@ test.describe("Sets CRUD", () => {
     await expect(page.getByRole("button", { name: /add set/i })).toBeVisible();
   });
 
-  test("create set", async ({ page }) => {
+  test("create set (standalone — no session auto-created)", async ({ page }) => {
     await page.goto("/sets");
     await page.getByRole("button", { name: /add set/i }).click();
 
@@ -252,21 +252,71 @@ test.describe("Sets CRUD", () => {
     const title = `Test Set ${ts}`;
     await dialog.getByLabel(/title/i).fill(title);
 
-    // Select channel (required in new Flow A wizard)
+    // Select channel (required)
     const channelSelect = dialog.getByRole("combobox", { name: /channel/i });
     await channelSelect.click();
     const firstChannelOption = page.getByRole("option").first();
     await firstChannelOption.click();
 
-    await dialog.getByRole("button", { name: /create set/i }).click();
+    // Scroll to and click the submit button (label suggestions may push it offscreen)
+    const createBtn = dialog.getByRole("button", { name: /create set/i });
+    await createBtn.scrollIntoViewIfNeeded();
+    await createBtn.click();
 
-    // Step 2: Contributors — skip to finish
-    await expect(dialog.getByRole("button", { name: /skip/i })).toBeVisible({ timeout: 5000 });
+    // Step 2: Credits — skip to finish
+    await expect(dialog.getByText(/add credits/i)).toBeVisible({ timeout: 8000 });
     await dialog.getByRole("button", { name: /skip/i }).click();
 
     // Navigate to /sets and confirm set appears in the list
     await page.goto("/sets");
     await expect(page.getByText(title, { exact: false })).toBeVisible();
+  });
+
+  test("create set with credits", async ({ page }) => {
+    await page.goto("/sets");
+    await page.getByRole("button", { name: /add set/i }).click();
+
+    const dialog = page.getByRole("dialog");
+    await expect(dialog).toBeVisible();
+
+    // Step 1: Fill in set details
+    await dialog.getByRole("combobox").first().click();
+    await page.getByRole("option", { name: "Photo" }).click();
+
+    const ts = Date.now();
+    const title = `Credit Set ${ts}`;
+    await dialog.getByLabel(/title/i).fill(title);
+
+    const channelSelect = dialog.getByRole("combobox", { name: /channel/i });
+    await channelSelect.click();
+    await page.getByRole("option").first().click();
+
+    // Scroll to and click the submit button
+    const createBtn = dialog.getByRole("button", { name: /create set/i });
+    await createBtn.scrollIntoViewIfNeeded();
+    await createBtn.click();
+
+    // Step 2: Credits — wait for transition
+    await expect(dialog.getByText(/add credits/i)).toBeVisible({ timeout: 8000 });
+
+    const creditInput = dialog.getByPlaceholder(/search person.*raw name/i);
+    await creditInput.fill("Test Raw Name");
+    await creditInput.press("Enter");
+
+    // Verify the credit appears in the list
+    await expect(dialog.getByText("Test Raw Name")).toBeVisible();
+    await expect(dialog.getByText("Unresolved")).toBeVisible();
+
+    // Click Done to save
+    await dialog.getByRole("button", { name: /^done$/i }).click();
+
+    // Set detail page should load with credits section
+    await expect(page.getByText(title)).toBeVisible({ timeout: 8000 });
+  });
+
+  test("detail page shows Production section with session assignment", async ({ page }) => {
+    await page.goto("/sets/seed-set-1");
+    await expect(page.getByText(/production/i)).toBeVisible();
   });
 
   test("detail page shows Edit + Delete buttons", async ({ page }) => {

@@ -288,7 +288,7 @@ export async function getPersonWorkHistory(personId: string): Promise<PersonWork
       channelName: c.set.channel?.name ?? null,
       labelId: c.set.channel?.label?.id ?? null,
       labelName: c.set.channel?.label?.name ?? null,
-      projectName: c.set.session.project?.name ?? null,
+      projectName: c.set.session?.project?.name ?? null,
     }));
 }
 
