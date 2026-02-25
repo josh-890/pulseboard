@@ -307,11 +307,12 @@ test.describe("Sets CRUD", () => {
     await expect(dialog.getByText("Test Raw Name")).toBeVisible();
     await expect(dialog.getByText("Unresolved")).toBeVisible();
 
-    // Click Done to save
+    // Click Done to save and navigate to detail page
     await dialog.getByRole("button", { name: /^done$/i }).click();
 
-    // Set detail page should load with credits section
-    await expect(page.getByText(title)).toBeVisible({ timeout: 8000 });
+    // Wait for navigation to detail page (may take a moment to save credits)
+    await page.waitForURL(/\/sets\//, { timeout: 10000 });
+    await expect(page.getByText(title)).toBeVisible({ timeout: 10000 });
   });
 
   test("detail page shows Production section with session assignment", async ({ page }) => {
