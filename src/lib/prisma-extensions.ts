@@ -47,7 +47,11 @@ export function withSoftDelete(prisma: PrismaClient) {
       personAward: softDeleteOverrides,
       personInterest: softDeleteOverrides,
       relationshipEvent: softDeleteOverrides,
-      // Setting, LabelNetwork, ProjectLabel, PersonaPhysical intentionally excluded — no deletedAt field
+      mediaItem: softDeleteOverrides,
+      setCreditRaw: softDeleteOverrides,
+      personMediaLink: softDeleteOverrides,
+      // Setting, LabelNetwork, ProjectLabel, PersonaPhysical, SetMediaItem, SessionParticipant,
+      // SetParticipant, ChannelLabelMap, SetLabelEvidence intentionally excluded — no deletedAt field
     },
   });
 }

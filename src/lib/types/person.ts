@@ -19,6 +19,7 @@ export type {
   AwardType,
   RelationshipType,
   RelationshipEventType,
+  AliasSource,
 } from "@/generated/prisma/client";
 
 export type PersonWithCommonAlias = {
@@ -46,6 +47,7 @@ export type PersonWorkHistoryItem = {
   setType: import("@/generated/prisma/client").SetType;
   role: import("@/generated/prisma/client").ContributionRole;
   releaseDate: Date | null;
+  releaseDatePrecision: string;
   channelName: string | null;
   labelId: string | null;
   labelName: string | null;

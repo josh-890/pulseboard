@@ -284,10 +284,11 @@ export async function getPersonWorkHistory(personId: string): Promise<PersonWork
       setType: c.set.type,
       role: c.role,
       releaseDate: c.set.releaseDate,
+      releaseDatePrecision: c.set.releaseDatePrecision,
       channelName: c.set.channel?.name ?? null,
-      labelId: c.set.channel?.label.id ?? null,
-      labelName: c.set.channel?.label.name ?? null,
-      projectName: c.set.session.project.name,
+      labelId: c.set.channel?.label?.id ?? null,
+      labelName: c.set.channel?.label?.name ?? null,
+      projectName: c.set.session.project?.name ?? null,
     }));
 }
 
@@ -503,6 +504,7 @@ export async function createPersonRecord(data: CreatePersonInput) {
         status: data.status,
         sexAtBirth: data.sexAtBirth,
         birthdate: data.birthdate ? new Date(data.birthdate) : undefined,
+        birthdatePrecision: data.birthdatePrecision ?? "UNKNOWN",
         birthPlace: data.birthPlace,
         nationality: data.nationality,
         ethnicity: data.ethnicity,
@@ -563,6 +565,7 @@ export async function updatePersonRecord(id: string, data: UpdatePersonInput) {
         status: data.status,
         sexAtBirth: data.sexAtBirth,
         birthdate: data.birthdate ? new Date(data.birthdate) : null,
+        birthdatePrecision: data.birthdatePrecision ?? "UNKNOWN",
         birthPlace: data.birthPlace,
         nationality: data.nationality,
         ethnicity: data.ethnicity,

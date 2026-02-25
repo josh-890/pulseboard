@@ -38,6 +38,7 @@ import {
 } from "@/lib/validations/person";
 import { ETHNICITY_OPTIONS } from "@/lib/constants/ethnicity";
 import { createPerson } from "@/lib/actions/person-actions";
+import { PartialDateInput } from "@/components/shared/partial-date-input";
 
 function SectionHeader({ children }: { children: React.ReactNode }) {
   return (
@@ -218,19 +219,15 @@ export function AddPersonSheet() {
                       )}
                     />
 
-                    <FormField
-                      control={form.control}
-                      name="birthdate"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Birthdate</FormLabel>
-                          <FormControl>
-                            <Input type="date" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
+                    <FormItem className="col-span-2">
+                      <FormLabel>Birthdate</FormLabel>
+                      <PartialDateInput
+                        dateValue={form.watch("birthdate") ?? ""}
+                        precisionValue={form.watch("birthdatePrecision") ?? "UNKNOWN"}
+                        onDateChange={(val) => form.setValue("birthdate", val || undefined)}
+                        onPrecisionChange={(val) => form.setValue("birthdatePrecision", val as "UNKNOWN" | "YEAR" | "MONTH" | "DAY")}
+                      />
+                    </FormItem>
 
                     <FormField
                       control={form.control}

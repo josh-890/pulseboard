@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { cn, computeAge } from "@/lib/utils";
+import { cn, computeAge, formatPartialDate } from "@/lib/utils";
 import type { getPersonWithDetails } from "@/lib/services/person-service";
 import type {
   PersonCurrentState,
@@ -180,21 +180,6 @@ function InfoRow({ label, value, labelWidth = "w-32" }: { label: string; value: 
   );
 }
 
-function formatBirthdate(date: Date): string {
-  return date.toLocaleDateString("en-US", {
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  });
-}
-
-function formatReleaseDate(date: Date): string {
-  return date.toLocaleDateString("en-US", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  });
-}
 
 // ── PGRADE Colors ────────────────────────────────────────────────────────────
 
@@ -261,7 +246,7 @@ function BasicInfoPanel({
   return (
     <dl className={cn("grid grid-cols-1 text-sm", fieldGap)}>
       {person.birthdate && (
-        <InfoRow label="Birthdate" value={formatBirthdate(person.birthdate)} labelWidth={labelWidth} />
+        <InfoRow label="Birthdate" value={formatPartialDate(person.birthdate, person.birthdatePrecision)} labelWidth={labelWidth} />
       )}
       {person.birthPlace && (
         <InfoRow label="Birth place" value={person.birthPlace} labelWidth={labelWidth} />
@@ -943,7 +928,7 @@ function CareerTab({
                     </td>
                     <td className="py-2.5 whitespace-nowrap text-muted-foreground">
                       {item.releaseDate ? (
-                        formatReleaseDate(item.releaseDate)
+                        formatPartialDate(item.releaseDate, item.releaseDatePrecision)
                       ) : (
                         <span className="opacity-40">&mdash;</span>
                       )}

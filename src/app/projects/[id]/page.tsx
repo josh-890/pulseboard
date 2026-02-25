@@ -3,7 +3,7 @@ import Link from "next/link";
 import { Camera, Film, FolderKanban, Tag } from "lucide-react";
 import { getProjectById } from "@/lib/services/project-service";
 import { getChannelsForSelect } from "@/lib/services/set-service";
-import { cn } from "@/lib/utils";
+import { cn, formatPartialDate } from "@/lib/utils";
 import type { ProjectStatus, SetType } from "@/lib/types";
 import { EditProjectSheet } from "@/components/projects/edit-project-sheet";
 import { DeleteButton } from "@/components/shared/delete-button";
@@ -17,14 +17,6 @@ type ProjectDetailPageProps = {
 };
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
-
-function formatSessionDate(date: Date): string {
-  return date.toLocaleDateString("en-US", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  });
-}
 
 const STATUS_STYLES: Record<ProjectStatus, string> = {
   active:
@@ -181,7 +173,7 @@ export default async function ProjectDetailPage({
                   <h2 className="text-base font-semibold">{session.name}</h2>
                   {session.date && (
                     <p className="mt-0.5 text-xs text-muted-foreground">
-                      {formatSessionDate(session.date)}
+                      {formatPartialDate(session.date, session.datePrecision)}
                     </p>
                   )}
                 </div>

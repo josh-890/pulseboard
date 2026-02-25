@@ -140,6 +140,7 @@ export async function createSetRecord(data: {
   description?: string;
   notes?: string;
   releaseDate?: string;
+  releaseDatePrecision?: string;
   category?: string;
   genre?: string;
   tags?: string[];
@@ -153,6 +154,7 @@ export async function createSetRecord(data: {
       description: data.description,
       notes: data.notes,
       releaseDate: data.releaseDate ? new Date(data.releaseDate) : undefined,
+      releaseDatePrecision: (data.releaseDatePrecision as "UNKNOWN" | "YEAR" | "MONTH" | "DAY") ?? "UNKNOWN",
       category: data.category,
       genre: data.genre,
       tags: data.tags ?? [],
@@ -167,6 +169,7 @@ export async function updateSetRecord(id: string, data: {
   description?: string | null;
   notes?: string | null;
   releaseDate?: string | null;
+  releaseDatePrecision?: string;
   category?: string | null;
   genre?: string | null;
   tags?: string[];
@@ -180,6 +183,7 @@ export async function updateSetRecord(id: string, data: {
       description: data.description,
       notes: data.notes,
       releaseDate: data.releaseDate ? new Date(data.releaseDate) : data.releaseDate === null ? null : undefined,
+      releaseDatePrecision: (data.releaseDatePrecision as "UNKNOWN" | "YEAR" | "MONTH" | "DAY") ?? undefined,
       category: data.category,
       genre: data.genre,
       tags: data.tags,
@@ -202,7 +206,7 @@ export async function getSessionsForSelect() {
   return sessions.map((s) => ({
     id: s.id,
     name: s.name,
-    projectName: s.project.name,
+    projectName: s.project?.name ?? null,
   }));
 }
 
@@ -214,8 +218,8 @@ export async function getChannelsForSelect() {
   return channels.map((c) => ({
     id: c.id,
     name: c.name,
-    labelName: c.label.name,
-    labelId: c.label.id,
+    labelName: c.label?.name ?? null,
+    labelId: c.label?.id ?? null,
   }));
 }
 
@@ -227,6 +231,7 @@ export async function createSetWithContextRecord(data: {
   description?: string;
   notes?: string;
   releaseDate?: string;
+  releaseDatePrecision?: string;
   category?: string;
   genre?: string;
   tags?: string[];
@@ -239,15 +244,18 @@ export async function createSetWithContextRecord(data: {
       data: { name: data.title, status: "active" },
     });
 
-    await tx.projectLabel.create({
-      data: { projectId: project.id, labelId: channel.labelId },
-    });
+    if (channel.labelId) {
+      await tx.projectLabel.create({
+        data: { projectId: project.id, labelId: channel.labelId },
+      });
+    }
 
     const session = await tx.session.create({
       data: {
         projectId: project.id,
         name: data.title,
         date: data.releaseDate ? new Date(data.releaseDate) : undefined,
+        datePrecision: (data.releaseDatePrecision as "UNKNOWN" | "YEAR" | "MONTH" | "DAY") ?? "UNKNOWN",
       },
     });
 
@@ -258,6 +266,7 @@ export async function createSetWithContextRecord(data: {
         type: data.type,
         title: data.title,
         releaseDate: data.releaseDate ? new Date(data.releaseDate) : undefined,
+        releaseDatePrecision: (data.releaseDatePrecision as "UNKNOWN" | "YEAR" | "MONTH" | "DAY") ?? "UNKNOWN",
         category: data.category,
         genre: data.genre,
         description: data.description,
@@ -281,6 +290,7 @@ export async function createSetForSessionRecord(data: {
   description?: string;
   notes?: string;
   releaseDate?: string;
+  releaseDatePrecision?: string;
   category?: string;
   genre?: string;
   tags?: string[];
@@ -301,7 +311,7 @@ export async function createSetForSessionRecord(data: {
 
     if (finalChannelId) {
       const channel = await tx.channel.findUnique({ where: { id: finalChannelId } });
-      if (channel) {
+      if (channel && channel.labelId) {
         await tx.projectLabel.upsert({
           where: {
             projectId_labelId: { projectId: data.projectId, labelId: channel.labelId },
@@ -319,6 +329,7 @@ export async function createSetForSessionRecord(data: {
         type: data.type,
         title: data.title,
         releaseDate: data.releaseDate ? new Date(data.releaseDate) : undefined,
+        releaseDatePrecision: (data.releaseDatePrecision as "UNKNOWN" | "YEAR" | "MONTH" | "DAY") ?? "UNKNOWN",
         category: data.category,
         genre: data.genre,
         description: data.description,

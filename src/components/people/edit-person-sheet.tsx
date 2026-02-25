@@ -38,6 +38,7 @@ import {
 } from "@/lib/validations/person";
 import { ETHNICITY_OPTIONS } from "@/lib/constants/ethnicity";
 import { updatePerson } from "@/lib/actions/person-actions";
+import { PartialDateInput } from "@/components/shared/partial-date-input";
 import type { getPersonWithDetails } from "@/lib/services/person-service";
 
 type PersonDetail = NonNullable<Awaited<ReturnType<typeof getPersonWithDetails>>>;
@@ -71,6 +72,7 @@ export function EditPersonSheet({ person }: EditPersonSheetProps) {
     birthdate: person.birthdate
       ? person.birthdate.toISOString().slice(0, 10)
       : "",
+    birthdatePrecision: (person.birthdatePrecision as "UNKNOWN" | "YEAR" | "MONTH" | "DAY") ?? "UNKNOWN",
     birthPlace: person.birthPlace ?? "",
     nationality: person.nationality ?? "",
     ethnicity: person.ethnicity ?? undefined,
@@ -299,19 +301,15 @@ export function EditPersonSheet({ person }: EditPersonSheetProps) {
                       )}
                     />
 
-                    <FormField
-                      control={form.control}
-                      name="birthdate"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Birthdate</FormLabel>
-                          <FormControl>
-                            <Input type="date" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
+                    <FormItem className="col-span-2">
+                      <FormLabel>Birthdate</FormLabel>
+                      <PartialDateInput
+                        dateValue={form.watch("birthdate") ?? ""}
+                        precisionValue={form.watch("birthdatePrecision") ?? "UNKNOWN"}
+                        onDateChange={(val) => form.setValue("birthdate", val || undefined)}
+                        onPrecisionChange={(val) => form.setValue("birthdatePrecision", val as "UNKNOWN" | "YEAR" | "MONTH" | "DAY")}
+                      />
+                    </FormItem>
 
                     <FormField
                       control={form.control}

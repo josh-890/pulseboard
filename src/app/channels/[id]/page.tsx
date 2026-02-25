@@ -95,6 +95,7 @@ export default async function ChannelDetailPage({
           <div className="min-w-0 flex-1">
             <h1 className="text-2xl font-bold leading-tight">{channel.name}</h1>
             <div className="mt-2 flex flex-wrap items-center gap-2">
+              {channel.label && (
               <Link
                 href={`/labels/${channel.label.id}`}
                 className="inline-flex items-center gap-1.5 rounded-full border border-white/20 bg-muted/60 px-3 py-1 text-sm font-medium transition-colors hover:bg-muted/80 hover:text-primary"
@@ -102,6 +103,7 @@ export default async function ChannelDetailPage({
                 <Building2 size={12} />
                 {channel.label.name}
               </Link>
+              )}
               {channel.platform && (
                 <span className="inline-flex items-center rounded-full border border-white/15 bg-muted/50 px-2.5 py-0.5 text-xs font-medium text-muted-foreground">
                   {channel.platform}

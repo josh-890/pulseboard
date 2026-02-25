@@ -39,6 +39,7 @@ import {
 } from "@/lib/validations/set";
 import { createSetWithContext } from "@/lib/actions/set-actions";
 import { ContributorsStep } from "./contributors-step";
+import { PartialDateInput } from "@/components/shared/partial-date-input";
 
 type ChannelOption = { id: string; name: string; labelName: string; labelId: string };
 
@@ -158,19 +159,15 @@ export function AddSetSheet({ channels }: AddSetSheetProps) {
                         )}
                       />
 
-                      <FormField
-                        control={form.control}
-                        name="releaseDate"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Release Date</FormLabel>
-                            <FormControl>
-                              <Input type="date" {...field} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
+                      <FormItem className="col-span-2">
+                        <FormLabel>Release Date</FormLabel>
+                        <PartialDateInput
+                          dateValue={form.watch("releaseDate") ?? ""}
+                          precisionValue={form.watch("releaseDatePrecision") ?? "UNKNOWN"}
+                          onDateChange={(val) => form.setValue("releaseDate", val || undefined)}
+                          onPrecisionChange={(val) => form.setValue("releaseDatePrecision", val as "UNKNOWN" | "YEAR" | "MONTH" | "DAY")}
+                        />
+                      </FormItem>
 
                       <FormField
                         control={form.control}

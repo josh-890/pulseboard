@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+const datePrecisionEnum = z.enum(["UNKNOWN", "YEAR", "MONTH", "DAY"]).default("UNKNOWN");
+
 export const createSetSchema = z.object({
   sessionId: z.string().min(1, "Session is required"),
   type: z.enum(["photo", "video"], { error: "Type is required" }),
@@ -8,6 +10,7 @@ export const createSetSchema = z.object({
   description: z.string().optional(),
   notes: z.string().optional(),
   releaseDate: z.string().optional(),
+  releaseDatePrecision: datePrecisionEnum,
   category: z.string().optional(),
   genre: z.string().optional(),
   tags: z.array(z.string()).default([]),
@@ -21,6 +24,7 @@ export const updateSetSchema = z.object({
   description: z.string().optional(),
   notes: z.string().optional(),
   releaseDate: z.string().optional(),
+  releaseDatePrecision: datePrecisionEnum,
   category: z.string().optional(),
   genre: z.string().optional(),
   tags: z.array(z.string()).default([]),
@@ -34,6 +38,7 @@ export const createSetWithContextSchema = z.object({
   description: z.string().optional(),
   notes: z.string().optional(),
   releaseDate: z.string().optional(),
+  releaseDatePrecision: datePrecisionEnum,
   category: z.string().optional(),
   genre: z.string().optional(),
   tags: z.array(z.string()).default([]),
@@ -56,6 +61,7 @@ export const createSetForSessionSchema = z.object({
   description: z.string().optional(),
   notes: z.string().optional(),
   releaseDate: z.string().optional(),
+  releaseDatePrecision: datePrecisionEnum,
   category: z.string().optional(),
   genre: z.string().optional(),
   tags: z.array(z.string()).default([]),

@@ -1,4 +1,4 @@
-import { cn } from "@/lib/utils";
+import { cn, formatPartialDate } from "@/lib/utils";
 import type { getPersonWithDetails } from "@/lib/services/person-service";
 
 type PersonaItem = NonNullable<Awaited<ReturnType<typeof getPersonWithDetails>>>["personas"][number];
@@ -6,14 +6,6 @@ type PersonaItem = NonNullable<Awaited<ReturnType<typeof getPersonWithDetails>>>
 type PersonaTimelineEntryProps = {
   persona: PersonaItem;
 };
-
-function formatDate(date: Date): string {
-  return date.toLocaleDateString("en-US", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  });
-}
 
 export function PersonaTimelineEntry({ persona }: PersonaTimelineEntryProps) {
   const hasPhysical = !!persona.physicalChange;
@@ -51,7 +43,7 @@ export function PersonaTimelineEntry({ persona }: PersonaTimelineEntryProps) {
           )}
           {persona.date && (
             <span className="inline-flex items-center rounded-full border border-white/15 bg-muted/40 px-2 py-0.5 text-xs text-muted-foreground">
-              {formatDate(persona.date)}
+              {formatPartialDate(persona.date, persona.datePrecision)}
             </span>
           )}
         </div>

@@ -41,13 +41,13 @@ test.describe("People CRUD", () => {
 
   test("detail page has Edit + Delete buttons", async ({ page }) => {
     await page.goto("/people/seed-person-1");
-    await expect(page.getByRole("button", { name: /edit/i })).toBeVisible();
+    await expect(page.getByRole("button", { name: /^edit$/i })).toBeVisible();
     await expect(page.getByRole("button", { name: /delete/i })).toBeVisible();
   });
 
   test("edit person sheet opens and pre-populates", async ({ page }) => {
     await page.goto("/people/seed-person-1");
-    await page.getByRole("button", { name: /edit/i }).click();
+    await page.getByRole("button", { name: /^edit$/i }).click();
 
     const dialog = page.getByRole("dialog");
     await expect(dialog).toBeVisible();
@@ -66,7 +66,7 @@ test.describe("People CRUD", () => {
     await expect(dialog).not.toBeVisible();
 
     // Revert
-    await page.getByRole("button", { name: /edit/i }).click();
+    await page.getByRole("button", { name: /^edit$/i }).click();
     await dialog.getByLabel(/display name/i).fill(original);
     await dialog.getByRole("button", { name: /save changes/i }).click();
     await waitForToast(page, "Person updated");
@@ -101,13 +101,13 @@ test.describe("Labels CRUD", () => {
     await waitForToast(page, "Label created");
     await expect(page).toHaveURL(/\/labels\/.+/);
     createdLabelId = page.url().split("/labels/")[1];
-    await expect(page.getByRole("button", { name: /edit/i })).toBeVisible();
+    await expect(page.getByRole("button", { name: /^edit$/i })).toBeVisible();
   });
 
   test("edit label", async ({ page }) => {
     await page.goto("/labels/seed-label-1");
 
-    await page.getByRole("button", { name: /edit/i }).first().click();
+    await page.getByRole("button", { name: /^edit$/i }).first().click();
     const dialog = page.getByRole("dialog");
     await expect(dialog).toBeVisible();
 
@@ -121,7 +121,7 @@ test.describe("Labels CRUD", () => {
     await waitForToast(page, "Label updated");
 
     // Revert
-    await page.getByRole("button", { name: /edit/i }).first().click();
+    await page.getByRole("button", { name: /^edit$/i }).first().click();
     await dialog.getByLabel(/^name/i).fill(original);
     await dialog.getByRole("button", { name: /save changes/i }).click();
     await waitForToast(page, "Label updated");
@@ -152,13 +152,13 @@ test.describe("Networks CRUD", () => {
 
     await waitForToast(page, "Network created");
     await expect(page).toHaveURL(/\/networks\/.+/);
-    await expect(page.getByRole("button", { name: /edit/i })).toBeVisible();
+    await expect(page.getByRole("button", { name: /^edit$/i })).toBeVisible();
   });
 
   test("edit network", async ({ page }) => {
     await page.goto("/networks/seed-network-1");
 
-    await page.getByRole("button", { name: /edit/i }).click();
+    await page.getByRole("button", { name: /^edit$/i }).click();
     const dialog = page.getByRole("dialog");
     await expect(dialog).toBeVisible();
 
@@ -170,7 +170,7 @@ test.describe("Networks CRUD", () => {
     await waitForToast(page, "Network updated");
 
     // Revert
-    await page.getByRole("button", { name: /edit/i }).click();
+    await page.getByRole("button", { name: /^edit$/i }).click();
     await dialog.getByLabel(/^name/i).fill(original);
     await dialog.getByRole("button", { name: /save changes/i }).click();
     await waitForToast(page, "Network updated");
@@ -209,7 +209,7 @@ test.describe("Projects CRUD", () => {
   test("edit project", async ({ page }) => {
     await page.goto("/projects/seed-project-1");
 
-    await page.getByRole("button", { name: /edit/i }).click();
+    await page.getByRole("button", { name: /^edit$/i }).click();
     const dialog = page.getByRole("dialog");
     await expect(dialog).toBeVisible();
 
@@ -221,7 +221,7 @@ test.describe("Projects CRUD", () => {
     await waitForToast(page, "Project updated");
 
     // Revert
-    await page.getByRole("button", { name: /edit/i }).click();
+    await page.getByRole("button", { name: /^edit$/i }).click();
     await dialog.getByLabel(/^name/i).fill(original);
     await dialog.getByRole("button", { name: /save changes/i }).click();
     await waitForToast(page, "Project updated");
@@ -253,7 +253,7 @@ test.describe("Sets CRUD", () => {
     await dialog.getByLabel(/title/i).fill(title);
 
     // Select channel (required in new Flow A wizard)
-    const channelSelect = dialog.getByRole("combobox").nth(1);
+    const channelSelect = dialog.getByRole("combobox", { name: /channel/i });
     await channelSelect.click();
     const firstChannelOption = page.getByRole("option").first();
     await firstChannelOption.click();
@@ -271,13 +271,13 @@ test.describe("Sets CRUD", () => {
 
   test("detail page shows Edit + Delete buttons", async ({ page }) => {
     await page.goto("/sets/seed-set-1");
-    await expect(page.getByRole("button", { name: /edit/i })).toBeVisible();
+    await expect(page.getByRole("button", { name: /^edit$/i })).toBeVisible();
     await expect(page.getByRole("button", { name: /delete/i })).toBeVisible();
   });
 
   test("edit set sheet opens and pre-populates", async ({ page }) => {
     await page.goto("/sets/seed-set-1");
-    await page.getByRole("button", { name: /edit/i }).click();
+    await page.getByRole("button", { name: /^edit$/i }).click();
 
     const dialog = page.getByRole("dialog");
     await expect(dialog).toBeVisible();
@@ -293,7 +293,7 @@ test.describe("Sets CRUD", () => {
     await waitForToast(page, "Set updated");
 
     // Revert
-    await page.getByRole("button", { name: /edit/i }).click();
+    await page.getByRole("button", { name: /^edit$/i }).click();
     await dialog.getByLabel(/title/i).fill(original);
     await dialog.getByRole("button", { name: /save changes/i }).click();
     await waitForToast(page, "Set updated");

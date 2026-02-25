@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { Camera, Film } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, formatPartialDate } from "@/lib/utils";
 import { useDensity } from "@/components/layout/density-provider";
 import type { getSets } from "@/lib/services/set-service";
 
@@ -13,14 +13,6 @@ type SetCardProps = {
   set: SetItem;
   photoUrl?: string;
 };
-
-function formatReleaseDate(date: Date): string {
-  return date.toLocaleDateString("en-US", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  });
-}
 
 function getCastName(
   person: SetItem["contributions"][number]["person"],
@@ -114,11 +106,11 @@ export function SetCard({ set, photoUrl }: SetCardProps) {
               <span className="truncate">
                 <span className="font-medium text-foreground/80">{set.channel.name}</span>
                 {" · "}
-                {set.channel.label.name}
+                {set.channel.label?.name}
               </span>
             )}
             {set.releaseDate && !isCompact && (
-              <span className="shrink-0 text-xs">{formatReleaseDate(set.releaseDate)}</span>
+              <span className="shrink-0 text-xs">{formatPartialDate(set.releaseDate, set.releaseDatePrecision)}</span>
             )}
           </div>
 

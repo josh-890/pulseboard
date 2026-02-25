@@ -22,6 +22,11 @@ enum AliasType {
   alias
 }
 
+enum AliasSource {
+  MANUAL
+  IMPORT
+}
+
 enum ContributionRole {
   main
   supporting
@@ -153,6 +158,43 @@ enum RelationshipEventType {
   other
 }
 
+enum SessionStatus {
+  DRAFT
+  CONFIRMED
+  REFERENCE
+}
+
+enum MediaType {
+  PHOTO
+  VIDEO
+}
+
+enum ParticipantRole {
+  MODEL
+  PHOTOGRAPHER
+}
+
+enum ResolutionStatus {
+  UNRESOLVED
+  RESOLVED
+  IGNORED
+}
+
+enum EvidenceType {
+  CHANNEL_MAP
+  MANUAL
+}
+
+enum PersonMediaUsage {
+  PROFILE
+  REFERENCE
+  HEADSHOT
+  BODY_MARK
+  BODY_MODIFICATION
+  COSMETIC_PROCEDURE
+  PORTFOLIO
+}
+
 // ─── Person & Aliases ─────────────────────────────────────────────────────────
 
 model Person {
@@ -193,6 +235,10 @@ model Person {
   education            PersonEducation[]
   awards               PersonAward[]
   interests            PersonInterest[]
+  sessionParticipants  SessionParticipant[]
+  setParticipants      SetParticipant[]
+  resolvedCredits      SetCreditRaw[]
+  personMediaLinks     PersonMediaLink[]
 
   createdAt DateTime  @default(now())
   deletedAt DateTime?
@@ -202,11 +248,13 @@ model Person {
 }
 
 model PersonAlias {
-  id        String    @id @default(cuid())
+  id        String      @id @default(cuid())
   personId  String
-  person    Person    @relation(fields: [personId], references: [id])
+  person    Person      @relation(fields: [personId], references: [id])
   name      String
-  type      AliasType @default(alias)
+  type      AliasType   @default(alias)
+  source    AliasSource @default(MANUAL)
+  nameNorm  String?
   deletedAt DateTime?
 
   @@index([personId])
@@ -511,6 +559,7 @@ model RelationshipEvent {
 model Network {
   id          String  @id @default(cuid())
   name        String
+  nameNorm    String?
   description String?
   website     String?
   deletedAt   DateTime?
@@ -524,13 +573,18 @@ model Network {
 model Label {
   id          String  @id @default(cuid())
   name        String
+  nameNorm    String?
   description String?
   website     String?
   deletedAt   DateTime?
 
-  networks  LabelNetwork[]
-  channels  Channel[]
-  projects  ProjectLabel[]
+  networks        LabelNetwork[]
+  channels        Channel[]
+  projects        ProjectLabel[]
+  primaryProjects Project[]          @relation("PrimaryLabel")
+  sessions        Session[]
+  channelMaps     ChannelLabelMap[]
+  labelEvidence   SetLabelEvidence[]
 
   @@index([name])
   @@index([deletedAt])
@@ -546,18 +600,48 @@ model LabelNetwork {
 }
 
 model Channel {
-  id       String  @id @default(cuid())
-  labelId  String
-  label    Label   @relation(fields: [labelId], references: [id])
-  name     String
-  url      String?
-  platform String?
+  id        String  @id @default(cuid())
+  labelId   String?
+  label     Label?  @relation(fields: [labelId], references: [id])
+  name      String
+  nameNorm  String?
+  url       String?
+  platform  String?
+  notes     String?
   deletedAt DateTime?
 
-  sets Set[]
+  sets      Set[]
+  labelMaps ChannelLabelMap[]
 
   @@index([labelId])
   @@index([deletedAt])
+}
+
+// ─── Evidence Layer ──────────────────────────────────────────────────────────
+
+model ChannelLabelMap {
+  channelId  String
+  channel    Channel @relation(fields: [channelId], references: [id])
+  labelId    String
+  label      Label   @relation(fields: [labelId], references: [id])
+  confidence Float   @default(1.0)
+  notes      String?
+  createdAt  DateTime @default(now())
+
+  @@id([channelId, labelId])
+}
+
+model SetLabelEvidence {
+  setId        String
+  set          Set          @relation(fields: [setId], references: [id])
+  labelId      String
+  label        Label        @relation(fields: [labelId], references: [id])
+  evidenceType EvidenceType
+  confidence   Float        @default(1.0)
+  notes        String?
+  createdAt    DateTime     @default(now())
+
+  @@id([setId, labelId, evidenceType])
 }
 
 // ─── Production ───────────────────────────────────────────────────────────────
@@ -565,9 +649,12 @@ model Channel {
 model Project {
   id          String        @id @default(cuid())
   name        String
+  nameNorm    String?
   description String?
   status      ProjectStatus @default(active)
   tags        String[]
+  labelId     String?
+  label       Label?        @relation("PrimaryLabel", fields: [labelId], references: [id])
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
   deletedAt   DateTime?
@@ -578,6 +665,7 @@ model Project {
   @@index([status])
   @@index([updatedAt])
   @@index([deletedAt])
+  @@index([labelId])
 }
 
 model ProjectLabel {
@@ -590,20 +678,30 @@ model ProjectLabel {
 }
 
 model Session {
-  id          String    @id @default(cuid())
-  projectId   String
-  project     Project   @relation(fields: [projectId], references: [id])
+  id          String        @id @default(cuid())
+  projectId   String?
+  project     Project?      @relation(fields: [projectId], references: [id])
+  labelId     String?
+  label       Label?        @relation(fields: [labelId], references: [id])
   name        String
   description String?
+  location    String?
+  status      SessionStatus @default(DRAFT)
+  notes       String?
   date        DateTime?
   datePrecision DatePrecision @default(UNKNOWN)
   createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
   deletedAt   DateTime?
 
-  sets Set[]
+  sets         Set[]
+  mediaItems   MediaItem[]
+  participants SessionParticipant[]
 
   @@index([projectId])
+  @@index([labelId])
   @@index([date])
+  @@index([status])
   @@index([deletedAt])
 }
 
@@ -615,23 +713,33 @@ model Set {
   channel     Channel?  @relation(fields: [channelId], references: [id])
   type        SetType
   title       String
+  titleNorm   String?
   description String?
   notes       String?
   releaseDate DateTime?
   releaseDatePrecision DatePrecision @default(UNKNOWN)
+  isCompilation Boolean  @default(false)
+  coverMediaItemId String?
+  coverMediaItem   MediaItem? @relation("SetCoverMedia", fields: [coverMediaItemId], references: [id])
   category    String?
   genre       String?
   tags        String[]
   createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
   deletedAt   DateTime?
 
-  contributions SetContribution[]
+  contributions  SetContribution[]
+  setMediaItems  SetMediaItem[]
+  creditsRaw     SetCreditRaw[]
+  participants   SetParticipant[]
+  labelEvidence  SetLabelEvidence[]
 
   @@index([sessionId])
   @@index([channelId])
   @@index([type])
   @@index([releaseDate])
   @@index([deletedAt])
+  @@index([coverMediaItemId])
 }
 
 model SetContribution {
@@ -649,7 +757,120 @@ model SetContribution {
   @@index([deletedAt])
 }
 
-// ─── Photos ───────────────────────────────────────────────────────────────────
+// ─── Media ───────────────────────────────────────────────────────────────────
+
+model MediaItem {
+  id          String    @id @default(cuid())
+  sessionId   String
+  session     Session   @relation(fields: [sessionId], references: [id])
+  mediaType   MediaType
+  capturedAt  DateTime?
+  capturedAtPrecision DatePrecision @default(UNKNOWN)
+
+  filename       String
+  fileRef        String?
+  mimeType       String
+  size           Int
+  hash           String?
+  originalWidth  Int
+  originalHeight Int
+  durationMs     Int?
+  variants       Json?
+
+  caption    String?
+  tags       String[]
+  notes      String?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  setMediaItems    SetMediaItem[]
+  personMediaLinks PersonMediaLink[]
+  coverForSets     Set[]             @relation("SetCoverMedia")
+
+  @@index([sessionId])
+  @@index([hash])
+  @@index([mediaType])
+  @@index([deletedAt])
+  @@index([tags], type: Gin)
+}
+
+model SetMediaItem {
+  setId       String
+  set         Set       @relation(fields: [setId], references: [id])
+  mediaItemId String
+  mediaItem   MediaItem @relation(fields: [mediaItemId], references: [id])
+  sortOrder   Int       @default(0)
+  isCover     Boolean   @default(false)
+  caption     String?
+  notes       String?
+
+  @@id([setId, mediaItemId])
+}
+
+model SessionParticipant {
+  sessionId         String
+  session           Session         @relation(fields: [sessionId], references: [id])
+  personId          String
+  person            Person          @relation(fields: [personId], references: [id])
+  role              ParticipantRole
+  creditNameOverride String?
+  createdAt         DateTime        @default(now())
+
+  @@id([sessionId, personId, role])
+}
+
+model SetParticipant {
+  setId    String
+  set      Set             @relation(fields: [setId], references: [id])
+  personId String
+  person   Person          @relation(fields: [personId], references: [id])
+  role     ParticipantRole
+
+  @@id([setId, personId, role])
+}
+
+model SetCreditRaw {
+  id               String           @id @default(cuid())
+  setId            String
+  set              Set              @relation(fields: [setId], references: [id])
+  role             ParticipantRole
+  rawName          String
+  rawNameNorm      String?
+  resolutionStatus ResolutionStatus @default(UNRESOLVED)
+  resolvedPersonId String?
+  resolvedPerson   Person?          @relation(fields: [resolvedPersonId], references: [id])
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  deletedAt        DateTime?
+
+  @@index([setId])
+  @@index([resolutionStatus])
+  @@index([resolvedPersonId])
+  @@index([deletedAt])
+}
+
+model PersonMediaLink {
+  id          String           @id @default(cuid())
+  personId    String
+  person      Person           @relation(fields: [personId], references: [id])
+  mediaItemId String
+  mediaItem   MediaItem        @relation(fields: [mediaItemId], references: [id])
+  usage       PersonMediaUsage
+  isFavorite  Boolean          @default(false)
+  sortOrder   Int              @default(0)
+  notes       String?
+  createdAt   DateTime         @default(now())
+  deletedAt   DateTime?
+
+  @@unique([personId, mediaItemId, usage])
+  @@index([personId])
+  @@index([mediaItemId])
+  @@index([deletedAt])
+}
+
+// ─── Photos (deprecated — replaced by MediaItem in Phase 2) ─────────────────
 
 model Photo {
   id         String     @id @default(cuid())

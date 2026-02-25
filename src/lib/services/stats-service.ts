@@ -11,6 +11,7 @@ export type DashboardStats = {
   labels: number;
   channels: number;
   projects: number;
+  mediaItems: number;
 };
 
 type MvDashboardStatsRow = {
@@ -19,6 +20,7 @@ type MvDashboardStatsRow = {
   labelCount: bigint;
   channelCount: bigint;
   projectCount: bigint;
+  mediaItemCount: bigint;
 };
 
 /**
@@ -38,6 +40,7 @@ export async function getDashboardStats(): Promise<DashboardStats> {
         labels: Number(row.labelCount),
         channels: Number(row.channelCount),
         projects: Number(row.projectCount),
+        mediaItems: Number(row.mediaItemCount),
       };
     }
   } catch {
@@ -53,5 +56,5 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     countProjects(),
   ]);
 
-  return { persons, sets, labels, channels, projects };
+  return { persons, sets, labels, channels, projects, mediaItems: 0 };
 }

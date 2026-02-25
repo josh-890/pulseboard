@@ -40,6 +40,7 @@ import {
 } from "@/lib/validations/set";
 import { updateSet } from "@/lib/actions/set-actions";
 import type { SetType } from "@/lib/types";
+import { PartialDateInput } from "@/components/shared/partial-date-input";
 
 type SessionOption = { id: string; name: string; projectName: string };
 type ChannelOption = { id: string; name: string; labelName: string };
@@ -54,6 +55,7 @@ type EditSetSheetProps = {
     description: string | null;
     notes: string | null;
     releaseDate: Date | null;
+    releaseDatePrecision: string;
     category: string | null;
     genre: string | null;
     tags: string[];
@@ -86,6 +88,7 @@ export function EditSetSheet({ set, sessions, channels }: EditSetSheetProps) {
     releaseDate: set.releaseDate
       ? set.releaseDate.toISOString().slice(0, 10)
       : "",
+    releaseDatePrecision: (set.releaseDatePrecision as "UNKNOWN" | "YEAR" | "MONTH" | "DAY") ?? "UNKNOWN",
     category: set.category ?? "",
     genre: set.genre ?? "",
     tags: set.tags,
@@ -168,19 +171,15 @@ export function EditSetSheet({ set, sessions, channels }: EditSetSheetProps) {
                       )}
                     />
 
-                    <FormField
-                      control={form.control}
-                      name="releaseDate"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Release Date</FormLabel>
-                          <FormControl>
-                            <Input type="date" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
+                    <FormItem className="col-span-2">
+                      <FormLabel>Release Date</FormLabel>
+                      <PartialDateInput
+                        dateValue={form.watch("releaseDate") ?? ""}
+                        precisionValue={form.watch("releaseDatePrecision") ?? "UNKNOWN"}
+                        onDateChange={(val) => form.setValue("releaseDate", val || undefined)}
+                        onPrecisionChange={(val) => form.setValue("releaseDatePrecision", val as "UNKNOWN" | "YEAR" | "MONTH" | "DAY")}
+                      />
+                    </FormItem>
 
                     <FormField
                       control={form.control}

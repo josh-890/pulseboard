@@ -5,7 +5,7 @@ import { getSetById, getSessionsForSelect, getChannelsForSelect } from "@/lib/se
 import { getPhotosForEntity } from "@/lib/services/photo-service";
 import { getProfileImageLabels } from "@/lib/services/setting-service";
 import { SetDetailGallery } from "@/components/sets/set-detail-gallery";
-import { cn } from "@/lib/utils";
+import { cn, formatPartialDate } from "@/lib/utils";
 import type { ContributionRole, SetType, PhotoWithUrls } from "@/lib/types";
 import { EditSetSheet } from "@/components/sets/edit-set-sheet";
 import { DeleteButton } from "@/components/shared/delete-button";
@@ -18,14 +18,6 @@ type SetDetailPageProps = {
 };
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
-
-function formatReleaseDate(date: Date): string {
-  return date.toLocaleDateString("en-US", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  });
-}
 
 function getInitialsForPerson(name: string): string {
   const parts = name.trim().split(/\s+/);
@@ -140,6 +132,7 @@ export default async function SetDetailPage({ params }: SetDetailPageProps) {
               description: set.description,
               notes: set.notes,
               releaseDate: set.releaseDate,
+              releaseDatePrecision: set.releaseDatePrecision,
               category: set.category,
               genre: set.genre,
               tags: set.tags,
@@ -172,7 +165,7 @@ export default async function SetDetailPage({ params }: SetDetailPageProps) {
               </span>
               {set.releaseDate && (
                 <span className="text-sm text-muted-foreground">
-                  {formatReleaseDate(set.releaseDate)}
+                  {formatPartialDate(set.releaseDate, set.releaseDatePrecision)}
                 </span>
               )}
             </div>
@@ -184,13 +177,17 @@ export default async function SetDetailPage({ params }: SetDetailPageProps) {
                 <span className="font-medium text-foreground/80">
                   {set.channel.name}
                 </span>
-                {" · "}
-                <Link
-                  href={`/labels/${set.channel.label.id}`}
-                  className="hover:text-foreground hover:underline underline-offset-2 transition-colors"
-                >
-                  {set.channel.label.name}
-                </Link>
+                {set.channel.label && (
+                  <>
+                    {" · "}
+                    <Link
+                      href={`/labels/${set.channel.label.id}`}
+                      className="hover:text-foreground hover:underline underline-offset-2 transition-colors"
+                    >
+                      {set.channel.label.name}
+                    </Link>
+                  </>
+                )}
               </p>
             )}
 
@@ -201,13 +198,17 @@ export default async function SetDetailPage({ params }: SetDetailPageProps) {
                 <span className="font-medium text-foreground/80">
                   {set.session.name}
                 </span>
-                {" · "}
-                <Link
-                  href={`/projects/${set.session.project.id}`}
-                  className="hover:text-foreground hover:underline underline-offset-2 transition-colors"
-                >
-                  {set.session.project.name}
-                </Link>
+                {set.session.project && (
+                  <>
+                    {" · "}
+                    <Link
+                      href={`/projects/${set.session.project.id}`}
+                      className="hover:text-foreground hover:underline underline-offset-2 transition-colors"
+                    >
+                      {set.session.project.name}
+                    </Link>
+                  </>
+                )}
               </p>
             )}
           </div>

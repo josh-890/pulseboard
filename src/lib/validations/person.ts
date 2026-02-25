@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+const datePrecisionEnum = z.enum(["UNKNOWN", "YEAR", "MONTH", "DAY"]).default("UNKNOWN");
+
 export const createPersonSchema = z.object({
   // Required
   icgId: z
@@ -17,6 +19,7 @@ export const createPersonSchema = z.object({
   // Origin
   sexAtBirth: z.enum(["male", "female"]).optional(),
   birthdate: z.string().optional(),
+  birthdatePrecision: datePrecisionEnum,
   birthPlace: z.string().optional(),
   nationality: z.string().max(3).optional(),
   ethnicity: z.string().optional(),
@@ -45,6 +48,7 @@ export const updatePersonSchema = z.object({
   birthName: z.string().optional(),
   sexAtBirth: z.enum(["male", "female"]).optional(),
   birthdate: z.string().optional(),
+  birthdatePrecision: datePrecisionEnum,
   birthPlace: z.string().optional(),
   nationality: z.string().max(3).optional(),
   ethnicity: z.string().optional(),

@@ -5,6 +5,7 @@ export type {
   PersonRelationship,
   PersonStatus,
   AliasType,
+  AliasSource,
   RelationshipSource,
   ContributionRole,
   BodyMarkType,
@@ -33,6 +34,7 @@ export type {
   Project,
   ProjectStatus,
   Session,
+  SessionStatus,
   Set,
   SetType,
 } from "./project";
@@ -47,6 +49,15 @@ export type {
   PhotoUrls,
   PhotoWithUrls,
 } from "./photo";
+
+export type {
+  MediaItem,
+  MediaType,
+  ParticipantRole,
+  ResolutionStatus,
+  EvidenceType,
+  PersonMediaUsage,
+} from "./media";
 
 export type { ActivityItem, ActivityType } from "./activity";
 
