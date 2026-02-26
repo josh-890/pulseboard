@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import { ImageIcon } from "lucide-react";
-import { getSetsPaginated, getChannelsWithLabelMaps } from "@/lib/services/set-service";
+import { getSetsPaginated, getChannelsWithLabelMaps, getRecentChannels, getLastUsedSetType } from "@/lib/services/set-service";
 import { getFavoritePhotosForSets } from "@/lib/services/photo-service";
 import type { SetType } from "@/lib/types";
 import { SetGrid } from "@/components/sets/set-grid";
@@ -38,9 +38,11 @@ export default async function SetsPage({ searchParams }: SetsPageProps) {
     type: resolvedType ?? ("all" as const),
   };
 
-  const [paginated, channels] = await Promise.all([
+  const [paginated, channels, recentChannelIds, lastType] = await Promise.all([
     getSetsPaginated(filters, undefined, limit),
     getChannelsWithLabelMaps(),
+    getRecentChannels(5),
+    getLastUsedSetType(),
   ]);
 
   // Batch-load thumbnail photos for initial chunk
@@ -62,7 +64,7 @@ export default async function SetsPage({ searchParams }: SetsPageProps) {
             </p>
           </div>
         </div>
-        <AddSetSheet channels={channels} />
+        <AddSetSheet channels={channels} recentChannelIds={recentChannelIds} defaultType={lastType} />
       </div>
 
       {/* Filter bar */}

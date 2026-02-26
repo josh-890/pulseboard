@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { Camera, Film } from "lucide-react";
+import { Camera, Film, AlertTriangle, ImageOff } from "lucide-react";
 import { cn, formatPartialDate } from "@/lib/utils";
 import { useDensity } from "@/components/layout/density-provider";
 import type { getSets } from "@/lib/services/set-service";
@@ -12,6 +12,7 @@ type SetItem = Awaited<ReturnType<typeof getSets>>[number];
 type SetCardProps = {
   set: SetItem;
   photoUrl?: string;
+  unresolvedCreditCount?: number;
 };
 
 function getCastName(
@@ -21,7 +22,7 @@ function getCastName(
   return common?.name ?? person.icgId;
 }
 
-export function SetCard({ set, photoUrl }: SetCardProps) {
+export function SetCard({ set, photoUrl, unresolvedCreditCount = 0 }: SetCardProps) {
   const { density } = useDensity();
   const isCompact = density === "compact";
   const isPhoto = set.type === "photo";
@@ -128,6 +129,24 @@ export function SetCard({ set, photoUrl }: SetCardProps) {
               {set.participants.length > 3 && (
                 <span className="inline-flex items-center rounded-full border border-white/10 bg-muted/60 px-1.5 py-0.5 text-[10px] text-muted-foreground">
                   +{set.participants.length - 3}
+                </span>
+              )}
+            </div>
+          )}
+
+          {/* Completeness badges */}
+          {!isCompact && (unresolvedCreditCount > 0 || !photoUrl) && (
+            <div className="mt-1.5 flex flex-wrap gap-1">
+              {unresolvedCreditCount > 0 && (
+                <span className="inline-flex items-center gap-1 rounded-full border border-amber-500/20 bg-amber-500/10 px-1.5 py-0.5 text-[10px] text-amber-600 dark:text-amber-400">
+                  <AlertTriangle size={9} />
+                  {unresolvedCreditCount} unresolved
+                </span>
+              )}
+              {!photoUrl && (
+                <span className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-muted/40 px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                  <ImageOff size={9} />
+                  No photos
                 </span>
               )}
             </div>

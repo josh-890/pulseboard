@@ -13,6 +13,7 @@ import {
   ignoreCredit,
   unresolveCredit,
   searchPersonsAction,
+  getSuggestionsAction,
 } from "@/lib/actions/set-actions";
 import { createMinimalPerson } from "@/lib/actions/person-actions";
 
@@ -34,8 +35,16 @@ type CreditRawItem = {
   } | null;
 };
 
+type SuggestionItem = {
+  id: string;
+  icgId: string;
+  commonAlias: string | null;
+  source: "previous" | "channel";
+};
+
 type CreditResolutionPanelProps = {
   credits: CreditRawItem[];
+  channelId?: string | null;
 };
 
 const ROLE_ICON = {
@@ -43,12 +52,14 @@ const ROLE_ICON = {
   PHOTOGRAPHER: <Camera size={12} />,
 };
 
-export function CreditResolutionPanel({ credits: initialCredits }: CreditResolutionPanelProps) {
+export function CreditResolutionPanel({ credits: initialCredits, channelId }: CreditResolutionPanelProps) {
   const router = useRouter();
   const [credits, setCredits] = useState(initialCredits);
 
   // Track which credit is being resolved inline
   const [resolvingCreditId, setResolvingCreditId] = useState<string | null>(null);
+  const [suggestions, setSuggestions] = useState<SuggestionItem[]>([]);
+  const [loadingSuggestions, setLoadingSuggestions] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<PersonResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
@@ -178,6 +189,17 @@ export function CreditResolutionPanel({ credits: initialCredits }: CreditResolut
     setSearchResults([]);
     setShowDropdown(false);
     setShowNewPersonForm(false);
+
+    // Load suggestions for this credit
+    const credit = credits.find((c) => c.id === creditId);
+    if (credit) {
+      setLoadingSuggestions(true);
+      setSuggestions([]);
+      getSuggestionsAction(credit.rawName, channelId ?? null).then((result) => {
+        setSuggestions(result);
+        setLoadingSuggestions(false);
+      });
+    }
   }
 
   function cancelResolving() {
@@ -186,6 +208,7 @@ export function CreditResolutionPanel({ credits: initialCredits }: CreditResolut
     setSearchResults([]);
     setShowDropdown(false);
     setShowNewPersonForm(false);
+    setSuggestions([]);
   }
 
   // Group by role
@@ -215,6 +238,8 @@ export function CreditResolutionPanel({ credits: initialCredits }: CreditResolut
               newIcgId={newIcgId}
               newName={newName}
               isCreatingPerson={isCreatingPerson}
+              suggestions={resolvingCreditId === credit.id ? suggestions : []}
+              loadingSuggestions={resolvingCreditId === credit.id && loadingSuggestions}
               dropdownRef={resolvingCreditId === credit.id ? dropdownRef : undefined}
               onStartResolving={() => startResolving(credit.id)}
               onCancelResolving={cancelResolving}
@@ -250,6 +275,8 @@ export function CreditResolutionPanel({ credits: initialCredits }: CreditResolut
               newIcgId={newIcgId}
               newName={newName}
               isCreatingPerson={isCreatingPerson}
+              suggestions={resolvingCreditId === credit.id ? suggestions : []}
+              loadingSuggestions={resolvingCreditId === credit.id && loadingSuggestions}
               dropdownRef={resolvingCreditId === credit.id ? dropdownRef : undefined}
               onStartResolving={() => startResolving(credit.id)}
               onCancelResolving={cancelResolving}
@@ -283,6 +310,8 @@ type CreditRowProps = {
   newIcgId: string;
   newName: string;
   isCreatingPerson: boolean;
+  suggestions: SuggestionItem[];
+  loadingSuggestions: boolean;
   dropdownRef?: React.RefObject<HTMLDivElement | null>;
   onStartResolving: () => void;
   onCancelResolving: () => void;
@@ -308,6 +337,8 @@ function CreditRow({
   newIcgId,
   newName,
   isCreatingPerson,
+  suggestions,
+  loadingSuggestions,
   dropdownRef,
   onStartResolving,
   onCancelResolving,
@@ -418,6 +449,34 @@ function CreditRow({
       {/* Inline resolve search */}
       {isResolving && (
         <div className="space-y-2 pt-1">
+          {/* Suggestion pills */}
+          {loadingSuggestions && (
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <Loader2 size={10} className="animate-spin" />
+              Loading suggestions…
+            </div>
+          )}
+          {!loadingSuggestions && suggestions.length > 0 && (
+            <div className="space-y-1">
+              <p className="text-xs text-muted-foreground">Suggested</p>
+              <div className="flex flex-wrap gap-1.5">
+                {suggestions.map((s) => (
+                  <button
+                    key={s.id}
+                    type="button"
+                    onClick={() => onResolve(s.id, s.commonAlias ?? s.icgId)}
+                    className="inline-flex items-center gap-1 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2 py-0.5 text-xs font-medium text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 transition-colors"
+                  >
+                    {s.commonAlias ?? s.icgId}
+                    <span className="opacity-50 text-[10px]">
+                      {s.source === "previous" ? "prev" : "ch"}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div className="relative" ref={dropdownRef}>
             <div className="relative">
               <UserSearch

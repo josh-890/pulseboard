@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { Camera, Film, Tag, FileText } from "lucide-react";
+import { Camera, Film, Tag, FileText, Check, Circle } from "lucide-react";
 import { getSetById, getChannelsForSelect } from "@/lib/services/set-service";
 import { getPhotosForEntity } from "@/lib/services/photo-service";
 import { getProfileImageLabels } from "@/lib/services/setting-service";
@@ -10,8 +10,11 @@ import { cn, formatPartialDate } from "@/lib/utils";
 import type { SetType, PhotoWithUrls } from "@/lib/types";
 import { EditSetSheet } from "@/components/sets/edit-set-sheet";
 import { DeleteButton } from "@/components/shared/delete-button";
+import { AddCreditInline } from "@/components/sets/add-credit-inline";
+import { SetInlineTitle, SetInlineDescription, SetInlineNotes } from "@/components/sets/set-detail-header";
+import { LabelEvidenceManager } from "@/components/sets/label-evidence-manager";
 import { deleteSet } from "@/lib/actions/set-actions";
-import { Badge } from "@/components/ui/badge";
+
 
 export const dynamic = "force-dynamic";
 
@@ -70,6 +73,22 @@ function SectionCard({ title, icon, children, className }: SectionCardProps) {
   );
 }
 
+function CompletenessChip({ done, label }: { done: boolean; label: string }) {
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium",
+        done
+          ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+          : "border-amber-500/20 bg-amber-500/10 text-amber-600 dark:text-amber-400",
+      )}
+    >
+      {done ? <Check size={10} /> : <Circle size={10} />}
+      {label}
+    </span>
+  );
+}
+
 // ── Main page ───────────────────────────────────────────────────────────────
 
 export default async function SetDetailPage({ params }: SetDetailPageProps) {
@@ -92,6 +111,9 @@ export default async function SetDetailPage({ params }: SetDetailPageProps) {
 
   // Determine if we have credits
   const hasCredits = set.creditsRaw.length > 0;
+  const unresolvedCount = set.creditsRaw.filter((c) => c.resolutionStatus === "UNRESOLVED").length;
+  const hasPhotos = photos.length > 0;
+  const hasLabel = set.labelEvidence.length > 0;
 
   // Get the primary label from channel's label maps
   const primaryLabel = set.channel?.labelMaps[0]?.label;
@@ -153,7 +175,7 @@ export default async function SetDetailPage({ params }: SetDetailPageProps) {
                 </span>
               )}
             </div>
-            <h1 className="text-2xl font-bold leading-tight">{set.title}</h1>
+            <SetInlineTitle setId={id} title={set.title} />
 
             {/* Channel / label */}
             {set.channel && (
@@ -175,57 +197,39 @@ export default async function SetDetailPage({ params }: SetDetailPageProps) {
               </p>
             )}
 
-            {/* Label evidence badges */}
-            {set.labelEvidence.length > 0 && (
-              <div className="mt-2 flex flex-wrap gap-1.5">
-                {set.labelEvidence.map((ev) => (
-                  <Badge
-                    key={`${ev.setId}-${ev.labelId}-${ev.evidenceType}`}
-                    variant="outline"
-                    className={cn(
-                      "text-xs",
-                      ev.evidenceType === "CHANNEL_MAP"
-                        ? "border-sky-500/30 bg-sky-500/10 text-sky-600 dark:text-sky-400"
-                        : "border-purple-500/30 bg-purple-500/10 text-purple-600 dark:text-purple-400",
-                    )}
-                  >
-                    {ev.label.name}
-                    <span className="ml-1 opacity-60">
-                      {ev.evidenceType === "CHANNEL_MAP" ? "channel" : "manual"}
-                    </span>
-                  </Badge>
-                ))}
-              </div>
-            )}
+            {/* Label evidence (manageable) */}
+            <div className="mt-2">
+              <LabelEvidenceManager
+                setId={id}
+                evidence={set.labelEvidence.map((ev) => ({
+                  setId: ev.setId,
+                  labelId: ev.labelId,
+                  evidenceType: ev.evidenceType,
+                  label: { id: ev.label.id, name: ev.label.name },
+                }))}
+              />
+            </div>
+
+            {/* Completeness checklist */}
+            <div className="mt-3 flex flex-wrap gap-1.5">
+              <CompletenessChip done label="Title" />
+              <CompletenessChip done={!!set.channel} label="Channel" />
+              <CompletenessChip
+                done={hasCredits && unresolvedCount === 0}
+                label={unresolvedCount > 0 ? `Credits (${unresolvedCount} unresolved)` : "Credits"}
+              />
+              <CompletenessChip done={hasPhotos} label="Photos" />
+              <CompletenessChip done={hasLabel} label="Label" />
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Description + notes */}
-      {(set.description || set.notes) && (
-        <div className="rounded-2xl border border-white/20 bg-card/70 p-6 shadow-md backdrop-blur-sm space-y-3">
-          {set.description && (
-            <div>
-              <p className="mb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                Description
-              </p>
-              <p className="text-sm leading-relaxed text-foreground/90">
-                {set.description}
-              </p>
-            </div>
-          )}
-          {set.notes && (
-            <div>
-              <p className="mb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                Notes
-              </p>
-              <p className="whitespace-pre-wrap text-sm leading-relaxed text-muted-foreground">
-                {set.notes}
-              </p>
-            </div>
-          )}
-        </div>
-      )}
+      {/* Description + notes (inline editable) */}
+      <div className="rounded-2xl border border-white/20 bg-card/70 p-6 shadow-md backdrop-blur-sm space-y-3">
+        <SetInlineDescription setId={id} description={set.description} />
+        <SetInlineNotes setId={id} notes={set.notes} />
+      </div>
 
       {/* Photo gallery */}
       <SetDetailGallery
@@ -235,31 +239,39 @@ export default async function SetDetailPage({ params }: SetDetailPageProps) {
       />
 
       {/* Credits & Participants */}
-      {hasCredits && (
-        <SectionCard
-          title={`Credits (${set.creditsRaw.length})`}
-          icon={<FileText size={18} />}
-        >
-          <CreditResolutionPanel
-            credits={set.creditsRaw.map((c) => ({
-              id: c.id,
-              role: c.role,
-              rawName: c.rawName,
-              resolutionStatus: c.resolutionStatus,
-              resolvedPerson: c.resolvedPerson
-                ? {
-                    id: c.resolvedPerson.id,
-                    icgId: c.resolvedPerson.icgId,
-                    aliases: c.resolvedPerson.aliases.map((a) => ({
-                      name: a.name,
-                      type: a.type,
-                    })),
-                  }
-                : null,
-            }))}
-          />
-        </SectionCard>
-      )}
+      <SectionCard
+        title={hasCredits ? `Credits (${set.creditsRaw.length})` : "Credits"}
+        icon={<FileText size={18} />}
+      >
+        <div className="space-y-4">
+          <AddCreditInline setId={id} />
+          {hasCredits ? (
+            <CreditResolutionPanel
+              channelId={set.channelId}
+              credits={set.creditsRaw.map((c) => ({
+                id: c.id,
+                role: c.role,
+                rawName: c.rawName,
+                resolutionStatus: c.resolutionStatus,
+                resolvedPerson: c.resolvedPerson
+                  ? {
+                      id: c.resolvedPerson.id,
+                      icgId: c.resolvedPerson.icgId,
+                      aliases: c.resolvedPerson.aliases.map((a) => ({
+                        name: a.name,
+                        type: a.type,
+                      })),
+                    }
+                  : null,
+              }))}
+            />
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              No credits yet. Add credits to track models and photographers.
+            </p>
+          )}
+        </div>
+      </SectionCard>
 
       {/* Tags */}
       {set.tags.length > 0 && (

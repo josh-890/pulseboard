@@ -74,7 +74,7 @@ export function SetGrid({
         )}
       >
         {sets.map((set) => (
-          <SetCard key={set.id} set={set} photoUrl={photoMap[set.id]} />
+          <SetCard key={set.id} set={set} photoUrl={photoMap[set.id]} unresolvedCreditCount={set._count.creditsRaw} />
         ))}
       </div>
 

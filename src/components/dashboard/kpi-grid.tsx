@@ -1,4 +1,4 @@
-import { Users, ImageIcon, Building2, Radio, FolderKanban } from "lucide-react";
+import { Users, ImageIcon, Building2, Radio, FolderKanban, AlertCircle } from "lucide-react";
 import { getDashboardStats } from "@/lib/services/stats-service";
 import { KpiCard } from "./kpi-card";
 
@@ -6,7 +6,7 @@ export async function KpiGrid() {
   const stats = await getDashboardStats();
 
   return (
-    <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
+    <div className="grid grid-cols-2 gap-4 lg:grid-cols-6">
       <KpiCard
         label="People"
         value={stats.persons}
@@ -37,6 +37,14 @@ export async function KpiGrid() {
         icon={<FolderKanban size={20} />}
         href="/projects"
       />
+      {stats.unresolvedCredits > 0 && (
+        <KpiCard
+          label="Unresolved Credits"
+          value={stats.unresolvedCredits}
+          icon={<AlertCircle size={20} />}
+          href="/sets"
+        />
+      )}
     </div>
   );
 }

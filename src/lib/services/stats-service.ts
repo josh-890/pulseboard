@@ -12,6 +12,7 @@ export type DashboardStats = {
   channels: number;
   projects: number;
   mediaItems: number;
+  unresolvedCredits: number;
 };
 
 type MvDashboardStatsRow = {
@@ -34,6 +35,8 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     );
     if (rows.length > 0) {
       const row = rows[0];
+      // Unresolved credits always live-counted (not in MV)
+      const unresolvedCredits = await getUnresolvedCreditCount();
       return {
         persons: Number(row.personCount),
         sets: Number(row.setCount),
@@ -41,6 +44,7 @@ export async function getDashboardStats(): Promise<DashboardStats> {
         channels: Number(row.channelCount),
         projects: Number(row.projectCount),
         mediaItems: Number(row.mediaItemCount),
+        unresolvedCredits,
       };
     }
   } catch {
@@ -56,5 +60,12 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     countProjects(),
   ]);
 
-  return { persons, sets, labels, channels, projects, mediaItems: 0 };
+  const unresolvedCredits = await getUnresolvedCreditCount();
+  return { persons, sets, labels, channels, projects, mediaItems: 0, unresolvedCredits };
+}
+
+async function getUnresolvedCreditCount(): Promise<number> {
+  return prisma.setCreditRaw.count({
+    where: { resolutionStatus: "UNRESOLVED", deletedAt: null },
+  });
 }

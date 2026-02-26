@@ -18,9 +18,15 @@ import {
   resolveCreditRaw,
   ignoreCreditRaw,
   unresolveCreditRaw,
+  getRecentChannels,
+  getLastUsedSetType,
+  createManualLabelEvidence,
+  deleteLabelEvidence,
+  getSuggestedResolutions,
 } from "@/lib/services/set-service";
 import type { SetFilters } from "@/lib/services/set-service";
 import { getFavoritePhotosForSets } from "@/lib/services/photo-service";
+import { getLabels } from "@/lib/services/label-service";
 import { z } from "zod";
 
 type ActionResult =
@@ -148,6 +154,79 @@ export async function deleteSet(id: string): Promise<DeleteResult> {
   } catch {
     return { success: false, error: "Failed to delete set" };
   }
+}
+
+const INLINE_EDITABLE_FIELDS = new Set(["title", "description", "notes"]);
+
+export async function updateSetField(
+  id: string,
+  field: string,
+  value: string,
+): Promise<SimpleResult> {
+  if (!INLINE_EDITABLE_FIELDS.has(field)) {
+    return { success: false, error: `Field "${field}" is not inline-editable` };
+  }
+
+  if (field === "title" && !value.trim()) {
+    return { success: false, error: "Title cannot be empty" };
+  }
+
+  try {
+    await updateSetRecord(id, { [field]: value || null });
+    revalidatePath(`/sets/${id}`);
+    revalidatePath("/sets");
+    return { success: true };
+  } catch {
+    return { success: false, error: "Failed to update field" };
+  }
+}
+
+export async function getSuggestionsAction(rawName: string, channelId: string | null) {
+  return getSuggestedResolutions(rawName, channelId);
+}
+
+export async function searchLabelsAction(q: string) {
+  if (!q.trim()) return [];
+  const labels = await getLabels(q.trim());
+  return labels.slice(0, 20).map((l) => ({ id: l.id, name: l.name }));
+}
+
+export async function addManualLabelEvidence(
+  setId: string,
+  labelId: string,
+): Promise<SimpleResult> {
+  try {
+    await createManualLabelEvidence(setId, labelId);
+    revalidatePath(`/sets/${setId}`);
+    return { success: true };
+  } catch {
+    return { success: false, error: "Failed to add label evidence" };
+  }
+}
+
+export async function removeLabelEvidence(
+  setId: string,
+  labelId: string,
+  evidenceType: string,
+): Promise<SimpleResult> {
+  if (evidenceType !== "CHANNEL_MAP" && evidenceType !== "MANUAL") {
+    return { success: false, error: "Invalid evidence type" };
+  }
+  try {
+    await deleteLabelEvidence(setId, labelId, evidenceType);
+    revalidatePath(`/sets/${setId}`);
+    return { success: true };
+  } catch {
+    return { success: false, error: "Failed to remove label evidence" };
+  }
+}
+
+export async function getRecentDefaults() {
+  const [recentChannelIds, lastType] = await Promise.all([
+    getRecentChannels(5),
+    getLastUsedSetType(),
+  ]);
+  return { recentChannelIds, lastType };
 }
 
 export async function loadMoreSets(

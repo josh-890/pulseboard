@@ -40,6 +40,11 @@ export async function getSets(filters: SetFilters = {}) {
           },
         },
       },
+      _count: {
+        select: {
+          creditsRaw: { where: { deletedAt: null, resolutionStatus: "UNRESOLVED" } },
+        },
+      },
     },
     orderBy: { releaseDate: "desc" },
   });
@@ -87,6 +92,11 @@ export async function getSetsPaginated(
                 aliases: { where: { type: "common", deletedAt: null }, take: 1 },
               },
             },
+          },
+        },
+        _count: {
+          select: {
+            creditsRaw: { where: { deletedAt: null, resolutionStatus: "UNRESOLVED" } },
           },
         },
       },
@@ -394,6 +404,148 @@ export async function unresolveCreditRaw(creditId: string) {
       },
     });
   });
+}
+
+// ── Label evidence management ────────────────────────────────────────────────
+
+export async function createManualLabelEvidence(setId: string, labelId: string) {
+  return prisma.setLabelEvidence.create({
+    data: {
+      setId,
+      labelId,
+      evidenceType: "MANUAL",
+      confidence: 1.0,
+    },
+  });
+}
+
+export async function deleteLabelEvidence(
+  setId: string,
+  labelId: string,
+  evidenceType: "CHANNEL_MAP" | "MANUAL",
+) {
+  return prisma.setLabelEvidence.deleteMany({
+    where: { setId, labelId, evidenceType },
+  });
+}
+
+// ── Recent defaults for quick add ────────────────────────────────────────────
+
+export async function getRecentChannels(limit = 5) {
+  const recentSets = await prisma.set.findMany({
+    select: { channelId: true },
+    orderBy: { createdAt: "desc" },
+    take: limit * 3, // fetch more to get distinct
+  });
+
+  // Deduplicate while preserving order, skip nulls
+  const seen = new Set<string>();
+  const channelIds: string[] = [];
+  for (const s of recentSets) {
+    if (s.channelId && !seen.has(s.channelId)) {
+      seen.add(s.channelId);
+      channelIds.push(s.channelId);
+    }
+    if (channelIds.length >= limit) break;
+  }
+
+  return channelIds;
+}
+
+export async function getLastUsedSetType(): Promise<"photo" | "video" | null> {
+  const last = await prisma.set.findFirst({
+    select: { type: true },
+    orderBy: { createdAt: "desc" },
+  });
+  return (last?.type as "photo" | "video") ?? null;
+}
+
+// ── Smart suggestions for credit resolution ──────────────────────────────────
+
+export async function getSuggestedResolutions(rawName: string, channelId: string | null) {
+  // Normalize the name for comparison
+  const normalizedName = rawName.toLowerCase().trim();
+
+  // 1. Find previously resolved credits with the same raw name
+  const previouslyResolved = await prisma.setCreditRaw.findMany({
+    where: {
+      rawName: { equals: rawName, mode: "insensitive" },
+      resolutionStatus: "RESOLVED",
+      resolvedPersonId: { not: null },
+      deletedAt: null,
+    },
+    select: {
+      resolvedPersonId: true,
+      resolvedPerson: {
+        select: {
+          id: true,
+          icgId: true,
+          aliases: { where: { type: "common", deletedAt: null }, take: 1 },
+        },
+      },
+    },
+    distinct: ["resolvedPersonId"],
+    take: 5,
+  });
+
+  type SuggestionResult = {
+    id: string;
+    icgId: string;
+    commonAlias: string | null;
+    source: "previous" | "channel";
+  };
+
+  const suggestions: SuggestionResult[] = previouslyResolved
+    .filter((c): c is typeof c & { resolvedPerson: NonNullable<typeof c.resolvedPerson> } => c.resolvedPerson !== null)
+    .map((c) => ({
+      id: c.resolvedPerson.id,
+      icgId: c.resolvedPerson.icgId,
+      commonAlias: c.resolvedPerson.aliases[0]?.name ?? null,
+      source: "previous" as const,
+    }));
+
+  const suggestedIds = new Set(suggestions.map((s) => s.id));
+
+  // 2. Find persons frequently appearing in same channel (if channel known)
+  if (channelId && suggestions.length < 5) {
+    const channelPersons = await prisma.setParticipant.findMany({
+      where: {
+        set: { channelId, deletedAt: null },
+        person: { deletedAt: null },
+      },
+      select: {
+        personId: true,
+        person: {
+          select: {
+            id: true,
+            icgId: true,
+            aliases: { where: { type: "common", deletedAt: null }, take: 1 },
+          },
+        },
+      },
+      distinct: ["personId"],
+      take: 10,
+    });
+
+    for (const cp of channelPersons) {
+      if (suggestedIds.has(cp.personId)) continue;
+      if (suggestions.length >= 5) break;
+
+      // Boost if name is similar
+      const alias = cp.person.aliases[0]?.name?.toLowerCase() ?? "";
+      if (alias.includes(normalizedName) || normalizedName.includes(alias)) {
+        suggestions.push({
+          id: cp.person.id,
+          icgId: cp.person.icgId,
+          commonAlias: cp.person.aliases[0]?.name ?? null,
+          source: "channel" as const,
+        });
+        suggestedIds.add(cp.personId);
+      }
+    }
+  }
+
+  return suggestions;
 }
 
 export async function getSetCredits(setId: string) {

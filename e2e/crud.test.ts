@@ -244,9 +244,8 @@ test.describe("Sets CRUD", () => {
     const dialog = page.getByRole("dialog");
     await expect(dialog).toBeVisible();
 
-    // Step 1: Set details — select type
-    await dialog.getByRole("combobox").first().click();
-    await page.getByRole("option", { name: "Photo" }).click();
+    // Step 1: Set details — select type (toggle button)
+    await dialog.getByRole("button", { name: "Photo" }).click();
 
     const ts = Date.now();
     const title = `Test Set ${ts}`;
@@ -279,9 +278,8 @@ test.describe("Sets CRUD", () => {
     const dialog = page.getByRole("dialog");
     await expect(dialog).toBeVisible();
 
-    // Step 1: Fill in set details
-    await dialog.getByRole("combobox").first().click();
-    await page.getByRole("option", { name: "Photo" }).click();
+    // Step 1: Fill in set details — select type (toggle button)
+    await dialog.getByRole("button", { name: "Photo" }).click();
 
     const ts = Date.now();
     const title = `Credit Set ${ts}`;

@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Plus, X, Check, XCircle } from "lucide-react";
+import { Plus, X, Check, XCircle, ChevronDown, ChevronUp } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -54,6 +54,8 @@ export type ChannelOptionWithMaps = {
 
 type AddSetSheetProps = {
   channels: ChannelOptionWithMaps[];
+  recentChannelIds?: string[];
+  defaultType?: "photo" | "video" | null;
 };
 
 function SectionHeader({ children }: { children: React.ReactNode }) {
@@ -65,11 +67,12 @@ function SectionHeader({ children }: { children: React.ReactNode }) {
   );
 }
 
-export function AddSetSheet({ channels }: AddSetSheetProps) {
+export function AddSetSheet({ channels, recentChannelIds = [], defaultType }: AddSetSheetProps) {
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState<1 | 2>(1);
   const [createdSetId, setCreatedSetId] = useState<string | null>(null);
   const [tagInput, setTagInput] = useState("");
+  const [showMore, setShowMore] = useState(false);
 
   // Label evidence from ChannelLabelMap suggestions
   const [suggestedLabels, setSuggestedLabels] = useState<LabelMapEntry[]>([]);
@@ -79,6 +82,7 @@ export function AddSetSheet({ channels }: AddSetSheetProps) {
     resolver: zodResolver(createSetStandaloneSchema),
     defaultValues: {
       channelId: "",
+      type: defaultType ?? undefined,
       title: "",
       description: "",
       notes: "",
@@ -91,11 +95,28 @@ export function AddSetSheet({ channels }: AddSetSheetProps) {
   const { isSubmitting } = form.formState;
   const tags = form.watch("tags") ?? [];
 
+  // Sort channels: recent first, then alphabetical
+  const sortedChannels = useMemo(() => {
+    if (recentChannelIds.length === 0) return channels;
+    const recentSet = new Set(recentChannelIds);
+    const recent: ChannelOptionWithMaps[] = [];
+    const rest: ChannelOptionWithMaps[] = [];
+    for (const c of channels) {
+      if (recentSet.has(c.id)) {
+        recent.push(c);
+      } else {
+        rest.push(c);
+      }
+    }
+    // Maintain order from recentChannelIds
+    recent.sort((a, b) => recentChannelIds.indexOf(a.id) - recentChannelIds.indexOf(b.id));
+    return [...recent, ...rest];
+  }, [channels, recentChannelIds]);
+
   const handleChannelChange = useCallback((channelId: string) => {
     const channel = channels.find((c) => c.id === channelId);
     if (channel && channel.labelMaps.length > 0) {
       setSuggestedLabels(channel.labelMaps);
-      // Auto-confirm all by default
       setConfirmedLabelIds(new Set(channel.labelMaps.map((m) => m.labelId)));
     } else {
       setSuggestedLabels([]);
@@ -132,7 +153,17 @@ export function AddSetSheet({ channels }: AddSetSheetProps) {
     setCreatedSetId(null);
     setSuggestedLabels([]);
     setConfirmedLabelIds(new Set());
-    form.reset();
+    setShowMore(false);
+    form.reset({
+      channelId: "",
+      type: defaultType ?? undefined,
+      title: "",
+      description: "",
+      notes: "",
+      category: "",
+      genre: "",
+      tags: [],
+    });
     setTagInput("");
   }
 
@@ -161,6 +192,10 @@ export function AddSetSheet({ channels }: AddSetSheetProps) {
     setStep(2);
   }
 
+  const recentDividerIndex = recentChannelIds.length > 0
+    ? recentChannelIds.length
+    : -1;
+
   return (
     <Sheet open={open} onOpenChange={(v) => { if (!v) handleClose(); else setOpen(true); }}>
       <Button size="sm" onClick={() => setOpen(true)}>
@@ -185,42 +220,39 @@ export function AddSetSheet({ channels }: AddSetSheetProps) {
               <div className="flex-1 overflow-y-auto px-4 py-4">
                 <div className="space-y-6">
 
-                  {/* Section 1 — Details */}
+                  {/* Essential fields */}
                   <section className="rounded-xl border bg-muted/30 dark:bg-muted/20 p-4 space-y-4">
                     <SectionHeader>Details</SectionHeader>
                     <div className="grid grid-cols-2 gap-3">
+                      {/* Type toggle */}
                       <FormField
                         control={form.control}
                         name="type"
                         render={({ field }) => (
-                          <FormItem>
+                          <FormItem className="col-span-2">
                             <FormLabel>Type <span className="text-destructive">*</span></FormLabel>
-                            <Select onValueChange={field.onChange} value={field.value ?? ""}>
-                              <FormControl>
-                                <SelectTrigger className="w-full">
-                                  <SelectValue placeholder="Select type…" />
-                                </SelectTrigger>
-                              </FormControl>
-                              <SelectContent>
-                                <SelectItem value="photo">Photo</SelectItem>
-                                <SelectItem value="video">Video</SelectItem>
-                              </SelectContent>
-                            </Select>
+                            <div className="flex gap-1 rounded-lg border bg-muted/30 p-1">
+                              {(["photo", "video"] as const).map((t) => (
+                                <button
+                                  key={t}
+                                  type="button"
+                                  onClick={() => field.onChange(t)}
+                                  className={`flex flex-1 items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+                                    field.value === t
+                                      ? "bg-background shadow-sm text-foreground"
+                                      : "text-muted-foreground hover:text-foreground"
+                                  }`}
+                                >
+                                  {t === "photo" ? "Photo" : "Video"}
+                                </button>
+                              ))}
+                            </div>
                             <FormMessage />
                           </FormItem>
                         )}
                       />
 
-                      <FormItem className="col-span-2">
-                        <FormLabel>Release Date</FormLabel>
-                        <PartialDateInput
-                          dateValue={form.watch("releaseDate") ?? ""}
-                          precisionValue={form.watch("releaseDatePrecision") ?? "UNKNOWN"}
-                          onDateChange={(val) => form.setValue("releaseDate", val || undefined)}
-                          onPrecisionChange={(val) => form.setValue("releaseDatePrecision", val as "UNKNOWN" | "YEAR" | "MONTH" | "DAY")}
-                        />
-                      </FormItem>
-
+                      {/* Title — autofocused */}
                       <FormField
                         control={form.control}
                         name="title"
@@ -228,52 +260,19 @@ export function AddSetSheet({ channels }: AddSetSheetProps) {
                           <FormItem className="col-span-2">
                             <FormLabel>Title <span className="text-destructive">*</span></FormLabel>
                             <FormControl>
-                              <Input placeholder="Set title" {...field} />
+                              <Input placeholder="Set title" autoFocus {...field} />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
                         )}
                       />
 
-                      <FormField
-                        control={form.control}
-                        name="category"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Category</FormLabel>
-                            <FormControl>
-                              <Input placeholder="e.g. Portrait" {...field} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-
-                      <FormField
-                        control={form.control}
-                        name="genre"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Genre</FormLabel>
-                            <FormControl>
-                              <Input placeholder="e.g. Glamour" {...field} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    </div>
-                  </section>
-
-                  {/* Section 2 — Context */}
-                  <section className="rounded-xl border bg-muted/30 dark:bg-muted/20 p-4 space-y-4">
-                    <SectionHeader>Context</SectionHeader>
-                    <div className="space-y-3">
+                      {/* Channel — with recent channels first */}
                       <FormField
                         control={form.control}
                         name="channelId"
                         render={({ field }) => (
-                          <FormItem>
+                          <FormItem className="col-span-2">
                             <FormLabel>Channel <span className="text-destructive">*</span></FormLabel>
                             <Select
                               onValueChange={(v) => {
@@ -288,8 +287,12 @@ export function AddSetSheet({ channels }: AddSetSheetProps) {
                                 </SelectTrigger>
                               </FormControl>
                               <SelectContent>
-                                {channels.map((c) => (
-                                  <SelectItem key={c.id} value={c.id}>
+                                {sortedChannels.map((c, i) => (
+                                  <SelectItem
+                                    key={c.id}
+                                    value={c.id}
+                                    className={i === recentDividerIndex ? "border-t mt-1 pt-1" : undefined}
+                                  >
                                     {c.name}{c.labelName ? ` (${c.labelName})` : ""}
                                   </SelectItem>
                                 ))}
@@ -300,9 +303,9 @@ export function AddSetSheet({ channels }: AddSetSheetProps) {
                         )}
                       />
 
-                      {/* Label evidence suggestions from ChannelLabelMap */}
+                      {/* Label evidence suggestions */}
                       {suggestedLabels.length > 0 && (
-                        <div className="space-y-2">
+                        <div className="col-span-2 space-y-2">
                           <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
                             Label suggestions
                           </p>
@@ -343,70 +346,138 @@ export function AddSetSheet({ channels }: AddSetSheetProps) {
                         </div>
                       )}
 
-                      <FormField
-                        control={form.control}
-                        name="description"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Description</FormLabel>
-                            <FormControl>
-                              <Textarea placeholder="Brief description…" rows={2} {...field} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-
-                      <FormField
-                        control={form.control}
-                        name="notes"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Notes</FormLabel>
-                            <FormControl>
-                              <Textarea placeholder="Internal notes…" rows={2} {...field} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-
-                      {/* Tags */}
-                      <FormItem>
-                        <FormLabel>Tags</FormLabel>
-                        <div className="flex gap-2">
-                          <Input
-                            placeholder="Add a tag…"
-                            value={tagInput}
-                            onChange={(e) => setTagInput(e.target.value)}
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter") { e.preventDefault(); addTag(); }
-                            }}
-                          />
-                          <Button type="button" variant="outline" size="sm" onClick={addTag}>
-                            Add
-                          </Button>
-                        </div>
-                        {tags.length > 0 && (
-                          <div className="mt-2 flex flex-wrap gap-1.5">
-                            {tags.map((tag) => (
-                              <Badge key={tag} variant="secondary" className="gap-1">
-                                {tag}
-                                <button
-                                  type="button"
-                                  onClick={() => removeTag(tag)}
-                                  className="ml-0.5 rounded-full outline-none hover:text-destructive focus-visible:ring-1 focus-visible:ring-ring"
-                                  aria-label={`Remove tag ${tag}`}
-                                >
-                                  <X size={10} />
-                                </button>
-                              </Badge>
-                            ))}
-                          </div>
-                        )}
+                      {/* Release Date */}
+                      <FormItem className="col-span-2">
+                        <FormLabel>Release Date</FormLabel>
+                        <PartialDateInput
+                          dateValue={form.watch("releaseDate") ?? ""}
+                          precisionValue={form.watch("releaseDatePrecision") ?? "UNKNOWN"}
+                          onDateChange={(val) => form.setValue("releaseDate", val || undefined)}
+                          onPrecisionChange={(val) => form.setValue("releaseDatePrecision", val as "UNKNOWN" | "YEAR" | "MONTH" | "DAY")}
+                        />
                       </FormItem>
                     </div>
                   </section>
+
+                  {/* Show more toggle */}
+                  <button
+                    type="button"
+                    onClick={() => setShowMore((v) => !v)}
+                    className="flex w-full items-center justify-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors py-1"
+                  >
+                    {showMore ? (
+                      <>
+                        <ChevronUp size={14} />
+                        Hide options
+                      </>
+                    ) : (
+                      <>
+                        <ChevronDown size={14} />
+                        Show more options
+                      </>
+                    )}
+                  </button>
+
+                  {/* Collapsible optional fields */}
+                  {showMore && (
+                    <section className="rounded-xl border bg-muted/30 dark:bg-muted/20 p-4 space-y-4">
+                      <SectionHeader>Additional</SectionHeader>
+                      <div className="space-y-3">
+                        <div className="grid grid-cols-2 gap-3">
+                          <FormField
+                            control={form.control}
+                            name="category"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Category</FormLabel>
+                                <FormControl>
+                                  <Input placeholder="e.g. Portrait" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+
+                          <FormField
+                            control={form.control}
+                            name="genre"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Genre</FormLabel>
+                                <FormControl>
+                                  <Input placeholder="e.g. Glamour" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        </div>
+
+                        <FormField
+                          control={form.control}
+                          name="description"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Description</FormLabel>
+                              <FormControl>
+                                <Textarea placeholder="Brief description…" rows={2} {...field} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+
+                        <FormField
+                          control={form.control}
+                          name="notes"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Notes</FormLabel>
+                              <FormControl>
+                                <Textarea placeholder="Internal notes…" rows={2} {...field} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+
+                        {/* Tags */}
+                        <FormItem>
+                          <FormLabel>Tags</FormLabel>
+                          <div className="flex gap-2">
+                            <Input
+                              placeholder="Add a tag…"
+                              value={tagInput}
+                              onChange={(e) => setTagInput(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") { e.preventDefault(); addTag(); }
+                              }}
+                            />
+                            <Button type="button" variant="outline" size="sm" onClick={addTag}>
+                              Add
+                            </Button>
+                          </div>
+                          {tags.length > 0 && (
+                            <div className="mt-2 flex flex-wrap gap-1.5">
+                              {tags.map((tag) => (
+                                <Badge key={tag} variant="secondary" className="gap-1">
+                                  {tag}
+                                  <button
+                                    type="button"
+                                    onClick={() => removeTag(tag)}
+                                    className="ml-0.5 rounded-full outline-none hover:text-destructive focus-visible:ring-1 focus-visible:ring-ring"
+                                    aria-label={`Remove tag ${tag}`}
+                                  >
+                                    <X size={10} />
+                                  </button>
+                                </Badge>
+                              ))}
+                            </div>
+                          )}
+                        </FormItem>
+                      </div>
+                    </section>
+                  )}
 
                 </div>
               </div>
