@@ -259,36 +259,36 @@ export async function computePersonCurrentState(personId: string): Promise<Perso
 }
 
 export async function getPersonWorkHistory(personId: string): Promise<PersonWorkHistoryItem[]> {
-  const contributions = await prisma.setContribution.findMany({
+  const participants = await prisma.setParticipant.findMany({
     where: { personId },
     include: {
       set: {
         include: {
           channel: {
-            include: { label: true },
-          },
-          session: {
-            include: { project: true },
+            include: { labelMaps: { include: { label: true } } },
           },
         },
       },
     },
-    orderBy: { set: { releaseDate: "desc" } },
   });
 
-  return contributions
-    .filter((c) => !c.set.deletedAt)
-    .map((c) => ({
-      setId: c.set.id,
-      setTitle: c.set.title,
-      setType: c.set.type,
-      role: c.role,
-      releaseDate: c.set.releaseDate,
-      releaseDatePrecision: c.set.releaseDatePrecision,
-      channelName: c.set.channel?.name ?? null,
-      labelId: c.set.channel?.label?.id ?? null,
-      labelName: c.set.channel?.label?.name ?? null,
-      projectName: c.set.session?.project?.name ?? null,
+  return participants
+    .filter((p) => !p.set.deletedAt)
+    .sort((a, b) => {
+      const aDate = a.set.releaseDate?.getTime() ?? 0;
+      const bDate = b.set.releaseDate?.getTime() ?? 0;
+      return bDate - aDate;
+    })
+    .map((p) => ({
+      setId: p.set.id,
+      setTitle: p.set.title,
+      setType: p.set.type,
+      role: p.role,
+      releaseDate: p.set.releaseDate,
+      releaseDatePrecision: p.set.releaseDatePrecision,
+      channelName: p.set.channel?.name ?? null,
+      labelId: p.set.channel?.labelMaps[0]?.label.id ?? null,
+      labelName: p.set.channel?.labelMaps[0]?.label.name ?? null,
     }));
 }
 
@@ -423,31 +423,33 @@ export function deriveAffiliations(workHistory: PersonWorkHistoryItem[]): Person
 }
 
 export async function getPersonAffiliations(personId: string): Promise<PersonAffiliation[]> {
-  const contributions = await prisma.setContribution.findMany({
+  const participants = await prisma.setParticipant.findMany({
     where: { personId },
     include: {
       set: {
         include: {
-          channel: { include: { label: true } },
+          channel: { include: { labelMaps: { include: { label: true } } } },
         },
       },
     },
   });
 
   const labelMap = new Map<string, PersonAffiliation>();
-  for (const c of contributions) {
-    if (c.set.deletedAt) continue;
-    const label = c.set.channel?.label;
-    if (!label) continue;
-    const existing = labelMap.get(label.id);
-    if (existing) {
-      existing.setCount++;
-    } else {
-      labelMap.set(label.id, {
-        labelId: label.id,
-        labelName: label.name,
-        setCount: 1,
-      });
+  for (const p of participants) {
+    if (p.set.deletedAt) continue;
+    const labelMaps = p.set.channel?.labelMaps ?? [];
+    for (const lm of labelMaps) {
+      const label = lm.label;
+      const existing = labelMap.get(label.id);
+      if (existing) {
+        existing.setCount++;
+      } else {
+        labelMap.set(label.id, {
+          labelId: label.id,
+          labelName: label.name,
+          setCount: 1,
+        });
+      }
     }
   }
 
@@ -693,10 +695,9 @@ export async function deletePersonRecord(id: string) {
       data: { deletedAt },
     });
 
-    // Soft-delete set contributions
-    await tx.setContribution.updateMany({
-      where: { personId: id, deletedAt: null },
-      data: { deletedAt },
+    // Hard-delete set participants (no deletedAt column)
+    await tx.setParticipant.deleteMany({
+      where: { personId: id },
     });
 
     // Soft-delete relationship events, then relationships

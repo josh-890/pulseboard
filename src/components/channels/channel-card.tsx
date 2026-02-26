@@ -37,9 +37,9 @@ export function ChannelCard({ channel }: ChannelCardProps) {
 
         {/* Stats */}
         <div className="flex flex-wrap gap-2 text-xs">
-          {channel.label && (
+          {channel.labelMaps[0]?.label && (
           <span className="inline-flex items-center rounded-full border border-white/15 bg-muted/60 px-2.5 py-0.5 font-medium text-muted-foreground">
-            {channel.label.name}
+            {channel.labelMaps[0].label.name}
           </span>
           )}
           {channel.platform && (

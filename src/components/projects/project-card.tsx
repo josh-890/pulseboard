@@ -26,10 +26,6 @@ const STATUS_LABELS: Record<ProjectStatus, string> = {
 
 export function ProjectCard({ project }: ProjectCardProps) {
   const visibleLabels = project.labels.slice(0, 2);
-  const totalSets = project.sessions.reduce(
-    (sum, session) => sum + session.sets.length,
-    0,
-  );
 
   return (
     <Link
@@ -85,11 +81,6 @@ export function ProjectCard({ project }: ProjectCardProps) {
               {project.sessions.length}
             </span>{" "}
             {project.sessions.length === 1 ? "session" : "sessions"}
-          </span>
-          <span className="text-white/20">·</span>
-          <span>
-            <span className="font-semibold text-foreground/80">{totalSets}</span>{" "}
-            {totalSets === 1 ? "set" : "sets"}
           </span>
         </div>
       </div>

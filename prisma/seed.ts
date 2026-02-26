@@ -274,13 +274,13 @@ async function main() {
   });
 
   // Label→Network membership
-  await prisma.labelNetwork.upsert({
+  await prisma.labelNetworkLink.upsert({
     where: { labelId_networkId: { labelId: label.id, networkId: network.id } },
     update: {},
     create: { labelId: label.id, networkId: network.id },
   });
 
-  await prisma.labelNetwork.upsert({
+  await prisma.labelNetworkLink.upsert({
     where: { labelId_networkId: { labelId: label2.id, networkId: network.id } },
     update: {},
     create: { labelId: label2.id, networkId: network.id },
@@ -290,7 +290,7 @@ async function main() {
 
   const channel = await prisma.channel.upsert({
     where: { id: "seed-channel-1" },
-    update: { deletedAt: null, nameNorm: "main site", labelId: null },
+    update: { deletedAt: null, nameNorm: "main site" },
     create: {
       id: "seed-channel-1",
       name: "Main Site",
@@ -508,7 +508,6 @@ async function main() {
     },
     create: {
       id: "seed-set-1",
-      sessionId: session.id,
       channelId: channel.id,
       type: "photo",
       title: "Sample Photoset",
@@ -559,7 +558,7 @@ async function main() {
       setId: set.id,
       role: "MODEL",
       rawName: "Jane",
-      rawNameNorm: "jane",
+      nameNorm: "jane",
       resolutionStatus: "RESOLVED",
       resolvedPersonId: person.id,
     },
@@ -573,7 +572,7 @@ async function main() {
       setId: set.id,
       role: "PHOTOGRAPHER",
       rawName: "M. Reed",
-      rawNameNorm: "m. reed",
+      nameNorm: "m. reed",
       resolutionStatus: "RESOLVED",
       resolvedPersonId: person2.id,
     },
@@ -587,7 +586,7 @@ async function main() {
       setId: set.id,
       role: "MODEL",
       rawName: "Unknown Guest",
-      rawNameNorm: "unknown guest",
+      nameNorm: "unknown guest",
       resolutionStatus: "UNRESOLVED",
     },
   });
@@ -674,18 +673,6 @@ async function main() {
       usage: "PORTFOLIO",
       isFavorite: false,
       sortOrder: 0,
-    },
-  });
-
-  // ─── Legacy SetContribution (kept for backward compat) ─────────────────────
-
-  await prisma.setContribution.upsert({
-    where: { setId_personId: { setId: set.id, personId: person.id } },
-    update: { deletedAt: null },
-    create: {
-      setId: set.id,
-      personId: person.id,
-      role: "main",
     },
   });
 

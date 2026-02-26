@@ -2,23 +2,15 @@
 
 import { revalidatePath } from "next/cache";
 import {
-  createSetSchema,
   updateSetSchema,
-  createSetWithContextSchema,
-  createSetForSessionSchema,
   createSetStandaloneSchema,
-  contributionItemSchema,
   creditEntrySchema,
   labelEvidenceEntrySchema,
 } from "@/lib/validations/set";
 import {
-  createSetRecord,
   updateSetRecord,
   deleteSetRecord,
-  createSetWithContextRecord,
-  createSetForSessionRecord,
   createSetStandaloneRecord,
-  addContributions,
   searchPersonsForSelect,
   getSetsPaginated,
   createSetCreditsRaw,
@@ -26,11 +18,6 @@ import {
   resolveCreditRaw,
   ignoreCreditRaw,
   unresolveCreditRaw,
-  assignSessionToSet,
-  unlinkSessionFromSet,
-  copyParticipantsToSession,
-  searchSessions,
-  createSessionRecord,
 } from "@/lib/services/set-service";
 import type { SetFilters } from "@/lib/services/set-service";
 import { getFavoritePhotosForSets } from "@/lib/services/photo-service";
@@ -46,57 +33,7 @@ type SetIdResult =
 
 type DeleteResult = { success: boolean; error?: string };
 
-type SaveContributionsResult = { success: boolean; error?: string };
-
 type SimpleResult = { success: boolean; error?: string };
-
-export async function createSet(raw: unknown): Promise<ActionResult> {
-  const parsed = createSetSchema.safeParse(raw);
-  if (!parsed.success) {
-    return { success: false, error: parsed.error.flatten() };
-  }
-
-  try {
-    const set = await createSetRecord(parsed.data);
-    revalidatePath("/sets");
-    return { success: true, id: set.id };
-  } catch {
-    return { success: false, error: "Unexpected error" };
-  }
-}
-
-export async function createSetWithContext(raw: unknown): Promise<SetIdResult> {
-  const parsed = createSetWithContextSchema.safeParse(raw);
-  if (!parsed.success) {
-    return { success: false, error: parsed.error.issues[0]?.message ?? "Validation error" };
-  }
-
-  try {
-    const result = await createSetWithContextRecord(parsed.data);
-    revalidatePath("/sets");
-    revalidatePath("/projects");
-    return { success: true, setId: result.setId };
-  } catch {
-    return { success: false, error: "Unexpected error" };
-  }
-}
-
-export async function createSetForSession(raw: unknown): Promise<SetIdResult> {
-  const parsed = createSetForSessionSchema.safeParse(raw);
-  if (!parsed.success) {
-    return { success: false, error: parsed.error.issues[0]?.message ?? "Validation error" };
-  }
-
-  try {
-    const result = await createSetForSessionRecord(parsed.data);
-    revalidatePath("/sets");
-    revalidatePath("/projects");
-    revalidatePath(`/projects/${parsed.data.projectId}`);
-    return { success: true, setId: result.setId };
-  } catch {
-    return { success: false, error: "Unexpected error" };
-  }
-}
 
 export async function createSetStandalone(raw: unknown): Promise<SetIdResult> {
   const parsed = createSetStandaloneSchema.safeParse(raw);
@@ -110,24 +47,6 @@ export async function createSetStandalone(raw: unknown): Promise<SetIdResult> {
     return { success: true, setId: result.setId };
   } catch {
     return { success: false, error: "Unexpected error" };
-  }
-}
-
-export async function saveContributions(
-  setId: string,
-  rawContributions: unknown[],
-): Promise<SaveContributionsResult> {
-  const parsed = z.array(contributionItemSchema).safeParse(rawContributions);
-  if (!parsed.success) {
-    return { success: false, error: "Invalid contributions data" };
-  }
-
-  try {
-    await addContributions(setId, parsed.data);
-    revalidatePath(`/sets/${setId}`);
-    return { success: true };
-  } catch {
-    return { success: false, error: "Failed to save contributors" };
   }
 }
 
@@ -198,60 +117,6 @@ export async function unresolveCredit(creditId: string): Promise<SimpleResult> {
   } catch {
     return { success: false, error: "Failed to unresolve credit" };
   }
-}
-
-export async function assignSession(
-  setId: string,
-  sessionId: string,
-  shouldCopyParticipants: boolean,
-): Promise<SimpleResult> {
-  try {
-    await assignSessionToSet(setId, sessionId);
-    if (shouldCopyParticipants) {
-      await copyParticipantsToSession(setId, sessionId);
-    }
-    revalidatePath(`/sets/${setId}`);
-    return { success: true };
-  } catch {
-    return { success: false, error: "Failed to assign session" };
-  }
-}
-
-export async function unlinkSession(setId: string): Promise<SimpleResult> {
-  try {
-    await unlinkSessionFromSet(setId);
-    revalidatePath(`/sets/${setId}`);
-    return { success: true };
-  } catch {
-    return { success: false, error: "Failed to unlink session" };
-  }
-}
-
-export async function createNewSession(raw: {
-  name: string;
-  date?: string;
-  datePrecision?: string;
-  projectId?: string;
-  labelId?: string;
-}): Promise<{ success: true; id: string } | { success: false; error: string }> {
-  try {
-    const session = await createSessionRecord(raw);
-    revalidatePath("/sets");
-    return { success: true, id: session.id };
-  } catch {
-    return { success: false, error: "Failed to create session" };
-  }
-}
-
-export async function searchSessionsAction(q: string) {
-  if (!q.trim()) return [];
-  const sessions = await searchSessions(q.trim());
-  return sessions.map((s) => ({
-    id: s.id,
-    name: s.name,
-    projectId: s.project?.id ?? null,
-    projectName: s.project?.name ?? null,
-  }));
 }
 
 export async function searchPersonsAction(q: string) {

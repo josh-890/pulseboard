@@ -157,62 +157,65 @@ export default async function LabelDetailPage({
 
       {/* Channels */}
       <SectionCard
-        title={`Channels (${label.channels.length})`}
+        title={`Channels (${label.channelMaps.length})`}
         icon={<Radio size={18} />}
         action={<AddChannelSheet labels={labelOption} defaultLabelId={label.id} />}
       >
-        {label.channels.length === 0 ? (
+        {label.channelMaps.length === 0 ? (
           <EmptyState message="No channels for this label." />
         ) : (
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            {label.channels.map((channel) => (
-              <div
-                key={channel.id}
-                className="rounded-xl border border-white/15 bg-card/40 p-4"
-              >
-                <div className="mb-1 flex items-center justify-between gap-2">
-                  <Link
-                    href={`/channels/${channel.id}`}
-                    className="font-medium transition-colors hover:text-primary"
-                  >
-                    {channel.name}
-                  </Link>
-                  <div className="flex items-center gap-2">
-                    {channel.platform && (
-                      <span className="rounded-full border border-white/15 bg-muted/50 px-2 py-0.5 text-xs text-muted-foreground">
-                        {channel.platform}
+            {label.channelMaps.map((channelMap) => {
+              const channel = channelMap.channel;
+              return (
+                <div
+                  key={channel.id}
+                  className="rounded-xl border border-white/15 bg-card/40 p-4"
+                >
+                  <div className="mb-1 flex items-center justify-between gap-2">
+                    <Link
+                      href={`/channels/${channel.id}`}
+                      className="font-medium transition-colors hover:text-primary"
+                    >
+                      {channel.name}
+                    </Link>
+                    <div className="flex items-center gap-2">
+                      {channel.platform && (
+                        <span className="rounded-full border border-white/15 bg-muted/50 px-2 py-0.5 text-xs text-muted-foreground">
+                          {channel.platform}
+                        </span>
+                      )}
+                      <span className="text-xs text-muted-foreground">
+                        {channel.sets.length}{" "}
+                        {channel.sets.length === 1 ? "set" : "sets"}
                       </span>
-                    )}
-                    <span className="text-xs text-muted-foreground">
-                      {channel.sets.length}{" "}
-                      {channel.sets.length === 1 ? "set" : "sets"}
-                    </span>
+                    </div>
+                  </div>
+                  {channel.url && (
+                    <a
+                      href={channel.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-xs text-primary hover:underline underline-offset-2"
+                    >
+                      <ExternalLink size={11} />
+                      {channel.url}
+                    </a>
+                  )}
+                  <div className="mt-2 flex items-center gap-1.5">
+                    <EditChannelSheet
+                      channel={{ ...channel, labelId: channelMap.labelId }}
+                      labels={labelOption}
+                    />
+                    <DeleteButton
+                      title="Delete channel?"
+                      description="This will detach all sets from this channel and permanently remove it. This action cannot be undone."
+                      onDelete={deleteChannel.bind(null, channel.id)}
+                    />
                   </div>
                 </div>
-                {channel.url && (
-                  <a
-                    href={channel.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 text-xs text-primary hover:underline underline-offset-2"
-                  >
-                    <ExternalLink size={11} />
-                    {channel.url}
-                  </a>
-                )}
-                <div className="mt-2 flex items-center gap-1.5">
-                  <EditChannelSheet
-                    channel={channel}
-                    labels={labelOption}
-                  />
-                  <DeleteButton
-                    title="Delete channel?"
-                    description="This will detach all sets from this channel and permanently remove it. This action cannot be undone."
-                    onDelete={deleteChannel.bind(null, channel.id)}
-                  />
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </SectionCard>

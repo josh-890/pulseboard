@@ -27,12 +27,6 @@ enum AliasSource {
   IMPORT
 }
 
-enum ContributionRole {
-  main
-  supporting
-  background
-}
-
 enum SetType {
   photo
   video
@@ -224,7 +218,6 @@ model Person {
 
   aliases          PersonAlias[]
   personas         Persona[]
-  contributions    SetContribution[]
   relationships    PersonRelationship[] @relation("PersonA")
   relatedTo        PersonRelationship[] @relation("PersonB")
   bodyMarks        BodyMark[]
@@ -565,7 +558,7 @@ model Network {
   website     String?
   deletedAt   DateTime?
 
-  labelMemberships LabelNetwork[]
+  labelMemberships LabelNetworkLink[]
 
   @@index([name])
   @@index([nameNorm])
@@ -580,8 +573,7 @@ model Label {
   website     String?
   deletedAt   DateTime?
 
-  networks        LabelNetwork[]
-  channels        Channel[]
+  networks        LabelNetworkLink[]
   projects        ProjectLabel[]
   primaryProjects Project[]          @relation("PrimaryLabel")
   sessions        Session[]
@@ -593,19 +585,18 @@ model Label {
   @@index([deletedAt])
 }
 
-model LabelNetwork {
+model LabelNetworkLink {
   labelId   String
   label     Label   @relation(fields: [labelId], references: [id])
   networkId String
   network   Network @relation(fields: [networkId], references: [id])
 
   @@id([labelId, networkId])
+  @@map("LabelNetwork")
 }
 
 model Channel {
   id        String  @id @default(cuid())
-  labelId   String?
-  label     Label?  @relation(fields: [labelId], references: [id])
   name      String
   nameNorm  String?
   url       String?
@@ -616,7 +607,6 @@ model Channel {
   sets      Set[]
   labelMaps ChannelLabelMap[]
 
-  @@index([labelId])
   @@index([nameNorm])
   @@index([deletedAt])
 }
@@ -699,7 +689,6 @@ model Session {
   updatedAt   DateTime  @updatedAt
   deletedAt   DateTime?
 
-  sets         Set[]
   mediaItems   MediaItem[]
   participants SessionParticipant[]
 
@@ -712,8 +701,6 @@ model Session {
 
 model Set {
   id          String    @id @default(cuid())
-  sessionId   String?
-  session     Session?  @relation(fields: [sessionId], references: [id])
   channelId   String?
   channel     Channel?  @relation(fields: [channelId], references: [id])
   type        SetType
@@ -733,34 +720,17 @@ model Set {
   updatedAt   DateTime  @updatedAt
   deletedAt   DateTime?
 
-  contributions  SetContribution[]
   setMediaItems  SetMediaItem[]
   creditsRaw     SetCreditRaw[]
   participants   SetParticipant[]
   labelEvidence  SetLabelEvidence[]
 
-  @@index([sessionId])
   @@index([channelId])
   @@index([type])
   @@index([releaseDate])
   @@index([titleNorm])
   @@index([deletedAt])
   @@index([coverMediaItemId])
-}
-
-model SetContribution {
-  id       String           @id @default(cuid())
-  setId    String
-  set      Set              @relation(fields: [setId], references: [id])
-  personId String
-  person   Person           @relation(fields: [personId], references: [id])
-  role     ContributionRole @default(main)
-  deletedAt DateTime?
-
-  @@unique([setId, personId])
-  @@index([setId])
-  @@index([personId])
-  @@index([deletedAt])
 }
 
 // ─── Media ───────────────────────────────────────────────────────────────────
@@ -843,7 +813,7 @@ model SetCreditRaw {
   set              Set              @relation(fields: [setId], references: [id])
   role             ParticipantRole
   rawName          String
-  rawNameNorm      String?
+  nameNorm         String?   @map("rawNameNorm")
   resolutionStatus ResolutionStatus @default(UNRESOLVED)
   resolvedPersonId String?
   resolvedPerson   Person?          @relation(fields: [resolvedPersonId], references: [id])
@@ -853,7 +823,7 @@ model SetCreditRaw {
 
   @@index([setId])
   @@index([resolutionStatus])
-  @@index([rawNameNorm])
+  @@index([nameNorm])
   @@index([resolvedPersonId])
   @@index([deletedAt])
 }

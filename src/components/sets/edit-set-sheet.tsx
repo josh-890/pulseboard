@@ -42,7 +42,6 @@ import { updateSet } from "@/lib/actions/set-actions";
 import type { SetType } from "@/lib/types";
 import { PartialDateInput } from "@/components/shared/partial-date-input";
 
-type SessionOption = { id: string; name: string; projectName: string | null };
 type ChannelOption = { id: string; name: string; labelName: string | null };
 
 type EditSetSheetProps = {
@@ -50,7 +49,6 @@ type EditSetSheetProps = {
     id: string;
     type: SetType;
     title: string;
-    sessionId: string | null;
     channelId: string | null;
     description: string | null;
     notes: string | null;
@@ -60,7 +58,6 @@ type EditSetSheetProps = {
     genre: string | null;
     tags: string[];
   };
-  sessions: SessionOption[];
   channels: ChannelOption[];
 };
 
@@ -73,14 +70,13 @@ function SectionHeader({ children }: { children: React.ReactNode }) {
   );
 }
 
-export function EditSetSheet({ set, sessions, channels }: EditSetSheetProps) {
+export function EditSetSheet({ set, channels }: EditSetSheetProps) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [tagInput, setTagInput] = useState("");
 
   const getDefaults = () => ({
     id: set.id,
-    sessionId: set.sessionId ?? undefined,
     title: set.title,
     channelId: set.channelId ?? undefined,
     description: set.description ?? "",
@@ -215,35 +211,6 @@ export function EditSetSheet({ set, sessions, channels }: EditSetSheetProps) {
                 <section className="rounded-xl border bg-muted/30 dark:bg-muted/20 p-4 space-y-4">
                   <SectionHeader>Context</SectionHeader>
                   <div className="space-y-3">
-                    <FormField
-                      control={form.control}
-                      name="sessionId"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Session</FormLabel>
-                          <Select
-                            onValueChange={(v) => field.onChange(v === "_none" ? undefined : v)}
-                            value={field.value ?? "_none"}
-                          >
-                            <FormControl>
-                              <SelectTrigger className="w-full">
-                                <SelectValue placeholder="Select session…" />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              <SelectItem value="_none">— none —</SelectItem>
-                              {sessions.map((s) => (
-                                <SelectItem key={s.id} value={s.id}>
-                                  {s.name}{s.projectName ? ` — ${s.projectName}` : ""}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
                     <FormField
                       control={form.control}
                       name="channelId"

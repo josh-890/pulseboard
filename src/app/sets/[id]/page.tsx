@@ -1,14 +1,13 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { Camera, Film, Tag, Users, FileText, Link2 } from "lucide-react";
-import { getSetById, getSessionsForSelect, getChannelsForSelect } from "@/lib/services/set-service";
+import { Camera, Film, Tag, FileText } from "lucide-react";
+import { getSetById, getChannelsForSelect } from "@/lib/services/set-service";
 import { getPhotosForEntity } from "@/lib/services/photo-service";
 import { getProfileImageLabels } from "@/lib/services/setting-service";
 import { SetDetailGallery } from "@/components/sets/set-detail-gallery";
 import { CreditResolutionPanel } from "@/components/sets/credit-resolution-panel";
-import { SessionAssignmentPanel } from "@/components/sets/session-assignment-panel";
 import { cn, formatPartialDate } from "@/lib/utils";
-import type { ContributionRole, SetType, PhotoWithUrls } from "@/lib/types";
+import type { SetType, PhotoWithUrls } from "@/lib/types";
 import { EditSetSheet } from "@/components/sets/edit-set-sheet";
 import { DeleteButton } from "@/components/shared/delete-button";
 import { deleteSet } from "@/lib/actions/set-actions";
@@ -21,13 +20,6 @@ type SetDetailPageProps = {
 };
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
-
-function getInitialsForPerson(name: string): string {
-  const parts = name.trim().split(/\s+/);
-  if (parts.length === 0 || !parts[0]) return "?";
-  if (parts.length === 1) return parts[0].charAt(0).toUpperCase();
-  return `${parts[0].charAt(0)}${parts[1].charAt(0)}`.toUpperCase();
-}
 
 type SetTypeConfig = {
   icon: React.ReactNode;
@@ -48,20 +40,6 @@ const SET_TYPE_CONFIG: Record<SetType, SetTypeConfig> = {
     className:
       "border-violet-500/30 bg-violet-500/15 text-violet-600 dark:text-violet-400",
   },
-};
-
-const ROLE_STYLES: Record<ContributionRole, string> = {
-  main: "border-blue-500/30 bg-blue-500/15 text-blue-600 dark:text-blue-400",
-  supporting:
-    "border-purple-500/30 bg-purple-500/15 text-purple-600 dark:text-purple-400",
-  background:
-    "border-slate-500/30 bg-slate-500/15 text-slate-600 dark:text-slate-400",
-};
-
-const ROLE_LABELS: Record<ContributionRole, string> = {
-  main: "Main",
-  supporting: "Supporting",
-  background: "Background",
 };
 
 // ── Sub-components ──────────────────────────────────────────────────────────
@@ -97,10 +75,9 @@ function SectionCard({ title, icon, children, className }: SectionCardProps) {
 export default async function SetDetailPage({ params }: SetDetailPageProps) {
   const { id } = await params;
 
-  const [set, photos, sessions, channels, profileLabels] = await Promise.all([
+  const [set, photos, channels, profileLabels] = await Promise.all([
     getSetById(id),
     getPhotosForEntity("set", id),
-    getSessionsForSelect(),
     getChannelsForSelect(),
     getProfileImageLabels(),
   ]);
@@ -113,10 +90,11 @@ export default async function SetDetailPage({ params }: SetDetailPageProps) {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const photoProps = photos.map(({ variants, ...rest }) => rest);
 
-  // Determine if we have new-style credits or only legacy contributions
-  const hasNewCredits = set.creditsRaw.length > 0;
-  const hasLegacyContributions = set.contributions.length > 0;
-  const hasParticipants = set.participants.length > 0;
+  // Determine if we have credits
+  const hasCredits = set.creditsRaw.length > 0;
+
+  // Get the primary label from channel's label maps
+  const primaryLabel = set.channel?.labelMaps[0]?.label;
 
   return (
     <div className="space-y-6">
@@ -135,7 +113,6 @@ export default async function SetDetailPage({ params }: SetDetailPageProps) {
               id: set.id,
               type: set.type,
               title: set.title,
-              sessionId: set.sessionId,
               channelId: set.channelId,
               description: set.description,
               notes: set.notes,
@@ -145,12 +122,11 @@ export default async function SetDetailPage({ params }: SetDetailPageProps) {
               genre: set.genre,
               tags: set.tags,
             }}
-            sessions={sessions}
             channels={channels}
           />
           <DeleteButton
             title="Delete set?"
-            description="This will permanently remove the set and all contributions. This action cannot be undone."
+            description="This will permanently remove the set and all credits. This action cannot be undone."
             onDelete={deleteSet.bind(null, id)}
             redirectTo="/sets"
           />
@@ -185,14 +161,14 @@ export default async function SetDetailPage({ params }: SetDetailPageProps) {
                 <span className="font-medium text-foreground/80">
                   {set.channel.name}
                 </span>
-                {set.channel.label && (
+                {primaryLabel && (
                   <>
                     {" · "}
                     <Link
-                      href={`/labels/${set.channel.label.id}`}
+                      href={`/labels/${primaryLabel.id}`}
                       className="hover:text-foreground hover:underline underline-offset-2 transition-colors"
                     >
-                      {set.channel.label.name}
+                      {primaryLabel.name}
                     </Link>
                   </>
                 )}
@@ -224,25 +200,6 @@ export default async function SetDetailPage({ params }: SetDetailPageProps) {
           </div>
         </div>
       </div>
-
-      {/* Session assignment */}
-      <SectionCard title="Production" icon={<Link2 size={18} />}>
-        <SessionAssignmentPanel
-          setId={id}
-          currentSession={
-            set.session
-              ? {
-                  id: set.session.id,
-                  name: set.session.name,
-                  project: set.session.project
-                    ? { id: set.session.project.id, name: set.session.project.name }
-                    : null,
-                }
-              : null
-          }
-          hasParticipants={hasParticipants}
-        />
-      </SectionCard>
 
       {/* Description + notes */}
       {(set.description || set.notes) && (
@@ -277,8 +234,8 @@ export default async function SetDetailPage({ params }: SetDetailPageProps) {
         profileLabels={profileLabels}
       />
 
-      {/* Credits & Participants (new-style) */}
-      {hasNewCredits && (
+      {/* Credits & Participants */}
+      {hasCredits && (
         <SectionCard
           title={`Credits (${set.creditsRaw.length})`}
           icon={<FileText size={18} />}
@@ -301,48 +258,6 @@ export default async function SetDetailPage({ params }: SetDetailPageProps) {
                 : null,
             }))}
           />
-        </SectionCard>
-      )}
-
-      {/* Legacy cast section (for sets created before the new credit system) */}
-      {!hasNewCredits && hasLegacyContributions && (
-        <SectionCard
-          title={`Cast (${set.contributions.length})`}
-          icon={<Users size={18} />}
-        >
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {set.contributions.map((contribution) => {
-              const common = contribution.person.aliases.find(
-                (a) => a.type === "common",
-              );
-              const displayName = common?.name ?? contribution.person.icgId;
-              const initials = getInitialsForPerson(displayName);
-              return (
-                <Link
-                  key={contribution.id}
-                  href={`/people/${contribution.person.id}`}
-                  className="group flex items-center gap-3 rounded-xl border border-white/15 bg-card/40 p-3 transition-all hover:border-white/25 hover:bg-card/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                >
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary">
-                    {initials}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium group-hover:text-primary">
-                      {displayName}
-                    </p>
-                    <span
-                      className={cn(
-                        "inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium",
-                        ROLE_STYLES[contribution.role],
-                      )}
-                    >
-                      {ROLE_LABELS[contribution.role]}
-                    </span>
-                  </div>
-                </Link>
-              );
-            })}
-          </div>
         </SectionCard>
       )}
 

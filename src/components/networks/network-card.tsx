@@ -12,7 +12,7 @@ type NetworkCardProps = {
 export function NetworkCard({ network }: NetworkCardProps) {
   const labelCount = network.labelMemberships.length;
   const channelCount = network.labelMemberships.reduce(
-    (sum, m) => sum + m.label.channels.length,
+    (sum, m) => sum + m.label.channelMaps.length,
     0,
   );
 

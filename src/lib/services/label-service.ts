@@ -4,9 +4,12 @@ export async function getLabels(q?: string) {
   return prisma.label.findMany({
     where: q ? { name: { contains: q, mode: "insensitive" } } : undefined,
     include: {
-      channels: {
-        where: { deletedAt: null },
-        orderBy: { name: "asc" },
+      channelMaps: {
+        include: {
+          channel: {
+            select: { id: true, name: true, deletedAt: true },
+          },
+        },
       },
       networks: {
         where: { network: { deletedAt: null } },
@@ -25,16 +28,18 @@ export async function getLabelById(id: string) {
   return prisma.label.findUnique({
     where: { id },
     include: {
-      channels: {
-        where: { deletedAt: null },
+      channelMaps: {
         include: {
-          sets: {
-            where: { deletedAt: null },
-            orderBy: { releaseDate: "desc" },
-            take: 10,
+          channel: {
+            include: {
+              sets: {
+                where: { deletedAt: null },
+                orderBy: { releaseDate: "desc" },
+                take: 10,
+              },
+            },
           },
         },
-        orderBy: { name: "asc" },
       },
       networks: {
         where: { network: { deletedAt: null } },
@@ -47,12 +52,6 @@ export async function getLabelById(id: string) {
             include: {
               sessions: {
                 where: { deletedAt: null },
-                include: {
-                  sets: {
-                    where: { deletedAt: null },
-                    select: { id: true, type: true },
-                  },
-                },
               },
             },
           },
@@ -99,28 +98,14 @@ export async function deleteLabelRecord(id: string) {
   const deletedAt = new Date();
 
   return prisma.$transaction(async (tx) => {
-    // Find non-deleted channels
-    const channels = await tx.channel.findMany({
-      where: { labelId: id, deletedAt: null },
-      select: { id: true },
-    });
+    // Remove channel label mappings for this label
+    await tx.channelLabelMap.deleteMany({ where: { labelId: id } });
 
-    // Detach sets from channels (don't delete — sets survive label deletion)
-    for (const channel of channels) {
-      await tx.set.updateMany({
-        where: { channelId: channel.id },
-        data: { channelId: null },
-      });
-    }
-
-    // Soft-delete channels
-    await tx.channel.updateMany({
-      where: { labelId: id, deletedAt: null },
-      data: { deletedAt },
-    });
+    // Remove set label evidence for this label
+    await tx.setLabelEvidence.deleteMany({ where: { labelId: id } });
 
     // Hard-delete join table rows (no deletedAt column)
-    await tx.labelNetwork.deleteMany({ where: { labelId: id } });
+    await tx.labelNetworkLink.deleteMany({ where: { labelId: id } });
     await tx.projectLabel.deleteMany({ where: { labelId: id } });
 
     // Soft-delete the label

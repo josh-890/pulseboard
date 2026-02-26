@@ -38,8 +38,8 @@ export function LabelCard({ label }: LabelCardProps) {
         {/* Count badges */}
         <div className="mb-2.5 flex flex-wrap gap-2 text-xs">
           <span className="inline-flex items-center rounded-full border border-white/15 bg-muted/60 px-2.5 py-0.5 font-medium text-muted-foreground">
-            {label.channels.length}{" "}
-            {label.channels.length === 1 ? "channel" : "channels"}
+            {label.channelMaps.length}{" "}
+            {label.channelMaps.length === 1 ? "channel" : "channels"}
           </span>
           <span className="inline-flex items-center rounded-full border border-white/15 bg-muted/60 px-2.5 py-0.5 font-medium text-muted-foreground">
             {label.projects.length}{" "}

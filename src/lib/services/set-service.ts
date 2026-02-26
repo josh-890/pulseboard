@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db";
-import type { Prisma, SetType, ContributionRole, ParticipantRole, ResolutionStatus } from "@/generated/prisma/client";
+import type { Prisma, SetType, ParticipantRole, ResolutionStatus } from "@/generated/prisma/client";
 import { cascadeDeleteSet } from "./cascade-helpers";
 
 export type SetFilters = {
@@ -22,16 +22,16 @@ export async function getSets(filters: SetFilters = {}) {
   }
 
   if (labelId) {
-    where.channel = { labelId };
+    where.channel = { labelMaps: { some: { labelId } } };
   }
 
   return prisma.set.findMany({
     where,
     include: {
-      channel: { include: { label: true } },
-      session: { include: { project: true } },
-      contributions: {
-        where: { deletedAt: null, person: { deletedAt: null } },
+      channel: {
+        include: { labelMaps: { include: { label: true } } },
+      },
+      participants: {
         include: {
           person: {
             include: {
@@ -39,8 +39,6 @@ export async function getSets(filters: SetFilters = {}) {
             },
           },
         },
-        orderBy: { role: "asc" },
-        take: 5,
       },
     },
     orderBy: { releaseDate: "desc" },
@@ -71,7 +69,7 @@ export async function getSetsPaginated(
   }
 
   if (labelId) {
-    where.channel = { labelId };
+    where.channel = { labelMaps: { some: { labelId } } };
   }
 
   const [totalCount, sets] = await Promise.all([
@@ -79,10 +77,10 @@ export async function getSetsPaginated(
     prisma.set.findMany({
       where,
       include: {
-        channel: { include: { label: true } },
-        session: { include: { project: true } },
-        contributions: {
-          where: { deletedAt: null },
+        channel: {
+          include: { labelMaps: { include: { label: true } } },
+        },
+        participants: {
           include: {
             person: {
               include: {
@@ -90,8 +88,6 @@ export async function getSetsPaginated(
               },
             },
           },
-          orderBy: { role: "asc" },
-          take: 5,
         },
       },
       orderBy: { releaseDate: "desc" },
@@ -111,18 +107,8 @@ export async function getSetById(id: string) {
   return prisma.set.findUnique({
     where: { id },
     include: {
-      channel: { include: { label: true } },
-      session: { include: { project: true } },
-      contributions: {
-        where: { deletedAt: null, person: { deletedAt: null } },
-        include: {
-          person: {
-            include: {
-              aliases: { where: { type: "common", deletedAt: null }, take: 1 },
-            },
-          },
-        },
-        orderBy: { role: "asc" },
+      channel: {
+        include: { labelMaps: { include: { label: true } } },
       },
       creditsRaw: {
         where: { deletedAt: null },
@@ -156,36 +142,6 @@ export async function countSets(): Promise<number> {
   return prisma.set.count();
 }
 
-export async function createSetRecord(data: {
-  sessionId: string;
-  type: "photo" | "video";
-  title: string;
-  channelId?: string;
-  description?: string;
-  notes?: string;
-  releaseDate?: string;
-  releaseDatePrecision?: string;
-  category?: string;
-  genre?: string;
-  tags?: string[];
-}) {
-  return prisma.set.create({
-    data: {
-      sessionId: data.sessionId,
-      type: data.type,
-      title: data.title,
-      channelId: data.channelId,
-      description: data.description,
-      notes: data.notes,
-      releaseDate: data.releaseDate ? new Date(data.releaseDate) : undefined,
-      releaseDatePrecision: (data.releaseDatePrecision as "UNKNOWN" | "YEAR" | "MONTH" | "DAY") ?? "UNKNOWN",
-      category: data.category,
-      genre: data.genre,
-      tags: data.tags ?? [],
-    },
-  });
-}
-
 export async function createSetStandaloneRecord(data: {
   channelId: string;
   type: "photo" | "video";
@@ -216,7 +172,6 @@ export async function createSetStandaloneRecord(data: {
 }
 
 export async function updateSetRecord(id: string, data: {
-  sessionId?: string;
   title?: string;
   channelId?: string | null;
   description?: string | null;
@@ -230,7 +185,6 @@ export async function updateSetRecord(id: string, data: {
   return prisma.set.update({
     where: { id },
     data: {
-      sessionId: data.sessionId,
       title: data.title,
       channelId: data.channelId,
       description: data.description,
@@ -251,182 +205,41 @@ export async function deleteSetRecord(id: string) {
   });
 }
 
-export async function getSessionsForSelect() {
-  const sessions = await prisma.session.findMany({
-    include: { project: { select: { name: true } } },
-    orderBy: [{ project: { name: "asc" } }, { name: "asc" }],
-  });
-  return sessions.map((s) => ({
-    id: s.id,
-    name: s.name,
-    projectName: s.project?.name ?? null,
-  }));
-}
-
 export async function getChannelsForSelect() {
   const channels = await prisma.channel.findMany({
-    include: { label: { select: { id: true, name: true } } },
-    orderBy: [{ label: { name: "asc" } }, { name: "asc" }],
+    include: {
+      labelMaps: { include: { label: { select: { id: true, name: true } } } },
+    },
+    orderBy: { name: "asc" },
   });
   return channels.map((c) => ({
     id: c.id,
     name: c.name,
-    labelName: c.label?.name ?? null,
-    labelId: c.label?.id ?? null,
+    labelName: c.labelMaps[0]?.label.name ?? null,
+    labelId: c.labelMaps[0]?.label.id ?? null,
   }));
 }
 
 export async function getChannelsWithLabelMaps() {
   const channels = await prisma.channel.findMany({
     include: {
-      label: { select: { id: true, name: true } },
       labelMaps: {
         include: { label: { select: { id: true, name: true } } },
       },
     },
-    orderBy: [{ label: { name: "asc" } }, { name: "asc" }],
+    orderBy: { name: "asc" },
   });
   return channels.map((c) => ({
     id: c.id,
     name: c.name,
-    labelName: c.label?.name ?? null,
-    labelId: c.label?.id ?? null,
+    labelName: c.labelMaps[0]?.label.name ?? null,
+    labelId: c.labelMaps[0]?.label.id ?? null,
     labelMaps: c.labelMaps.map((m) => ({
       labelId: m.labelId,
       labelName: m.label.name,
       confidence: m.confidence,
     })),
   }));
-}
-
-// Flow A — standalone: auto-creates project + session from set data (legacy)
-export async function createSetWithContextRecord(data: {
-  channelId: string;
-  type: "photo" | "video";
-  title: string;
-  description?: string;
-  notes?: string;
-  releaseDate?: string;
-  releaseDatePrecision?: string;
-  category?: string;
-  genre?: string;
-  tags?: string[];
-}) {
-  return prisma.$transaction(async (tx) => {
-    const channel = await tx.channel.findUnique({ where: { id: data.channelId } });
-    if (!channel) throw new Error("Channel not found");
-
-    const project = await tx.project.create({
-      data: { name: data.title, status: "active" },
-    });
-
-    if (channel.labelId) {
-      await tx.projectLabel.create({
-        data: { projectId: project.id, labelId: channel.labelId },
-      });
-    }
-
-    const session = await tx.session.create({
-      data: {
-        projectId: project.id,
-        name: data.title,
-        date: data.releaseDate ? new Date(data.releaseDate) : undefined,
-        datePrecision: (data.releaseDatePrecision as "UNKNOWN" | "YEAR" | "MONTH" | "DAY") ?? "UNKNOWN",
-      },
-    });
-
-    const set = await tx.set.create({
-      data: {
-        sessionId: session.id,
-        channelId: data.channelId,
-        type: data.type,
-        title: data.title,
-        releaseDate: data.releaseDate ? new Date(data.releaseDate) : undefined,
-        releaseDatePrecision: (data.releaseDatePrecision as "UNKNOWN" | "YEAR" | "MONTH" | "DAY") ?? "UNKNOWN",
-        category: data.category,
-        genre: data.genre,
-        description: data.description,
-        notes: data.notes,
-        tags: data.tags ?? [],
-      },
-    });
-
-    return { setId: set.id, projectId: project.id };
-  });
-}
-
-// Flow B — in-session: set belongs to a known session
-export async function createSetForSessionRecord(data: {
-  sessionId: string;
-  projectId: string;
-  channelId?: string;
-  newChannel?: { name: string; platform?: string; labelId: string };
-  type: "photo" | "video";
-  title: string;
-  description?: string;
-  notes?: string;
-  releaseDate?: string;
-  releaseDatePrecision?: string;
-  category?: string;
-  genre?: string;
-  tags?: string[];
-}) {
-  return prisma.$transaction(async (tx) => {
-    let finalChannelId = data.channelId;
-
-    if (data.newChannel) {
-      const created = await tx.channel.create({
-        data: {
-          labelId: data.newChannel.labelId,
-          name: data.newChannel.name,
-          platform: data.newChannel.platform,
-        },
-      });
-      finalChannelId = created.id;
-    }
-
-    if (finalChannelId) {
-      const channel = await tx.channel.findUnique({ where: { id: finalChannelId } });
-      if (channel && channel.labelId) {
-        await tx.projectLabel.upsert({
-          where: {
-            projectId_labelId: { projectId: data.projectId, labelId: channel.labelId },
-          },
-          create: { projectId: data.projectId, labelId: channel.labelId },
-          update: {},
-        });
-      }
-    }
-
-    const set = await tx.set.create({
-      data: {
-        sessionId: data.sessionId,
-        channelId: finalChannelId,
-        type: data.type,
-        title: data.title,
-        releaseDate: data.releaseDate ? new Date(data.releaseDate) : undefined,
-        releaseDatePrecision: (data.releaseDatePrecision as "UNKNOWN" | "YEAR" | "MONTH" | "DAY") ?? "UNKNOWN",
-        category: data.category,
-        genre: data.genre,
-        description: data.description,
-        notes: data.notes,
-        tags: data.tags ?? [],
-      },
-    });
-
-    return { setId: set.id };
-  });
-}
-
-export async function addContributions(
-  setId: string,
-  contributions: { personId: string; role: ContributionRole }[],
-) {
-  if (contributions.length === 0) return;
-  await prisma.setContribution.createMany({
-    data: contributions.map((c) => ({ setId, personId: c.personId, role: c.role })),
-    skipDuplicates: true,
-  });
 }
 
 export async function searchPersonsForSelect(q: string) {
@@ -594,75 +407,5 @@ export async function getSetCredits(setId: string) {
       },
     },
     orderBy: { createdAt: "asc" },
-  });
-}
-
-// ── Session assignment ──────────────────────────────────────────────────────
-
-export async function assignSessionToSet(setId: string, sessionId: string) {
-  return prisma.set.update({
-    where: { id: setId },
-    data: { sessionId },
-  });
-}
-
-export async function unlinkSessionFromSet(setId: string) {
-  return prisma.set.update({
-    where: { id: setId },
-    data: { sessionId: null },
-  });
-}
-
-export async function copyParticipantsToSession(setId: string, sessionId: string) {
-  const participants = await prisma.setParticipant.findMany({
-    where: { setId },
-  });
-
-  if (participants.length === 0) return;
-
-  await prisma.sessionParticipant.createMany({
-    data: participants.map((p) => ({
-      sessionId,
-      personId: p.personId,
-      role: p.role,
-    })),
-    skipDuplicates: true,
-  });
-}
-
-export async function searchSessions(q: string) {
-  if (!q.trim()) return [];
-  return prisma.session.findMany({
-    where: {
-      deletedAt: null,
-      OR: [
-        { name: { contains: q, mode: "insensitive" } },
-        { project: { name: { contains: q, mode: "insensitive" } } },
-      ],
-    },
-    include: {
-      project: { select: { id: true, name: true } },
-    },
-    take: 20,
-    orderBy: { updatedAt: "desc" },
-  });
-}
-
-export async function createSessionRecord(data: {
-  name: string;
-  date?: string;
-  datePrecision?: string;
-  projectId?: string;
-  labelId?: string;
-}) {
-  return prisma.session.create({
-    data: {
-      name: data.name,
-      projectId: data.projectId,
-      labelId: data.labelId,
-      date: data.date ? new Date(data.date) : undefined,
-      datePrecision: (data.datePrecision as "UNKNOWN" | "YEAR" | "MONTH" | "DAY") ?? "UNKNOWN",
-      status: "DRAFT",
-    },
   });
 }

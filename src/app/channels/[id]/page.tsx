@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { Building2, ExternalLink, FolderKanban, ImageIcon, Radio } from "lucide-react";
+import { Building2, ExternalLink, ImageIcon, Radio } from "lucide-react";
 import { getChannelById } from "@/lib/services/channel-service";
 import { getLabels } from "@/lib/services/label-service";
 import { cn } from "@/lib/utils";
@@ -76,7 +76,16 @@ export default async function ChannelDetailPage({
           Back to Channels
         </Link>
         <div className="flex items-center gap-2">
-          <EditChannelSheet channel={channel} labels={labelOptions} />
+          <EditChannelSheet
+            channel={{
+              id: channel.id,
+              name: channel.name,
+              labelId: channel.labelMaps[0]?.label.id ?? null,
+              platform: channel.platform,
+              url: channel.url,
+            }}
+            labels={labelOptions}
+          />
           <DeleteButton
             title="Delete channel?"
             description="This will detach all sets from this channel and permanently remove it. This action cannot be undone."
@@ -95,13 +104,13 @@ export default async function ChannelDetailPage({
           <div className="min-w-0 flex-1">
             <h1 className="text-2xl font-bold leading-tight">{channel.name}</h1>
             <div className="mt-2 flex flex-wrap items-center gap-2">
-              {channel.label && (
+              {channel.labelMaps[0]?.label && (
               <Link
-                href={`/labels/${channel.label.id}`}
+                href={`/labels/${channel.labelMaps[0].label.id}`}
                 className="inline-flex items-center gap-1.5 rounded-full border border-white/20 bg-muted/60 px-3 py-1 text-sm font-medium transition-colors hover:bg-muted/80 hover:text-primary"
               >
                 <Building2 size={12} />
-                {channel.label.name}
+                {channel.labelMaps[0].label.name}
               </Link>
               )}
               {channel.platform && (
@@ -158,12 +167,6 @@ export default async function ChannelDetailPage({
                     <span className="block truncate text-sm font-medium group-hover:text-primary transition-colors">
                       {set.title ?? "Untitled Set"}
                     </span>
-                    {set.session?.project && (
-                      <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                        <FolderKanban size={11} />
-                        {set.session.project.name}
-                      </span>
-                    )}
                   </div>
                 </div>
                 <div className="ml-3 flex shrink-0 flex-col items-end gap-0.5 text-xs text-muted-foreground">

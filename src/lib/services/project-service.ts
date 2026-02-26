@@ -29,12 +29,6 @@ export async function getProjects(filters: ProjectFilters = {}) {
       },
       sessions: {
         where: { deletedAt: null },
-        include: {
-          sets: {
-            where: { deletedAt: null },
-            select: { id: true, type: true, title: true },
-          },
-        },
         orderBy: { date: "desc" },
       },
     },
@@ -53,22 +47,14 @@ export async function getProjectById(id: string) {
       sessions: {
         where: { deletedAt: null },
         include: {
-          sets: {
-            where: { deletedAt: null },
+          participants: {
             include: {
-              contributions: {
-                where: { deletedAt: null, person: { deletedAt: null } },
+              person: {
                 include: {
-                  person: {
-                    include: {
-                      aliases: { where: { type: "common", deletedAt: null }, take: 1 },
-                    },
-                  },
+                  aliases: { where: { type: "common", deletedAt: null }, take: 1 },
                 },
-                take: 4,
               },
             },
-            orderBy: { releaseDate: "desc" },
           },
         },
         orderBy: { date: "desc" },

@@ -1,14 +1,12 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { Camera, Film, FolderKanban, Tag } from "lucide-react";
+import { FolderKanban, Tag } from "lucide-react";
 import { getProjectById } from "@/lib/services/project-service";
-import { getChannelsForSelect } from "@/lib/services/set-service";
 import { cn, formatPartialDate } from "@/lib/utils";
-import type { ProjectStatus, SetType } from "@/lib/types";
+import type { ProjectStatus } from "@/lib/types";
 import { EditProjectSheet } from "@/components/projects/edit-project-sheet";
 import { DeleteButton } from "@/components/shared/delete-button";
 import { deleteProject } from "@/lib/actions/project-actions";
-import { AddSetToSessionSheet } from "@/components/sets/add-set-to-session-sheet";
 
 export const dynamic = "force-dynamic";
 
@@ -33,12 +31,6 @@ const STATUS_LABELS: Record<ProjectStatus, string> = {
   completed: "Completed",
 };
 
-const SET_TYPE_STYLES: Record<SetType, string> = {
-  photo: "border-sky-500/30 bg-sky-500/15 text-sky-600 dark:text-sky-400",
-  video:
-    "border-violet-500/30 bg-violet-500/15 text-violet-600 dark:text-violet-400",
-};
-
 // ── Main page ───────────────────────────────────────────────────────────────
 
 export default async function ProjectDetailPage({
@@ -46,15 +38,12 @@ export default async function ProjectDetailPage({
 }: ProjectDetailPageProps) {
   const { id } = await params;
 
-  const [project, channels] = await Promise.all([
-    getProjectById(id),
-    getChannelsForSelect(),
-  ]);
+  const project = await getProjectById(id);
 
   if (!project) notFound();
 
-  const totalSets = project.sessions.reduce(
-    (sum, session) => sum + session.sets.length,
+  const totalParticipants = project.sessions.reduce(
+    (sum, session) => sum + session.participants.length,
     0,
   );
 
@@ -115,9 +104,9 @@ export default async function ProjectDetailPage({
               </p>
             </div>
             <div>
-              <p className="text-2xl font-bold">{totalSets}</p>
+              <p className="text-2xl font-bold">{totalParticipants}</p>
               <p className="text-xs text-muted-foreground">
-                {totalSets === 1 ? "Set" : "Sets"}
+                {totalParticipants === 1 ? "Participant" : "Participants"}
               </p>
             </div>
           </div>
@@ -179,53 +168,37 @@ export default async function ProjectDetailPage({
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="rounded-full border border-white/15 bg-muted/50 px-2.5 py-0.5 text-xs text-muted-foreground">
-                    {session.sets.length} {session.sets.length === 1 ? "set" : "sets"}
+                    {session.participants.length} {session.participants.length === 1 ? "participant" : "participants"}
                   </span>
-                  <AddSetToSessionSheet
-                    session={{
-                      id: session.id,
-                      name: session.name,
-                      projectId: project.id,
-                      projectName: project.name,
-                      labelIds: project.labels.map((l) => l.labelId),
-                    }}
-                    channels={channels}
-                  />
                 </div>
               </div>
 
-              {/* Sets list */}
-              {session.sets.length === 0 ? (
+              {/* Participants list */}
+              {session.participants.length === 0 ? (
                 <p className="text-sm italic text-muted-foreground/70">
-                  No sets in this session.
+                  No participants in this session.
                 </p>
               ) : (
                 <ul className="space-y-1.5">
-                  {session.sets.map((set) => (
-                    <li key={set.id}>
-                      <Link
-                        href={`/sets/${set.id}`}
-                        className="group flex items-center gap-2.5 rounded-lg border border-transparent px-3 py-2 transition-all hover:border-white/15 hover:bg-card/60 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                      >
-                        <span
-                          className={cn(
-                            "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium shrink-0",
-                            SET_TYPE_STYLES[set.type],
-                          )}
+                  {session.participants.map((participant) => {
+                    const commonAlias = participant.person.aliases[0]?.name;
+                    const displayName = commonAlias ?? participant.person.icgId;
+                    return (
+                      <li key={`${participant.sessionId}-${participant.personId}-${participant.role}`}>
+                        <Link
+                          href={`/people/${participant.personId}`}
+                          className="group flex items-center gap-2.5 rounded-lg border border-transparent px-3 py-2 transition-all hover:border-white/15 hover:bg-card/60 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                         >
-                          {set.type === "photo" ? (
-                            <Camera size={10} />
-                          ) : (
-                            <Film size={10} />
-                          )}
-                          {set.type === "photo" ? "Photo" : "Video"}
-                        </span>
-                        <span className="text-sm font-medium text-foreground/90 group-hover:text-primary transition-colors">
-                          {set.title}
-                        </span>
-                      </Link>
-                    </li>
-                  ))}
+                          <span className="inline-flex items-center rounded-full border border-white/15 bg-muted/50 px-2 py-0.5 text-xs font-medium shrink-0 text-muted-foreground">
+                            {participant.role}
+                          </span>
+                          <span className="text-sm font-medium text-foreground/90 group-hover:text-primary transition-colors">
+                            {displayName}
+                          </span>
+                        </Link>
+                      </li>
+                    );
+                  })}
                 </ul>
               )}
             </div>

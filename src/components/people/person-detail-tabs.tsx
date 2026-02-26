@@ -10,7 +10,7 @@ import type {
   PersonConnection,
   AliasType,
   PersonStatus,
-  ContributionRole,
+  ParticipantRole,
   SetType,
   RelationshipSource,
 } from "@/lib/types";
@@ -92,16 +92,14 @@ const ALIAS_TYPE_STYLES: Record<AliasType, string> = {
   alias: "border-white/15 bg-muted/50 text-foreground",
 };
 
-const ROLE_STYLES: Record<ContributionRole, string> = {
-  main: "bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/30",
-  supporting: "bg-purple-500/15 text-purple-600 dark:text-purple-400 border-purple-500/30",
-  background: "bg-slate-500/15 text-slate-600 dark:text-slate-400 border-slate-500/30",
+const ROLE_STYLES: Record<ParticipantRole, string> = {
+  MODEL: "bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/30",
+  PHOTOGRAPHER: "bg-purple-500/15 text-purple-600 dark:text-purple-400 border-purple-500/30",
 };
 
-const ROLE_LABELS: Record<ContributionRole, string> = {
-  main: "Main",
-  supporting: "Supporting",
-  background: "Background",
+const ROLE_LABELS: Record<ParticipantRole, string> = {
+  MODEL: "Model",
+  PHOTOGRAPHER: "Photographer",
 };
 
 const SET_TYPE_STYLES: Record<SetType, string> = {
@@ -894,8 +892,8 @@ function CareerTab({
                       >
                         {item.setTitle}
                       </Link>
-                      {item.projectName && (
-                        <p className="text-xs text-muted-foreground">{item.projectName}</p>
+                      {item.channelName && (
+                        <p className="text-xs text-muted-foreground">{item.channelName}</p>
                       )}
                     </td>
                     <td className="py-2.5 pr-4">

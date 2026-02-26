@@ -8,20 +8,20 @@ export async function getChannels(filters?: { q?: string; labelId?: string }) {
     where.name = { contains: filters.q, mode: "insensitive" };
   }
   if (filters?.labelId) {
-    where.labelId = filters.labelId;
+    where.labelMaps = { some: { labelId: filters.labelId } };
   }
 
   return prisma.channel.findMany({
     where,
     include: {
-      label: true,
+      labelMaps: { include: { label: true } },
       _count: {
         select: {
           sets: { where: { deletedAt: null } },
         },
       },
     },
-    orderBy: [{ label: { name: "asc" } }, { name: "asc" }],
+    orderBy: { name: "asc" },
   });
 }
 
@@ -29,16 +29,9 @@ export async function getChannelById(id: string) {
   return prisma.channel.findUnique({
     where: { id },
     include: {
-      label: true,
+      labelMaps: { include: { label: true } },
       sets: {
         where: { deletedAt: null },
-        include: {
-          session: {
-            include: {
-              project: true,
-            },
-          },
-        },
         orderBy: { releaseDate: "desc" },
       },
     },
@@ -50,38 +43,72 @@ export async function countChannels(): Promise<number> {
 }
 
 export async function createChannelRecord(data: {
-  labelId: string;
   name: string;
   platform?: string;
   url?: string;
+  labelId?: string;
 }) {
-  return prisma.channel.create({
-    data: {
-      labelId: data.labelId,
-      name: data.name,
-      platform: data.platform,
-      url: data.url,
-    },
+  return prisma.$transaction(async (tx) => {
+    const channel = await tx.channel.create({
+      data: {
+        name: data.name,
+        platform: data.platform,
+        url: data.url,
+      },
+    });
+
+    // If a labelId was provided, create a ChannelLabelMap entry
+    if (data.labelId) {
+      await tx.channelLabelMap.create({
+        data: {
+          channelId: channel.id,
+          labelId: data.labelId,
+          confidence: 1.0,
+        },
+      });
+    }
+
+    return channel;
   });
 }
 
 export async function updateChannelRecord(
   id: string,
   data: {
-    labelId?: string;
     name?: string;
     platform?: string | null;
     url?: string | null;
+    labelId?: string;
   },
 ) {
-  return prisma.channel.update({
-    where: { id },
-    data: {
-      labelId: data.labelId,
-      name: data.name,
-      platform: data.platform,
-      url: data.url,
-    },
+  return prisma.$transaction(async (tx) => {
+    const channel = await tx.channel.update({
+      where: { id },
+      data: {
+        name: data.name,
+        platform: data.platform,
+        url: data.url,
+      },
+    });
+
+    // Update primary label mapping if labelId changed
+    if (data.labelId !== undefined) {
+      // Remove existing mappings
+      await tx.channelLabelMap.deleteMany({ where: { channelId: id } });
+
+      // Add new mapping if provided
+      if (data.labelId) {
+        await tx.channelLabelMap.create({
+          data: {
+            channelId: id,
+            labelId: data.labelId,
+            confidence: 1.0,
+          },
+        });
+      }
+    }
+
+    return channel;
   });
 }
 
@@ -94,6 +121,9 @@ export async function deleteChannelRecord(id: string) {
       where: { channelId: id },
       data: { channelId: null },
     });
+
+    // Remove label mappings
+    await tx.channelLabelMap.deleteMany({ where: { channelId: id } });
 
     // Soft-delete the channel
     return tx.channel.update({

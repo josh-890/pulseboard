@@ -6,7 +6,6 @@ export type {
   PersonStatus,
   AliasType,
   RelationshipSource,
-  ContributionRole,
   BodyMarkType,
   BodyMarkStatus,
   BodyMarkEventType,
@@ -45,13 +44,12 @@ export type PersonWorkHistoryItem = {
   setId: string;
   setTitle: string;
   setType: import("@/generated/prisma/client").SetType;
-  role: import("@/generated/prisma/client").ContributionRole;
+  role: import("@/generated/prisma/client").ParticipantRole;
   releaseDate: Date | null;
   releaseDatePrecision: string;
   channelName: string | null;
   labelId: string | null;
   labelName: string | null;
-  projectName: string | null;
 };
 
 export type PersonAffiliation = {

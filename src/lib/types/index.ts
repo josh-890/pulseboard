@@ -7,7 +7,6 @@ export type {
   AliasType,
   AliasSource,
   RelationshipSource,
-  ContributionRole,
   BodyMarkType,
   BodyMarkStatus,
   BodyMarkEventType,
@@ -39,7 +38,7 @@ export type {
   SetType,
 } from "./project";
 
-export type { Label, Network, Channel, LabelNetwork } from "./label";
+export type { Label, Network, Channel, LabelNetworkLink } from "./label";
 
 export type {
   Photo,

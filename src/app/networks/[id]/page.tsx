@@ -59,13 +59,13 @@ export default async function NetworkDetailPage({
   // Compute stats
   const totalLabels = network.labelMemberships.length;
   const totalChannels = network.labelMemberships.reduce(
-    (sum, m) => sum + m.label.channels.length,
+    (sum, m) => sum + m.label.channelMaps.length,
     0,
   );
   const totalSets = network.labelMemberships.reduce(
     (sum, m) =>
       sum +
-      m.label.channels.reduce((cSum, ch) => cSum + ch.sets.length, 0),
+      m.label.channelMaps.reduce((cSum, cm) => cSum + cm.channel.sets.length, 0),
     0,
   );
 
@@ -146,9 +146,9 @@ export default async function NetworkDetailPage({
         ) : (
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             {network.labelMemberships.map(({ label }) => {
-              const channelCount = label.channels.length;
-              const setCount = label.channels.reduce(
-                (sum, ch) => sum + ch.sets.length,
+              const channelCount = label.channelMaps.length;
+              const setCount = label.channelMaps.reduce(
+                (sum, cm) => sum + cm.channel.sets.length,
                 0,
               );
               return (

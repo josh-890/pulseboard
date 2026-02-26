@@ -212,13 +212,13 @@ export function CreditEntryStep({ setId, onClose }: CreditEntryStepProps) {
         return;
       }
     }
-    router.push(`/sets/${setId}`);
     onClose();
+    router.push(`/sets/${setId}`);
   }
 
   function handleSkip() {
-    router.push(`/sets/${setId}`);
     onClose();
+    router.push(`/sets/${setId}`);
   }
 
   const modelCredits = credits.filter((c) => c.role === "MODEL");

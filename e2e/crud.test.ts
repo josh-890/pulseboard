@@ -311,13 +311,8 @@ test.describe("Sets CRUD", () => {
     await dialog.getByRole("button", { name: /^done$/i }).click();
 
     // Wait for navigation to detail page (may take a moment to save credits)
-    await page.waitForURL(/\/sets\//, { timeout: 10000 });
+    await page.waitForURL(/\/sets\/[a-z0-9]/, { timeout: 15000 });
     await expect(page.getByText(title)).toBeVisible({ timeout: 10000 });
-  });
-
-  test("detail page shows Production section with session assignment", async ({ page }) => {
-    await page.goto("/sets/seed-set-1");
-    await expect(page.getByText(/production/i)).toBeVisible();
   });
 
   test("detail page shows Edit + Delete buttons", async ({ page }) => {

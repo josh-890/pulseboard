@@ -1,1 +1,1 @@
-export type { Label, Network, Channel, LabelNetwork } from "@/generated/prisma/client";
+export type { Label, Network, Channel, LabelNetworkLink } from "@/generated/prisma/client";

@@ -22,19 +22,6 @@ export default function SetDetailLoading() {
         <Skeleton className="mt-2 h-4 w-36" />
       </div>
 
-      {/* Production / Session assignment */}
-      <div className="rounded-2xl border border-white/20 bg-card/70 p-6 shadow-md backdrop-blur-sm">
-        <div className="mb-4 flex items-center gap-2">
-          <Skeleton className="h-5 w-5 rounded" />
-          <Skeleton className="h-5 w-24" />
-        </div>
-        <Skeleton className="h-4 w-48" />
-        <div className="mt-2 flex items-center gap-2">
-          <Skeleton className="h-7 w-28 rounded-md" />
-          <Skeleton className="h-7 w-28 rounded-md" />
-        </div>
-      </div>
-
       {/* Gallery placeholder */}
       <div className="rounded-2xl border border-white/20 bg-card/70 p-6 shadow-md backdrop-blur-sm">
         <Skeleton className="h-5 w-20 mb-4" />
@@ -45,7 +32,7 @@ export default function SetDetailLoading() {
         </div>
       </div>
 
-      {/* Credits & Participants section */}
+      {/* Credits section */}
       <div className="rounded-2xl border border-white/20 bg-card/70 p-6 shadow-md backdrop-blur-sm">
         <div className="mb-4 flex items-center gap-2">
           <Skeleton className="h-5 w-5 rounded" />
