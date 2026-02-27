@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { FolderKanban, Tag } from "lucide-react";
+import { FolderKanban, Tag, ArrowRight } from "lucide-react";
 import { getProjectById } from "@/lib/services/project-service";
 import { cn, formatPartialDate } from "@/lib/utils";
 import type { ProjectStatus } from "@/lib/types";
@@ -159,7 +159,13 @@ export default async function ProjectDetailPage({
               {/* Session header */}
               <div className="mb-4 flex items-center justify-between gap-2">
                 <div>
-                  <h2 className="text-base font-semibold">{session.name}</h2>
+                  <Link
+                    href={`/sessions/${session.id}`}
+                    className="group inline-flex items-center gap-1.5 text-base font-semibold hover:text-primary transition-colors"
+                  >
+                    {session.name}
+                    <ArrowRight size={14} className="opacity-0 group-hover:opacity-100 transition-opacity" />
+                  </Link>
                   {session.date && (
                     <p className="mt-0.5 text-xs text-muted-foreground">
                       {formatPartialDate(session.date, session.datePrecision)}

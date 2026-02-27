@@ -11,6 +11,7 @@ import {
   Settings,
   ChevronsLeft,
   ChevronsRight,
+  Clapperboard,
 } from "lucide-react";
 import { NavLink } from "./nav-link";
 import { useSidebar } from "./sidebar-provider";
@@ -18,8 +19,9 @@ import { cn } from "@/lib/utils";
 
 const navItems = [
   { href: "/", icon: <LayoutDashboard size={20} />, label: "Dashboard" },
-  { href: "/people", icon: <Users size={20} />, label: "People" },
+  { href: "/sessions", icon: <Clapperboard size={20} />, label: "Sessions" },
   { href: "/sets", icon: <ImageIcon size={20} />, label: "Sets" },
+  { href: "/people", icon: <Users size={20} />, label: "People" },
   { href: "/projects", icon: <FolderKanban size={20} />, label: "Projects" },
   { href: "/labels", icon: <Building2 size={20} />, label: "Labels" },
   { href: "/channels", icon: <Radio size={20} />, label: "Channels" },

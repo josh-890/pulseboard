@@ -4,6 +4,7 @@ import { countSets } from "./set-service";
 import { countLabels } from "./label-service";
 import { countChannels } from "./channel-service";
 import { countProjects } from "./project-service";
+import { countSessions } from "./session-service";
 
 export type DashboardStats = {
   persons: number;
@@ -11,6 +12,7 @@ export type DashboardStats = {
   labels: number;
   channels: number;
   projects: number;
+  sessions: number;
   mediaItems: number;
   unresolvedCredits: number;
 };
@@ -22,6 +24,7 @@ type MvDashboardStatsRow = {
   channelCount: bigint;
   projectCount: bigint;
   mediaItemCount: bigint;
+  sessionCount: bigint;
 };
 
 /**
@@ -43,6 +46,7 @@ export async function getDashboardStats(): Promise<DashboardStats> {
         labels: Number(row.labelCount),
         channels: Number(row.channelCount),
         projects: Number(row.projectCount),
+        sessions: Number(row.sessionCount),
         mediaItems: Number(row.mediaItemCount),
         unresolvedCredits,
       };
@@ -52,16 +56,17 @@ export async function getDashboardStats(): Promise<DashboardStats> {
   }
 
   // Fallback: live counts
-  const [persons, sets, labels, channels, projects] = await Promise.all([
+  const [persons, sets, labels, channels, projects, sessions] = await Promise.all([
     countPersons(),
     countSets(),
     countLabels(),
     countChannels(),
     countProjects(),
+    countSessions(),
   ]);
 
   const unresolvedCredits = await getUnresolvedCreditCount();
-  return { persons, sets, labels, channels, projects, mediaItems: 0, unresolvedCredits };
+  return { persons, sets, labels, channels, projects, sessions, mediaItems: 0, unresolvedCredits };
 }
 
 async function getUnresolvedCreditCount(): Promise<number> {

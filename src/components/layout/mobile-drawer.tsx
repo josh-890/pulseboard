@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Menu, LayoutDashboard, FolderKanban, Users, ImageIcon, Building2, Radio, Network, Settings } from "lucide-react";
+import { Menu, LayoutDashboard, FolderKanban, Users, ImageIcon, Building2, Radio, Network, Settings, Clapperboard } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
@@ -14,8 +14,9 @@ import { NavLink } from "./nav-link";
 
 const navItems = [
   { href: "/", icon: <LayoutDashboard size={20} />, label: "Dashboard" },
-  { href: "/people", icon: <Users size={20} />, label: "People" },
+  { href: "/sessions", icon: <Clapperboard size={20} />, label: "Sessions" },
   { href: "/sets", icon: <ImageIcon size={20} />, label: "Sets" },
+  { href: "/people", icon: <Users size={20} />, label: "People" },
   { href: "/projects", icon: <FolderKanban size={20} />, label: "Projects" },
   { href: "/labels", icon: <Building2 size={20} />, label: "Labels" },
   { href: "/channels", icon: <Radio size={20} />, label: "Channels" },

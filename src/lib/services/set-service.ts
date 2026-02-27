@@ -144,6 +144,14 @@ export async function getSetById(id: string) {
         include: { label: true },
         orderBy: { createdAt: "asc" },
       },
+      sessionLinks: {
+        include: {
+          session: {
+            select: { id: true, name: true, status: true, date: true, datePrecision: true },
+          },
+        },
+        orderBy: { isPrimary: "desc" },
+      },
     },
   });
 }
@@ -164,21 +172,53 @@ export async function createSetStandaloneRecord(data: {
   genre?: string;
   tags?: string[];
 }) {
-  const set = await prisma.set.create({
-    data: {
-      type: data.type,
-      title: data.title,
-      channelId: data.channelId,
-      description: data.description,
-      notes: data.notes,
-      releaseDate: data.releaseDate ? new Date(data.releaseDate) : undefined,
-      releaseDatePrecision: (data.releaseDatePrecision as "UNKNOWN" | "YEAR" | "MONTH" | "DAY") ?? "UNKNOWN",
-      category: data.category,
-      genre: data.genre,
-      tags: data.tags ?? [],
-    },
+  return prisma.$transaction(async (tx) => {
+    // Look up channel's primary label via ChannelLabelMap (highest confidence)
+    const channelLabel = await tx.channelLabelMap.findFirst({
+      where: { channelId: data.channelId },
+      orderBy: { confidence: "desc" },
+      select: { labelId: true },
+    });
+
+    // Create a DRAFT Session seeded from set data
+    const session = await tx.session.create({
+      data: {
+        name: data.title,
+        nameNorm: data.title.toLowerCase(),
+        status: "DRAFT",
+        date: data.releaseDate ? new Date(data.releaseDate) : undefined,
+        datePrecision: (data.releaseDatePrecision as "UNKNOWN" | "YEAR" | "MONTH" | "DAY") ?? "UNKNOWN",
+        labelId: channelLabel?.labelId ?? undefined,
+      },
+    });
+
+    // Create the Set
+    const set = await tx.set.create({
+      data: {
+        type: data.type,
+        title: data.title,
+        channelId: data.channelId,
+        description: data.description,
+        notes: data.notes,
+        releaseDate: data.releaseDate ? new Date(data.releaseDate) : undefined,
+        releaseDatePrecision: (data.releaseDatePrecision as "UNKNOWN" | "YEAR" | "MONTH" | "DAY") ?? "UNKNOWN",
+        category: data.category,
+        genre: data.genre,
+        tags: data.tags ?? [],
+      },
+    });
+
+    // Create SetSession link with isPrimary=true
+    await tx.setSession.create({
+      data: {
+        setId: set.id,
+        sessionId: session.id,
+        isPrimary: true,
+      },
+    });
+
+    return { setId: set.id, sessionId: session.id };
   });
-  return { setId: set.id };
 }
 
 export async function updateSetRecord(id: string, data: {

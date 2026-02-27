@@ -6,14 +6,20 @@ export function QuickActions() {
   return (
     <div className="flex flex-wrap gap-3">
       <Button variant="outline" asChild>
-        <Link href="/people">
-          View All People
+        <Link href="/sessions">
+          View Sessions
           <ArrowRight size={16} className="ml-1" />
         </Link>
       </Button>
       <Button variant="outline" asChild>
         <Link href="/sets">
           Browse Sets
+          <ArrowRight size={16} className="ml-1" />
+        </Link>
+      </Button>
+      <Button variant="outline" asChild>
+        <Link href="/people">
+          View All People
           <ArrowRight size={16} className="ml-1" />
         </Link>
       </Button>

@@ -1,6 +1,5 @@
 export type {
-  Project,
-  ProjectStatus,
-  Set,
-  SetType,
+  Session,
+  SessionStatus,
+  SetSession,
 } from "@/generated/prisma/client";

@@ -26,13 +26,18 @@ export async function cascadeDeletePhotos(
 }
 
 /**
- * Cascade soft-delete a set: credits, participants, evidence, photos, then the set itself.
+ * Cascade soft-delete a set: session links, credits, participants, evidence, photos, then the set itself.
  */
 export async function cascadeDeleteSet(
   tx: TxClient,
   setId: string,
   deletedAt: Date,
 ) {
+  // Hard-delete SetSession rows (no deletedAt column)
+  await tx.setSession.deleteMany({
+    where: { setId },
+  });
+
   // Soft-delete SetCreditRaw records
   await tx.setCreditRaw.updateMany({
     where: { setId, deletedAt: null },
@@ -146,14 +151,18 @@ export async function cascadeDeleteRelationshipEvents(
 }
 
 /**
- * Cascade soft-delete a session: participants, media items, then the session itself.
- * Sets are no longer linked to sessions (Set.sessionId removed).
+ * Cascade soft-delete a session: SetSession links, participants, media items, then the session itself.
  */
 export async function cascadeDeleteSession(
   tx: TxClient,
   sessionId: string,
   deletedAt: Date,
 ) {
+  // Hard-delete SetSession rows (no deletedAt column)
+  await tx.setSession.deleteMany({
+    where: { sessionId },
+  });
+
   // Hard-delete session participants (no deletedAt column)
   await tx.sessionParticipant.deleteMany({
     where: { sessionId },

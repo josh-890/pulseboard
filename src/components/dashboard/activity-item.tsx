@@ -1,4 +1,4 @@
-import { UserPlus, ImagePlus, FolderPlus, Building2, StickyNote } from "lucide-react";
+import { UserPlus, ImagePlus, FolderPlus, Building2, StickyNote, Clapperboard } from "lucide-react";
 import type { ActivityItem as ActivityItemType } from "@/lib/types";
 import { formatRelativeTime } from "@/lib/utils";
 
@@ -11,6 +11,7 @@ const typeIcons: Record<ActivityItemType["type"], React.ReactElement> = {
   set_added: <ImagePlus size={16} className="text-accent" />,
   project_added: <FolderPlus size={16} className="text-green-500" />,
   label_added: <Building2 size={16} className="text-yellow-500" />,
+  session_added: <Clapperboard size={16} className="text-orange-500" />,
   note: <StickyNote size={16} className="text-muted-foreground" />,
 };
 

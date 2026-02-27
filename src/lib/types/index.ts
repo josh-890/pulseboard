@@ -32,11 +32,11 @@ export type {
 export type {
   Project,
   ProjectStatus,
-  Session,
-  SessionStatus,
   Set,
   SetType,
 } from "./project";
+
+export type { Session, SessionStatus, SetSession } from "./session";
 
 export type { Label, Network, Channel, LabelNetworkLink } from "./label";
 

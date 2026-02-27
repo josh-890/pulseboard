@@ -27,6 +27,7 @@ import {
 import type { SetFilters } from "@/lib/services/set-service";
 import { getFavoritePhotosForSets } from "@/lib/services/photo-service";
 import { getLabels } from "@/lib/services/label-service";
+import { prisma } from "@/lib/db";
 import { z } from "zod";
 
 type ActionResult =
@@ -49,7 +50,19 @@ export async function createSetStandalone(raw: unknown): Promise<SetIdResult> {
 
   try {
     const result = await createSetStandaloneRecord(parsed.data);
+
+    // Log session creation activity
+    await prisma.activity.create({
+      data: {
+        title: `Session "${parsed.data.title}" auto-created`,
+        time: new Date(),
+        type: "session_added",
+      },
+    });
+
     revalidatePath("/sets");
+    revalidatePath("/sessions");
+    revalidatePath("/");
     return { success: true, setId: result.setId };
   } catch {
     return { success: false, error: "Unexpected error" };
@@ -150,6 +163,7 @@ export async function deleteSet(id: string): Promise<DeleteResult> {
   try {
     await deleteSetRecord(id);
     revalidatePath("/sets");
+    revalidatePath("/sessions");
     return { success: true };
   } catch {
     return { success: false, error: "Failed to delete set" };

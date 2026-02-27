@@ -13,6 +13,7 @@ import { DeleteButton } from "@/components/shared/delete-button";
 import { AddCreditInline } from "@/components/sets/add-credit-inline";
 import { SetInlineTitle, SetInlineDescription, SetInlineNotes } from "@/components/sets/set-detail-header";
 import { LabelEvidenceManager } from "@/components/sets/label-evidence-manager";
+import { SetSessionManager } from "@/components/sets/set-session-manager";
 import { deleteSet } from "@/lib/actions/set-actions";
 
 
@@ -209,6 +210,30 @@ export default async function SetDetailPage({ params }: SetDetailPageProps) {
                 }))}
               />
             </div>
+
+            {/* Session links */}
+            {set.sessionLinks && set.sessionLinks.length > 0 && (
+              <div className="mt-2">
+                <p className="mb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  Sessions
+                </p>
+                <SetSessionManager
+                  setId={id}
+                  sessionLinks={set.sessionLinks.map((link) => ({
+                    setId: link.setId,
+                    sessionId: link.sessionId,
+                    isPrimary: link.isPrimary,
+                    session: {
+                      id: link.session.id,
+                      name: link.session.name,
+                      status: link.session.status,
+                      date: link.session.date,
+                      datePrecision: link.session.datePrecision,
+                    },
+                  }))}
+                />
+              </div>
+            )}
 
             {/* Completeness checklist */}
             <div className="mt-3 flex flex-wrap gap-1.5">
