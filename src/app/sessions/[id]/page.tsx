@@ -4,6 +4,7 @@ import { Building2, FolderKanban, Users, ImageIcon, Clapperboard, Camera, Film, 
 import { getSessionById } from "@/lib/services/session-service";
 import { getLabels } from "@/lib/services/label-service";
 import { getProjects } from "@/lib/services/project-service";
+import { getMediaItemsForSession } from "@/lib/services/media-service";
 import { cn, formatPartialDate } from "@/lib/utils";
 import { SessionStatusBadge } from "@/components/sessions/session-status-badge";
 import { EditSessionSheet } from "@/components/sessions/edit-session-sheet";
@@ -16,6 +17,7 @@ import {
   SessionInlineLocation,
 } from "@/components/sessions/session-detail-header";
 import { SessionMergeDialog } from "@/components/sessions/session-merge-dialog";
+import { SessionMediaGallery } from "@/components/sessions/session-media-gallery";
 
 export const dynamic = "force-dynamic";
 
@@ -60,10 +62,11 @@ function EmptyState({ message }: { message: string }) {
 export default async function SessionDetailPage({ params }: SessionDetailPageProps) {
   const { id } = await params;
 
-  const [session, labels, projects] = await Promise.all([
+  const [session, labels, projects, mediaItems] = await Promise.all([
     getSessionById(id),
     getLabels(),
     getProjects(),
+    getMediaItemsForSession(id),
   ]);
 
   if (!session) notFound();
@@ -207,6 +210,19 @@ export default async function SessionDetailPage({ params }: SessionDetailPagePro
         <SessionInlineDescription sessionId={id} description={session.description} />
         <SessionInlineNotes sessionId={id} notes={session.notes} />
       </div>
+
+      {/* Media */}
+      <SectionCard
+        title={`Media (${mediaItems.length})`}
+        icon={<ImageIcon size={18} />}
+      >
+        <SessionMediaGallery
+          items={mediaItems.map(({ createdAt, ...rest }) => ({
+            ...rest,
+            createdAt: createdAt.toISOString() as unknown as Date,
+          }))}
+        />
+      </SectionCard>
 
       {/* Participants */}
       {!isReference && (

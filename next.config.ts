@@ -6,7 +6,7 @@ const nextConfig: NextConfig = {
     remotePatterns: [
       {
         protocol: "http",
-        hostname: "10.66.20.3",
+        hostname: "10.66.20.5",
         port: "9000",
         pathname: "/pulseboard/**",
       },

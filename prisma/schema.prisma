@@ -308,7 +308,8 @@ model BodyMark {
   deletedAt   DateTime?
   createdAt   DateTime       @default(now())
 
-  events BodyMarkEvent[]
+  events          BodyMarkEvent[]
+  personMediaLinks PersonMediaLink[]
 
   @@index([personId])
   @@index([status])
@@ -414,7 +415,8 @@ model BodyModification {
   deletedAt   DateTime?
   createdAt   DateTime  @default(now())
 
-  events BodyModificationEvent[]
+  events          BodyModificationEvent[]
+  personMediaLinks PersonMediaLink[]
 
   @@index([personId])
   @@index([type])
@@ -451,7 +453,8 @@ model CosmeticProcedure {
   deletedAt   DateTime?
   createdAt   DateTime  @default(now())
 
-  events CosmeticProcedureEvent[]
+  events          CosmeticProcedureEvent[]
+  personMediaLinks PersonMediaLink[]
 
   @@index([personId])
   @@index([deletedAt])
@@ -858,12 +861,25 @@ model PersonMediaLink {
   isFavorite  Boolean          @default(false)
   sortOrder   Int              @default(0)
   notes       String?
+
+  slot                 Int?
+  bodyRegion           String?
+  bodyMarkId           String?
+  bodyMark             BodyMark?           @relation(fields: [bodyMarkId], references: [id])
+  bodyModificationId   String?
+  bodyModification     BodyModification?   @relation(fields: [bodyModificationId], references: [id])
+  cosmeticProcedureId  String?
+  cosmeticProcedure    CosmeticProcedure?  @relation(fields: [cosmeticProcedureId], references: [id])
+
   createdAt   DateTime         @default(now())
   deletedAt   DateTime?
 
   @@unique([personId, mediaItemId, usage])
   @@index([personId])
   @@index([mediaItemId])
+  @@index([bodyMarkId])
+  @@index([bodyModificationId])
+  @@index([cosmeticProcedureId])
   @@index([deletedAt])
 }
 

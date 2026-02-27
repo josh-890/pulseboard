@@ -60,6 +60,16 @@ export default function SessionDetailLoading() {
         </div>
       </div>
 
+      {/* Media section */}
+      <div className="rounded-2xl border border-white/20 bg-card/70 p-6 shadow-md backdrop-blur-sm">
+        <Skeleton className="mb-4 h-5 w-24" />
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <Skeleton key={i} className="aspect-[4/3] rounded-xl" />
+          ))}
+        </div>
+      </div>
+
       {/* Participants section */}
       <div className="rounded-2xl border border-white/20 bg-card/70 p-6 shadow-md backdrop-blur-sm">
         <Skeleton className="mb-4 h-5 w-32" />

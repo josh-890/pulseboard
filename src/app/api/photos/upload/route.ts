@@ -3,6 +3,8 @@ import { randomUUID } from "crypto";
 import { photoUploadSchema } from "@/lib/validations/photo";
 import { uploadPhotoToStorage } from "@/lib/photo-upload";
 import { createPhoto } from "@/lib/services/photo-service";
+import { createMediaItemFromPhoto, createMediaItemForPerson } from "@/lib/services/media-service";
+import { prisma } from "@/lib/db";
 
 const ALLOWED_MIME_TYPES = [
   "image/jpeg",
@@ -79,6 +81,60 @@ export async function POST(request: Request) {
       tags: parsed.data.tags,
       caption,
     });
+
+    // Bridge: also create a MediaItem when uploading to a set with a linked session
+    if (entityType === "set") {
+      try {
+        const setSession = await prisma.setSession.findFirst({
+          where: { setId: entityId, isPrimary: true },
+          select: { sessionId: true },
+        });
+        if (setSession) {
+          await createMediaItemFromPhoto({
+            sessionId: setSession.sessionId,
+            setId: entityId,
+            filename: file.name,
+            mimeType: file.type,
+            size: file.size,
+            originalWidth: uploadResult.originalWidth,
+            originalHeight: uploadResult.originalHeight,
+            variants: uploadResult.variants,
+            caption,
+            tags: parsed.data.tags,
+          });
+        }
+      } catch (bridgeErr) {
+        // Log but don't fail the upload — the Photo was already created
+        console.error("MediaItem set bridge failed:", bridgeErr);
+      }
+    }
+
+    // Bridge: also create a MediaItem in the person's reference session
+    if (entityType === "person") {
+      try {
+        const refSession = await prisma.session.findFirst({
+          where: { personId: entityId, status: "REFERENCE" },
+          select: { id: true },
+        });
+        if (refSession) {
+          await createMediaItemForPerson({
+            sessionId: refSession.id,
+            personId: entityId,
+            filename: file.name,
+            mimeType: file.type,
+            size: file.size,
+            originalWidth: uploadResult.originalWidth,
+            originalHeight: uploadResult.originalHeight,
+            variants: uploadResult.variants,
+            caption,
+            tags: parsed.data.tags,
+          });
+        }
+      } catch (bridgeErr) {
+        // Log but don't fail the upload — the Photo was already created
+        console.error("MediaItem person bridge failed:", bridgeErr);
+      }
+    }
 
     return NextResponse.json({ photo }, { status: 201 });
   } catch (err) {
