@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -19,14 +19,35 @@ type PartialDateInputProps = {
   disabled?: boolean;
 };
 
-const MONTH_NAMES = [
-  "January", "February", "March", "April", "May", "June",
-  "July", "August", "September", "October", "November", "December",
+const MONTH_OPTIONS = [
+  { value: "01", label: "January" },
+  { value: "02", label: "February" },
+  { value: "03", label: "March" },
+  { value: "04", label: "April" },
+  { value: "05", label: "May" },
+  { value: "06", label: "June" },
+  { value: "07", label: "July" },
+  { value: "08", label: "August" },
+  { value: "09", label: "September" },
+  { value: "10", label: "October" },
+  { value: "11", label: "November" },
+  { value: "12", label: "December" },
 ];
 
-function parseMonth(dateStr: string): string {
-  if (!dateStr) return "01";
-  return dateStr.split("-")[1] ?? "01";
+function daysInMonth(year: number, month: number): number {
+  return new Date(year, month, 0).getDate();
+}
+
+/** Extract the year/month/day parts from the controlled props */
+function deriveFromProps(dateValue: string, precisionValue: string) {
+  if (!dateValue || precisionValue === "UNKNOWN") {
+    return { year: "", month: "", day: "" };
+  }
+  const parts = dateValue.split("-");
+  const year = parts[0] ?? "";
+  const month = precisionValue === "YEAR" ? "" : (parts[1] ?? "");
+  const day = precisionValue === "DAY" ? (parts[2] ?? "") : "";
+  return { year, month, day };
 }
 
 export function PartialDateInput({
@@ -37,138 +58,179 @@ export function PartialDateInput({
   label,
   disabled,
 }: PartialDateInputProps) {
-  const [yearInput, setYearInput] = useState(() => {
-    if (!dateValue || precisionValue === "UNKNOWN") return "";
-    return dateValue.split("-")[0] ?? "";
-  });
+  // Only the year input needs transient local state (while user types < 4 digits)
+  // Month and day are set atomically (select / blur), so they can be fully derived.
+  const derived = deriveFromProps(dateValue, precisionValue);
 
-  const month = parseMonth(dateValue);
+  // yearDraft tracks what's in the input — may diverge from props while typing
+  const [yearDraft, setYearDraft] = useState(derived.year);
+  // Track which props we last synced from, to detect external resets
+  const [syncedProps, setSyncedProps] = useState({ dateValue, precisionValue });
 
-  function handlePrecisionChange(newPrecision: string) {
-    onPrecisionChange(newPrecision);
-    if (newPrecision === "UNKNOWN") {
-      setYearInput("");
-      onDateChange("");
-    } else if (newPrecision === "YEAR" && yearInput.length === 4) {
-      onDateChange(`${yearInput}-01-01`);
-    } else if (newPrecision === "MONTH" && yearInput.length === 4) {
-      onDateChange(`${yearInput}-${month || "01"}-01`);
-    } else if (newPrecision === "YEAR" || newPrecision === "MONTH") {
-      // Switching to Year/Month with no valid year yet — sync yearInput from existing date
-      if (dateValue) {
-        const existingYear = dateValue.split("-")[0] ?? "";
-        setYearInput(existingYear);
-      }
-    }
-    // DAY: keep existing dateValue as-is (user will pick via date input)
+  // If props changed externally (form reset, edit load), re-sync yearDraft
+  if (syncedProps.dateValue !== dateValue || syncedProps.precisionValue !== precisionValue) {
+    setSyncedProps({ dateValue, precisionValue });
+    const newDerived = deriveFromProps(dateValue, precisionValue);
+    setYearDraft(newDerived.year);
   }
+
+  const emit = useCallback(
+    (y: string, m: string, d: string) => {
+      if (y.length !== 4) {
+        onPrecisionChange("UNKNOWN");
+        onDateChange("");
+        return;
+      }
+      if (!m) {
+        onPrecisionChange("YEAR");
+        onDateChange(`${y}-01-01`);
+        return;
+      }
+      if (!d) {
+        onPrecisionChange("MONTH");
+        onDateChange(`${y}-${m}-01`);
+        return;
+      }
+      onPrecisionChange("DAY");
+      onDateChange(`${y}-${m}-${d}`);
+    },
+    [onDateChange, onPrecisionChange],
+  );
+
+  const hasValidYear = yearDraft.length === 4;
+  const hasMonth = hasValidYear && derived.month !== "";
+  const hasDay = hasMonth && derived.day !== "";
 
   function handleYearChange(raw: string) {
     const val = raw.replace(/\D/g, "").slice(0, 4);
-    setYearInput(val);
+    setYearDraft(val);
+    if (val.length === 4) {
+      emit(val, derived.month, derived.day);
+    } else {
+      // Incomplete year — clear everything upstream
+      emit(val, "", "");
+    }
+  }
 
-    if (!val) {
-      onDateChange("");
+  function handleMonthChange(val: string) {
+    if (val === "none") {
+      emit(yearDraft, "", "");
       return;
     }
-    if (val.length === 4) {
-      if (precisionValue === "YEAR") {
-        onDateChange(`${val}-01-01`);
-      } else if (precisionValue === "MONTH") {
-        onDateChange(`${val}-${month || "01"}-01`);
-      }
+    // Clamp day if we had one
+    if (derived.day) {
+      const maxDay = daysInMonth(Number(yearDraft), Number(val));
+      const clamped = String(Math.min(Number(derived.day), maxDay)).padStart(2, "0");
+      emit(yearDraft, val, clamped);
     } else {
-      onDateChange("");
+      emit(yearDraft, val, "");
     }
   }
 
-  function handleMonthChange(newMonth: string) {
-    if (yearInput.length === 4) {
-      onDateChange(`${yearInput}-${newMonth}-01`);
+  // Day also needs a local draft for typing
+  const [dayDraft, setDayDraft] = useState(derived.day);
+  // Sync day draft from props
+  if (derived.day !== dayDraft && (syncedProps.dateValue !== dateValue || syncedProps.precisionValue !== precisionValue)) {
+    // Already handled by the syncedProps block above, but we also need dayDraft reset
+  }
+  // Simpler: always derive dayDraft from props unless actively typing
+  const [dayFocused, setDayFocused] = useState(false);
+  const displayDay = dayFocused ? dayDraft : derived.day;
+
+  function handleDayChange(raw: string) {
+    const val = raw.replace(/\D/g, "").slice(0, 2);
+    setDayDraft(val);
+    if (val.length === 2 && derived.month) {
+      const maxDay = daysInMonth(Number(yearDraft), Number(derived.month));
+      const num = Math.min(Math.max(Number(val), 1), maxDay);
+      const dayStr = String(num).padStart(2, "0");
+      setDayDraft(dayStr);
+      emit(yearDraft, derived.month, dayStr);
+    } else if (!val) {
+      emit(yearDraft, derived.month, "");
     }
   }
+
+  function handleDayBlur() {
+    setDayFocused(false);
+    if (!dayDraft) return;
+    if (derived.month) {
+      const maxDay = daysInMonth(Number(yearDraft), Number(derived.month));
+      const num = Math.min(Math.max(Number(dayDraft), 1), maxDay);
+      const dayStr = String(num).padStart(2, "0");
+      setDayDraft(dayStr);
+      emit(yearDraft, derived.month, dayStr);
+    }
+  }
+
+  function handleDayFocus() {
+    setDayFocused(true);
+    setDayDraft(derived.day);
+  }
+
+  const precisionLabel = !hasValidYear
+    ? "No date"
+    : !hasMonth
+      ? "Year only"
+      : !hasDay
+        ? "Year + month"
+        : "Full date";
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-1.5">
       {label && (
         <p className="text-sm font-medium leading-none">{label}</p>
       )}
-      <div className="flex gap-2">
-        <Select
-          value={precisionValue}
-          onValueChange={handlePrecisionChange}
+      <div className="flex gap-2 items-center">
+        <Input
+          type="text"
+          inputMode="numeric"
+          pattern="[0-9]{4}"
+          maxLength={4}
+          placeholder="YYYY"
+          value={yearDraft}
+          onChange={(e) => handleYearChange(e.target.value)}
           disabled={disabled}
-        >
-          <SelectTrigger className="w-[120px] shrink-0">
-            <SelectValue placeholder="Precision" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="UNKNOWN">Unknown</SelectItem>
-            <SelectItem value="YEAR">Year</SelectItem>
-            <SelectItem value="MONTH">Month</SelectItem>
-            <SelectItem value="DAY">Day</SelectItem>
-          </SelectContent>
-        </Select>
+          className="w-[80px]"
+        />
 
-        {precisionValue === "YEAR" && (
+        {hasValidYear && (
+          <Select
+            value={derived.month || "none"}
+            onValueChange={handleMonthChange}
+            disabled={disabled}
+          >
+            <SelectTrigger className="w-[140px]">
+              <SelectValue placeholder="Month" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">&mdash;</SelectItem>
+              {MONTH_OPTIONS.map((m) => (
+                <SelectItem key={m.value} value={m.value}>
+                  {m.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+
+        {hasMonth && (
           <Input
             type="text"
             inputMode="numeric"
-            pattern="[0-9]{4}"
-            maxLength={4}
-            placeholder="YYYY"
-            value={yearInput}
-            onChange={(e) => handleYearChange(e.target.value)}
+            pattern="[0-9]{1,2}"
+            maxLength={2}
+            placeholder="DD"
+            value={displayDay}
+            onChange={(e) => handleDayChange(e.target.value)}
+            onFocus={handleDayFocus}
+            onBlur={handleDayBlur}
             disabled={disabled}
-            className="w-[100px]"
-          />
-        )}
-
-        {precisionValue === "MONTH" && (
-          <div className="flex gap-1.5 flex-1">
-            <Select
-              value={month || "01"}
-              onValueChange={handleMonthChange}
-              disabled={disabled}
-            >
-              <SelectTrigger className="flex-1">
-                <SelectValue placeholder="Month" />
-              </SelectTrigger>
-              <SelectContent>
-                {MONTH_NAMES.map((name, i) => (
-                  <SelectItem
-                    key={name}
-                    value={String(i + 1).padStart(2, "0")}
-                  >
-                    {name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Input
-              type="text"
-              inputMode="numeric"
-              pattern="[0-9]{4}"
-              maxLength={4}
-              placeholder="YYYY"
-              value={yearInput}
-              onChange={(e) => handleYearChange(e.target.value)}
-              disabled={disabled}
-              className="w-[100px]"
-            />
-          </div>
-        )}
-
-        {precisionValue === "DAY" && (
-          <Input
-            type="date"
-            value={dateValue}
-            onChange={(e) => onDateChange(e.target.value)}
-            disabled={disabled}
-            className="flex-1"
+            className="w-[60px]"
           />
         )}
       </div>
+      <p className="text-xs text-muted-foreground">{precisionLabel}</p>
     </div>
   );
 }

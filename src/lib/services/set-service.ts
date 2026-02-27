@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/db";
 import type { Prisma, SetType, ParticipantRole, ResolutionStatus } from "@/generated/prisma/client";
 import { cascadeDeleteSet } from "./cascade-helpers";
+import type { TxClient } from "./cascade-helpers";
 
 export type SetFilters = {
   q?: string;
@@ -321,6 +322,60 @@ export async function searchPersonsForSelect(q: string) {
   }));
 }
 
+// ── Participant sync: SetParticipant → SessionParticipant ─────────────────────
+
+async function syncSetParticipantsToSessions(tx: TxClient, setId: string) {
+  const links = await tx.setSession.findMany({ where: { setId }, select: { sessionId: true } });
+  if (!links.length) return;
+  const participants = await tx.setParticipant.findMany({ where: { setId } });
+  if (!participants.length) return;
+  for (const link of links) {
+    for (const sp of participants) {
+      await tx.sessionParticipant.upsert({
+        where: {
+          sessionId_personId_role: {
+            sessionId: link.sessionId,
+            personId: sp.personId,
+            role: sp.role,
+          },
+        },
+        create: { sessionId: link.sessionId, personId: sp.personId, role: sp.role },
+        update: {},
+      });
+    }
+  }
+}
+
+async function unsyncParticipantFromSessions(
+  tx: TxClient,
+  setId: string,
+  personId: string,
+  role: ParticipantRole,
+) {
+  const links = await tx.setSession.findMany({ where: { setId }, select: { sessionId: true } });
+  if (!links.length) return;
+
+  for (const link of links) {
+    // Check if any OTHER set linked to this same session still contributes this person+role
+    const otherSetCount = await tx.setParticipant.count({
+      where: {
+        personId,
+        role,
+        set: {
+          sessionLinks: { some: { sessionId: link.sessionId } },
+          id: { not: setId },
+          deletedAt: null,
+        },
+      },
+    });
+    if (otherSetCount === 0) {
+      await tx.sessionParticipant.deleteMany({
+        where: { sessionId: link.sessionId, personId, role },
+      });
+    }
+  }
+}
+
 // ── SetCreditRaw / SetParticipant operations ────────────────────────────────
 
 export async function createSetCreditsRaw(
@@ -356,6 +411,9 @@ export async function createSetCreditsRaw(
         });
       }
     }
+
+    // Sync all set participants to linked sessions
+    await syncSetParticipantsToSessions(tx, setId);
   });
 }
 
@@ -397,6 +455,9 @@ export async function resolveCreditRaw(creditId: string, personId: string) {
       update: {},
     });
 
+    // Sync to linked sessions
+    await syncSetParticipantsToSessions(tx, credit.setId);
+
     return credit;
   });
 }
@@ -433,6 +494,14 @@ export async function unresolveCreditRaw(creditId: string) {
             role: credit.role,
           },
         });
+
+        // Reverse sync: remove from linked sessions if no other set contributes
+        await unsyncParticipantFromSessions(
+          tx,
+          credit.setId,
+          credit.resolvedPersonId,
+          credit.role,
+        );
       }
     }
 

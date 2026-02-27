@@ -280,8 +280,24 @@ export async function linkSessionToSet(
   sessionId: string,
   isPrimary = false,
 ) {
-  return prisma.setSession.create({
-    data: { setId, sessionId, isPrimary },
+  return prisma.$transaction(async (tx) => {
+    const link = await tx.setSession.create({
+      data: { setId, sessionId, isPrimary },
+    });
+
+    // Sync existing SetParticipants from the set into SessionParticipants
+    const setParticipants = await tx.setParticipant.findMany({ where: { setId } });
+    for (const sp of setParticipants) {
+      await tx.sessionParticipant.upsert({
+        where: {
+          sessionId_personId_role: { sessionId, personId: sp.personId, role: sp.role },
+        },
+        create: { sessionId, personId: sp.personId, role: sp.role },
+        update: {},
+      });
+    }
+
+    return link;
   });
 }
 
