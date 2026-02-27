@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
+import { Camera, ArrowRight } from "lucide-react";
 import {
   getPersonWithDetails,
   getPersonWorkHistory,
@@ -9,6 +10,7 @@ import {
 } from "@/lib/services/person-service";
 import { getPhotosForEntity } from "@/lib/services/photo-service";
 import { getProfileImageLabels } from "@/lib/services/setting-service";
+import { getPersonReferenceSession } from "@/lib/services/session-service";
 import { PersonDetailTabs } from "@/components/people/person-detail-tabs";
 import { EditPersonSheet } from "@/components/people/edit-person-sheet";
 import { DeleteButton } from "@/components/shared/delete-button";
@@ -23,13 +25,14 @@ type PersonDetailPageProps = {
 export default async function PersonDetailPage({ params }: PersonDetailPageProps) {
   const { id } = await params;
 
-  const [person, workHistory, connections, photos, profileLabels] =
+  const [person, workHistory, connections, photos, profileLabels, refSession] =
     await Promise.all([
       getPersonWithDetails(id),
       getPersonWorkHistory(id),
       getPersonConnections(id),
       getPhotosForEntity("person", id),
       getProfileImageLabels(),
+      getPersonReferenceSession(id),
     ]);
 
   if (!person) notFound();
@@ -62,6 +65,27 @@ export default async function PersonDetailPage({ params }: PersonDetailPageProps
           />
         </div>
       </div>
+
+      {/* Reference Media card */}
+      {refSession && (
+        <Link
+          href={`/sessions/${refSession.id}`}
+          className="group flex items-center gap-3 rounded-2xl border border-white/20 bg-card/70 px-5 py-4 shadow-md backdrop-blur-sm transition-all hover:border-white/30 hover:bg-card/80 hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/15">
+            <Camera size={16} className="text-primary" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <span className="text-sm font-semibold group-hover:text-primary transition-colors">
+              Reference Media
+            </span>
+            <span className="ml-2 text-xs text-muted-foreground">
+              {refSession._count.mediaItems} {refSession._count.mediaItems === 1 ? "item" : "items"}
+            </span>
+          </div>
+          <ArrowRight size={14} className="shrink-0 text-muted-foreground group-hover:text-primary transition-colors" />
+        </Link>
+      )}
 
       <PersonDetailTabs
         person={person}

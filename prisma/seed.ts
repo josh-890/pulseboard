@@ -377,12 +377,13 @@ async function main() {
 
   const session = await prisma.session.upsert({
     where: { id: "seed-session-1" },
-    update: { deletedAt: null, status: "CONFIRMED", labelId: label.id },
+    update: { deletedAt: null, status: "CONFIRMED", labelId: label.id, nameNorm: "session 1" },
     create: {
       id: "seed-session-1",
       projectId: project.id,
       labelId: label.id,
       name: "Session 1",
+      nameNorm: "session 1",
       status: "CONFIRMED",
       location: "Studio A, Los Angeles",
       date: new Date("2025-01-15"),
@@ -390,15 +391,28 @@ async function main() {
     },
   });
 
-  // Reference session (for headshots / body mark documentation)
+  // Reference sessions (per-person)
   const refSession = await prisma.session.upsert({
     where: { id: "seed-session-ref" },
-    update: { deletedAt: null, status: "REFERENCE" },
+    update: { deletedAt: null, status: "REFERENCE", nameNorm: "jane — reference", name: "Jane — Reference", personId: person.id },
     create: {
       id: "seed-session-ref",
-      name: "Reference Media",
+      name: "Jane — Reference",
+      nameNorm: "jane — reference",
       status: "REFERENCE",
-      notes: "Non-production media: headshots, body mark documentation",
+      personId: person.id,
+    },
+  });
+
+  await prisma.session.upsert({
+    where: { id: "seed-ref-session-2" },
+    update: { deletedAt: null, status: "REFERENCE", nameNorm: "marcus reed — reference", personId: person2.id },
+    create: {
+      id: "seed-ref-session-2",
+      name: "Marcus Reed — Reference",
+      nameNorm: "marcus reed — reference",
+      status: "REFERENCE",
+      personId: person2.id,
     },
   });
 
@@ -617,6 +631,18 @@ async function main() {
     },
   });
 
+  // ─── SetSession (link sets to sessions) ────────────────────────────────────
+
+  await prisma.setSession.upsert({
+    where: { setId_sessionId: { setId: set.id, sessionId: session.id } },
+    update: {},
+    create: {
+      setId: set.id,
+      sessionId: session.id,
+      isPrimary: true,
+    },
+  });
+
   // ─── SetLabelEvidence ──────────────────────────────────────────────────────
 
   await prisma.setLabelEvidence.upsert({
@@ -683,6 +709,7 @@ async function main() {
     { id: "seed-activity-2", title: "Sample Photoset published", type: "set_added" as const, time: new Date(Date.now() - 3600000) },
     { id: "seed-activity-3", title: "Sample Project created", type: "project_added" as const, time: new Date(Date.now() - 7200000) },
     { id: "seed-activity-4", title: "Sample Studio added", type: "label_added" as const, time: new Date(Date.now() - 86400000) },
+    { id: "seed-activity-5", title: "Session 1 created", type: "session_added" as const, time: new Date(Date.now() - 1800000) },
   ];
 
   for (const a of activities) {

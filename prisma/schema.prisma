@@ -48,6 +48,7 @@ enum ActivityType {
   set_added
   project_added
   label_added
+  session_added
   note
 }
 
@@ -232,6 +233,7 @@ model Person {
   setParticipants      SetParticipant[]
   resolvedCredits      SetCreditRaw[]
   personMediaLinks     PersonMediaLink[]
+  referenceSession     Session?             @relation("ReferenceSession")
 
   createdAt DateTime  @default(now())
   deletedAt DateTime?
@@ -678,7 +680,10 @@ model Session {
   project     Project?      @relation(fields: [projectId], references: [id])
   labelId     String?
   label       Label?        @relation(fields: [labelId], references: [id])
+  personId    String?       @unique
+  person      Person?       @relation("ReferenceSession", fields: [personId], references: [id])
   name        String
+  nameNorm    String?
   description String?
   location    String?
   status      SessionStatus @default(DRAFT)
@@ -689,13 +694,16 @@ model Session {
   updatedAt   DateTime  @updatedAt
   deletedAt   DateTime?
 
-  mediaItems   MediaItem[]
-  participants SessionParticipant[]
+  mediaItems      MediaItem[]
+  participants    SessionParticipant[]
+  setSessionLinks SetSession[]
 
   @@index([projectId])
   @@index([labelId])
+  @@index([personId])
   @@index([date])
   @@index([status])
+  @@index([nameNorm])
   @@index([deletedAt])
 }
 
@@ -720,10 +728,11 @@ model Set {
   updatedAt   DateTime  @updatedAt
   deletedAt   DateTime?
 
-  setMediaItems  SetMediaItem[]
-  creditsRaw     SetCreditRaw[]
-  participants   SetParticipant[]
-  labelEvidence  SetLabelEvidence[]
+  setMediaItems   SetMediaItem[]
+  creditsRaw      SetCreditRaw[]
+  participants    SetParticipant[]
+  labelEvidence   SetLabelEvidence[]
+  sessionLinks    SetSession[]
 
   @@index([channelId])
   @@index([type])
@@ -805,6 +814,17 @@ model SetParticipant {
   role     ParticipantRole
 
   @@id([setId, personId, role])
+}
+
+model SetSession {
+  setId     String
+  set       Set     @relation(fields: [setId], references: [id])
+  sessionId String
+  session   Session @relation(fields: [sessionId], references: [id])
+  isPrimary Boolean @default(false)
+  createdAt DateTime @default(now())
+
+  @@id([setId, sessionId])
 }
 
 model SetCreditRaw {

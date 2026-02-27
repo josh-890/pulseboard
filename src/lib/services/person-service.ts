@@ -13,6 +13,7 @@ import type { PersonStatus, Prisma } from "@/generated/prisma/client";
 import type { CreatePersonInput, UpdatePersonInput } from "@/lib/validations/person";
 import {
   cascadeDeletePhotos,
+  cascadeDeleteSession,
   cascadeDeleteBodyModifications,
   cascadeDeleteCosmeticProcedures,
   cascadeDeletePersonExtras,
@@ -555,6 +556,17 @@ export async function createPersonRecord(data: CreatePersonInput) {
       });
     }
 
+    // Auto-create REFERENCE session for this person
+    const displayName = data.commonName || data.icgId;
+    await tx.session.create({
+      data: {
+        name: `${displayName} — Reference`,
+        nameNorm: `${displayName.toLowerCase()} — reference`,
+        status: "REFERENCE",
+        personId: person.id,
+      },
+    });
+
     return person;
   });
 }
@@ -712,6 +724,20 @@ export async function deletePersonRecord(id: string) {
 
     // Soft-delete photos
     await cascadeDeletePhotos(tx, "person", id, deletedAt);
+
+    // Cascade-delete the person's reference session (if any)
+    const refSession = await tx.session.findFirst({
+      where: { personId: id },
+    });
+    if (refSession) {
+      await cascadeDeleteSession(tx, refSession.id, deletedAt);
+    }
+
+    // Soft-delete PersonMediaLinks
+    await tx.personMediaLink.updateMany({
+      where: { personId: id, deletedAt: null },
+      data: { deletedAt },
+    });
 
     // Soft-delete the person
     return tx.person.update({

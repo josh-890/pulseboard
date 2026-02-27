@@ -39,10 +39,12 @@ test.describe("People CRUD", () => {
     await expect(page.getByText(name, { exact: false })).toBeVisible();
   });
 
-  test("detail page has Edit + Delete buttons", async ({ page }) => {
+  test("detail page has Edit + Delete buttons and Reference Media card", async ({ page }) => {
     await page.goto("/people/seed-person-1");
     await expect(page.getByRole("button", { name: /^edit$/i })).toBeVisible();
     await expect(page.getByRole("button", { name: /delete/i })).toBeVisible();
+    // Reference Media card should be visible
+    await expect(page.getByText("Reference Media")).toBeVisible();
   });
 
   test("edit person sheet opens and pre-populates", async ({ page }) => {
@@ -237,7 +239,7 @@ test.describe("Sets CRUD", () => {
     await expect(page.getByRole("button", { name: /add set/i })).toBeVisible();
   });
 
-  test("create set (standalone — no session auto-created)", async ({ page }) => {
+  test("create set (standalone — auto-creates DRAFT session)", async ({ page }) => {
     await page.goto("/sets");
     await page.getByRole("button", { name: /add set/i }).click();
 
@@ -310,7 +312,7 @@ test.describe("Sets CRUD", () => {
 
     // Wait for navigation to detail page (may take a moment to save credits)
     await page.waitForURL(/\/sets\/[a-z0-9]/, { timeout: 15000 });
-    await expect(page.getByText(title)).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole("heading", { name: title })).toBeVisible({ timeout: 10000 });
   });
 
   test("detail page shows Edit + Delete buttons", async ({ page }) => {
@@ -341,6 +343,76 @@ test.describe("Sets CRUD", () => {
     await dialog.getByLabel(/title/i).fill(original);
     await dialog.getByRole("button", { name: /save changes/i }).click();
     await waitForToast(page, "Set updated");
+  });
+});
+
+// ── Sessions ─────────────────────────────────────────────────────────────────
+
+test.describe("Sessions CRUD", () => {
+  test("list page loads and has Add Session button", async ({ page }) => {
+    await page.goto("/sessions");
+    await expect(page.getByRole("heading", { name: "Sessions" })).toBeVisible();
+    await expect(page.getByRole("button", { name: /add session/i })).toBeVisible();
+  });
+
+  test("create session", async ({ page }) => {
+    await page.goto("/sessions");
+    await page.getByRole("button", { name: /add session/i }).click();
+
+    const dialog = page.getByRole("dialog");
+    await expect(dialog).toBeVisible();
+
+    const ts = Date.now();
+    const name = `Test Session ${ts}`;
+    await dialog.getByLabel(/^name/i).fill(name);
+
+    await dialog.getByRole("button", { name: /create session/i }).click();
+
+    await waitForToast(page, "Session created");
+    await expect(page).toHaveURL(/\/sessions\/.+/);
+    await expect(page.getByRole("button", { name: /^edit$/i })).toBeVisible();
+  });
+
+  test("detail page has Edit + Delete + Merge buttons", async ({ page }) => {
+    await page.goto("/sessions/seed-session-1");
+    await expect(page.getByRole("button", { name: /^edit$/i })).toBeVisible();
+    await expect(page.getByRole("button", { name: /delete/i })).toBeVisible();
+    await expect(page.getByRole("button", { name: /merge/i })).toBeVisible();
+  });
+
+  test("reference session hides edit/delete/merge and shows person link", async ({ page }) => {
+    await page.goto("/sessions/seed-session-ref");
+    // Edit, Delete, Merge should NOT be visible
+    await expect(page.getByRole("button", { name: /^edit$/i })).not.toBeVisible();
+    await expect(page.getByRole("button", { name: /delete/i })).not.toBeVisible();
+    await expect(page.getByRole("button", { name: /merge/i })).not.toBeVisible();
+    // Person link should be visible
+    await expect(page.getByRole("link", { name: /jane/i })).toBeVisible();
+    // Reference status badge should be visible
+    await expect(page.getByText("Reference", { exact: true })).toBeVisible();
+  });
+
+  test("edit session sheet opens and pre-populates", async ({ page }) => {
+    await page.goto("/sessions/seed-session-1");
+    await page.getByRole("button", { name: /^edit$/i }).click();
+
+    const dialog = page.getByRole("dialog");
+    await expect(dialog).toBeVisible();
+
+    const nameInput = dialog.getByLabel(/^name/i);
+    await expect(nameInput).not.toHaveValue("");
+
+    const original = await nameInput.inputValue();
+    await nameInput.fill(original + " (edited)");
+    await dialog.getByRole("button", { name: /save changes/i }).click();
+
+    await waitForToast(page, "Session updated");
+
+    // Revert
+    await page.getByRole("button", { name: /^edit$/i }).click();
+    await dialog.getByLabel(/^name/i).fill(original);
+    await dialog.getByRole("button", { name: /save changes/i }).click();
+    await waitForToast(page, "Session updated");
   });
 });
 
