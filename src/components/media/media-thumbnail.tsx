@@ -18,6 +18,7 @@ type MediaThumbnailProps = {
   isSelected: boolean;
   isMultiSelectMode: boolean;
   onSelect: (id: string, e: React.MouseEvent) => void;
+  onToggleSelect: (id: string) => void;
   onOpen: (id: string) => void;
 };
 
@@ -28,17 +29,15 @@ export function MediaThumbnail({
   isSelected,
   isMultiSelectMode,
   onSelect,
+  onToggleSelect,
   onOpen,
 }: MediaThumbnailProps) {
   const thumbUrl = item.urls.gallery_512 || item.urls.original || null;
   if (!thumbUrl) return null;
 
-  const primaryLink = item.links[0];
-  const hasEntityLink =
-    primaryLink &&
-    (primaryLink.bodyMarkId ||
-      primaryLink.bodyModificationId ||
-      primaryLink.cosmeticProcedureId);
+  const hasEntityLink = item.links.some(
+    (l) => l.bodyMarkId || l.bodyModificationId || l.cosmeticProcedureId,
+  );
 
   return (
     <div
@@ -87,7 +86,7 @@ export function MediaThumbnail({
           type="button"
           onClick={(e) => {
             e.stopPropagation();
-            onSelect(item.id, e);
+            onToggleSelect(item.id);
           }}
           className={cn(
             "flex h-5 w-5 items-center justify-center rounded border transition-colors",
@@ -104,9 +103,9 @@ export function MediaThumbnail({
 
       {/* Badge tray (bottom-right) */}
       <div className="absolute bottom-1.5 right-1.5 z-10 flex items-center gap-0.5">
-        {primaryLink && (
-          <MediaUsageBadge usage={primaryLink.usage} slot={primaryLink.slot} />
-        )}
+        {item.links.map((link) => (
+          <MediaUsageBadge key={link.id} usage={link.usage} slot={link.slot} />
+        ))}
         {item.tags.length > 0 && (
           <MediaTagCountBadge count={item.tags.length} />
         )}

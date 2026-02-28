@@ -62,6 +62,7 @@ type MediaGridProps = {
   items: MediaItemWithLinks[];
   selectedIds: Set<string>;
   onSelect: (id: string, e: React.MouseEvent) => void;
+  onToggleSelect: (id: string) => void;
   onOpen: (id: string) => void;
 };
 
@@ -69,6 +70,7 @@ export function MediaGrid({
   items,
   selectedIds,
   onSelect,
+  onToggleSelect,
   onOpen,
 }: MediaGridProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -118,6 +120,7 @@ export function MediaGrid({
                 isSelected={selectedIds.has(item.id)}
                 isMultiSelectMode={isMultiSelectMode}
                 onSelect={onSelect}
+                onToggleSelect={onToggleSelect}
                 onOpen={onOpen}
               />
             );

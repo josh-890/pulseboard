@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState, useTransition } from "react";
+import { useCallback, useMemo, useState, useTransition } from "react";
 import {
   ImageIcon,
   Tag,
@@ -19,6 +19,7 @@ import type { PersonMediaUsage } from "@/lib/types";
 import {
   updatePersonMediaLinkAction,
   upsertPersonMediaLinkAction,
+  removePersonMediaLinkAction,
   assignHeadshotSlot,
   removeHeadshotSlot,
 } from "@/lib/actions/media-actions";
@@ -46,6 +47,16 @@ const USAGE_LABELS: Record<PersonMediaUsage, string> = {
   BODY_MARK: "Body Mark",
   BODY_MODIFICATION: "Modification",
   COSMETIC_PROCEDURE: "Cosmetic",
+};
+
+const USAGE_ACTIVE_COLORS: Record<PersonMediaUsage, string> = {
+  HEADSHOT: "bg-blue-500/20 text-blue-400 border-blue-500/40",
+  REFERENCE: "bg-gray-500/20 text-gray-400 border-gray-500/40",
+  PROFILE: "bg-green-500/20 text-green-400 border-green-500/40",
+  PORTFOLIO: "bg-teal-500/20 text-teal-400 border-teal-500/40",
+  BODY_MARK: "bg-amber-500/20 text-amber-400 border-amber-500/40",
+  BODY_MODIFICATION: "bg-purple-500/20 text-purple-400 border-purple-500/40",
+  COSMETIC_PROCEDURE: "bg-pink-500/20 text-pink-400 border-pink-500/40",
 };
 
 type EntityOption = { id: string; name: string };
@@ -80,7 +91,11 @@ export function MediaMetadataPanel({
 
   const isBatch = items.length > 1;
   const single = items.length === 1 ? items[0] : null;
-  const primaryLink = single?.links[0] ?? null;
+
+  const activeUsages = useMemo(
+    () => new Set(single?.links.map((l) => l.usage) ?? []),
+    [single?.links],
+  );
 
   const toggleSection = useCallback((section: string) => {
     setExpandedSections((prev) => {
@@ -91,45 +106,58 @@ export function MediaMetadataPanel({
     });
   }, []);
 
-  const handleUsageChange = useCallback(
+  const handleUsageToggle = useCallback(
     (usage: PersonMediaUsage) => {
       if (!single) return;
+      const isActive = activeUsages.has(usage);
+
       startTransition(async () => {
-        if (primaryLink) {
-          await updatePersonMediaLinkAction(
-            primaryLink.id,
-            { usage },
-            personId,
-            sessionId,
-          );
+        if (isActive) {
+          await removePersonMediaLinkAction(personId, single.id, usage, sessionId);
+          if (onItemsChange) {
+            const updated = items.map((item) => {
+              if (item.id !== single.id) return item;
+              return { ...item, links: item.links.filter((l) => l.usage !== usage) };
+            });
+            onItemsChange(updated);
+          }
         } else {
-          await upsertPersonMediaLinkAction(
-            personId,
-            single.id,
-            usage,
-            {},
-            sessionId,
-          );
-        }
-        if (onItemsChange) {
-          const updated = items.map((item) => {
-            if (item.id !== single.id) return item;
-            const updatedLinks = item.links.length > 0
-              ? item.links.map((l, i) => (i === 0 ? { ...l, usage } : l))
-              : [{ id: "temp", usage, slot: null, bodyRegion: null, bodyMarkId: null, bodyModificationId: null, cosmeticProcedureId: null, isFavorite: false, sortOrder: 0, notes: null }];
-            return { ...item, links: updatedLinks };
-          });
-          onItemsChange(updated);
+          await upsertPersonMediaLinkAction(personId, single.id, usage, {}, sessionId);
+          if (onItemsChange) {
+            const newLink = {
+              id: `temp-${usage}`,
+              usage,
+              slot: null,
+              bodyRegion: null,
+              bodyMarkId: null,
+              bodyModificationId: null,
+              cosmeticProcedureId: null,
+              isFavorite: false,
+              sortOrder: 0,
+              notes: null,
+            };
+            const updated = items.map((item) => {
+              if (item.id !== single.id) return item;
+              return { ...item, links: [...item.links, newLink] };
+            });
+            onItemsChange(updated);
+          }
         }
       });
     },
-    [single, primaryLink, personId, sessionId, items, onItemsChange],
+    [single, activeUsages, personId, sessionId, items, onItemsChange],
+  );
+
+  const getLinkForUsage = useCallback(
+    (usage: PersonMediaUsage) => single?.links.find((l) => l.usage === usage) ?? null,
+    [single?.links],
   );
 
   const handleSlotClick = useCallback(
     (slotNumber: number) => {
       if (!single) return;
-      const currentSlot = primaryLink?.slot;
+      const headshotLink = getLinkForUsage("HEADSHOT");
+      const currentSlot = headshotLink?.slot;
       const isToggleOff = currentSlot === slotNumber;
 
       startTransition(async () => {
@@ -142,24 +170,32 @@ export function MediaMetadataPanel({
           const updated = items.map((item) => {
             if (item.id !== single.id) return item;
             const newSlot = isToggleOff ? null : slotNumber;
-            const updatedLinks = item.links.length > 0
-              ? item.links.map((l, i) => (i === 0 ? { ...l, slot: newSlot, usage: "HEADSHOT" as PersonMediaUsage } : l))
-              : [{ id: "temp", usage: "HEADSHOT" as PersonMediaUsage, slot: newSlot, bodyRegion: null, bodyMarkId: null, bodyModificationId: null, cosmeticProcedureId: null, isFavorite: false, sortOrder: 0, notes: null }];
-            return { ...item, links: updatedLinks };
+            return {
+              ...item,
+              links: item.links.map((l) =>
+                l.usage === "HEADSHOT" ? { ...l, slot: newSlot } : l,
+              ),
+            };
           });
           onItemsChange(updated);
         }
       });
     },
-    [single, primaryLink, personId, items, onItemsChange],
+    [single, getLinkForUsage, personId, items, onItemsChange],
   );
 
   const handleEntityLink = useCallback(
-    (field: "bodyMarkId" | "bodyModificationId" | "cosmeticProcedureId", value: string | null) => {
-      if (!single || !primaryLink) return;
+    (
+      usage: PersonMediaUsage,
+      field: "bodyMarkId" | "bodyModificationId" | "cosmeticProcedureId",
+      value: string | null,
+    ) => {
+      if (!single) return;
+      const link = getLinkForUsage(usage);
+      if (!link) return;
       startTransition(async () => {
         await updatePersonMediaLinkAction(
-          primaryLink.id,
+          link.id,
           { [field]: value },
           personId,
           sessionId,
@@ -169,8 +205,8 @@ export function MediaMetadataPanel({
             if (item.id !== single.id) return item;
             return {
               ...item,
-              links: item.links.map((l, i) =>
-                i === 0 ? { ...l, [field]: value } : l,
+              links: item.links.map((l) =>
+                l.usage === usage ? { ...l, [field]: value } : l,
               ),
             };
           });
@@ -178,22 +214,21 @@ export function MediaMetadataPanel({
         }
       });
     },
-    [single, primaryLink, personId, sessionId, items, onItemsChange],
+    [single, getLinkForUsage, personId, sessionId, items, onItemsChange],
   );
 
   const handleNotesChange = useCallback(
-    (notes: string) => {
-      if (!single || !primaryLink) return;
+    (linkId: string, notes: string) => {
       startTransition(async () => {
         await updatePersonMediaLinkAction(
-          primaryLink.id,
+          linkId,
           { notes: notes || null },
           personId,
           sessionId,
         );
       });
     },
-    [single, primaryLink, personId, sessionId],
+    [personId, sessionId],
   );
 
   const handleCollectionToggle = useCallback(
@@ -264,12 +299,15 @@ export function MediaMetadataPanel({
   }
 
   // Single item mode
-  const currentUsage = primaryLink?.usage;
-  const isHeadshot = currentUsage === "HEADSHOT";
+  const hasHeadshot = activeUsages.has("HEADSHOT");
+  const hasBodyMark = activeUsages.has("BODY_MARK");
+  const hasBodyMod = activeUsages.has("BODY_MODIFICATION");
+  const hasCosmetic = activeUsages.has("COSMETIC_PROCEDURE");
+  const hasEntityUsage = hasBodyMark || hasBodyMod || hasCosmetic;
 
   return (
     <div className="space-y-1 p-4 text-sm">
-      {/* Usage */}
+      {/* Usage toggles */}
       <SectionHeader
         title="Usage"
         icon={<ImageIcon size={14} />}
@@ -279,28 +317,32 @@ export function MediaMetadataPanel({
       />
       {expandedSections.has("usage") && (
         <div className="flex flex-wrap gap-1 pb-2">
-          {ALL_USAGES.map((usage) => (
-            <button
-              key={usage}
-              type="button"
-              disabled={isPending}
-              onClick={() => handleUsageChange(usage)}
-              className={cn(
-                "rounded-md px-2 py-1 text-xs font-medium transition-all",
-                "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
-                currentUsage === usage
-                  ? "bg-primary text-primary-foreground shadow-sm"
-                  : "bg-muted/60 text-muted-foreground hover:bg-muted/90 hover:text-foreground",
-              )}
-            >
-              {USAGE_LABELS[usage]}
-            </button>
-          ))}
+          {ALL_USAGES.map((usage) => {
+            const isActive = activeUsages.has(usage);
+            return (
+              <button
+                key={usage}
+                type="button"
+                disabled={isPending}
+                onClick={() => handleUsageToggle(usage)}
+                className={cn(
+                  "rounded-md border px-2 py-1 text-xs font-medium transition-all",
+                  "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
+                  isActive
+                    ? USAGE_ACTIVE_COLORS[usage]
+                    : "border-transparent bg-muted/60 text-muted-foreground hover:bg-muted/90 hover:text-foreground",
+                )}
+                aria-pressed={isActive}
+              >
+                {USAGE_LABELS[usage]}
+              </button>
+            );
+          })}
         </div>
       )}
 
-      {/* Slots (only for HEADSHOT) */}
-      {isHeadshot && slotLabels.length > 0 && (
+      {/* Slots (only when HEADSHOT is active) */}
+      {hasHeadshot && slotLabels.length > 0 && (
         <>
           <SectionHeader
             title="Headshot Slot"
@@ -313,7 +355,8 @@ export function MediaMetadataPanel({
             <div className="flex gap-1.5 pb-2">
               {slotLabels.map((sl, i) => {
                 const slotNumber = i + 1;
-                const isActive = primaryLink?.slot === slotNumber;
+                const headshotLink = getLinkForUsage("HEADSHOT");
+                const isActive = headshotLink?.slot === slotNumber;
                 return (
                   <button
                     key={sl.slot}
@@ -363,8 +406,8 @@ export function MediaMetadataPanel({
         </div>
       )}
 
-      {/* Entity Linking */}
-      {primaryLink && (currentUsage === "BODY_MARK" || currentUsage === "BODY_MODIFICATION" || currentUsage === "COSMETIC_PROCEDURE") && (
+      {/* Entity Linking (per active usage that supports it) */}
+      {hasEntityUsage && (
         <>
           <SectionHeader
             title="Entity Link"
@@ -375,30 +418,30 @@ export function MediaMetadataPanel({
           />
           {expandedSections.has("linking") && (
             <div className="space-y-2 pb-2">
-              {currentUsage === "BODY_MARK" && bodyMarks.length > 0 && (
+              {hasBodyMark && bodyMarks.length > 0 && (
                 <EntitySelect
                   label="Body Mark"
                   options={bodyMarks}
-                  value={primaryLink.bodyMarkId}
-                  onChange={(v) => handleEntityLink("bodyMarkId", v)}
+                  value={getLinkForUsage("BODY_MARK")?.bodyMarkId ?? null}
+                  onChange={(v) => handleEntityLink("BODY_MARK", "bodyMarkId", v)}
                   disabled={isPending}
                 />
               )}
-              {currentUsage === "BODY_MODIFICATION" && bodyModifications.length > 0 && (
+              {hasBodyMod && bodyModifications.length > 0 && (
                 <EntitySelect
                   label="Body Modification"
                   options={bodyModifications}
-                  value={primaryLink.bodyModificationId}
-                  onChange={(v) => handleEntityLink("bodyModificationId", v)}
+                  value={getLinkForUsage("BODY_MODIFICATION")?.bodyModificationId ?? null}
+                  onChange={(v) => handleEntityLink("BODY_MODIFICATION", "bodyModificationId", v)}
                   disabled={isPending}
                 />
               )}
-              {currentUsage === "COSMETIC_PROCEDURE" && cosmeticProcedures.length > 0 && (
+              {hasCosmetic && cosmeticProcedures.length > 0 && (
                 <EntitySelect
                   label="Cosmetic Procedure"
                   options={cosmeticProcedures}
-                  value={primaryLink.cosmeticProcedureId}
-                  onChange={(v) => handleEntityLink("cosmeticProcedureId", v)}
+                  value={getLinkForUsage("COSMETIC_PROCEDURE")?.cosmeticProcedureId ?? null}
+                  onChange={(v) => handleEntityLink("COSMETIC_PROCEDURE", "cosmeticProcedureId", v)}
                   disabled={isPending}
                 />
               )}
@@ -444,20 +487,41 @@ export function MediaMetadataPanel({
         </>
       )}
 
-      {/* Notes */}
-      <SectionHeader
-        title="Notes"
-        icon={<FileText size={14} />}
-        section="notes"
-        expanded={expandedSections.has("notes")}
-        onToggle={toggleSection}
-      />
-      {expandedSections.has("notes") && primaryLink && (
-        <NotesField
-          value={primaryLink.notes ?? ""}
-          onChange={handleNotesChange}
-          disabled={isPending}
-        />
+      {/* Notes — show per active link */}
+      {single && single.links.length > 0 && (
+        <>
+          <SectionHeader
+            title="Notes"
+            icon={<FileText size={14} />}
+            section="notes"
+            expanded={expandedSections.has("notes")}
+            onToggle={toggleSection}
+          />
+          {expandedSections.has("notes") && (
+            <div className="space-y-2 pb-2">
+              {single.links.length === 1 ? (
+                <NotesField
+                  value={single.links[0].notes ?? ""}
+                  onChange={(notes) => handleNotesChange(single.links[0].id, notes)}
+                  disabled={isPending}
+                />
+              ) : (
+                single.links.map((link) => (
+                  <div key={link.id}>
+                    <span className="mb-0.5 block text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                      {USAGE_LABELS[link.usage]}
+                    </span>
+                    <NotesField
+                      value={link.notes ?? ""}
+                      onChange={(notes) => handleNotesChange(link.id, notes)}
+                      disabled={isPending}
+                    />
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+        </>
       )}
 
       {/* Info */}
@@ -484,13 +548,16 @@ export function MediaMetadataPanel({
                 <span className="font-medium text-foreground/70">Type:</span>{" "}
                 {single.mimeType}
               </p>
-              {primaryLink && (
+              {single.links.length > 0 && (
                 <div className="mt-1 flex items-center gap-1">
                   <span className="font-medium text-foreground/70">Usage:</span>
-                  <MediaUsageBadge
-                    usage={primaryLink.usage}
-                    slot={primaryLink.slot}
-                  />
+                  {single.links.map((link) => (
+                    <MediaUsageBadge
+                      key={link.id}
+                      usage={link.usage}
+                      slot={link.slot}
+                    />
+                  ))}
                 </div>
               )}
             </div>

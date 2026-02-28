@@ -295,7 +295,9 @@ export async function getHeadshotsForPersons(
         ? buildUrl(variants.profile_128)
         : variants.original
           ? buildUrl(variants.original)
-          : null;
+          : link.mediaItem.fileRef
+            ? buildUrl(link.mediaItem.fileRef)
+            : null;
       if (url) result.set(link.personId, url);
     }
   }
@@ -359,7 +361,7 @@ export async function getMediaItemsWithLinks(
     where: { sessionId },
     include: {
       personMediaLinks: {
-        where: { personId, deletedAt: null },
+        where: { personId },
       },
       collectionItems: {
         select: { collectionId: true },
@@ -459,5 +461,21 @@ export async function batchSetUsage(
         },
       });
     }
+  });
+}
+
+export async function batchRemoveUsage(
+  personId: string,
+  mediaItemIds: string[],
+  usage: PersonMediaUsage,
+): Promise<void> {
+  if (mediaItemIds.length === 0) return;
+
+  await prisma.personMediaLink.deleteMany({
+    where: {
+      personId,
+      mediaItemId: { in: mediaItemIds },
+      usage,
+    },
   });
 }

@@ -6,6 +6,7 @@ import {
   updatePersonMediaLink,
   batchUpdatePersonMediaLinks,
   batchSetUsage,
+  batchRemoveUsage,
 } from "@/lib/services/media-service";
 import type { PersonMediaLinkUpdate } from "@/lib/services/media-service";
 import type { PersonMediaUsage } from "@/lib/types";
@@ -113,6 +114,46 @@ export async function batchSetUsageAction(
 ): Promise<ActionResult> {
   try {
     await batchSetUsage(personId, mediaItemIds, usage);
+    revalidatePath(`/sessions/${sessionId}`);
+    revalidatePath(`/people/${personId}`);
+    return { success: true };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Unexpected error";
+    return { success: false, error: message };
+  }
+}
+
+export async function removePersonMediaLinkAction(
+  personId: string,
+  mediaItemId: string,
+  usage: PersonMediaUsage,
+  sessionId: string,
+): Promise<ActionResult> {
+  try {
+    await prisma.personMediaLink.deleteMany({
+      where: {
+        personId,
+        mediaItemId,
+        usage,
+      },
+    });
+    revalidatePath(`/sessions/${sessionId}`);
+    revalidatePath(`/people/${personId}`);
+    return { success: true };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Unexpected error";
+    return { success: false, error: message };
+  }
+}
+
+export async function batchRemoveUsageAction(
+  personId: string,
+  mediaItemIds: string[],
+  usage: PersonMediaUsage,
+  sessionId: string,
+): Promise<ActionResult> {
+  try {
+    await batchRemoveUsage(personId, mediaItemIds, usage);
     revalidatePath(`/sessions/${sessionId}`);
     revalidatePath(`/people/${personId}`);
     return { success: true };

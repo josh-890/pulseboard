@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { Users, Loader2 } from "lucide-react";
 import { PersonCard } from "./person-card";
 import { useDensity } from "@/components/layout/density-provider";
@@ -33,6 +33,10 @@ export function PersonList({
   const [photoMap, setPhotoMap] = useState(initialPhotoMap);
   const [cursor, setCursor] = useState(initialCursor);
   const [isPending, startTransition] = useTransition();
+
+  useEffect(() => { setPersons(initialPersons); }, [initialPersons]);
+  useEffect(() => { setPhotoMap(initialPhotoMap); }, [initialPhotoMap]);
+  useEffect(() => { setCursor(initialCursor); }, [initialCursor]);
 
   function handleLoadMore() {
     if (!cursor) return;

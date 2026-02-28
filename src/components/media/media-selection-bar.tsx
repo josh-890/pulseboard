@@ -7,6 +7,7 @@ import type { PersonMediaUsage } from "@/lib/types";
 import type { CollectionSummary } from "@/lib/services/collection-service";
 import {
   batchSetUsageAction,
+  batchRemoveUsageAction,
 } from "@/lib/actions/media-actions";
 import {
   addToCollectionAction,
@@ -41,12 +42,19 @@ export function MediaSelectionBar({
 }: MediaSelectionBarProps) {
   const [isPending, startTransition] = useTransition();
   const [showUsageMenu, setShowUsageMenu] = useState(false);
+  const [showRemoveMenu, setShowRemoveMenu] = useState(false);
   const [showCollectionMenu, setShowCollectionMenu] = useState(false);
   const count = selectedIds.size;
 
+  const closeAllMenus = useCallback(() => {
+    setShowUsageMenu(false);
+    setShowRemoveMenu(false);
+    setShowCollectionMenu(false);
+  }, []);
+
   const handleSetUsage = useCallback(
     (usage: PersonMediaUsage) => {
-      setShowUsageMenu(false);
+      closeAllMenus();
       startTransition(async () => {
         await batchSetUsageAction(
           personId,
@@ -57,7 +65,23 @@ export function MediaSelectionBar({
         onBatchComplete?.();
       });
     },
-    [personId, selectedIds, sessionId, onBatchComplete],
+    [personId, selectedIds, sessionId, onBatchComplete, closeAllMenus],
+  );
+
+  const handleRemoveUsage = useCallback(
+    (usage: PersonMediaUsage) => {
+      closeAllMenus();
+      startTransition(async () => {
+        await batchRemoveUsageAction(
+          personId,
+          Array.from(selectedIds),
+          usage,
+          sessionId,
+        );
+        onBatchComplete?.();
+      });
+    },
+    [personId, selectedIds, sessionId, onBatchComplete, closeAllMenus],
   );
 
   const handleAddToCollection = useCallback(
@@ -85,17 +109,18 @@ export function MediaSelectionBar({
           {count} selected
         </span>
 
-        {/* Set Usage dropdown */}
+        {/* Add Usage dropdown */}
         <div className="relative">
           <button
             type="button"
             onClick={() => {
-              setShowUsageMenu((p) => !p);
+              setShowRemoveMenu(false);
               setShowCollectionMenu(false);
+              setShowUsageMenu((p) => !p);
             }}
             className="inline-flex items-center gap-1 rounded-lg border border-white/15 bg-muted/60 px-3 py-1.5 text-xs font-medium transition-colors hover:bg-muted/90"
           >
-            Set Usage
+            Add Usage
             <ChevronDown size={12} />
           </button>
           {showUsageMenu && (
@@ -114,14 +139,45 @@ export function MediaSelectionBar({
           )}
         </div>
 
+        {/* Remove Usage dropdown */}
+        <div className="relative">
+          <button
+            type="button"
+            onClick={() => {
+              setShowUsageMenu(false);
+              setShowCollectionMenu(false);
+              setShowRemoveMenu((p) => !p);
+            }}
+            className="inline-flex items-center gap-1 rounded-lg border border-white/15 bg-destructive/20 px-3 py-1.5 text-xs font-medium text-destructive transition-colors hover:bg-destructive/30"
+          >
+            Remove Usage
+            <ChevronDown size={12} />
+          </button>
+          {showRemoveMenu && (
+            <div className="absolute bottom-full left-0 mb-2 min-w-[140px] rounded-lg border border-white/20 bg-card/95 py-1 shadow-lg backdrop-blur-md">
+              {USAGE_OPTIONS.map((opt) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => handleRemoveUsage(opt.value)}
+                  className="block w-full px-3 py-1.5 text-left text-xs transition-colors hover:bg-muted/60"
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
         {/* Add to Collection dropdown */}
         {collections.length > 0 && (
           <div className="relative">
             <button
               type="button"
               onClick={() => {
-                setShowCollectionMenu((p) => !p);
                 setShowUsageMenu(false);
+                setShowRemoveMenu(false);
+                setShowCollectionMenu((p) => !p);
               }}
               className="inline-flex items-center gap-1 rounded-lg border border-white/15 bg-muted/60 px-3 py-1.5 text-xs font-medium transition-colors hover:bg-muted/90"
             >
@@ -149,8 +205,7 @@ export function MediaSelectionBar({
         <button
           type="button"
           onClick={() => {
-            setShowUsageMenu(false);
-            setShowCollectionMenu(false);
+            closeAllMenus();
             onClearSelection();
           }}
           className="rounded-full p-1 text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"

@@ -733,10 +733,9 @@ export async function deletePersonRecord(id: string) {
       await cascadeDeleteSession(tx, refSession.id, deletedAt);
     }
 
-    // Soft-delete PersonMediaLinks
-    await tx.personMediaLink.updateMany({
-      where: { personId: id, deletedAt: null },
-      data: { deletedAt },
+    // Hard-delete PersonMediaLinks (tag/usage links are not soft-deleted)
+    await tx.personMediaLink.deleteMany({
+      where: { personId: id },
     });
 
     // Soft-delete the person

@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { PanelRight, PanelRightClose } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { MediaItemWithLinks } from "@/lib/services/media-service";
@@ -34,8 +35,14 @@ export function MediaManager({
   bodyModifications,
   cosmeticProcedures,
 }: MediaManagerProps) {
+  const router = useRouter();
   const [items, setItems] = useState(initialItems);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  // Sync items when server re-renders (after router.refresh())
+  useEffect(() => {
+    setItems(initialItems);
+  }, [initialItems]);
   const [lastSelectedId, setLastSelectedId] = useState<string | null>(null);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [showPanel, setShowPanel] = useState(true);
@@ -84,6 +91,16 @@ export function MediaManager({
     [lastSelectedId, indexMap, items],
   );
 
+  const handleToggleSelect = useCallback((id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+    setLastSelectedId(id);
+  }, []);
+
   const handleOpen = useCallback(
     (id: string) => {
       const idx = indexMap.get(id);
@@ -96,6 +113,10 @@ export function MediaManager({
     setSelectedIds(new Set());
     setLastSelectedId(null);
   }, []);
+
+  const handleBatchComplete = useCallback(() => {
+    router.refresh();
+  }, [router]);
 
   const handleItemsChange = useCallback(
     (updatedItems: MediaItemWithLinks[]) => {
@@ -152,6 +173,7 @@ export function MediaManager({
             items={items}
             selectedIds={selectedIds}
             onSelect={handleSelect}
+            onToggleSelect={handleToggleSelect}
             onOpen={handleOpen}
           />
         </div>
@@ -183,6 +205,7 @@ export function MediaManager({
         sessionId={sessionId}
         collections={collections}
         onClearSelection={clearSelection}
+        onBatchComplete={handleBatchComplete}
       />
 
       {/* Lightbox */}
