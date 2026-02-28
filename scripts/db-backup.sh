@@ -33,7 +33,13 @@ MASKED_URL=$(echo "$DATABASE_URL" | sed 's|://[^:]*:[^@]*@|://***:***@|')
 echo "Backing up: $MASKED_URL"
 echo "Output:     $BACKUP_FILE"
 
-pg_dump "$DATABASE_URL" > "$BACKUP_FILE"
+# Prefer versioned pg_dump matching the server (v17), fall back to PATH default
+PG_DUMP="/usr/lib/postgresql/17/bin/pg_dump"
+if [ ! -x "$PG_DUMP" ]; then
+  PG_DUMP="pg_dump"
+fi
+
+"$PG_DUMP" "$DATABASE_URL" > "$BACKUP_FILE"
 
 SIZE=$(du -h "$BACKUP_FILE" | cut -f1)
 echo "Done! Backup size: $SIZE"
