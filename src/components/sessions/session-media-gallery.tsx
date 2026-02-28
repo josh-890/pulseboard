@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import { X, ChevronLeft, ChevronRight } from "lucide-react";
 import type { MediaItemWithUrls } from "@/lib/types";
@@ -9,12 +9,103 @@ type SessionMediaGalleryProps = {
   items: MediaItemWithUrls[];
 };
 
+const GAP = 8;
+const TARGET_ROW_HEIGHT = 220;
+const MAX_ROW_HEIGHT = 280;
+const MIN_ROW_HEIGHT = 160;
+const MOBILE_TARGET = 160;
+
+type RowLayout = {
+  items: MediaItemWithUrls[];
+  height: number;
+};
+
+function computeRows(
+  items: MediaItemWithUrls[],
+  containerWidth: number,
+  targetHeight: number,
+): RowLayout[] {
+  if (containerWidth <= 0 || items.length === 0) return [];
+
+  const rows: RowLayout[] = [];
+  let currentRow: MediaItemWithUrls[] = [];
+  let currentRatioSum = 0;
+
+  for (const item of items) {
+    const aspect = item.originalWidth / (item.originalHeight || 1);
+    currentRow.push(item);
+    currentRatioSum += aspect;
+
+    const availableWidth = containerWidth - GAP * (currentRow.length - 1);
+    const rowHeight = availableWidth / currentRatioSum;
+
+    if (rowHeight <= targetHeight) {
+      const clampedHeight = Math.max(
+        MIN_ROW_HEIGHT,
+        Math.min(MAX_ROW_HEIGHT, rowHeight),
+      );
+      rows.push({ items: currentRow, height: clampedHeight });
+      currentRow = [];
+      currentRatioSum = 0;
+    }
+  }
+
+  // Last incomplete row — cap at target so it doesn't stretch
+  if (currentRow.length > 0) {
+    const availableWidth = containerWidth - GAP * (currentRow.length - 1);
+    const rowHeight = availableWidth / currentRatioSum;
+    const clampedHeight = Math.min(
+      targetHeight,
+      Math.max(MIN_ROW_HEIGHT, rowHeight),
+    );
+    rows.push({ items: currentRow, height: clampedHeight });
+  }
+
+  return rows;
+}
+
 export function SessionMediaGallery({ items }: SessionMediaGalleryProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [containerWidth, setContainerWidth] = useState(0);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
 
-  const openLightbox = useCallback((index: number) => {
-    setLightboxIndex(index);
+  // Measure container width via ResizeObserver
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        setContainerWidth(entry.contentRect.width);
+      }
+    });
+    observer.observe(el);
+    setContainerWidth(el.clientWidth);
+    return () => observer.disconnect();
   }, []);
+
+  const isMobile = containerWidth < 640;
+  const targetHeight = isMobile ? MOBILE_TARGET : TARGET_ROW_HEIGHT;
+
+  const rows = useMemo(
+    () => computeRows(items, containerWidth, targetHeight),
+    [items, containerWidth, targetHeight],
+  );
+
+  // Build flat index map for lightbox
+  const flatIndex = useMemo(() => {
+    const map = new Map<string, number>();
+    items.forEach((item, i) => map.set(item.id, i));
+    return map;
+  }, [items]);
+
+  const openLightbox = useCallback(
+    (itemId: string) => {
+      const idx = flatIndex.get(itemId);
+      if (idx !== undefined) setLightboxIndex(idx);
+    },
+    [flatIndex],
+  );
 
   const closeLightbox = useCallback(() => {
     setLightboxIndex(null);
@@ -32,6 +123,7 @@ export function SessionMediaGallery({ items }: SessionMediaGalleryProps) {
     );
   }, [items.length]);
 
+  // Keyboard navigation for lightbox
   useEffect(() => {
     if (lightboxIndex === null) return;
 
@@ -57,30 +149,45 @@ export function SessionMediaGallery({ items }: SessionMediaGalleryProps) {
 
   return (
     <>
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
-        {items.map((item, index) => {
-          const thumbUrl =
-            item.urls.gallery_512 || item.urls.original || null;
-          if (!thumbUrl) return null;
-          return (
-            <button
-              key={item.id}
-              type="button"
-              onClick={() => openLightbox(index)}
-              className="group relative aspect-[4/3] overflow-hidden rounded-xl border border-white/15 bg-card/40 transition-all hover:border-white/30 hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              title={item.caption ?? item.filename}
-            >
-              <Image
-                src={thumbUrl}
-                alt={item.caption ?? item.filename}
-                fill
-                unoptimized
-                sizes="(max-width: 640px) 50vw, (max-width: 768px) 33vw, (max-width: 1024px) 25vw, 20vw"
-                className="object-cover transition-transform duration-200 group-hover:scale-105"
-              />
-            </button>
-          );
-        })}
+      <div ref={containerRef} className="w-full">
+        {rows.map((row, rowIdx) => (
+          <div
+            key={rowIdx}
+            className="flex"
+            style={{ gap: GAP, marginBottom: GAP }}
+          >
+            {row.items.map((item) => {
+              const aspect = item.originalWidth / (item.originalHeight || 1);
+              const renderWidth = row.height * aspect;
+              const thumbUrl =
+                item.urls.gallery_512 || item.urls.original || null;
+              if (!thumbUrl) return null;
+
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => openLightbox(item.id)}
+                  className="group relative shrink-0 cursor-zoom-in overflow-hidden rounded-lg transition-shadow duration-150 hover:shadow-lg focus-visible:outline-2 focus-visible:outline-primary"
+                  style={{
+                    width: renderWidth,
+                    height: row.height,
+                  }}
+                  aria-label={item.caption ?? item.filename}
+                >
+                  <Image
+                    src={thumbUrl}
+                    alt={item.caption ?? item.filename}
+                    width={Math.round(renderWidth)}
+                    height={Math.round(row.height)}
+                    className="h-full w-full object-contain transition-transform duration-200 group-hover:scale-105"
+                    unoptimized
+                  />
+                </button>
+              );
+            })}
+          </div>
+        ))}
       </div>
 
       {/* Lightbox overlay */}
