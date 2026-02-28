@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
+import Image from "next/image";
 import Link from "next/link";
-import { Camera, ArrowRight } from "lucide-react";
+import { Camera, ArrowRight, ImageIcon } from "lucide-react";
 import {
   getPersonWithDetails,
   getPersonWorkHistory,
@@ -11,6 +12,7 @@ import {
 import { getPhotosForEntity } from "@/lib/services/photo-service";
 import { getProfileImageLabels } from "@/lib/services/setting-service";
 import { getPersonReferenceSession } from "@/lib/services/session-service";
+import { getPersonHeadshots } from "@/lib/services/media-service";
 import { PersonDetailTabs } from "@/components/people/person-detail-tabs";
 import { EditPersonSheet } from "@/components/people/edit-person-sheet";
 import { DeleteButton } from "@/components/shared/delete-button";
@@ -25,7 +27,7 @@ type PersonDetailPageProps = {
 export default async function PersonDetailPage({ params }: PersonDetailPageProps) {
   const { id } = await params;
 
-  const [person, workHistory, connections, photos, profileLabels, refSession] =
+  const [person, workHistory, connections, photos, profileLabels, refSession, headshots] =
     await Promise.all([
       getPersonWithDetails(id),
       getPersonWorkHistory(id),
@@ -33,6 +35,7 @@ export default async function PersonDetailPage({ params }: PersonDetailPageProps
       getPhotosForEntity("person", id),
       getProfileImageLabels(),
       getPersonReferenceSession(id),
+      getPersonHeadshots(id),
     ]);
 
   if (!person) notFound();
@@ -70,20 +73,60 @@ export default async function PersonDetailPage({ params }: PersonDetailPageProps
       {refSession && (
         <Link
           href={`/sessions/${refSession.id}`}
-          className="group flex items-center gap-3 rounded-2xl border border-white/20 bg-card/70 px-5 py-4 shadow-md backdrop-blur-sm transition-all hover:border-white/30 hover:bg-card/80 hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="group block rounded-2xl border border-white/20 bg-card/70 px-5 py-4 shadow-md backdrop-blur-sm transition-all hover:border-white/30 hover:bg-card/80 hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/15">
-            <Camera size={16} className="text-primary" />
+          <div className="flex items-center gap-3">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/15">
+              <Camera size={16} className="text-primary" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <span className="text-sm font-semibold group-hover:text-primary transition-colors">
+                Reference Media
+              </span>
+              <span className="ml-2 text-xs text-muted-foreground">
+                {refSession._count.mediaItems} {refSession._count.mediaItems === 1 ? "item" : "items"}
+              </span>
+            </div>
+            <ArrowRight size={14} className="shrink-0 text-muted-foreground group-hover:text-primary transition-colors" />
           </div>
-          <div className="min-w-0 flex-1">
-            <span className="text-sm font-semibold group-hover:text-primary transition-colors">
-              Reference Media
-            </span>
-            <span className="ml-2 text-xs text-muted-foreground">
-              {refSession._count.mediaItems} {refSession._count.mediaItems === 1 ? "item" : "items"}
-            </span>
-          </div>
-          <ArrowRight size={14} className="shrink-0 text-muted-foreground group-hover:text-primary transition-colors" />
+
+          {/* Headshot slot strip */}
+          {profileLabels.length > 0 && (
+            <div className="mt-3 flex gap-2">
+              {profileLabels.map((sl, i) => {
+                const slotNumber = i + 1;
+                const hs = headshots.find((h) => h.slot === slotNumber);
+                const thumbUrl = hs?.mediaItem.urls.profile_128 ?? hs?.mediaItem.urls.profile_256 ?? null;
+
+                return (
+                  <div
+                    key={sl.slot}
+                    className="flex flex-col items-center gap-1"
+                  >
+                    <div className="relative h-12 w-12 overflow-hidden rounded-lg border border-white/15 bg-muted/40">
+                      {thumbUrl ? (
+                        <Image
+                          src={thumbUrl}
+                          alt={sl.label}
+                          width={48}
+                          height={48}
+                          className="h-full w-full object-cover"
+                          unoptimized
+                        />
+                      ) : (
+                        <div className="flex h-full w-full items-center justify-center">
+                          <ImageIcon size={14} className="text-muted-foreground/40" />
+                        </div>
+                      )}
+                    </div>
+                    <span className="text-[10px] text-muted-foreground truncate max-w-[48px]">
+                      {sl.label}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </Link>
       )}
 

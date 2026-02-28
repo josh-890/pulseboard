@@ -234,6 +234,7 @@ model Person {
   resolvedCredits      SetCreditRaw[]
   personMediaLinks     PersonMediaLink[]
   referenceSession     Session?             @relation("ReferenceSession")
+  mediaCollections     MediaCollection[]
 
   createdAt DateTime  @default(now())
   deletedAt DateTime?
@@ -776,6 +777,7 @@ model MediaItem {
   setMediaItems    SetMediaItem[]
   personMediaLinks PersonMediaLink[]
   coverForSets     Set[]             @relation("SetCoverMedia")
+  collectionItems  MediaCollectionItem[]
 
   @@index([sessionId])
   @@index([hash])
@@ -881,6 +883,36 @@ model PersonMediaLink {
   @@index([bodyModificationId])
   @@index([cosmeticProcedureId])
   @@index([deletedAt])
+}
+
+// ─── Media Collections ──────────────────────────────────────────────────────
+
+model MediaCollection {
+  id          String                @id @default(uuid())
+  name        String
+  description String?
+  personId    String?
+  person      Person?               @relation(fields: [personId], references: [id])
+  items       MediaCollectionItem[]
+  createdAt   DateTime              @default(now())
+  updatedAt   DateTime              @updatedAt
+  deletedAt   DateTime?
+
+  @@index([personId])
+  @@index([deletedAt])
+  @@map("MediaCollection")
+}
+
+model MediaCollectionItem {
+  collectionId String
+  mediaItemId  String
+  sortOrder    Int              @default(0)
+  collection   MediaCollection  @relation(fields: [collectionId], references: [id])
+  mediaItem    MediaItem        @relation(fields: [mediaItemId], references: [id])
+  createdAt    DateTime         @default(now())
+
+  @@id([collectionId, mediaItemId])
+  @@map("MediaCollectionItem")
 }
 
 // ─── Photos (deprecated — replaced by MediaItem in Phase 2) ─────────────────

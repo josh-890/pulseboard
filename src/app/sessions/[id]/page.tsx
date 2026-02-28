@@ -4,7 +4,10 @@ import { Building2, FolderKanban, Users, ImageIcon, Clapperboard, Camera, Film, 
 import { getSessionById } from "@/lib/services/session-service";
 import { getLabels } from "@/lib/services/label-service";
 import { getProjects } from "@/lib/services/project-service";
-import { getMediaItemsForSession } from "@/lib/services/media-service";
+import { getMediaItemsForSession, getMediaItemsWithLinks } from "@/lib/services/media-service";
+import { getProfileImageLabels } from "@/lib/services/setting-service";
+import { getCollectionsForPerson } from "@/lib/services/collection-service";
+import { prisma } from "@/lib/db";
 import { cn, formatPartialDate } from "@/lib/utils";
 import { SessionStatusBadge } from "@/components/sessions/session-status-badge";
 import { EditSessionSheet } from "@/components/sessions/edit-session-sheet";
@@ -18,6 +21,7 @@ import {
 } from "@/components/sessions/session-detail-header";
 import { SessionMergeDialog } from "@/components/sessions/session-merge-dialog";
 import { SessionMediaGallery } from "@/components/sessions/session-media-gallery";
+import { MediaManager } from "@/components/media/media-manager";
 
 export const dynamic = "force-dynamic";
 
@@ -62,11 +66,10 @@ function EmptyState({ message }: { message: string }) {
 export default async function SessionDetailPage({ params }: SessionDetailPageProps) {
   const { id } = await params;
 
-  const [session, labels, projects, mediaItems] = await Promise.all([
+  const [session, labels, projects] = await Promise.all([
     getSessionById(id),
     getLabels(),
     getProjects(),
-    getMediaItemsForSession(id),
   ]);
 
   if (!session) notFound();
@@ -77,6 +80,52 @@ export default async function SessionDetailPage({ params }: SessionDetailPagePro
   const participantCount = session.participants.length;
   const mediaCount = session._count.mediaItems;
   const setCount = session.setSessionLinks.length;
+
+  // Load data for reference sessions (MediaManager) vs regular sessions (SessionMediaGallery)
+  let mediaItems: Awaited<ReturnType<typeof getMediaItemsForSession>> = [];
+  let mediaManagerData: {
+    items: Awaited<ReturnType<typeof getMediaItemsWithLinks>>;
+    slotLabels: Awaited<ReturnType<typeof getProfileImageLabels>>;
+    collections: Awaited<ReturnType<typeof getCollectionsForPerson>>;
+    bodyMarks: { id: string; name: string }[];
+    bodyModifications: { id: string; name: string }[];
+    cosmeticProcedures: { id: string; name: string }[];
+  } | null = null;
+
+  if (isReference && session.personId) {
+    const personId = session.personId;
+    const [itemsWithLinks, slotLabels, collections, bodyMarks, bodyMods, cosmetics] =
+      await Promise.all([
+        getMediaItemsWithLinks(id, personId),
+        getProfileImageLabels(),
+        getCollectionsForPerson(personId),
+        prisma.bodyMark.findMany({
+          where: { personId, deletedAt: null, status: "present" },
+          select: { id: true, type: true, bodyRegion: true },
+          orderBy: { bodyRegion: "asc" },
+        }),
+        prisma.bodyModification.findMany({
+          where: { personId, deletedAt: null, status: "present" },
+          select: { id: true, type: true, bodyRegion: true },
+          orderBy: { bodyRegion: "asc" },
+        }),
+        prisma.cosmeticProcedure.findMany({
+          where: { personId, deletedAt: null },
+          select: { id: true, type: true, bodyRegion: true },
+          orderBy: { bodyRegion: "asc" },
+        }),
+      ]);
+    mediaManagerData = {
+      items: itemsWithLinks,
+      slotLabels,
+      collections,
+      bodyMarks: bodyMarks.map((m) => ({ id: m.id, name: `${m.type} — ${m.bodyRegion}` })),
+      bodyModifications: bodyMods.map((m) => ({ id: m.id, name: `${m.type} — ${m.bodyRegion}` })),
+      cosmeticProcedures: cosmetics.map((m) => ({ id: m.id, name: `${m.type} — ${m.bodyRegion}` })),
+    };
+  } else {
+    mediaItems = await getMediaItemsForSession(id);
+  }
 
   return (
     <div className="space-y-6">
@@ -213,15 +262,31 @@ export default async function SessionDetailPage({ params }: SessionDetailPagePro
 
       {/* Media */}
       <SectionCard
-        title={`Media (${mediaItems.length})`}
+        title={`Media (${mediaCount})`}
         icon={<ImageIcon size={18} />}
       >
-        <SessionMediaGallery
-          items={mediaItems.map(({ createdAt, ...rest }) => ({
-            ...rest,
-            createdAt: createdAt.toISOString() as unknown as Date,
-          }))}
-        />
+        {isReference && mediaManagerData && session.personId ? (
+          <MediaManager
+            items={mediaManagerData.items.map(({ createdAt, ...rest }) => ({
+              ...rest,
+              createdAt: createdAt.toISOString() as unknown as Date,
+            }))}
+            personId={session.personId}
+            sessionId={id}
+            slotLabels={mediaManagerData.slotLabels}
+            collections={mediaManagerData.collections}
+            bodyMarks={mediaManagerData.bodyMarks}
+            bodyModifications={mediaManagerData.bodyModifications}
+            cosmeticProcedures={mediaManagerData.cosmeticProcedures}
+          />
+        ) : (
+          <SessionMediaGallery
+            items={mediaItems.map(({ createdAt, ...rest }) => ({
+              ...rest,
+              createdAt: createdAt.toISOString() as unknown as Date,
+            }))}
+          />
+        )}
       </SectionCard>
 
       {/* Participants */}

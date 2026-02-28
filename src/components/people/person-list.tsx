@@ -16,6 +16,7 @@ type PersonListProps = {
   nextCursor: string | null;
   totalCount: number;
   filters: PersonFilters;
+  slot?: number;
 };
 
 export function PersonList({
@@ -24,6 +25,7 @@ export function PersonList({
   nextCursor: initialCursor,
   totalCount,
   filters,
+  slot,
 }: PersonListProps) {
   const { density } = useDensity();
   const isCompact = density === "compact";
@@ -35,7 +37,7 @@ export function PersonList({
   function handleLoadMore() {
     if (!cursor) return;
     startTransition(async () => {
-      const result = await loadMorePersons(filters, cursor);
+      const result = await loadMorePersons(filters, cursor, slot);
       setPersons((prev) => {
         const next = [...prev, ...result.items];
         // Silently update URL so back-navigation restores the loaded count

@@ -11,6 +11,7 @@ import {
 } from "@/lib/services/person-service";
 import type { PersonFilters } from "@/lib/services/person-service";
 import { getFavoritePhotosForPersons } from "@/lib/services/photo-service";
+import { getHeadshotsForPersons } from "@/lib/services/media-service";
 import { prisma } from "@/lib/db";
 
 type ActionResult =
@@ -112,12 +113,25 @@ export async function createMinimalPerson(
 export async function loadMorePersons(
   filters: PersonFilters,
   cursor: string,
+  slot?: number,
 ) {
   const result = await getPersonsPaginated(filters, cursor, 50);
-  const photoMapRaw = await getFavoritePhotosForPersons(
-    result.items.map((p) => p.id),
-  );
-  const photoMap = Object.fromEntries(photoMapRaw);
+  const personIds = result.items.map((p) => p.id);
+
+  const headshotMap = await getHeadshotsForPersons(personIds, slot);
+
+  // Fallback to legacy photos for persons without headshots
+  const missingIds = personIds.filter((id) => !headshotMap.has(id));
+  const legacyMapRaw = missingIds.length > 0
+    ? await getFavoritePhotosForPersons(missingIds)
+    : new Map<string, string>();
+
+  const photoMap: Record<string, string> = {};
+  for (const id of personIds) {
+    const url = headshotMap.get(id) ?? legacyMapRaw.get(id);
+    if (url) photoMap[id] = url;
+  }
+
   return {
     items: result.items,
     nextCursor: result.nextCursor,

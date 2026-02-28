@@ -2,6 +2,7 @@ import { randomUUID } from "crypto";
 import { prisma } from "@/lib/db";
 import type { PhotoVariants, PhotoUrls } from "@/lib/types";
 import type { MediaItemWithUrls, PersonMediaUsage } from "@/lib/types";
+import type { PersonMediaLink } from "@/generated/prisma/client";
 
 const BASE_URL = process.env.NEXT_PUBLIC_MINIO_URL!;
 
@@ -270,6 +271,37 @@ export async function getPersonMediaByUsage(
     .filter((item): item is PersonMediaLinkWithItem => item !== null);
 }
 
+export async function getHeadshotsForPersons(
+  personIds: string[],
+  slot?: number,
+): Promise<Map<string, string>> {
+  if (personIds.length === 0) return new Map();
+
+  const links = await prisma.personMediaLink.findMany({
+    where: {
+      personId: { in: personIds },
+      usage: "HEADSHOT",
+      ...(slot !== undefined ? { slot } : {}),
+    },
+    include: { mediaItem: true },
+    orderBy: [{ slot: "asc" }, { sortOrder: "asc" }],
+  });
+
+  const result = new Map<string, string>();
+  for (const link of links) {
+    if (!result.has(link.personId)) {
+      const variants = (link.mediaItem.variants ?? {}) as PhotoVariants;
+      const url = variants.profile_128
+        ? buildUrl(variants.profile_128)
+        : variants.original
+          ? buildUrl(variants.original)
+          : null;
+      if (url) result.set(link.personId, url);
+    }
+  }
+  return result;
+}
+
 export async function getPersonMediaForEntity(
   personId: string,
   entityType: "bodyMark" | "bodyModification" | "cosmeticProcedure",
@@ -289,4 +321,143 @@ export async function getPersonMediaForEntity(
   return links
     .map((link) => toPersonMediaLinkWithItem(link))
     .filter((item): item is PersonMediaLinkWithItem => item !== null);
+}
+
+// ─── MediaManager queries ───────────────────────────────────────────────────
+
+export type MediaItemWithLinks = {
+  id: string;
+  filename: string;
+  mimeType: string;
+  originalWidth: number;
+  originalHeight: number;
+  caption: string | null;
+  tags: string[];
+  notes: string | null;
+  createdAt: Date;
+  urls: PhotoUrls;
+  links: {
+    id: string;
+    usage: PersonMediaUsage;
+    slot: number | null;
+    bodyRegion: string | null;
+    bodyMarkId: string | null;
+    bodyModificationId: string | null;
+    cosmeticProcedureId: string | null;
+    isFavorite: boolean;
+    sortOrder: number;
+    notes: string | null;
+  }[];
+  collectionIds: string[];
+};
+
+export async function getMediaItemsWithLinks(
+  sessionId: string,
+  personId: string,
+): Promise<MediaItemWithLinks[]> {
+  const items = await prisma.mediaItem.findMany({
+    where: { sessionId },
+    include: {
+      personMediaLinks: {
+        where: { personId, deletedAt: null },
+      },
+      collectionItems: {
+        select: { collectionId: true },
+      },
+    },
+    orderBy: { createdAt: "asc" },
+  });
+
+  return items
+    .map((item) => {
+      const variants = (item.variants ?? {}) as PhotoVariants;
+      if (!variants.original && !item.fileRef) return null;
+
+      return {
+        id: item.id,
+        filename: item.filename,
+        mimeType: item.mimeType,
+        originalWidth: item.originalWidth,
+        originalHeight: item.originalHeight,
+        caption: item.caption,
+        tags: item.tags,
+        notes: item.notes,
+        createdAt: item.createdAt,
+        urls: buildPhotoUrls(variants, item.fileRef),
+        links: item.personMediaLinks.map((link) => ({
+          id: link.id,
+          usage: link.usage,
+          slot: link.slot,
+          bodyRegion: link.bodyRegion,
+          bodyMarkId: link.bodyMarkId,
+          bodyModificationId: link.bodyModificationId,
+          cosmeticProcedureId: link.cosmeticProcedureId,
+          isFavorite: link.isFavorite,
+          sortOrder: link.sortOrder,
+          notes: link.notes,
+        })),
+        collectionIds: item.collectionItems.map((ci) => ci.collectionId),
+      };
+    })
+    .filter((item): item is MediaItemWithLinks => item !== null);
+}
+
+export type PersonMediaLinkUpdate = {
+  usage?: PersonMediaUsage;
+  slot?: number | null;
+  bodyRegion?: string | null;
+  bodyMarkId?: string | null;
+  bodyModificationId?: string | null;
+  cosmeticProcedureId?: string | null;
+  isFavorite?: boolean;
+  notes?: string | null;
+};
+
+export async function updatePersonMediaLink(
+  linkId: string,
+  data: PersonMediaLinkUpdate,
+): Promise<PersonMediaLink> {
+  return prisma.personMediaLink.update({
+    where: { id: linkId },
+    data,
+  });
+}
+
+export async function batchUpdatePersonMediaLinks(
+  linkIds: string[],
+  data: PersonMediaLinkUpdate,
+): Promise<void> {
+  if (linkIds.length === 0) return;
+  await prisma.personMediaLink.updateMany({
+    where: { id: { in: linkIds } },
+    data,
+  });
+}
+
+export async function batchSetUsage(
+  personId: string,
+  mediaItemIds: string[],
+  usage: PersonMediaUsage,
+): Promise<void> {
+  if (mediaItemIds.length === 0) return;
+
+  await prisma.$transaction(async (tx) => {
+    for (const mediaItemId of mediaItemIds) {
+      await tx.personMediaLink.upsert({
+        where: {
+          personId_mediaItemId_usage: {
+            personId,
+            mediaItemId,
+            usage,
+          },
+        },
+        update: {},
+        create: {
+          personId,
+          mediaItemId,
+          usage,
+        },
+      });
+    }
+  });
 }

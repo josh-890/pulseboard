@@ -1,12 +1,18 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import Image from "next/image";
-import { X, ChevronLeft, ChevronRight } from "lucide-react";
+import { X, ChevronLeft, ChevronRight, ImageIcon } from "lucide-react";
 import type { MediaItemWithUrls } from "@/lib/types";
+import type { ProfileImageLabel } from "@/lib/services/setting-service";
+import { assignHeadshotSlot, removeHeadshotSlot } from "@/lib/actions/media-actions";
+import { cn } from "@/lib/utils";
 
 type SessionMediaGalleryProps = {
   items: MediaItemWithUrls[];
+  personId?: string;
+  slotLabels?: ProfileImageLabel[];
+  existingSlots?: Record<string, number>;
 };
 
 const GAP = 8;
@@ -64,10 +70,18 @@ function computeRows(
   return rows;
 }
 
-export function SessionMediaGallery({ items }: SessionMediaGalleryProps) {
+export function SessionMediaGallery({
+  items,
+  personId,
+  slotLabels,
+  existingSlots: existingSlotsProp,
+}: SessionMediaGalleryProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [containerWidth, setContainerWidth] = useState(0);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+  const [slotMap, setSlotMap] = useState<Record<string, number>>(existingSlotsProp ?? {});
+  const [isPending, startTransition] = useTransition();
+  const showSlotBar = !!personId && !!slotLabels && slotLabels.length > 0;
 
   // Measure container width via ResizeObserver
   useEffect(() => {
@@ -136,6 +150,48 @@ export function SessionMediaGallery({ items }: SessionMediaGalleryProps) {
     document.addEventListener("keydown", handleKey);
     return () => document.removeEventListener("keydown", handleKey);
   }, [lightboxIndex, closeLightbox, goNext, goPrev]);
+
+  // Build reverse map: slot → mediaItemId
+  const reverseSlotMap = useMemo(() => {
+    const map = new Map<number, string>();
+    for (const [mediaId, slot] of Object.entries(slotMap)) {
+      map.set(slot, mediaId);
+    }
+    return map;
+  }, [slotMap]);
+
+  const handleSlotClick = useCallback(
+    (mediaItemId: string, slotNumber: number) => {
+      if (!personId) return;
+
+      const currentSlot = slotMap[mediaItemId];
+      const isToggleOff = currentSlot === slotNumber;
+
+      // Optimistic update
+      setSlotMap((prev) => {
+        const next = { ...prev };
+        if (isToggleOff) {
+          delete next[mediaItemId];
+        } else {
+          // Clear any other media from this slot
+          for (const [id, s] of Object.entries(next)) {
+            if (s === slotNumber) delete next[id];
+          }
+          next[mediaItemId] = slotNumber;
+        }
+        return next;
+      });
+
+      startTransition(async () => {
+        if (isToggleOff) {
+          await removeHeadshotSlot(personId, mediaItemId);
+        } else {
+          await assignHeadshotSlot(personId, mediaItemId, slotNumber);
+        }
+      });
+    },
+    [personId, slotMap],
+  );
 
   if (items.length === 0) {
     return (
@@ -252,6 +308,46 @@ export function SessionMediaGallery({ items }: SessionMediaGalleryProps) {
                 {lightboxIndex + 1} / {items.length}
               </span>
             </div>
+
+            {/* Headshot slot bar */}
+            {showSlotBar && (
+              <div className="mt-3 flex items-center gap-2">
+                <ImageIcon size={14} className="shrink-0 text-white/50" />
+                <div className="flex gap-1.5">
+                  {slotLabels.map((sl, i) => {
+                    const slotNumber = i + 1;
+                    const isActive = slotMap[current.id] === slotNumber;
+                    const occupiedBy = reverseSlotMap.get(slotNumber);
+                    const isOccupiedByOther = occupiedBy !== undefined && occupiedBy !== current.id;
+                    return (
+                      <button
+                        key={sl.slot}
+                        type="button"
+                        disabled={isPending}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleSlotClick(current.id, slotNumber);
+                        }}
+                        className={cn(
+                          "rounded-md px-2.5 py-1 text-xs font-medium transition-all",
+                          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50",
+                          isActive
+                            ? "bg-primary text-primary-foreground shadow-sm"
+                            : isOccupiedByOther
+                              ? "bg-white/10 text-white/40 hover:bg-white/20 hover:text-white/70"
+                              : "bg-white/10 text-white/70 hover:bg-white/20 hover:text-white",
+                        )}
+                        title={isOccupiedByOther ? `${sl.label} (assigned to another image)` : sl.label}
+                        aria-label={`Assign to ${sl.label}`}
+                        aria-pressed={isActive}
+                      >
+                        {sl.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Next */}
