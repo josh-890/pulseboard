@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 import type { MediaItemWithLinks } from "@/lib/services/media-service";
 import type { ProfileImageLabel } from "@/lib/services/setting-service";
 import type { CollectionSummary } from "@/lib/services/collection-service";
+import { assignHeadshotSlot } from "@/lib/actions/media-actions";
 import { MediaGrid } from "./media-grid";
 import { MediaMetadataPanel } from "./media-metadata-panel";
 import { MediaLightbox } from "./media-lightbox";
@@ -114,6 +115,51 @@ export function MediaManager({
     setSelectedIds(new Set());
     setLastSelectedId(null);
   }, []);
+
+  // Keyboard shortcuts: 1-9 for slot assignment, Escape to deselect
+  useEffect(() => {
+    function handleKey(e: KeyboardEvent) {
+      // Skip if user is typing in an input/textarea
+      const tag = (e.target as HTMLElement)?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+
+      if (e.key === "Escape" && selectedIds.size > 0) {
+        e.preventDefault();
+        clearSelection();
+        return;
+      }
+
+      // Slot assignment: only for single selection
+      if (selectedIds.size !== 1) return;
+      const digit = parseInt(e.key, 10);
+      if (isNaN(digit) || digit < 1 || digit > slotLabels.length) return;
+
+      const selectedId = [...selectedIds][0];
+      const item = items.find((it) => it.id === selectedId);
+      if (!item) return;
+
+      // Check the item has HEADSHOT usage
+      const headshotLink = item.links.find((l) => l.usage === "HEADSHOT");
+      if (!headshotLink) return;
+
+      e.preventDefault();
+      // Optimistic update
+      setItems((prev) =>
+        prev.map((it) => {
+          if (it.id !== selectedId) return it;
+          return {
+            ...it,
+            links: it.links.map((l) =>
+              l.usage === "HEADSHOT" ? { ...l, slot: digit } : l,
+            ),
+          };
+        }),
+      );
+      assignHeadshotSlot(personId, selectedId, digit);
+    }
+    document.addEventListener("keydown", handleKey);
+    return () => document.removeEventListener("keydown", handleKey);
+  }, [selectedIds, items, slotLabels.length, personId, clearSelection]);
 
   const handleBatchComplete = useCallback(() => {
     router.refresh();
