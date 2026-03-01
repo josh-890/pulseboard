@@ -346,6 +346,47 @@ export async function getPersonMediaAsPhotos(
   return results;
 }
 
+// ─── Set media as PhotoWithUrls (bridge for set gallery) ────────────────────
+
+export async function getSetMediaAsPhotos(
+  setId: string,
+): Promise<PhotoWithUrls[]> {
+  const links = await prisma.setMediaItem.findMany({
+    where: { setId },
+    include: { mediaItem: true },
+    orderBy: { sortOrder: "asc" },
+  });
+
+  const results: PhotoWithUrls[] = [];
+  for (const link of links) {
+    const item = link.mediaItem;
+    const variants = (item.variants ?? {}) as PhotoVariants;
+    if (!variants.original && !item.fileRef) continue;
+
+    results.push({
+      id: item.id,
+      entityType: "set",
+      entityId: setId,
+      filename: item.filename,
+      mimeType: item.mimeType,
+      size: item.size,
+      originalWidth: item.originalWidth,
+      originalHeight: item.originalHeight,
+      variants,
+      tags: item.tags,
+      linkedEntityType: null,
+      linkedEntityId: null,
+      caption: link.caption ?? item.caption,
+      isFavorite: false,
+      sortOrder: link.sortOrder,
+      createdAt: item.createdAt,
+      deletedAt: null,
+      urls: buildPhotoUrls(variants, item.fileRef),
+    });
+  }
+  return results;
+}
+
 // ─── Query functions ─────────────────────────────────────────────────────────
 
 export async function getMediaItemsForSession(

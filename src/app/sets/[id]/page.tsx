@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Camera, Film, Tag, FileText, Check, Circle } from "lucide-react";
 import { getSetById, getChannelsForSelect } from "@/lib/services/set-service";
 import { getPhotosForEntity } from "@/lib/services/photo-service";
+import { getSetMediaAsPhotos } from "@/lib/services/media-service";
 import { getProfileImageLabels } from "@/lib/services/setting-service";
 import { SetDetailGallery } from "@/components/sets/set-detail-gallery";
 import { CreditResolutionPanel } from "@/components/sets/credit-resolution-panel";
@@ -95,9 +96,10 @@ function CompletenessChip({ done, label }: { done: boolean; label: string }) {
 export default async function SetDetailPage({ params }: SetDetailPageProps) {
   const { id } = await params;
 
-  const [set, photos, channels, profileLabels] = await Promise.all([
+  const [set, legacyPhotos, mediaPhotos, channels, profileLabels] = await Promise.all([
     getSetById(id),
     getPhotosForEntity("set", id),
+    getSetMediaAsPhotos(id),
     getChannelsForSelect(),
     getProfileImageLabels(),
   ]);
@@ -105,6 +107,11 @@ export default async function SetDetailPage({ params }: SetDetailPageProps) {
   if (!set) notFound();
 
   const typeConfig = SET_TYPE_CONFIG[set.type];
+
+  // Merge: use MediaItems as primary, fall back to legacy photos for items not in MediaItem system
+  const mediaFilenames = new Set(mediaPhotos.map((p) => p.filename));
+  const uniqueLegacy = legacyPhotos.filter((p) => !mediaFilenames.has(p.filename));
+  const photos = [...mediaPhotos, ...uniqueLegacy];
 
   // Strip variants from photos before passing to client component (RSC payload safety)
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
