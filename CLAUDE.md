@@ -153,5 +153,9 @@ After making UI changes, verify effects in the browser using Playwright MCP tool
 - No `any` types anywhere in the codebase
 - UI follows UX/UI skill guidelines (`docs/ux-ui-skill.md`)
 
+## Test Data Cleanup
+- After running Playwright tests, seeding data, or creating test records in the dev database, **always ask the user** whether to clean up the generated test data before ending the task
+- Never leave test/seed artifacts in the database without confirming
+
 ## Context searches
 - Always use Context7 MCP when I need library/API documentation, code generation, setup or configuration steps without me having to explicitly ask.
