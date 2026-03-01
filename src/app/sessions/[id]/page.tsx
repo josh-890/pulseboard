@@ -4,7 +4,7 @@ import { Building2, FolderKanban, Users, ImageIcon, Clapperboard, Camera, Film, 
 import { getSessionById } from "@/lib/services/session-service";
 import { getLabels } from "@/lib/services/label-service";
 import { getProjects } from "@/lib/services/project-service";
-import { getMediaItemsForSession, getMediaItemsWithLinks } from "@/lib/services/media-service";
+import { getMediaItemsForSession, getMediaItemsWithLinks, getFilledHeadshotSlots } from "@/lib/services/media-service";
 import { getProfileImageLabels } from "@/lib/services/setting-service";
 import { getCollectionsForPerson } from "@/lib/services/collection-service";
 import { prisma } from "@/lib/db";
@@ -22,6 +22,7 @@ import {
 import { SessionMergeDialog } from "@/components/sessions/session-merge-dialog";
 import { SessionMediaGallery } from "@/components/sessions/session-media-gallery";
 import { MediaManager } from "@/components/media/media-manager";
+import { BatchUploadZone } from "@/components/media/batch-upload-zone";
 
 export const dynamic = "force-dynamic";
 
@@ -90,11 +91,12 @@ export default async function SessionDetailPage({ params }: SessionDetailPagePro
     bodyMarks: { id: string; name: string }[];
     bodyModifications: { id: string; name: string }[];
     cosmeticProcedures: { id: string; name: string }[];
+    filledHeadshotSlots: number[];
   } | null = null;
 
   if (isReference && session.personId) {
     const personId = session.personId;
-    const [itemsWithLinks, slotLabels, collections, bodyMarks, bodyMods, cosmetics] =
+    const [itemsWithLinks, slotLabels, collections, bodyMarks, bodyMods, cosmetics, filledSlots] =
       await Promise.all([
         getMediaItemsWithLinks(id, personId),
         getProfileImageLabels(),
@@ -114,6 +116,7 @@ export default async function SessionDetailPage({ params }: SessionDetailPagePro
           select: { id: true, type: true, bodyRegion: true },
           orderBy: { bodyRegion: "asc" },
         }),
+        getFilledHeadshotSlots(personId),
       ]);
     mediaManagerData = {
       items: itemsWithLinks,
@@ -122,6 +125,7 @@ export default async function SessionDetailPage({ params }: SessionDetailPagePro
       bodyMarks: bodyMarks.map((m) => ({ id: m.id, name: `${m.type} — ${m.bodyRegion}` })),
       bodyModifications: bodyMods.map((m) => ({ id: m.id, name: `${m.type} — ${m.bodyRegion}` })),
       cosmeticProcedures: cosmetics.map((m) => ({ id: m.id, name: `${m.type} — ${m.bodyRegion}` })),
+      filledHeadshotSlots: filledSlots,
     };
   } else {
     mediaItems = await getMediaItemsForSession(id);
@@ -267,27 +271,42 @@ export default async function SessionDetailPage({ params }: SessionDetailPagePro
         icon={<ImageIcon size={18} />}
       >
         {isReference && mediaManagerData && session.personId ? (
-          <MediaManager
-            items={mediaManagerData.items.map(({ createdAt, ...rest }) => ({
-              ...rest,
-              createdAt: createdAt.toISOString() as unknown as Date,
-            }))}
-            personId={session.personId}
-            sessionId={id}
-            slotLabels={mediaManagerData.slotLabels}
-            collections={mediaManagerData.collections}
-            bodyMarks={mediaManagerData.bodyMarks}
-            bodyModifications={mediaManagerData.bodyModifications}
-            cosmeticProcedures={mediaManagerData.cosmeticProcedures}
-            anchor="reference"
-          />
+          <>
+            <MediaManager
+              items={mediaManagerData.items.map(({ createdAt, ...rest }) => ({
+                ...rest,
+                createdAt: createdAt.toISOString() as unknown as Date,
+              }))}
+              personId={session.personId}
+              sessionId={id}
+              slotLabels={mediaManagerData.slotLabels}
+              collections={mediaManagerData.collections}
+              bodyMarks={mediaManagerData.bodyMarks}
+              bodyModifications={mediaManagerData.bodyModifications}
+              cosmeticProcedures={mediaManagerData.cosmeticProcedures}
+              anchor="reference"
+            />
+            <div className="mt-4">
+              <BatchUploadZone
+                sessionId={id}
+                personId={session.personId}
+                filledHeadshotSlots={mediaManagerData.filledHeadshotSlots}
+                totalHeadshotSlots={mediaManagerData.slotLabels.length || 5}
+              />
+            </div>
+          </>
         ) : (
-          <SessionMediaGallery
-            items={mediaItems.map(({ createdAt, ...rest }) => ({
-              ...rest,
-              createdAt: createdAt.toISOString() as unknown as Date,
-            }))}
-          />
+          <>
+            <SessionMediaGallery
+              items={mediaItems.map(({ createdAt, ...rest }) => ({
+                ...rest,
+                createdAt: createdAt.toISOString() as unknown as Date,
+              }))}
+            />
+            <div className="mt-4">
+              <BatchUploadZone sessionId={id} />
+            </div>
+          </>
         )}
       </SectionCard>
 

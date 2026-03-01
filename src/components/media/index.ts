@@ -5,3 +5,4 @@ export { MediaMetadataPanel } from "./media-metadata-panel";
 export { MediaLightbox } from "./media-lightbox";
 export { MediaFilmstrip } from "./media-filmstrip";
 export { MediaUsageBadge, MediaAnchorBadge } from "./media-badge";
+export { BatchUploadZone } from "./batch-upload-zone";

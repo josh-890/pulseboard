@@ -41,10 +41,9 @@ import {
   Link2,
 } from "lucide-react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { CarouselHeader } from "@/components/photos/carousel-header";
 import { JustifiedGallery } from "@/components/photos/justified-gallery";
-import { ImageUpload } from "@/components/photos/image-upload";
+import { BatchUploadZone } from "@/components/media/batch-upload-zone";
 import type { PhotoWithUrls } from "@/lib/types";
 import type { ProfileImageLabel } from "@/lib/services/setting-service";
 
@@ -61,6 +60,8 @@ type PersonDetailTabsProps = {
   connections: PersonConnection[];
   photos: PhotoProps[];
   profileLabels: ProfileImageLabel[];
+  referenceSessionId?: string;
+  filledHeadshotSlots?: number[];
 };
 
 // ── Style maps ──────────────────────────────────────────────────────────────
@@ -1033,13 +1034,15 @@ function PhotosTab({
   person,
   photos,
   profileLabels,
+  referenceSessionId,
+  filledHeadshotSlots,
 }: {
   person: PersonData;
   photos: PhotoProps[];
   profileLabels: ProfileImageLabel[];
+  referenceSessionId?: string;
+  filledHeadshotSlots?: number[];
 }) {
-  const router = useRouter();
-
   return (
     <div className="space-y-6">
       <SectionCard title="Gallery" icon={<ImageIcon size={18} />} badge={photos.length}>
@@ -1054,12 +1057,14 @@ function PhotosTab({
           />
         )}
       </SectionCard>
-      <ImageUpload
-        entityType="person"
-        entityId={person.id}
-        onUploadComplete={() => router.refresh()}
-        currentCount={photos.length}
-      />
+      {referenceSessionId && (
+        <BatchUploadZone
+          sessionId={referenceSessionId}
+          personId={person.id}
+          filledHeadshotSlots={filledHeadshotSlots}
+          totalHeadshotSlots={profileLabels.length || 5}
+        />
+      )}
     </div>
   );
 }
@@ -1074,6 +1079,8 @@ export function PersonDetailTabs({
   connections,
   photos,
   profileLabels,
+  referenceSessionId,
+  filledHeadshotSlots,
 }: PersonDetailTabsProps) {
   const [activeTab, setActiveTab] = useState<TabId>("overview");
 
@@ -1191,7 +1198,13 @@ export function PersonDetailTabs({
         hidden={activeTab !== "photos"}
       >
         {activeTab === "photos" && (
-          <PhotosTab person={person} photos={photos} profileLabels={profileLabels} />
+          <PhotosTab
+            person={person}
+            photos={photos}
+            profileLabels={profileLabels}
+            referenceSessionId={referenceSessionId}
+            filledHeadshotSlots={filledHeadshotSlots}
+          />
         )}
       </div>
     </div>

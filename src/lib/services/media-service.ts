@@ -1,6 +1,6 @@
 import { randomUUID } from "crypto";
 import { prisma } from "@/lib/db";
-import type { PhotoVariants, PhotoUrls } from "@/lib/types";
+import type { PhotoVariants, PhotoUrls, PhotoWithUrls } from "@/lib/types";
 import type { MediaItemWithUrls, PersonMediaUsage } from "@/lib/types";
 import type { PersonMediaLink } from "@/generated/prisma/client";
 
@@ -178,6 +178,172 @@ export async function createMediaItemForPerson(
   });
 
   return mediaItemId;
+}
+
+// ─── Direct media creation (skips legacy Photo table) ────────────────────────
+
+type CreateMediaItemDirectInput = {
+  sessionId: string;
+  filename: string;
+  mimeType: string;
+  size: number;
+  originalWidth: number;
+  originalHeight: number;
+  variants: PhotoVariants;
+  caption?: string;
+  sortOrder?: number;
+  personId?: string;
+  usage?: PersonMediaUsage;
+  slot?: number;
+  setId?: string;
+};
+
+export async function createMediaItemDirect(
+  input: CreateMediaItemDirectInput,
+): Promise<{ id: string; filename: string; urls: ReturnType<typeof buildPhotoUrls> }> {
+  const mediaItemId = randomUUID();
+
+  await prisma.$transaction(async (tx) => {
+    await tx.mediaItem.create({
+      data: {
+        id: mediaItemId,
+        sessionId: input.sessionId,
+        mediaType: "PHOTO",
+        filename: input.filename,
+        mimeType: input.mimeType,
+        size: input.size,
+        originalWidth: input.originalWidth,
+        originalHeight: input.originalHeight,
+        variants: input.variants as unknown as Record<string, string>,
+        caption: input.caption,
+        tags: [],
+      },
+    });
+
+    // Person context: create PersonMediaLink(s)
+    if (input.personId) {
+      const usage = input.usage ?? "PROFILE";
+
+      await tx.personMediaLink.create({
+        data: {
+          personId: input.personId,
+          mediaItemId,
+          usage,
+          slot: usage === "HEADSHOT" ? input.slot : undefined,
+          sortOrder: input.sortOrder ?? 0,
+        },
+      });
+
+      // Headshot files also get a PROFILE link so they appear in both views
+      if (usage === "HEADSHOT") {
+        await tx.personMediaLink.create({
+          data: {
+            personId: input.personId,
+            mediaItemId,
+            usage: "PROFILE",
+            sortOrder: input.sortOrder ?? 0,
+          },
+        });
+      }
+    }
+
+    // Set context: create SetMediaItem + PersonMediaLinks for MODEL participants
+    if (input.setId) {
+      await tx.setMediaItem.create({
+        data: {
+          setId: input.setId,
+          mediaItemId,
+          sortOrder: input.sortOrder ?? 0,
+        },
+      });
+
+      // Auto-link MODEL participants
+      const modelParticipants = await tx.setParticipant.findMany({
+        where: { setId: input.setId, role: "MODEL" },
+        select: { personId: true },
+      });
+
+      for (const participant of modelParticipants) {
+        await tx.personMediaLink.create({
+          data: {
+            personId: participant.personId,
+            mediaItemId,
+            usage: "PORTFOLIO",
+          },
+        });
+      }
+    }
+  });
+
+  return {
+    id: mediaItemId,
+    filename: input.filename,
+    urls: buildPhotoUrls(input.variants),
+  };
+}
+
+export async function getFilledHeadshotSlots(
+  personId: string,
+): Promise<number[]> {
+  const links = await prisma.personMediaLink.findMany({
+    where: {
+      personId,
+      usage: "HEADSHOT",
+      slot: { not: null },
+    },
+    select: { slot: true },
+    orderBy: { slot: "asc" },
+  });
+
+  return links
+    .map((l) => l.slot)
+    .filter((s): s is number => s !== null);
+}
+
+// ─── Person media as PhotoWithUrls (bridge for carousel/gallery) ─────────────
+
+export async function getPersonMediaAsPhotos(
+  personId: string,
+  sessionId: string,
+): Promise<PhotoWithUrls[]> {
+  const items = await prisma.mediaItem.findMany({
+    where: { sessionId },
+    include: {
+      personMediaLinks: {
+        where: { personId },
+      },
+    },
+    orderBy: { createdAt: "asc" },
+  });
+
+  const results: PhotoWithUrls[] = [];
+  for (const item of items) {
+    const variants = (item.variants ?? {}) as PhotoVariants;
+    if (!variants.original && !item.fileRef) continue;
+
+    const link = item.personMediaLinks[0];
+    results.push({
+      id: item.id,
+      entityType: "person",
+      entityId: personId,
+      filename: item.filename,
+      mimeType: item.mimeType,
+      size: item.size,
+      originalWidth: item.originalWidth,
+      originalHeight: item.originalHeight,
+      variants,
+      tags: item.tags,
+      linkedEntityType: null,
+      linkedEntityId: null,
+      caption: item.caption,
+      isFavorite: link?.isFavorite ?? false,
+      sortOrder: link?.sortOrder ?? 0,
+      createdAt: item.createdAt,
+      deletedAt: null,
+      urls: buildPhotoUrls(variants, item.fileRef),
+    });
+  }
+  return results;
 }
 
 // ─── Query functions ─────────────────────────────────────────────────────────

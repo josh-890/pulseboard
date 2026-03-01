@@ -12,7 +12,7 @@ import {
 import { getPhotosForEntity } from "@/lib/services/photo-service";
 import { getProfileImageLabels } from "@/lib/services/setting-service";
 import { getPersonReferenceSession } from "@/lib/services/session-service";
-import { getPersonHeadshots } from "@/lib/services/media-service";
+import { getPersonHeadshots, getFilledHeadshotSlots, getPersonMediaAsPhotos } from "@/lib/services/media-service";
 import { PersonDetailTabs } from "@/components/people/person-detail-tabs";
 import { EditPersonSheet } from "@/components/people/edit-person-sheet";
 import { DeleteButton } from "@/components/shared/delete-button";
@@ -27,7 +27,7 @@ type PersonDetailPageProps = {
 export default async function PersonDetailPage({ params }: PersonDetailPageProps) {
   const { id } = await params;
 
-  const [person, workHistory, connections, photos, profileLabels, refSession, headshots] =
+  const [person, workHistory, connections, legacyPhotos, profileLabels, refSession, headshots, filledSlots] =
     await Promise.all([
       getPersonWithDetails(id),
       getPersonWorkHistory(id),
@@ -36,12 +36,23 @@ export default async function PersonDetailPage({ params }: PersonDetailPageProps
       getProfileImageLabels(),
       getPersonReferenceSession(id),
       getPersonHeadshots(id),
+      getFilledHeadshotSlots(id),
     ]);
 
   if (!person) notFound();
 
   const currentState = deriveCurrentState(person);
   const affiliations = deriveAffiliations(workHistory);
+
+  // Load MediaItems from reference session (authoritative source for batch uploads)
+  const mediaPhotos = refSession
+    ? await getPersonMediaAsPhotos(id, refSession.id)
+    : [];
+
+  // Merge: use MediaItems as primary, fall back to legacy photos for items not in MediaItem system
+  const mediaFilenames = new Set(mediaPhotos.map((p) => p.filename));
+  const uniqueLegacy = legacyPhotos.filter((p) => !mediaFilenames.has(p.filename));
+  const photos = [...mediaPhotos, ...uniqueLegacy];
 
   // Strip variants from photos before passing to client component (RSC payload safety)
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -138,6 +149,8 @@ export default async function PersonDetailPage({ params }: PersonDetailPageProps
         connections={connections}
         photos={photoProps as Parameters<typeof PersonDetailTabs>[0]["photos"]}
         profileLabels={profileLabels}
+        referenceSessionId={refSession?.id}
+        filledHeadshotSlots={filledSlots}
       />
     </div>
   );

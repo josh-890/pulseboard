@@ -1,8 +1,7 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { JustifiedGallery } from "@/components/photos/justified-gallery";
-import { ImageUpload } from "@/components/photos/image-upload";
+import { BatchUploadZone } from "@/components/media/batch-upload-zone";
 import type { PhotoWithUrls } from "@/lib/types";
 import type { ProfileImageLabel } from "@/lib/services/setting-service";
 
@@ -10,15 +9,15 @@ type SetDetailGalleryProps = {
   photos: PhotoWithUrls[];
   entityId: string;
   profileLabels: ProfileImageLabel[];
+  primarySessionId?: string;
 };
 
 export function SetDetailGallery({
   photos,
   entityId,
   profileLabels,
+  primarySessionId,
 }: SetDetailGalleryProps) {
-  const router = useRouter();
-
   return (
     <>
       {photos.length > 0 && (
@@ -29,12 +28,12 @@ export function SetDetailGallery({
           profileLabels={profileLabels}
         />
       )}
-      <ImageUpload
-        entityType="set"
-        entityId={entityId}
-        onUploadComplete={() => router.refresh()}
-        currentCount={photos.length}
-      />
+      {primarySessionId && (
+        <BatchUploadZone
+          sessionId={primarySessionId}
+          setId={entityId}
+        />
+      )}
     </>
   );
 }

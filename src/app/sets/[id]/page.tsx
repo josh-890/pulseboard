@@ -261,6 +261,7 @@ export default async function SetDetailPage({ params }: SetDetailPageProps) {
         photos={photoProps as PhotoWithUrls[]}
         entityId={id}
         profileLabels={profileLabels}
+        primarySessionId={set.sessionLinks?.find((l) => l.isPrimary)?.sessionId}
       />
 
       {/* Credits & Participants */}
