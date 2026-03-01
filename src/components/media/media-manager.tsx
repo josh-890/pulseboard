@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { PanelRight, PanelRightClose } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -141,16 +142,20 @@ export function MediaManager({
     );
   }
 
+  const hasSelection = selectedIds.size > 0;
+  const panelVisible = showPanel && hasSelection;
+  const previewItem = selectedItems.length === 1 ? selectedItems[0] : null;
+
   return (
     <>
       <div className="flex gap-4">
         {/* Grid area */}
-        <div className={cn("flex-1 min-w-0", showPanel && selectedIds.size > 0 && "pr-0")}>
+        <div className="flex-1 min-w-0">
           {/* Toolbar */}
           <div className="mb-3 flex items-center justify-between">
             <p className="text-xs text-muted-foreground">
               {items.length} {items.length === 1 ? "item" : "items"}
-              {selectedIds.size > 0 && (
+              {hasSelection && (
                 <span className="ml-1.5 text-foreground">
                   ({selectedIds.size} selected)
                 </span>
@@ -178,12 +183,24 @@ export function MediaManager({
           />
         </div>
 
-        {/* Side panel */}
-        {showPanel && selectedIds.size > 0 && (
-          <div className="hidden w-[320px] shrink-0 lg:block">
-            <div className="sticky top-4 rounded-2xl border border-white/20 bg-card/70 shadow-md backdrop-blur-sm max-h-[calc(100vh-8rem)] overflow-y-auto">
+        {/* Side panel (desktop) */}
+        {panelVisible && (
+          <div className="hidden lg:block w-[260px] min-w-[200px]">
+            <div className="sticky top-4 max-h-[calc(100vh-8rem)] overflow-y-auto rounded-xl border border-white/15 bg-muted/30 backdrop-blur-sm">
+              {/* Image preview thumbnail */}
+              {previewItem && (
+                <div className="p-3 border-b border-white/10">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={previewItem.urls.gallery_512 ?? previewItem.urls.original ?? ""}
+                    alt={previewItem.caption ?? previewItem.filename}
+                    className="w-full rounded-lg object-contain max-h-[180px]"
+                  />
+                </div>
+              )}
               <MediaMetadataPanel
                 items={selectedItems}
+                allItems={items}
                 personId={personId}
                 sessionId={sessionId}
                 slotLabels={slotLabels}
@@ -198,15 +215,49 @@ export function MediaManager({
         )}
       </div>
 
-      {/* Selection bar (batch actions) */}
-      <MediaSelectionBar
-        selectedIds={selectedIds}
-        personId={personId}
-        sessionId={sessionId}
-        collections={collections}
-        onClearSelection={clearSelection}
-        onBatchComplete={handleBatchComplete}
-      />
+      {/* Mobile: bottom sheet when selected (portaled to escape backdrop-blur stacking context) */}
+      {panelVisible && createPortal(
+        <div className="lg:hidden fixed bottom-0 inset-x-0 z-30 max-h-[40vh] overflow-y-auto rounded-t-xl border-t border-white/15 bg-card/95 backdrop-blur-md shadow-lg">
+          <div className="sticky top-0 z-10 flex items-center justify-between bg-card/95 px-4 py-2 border-b border-white/10">
+            <span className="text-xs font-medium">
+              {selectedIds.size === 1 ? "Photo Info" : `${selectedIds.size} selected`}
+            </span>
+            <button
+              type="button"
+              onClick={() => setShowPanel(false)}
+              className="rounded-md p-1 text-muted-foreground hover:text-foreground"
+              aria-label="Close panel"
+            >
+              <PanelRightClose size={14} />
+            </button>
+          </div>
+          <MediaMetadataPanel
+            items={selectedItems}
+            personId={personId}
+            sessionId={sessionId}
+            slotLabels={slotLabels}
+            collections={collections}
+            bodyMarks={bodyMarks}
+            bodyModifications={bodyModifications}
+            cosmeticProcedures={cosmeticProcedures}
+            onItemsChange={handleItemsChange}
+          />
+        </div>,
+        document.body,
+      )}
+
+      {/* Selection bar (batch actions — portaled to escape backdrop-blur stacking context) */}
+      {createPortal(
+        <MediaSelectionBar
+          selectedIds={selectedIds}
+          personId={personId}
+          sessionId={sessionId}
+          collections={collections}
+          onClearSelection={clearSelection}
+          onBatchComplete={handleBatchComplete}
+        />,
+        document.body,
+      )}
 
       {/* Lightbox */}
       {lightboxIndex !== null && (

@@ -100,7 +100,7 @@ export function MediaGrid({
   );
 
   return (
-    <div ref={containerRef} className="w-full">
+    <div ref={containerRef} className="w-full overflow-hidden">
       {rows.map((row, rowIdx) => (
         <div
           key={rowIdx}

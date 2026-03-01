@@ -67,6 +67,7 @@ type EntityOption = { id: string; name: string };
 
 type MediaMetadataPanelProps = {
   items: MediaItemWithLinks[];
+  allItems?: MediaItemWithLinks[];
   personId: string;
   sessionId: string;
   slotLabels: ProfileImageLabel[];
@@ -75,10 +76,12 @@ type MediaMetadataPanelProps = {
   bodyModifications: EntityOption[];
   cosmeticProcedures: EntityOption[];
   onItemsChange?: (updatedItems: MediaItemWithLinks[]) => void;
+  variant?: "default" | "lightbox";
 };
 
 export function MediaMetadataPanel({
   items,
+  allItems,
   personId,
   sessionId,
   slotLabels,
@@ -87,12 +90,14 @@ export function MediaMetadataPanel({
   bodyModifications,
   cosmeticProcedures,
   onItemsChange,
+  variant = "default",
 }: MediaMetadataPanelProps) {
   const [isPending, startTransition] = useTransition();
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
     new Set(["usage", "slots", "linking", "collections", "info"]),
   );
 
+  const isLightbox = variant === "lightbox";
   const isBatch = items.length > 1;
   const single = items.length === 1 ? items[0] : null;
 
@@ -100,6 +105,21 @@ export function MediaMetadataPanel({
     () => new Set(single?.links.map((l) => l.usage) ?? []),
     [single?.links],
   );
+
+  // Build slot → thumbnail URL map from all items
+  const slotThumbnails = useMemo(() => {
+    const map = new Map<number, string>();
+    const source = allItems ?? items;
+    for (const item of source) {
+      for (const link of item.links) {
+        if (link.usage === "HEADSHOT" && link.slot != null && !map.has(link.slot)) {
+          const url = item.urls.profile_128 ?? item.urls.gallery_512 ?? item.urls.original;
+          if (url) map.set(link.slot, url);
+        }
+      }
+    }
+    return map;
+  }, [allItems, items]);
 
   const toggleSection = useCallback((section: string) => {
     setExpandedSections((prev) => {
@@ -269,7 +289,7 @@ export function MediaMetadataPanel({
 
   if (isBatch) {
     return (
-      <div className="space-y-4 p-4">
+      <div className={cn("space-y-4", isLightbox ? "p-3" : "p-4")}>
         <div className="rounded-lg border border-white/15 bg-muted/40 p-3 text-center">
           <p className="text-sm font-medium">{items.length} items selected</p>
           <p className="mt-1 text-xs text-muted-foreground">
@@ -310,7 +330,7 @@ export function MediaMetadataPanel({
   const hasEntityUsage = hasBodyMark || hasBodyMod || hasCosmetic;
 
   return (
-    <div className="space-y-1 p-4 text-sm">
+    <div className={cn("space-y-1 text-sm", isLightbox ? "p-3" : "p-4")}>
       {/* Usage toggles */}
       <SectionHeader
         title="Usage"
@@ -356,11 +376,12 @@ export function MediaMetadataPanel({
             onToggle={toggleSection}
           />
           {expandedSections.has("slots") && (
-            <div className="flex gap-1.5 pb-2">
+            <div className="flex flex-wrap gap-1.5 pb-2">
               {slotLabels.map((sl, i) => {
                 const slotNumber = i + 1;
                 const headshotLink = getLinkForUsage("HEADSHOT");
                 const isActive = headshotLink?.slot === slotNumber;
+                const thumbUrl = slotThumbnails.get(slotNumber);
                 return (
                   <button
                     key={sl.slot}
@@ -368,15 +389,32 @@ export function MediaMetadataPanel({
                     disabled={isPending}
                     onClick={() => handleSlotClick(slotNumber)}
                     className={cn(
-                      "rounded-md px-2.5 py-1 text-xs font-medium transition-all",
+                      "relative overflow-hidden rounded-md text-xs font-medium transition-all",
                       "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
+                      thumbUrl ? "h-10 w-14" : "px-2.5 py-1",
                       isActive
-                        ? "bg-primary text-primary-foreground shadow-sm"
-                        : "bg-muted/60 text-muted-foreground hover:bg-muted/90 hover:text-foreground",
+                        ? "ring-2 ring-primary shadow-sm"
+                        : thumbUrl
+                          ? "opacity-70 hover:opacity-100"
+                          : "bg-muted/60 text-muted-foreground hover:bg-muted/90 hover:text-foreground",
                     )}
                     aria-pressed={isActive}
                   >
-                    {sl.label}
+                    {thumbUrl && (
+                      /* eslint-disable-next-line @next/next/no-img-element */
+                      <img
+                        src={thumbUrl}
+                        alt=""
+                        className="absolute inset-0 h-full w-full object-cover"
+                        draggable={false}
+                      />
+                    )}
+                    <span className={cn(
+                      "relative",
+                      thumbUrl && "rounded px-1 py-0.5 text-[10px] bg-black/60 text-white",
+                    )}>
+                      {sl.label}
+                    </span>
                   </button>
                 );
               })}
@@ -562,17 +600,20 @@ export function MediaMetadataPanel({
             onToggle={toggleSection}
           />
           {expandedSections.has("info") && (
-            <div className="space-y-1 pb-2 text-xs text-muted-foreground">
+            <div className={cn(
+              "space-y-1 pb-2 text-xs",
+              isLightbox ? "text-white/60" : "text-muted-foreground",
+            )}>
               <p>
-                <span className="font-medium text-foreground/70">File:</span>{" "}
+                <span className={cn("font-medium", isLightbox ? "text-white/80" : "text-foreground/70")}>File:</span>{" "}
                 {single.filename}
               </p>
               <p>
-                <span className="font-medium text-foreground/70">Size:</span>{" "}
+                <span className={cn("font-medium", isLightbox ? "text-white/80" : "text-foreground/70")}>Size:</span>{" "}
                 {single.originalWidth} × {single.originalHeight}
               </p>
               <p>
-                <span className="font-medium text-foreground/70">Type:</span>{" "}
+                <span className={cn("font-medium", isLightbox ? "text-white/80" : "text-foreground/70")}>Type:</span>{" "}
                 {single.mimeType}
               </p>
               {single.links.length > 0 && (
