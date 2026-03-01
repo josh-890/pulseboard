@@ -766,6 +766,12 @@ model MediaItem {
   durationMs     Int?
   variants       Json?
 
+  focalX        Float?
+  focalY        Float?
+  focalSource   String?
+  focalStatus   String?
+  modelVersion  String?
+
   caption    String?
   tags       String[]
   notes      String?

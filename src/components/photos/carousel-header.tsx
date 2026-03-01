@@ -8,7 +8,10 @@ import { setFavorite } from "@/lib/actions/photo-actions";
 import type { PhotoWithUrls } from "@/lib/types";
 import type { ProfileImageLabel } from "@/lib/services/setting-service";
 
-type ClientPhoto = Omit<PhotoWithUrls, "variants">;
+type ClientPhoto = Omit<PhotoWithUrls, "variants"> & {
+  focalX?: number | null;
+  focalY?: number | null;
+};
 
 type CarouselHeaderProps = {
   photos: ClientPhoto[];
@@ -88,7 +91,13 @@ export function CarouselHeader({
             src={displayUrl}
             alt="Profile photo"
             fill
-            className="object-cover object-center"
+            className="object-cover"
+            style={{
+              objectPosition:
+                current.focalX != null && current.focalY != null
+                  ? `${(current.focalX * 100).toFixed(1)}% ${(current.focalY * 100).toFixed(1)}%`
+                  : "center",
+            }}
             unoptimized
             priority
           />

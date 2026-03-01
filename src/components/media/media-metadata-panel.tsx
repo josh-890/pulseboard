@@ -10,6 +10,8 @@ import {
   Link2,
   ChevronDown,
   ChevronUp,
+  Crosshair,
+  RotateCcw,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { MediaItemWithLinks } from "@/lib/services/media-service";
@@ -22,6 +24,8 @@ import {
   removePersonMediaLinkAction,
   assignHeadshotSlot,
   removeHeadshotSlot,
+  setFocalPointAction,
+  resetFocalPointAction,
 } from "@/lib/actions/media-actions";
 import {
   addToCollectionAction,
@@ -524,6 +528,29 @@ export function MediaMetadataPanel({
         </>
       )}
 
+      {/* Focal Point */}
+      {single && (
+        <>
+          <SectionHeader
+            title="Focal Point"
+            icon={<Crosshair size={14} />}
+            section="focal"
+            expanded={expandedSections.has("focal")}
+            onToggle={toggleSection}
+          />
+          {expandedSections.has("focal") && (
+            <FocalPointEditor
+              item={single}
+              sessionId={sessionId}
+              isPending={isPending}
+              startTransition={startTransition}
+              onItemsChange={onItemsChange}
+              items={items}
+            />
+          )}
+        </>
+      )}
+
       {/* Info */}
       {single && (
         <>
@@ -667,5 +694,133 @@ function getCommonTags(items: MediaItemWithLinks[]): string[] {
   if (items.length === 0) return [];
   return items[0].tags.filter((tag) =>
     items.every((item) => item.tags.includes(tag)),
+  );
+}
+
+// ─── Focal Point Editor ──────────────────────────────────────────────────────
+
+type FocalPointEditorProps = {
+  item: MediaItemWithLinks;
+  sessionId: string;
+  isPending: boolean;
+  startTransition: (callback: () => Promise<void> | void) => void;
+  onItemsChange?: (updatedItems: MediaItemWithLinks[]) => void;
+  items: MediaItemWithLinks[];
+};
+
+function FocalPointEditor({
+  item,
+  sessionId,
+  isPending,
+  startTransition,
+  onItemsChange,
+  items,
+}: FocalPointEditorProps) {
+  const hasFocal = item.focalX != null && item.focalY != null;
+  const sourceLabel = hasFocal ? "Manual" : "Not set";
+
+  const thumbnailUrl = item.urls.gallery_512 ?? item.urls.original;
+
+  function handleImageClick(e: React.MouseEvent<HTMLDivElement>) {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = (e.clientX - rect.left) / rect.width;
+    const y = (e.clientY - rect.top) / rect.height;
+
+    startTransition(async () => {
+      await setFocalPointAction(item.id, x, y, sessionId);
+      if (onItemsChange) {
+        const updated = items.map((it) =>
+          it.id === item.id
+            ? { ...it, focalX: x, focalY: y, focalSource: "manual", focalStatus: "done" }
+            : it,
+        );
+        onItemsChange(updated);
+      }
+    });
+  }
+
+  function handleReset() {
+    startTransition(async () => {
+      await resetFocalPointAction(item.id, sessionId);
+      if (onItemsChange) {
+        const updated = items.map((it) =>
+          it.id === item.id
+            ? { ...it, focalX: null, focalY: null, focalSource: null, focalStatus: null }
+            : it,
+        );
+        onItemsChange(updated);
+      }
+    });
+  }
+
+  return (
+    <div className="space-y-2 pb-2">
+      <div className="flex items-center justify-between">
+        <span className="text-xs text-muted-foreground">
+          {sourceLabel}
+          {hasFocal && (
+            <span className="ml-1 text-muted-foreground/60">
+              ({(item.focalX! * 100).toFixed(0)}%, {(item.focalY! * 100).toFixed(0)}%)
+            </span>
+          )}
+        </span>
+        {hasFocal && (
+          <button
+            type="button"
+            onClick={handleReset}
+            disabled={isPending}
+            className="flex items-center gap-1 text-[10px] text-muted-foreground transition-colors hover:text-foreground"
+          >
+            <RotateCcw size={10} />
+            Clear
+          </button>
+        )}
+      </div>
+
+      {/* Click-to-set preview */}
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={handleImageClick}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            // Center click on keyboard
+            const rect = e.currentTarget.getBoundingClientRect();
+            const fakeEvent = {
+              clientX: rect.left + rect.width / 2,
+              clientY: rect.top + rect.height / 2,
+              currentTarget: e.currentTarget,
+            } as React.MouseEvent<HTMLDivElement>;
+            handleImageClick(fakeEvent);
+          }
+        }}
+        className={cn(
+          "relative cursor-crosshair overflow-hidden rounded-lg border border-white/15",
+          isPending && "pointer-events-none opacity-50",
+        )}
+        style={{ aspectRatio: `${item.originalWidth} / ${item.originalHeight}`, maxHeight: 200 }}
+        aria-label="Click to set focal point"
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={thumbnailUrl}
+          alt="Focal point preview"
+          className="h-full w-full object-contain"
+        />
+        {/* Crosshair overlay */}
+        {hasFocal && (
+          <div
+            className="pointer-events-none absolute h-5 w-5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-primary shadow-[0_0_4px_rgba(0,0,0,0.5)]"
+            style={{
+              left: `${item.focalX! * 100}%`,
+              top: `${item.focalY! * 100}%`,
+            }}
+          >
+            <div className="absolute left-1/2 top-1/2 h-1.5 w-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary" />
+          </div>
+        )}
+      </div>
+    </div>
   );
 }

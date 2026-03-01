@@ -126,10 +126,15 @@ export async function loadMorePersons(
     ? await getFavoritePhotosForPersons(missingIds)
     : new Map<string, string>();
 
-  const photoMap: Record<string, string> = {};
+  const photoMap: Record<string, { url: string; focalX: number | null; focalY: number | null }> = {};
   for (const id of personIds) {
-    const url = headshotMap.get(id) ?? legacyMapRaw.get(id);
-    if (url) photoMap[id] = url;
+    const headshot = headshotMap.get(id);
+    if (headshot) {
+      photoMap[id] = headshot;
+    } else {
+      const legacyUrl = legacyMapRaw.get(id);
+      if (legacyUrl) photoMap[id] = { url: legacyUrl, focalX: null, focalY: null };
+    }
   }
 
   return {

@@ -23,4 +23,6 @@ export type MediaItemWithUrls = {
   caption: string | null;
   createdAt: Date;
   urls: PhotoUrls;
+  focalX: number | null;
+  focalY: number | null;
 };

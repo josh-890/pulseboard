@@ -10,9 +10,15 @@ import { loadMorePersons } from "@/lib/actions/person-actions";
 import type { PersonWithCommonAlias } from "@/lib/types";
 import type { PersonFilters } from "@/lib/services/person-service";
 
+type PhotoData = {
+  url: string;
+  focalX: number | null;
+  focalY: number | null;
+};
+
 type PersonListProps = {
   persons: PersonWithCommonAlias[];
-  photoMap: Record<string, string>;
+  photoMap: Record<string, PhotoData>;
   nextCursor: string | null;
   totalCount: number;
   filters: PersonFilters;
@@ -77,13 +83,18 @@ export function PersonList({
             : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5",
         )}
       >
-        {persons.map((person) => (
-          <PersonCard
-            key={person.id}
-            person={person}
-            photoUrl={photoMap[person.id]}
-          />
-        ))}
+        {persons.map((person) => {
+          const photo = photoMap[person.id];
+          return (
+            <PersonCard
+              key={person.id}
+              person={person}
+              photoUrl={photo?.url}
+              focalX={photo?.focalX}
+              focalY={photo?.focalY}
+            />
+          );
+        })}
       </div>
 
       {/* Load more footer */}

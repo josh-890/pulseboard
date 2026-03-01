@@ -38,6 +38,8 @@ type MediaItemRow = {
   createdAt: Date;
   variants: unknown;
   fileRef?: string | null;
+  focalX?: number | null;
+  focalY?: number | null;
 };
 
 function toMediaItemWithUrls(item: MediaItemRow): MediaItemWithUrls | null {
@@ -52,6 +54,8 @@ function toMediaItemWithUrls(item: MediaItemRow): MediaItemWithUrls | null {
     caption: item.caption,
     createdAt: item.createdAt,
     urls: buildPhotoUrls(variants, item.fileRef),
+    focalX: item.focalX ?? null,
+    focalY: item.focalY ?? null,
   };
 }
 
@@ -271,10 +275,16 @@ export async function getPersonMediaByUsage(
     .filter((item): item is PersonMediaLinkWithItem => item !== null);
 }
 
+export type HeadshotData = {
+  url: string;
+  focalX: number | null;
+  focalY: number | null;
+};
+
 export async function getHeadshotsForPersons(
   personIds: string[],
   slot?: number,
-): Promise<Map<string, string>> {
+): Promise<Map<string, HeadshotData>> {
   if (personIds.length === 0) return new Map();
 
   const links = await prisma.personMediaLink.findMany({
@@ -287,7 +297,7 @@ export async function getHeadshotsForPersons(
     orderBy: [{ slot: "asc" }, { sortOrder: "asc" }],
   });
 
-  const result = new Map<string, string>();
+  const result = new Map<string, HeadshotData>();
   for (const link of links) {
     if (!result.has(link.personId)) {
       const variants = (link.mediaItem.variants ?? {}) as PhotoVariants;
@@ -298,7 +308,13 @@ export async function getHeadshotsForPersons(
           : link.mediaItem.fileRef
             ? buildUrl(link.mediaItem.fileRef)
             : null;
-      if (url) result.set(link.personId, url);
+      if (url) {
+        result.set(link.personId, {
+          url,
+          focalX: link.mediaItem.focalX ?? null,
+          focalY: link.mediaItem.focalY ?? null,
+        });
+      }
     }
   }
   return result;
@@ -338,6 +354,10 @@ export type MediaItemWithLinks = {
   notes: string | null;
   createdAt: Date;
   urls: PhotoUrls;
+  focalX: number | null;
+  focalY: number | null;
+  focalSource: string | null;
+  focalStatus: string | null;
   links: {
     id: string;
     usage: PersonMediaUsage;
@@ -386,6 +406,10 @@ export async function getMediaItemsWithLinks(
         notes: item.notes,
         createdAt: item.createdAt,
         urls: buildPhotoUrls(variants, item.fileRef),
+        focalX: item.focalX ?? null,
+        focalY: item.focalY ?? null,
+        focalSource: item.focalSource ?? null,
+        focalStatus: item.focalStatus ?? null,
         links: item.personMediaLinks.map((link) => ({
           id: link.id,
           usage: link.usage,

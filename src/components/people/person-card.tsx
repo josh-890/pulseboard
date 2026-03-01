@@ -10,6 +10,8 @@ import type { PersonWithCommonAlias, PersonStatus } from "@/lib/types";
 type PersonCardProps = {
   person: PersonWithCommonAlias;
   photoUrl?: string;
+  focalX?: number | null;
+  focalY?: number | null;
 };
 
 const STATUS_STYLES: Record<PersonStatus, string> = {
@@ -26,7 +28,7 @@ const STATUS_LABELS: Record<PersonStatus, string> = {
   archived: "Archived",
 };
 
-export function PersonCard({ person, photoUrl }: PersonCardProps) {
+export function PersonCard({ person, photoUrl, focalX, focalY }: PersonCardProps) {
   const { density } = useDensity();
   const isCompact = density === "compact";
 
@@ -69,7 +71,13 @@ export function PersonCard({ person, photoUrl }: PersonCardProps) {
               src={photoUrl}
               alt={displayName}
               fill
-              className="object-cover object-center"
+              className="object-cover"
+              style={{
+                objectPosition:
+                  focalX != null && focalY != null
+                    ? `${(focalX * 100).toFixed(1)}% ${(focalY * 100).toFixed(1)}%`
+                    : "center",
+              }}
               unoptimized
               sizes={isCompact ? "72px" : "100px"}
             />
