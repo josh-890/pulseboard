@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import type { EntityType } from "@/generated/prisma/client";
+import type { PhotoVariants } from "@/lib/types";
 
 /**
  * Transaction client type — same shape as prisma but scoped to a transaction.
@@ -148,6 +149,55 @@ export async function cascadeDeleteRelationshipEvents(
       data: { deletedAt },
     });
   }
+}
+
+/**
+ * Hard-delete media items and all referencing join table rows.
+ * Returns the variants JSON from each deleted item so the caller can
+ * clean up MinIO files after the transaction commits.
+ */
+export async function cascadeHardDeleteMediaItems(
+  tx: TxClient,
+  mediaItemIds: string[],
+): Promise<PhotoVariants[]> {
+  if (mediaItemIds.length === 0) return [];
+
+  // 1. NULL out coverMediaItemId on any sets referencing these items
+  await tx.set.updateMany({
+    where: { coverMediaItemId: { in: mediaItemIds } },
+    data: { coverMediaItemId: null },
+  });
+
+  // 2. Hard-delete SetMediaItem (no deletedAt)
+  await tx.setMediaItem.deleteMany({
+    where: { mediaItemId: { in: mediaItemIds } },
+  });
+
+  // 3. Hard-delete MediaCollectionItem (no deletedAt)
+  await tx.mediaCollectionItem.deleteMany({
+    where: { mediaItemId: { in: mediaItemIds } },
+  });
+
+  // 4. Hard-delete PersonMediaLink
+  await tx.personMediaLink.deleteMany({
+    where: { mediaItemId: { in: mediaItemIds } },
+  });
+
+  // 5. Fetch variants JSON for MinIO cleanup before deleting
+  const toDelete = await tx.mediaItem.findMany({
+    where: { id: { in: mediaItemIds } },
+    select: { variants: true },
+  });
+  const variantsList = toDelete
+    .map((m) => m.variants as unknown as PhotoVariants)
+    .filter(Boolean);
+
+  // 6. Hard-delete the media items themselves
+  await tx.mediaItem.deleteMany({
+    where: { id: { in: mediaItemIds } },
+  });
+
+  return variantsList;
 }
 
 /**

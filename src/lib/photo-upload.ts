@@ -1,5 +1,5 @@
 import sharp from "sharp";
-import { PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
+import { PutObjectCommand, GetObjectCommand, DeleteObjectsCommand } from "@aws-sdk/client-s3";
 import { minioClient, MINIO_BUCKET } from "./minio";
 
 type ProfileVariant = {
@@ -269,4 +269,43 @@ export async function regenerateProfileVariants(
   }
 
   return updated;
+}
+
+// ─── MinIO file deletion ─────────────────────────────────────────────────────
+
+/**
+ * Delete all variant files from MinIO for a list of media items.
+ * Best-effort: logs errors but does not throw (orphan files in storage are
+ * acceptable; orphan DB rows are not).
+ */
+export async function deleteMediaFiles(variantsList: PhotoVariants[]): Promise<void> {
+  const keys: string[] = [];
+  for (const variants of variantsList) {
+    for (const key of Object.values(variants)) {
+      if (typeof key === "string" && key.length > 0) {
+        keys.push(key);
+      }
+    }
+  }
+
+  if (keys.length === 0) return;
+
+  // S3 DeleteObjects supports max 1000 keys per request
+  const BATCH_SIZE = 1000;
+  for (let i = 0; i < keys.length; i += BATCH_SIZE) {
+    const batch = keys.slice(i, i + BATCH_SIZE);
+    try {
+      await minioClient.send(
+        new DeleteObjectsCommand({
+          Bucket: MINIO_BUCKET,
+          Delete: {
+            Objects: batch.map((Key) => ({ Key })),
+            Quiet: true,
+          },
+        }),
+      );
+    } catch (err) {
+      console.error(`[deleteMediaFiles] Failed to delete batch starting at index ${i}:`, err);
+    }
+  }
 }

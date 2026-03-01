@@ -34,7 +34,6 @@ import {
 import { MediaUsageBadge } from "./media-badge";
 
 const ALL_USAGES: PersonMediaUsage[] = [
-  "HEADSHOT",
   "REFERENCE",
   "PROFILE",
   "PORTFOLIO",
@@ -193,12 +192,37 @@ export function MediaMetadataPanel({
         if (onItemsChange) {
           const updated = items.map((item) => {
             if (item.id !== single.id) return item;
-            const newSlot = isToggleOff ? null : slotNumber;
+            if (isToggleOff) {
+              // Remove the HEADSHOT link entirely
+              return { ...item, links: item.links.filter((l) => l.usage !== "HEADSHOT") };
+            }
+            if (headshotLink) {
+              // Update existing link's slot
+              return {
+                ...item,
+                links: item.links.map((l) =>
+                  l.usage === "HEADSHOT" ? { ...l, slot: slotNumber } : l,
+                ),
+              };
+            }
+            // Add new HEADSHOT link with slot
             return {
               ...item,
-              links: item.links.map((l) =>
-                l.usage === "HEADSHOT" ? { ...l, slot: newSlot } : l,
-              ),
+              links: [
+                ...item.links,
+                {
+                  id: `temp-HEADSHOT`,
+                  usage: "HEADSHOT" as PersonMediaUsage,
+                  slot: slotNumber,
+                  bodyRegion: null,
+                  bodyMarkId: null,
+                  bodyModificationId: null,
+                  cosmeticProcedureId: null,
+                  isFavorite: false,
+                  sortOrder: 0,
+                  notes: null,
+                },
+              ],
             };
           });
           onItemsChange(updated);
@@ -323,7 +347,6 @@ export function MediaMetadataPanel({
   }
 
   // Single item mode
-  const hasHeadshot = activeUsages.has("HEADSHOT");
   const hasBodyMark = activeUsages.has("BODY_MARK");
   const hasBodyMod = activeUsages.has("BODY_MODIFICATION");
   const hasCosmetic = activeUsages.has("COSMETIC_PROCEDURE");
@@ -365,11 +388,11 @@ export function MediaMetadataPanel({
         </div>
       )}
 
-      {/* Slots (only when HEADSHOT is active) */}
-      {hasHeadshot && slotLabels.length > 0 && (
+      {/* Headshot slot assignment */}
+      {slotLabels.length > 0 && (
         <>
           <SectionHeader
-            title="Headshot Slot"
+            title="Headshot"
             icon={<ImageIcon size={14} />}
             section="slots"
             expanded={expandedSections.has("slots")}

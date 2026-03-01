@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useState, useTransition } from "react";
-import { X, ChevronDown } from "lucide-react";
+import { X, ChevronDown, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { PersonMediaUsage } from "@/lib/types";
 import type { CollectionSummary } from "@/lib/services/collection-service";
@@ -14,7 +14,6 @@ import {
 } from "@/lib/actions/collection-actions";
 
 const USAGE_OPTIONS: { value: PersonMediaUsage; label: string }[] = [
-  { value: "HEADSHOT", label: "Headshot" },
   { value: "REFERENCE", label: "Reference" },
   { value: "PROFILE", label: "Profile" },
   { value: "PORTFOLIO", label: "Portfolio" },
@@ -30,6 +29,7 @@ type MediaSelectionBarProps = {
   collections: CollectionSummary[];
   onClearSelection: () => void;
   onBatchComplete?: () => void;
+  onRequestDelete?: () => void;
 };
 
 export function MediaSelectionBar({
@@ -39,6 +39,7 @@ export function MediaSelectionBar({
   collections,
   onClearSelection,
   onBatchComplete,
+  onRequestDelete,
 }: MediaSelectionBarProps) {
   const [isPending, startTransition] = useTransition();
   const [showUsageMenu, setShowUsageMenu] = useState(false);
@@ -200,6 +201,20 @@ export function MediaSelectionBar({
             )}
           </div>
         )}
+
+        {/* Delete */}
+        <div className="mx-1 h-5 w-px bg-white/15" />
+        <button
+          type="button"
+          onClick={() => {
+            closeAllMenus();
+            onRequestDelete?.();
+          }}
+          className="inline-flex items-center gap-1 rounded-lg border border-destructive/30 bg-destructive/20 px-3 py-1.5 text-xs font-medium text-destructive transition-colors hover:bg-destructive/40"
+        >
+          <Trash2 size={12} />
+          Delete
+        </button>
 
         {/* Clear selection */}
         <button

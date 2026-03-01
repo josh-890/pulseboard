@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { PanelRight, PanelRightClose } from "lucide-react";
@@ -8,7 +8,17 @@ import { cn } from "@/lib/utils";
 import type { MediaItemWithLinks } from "@/lib/services/media-service";
 import type { ProfileImageLabel } from "@/lib/services/setting-service";
 import type { CollectionSummary } from "@/lib/services/collection-service";
-import { assignHeadshotSlot } from "@/lib/actions/media-actions";
+import { assignHeadshotSlot, deleteMediaItemsAction } from "@/lib/actions/media-actions";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { MediaGrid } from "./media-grid";
 import { MediaMetadataPanel } from "./media-metadata-panel";
 import { MediaLightbox } from "./media-lightbox";
@@ -48,6 +58,8 @@ export function MediaManager({
   const [lastSelectedId, setLastSelectedId] = useState<string | null>(null);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [showPanel, setShowPanel] = useState(true);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [, startDeleteTransition] = useTransition();
 
   // Build flat index map for lightbox
   const indexMap = useMemo(() => {
@@ -123,6 +135,13 @@ export function MediaManager({
       const tag = (e.target as HTMLElement)?.tagName;
       if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
 
+      // Delete/Backspace → open delete confirmation
+      if ((e.key === "Delete" || e.key === "Backspace") && selectedIds.size > 0) {
+        e.preventDefault();
+        setShowDeleteDialog(true);
+        return;
+      }
+
       if (e.key === "Escape" && selectedIds.size > 0) {
         e.preventDefault();
         clearSelection();
@@ -138,21 +157,50 @@ export function MediaManager({
       const item = items.find((it) => it.id === selectedId);
       if (!item) return;
 
-      // Check the item has HEADSHOT usage
-      const headshotLink = item.links.find((l) => l.usage === "HEADSHOT");
-      if (!headshotLink) return;
-
       e.preventDefault();
-      // Optimistic update
+      const headshotLink = item.links.find((l) => l.usage === "HEADSHOT");
+      // Optimistic update: assign slot to selected item + remove HEADSHOT link from old holder
       setItems((prev) =>
         prev.map((it) => {
-          if (it.id !== selectedId) return it;
-          return {
-            ...it,
-            links: it.links.map((l) =>
-              l.usage === "HEADSHOT" ? { ...l, slot: digit } : l,
-            ),
-          };
+          if (it.id === selectedId) {
+            if (headshotLink) {
+              // Update existing link's slot
+              return {
+                ...it,
+                links: it.links.map((l) =>
+                  l.usage === "HEADSHOT" ? { ...l, slot: digit } : l,
+                ),
+              };
+            }
+            // Add new HEADSHOT link with slot
+            return {
+              ...it,
+              links: [
+                ...it.links,
+                {
+                  id: `temp-HEADSHOT`,
+                  usage: "HEADSHOT" as const,
+                  slot: digit,
+                  bodyRegion: null,
+                  bodyMarkId: null,
+                  bodyModificationId: null,
+                  cosmeticProcedureId: null,
+                  isFavorite: false,
+                  sortOrder: 0,
+                  notes: null,
+                },
+              ],
+            };
+          }
+          // Remove HEADSHOT link from any other item that had this slot
+          const hadSlot = it.links.some((l) => l.usage === "HEADSHOT" && l.slot === digit);
+          if (hadSlot) {
+            return {
+              ...it,
+              links: it.links.filter((l) => !(l.usage === "HEADSHOT" && l.slot === digit)),
+            };
+          }
+          return it;
         }),
       );
       assignHeadshotSlot(personId, selectedId, digit);
@@ -164,6 +212,21 @@ export function MediaManager({
   const handleBatchComplete = useCallback(() => {
     router.refresh();
   }, [router]);
+
+  const handleDeleteConfirm = useCallback(() => {
+    const idsToDelete = Array.from(selectedIds);
+    setShowDeleteDialog(false);
+    // Optimistic: remove from grid + clear selection
+    setItems((prev) => prev.filter((item) => !selectedIds.has(item.id)));
+    clearSelection();
+    startDeleteTransition(async () => {
+      const result = await deleteMediaItemsAction(idsToDelete, personId, sessionId);
+      if (!result.success) {
+        // Revert on failure
+        router.refresh();
+      }
+    });
+  }, [selectedIds, personId, sessionId, clearSelection, router]);
 
   const handleItemsChange = useCallback(
     (updatedItems: MediaItemWithLinks[]) => {
@@ -301,6 +364,7 @@ export function MediaManager({
           collections={collections}
           onClearSelection={clearSelection}
           onBatchComplete={handleBatchComplete}
+          onRequestDelete={() => setShowDeleteDialog(true)}
         />,
         document.body,
       )}
@@ -322,6 +386,30 @@ export function MediaManager({
           onItemsChange={handleItemsChange}
         />
       )}
+
+      {/* Delete confirmation dialog */}
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Delete {selectedIds.size} media item{selectedIds.size !== 1 ? "s" : ""}?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              This permanently removes the file{selectedIds.size !== 1 ? "s" : ""} and all
+              associated metadata. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteConfirm}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete permanently
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }

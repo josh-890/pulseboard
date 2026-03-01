@@ -8,6 +8,8 @@ import {
   batchSetUsage,
   batchRemoveUsage,
 } from "@/lib/services/media-service";
+import { cascadeHardDeleteMediaItems } from "@/lib/services/cascade-helpers";
+import { refreshDashboardStats } from "@/lib/services/view-service";
 import type { PersonMediaLinkUpdate } from "@/lib/services/media-service";
 import type { PersonMediaUsage } from "@/lib/types";
 import type { PhotoVariants } from "@/lib/types";
@@ -21,10 +23,9 @@ export async function assignHeadshotSlot(
 ): Promise<ActionResult> {
   try {
     await prisma.$transaction(async (tx) => {
-      // Clear any existing image in this slot for this person
-      await tx.personMediaLink.updateMany({
+      // Remove the HEADSHOT link from whatever image previously held this slot
+      await tx.personMediaLink.deleteMany({
         where: { personId, usage: "HEADSHOT", slot },
-        data: { slot: null },
       });
 
       // Upsert the link for this person+media+HEADSHOT
@@ -237,6 +238,35 @@ export async function setFocalPointAction(
     }
 
     revalidatePath(`/sessions/${sessionId}`);
+    revalidatePath("/people");
+    return { success: true };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Unexpected error";
+    return { success: false, error: message };
+  }
+}
+
+export async function deleteMediaItemsAction(
+  mediaItemIds: string[],
+  personId: string,
+  sessionId: string,
+): Promise<ActionResult> {
+  try {
+    const variantsList = await prisma.$transaction(async (tx) => {
+      return cascadeHardDeleteMediaItems(tx, mediaItemIds);
+    });
+
+    // Best-effort file cleanup after commit
+    try {
+      const { deleteMediaFiles } = await import("@/lib/photo-upload");
+      await deleteMediaFiles(variantsList);
+    } catch (err) {
+      console.error("[deleteMediaItemsAction] MinIO cleanup failed:", err);
+    }
+
+    await refreshDashboardStats();
+    revalidatePath(`/sessions/${sessionId}`);
+    revalidatePath(`/people/${personId}`);
     revalidatePath("/people");
     return { success: true };
   } catch (err) {
