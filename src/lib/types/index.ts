@@ -36,7 +36,7 @@ export type {
   SetType,
 } from "./project";
 
-export type { Session, SessionStatus, SetSession } from "./session";
+export type { Session, SessionStatus, SessionType, SetSession } from "./session";
 
 export type { Label, Network, Channel, LabelNetworkLink } from "./label";
 

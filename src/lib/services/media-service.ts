@@ -129,7 +129,7 @@ type CreatePersonMediaItemInput = {
 };
 
 function inferUsageFromTags(tags?: string[]): PersonMediaUsage {
-  if (!tags || tags.length === 0) return "REFERENCE";
+  if (!tags || tags.length === 0) return "PROFILE";
   const tagSet = new Set(tags.map((t) => t.toLowerCase()));
   if (tagSet.has("portrait") || tagSet.has("headshot")) return "HEADSHOT";
   if (tagSet.has("tattoo") || tagSet.has("body_mark")) return "BODY_MARK";
@@ -137,7 +137,7 @@ function inferUsageFromTags(tags?: string[]): PersonMediaUsage {
   if (tagSet.has("cosmetic_procedure")) return "COSMETIC_PROCEDURE";
   if (tagSet.has("profile")) return "PROFILE";
   if (tagSet.has("portfolio")) return "PORTFOLIO";
-  return "REFERENCE";
+  return "PROFILE";
 }
 
 export async function createMediaItemForPerson(

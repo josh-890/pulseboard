@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Building2, Users, ImageIcon, Clapperboard, User } from "lucide-react";
 import { formatPartialDate } from "@/lib/utils";
-import { SessionStatusBadge } from "./session-status-badge";
+import { SessionStatusBadge, SessionTypeBadge } from "./session-status-badge";
 import type { getSessions } from "@/lib/services/session-service";
 
 type SessionItem = Awaited<ReturnType<typeof getSessions>>[number];
@@ -11,7 +11,7 @@ type SessionCardProps = {
 };
 
 export function SessionCard({ session }: SessionCardProps) {
-  const isReference = session.status === "REFERENCE";
+  const isReference = session.type === "REFERENCE";
   const participantCount = session.participants.length;
   const mediaCount = session._count.mediaItems;
   const setCount = session._count.setSessionLinks;
@@ -47,7 +47,10 @@ export function SessionCard({ session }: SessionCardProps) {
             )}
           </div>
         </div>
-        <SessionStatusBadge status={session.status} />
+        <div className="flex items-center gap-1">
+          <SessionTypeBadge type={session.type} />
+          <SessionStatusBadge status={session.status} />
+        </div>
       </div>
 
       {/* Label */}

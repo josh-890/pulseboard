@@ -61,6 +61,7 @@ function computeRows(
 type MediaGridProps = {
   items: MediaItemWithLinks[];
   selectedIds: Set<string>;
+  anchor?: "reference" | "production";
   onSelect: (id: string, e: React.MouseEvent) => void;
   onToggleSelect: (id: string) => void;
   onOpen: (id: string) => void;
@@ -69,6 +70,7 @@ type MediaGridProps = {
 export function MediaGrid({
   items,
   selectedIds,
+  anchor,
   onSelect,
   onToggleSelect,
   onOpen,
@@ -119,6 +121,7 @@ export function MediaGrid({
                 height={row.height}
                 isSelected={selectedIds.has(item.id)}
                 isMultiSelectMode={isMultiSelectMode}
+                anchor={anchor}
                 onSelect={onSelect}
                 onToggleSelect={onToggleSelect}
                 onOpen={onOpen}

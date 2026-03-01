@@ -3,8 +3,7 @@
 import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
-import { PanelRight, PanelRightClose } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { PanelRightClose } from "lucide-react";
 import type { MediaItemWithLinks } from "@/lib/services/media-service";
 import type { ProfileImageLabel } from "@/lib/services/setting-service";
 import type { CollectionSummary } from "@/lib/services/collection-service";
@@ -22,7 +21,6 @@ import {
 import { MediaGrid } from "./media-grid";
 import { MediaMetadataPanel } from "./media-metadata-panel";
 import { MediaLightbox } from "./media-lightbox";
-import { MediaSelectionBar } from "./media-selection-bar";
 
 type EntityOption = { id: string; name: string };
 
@@ -35,6 +33,7 @@ type MediaManagerProps = {
   bodyMarks: EntityOption[];
   bodyModifications: EntityOption[];
   cosmeticProcedures: EntityOption[];
+  anchor?: "reference" | "production";
 };
 
 export function MediaManager({
@@ -46,6 +45,7 @@ export function MediaManager({
   bodyMarks,
   bodyModifications,
   cosmeticProcedures,
+  anchor,
 }: MediaManagerProps) {
   const router = useRouter();
   const [items, setItems] = useState(initialItems);
@@ -57,7 +57,6 @@ export function MediaManager({
   }, [initialItems]);
   const [lastSelectedId, setLastSelectedId] = useState<string | null>(null);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
-  const [showPanel, setShowPanel] = useState(true);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [, startDeleteTransition] = useTransition();
 
@@ -252,7 +251,7 @@ export function MediaManager({
   }
 
   const hasSelection = selectedIds.size > 0;
-  const panelVisible = showPanel && hasSelection;
+  const panelVisible = hasSelection;
   const previewItem = selectedItems.length === 1 ? selectedItems[0] : null;
 
   return (
@@ -261,7 +260,7 @@ export function MediaManager({
         {/* Grid area */}
         <div className="flex-1 min-w-0">
           {/* Toolbar */}
-          <div className="mb-3 flex items-center justify-between">
+          <div className="mb-3">
             <p className="text-xs text-muted-foreground">
               {items.length} {items.length === 1 ? "item" : "items"}
               {hasSelection && (
@@ -270,22 +269,12 @@ export function MediaManager({
                 </span>
               )}
             </p>
-            <button
-              type="button"
-              onClick={() => setShowPanel((p) => !p)}
-              className={cn(
-                "rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground",
-                showPanel && "text-primary",
-              )}
-              aria-label={showPanel ? "Hide panel" : "Show panel"}
-            >
-              {showPanel ? <PanelRightClose size={16} /> : <PanelRight size={16} />}
-            </button>
           </div>
 
           <MediaGrid
             items={items}
             selectedIds={selectedIds}
+            anchor={anchor}
             onSelect={handleSelect}
             onToggleSelect={handleToggleSelect}
             onOpen={handleOpen}
@@ -318,6 +307,9 @@ export function MediaManager({
                 bodyModifications={bodyModifications}
                 cosmeticProcedures={cosmeticProcedures}
                 onItemsChange={handleItemsChange}
+                onRequestDelete={() => setShowDeleteDialog(true)}
+                onClearSelection={clearSelection}
+                onBatchComplete={handleBatchComplete}
               />
             </div>
           </div>
@@ -333,7 +325,7 @@ export function MediaManager({
             </span>
             <button
               type="button"
-              onClick={() => setShowPanel(false)}
+              onClick={clearSelection}
               className="rounded-md p-1 text-muted-foreground hover:text-foreground"
               aria-label="Close panel"
             >
@@ -350,22 +342,11 @@ export function MediaManager({
             bodyModifications={bodyModifications}
             cosmeticProcedures={cosmeticProcedures}
             onItemsChange={handleItemsChange}
+            onRequestDelete={() => setShowDeleteDialog(true)}
+            onClearSelection={clearSelection}
+            onBatchComplete={handleBatchComplete}
           />
         </div>,
-        document.body,
-      )}
-
-      {/* Selection bar (batch actions — portaled to escape backdrop-blur stacking context) */}
-      {createPortal(
-        <MediaSelectionBar
-          selectedIds={selectedIds}
-          personId={personId}
-          sessionId={sessionId}
-          collections={collections}
-          onClearSelection={clearSelection}
-          onBatchComplete={handleBatchComplete}
-          onRequestDelete={() => setShowDeleteDialog(true)}
-        />,
         document.body,
       )}
 

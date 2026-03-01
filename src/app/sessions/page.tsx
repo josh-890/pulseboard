@@ -6,22 +6,24 @@ import { getProjects } from "@/lib/services/project-service";
 import { SessionGrid } from "@/components/sessions/session-grid";
 import { SessionSearch } from "@/components/sessions/session-search";
 import { SessionStatusFilter } from "@/components/sessions/session-status-filter";
+import { SessionTypeFilter } from "@/components/sessions/session-type-filter";
 import { AddSessionSheet } from "@/components/sessions/add-session-sheet";
-import type { SessionStatus } from "@/lib/types";
+import type { SessionStatus, SessionType } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
 type SessionsPageProps = {
-  searchParams: Promise<{ q?: string; status?: string }>;
+  searchParams: Promise<{ q?: string; status?: string; type?: string }>;
 };
 
 export default async function SessionsPage({ searchParams }: SessionsPageProps) {
-  const { q, status } = await searchParams;
+  const { q, status, type } = await searchParams;
 
   const [sessions, labels, projects] = await Promise.all([
     getSessions({
       q: q?.trim() || undefined,
       status: (status as SessionStatus) || undefined,
+      type: (type as SessionType) || undefined,
     }),
     getLabels(),
     getProjects(),
@@ -55,6 +57,9 @@ export default async function SessionsPage({ searchParams }: SessionsPageProps) 
             <SessionSearch />
           </Suspense>
         </div>
+        <Suspense>
+          <SessionTypeFilter />
+        </Suspense>
         <Suspense>
           <SessionStatusFilter />
         </Suspense>

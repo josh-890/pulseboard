@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import type { MediaItemWithLinks } from "@/lib/services/media-service";
 import {
   MediaUsageBadge,
+  MediaAnchorBadge,
   MediaTagCountBadge,
   MediaLinkIcon,
   MediaCollectionIcon,
@@ -17,6 +18,7 @@ type MediaThumbnailProps = {
   height: number;
   isSelected: boolean;
   isMultiSelectMode: boolean;
+  anchor?: "reference" | "production";
   onSelect: (id: string, e: React.MouseEvent) => void;
   onToggleSelect: (id: string) => void;
   onOpen: (id: string) => void;
@@ -28,6 +30,7 @@ export function MediaThumbnail({
   height,
   isSelected,
   isMultiSelectMode,
+  anchor,
   onSelect,
   onToggleSelect,
   onOpen,
@@ -101,11 +104,18 @@ export function MediaThumbnail({
         </button>
       </div>
 
+      {/* Anchor badge (top-right) */}
+      {anchor && (
+        <div className="absolute right-1.5 top-1.5 z-10">
+          <MediaAnchorBadge anchor={anchor} />
+        </div>
+      )}
+
       {/* Badge tray (bottom-right) */}
       <div className="absolute bottom-1.5 right-1.5 z-10 flex items-center gap-0.5">
         {item.links.map((link) => (
-          <MediaUsageBadge key={link.id} usage={link.usage} slot={link.slot} />
-        ))}
+            <MediaUsageBadge key={link.id} usage={link.usage} slot={link.slot} />
+          ))}
         {item.tags.length > 0 && (
           <MediaTagCountBadge count={item.tags.length} />
         )}

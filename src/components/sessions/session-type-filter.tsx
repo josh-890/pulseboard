@@ -3,42 +3,42 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { cn } from "@/lib/utils";
 
-const statuses = [
+const types = [
   { value: "all", label: "All" },
-  { value: "DRAFT", label: "Draft" },
-  { value: "CONFIRMED", label: "Confirmed" },
+  { value: "REFERENCE", label: "Reference" },
+  { value: "PRODUCTION", label: "Production" },
 ] as const;
 
-export function SessionStatusFilter() {
+export function SessionTypeFilter() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const current = searchParams.get("status") ?? "all";
+  const current = searchParams.get("type") ?? "all";
 
   function handleSelect(value: string) {
     const params = new URLSearchParams(searchParams.toString());
     if (value === "all") {
-      params.delete("status");
+      params.delete("type");
     } else {
-      params.set("status", value);
+      params.set("type", value);
     }
     router.replace(`/sessions?${params.toString()}`);
   }
 
   return (
     <div className="flex flex-wrap gap-1.5">
-      {statuses.map((s) => (
+      {types.map((t) => (
         <button
-          key={s.value}
+          key={t.value}
           type="button"
-          onClick={() => handleSelect(s.value)}
+          onClick={() => handleSelect(t.value)}
           className={cn(
             "rounded-full border px-3 py-1 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-            current === s.value
+            current === t.value
               ? "border-primary/30 bg-primary/15 text-primary"
               : "border-white/15 bg-muted/50 text-muted-foreground hover:bg-muted/70 hover:text-foreground",
           )}
         >
-          {s.label}
+          {t.label}
         </button>
       ))}
     </div>

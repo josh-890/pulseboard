@@ -25,7 +25,8 @@ async function main() {
       data: {
         name: `${displayName} — Reference`,
         nameNorm: `${displayName.toLowerCase()} — reference`,
-        status: "REFERENCE",
+        type: "REFERENCE",
+        status: "CONFIRMED",
         personId: p.id,
       },
     });

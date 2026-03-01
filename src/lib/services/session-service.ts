@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db";
-import type { Prisma, SessionStatus } from "@/generated/prisma/client";
+import type { Prisma, SessionStatus, SessionType } from "@/generated/prisma/client";
 import { cascadeDeleteSession } from "./cascade-helpers";
 
 const personSelect = {
@@ -13,17 +13,22 @@ const personSelect = {
 export type SessionFilters = {
   q?: string;
   status?: SessionStatus | "all";
+  type?: SessionType | "all";
   labelId?: string;
   projectId?: string;
 };
 
 export async function getSessions(filters: SessionFilters = {}) {
-  const { q, status, labelId, projectId } = filters;
+  const { q, status, type, labelId, projectId } = filters;
 
   const where: Prisma.SessionWhereInput = {};
 
   if (status && status !== "all") {
     where.status = status;
+  }
+
+  if (type && type !== "all") {
+    where.type = type;
   }
 
   if (q) {
@@ -155,15 +160,10 @@ export async function updateSessionRecord(
     datePrecision?: string;
   },
 ) {
-  // Guard: prevent status changes to/from REFERENCE
-  if (data.status) {
-    const existing = await prisma.session.findFirst({ where: { id }, select: { status: true } });
-    if (existing?.status === "REFERENCE" && data.status !== "REFERENCE") {
-      throw new Error("Cannot change status of a reference session");
-    }
-    if (existing?.status !== "REFERENCE" && data.status === "REFERENCE") {
-      throw new Error("Cannot set status to REFERENCE — reference sessions are auto-created");
-    }
+  // Guard: prevent editing reference sessions
+  const existing = await prisma.session.findFirst({ where: { id }, select: { type: true } });
+  if (existing?.type === "REFERENCE") {
+    throw new Error("Cannot edit a reference session");
   }
 
   return prisma.session.update({
@@ -185,8 +185,8 @@ export async function updateSessionRecord(
 
 export async function deleteSessionRecord(id: string) {
   // Guard: prevent manual deletion of REFERENCE sessions
-  const session = await prisma.session.findFirst({ where: { id }, select: { status: true } });
-  if (session?.status === "REFERENCE") {
+  const session = await prisma.session.findFirst({ where: { id }, select: { type: true } });
+  if (session?.type === "REFERENCE") {
     throw new Error("Reference sessions can only be deleted by deleting the associated person");
   }
 
@@ -200,10 +200,10 @@ export async function mergeSessionsRecord(survivingId: string, absorbedId: strin
   return prisma.$transaction(async (tx) => {
     // Guard: reference sessions cannot be merged
     const [surviving, absorbed] = await Promise.all([
-      tx.session.findFirst({ where: { id: survivingId }, select: { status: true } }),
-      tx.session.findFirst({ where: { id: absorbedId }, select: { status: true } }),
+      tx.session.findFirst({ where: { id: survivingId }, select: { type: true } }),
+      tx.session.findFirst({ where: { id: absorbedId }, select: { type: true } }),
     ]);
-    if (surviving?.status === "REFERENCE" || absorbed?.status === "REFERENCE") {
+    if (surviving?.type === "REFERENCE" || absorbed?.type === "REFERENCE") {
       throw new Error("Reference sessions cannot be merged");
     }
 
@@ -322,7 +322,7 @@ export async function searchSessions(q: string) {
   return prisma.session.findMany({
     where: {
       name: { contains: q.trim(), mode: "insensitive" },
-      status: { not: "REFERENCE" as SessionStatus },
+      type: { not: "REFERENCE" as SessionType },
     },
     select: {
       id: true,

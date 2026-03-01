@@ -12,6 +12,8 @@ import {
   ChevronUp,
   Crosshair,
   RotateCcw,
+  Trash2,
+  X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { MediaItemWithLinks } from "@/lib/services/media-service";
@@ -26,6 +28,8 @@ import {
   removeHeadshotSlot,
   setFocalPointAction,
   resetFocalPointAction,
+  batchSetUsageAction,
+  batchRemoveUsageAction,
 } from "@/lib/actions/media-actions";
 import {
   addToCollectionAction,
@@ -33,8 +37,7 @@ import {
 } from "@/lib/actions/collection-actions";
 import { MediaUsageBadge } from "./media-badge";
 
-const ALL_USAGES: PersonMediaUsage[] = [
-  "REFERENCE",
+const TOGGLEABLE_USAGES: PersonMediaUsage[] = [
   "PROFILE",
   "PORTFOLIO",
   "BODY_MARK",
@@ -44,7 +47,6 @@ const ALL_USAGES: PersonMediaUsage[] = [
 
 const USAGE_LABELS: Record<PersonMediaUsage, string> = {
   HEADSHOT: "Headshot",
-  REFERENCE: "Reference",
   PROFILE: "Profile",
   PORTFOLIO: "Portfolio",
   BODY_MARK: "Body Mark",
@@ -54,7 +56,6 @@ const USAGE_LABELS: Record<PersonMediaUsage, string> = {
 
 const USAGE_ACTIVE_COLORS: Record<PersonMediaUsage, string> = {
   HEADSHOT: "bg-blue-500/20 text-blue-400 border-blue-500/40",
-  REFERENCE: "bg-gray-500/20 text-gray-400 border-gray-500/40",
   PROFILE: "bg-green-500/20 text-green-400 border-green-500/40",
   PORTFOLIO: "bg-teal-500/20 text-teal-400 border-teal-500/40",
   BODY_MARK: "bg-amber-500/20 text-amber-400 border-amber-500/40",
@@ -75,6 +76,9 @@ type MediaMetadataPanelProps = {
   bodyModifications: EntityOption[];
   cosmeticProcedures: EntityOption[];
   onItemsChange?: (updatedItems: MediaItemWithLinks[]) => void;
+  onRequestDelete?: () => void;
+  onClearSelection?: () => void;
+  onBatchComplete?: () => void;
   variant?: "default" | "lightbox";
 };
 
@@ -89,6 +93,9 @@ export function MediaMetadataPanel({
   bodyModifications,
   cosmeticProcedures,
   onItemsChange,
+  onRequestDelete,
+  onClearSelection,
+  onBatchComplete,
   variant = "default",
 }: MediaMetadataPanelProps) {
   const [isPending, startTransition] = useTransition();
@@ -313,36 +320,20 @@ export function MediaMetadataPanel({
 
   if (isBatch) {
     return (
-      <div className={cn("space-y-4", isLightbox ? "p-3" : "p-4")}>
-        <div className="rounded-lg border border-white/15 bg-muted/40 p-3 text-center">
-          <p className="text-sm font-medium">{items.length} items selected</p>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Use the selection bar for batch operations
-          </p>
-        </div>
-        <SectionHeader
-          title="Common Tags"
-          icon={<Tag size={14} />}
-          section="tags"
-          expanded={expandedSections.has("tags")}
-          onToggle={toggleSection}
-        />
-        {expandedSections.has("tags") && (
-          <div className="flex flex-wrap gap-1">
-            {getCommonTags(items).map((tag) => (
-              <span
-                key={tag}
-                className="rounded-full border border-white/15 bg-muted/50 px-2 py-0.5 text-xs"
-              >
-                {tag}
-              </span>
-            ))}
-            {getCommonTags(items).length === 0 && (
-              <p className="text-xs text-muted-foreground italic">No common tags</p>
-            )}
-          </div>
-        )}
-      </div>
+      <BatchPanel
+        items={items}
+        personId={personId}
+        sessionId={sessionId}
+        collections={collections}
+        expandedSections={expandedSections}
+        toggleSection={toggleSection}
+        isPending={isPending}
+        startTransition={startTransition}
+        onRequestDelete={onRequestDelete}
+        onClearSelection={onClearSelection}
+        onBatchComplete={onBatchComplete}
+        isLightbox={isLightbox}
+      />
     );
   }
 
@@ -364,7 +355,7 @@ export function MediaMetadataPanel({
       />
       {expandedSections.has("usage") && (
         <div className="flex flex-wrap gap-1 pb-2">
-          {ALL_USAGES.map((usage) => {
+          {TOGGLEABLE_USAGES.map((usage) => {
             const isActive = activeUsages.has(usage);
             return (
               <button
@@ -643,12 +634,12 @@ export function MediaMetadataPanel({
                 <div className="mt-1 flex items-center gap-1">
                   <span className="font-medium text-foreground/70">Usage:</span>
                   {single.links.map((link) => (
-                    <MediaUsageBadge
-                      key={link.id}
-                      usage={link.usage}
-                      slot={link.slot}
-                    />
-                  ))}
+                      <MediaUsageBadge
+                        key={link.id}
+                        usage={link.usage}
+                        slot={link.slot}
+                      />
+                    ))}
                 </div>
               )}
             </div>
@@ -751,6 +742,240 @@ function NotesField({ value, onChange, disabled }: NotesFieldProps) {
       rows={2}
       className="w-full resize-none rounded-md border border-white/15 bg-background/50 px-2 py-1.5 text-xs placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-ring"
     />
+  );
+}
+
+// ─── Batch Panel ─────────────────────────────────────────────────────────────
+
+type BatchPanelProps = {
+  items: MediaItemWithLinks[];
+  personId: string;
+  sessionId: string;
+  collections: CollectionSummary[];
+  expandedSections: Set<string>;
+  toggleSection: (section: string) => void;
+  isPending: boolean;
+  startTransition: (callback: () => Promise<void> | void) => void;
+  onRequestDelete?: () => void;
+  onClearSelection?: () => void;
+  onBatchComplete?: () => void;
+  isLightbox: boolean;
+};
+
+function BatchPanel({
+  items,
+  personId,
+  sessionId,
+  collections,
+  expandedSections,
+  toggleSection,
+  isPending,
+  startTransition,
+  onRequestDelete,
+  onClearSelection,
+  onBatchComplete,
+  isLightbox,
+}: BatchPanelProps) {
+  // Compute usage states across all selected items
+  const { commonUsages, mixedUsages } = useMemo(() => {
+    const common = new Set<PersonMediaUsage>();
+    const mixed = new Set<PersonMediaUsage>();
+    for (const usage of TOGGLEABLE_USAGES) {
+      const count = items.filter((item) =>
+        item.links.some((l) => l.usage === usage),
+      ).length;
+      if (count === items.length) common.add(usage);
+      else if (count > 0) mixed.add(usage);
+    }
+    return { commonUsages: common, mixedUsages: mixed };
+  }, [items]);
+
+  // Compute collection membership across all selected items
+  const collectionStates = useMemo(() => {
+    const map = new Map<string, "all" | "some" | "none">();
+    for (const coll of collections) {
+      const count = items.filter((item) =>
+        item.collectionIds.includes(coll.id),
+      ).length;
+      if (count === items.length) map.set(coll.id, "all");
+      else if (count > 0) map.set(coll.id, "some");
+      else map.set(coll.id, "none");
+    }
+    return map;
+  }, [items, collections]);
+
+  const handleBatchUsageToggle = useCallback(
+    (usage: PersonMediaUsage) => {
+      const isActive = commonUsages.has(usage);
+      const ids = items.map((item) => item.id);
+      startTransition(async () => {
+        if (isActive) {
+          await batchRemoveUsageAction(personId, ids, usage, sessionId);
+        } else {
+          await batchSetUsageAction(personId, ids, usage, sessionId);
+        }
+        onBatchComplete?.();
+      });
+    },
+    [commonUsages, items, personId, sessionId, startTransition, onBatchComplete],
+  );
+
+  const handleBatchCollectionAdd = useCallback(
+    (collectionId: string) => {
+      const ids = items.map((item) => item.id);
+      startTransition(async () => {
+        await addToCollectionAction(collectionId, ids);
+        onBatchComplete?.();
+      });
+    },
+    [items, startTransition, onBatchComplete],
+  );
+
+  return (
+    <div className={cn(
+      "space-y-1 text-sm",
+      isLightbox ? "p-3" : "p-4",
+      isPending && "opacity-70 pointer-events-none",
+    )}>
+      {/* Header: count + clear */}
+      <div className="flex items-center justify-between pb-2">
+        <span className="text-sm font-medium">{items.length} selected</span>
+        {onClearSelection && (
+          <button
+            type="button"
+            onClick={onClearSelection}
+            className="rounded-full p-1 text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
+            aria-label="Clear selection"
+          >
+            <X size={14} />
+          </button>
+        )}
+      </div>
+
+      {/* Usage toggles */}
+      <SectionHeader
+        title="Usage"
+        icon={<ImageIcon size={14} />}
+        section="usage"
+        expanded={expandedSections.has("usage")}
+        onToggle={toggleSection}
+      />
+      {expandedSections.has("usage") && (
+        <div className="flex flex-wrap gap-1 pb-2">
+          {TOGGLEABLE_USAGES.map((usage) => {
+            const isActive = commonUsages.has(usage);
+            const isMixed = mixedUsages.has(usage);
+            return (
+              <button
+                key={usage}
+                type="button"
+                disabled={isPending}
+                onClick={() => handleBatchUsageToggle(usage)}
+                className={cn(
+                  "rounded-md border px-2 py-1 text-xs font-medium transition-all",
+                  "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
+                  isActive
+                    ? USAGE_ACTIVE_COLORS[usage]
+                    : isMixed
+                      ? cn(USAGE_ACTIVE_COLORS[usage], "opacity-40 border-dashed")
+                      : "border-transparent bg-muted/60 text-muted-foreground hover:bg-muted/90 hover:text-foreground",
+                )}
+                aria-pressed={isActive}
+                title={isMixed ? "Present on some items — click to add to all" : undefined}
+              >
+                {USAGE_LABELS[usage]}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Collections */}
+      {collections.length > 0 && (
+        <>
+          <SectionHeader
+            title="Collections"
+            icon={<Folder size={14} />}
+            section="collections"
+            expanded={expandedSections.has("collections")}
+            onToggle={toggleSection}
+          />
+          {expandedSections.has("collections") && (
+            <div className="flex flex-wrap gap-1 pb-2">
+              {collections.map((coll) => {
+                const state = collectionStates.get(coll.id) ?? "none";
+                return (
+                  <button
+                    key={coll.id}
+                    type="button"
+                    disabled={isPending || state === "all"}
+                    onClick={() => handleBatchCollectionAdd(coll.id)}
+                    className={cn(
+                      "rounded-full px-2 py-0.5 text-xs font-medium transition-all",
+                      "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
+                      state === "all"
+                        ? "border border-primary/30 bg-primary/15 text-primary"
+                        : state === "some"
+                          ? "border border-dashed border-primary/30 bg-primary/10 text-primary/70 hover:bg-primary/20"
+                          : "border border-white/15 bg-muted/40 text-muted-foreground hover:bg-muted/60",
+                    )}
+                    title={
+                      state === "all"
+                        ? "All items in this collection"
+                        : state === "some"
+                          ? "Some items in this collection — click to add all"
+                          : "Click to add all items"
+                    }
+                  >
+                    {coll.name}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Common Tags */}
+      <SectionHeader
+        title="Common Tags"
+        icon={<Tag size={14} />}
+        section="tags"
+        expanded={expandedSections.has("tags")}
+        onToggle={toggleSection}
+      />
+      {expandedSections.has("tags") && (
+        <div className="flex flex-wrap gap-1 pb-2">
+          {getCommonTags(items).length > 0 ? (
+            getCommonTags(items).map((tag) => (
+              <span
+                key={tag}
+                className="rounded-full border border-white/15 bg-muted/50 px-2 py-0.5 text-xs"
+              >
+                {tag}
+              </span>
+            ))
+          ) : (
+            <p className="text-xs text-muted-foreground italic">No common tags</p>
+          )}
+        </div>
+      )}
+
+      {/* Delete button */}
+      {onRequestDelete && (
+        <div className="pt-2">
+          <button
+            type="button"
+            onClick={onRequestDelete}
+            disabled={isPending}
+            className="flex w-full items-center justify-center gap-2 rounded-lg border border-destructive/30 bg-destructive/15 px-3 py-2 text-xs font-medium text-destructive transition-colors hover:bg-destructive/25"
+          >
+            <Trash2 size={14} />
+            Delete {items.length} item{items.length !== 1 ? "s" : ""}
+          </button>
+        </div>
+      )}
+    </div>
   );
 }
 

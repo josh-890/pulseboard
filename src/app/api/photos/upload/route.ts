@@ -113,7 +113,7 @@ export async function POST(request: Request) {
     if (entityType === "person") {
       try {
         const refSession = await prisma.session.findFirst({
-          where: { personId: entityId, status: "REFERENCE" },
+          where: { personId: entityId, type: "REFERENCE" },
           select: { id: true },
         });
         if (refSession) {

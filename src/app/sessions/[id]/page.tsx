@@ -9,7 +9,7 @@ import { getProfileImageLabels } from "@/lib/services/setting-service";
 import { getCollectionsForPerson } from "@/lib/services/collection-service";
 import { prisma } from "@/lib/db";
 import { cn, formatPartialDate } from "@/lib/utils";
-import { SessionStatusBadge } from "@/components/sessions/session-status-badge";
+import { SessionStatusBadge, SessionTypeBadge } from "@/components/sessions/session-status-badge";
 import { EditSessionSheet } from "@/components/sessions/edit-session-sheet";
 import { DeleteButton } from "@/components/shared/delete-button";
 import { deleteSession } from "@/lib/actions/session-actions";
@@ -74,7 +74,7 @@ export default async function SessionDetailPage({ params }: SessionDetailPagePro
 
   if (!session) notFound();
 
-  const isReference = session.status === "REFERENCE";
+  const isReference = session.type === "REFERENCE";
   const labelOptions = labels.map(({ id, name }) => ({ id, name }));
   const projectOptions = projects.map(({ id, name }) => ({ id, name }));
   const participantCount = session.participants.length;
@@ -182,6 +182,7 @@ export default async function SessionDetailPage({ params }: SessionDetailPagePro
                   <Clapperboard size={18} className="text-primary" />
                 )}
               </div>
+              <SessionTypeBadge type={session.type} />
               <SessionStatusBadge status={session.status} />
               {session.date && (
                 <span className="text-sm text-muted-foreground">
@@ -278,6 +279,7 @@ export default async function SessionDetailPage({ params }: SessionDetailPagePro
             bodyMarks={mediaManagerData.bodyMarks}
             bodyModifications={mediaManagerData.bodyModifications}
             cosmeticProcedures={mediaManagerData.cosmeticProcedures}
+            anchor="reference"
           />
         ) : (
           <SessionMediaGallery

@@ -394,24 +394,26 @@ async function main() {
   // Reference sessions (per-person)
   const refSession = await prisma.session.upsert({
     where: { id: "seed-session-ref" },
-    update: { deletedAt: null, status: "REFERENCE", nameNorm: "jane — reference", name: "Jane — Reference", personId: person.id },
+    update: { deletedAt: null, type: "REFERENCE", status: "CONFIRMED", nameNorm: "jane — reference", name: "Jane — Reference", personId: person.id },
     create: {
       id: "seed-session-ref",
       name: "Jane — Reference",
       nameNorm: "jane — reference",
-      status: "REFERENCE",
+      type: "REFERENCE",
+      status: "CONFIRMED",
       personId: person.id,
     },
   });
 
   await prisma.session.upsert({
     where: { id: "seed-ref-session-2" },
-    update: { deletedAt: null, status: "REFERENCE", nameNorm: "marcus reed — reference", personId: person2.id },
+    update: { deletedAt: null, type: "REFERENCE", status: "CONFIRMED", nameNorm: "marcus reed — reference", personId: person2.id },
     create: {
       id: "seed-ref-session-2",
       name: "Marcus Reed — Reference",
       nameNorm: "marcus reed — reference",
-      status: "REFERENCE",
+      type: "REFERENCE",
+      status: "CONFIRMED",
       personId: person2.id,
     },
   });

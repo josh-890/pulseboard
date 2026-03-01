@@ -156,7 +156,11 @@ enum RelationshipEventType {
 enum SessionStatus {
   DRAFT
   CONFIRMED
+}
+
+enum SessionType {
   REFERENCE
+  PRODUCTION
 }
 
 enum MediaType {
@@ -182,7 +186,6 @@ enum EvidenceType {
 
 enum PersonMediaUsage {
   PROFILE
-  REFERENCE
   HEADSHOT
   BODY_MARK
   BODY_MODIFICATION
@@ -690,6 +693,7 @@ model Session {
   nameNorm    String?
   description String?
   location    String?
+  type        SessionType   @default(PRODUCTION)
   status      SessionStatus @default(DRAFT)
   notes       String?
   date        DateTime?
@@ -706,6 +710,7 @@ model Session {
   @@index([labelId])
   @@index([personId])
   @@index([date])
+  @@index([type])
   @@index([status])
   @@index([nameNorm])
   @@index([deletedAt])

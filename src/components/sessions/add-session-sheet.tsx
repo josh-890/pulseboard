@@ -132,7 +132,6 @@ export function AddSessionSheet({ labels, projects }: AddSessionSheetProps) {
                             >
                               <option value="DRAFT">Draft</option>
                               <option value="CONFIRMED">Confirmed</option>
-                              <option value="REFERENCE">Reference</option>
                             </select>
                           </FormControl>
                           <FormMessage />

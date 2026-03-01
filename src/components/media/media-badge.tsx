@@ -6,7 +6,6 @@ import type { PersonMediaUsage } from "@/lib/types";
 
 const USAGE_ABBREV: Record<PersonMediaUsage, string> = {
   HEADSHOT: "HS",
-  REFERENCE: "RF",
   BODY_MARK: "BM",
   BODY_MODIFICATION: "MD",
   COSMETIC_PROCEDURE: "CP",
@@ -16,7 +15,6 @@ const USAGE_ABBREV: Record<PersonMediaUsage, string> = {
 
 const USAGE_COLORS: Record<PersonMediaUsage, string> = {
   HEADSHOT: "bg-blue-500/90 text-white",
-  REFERENCE: "bg-gray-500/90 text-white",
   BODY_MARK: "bg-amber-500/90 text-white",
   BODY_MODIFICATION: "bg-purple-500/90 text-white",
   COSMETIC_PROCEDURE: "bg-pink-500/90 text-white",
@@ -70,6 +68,18 @@ export function MediaCollectionIcon() {
   return (
     <span className="inline-flex h-4 w-4 items-center justify-center rounded bg-white/80 shadow-sm">
       <Folder size={10} className="text-gray-700" />
+    </span>
+  );
+}
+
+type MediaAnchorBadgeProps = {
+  anchor: "reference" | "production";
+};
+
+export function MediaAnchorBadge({ anchor }: MediaAnchorBadgeProps) {
+  return (
+    <span className="inline-flex items-center rounded border border-white/30 bg-black/40 px-1 py-0.5 text-[9px] font-medium leading-none text-white/70">
+      {anchor === "reference" ? "REF" : "PROD"}
     </span>
   );
 }

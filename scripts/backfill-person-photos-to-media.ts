@@ -20,7 +20,6 @@ type PhotoVariants = {
 
 type PersonMediaUsage =
   | "PROFILE"
-  | "REFERENCE"
   | "HEADSHOT"
   | "BODY_MARK"
   | "BODY_MODIFICATION"
@@ -35,7 +34,7 @@ function inferUsageFromTags(tags: string[]): PersonMediaUsage {
   if (tagSet.has("cosmetic_procedure")) return "COSMETIC_PROCEDURE";
   if (tagSet.has("profile")) return "PROFILE";
   if (tagSet.has("portfolio")) return "PORTFOLIO";
-  return "REFERENCE";
+  return "PROFILE";
 }
 
 async function main() {
@@ -59,7 +58,7 @@ async function main() {
 
     // Find the person's reference session
     const refSession = await prisma.session.findFirst({
-      where: { personId, status: "REFERENCE" },
+      where: { personId, type: "REFERENCE" },
       select: { id: true },
     });
 
