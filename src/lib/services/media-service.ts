@@ -257,6 +257,18 @@ export async function createMediaItemDirect(
         },
       });
 
+      // Auto-assign cover if the set doesn't have one yet
+      const set = await tx.set.findUnique({
+        where: { id: input.setId },
+        select: { coverMediaItemId: true },
+      });
+      if (set && !set.coverMediaItemId) {
+        await tx.set.update({
+          where: { id: input.setId },
+          data: { coverMediaItemId: mediaItemId },
+        });
+      }
+
       // Auto-link MODEL participants
       const modelParticipants = await tx.setParticipant.findMany({
         where: { setId: input.setId, role: "MODEL" },
@@ -709,4 +721,63 @@ export async function batchRemoveUsage(
       usage,
     },
   });
+}
+
+// ─── Set cover photos ────────────────────────────────────────────────────────
+
+export async function getCoverPhotosForSets(
+  setIds: string[],
+): Promise<Map<string, string>> {
+  if (setIds.length === 0) return new Map();
+
+  // 1. Load sets that have an explicit cover
+  const setsWithCover = await prisma.set.findMany({
+    where: { id: { in: setIds }, coverMediaItemId: { not: null } },
+    select: {
+      id: true,
+      coverMediaItem: {
+        select: { variants: true, fileRef: true },
+      },
+    },
+  });
+
+  const result = new Map<string, string>();
+  for (const s of setsWithCover) {
+    if (s.coverMediaItem) {
+      const variants = (s.coverMediaItem.variants ?? {}) as PhotoVariants;
+      const url = variants.gallery_512
+        ? buildUrl(variants.gallery_512)
+        : variants.original
+          ? buildUrl(variants.original)
+          : s.coverMediaItem.fileRef
+            ? buildUrl(s.coverMediaItem.fileRef)
+            : null;
+      if (url) result.set(s.id, url);
+    }
+  }
+
+  // 2. For sets without a cover, fall back to first SetMediaItem
+  const missingIds = setIds.filter((id) => !result.has(id));
+  if (missingIds.length > 0) {
+    const fallbackLinks = await prisma.setMediaItem.findMany({
+      where: { setId: { in: missingIds } },
+      include: { mediaItem: { select: { variants: true, fileRef: true } } },
+      orderBy: { sortOrder: "asc" },
+    });
+
+    for (const link of fallbackLinks) {
+      if (result.has(link.setId)) continue;
+      const variants = (link.mediaItem.variants ?? {}) as PhotoVariants;
+      const url = variants.gallery_512
+        ? buildUrl(variants.gallery_512)
+        : variants.original
+          ? buildUrl(variants.original)
+          : link.mediaItem.fileRef
+            ? buildUrl(link.mediaItem.fileRef)
+            : null;
+      if (url) result.set(link.setId, url);
+    }
+  }
+
+  return result;
 }

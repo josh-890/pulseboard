@@ -2,6 +2,7 @@
 
 import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
+import { Frame } from "lucide-react";
 import { Lightbox } from "./lightbox";
 import { setFavorite } from "@/lib/actions/photo-actions";
 import type { PhotoWithUrls } from "@/lib/types";
@@ -12,6 +13,8 @@ type JustifiedGalleryProps = {
   entityType: "person" | "set";
   entityId: string;
   profileLabels: ProfileImageLabel[];
+  coverMediaItemId?: string | null;
+  onSetCover?: (mediaItemId: string | null) => void;
 };
 
 const GAP = 8;
@@ -70,6 +73,8 @@ export function JustifiedGallery({
   entityType,
   entityId,
   profileLabels,
+  coverMediaItemId,
+  onSetCover,
 }: JustifiedGalleryProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [containerWidth, setContainerWidth] = useState(0);
@@ -196,6 +201,16 @@ export function JustifiedGallery({
                     unoptimized
                   />
 
+                  {/* Cover badge */}
+                  {coverMediaItemId === photo.id && (
+                    <span
+                      className="absolute left-1.5 top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-amber-500 text-white"
+                      aria-label="Cover image"
+                    >
+                      <Frame size={10} />
+                    </span>
+                  )}
+
                   {/* Tag indicator badges */}
                   <div className="absolute bottom-1.5 right-1.5 flex items-center gap-1">
                     {hasProfileSlot && (
@@ -232,6 +247,8 @@ export function JustifiedGallery({
           entityId={entityId}
           profileLabels={profileLabels}
           onTagsChanged={handleTagsChanged}
+          coverMediaItemId={coverMediaItemId}
+          onSetCover={onSetCover}
         />
       )}
     </>

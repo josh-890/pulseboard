@@ -269,6 +269,7 @@ export default async function SetDetailPage({ params }: SetDetailPageProps) {
         entityId={id}
         profileLabels={profileLabels}
         primarySessionId={set.sessionLinks?.find((l) => l.isPrimary)?.sessionId}
+        coverMediaItemId={set.coverMediaItemId}
       />
 
       {/* Credits & Participants */}

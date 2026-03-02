@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 import { ImageIcon } from "lucide-react";
 import { getSetsPaginated, getChannelsWithLabelMaps, getRecentChannels, getLastUsedSetType } from "@/lib/services/set-service";
-import { getFavoritePhotosForSets } from "@/lib/services/photo-service";
+import { getCoverPhotosForSets } from "@/lib/services/media-service";
 import type { SetType } from "@/lib/types";
 import { SetGrid } from "@/components/sets/set-grid";
 import { SetSearch } from "@/components/sets/set-search";
@@ -45,9 +45,9 @@ export default async function SetsPage({ searchParams }: SetsPageProps) {
     getLastUsedSetType(),
   ]);
 
-  // Batch-load thumbnail photos for initial chunk
-  const photoMapRaw = await getFavoritePhotosForSets(paginated.items.map((s) => s.id));
-  const photoMap = Object.fromEntries(photoMapRaw);
+  // Batch-load cover thumbnails for initial chunk
+  const coverMapRaw = await getCoverPhotosForSets(paginated.items.map((s) => s.id));
+  const photoMap = Object.fromEntries(coverMapRaw);
 
   return (
     <div className="space-y-6">

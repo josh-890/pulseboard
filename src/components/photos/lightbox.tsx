@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import Image from "next/image";
-import { ChevronLeft, ChevronRight, Heart, Tag, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Frame, Heart, Tag, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { LightboxTagPanel } from "./lightbox-tag-panel";
 import type { PhotoWithUrls } from "@/lib/types";
@@ -20,6 +20,8 @@ type LightboxProps = {
   entityId?: string;
   profileLabels?: ProfileImageLabel[];
   onTagsChanged?: (photoId: string, newTags: string[]) => void;
+  coverMediaItemId?: string | null;
+  onSetCover?: (mediaItemId: string | null) => void;
 };
 
 export function Lightbox({
@@ -31,6 +33,8 @@ export function Lightbox({
   entityId,
   profileLabels,
   onTagsChanged,
+  coverMediaItemId,
+  onSetCover,
 }: LightboxProps) {
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
   const [tagPanelOpen, setTagPanelOpen] = useState(false);
@@ -206,6 +210,30 @@ export function Lightbox({
                 )}
               />
             </button>
+            {onSetCover && (
+              <button
+                type="button"
+                onClick={() =>
+                  onSetCover(
+                    coverMediaItemId === item.id ? null : item.id,
+                  )
+                }
+                aria-label={
+                  coverMediaItemId === item.id
+                    ? "Remove as cover"
+                    : "Set as cover"
+                }
+                className="rounded-full bg-white/10 p-2 text-white transition-colors hover:bg-white/20"
+              >
+                <Frame
+                  size={18}
+                  className={cn(
+                    coverMediaItemId === item.id &&
+                      "fill-amber-500 text-amber-500",
+                  )}
+                />
+              </button>
+            )}
             {onTagsChanged && (
               <button
                 type="button"

@@ -1,7 +1,9 @@
 "use client";
 
+import { useCallback, useState } from "react";
 import { JustifiedGallery } from "@/components/photos/justified-gallery";
 import { BatchUploadZone } from "@/components/media/batch-upload-zone";
+import { setSetCover } from "@/lib/actions/set-actions";
 import type { PhotoWithUrls } from "@/lib/types";
 import type { ProfileImageLabel } from "@/lib/services/setting-service";
 
@@ -10,6 +12,7 @@ type SetDetailGalleryProps = {
   entityId: string;
   profileLabels: ProfileImageLabel[];
   primarySessionId?: string;
+  coverMediaItemId?: string | null;
 };
 
 export function SetDetailGallery({
@@ -17,7 +20,18 @@ export function SetDetailGallery({
   entityId,
   profileLabels,
   primarySessionId,
+  coverMediaItemId: initialCoverId,
 }: SetDetailGalleryProps) {
+  const [coverId, setCoverId] = useState(initialCoverId ?? null);
+
+  const handleSetCover = useCallback(
+    (mediaItemId: string | null) => {
+      setCoverId(mediaItemId);
+      setSetCover(entityId, mediaItemId);
+    },
+    [entityId],
+  );
+
   return (
     <>
       {photos.length > 0 && (
@@ -26,6 +40,8 @@ export function SetDetailGallery({
           entityType="set"
           entityId={entityId}
           profileLabels={profileLabels}
+          coverMediaItemId={coverId}
+          onSetCover={handleSetCover}
         />
       )}
       {primarySessionId && (

@@ -25,7 +25,7 @@ import {
   getSuggestedResolutions,
 } from "@/lib/services/set-service";
 import type { SetFilters } from "@/lib/services/set-service";
-import { getFavoritePhotosForSets } from "@/lib/services/photo-service";
+import { getCoverPhotosForSets } from "@/lib/services/media-service";
 import { getLabels } from "@/lib/services/label-service";
 import { prisma } from "@/lib/db";
 import { z } from "zod";
@@ -235,6 +235,23 @@ export async function removeLabelEvidence(
   }
 }
 
+export async function setSetCover(
+  setId: string,
+  mediaItemId: string | null,
+): Promise<SimpleResult> {
+  try {
+    await prisma.set.update({
+      where: { id: setId },
+      data: { coverMediaItemId: mediaItemId },
+    });
+    revalidatePath("/sets");
+    revalidatePath(`/sets/${setId}`);
+    return { success: true };
+  } catch {
+    return { success: false, error: "Failed to update cover image" };
+  }
+}
+
 export async function getRecentDefaults() {
   const [recentChannelIds, lastType] = await Promise.all([
     getRecentChannels(5),
@@ -248,10 +265,10 @@ export async function loadMoreSets(
   cursor: string,
 ) {
   const result = await getSetsPaginated(filters, cursor, 50);
-  const photoMapRaw = await getFavoritePhotosForSets(
+  const coverMapRaw = await getCoverPhotosForSets(
     result.items.map((s) => s.id),
   );
-  const photoMap = Object.fromEntries(photoMapRaw);
+  const photoMap = Object.fromEntries(coverMapRaw);
   return {
     items: result.items,
     nextCursor: result.nextCursor,
