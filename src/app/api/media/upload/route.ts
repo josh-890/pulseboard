@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { mediaUploadSchema } from "@/lib/validations/photo";
-import { uploadPhotoToStorage } from "@/lib/photo-upload";
+import { mediaUploadSchema } from "@/lib/validations/media";
+import { uploadPhotoToStorage } from "@/lib/media-upload";
 import { createMediaItemDirect } from "@/lib/services/media-service";
 
 const ALLOWED_MIME_TYPES = [

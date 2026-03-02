@@ -12,7 +12,6 @@ import type {
 import type { PersonStatus, Prisma } from "@/generated/prisma/client";
 import type { CreatePersonInput, UpdatePersonInput } from "@/lib/validations/person";
 import {
-  cascadeDeletePhotos,
   cascadeDeleteSession,
   cascadeDeleteBodyModifications,
   cascadeDeleteCosmeticProcedures,
@@ -722,9 +721,6 @@ export async function deletePersonRecord(id: string) {
       },
       data: { deletedAt },
     });
-
-    // Soft-delete photos
-    await cascadeDeletePhotos(tx, "person", id, deletedAt);
 
     // Cascade-delete the person's reference session (if any)
     const refSession = await tx.session.findFirst({

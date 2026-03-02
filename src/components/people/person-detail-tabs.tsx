@@ -41,14 +41,14 @@ import {
   Link2,
 } from "lucide-react";
 import Link from "next/link";
-import { CarouselHeader } from "@/components/photos/carousel-header";
-import { JustifiedGallery } from "@/components/photos/justified-gallery";
+import { CarouselHeader } from "@/components/gallery/carousel-header";
+import { JustifiedGrid } from "@/components/gallery/justified-grid";
+import { GalleryLightbox } from "@/components/gallery/gallery-lightbox";
 import { BatchUploadZone } from "@/components/media/batch-upload-zone";
-import type { PhotoWithUrls } from "@/lib/types";
+import type { GalleryItem } from "@/lib/types";
 import type { ProfileImageLabel } from "@/lib/services/setting-service";
 
 type PersonData = NonNullable<Awaited<ReturnType<typeof getPersonWithDetails>>>;
-type PhotoProps = Omit<PhotoWithUrls, "variants">;
 
 type TabId = "overview" | "appearance" | "career" | "network" | "photos";
 
@@ -58,7 +58,7 @@ type PersonDetailTabsProps = {
   workHistory: PersonWorkHistoryItem[];
   affiliations: PersonAffiliation[];
   connections: PersonConnection[];
-  photos: PhotoProps[];
+  photos: GalleryItem[];
   profileLabels: ProfileImageLabel[];
   referenceSessionId?: string;
   filledHeadshotSlots?: number[];
@@ -510,7 +510,7 @@ const DENSITY_CONFIGS: Record<HeroLayout, HeroDensityConfig> = {
 type HeroSharedProps = {
   person: PersonData;
   currentState: PersonCurrentState;
-  photos: PhotoProps[];
+  photos: GalleryItem[];
   profileLabels: ProfileImageLabel[];
   kpiCounts: KpiCounts;
   displayName: string;
@@ -585,7 +585,7 @@ function IdentityBlock({ person, displayName, age, aliasPills, nameSize = "text-
 function HeroDensityLayout(props: HeroSharedProps) {
   const { layout } = useHeroLayout();
   const cfg = DENSITY_CONFIGS[layout];
-  const { person, currentState, photos, profileLabels, kpiCounts, displayName, initials, age, aliasPills } = props;
+  const { person, currentState, photos, kpiCounts, displayName, initials, age, aliasPills } = props;
   const isCompact = layout === "compact";
 
   return (
@@ -593,11 +593,8 @@ function HeroDensityLayout(props: HeroSharedProps) {
       <div className={cn("flex flex-col items-center text-center sm:flex-row sm:items-start sm:text-left", cfg.cardGap)}>
         {/* Zone 1: Photo */}
         <CarouselHeader
-          photos={photos as (Omit<PhotoWithUrls, "variants">)[]}
-          entityType="person"
-          entityId={person.id}
+          items={photos}
           fallbackInitials={initials}
-          profileLabels={profileLabels}
           width={cfg.photoWidth}
           height={cfg.photoHeight}
         />
@@ -654,7 +651,7 @@ function HeroCard({
 }: {
   person: PersonData;
   currentState: PersonCurrentState;
-  photos: PhotoProps[];
+  photos: GalleryItem[];
   profileLabels: ProfileImageLabel[];
   kpiCounts: KpiCounts;
 }) {
@@ -1033,27 +1030,33 @@ function NetworkTab({ connections }: { connections: PersonConnection[] }) {
 function PhotosTab({
   person,
   photos,
-  profileLabels,
   referenceSessionId,
   filledHeadshotSlots,
+  profileLabels,
 }: {
   person: PersonData;
-  photos: PhotoProps[];
-  profileLabels: ProfileImageLabel[];
+  photos: GalleryItem[];
   referenceSessionId?: string;
   filledHeadshotSlots?: number[];
+  profileLabels: ProfileImageLabel[];
 }) {
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+
+  const indexMap = new Map<string, number>();
+  photos.forEach((p, i) => indexMap.set(p.id, i));
+
   return (
     <div className="space-y-6">
       <SectionCard title="Gallery" icon={<ImageIcon size={18} />} badge={photos.length}>
         {photos.length === 0 ? (
           <EmptyState message="No photos uploaded yet." />
         ) : (
-          <JustifiedGallery
-            photos={photos as PhotoWithUrls[]}
-            entityType="person"
-            entityId={person.id}
-            profileLabels={profileLabels}
+          <JustifiedGrid
+            items={photos}
+            onOpen={(id) => {
+              const idx = indexMap.get(id);
+              if (idx !== undefined) setLightboxIndex(idx);
+            }}
           />
         )}
       </SectionCard>
@@ -1063,6 +1066,14 @@ function PhotosTab({
           personId={person.id}
           filledHeadshotSlots={filledHeadshotSlots}
           totalHeadshotSlots={profileLabels.length || 5}
+        />
+      )}
+      {lightboxIndex !== null && (
+        <GalleryLightbox
+          mode="simple"
+          items={photos}
+          initialIndex={lightboxIndex}
+          onClose={() => setLightboxIndex(null)}
         />
       )}
     </div>

@@ -221,7 +221,7 @@ export async function setFocalPointAction(
     });
 
     // Regenerate profile variants with manual focal point
-    const { regenerateProfileVariants } = await import("@/lib/photo-upload");
+    const { regenerateProfileVariants } = await import("@/lib/media-upload");
     const variants = (mediaItem.variants ?? {}) as PhotoVariants;
     if (variants.original) {
       const updatedVariants = await regenerateProfileVariants(
@@ -258,7 +258,7 @@ export async function deleteMediaItemsAction(
 
     // Best-effort file cleanup after commit
     try {
-      const { deleteMediaFiles } = await import("@/lib/photo-upload");
+      const { deleteMediaFiles } = await import("@/lib/media-upload");
       await deleteMediaFiles(variantsList);
     } catch (err) {
       console.error("[deleteMediaItemsAction] MinIO cleanup failed:", err);

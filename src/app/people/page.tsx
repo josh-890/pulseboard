@@ -6,7 +6,6 @@ import {
   getDistinctBodyTypes,
   getDistinctEthnicities,
 } from "@/lib/services/person-service";
-import { getFavoritePhotosForPersons } from "@/lib/services/photo-service";
 import { getHeadshotsForPersons } from "@/lib/services/media-service";
 import { getProfileImageLabels } from "@/lib/services/setting-service";
 import type { PersonStatus } from "@/lib/types";
@@ -74,24 +73,15 @@ export default async function PeoplePage({ searchParams }: PeoplePageProps) {
   void bodyTypes;
   void ethnicities;
 
-  // Batch-load profile photos for initial chunk
+  // Batch-load profile photos for visible persons (MediaItem-only)
   const personIds = paginated.items.map((p) => p.id);
   const headshotMap = await getHeadshotsForPersons(personIds, slot);
-
-  // Fallback to legacy photos for persons without headshots
-  const missingIds = personIds.filter((id) => !headshotMap.has(id));
-  const legacyMapRaw = missingIds.length > 0
-    ? await getFavoritePhotosForPersons(missingIds)
-    : new Map<string, string>();
 
   const photoMap: Record<string, { url: string; focalX: number | null; focalY: number | null }> = {};
   for (const id of personIds) {
     const headshot = headshotMap.get(id);
     if (headshot) {
       photoMap[id] = headshot;
-    } else {
-      const legacyUrl = legacyMapRaw.get(id);
-      if (legacyUrl) photoMap[id] = { url: legacyUrl, focalX: null, focalY: null };
     }
   }
 

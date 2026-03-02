@@ -1,28 +1,43 @@
 "use client";
 
-import { useCallback, useState } from "react";
-import { JustifiedGallery } from "@/components/photos/justified-gallery";
+import { useCallback, useMemo, useState } from "react";
+import { JustifiedGrid } from "@/components/gallery/justified-grid";
+import { GalleryLightbox } from "@/components/gallery/gallery-lightbox";
 import { BatchUploadZone } from "@/components/media/batch-upload-zone";
 import { setSetCover } from "@/lib/actions/set-actions";
-import type { PhotoWithUrls } from "@/lib/types";
-import type { ProfileImageLabel } from "@/lib/services/setting-service";
+import type { GalleryItem } from "@/lib/types";
 
 type SetDetailGalleryProps = {
-  photos: PhotoWithUrls[];
+  items: GalleryItem[];
   entityId: string;
-  profileLabels: ProfileImageLabel[];
   primarySessionId?: string;
   coverMediaItemId?: string | null;
 };
 
 export function SetDetailGallery({
-  photos,
+  items: initialItems,
   entityId,
-  profileLabels,
   primarySessionId,
   coverMediaItemId: initialCoverId,
 }: SetDetailGalleryProps) {
   const [coverId, setCoverId] = useState(initialCoverId ?? null);
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+
+  // Keep cover state in sync with items
+  const items = useMemo(
+    () =>
+      initialItems.map((item) => ({
+        ...item,
+        isCover: item.id === coverId,
+      })),
+    [initialItems, coverId],
+  );
+
+  const indexMap = useMemo(() => {
+    const map = new Map<string, number>();
+    items.forEach((item, i) => map.set(item.id, i));
+    return map;
+  }, [items]);
 
   const handleSetCover = useCallback(
     (mediaItemId: string | null) => {
@@ -34,20 +49,29 @@ export function SetDetailGallery({
 
   return (
     <>
-      {photos.length > 0 && (
-        <JustifiedGallery
-          photos={photos}
-          entityType="set"
-          entityId={entityId}
-          profileLabels={profileLabels}
-          coverMediaItemId={coverId}
-          onSetCover={handleSetCover}
+      {items.length > 0 && (
+        <JustifiedGrid
+          items={items}
+          onOpen={(id) => {
+            const idx = indexMap.get(id);
+            if (idx !== undefined) setLightboxIndex(idx);
+          }}
         />
       )}
       {primarySessionId && (
         <BatchUploadZone
           sessionId={primarySessionId}
           setId={entityId}
+        />
+      )}
+      {lightboxIndex !== null && (
+        <GalleryLightbox
+          mode="simple"
+          items={items}
+          initialIndex={lightboxIndex}
+          onClose={() => setLightboxIndex(null)}
+          onSetCover={handleSetCover}
+          coverMediaItemId={coverId}
         />
       )}
     </>

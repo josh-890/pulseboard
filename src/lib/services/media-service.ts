@@ -1,7 +1,8 @@
 import { randomUUID } from "crypto";
 import { prisma } from "@/lib/db";
-import type { PhotoVariants, PhotoUrls, PhotoWithUrls } from "@/lib/types";
+import type { PhotoVariants, PhotoUrls } from "@/lib/types";
 import type { MediaItemWithUrls, PersonMediaUsage } from "@/lib/types";
+import type { GalleryItem } from "@/lib/types";
 import type { PersonMediaLink } from "@/generated/prisma/client";
 
 const BASE_URL = process.env.NEXT_PUBLIC_MINIO_URL!;
@@ -58,6 +59,34 @@ function toMediaItemWithUrls(item: MediaItemRow): MediaItemWithUrls | null {
     focalY: item.focalY ?? null,
   };
 }
+
+// ─── GalleryItem mappers ─────────────────────────────────────────────────────
+
+export function toGalleryItem(
+  item: MediaItemWithLinks,
+  opts?: { coverMediaItemId?: string | null },
+): GalleryItem {
+  const firstLink = item.links[0];
+  return {
+    id: item.id,
+    filename: item.filename,
+    mimeType: item.mimeType,
+    originalWidth: item.originalWidth,
+    originalHeight: item.originalHeight,
+    caption: item.caption,
+    createdAt: item.createdAt,
+    urls: item.urls,
+    focalX: item.focalX,
+    focalY: item.focalY,
+    tags: item.tags,
+    isFavorite: firstLink?.isFavorite ?? false,
+    sortOrder: firstLink?.sortOrder ?? 0,
+    isCover: opts?.coverMediaItemId === item.id,
+    links: item.links,
+    collectionIds: item.collectionIds,
+  };
+}
+
 
 // ─── Set bridge (existing) ───────────────────────────────────────────────────
 
@@ -312,12 +341,12 @@ export async function getFilledHeadshotSlots(
     .filter((s): s is number => s !== null);
 }
 
-// ─── Person media as PhotoWithUrls (bridge for carousel/gallery) ─────────────
+// ─── Person media as GalleryItems ────────────────────────────────────────────
 
-export async function getPersonMediaAsPhotos(
+export async function getPersonMediaGallery(
   personId: string,
   sessionId: string,
-): Promise<PhotoWithUrls[]> {
+): Promise<GalleryItem[]> {
   const items = await prisma.mediaItem.findMany({
     where: { sessionId },
     include: {
@@ -328,7 +357,7 @@ export async function getPersonMediaAsPhotos(
     orderBy: { createdAt: "asc" },
   });
 
-  const results: PhotoWithUrls[] = [];
+  const results: GalleryItem[] = [];
   for (const item of items) {
     const variants = (item.variants ?? {}) as PhotoVariants;
     if (!variants.original && !item.fileRef) continue;
@@ -336,40 +365,37 @@ export async function getPersonMediaAsPhotos(
     const link = item.personMediaLinks[0];
     results.push({
       id: item.id,
-      entityType: "person",
-      entityId: personId,
       filename: item.filename,
       mimeType: item.mimeType,
-      size: item.size,
       originalWidth: item.originalWidth,
       originalHeight: item.originalHeight,
-      variants,
-      tags: item.tags,
-      linkedEntityType: null,
-      linkedEntityId: null,
       caption: item.caption,
+      createdAt: item.createdAt,
+      urls: buildPhotoUrls(variants, item.fileRef),
+      focalX: item.focalX ?? null,
+      focalY: item.focalY ?? null,
+      tags: item.tags,
       isFavorite: link?.isFavorite ?? false,
       sortOrder: link?.sortOrder ?? 0,
-      createdAt: item.createdAt,
-      deletedAt: null,
-      urls: buildPhotoUrls(variants, item.fileRef),
+      isCover: false,
     });
   }
   return results;
 }
 
-// ─── Set media as PhotoWithUrls (bridge for set gallery) ────────────────────
+// ─── Set media as GalleryItems ───────────────────────────────────────────────
 
-export async function getSetMediaAsPhotos(
+export async function getSetMediaGallery(
   setId: string,
-): Promise<PhotoWithUrls[]> {
+  coverMediaItemId?: string | null,
+): Promise<GalleryItem[]> {
   const links = await prisma.setMediaItem.findMany({
     where: { setId },
     include: { mediaItem: true },
     orderBy: { sortOrder: "asc" },
   });
 
-  const results: PhotoWithUrls[] = [];
+  const results: GalleryItem[] = [];
   for (const link of links) {
     const item = link.mediaItem;
     const variants = (item.variants ?? {}) as PhotoVariants;
@@ -377,23 +403,19 @@ export async function getSetMediaAsPhotos(
 
     results.push({
       id: item.id,
-      entityType: "set",
-      entityId: setId,
       filename: item.filename,
       mimeType: item.mimeType,
-      size: item.size,
       originalWidth: item.originalWidth,
       originalHeight: item.originalHeight,
-      variants,
-      tags: item.tags,
-      linkedEntityType: null,
-      linkedEntityId: null,
       caption: link.caption ?? item.caption,
+      createdAt: item.createdAt,
+      urls: buildPhotoUrls(variants, item.fileRef),
+      focalX: item.focalX ?? null,
+      focalY: item.focalY ?? null,
+      tags: item.tags,
       isFavorite: false,
       sortOrder: link.sortOrder,
-      createdAt: item.createdAt,
-      deletedAt: null,
-      urls: buildPhotoUrls(variants, item.fileRef),
+      isCover: coverMediaItemId === item.id,
     });
   }
   return results;

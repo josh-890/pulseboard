@@ -20,7 +20,7 @@ import {
   SessionInlineLocation,
 } from "@/components/sessions/session-detail-header";
 import { SessionMergeDialog } from "@/components/sessions/session-merge-dialog";
-import { SessionMediaGallery } from "@/components/sessions/session-media-gallery";
+import { SessionProductionGallery } from "@/components/sessions/session-production-gallery";
 import { MediaManager } from "@/components/media/media-manager";
 import { BatchUploadZone } from "@/components/media/batch-upload-zone";
 
@@ -297,7 +297,7 @@ export default async function SessionDetailPage({ params }: SessionDetailPagePro
           </>
         ) : (
           <>
-            <SessionMediaGallery
+            <SessionProductionGallery
               items={mediaItems.map(({ createdAt, ...rest }) => ({
                 ...rest,
                 createdAt: createdAt.toISOString() as unknown as Date,

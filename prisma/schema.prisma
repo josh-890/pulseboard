@@ -52,13 +52,6 @@ enum ActivityType {
   note
 }
 
-enum EntityType {
-  person
-  set
-  bodyModification
-  cosmeticProcedure
-}
-
 enum BodyMarkType {
   tattoo
   scar
@@ -927,35 +920,6 @@ model MediaCollectionItem {
 }
 
 // ─── Photos (deprecated — replaced by MediaItem in Phase 2) ─────────────────
-
-model Photo {
-  id         String     @id @default(cuid())
-  entityType EntityType
-  entityId   String     // polymorphic: points to Person.id or Set.id depending on entityType
-
-  filename       String
-  mimeType       String
-  size           Int
-  originalWidth  Int
-  originalHeight Int
-  variants       Json
-
-  tags             String[]
-  linkedEntityType String?
-  linkedEntityId   String?
-
-  caption    String?
-  isFavorite Boolean   @default(false)
-  sortOrder  Int       @default(0)
-
-  createdAt DateTime  @default(now())
-  deletedAt DateTime?
-
-  @@index([entityType, entityId])
-  @@index([entityType, entityId, isFavorite])
-  @@index([deletedAt])
-  @@index([tags], type: Gin)
-}
 
 // ─── System ───────────────────────────────────────────────────────────────────
 

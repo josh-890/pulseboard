@@ -1,43 +1,38 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useState } from "react";
 import Image from "next/image";
 import { ChevronLeft, ChevronRight, ImageIcon } from "lucide-react";
-import { Lightbox } from "./lightbox";
-import { setFavorite } from "@/lib/actions/photo-actions";
-import type { PhotoWithUrls } from "@/lib/types";
-import type { ProfileImageLabel } from "@/lib/services/setting-service";
-
-type ClientPhoto = Omit<PhotoWithUrls, "variants"> & {
-  focalX?: number | null;
-  focalY?: number | null;
-};
+import type { GalleryItem } from "@/lib/types";
+import { GalleryLightbox } from "./gallery-lightbox";
 
 type CarouselHeaderProps = {
-  photos: ClientPhoto[];
-  entityType: "person" | "set";
-  entityId: string;
+  items: GalleryItem[];
   fallbackColor?: string;
   fallbackInitials?: string;
-  profileLabels?: ProfileImageLabel[];
-  onTagsChanged?: (photoId: string, newTags: string[]) => void;
+  onFavoriteToggle?: (itemId: string) => void;
+  onTagsChanged?: (itemId: string, newTags: string[]) => void;
+  onUpdateTags?: (itemId: string, tags: string[]) => Promise<{ success: boolean }>;
+  onSetCover?: (mediaItemId: string | null) => void;
+  coverMediaItemId?: string | null;
   width?: number;
   height?: number;
 };
 
 export function CarouselHeader({
-  photos,
-  entityType,
-  entityId,
+  items,
   fallbackColor,
   fallbackInitials,
-  profileLabels,
+  onFavoriteToggle,
   onTagsChanged,
+  onUpdateTags,
+  onSetCover,
+  coverMediaItemId,
   width = 200,
   height = 250,
 }: CarouselHeaderProps) {
-  // Sort so favorite comes first
-  const sorted = [...photos].sort((a, b) => {
+  // Sort: favorite first, then by sortOrder
+  const sorted = [...items].sort((a, b) => {
     if (a.isFavorite && !b.isFavorite) return -1;
     if (!a.isFavorite && b.isFavorite) return 1;
     return a.sortOrder - b.sortOrder;
@@ -46,14 +41,6 @@ export function CarouselHeader({
   const [activeIndex, setActiveIndex] = useState(0);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
 
-  const handleFavoriteToggle = useCallback(
-    (photoId: string) => {
-      setFavorite({ photoId, entityType, entityId });
-    },
-    [entityType, entityId],
-  );
-
-  // Empty state: show color/initials fallback
   if (sorted.length === 0) {
     return (
       <div
@@ -103,7 +90,6 @@ export function CarouselHeader({
           />
         </button>
 
-        {/* Navigation arrows */}
         {sorted.length > 1 && (
           <>
             {activeIndex > 0 && (
@@ -129,7 +115,6 @@ export function CarouselHeader({
           </>
         )}
 
-        {/* Counter badge */}
         {sorted.length > 1 && (
           <span className="absolute bottom-2 left-2 rounded-full bg-black/50 px-2 py-0.5 text-[10px] font-medium text-white">
             {activeIndex + 1}/{sorted.length}
@@ -138,15 +123,16 @@ export function CarouselHeader({
       </div>
 
       {lightboxIndex !== null && (
-        <Lightbox
-          photos={sorted}
+        <GalleryLightbox
+          mode="simple"
+          items={sorted}
           initialIndex={lightboxIndex}
           onClose={() => setLightboxIndex(null)}
-          onFavoriteToggle={handleFavoriteToggle}
-          entityType={entityType}
-          entityId={entityId}
-          profileLabels={profileLabels}
+          onFavoriteToggle={onFavoriteToggle}
           onTagsChanged={onTagsChanged}
+          onUpdateTags={onUpdateTags}
+          onSetCover={onSetCover}
+          coverMediaItemId={coverMediaItemId}
         />
       )}
     </>

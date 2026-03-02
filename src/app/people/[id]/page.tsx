@@ -9,10 +9,9 @@ import {
   deriveCurrentState,
   deriveAffiliations,
 } from "@/lib/services/person-service";
-import { getPhotosForEntity } from "@/lib/services/photo-service";
 import { getProfileImageLabels } from "@/lib/services/setting-service";
 import { getPersonReferenceSession } from "@/lib/services/session-service";
-import { getPersonHeadshots, getFilledHeadshotSlots, getPersonMediaAsPhotos } from "@/lib/services/media-service";
+import { getPersonHeadshots, getFilledHeadshotSlots, getPersonMediaGallery } from "@/lib/services/media-service";
 import { PersonDetailTabs } from "@/components/people/person-detail-tabs";
 import { EditPersonSheet } from "@/components/people/edit-person-sheet";
 import { DeleteButton } from "@/components/shared/delete-button";
@@ -27,12 +26,11 @@ type PersonDetailPageProps = {
 export default async function PersonDetailPage({ params }: PersonDetailPageProps) {
   const { id } = await params;
 
-  const [person, workHistory, connections, legacyPhotos, profileLabels, refSession, headshots, filledSlots] =
+  const [person, workHistory, connections, profileLabels, refSession, headshots, filledSlots] =
     await Promise.all([
       getPersonWithDetails(id),
       getPersonWorkHistory(id),
       getPersonConnections(id),
-      getPhotosForEntity("person", id),
       getProfileImageLabels(),
       getPersonReferenceSession(id),
       getPersonHeadshots(id),
@@ -44,19 +42,10 @@ export default async function PersonDetailPage({ params }: PersonDetailPageProps
   const currentState = deriveCurrentState(person);
   const affiliations = deriveAffiliations(workHistory);
 
-  // Load MediaItems from reference session (authoritative source for batch uploads)
-  const mediaPhotos = refSession
-    ? await getPersonMediaAsPhotos(id, refSession.id)
+  // Load MediaItems from reference session (authoritative source)
+  const galleryItems = refSession
+    ? await getPersonMediaGallery(id, refSession.id)
     : [];
-
-  // Merge: use MediaItems as primary, fall back to legacy photos for items not in MediaItem system
-  const mediaFilenames = new Set(mediaPhotos.map((p) => p.filename));
-  const uniqueLegacy = legacyPhotos.filter((p) => !mediaFilenames.has(p.filename));
-  const photos = [...mediaPhotos, ...uniqueLegacy];
-
-  // Strip variants from photos before passing to client component (RSC payload safety)
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const photoProps = photos.map(({ variants, ...rest }) => rest);
 
   return (
     <div className="space-y-6">
@@ -147,7 +136,7 @@ export default async function PersonDetailPage({ params }: PersonDetailPageProps
         workHistory={workHistory}
         affiliations={affiliations}
         connections={connections}
-        photos={photoProps as Parameters<typeof PersonDetailTabs>[0]["photos"]}
+        photos={galleryItems}
         profileLabels={profileLabels}
         referenceSessionId={refSession?.id}
         filledHeadshotSlots={filledSlots}

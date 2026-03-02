@@ -2,13 +2,11 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { Camera, Film, Tag, FileText, Check, Circle } from "lucide-react";
 import { getSetById, getChannelsForSelect } from "@/lib/services/set-service";
-import { getPhotosForEntity } from "@/lib/services/photo-service";
-import { getSetMediaAsPhotos } from "@/lib/services/media-service";
-import { getProfileImageLabels } from "@/lib/services/setting-service";
+import { getSetMediaGallery } from "@/lib/services/media-service";
 import { SetDetailGallery } from "@/components/sets/set-detail-gallery";
 import { CreditResolutionPanel } from "@/components/sets/credit-resolution-panel";
 import { cn, formatPartialDate } from "@/lib/utils";
-import type { SetType, PhotoWithUrls } from "@/lib/types";
+import type { SetType } from "@/lib/types";
 import { EditSetSheet } from "@/components/sets/edit-set-sheet";
 import { DeleteButton } from "@/components/shared/delete-button";
 import { AddCreditInline } from "@/components/sets/add-credit-inline";
@@ -96,31 +94,22 @@ function CompletenessChip({ done, label }: { done: boolean; label: string }) {
 export default async function SetDetailPage({ params }: SetDetailPageProps) {
   const { id } = await params;
 
-  const [set, legacyPhotos, mediaPhotos, channels, profileLabels] = await Promise.all([
+  const [set, channels] = await Promise.all([
     getSetById(id),
-    getPhotosForEntity("set", id),
-    getSetMediaAsPhotos(id),
     getChannelsForSelect(),
-    getProfileImageLabels(),
   ]);
 
   if (!set) notFound();
 
   const typeConfig = SET_TYPE_CONFIG[set.type];
 
-  // Merge: use MediaItems as primary, fall back to legacy photos for items not in MediaItem system
-  const mediaFilenames = new Set(mediaPhotos.map((p) => p.filename));
-  const uniqueLegacy = legacyPhotos.filter((p) => !mediaFilenames.has(p.filename));
-  const photos = [...mediaPhotos, ...uniqueLegacy];
-
-  // Strip variants from photos before passing to client component (RSC payload safety)
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const photoProps = photos.map(({ variants, ...rest }) => rest);
+  // Load gallery items directly as GalleryItem
+  const galleryItems = await getSetMediaGallery(id, set.coverMediaItemId);
 
   // Determine if we have credits
   const hasCredits = set.creditsRaw.length > 0;
   const unresolvedCount = set.creditsRaw.filter((c) => c.resolutionStatus === "UNRESOLVED").length;
-  const hasPhotos = photos.length > 0;
+  const hasPhotos = galleryItems.length > 0;
   const hasLabel = set.labelEvidence.length > 0;
 
   // Get the primary label from channel's label maps
@@ -265,9 +254,8 @@ export default async function SetDetailPage({ params }: SetDetailPageProps) {
 
       {/* Photo gallery */}
       <SetDetailGallery
-        photos={photoProps as PhotoWithUrls[]}
+        items={galleryItems}
         entityId={id}
-        profileLabels={profileLabels}
         primarySessionId={set.sessionLinks?.find((l) => l.isPrimary)?.sessionId}
         coverMediaItemId={set.coverMediaItemId}
       />

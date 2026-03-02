@@ -10,7 +10,6 @@ import {
   getPersonsPaginated,
 } from "@/lib/services/person-service";
 import type { PersonFilters } from "@/lib/services/person-service";
-import { getFavoritePhotosForPersons } from "@/lib/services/photo-service";
 import { getHeadshotsForPersons } from "@/lib/services/media-service";
 import { prisma } from "@/lib/db";
 
@@ -120,20 +119,11 @@ export async function loadMorePersons(
 
   const headshotMap = await getHeadshotsForPersons(personIds, slot);
 
-  // Fallback to legacy photos for persons without headshots
-  const missingIds = personIds.filter((id) => !headshotMap.has(id));
-  const legacyMapRaw = missingIds.length > 0
-    ? await getFavoritePhotosForPersons(missingIds)
-    : new Map<string, string>();
-
   const photoMap: Record<string, { url: string; focalX: number | null; focalY: number | null }> = {};
   for (const id of personIds) {
     const headshot = headshotMap.get(id);
     if (headshot) {
       photoMap[id] = headshot;
-    } else {
-      const legacyUrl = legacyMapRaw.get(id);
-      if (legacyUrl) photoMap[id] = { url: legacyUrl, focalX: null, focalY: null };
     }
   }
 

@@ -41,12 +41,8 @@ export type { Session, SessionStatus, SessionType, SetSession } from "./session"
 export type { Label, Network, Channel, LabelNetworkLink } from "./label";
 
 export type {
-  Photo,
-  EntityType,
-  PhotoTag,
   PhotoVariants,
   PhotoUrls,
-  PhotoWithUrls,
 } from "./photo";
 
 export type {
@@ -62,6 +58,8 @@ export type {
   SetLabelEvidence,
   ChannelLabelMap,
 } from "./media";
+
+export type { GalleryItem, PersonMediaLinkSummary } from "./gallery";
 
 export type { ActivityItem, ActivityType } from "./activity";
 

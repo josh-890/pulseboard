@@ -1,17 +1,3 @@
-export type { Photo, EntityType } from "@/generated/prisma/client";
-
-export type PhotoTag =
-  | "portrait"
-  | "tattoo"
-  | "document"
-  | "general"
-  | "outtake"
-  | "p-img01"
-  | "p-img02"
-  | "p-img03"
-  | "p-img04"
-  | "p-img05";
-
 export type PhotoVariants = {
   original: string;
   profile_128?: string;
@@ -32,25 +18,4 @@ export type PhotoUrls = {
   gallery_512: string | null;
   gallery_1024: string | null;
   gallery_1600: string | null;
-};
-
-export type PhotoWithUrls = {
-  id: string;
-  entityType: "person" | "set";
-  entityId: string;
-  filename: string;
-  mimeType: string;
-  size: number;
-  originalWidth: number;
-  originalHeight: number;
-  variants: PhotoVariants;
-  tags: string[];
-  linkedEntityType: string | null;
-  linkedEntityId: string | null;
-  caption: string | null;
-  isFavorite: boolean;
-  sortOrder: number;
-  createdAt: Date;
-  deletedAt: Date | null;
-  urls: PhotoUrls;
 };

@@ -37,7 +37,6 @@ export function withSoftDelete(prisma: PrismaClient) {
       session: softDeleteOverrides,
       set: softDeleteOverrides,
       activity: softDeleteOverrides,
-      photo: softDeleteOverrides,
       bodyModification: softDeleteOverrides,
       bodyModificationEvent: softDeleteOverrides,
       cosmeticProcedure: softDeleteOverrides,

@@ -1,32 +1,33 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { MediaItemWithLinks } from "@/lib/services/media-service";
-import { MediaThumbnail } from "./media-thumbnail";
+import type { GalleryItem } from "@/lib/types";
 import {
   computeRows,
   GALLERY_GAP,
   TARGET_ROW_HEIGHT,
   MOBILE_TARGET,
 } from "@/lib/gallery-layout";
+import { GalleryThumbnail } from "./gallery-thumbnail";
 
-type MediaGridProps = {
-  items: MediaItemWithLinks[];
-  selectedIds: Set<string>;
-  anchor?: "reference" | "production";
-  onSelect: (id: string, e: React.MouseEvent) => void;
-  onToggleSelect: (id: string) => void;
+type JustifiedGridProps = {
+  items: GalleryItem[];
+  /** Enable selection checkboxes (MediaManager mode) */
+  selectable?: boolean;
+  selectedIds?: Set<string>;
+  onSelect?: (id: string, e: React.MouseEvent) => void;
+  onToggleSelect?: (id: string) => void;
   onOpen: (id: string) => void;
 };
 
-export function MediaGrid({
+export function JustifiedGrid({
   items,
+  selectable,
   selectedIds,
-  anchor,
   onSelect,
   onToggleSelect,
   onOpen,
-}: MediaGridProps) {
+}: JustifiedGridProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [containerWidth, setContainerWidth] = useState(0);
 
@@ -46,7 +47,7 @@ export function MediaGrid({
 
   const isMobile = containerWidth < 640;
   const targetHeight = isMobile ? MOBILE_TARGET : TARGET_ROW_HEIGHT;
-  const isMultiSelectMode = selectedIds.size > 1;
+  const isMultiSelectMode = (selectedIds?.size ?? 0) > 1;
 
   const rows = useMemo(
     () => computeRows(items, containerWidth, targetHeight),
@@ -66,14 +67,14 @@ export function MediaGrid({
             const renderWidth = row.height * aspect;
 
             return (
-              <MediaThumbnail
+              <GalleryThumbnail
                 key={item.id}
                 item={item}
                 width={renderWidth}
                 height={row.height}
-                isSelected={selectedIds.has(item.id)}
+                selectable={selectable}
+                isSelected={selectedIds?.has(item.id)}
                 isMultiSelectMode={isMultiSelectMode}
-                anchor={anchor}
                 onSelect={onSelect}
                 onToggleSelect={onToggleSelect}
                 onOpen={onOpen}

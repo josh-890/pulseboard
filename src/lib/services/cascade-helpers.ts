@@ -1,5 +1,4 @@
 import { prisma } from "@/lib/db";
-import type { EntityType } from "@/generated/prisma/client";
 import type { PhotoVariants } from "@/lib/types";
 
 /**
@@ -12,22 +11,7 @@ export type TxClient = Omit<
 >;
 
 /**
- * Soft-delete all photos for a given entity (polymorphic photo pattern).
- */
-export async function cascadeDeletePhotos(
-  tx: TxClient,
-  entityType: EntityType,
-  entityId: string,
-  deletedAt: Date,
-) {
-  await tx.photo.updateMany({
-    where: { entityType, entityId, deletedAt: null },
-    data: { deletedAt },
-  });
-}
-
-/**
- * Cascade soft-delete a set: session links, credits, participants, evidence, photos, then the set itself.
+ * Cascade soft-delete a set: session links, credits, participants, evidence, then the set itself.
  */
 export async function cascadeDeleteSet(
   tx: TxClient,
@@ -54,8 +38,6 @@ export async function cascadeDeleteSet(
   await tx.setLabelEvidence.deleteMany({
     where: { setId },
   });
-
-  await cascadeDeletePhotos(tx, "set", setId, deletedAt);
 
   await tx.set.update({
     where: { id: setId },
