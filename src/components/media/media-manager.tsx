@@ -7,6 +7,7 @@ import { PanelRightClose } from "lucide-react";
 import type { MediaItemWithLinks } from "@/lib/services/media-service";
 import type { ProfileImageLabel } from "@/lib/services/setting-service";
 import type { CollectionSummary } from "@/lib/services/collection-service";
+import type { GalleryItem, PersonMediaLinkSummary } from "@/lib/types";
 import { assignHeadshotSlot, deleteMediaItemsAction } from "@/lib/actions/media-actions";
 import {
   AlertDialog,
@@ -18,9 +19,10 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { GalleryLightbox } from "@/components/gallery/gallery-lightbox";
+import type { ReferenceContext } from "@/components/gallery/gallery-lightbox";
 import { MediaGrid } from "./media-grid";
 import { MediaMetadataPanel } from "./media-metadata-panel";
-import { MediaLightbox } from "./media-lightbox";
 
 type EntityOption = { id: string; name: string };
 
@@ -35,6 +37,28 @@ type MediaManagerProps = {
   cosmeticProcedures: EntityOption[];
   anchor?: "reference" | "production";
 };
+
+function toGalleryItemLocal(item: MediaItemWithLinks): GalleryItem {
+  const firstLink = item.links[0];
+  return {
+    id: item.id,
+    filename: item.filename,
+    mimeType: item.mimeType,
+    originalWidth: item.originalWidth,
+    originalHeight: item.originalHeight,
+    caption: item.caption,
+    createdAt: item.createdAt,
+    urls: item.urls,
+    focalX: item.focalX,
+    focalY: item.focalY,
+    tags: item.tags,
+    isFavorite: firstLink?.isFavorite ?? false,
+    sortOrder: firstLink?.sortOrder ?? 0,
+    isCover: false,
+    links: item.links,
+    collectionIds: item.collectionIds,
+  };
+}
 
 export function MediaManager({
   items: initialItems,
@@ -64,6 +88,26 @@ export function MediaManager({
   const indexMap = useMemo(() => {
     const map = new Map<string, number>();
     items.forEach((item, i) => map.set(item.id, i));
+    return map;
+  }, [items]);
+
+  // Convert items to GalleryItem[] for the lightbox
+  const galleryItems = useMemo(
+    () => items.map(toGalleryItemLocal),
+    [items],
+  );
+
+  // Build slot → thumbnail URL map from all items
+  const allSlotThumbnails = useMemo(() => {
+    const map = new Map<number, string>();
+    for (const item of items) {
+      for (const link of item.links) {
+        if (link.usage === "HEADSHOT" && link.slot != null && !map.has(link.slot)) {
+          const url = item.urls.profile_128 ?? item.urls.gallery_512 ?? item.urls.original;
+          if (url) map.set(link.slot, url);
+        }
+      }
+    }
     return map;
   }, [items]);
 
@@ -237,9 +281,44 @@ export function MediaManager({
     [],
   );
 
+  // Handle link changes from the lightbox (optimistic updates via referenceContext)
+  const handleLightboxLinksChange = useCallback(
+    (itemId: string, links: PersonMediaLinkSummary[]) => {
+      setItems((prev) =>
+        prev.map((it) => (it.id === itemId ? { ...it, links } : it)),
+      );
+    },
+    [],
+  );
+
+  const handleLightboxCollectionIdsChange = useCallback(
+    (itemId: string, collIds: string[]) => {
+      setItems((prev) =>
+        prev.map((it) => (it.id === itemId ? { ...it, collectionIds: collIds } : it)),
+      );
+    },
+    [],
+  );
+
   const selectedItems = useMemo(
     () => items.filter((item) => selectedIds.has(item.id)),
     [items, selectedIds],
+  );
+
+  // Build referenceContext for the lightbox
+  const referenceContext: ReferenceContext = useMemo(
+    () => ({
+      personId,
+      sessionId,
+      collections,
+      bodyMarks,
+      bodyModifications,
+      cosmeticProcedures,
+      allSlotThumbnails,
+      onLinksChange: handleLightboxLinksChange,
+      onCollectionIdsChange: handleLightboxCollectionIdsChange,
+    }),
+    [personId, sessionId, collections, bodyMarks, bodyModifications, cosmeticProcedures, allSlotThumbnails, handleLightboxLinksChange, handleLightboxCollectionIdsChange],
   );
 
   if (items.length === 0) {
@@ -350,21 +429,15 @@ export function MediaManager({
         document.body,
       )}
 
-      {/* Lightbox */}
+      {/* Lightbox — now uses unified GalleryLightbox */}
       {lightboxIndex !== null && (
-        <MediaLightbox
-          items={items}
-          currentIndex={lightboxIndex}
-          personId={personId}
-          sessionId={sessionId}
-          slotLabels={slotLabels}
-          collections={collections}
-          bodyMarks={bodyMarks}
-          bodyModifications={bodyModifications}
-          cosmeticProcedures={cosmeticProcedures}
+        <GalleryLightbox
+          items={galleryItems}
+          initialIndex={lightboxIndex}
           onClose={() => setLightboxIndex(null)}
-          onNavigate={setLightboxIndex}
-          onItemsChange={handleItemsChange}
+          profileLabels={slotLabels}
+          sessionId={sessionId}
+          referenceContext={referenceContext}
         />
       )}
 

@@ -138,7 +138,6 @@ export function CarouselHeader({
 
       {lightboxIndex !== null && (
         <GalleryLightbox
-          mode="simple"
           items={sorted}
           initialIndex={lightboxIndex}
           onClose={() => setLightboxIndex(null)}

@@ -66,7 +66,6 @@ export function SetDetailGallery({
       )}
       {lightboxIndex !== null && (
         <GalleryLightbox
-          mode="simple"
           items={items}
           initialIndex={lightboxIndex}
           onClose={() => setLightboxIndex(null)}

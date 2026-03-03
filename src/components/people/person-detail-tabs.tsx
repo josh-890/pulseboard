@@ -1145,7 +1145,6 @@ function PhotosTab({
       )}
       {lightboxIndex !== null && (
         <GalleryLightbox
-          mode="simple"
           items={photos}
           initialIndex={lightboxIndex}
           onClose={() => setLightboxIndex(null)}

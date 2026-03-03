@@ -59,7 +59,6 @@ export function SessionProductionGallery({ items, sessionId }: SessionProduction
       />
       {lightboxIndex !== null && (
         <GalleryLightbox
-          mode="simple"
           items={galleryItems}
           initialIndex={lightboxIndex}
           onClose={() => setLightboxIndex(null)}

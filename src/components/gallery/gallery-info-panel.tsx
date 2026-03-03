@@ -1,28 +1,38 @@
 "use client";
 
-import { useCallback, useState, useTransition } from "react";
+import { useCallback, useMemo, useState, useTransition } from "react";
 import {
   ChevronDown,
   ChevronUp,
   Crosshair,
-  Eye,
-  EyeOff,
   FileText,
-  Frame,
+  Folder,
   Heart,
   ImageIcon,
   Info,
+  Link2,
   RotateCcw,
   Search,
   Tag,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { GalleryItem } from "@/lib/types";
+import type { GalleryItem, PersonMediaUsage, PersonMediaLinkSummary } from "@/lib/types";
 import type { ProfileImageLabel } from "@/lib/services/setting-service";
+import type { CollectionSummary } from "@/lib/services/collection-service";
 import {
   setFocalPointAction,
   resetFocalPointAction,
+  upsertPersonMediaLinkAction,
+  removePersonMediaLinkAction,
+  updatePersonMediaLinkAction,
+  assignHeadshotSlot,
+  removeHeadshotSlot,
 } from "@/lib/actions/media-actions";
+import {
+  addToCollectionAction,
+  removeFromCollectionAction,
+} from "@/lib/actions/collection-actions";
+import { MediaUsageBadge } from "@/components/media/media-badge";
 
 const CONTENT_TAGS = [
   { value: "portrait", label: "Portrait" },
@@ -32,6 +42,46 @@ const CONTENT_TAGS = [
   { value: "general", label: "General" },
   { value: "outtake", label: "Outtake" },
 ] as const;
+
+const TOGGLEABLE_USAGES: PersonMediaUsage[] = [
+  "PROFILE",
+  "PORTFOLIO",
+  "BODY_MARK",
+  "BODY_MODIFICATION",
+  "COSMETIC_PROCEDURE",
+];
+
+const USAGE_LABELS: Record<PersonMediaUsage, string> = {
+  HEADSHOT: "Headshot",
+  PROFILE: "Profile",
+  PORTFOLIO: "Portfolio",
+  BODY_MARK: "Body Mark",
+  BODY_MODIFICATION: "Modification",
+  COSMETIC_PROCEDURE: "Cosmetic",
+};
+
+const USAGE_ACTIVE_COLORS: Record<PersonMediaUsage, string> = {
+  HEADSHOT: "bg-blue-500/20 text-blue-400 border-blue-500/40",
+  PROFILE: "bg-green-500/20 text-green-400 border-green-500/40",
+  PORTFOLIO: "bg-teal-500/20 text-teal-400 border-teal-500/40",
+  BODY_MARK: "bg-amber-500/20 text-amber-400 border-amber-500/40",
+  BODY_MODIFICATION: "bg-purple-500/20 text-purple-400 border-purple-500/40",
+  COSMETIC_PROCEDURE: "bg-pink-500/20 text-pink-400 border-pink-500/40",
+};
+
+type EntityOption = { id: string; name: string };
+
+export type ReferenceContext = {
+  personId: string;
+  sessionId: string;
+  collections: CollectionSummary[];
+  bodyMarks: EntityOption[];
+  bodyModifications: EntityOption[];
+  cosmeticProcedures: EntityOption[];
+  allSlotThumbnails?: Map<number, string>;
+  onLinksChange?: (itemId: string, links: PersonMediaLinkSummary[]) => void;
+  onCollectionIdsChange?: (itemId: string, collectionIds: string[]) => void;
+};
 
 type GalleryInfoPanelProps = {
   item: GalleryItem;
@@ -57,6 +107,8 @@ type GalleryInfoPanelProps = {
   onFocalPointChange?: (itemId: string, focalX: number | null, focalY: number | null) => void;
   onFocalOverlayToggle?: () => void;
   focalOverlayActive?: boolean;
+  // Reference context (optional — renders extra sections when present)
+  referenceContext?: ReferenceContext;
 };
 
 export function GalleryInfoPanel({
@@ -75,9 +127,10 @@ export function GalleryInfoPanel({
   onFocalPointChange,
   onFocalOverlayToggle,
   focalOverlayActive,
+  referenceContext,
 }: GalleryInfoPanelProps) {
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
-    new Set(["cover", "headshot", "favorite", "tags", "focal", "info"]),
+    new Set(["cover", "headshot", "favorite", "usage", "tags", "focal", "info"]),
   );
   const [isPending, startTransition] = useTransition();
 
@@ -98,6 +151,19 @@ export function GalleryInfoPanel({
   const contentTagValues = CONTENT_TAGS.map((t) => t.value) as string[];
   const activeContentTags = item.tags.filter((t) =>
     contentTagValues.includes(t),
+  );
+
+  // Reference context helpers
+  const links = useMemo(() => item.links ?? [], [item.links]);
+  const activeUsages = useMemo(
+    () => new Set(links.map((l) => l.usage)),
+    [links],
+  );
+  const collectionIds = useMemo(() => item.collectionIds ?? [], [item.collectionIds]);
+
+  const getLinkForUsage = useCallback(
+    (usage: PersonMediaUsage) => links.find((l) => l.usage === usage) ?? null,
+    [links],
   );
 
   const handleContentTagToggle = useCallback(
@@ -124,6 +190,162 @@ export function GalleryInfoPanel({
     [activeContentTags, contentTagValues, item, onTagsChanged, onUpdateTags],
   );
 
+  // ── Reference context handlers ──
+
+  const handleUsageToggle = useCallback(
+    (usage: PersonMediaUsage) => {
+      if (!referenceContext) return;
+      const { personId, sessionId: refSessionId, onLinksChange } = referenceContext;
+      const isActive = activeUsages.has(usage);
+
+      // Optimistic update
+      if (onLinksChange) {
+        if (isActive) {
+          onLinksChange(item.id, links.filter((l) => l.usage !== usage));
+        } else {
+          const newLink: PersonMediaLinkSummary = {
+            id: `temp-${usage}`,
+            usage,
+            slot: null,
+            bodyRegion: null,
+            bodyMarkId: null,
+            bodyModificationId: null,
+            cosmeticProcedureId: null,
+            isFavorite: false,
+            sortOrder: 0,
+            notes: null,
+          };
+          onLinksChange(item.id, [...links, newLink]);
+        }
+      }
+
+      startTransition(async () => {
+        if (isActive) {
+          await removePersonMediaLinkAction(personId, item.id, usage, refSessionId);
+        } else {
+          await upsertPersonMediaLinkAction(personId, item.id, usage, {}, refSessionId);
+        }
+      });
+    },
+    [referenceContext, activeUsages, links, item.id],
+  );
+
+  const handleEntityLink = useCallback(
+    (
+      usage: PersonMediaUsage,
+      field: "bodyMarkId" | "bodyModificationId" | "cosmeticProcedureId",
+      value: string | null,
+    ) => {
+      if (!referenceContext) return;
+      const link = getLinkForUsage(usage);
+      if (!link) return;
+
+      // Optimistic
+      referenceContext.onLinksChange?.(
+        item.id,
+        links.map((l) => (l.usage === usage ? { ...l, [field]: value } : l)),
+      );
+
+      startTransition(async () => {
+        await updatePersonMediaLinkAction(
+          link.id,
+          { [field]: value },
+          referenceContext.personId,
+          referenceContext.sessionId,
+        );
+      });
+    },
+    [referenceContext, getLinkForUsage, links, item.id],
+  );
+
+  const handleRefSlotClick = useCallback(
+    (slotNumber: number) => {
+      if (!referenceContext) return;
+      const { personId, onLinksChange } = referenceContext;
+      const headshotLink = getLinkForUsage("HEADSHOT");
+      const isToggleOff = headshotLink?.slot === slotNumber;
+
+      // Optimistic
+      if (onLinksChange) {
+        if (isToggleOff) {
+          onLinksChange(item.id, links.filter((l) => l.usage !== "HEADSHOT"));
+        } else if (headshotLink) {
+          onLinksChange(
+            item.id,
+            links.map((l) => (l.usage === "HEADSHOT" ? { ...l, slot: slotNumber } : l)),
+          );
+        } else {
+          const newLink: PersonMediaLinkSummary = {
+            id: "temp-HEADSHOT",
+            usage: "HEADSHOT",
+            slot: slotNumber,
+            bodyRegion: null,
+            bodyMarkId: null,
+            bodyModificationId: null,
+            cosmeticProcedureId: null,
+            isFavorite: false,
+            sortOrder: 0,
+            notes: null,
+          };
+          onLinksChange(item.id, [...links, newLink]);
+        }
+      }
+
+      startTransition(async () => {
+        if (isToggleOff) {
+          await removeHeadshotSlot(personId, item.id);
+        } else {
+          await assignHeadshotSlot(personId, item.id, slotNumber);
+        }
+      });
+    },
+    [referenceContext, getLinkForUsage, links, item.id],
+  );
+
+  const handleCollectionToggle = useCallback(
+    (collectionId: string, isCurrentlyIn: boolean) => {
+      if (!referenceContext) return;
+
+      // Optimistic
+      if (referenceContext.onCollectionIdsChange) {
+        const newIds = isCurrentlyIn
+          ? collectionIds.filter((id) => id !== collectionId)
+          : [...collectionIds, collectionId];
+        referenceContext.onCollectionIdsChange(item.id, newIds);
+      }
+
+      startTransition(async () => {
+        if (isCurrentlyIn) {
+          await removeFromCollectionAction(collectionId, [item.id]);
+        } else {
+          await addToCollectionAction(collectionId, [item.id]);
+        }
+      });
+    },
+    [referenceContext, collectionIds, item.id],
+  );
+
+  const handleNotesChange = useCallback(
+    (linkId: string, notes: string) => {
+      if (!referenceContext) return;
+      startTransition(async () => {
+        await updatePersonMediaLinkAction(
+          linkId,
+          { notes: notes || null },
+          referenceContext.personId,
+          referenceContext.sessionId,
+        );
+      });
+    },
+    [referenceContext],
+  );
+
+  // Derived state for entity linking
+  const hasBodyMark = activeUsages.has("BODY_MARK");
+  const hasBodyMod = activeUsages.has("BODY_MODIFICATION");
+  const hasCosmetic = activeUsages.has("COSMETIC_PROCEDURE");
+  const hasEntityUsage = hasBodyMark || hasBodyMod || hasCosmetic;
+
   return (
     <div className="space-y-1 p-3 text-sm" onClick={(e) => e.stopPropagation()}>
       {/* Cover toggle (set context) */}
@@ -131,36 +353,34 @@ export function GalleryInfoPanel({
         <>
           <SectionHeader
             title="Cover"
-            icon={<Frame size={14} />}
+            icon={<CoverIcon />}
             section="cover"
             expanded={expandedSections.has("cover")}
             onToggle={toggleSection}
           />
           {expandedSections.has("cover") && (
-            <div className="pb-2">
+            <div className="flex flex-wrap gap-1.5 pb-2">
               <button
                 type="button"
                 onClick={() => onSetCover(isCover ? null : item.id)}
                 className={cn(
-                  "flex w-full items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium transition-all",
+                  "rounded-md px-2.5 py-1 text-xs font-medium transition-all",
+                  "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
                   isCover
-                    ? "border border-amber-500/40 bg-amber-500/20 text-amber-400"
-                    : "border border-white/15 bg-white/5 text-white/70 hover:bg-white/10 hover:text-white",
+                    ? "ring-2 ring-amber-500 bg-amber-500/20 text-amber-400"
+                    : "bg-white/5 text-white/60 hover:bg-white/10 hover:text-white",
                 )}
+                aria-pressed={isCover}
               >
-                <Frame
-                  size={14}
-                  className={cn(isCover && "fill-amber-500 text-amber-500")}
-                />
-                {isCover ? "Remove as cover" : "Set as cover"}
+                {isCover ? "Cover image" : "Set as cover"}
               </button>
             </div>
           )}
         </>
       )}
 
-      {/* Headshot slot assignment (person context) */}
-      {profileLabels && profileLabels.length > 0 && onAssignHeadshot && (
+      {/* Headshot slot assignment (person context — non-reference) */}
+      {!referenceContext && profileLabels && profileLabels.length > 0 && onAssignHeadshot && (
         <>
           <SectionHeader
             title="Headshot"
@@ -189,12 +409,70 @@ export function GalleryInfoPanel({
                       "rounded-md px-2.5 py-1 text-xs font-medium transition-all",
                       "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
                       isActive
-                        ? "ring-2 ring-primary bg-primary/20 text-primary"
+                        ? "ring-2 ring-amber-500 bg-amber-500/20 text-amber-400"
                         : "bg-white/5 text-white/60 hover:bg-white/10 hover:text-white",
                     )}
                     aria-pressed={isActive}
                   >
                     {sl.label}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Headshot slot assignment (reference context — with thumbnails) */}
+      {referenceContext && profileLabels && profileLabels.length > 0 && (
+        <>
+          <SectionHeader
+            title="Headshot"
+            icon={<ImageIcon size={14} />}
+            section="headshot"
+            expanded={expandedSections.has("headshot")}
+            onToggle={toggleSection}
+          />
+          {expandedSections.has("headshot") && (
+            <div className="flex flex-wrap gap-1.5 pb-2">
+              {profileLabels.map((sl, i) => {
+                const slotNumber = i + 1;
+                const headshotLink = getLinkForUsage("HEADSHOT");
+                const isActive = headshotLink?.slot === slotNumber;
+                const thumbUrl = referenceContext.allSlotThumbnails?.get(slotNumber);
+                return (
+                  <button
+                    key={sl.slot}
+                    type="button"
+                    disabled={isPending}
+                    onClick={() => handleRefSlotClick(slotNumber)}
+                    className={cn(
+                      "relative overflow-hidden rounded-md text-xs font-medium transition-all",
+                      "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
+                      thumbUrl ? "h-10 w-14" : "px-2.5 py-1",
+                      isActive
+                        ? "ring-2 ring-amber-500 shadow-sm"
+                        : thumbUrl
+                          ? "opacity-70 hover:opacity-100"
+                          : "bg-white/5 text-white/60 hover:bg-white/10 hover:text-white",
+                    )}
+                    aria-pressed={isActive}
+                  >
+                    {thumbUrl && (
+                      /* eslint-disable-next-line @next/next/no-img-element */
+                      <img
+                        src={thumbUrl}
+                        alt=""
+                        className="absolute inset-0 h-full w-full object-cover"
+                        draggable={false}
+                      />
+                    )}
+                    <span className={cn(
+                      "relative",
+                      thumbUrl && "rounded px-1 py-0.5 text-[10px] bg-black/60 text-white",
+                    )}>
+                      {sl.label}
+                    </span>
                   </button>
                 );
               })}
@@ -238,6 +516,164 @@ export function GalleryInfoPanel({
         </>
       )}
 
+      {/* ── Reference-only sections ── */}
+
+      {/* Usage toggles (reference context only) */}
+      {referenceContext && (
+        <>
+          <SectionHeader
+            title="Usage"
+            icon={<ImageIcon size={14} />}
+            section="usage"
+            expanded={expandedSections.has("usage")}
+            onToggle={toggleSection}
+          />
+          {expandedSections.has("usage") && (
+            <div className="flex flex-wrap gap-1 pb-2">
+              {TOGGLEABLE_USAGES.map((usage) => {
+                const isActive = activeUsages.has(usage);
+                return (
+                  <button
+                    key={usage}
+                    type="button"
+                    disabled={isPending}
+                    onClick={() => handleUsageToggle(usage)}
+                    className={cn(
+                      "rounded-md border px-2 py-1 text-xs font-medium transition-all",
+                      "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
+                      isActive
+                        ? USAGE_ACTIVE_COLORS[usage]
+                        : "border-transparent bg-white/5 text-white/60 hover:bg-white/10 hover:text-white",
+                    )}
+                    aria-pressed={isActive}
+                  >
+                    {USAGE_LABELS[usage]}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Entity Linking (reference context only, when entity usages active) */}
+      {referenceContext && hasEntityUsage && (
+        <>
+          <SectionHeader
+            title="Entity Link"
+            icon={<Link2 size={14} />}
+            section="linking"
+            expanded={expandedSections.has("linking")}
+            onToggle={toggleSection}
+          />
+          {expandedSections.has("linking") && (
+            <div className="space-y-2 pb-2">
+              {hasBodyMark && referenceContext.bodyMarks.length > 0 && (
+                <EntitySelect
+                  label="Body Mark"
+                  options={referenceContext.bodyMarks}
+                  value={getLinkForUsage("BODY_MARK")?.bodyMarkId ?? null}
+                  onChange={(v) => handleEntityLink("BODY_MARK", "bodyMarkId", v)}
+                  disabled={isPending}
+                />
+              )}
+              {hasBodyMod && referenceContext.bodyModifications.length > 0 && (
+                <EntitySelect
+                  label="Body Modification"
+                  options={referenceContext.bodyModifications}
+                  value={getLinkForUsage("BODY_MODIFICATION")?.bodyModificationId ?? null}
+                  onChange={(v) => handleEntityLink("BODY_MODIFICATION", "bodyModificationId", v)}
+                  disabled={isPending}
+                />
+              )}
+              {hasCosmetic && referenceContext.cosmeticProcedures.length > 0 && (
+                <EntitySelect
+                  label="Cosmetic Procedure"
+                  options={referenceContext.cosmeticProcedures}
+                  value={getLinkForUsage("COSMETIC_PROCEDURE")?.cosmeticProcedureId ?? null}
+                  onChange={(v) => handleEntityLink("COSMETIC_PROCEDURE", "cosmeticProcedureId", v)}
+                  disabled={isPending}
+                />
+              )}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Collections (reference context only) */}
+      {referenceContext && referenceContext.collections.length > 0 && (
+        <>
+          <SectionHeader
+            title="Collections"
+            icon={<Folder size={14} />}
+            section="collections"
+            expanded={expandedSections.has("collections")}
+            onToggle={toggleSection}
+          />
+          {expandedSections.has("collections") && (
+            <div className="flex flex-wrap gap-1 pb-2">
+              {referenceContext.collections.map((coll) => {
+                const isIn = collectionIds.includes(coll.id);
+                return (
+                  <button
+                    key={coll.id}
+                    type="button"
+                    disabled={isPending}
+                    onClick={() => handleCollectionToggle(coll.id, isIn)}
+                    className={cn(
+                      "rounded-full px-2 py-0.5 text-xs font-medium transition-all",
+                      "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
+                      isIn
+                        ? "border border-amber-500/30 bg-amber-500/15 text-amber-400"
+                        : "border border-white/15 bg-white/5 text-white/60 hover:bg-white/10 hover:text-white",
+                    )}
+                  >
+                    {coll.name}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Notes (reference context only, when links exist) */}
+      {referenceContext && links.length > 0 && (
+        <>
+          <SectionHeader
+            title="Notes"
+            icon={<FileText size={14} />}
+            section="notes"
+            expanded={expandedSections.has("notes")}
+            onToggle={toggleSection}
+          />
+          {expandedSections.has("notes") && (
+            <div className="space-y-2 pb-2">
+              {links.length === 1 ? (
+                <NotesField
+                  value={links[0].notes ?? ""}
+                  onChange={(notes) => handleNotesChange(links[0].id, notes)}
+                  disabled={isPending}
+                />
+              ) : (
+                links.map((link) => (
+                  <div key={link.id}>
+                    <span className="mb-0.5 block text-[10px] font-medium uppercase tracking-wider text-white/40">
+                      {USAGE_LABELS[link.usage]}
+                    </span>
+                    <NotesField
+                      value={link.notes ?? ""}
+                      onChange={(notes) => handleNotesChange(link.id, notes)}
+                      disabled={isPending}
+                    />
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+        </>
+      )}
+
       {/* Tags */}
       {showTags && (
         <>
@@ -263,7 +699,7 @@ export function GalleryInfoPanel({
                         className={cn(
                           "rounded-full px-2.5 py-1 text-xs font-medium transition-all",
                           isActive
-                            ? "bg-primary text-primary-foreground"
+                            ? "bg-amber-500/20 text-amber-400"
                             : "bg-white/10 text-white/60 hover:bg-white/15 hover:text-white",
                           isPending && "opacity-60",
                         )}
@@ -332,7 +768,7 @@ export function GalleryInfoPanel({
       )}
 
       {/* Focal Point */}
-      {sessionId && (
+      {(sessionId || referenceContext?.sessionId) && (
         <>
           <SectionHeader
             title="Focal Point"
@@ -344,7 +780,7 @@ export function GalleryInfoPanel({
           {expandedSections.has("focal") && (
             <FocalPointSection
               item={item}
-              sessionId={sessionId}
+              sessionId={(sessionId ?? referenceContext?.sessionId)!}
               isPending={isPending}
               startTransition={startTransition}
               onFocalPointChange={onFocalPointChange}
@@ -381,9 +817,31 @@ export function GalleryInfoPanel({
             <span className="font-medium text-white/80">Added:</span>{" "}
             {new Date(item.createdAt).toLocaleDateString()}
           </p>
+          {links.length > 0 && (
+            <div className="mt-1 flex flex-wrap items-center gap-1">
+              <span className="font-medium text-white/80">Usage:</span>
+              {links.map((link) => (
+                <MediaUsageBadge
+                  key={link.id}
+                  usage={link.usage}
+                  slot={link.slot}
+                />
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>
+  );
+}
+
+// ─── Cover Icon ──────────────────────────────────────────────────────────────
+
+function CoverIcon() {
+  return (
+    <span className="flex h-3.5 w-3.5 items-center justify-center rounded-sm border border-white/30 text-[9px] font-bold leading-none">
+      C
+    </span>
   );
 }
 
@@ -444,7 +902,7 @@ function FocalPointSection({
         <span className="text-xs text-white/60">
           {hasFocal ? (
             <>
-              <span className="font-medium text-primary">Manual</span>
+              <span className="font-medium text-amber-400">Manual</span>
               {" "}
               <span className="text-white/40">
                 ({Math.round((item.focalX ?? 0) * 100)}%, {Math.round((item.focalY ?? 0) * 100)}%)
@@ -471,15 +929,17 @@ function FocalPointSection({
               type="button"
               onClick={onFocalOverlayToggle}
               className={cn(
-                "flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] transition-colors",
+                "flex items-center gap-1 rounded-md border px-2 py-1 text-[10px] font-medium transition-all",
+                "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
                 focalOverlayActive
-                  ? "bg-primary/20 text-primary"
-                  : "text-white/50 hover:bg-white/10 hover:text-white",
+                  ? "border-amber-500/40 bg-amber-500/20 text-amber-400"
+                  : "border-transparent bg-white/5 text-white/50 hover:bg-white/10 hover:text-white",
               )}
-              title="Show focal point on main image"
+              title="Show focal point crosshair on main image"
+              aria-pressed={focalOverlayActive}
             >
-              {focalOverlayActive ? <EyeOff size={10} /> : <Eye size={10} />}
-              Overlay
+              <Crosshair size={12} className={cn(focalOverlayActive && "animate-pulse")} />
+              Show
             </button>
           )}
         </div>
@@ -517,13 +977,13 @@ function FocalPointSection({
         />
         {hasFocal && (
           <div
-            className="pointer-events-none absolute h-5 w-5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-primary shadow-[0_0_4px_rgba(0,0,0,0.5)]"
+            className="pointer-events-none absolute h-5 w-5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-amber-500 shadow-[0_0_4px_rgba(0,0,0,0.5)]"
             style={{
               left: `${item.focalX! * 100}%`,
               top: `${item.focalY! * 100}%`,
             }}
           >
-            <div className="absolute left-1/2 top-1/2 h-1.5 w-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary" />
+            <div className="absolute left-1/2 top-1/2 h-1.5 w-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-amber-500" />
           </div>
         )}
       </div>
@@ -531,7 +991,7 @@ function FocalPointSection({
   );
 }
 
-// ─── Sub-component ───────────────────────────────────────────────────────────
+// ─── Sub-components ──────────────────────────────────────────────────────────
 
 type SectionHeaderProps = {
   title: string;
@@ -560,5 +1020,68 @@ function SectionHeader({
       <span className="flex-1 text-left">{title}</span>
       {expanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
     </button>
+  );
+}
+
+type EntitySelectProps = {
+  label: string;
+  options: EntityOption[];
+  value: string | null;
+  onChange: (value: string | null) => void;
+  disabled: boolean;
+};
+
+function EntitySelect({
+  label,
+  options,
+  value,
+  onChange,
+  disabled,
+}: EntitySelectProps) {
+  return (
+    <div>
+      <label className="mb-1 block text-xs font-medium text-white/50">
+        {label}
+      </label>
+      <select
+        value={value ?? ""}
+        onChange={(e) => onChange(e.target.value || null)}
+        disabled={disabled}
+        className="w-full rounded-md border border-white/15 bg-white/5 px-2 py-1 text-xs text-white/80 focus:outline-none focus:ring-1 focus:ring-ring"
+      >
+        <option value="">None</option>
+        {options.map((opt) => (
+          <option key={opt.id} value={opt.id}>
+            {opt.name}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
+type NotesFieldProps = {
+  value: string;
+  onChange: (value: string) => void;
+  disabled: boolean;
+};
+
+function NotesField({ value, onChange, disabled }: NotesFieldProps) {
+  const [localValue, setLocalValue] = useState(value);
+
+  return (
+    <textarea
+      value={localValue}
+      onChange={(e) => setLocalValue(e.target.value)}
+      onBlur={() => {
+        if (localValue !== value) {
+          onChange(localValue);
+        }
+      }}
+      disabled={disabled}
+      placeholder="Add notes..."
+      rows={2}
+      className="w-full resize-none rounded-md border border-white/15 bg-white/5 px-2 py-1.5 text-xs text-white/80 placeholder:text-white/30 focus:outline-none focus:ring-1 focus:ring-ring"
+    />
   );
 }
