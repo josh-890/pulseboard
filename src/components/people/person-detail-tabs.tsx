@@ -524,6 +524,8 @@ type HeroSharedProps = {
   initials: string;
   age: number | null;
   aliasPills: PersonData["aliases"];
+  referenceSessionId?: string;
+  headshotSlotMap?: Map<string, number>;
 };
 
 function IdentityBlock({ person, displayName, age, aliasPills, nameSize = "text-2xl" }: {
@@ -592,8 +594,26 @@ function IdentityBlock({ person, displayName, age, aliasPills, nameSize = "text-
 function HeroDensityLayout(props: HeroSharedProps) {
   const { layout } = useHeroLayout();
   const cfg = DENSITY_CONFIGS[layout];
-  const { person, currentState, photos, kpiCounts, displayName, initials, age, aliasPills } = props;
+  const { person, currentState, photos, profileLabels, kpiCounts, displayName, initials, age, aliasPills, referenceSessionId, headshotSlotMap } = props;
   const isCompact = layout === "compact";
+
+  const handleAssignHeadshot = useCallback(
+    async (mediaItemId: string, slot: number) => {
+      await assignHeadshotSlotAction(person.id, mediaItemId, slot);
+    },
+    [person.id],
+  );
+
+  const handleRemoveHeadshot = useCallback(
+    async (mediaItemId: string) => {
+      await removeHeadshotSlotAction(person.id, mediaItemId);
+    },
+    [person.id],
+  );
+
+  const handleFindSimilar = useCallback((mediaItemId: string) => {
+    window.open(`/media/similar?id=${mediaItemId}`, "_blank");
+  }, []);
 
   return (
     <div className={cn("rounded-2xl border border-white/20 bg-card/70 shadow-md backdrop-blur-sm", cfg.cardPadding)}>
@@ -604,6 +624,12 @@ function HeroDensityLayout(props: HeroSharedProps) {
           fallbackInitials={initials}
           width={cfg.photoWidth}
           height={cfg.photoHeight}
+          sessionId={referenceSessionId}
+          onAssignHeadshot={handleAssignHeadshot}
+          onRemoveHeadshot={handleRemoveHeadshot}
+          profileLabels={profileLabels}
+          headshotSlotMap={headshotSlotMap}
+          onFindSimilar={handleFindSimilar}
         />
 
         {/* Zone 2: Identity */}
@@ -655,12 +681,16 @@ function HeroCard({
   photos,
   profileLabels,
   kpiCounts,
+  referenceSessionId,
+  headshotSlotMap,
 }: {
   person: PersonData;
   currentState: PersonCurrentState;
   photos: GalleryItem[];
   profileLabels: ProfileImageLabel[];
   kpiCounts: KpiCounts;
+  referenceSessionId?: string;
+  headshotSlotMap?: Map<string, number>;
 }) {
   const commonAlias = person.aliases.find((a) => a.type === "common");
   const birthAlias = person.aliases.find((a) => a.type === "birth" && !a.deletedAt);
@@ -687,6 +717,8 @@ function HeroCard({
     displayName,
     initials,
     age,
+    referenceSessionId,
+    headshotSlotMap,
     aliasPills,
   };
 
@@ -1145,6 +1177,14 @@ export function PersonDetailTabs({
 }: PersonDetailTabsProps) {
   const [activeTab, setActiveTab] = useState<TabId>("overview");
 
+  const heroHeadshotSlotMap = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const entry of headshotSlotEntries ?? []) {
+      map.set(entry.mediaItemId, entry.slot);
+    }
+    return map;
+  }, [headshotSlotEntries]);
+
   const tabs: { id: TabId; label: string; badge?: number }[] = [
     { id: "overview", label: "Overview" },
     { id: "appearance", label: "Appearance" },
@@ -1161,6 +1201,8 @@ export function PersonDetailTabs({
         currentState={currentState}
         photos={photos}
         profileLabels={profileLabels}
+        referenceSessionId={referenceSessionId}
+        headshotSlotMap={heroHeadshotSlotMap}
         kpiCounts={{
           sets: workHistory.length,
           labels: affiliations.length,

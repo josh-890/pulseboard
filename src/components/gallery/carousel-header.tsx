@@ -4,6 +4,7 @@ import { useState } from "react";
 import Image from "next/image";
 import { ChevronLeft, ChevronRight, ImageIcon } from "lucide-react";
 import type { GalleryItem } from "@/lib/types";
+import type { ProfileImageLabel } from "@/lib/services/setting-service";
 import { GalleryLightbox } from "./gallery-lightbox";
 
 type CarouselHeaderProps = {
@@ -17,6 +18,13 @@ type CarouselHeaderProps = {
   coverMediaItemId?: string | null;
   width?: number;
   height?: number;
+  // Pass-through to GalleryLightbox
+  sessionId?: string;
+  onAssignHeadshot?: (mediaItemId: string, slot: number) => void;
+  onRemoveHeadshot?: (mediaItemId: string) => void;
+  profileLabels?: ProfileImageLabel[];
+  headshotSlotMap?: Map<string, number>;
+  onFindSimilar?: (mediaItemId: string) => void;
 };
 
 export function CarouselHeader({
@@ -30,6 +38,12 @@ export function CarouselHeader({
   coverMediaItemId,
   width = 200,
   height = 250,
+  sessionId,
+  onAssignHeadshot,
+  onRemoveHeadshot,
+  profileLabels,
+  headshotSlotMap,
+  onFindSimilar,
 }: CarouselHeaderProps) {
   // Sort: favorite first, then by sortOrder
   const sorted = [...items].sort((a, b) => {
@@ -133,6 +147,12 @@ export function CarouselHeader({
           onUpdateTags={onUpdateTags}
           onSetCover={onSetCover}
           coverMediaItemId={coverMediaItemId}
+          sessionId={sessionId}
+          onAssignHeadshot={onAssignHeadshot}
+          onRemoveHeadshot={onRemoveHeadshot}
+          profileLabels={profileLabels}
+          headshotSlotMap={headshotSlotMap}
+          onFindSimilar={onFindSimilar}
         />
       )}
     </>
