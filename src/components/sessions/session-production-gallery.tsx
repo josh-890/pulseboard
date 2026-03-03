@@ -62,6 +62,7 @@ export function SessionProductionGallery({ items }: SessionProductionGalleryProp
           items={galleryItems}
           initialIndex={lightboxIndex}
           onClose={() => setLightboxIndex(null)}
+          onFindSimilar={(mediaItemId) => window.open(`/media/similar?id=${mediaItemId}`, "_blank")}
         />
       )}
     </>

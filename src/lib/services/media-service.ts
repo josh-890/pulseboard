@@ -2,8 +2,9 @@ import { randomUUID } from "crypto";
 import { prisma } from "@/lib/db";
 import type { PhotoVariants, PhotoUrls } from "@/lib/types";
 import type { MediaItemWithUrls, PersonMediaUsage } from "@/lib/types";
-import type { GalleryItem } from "@/lib/types";
+import type { GalleryItem, DuplicateMatch, SimilarMatch } from "@/lib/types";
 import type { PersonMediaLink } from "@/generated/prisma/client";
+import { hammingDistance } from "@/lib/image-hash";
 
 const BASE_URL = process.env.NEXT_PUBLIC_MINIO_URL!;
 
@@ -225,6 +226,8 @@ type CreateMediaItemDirectInput = {
   usage?: PersonMediaUsage;
   slot?: number;
   setId?: string;
+  hash?: string;
+  phash?: string;
 };
 
 export async function createMediaItemDirect(
@@ -246,6 +249,8 @@ export async function createMediaItemDirect(
         variants: input.variants as unknown as Record<string, string>,
         caption: input.caption,
         tags: [],
+        hash: input.hash,
+        phash: input.phash,
       },
     });
 
@@ -802,4 +807,173 @@ export async function getCoverPhotosForSets(
   }
 
   return result;
+}
+
+// ─── Duplicate detection ──────────────────────────────────────────────────
+
+function getThumbnailUrl(variants: unknown, fileRef?: string | null): string {
+  const v = (variants ?? {}) as PhotoVariants;
+  if (v.gallery_512) return buildUrl(v.gallery_512);
+  if (v.profile_256) return buildUrl(v.profile_256);
+  if (v.original) return buildUrl(v.original);
+  if (fileRef) return buildUrl(fileRef);
+  return "";
+}
+
+/** Find exact duplicates by SHA-256 hash, grouped by scope */
+export async function findExactDuplicates(
+  hash: string,
+  opts?: { personId?: string; sessionId?: string },
+): Promise<DuplicateMatch[]> {
+  const items = await prisma.mediaItem.findMany({
+    where: { hash },
+    include: {
+      personMediaLinks: {
+        select: {
+          personId: true,
+          person: { select: { aliases: { where: { type: "common" }, take: 1 } } },
+        },
+      },
+    },
+  });
+
+  const matches: DuplicateMatch[] = [];
+
+  for (const item of items) {
+    const personLink = item.personMediaLinks[0];
+    const personName = personLink?.person?.aliases?.[0]?.name ?? null;
+
+    let scope: DuplicateMatch["scope"] = "global";
+
+    if (opts?.sessionId && item.sessionId === opts.sessionId) {
+      scope = "same_session";
+    } else if (opts?.personId && personLink?.personId === opts.personId) {
+      scope = "same_person";
+    }
+
+    matches.push({
+      mediaItemId: item.id,
+      filename: item.filename,
+      thumbnailUrl: getThumbnailUrl(item.variants, item.fileRef),
+      sessionId: item.sessionId,
+      personName,
+      scope,
+    });
+  }
+
+  // Sort: same_session first, then same_person, then global
+  const scopeOrder = { same_session: 0, same_person: 1, global: 2 };
+  matches.sort((a, b) => scopeOrder[a.scope] - scopeOrder[b.scope]);
+
+  return matches;
+}
+
+/** Find visually similar images by perceptual hash (Hamming distance) */
+export async function findSimilarImages(
+  phash: string,
+  opts?: { personId?: string; limit?: number; threshold?: number },
+): Promise<SimilarMatch[]> {
+  const threshold = opts?.threshold ?? 10;
+  const limit = opts?.limit ?? 20;
+
+  // Load all non-null phash values
+  const rows = await prisma.mediaItem.findMany({
+    where: { phash: { not: null } },
+    select: {
+      id: true,
+      filename: true,
+      variants: true,
+      fileRef: true,
+      originalWidth: true,
+      originalHeight: true,
+      phash: true,
+      personMediaLinks: {
+        take: 1,
+        select: {
+          person: { select: { aliases: { where: { type: "common" }, take: 1 } } },
+        },
+      },
+    },
+  });
+
+  const results: SimilarMatch[] = [];
+
+  for (const row of rows) {
+    if (!row.phash) continue;
+    const dist = hammingDistance(phash, row.phash);
+    if (dist > threshold || dist === 0) continue; // skip self (dist=0 is exact match)
+
+    results.push({
+      mediaItemId: row.id,
+      filename: row.filename,
+      thumbnailUrl: getThumbnailUrl(row.variants, row.fileRef),
+      originalWidth: row.originalWidth,
+      originalHeight: row.originalHeight,
+      distance: dist,
+      personName: row.personMediaLinks[0]?.person?.aliases?.[0]?.name ?? null,
+    });
+  }
+
+  results.sort((a, b) => a.distance - b.distance);
+  return results.slice(0, limit);
+}
+
+/** Replace a MediaItem's file data while preserving all links/tags/collections */
+export async function replaceMediaItemFile(
+  mediaItemId: string,
+  newData: {
+    variants: PhotoVariants;
+    size: number;
+    originalWidth: number;
+    originalHeight: number;
+    hash: string;
+    phash: string;
+    filename: string;
+    mimeType: string;
+  },
+): Promise<void> {
+  await prisma.mediaItem.update({
+    where: { id: mediaItemId },
+    data: {
+      variants: newData.variants as unknown as Record<string, string>,
+      size: newData.size,
+      originalWidth: newData.originalWidth,
+      originalHeight: newData.originalHeight,
+      hash: newData.hash,
+      phash: newData.phash,
+      filename: newData.filename,
+      mimeType: newData.mimeType,
+    },
+  });
+}
+
+/** Get a single MediaItem's phash for similarity search */
+export async function getMediaItemPhash(
+  mediaItemId: string,
+): Promise<{
+  phash: string | null;
+  filename: string;
+  thumbnailUrl: string;
+  originalWidth: number;
+  originalHeight: number;
+} | null> {
+  const item = await prisma.mediaItem.findUnique({
+    where: { id: mediaItemId },
+    select: {
+      phash: true,
+      filename: true,
+      variants: true,
+      fileRef: true,
+      originalWidth: true,
+      originalHeight: true,
+    },
+  });
+  if (!item) return null;
+  return {
+    phash: item.phash,
+    filename: item.filename,
+    thumbnailUrl: getThumbnailUrl(item.variants, item.fileRef),
+    originalWidth: item.originalWidth,
+    originalHeight: item.originalHeight,
+  };
 }

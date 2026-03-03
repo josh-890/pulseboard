@@ -12,7 +12,8 @@ import {
   X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { PersonMediaUsage } from "@/lib/types";
+import type { PersonMediaUsage, DuplicateMatch } from "@/lib/types";
+import { DuplicateReviewDialog } from "./duplicate-review-dialog";
 
 type BatchUploadZoneProps = {
   sessionId: string;
@@ -23,7 +24,7 @@ type BatchUploadZoneProps = {
   onBatchComplete?: () => void;
 };
 
-type FileStatus = "pending" | "uploading" | "complete" | "error";
+type FileStatus = "pending" | "uploading" | "complete" | "error" | "duplicate";
 
 type UploadFile = {
   id: string;
@@ -35,6 +36,9 @@ type UploadFile = {
   sortOrder: number;
   usage?: PersonMediaUsage;
   slot?: number;
+  duplicateMatches?: DuplicateMatch[];
+  hash?: string;
+  phash?: string;
 };
 
 const ALLOWED_TYPES = new Set([
@@ -93,13 +97,160 @@ export function BatchUploadZone({
   const [queue, setQueue] = useState<UploadFile[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
+  const [duplicateFile, setDuplicateFile] = useState<UploadFile | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const activeUploadsRef = useRef(0);
   const abortControllersRef = useRef<Map<string, XMLHttpRequest>>(new Map());
+  const dispatchedRef = useRef<Set<string>>(new Set());
   const processQueueRef = useRef<(q: UploadFile[]) => void>(() => {});
 
   const isUploading = queue.some(
     (f) => f.status === "uploading" || f.status === "pending",
+  );
+
+  const sendUpload = useCallback(
+    (
+      item: UploadFile,
+      extraFields?: Record<string, string>,
+    ) => {
+      // Guard against double-dispatch (React Strict Mode / concurrent renders)
+      if (dispatchedRef.current.has(item.id)) return;
+      dispatchedRef.current.add(item.id);
+
+      activeUploadsRef.current++;
+
+      setQueue((prev) =>
+        prev.map((f) =>
+          f.id === item.id ? { ...f, status: "uploading" as const, progress: 0 } : f,
+        ),
+      );
+
+      const formData = new FormData();
+      formData.append("file", item.file);
+      formData.append("sessionId", sessionId);
+      if (personId) formData.append("personId", personId);
+      if (setId) formData.append("setId", setId);
+      if (item.usage) formData.append("usage", item.usage);
+      if (item.slot !== undefined) formData.append("slot", String(item.slot));
+      formData.append("sortOrder", String(item.sortOrder));
+
+      // Extra fields for duplicate action
+      if (extraFields) {
+        for (const [key, value] of Object.entries(extraFields)) {
+          formData.append(key, value);
+        }
+      }
+
+      const xhr = new XMLHttpRequest();
+      abortControllersRef.current.set(item.id, xhr);
+      xhr.open("POST", "/api/media/upload");
+
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable) {
+          const pct = Math.round((e.loaded / e.total) * 100);
+          setQueue((prev) =>
+            prev.map((f) =>
+              f.id === item.id ? { ...f, progress: pct } : f,
+            ),
+          );
+        }
+      };
+
+      xhr.onload = () => {
+        activeUploadsRef.current--;
+        abortControllersRef.current.delete(item.id);
+        dispatchedRef.current.delete(item.id);
+
+        if (xhr.status === 201) {
+          setQueue((prev) => {
+            const next = prev.map((f) =>
+              f.id === item.id
+                ? { ...f, status: "complete" as const, progress: 100 }
+                : f,
+            );
+            setTimeout(() => processQueueRef.current(next), 0);
+            return next;
+          });
+        } else if (xhr.status === 200) {
+          // Duplicate found — parse response and pause this file
+          try {
+            const data = JSON.parse(xhr.responseText) as {
+              duplicateFound: boolean;
+              matches: DuplicateMatch[];
+              hash: string;
+              phash: string;
+            };
+            if (data.duplicateFound) {
+              setQueue((prev) => {
+                const next = prev.map((f) =>
+                  f.id === item.id
+                    ? {
+                        ...f,
+                        status: "duplicate" as const,
+                        duplicateMatches: data.matches,
+                        hash: data.hash,
+                        phash: data.phash,
+                      }
+                    : f,
+                );
+                // Find the paused item to show dialog
+                const paused = next.find((f) => f.id === item.id);
+                if (paused) setDuplicateFile(paused);
+                // Continue processing other files
+                setTimeout(() => processQueueRef.current(next), 0);
+                return next;
+              });
+            }
+          } catch {
+            setQueue((prev) => {
+              const next = prev.map((f) =>
+                f.id === item.id
+                  ? { ...f, status: "error" as const, error: "Unexpected response" }
+                  : f,
+              );
+              setTimeout(() => processQueueRef.current(next), 0);
+              return next;
+            });
+          }
+        } else {
+          let errorMsg = "Upload failed";
+          try {
+            const data = JSON.parse(xhr.responseText) as { error: string };
+            errorMsg = data.error || errorMsg;
+          } catch {
+            // Use default error
+          }
+          setQueue((prev) => {
+            const next = prev.map((f) =>
+              f.id === item.id
+                ? { ...f, status: "error" as const, error: errorMsg }
+                : f,
+            );
+            setTimeout(() => processQueueRef.current(next), 0);
+            return next;
+          });
+        }
+      };
+
+      xhr.onerror = () => {
+        activeUploadsRef.current--;
+        abortControllersRef.current.delete(item.id);
+        dispatchedRef.current.delete(item.id);
+
+        setQueue((prev) => {
+          const next = prev.map((f) =>
+            f.id === item.id
+              ? { ...f, status: "error" as const, error: "Network error" }
+              : f,
+          );
+          setTimeout(() => processQueueRef.current(next), 0);
+          return next;
+        });
+      };
+
+      xhr.send(formData);
+    },
+    [sessionId, personId, setId],
   );
 
   const processQueue = useCallback(
@@ -109,109 +260,72 @@ export function BatchUploadZone({
 
       if (slotsAvailable <= 0 || pending.length === 0) {
         const allDone = currentQueue.every(
-          (f) => f.status === "complete" || f.status === "error",
+          (f) =>
+            f.status === "complete" ||
+            f.status === "error" ||
+            f.status === "duplicate",
         );
         if (allDone && currentQueue.length > 0) {
-          onBatchComplete?.();
-          router.refresh();
+          // Only trigger batch complete if no duplicates are pending review
+          const hasPendingDuplicates = currentQueue.some(
+            (f) => f.status === "duplicate",
+          );
+          if (!hasPendingDuplicates) {
+            onBatchComplete?.();
+            router.refresh();
+          }
         }
         return;
       }
 
       const toStart = pending.slice(0, slotsAvailable);
-
       for (const item of toStart) {
-        activeUploadsRef.current++;
-
-        setQueue((prev) =>
-          prev.map((f) =>
-            f.id === item.id ? { ...f, status: "uploading" as const } : f,
-          ),
-        );
-
-        const formData = new FormData();
-        formData.append("file", item.file);
-        formData.append("sessionId", sessionId);
-        if (personId) formData.append("personId", personId);
-        if (setId) formData.append("setId", setId);
-        if (item.usage) formData.append("usage", item.usage);
-        if (item.slot !== undefined) formData.append("slot", String(item.slot));
-        formData.append("sortOrder", String(item.sortOrder));
-
-        const xhr = new XMLHttpRequest();
-        abortControllersRef.current.set(item.id, xhr);
-        xhr.open("POST", "/api/media/upload");
-
-        xhr.upload.onprogress = (e) => {
-          if (e.lengthComputable) {
-            const pct = Math.round((e.loaded / e.total) * 100);
-            setQueue((prev) =>
-              prev.map((f) =>
-                f.id === item.id ? { ...f, progress: pct } : f,
-              ),
-            );
-          }
-        };
-
-        xhr.onload = () => {
-          activeUploadsRef.current--;
-          abortControllersRef.current.delete(item.id);
-
-          if (xhr.status === 201) {
-            setQueue((prev) => {
-              const next = prev.map((f) =>
-                f.id === item.id
-                  ? { ...f, status: "complete" as const, progress: 100 }
-                  : f,
-              );
-              setTimeout(() => processQueueRef.current(next), 0);
-              return next;
-            });
-          } else {
-            let errorMsg = "Upload failed";
-            try {
-              const data = JSON.parse(xhr.responseText) as { error: string };
-              errorMsg = data.error || errorMsg;
-            } catch {
-              // Use default error
-            }
-            setQueue((prev) => {
-              const next = prev.map((f) =>
-                f.id === item.id
-                  ? { ...f, status: "error" as const, error: errorMsg }
-                  : f,
-              );
-              setTimeout(() => processQueueRef.current(next), 0);
-              return next;
-            });
-          }
-        };
-
-        xhr.onerror = () => {
-          activeUploadsRef.current--;
-          abortControllersRef.current.delete(item.id);
-
-          setQueue((prev) => {
-            const next = prev.map((f) =>
-              f.id === item.id
-                ? { ...f, status: "error" as const, error: "Network error" }
-                : f,
-            );
-            setTimeout(() => processQueueRef.current(next), 0);
-            return next;
-          });
-        };
-
-        xhr.send(formData);
+        sendUpload(item);
       }
     },
-    [sessionId, personId, setId, onBatchComplete, router],
+    [onBatchComplete, router, sendUpload],
   );
 
   // Keep ref in sync with latest callback
   useEffect(() => {
     processQueueRef.current = processQueue;
   }, [processQueue]);
+
+  // Duplicate dialog actions
+  const handleDuplicateDecline = useCallback(() => {
+    if (!duplicateFile) return;
+    const fileId = duplicateFile.id;
+    setDuplicateFile(null);
+    setQueue((prev) => {
+      const item = prev.find((f) => f.id === fileId);
+      if (item) URL.revokeObjectURL(item.preview);
+      const next = prev.filter((f) => f.id !== fileId);
+      setTimeout(() => processQueueRef.current(next), 0);
+      return next;
+    });
+  }, [duplicateFile]);
+
+  const handleDuplicateAccept = useCallback(() => {
+    if (!duplicateFile) return;
+    const item = duplicateFile;
+    setDuplicateFile(null);
+    // Re-submit with duplicateAction=accept
+    sendUpload(item, { duplicateAction: "accept" });
+  }, [duplicateFile, sendUpload]);
+
+  const handleDuplicateReplace = useCallback(
+    (mediaItemId: string) => {
+      if (!duplicateFile) return;
+      const item = duplicateFile;
+      setDuplicateFile(null);
+      // Re-submit with duplicateAction=replace
+      sendUpload(item, {
+        duplicateAction: "replace",
+        replaceMediaItemId: mediaItemId,
+      });
+    },
+    [duplicateFile, sendUpload],
+  );
 
   const addFiles = useCallback(
     (fileList: FileList | File[]) => {
@@ -289,6 +403,7 @@ export function BatchUploadZone({
       abortControllersRef.current.delete(fileId);
       activeUploadsRef.current = Math.max(0, activeUploadsRef.current - 1);
     }
+    dispatchedRef.current.delete(fileId);
     setQueue((prev) => {
       const item = prev.find((f) => f.id === fileId);
       if (item) URL.revokeObjectURL(item.preview);
@@ -333,6 +448,7 @@ export function BatchUploadZone({
 
   const completedCount = queue.filter((f) => f.status === "complete").length;
   const errorCount = queue.filter((f) => f.status === "error").length;
+  const duplicateCount = queue.filter((f) => f.status === "duplicate").length;
   const totalCount = queue.length;
 
   return (
@@ -402,6 +518,7 @@ export function BatchUploadZone({
             <span>
               {completedCount}/{totalCount} uploaded
               {errorCount > 0 && ` (${errorCount} failed)`}
+              {duplicateCount > 0 && ` (${duplicateCount} duplicate${duplicateCount > 1 ? "s" : ""})`}
             </span>
             {completedCount > 0 && !isUploading && (
               <button
@@ -482,6 +599,15 @@ export function BatchUploadZone({
                   </div>
                 )}
 
+                {item.status === "duplicate" && (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-amber-900/60">
+                    <AlertCircle size={16} className="text-amber-400" />
+                    <span className="text-[10px] font-medium text-amber-200">
+                      Duplicate
+                    </span>
+                  </div>
+                )}
+
                 {/* Remove button */}
                 {(item.status === "pending" || item.status === "error") && (
                   <button
@@ -520,6 +646,22 @@ export function BatchUploadZone({
             ))}
           </div>
         </div>
+      )}
+
+      {/* Duplicate review dialog */}
+      {duplicateFile && duplicateFile.duplicateMatches && (
+        <DuplicateReviewDialog
+          open={!!duplicateFile}
+          uploadingFile={{
+            name: duplicateFile.file.name,
+            preview: duplicateFile.preview,
+            size: duplicateFile.file.size,
+          }}
+          matches={duplicateFile.duplicateMatches}
+          onDecline={handleDuplicateDecline}
+          onAccept={handleDuplicateAccept}
+          onReplace={handleDuplicateReplace}
+        />
       )}
     </div>
   );

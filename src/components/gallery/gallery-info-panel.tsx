@@ -9,6 +9,7 @@ import {
   Heart,
   ImageIcon,
   Info,
+  Search,
   Tag,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -41,6 +42,8 @@ type GalleryInfoPanelProps = {
     tags: string[],
   ) => Promise<{ success: boolean }>;
   onTagsChanged?: (itemId: string, newTags: string[]) => void;
+  // Find similar
+  onFindSimilar?: (mediaItemId: string) => void;
 };
 
 export function GalleryInfoPanel({
@@ -54,6 +57,7 @@ export function GalleryInfoPanel({
   onFavoriteToggle,
   onUpdateTags,
   onTagsChanged,
+  onFindSimilar,
 }: GalleryInfoPanelProps) {
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
     new Set(["cover", "headshot", "favorite", "tags", "info"]),
@@ -281,6 +285,31 @@ export function GalleryInfoPanel({
           />
           {expandedSections.has("caption") && (
             <p className="pb-2 text-xs text-white/70">{item.caption}</p>
+          )}
+        </>
+      )}
+
+      {/* Find Similar */}
+      {onFindSimilar && (
+        <>
+          <SectionHeader
+            title="Similar"
+            icon={<Search size={14} />}
+            section="similar"
+            expanded={expandedSections.has("similar")}
+            onToggle={toggleSection}
+          />
+          {expandedSections.has("similar") && (
+            <div className="pb-2">
+              <button
+                type="button"
+                onClick={() => onFindSimilar(item.id)}
+                className="flex w-full items-center gap-2 rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-xs font-medium text-white/70 transition-all hover:bg-white/10 hover:text-white"
+              >
+                <Search size={14} />
+                Find similar images
+              </button>
+            </div>
           )}
         </>
       )}

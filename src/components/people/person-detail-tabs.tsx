@@ -1084,6 +1084,10 @@ function PhotosTab({
     [person.id],
   );
 
+  const handleFindSimilar = useCallback((mediaItemId: string) => {
+    window.open(`/media/similar?id=${mediaItemId}`, "_blank");
+  }, []);
+
   return (
     <div className="space-y-6">
       <SectionCard title="Gallery" icon={<ImageIcon size={18} />} badge={photos.length}>
@@ -1117,6 +1121,7 @@ function PhotosTab({
           onRemoveHeadshot={handleRemoveHeadshot}
           profileLabels={profileLabels}
           headshotSlotMap={headshotSlotMap}
+          onFindSimilar={handleFindSimilar}
         />
       )}
     </div>

@@ -1,7 +1,12 @@
 import { NextResponse } from "next/server";
 import { mediaUploadSchema } from "@/lib/validations/media";
 import { uploadPhotoToStorage } from "@/lib/media-upload";
-import { createMediaItemDirect } from "@/lib/services/media-service";
+import {
+  createMediaItemDirect,
+  findExactDuplicates,
+  replaceMediaItemFile,
+} from "@/lib/services/media-service";
+import { computeSha256, computeDHash } from "@/lib/image-hash";
 
 const ALLOWED_MIME_TYPES = [
   "image/jpeg",
@@ -56,8 +61,55 @@ export async function POST(request: Request) {
 
     const { sessionId, personId, setId, usage, slot, sortOrder } = parsed.data;
 
-    // Use sessionId as storage prefix entity
+    // Read buffer and compute hashes
     const buffer = Buffer.from(await file.arrayBuffer());
+    const hash = computeSha256(buffer);
+    const phash = await computeDHash(buffer);
+
+    // Check for duplicate action from client (re-submission after dialog)
+    const duplicateAction = formData.get("duplicateAction") as string | null;
+    const replaceMediaItemId = formData.get("replaceMediaItemId") as string | null;
+
+    // Handle replace action — swap file on existing MediaItem
+    if (duplicateAction === "replace" && replaceMediaItemId) {
+      const uploadResult = await uploadPhotoToStorage(
+        buffer,
+        file.type,
+        "session",
+        sessionId,
+        crypto.randomUUID(),
+      );
+
+      await replaceMediaItemFile(replaceMediaItemId, {
+        variants: uploadResult.variants,
+        size: file.size,
+        originalWidth: uploadResult.originalWidth,
+        originalHeight: uploadResult.originalHeight,
+        hash,
+        phash,
+        filename: file.name,
+        mimeType: file.type,
+      });
+
+      return NextResponse.json(
+        { mediaItem: { id: replaceMediaItemId, filename: file.name, replaced: true } },
+        { status: 201 },
+      );
+    }
+
+    // If not an accepted duplicate re-submission, check for duplicates
+    if (duplicateAction !== "accept") {
+      const matches = await findExactDuplicates(hash, { personId, sessionId });
+
+      if (matches.length > 0) {
+        return NextResponse.json(
+          { duplicateFound: true, matches, hash, phash },
+          { status: 200 },
+        );
+      }
+    }
+
+    // Proceed with upload (no duplicates, or accepted duplicate)
     const uploadResult = await uploadPhotoToStorage(
       buffer,
       file.type,
@@ -79,6 +131,8 @@ export async function POST(request: Request) {
       usage,
       slot,
       setId,
+      hash,
+      phash,
     });
 
     return NextResponse.json({ mediaItem }, { status: 201 });

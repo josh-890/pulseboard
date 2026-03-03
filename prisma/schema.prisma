@@ -759,6 +759,7 @@ model MediaItem {
   mimeType       String
   size           Int
   hash           String?
+  phash          String?
   originalWidth  Int
   originalHeight Int
   durationMs     Int?
@@ -785,6 +786,7 @@ model MediaItem {
 
   @@index([sessionId])
   @@index([hash])
+  @@index([phash])
   @@index([mediaType])
   @@index([deletedAt])
   @@index([tags], type: Gin)

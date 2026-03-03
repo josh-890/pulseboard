@@ -40,6 +40,8 @@ type SimpleProps = {
   onRemoveHeadshot?: (mediaItemId: string) => void;
   profileLabels?: ProfileImageLabel[];
   headshotSlotMap?: Map<string, number>;
+  // Find similar
+  onFindSimilar?: (mediaItemId: string) => void;
 };
 
 type ManagerProps = {
@@ -83,6 +85,7 @@ function SimpleLightbox({
   onRemoveHeadshot,
   profileLabels,
   headshotSlotMap,
+  onFindSimilar,
 }: SimpleProps) {
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
   const [showInfoPanel, setShowInfoPanel] = useState(false);
@@ -284,6 +287,7 @@ function SimpleLightbox({
               onFavoriteToggle={onFavoriteToggle}
               onUpdateTags={onUpdateTags}
               onTagsChanged={onTagsChanged}
+              onFindSimilar={onFindSimilar}
             />
           </div>
         )}
@@ -303,6 +307,7 @@ function SimpleLightbox({
             onFavoriteToggle={onFavoriteToggle}
             onUpdateTags={onUpdateTags}
             onTagsChanged={onTagsChanged}
+            onFindSimilar={onFindSimilar}
           />
         </div>
       )}
