@@ -47,6 +47,11 @@ export default async function PersonDetailPage({ params }: PersonDetailPageProps
     ? await getPersonMediaGallery(id, refSession.id)
     : [];
 
+  // Build headshot slot entries for the gallery lightbox (serializable array)
+  const headshotSlotEntries = headshots
+    .filter((h) => h.slot !== null)
+    .map((h) => ({ mediaItemId: h.mediaItem.id, slot: h.slot as number }));
+
   return (
     <div className="space-y-6">
       {/* Back link + actions row */}
@@ -140,6 +145,7 @@ export default async function PersonDetailPage({ params }: PersonDetailPageProps
         profileLabels={profileLabels}
         referenceSessionId={refSession?.id}
         filledHeadshotSlots={filledSlots}
+        headshotSlotEntries={headshotSlotEntries}
       />
     </div>
   );

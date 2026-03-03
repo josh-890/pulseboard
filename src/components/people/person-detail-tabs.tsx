@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { cn, computeAge, formatPartialDate } from "@/lib/utils";
 import type { getPersonWithDetails } from "@/lib/services/person-service";
 import type {
@@ -47,10 +47,16 @@ import { GalleryLightbox } from "@/components/gallery/gallery-lightbox";
 import { BatchUploadZone } from "@/components/media/batch-upload-zone";
 import type { GalleryItem } from "@/lib/types";
 import type { ProfileImageLabel } from "@/lib/services/setting-service";
+import {
+  assignHeadshotSlot as assignHeadshotSlotAction,
+  removeHeadshotSlot as removeHeadshotSlotAction,
+} from "@/lib/actions/media-actions";
 
 type PersonData = NonNullable<Awaited<ReturnType<typeof getPersonWithDetails>>>;
 
 type TabId = "overview" | "appearance" | "career" | "network" | "photos";
+
+type HeadshotSlotEntry = { mediaItemId: string; slot: number };
 
 type PersonDetailTabsProps = {
   person: PersonData;
@@ -62,6 +68,7 @@ type PersonDetailTabsProps = {
   profileLabels: ProfileImageLabel[];
   referenceSessionId?: string;
   filledHeadshotSlots?: number[];
+  headshotSlotEntries?: HeadshotSlotEntry[];
 };
 
 // ── Style maps ──────────────────────────────────────────────────────────────
@@ -1033,17 +1040,49 @@ function PhotosTab({
   referenceSessionId,
   filledHeadshotSlots,
   profileLabels,
+  headshotSlotEntries,
 }: {
   person: PersonData;
   photos: GalleryItem[];
   referenceSessionId?: string;
   filledHeadshotSlots?: number[];
   profileLabels: ProfileImageLabel[];
+  headshotSlotEntries?: HeadshotSlotEntry[];
 }) {
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+  const [slotEntries, setSlotEntries] = useState(headshotSlotEntries ?? []);
 
   const indexMap = new Map<string, number>();
   photos.forEach((p, i) => indexMap.set(p.id, i));
+
+  // Build Map<mediaItemId, slot> from entries
+  const headshotSlotMap = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const entry of slotEntries) {
+      map.set(entry.mediaItemId, entry.slot);
+    }
+    return map;
+  }, [slotEntries]);
+
+  const handleAssignHeadshot = useCallback(
+    async (mediaItemId: string, slot: number) => {
+      // Optimistic update: remove old assignment for this slot, add new one
+      setSlotEntries((prev) => [
+        ...prev.filter((e) => e.slot !== slot && e.mediaItemId !== mediaItemId),
+        { mediaItemId, slot },
+      ]);
+      await assignHeadshotSlotAction(person.id, mediaItemId, slot);
+    },
+    [person.id],
+  );
+
+  const handleRemoveHeadshot = useCallback(
+    async (mediaItemId: string) => {
+      setSlotEntries((prev) => prev.filter((e) => e.mediaItemId !== mediaItemId));
+      await removeHeadshotSlotAction(person.id, mediaItemId);
+    },
+    [person.id],
+  );
 
   return (
     <div className="space-y-6">
@@ -1074,6 +1113,10 @@ function PhotosTab({
           items={photos}
           initialIndex={lightboxIndex}
           onClose={() => setLightboxIndex(null)}
+          onAssignHeadshot={handleAssignHeadshot}
+          onRemoveHeadshot={handleRemoveHeadshot}
+          profileLabels={profileLabels}
+          headshotSlotMap={headshotSlotMap}
         />
       )}
     </div>
@@ -1092,6 +1135,7 @@ export function PersonDetailTabs({
   profileLabels,
   referenceSessionId,
   filledHeadshotSlots,
+  headshotSlotEntries,
 }: PersonDetailTabsProps) {
   const [activeTab, setActiveTab] = useState<TabId>("overview");
 
@@ -1215,6 +1259,7 @@ export function PersonDetailTabs({
             profileLabels={profileLabels}
             referenceSessionId={referenceSessionId}
             filledHeadshotSlots={filledHeadshotSlots}
+            headshotSlotEntries={headshotSlotEntries}
           />
         )}
       </div>
