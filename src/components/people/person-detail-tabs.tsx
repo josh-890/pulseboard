@@ -1122,6 +1122,7 @@ function PhotosTab({
           profileLabels={profileLabels}
           headshotSlotMap={headshotSlotMap}
           onFindSimilar={handleFindSimilar}
+          sessionId={referenceSessionId}
         />
       )}
     </div>

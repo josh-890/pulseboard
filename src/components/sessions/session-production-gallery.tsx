@@ -8,6 +8,7 @@ import { GalleryLightbox } from "@/components/gallery/gallery-lightbox";
 
 type SessionProductionGalleryProps = {
   items: MediaItemWithUrls[];
+  sessionId?: string;
 };
 
 function toGalleryItem(item: MediaItemWithUrls): GalleryItem {
@@ -29,7 +30,7 @@ function toGalleryItem(item: MediaItemWithUrls): GalleryItem {
   };
 }
 
-export function SessionProductionGallery({ items }: SessionProductionGalleryProps) {
+export function SessionProductionGallery({ items, sessionId }: SessionProductionGalleryProps) {
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
 
   const galleryItems = useMemo(
@@ -63,6 +64,7 @@ export function SessionProductionGallery({ items }: SessionProductionGalleryProp
           initialIndex={lightboxIndex}
           onClose={() => setLightboxIndex(null)}
           onFindSimilar={(mediaItemId) => window.open(`/media/similar?id=${mediaItemId}`, "_blank")}
+          sessionId={sessionId}
         />
       )}
     </>

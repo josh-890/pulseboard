@@ -302,6 +302,7 @@ export default async function SessionDetailPage({ params }: SessionDetailPagePro
                 ...rest,
                 createdAt: createdAt.toISOString() as unknown as Date,
               }))}
+              sessionId={id}
             />
             <div className="mt-4">
               <BatchUploadZone sessionId={id} />

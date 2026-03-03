@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import Image from "next/image";
 import {
@@ -42,6 +42,8 @@ type SimpleProps = {
   headshotSlotMap?: Map<string, number>;
   // Find similar
   onFindSimilar?: (mediaItemId: string) => void;
+  // Focal point
+  sessionId?: string;
 };
 
 type ManagerProps = {
@@ -86,13 +88,40 @@ function SimpleLightbox({
   profileLabels,
   headshotSlotMap,
   onFindSimilar,
+  sessionId,
 }: SimpleProps) {
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
   const [showInfoPanel, setShowInfoPanel] = useState(false);
   const [showFilmstrip, setShowFilmstrip] = useState(false);
+  const [focalOverlay, setFocalOverlay] = useState(false);
+  const [localFocalPoints, setLocalFocalPoints] = useState<
+    Map<string, { focalX: number | null; focalY: number | null }>
+  >(new Map());
   const touchStartX = useRef<number | null>(null);
+  const imageContainerRef = useRef<HTMLDivElement>(null);
+  const [imageRect, setImageRect] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
 
-  const item = items[currentIndex];
+  const localItems = useMemo(
+    () =>
+      items.map((it) => {
+        const override = localFocalPoints.get(it.id);
+        return override ? { ...it, focalX: override.focalX, focalY: override.focalY } : it;
+      }),
+    [items, localFocalPoints],
+  );
+
+  const item = localItems[currentIndex];
+
+  const handleFocalPointChange = useCallback(
+    (itemId: string, focalX: number | null, focalY: number | null) => {
+      setLocalFocalPoints((prev) => {
+        const next = new Map(prev);
+        next.set(itemId, { focalX, focalY });
+        return next;
+      });
+    },
+    [],
+  );
 
   const goNext = useCallback(() => {
     setCurrentIndex((i) => Math.min(items.length - 1, i + 1));
@@ -140,6 +169,31 @@ function SimpleLightbox({
     };
   }, []);
 
+  // Compute the rendered image rect for focal point overlay
+  const computeRect = useCallback(() => {
+    const container = imageContainerRef.current;
+    if (!container || !item) return;
+    const img = container.querySelector("img");
+    if (!img || !img.naturalWidth) return;
+    const cw = container.clientWidth;
+    const ch = container.clientHeight;
+    const scale = Math.min(cw / img.naturalWidth, ch / img.naturalHeight);
+    const w = img.naturalWidth * scale;
+    const h = img.naturalHeight * scale;
+    const x = (cw - w) / 2;
+    const y = (ch - h) / 2;
+    setImageRect({ x, y, w, h });
+  }, [item]);
+
+  useEffect(() => {
+    if (!focalOverlay) return;
+    const container = imageContainerRef.current;
+    if (!container) return;
+    const observer = new ResizeObserver(() => computeRect());
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, [focalOverlay, computeRect, currentIndex]);
+
   function handleTouchStart(e: React.TouchEvent) {
     touchStartX.current = e.touches[0].clientX;
   }
@@ -171,13 +225,13 @@ function SimpleLightbox({
       {/* Top bar */}
       <div className="flex items-center justify-between px-4 py-2 shrink-0 border-b border-white/5">
         <span className="text-sm text-white/70">
-          {currentIndex + 1} / {items.length}
+          {currentIndex + 1} / {localItems.length}
         </span>
         <span className="hidden sm:block truncate max-w-[40%] text-xs text-white/50">
           {item.filename}
         </span>
         <div className="flex items-center gap-1.5">
-          {items.length > 1 && (
+          {localItems.length > 1 && (
             <button
               type="button"
               onClick={() => setShowFilmstrip((p) => !p)}
@@ -226,8 +280,8 @@ function SimpleLightbox({
       <div className="flex flex-1 min-h-0">
         <div className="flex flex-1 flex-col min-w-0">
           {/* Image area with nav */}
-          <div className="relative flex flex-1 items-center justify-center p-4 sm:p-6 min-h-0">
-            {items.length > 1 && (
+          <div ref={imageContainerRef} className="relative flex flex-1 items-center justify-center p-4 sm:p-6 min-h-0">
+            {localItems.length > 1 && (
               <>
                 {currentIndex > 0 && (
                   <button
@@ -239,7 +293,7 @@ function SimpleLightbox({
                     <ChevronLeft size={24} />
                   </button>
                 )}
-                {currentIndex < items.length - 1 && (
+                {currentIndex < localItems.length - 1 && (
                   <button
                     type="button"
                     onClick={goNext}
@@ -260,13 +314,47 @@ function SimpleLightbox({
               unoptimized
               className="max-h-full max-w-full object-contain rounded-lg"
               priority
+              onLoad={computeRect}
             />
+
+            {/* Focal point overlay on main image */}
+            {focalOverlay && imageRect && item.focalX != null && item.focalY != null && (
+              <div className="pointer-events-none absolute inset-0 z-20" aria-hidden="true">
+                {/* Crosshair lines */}
+                <div
+                  className="absolute h-px bg-primary/30"
+                  style={{
+                    left: imageRect.x,
+                    width: imageRect.w,
+                    top: imageRect.y + item.focalY * imageRect.h,
+                  }}
+                />
+                <div
+                  className="absolute w-px bg-primary/30"
+                  style={{
+                    top: imageRect.y,
+                    height: imageRect.h,
+                    left: imageRect.x + item.focalX * imageRect.w,
+                  }}
+                />
+                {/* Ring + center dot */}
+                <div
+                  className="absolute h-8 w-8 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-primary shadow-[0_0_8px_rgba(0,0,0,0.6)] transition-all duration-200"
+                  style={{
+                    left: imageRect.x + item.focalX * imageRect.w,
+                    top: imageRect.y + item.focalY * imageRect.h,
+                  }}
+                >
+                  <div className="absolute left-1/2 top-1/2 h-1.5 w-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary" />
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Filmstrip */}
-          {showFilmstrip && items.length > 1 && (
+          {showFilmstrip && localItems.length > 1 && (
             <GalleryFilmstrip
-              items={items}
+              items={localItems}
               activeIndex={currentIndex}
               onNavigate={handleNavigate}
             />
@@ -288,6 +376,10 @@ function SimpleLightbox({
               onUpdateTags={onUpdateTags}
               onTagsChanged={onTagsChanged}
               onFindSimilar={onFindSimilar}
+              sessionId={sessionId}
+              onFocalPointChange={handleFocalPointChange}
+              onFocalOverlayToggle={() => setFocalOverlay((p) => !p)}
+              focalOverlayActive={focalOverlay}
             />
           </div>
         )}
@@ -308,6 +400,10 @@ function SimpleLightbox({
             onUpdateTags={onUpdateTags}
             onTagsChanged={onTagsChanged}
             onFindSimilar={onFindSimilar}
+            sessionId={sessionId}
+            onFocalPointChange={handleFocalPointChange}
+            onFocalOverlayToggle={() => setFocalOverlay((p) => !p)}
+            focalOverlayActive={focalOverlay}
           />
         </div>
       )}

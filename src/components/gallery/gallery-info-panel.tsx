@@ -4,17 +4,25 @@ import { useCallback, useState, useTransition } from "react";
 import {
   ChevronDown,
   ChevronUp,
+  Crosshair,
+  Eye,
+  EyeOff,
   FileText,
   Frame,
   Heart,
   ImageIcon,
   Info,
+  RotateCcw,
   Search,
   Tag,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { GalleryItem } from "@/lib/types";
 import type { ProfileImageLabel } from "@/lib/services/setting-service";
+import {
+  setFocalPointAction,
+  resetFocalPointAction,
+} from "@/lib/actions/media-actions";
 
 const CONTENT_TAGS = [
   { value: "portrait", label: "Portrait" },
@@ -44,6 +52,11 @@ type GalleryInfoPanelProps = {
   onTagsChanged?: (itemId: string, newTags: string[]) => void;
   // Find similar
   onFindSimilar?: (mediaItemId: string) => void;
+  // Focal point
+  sessionId?: string;
+  onFocalPointChange?: (itemId: string, focalX: number | null, focalY: number | null) => void;
+  onFocalOverlayToggle?: () => void;
+  focalOverlayActive?: boolean;
 };
 
 export function GalleryInfoPanel({
@@ -58,9 +71,13 @@ export function GalleryInfoPanel({
   onUpdateTags,
   onTagsChanged,
   onFindSimilar,
+  sessionId,
+  onFocalPointChange,
+  onFocalOverlayToggle,
+  focalOverlayActive,
 }: GalleryInfoPanelProps) {
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
-    new Set(["cover", "headshot", "favorite", "tags", "info"]),
+    new Set(["cover", "headshot", "favorite", "tags", "focal", "info"]),
   );
   const [isPending, startTransition] = useTransition();
 
@@ -314,6 +331,30 @@ export function GalleryInfoPanel({
         </>
       )}
 
+      {/* Focal Point */}
+      {sessionId && (
+        <>
+          <SectionHeader
+            title="Focal Point"
+            icon={<Crosshair size={14} />}
+            section="focal"
+            expanded={expandedSections.has("focal")}
+            onToggle={toggleSection}
+          />
+          {expandedSections.has("focal") && (
+            <FocalPointSection
+              item={item}
+              sessionId={sessionId}
+              isPending={isPending}
+              startTransition={startTransition}
+              onFocalPointChange={onFocalPointChange}
+              onFocalOverlayToggle={onFocalOverlayToggle}
+              focalOverlayActive={focalOverlayActive}
+            />
+          )}
+        </>
+      )}
+
       {/* File info */}
       <SectionHeader
         title="Info"
@@ -342,6 +383,150 @@ export function GalleryInfoPanel({
           </p>
         </div>
       )}
+    </div>
+  );
+}
+
+// ─── Focal Point Section ─────────────────────────────────────────────────────
+
+type FocalPointSectionProps = {
+  item: GalleryItem;
+  sessionId: string;
+  isPending: boolean;
+  startTransition: React.TransitionStartFunction;
+  onFocalPointChange?: (itemId: string, focalX: number | null, focalY: number | null) => void;
+  onFocalOverlayToggle?: () => void;
+  focalOverlayActive?: boolean;
+};
+
+function FocalPointSection({
+  item,
+  sessionId,
+  isPending,
+  startTransition,
+  onFocalPointChange,
+  onFocalOverlayToggle,
+  focalOverlayActive,
+}: FocalPointSectionProps) {
+  const hasFocal = item.focalX != null && item.focalY != null;
+  const thumbnailUrl = item.urls.gallery_512 ?? item.urls.original;
+
+  function handleImageClick(e: React.MouseEvent<HTMLDivElement>) {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = (e.clientX - rect.left) / rect.width;
+    const y = (e.clientY - rect.top) / rect.height;
+
+    onFocalPointChange?.(item.id, x, y);
+
+    startTransition(async () => {
+      const result = await setFocalPointAction(item.id, x, y, sessionId);
+      if (!result.success) {
+        onFocalPointChange?.(item.id, item.focalX, item.focalY);
+      }
+    });
+  }
+
+  function handleReset() {
+    onFocalPointChange?.(item.id, null, null);
+
+    startTransition(async () => {
+      const result = await resetFocalPointAction(item.id, sessionId);
+      if (!result.success) {
+        onFocalPointChange?.(item.id, item.focalX, item.focalY);
+      }
+    });
+  }
+
+  return (
+    <div className="space-y-2 pb-2">
+      {/* Status + controls row */}
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-xs text-white/60">
+          {hasFocal ? (
+            <>
+              <span className="font-medium text-primary">Manual</span>
+              {" "}
+              <span className="text-white/40">
+                ({Math.round((item.focalX ?? 0) * 100)}%, {Math.round((item.focalY ?? 0) * 100)}%)
+              </span>
+            </>
+          ) : (
+            "Not set"
+          )}
+        </span>
+        <div className="flex items-center gap-1">
+          {hasFocal && (
+            <button
+              type="button"
+              onClick={handleReset}
+              disabled={isPending}
+              className="flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] text-white/50 transition-colors hover:bg-white/10 hover:text-white"
+            >
+              <RotateCcw size={10} />
+              Clear
+            </button>
+          )}
+          {onFocalOverlayToggle && (
+            <button
+              type="button"
+              onClick={onFocalOverlayToggle}
+              className={cn(
+                "flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] transition-colors",
+                focalOverlayActive
+                  ? "bg-primary/20 text-primary"
+                  : "text-white/50 hover:bg-white/10 hover:text-white",
+              )}
+              title="Show focal point on main image"
+            >
+              {focalOverlayActive ? <EyeOff size={10} /> : <Eye size={10} />}
+              Overlay
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Click-to-set thumbnail preview */}
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={handleImageClick}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            const rect = e.currentTarget.getBoundingClientRect();
+            const fakeEvent = {
+              clientX: rect.left + rect.width / 2,
+              clientY: rect.top + rect.height / 2,
+              currentTarget: e.currentTarget,
+            } as React.MouseEvent<HTMLDivElement>;
+            handleImageClick(fakeEvent);
+          }
+        }}
+        className={cn(
+          "relative cursor-crosshair overflow-hidden rounded-lg border border-white/15",
+          isPending && "pointer-events-none opacity-50",
+        )}
+        style={{ aspectRatio: `${item.originalWidth} / ${item.originalHeight}`, maxHeight: 200 }}
+        aria-label="Click to set focal point"
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={thumbnailUrl}
+          alt="Focal point preview"
+          className="h-full w-full object-contain"
+        />
+        {hasFocal && (
+          <div
+            className="pointer-events-none absolute h-5 w-5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-primary shadow-[0_0_4px_rgba(0,0,0,0.5)]"
+            style={{
+              left: `${item.focalX! * 100}%`,
+              top: `${item.focalY! * 100}%`,
+            }}
+          >
+            <div className="absolute left-1/2 top-1/2 h-1.5 w-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary" />
+          </div>
+        )}
+      </div>
     </div>
   );
 }

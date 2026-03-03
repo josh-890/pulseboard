@@ -73,6 +73,7 @@ export function SetDetailGallery({
           onSetCover={handleSetCover}
           coverMediaItemId={coverId}
           onFindSimilar={(mediaItemId) => window.open(`/media/similar?id=${mediaItemId}`, "_blank")}
+          sessionId={primarySessionId}
         />
       )}
     </>
