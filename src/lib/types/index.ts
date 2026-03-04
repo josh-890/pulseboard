@@ -59,6 +59,11 @@ export type {
   ChannelLabelMap,
 } from "./media";
 
+export type {
+  MediaCategoryGroup,
+  MediaCategory,
+} from "@/generated/prisma/client";
+
 export type { GalleryItem, PersonMediaLinkSummary } from "./gallery";
 
 export type { ActivityItem, ActivityType } from "./activity";

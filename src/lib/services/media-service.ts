@@ -162,9 +162,6 @@ function inferUsageFromTags(tags?: string[]): PersonMediaUsage {
   if (!tags || tags.length === 0) return "PROFILE";
   const tagSet = new Set(tags.map((t) => t.toLowerCase()));
   if (tagSet.has("portrait") || tagSet.has("headshot")) return "HEADSHOT";
-  if (tagSet.has("tattoo") || tagSet.has("body_mark")) return "BODY_MARK";
-  if (tagSet.has("body_modification") || tagSet.has("piercing")) return "BODY_MODIFICATION";
-  if (tagSet.has("cosmetic_procedure")) return "COSMETIC_PROCEDURE";
   if (tagSet.has("profile")) return "PROFILE";
   if (tagSet.has("portfolio")) return "PORTFOLIO";
   return "PROFILE";
@@ -449,6 +446,7 @@ export type PersonMediaLinkWithItem = {
   bodyMarkId: string | null;
   bodyModificationId: string | null;
   cosmeticProcedureId: string | null;
+  categoryId: string | null;
   isFavorite: boolean;
   sortOrder: number;
   notes: string | null;
@@ -464,6 +462,7 @@ function toPersonMediaLinkWithItem(
     bodyMarkId: string | null;
     bodyModificationId: string | null;
     cosmeticProcedureId: string | null;
+    categoryId: string | null;
     isFavorite: boolean;
     sortOrder: number;
     notes: string | null;
@@ -480,6 +479,7 @@ function toPersonMediaLinkWithItem(
     bodyMarkId: link.bodyMarkId,
     bodyModificationId: link.bodyModificationId,
     cosmeticProcedureId: link.cosmeticProcedureId,
+    categoryId: link.categoryId,
     isFavorite: link.isFavorite,
     sortOrder: link.sortOrder,
     notes: link.notes,
@@ -612,6 +612,7 @@ export type MediaItemWithLinks = {
     bodyMarkId: string | null;
     bodyModificationId: string | null;
     cosmeticProcedureId: string | null;
+    categoryId: string | null;
     isFavorite: boolean;
     sortOrder: number;
     notes: string | null;
@@ -664,6 +665,7 @@ export async function getMediaItemsWithLinks(
           bodyMarkId: link.bodyMarkId,
           bodyModificationId: link.bodyModificationId,
           cosmeticProcedureId: link.cosmeticProcedureId,
+          categoryId: link.categoryId,
           isFavorite: link.isFavorite,
           sortOrder: link.sortOrder,
           notes: link.notes,
@@ -681,6 +683,7 @@ export type PersonMediaLinkUpdate = {
   bodyMarkId?: string | null;
   bodyModificationId?: string | null;
   cosmeticProcedureId?: string | null;
+  categoryId?: string | null;
   isFavorite?: boolean;
   notes?: string | null;
 };
@@ -710,26 +713,25 @@ export async function batchSetUsage(
   personId: string,
   mediaItemIds: string[],
   usage: PersonMediaUsage,
+  categoryId?: string | null,
 ): Promise<void> {
   if (mediaItemIds.length === 0) return;
 
   await prisma.$transaction(async (tx) => {
     for (const mediaItemId of mediaItemIds) {
-      await tx.personMediaLink.upsert({
-        where: {
-          personId_mediaItemId_usage: {
+      const existing = await tx.personMediaLink.findFirst({
+        where: { personId, mediaItemId, usage, ...(usage === "DETAIL" ? { categoryId } : {}) },
+      });
+      if (!existing) {
+        await tx.personMediaLink.create({
+          data: {
             personId,
             mediaItemId,
             usage,
+            ...(categoryId ? { categoryId } : {}),
           },
-        },
-        update: {},
-        create: {
-          personId,
-          mediaItemId,
-          usage,
-        },
-      });
+        });
+      }
     }
   });
 }
@@ -738,6 +740,7 @@ export async function batchRemoveUsage(
   personId: string,
   mediaItemIds: string[],
   usage: PersonMediaUsage,
+  categoryId?: string | null,
 ): Promise<void> {
   if (mediaItemIds.length === 0) return;
 
@@ -746,6 +749,7 @@ export async function batchRemoveUsage(
       personId,
       mediaItemId: { in: mediaItemIds },
       usage,
+      ...(usage === "DETAIL" && categoryId ? { categoryId } : {}),
     },
   });
 }

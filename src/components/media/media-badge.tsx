@@ -6,18 +6,14 @@ import type { PersonMediaUsage } from "@/lib/types";
 
 const USAGE_ABBREV: Record<PersonMediaUsage, string> = {
   HEADSHOT: "HS",
-  BODY_MARK: "BM",
-  BODY_MODIFICATION: "MD",
-  COSMETIC_PROCEDURE: "CP",
+  DETAIL: "DT",
   PROFILE: "PF",
   PORTFOLIO: "PT",
 };
 
 const USAGE_COLORS: Record<PersonMediaUsage, string> = {
   HEADSHOT: "bg-blue-500/90 text-white",
-  BODY_MARK: "bg-amber-500/90 text-white",
-  BODY_MODIFICATION: "bg-purple-500/90 text-white",
-  COSMETIC_PROCEDURE: "bg-pink-500/90 text-white",
+  DETAIL: "bg-orange-500/90 text-white",
   PROFILE: "bg-green-500/90 text-white",
   PORTFOLIO: "bg-teal-500/90 text-white",
 };

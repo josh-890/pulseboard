@@ -32,6 +32,10 @@ import {
   addToCollectionAction,
   removeFromCollectionAction,
 } from "@/lib/actions/collection-actions";
+import {
+  assignCategoryAction,
+  removeCategoryAction,
+} from "@/lib/actions/category-actions";
 import { MediaUsageBadge } from "@/components/media/media-badge";
 
 const CONTENT_TAGS = [
@@ -46,30 +50,32 @@ const CONTENT_TAGS = [
 const TOGGLEABLE_USAGES: PersonMediaUsage[] = [
   "PROFILE",
   "PORTFOLIO",
-  "BODY_MARK",
-  "BODY_MODIFICATION",
-  "COSMETIC_PROCEDURE",
 ];
 
 const USAGE_LABELS: Record<PersonMediaUsage, string> = {
   HEADSHOT: "Headshot",
   PROFILE: "Profile",
   PORTFOLIO: "Portfolio",
-  BODY_MARK: "Body Mark",
-  BODY_MODIFICATION: "Modification",
-  COSMETIC_PROCEDURE: "Cosmetic",
+  DETAIL: "Detail",
 };
 
 const USAGE_ACTIVE_COLORS: Record<PersonMediaUsage, string> = {
   HEADSHOT: "bg-blue-500/20 text-blue-400 border-blue-500/40",
   PROFILE: "bg-green-500/20 text-green-400 border-green-500/40",
   PORTFOLIO: "bg-teal-500/20 text-teal-400 border-teal-500/40",
-  BODY_MARK: "bg-amber-500/20 text-amber-400 border-amber-500/40",
-  BODY_MODIFICATION: "bg-purple-500/20 text-purple-400 border-purple-500/40",
-  COSMETIC_PROCEDURE: "bg-pink-500/20 text-pink-400 border-pink-500/40",
+  DETAIL: "bg-orange-500/20 text-orange-400 border-orange-500/40",
 };
 
 type EntityOption = { id: string; name: string };
+
+export type CategoryWithGroup = {
+  id: string;
+  name: string;
+  slug: string;
+  groupId: string;
+  groupName: string;
+  entityModel: string | null;
+};
 
 export type ReferenceContext = {
   personId: string;
@@ -78,6 +84,7 @@ export type ReferenceContext = {
   bodyMarks: EntityOption[];
   bodyModifications: EntityOption[];
   cosmeticProcedures: EntityOption[];
+  categories: CategoryWithGroup[];
   allSlotThumbnails?: Map<number, string>;
   onLinksChange?: (itemId: string, links: PersonMediaLinkSummary[]) => void;
   onCollectionIdsChange?: (itemId: string, collectionIds: string[]) => void;
@@ -211,6 +218,7 @@ export function GalleryInfoPanel({
             bodyMarkId: null,
             bodyModificationId: null,
             cosmeticProcedureId: null,
+            categoryId: null,
             isFavorite: false,
             sortOrder: 0,
             notes: null,
@@ -283,6 +291,7 @@ export function GalleryInfoPanel({
             bodyMarkId: null,
             bodyModificationId: null,
             cosmeticProcedureId: null,
+            categoryId: null,
             isFavorite: false,
             sortOrder: 0,
             notes: null,
@@ -340,11 +349,72 @@ export function GalleryInfoPanel({
     [referenceContext],
   );
 
-  // Derived state for entity linking
-  const hasBodyMark = activeUsages.has("BODY_MARK");
-  const hasBodyMod = activeUsages.has("BODY_MODIFICATION");
-  const hasCosmetic = activeUsages.has("COSMETIC_PROCEDURE");
-  const hasEntityUsage = hasBodyMark || hasBodyMod || hasCosmetic;
+  // Category toggle
+  const activeCategoryIds = useMemo(
+    () => new Set(links.filter((l) => l.usage === "DETAIL" && l.categoryId).map((l) => l.categoryId!)),
+    [links],
+  );
+
+  const handleCategoryToggle = useCallback(
+    (categoryId: string) => {
+      if (!referenceContext) return;
+      const { personId, sessionId: refSessionId, onLinksChange } = referenceContext;
+      const isActive = activeCategoryIds.has(categoryId);
+
+      // Optimistic
+      if (onLinksChange) {
+        if (isActive) {
+          onLinksChange(item.id, links.filter((l) => !(l.usage === "DETAIL" && l.categoryId === categoryId)));
+        } else {
+          const newLink: PersonMediaLinkSummary = {
+            id: `temp-cat-${categoryId}`,
+            usage: "DETAIL",
+            slot: null,
+            bodyRegion: null,
+            bodyMarkId: null,
+            bodyModificationId: null,
+            cosmeticProcedureId: null,
+            categoryId,
+            isFavorite: false,
+            sortOrder: 0,
+            notes: null,
+          };
+          onLinksChange(item.id, [...links, newLink]);
+        }
+      }
+
+      startTransition(async () => {
+        if (isActive) {
+          await removeCategoryAction(personId, item.id, categoryId, refSessionId);
+        } else {
+          await assignCategoryAction(personId, item.id, categoryId, refSessionId);
+        }
+      });
+    },
+    [referenceContext, activeCategoryIds, links, item.id],
+  );
+
+  // Group categories by group for display
+  const categoryGroups = useMemo(() => {
+    if (!referenceContext) return [];
+    const cats = referenceContext.categories;
+    if (!cats.length) return [];
+    const grouped = new Map<string, { groupName: string; items: CategoryWithGroup[] }>();
+    for (const cat of cats) {
+      if (!grouped.has(cat.groupId)) {
+        grouped.set(cat.groupId, { groupName: cat.groupName, items: [] });
+      }
+      grouped.get(cat.groupId)!.items.push(cat);
+    }
+    return Array.from(grouped.values());
+  }, [referenceContext]);
+
+  // Entity linking is now driven by active DETAIL categories with entityModel
+  const activeEntityCategories = useMemo(() => {
+    if (!referenceContext) return [];
+    return referenceContext.categories.filter((c) => c.entityModel && activeCategoryIds.has(c.id));
+  }, [referenceContext, activeCategoryIds]);
+  const hasEntityUsage = activeEntityCategories.length > 0;
 
   return (
     <div className="space-y-1 p-3 text-sm" onClick={(e) => e.stopPropagation()}>
@@ -556,6 +626,53 @@ export function GalleryInfoPanel({
         </>
       )}
 
+      {/* Categories (reference context only) */}
+      {referenceContext && categoryGroups.length > 0 && (
+        <>
+          <SectionHeader
+            title="Categories"
+            icon={<Tag size={14} />}
+            section="categories-ref"
+            expanded={expandedSections.has("categories-ref")}
+            onToggle={toggleSection}
+          />
+          {expandedSections.has("categories-ref") && (
+            <div className="space-y-2 pb-2">
+              {categoryGroups.map((group) => (
+                <div key={group.groupName}>
+                  <span className="mb-1 block text-[10px] font-medium uppercase tracking-wider text-white/40">
+                    {group.groupName}
+                  </span>
+                  <div className="flex flex-wrap gap-1">
+                    {group.items.map((cat) => {
+                      const isActive = activeCategoryIds.has(cat.id);
+                      return (
+                        <button
+                          key={cat.id}
+                          type="button"
+                          disabled={isPending}
+                          onClick={() => handleCategoryToggle(cat.id)}
+                          className={cn(
+                            "rounded-md border px-2 py-1 text-xs font-medium transition-all",
+                            "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
+                            isActive
+                              ? "border-orange-500/40 bg-orange-500/20 text-orange-400"
+                              : "border-transparent bg-white/5 text-white/60 hover:bg-white/10 hover:text-white",
+                          )}
+                          aria-pressed={isActive}
+                        >
+                          {cat.name}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+
       {/* Entity Linking (reference context only, when entity usages active) */}
       {referenceContext && hasEntityUsage && (
         <>
@@ -568,33 +685,33 @@ export function GalleryInfoPanel({
           />
           {expandedSections.has("linking") && (
             <div className="space-y-2 pb-2">
-              {hasBodyMark && referenceContext.bodyMarks.length > 0 && (
-                <EntitySelect
-                  label="Body Mark"
-                  options={referenceContext.bodyMarks}
-                  value={getLinkForUsage("BODY_MARK")?.bodyMarkId ?? null}
-                  onChange={(v) => handleEntityLink("BODY_MARK", "bodyMarkId", v)}
-                  disabled={isPending}
-                />
-              )}
-              {hasBodyMod && referenceContext.bodyModifications.length > 0 && (
-                <EntitySelect
-                  label="Body Modification"
-                  options={referenceContext.bodyModifications}
-                  value={getLinkForUsage("BODY_MODIFICATION")?.bodyModificationId ?? null}
-                  onChange={(v) => handleEntityLink("BODY_MODIFICATION", "bodyModificationId", v)}
-                  disabled={isPending}
-                />
-              )}
-              {hasCosmetic && referenceContext.cosmeticProcedures.length > 0 && (
-                <EntitySelect
-                  label="Cosmetic Procedure"
-                  options={referenceContext.cosmeticProcedures}
-                  value={getLinkForUsage("COSMETIC_PROCEDURE")?.cosmeticProcedureId ?? null}
-                  onChange={(v) => handleEntityLink("COSMETIC_PROCEDURE", "cosmeticProcedureId", v)}
-                  disabled={isPending}
-                />
-              )}
+              {activeEntityCategories.map((cat) => {
+                const entityField =
+                  cat.entityModel === "BodyMark" ? "bodyMarkId" as const
+                    : cat.entityModel === "BodyModification" ? "bodyModificationId" as const
+                    : "cosmeticProcedureId" as const;
+                const options =
+                  cat.entityModel === "BodyMark" ? referenceContext.bodyMarks
+                    : cat.entityModel === "BodyModification" ? referenceContext.bodyModifications
+                    : referenceContext.cosmeticProcedures;
+                const detailLink = links.find(
+                  (l) => l.usage === "DETAIL" && l.categoryId === cat.id,
+                );
+                if (options.length === 0) return null;
+                return (
+                  <EntitySelect
+                    key={cat.id}
+                    label={cat.name}
+                    options={options}
+                    value={detailLink?.[entityField] ?? null}
+                    onChange={(v) => {
+                      if (!detailLink) return;
+                      handleEntityLink("DETAIL", entityField, v);
+                    }}
+                    disabled={isPending}
+                  />
+                );
+              })}
             </div>
           )}
         </>

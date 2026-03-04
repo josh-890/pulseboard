@@ -180,9 +180,7 @@ enum EvidenceType {
 enum PersonMediaUsage {
   PROFILE
   HEADSHOT
-  BODY_MARK
-  BODY_MODIFICATION
-  COSMETIC_PROCEDURE
+  DETAIL
   PORTFOLIO
 }
 
@@ -878,6 +876,8 @@ model PersonMediaLink {
   bodyModification     BodyModification?   @relation(fields: [bodyModificationId], references: [id])
   cosmeticProcedureId  String?
   cosmeticProcedure    CosmeticProcedure?  @relation(fields: [cosmeticProcedureId], references: [id])
+  categoryId           String?
+  category             MediaCategory?      @relation(fields: [categoryId], references: [id])
 
   createdAt   DateTime         @default(now())
   deletedAt   DateTime?
@@ -888,6 +888,7 @@ model PersonMediaLink {
   @@index([bodyMarkId])
   @@index([bodyModificationId])
   @@index([cosmeticProcedureId])
+  @@index([categoryId])
   @@index([deletedAt])
 }
 
@@ -921,7 +922,35 @@ model MediaCollectionItem {
   @@map("MediaCollectionItem")
 }
 
-// ─── Photos (deprecated — replaced by MediaItem in Phase 2) ─────────────────
+// ─── Media Categories ────────────────────────────────────────────────────────
+
+model MediaCategoryGroup {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+
+  categories MediaCategory[]
+
+  @@index([sortOrder])
+}
+
+model MediaCategory {
+  id          String   @id @default(cuid())
+  groupId     String
+  group       MediaCategoryGroup @relation(fields: [groupId], references: [id])
+  name        String
+  slug        String   @unique
+  entityModel String?
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+
+  personMediaLinks PersonMediaLink[]
+
+  @@unique([groupId, name])
+  @@index([groupId])
+  @@index([sortOrder])
+}
 
 // ─── System ───────────────────────────────────────────────────────────────────
 

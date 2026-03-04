@@ -12,6 +12,7 @@ import {
 import { getProfileImageLabels } from "@/lib/services/setting-service";
 import { getPersonReferenceSession } from "@/lib/services/session-service";
 import { getPersonHeadshots, getFilledHeadshotSlots, getPersonMediaGallery } from "@/lib/services/media-service";
+import { getAllCategoryGroups, getPopulatedCategoriesForPerson } from "@/lib/services/category-service";
 import { PersonDetailTabs } from "@/components/people/person-detail-tabs";
 import { EditPersonSheet } from "@/components/people/edit-person-sheet";
 import { DeleteButton } from "@/components/shared/delete-button";
@@ -26,7 +27,7 @@ type PersonDetailPageProps = {
 export default async function PersonDetailPage({ params }: PersonDetailPageProps) {
   const { id } = await params;
 
-  const [person, workHistory, connections, profileLabels, refSession, headshots, filledSlots] =
+  const [person, workHistory, connections, profileLabels, refSession, headshots, filledSlots, categoryGroups, populatedCounts] =
     await Promise.all([
       getPersonWithDetails(id),
       getPersonWorkHistory(id),
@@ -35,6 +36,8 @@ export default async function PersonDetailPage({ params }: PersonDetailPageProps
       getPersonReferenceSession(id),
       getPersonHeadshots(id),
       getFilledHeadshotSlots(id),
+      getAllCategoryGroups(),
+      getPopulatedCategoriesForPerson(id),
     ]);
 
   if (!person) notFound();
@@ -46,6 +49,23 @@ export default async function PersonDetailPage({ params }: PersonDetailPageProps
   const galleryItems = refSession
     ? await getPersonMediaGallery(id, refSession.id)
     : [];
+
+  // Flatten categories for the Details tab
+  const flatCategories = categoryGroups.flatMap((g) =>
+    g.categories.map((c) => ({
+      id: c.id,
+      name: c.name,
+      slug: c.slug,
+      groupId: g.id,
+      groupName: g.name,
+      entityModel: c.entityModel,
+    })),
+  );
+
+  const categoryCounts = Array.from(populatedCounts.entries()).map(([categoryId, count]) => ({
+    categoryId,
+    count,
+  }));
 
   // Build headshot slot entries for the gallery lightbox (serializable array)
   const headshotSlotEntries = headshots
@@ -146,6 +166,8 @@ export default async function PersonDetailPage({ params }: PersonDetailPageProps
         referenceSessionId={refSession?.id}
         filledHeadshotSlots={filledSlots}
         headshotSlotEntries={headshotSlotEntries}
+        categories={flatCategories}
+        categoryCounts={categoryCounts}
       />
     </div>
   );

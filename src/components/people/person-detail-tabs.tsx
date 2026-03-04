@@ -45,8 +45,10 @@ import { CarouselHeader } from "@/components/gallery/carousel-header";
 import { JustifiedGrid } from "@/components/gallery/justified-grid";
 import { GalleryLightbox } from "@/components/gallery/gallery-lightbox";
 import { BatchUploadZone } from "@/components/media/batch-upload-zone";
+import { PersonDetailsTab } from "@/components/people/person-details-tab";
 import type { GalleryItem } from "@/lib/types";
 import type { ProfileImageLabel } from "@/lib/services/setting-service";
+import type { CategoryWithGroup } from "@/components/gallery/gallery-info-panel";
 import {
   assignHeadshotSlot as assignHeadshotSlotAction,
   removeHeadshotSlot as removeHeadshotSlotAction,
@@ -54,7 +56,7 @@ import {
 
 type PersonData = NonNullable<Awaited<ReturnType<typeof getPersonWithDetails>>>;
 
-type TabId = "overview" | "appearance" | "career" | "network" | "photos";
+type TabId = "overview" | "appearance" | "details" | "career" | "network" | "photos";
 
 type HeadshotSlotEntry = { mediaItemId: string; slot: number };
 
@@ -69,6 +71,8 @@ type PersonDetailTabsProps = {
   referenceSessionId?: string;
   filledHeadshotSlots?: number[];
   headshotSlotEntries?: HeadshotSlotEntry[];
+  categories?: CategoryWithGroup[];
+  categoryCounts?: { categoryId: string; count: number }[];
 };
 
 // ── Style maps ──────────────────────────────────────────────────────────────
@@ -1173,6 +1177,8 @@ export function PersonDetailTabs({
   referenceSessionId,
   filledHeadshotSlots,
   headshotSlotEntries,
+  categories,
+  categoryCounts,
 }: PersonDetailTabsProps) {
   const [activeTab, setActiveTab] = useState<TabId>("overview");
 
@@ -1187,6 +1193,9 @@ export function PersonDetailTabs({
   const tabs: { id: TabId; label: string; badge?: number }[] = [
     { id: "overview", label: "Overview" },
     { id: "appearance", label: "Appearance" },
+    ...(categories && categories.length > 0
+      ? [{ id: "details" as TabId, label: "Details", badge: (categoryCounts?.filter((c) => c.count > 0).length) || undefined }]
+      : []),
     { id: "career", label: "Career", badge: workHistory.length || undefined },
     { id: "network", label: "Network", badge: connections.length || undefined },
     { id: "photos", label: "Photos", badge: photos.length || undefined },
@@ -1270,6 +1279,22 @@ export function PersonDetailTabs({
           <AppearanceTab person={person} currentState={currentState} />
         )}
       </div>
+      {categories && categories.length > 0 && (
+        <div
+          id="tabpanel-details"
+          role="tabpanel"
+          aria-labelledby="tab-details"
+          hidden={activeTab !== "details"}
+        >
+          {activeTab === "details" && (
+            <PersonDetailsTab
+              personId={person.id}
+              categories={categories}
+              categoryCounts={categoryCounts ?? []}
+            />
+          )}
+        </div>
+      )}
       <div
         id="tabpanel-career"
         role="tabpanel"

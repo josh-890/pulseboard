@@ -19,7 +19,7 @@ import { GalleryFilmstrip } from "./gallery-filmstrip";
 import { GalleryInfoPanel } from "./gallery-info-panel";
 import type { ReferenceContext } from "./gallery-info-panel";
 
-export type { ReferenceContext } from "./gallery-info-panel";
+export type { ReferenceContext, CategoryWithGroup } from "./gallery-info-panel";
 
 type GalleryLightboxProps = {
   items: GalleryItem[];

@@ -9,6 +9,7 @@ export type PersonMediaLinkSummary = {
   bodyMarkId: string | null;
   bodyModificationId: string | null;
   cosmeticProcedureId: string | null;
+  categoryId: string | null;
   isFavorite: boolean;
   sortOrder: number;
   notes: string | null;

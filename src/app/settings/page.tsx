@@ -6,10 +6,15 @@ import { PaletteSelector } from "@/components/settings/palette-selector";
 import { DensitySelector } from "@/components/settings/density-selector";
 import { HeroLayoutSelector } from "@/components/settings/hero-layout-selector";
 import { ProfileImageLabels } from "@/components/settings/profile-image-labels";
+import { MediaCategoryManager } from "@/components/settings/media-category-manager";
 import { getProfileImageLabels } from "@/lib/services/setting-service";
+import { getAllCategoryGroups } from "@/lib/services/category-service";
 
 export default async function SettingsPage() {
-  const labels = await getProfileImageLabels();
+  const [labels, categoryGroups] = await Promise.all([
+    getProfileImageLabels(),
+    getAllCategoryGroups(),
+  ]);
 
   return (
     <div className="space-y-8">
@@ -52,6 +57,15 @@ export default async function SettingsPage() {
           appear in the slot selector on the People page.
         </p>
         <ProfileImageLabels labels={labels} />
+      </div>
+
+      <div className="rounded-2xl border border-white/30 bg-card/70 p-4 shadow-lg backdrop-blur-md md:p-6 dark:border-white/10">
+        <h2 className="mb-4 text-lg font-semibold">Media Categories</h2>
+        <p className="mb-4 text-sm text-muted-foreground">
+          Organize photo documentation by category. Categories with an entity model
+          link photos to specific body marks, modifications, or procedures.
+        </p>
+        <MediaCategoryManager groups={categoryGroups} />
       </div>
     </div>
   );

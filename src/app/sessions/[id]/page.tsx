@@ -7,6 +7,7 @@ import { getProjects } from "@/lib/services/project-service";
 import { getMediaItemsForSession, getMediaItemsWithLinks, getFilledHeadshotSlots } from "@/lib/services/media-service";
 import { getProfileImageLabels } from "@/lib/services/setting-service";
 import { getCollectionsForPerson } from "@/lib/services/collection-service";
+import { getAllCategoryGroups } from "@/lib/services/category-service";
 import { prisma } from "@/lib/db";
 import { cn, formatPartialDate } from "@/lib/utils";
 import { SessionStatusBadge, SessionTypeBadge } from "@/components/sessions/session-status-badge";
@@ -88,6 +89,7 @@ export default async function SessionDetailPage({ params }: SessionDetailPagePro
     items: Awaited<ReturnType<typeof getMediaItemsWithLinks>>;
     slotLabels: Awaited<ReturnType<typeof getProfileImageLabels>>;
     collections: Awaited<ReturnType<typeof getCollectionsForPerson>>;
+    categories: { id: string; name: string; slug: string; groupId: string; groupName: string; entityModel: string | null }[];
     bodyMarks: { id: string; name: string }[];
     bodyModifications: { id: string; name: string }[];
     cosmeticProcedures: { id: string; name: string }[];
@@ -96,11 +98,12 @@ export default async function SessionDetailPage({ params }: SessionDetailPagePro
 
   if (isReference && session.personId) {
     const personId = session.personId;
-    const [itemsWithLinks, slotLabels, collections, bodyMarks, bodyMods, cosmetics, filledSlots] =
+    const [itemsWithLinks, slotLabels, collections, categoryGroups, bodyMarks, bodyMods, cosmetics, filledSlots] =
       await Promise.all([
         getMediaItemsWithLinks(id, personId),
         getProfileImageLabels(),
         getCollectionsForPerson(personId),
+        getAllCategoryGroups(),
         prisma.bodyMark.findMany({
           where: { personId, deletedAt: null, status: "present" },
           select: { id: true, type: true, bodyRegion: true },
@@ -122,6 +125,16 @@ export default async function SessionDetailPage({ params }: SessionDetailPagePro
       items: itemsWithLinks,
       slotLabels,
       collections,
+      categories: categoryGroups.flatMap((g) =>
+        g.categories.map((c) => ({
+          id: c.id,
+          name: c.name,
+          slug: c.slug,
+          groupId: g.id,
+          groupName: g.name,
+          entityModel: c.entityModel,
+        })),
+      ),
       bodyMarks: bodyMarks.map((m) => ({ id: m.id, name: `${m.type} — ${m.bodyRegion}` })),
       bodyModifications: bodyMods.map((m) => ({ id: m.id, name: `${m.type} — ${m.bodyRegion}` })),
       cosmeticProcedures: cosmetics.map((m) => ({ id: m.id, name: `${m.type} — ${m.bodyRegion}` })),
@@ -281,6 +294,7 @@ export default async function SessionDetailPage({ params }: SessionDetailPagePro
               sessionId={id}
               slotLabels={mediaManagerData.slotLabels}
               collections={mediaManagerData.collections}
+              categories={mediaManagerData.categories}
               bodyMarks={mediaManagerData.bodyMarks}
               bodyModifications={mediaManagerData.bodyModifications}
               cosmeticProcedures={mediaManagerData.cosmeticProcedures}

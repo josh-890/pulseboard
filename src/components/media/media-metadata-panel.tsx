@@ -20,6 +20,7 @@ import type { MediaItemWithLinks } from "@/lib/services/media-service";
 import type { ProfileImageLabel } from "@/lib/services/setting-service";
 import type { CollectionSummary } from "@/lib/services/collection-service";
 import type { PersonMediaUsage } from "@/lib/types";
+import type { CategoryWithGroup } from "@/components/gallery/gallery-info-panel";
 import {
   updatePersonMediaLinkAction,
   upsertPersonMediaLinkAction,
@@ -32,6 +33,10 @@ import {
   batchRemoveUsageAction,
 } from "@/lib/actions/media-actions";
 import {
+  assignCategoryAction,
+  removeCategoryAction,
+} from "@/lib/actions/category-actions";
+import {
   addToCollectionAction,
   removeFromCollectionAction,
 } from "@/lib/actions/collection-actions";
@@ -40,27 +45,20 @@ import { MediaUsageBadge } from "./media-badge";
 const TOGGLEABLE_USAGES: PersonMediaUsage[] = [
   "PROFILE",
   "PORTFOLIO",
-  "BODY_MARK",
-  "BODY_MODIFICATION",
-  "COSMETIC_PROCEDURE",
 ];
 
 const USAGE_LABELS: Record<PersonMediaUsage, string> = {
   HEADSHOT: "Headshot",
   PROFILE: "Profile",
   PORTFOLIO: "Portfolio",
-  BODY_MARK: "Body Mark",
-  BODY_MODIFICATION: "Modification",
-  COSMETIC_PROCEDURE: "Cosmetic",
+  DETAIL: "Detail",
 };
 
 const USAGE_ACTIVE_COLORS: Record<PersonMediaUsage, string> = {
   HEADSHOT: "bg-blue-500/20 text-blue-400 border-blue-500/40",
   PROFILE: "bg-green-500/20 text-green-400 border-green-500/40",
   PORTFOLIO: "bg-teal-500/20 text-teal-400 border-teal-500/40",
-  BODY_MARK: "bg-amber-500/20 text-amber-400 border-amber-500/40",
-  BODY_MODIFICATION: "bg-purple-500/20 text-purple-400 border-purple-500/40",
-  COSMETIC_PROCEDURE: "bg-pink-500/20 text-pink-400 border-pink-500/40",
+  DETAIL: "bg-orange-500/20 text-orange-400 border-orange-500/40",
 };
 
 type EntityOption = { id: string; name: string };
@@ -72,6 +70,7 @@ type MediaMetadataPanelProps = {
   sessionId: string;
   slotLabels: ProfileImageLabel[];
   collections: CollectionSummary[];
+  categories: CategoryWithGroup[];
   bodyMarks: EntityOption[];
   bodyModifications: EntityOption[];
   cosmeticProcedures: EntityOption[];
@@ -89,6 +88,7 @@ export function MediaMetadataPanel({
   sessionId,
   slotLabels,
   collections,
+  categories,
   bodyMarks,
   bodyModifications,
   cosmeticProcedures,
@@ -162,6 +162,7 @@ export function MediaMetadataPanel({
               bodyMarkId: null,
               bodyModificationId: null,
               cosmeticProcedureId: null,
+              categoryId: null,
               isFavorite: false,
               sortOrder: 0,
               notes: null,
@@ -182,6 +183,67 @@ export function MediaMetadataPanel({
     (usage: PersonMediaUsage) => single?.links.find((l) => l.usage === usage) ?? null,
     [single?.links],
   );
+
+  // Category toggle
+  const activeCategoryIds = useMemo(
+    () => new Set(single?.links.filter((l) => l.usage === "DETAIL" && l.categoryId).map((l) => l.categoryId!) ?? []),
+    [single?.links],
+  );
+
+  const handleCategoryToggle = useCallback(
+    (categoryId: string) => {
+      if (!single) return;
+      const isActive = activeCategoryIds.has(categoryId);
+
+      startTransition(async () => {
+        if (isActive) {
+          await removeCategoryAction(personId, single.id, categoryId, sessionId);
+          if (onItemsChange) {
+            const updated = items.map((item) => {
+              if (item.id !== single.id) return item;
+              return { ...item, links: item.links.filter((l) => !(l.usage === "DETAIL" && l.categoryId === categoryId)) };
+            });
+            onItemsChange(updated);
+          }
+        } else {
+          await assignCategoryAction(personId, single.id, categoryId, sessionId);
+          if (onItemsChange) {
+            const newLink = {
+              id: `temp-cat-${categoryId}`,
+              usage: "DETAIL" as PersonMediaUsage,
+              slot: null,
+              bodyRegion: null,
+              bodyMarkId: null,
+              bodyModificationId: null,
+              cosmeticProcedureId: null,
+              categoryId,
+              isFavorite: false,
+              sortOrder: 0,
+              notes: null,
+            };
+            const updated = items.map((item) => {
+              if (item.id !== single.id) return item;
+              return { ...item, links: [...item.links, newLink] };
+            });
+            onItemsChange(updated);
+          }
+        }
+      });
+    },
+    [single, activeCategoryIds, personId, sessionId, items, onItemsChange],
+  );
+
+  const categoryGroups = useMemo(() => {
+    if (!categories.length) return [];
+    const grouped = new Map<string, { groupName: string; items: CategoryWithGroup[] }>();
+    for (const cat of categories) {
+      if (!grouped.has(cat.groupId)) {
+        grouped.set(cat.groupId, { groupName: cat.groupName, items: [] });
+      }
+      grouped.get(cat.groupId)!.items.push(cat);
+    }
+    return Array.from(grouped.values());
+  }, [categories]);
 
   const handleSlotClick = useCallback(
     (slotNumber: number) => {
@@ -225,6 +287,7 @@ export function MediaMetadataPanel({
                   bodyMarkId: null,
                   bodyModificationId: null,
                   cosmeticProcedureId: null,
+                  categoryId: null,
                   isFavorite: false,
                   sortOrder: 0,
                   notes: null,
@@ -310,6 +373,13 @@ export function MediaMetadataPanel({
     [single, items, onItemsChange],
   );
 
+  // Entity linking is now driven by active DETAIL categories with entityModel
+  const activeEntityCategories = useMemo(
+    () => categories.filter((c) => c.entityModel && activeCategoryIds.has(c.id)),
+    [categories, activeCategoryIds],
+  );
+  const hasEntityUsage = activeEntityCategories.length > 0;
+
   if (items.length === 0) {
     return (
       <div className="flex h-full items-center justify-center p-6">
@@ -325,6 +395,7 @@ export function MediaMetadataPanel({
         personId={personId}
         sessionId={sessionId}
         collections={collections}
+        categories={categories}
         expandedSections={expandedSections}
         toggleSection={toggleSection}
         isPending={isPending}
@@ -338,10 +409,6 @@ export function MediaMetadataPanel({
   }
 
   // Single item mode
-  const hasBodyMark = activeUsages.has("BODY_MARK");
-  const hasBodyMod = activeUsages.has("BODY_MODIFICATION");
-  const hasCosmetic = activeUsages.has("COSMETIC_PROCEDURE");
-  const hasEntityUsage = hasBodyMark || hasBodyMod || hasCosmetic;
 
   return (
     <div className={cn("space-y-1 text-sm", isLightbox ? "p-3" : "p-4")}>
@@ -462,6 +529,53 @@ export function MediaMetadataPanel({
         </div>
       )}
 
+      {/* Categories */}
+      {categoryGroups.length > 0 && (
+        <>
+          <SectionHeader
+            title="Categories"
+            icon={<Tag size={14} />}
+            section="categories"
+            expanded={expandedSections.has("categories")}
+            onToggle={toggleSection}
+          />
+          {expandedSections.has("categories") && (
+            <div className="space-y-2 pb-2">
+              {categoryGroups.map((group) => (
+                <div key={group.groupName}>
+                  <span className="mb-1 block text-[10px] font-medium uppercase tracking-wider text-muted-foreground/60">
+                    {group.groupName}
+                  </span>
+                  <div className="flex flex-wrap gap-1">
+                    {group.items.map((cat) => {
+                      const isActive = activeCategoryIds.has(cat.id);
+                      return (
+                        <button
+                          key={cat.id}
+                          type="button"
+                          disabled={isPending}
+                          onClick={() => handleCategoryToggle(cat.id)}
+                          className={cn(
+                            "rounded-md border px-2 py-1 text-xs font-medium transition-all",
+                            "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
+                            isActive
+                              ? "border-orange-500/40 bg-orange-500/20 text-orange-400"
+                              : "border-transparent bg-muted/60 text-muted-foreground hover:bg-muted/90 hover:text-foreground",
+                          )}
+                          aria-pressed={isActive}
+                        >
+                          {cat.name}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+
       {/* Entity Linking (per active usage that supports it) */}
       {hasEntityUsage && (
         <>
@@ -474,33 +588,33 @@ export function MediaMetadataPanel({
           />
           {expandedSections.has("linking") && (
             <div className="space-y-2 pb-2">
-              {hasBodyMark && bodyMarks.length > 0 && (
-                <EntitySelect
-                  label="Body Mark"
-                  options={bodyMarks}
-                  value={getLinkForUsage("BODY_MARK")?.bodyMarkId ?? null}
-                  onChange={(v) => handleEntityLink("BODY_MARK", "bodyMarkId", v)}
-                  disabled={isPending}
-                />
-              )}
-              {hasBodyMod && bodyModifications.length > 0 && (
-                <EntitySelect
-                  label="Body Modification"
-                  options={bodyModifications}
-                  value={getLinkForUsage("BODY_MODIFICATION")?.bodyModificationId ?? null}
-                  onChange={(v) => handleEntityLink("BODY_MODIFICATION", "bodyModificationId", v)}
-                  disabled={isPending}
-                />
-              )}
-              {hasCosmetic && cosmeticProcedures.length > 0 && (
-                <EntitySelect
-                  label="Cosmetic Procedure"
-                  options={cosmeticProcedures}
-                  value={getLinkForUsage("COSMETIC_PROCEDURE")?.cosmeticProcedureId ?? null}
-                  onChange={(v) => handleEntityLink("COSMETIC_PROCEDURE", "cosmeticProcedureId", v)}
-                  disabled={isPending}
-                />
-              )}
+              {activeEntityCategories.map((cat) => {
+                const entityField =
+                  cat.entityModel === "BodyMark" ? "bodyMarkId" as const
+                    : cat.entityModel === "BodyModification" ? "bodyModificationId" as const
+                    : "cosmeticProcedureId" as const;
+                const options =
+                  cat.entityModel === "BodyMark" ? bodyMarks
+                    : cat.entityModel === "BodyModification" ? bodyModifications
+                    : cosmeticProcedures;
+                const detailLink = single?.links.find(
+                  (l) => l.usage === "DETAIL" && l.categoryId === cat.id,
+                );
+                if (options.length === 0) return null;
+                return (
+                  <EntitySelect
+                    key={cat.id}
+                    label={cat.name}
+                    options={options}
+                    value={detailLink?.[entityField] ?? null}
+                    onChange={(v) => {
+                      if (!detailLink) return;
+                      handleEntityLink("DETAIL", entityField, v);
+                    }}
+                    disabled={isPending}
+                  />
+                );
+              })}
             </div>
           )}
         </>
@@ -752,6 +866,7 @@ type BatchPanelProps = {
   personId: string;
   sessionId: string;
   collections: CollectionSummary[];
+  categories: CategoryWithGroup[];
   expandedSections: Set<string>;
   toggleSection: (section: string) => void;
   isPending: boolean;
@@ -767,6 +882,7 @@ function BatchPanel({
   personId,
   sessionId,
   collections,
+  categories,
   expandedSections,
   toggleSection,
   isPending,
@@ -829,6 +945,52 @@ function BatchPanel({
       });
     },
     [items, startTransition, onBatchComplete],
+  );
+
+  // Batch category toggle
+  const batchCategoryGroups = useMemo(() => {
+    if (!categories.length) return [];
+    const grouped = new Map<string, { groupName: string; items: CategoryWithGroup[] }>();
+    for (const cat of categories) {
+      if (!grouped.has(cat.groupId)) {
+        grouped.set(cat.groupId, { groupName: cat.groupName, items: [] });
+      }
+      grouped.get(cat.groupId)!.items.push(cat);
+    }
+    return Array.from(grouped.values());
+  }, [categories]);
+
+  const { commonCategoryIds, mixedCategoryIds } = useMemo(() => {
+    const common = new Set<string>();
+    const mixed = new Set<string>();
+    for (const cat of categories) {
+      const count = items.filter((item) =>
+        item.links.some((l) => l.usage === "DETAIL" && l.categoryId === cat.id),
+      ).length;
+      if (count === items.length) common.add(cat.id);
+      else if (count > 0) mixed.add(cat.id);
+    }
+    return { commonCategoryIds: common, mixedCategoryIds: mixed };
+  }, [items, categories]);
+
+  const handleBatchCategoryToggle = useCallback(
+    (categoryId: string) => {
+      const isActive = commonCategoryIds.has(categoryId);
+      const ids = items.map((item) => item.id);
+      startTransition(async () => {
+        if (isActive) {
+          for (const mediaItemId of ids) {
+            await removeCategoryAction(personId, mediaItemId, categoryId, sessionId);
+          }
+        } else {
+          for (const mediaItemId of ids) {
+            await assignCategoryAction(personId, mediaItemId, categoryId, sessionId);
+          }
+        }
+        onBatchComplete?.();
+      });
+    },
+    [commonCategoryIds, items, personId, sessionId, startTransition, onBatchComplete],
   );
 
   return (
@@ -931,6 +1093,57 @@ function BatchPanel({
                   </button>
                 );
               })}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Batch Categories */}
+      {batchCategoryGroups.length > 0 && (
+        <>
+          <SectionHeader
+            title="Categories"
+            icon={<Tag size={14} />}
+            section="categories"
+            expanded={expandedSections.has("categories")}
+            onToggle={toggleSection}
+          />
+          {expandedSections.has("categories") && (
+            <div className="space-y-2 pb-2">
+              {batchCategoryGroups.map((group) => (
+                <div key={group.groupName}>
+                  <span className="mb-1 block text-[10px] font-medium uppercase tracking-wider text-muted-foreground/60">
+                    {group.groupName}
+                  </span>
+                  <div className="flex flex-wrap gap-1">
+                    {group.items.map((cat) => {
+                      const isActive = commonCategoryIds.has(cat.id);
+                      const isMixed = mixedCategoryIds.has(cat.id);
+                      return (
+                        <button
+                          key={cat.id}
+                          type="button"
+                          disabled={isPending}
+                          onClick={() => handleBatchCategoryToggle(cat.id)}
+                          className={cn(
+                            "rounded-md border px-2 py-1 text-xs font-medium transition-all",
+                            "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
+                            isActive
+                              ? "border-orange-500/40 bg-orange-500/20 text-orange-400"
+                              : isMixed
+                                ? "border-dashed border-orange-500/40 bg-orange-500/20 text-orange-400 opacity-40"
+                                : "border-transparent bg-muted/60 text-muted-foreground hover:bg-muted/90 hover:text-foreground",
+                          )}
+                          aria-pressed={isActive}
+                          title={isMixed ? "Present on some items — click to add to all" : undefined}
+                        >
+                          {cat.name}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
             </div>
           )}
         </>

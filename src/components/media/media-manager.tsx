@@ -8,6 +8,7 @@ import type { MediaItemWithLinks } from "@/lib/services/media-service";
 import type { ProfileImageLabel } from "@/lib/services/setting-service";
 import type { CollectionSummary } from "@/lib/services/collection-service";
 import type { GalleryItem, PersonMediaLinkSummary } from "@/lib/types";
+import type { CategoryWithGroup } from "@/components/gallery/gallery-info-panel";
 import { assignHeadshotSlot, deleteMediaItemsAction } from "@/lib/actions/media-actions";
 import {
   AlertDialog,
@@ -32,6 +33,7 @@ type MediaManagerProps = {
   sessionId: string;
   slotLabels: ProfileImageLabel[];
   collections: CollectionSummary[];
+  categories: CategoryWithGroup[];
   bodyMarks: EntityOption[];
   bodyModifications: EntityOption[];
   cosmeticProcedures: EntityOption[];
@@ -66,6 +68,7 @@ export function MediaManager({
   sessionId,
   slotLabels,
   collections,
+  categories,
   bodyMarks,
   bodyModifications,
   cosmeticProcedures,
@@ -228,6 +231,7 @@ export function MediaManager({
                   bodyMarkId: null,
                   bodyModificationId: null,
                   cosmeticProcedureId: null,
+                  categoryId: null,
                   isFavorite: false,
                   sortOrder: 0,
                   notes: null,
@@ -311,6 +315,7 @@ export function MediaManager({
       personId,
       sessionId,
       collections,
+      categories,
       bodyMarks,
       bodyModifications,
       cosmeticProcedures,
@@ -318,7 +323,7 @@ export function MediaManager({
       onLinksChange: handleLightboxLinksChange,
       onCollectionIdsChange: handleLightboxCollectionIdsChange,
     }),
-    [personId, sessionId, collections, bodyMarks, bodyModifications, cosmeticProcedures, allSlotThumbnails, handleLightboxLinksChange, handleLightboxCollectionIdsChange],
+    [personId, sessionId, collections, categories, bodyMarks, bodyModifications, cosmeticProcedures, allSlotThumbnails, handleLightboxLinksChange, handleLightboxCollectionIdsChange],
   );
 
   if (items.length === 0) {
@@ -382,6 +387,7 @@ export function MediaManager({
                 sessionId={sessionId}
                 slotLabels={slotLabels}
                 collections={collections}
+                categories={categories}
                 bodyMarks={bodyMarks}
                 bodyModifications={bodyModifications}
                 cosmeticProcedures={cosmeticProcedures}
@@ -417,6 +423,7 @@ export function MediaManager({
             sessionId={sessionId}
             slotLabels={slotLabels}
             collections={collections}
+            categories={categories}
             bodyMarks={bodyMarks}
             bodyModifications={bodyModifications}
             cosmeticProcedures={cosmeticProcedures}

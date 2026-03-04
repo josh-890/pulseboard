@@ -173,18 +173,32 @@ export async function upsertPersonMediaLinkAction(
   sessionId: string,
 ): Promise<ActionResult> {
   try {
-    await prisma.personMediaLink.upsert({
-      where: {
-        personId_mediaItemId_usage: { personId, mediaItemId, usage },
-      },
-      update: data,
-      create: {
-        personId,
-        mediaItemId,
-        usage,
-        ...data,
-      },
+    // For DETAIL usage, match by categoryId; for others, match by usage
+    const whereClause =
+      usage === "DETAIL" && data.categoryId
+        ? { personId, mediaItemId, usage, categoryId: data.categoryId }
+        : { personId, mediaItemId, usage };
+
+    const existing = await prisma.personMediaLink.findFirst({
+      where: whereClause,
     });
+
+    if (existing) {
+      await prisma.personMediaLink.update({
+        where: { id: existing.id },
+        data,
+      });
+    } else {
+      await prisma.personMediaLink.create({
+        data: {
+          personId,
+          mediaItemId,
+          usage,
+          ...data,
+        },
+      });
+    }
+
     revalidatePath(`/sessions/${sessionId}`);
     revalidatePath(`/people/${personId}`);
     return { success: true };

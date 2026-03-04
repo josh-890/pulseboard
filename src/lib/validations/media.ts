@@ -5,9 +5,7 @@ import { z } from "zod";
 const personMediaUsageValues = [
   "PROFILE",
   "HEADSHOT",
-  "BODY_MARK",
-  "BODY_MODIFICATION",
-  "COSMETIC_PROCEDURE",
+  "DETAIL",
   "PORTFOLIO",
 ] as const;
 
