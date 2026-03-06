@@ -7,6 +7,7 @@ import { DensitySelector } from "@/components/settings/density-selector";
 import { HeroLayoutSelector } from "@/components/settings/hero-layout-selector";
 import { ProfileImageLabels } from "@/components/settings/profile-image-labels";
 import { MediaCategoryManager } from "@/components/settings/media-category-manager";
+import { DatabaseMaintenance } from "@/components/settings/database-maintenance";
 import { getProfileImageLabels } from "@/lib/services/setting-service";
 import { getAllCategoryGroups } from "@/lib/services/category-service";
 
@@ -66,6 +67,15 @@ export default async function SettingsPage() {
           link photos to specific body marks, modifications, or procedures.
         </p>
         <MediaCategoryManager groups={categoryGroups} />
+      </div>
+
+      <div className="rounded-2xl border border-white/30 bg-card/70 p-4 shadow-lg backdrop-blur-md md:p-6 dark:border-white/10">
+        <h2 className="mb-2 text-lg font-semibold">Manage Database</h2>
+        <p className="mb-4 text-sm text-muted-foreground">
+          Run consistency checks and cleanup operations. Items are soft-deleted
+          and can be recovered.
+        </p>
+        <DatabaseMaintenance />
       </div>
     </div>
   );
