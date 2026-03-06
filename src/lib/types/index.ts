@@ -26,7 +26,10 @@ export type {
   BodyMarkWithEvents,
   PersonDigitalIdentityItem,
   PersonSkillItem,
+  PersonSkillEventItem,
   PersonCurrentState,
+  SkillLevel,
+  SkillEventType,
 } from "./person";
 
 export type {
@@ -62,6 +65,8 @@ export type {
 export type {
   MediaCategoryGroup,
   MediaCategory,
+  SkillGroup,
+  SkillDefinition,
 } from "@/generated/prisma/client";
 
 export type { GalleryItem, PersonMediaLinkSummary } from "./gallery";

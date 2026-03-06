@@ -19,6 +19,8 @@ export type {
   RelationshipType,
   RelationshipEventType,
   AliasSource,
+  SkillLevel,
+  SkillEventType,
 } from "@/generated/prisma/client";
 
 export type PersonWithCommonAlias = {
@@ -97,15 +99,28 @@ export type PersonDigitalIdentityItem = {
   personaLabel: string | null;
 };
 
+export type PersonSkillEventItem = {
+  id: string;
+  eventType: import("@/generated/prisma/client").SkillEventType;
+  level: import("@/generated/prisma/client").SkillLevel | null;
+  notes: string | null;
+  personaLabel: string;
+  personaDate: Date | null;
+};
+
 export type PersonSkillItem = {
   id: string;
   name: string;
   category: string | null;
-  level: string | null;
+  level: import("@/generated/prisma/client").SkillLevel | null;
   evidence: string | null;
   validFrom: Date | null;
   validTo: Date | null;
   personaLabel: string | null;
+  skillDefinitionId: string | null;
+  groupName: string | null;
+  definitionName: string | null;
+  events: PersonSkillEventItem[];
 };
 
 export type PersonCurrentState = {

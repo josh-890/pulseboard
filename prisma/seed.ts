@@ -232,7 +232,7 @@ async function main() {
       personaId: baselinePersona.id,
       name: "Photography",
       category: "creative",
-      level: "professional",
+      level: "PROFESSIONAL",
       evidence: "Portfolio published on official website",
     },
   });
@@ -721,6 +721,83 @@ async function main() {
       create: a,
     });
   }
+
+  // ─── Skill Catalog ──────────────────────────────────────────────────────────
+
+  const skillCatalog = [
+    {
+      id: "seed-sg-performance",
+      name: "Performance",
+      sortOrder: 1,
+      definitions: [
+        { id: "seed-sd-acting", name: "Acting", slug: "acting" },
+        { id: "seed-sd-modeling", name: "Modeling", slug: "modeling" },
+        { id: "seed-sd-dance", name: "Dance", slug: "dance" },
+        { id: "seed-sd-singing", name: "Singing", slug: "singing" },
+      ],
+    },
+    {
+      id: "seed-sg-technical",
+      name: "Technical",
+      sortOrder: 2,
+      definitions: [
+        { id: "seed-sd-photography", name: "Photography", slug: "photography" },
+        { id: "seed-sd-lighting", name: "Lighting", slug: "lighting" },
+        { id: "seed-sd-editing", name: "Editing", slug: "editing" },
+        { id: "seed-sd-directing", name: "Directing", slug: "directing" },
+      ],
+    },
+    {
+      id: "seed-sg-physical",
+      name: "Physical",
+      sortOrder: 3,
+      definitions: [
+        { id: "seed-sd-fitness", name: "Fitness", slug: "fitness" },
+        { id: "seed-sd-flexibility", name: "Flexibility", slug: "flexibility" },
+        { id: "seed-sd-stunts", name: "Stunts", slug: "stunts" },
+        { id: "seed-sd-sports", name: "Sports", slug: "sports" },
+      ],
+    },
+    {
+      id: "seed-sg-creative",
+      name: "Creative",
+      sortOrder: 4,
+      definitions: [
+        { id: "seed-sd-styling", name: "Styling", slug: "styling" },
+        { id: "seed-sd-makeup", name: "Makeup", slug: "makeup" },
+        { id: "seed-sd-costume", name: "Costume", slug: "costume" },
+        { id: "seed-sd-set-design", name: "Set Design", slug: "set-design" },
+      ],
+    },
+  ];
+
+  for (const group of skillCatalog) {
+    await prisma.skillGroup.upsert({
+      where: { id: group.id },
+      update: { name: group.name, sortOrder: group.sortOrder },
+      create: { id: group.id, name: group.name, sortOrder: group.sortOrder },
+    });
+    for (let i = 0; i < group.definitions.length; i++) {
+      const def = group.definitions[i];
+      await prisma.skillDefinition.upsert({
+        where: { id: def.id },
+        update: { name: def.name, slug: def.slug, sortOrder: i + 1 },
+        create: {
+          id: def.id,
+          groupId: group.id,
+          name: def.name,
+          slug: def.slug,
+          sortOrder: i + 1,
+        },
+      });
+    }
+  }
+
+  // Link seed person skill to Photography definition
+  await prisma.personSkill.update({
+    where: { id: "seed-skill-1" },
+    data: { skillDefinitionId: "seed-sd-photography" },
+  });
 
   // ─── Refresh materialized views ────────────────────────────────────────────
 

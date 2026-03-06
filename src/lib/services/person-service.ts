@@ -17,6 +17,7 @@ import {
   cascadeDeleteCosmeticProcedures,
   cascadeDeletePersonExtras,
   cascadeDeleteRelationshipEvents,
+  cascadeDeletePersonSkills,
 } from "./cascade-helpers";
 
 export type PersonFilters = {
@@ -118,6 +119,18 @@ export async function getPersonWithDetails(id: string) {
           },
           skills: {
             where: { deletedAt: null },
+            include: {
+              skillDefinition: {
+                include: { group: { select: { name: true } } },
+              },
+              events: {
+                where: { deletedAt: null },
+                include: {
+                  persona: { select: { label: true, date: true } },
+                },
+                orderBy: { createdAt: "asc" },
+              },
+            },
           },
         },
       },
@@ -182,7 +195,19 @@ export async function getPersonDigitalIdentities(personId: string): Promise<Pers
 export async function getPersonSkills(personId: string): Promise<PersonSkillItem[]> {
   const skills = await prisma.personSkill.findMany({
     where: { personId },
-    include: { persona: { select: { label: true } } },
+    include: {
+      persona: { select: { label: true } },
+      skillDefinition: {
+        include: { group: { select: { name: true } } },
+      },
+      events: {
+        where: { deletedAt: null },
+        include: {
+          persona: { select: { label: true, date: true } },
+        },
+        orderBy: { createdAt: "asc" },
+      },
+    },
     orderBy: { name: "asc" },
   });
 
@@ -195,6 +220,17 @@ export async function getPersonSkills(personId: string): Promise<PersonSkillItem
     validFrom: s.validFrom,
     validTo: s.validTo,
     personaLabel: s.persona?.label ?? null,
+    skillDefinitionId: s.skillDefinitionId,
+    groupName: s.skillDefinition?.group.name ?? null,
+    definitionName: s.skillDefinition?.name ?? null,
+    events: s.events.map((e) => ({
+      id: e.id,
+      eventType: e.eventType,
+      level: e.level,
+      notes: e.notes,
+      personaLabel: e.persona.label,
+      personaDate: e.persona.date,
+    })),
   }));
 }
 
@@ -384,6 +420,17 @@ export function deriveCurrentState(
         validFrom: s.validFrom,
         validTo: s.validTo,
         personaLabel: persona.label,
+        skillDefinitionId: s.skillDefinitionId,
+        groupName: s.skillDefinition?.group.name ?? null,
+        definitionName: s.skillDefinition?.name ?? null,
+        events: s.events.map((e) => ({
+          id: e.id,
+          eventType: e.eventType,
+          level: e.level,
+          notes: e.notes,
+          personaLabel: e.persona.label,
+          personaDate: e.persona.date,
+        })),
       });
     }
   }
@@ -701,11 +748,8 @@ export async function deletePersonRecord(id: string) {
       data: { deletedAt },
     });
 
-    // Soft-delete skills
-    await tx.personSkill.updateMany({
-      where: { personId: id, deletedAt: null },
-      data: { deletedAt },
-    });
+    // Soft-delete skills + events, hard-delete session participant skills
+    await cascadeDeletePersonSkills(tx, id, personaIds, deletedAt);
 
     // Hard-delete set participants (no deletedAt column)
     await tx.setParticipant.deleteMany({

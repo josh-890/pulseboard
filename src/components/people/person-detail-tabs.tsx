@@ -18,7 +18,6 @@ import { useHeroLayout, type HeroLayout } from "@/components/layout/hero-layout-
 import { PersonaTimelineEntry } from "@/components/people/persona-timeline-entry";
 import { BodyMarkCard } from "@/components/people/body-mark-card";
 import { DigitalIdentityRow } from "@/components/people/digital-identity-row";
-import { SkillItem } from "@/components/people/skill-item";
 import {
   Star,
   StarOff,
@@ -46,6 +45,8 @@ import { JustifiedGrid } from "@/components/gallery/justified-grid";
 import { GalleryLightbox } from "@/components/gallery/gallery-lightbox";
 import { BatchUploadZone } from "@/components/media/batch-upload-zone";
 import { PersonDetailsTab } from "@/components/people/person-details-tab";
+import { PersonSkillsTab } from "@/components/people/person-skills-tab";
+import type { SkillGroupWithDefinitions } from "@/lib/services/skill-catalog-service";
 import type { GalleryItem } from "@/lib/types";
 import type { ProfileImageLabel } from "@/lib/services/setting-service";
 import type { CategoryWithGroup } from "@/components/gallery/gallery-info-panel";
@@ -56,7 +57,7 @@ import {
 
 type PersonData = NonNullable<Awaited<ReturnType<typeof getPersonWithDetails>>>;
 
-type TabId = "overview" | "appearance" | "details" | "career" | "network" | "photos";
+type TabId = "overview" | "appearance" | "details" | "skills" | "career" | "network" | "photos";
 
 type HeadshotSlotEntry = { mediaItemId: string; slot: number };
 
@@ -73,6 +74,7 @@ type PersonDetailTabsProps = {
   headshotSlotEntries?: HeadshotSlotEntry[];
   categories?: CategoryWithGroup[];
   categoryCounts?: { categoryId: string; count: number }[];
+  skillGroups?: SkillGroupWithDefinitions[];
 };
 
 // ── Style maps ──────────────────────────────────────────────────────────────
@@ -871,21 +873,19 @@ function AppearanceTab({
 
 function CareerTab({
   person,
-  currentState,
   workHistory,
   affiliations,
 }: {
   person: PersonData;
-  currentState: PersonCurrentState;
   workHistory: PersonWorkHistoryItem[];
   affiliations: PersonAffiliation[];
 }) {
   return (
     <div className="space-y-6">
       {/* Professional Summary */}
-      {(person.activeSince || person.specialization || currentState.activeSkills.length > 0) && (
+      {(person.activeSince || person.specialization) && (
         <SectionCard title="Professional" icon={<Briefcase size={18} />}>
-          <dl className="mb-4 grid grid-cols-1 gap-2 sm:grid-cols-2 text-sm">
+          <dl className="grid grid-cols-1 gap-2 sm:grid-cols-2 text-sm">
             {person.activeSince && (
               <InfoRow label="Active since" value={person.activeSince} />
             )}
@@ -893,13 +893,6 @@ function CareerTab({
               <InfoRow label="Specialization" value={person.specialization} />
             )}
           </dl>
-          {currentState.activeSkills.length > 0 && (
-            <div className="space-y-2">
-              {currentState.activeSkills.map((skill) => (
-                <SkillItem key={skill.id} skill={skill} />
-              ))}
-            </div>
-          )}
         </SectionCard>
       )}
 
@@ -1179,6 +1172,7 @@ export function PersonDetailTabs({
   headshotSlotEntries,
   categories,
   categoryCounts,
+  skillGroups,
 }: PersonDetailTabsProps) {
   const [activeTab, setActiveTab] = useState<TabId>("overview");
 
@@ -1196,6 +1190,7 @@ export function PersonDetailTabs({
     ...(categories && categories.length > 0
       ? [{ id: "details" as TabId, label: "Details", badge: (categoryCounts?.filter((c) => c.count > 0).length) || undefined }]
       : []),
+    { id: "skills" as TabId, label: "Skills", badge: currentState.activeSkills.length || undefined },
     { id: "career", label: "Career", badge: workHistory.length || undefined },
     { id: "network", label: "Network", badge: connections.length || undefined },
     { id: "photos", label: "Photos", badge: photos.length || undefined },
@@ -1296,6 +1291,24 @@ export function PersonDetailTabs({
         </div>
       )}
       <div
+        id="tabpanel-skills"
+        role="tabpanel"
+        aria-labelledby="tab-skills"
+        hidden={activeTab !== "skills"}
+      >
+        {activeTab === "skills" && (
+          <PersonSkillsTab
+            personId={person.id}
+            skills={currentState.activeSkills}
+            skillGroups={skillGroups ?? []}
+            personas={person.personas.map((p) => ({
+              id: p.id,
+              label: p.label,
+            }))}
+          />
+        )}
+      </div>
+      <div
         id="tabpanel-career"
         role="tabpanel"
         aria-labelledby="tab-career"
@@ -1304,7 +1317,6 @@ export function PersonDetailTabs({
         {activeTab === "career" && (
           <CareerTab
             person={person}
-            currentState={currentState}
             workHistory={workHistory}
             affiliations={affiliations}
           />

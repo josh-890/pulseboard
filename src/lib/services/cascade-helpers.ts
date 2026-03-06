@@ -183,6 +183,31 @@ export async function cascadeHardDeleteMediaItems(
 }
 
 /**
+ * Cascade soft-delete person skills: events for personaIds, then skills, and hard-delete session participant skills.
+ */
+export async function cascadeDeletePersonSkills(
+  tx: TxClient,
+  personId: string,
+  personaIds: string[],
+  deletedAt: Date,
+) {
+  if (personaIds.length > 0) {
+    await tx.personSkillEvent.updateMany({
+      where: { personaId: { in: personaIds }, deletedAt: null },
+      data: { deletedAt },
+    });
+  }
+  await tx.personSkill.updateMany({
+    where: { personId, deletedAt: null },
+    data: { deletedAt },
+  });
+  // Hard-delete session participant skills (no deletedAt column)
+  await tx.sessionParticipantSkill.deleteMany({
+    where: { personId },
+  });
+}
+
+/**
  * Cascade soft-delete a session: SetSession links, participants, media items, then the session itself.
  */
 export async function cascadeDeleteSession(
@@ -197,6 +222,11 @@ export async function cascadeDeleteSession(
 
   // Hard-delete session participants (no deletedAt column)
   await tx.sessionParticipant.deleteMany({
+    where: { sessionId },
+  });
+
+  // Hard-delete session participant skills (no deletedAt column)
+  await tx.sessionParticipantSkill.deleteMany({
     where: { sessionId },
   });
 

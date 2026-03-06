@@ -184,6 +184,21 @@ enum PersonMediaUsage {
   PORTFOLIO
 }
 
+enum SkillLevel {
+  BEGINNER
+  INTERMEDIATE
+  ADVANCED
+  PROFESSIONAL
+  EXPERT
+}
+
+enum SkillEventType {
+  ACQUIRED
+  IMPROVED
+  DEMONSTRATED
+  RETIRED
+}
+
 // ─── Person & Aliases ─────────────────────────────────────────────────────────
 
 model Person {
@@ -229,6 +244,7 @@ model Person {
   personMediaLinks     PersonMediaLink[]
   referenceSession     Session?             @relation("ReferenceSession")
   mediaCollections     MediaCollection[]
+  sessionParticipantSkills SessionParticipantSkill[]
 
   createdAt DateTime  @default(now())
   deletedAt DateTime?
@@ -271,6 +287,7 @@ model Persona {
   skills            PersonSkill[]
   bodyModificationEvents    BodyModificationEvent[]
   cosmeticProcedureEvents   CosmeticProcedureEvent[]
+  skillEvents               PersonSkillEvent[]
 
   @@index([personId])
   @@index([deletedAt])
@@ -348,23 +365,28 @@ model PersonDigitalIdentity {
 }
 
 model PersonSkill {
-  id        String    @id @default(cuid())
-  personId  String
-  person    Person    @relation(fields: [personId], references: [id])
-  personaId String?
-  persona   Persona?  @relation(fields: [personaId], references: [id])
-  name      String
-  category  String?
-  level     String?
-  evidence  String?
-  validFrom DateTime?
-  validFromPrecision DatePrecision @default(UNKNOWN)
-  validTo   DateTime?
-  validToPrecision   DatePrecision @default(UNKNOWN)
-  deletedAt DateTime?
+  id                String           @id @default(cuid())
+  personId          String
+  person            Person           @relation(fields: [personId], references: [id])
+  personaId         String?
+  persona           Persona?         @relation(fields: [personaId], references: [id])
+  skillDefinitionId String?
+  skillDefinition   SkillDefinition? @relation(fields: [skillDefinitionId], references: [id])
+  name              String
+  category          String?
+  level             SkillLevel?
+  evidence          String?
+  validFrom         DateTime?
+  validFromPrecision DatePrecision   @default(UNKNOWN)
+  validTo           DateTime?
+  validToPrecision   DatePrecision   @default(UNKNOWN)
+  deletedAt         DateTime?
+
+  events PersonSkillEvent[]
 
   @@index([personId])
   @@index([personaId])
+  @@index([skillDefinitionId])
   @@index([deletedAt])
 }
 
@@ -696,6 +718,7 @@ model Session {
   mediaItems      MediaItem[]
   participants    SessionParticipant[]
   setSessionLinks SetSession[]
+  participantSkills SessionParticipantSkill[]
 
   @@index([projectId])
   @@index([labelId])
@@ -971,4 +994,64 @@ model Activity {
   @@index([time])
   @@index([type])
   @@index([deletedAt])
+}
+
+// ─── Skill Catalog & Tracking ────────────────────────────────────────────────
+
+model SkillGroup {
+  id          String            @id @default(cuid())
+  name        String            @unique
+  sortOrder   Int               @default(0)
+  createdAt   DateTime          @default(now())
+  definitions SkillDefinition[]
+
+  @@index([sortOrder])
+}
+
+model SkillDefinition {
+  id          String     @id @default(cuid())
+  groupId     String
+  group       SkillGroup @relation(fields: [groupId], references: [id])
+  name        String
+  slug        String     @unique
+  description String?
+  sortOrder   Int        @default(0)
+  createdAt   DateTime   @default(now())
+
+  personSkills             PersonSkill[]
+  sessionParticipantSkills SessionParticipantSkill[]
+
+  @@unique([groupId, name])
+  @@index([groupId])
+  @@index([sortOrder])
+}
+
+model PersonSkillEvent {
+  id            String         @id @default(cuid())
+  personSkillId String
+  personSkill   PersonSkill    @relation(fields: [personSkillId], references: [id])
+  personaId     String
+  persona       Persona        @relation(fields: [personaId], references: [id])
+  eventType     SkillEventType
+  level         SkillLevel?
+  notes         String?
+  deletedAt     DateTime?
+  createdAt     DateTime       @default(now())
+
+  @@index([personSkillId])
+  @@index([personaId])
+  @@index([deletedAt])
+}
+
+model SessionParticipantSkill {
+  sessionId         String
+  session           Session         @relation(fields: [sessionId], references: [id])
+  personId          String
+  person            Person          @relation(fields: [personId], references: [id])
+  skillDefinitionId String
+  skillDefinition   SkillDefinition @relation(fields: [skillDefinitionId], references: [id])
+  notes             String?
+  createdAt         DateTime        @default(now())
+
+  @@id([sessionId, personId, skillDefinitionId])
 }

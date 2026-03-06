@@ -48,9 +48,11 @@ export function withSoftDelete(prisma: PrismaClient) {
       mediaItem: softDeleteOverrides,
       setCreditRaw: softDeleteOverrides,
       mediaCollection: softDeleteOverrides,
+      personSkillEvent: softDeleteOverrides,
       // Setting, LabelNetworkLink, ProjectLabel, PersonaPhysical, SetMediaItem, SessionParticipant,
       // SetParticipant, SetSession, ChannelLabelMap, SetLabelEvidence, MediaCollectionItem,
-      // MediaCategoryGroup, MediaCategory intentionally excluded — no deletedAt field
+      // MediaCategoryGroup, MediaCategory, SkillGroup, SkillDefinition, SessionParticipantSkill
+      // intentionally excluded — no deletedAt field
       // PersonMediaLink intentionally excluded — uses hard delete (tag/usage links are not soft-deleted)
     },
   });

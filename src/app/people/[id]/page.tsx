@@ -13,6 +13,7 @@ import { getProfileImageLabels } from "@/lib/services/setting-service";
 import { getPersonReferenceSession } from "@/lib/services/session-service";
 import { getPersonHeadshots, getFilledHeadshotSlots, getPersonMediaGallery } from "@/lib/services/media-service";
 import { getAllCategoryGroups, getPopulatedCategoriesForPerson } from "@/lib/services/category-service";
+import { getAllSkillGroups } from "@/lib/services/skill-catalog-service";
 import { PersonDetailTabs } from "@/components/people/person-detail-tabs";
 import { EditPersonSheet } from "@/components/people/edit-person-sheet";
 import { DeleteButton } from "@/components/shared/delete-button";
@@ -27,7 +28,7 @@ type PersonDetailPageProps = {
 export default async function PersonDetailPage({ params }: PersonDetailPageProps) {
   const { id } = await params;
 
-  const [person, workHistory, connections, profileLabels, refSession, headshots, filledSlots, categoryGroups, populatedCounts] =
+  const [person, workHistory, connections, profileLabels, refSession, headshots, filledSlots, categoryGroups, populatedCounts, skillGroups] =
     await Promise.all([
       getPersonWithDetails(id),
       getPersonWorkHistory(id),
@@ -38,6 +39,7 @@ export default async function PersonDetailPage({ params }: PersonDetailPageProps
       getFilledHeadshotSlots(id),
       getAllCategoryGroups(),
       getPopulatedCategoriesForPerson(id),
+      getAllSkillGroups(),
     ]);
 
   if (!person) notFound();
@@ -168,6 +170,7 @@ export default async function PersonDetailPage({ params }: PersonDetailPageProps
         headshotSlotEntries={headshotSlotEntries}
         categories={flatCategories}
         categoryCounts={categoryCounts}
+        skillGroups={skillGroups}
       />
     </div>
   );
