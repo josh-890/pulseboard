@@ -117,6 +117,7 @@ src/
 - `docs/components.md` — Full component inventory with props
 - `docs/data-model.md` — Database schema and relationships
 - `docs/ux-ui-skill.md` — **UX/UI design skill** — apply to all UI work (layout, interactions, image handling, accessibility)
+- `docs/user-guide.md` — **User documentation** — comprehensive feature guide with workflows. **Keep this document up to date** when adding or changing features.
 
 ## Browser Verification (Playwright MCP)
 

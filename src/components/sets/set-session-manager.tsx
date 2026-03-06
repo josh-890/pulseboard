@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Clapperboard, Plus, Search, X, Layers } from "lucide-react";
+import { Clapperboard, Plus, Search, X, Layers, ArrowRightLeft } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,6 +15,7 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { SessionStatusBadge } from "@/components/sessions/session-status-badge";
+import { SessionReassignDialog } from "@/components/sets/session-reassign-dialog";
 import { searchSessionsAction, linkSessionAction, unlinkSessionAction } from "@/lib/actions/session-actions";
 import type { SessionStatus } from "@/lib/types";
 
@@ -52,6 +53,7 @@ type SetSessionManagerProps = {
 export function SetSessionManager({ setId, sessionLinks }: SetSessionManagerProps) {
   const router = useRouter();
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [reassignOpen, setReassignOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
   const [searching, setSearching] = useState(false);
@@ -60,6 +62,7 @@ export function SetSessionManager({ setId, sessionLinks }: SetSessionManagerProp
 
   const isCompilation = sessionLinks.length > 1;
   const linkedSessionIds = new Set(sessionLinks.map((l) => l.sessionId));
+  const primaryLink = sessionLinks.find((l) => l.isPrimary);
 
   useEffect(() => {
     if (!query.trim()) {
@@ -157,6 +160,18 @@ export function SetSessionManager({ setId, sessionLinks }: SetSessionManagerProp
           <Plus size={12} />
           Add Source Session
         </Button>
+
+        {primaryLink && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 gap-1 text-xs"
+            onClick={() => setReassignOpen(true)}
+          >
+            <ArrowRightLeft size={12} />
+            Reassign
+          </Button>
+        )}
       </div>
 
       {/* Search dialog */}
@@ -211,6 +226,18 @@ export function SetSessionManager({ setId, sessionLinks }: SetSessionManagerProp
           </div>
         </DialogContent>
       </Dialog>
+
+      {primaryLink && (
+        <SessionReassignDialog
+          setId={setId}
+          primarySessionId={primaryLink.sessionId}
+          primarySessionName={primaryLink.session.name}
+          mediaCount={0}
+          excludeSessionIds={Array.from(linkedSessionIds)}
+          open={reassignOpen}
+          onOpenChange={setReassignOpen}
+        />
+      )}
     </div>
   );
 }

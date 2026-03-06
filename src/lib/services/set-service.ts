@@ -2,6 +2,7 @@ import { prisma } from "@/lib/db";
 import type { Prisma, SetType, ParticipantRole, ResolutionStatus } from "@/generated/prisma/client";
 import { cascadeDeleteSet } from "./cascade-helpers";
 import type { TxClient } from "./cascade-helpers";
+import { mergeSessionsRecord } from "./session-service";
 
 export type SetFilters = {
   q?: string;
@@ -669,4 +670,99 @@ export async function getSetCredits(setId: string) {
     },
     orderBy: { createdAt: "asc" },
   });
+}
+
+// ── Compilation: add/remove existing media + auto-sync session links ────────
+
+export async function addExistingMediaToSet(setId: string, mediaItemIds: string[]) {
+  if (mediaItemIds.length === 0) return;
+
+  await prisma.$transaction(async (tx) => {
+    // Get current max sortOrder
+    const maxSort = await tx.setMediaItem.aggregate({
+      where: { setId },
+      _max: { sortOrder: true },
+    });
+    const startOrder = (maxSort._max.sortOrder ?? -1) + 1;
+
+    await tx.setMediaItem.createMany({
+      data: mediaItemIds.map((mediaItemId, i) => ({
+        setId,
+        mediaItemId,
+        sortOrder: startOrder + i,
+      })),
+      skipDuplicates: true,
+    });
+
+    await syncSetSessionLinks(tx, setId);
+  });
+}
+
+export async function removeMediaFromSet(setId: string, mediaItemIds: string[]) {
+  if (mediaItemIds.length === 0) return;
+
+  await prisma.$transaction(async (tx) => {
+    await tx.setMediaItem.deleteMany({
+      where: { setId, mediaItemId: { in: mediaItemIds } },
+    });
+
+    await syncSetSessionLinks(tx, setId);
+  });
+}
+
+async function syncSetSessionLinks(tx: TxClient, setId: string) {
+  // Find all unique sessionIds from media items in this set
+  const mediaLinks = await tx.setMediaItem.findMany({
+    where: { setId },
+    select: { mediaItem: { select: { sessionId: true } } },
+  });
+
+  const sourceSessionIds = new Set<string>();
+  for (const link of mediaLinks) {
+    if (link.mediaItem.sessionId) {
+      sourceSessionIds.add(link.mediaItem.sessionId);
+    }
+  }
+
+  // Get existing SetSession links
+  const existingLinks = await tx.setSession.findMany({
+    where: { setId },
+  });
+
+  const existingSessionIds = new Set(existingLinks.map((l) => l.sessionId));
+
+  // Create missing links (non-primary source sessions)
+  for (const sessionId of sourceSessionIds) {
+    if (!existingSessionIds.has(sessionId)) {
+      await tx.setSession.create({
+        data: { setId, sessionId, isPrimary: false },
+      });
+    }
+  }
+
+  // Remove links for sessions that no longer contribute media
+  // BUT never remove isPrimary links
+  for (const existing of existingLinks) {
+    if (!existing.isPrimary && !sourceSessionIds.has(existing.sessionId)) {
+      await tx.setSession.delete({
+        where: { setId_sessionId: { setId, sessionId: existing.sessionId } },
+      });
+    }
+  }
+}
+
+export async function reassignSetPrimarySession(
+  setId: string,
+  targetSessionId: string,
+) {
+  const primaryLink = await prisma.setSession.findFirst({
+    where: { setId, isPrimary: true },
+  });
+  if (!primaryLink) throw new Error("No primary session found for this set");
+  if (primaryLink.sessionId === targetSessionId) {
+    throw new Error("Target session is already the primary session");
+  }
+
+  // Merge the auto-created primary session into the target
+  await mergeSessionsRecord(targetSessionId, primaryLink.sessionId);
 }

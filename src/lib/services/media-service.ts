@@ -8,6 +8,12 @@ import { hammingDistance } from "@/lib/image-hash";
 
 const BASE_URL = process.env.NEXT_PUBLIC_MINIO_URL!;
 
+function assertValidVariants(variants: PhotoVariants): void {
+  if (!variants.original) {
+    throw new Error("Cannot create MediaItem without a valid 'original' variant");
+  }
+}
+
 function buildUrl(key: string): string {
   return `${BASE_URL}/${key}`;
 }
@@ -107,6 +113,7 @@ type CreateMediaItemInput = {
 export async function createMediaItemFromPhoto(
   input: CreateMediaItemInput,
 ): Promise<string> {
+  assertValidVariants(input.variants);
   const mediaItemId = randomUUID();
 
   await prisma.$transaction(async (tx) => {
@@ -170,6 +177,7 @@ function inferUsageFromTags(tags?: string[]): PersonMediaUsage {
 export async function createMediaItemForPerson(
   input: CreatePersonMediaItemInput,
 ): Promise<string> {
+  assertValidVariants(input.variants);
   const mediaItemId = randomUUID();
   const usage = input.usage ?? inferUsageFromTags(input.tags);
 
@@ -230,6 +238,7 @@ type CreateMediaItemDirectInput = {
 export async function createMediaItemDirect(
   input: CreateMediaItemDirectInput,
 ): Promise<{ id: string; filename: string; urls: ReturnType<typeof buildPhotoUrls> }> {
+  assertValidVariants(input.variants);
   const mediaItemId = randomUUID();
 
   await prisma.$transaction(async (tx) => {
@@ -393,7 +402,13 @@ export async function getSetMediaGallery(
 ): Promise<GalleryItem[]> {
   const links = await prisma.setMediaItem.findMany({
     where: { setId },
-    include: { mediaItem: true },
+    include: {
+      mediaItem: {
+        include: {
+          collectionItems: { select: { collectionId: true } },
+        },
+      },
+    },
     orderBy: { sortOrder: "asc" },
   });
 
@@ -418,6 +433,7 @@ export async function getSetMediaGallery(
       isFavorite: false,
       sortOrder: link.sortOrder,
       isCover: coverMediaItemId === item.id,
+      collectionIds: item.collectionItems.map((ci) => ci.collectionId),
     });
   }
   return results;

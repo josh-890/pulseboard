@@ -23,6 +23,9 @@ import {
   createManualLabelEvidence,
   deleteLabelEvidence,
   getSuggestedResolutions,
+  addExistingMediaToSet,
+  removeMediaFromSet,
+  reassignSetPrimarySession,
 } from "@/lib/services/set-service";
 import type { SetFilters } from "@/lib/services/set-service";
 import { getCoverPhotosForSets } from "@/lib/services/media-service";
@@ -258,6 +261,52 @@ export async function getRecentDefaults() {
     getLastUsedSetType(),
   ]);
   return { recentChannelIds, lastType };
+}
+
+export async function addExistingMediaToSetAction(
+  setId: string,
+  mediaItemIds: string[],
+): Promise<SimpleResult> {
+  try {
+    await addExistingMediaToSet(setId, mediaItemIds);
+    revalidatePath(`/sets/${setId}`);
+    revalidatePath("/sets");
+    return { success: true };
+  } catch (e) {
+    const message = e instanceof Error ? e.message : "Failed to add media to set";
+    return { success: false, error: message };
+  }
+}
+
+export async function removeMediaFromSetAction(
+  setId: string,
+  mediaItemIds: string[],
+): Promise<SimpleResult> {
+  try {
+    await removeMediaFromSet(setId, mediaItemIds);
+    revalidatePath(`/sets/${setId}`);
+    revalidatePath("/sets");
+    return { success: true };
+  } catch (e) {
+    const message = e instanceof Error ? e.message : "Failed to remove media from set";
+    return { success: false, error: message };
+  }
+}
+
+export async function reassignSetSessionAction(
+  setId: string,
+  targetSessionId: string,
+): Promise<SimpleResult> {
+  try {
+    await reassignSetPrimarySession(setId, targetSessionId);
+    revalidatePath(`/sets/${setId}`);
+    revalidatePath("/sets");
+    revalidatePath("/sessions");
+    return { success: true };
+  } catch (e) {
+    const message = e instanceof Error ? e.message : "Failed to reassign session";
+    return { success: false, error: message };
+  }
 }
 
 export async function loadMoreSets(

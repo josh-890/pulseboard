@@ -17,9 +17,9 @@ import type { GalleryItem } from "@/lib/types";
 import type { ProfileImageLabel } from "@/lib/services/setting-service";
 import { GalleryFilmstrip } from "./gallery-filmstrip";
 import { GalleryInfoPanel } from "./gallery-info-panel";
-import type { ReferenceContext } from "./gallery-info-panel";
+import type { ReferenceContext, CollectionContext } from "./gallery-info-panel";
 
-export type { ReferenceContext, CategoryWithGroup } from "./gallery-info-panel";
+export type { ReferenceContext, CategoryWithGroup, CollectionContext } from "./gallery-info-panel";
 
 type GalleryLightboxProps = {
   items: GalleryItem[];
@@ -44,6 +44,8 @@ type GalleryLightboxProps = {
   sessionId?: string;
   // Reference context (optional — forwarded to GalleryInfoPanel)
   referenceContext?: ReferenceContext;
+  // Standalone collection context (optional — forwarded to GalleryInfoPanel)
+  collectionContext?: CollectionContext;
 };
 
 export function GalleryLightbox(props: GalleryLightboxProps) {
@@ -68,6 +70,7 @@ function SimpleLightbox({
   onFindSimilar,
   sessionId,
   referenceContext,
+  collectionContext,
 }: GalleryLightboxProps) {
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
   const [showInfoPanel, setShowInfoPanel] = useState(referenceContext ? true : false);
@@ -138,6 +141,22 @@ function SimpleLightbox({
       },
     };
   }, [referenceContext]);
+
+  // Build standalone collectionContext with local-state-aware callback
+  const augmentedCollectionContext = useMemo(() => {
+    if (!collectionContext) return undefined;
+    return {
+      ...collectionContext,
+      onCollectionIdsChange: (itemId: string, collIds: string[]) => {
+        setLocalCollectionIdsMap((prev) => {
+          const next = new Map(prev);
+          next.set(itemId, collIds);
+          return next;
+        });
+        collectionContext.onCollectionIdsChange?.(itemId, collIds);
+      },
+    };
+  }, [collectionContext]);
 
   const goNext = useCallback(() => {
     setCurrentIndex((i) => Math.min(items.length - 1, i + 1));
@@ -266,6 +285,7 @@ function SimpleLightbox({
     onFocalOverlayToggle: () => setFocalOverlay((p) => !p),
     focalOverlayActive: focalOverlay,
     referenceContext: augmentedReferenceContext,
+    collectionContext: augmentedCollectionContext,
   };
 
   return createPortal(

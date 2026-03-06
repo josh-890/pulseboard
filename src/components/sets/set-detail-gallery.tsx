@@ -1,9 +1,13 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { FolderSearch } from "lucide-react";
 import { JustifiedGrid } from "@/components/gallery/justified-grid";
 import { GalleryLightbox } from "@/components/gallery/gallery-lightbox";
+import type { CollectionContext } from "@/components/gallery/gallery-lightbox";
 import { BatchUploadZone } from "@/components/media/batch-upload-zone";
+import { MediaPickerSheet } from "@/components/sets/media-picker-sheet";
+import { Button } from "@/components/ui/button";
 import { setSetCover } from "@/lib/actions/set-actions";
 import type { GalleryItem } from "@/lib/types";
 
@@ -22,6 +26,15 @@ export function SetDetailGallery({
 }: SetDetailGalleryProps) {
   const [coverId, setCoverId] = useState(initialCoverId ?? null);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [collections, setCollections] = useState<{ id: string; name: string }[]>([]);
+
+  useEffect(() => {
+    fetch("/api/collections/list")
+      .then((r) => r.json())
+      .then((data: { id: string; name: string }[]) => setCollections(data))
+      .catch(() => {});
+  }, []);
 
   // Keep cover state in sync with items
   const items = useMemo(
@@ -47,6 +60,11 @@ export function SetDetailGallery({
     [entityId],
   );
 
+  const collectionContext = useMemo<CollectionContext | undefined>(
+    () => collections.length > 0 ? { collections } : undefined,
+    [collections],
+  );
+
   return (
     <>
       {items.length > 0 && (
@@ -58,12 +76,28 @@ export function SetDetailGallery({
           }}
         />
       )}
-      {primarySessionId && (
-        <BatchUploadZone
-          sessionId={primarySessionId}
-          setId={entityId}
-        />
-      )}
+      <div className="flex flex-wrap items-center gap-2">
+        {primarySessionId && (
+          <BatchUploadZone
+            sessionId={primarySessionId}
+            setId={entityId}
+          />
+        )}
+        <Button
+          variant="outline"
+          size="sm"
+          className="gap-1.5"
+          onClick={() => setPickerOpen(true)}
+        >
+          <FolderSearch size={14} />
+          Browse & Add
+        </Button>
+      </div>
+      <MediaPickerSheet
+        setId={entityId}
+        open={pickerOpen}
+        onOpenChange={setPickerOpen}
+      />
       {lightboxIndex !== null && (
         <GalleryLightbox
           items={items}
@@ -73,6 +107,7 @@ export function SetDetailGallery({
           coverMediaItemId={coverId}
           onFindSimilar={(mediaItemId) => window.open(`/media/similar?id=${mediaItemId}`, "_blank")}
           sessionId={primarySessionId}
+          collectionContext={collectionContext}
         />
       )}
     </>

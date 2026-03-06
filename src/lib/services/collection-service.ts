@@ -1,39 +1,191 @@
 import { prisma } from "@/lib/db";
+import type { GalleryItem } from "@/lib/types";
+import type { PhotoUrls } from "@/lib/types";
 
 export type CollectionSummary = {
   id: string;
   name: string;
   description: string | null;
+  personId: string | null;
   itemCount: number;
+  thumbnailUrl: string | null;
+  personName: string | null;
 };
+
+const BASE_URL = process.env.NEXT_PUBLIC_MINIO_URL!;
+
+function buildUrl(key: string): string {
+  return `${BASE_URL}/${key}`;
+}
+
+type PhotoVariants = Record<string, string | undefined>;
+
+export async function getAllCollections(filters: {
+  personId?: string | null;
+  globalOnly?: boolean;
+} = {}): Promise<CollectionSummary[]> {
+  const where: { personId?: string | null; deletedAt?: null } = { deletedAt: null };
+
+  if (filters.globalOnly) {
+    where.personId = null;
+  } else if (filters.personId) {
+    where.personId = filters.personId;
+  }
+
+  const collections = await prisma.mediaCollection.findMany({
+    where,
+    include: {
+      _count: { select: { items: true } },
+      person: {
+        select: {
+          aliases: { where: { type: "common", deletedAt: null }, take: 1 },
+        },
+      },
+      items: {
+        take: 1,
+        orderBy: { sortOrder: "asc" },
+        include: { mediaItem: { select: { variants: true, fileRef: true } } },
+      },
+    },
+    orderBy: { updatedAt: "desc" },
+  });
+
+  return collections.map((c) => {
+    const firstItem = c.items[0]?.mediaItem;
+    const variants = (firstItem?.variants as PhotoVariants) ?? {};
+    const thumbKey = variants.gallery_512 ?? firstItem?.fileRef;
+
+    return {
+      id: c.id,
+      name: c.name,
+      description: c.description,
+      personId: c.personId,
+      itemCount: c._count.items,
+      thumbnailUrl: thumbKey ? buildUrl(thumbKey) : null,
+      personName: c.person?.aliases[0]?.name ?? null,
+    };
+  });
+}
+
+export type CollectionSummaryLight = {
+  id: string;
+  name: string;
+  personId: string | null;
+};
+
+export async function getAllCollectionsSummary(): Promise<CollectionSummaryLight[]> {
+  const collections = await prisma.mediaCollection.findMany({
+    where: { deletedAt: null },
+    select: { id: true, name: true, personId: true },
+    orderBy: { name: "asc" },
+  });
+  return collections;
+}
 
 export async function getCollectionsForPerson(
   personId: string,
 ): Promise<CollectionSummary[]> {
   const collections = await prisma.mediaCollection.findMany({
     where: { personId },
-    include: { _count: { select: { items: true } } },
+    include: {
+      _count: { select: { items: true } },
+      items: {
+        take: 1,
+        orderBy: { sortOrder: "asc" },
+        include: { mediaItem: { select: { variants: true, fileRef: true } } },
+      },
+    },
     orderBy: { name: "asc" },
   });
 
-  return collections.map((c) => ({
-    id: c.id,
-    name: c.name,
-    description: c.description,
-    itemCount: c._count.items,
-  }));
+  return collections.map((c) => {
+    const firstItem = c.items[0]?.mediaItem;
+    const variants = (firstItem?.variants as PhotoVariants) ?? {};
+    const thumbKey = variants.gallery_512 ?? firstItem?.fileRef;
+
+    return {
+      id: c.id,
+      name: c.name,
+      description: c.description,
+      personId: c.personId,
+      itemCount: c._count.items,
+      thumbnailUrl: thumbKey ? buildUrl(thumbKey) : null,
+      personName: null, // caller already has person context
+    };
+  });
 }
 
 export async function getCollectionWithItems(collectionId: string) {
   return prisma.mediaCollection.findUnique({
     where: { id: collectionId },
     include: {
+      person: {
+        select: {
+          id: true,
+          aliases: { where: { type: "common", deletedAt: null }, take: 1 },
+        },
+      },
       items: {
-        include: { mediaItem: true },
+        include: {
+          mediaItem: {
+            include: {
+              session: { select: { id: true, name: true } },
+            },
+          },
+        },
         orderBy: { sortOrder: "asc" },
       },
     },
   });
+}
+
+export async function getCollectionGalleryItems(collectionId: string): Promise<GalleryItem[]> {
+  const items = await prisma.mediaCollectionItem.findMany({
+    where: { collectionId },
+    include: {
+      mediaItem: {
+        include: {
+          collectionItems: { select: { collectionId: true } },
+        },
+      },
+    },
+    orderBy: { sortOrder: "asc" },
+  });
+
+  return items
+    .filter((ci) => !ci.mediaItem.deletedAt)
+    .map((ci) => {
+      const m = ci.mediaItem;
+      const variants = (m.variants as PhotoVariants) ?? {};
+      const urls: PhotoUrls = {
+        original: variants.original ? buildUrl(variants.original) : m.fileRef ? buildUrl(m.fileRef) : "",
+        profile_128: variants.profile_128 ? buildUrl(variants.profile_128) : null,
+        profile_256: variants.profile_256 ? buildUrl(variants.profile_256) : null,
+        profile_512: variants.profile_512 ? buildUrl(variants.profile_512) : null,
+        profile_768: variants.profile_768 ? buildUrl(variants.profile_768) : null,
+        gallery_512: variants.gallery_512 ? buildUrl(variants.gallery_512) : null,
+        gallery_1024: variants.gallery_1024 ? buildUrl(variants.gallery_1024) : null,
+        gallery_1600: variants.gallery_1600 ? buildUrl(variants.gallery_1600) : null,
+      };
+
+      return {
+        id: m.id,
+        filename: m.filename,
+        mimeType: m.mimeType,
+        originalWidth: m.originalWidth,
+        originalHeight: m.originalHeight,
+        caption: m.caption,
+        createdAt: m.createdAt,
+        urls,
+        focalX: m.focalX,
+        focalY: m.focalY,
+        tags: m.tags,
+        isFavorite: false,
+        sortOrder: ci.sortOrder,
+        isCover: false,
+        collectionIds: m.collectionItems.map((ci2) => ci2.collectionId),
+      };
+    });
 }
 
 export async function createCollection(data: {

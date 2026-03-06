@@ -1,10 +1,11 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { MediaItemWithUrls } from "@/lib/types";
 import type { GalleryItem } from "@/lib/types";
 import { JustifiedGrid } from "@/components/gallery/justified-grid";
 import { GalleryLightbox } from "@/components/gallery/gallery-lightbox";
+import type { CollectionContext } from "@/components/gallery/gallery-lightbox";
 
 type SessionProductionGalleryProps = {
   items: MediaItemWithUrls[];
@@ -32,6 +33,19 @@ function toGalleryItem(item: MediaItemWithUrls): GalleryItem {
 
 export function SessionProductionGallery({ items, sessionId }: SessionProductionGalleryProps) {
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+  const [collections, setCollections] = useState<{ id: string; name: string }[]>([]);
+
+  useEffect(() => {
+    fetch("/api/collections/list")
+      .then((r) => r.json())
+      .then((data: { id: string; name: string }[]) => setCollections(data))
+      .catch(() => {});
+  }, []);
+
+  const collectionContext = useMemo<CollectionContext | undefined>(
+    () => collections.length > 0 ? { collections } : undefined,
+    [collections],
+  );
 
   const galleryItems = useMemo(
     () => items.map(toGalleryItem),
@@ -64,6 +78,7 @@ export function SessionProductionGallery({ items, sessionId }: SessionProduction
           onClose={() => setLightboxIndex(null)}
           onFindSimilar={(mediaItemId) => window.open(`/media/similar?id=${mediaItemId}`, "_blank")}
           sessionId={sessionId}
+          collectionContext={collectionContext}
         />
       )}
     </>

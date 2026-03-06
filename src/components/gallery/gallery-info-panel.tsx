@@ -77,6 +77,11 @@ export type CategoryWithGroup = {
   entityModel: string | null;
 };
 
+export type CollectionContext = {
+  collections: { id: string; name: string }[];
+  onCollectionIdsChange?: (itemId: string, collectionIds: string[]) => void;
+};
+
 export type ReferenceContext = {
   personId: string;
   sessionId: string;
@@ -116,6 +121,8 @@ type GalleryInfoPanelProps = {
   focalOverlayActive?: boolean;
   // Reference context (optional — renders extra sections when present)
   referenceContext?: ReferenceContext;
+  // Standalone collection context (optional — renders collections section without full reference context)
+  collectionContext?: CollectionContext;
 };
 
 export function GalleryInfoPanel({
@@ -135,6 +142,7 @@ export function GalleryInfoPanel({
   onFocalOverlayToggle,
   focalOverlayActive,
   referenceContext,
+  collectionContext,
 }: GalleryInfoPanelProps) {
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
     new Set(["cover", "headshot", "favorite", "usage", "tags", "focal", "info"]),
@@ -311,16 +319,29 @@ export function GalleryInfoPanel({
     [referenceContext, getLinkForUsage, links, item.id],
   );
 
+  // Merge collections from referenceContext and standalone collectionContext
+  const mergedCollections = useMemo(() => {
+    const refColls = referenceContext?.collections ?? [];
+    const standaloneColls = collectionContext?.collections ?? [];
+    if (refColls.length > 0 && standaloneColls.length > 0) {
+      // Dedupe by id, prefer referenceContext entries
+      const seen = new Set(refColls.map((c) => c.id));
+      return [...refColls, ...standaloneColls.filter((c) => !seen.has(c.id))];
+    }
+    return refColls.length > 0 ? refColls : standaloneColls;
+  }, [referenceContext?.collections, collectionContext?.collections]);
+
   const handleCollectionToggle = useCallback(
     (collectionId: string, isCurrentlyIn: boolean) => {
-      if (!referenceContext) return;
+      // Use referenceContext callback if available, else collectionContext
+      const onCollChange = referenceContext?.onCollectionIdsChange ?? collectionContext?.onCollectionIdsChange;
 
       // Optimistic
-      if (referenceContext.onCollectionIdsChange) {
+      if (onCollChange) {
         const newIds = isCurrentlyIn
           ? collectionIds.filter((id) => id !== collectionId)
           : [...collectionIds, collectionId];
-        referenceContext.onCollectionIdsChange(item.id, newIds);
+        onCollChange(item.id, newIds);
       }
 
       startTransition(async () => {
@@ -331,7 +352,7 @@ export function GalleryInfoPanel({
         }
       });
     },
-    [referenceContext, collectionIds, item.id],
+    [referenceContext?.onCollectionIdsChange, collectionContext?.onCollectionIdsChange, collectionIds, item.id],
   );
 
   const handleNotesChange = useCallback(
@@ -717,8 +738,8 @@ export function GalleryInfoPanel({
         </>
       )}
 
-      {/* Collections (reference context only) */}
-      {referenceContext && referenceContext.collections.length > 0 && (
+      {/* Collections (reference context or standalone collection context) */}
+      {mergedCollections.length > 0 && (
         <>
           <SectionHeader
             title="Collections"
@@ -729,7 +750,7 @@ export function GalleryInfoPanel({
           />
           {expandedSections.has("collections") && (
             <div className="flex flex-wrap gap-1 pb-2">
-              {referenceContext.collections.map((coll) => {
+              {mergedCollections.map((coll) => {
                 const isIn = collectionIds.includes(coll.id);
                 return (
                   <button

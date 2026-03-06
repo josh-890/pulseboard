@@ -718,7 +718,6 @@ model Set {
   notes       String?
   releaseDate DateTime?
   releaseDatePrecision DatePrecision @default(UNKNOWN)
-  isCompilation Boolean  @default(false)
   coverMediaItemId String?
   coverMediaItem   MediaItem? @relation("SetCoverMedia", fields: [coverMediaItemId], references: [id])
   category    String?
