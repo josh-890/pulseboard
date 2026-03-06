@@ -8,12 +8,14 @@ import {
   ChevronDown,
   ChevronRight,
   ImageOff,
+  Copy,
   Link2Off,
   RefreshCw,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   fixOrphanedMediaAction,
+  fixDuplicateMediaAction,
   fixDuplicateLinksAction,
   refreshViewsAction,
 } from "@/lib/actions/database-maintenance-actions";
@@ -40,6 +42,13 @@ const actions: ActionConfig[] = [
       "Find MediaItems with no file variants (broken uploads). Soft-deletes orphans and their person links.",
     icon: <ImageOff className="h-5 w-5 text-muted-foreground" />,
     action: fixOrphanedMediaAction,
+  },
+  {
+    title: "Duplicate Media Files",
+    description:
+      "Find identical files (same hash) uploaded multiple times to the same session. Keeps the oldest, reassigns links, soft-deletes extras.",
+    icon: <Copy className="h-5 w-5 text-muted-foreground" />,
+    action: fixDuplicateMediaAction,
   },
   {
     title: "Duplicate Person-Media Links",
