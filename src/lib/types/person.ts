@@ -99,13 +99,23 @@ export type PersonDigitalIdentityItem = {
   personaLabel: string | null;
 };
 
+export type SkillEventMediaThumb = {
+  id: string;
+  thumbUrl: string;
+  originalWidth: number;
+  originalHeight: number;
+};
+
 export type PersonSkillEventItem = {
   id: string;
   eventType: import("@/generated/prisma/client").SkillEventType;
   level: import("@/generated/prisma/client").SkillLevel | null;
   notes: string | null;
-  personaLabel: string;
+  date: Date | null;
+  datePrecision: string;
+  personaLabel: string | null;
   personaDate: Date | null;
+  media: SkillEventMediaThumb[];
 };
 
 export type PersonSkillItem = {

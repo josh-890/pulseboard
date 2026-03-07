@@ -8,6 +8,8 @@ import type {
   PersonDigitalIdentityItem,
   PersonSkillItem,
   PersonCurrentState,
+  SkillEventMediaThumb,
+  PhotoVariants,
 } from "@/lib/types";
 import type { PersonStatus, Prisma } from "@/generated/prisma/client";
 import type { CreatePersonInput, UpdatePersonInput } from "@/lib/validations/person";
@@ -19,6 +21,40 @@ import {
   cascadeDeleteRelationshipEvents,
   cascadeDeletePersonSkills,
 } from "./cascade-helpers";
+
+const BASE_URL = process.env.NEXT_PUBLIC_MINIO_URL!;
+
+function buildUrl(key: string): string {
+  return `${BASE_URL}/${key}`;
+}
+
+function mapSkillEventMedia(
+  media: { mediaItem: { id: string; variants: unknown; fileRef: string | null; originalWidth: number; originalHeight: number } }[],
+): SkillEventMediaThumb[] {
+  return media.map((m) => {
+    const variants = (m.mediaItem.variants as PhotoVariants) ?? {};
+    const thumbUrl = variants.gallery_512
+      ? buildUrl(variants.gallery_512)
+      : m.mediaItem.fileRef
+        ? buildUrl(m.mediaItem.fileRef)
+        : "";
+    return {
+      id: m.mediaItem.id,
+      thumbUrl,
+      originalWidth: m.mediaItem.originalWidth,
+      originalHeight: m.mediaItem.originalHeight,
+    };
+  });
+}
+
+/** Shared Prisma include fragment for skill events with media */
+const skillEventInclude = {
+  persona: { select: { label: true, date: true } },
+  media: {
+    include: { mediaItem: { select: { id: true, variants: true, fileRef: true, originalWidth: true, originalHeight: true } } },
+    orderBy: { sortOrder: "asc" as const },
+  },
+};
 
 export type PersonFilters = {
   q?: string;
@@ -117,20 +153,19 @@ export async function getPersonWithDetails(id: string) {
           digitalIdentities: {
             where: { deletedAt: null },
           },
-          skills: {
+        },
+      },
+      skills: {
+        where: { deletedAt: null },
+        include: {
+          persona: { select: { label: true } },
+          skillDefinition: {
+            include: { group: { select: { name: true } } },
+          },
+          events: {
             where: { deletedAt: null },
-            include: {
-              skillDefinition: {
-                include: { group: { select: { name: true } } },
-              },
-              events: {
-                where: { deletedAt: null },
-                include: {
-                  persona: { select: { label: true, date: true } },
-                },
-                orderBy: { createdAt: "asc" },
-              },
-            },
+            include: skillEventInclude,
+            orderBy: { createdAt: "asc" },
           },
         },
       },
@@ -202,9 +237,7 @@ export async function getPersonSkills(personId: string): Promise<PersonSkillItem
       },
       events: {
         where: { deletedAt: null },
-        include: {
-          persona: { select: { label: true, date: true } },
-        },
+        include: skillEventInclude,
         orderBy: { createdAt: "asc" },
       },
     },
@@ -228,8 +261,11 @@ export async function getPersonSkills(personId: string): Promise<PersonSkillItem
       eventType: e.eventType,
       level: e.level,
       notes: e.notes,
-      personaLabel: e.persona.label,
-      personaDate: e.persona.date,
+      date: e.date,
+      datePrecision: e.datePrecision,
+      personaLabel: e.persona?.label ?? null,
+      personaDate: e.persona?.date ?? null,
+      media: mapSkillEventMedia(e.media),
     })),
   }));
 }
@@ -408,31 +444,32 @@ export function deriveCurrentState(
   }
 
   const activeSkills: PersonSkillItem[] = [];
-  for (const persona of person.personas) {
-    for (const s of persona.skills) {
-      if (s.validTo && s.validTo <= now) continue;
-      activeSkills.push({
-        id: s.id,
-        name: s.name,
-        category: s.category,
-        level: s.level,
-        evidence: s.evidence,
-        validFrom: s.validFrom,
-        validTo: s.validTo,
-        personaLabel: persona.label,
-        skillDefinitionId: s.skillDefinitionId,
-        groupName: s.skillDefinition?.group.name ?? null,
-        definitionName: s.skillDefinition?.name ?? null,
-        events: s.events.map((e) => ({
-          id: e.id,
-          eventType: e.eventType,
-          level: e.level,
-          notes: e.notes,
-          personaLabel: e.persona.label,
-          personaDate: e.persona.date,
-        })),
-      });
-    }
+  for (const s of person.skills) {
+    if (s.validTo && s.validTo <= now) continue;
+    activeSkills.push({
+      id: s.id,
+      name: s.name,
+      category: s.category,
+      level: s.level,
+      evidence: s.evidence,
+      validFrom: s.validFrom,
+      validTo: s.validTo,
+      personaLabel: s.persona?.label ?? null,
+      skillDefinitionId: s.skillDefinitionId,
+      groupName: s.skillDefinition?.group.name ?? null,
+      definitionName: s.skillDefinition?.name ?? null,
+      events: s.events.map((e) => ({
+        id: e.id,
+        eventType: e.eventType,
+        level: e.level,
+        notes: e.notes,
+        date: e.date,
+        datePrecision: e.datePrecision,
+        personaLabel: e.persona?.label ?? null,
+        personaDate: e.persona?.date ?? null,
+        media: "media" in e ? mapSkillEventMedia(e.media as Parameters<typeof mapSkillEventMedia>[0]) : [],
+      })),
+    });
   }
 
   return {

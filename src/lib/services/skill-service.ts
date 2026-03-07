@@ -1,6 +1,50 @@
 import { prisma } from "@/lib/db";
-import type { SkillLevel, SkillEventType } from "@/generated/prisma/client";
-import type { PersonSkillItem, PersonSkillEventItem } from "@/lib/types";
+import type { SkillLevel, SkillEventType, DatePrecision } from "@/generated/prisma/client";
+import type { PersonSkillItem, PersonSkillEventItem, SkillEventMediaThumb, PhotoVariants, GalleryItem, PhotoUrls } from "@/lib/types";
+
+const BASE_URL = process.env.NEXT_PUBLIC_MINIO_URL!;
+
+function buildUrl(key: string): string {
+  return `${BASE_URL}/${key}`;
+}
+
+function buildPhotoUrls(variants: PhotoVariants, fileRef?: string | null): PhotoUrls {
+  const originalUrl = variants.original
+    ? buildUrl(variants.original)
+    : fileRef
+      ? buildUrl(fileRef)
+      : "";
+  return {
+    original: originalUrl,
+    profile_128: variants.profile_128 ? buildUrl(variants.profile_128) : null,
+    profile_256: variants.profile_256 ? buildUrl(variants.profile_256) : null,
+    profile_512: variants.profile_512 ? buildUrl(variants.profile_512) : null,
+    profile_768: variants.profile_768 ? buildUrl(variants.profile_768) : null,
+    gallery_512: variants.gallery_512 ? buildUrl(variants.gallery_512) : null,
+    gallery_1024: variants.gallery_1024 ? buildUrl(variants.gallery_1024) : null,
+    gallery_1600: variants.gallery_1600 ? buildUrl(variants.gallery_1600) : null,
+  };
+}
+
+/** Map skill event media rows to thumb type */
+function mapEventMedia(
+  media: { mediaItem: { id: string; variants: unknown; fileRef: string | null; originalWidth: number; originalHeight: number } }[],
+): SkillEventMediaThumb[] {
+  return media.map((m) => {
+    const variants = (m.mediaItem.variants as PhotoVariants) ?? {};
+    const thumbUrl = variants.gallery_512
+      ? buildUrl(variants.gallery_512)
+      : m.mediaItem.fileRef
+        ? buildUrl(m.mediaItem.fileRef)
+        : "";
+    return {
+      id: m.mediaItem.id,
+      thumbUrl,
+      originalWidth: m.mediaItem.originalWidth,
+      originalHeight: m.mediaItem.originalHeight,
+    };
+  });
+}
 
 // ─── Person Skills (enriched) ────────────────────────────────────────────────
 
@@ -18,6 +62,10 @@ export async function getPersonSkillsEnriched(
         where: { deletedAt: null },
         include: {
           persona: { select: { label: true, date: true } },
+          media: {
+            include: { mediaItem: { select: { id: true, variants: true, fileRef: true, originalWidth: true, originalHeight: true } } },
+            orderBy: { sortOrder: "asc" },
+          },
         },
         orderBy: { createdAt: "asc" },
       },
@@ -42,8 +90,11 @@ export async function getPersonSkillsEnriched(
       eventType: e.eventType,
       level: e.level,
       notes: e.notes,
-      personaLabel: e.persona.label,
-      personaDate: e.persona.date,
+      date: e.date,
+      datePrecision: e.datePrecision,
+      personaLabel: e.persona?.label ?? null,
+      personaDate: e.persona?.date ?? null,
+      media: mapEventMedia(e.media),
     })),
   }));
 }
@@ -110,6 +161,17 @@ export async function updatePersonSkill(
 export async function deletePersonSkill(id: string) {
   const deletedAt = new Date();
   return prisma.$transaction(async (tx) => {
+    // Get event IDs to clean up media
+    const events = await tx.personSkillEvent.findMany({
+      where: { personSkillId: id, deletedAt: null },
+      select: { id: true },
+    });
+    const eventIds = events.map((e) => e.id);
+    if (eventIds.length > 0) {
+      await tx.skillEventMedia.deleteMany({
+        where: { skillEventId: { in: eventIds } },
+      });
+    }
     // Soft-delete events
     await tx.personSkillEvent.updateMany({
       where: { personSkillId: id, deletedAt: null },
@@ -127,26 +189,33 @@ export async function deletePersonSkill(id: string) {
 
 export async function createSkillEvent(data: {
   personSkillId: string;
-  personaId: string;
+  personaId?: string | null;
   eventType: SkillEventType;
   level?: SkillLevel | null;
   notes?: string | null;
+  date?: Date | null;
+  datePrecision?: string;
 }) {
   return prisma.personSkillEvent.create({
     data: {
       personSkillId: data.personSkillId,
-      personaId: data.personaId,
+      personaId: data.personaId ?? null,
       eventType: data.eventType,
       level: data.level ?? null,
       notes: data.notes ?? null,
+      date: data.date ?? null,
+      datePrecision: (data.datePrecision as DatePrecision) ?? "UNKNOWN",
     },
   });
 }
 
 export async function deleteSkillEvent(id: string) {
-  return prisma.personSkillEvent.update({
-    where: { id },
-    data: { deletedAt: new Date() },
+  return prisma.$transaction(async (tx) => {
+    await tx.skillEventMedia.deleteMany({ where: { skillEventId: id } });
+    return tx.personSkillEvent.update({
+      where: { id },
+      data: { deletedAt: new Date() },
+    });
   });
 }
 
@@ -164,17 +233,31 @@ export async function getSkillTimeline(
     include: {
       persona: { select: { label: true, date: true } },
       personSkill: { select: { id: true, name: true } },
+      media: {
+        include: { mediaItem: { select: { id: true, variants: true, fileRef: true, originalWidth: true, originalHeight: true } } },
+        orderBy: { sortOrder: "asc" },
+      },
     },
-    orderBy: { persona: { date: "asc" } },
+    orderBy: { createdAt: "asc" },
   });
 
-  return events.map((e) => ({
+  // Sort by event date, then persona date, then createdAt
+  const sorted = [...events].sort((a, b) => {
+    const aDate = a.date ?? a.persona?.date ?? a.createdAt;
+    const bDate = b.date ?? b.persona?.date ?? b.createdAt;
+    return aDate.getTime() - bDate.getTime();
+  });
+
+  return sorted.map((e) => ({
     id: e.id,
     eventType: e.eventType,
     level: e.level,
     notes: e.notes,
-    personaLabel: e.persona.label,
-    personaDate: e.persona.date,
+    date: e.date,
+    datePrecision: e.datePrecision,
+    personaLabel: e.persona?.label ?? null,
+    personaDate: e.persona?.date ?? null,
+    media: mapEventMedia(e.media),
     skillName: e.personSkill.name,
     skillId: e.personSkill.id,
   }));
@@ -208,13 +291,68 @@ export async function addSessionParticipantSkill(
   skillDefinitionId: string,
   notes?: string | null,
 ) {
-  return prisma.sessionParticipantSkill.create({
-    data: {
-      sessionId,
-      personId,
-      skillDefinitionId,
-      notes: notes ?? null,
-    },
+  return prisma.$transaction(async (tx) => {
+    // 1. Create the session participant skill
+    const sps = await tx.sessionParticipantSkill.create({
+      data: {
+        sessionId,
+        personId,
+        skillDefinitionId,
+        notes: notes ?? null,
+      },
+    });
+
+    // 2. Find baseline persona (needed for PersonSkill + event)
+    const baselinePersona = await tx.persona.findFirst({
+      where: { personId, isBaseline: true },
+    });
+    if (!baselinePersona) return sps;
+
+    // 3. Find or create PersonSkill (linked to baseline persona)
+    let personSkill = await tx.personSkill.findFirst({
+      where: { personId, skillDefinitionId },
+    });
+
+    if (!personSkill) {
+      const def = await tx.skillDefinition.findUnique({
+        where: { id: skillDefinitionId },
+        include: { group: { select: { name: true } } },
+      });
+      personSkill = await tx.personSkill.create({
+        data: {
+          personId,
+          personaId: baselinePersona.id,
+          skillDefinitionId,
+          name: def?.name ?? "",
+          category: def?.group.name ?? null,
+        },
+      });
+    } else if (!personSkill.personaId) {
+      // Backfill personaId if missing (from earlier auto-creates)
+      personSkill = await tx.personSkill.update({
+        where: { id: personSkill.id },
+        data: { personaId: baselinePersona.id },
+      });
+    }
+
+    // 4. Create DEMONSTRATED event with session date
+    const session = await tx.session.findUnique({
+      where: { id: sessionId },
+      select: { name: true, date: true, datePrecision: true },
+    });
+
+    await tx.personSkillEvent.create({
+      data: {
+        personSkillId: personSkill.id,
+        personaId: baselinePersona.id,
+        eventType: "DEMONSTRATED",
+        date: session?.date ?? null,
+        datePrecision: session?.datePrecision ?? "UNKNOWN",
+        notes: `[session:${sessionId}] Demonstrated in session: ${session?.name ?? "Unknown"}`,
+      },
+    });
+
+    return sps;
   });
 }
 
@@ -223,13 +361,106 @@ export async function removeSessionParticipantSkill(
   personId: string,
   skillDefinitionId: string,
 ) {
-  return prisma.sessionParticipantSkill.delete({
-    where: {
-      sessionId_personId_skillDefinitionId: {
-        sessionId,
-        personId,
-        skillDefinitionId,
+  return prisma.$transaction(async (tx) => {
+    // 1. Delete the session participant skill
+    const result = await tx.sessionParticipantSkill.delete({
+      where: {
+        sessionId_personId_skillDefinitionId: {
+          sessionId,
+          personId,
+          skillDefinitionId,
+        },
       },
+    });
+
+    // 2. Find the PersonSkill for this person + definition
+    const personSkill = await tx.personSkill.findFirst({
+      where: { personId, skillDefinitionId, deletedAt: null },
+    });
+
+    if (personSkill) {
+      // 3. Find the auto-created DEMONSTRATED event for this session
+      const event = await tx.personSkillEvent.findFirst({
+        where: {
+          personSkillId: personSkill.id,
+          eventType: "DEMONSTRATED",
+          notes: { contains: `[session:${sessionId}]` },
+          deletedAt: null,
+        },
+        orderBy: { createdAt: "desc" },
+      });
+
+      if (event) {
+        // 4. Hard-delete media links, then soft-delete the event
+        await tx.skillEventMedia.deleteMany({ where: { skillEventId: event.id } });
+        await tx.personSkillEvent.update({
+          where: { id: event.id },
+          data: { deletedAt: new Date() },
+        });
+      }
+    }
+
+    return result;
+  });
+}
+
+// ─── Skill Event Media ────────────────────────────────────────────────────────
+
+export async function addMediaToSkillEvent(
+  skillEventId: string,
+  mediaItemIds: string[],
+) {
+  if (mediaItemIds.length === 0) return;
+  await prisma.skillEventMedia.createMany({
+    data: mediaItemIds.map((mediaItemId, i) => ({
+      skillEventId,
+      mediaItemId,
+      sortOrder: i,
+    })),
+    skipDuplicates: true,
+  });
+}
+
+export async function removeMediaFromSkillEvent(
+  skillEventId: string,
+  mediaItemId: string,
+) {
+  await prisma.skillEventMedia.delete({
+    where: {
+      skillEventId_mediaItemId: { skillEventId, mediaItemId },
     },
+  });
+}
+
+export async function getSkillEventMediaAsGalleryItems(
+  skillEventId: string,
+): Promise<GalleryItem[]> {
+  const rows = await prisma.skillEventMedia.findMany({
+    where: { skillEventId },
+    include: {
+      mediaItem: true,
+    },
+    orderBy: { sortOrder: "asc" },
+  });
+
+  return rows.map((row) => {
+    const item = row.mediaItem;
+    const variants = (item.variants as PhotoVariants) ?? {};
+    return {
+      id: item.id,
+      filename: item.filename,
+      mimeType: item.mimeType,
+      originalWidth: item.originalWidth,
+      originalHeight: item.originalHeight,
+      caption: item.caption,
+      createdAt: item.createdAt,
+      urls: buildPhotoUrls(variants, item.fileRef),
+      focalX: item.focalX,
+      focalY: item.focalY,
+      tags: item.tags,
+      isFavorite: false,
+      sortOrder: row.sortOrder,
+      isCover: false,
+    };
   });
 }

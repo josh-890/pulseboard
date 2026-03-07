@@ -10,6 +10,8 @@ import {
   deleteSkillEvent,
   addSessionParticipantSkill,
   removeSessionParticipantSkill,
+  addMediaToSkillEvent,
+  removeMediaFromSkillEvent,
 } from "@/lib/services/skill-service";
 
 type ActionResult = { success: boolean; error?: string };
@@ -96,14 +98,19 @@ export async function createSkillEventAction(
   personId: string,
   data: {
     personSkillId: string;
-    personaId: string;
+    personaId?: string | null;
     eventType: SkillEventType;
     level?: SkillLevel | null;
     notes?: string | null;
+    date?: string | null;
+    datePrecision?: string;
   },
 ): Promise<ActionResult> {
   try {
-    await createSkillEvent(data);
+    await createSkillEvent({
+      ...data,
+      date: data.date ? new Date(data.date) : null,
+    });
     revalidatePath(`/people/${personId}`);
     return { success: true };
   } catch (err) {
@@ -137,6 +144,7 @@ export async function addSessionParticipantSkillAction(
   try {
     await addSessionParticipantSkill(sessionId, personId, skillDefinitionId, notes);
     revalidatePath(`/sessions/${sessionId}`);
+    revalidatePath(`/people/${personId}`);
     return { success: true };
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unexpected error";
@@ -152,6 +160,39 @@ export async function removeSessionParticipantSkillAction(
   try {
     await removeSessionParticipantSkill(sessionId, personId, skillDefinitionId);
     revalidatePath(`/sessions/${sessionId}`);
+    revalidatePath(`/people/${personId}`);
+    return { success: true };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Unexpected error";
+    return { success: false, error: message };
+  }
+}
+
+// ─── Skill Event Media ──────────────────────────────────────────────────────
+
+export async function addMediaToSkillEventAction(
+  skillEventId: string,
+  mediaItemIds: string[],
+  personId: string,
+): Promise<ActionResult> {
+  try {
+    await addMediaToSkillEvent(skillEventId, mediaItemIds);
+    revalidatePath(`/people/${personId}`);
+    return { success: true };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Unexpected error";
+    return { success: false, error: message };
+  }
+}
+
+export async function removeMediaFromSkillEventAction(
+  skillEventId: string,
+  mediaItemId: string,
+  personId: string,
+): Promise<ActionResult> {
+  try {
+    await removeMediaFromSkillEvent(skillEventId, mediaItemId);
+    revalidatePath(`/people/${personId}`);
     return { success: true };
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unexpected error";

@@ -803,6 +803,7 @@ model MediaItem {
   personMediaLinks PersonMediaLink[]
   coverForSets     Set[]             @relation("SetCoverMedia")
   collectionItems  MediaCollectionItem[]
+  skillEventMedia  SkillEventMedia[]
 
   @@index([sessionId])
   @@index([hash])
@@ -1030,17 +1031,32 @@ model PersonSkillEvent {
   id            String         @id @default(cuid())
   personSkillId String
   personSkill   PersonSkill    @relation(fields: [personSkillId], references: [id])
-  personaId     String
-  persona       Persona        @relation(fields: [personaId], references: [id])
+  personaId     String?
+  persona       Persona?       @relation(fields: [personaId], references: [id])
   eventType     SkillEventType
   level         SkillLevel?
+  date          DateTime?
+  datePrecision DatePrecision  @default(UNKNOWN)
   notes         String?
   deletedAt     DateTime?
   createdAt     DateTime       @default(now())
 
+  media         SkillEventMedia[]
+
   @@index([personSkillId])
   @@index([personaId])
   @@index([deletedAt])
+}
+
+model SkillEventMedia {
+  skillEventId String
+  mediaItemId  String
+  sortOrder    Int              @default(0)
+  skillEvent   PersonSkillEvent @relation(fields: [skillEventId], references: [id])
+  mediaItem    MediaItem        @relation(fields: [mediaItemId], references: [id])
+  createdAt    DateTime         @default(now())
+
+  @@id([skillEventId, mediaItemId])
 }
 
 model SessionParticipantSkill {

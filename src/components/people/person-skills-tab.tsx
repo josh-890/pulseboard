@@ -1,17 +1,19 @@
 "use client";
 
 import { useCallback, useState } from "react";
+import Link from "next/link";
 import {
   ChevronDown,
   ChevronRight,
   Clock,
+  ImageIcon,
   Pencil,
   Plus,
   Trash2,
   Zap,
 } from "lucide-react";
 import { cn, formatPartialDate } from "@/lib/utils";
-import type { PersonSkillItem, PersonSkillEventItem } from "@/lib/types";
+import type { PersonSkillItem, PersonSkillEventItem, GalleryItem } from "@/lib/types";
 import type { SkillGroupWithDefinitions } from "@/lib/services/skill-catalog-service";
 import {
   SKILL_LEVEL_LABEL,
@@ -21,6 +23,8 @@ import {
 import { deletePersonSkillAction, deleteSkillEventAction } from "@/lib/actions/skill-actions";
 import { AddSkillSheet } from "./add-skill-sheet";
 import { AddSkillEventDialog } from "./add-skill-event-dialog";
+import { SkillEventMediaPicker } from "./skill-event-media-picker";
+import { GalleryLightbox } from "@/components/gallery/gallery-lightbox";
 
 type PersonaOption = { id: string; label: string };
 
@@ -36,6 +40,25 @@ type SkillsByGroup = {
   skills: PersonSkillItem[];
 };
 
+type PickerState = {
+  eventId: string;
+  sessionId: string;
+  existingMediaIds: string[];
+};
+
+type LightboxState = {
+  items: GalleryItem[];
+  initialIndex: number;
+};
+
+/** Parse `[session:ID] Demonstrated in session: Name` from event notes */
+function parseSessionRef(notes: string | null): { sessionId: string; sessionName: string; rest: string } | null {
+  if (!notes) return null;
+  const match = notes.match(/^\[session:([^\]]+)\]\s*Demonstrated in session:\s*(.+)$/);
+  if (!match) return null;
+  return { sessionId: match[1], sessionName: match[2], rest: "" };
+}
+
 function groupSkills(skills: PersonSkillItem[]): SkillsByGroup[] {
   const map = new Map<string, PersonSkillItem[]>();
   for (const skill of skills) {
@@ -49,6 +72,8 @@ function groupSkills(skills: PersonSkillItem[]): SkillsByGroup[] {
     skills: items,
   }));
 }
+
+const MAX_THUMBS = 4;
 
 export function PersonSkillsTab({
   personId,
@@ -65,6 +90,8 @@ export function PersonSkillsTab({
   );
   const [addingEventForSkill, setAddingEventForSkill] =
     useState<PersonSkillItem | null>(null);
+  const [pickerState, setPickerState] = useState<PickerState | null>(null);
+  const [lightboxState, setLightboxState] = useState<LightboxState | null>(null);
 
   const toggleGroup = useCallback((name: string) => {
     setExpandedGroups((prev) => {
@@ -73,6 +100,18 @@ export function PersonSkillsTab({
       else next.add(name);
       return next;
     });
+  }, []);
+
+  const openLightbox = useCallback(async (eventId: string, initialIndex: number) => {
+    try {
+      const res = await fetch(`/api/skill-events/${eventId}/media`);
+      const data = (await res.json()) as { items: GalleryItem[] };
+      if (data.items.length > 0) {
+        setLightboxState({ items: data.items, initialIndex });
+      }
+    } catch {
+      // silently fail
+    }
   }, []);
 
   const grouped = groupSkills(skills);
@@ -91,12 +130,15 @@ export function PersonSkillsTab({
       });
     }
   }
-  // Sort by persona date (nulls last)
+  // Sort by event date (primary), persona date (fallback), nulls last
+  const eventDate = (e: PersonSkillEventItem) => e.date ?? e.personaDate;
   allEvents.sort((a, b) => {
-    if (!a.personaDate && !b.personaDate) return 0;
-    if (!a.personaDate) return 1;
-    if (!b.personaDate) return -1;
-    return a.personaDate.getTime() - b.personaDate.getTime();
+    const aDate = eventDate(a);
+    const bDate = eventDate(b);
+    if (!aDate && !bDate) return 0;
+    if (!aDate) return 1;
+    if (!bDate) return -1;
+    return aDate.getTime() - bDate.getTime();
   });
 
   return (
@@ -189,6 +231,7 @@ export function PersonSkillsTab({
 
             {allEvents.map((event) => {
               const style = SKILL_EVENT_STYLES[event.eventType];
+              const sessionRef = parseSessionRef(event.notes);
               return (
                 <div
                   key={event.id}
@@ -226,31 +269,99 @@ export function PersonSkillsTab({
                       )}
                     </div>
                     <div className="mt-0.5 flex items-center gap-2 text-xs text-muted-foreground">
-                      <span>{event.personaLabel}</span>
-                      {event.personaDate && (
-                        <span>
+                      {/* Show persona label only for non-session events */}
+                      {event.personaLabel && !sessionRef && (
+                        <span>{event.personaLabel}</span>
+                      )}
+                      {/* Session link for DEMONSTRATED events */}
+                      {sessionRef && (
+                        <Link
+                          href={`/sessions/${sessionRef.sessionId}`}
+                          className="text-primary/80 hover:text-primary transition-colors hover:underline"
+                        >
+                          {sessionRef.sessionName}
+                        </Link>
+                      )}
+                      {event.date ? (
+                        <span className="text-muted-foreground/60">
+                          {formatPartialDate(event.date, event.datePrecision)}
+                        </span>
+                      ) : event.personaDate ? (
+                        <span className="text-muted-foreground/60">
                           {formatPartialDate(event.personaDate, "DAY")}
                         </span>
-                      )}
+                      ) : null}
                     </div>
-                    {event.notes && (
+
+                    {/* Inline media thumbnails */}
+                    {event.media.length > 0 && (
+                      <div className="mt-1.5 flex items-center gap-1">
+                        {event.media.slice(0, MAX_THUMBS).map((m, i) => (
+                          <button
+                            key={m.id}
+                            type="button"
+                            onClick={() => openLightbox(event.id, i)}
+                            className="h-9 w-9 shrink-0 overflow-hidden rounded border border-white/15 transition-all hover:border-white/40 hover:ring-1 hover:ring-primary/30"
+                          >
+                            <img
+                              src={m.thumbUrl}
+                              alt=""
+                              className="h-full w-full object-cover"
+                              loading="lazy"
+                            />
+                          </button>
+                        ))}
+                        {event.media.length > MAX_THUMBS && (
+                          <button
+                            type="button"
+                            onClick={() => openLightbox(event.id, MAX_THUMBS)}
+                            className="flex h-9 w-9 shrink-0 items-center justify-center rounded border border-white/15 bg-muted/30 text-[10px] font-medium text-muted-foreground transition-colors hover:border-white/30 hover:text-foreground"
+                          >
+                            +{event.media.length - MAX_THUMBS}
+                          </button>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Show notes only for non-session events (session info is already shown as link) */}
+                    {event.notes && !sessionRef && (
                       <p className="mt-0.5 text-xs text-muted-foreground/70 italic">
                         {event.notes}
                       </p>
                     )}
                   </div>
 
-                  {/* Delete button */}
-                  <button
-                    type="button"
-                    onClick={() =>
-                      deleteSkillEventAction(event.id, personId)
-                    }
-                    className="invisible shrink-0 rounded-md p-1 text-muted-foreground transition-colors hover:text-destructive group-hover:visible"
-                    aria-label="Delete event"
-                  >
-                    <Trash2 size={12} />
-                  </button>
+                  {/* Action buttons */}
+                  <div className="invisible flex shrink-0 items-center gap-0.5 group-hover:visible">
+                    {/* Add media button — only for DEMONSTRATED events with a session */}
+                    {sessionRef && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setPickerState({
+                            eventId: event.id,
+                            sessionId: sessionRef.sessionId,
+                            existingMediaIds: event.media.map((m) => m.id),
+                          })
+                        }
+                        className="rounded-md p-1 text-muted-foreground transition-colors hover:text-foreground"
+                        aria-label="Link media"
+                        title="Link session media"
+                      >
+                        <ImageIcon size={12} />
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() =>
+                        deleteSkillEventAction(event.id, personId)
+                      }
+                      className="rounded-md p-1 text-muted-foreground transition-colors hover:text-destructive"
+                      aria-label="Delete event"
+                    >
+                      <Trash2 size={12} />
+                    </button>
+                  </div>
                 </div>
               );
             })}
@@ -287,6 +398,26 @@ export function PersonSkillsTab({
           skillName={addingEventForSkill.name}
           personas={personas}
           onClose={() => setAddingEventForSkill(null)}
+        />
+      )}
+
+      {/* Skill event media picker */}
+      {pickerState && (
+        <SkillEventMediaPicker
+          eventId={pickerState.eventId}
+          sessionId={pickerState.sessionId}
+          personId={personId}
+          existingMediaIds={pickerState.existingMediaIds}
+          onClose={() => setPickerState(null)}
+        />
+      )}
+
+      {/* Lightbox for skill event media */}
+      {lightboxState && (
+        <GalleryLightbox
+          items={lightboxState.items}
+          initialIndex={lightboxState.initialIndex}
+          onClose={() => setLightboxState(null)}
         />
       )}
     </div>
