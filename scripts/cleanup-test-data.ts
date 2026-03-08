@@ -15,68 +15,62 @@ const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL! });
 const prisma = new PrismaClient({ adapter });
 
 async function main() {
-  const now = new Date();
   const db = process.env.PROD === "1" ? "production" : "dev";
   console.log(`Cleaning test data from ${db} database...\n`);
 
   // --- Persons ---
   const testPersons = await prisma.personAlias.findMany({
-    where: { name: { startsWith: "Test Person " }, deletedAt: null },
+    where: { name: { startsWith: "Test Person " } },
     select: { personId: true, name: true },
   });
   console.log(`Found ${testPersons.length} test person(s)`);
   for (const alias of testPersons) {
     const refSession = await prisma.session.findFirst({
-      where: { personId: alias.personId, deletedAt: null },
+      where: { personId: alias.personId },
     });
     if (refSession) {
-      await prisma.session.update({
-        where: { id: refSession.id },
-        data: { deletedAt: now },
-      });
+      await prisma.session.delete({ where: { id: refSession.id } });
       console.log(`  Deleted reference session: ${refSession.name}`);
     }
-    await prisma.personAlias.updateMany({
+    await prisma.personAlias.deleteMany({
       where: { personId: alias.personId },
-      data: { deletedAt: now },
     });
-    await prisma.person.update({
+    await prisma.person.delete({
       where: { id: alias.personId },
-      data: { deletedAt: now },
     });
     console.log(`  Deleted person: ${alias.name} (${alias.personId})`);
   }
 
   // --- Labels ---
   const testLabels = await prisma.label.findMany({
-    where: { name: { startsWith: "Test Label " }, deletedAt: null },
+    where: { name: { startsWith: "Test Label " } },
     select: { id: true, name: true },
   });
   console.log(`Found ${testLabels.length} test label(s)`);
   for (const label of testLabels) {
-    await prisma.label.update({ where: { id: label.id }, data: { deletedAt: now } });
+    await prisma.label.delete({ where: { id: label.id } });
     console.log(`  Deleted label: ${label.name}`);
   }
 
   // --- Networks ---
   const testNetworks = await prisma.network.findMany({
-    where: { name: { startsWith: "Test Network " }, deletedAt: null },
+    where: { name: { startsWith: "Test Network " } },
     select: { id: true, name: true },
   });
   console.log(`Found ${testNetworks.length} test network(s)`);
   for (const network of testNetworks) {
-    await prisma.network.update({ where: { id: network.id }, data: { deletedAt: now } });
+    await prisma.network.delete({ where: { id: network.id } });
     console.log(`  Deleted network: ${network.name}`);
   }
 
   // --- Projects ---
   const testProjects = await prisma.project.findMany({
-    where: { name: { startsWith: "Test Project " }, deletedAt: null },
+    where: { name: { startsWith: "Test Project " } },
     select: { id: true, name: true },
   });
   console.log(`Found ${testProjects.length} test project(s)`);
   for (const project of testProjects) {
-    await prisma.project.update({ where: { id: project.id }, data: { deletedAt: now } });
+    await prisma.project.delete({ where: { id: project.id } });
     console.log(`  Deleted project: ${project.name}`);
   }
 
@@ -87,16 +81,12 @@ async function main() {
         { title: { startsWith: "Test Set " } },
         { title: { startsWith: "Credit Set " } },
       ],
-      deletedAt: null,
     },
     select: { id: true, title: true },
   });
   console.log(`Found ${testSets.length} test set(s)`);
   for (const set of testSets) {
-    await prisma.setCreditRaw.updateMany({
-      where: { setId: set.id, deletedAt: null },
-      data: { deletedAt: now },
-    });
+    await prisma.setCreditRaw.deleteMany({ where: { setId: set.id } });
     const links = await prisma.setSession.findMany({
       where: { setId: set.id },
       select: { sessionId: true },
@@ -104,23 +94,23 @@ async function main() {
     await prisma.setSession.deleteMany({ where: { setId: set.id } });
     for (const link of links) {
       const session = await prisma.session.findUnique({ where: { id: link.sessionId } });
-      if (session && session.status === "DRAFT" && !session.deletedAt) {
-        await prisma.session.update({ where: { id: session.id }, data: { deletedAt: now } });
+      if (session && session.status === "DRAFT") {
+        await prisma.session.delete({ where: { id: session.id } });
         console.log(`  Deleted auto session: ${session.name}`);
       }
     }
-    await prisma.set.update({ where: { id: set.id }, data: { deletedAt: now } });
+    await prisma.set.delete({ where: { id: set.id } });
     console.log(`  Deleted set: ${set.title}`);
   }
 
   // --- Sessions ---
   const testSessions = await prisma.session.findMany({
-    where: { name: { startsWith: "Test Session " }, deletedAt: null },
+    where: { name: { startsWith: "Test Session " } },
     select: { id: true, name: true },
   });
   console.log(`Found ${testSessions.length} test session(s)`);
   for (const session of testSessions) {
-    await prisma.session.update({ where: { id: session.id }, data: { deletedAt: now } });
+    await prisma.session.delete({ where: { id: session.id } });
     console.log(`  Deleted session: ${session.name}`);
   }
 

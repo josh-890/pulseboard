@@ -37,14 +37,14 @@ export async function getSets(filters: SetFilters = {}) {
         include: {
           person: {
             include: {
-              aliases: { where: { type: "common", deletedAt: null }, take: 1 },
+              aliases: { where: { type: "common" }, take: 1 },
             },
           },
         },
       },
       _count: {
         select: {
-          creditsRaw: { where: { deletedAt: null, resolutionStatus: "UNRESOLVED" } },
+          creditsRaw: { where: { resolutionStatus: "UNRESOLVED" } },
         },
       },
     },
@@ -91,14 +91,14 @@ export async function getSetsPaginated(
           include: {
             person: {
               include: {
-                aliases: { where: { type: "common", deletedAt: null }, take: 1 },
+                aliases: { where: { type: "common" }, take: 1 },
               },
             },
           },
         },
         _count: {
           select: {
-            creditsRaw: { where: { deletedAt: null, resolutionStatus: "UNRESOLVED" } },
+            creditsRaw: { where: { resolutionStatus: "UNRESOLVED" } },
           },
         },
       },
@@ -123,11 +123,10 @@ export async function getSetById(id: string) {
         include: { labelMaps: { include: { label: true } } },
       },
       creditsRaw: {
-        where: { deletedAt: null },
         include: {
           resolvedPerson: {
             include: {
-              aliases: { where: { type: "common", deletedAt: null }, take: 1 },
+              aliases: { where: { type: "common" }, take: 1 },
             },
           },
         },
@@ -137,7 +136,7 @@ export async function getSetById(id: string) {
         include: {
           person: {
             include: {
-              aliases: { where: { type: "common", deletedAt: null }, take: 1 },
+              aliases: { where: { type: "common" }, take: 1 },
             },
           },
         },
@@ -251,9 +250,8 @@ export async function updateSetRecord(id: string, data: {
 }
 
 export async function deleteSetRecord(id: string) {
-  const deletedAt = new Date();
   return prisma.$transaction(async (tx) => {
-    await cascadeDeleteSet(tx, id, deletedAt);
+    await cascadeDeleteSet(tx, id);
   });
 }
 
@@ -304,14 +302,13 @@ export async function searchPersonsForSelect(q: string) {
             some: {
               name: { contains: q, mode: "insensitive" },
               type: "common",
-              deletedAt: null,
             },
           },
         },
       ],
     },
     include: {
-      aliases: { where: { type: "common", deletedAt: null }, take: 1 },
+      aliases: { where: { type: "common" }, take: 1 },
     },
     take: 20,
     orderBy: { createdAt: "asc" },
@@ -365,7 +362,6 @@ async function unsyncParticipantFromSessions(
         set: {
           sessionLinks: { some: { sessionId: link.sessionId } },
           id: { not: setId },
-          deletedAt: null,
         },
       },
     });
@@ -483,7 +479,6 @@ export async function unresolveCreditRaw(creditId: string) {
           resolvedPersonId: credit.resolvedPersonId,
           resolutionStatus: "RESOLVED",
           id: { not: creditId },
-          deletedAt: null,
         },
       });
 
@@ -582,7 +577,6 @@ export async function getSuggestedResolutions(rawName: string, channelId: string
       rawName: { equals: rawName, mode: "insensitive" },
       resolutionStatus: "RESOLVED",
       resolvedPersonId: { not: null },
-      deletedAt: null,
     },
     select: {
       resolvedPersonId: true,
@@ -590,7 +584,7 @@ export async function getSuggestedResolutions(rawName: string, channelId: string
         select: {
           id: true,
           icgId: true,
-          aliases: { where: { type: "common", deletedAt: null }, take: 1 },
+          aliases: { where: { type: "common" }, take: 1 },
         },
       },
     },
@@ -620,8 +614,7 @@ export async function getSuggestedResolutions(rawName: string, channelId: string
   if (channelId && suggestions.length < 5) {
     const channelPersons = await prisma.setParticipant.findMany({
       where: {
-        set: { channelId, deletedAt: null },
-        person: { deletedAt: null },
+        set: { channelId },
       },
       select: {
         personId: true,
@@ -629,7 +622,7 @@ export async function getSuggestedResolutions(rawName: string, channelId: string
           select: {
             id: true,
             icgId: true,
-            aliases: { where: { type: "common", deletedAt: null }, take: 1 },
+            aliases: { where: { type: "common" }, take: 1 },
           },
         },
       },
@@ -660,11 +653,11 @@ export async function getSuggestedResolutions(rawName: string, channelId: string
 
 export async function getSetCredits(setId: string) {
   return prisma.setCreditRaw.findMany({
-    where: { setId, deletedAt: null },
+    where: { setId },
     include: {
       resolvedPerson: {
         include: {
-          aliases: { where: { type: "common", deletedAt: null }, take: 1 },
+          aliases: { where: { type: "common" }, take: 1 },
         },
       },
     },

@@ -44,8 +44,7 @@ export async function updatePersonInterestRecord(id: string, data: UpdatePersonI
 }
 
 export async function deletePersonInterestRecord(id: string) {
-  return prisma.personInterest.update({
+  return prisma.personInterest.delete({
     where: { id },
-    data: { deletedAt: new Date() },
   });
 }

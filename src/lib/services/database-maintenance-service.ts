@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { cascadeHardDeleteMediaItems } from "@/lib/services/cascade-helpers";
 import {
   refreshDashboardStats,
   refreshPersonCurrentState,
@@ -13,11 +14,9 @@ export type MaintenanceResult = {
 
 /**
  * Find MediaItems with no file variants (null, empty object, or missing `original` key)
- * and soft-delete them along with their PersonMediaLinks.
+ * and hard-delete them along with all referencing rows.
  */
 export async function findAndFixOrphanedMedia(): Promise<MaintenanceResult> {
-  const now = new Date();
-
   return prisma.$transaction(async (tx) => {
     // Find orphaned media items — variants is null, empty, or missing "original"
     const orphans = await tx.$queryRaw<
@@ -25,13 +24,12 @@ export async function findAndFixOrphanedMedia(): Promise<MaintenanceResult> {
     >`
       SELECT id, filename
       FROM "MediaItem"
-      WHERE "deletedAt" IS NULL
-        AND (
-          variants IS NULL
-          OR variants::text = '{}'
-          OR variants::text = 'null'
-          OR NOT (variants ? 'original')
-        )
+      WHERE (
+        variants IS NULL
+        OR variants::text = '{}'
+        OR variants::text = 'null'
+        OR NOT (variants ? 'original')
+      )
     `;
 
     if (orphans.length === 0) {
@@ -40,17 +38,9 @@ export async function findAndFixOrphanedMedia(): Promise<MaintenanceResult> {
 
     const ids = orphans.map((o) => o.id);
 
-    // Soft-delete PersonMediaLinks referencing these items
-    await tx.personMediaLink.updateMany({
-      where: { mediaItemId: { in: ids }, deletedAt: null },
-      data: { deletedAt: now },
-    });
-
-    // Soft-delete the MediaItems themselves
-    await tx.mediaItem.updateMany({
-      where: { id: { in: ids } },
-      data: { deletedAt: now },
-    });
+    // Cascade hard-delete: cleans up SetMediaItem, SkillEventMedia,
+    // MediaCollectionItem, PersonMediaLink, and the MediaItems themselves
+    await cascadeHardDeleteMediaItems(tx, ids);
 
     return {
       found: orphans.length,
@@ -63,14 +53,12 @@ export async function findAndFixOrphanedMedia(): Promise<MaintenanceResult> {
 /**
  * Find identical media files (same SHA-256 hash) uploaded multiple times to the
  * same session.  Keeps the oldest MediaItem per group and:
- *   - Reassigns PersonMediaLinks from dupe → original (soft-deletes conflicts)
+ *   - Reassigns PersonMediaLinks from dupe → original (deletes conflicts)
  *   - Deletes SetMediaItem rows pointing to dupe (skips if original already in set)
  *   - Deletes MediaCollectionItem rows pointing to dupe (skips if original already in collection)
- *   - Soft-deletes the duplicate MediaItem
+ *   - Hard-deletes the duplicate MediaItem
  */
 export async function findAndFixDuplicateMedia(): Promise<MaintenanceResult> {
-  const now = new Date();
-
   return prisma.$transaction(async (tx) => {
     // Groups of identical files in the same session
     const groups = await tx.$queryRaw<
@@ -78,8 +66,7 @@ export async function findAndFixDuplicateMedia(): Promise<MaintenanceResult> {
     >`
       SELECT "sessionId", hash, COUNT(*) as cnt
       FROM "MediaItem"
-      WHERE "deletedAt" IS NULL
-        AND hash IS NOT NULL
+      WHERE hash IS NOT NULL
         AND "sessionId" IS NOT NULL
       GROUP BY "sessionId", hash
       HAVING COUNT(*) > 1
@@ -99,8 +86,7 @@ export async function findAndFixDuplicateMedia(): Promise<MaintenanceResult> {
       >`
         SELECT id, filename, "createdAt"
         FROM "MediaItem"
-        WHERE "deletedAt" IS NULL
-          AND "sessionId" = ${group.sessionId}
+        WHERE "sessionId" = ${group.sessionId}
           AND hash = ${group.hash}
         ORDER BY "createdAt" ASC
       `;
@@ -111,7 +97,7 @@ export async function findAndFixDuplicateMedia(): Promise<MaintenanceResult> {
       for (const dupe of dupes) {
         // --- PersonMediaLink: reassign dupe → original ---
         const dupeLinks = await tx.personMediaLink.findMany({
-          where: { mediaItemId: dupe.id, deletedAt: null },
+          where: { mediaItemId: dupe.id },
         });
 
         for (const link of dupeLinks) {
@@ -121,15 +107,13 @@ export async function findAndFixDuplicateMedia(): Promise<MaintenanceResult> {
               personId: link.personId,
               mediaItemId: original.id,
               usage: link.usage,
-              deletedAt: null,
             },
           });
 
           if (conflict) {
-            // Conflict — soft-delete the dupe link
-            await tx.personMediaLink.update({
+            // Conflict — delete the dupe link
+            await tx.personMediaLink.delete({
               where: { id: link.id },
-              data: { deletedAt: now },
             });
           } else {
             // Reassign to original
@@ -199,10 +183,9 @@ export async function findAndFixDuplicateMedia(): Promise<MaintenanceResult> {
           }
         }
 
-        // --- Soft-delete the duplicate MediaItem ---
-        await tx.mediaItem.update({
+        // --- Hard-delete the duplicate MediaItem ---
+        await tx.mediaItem.delete({
           where: { id: dupe.id },
-          data: { deletedAt: now },
         });
       }
 
@@ -221,12 +204,10 @@ export async function findAndFixDuplicateMedia(): Promise<MaintenanceResult> {
 }
 
 /**
- * Find duplicate PersonMediaLink rows (same personId + mediaItemId, not soft-deleted)
- * and soft-delete all but the oldest per group.
+ * Find duplicate PersonMediaLink rows (same personId + mediaItemId)
+ * and delete all but the oldest per group.
  */
 export async function findAndFixDuplicatePersonMediaLinks(): Promise<MaintenanceResult> {
-  const now = new Date();
-
   return prisma.$transaction(async (tx) => {
     // Find groups with duplicates
     const dupes = await tx.$queryRaw<
@@ -234,7 +215,6 @@ export async function findAndFixDuplicatePersonMediaLinks(): Promise<Maintenance
     >`
       SELECT "personId", "mediaItemId", COUNT(*) as cnt
       FROM "PersonMediaLink"
-      WHERE "deletedAt" IS NULL
       GROUP BY "personId", "mediaItemId"
       HAVING COUNT(*) > 1
     `;
@@ -256,11 +236,10 @@ export async function findAndFixDuplicatePersonMediaLinks(): Promise<Maintenance
         orderBy: { createdAt: "asc" },
       });
 
-      // Keep the first (oldest), soft-delete the rest
+      // Keep the first (oldest), delete the rest
       const toDelete = rows.slice(1);
-      await tx.personMediaLink.updateMany({
+      await tx.personMediaLink.deleteMany({
         where: { id: { in: toDelete.map((r) => r.id) } },
-        data: { deletedAt: now },
       });
 
       totalFixed += toDelete.length;

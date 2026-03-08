@@ -84,8 +84,8 @@ export default async function SettingsPage() {
       <div className="rounded-2xl border border-white/30 bg-card/70 p-4 shadow-lg backdrop-blur-md md:p-6 dark:border-white/10">
         <h2 className="mb-2 text-lg font-semibold">Manage Database</h2>
         <p className="mb-4 text-sm text-muted-foreground">
-          Run consistency checks and cleanup operations. Items are soft-deleted
-          and can be recovered.
+          Run consistency checks and cleanup operations. Deletions are
+          permanent.
         </p>
         <DatabaseMaintenance />
       </div>

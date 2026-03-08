@@ -36,7 +36,7 @@ async function main() {
   const rows = await prisma.$queryRaw<{ id: string; personId: string; mediaItemId: string }[]>`
     SELECT id, "personId", "mediaItemId"
     FROM "PersonMediaLink"
-    WHERE usage = 'HEADSHOT' AND slot IS NULL AND "deletedAt" IS NULL
+    WHERE usage = 'HEADSHOT' AND slot IS NULL
   `;
 
   if (rows.length === 0) {
@@ -49,20 +49,18 @@ async function main() {
     console.log(`  id=${row.id}  person=${row.personId}  media=${row.mediaItemId}`);
   }
 
-  const proceed = await confirm(`\nSoft-delete ${rows.length} record(s)?`);
+  const proceed = await confirm(`\nDelete ${rows.length} record(s)?`);
   if (!proceed) {
     console.log("Aborted.");
     return;
   }
 
-  const now = new Date();
   const count = await prisma.$executeRaw`
-    UPDATE "PersonMediaLink"
-    SET "deletedAt" = ${now}
-    WHERE usage = 'HEADSHOT' AND slot IS NULL AND "deletedAt" IS NULL
+    DELETE FROM "PersonMediaLink"
+    WHERE usage = 'HEADSHOT' AND slot IS NULL
   `;
 
-  console.log(`\nSoft-deleted ${count} slotless HEADSHOT link(s).`);
+  console.log(`\nDeleted ${count} slotless HEADSHOT link(s).`);
 }
 
 main()

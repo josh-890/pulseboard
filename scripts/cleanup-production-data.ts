@@ -42,34 +42,32 @@ async function printSummary() {
     prisma.$queryRaw<[{ count: bigint }]>`SELECT COUNT(*) as count FROM "SetSession"`,
     prisma.$queryRaw<[{ count: bigint }]>`SELECT COUNT(*) as count FROM "SessionParticipant" WHERE "sessionId" != ${KEEP_SESSION_ID}`,
     prisma.$queryRaw<[{ count: bigint }]>`SELECT COUNT(*) as count FROM "SetLabelEvidence"`,
-    prisma.$queryRaw<[{ count: bigint }]>`SELECT COUNT(*) as count FROM "SetCreditRaw" WHERE "deletedAt" IS NULL`,
-    prisma.$queryRaw<[{ count: bigint }]>`SELECT COUNT(*) as count FROM "Set" WHERE "deletedAt" IS NULL`,
-    prisma.$queryRaw<[{ count: bigint }]>`SELECT COUNT(*) as count FROM "Session" WHERE "deletedAt" IS NULL AND id != ${KEEP_SESSION_ID}`,
-    prisma.$queryRaw<[{ count: bigint }]>`SELECT COUNT(*) as count FROM "MediaItem" WHERE "deletedAt" IS NULL AND "sessionId" != ${KEEP_SESSION_ID}`,
-    prisma.$queryRaw<[{ count: bigint }]>`SELECT COUNT(*) as count FROM "Photo" WHERE "deletedAt" IS NULL`,
-    prisma.$queryRaw<[{ count: bigint }]>`SELECT COUNT(*) as count FROM "Activity" WHERE "deletedAt" IS NULL`,
-    prisma.$queryRaw<[{ count: bigint }]>`SELECT COUNT(*) as count FROM "RelationshipEvent" WHERE "deletedAt" IS NULL`,
-    prisma.$queryRaw<[{ count: bigint }]>`SELECT COUNT(*) as count FROM "PersonRelationship" WHERE "deletedAt" IS NULL`,
-    prisma.$queryRaw<[{ count: bigint }]>`SELECT COUNT(*) as count FROM "PersonAlias" WHERE "deletedAt" IS NULL AND "personId" != ${KEEP_PERSON_ID}`,
-    prisma.$queryRaw<[{ count: bigint }]>`SELECT COUNT(*) as count FROM "Person" WHERE "deletedAt" IS NULL AND id != ${KEEP_PERSON_ID}`,
+    prisma.$queryRaw<[{ count: bigint }]>`SELECT COUNT(*) as count FROM "SetCreditRaw"`,
+    prisma.$queryRaw<[{ count: bigint }]>`SELECT COUNT(*) as count FROM "Set"`,
+    prisma.$queryRaw<[{ count: bigint }]>`SELECT COUNT(*) as count FROM "Session" WHERE id != ${KEEP_SESSION_ID}`,
+    prisma.$queryRaw<[{ count: bigint }]>`SELECT COUNT(*) as count FROM "MediaItem" WHERE "sessionId" != ${KEEP_SESSION_ID}`,
+    prisma.$queryRaw<[{ count: bigint }]>`SELECT COUNT(*) as count FROM "Activity"`,
+    prisma.$queryRaw<[{ count: bigint }]>`SELECT COUNT(*) as count FROM "RelationshipEvent"`,
+    prisma.$queryRaw<[{ count: bigint }]>`SELECT COUNT(*) as count FROM "PersonRelationship"`,
+    prisma.$queryRaw<[{ count: bigint }]>`SELECT COUNT(*) as count FROM "PersonAlias" WHERE "personId" != ${KEEP_PERSON_ID}`,
+    prisma.$queryRaw<[{ count: bigint }]>`SELECT COUNT(*) as count FROM "Person" WHERE id != ${KEEP_PERSON_ID}`,
   ]);
 
   const labels = [
-    "SetMediaItem (hard-delete)",
-    "SetParticipant (hard-delete)",
-    "SetSession (hard-delete)",
-    "SessionParticipant (hard-delete, excl. reference)",
-    "SetLabelEvidence (hard-delete)",
-    "SetCreditRaw (soft-delete)",
-    "Set (soft-delete)",
-    "Session (soft-delete, excl. reference)",
-    "MediaItem (soft-delete, excl. reference)",
-    "Photo (soft-delete)",
-    "Activity (soft-delete)",
-    "RelationshipEvent (soft-delete)",
-    "PersonRelationship (soft-delete)",
-    "PersonAlias (soft-delete, excl. Jane)",
-    "Person (soft-delete, excl. Jane)",
+    "SetMediaItem",
+    "SetParticipant",
+    "SetSession",
+    "SessionParticipant (excl. reference)",
+    "SetLabelEvidence",
+    "SetCreditRaw",
+    "Set",
+    "Session (excl. reference)",
+    "MediaItem (excl. reference)",
+    "Activity",
+    "RelationshipEvent",
+    "PersonRelationship",
+    "PersonAlias (excl. Jane)",
+    "Person (excl. Jane)",
   ];
 
   for (let i = 0; i < labels.length; i++) {
@@ -77,15 +75,13 @@ async function printSummary() {
     console.log(`  ${labels[i]}: ${count} row(s)`);
   }
 
-  console.log("\nPersonMediaLink will be soft-deleted where mediaItemId points to deleted media.\n");
+  console.log("\nPersonMediaLink will be deleted where mediaItem is deleted.\n");
 }
 
 async function executeCleanup() {
-  const now = new Date();
-
   await prisma.$transaction(async (tx) => {
-    // 1. Hard-delete junction tables (no deletedAt)
-    console.log("1. Hard-deleting junction tables...");
+    // 1. Delete junction tables
+    console.log("1. Deleting junction tables...");
 
     const r1 = await tx.$executeRaw`DELETE FROM "SetMediaItem"`;
     console.log(`   SetMediaItem: ${r1} row(s)`);
@@ -102,51 +98,61 @@ async function executeCleanup() {
     const r5 = await tx.$executeRaw`DELETE FROM "SetLabelEvidence"`;
     console.log(`   SetLabelEvidence: ${r5} row(s)`);
 
-    // 2. Soft-delete production content
-    console.log("\n2. Soft-deleting production content...");
+    // 2. Delete production content
+    console.log("\n2. Deleting production content...");
 
-    const r6 = await tx.$executeRaw`UPDATE "SetCreditRaw" SET "deletedAt" = ${now} WHERE "deletedAt" IS NULL`;
+    const r6 = await tx.$executeRaw`DELETE FROM "SetCreditRaw"`;
     console.log(`   SetCreditRaw: ${r6} row(s)`);
 
-    // Clear coverMediaItemId before soft-deleting sets (FK reference)
-    await tx.$executeRaw`UPDATE "Set" SET "coverMediaItemId" = NULL WHERE "coverMediaItemId" IS NOT NULL AND "deletedAt" IS NULL`;
+    // Clear coverMediaItemId before deleting sets (FK reference)
+    await tx.$executeRaw`UPDATE "Set" SET "coverMediaItemId" = NULL WHERE "coverMediaItemId" IS NOT NULL`;
 
-    const r7 = await tx.$executeRaw`UPDATE "Set" SET "deletedAt" = ${now} WHERE "deletedAt" IS NULL`;
+    const r7 = await tx.$executeRaw`DELETE FROM "Set"`;
     console.log(`   Set: ${r7} row(s)`);
 
-    const r8 = await tx.$executeRaw`UPDATE "Session" SET "deletedAt" = ${now} WHERE "deletedAt" IS NULL AND id != ${KEEP_SESSION_ID}`;
+    // Delete PersonMediaLink before MediaItem (FK)
+    const r9b = await tx.$executeRaw`
+      DELETE FROM "PersonMediaLink"
+      WHERE "mediaItemId" IN (SELECT id FROM "MediaItem" WHERE "sessionId" != ${KEEP_SESSION_ID})
+    `;
+    console.log(`   PersonMediaLink (for non-reference media): ${r9b} row(s)`);
+
+    // Delete MediaCollectionItem before MediaItem
+    const rci = await tx.$executeRaw`
+      DELETE FROM "MediaCollectionItem"
+      WHERE "mediaItemId" IN (SELECT id FROM "MediaItem" WHERE "sessionId" != ${KEEP_SESSION_ID})
+    `;
+    console.log(`   MediaCollectionItem: ${rci} row(s)`);
+
+    // Delete SkillEventMedia before MediaItem
+    const rse = await tx.$executeRaw`
+      DELETE FROM "SkillEventMedia"
+      WHERE "mediaItemId" IN (SELECT id FROM "MediaItem" WHERE "sessionId" != ${KEEP_SESSION_ID})
+    `;
+    console.log(`   SkillEventMedia: ${rse} row(s)`);
+
+    const r8 = await tx.$executeRaw`DELETE FROM "Session" WHERE id != ${KEEP_SESSION_ID}`;
     console.log(`   Session: ${r8} row(s)`);
 
-    const r9 = await tx.$executeRaw`UPDATE "MediaItem" SET "deletedAt" = ${now} WHERE "deletedAt" IS NULL AND "sessionId" != ${KEEP_SESSION_ID}`;
+    const r9 = await tx.$executeRaw`DELETE FROM "MediaItem" WHERE "sessionId" != ${KEEP_SESSION_ID}`;
     console.log(`   MediaItem: ${r9} row(s)`);
 
-    // Soft-delete PersonMediaLink where mediaItem was just deleted
-    const r9b = await tx.$executeRaw`
-      UPDATE "PersonMediaLink" SET "deletedAt" = ${now}
-      WHERE "deletedAt" IS NULL
-        AND "mediaItemId" IN (SELECT id FROM "MediaItem" WHERE "deletedAt" = ${now})
-    `;
-    console.log(`   PersonMediaLink (orphaned): ${r9b} row(s)`);
-
-    const r10 = await tx.$executeRaw`UPDATE "Photo" SET "deletedAt" = ${now} WHERE "deletedAt" IS NULL`;
-    console.log(`   Photo: ${r10} row(s)`);
-
-    const r11 = await tx.$executeRaw`UPDATE "Activity" SET "deletedAt" = ${now} WHERE "deletedAt" IS NULL`;
+    const r11 = await tx.$executeRaw`DELETE FROM "Activity"`;
     console.log(`   Activity: ${r11} row(s)`);
 
-    // 3. Soft-delete non-Jane persons + their data
-    console.log("\n3. Soft-deleting non-Jane persons and relationships...");
+    // 3. Delete non-Jane persons + their data
+    console.log("\n3. Deleting non-Jane persons and relationships...");
 
-    const r12 = await tx.$executeRaw`UPDATE "RelationshipEvent" SET "deletedAt" = ${now} WHERE "deletedAt" IS NULL`;
+    const r12 = await tx.$executeRaw`DELETE FROM "RelationshipEvent"`;
     console.log(`   RelationshipEvent: ${r12} row(s)`);
 
-    const r13 = await tx.$executeRaw`UPDATE "PersonRelationship" SET "deletedAt" = ${now} WHERE "deletedAt" IS NULL`;
+    const r13 = await tx.$executeRaw`DELETE FROM "PersonRelationship"`;
     console.log(`   PersonRelationship: ${r13} row(s)`);
 
-    const r14 = await tx.$executeRaw`UPDATE "PersonAlias" SET "deletedAt" = ${now} WHERE "deletedAt" IS NULL AND "personId" != ${KEEP_PERSON_ID}`;
+    const r14 = await tx.$executeRaw`DELETE FROM "PersonAlias" WHERE "personId" != ${KEEP_PERSON_ID}`;
     console.log(`   PersonAlias: ${r14} row(s)`);
 
-    const r15 = await tx.$executeRaw`UPDATE "Person" SET "deletedAt" = ${now} WHERE "deletedAt" IS NULL AND id != ${KEEP_PERSON_ID}`;
+    const r15 = await tx.$executeRaw`DELETE FROM "Person" WHERE id != ${KEEP_PERSON_ID}`;
     console.log(`   Person: ${r15} row(s)`);
   });
 
@@ -162,27 +168,25 @@ async function executeCleanup() {
   // 5. Verification
   console.log("\n=== VERIFICATION ===\n");
   const verification = await Promise.all([
-    prisma.$queryRaw<[{ count: bigint }]>`SELECT COUNT(*) as count FROM "Person" WHERE "deletedAt" IS NULL`,
-    prisma.$queryRaw<[{ count: bigint }]>`SELECT COUNT(*) as count FROM "PersonAlias" WHERE "deletedAt" IS NULL`,
-    prisma.$queryRaw<[{ count: bigint }]>`SELECT COUNT(*) as count FROM "Session" WHERE "deletedAt" IS NULL`,
-    prisma.$queryRaw<[{ count: bigint }]>`SELECT COUNT(*) as count FROM "MediaItem" WHERE "deletedAt" IS NULL`,
-    prisma.$queryRaw<[{ count: bigint }]>`SELECT COUNT(*) as count FROM "PersonMediaLink" WHERE "deletedAt" IS NULL`,
-    prisma.$queryRaw<[{ count: bigint }]>`SELECT COUNT(*) as count FROM "Set" WHERE "deletedAt" IS NULL`,
-    prisma.$queryRaw<[{ count: bigint }]>`SELECT COUNT(*) as count FROM "Activity" WHERE "deletedAt" IS NULL`,
-    prisma.$queryRaw<[{ count: bigint }]>`SELECT COUNT(*) as count FROM "Photo" WHERE "deletedAt" IS NULL`,
-    prisma.$queryRaw<[{ count: bigint }]>`SELECT COUNT(*) as count FROM "PersonRelationship" WHERE "deletedAt" IS NULL`,
+    prisma.$queryRaw<[{ count: bigint }]>`SELECT COUNT(*) as count FROM "Person"`,
+    prisma.$queryRaw<[{ count: bigint }]>`SELECT COUNT(*) as count FROM "PersonAlias"`,
+    prisma.$queryRaw<[{ count: bigint }]>`SELECT COUNT(*) as count FROM "Session"`,
+    prisma.$queryRaw<[{ count: bigint }]>`SELECT COUNT(*) as count FROM "MediaItem"`,
+    prisma.$queryRaw<[{ count: bigint }]>`SELECT COUNT(*) as count FROM "PersonMediaLink"`,
+    prisma.$queryRaw<[{ count: bigint }]>`SELECT COUNT(*) as count FROM "Set"`,
+    prisma.$queryRaw<[{ count: bigint }]>`SELECT COUNT(*) as count FROM "Activity"`,
+    prisma.$queryRaw<[{ count: bigint }]>`SELECT COUNT(*) as count FROM "PersonRelationship"`,
   ]);
 
   const vLabels = [
-    "Person (active)",
-    "PersonAlias (active)",
-    "Session (active)",
-    "MediaItem (active)",
-    "PersonMediaLink (active)",
-    "Set (active)",
-    "Activity (active)",
-    "Photo (active)",
-    "PersonRelationship (active)",
+    "Person",
+    "PersonAlias",
+    "Session",
+    "MediaItem",
+    "PersonMediaLink",
+    "Set",
+    "Activity",
+    "PersonRelationship",
   ];
 
   for (let i = 0; i < vLabels.length; i++) {

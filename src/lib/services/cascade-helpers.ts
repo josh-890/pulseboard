@@ -11,124 +11,114 @@ export type TxClient = Omit<
 >;
 
 /**
- * Cascade soft-delete a set: session links, credits, participants, evidence, then the set itself.
+ * Cascade hard-delete a set: session links, credits, participants, evidence, then the set itself.
  */
 export async function cascadeDeleteSet(
   tx: TxClient,
   setId: string,
-  deletedAt: Date,
 ) {
-  // Hard-delete SetSession rows (no deletedAt column)
+  await tx.setMediaItem.deleteMany({
+    where: { setId },
+  });
+
   await tx.setSession.deleteMany({
     where: { setId },
   });
 
-  // Soft-delete SetCreditRaw records
-  await tx.setCreditRaw.updateMany({
-    where: { setId, deletedAt: null },
-    data: { deletedAt },
+  await tx.setCreditRaw.deleteMany({
+    where: { setId },
   });
 
-  // Hard-delete SetParticipant records (no deletedAt column)
   await tx.setParticipant.deleteMany({
     where: { setId },
   });
 
-  // Hard-delete SetLabelEvidence records (no deletedAt column)
   await tx.setLabelEvidence.deleteMany({
     where: { setId },
   });
 
+  // NULL out coverMediaItemId before deleting the set
   await tx.set.update({
     where: { id: setId },
-    data: { deletedAt },
+    data: { coverMediaItemId: null },
+  });
+
+  await tx.set.delete({
+    where: { id: setId },
   });
 }
 
 /**
- * Cascade soft-delete body modifications for a person: events, then modifications.
+ * Cascade hard-delete body modifications for a person: events, then modifications.
  */
 export async function cascadeDeleteBodyModifications(
   tx: TxClient,
   personId: string,
   personaIds: string[],
-  deletedAt: Date,
 ) {
   if (personaIds.length > 0) {
-    await tx.bodyModificationEvent.updateMany({
-      where: { personaId: { in: personaIds }, deletedAt: null },
-      data: { deletedAt },
+    await tx.bodyModificationEvent.deleteMany({
+      where: { personaId: { in: personaIds } },
     });
   }
-  await tx.bodyModification.updateMany({
-    where: { personId, deletedAt: null },
-    data: { deletedAt },
+  await tx.bodyModification.deleteMany({
+    where: { personId },
   });
 }
 
 /**
- * Cascade soft-delete cosmetic procedures for a person: events, then procedures.
+ * Cascade hard-delete cosmetic procedures for a person: events, then procedures.
  */
 export async function cascadeDeleteCosmeticProcedures(
   tx: TxClient,
   personId: string,
   personaIds: string[],
-  deletedAt: Date,
 ) {
   if (personaIds.length > 0) {
-    await tx.cosmeticProcedureEvent.updateMany({
-      where: { personaId: { in: personaIds }, deletedAt: null },
-      data: { deletedAt },
+    await tx.cosmeticProcedureEvent.deleteMany({
+      where: { personaId: { in: personaIds } },
     });
   }
-  await tx.cosmeticProcedure.updateMany({
-    where: { personId, deletedAt: null },
-    data: { deletedAt },
+  await tx.cosmeticProcedure.deleteMany({
+    where: { personId },
   });
 }
 
 /**
- * Cascade soft-delete education, awards, interests for a person.
+ * Cascade hard-delete education, awards, interests for a person.
  */
 export async function cascadeDeletePersonExtras(
   tx: TxClient,
   personId: string,
-  deletedAt: Date,
 ) {
-  await tx.personEducation.updateMany({
-    where: { personId, deletedAt: null },
-    data: { deletedAt },
+  await tx.personEducation.deleteMany({
+    where: { personId },
   });
-  await tx.personAward.updateMany({
-    where: { personId, deletedAt: null },
-    data: { deletedAt },
+  await tx.personAward.deleteMany({
+    where: { personId },
   });
-  await tx.personInterest.updateMany({
-    where: { personId, deletedAt: null },
-    data: { deletedAt },
+  await tx.personInterest.deleteMany({
+    where: { personId },
   });
 }
 
 /**
- * Cascade soft-delete relationship events for relationships involving a person.
+ * Cascade hard-delete relationship events for relationships involving a person.
  */
 export async function cascadeDeleteRelationshipEvents(
   tx: TxClient,
   personId: string,
-  deletedAt: Date,
 ) {
   const relationships = await tx.personRelationship.findMany({
     where: {
       OR: [{ personAId: personId }, { personBId: personId }],
-      deletedAt: null,
     },
     select: { id: true },
   });
   const relationshipIds = relationships.map((r) => r.id);
   if (relationshipIds.length > 0) {
-    await tx.relationshipEvent.updateMany({
-      where: { relationshipId: { in: relationshipIds }, deletedAt: null },
-      data: { deletedAt },
+    await tx.relationshipEvent.deleteMany({
+      where: { relationshipId: { in: relationshipIds } },
     });
   }
 }
@@ -150,17 +140,17 @@ export async function cascadeHardDeleteMediaItems(
     data: { coverMediaItemId: null },
   });
 
-  // 2. Hard-delete SetMediaItem (no deletedAt)
+  // 2. Hard-delete SetMediaItem
   await tx.setMediaItem.deleteMany({
     where: { mediaItemId: { in: mediaItemIds } },
   });
 
-  // 3. Hard-delete MediaCollectionItem (no deletedAt)
+  // 3. Hard-delete MediaCollectionItem
   await tx.mediaCollectionItem.deleteMany({
     where: { mediaItemId: { in: mediaItemIds } },
   });
 
-  // 3b. Hard-delete SkillEventMedia (no deletedAt)
+  // 3b. Hard-delete SkillEventMedia
   await tx.skillEventMedia.deleteMany({
     where: { mediaItemId: { in: mediaItemIds } },
   });
@@ -188,18 +178,15 @@ export async function cascadeHardDeleteMediaItems(
 }
 
 /**
- * Cascade soft-delete person skills: events by personSkillId chain (not personaId — events may have null persona),
- * then skills, and hard-delete session participant skills.
+ * Cascade hard-delete person skills: events + media, then skills, and session participant skills.
  */
 export async function cascadeDeletePersonSkills(
   tx: TxClient,
   personId: string,
-  _personaIds: string[],
-  deletedAt: Date,
 ) {
   // Get all person skill IDs first
   const skills = await tx.personSkill.findMany({
-    where: { personId, deletedAt: null },
+    where: { personId },
     select: { id: true },
   });
   const skillIds = skills.map((s) => s.id);
@@ -207,7 +194,7 @@ export async function cascadeDeletePersonSkills(
   if (skillIds.length > 0) {
     // Get event IDs to clean up media
     const events = await tx.personSkillEvent.findMany({
-      where: { personSkillId: { in: skillIds }, deletedAt: null },
+      where: { personSkillId: { in: skillIds } },
       select: { id: true },
     });
     const eventIds = events.map((e) => e.id);
@@ -216,54 +203,54 @@ export async function cascadeDeletePersonSkills(
         where: { skillEventId: { in: eventIds } },
       });
     }
-    await tx.personSkillEvent.updateMany({
-      where: { personSkillId: { in: skillIds }, deletedAt: null },
-      data: { deletedAt },
+    await tx.personSkillEvent.deleteMany({
+      where: { personSkillId: { in: skillIds } },
     });
   }
 
-  // Soft-delete skills
-  await tx.personSkill.updateMany({
-    where: { personId, deletedAt: null },
-    data: { deletedAt },
+  // Hard-delete skills
+  await tx.personSkill.deleteMany({
+    where: { personId },
   });
-  // Hard-delete session participant skills (no deletedAt column)
+  // Hard-delete session participant skills
   await tx.sessionParticipantSkill.deleteMany({
     where: { personId },
   });
 }
 
 /**
- * Cascade soft-delete a session: SetSession links, participants, media items, then the session itself.
+ * Cascade hard-delete a session: SetSession links, participants, media items, then the session itself.
  */
 export async function cascadeDeleteSession(
   tx: TxClient,
   sessionId: string,
-  deletedAt: Date,
 ) {
-  // Hard-delete SetSession rows (no deletedAt column)
+  // Hard-delete SetSession rows
   await tx.setSession.deleteMany({
     where: { sessionId },
   });
 
-  // Hard-delete session participants (no deletedAt column)
+  // Hard-delete session participants
   await tx.sessionParticipant.deleteMany({
     where: { sessionId },
   });
 
-  // Hard-delete session participant skills (no deletedAt column)
+  // Hard-delete session participant skills
   await tx.sessionParticipantSkill.deleteMany({
     where: { sessionId },
   });
 
-  // Soft-delete media items belonging to this session
-  await tx.mediaItem.updateMany({
-    where: { sessionId, deletedAt: null },
-    data: { deletedAt },
+  // Collect session media IDs, then cascade hard-delete them
+  const sessionMedia = await tx.mediaItem.findMany({
+    where: { sessionId },
+    select: { id: true },
   });
+  await cascadeHardDeleteMediaItems(
+    tx,
+    sessionMedia.map((m) => m.id),
+  );
 
-  await tx.session.update({
+  await tx.session.delete({
     where: { id: sessionId },
-    data: { deletedAt },
   });
 }

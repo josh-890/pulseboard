@@ -7,16 +7,14 @@ export async function getLabels(q?: string) {
       channelMaps: {
         include: {
           channel: {
-            select: { id: true, name: true, deletedAt: true },
+            select: { id: true, name: true },
           },
         },
       },
       networks: {
-        where: { network: { deletedAt: null } },
         include: { network: true },
       },
       projects: {
-        where: { project: { deletedAt: null } },
         include: { project: true },
       },
     },
@@ -33,7 +31,6 @@ export async function getLabelById(id: string) {
           channel: {
             include: {
               sets: {
-                where: { deletedAt: null },
                 orderBy: { releaseDate: "desc" },
                 take: 10,
               },
@@ -42,17 +39,13 @@ export async function getLabelById(id: string) {
         },
       },
       networks: {
-        where: { network: { deletedAt: null } },
         include: { network: true },
       },
       projects: {
-        where: { project: { deletedAt: null } },
         include: {
           project: {
             include: {
-              sessions: {
-                where: { deletedAt: null },
-              },
+              sessions: true,
             },
           },
         },
@@ -95,23 +88,14 @@ export async function updateLabelRecord(id: string, data: {
 }
 
 export async function deleteLabelRecord(id: string) {
-  const deletedAt = new Date();
-
   return prisma.$transaction(async (tx) => {
-    // Remove channel label mappings for this label
     await tx.channelLabelMap.deleteMany({ where: { labelId: id } });
-
-    // Remove set label evidence for this label
     await tx.setLabelEvidence.deleteMany({ where: { labelId: id } });
-
-    // Hard-delete join table rows (no deletedAt column)
     await tx.labelNetworkLink.deleteMany({ where: { labelId: id } });
     await tx.projectLabel.deleteMany({ where: { labelId: id } });
 
-    // Soft-delete the label
-    return tx.label.update({
+    return tx.label.delete({
       where: { id },
-      data: { deletedAt },
     });
   });
 }

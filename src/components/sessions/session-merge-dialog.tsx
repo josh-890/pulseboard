@@ -161,7 +161,7 @@ export function SessionMergeDialog({ survivingSessionId, survivingSessionName }:
             <DialogHeader>
               <DialogTitle>Confirm Merge</DialogTitle>
               <DialogDescription>
-                This action cannot be undone. The absorbed session will be soft-deleted.
+                This action cannot be undone. The absorbed session will be permanently deleted.
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-4">

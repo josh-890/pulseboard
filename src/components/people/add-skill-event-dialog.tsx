@@ -34,22 +34,24 @@ export function AddSkillEventDialog({
   const [eventType, setEventType] = useState<SkillEventType>("DEMONSTRATED");
   const [level, setLevel] = useState<SkillLevel | "">("");
   const [personaId, setPersonaId] = useState(personas[0]?.id ?? "");
+  const [date, setDate] = useState("");
+  const [datePrecision, setDatePrecision] = useState("UNKNOWN");
   const [notes, setNotes] = useState("");
 
   const handleSubmit = useCallback(() => {
-    if (!personaId) return;
-
     startTransition(async () => {
       await createSkillEventAction(personId, {
         personSkillId,
-        personaId,
+        personaId: personaId || null,
         eventType,
         level: (level as SkillLevel) || null,
         notes: notes || null,
+        date: date || null,
+        datePrecision,
       });
       onClose();
     });
-  }, [personId, personSkillId, eventType, level, personaId, notes, onClose]);
+  }, [personId, personSkillId, eventType, level, personaId, date, datePrecision, notes, onClose]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
@@ -128,14 +130,47 @@ export function AddSkillEventDialog({
             </div>
           </div>
 
-          {/* Persona */}
+          {/* Date */}
           <div>
-            <label className="mb-1.5 block text-sm font-medium">Persona</label>
+            <label className="mb-1.5 block text-sm font-medium">
+              Date (optional)
+            </label>
+            <div className="flex gap-2">
+              <input
+                type="date"
+                value={date}
+                onChange={(e) => {
+                  setDate(e.target.value);
+                  if (e.target.value && datePrecision === "UNKNOWN") {
+                    setDatePrecision("DAY");
+                  }
+                }}
+                className="flex-1 rounded-lg border border-white/15 bg-muted/30 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+              />
+              <select
+                value={datePrecision}
+                onChange={(e) => setDatePrecision(e.target.value)}
+                className="w-28 rounded-lg border border-white/15 bg-muted/30 px-2 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+              >
+                <option value="UNKNOWN">Unknown</option>
+                <option value="YEAR">Year</option>
+                <option value="MONTH">Month</option>
+                <option value="DAY">Day</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Persona (optional) */}
+          <div>
+            <label className="mb-1.5 block text-sm font-medium">
+              Persona (optional)
+            </label>
             <select
               value={personaId}
               onChange={(e) => setPersonaId(e.target.value)}
               className="w-full rounded-lg border border-white/15 bg-muted/30 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
             >
+              <option value="">No persona</option>
               {personas.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.label}
@@ -162,7 +197,7 @@ export function AddSkillEventDialog({
           <button
             type="button"
             onClick={handleSubmit}
-            disabled={isPending || !personaId}
+            disabled={isPending}
             className={cn(
               "flex w-full items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium transition-all",
               "bg-primary text-primary-foreground hover:bg-primary/90",

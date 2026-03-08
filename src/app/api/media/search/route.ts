@@ -21,9 +21,7 @@ export async function GET(request: Request) {
   const cursor = searchParams.get("cursor");
   const limit = Math.min(parseInt(searchParams.get("limit") || "50", 10), 100);
 
-  const where: Prisma.MediaItemWhereInput = {
-    deletedAt: null,
-  };
+  const where: Prisma.MediaItemWhereInput = {};
 
   if (q) {
     where.filename = { contains: q, mode: "insensitive" };
@@ -35,7 +33,7 @@ export async function GET(request: Request) {
 
   if (personId) {
     where.personMediaLinks = {
-      some: { personId, deletedAt: null },
+      some: { personId },
     };
   }
 
@@ -56,13 +54,12 @@ export async function GET(request: Request) {
     include: {
       session: { select: { id: true, name: true } },
       personMediaLinks: {
-        where: { deletedAt: null },
         select: {
           person: {
             select: {
               id: true,
               icgId: true,
-              aliases: { where: { type: "common", deletedAt: null }, take: 1 },
+              aliases: { where: { type: "common" }, take: 1 },
             },
           },
         },

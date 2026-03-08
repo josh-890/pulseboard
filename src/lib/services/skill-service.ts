@@ -59,7 +59,6 @@ export async function getPersonSkillsEnriched(
         include: { group: { select: { name: true } } },
       },
       events: {
-        where: { deletedAt: null },
         include: {
           persona: { select: { label: true, date: true } },
           media: {
@@ -159,11 +158,10 @@ export async function updatePersonSkill(
 }
 
 export async function deletePersonSkill(id: string) {
-  const deletedAt = new Date();
   return prisma.$transaction(async (tx) => {
     // Get event IDs to clean up media
     const events = await tx.personSkillEvent.findMany({
-      where: { personSkillId: id, deletedAt: null },
+      where: { personSkillId: id },
       select: { id: true },
     });
     const eventIds = events.map((e) => e.id);
@@ -172,15 +170,13 @@ export async function deletePersonSkill(id: string) {
         where: { skillEventId: { in: eventIds } },
       });
     }
-    // Soft-delete events
-    await tx.personSkillEvent.updateMany({
-      where: { personSkillId: id, deletedAt: null },
-      data: { deletedAt },
+    // Delete events
+    await tx.personSkillEvent.deleteMany({
+      where: { personSkillId: id },
     });
-    // Soft-delete the skill
-    return tx.personSkill.update({
+    // Delete the skill
+    return tx.personSkill.delete({
       where: { id },
-      data: { deletedAt },
     });
   });
 }
@@ -212,9 +208,8 @@ export async function createSkillEvent(data: {
 export async function deleteSkillEvent(id: string) {
   return prisma.$transaction(async (tx) => {
     await tx.skillEventMedia.deleteMany({ where: { skillEventId: id } });
-    return tx.personSkillEvent.update({
+    return tx.personSkillEvent.delete({
       where: { id },
-      data: { deletedAt: new Date() },
     });
   });
 }
@@ -272,7 +267,7 @@ export async function getSessionParticipantSkills(sessionId: string) {
       person: {
         include: {
           aliases: {
-            where: { type: "common", deletedAt: null },
+            where: { type: "common" },
             take: 1,
           },
         },
@@ -375,7 +370,7 @@ export async function removeSessionParticipantSkill(
 
     // 2. Find the PersonSkill for this person + definition
     const personSkill = await tx.personSkill.findFirst({
-      where: { personId, skillDefinitionId, deletedAt: null },
+      where: { personId, skillDefinitionId },
     });
 
     if (personSkill) {
@@ -385,17 +380,15 @@ export async function removeSessionParticipantSkill(
           personSkillId: personSkill.id,
           eventType: "DEMONSTRATED",
           notes: { contains: `[session:${sessionId}]` },
-          deletedAt: null,
         },
         orderBy: { createdAt: "desc" },
       });
 
       if (event) {
-        // 4. Hard-delete media links, then soft-delete the event
+        // 4. Delete media links, then delete the event
         await tx.skillEventMedia.deleteMany({ where: { skillEventId: event.id } });
-        await tx.personSkillEvent.update({
+        await tx.personSkillEvent.delete({
           where: { id: event.id },
-          data: { deletedAt: new Date() },
         });
       }
     }

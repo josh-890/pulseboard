@@ -9,11 +9,10 @@ const prisma = new PrismaClient({ adapter });
 async function main() {
   const persons = await prisma.person.findMany({
     where: {
-      deletedAt: null,
       referenceSession: null,
     },
     include: {
-      aliases: { where: { type: "common", deletedAt: null }, take: 1 },
+      aliases: { where: { type: "common" }, take: 1 },
     },
   });
 

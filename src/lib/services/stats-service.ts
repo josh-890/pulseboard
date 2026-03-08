@@ -71,6 +71,6 @@ export async function getDashboardStats(): Promise<DashboardStats> {
 
 async function getUnresolvedCreditCount(): Promise<number> {
   return prisma.setCreditRaw.count({
-    where: { resolutionStatus: "UNRESOLVED", deletedAt: null },
+    where: { resolutionStatus: "UNRESOLVED" },
   });
 }

@@ -24,11 +24,9 @@ export async function getProjects(filters: ProjectFilters = {}) {
     where,
     include: {
       labels: {
-        where: { label: { deletedAt: null } },
         include: { label: true },
       },
       sessions: {
-        where: { deletedAt: null },
         orderBy: { date: "desc" },
       },
     },
@@ -41,17 +39,15 @@ export async function getProjectById(id: string) {
     where: { id },
     include: {
       labels: {
-        where: { label: { deletedAt: null } },
         include: { label: true },
       },
       sessions: {
-        where: { deletedAt: null },
         include: {
           participants: {
             include: {
               person: {
                 include: {
-                  aliases: { where: { type: "common", deletedAt: null }, take: 1 },
+                  aliases: { where: { type: "common" }, take: 1 },
                 },
               },
             },
@@ -101,27 +97,24 @@ export async function updateProjectRecord(id: string, data: {
 }
 
 export async function deleteProjectRecord(id: string) {
-  const deletedAt = new Date();
-
   return prisma.$transaction(async (tx) => {
-    // Find non-deleted sessions
+    // Find sessions belonging to this project
     const sessions = await tx.session.findMany({
-      where: { projectId: id, deletedAt: null },
+      where: { projectId: id },
       select: { id: true },
     });
 
-    // Cascade-delete each session (sets + contributions + photos)
+    // Cascade-delete each session
     for (const session of sessions) {
-      await cascadeDeleteSession(tx, session.id, deletedAt);
+      await cascadeDeleteSession(tx, session.id);
     }
 
-    // Hard-delete join table rows (no deletedAt column)
+    // Delete join table rows
     await tx.projectLabel.deleteMany({ where: { projectId: id } });
 
-    // Soft-delete the project
-    return tx.project.update({
+    // Delete the project
+    return tx.project.delete({
       where: { id },
-      data: { deletedAt },
     });
   });
 }

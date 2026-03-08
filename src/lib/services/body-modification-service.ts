@@ -10,7 +10,6 @@ export async function getPersonBodyModifications(personId: string) {
     where: { personId },
     include: {
       events: {
-        where: { deletedAt: null },
         include: {
           persona: { select: { id: true, label: true, date: true } },
         },
@@ -26,7 +25,6 @@ export async function getBodyModificationById(id: string) {
     where: { id },
     include: {
       events: {
-        where: { deletedAt: null },
         include: {
           persona: { select: { id: true, label: true, date: true } },
         },
@@ -56,15 +54,12 @@ export async function updateBodyModificationRecord(id: string, data: UpdateBodyM
 }
 
 export async function deleteBodyModificationRecord(id: string) {
-  const deletedAt = new Date();
   return prisma.$transaction(async (tx) => {
-    await tx.bodyModificationEvent.updateMany({
-      where: { bodyModificationId: id, deletedAt: null },
-      data: { deletedAt },
+    await tx.bodyModificationEvent.deleteMany({
+      where: { bodyModificationId: id },
     });
-    return tx.bodyModification.update({
+    return tx.bodyModification.delete({
       where: { id },
-      data: { deletedAt },
     });
   });
 }
@@ -74,8 +69,7 @@ export async function createBodyModificationEventRecord(data: CreateBodyModifica
 }
 
 export async function deleteBodyModificationEventRecord(id: string) {
-  return prisma.bodyModificationEvent.update({
+  return prisma.bodyModificationEvent.delete({
     where: { id },
-    data: { deletedAt: new Date() },
   });
 }

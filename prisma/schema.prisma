@@ -247,10 +247,8 @@ model Person {
   sessionParticipantSkills SessionParticipantSkill[]
 
   createdAt DateTime  @default(now())
-  deletedAt DateTime?
 
   @@index([status])
-  @@index([deletedAt])
 }
 
 model PersonAlias {
@@ -261,12 +259,10 @@ model PersonAlias {
   type      AliasType   @default(alias)
   source    AliasSource @default(MANUAL)
   nameNorm  String?
-  deletedAt DateTime?
 
   @@index([personId])
   @@index([name])
   @@index([nameNorm])
-  @@index([deletedAt])
 }
 
 model Persona {
@@ -279,7 +275,6 @@ model Persona {
   date       DateTime?
   datePrecision DatePrecision @default(UNKNOWN)
   createdAt  DateTime  @default(now())
-  deletedAt  DateTime?
 
   physicalChange    PersonaPhysical?
   bodyMarkEvents    BodyMarkEvent[]
@@ -290,7 +285,6 @@ model Persona {
   skillEvents               PersonSkillEvent[]
 
   @@index([personId])
-  @@index([deletedAt])
 }
 
 model PersonaPhysical {
@@ -317,7 +311,6 @@ model BodyMark {
   colors      String[]
   size        String?
   status      BodyMarkStatus @default(present)
-  deletedAt   DateTime?
   createdAt   DateTime       @default(now())
 
   events          BodyMarkEvent[]
@@ -325,7 +318,6 @@ model BodyMark {
 
   @@index([personId])
   @@index([status])
-  @@index([deletedAt])
 }
 
 model BodyMarkEvent {
@@ -336,11 +328,9 @@ model BodyMarkEvent {
   persona     Persona           @relation(fields: [personaId], references: [id])
   eventType   BodyMarkEventType
   notes       String?
-  deletedAt   DateTime?
 
   @@index([bodyMarkId])
   @@index([personaId])
-  @@index([deletedAt])
 }
 
 model PersonDigitalIdentity {
@@ -357,11 +347,9 @@ model PersonDigitalIdentity {
   validFromPrecision DatePrecision @default(UNKNOWN)
   validTo   DateTime?
   validToPrecision   DatePrecision @default(UNKNOWN)
-  deletedAt DateTime?
 
   @@index([personId])
   @@index([personaId])
-  @@index([deletedAt])
 }
 
 model PersonSkill {
@@ -380,14 +368,12 @@ model PersonSkill {
   validFromPrecision DatePrecision   @default(UNKNOWN)
   validTo           DateTime?
   validToPrecision   DatePrecision   @default(UNKNOWN)
-  deletedAt         DateTime?
 
   events PersonSkillEvent[]
 
   @@index([personId])
   @@index([personaId])
   @@index([skillDefinitionId])
-  @@index([deletedAt])
 }
 
 model PersonRelationship {
@@ -405,14 +391,12 @@ model PersonRelationship {
   validTo       DateTime?
   validToPrecision   DatePrecision @default(UNKNOWN)
   context       String?
-  deletedAt     DateTime?
 
   events RelationshipEvent[]
 
   @@unique([personAId, personBId])
   @@index([personAId])
   @@index([personBId])
-  @@index([deletedAt])
 }
 
 // ─── Body Modifications ──────────────────────────────────────────────────────
@@ -429,7 +413,6 @@ model BodyModification {
   material    String?
   gauge       String?
   status      BodyModificationStatus @default(present)
-  deletedAt   DateTime?
   createdAt   DateTime  @default(now())
 
   events          BodyModificationEvent[]
@@ -438,7 +421,6 @@ model BodyModification {
   @@index([personId])
   @@index([type])
   @@index([status])
-  @@index([deletedAt])
 }
 
 model BodyModificationEvent {
@@ -449,11 +431,9 @@ model BodyModificationEvent {
   persona            Persona @relation(fields: [personaId], references: [id])
   eventType          BodyModificationEventType
   notes              String?
-  deletedAt          DateTime?
 
   @@index([bodyModificationId])
   @@index([personaId])
-  @@index([deletedAt])
 }
 
 // ─── Cosmetic Procedures ─────────────────────────────────────────────────────
@@ -467,14 +447,12 @@ model CosmeticProcedure {
   description String?
   provider    String?
   status      String  @default("completed")
-  deletedAt   DateTime?
   createdAt   DateTime  @default(now())
 
   events          CosmeticProcedureEvent[]
   personMediaLinks PersonMediaLink[]
 
   @@index([personId])
-  @@index([deletedAt])
 }
 
 model CosmeticProcedureEvent {
@@ -485,11 +463,9 @@ model CosmeticProcedureEvent {
   persona             Persona @relation(fields: [personaId], references: [id])
   eventType           CosmeticProcedureEventType
   notes               String?
-  deletedAt           DateTime?
 
   @@index([cosmeticProcedureId])
   @@index([personaId])
-  @@index([deletedAt])
 }
 
 // ─── Education & Awards ──────────────────────────────────────────────────────
@@ -507,11 +483,9 @@ model PersonEducation {
   endDate       DateTime?
   endDatePrecision   DatePrecision @default(UNKNOWN)
   notes         String?
-  deletedAt     DateTime?
   createdAt     DateTime @default(now())
 
   @@index([personId])
-  @@index([deletedAt])
 }
 
 model PersonAward {
@@ -525,11 +499,9 @@ model PersonAward {
   datePrecision DatePrecision @default(UNKNOWN)
   context       String?
   url           String?
-  deletedAt     DateTime?
   createdAt     DateTime @default(now())
 
   @@index([personId])
-  @@index([deletedAt])
 }
 
 // ─── Interests ───────────────────────────────────────────────────────────────
@@ -546,11 +518,9 @@ model PersonInterest {
   validTo       DateTime?
   validToPrecision   DatePrecision @default(UNKNOWN)
   notes         String?
-  deletedAt     DateTime?
   createdAt     DateTime @default(now())
 
   @@index([personId])
-  @@index([deletedAt])
 }
 
 // ─── Relationship Events ─────────────────────────────────────────────────────
@@ -563,11 +533,9 @@ model RelationshipEvent {
   date            DateTime?
   datePrecision   DatePrecision @default(UNKNOWN)
   notes           String?
-  deletedAt       DateTime?
   createdAt       DateTime @default(now())
 
   @@index([relationshipId])
-  @@index([deletedAt])
 }
 
 // ─── Organizations ────────────────────────────────────────────────────────────
@@ -578,13 +546,11 @@ model Network {
   nameNorm    String?
   description String?
   website     String?
-  deletedAt   DateTime?
 
   labelMemberships LabelNetworkLink[]
 
   @@index([name])
   @@index([nameNorm])
-  @@index([deletedAt])
 }
 
 model Label {
@@ -593,7 +559,6 @@ model Label {
   nameNorm    String?
   description String?
   website     String?
-  deletedAt   DateTime?
 
   networks        LabelNetworkLink[]
   projects        ProjectLabel[]
@@ -604,7 +569,6 @@ model Label {
 
   @@index([name])
   @@index([nameNorm])
-  @@index([deletedAt])
 }
 
 model LabelNetworkLink {
@@ -624,13 +588,11 @@ model Channel {
   url       String?
   platform  String?
   notes     String?
-  deletedAt DateTime?
 
   sets      Set[]
   labelMaps ChannelLabelMap[]
 
   @@index([nameNorm])
-  @@index([deletedAt])
 }
 
 // ─── Evidence Layer ──────────────────────────────────────────────────────────
@@ -673,7 +635,6 @@ model Project {
   label       Label?        @relation("PrimaryLabel", fields: [labelId], references: [id])
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
-  deletedAt   DateTime?
 
   labels   ProjectLabel[]
   sessions Session[]
@@ -681,7 +642,6 @@ model Project {
   @@index([status])
   @@index([updatedAt])
   @@index([nameNorm])
-  @@index([deletedAt])
   @@index([labelId])
 }
 
@@ -713,7 +673,6 @@ model Session {
   datePrecision DatePrecision @default(UNKNOWN)
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
-  deletedAt   DateTime?
 
   mediaItems      MediaItem[]
   participants    SessionParticipant[]
@@ -727,7 +686,6 @@ model Session {
   @@index([type])
   @@index([status])
   @@index([nameNorm])
-  @@index([deletedAt])
 }
 
 model Set {
@@ -748,7 +706,6 @@ model Set {
   tags        String[]
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
-  deletedAt   DateTime?
 
   setMediaItems   SetMediaItem[]
   creditsRaw      SetCreditRaw[]
@@ -760,7 +717,6 @@ model Set {
   @@index([type])
   @@index([releaseDate])
   @@index([titleNorm])
-  @@index([deletedAt])
   @@index([coverMediaItemId])
 }
 
@@ -797,7 +753,6 @@ model MediaItem {
 
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
-  deletedAt DateTime?
 
   setMediaItems    SetMediaItem[]
   personMediaLinks PersonMediaLink[]
@@ -809,7 +764,6 @@ model MediaItem {
   @@index([hash])
   @@index([phash])
   @@index([mediaType])
-  @@index([deletedAt])
   @@index([tags], type: Gin)
 }
 
@@ -871,13 +825,11 @@ model SetCreditRaw {
   resolvedPerson   Person?          @relation(fields: [resolvedPersonId], references: [id])
   createdAt        DateTime         @default(now())
   updatedAt        DateTime         @updatedAt
-  deletedAt        DateTime?
 
   @@index([setId])
   @@index([resolutionStatus])
   @@index([nameNorm])
   @@index([resolvedPersonId])
-  @@index([deletedAt])
 }
 
 model PersonMediaLink {
@@ -903,7 +855,6 @@ model PersonMediaLink {
   category             MediaCategory?      @relation(fields: [categoryId], references: [id])
 
   createdAt   DateTime         @default(now())
-  deletedAt   DateTime?
 
   @@unique([personId, mediaItemId, usage])
   @@index([personId])
@@ -912,7 +863,6 @@ model PersonMediaLink {
   @@index([bodyModificationId])
   @@index([cosmeticProcedureId])
   @@index([categoryId])
-  @@index([deletedAt])
 }
 
 // ─── Media Collections ──────────────────────────────────────────────────────
@@ -926,10 +876,8 @@ model MediaCollection {
   items       MediaCollectionItem[]
   createdAt   DateTime              @default(now())
   updatedAt   DateTime              @updatedAt
-  deletedAt   DateTime?
 
   @@index([personId])
-  @@index([deletedAt])
   @@map("MediaCollection")
 }
 
@@ -990,11 +938,9 @@ model Activity {
   type  ActivityType
 
   createdAt DateTime  @default(now())
-  deletedAt DateTime?
 
   @@index([time])
   @@index([type])
-  @@index([deletedAt])
 }
 
 // ─── Skill Catalog & Tracking ────────────────────────────────────────────────
@@ -1038,14 +984,12 @@ model PersonSkillEvent {
   date          DateTime?
   datePrecision DatePrecision  @default(UNKNOWN)
   notes         String?
-  deletedAt     DateTime?
   createdAt     DateTime       @default(now())
 
   media         SkillEventMedia[]
 
   @@index([personSkillId])
   @@index([personaId])
-  @@index([deletedAt])
 }
 
 model SkillEventMedia {

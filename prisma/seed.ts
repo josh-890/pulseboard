@@ -27,7 +27,7 @@ async function main() {
       birthdatePrecision: "DAY",
       nationality: "USA",
       ethnicity: "Caucasian",
-      deletedAt: null,
+
     },
     create: {
       id: "seed-person-1",
@@ -62,7 +62,7 @@ async function main() {
       birthdate: new Date("1988-07-22"),
       birthdatePrecision: "DAY",
       nationality: "USA",
-      deletedAt: null,
+
     },
     create: {
       id: "seed-person-2",
@@ -84,7 +84,7 @@ async function main() {
 
   await prisma.personAlias.upsert({
     where: { id: "seed-alias-1" },
-    update: { name: "Jane", type: "common", source: "MANUAL", nameNorm: "jane", deletedAt: null },
+    update: { name: "Jane", type: "common", source: "MANUAL", nameNorm: "jane" },
     create: {
       id: "seed-alias-1",
       personId: person.id,
@@ -97,7 +97,7 @@ async function main() {
 
   await prisma.personAlias.upsert({
     where: { id: "seed-alias-2" },
-    update: { name: "Jane Doe", type: "birth", source: "MANUAL", nameNorm: "jane doe", deletedAt: null },
+    update: { name: "Jane Doe", type: "birth", source: "MANUAL", nameNorm: "jane doe" },
     create: {
       id: "seed-alias-2",
       personId: person.id,
@@ -110,7 +110,7 @@ async function main() {
 
   await prisma.personAlias.upsert({
     where: { id: "seed-alias-3" },
-    update: { name: "JD Star", type: "alias", source: "MANUAL", nameNorm: "jd star", deletedAt: null },
+    update: { name: "JD Star", type: "alias", source: "MANUAL", nameNorm: "jd star" },
     create: {
       id: "seed-alias-3",
       personId: person.id,
@@ -123,7 +123,7 @@ async function main() {
 
   await prisma.personAlias.upsert({
     where: { id: "seed-alias-4" },
-    update: { name: "Marcus Reed", type: "common", source: "MANUAL", nameNorm: "marcus reed", deletedAt: null },
+    update: { name: "Marcus Reed", type: "common", source: "MANUAL", nameNorm: "marcus reed" },
     create: {
       id: "seed-alias-4",
       personId: person2.id,
@@ -138,7 +138,7 @@ async function main() {
 
   const baselinePersona = await prisma.persona.upsert({
     where: { id: "seed-persona-1" },
-    update: { deletedAt: null },
+    update: {},
     create: {
       id: "seed-persona-1",
       personId: person.id,
@@ -151,7 +151,7 @@ async function main() {
 
   const eventPersona = await prisma.persona.upsert({
     where: { id: "seed-persona-2" },
-    update: { deletedAt: null },
+    update: {},
     create: {
       id: "seed-persona-2",
       personId: person.id,
@@ -179,7 +179,7 @@ async function main() {
 
   const bodyMark = await prisma.bodyMark.upsert({
     where: { id: "seed-bodymark-1" },
-    update: { deletedAt: null },
+    update: {},
     create: {
       id: "seed-bodymark-1",
       personId: person.id,
@@ -197,7 +197,7 @@ async function main() {
 
   await prisma.bodyMarkEvent.upsert({
     where: { id: "seed-bodymark-event-1" },
-    update: { deletedAt: null },
+    update: {},
     create: {
       id: "seed-bodymark-event-1",
       bodyMarkId: bodyMark.id,
@@ -211,7 +211,7 @@ async function main() {
 
   await prisma.personDigitalIdentity.upsert({
     where: { id: "seed-digital-id-1" },
-    update: { deletedAt: null },
+    update: {},
     create: {
       id: "seed-digital-id-1",
       personId: person.id,
@@ -225,7 +225,7 @@ async function main() {
 
   await prisma.personSkill.upsert({
     where: { id: "seed-skill-1" },
-    update: { deletedAt: null },
+    update: {},
     create: {
       id: "seed-skill-1",
       personId: person.id,
@@ -241,7 +241,7 @@ async function main() {
 
   const network = await prisma.network.upsert({
     where: { id: "seed-network-1" },
-    update: { deletedAt: null, nameNorm: "sample network" },
+    update: { nameNorm: "sample network" },
     create: {
       id: "seed-network-1",
       name: "Sample Network",
@@ -252,7 +252,7 @@ async function main() {
 
   const label = await prisma.label.upsert({
     where: { id: "seed-label-1" },
-    update: { deletedAt: null, nameNorm: "sample studio" },
+    update: { nameNorm: "sample studio" },
     create: {
       id: "seed-label-1",
       name: "Sample Studio",
@@ -264,7 +264,7 @@ async function main() {
 
   const label2 = await prisma.label.upsert({
     where: { id: "seed-label-2" },
-    update: { deletedAt: null, nameNorm: "indie productions" },
+    update: { nameNorm: "indie productions" },
     create: {
       id: "seed-label-2",
       name: "Indie Productions",
@@ -290,7 +290,7 @@ async function main() {
 
   const channel = await prisma.channel.upsert({
     where: { id: "seed-channel-1" },
-    update: { deletedAt: null, nameNorm: "main site" },
+    update: { nameNorm: "main site" },
     create: {
       id: "seed-channel-1",
       name: "Main Site",
@@ -301,7 +301,7 @@ async function main() {
 
   const channel2 = await prisma.channel.upsert({
     where: { id: "seed-channel-2" },
-    update: { deletedAt: null, nameNorm: "premium channel" },
+    update: { nameNorm: "premium channel" },
     create: {
       id: "seed-channel-2",
       name: "Premium Channel",
@@ -348,7 +348,7 @@ async function main() {
 
   const project = await prisma.project.upsert({
     where: { id: "seed-project-1" },
-    update: { deletedAt: null, nameNorm: "sample project", labelId: label.id },
+    update: { nameNorm: "sample project", labelId: label.id },
     create: {
       id: "seed-project-1",
       name: "Sample Project",
@@ -377,7 +377,7 @@ async function main() {
 
   const session = await prisma.session.upsert({
     where: { id: "seed-session-1" },
-    update: { deletedAt: null, status: "CONFIRMED", labelId: label.id, nameNorm: "session 1" },
+    update: { status: "CONFIRMED", labelId: label.id, nameNorm: "session 1" },
     create: {
       id: "seed-session-1",
       projectId: project.id,
@@ -394,7 +394,7 @@ async function main() {
   // Reference sessions (per-person)
   const refSession = await prisma.session.upsert({
     where: { id: "seed-session-ref" },
-    update: { deletedAt: null, type: "REFERENCE", status: "CONFIRMED", nameNorm: "jane — reference", name: "Jane — Reference", personId: person.id },
+    update: { type: "REFERENCE", status: "CONFIRMED", nameNorm: "jane — reference", name: "Jane — Reference", personId: person.id },
     create: {
       id: "seed-session-ref",
       name: "Jane — Reference",
@@ -407,7 +407,7 @@ async function main() {
 
   await prisma.session.upsert({
     where: { id: "seed-ref-session-2" },
-    update: { deletedAt: null, type: "REFERENCE", status: "CONFIRMED", nameNorm: "marcus reed — reference", personId: person2.id },
+    update: { type: "REFERENCE", status: "CONFIRMED", nameNorm: "marcus reed — reference", personId: person2.id },
     create: {
       id: "seed-ref-session-2",
       name: "Marcus Reed — Reference",
@@ -456,7 +456,7 @@ async function main() {
 
   const media1 = await prisma.mediaItem.upsert({
     where: { id: "seed-media-1" },
-    update: { deletedAt: null },
+    update: {},
     create: {
       id: "seed-media-1",
       sessionId: session.id,
@@ -476,7 +476,7 @@ async function main() {
 
   const media2 = await prisma.mediaItem.upsert({
     where: { id: "seed-media-2" },
-    update: { deletedAt: null },
+    update: {},
     create: {
       id: "seed-media-2",
       sessionId: session.id,
@@ -497,7 +497,7 @@ async function main() {
   // Reference session media (headshot)
   const mediaRef = await prisma.mediaItem.upsert({
     where: { id: "seed-media-ref-1" },
-    update: { deletedAt: null },
+    update: {},
     create: {
       id: "seed-media-ref-1",
       sessionId: refSession.id,
@@ -518,7 +518,7 @@ async function main() {
   const set = await prisma.set.upsert({
     where: { id: "seed-set-1" },
     update: {
-      deletedAt: null,
+
       titleNorm: "sample photoset",
       coverMediaItemId: media1.id,
     },
@@ -568,7 +568,7 @@ async function main() {
 
   await prisma.setCreditRaw.upsert({
     where: { id: "seed-credit-raw-1" },
-    update: { deletedAt: null },
+    update: {},
     create: {
       id: "seed-credit-raw-1",
       setId: set.id,
@@ -582,7 +582,7 @@ async function main() {
 
   await prisma.setCreditRaw.upsert({
     where: { id: "seed-credit-raw-2" },
-    update: { deletedAt: null },
+    update: {},
     create: {
       id: "seed-credit-raw-2",
       setId: set.id,
@@ -596,7 +596,7 @@ async function main() {
 
   await prisma.setCreditRaw.upsert({
     where: { id: "seed-credit-raw-3" },
-    update: { deletedAt: null },
+    update: {},
     create: {
       id: "seed-credit-raw-3",
       setId: set.id,
@@ -675,7 +675,7 @@ async function main() {
         usage: "HEADSHOT",
       },
     },
-    update: { deletedAt: null },
+    update: {},
     create: {
       personId: person.id,
       mediaItemId: mediaRef.id,
@@ -694,7 +694,7 @@ async function main() {
         usage: "PORTFOLIO",
       },
     },
-    update: { deletedAt: null },
+    update: {},
     create: {
       personId: person.id,
       mediaItemId: media1.id,
@@ -717,7 +717,7 @@ async function main() {
   for (const a of activities) {
     await prisma.activity.upsert({
       where: { id: a.id },
-      update: { deletedAt: null },
+      update: {},
       create: a,
     });
   }

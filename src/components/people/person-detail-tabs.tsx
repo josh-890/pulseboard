@@ -333,7 +333,7 @@ function HistoryPanel({
   defaultOpen?: boolean;
 }) {
   const [timelineOpen, setTimelineOpen] = useState(defaultOpen);
-  const visiblePersonas = personas.filter((p) => !p.deletedAt);
+  const visiblePersonas = personas;
 
   if (visiblePersonas.length === 0) {
     return <EmptyState message="No persona history recorded." />;
@@ -699,8 +699,8 @@ function HeroCard({
   headshotSlotMap?: Map<string, number>;
 }) {
   const commonAlias = person.aliases.find((a) => a.type === "common");
-  const birthAlias = person.aliases.find((a) => a.type === "birth" && !a.deletedAt);
-  const otherAliases = person.aliases.filter((a) => !a.deletedAt && a.type === "alias");
+  const birthAlias = person.aliases.find((a) => a.type === "birth");
+  const otherAliases = person.aliases.filter((a) => a.type === "alias");
 
   const displayName = commonAlias ? `${commonAlias.name} (${person.icgId})` : person.icgId;
   const initials = commonAlias
@@ -742,7 +742,7 @@ function OverviewTab({
 }) {
   const hasDigitalIdentities = currentState.activeDigitalIdentities.length > 0;
   const hasNotesOrTags = person.notes || person.tags.length > 0;
-  const hasHistory = person.personas.filter((p) => !p.deletedAt).length > 0;
+  const hasHistory = person.personas.length > 0;
 
   if (!hasDigitalIdentities && !hasNotesOrTags && !hasHistory) {
     return (
@@ -761,7 +761,7 @@ function OverviewTab({
         <SectionCard
           title="History"
           icon={<Users size={18} />}
-          badge={person.personas.filter((p) => !p.deletedAt).length}
+          badge={person.personas.length}
           className="md:col-span-2"
         >
           <HistoryPanel personas={person.personas} defaultOpen />

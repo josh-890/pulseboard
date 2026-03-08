@@ -10,7 +10,6 @@ export async function getPersonCosmeticProcedures(personId: string) {
     where: { personId },
     include: {
       events: {
-        where: { deletedAt: null },
         include: {
           persona: { select: { id: true, label: true, date: true } },
         },
@@ -26,7 +25,6 @@ export async function getCosmeticProcedureById(id: string) {
     where: { id },
     include: {
       events: {
-        where: { deletedAt: null },
         include: {
           persona: { select: { id: true, label: true, date: true } },
         },
@@ -53,15 +51,12 @@ export async function updateCosmeticProcedureRecord(id: string, data: UpdateCosm
 }
 
 export async function deleteCosmeticProcedureRecord(id: string) {
-  const deletedAt = new Date();
   return prisma.$transaction(async (tx) => {
-    await tx.cosmeticProcedureEvent.updateMany({
-      where: { cosmeticProcedureId: id, deletedAt: null },
-      data: { deletedAt },
+    await tx.cosmeticProcedureEvent.deleteMany({
+      where: { cosmeticProcedureId: id },
     });
-    return tx.cosmeticProcedure.update({
+    return tx.cosmeticProcedure.delete({
       where: { id },
-      data: { deletedAt },
     });
   });
 }
@@ -71,8 +66,7 @@ export async function createCosmeticProcedureEventRecord(data: CreateCosmeticPro
 }
 
 export async function deleteCosmeticProcedureEventRecord(id: string) {
-  return prisma.cosmeticProcedureEvent.update({
+  return prisma.cosmeticProcedureEvent.delete({
     where: { id },
-    data: { deletedAt: new Date() },
   });
 }

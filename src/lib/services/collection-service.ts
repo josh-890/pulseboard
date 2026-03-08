@@ -24,7 +24,7 @@ export async function getAllCollections(filters: {
   personId?: string | null;
   globalOnly?: boolean;
 } = {}): Promise<CollectionSummary[]> {
-  const where: { personId?: string | null; deletedAt?: null } = { deletedAt: null };
+  const where: { personId?: string | null } = {};
 
   if (filters.globalOnly) {
     where.personId = null;
@@ -38,7 +38,7 @@ export async function getAllCollections(filters: {
       _count: { select: { items: true } },
       person: {
         select: {
-          aliases: { where: { type: "common", deletedAt: null }, take: 1 },
+          aliases: { where: { type: "common" }, take: 1 },
         },
       },
       items: {
@@ -75,7 +75,6 @@ export type CollectionSummaryLight = {
 
 export async function getAllCollectionsSummary(): Promise<CollectionSummaryLight[]> {
   const collections = await prisma.mediaCollection.findMany({
-    where: { deletedAt: null },
     select: { id: true, name: true, personId: true },
     orderBy: { name: "asc" },
   });
@@ -122,7 +121,7 @@ export async function getCollectionWithItems(collectionId: string) {
       person: {
         select: {
           id: true,
-          aliases: { where: { type: "common", deletedAt: null }, take: 1 },
+          aliases: { where: { type: "common" }, take: 1 },
         },
       },
       items: {
@@ -153,7 +152,6 @@ export async function getCollectionGalleryItems(collectionId: string): Promise<G
   });
 
   return items
-    .filter((ci) => !ci.mediaItem.deletedAt)
     .map((ci) => {
       const m = ci.mediaItem;
       const variants = (m.variants as PhotoVariants) ?? {};
@@ -214,9 +212,9 @@ export async function updateCollection(
 }
 
 export async function deleteCollection(id: string): Promise<void> {
-  await prisma.mediaCollection.update({
-    where: { id },
-    data: { deletedAt: new Date() },
+  await prisma.$transaction(async (tx) => {
+    await tx.mediaCollectionItem.deleteMany({ where: { collectionId: id } });
+    await tx.mediaCollection.delete({ where: { id } });
   });
 }
 

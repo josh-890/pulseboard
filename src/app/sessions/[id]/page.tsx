@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { Building2, FolderKanban, Users, ImageIcon, Clapperboard, Camera, Film, User } from "lucide-react";
+import { Building2, FolderKanban, Users, ImageIcon, Clapperboard, Camera, Film, User, Sparkles } from "lucide-react";
 import { getSessionById } from "@/lib/services/session-service";
 import { getLabels } from "@/lib/services/label-service";
 import { getProjects } from "@/lib/services/project-service";
@@ -8,6 +8,8 @@ import { getMediaItemsForSession, getMediaItemsWithLinks, getFilledHeadshotSlots
 import { getProfileImageLabels } from "@/lib/services/setting-service";
 import { getCollectionsForPerson } from "@/lib/services/collection-service";
 import { getAllCategoryGroups } from "@/lib/services/category-service";
+import { getSessionParticipantSkills } from "@/lib/services/skill-service";
+import { getAllSkillGroups } from "@/lib/services/skill-catalog-service";
 import { prisma } from "@/lib/db";
 import { cn, formatPartialDate } from "@/lib/utils";
 import { SessionStatusBadge, SessionTypeBadge } from "@/components/sessions/session-status-badge";
@@ -22,6 +24,7 @@ import {
 } from "@/components/sessions/session-detail-header";
 import { SessionMergeDialog } from "@/components/sessions/session-merge-dialog";
 import { SessionProductionGallery } from "@/components/sessions/session-production-gallery";
+import { SessionParticipantSkills } from "@/components/sessions/session-participant-skills";
 import { MediaManager } from "@/components/media/media-manager";
 import { BatchUploadZone } from "@/components/media/batch-upload-zone";
 
@@ -105,17 +108,17 @@ export default async function SessionDetailPage({ params }: SessionDetailPagePro
         getCollectionsForPerson(personId),
         getAllCategoryGroups(),
         prisma.bodyMark.findMany({
-          where: { personId, deletedAt: null, status: "present" },
+          where: { personId, status: "present" },
           select: { id: true, type: true, bodyRegion: true },
           orderBy: { bodyRegion: "asc" },
         }),
         prisma.bodyModification.findMany({
-          where: { personId, deletedAt: null, status: "present" },
+          where: { personId, status: "present" },
           select: { id: true, type: true, bodyRegion: true },
           orderBy: { bodyRegion: "asc" },
         }),
         prisma.cosmeticProcedure.findMany({
-          where: { personId, deletedAt: null },
+          where: { personId },
           select: { id: true, type: true, bodyRegion: true },
           orderBy: { bodyRegion: "asc" },
         }),
@@ -143,6 +146,17 @@ export default async function SessionDetailPage({ params }: SessionDetailPagePro
   } else {
     mediaItems = await getMediaItemsForSession(id);
   }
+
+  // Load participant skills for production sessions
+  const [participantSkillEntries, skillGroups] = !isReference
+    ? await Promise.all([getSessionParticipantSkills(id), getAllSkillGroups()])
+    : [[], []];
+
+  // Build participant list for the skill add form
+  const participantOptions = session.participants.map((p) => ({
+    personId: p.personId,
+    displayName: p.person.aliases[0]?.name ?? p.person.icgId,
+  }));
 
   return (
     <div className="space-y-6">
@@ -356,6 +370,21 @@ export default async function SessionDetailPage({ params }: SessionDetailPagePro
               })}
             </ul>
           )}
+        </SectionCard>
+      )}
+
+      {/* Participant Skills */}
+      {!isReference && (
+        <SectionCard
+          title={`Participant Skills (${participantSkillEntries.length})`}
+          icon={<Sparkles size={18} />}
+        >
+          <SessionParticipantSkills
+            sessionId={id}
+            entries={participantSkillEntries}
+            skillGroups={skillGroups}
+            participants={participantOptions}
+          />
         </SectionCard>
       )}
 

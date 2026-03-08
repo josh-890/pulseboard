@@ -109,25 +109,6 @@ export function PersonaTimelineEntry({ persona }: PersonaTimelineEntryProps) {
           </div>
         )}
 
-        {/* Skill changes */}
-        {persona.skills.length > 0 && (
-          <div>
-            <p className="mb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground/70">
-              Skills
-            </p>
-            <div className="flex flex-wrap gap-1.5">
-              {persona.skills.map((skill) => (
-                <span
-                  key={skill.id}
-                  className="inline-flex items-center rounded-full border border-white/10 bg-muted/50 px-2.5 py-0.5 text-xs text-foreground/80"
-                >
-                  {skill.name}
-                  {skill.level ? ` · ${skill.level}` : ""}
-                </span>
-              ))}
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );

@@ -48,7 +48,7 @@ async function main() {
   const total = await prisma.mediaItem.count({
     where: {
       hash: null,
-      deletedAt: null,
+
     },
   });
 
@@ -70,7 +70,7 @@ async function main() {
     const items = await prisma.mediaItem.findMany({
       where: {
         hash: null,
-        deletedAt: null,
+  
       },
       select: {
         id: true,

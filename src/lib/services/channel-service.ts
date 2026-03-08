@@ -17,7 +17,7 @@ export async function getChannels(filters?: { q?: string; labelId?: string }) {
       labelMaps: { include: { label: true } },
       _count: {
         select: {
-          sets: { where: { deletedAt: null } },
+          sets: true,
         },
       },
     },
@@ -31,7 +31,6 @@ export async function getChannelById(id: string) {
     include: {
       labelMaps: { include: { label: true } },
       sets: {
-        where: { deletedAt: null },
         orderBy: { releaseDate: "desc" },
       },
     },
@@ -113,8 +112,6 @@ export async function updateChannelRecord(
 }
 
 export async function deleteChannelRecord(id: string) {
-  const deletedAt = new Date();
-
   return prisma.$transaction(async (tx) => {
     // Detach sets from channel (don't delete — sets survive channel deletion)
     await tx.set.updateMany({
@@ -125,10 +122,8 @@ export async function deleteChannelRecord(id: string) {
     // Remove label mappings
     await tx.channelLabelMap.deleteMany({ where: { channelId: id } });
 
-    // Soft-delete the channel
-    return tx.channel.update({
+    return tx.channel.delete({
       where: { id },
-      data: { deletedAt },
     });
   });
 }

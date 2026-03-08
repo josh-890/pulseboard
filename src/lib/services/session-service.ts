@@ -6,7 +6,7 @@ const personSelect = {
   select: {
     id: true,
     icgId: true,
-    aliases: { where: { type: "common" as const, deletedAt: null }, take: 1 },
+    aliases: { where: { type: "common" as const }, take: 1 },
   },
 } as const;
 
@@ -53,14 +53,14 @@ export async function getSessions(filters: SessionFilters = {}) {
         include: {
           person: {
             include: {
-              aliases: { where: { type: "common", deletedAt: null }, take: 1 },
+              aliases: { where: { type: "common" }, take: 1 },
             },
           },
         },
       },
       _count: {
         select: {
-          mediaItems: { where: { deletedAt: null } },
+          mediaItems: true,
           setSessionLinks: true,
         },
       },
@@ -80,7 +80,7 @@ export async function getSessionById(id: string) {
         include: {
           person: {
             include: {
-              aliases: { where: { type: "common", deletedAt: null }, take: 1 },
+              aliases: { where: { type: "common" }, take: 1 },
             },
           },
         },
@@ -108,7 +108,7 @@ export async function getSessionById(id: string) {
       },
       _count: {
         select: {
-          mediaItems: { where: { deletedAt: null } },
+          mediaItems: true,
         },
       },
     },
@@ -190,9 +190,8 @@ export async function deleteSessionRecord(id: string) {
     throw new Error("Reference sessions can only be deleted by deleting the associated person");
   }
 
-  const deletedAt = new Date();
   return prisma.$transaction(async (tx) => {
-    await cascadeDeleteSession(tx, id, deletedAt);
+    await cascadeDeleteSession(tx, id);
   });
 }
 
@@ -209,7 +208,7 @@ export async function mergeSessionsRecord(survivingId: string, absorbedId: strin
 
     // 1. Reassign MediaItems from absorbed → surviving
     await tx.mediaItem.updateMany({
-      where: { sessionId: absorbedId, deletedAt: null },
+      where: { sessionId: absorbedId },
       data: { sessionId: survivingId },
     });
 
@@ -267,10 +266,9 @@ export async function mergeSessionsRecord(survivingId: string, absorbedId: strin
     // 4. Hard-delete absorbed participants
     await tx.sessionParticipant.deleteMany({ where: { sessionId: absorbedId } });
 
-    // 5. Soft-delete absorbed session
-    await tx.session.update({
+    // 5. Delete absorbed session
+    await tx.session.delete({
       where: { id: absorbedId },
-      data: { deletedAt: new Date() },
     });
   });
 }
@@ -332,7 +330,7 @@ export async function searchSessions(q: string) {
       datePrecision: true,
       _count: {
         select: {
-          mediaItems: { where: { deletedAt: null } },
+          mediaItems: true,
           participants: true,
           setSessionLinks: true,
         },
@@ -348,7 +346,7 @@ export async function getPersonReferenceSession(personId: string) {
     where: { personId },
     include: {
       _count: {
-        select: { mediaItems: { where: { deletedAt: null } } },
+        select: { mediaItems: true },
       },
     },
   });

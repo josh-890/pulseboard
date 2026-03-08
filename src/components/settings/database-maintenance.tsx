@@ -39,21 +39,21 @@ const actions: ActionConfig[] = [
   {
     title: "Orphaned Media Items",
     description:
-      "Find MediaItems with no file variants (broken uploads). Soft-deletes orphans and their person links.",
+      "Find MediaItems with no file variants (broken uploads). Deletes orphans and their person links.",
     icon: <ImageOff className="h-5 w-5 text-muted-foreground" />,
     action: fixOrphanedMediaAction,
   },
   {
     title: "Duplicate Media Files",
     description:
-      "Find identical files (same hash) uploaded multiple times to the same session. Keeps the oldest, reassigns links, soft-deletes extras.",
+      "Find identical files (same hash) uploaded multiple times to the same session. Keeps the oldest, reassigns links, deletes extras.",
     icon: <Copy className="h-5 w-5 text-muted-foreground" />,
     action: fixDuplicateMediaAction,
   },
   {
     title: "Duplicate Person-Media Links",
     description:
-      "Find duplicate PersonMediaLink rows (same person + media). Keeps the oldest, soft-deletes extras.",
+      "Find duplicate PersonMediaLink rows (same person + media). Keeps the oldest, deletes extras.",
     icon: <Link2Off className="h-5 w-5 text-muted-foreground" />,
     action: fixDuplicateLinksAction,
   },

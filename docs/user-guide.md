@@ -126,7 +126,7 @@ Shows a link to the person's reference session (auto-created, one per person). D
 #### Edit & Delete
 
 - **Edit** — Opens a sheet to modify person fields
-- **Delete** — Soft-deletes the person and all associated data (cascading)
+- **Delete** — Permanently deletes the person and all associated data (cascading)
 
 ---
 
@@ -191,8 +191,8 @@ Click **"Add Session"** to create a production session:
 - **Linked Sets** — sets connected via SetSession. Shows primary badge and release date. Click to navigate to set detail.
 - **Actions:**
   - **Edit** — modify session fields
-  - **Merge** — absorb another session into this one (consolidates participants, media, and set links; the absorbed session is soft-deleted)
-  - **Delete** — soft-delete the session and cascade
+  - **Merge** — absorb another session into this one (consolidates participants, media, and set links; the absorbed session is permanently deleted)
+  - **Delete** — permanently delete the session and cascade
 
 ---
 
@@ -284,7 +284,7 @@ Read-only display of the set's tags.
 #### Edit & Delete
 
 - **Edit** — modify all set fields in a sheet
-- **Delete** — soft-delete the set and all associated data
+- **Delete** — permanently delete the set and all associated data
 
 ---
 
@@ -317,7 +317,7 @@ Collections created from this page are global (no person scope). Person-scoped c
 - Header with name, description, type badge, and item count
 - **Gallery** — justified grid of all collection items with lightbox
 - **Edit** — modify name and description
-- **Delete** — soft-delete the collection (media items are not affected)
+- **Delete** — permanently delete the collection (media items are not affected)
 
 ### Adding Media to Collections
 
@@ -633,7 +633,7 @@ If you created a set and realize the media actually came from an existing sessio
 1. Open the session you want to keep (the "surviving" session)
 2. Click **"Merge"**
 3. Search for the session to absorb
-4. Confirm — participants, media, and set links all consolidate into the surviving session. The absorbed session is soft-deleted.
+4. Confirm — participants, media, and set links all consolidate into the surviving session. The absorbed session is permanently deleted.
 
 ### Resolving Set Credits
 
@@ -720,7 +720,7 @@ MediaCollection (global or per-person album)
 - **MediaItem.sessionId** = creation provenance (which session produced the media). Immutable.
 - **SetMediaItem** = curation/placement (which sets include the media). Many-to-many.
 - **Compilation** = a set with SetMediaItems pointing to MediaItems from multiple sessions. Derived from `sessionLinks.length > 1`.
-- **Soft deletes** — all destructive operations set a `deletedAt` timestamp. Data is recoverable via direct database access.
+- **Hard deletes** — all destructive operations permanently remove data. Use `scripts/db-backup.sh` for disaster recovery.
 - **Partial dates** — dates can have precision: Unknown (null), Year (YYYY-01-01), Month (YYYY-MM-01), or Day (exact).
 
 ---

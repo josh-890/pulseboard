@@ -60,7 +60,7 @@ export function EditPersonSheet({ person }: EditPersonSheetProps) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
 
-  const commonAlias = person.aliases.find((a) => a.type === "common" && !a.deletedAt);
+  const commonAlias = person.aliases.find((a) => a.type === "common");
   const baselinePersona = person.personas.find((p) => p.isBaseline);
   const physical = baselinePersona?.physicalChange;
 

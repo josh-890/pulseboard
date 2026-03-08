@@ -50,9 +50,8 @@ export async function updatePersonEducationRecord(id: string, data: UpdatePerson
 }
 
 export async function deletePersonEducationRecord(id: string) {
-  return prisma.personEducation.update({
+  return prisma.personEducation.delete({
     where: { id },
-    data: { deletedAt: new Date() },
   });
 }
 
@@ -96,8 +95,7 @@ export async function updatePersonAwardRecord(id: string, data: UpdatePersonAwar
 }
 
 export async function deletePersonAwardRecord(id: string) {
-  return prisma.personAward.update({
+  return prisma.personAward.delete({
     where: { id },
-    data: { deletedAt: new Date() },
   });
 }
