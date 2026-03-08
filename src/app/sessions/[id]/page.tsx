@@ -382,7 +382,18 @@ export default async function SessionDetailPage({ params }: SessionDetailPagePro
           <SessionParticipantSkills
             sessionId={id}
             entries={participantSkillEntries}
-            skillGroups={skillGroups}
+            skillGroups={skillGroups.map((g) => ({
+              id: g.id,
+              name: g.name,
+              definitions: g.definitions.map((d) => ({
+                id: d.id,
+                name: d.name,
+                slug: d.slug,
+                description: d.description,
+                pgrade: d.pgrade,
+                defaultLevel: d.defaultLevel,
+              })),
+            }))}
             participants={participantOptions}
           />
         </SectionCard>

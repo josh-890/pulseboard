@@ -246,6 +246,8 @@ export async function getPersonSkills(personId: string): Promise<PersonSkillItem
     skillDefinitionId: s.skillDefinitionId,
     groupName: s.skillDefinition?.group.name ?? null,
     definitionName: s.skillDefinition?.name ?? null,
+    definitionDescription: s.skillDefinition?.description ?? null,
+    definitionPgrade: s.skillDefinition?.pgrade ?? null,
     events: s.events.map((e) => ({
       id: e.id,
       eventType: e.eventType,
@@ -447,6 +449,8 @@ export function deriveCurrentState(
       skillDefinitionId: s.skillDefinitionId,
       groupName: s.skillDefinition?.group.name ?? null,
       definitionName: s.skillDefinition?.name ?? null,
+      definitionDescription: s.skillDefinition?.description ?? null,
+      definitionPgrade: s.skillDefinition?.pgrade ?? null,
       events: s.events.map((e) => ({
         id: e.id,
         eventType: e.eventType,

@@ -52,3 +52,13 @@ export const SKILL_EVENT_TYPES: SkillEventType[] = [
   "DEMONSTRATED",
   "RETIRED",
 ];
+
+export const SKILL_LEVEL_DELTA: Record<SkillLevel, number> = {
+  BEGINNER: -0.4,
+  INTERMEDIATE: -0.2,
+  ADVANCED: 0,
+  PROFESSIONAL: 0.2,
+  EXPERT: 0.4,
+};
+
+export const SKILL_LEVEL_NULL_DELTA = 0;

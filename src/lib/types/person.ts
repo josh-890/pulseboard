@@ -130,6 +130,8 @@ export type PersonSkillItem = {
   skillDefinitionId: string | null;
   groupName: string | null;
   definitionName: string | null;
+  definitionDescription: string | null;
+  definitionPgrade: number | null;
   events: PersonSkillEventItem[];
 };
 

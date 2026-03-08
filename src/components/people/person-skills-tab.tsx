@@ -441,7 +441,12 @@ function SkillCard({
     <div className="group flex items-center gap-3 rounded-lg px-3 py-2 transition-colors hover:bg-muted/20">
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
-          <span className="text-sm font-medium">{skill.name}</span>
+          <span
+            className="text-sm font-medium"
+            title={skill.definitionDescription ?? undefined}
+          >
+            {skill.name}
+          </span>
           {skill.level && (
             <span
               className={cn(
@@ -450,6 +455,16 @@ function SkillCard({
               )}
             >
               {SKILL_LEVEL_LABEL[skill.level]}
+            </span>
+          )}
+          {skill.definitionPgrade != null && (
+            <span className={cn(
+              "text-[10px] rounded px-1.5 py-0.5 font-medium",
+              skill.definitionPgrade > 0
+                ? "bg-primary/15 text-primary"
+                : "bg-muted/50 text-muted-foreground/50",
+            )}>
+              PG {skill.definitionPgrade}
             </span>
           )}
         </div>

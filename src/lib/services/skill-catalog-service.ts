@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import type { SkillLevel } from "@/generated/prisma/client";
 
 function slugify(name: string): string {
   return name
@@ -67,6 +68,8 @@ export async function createSkillDefinition(data: {
   groupId: string;
   name: string;
   description?: string | null;
+  pgrade?: number;
+  defaultLevel?: SkillLevel | null;
   sortOrder?: number;
 }) {
   const maxOrder = await prisma.skillDefinition.aggregate({
@@ -79,6 +82,8 @@ export async function createSkillDefinition(data: {
       name: data.name,
       slug: slugify(data.name),
       description: data.description ?? null,
+      pgrade: data.pgrade ?? 0,
+      defaultLevel: data.defaultLevel ?? null,
       sortOrder: data.sortOrder ?? (maxOrder._max.sortOrder ?? 0) + 1,
     },
   });
@@ -86,7 +91,7 @@ export async function createSkillDefinition(data: {
 
 export async function updateSkillDefinition(
   id: string,
-  data: { name?: string; description?: string | null; sortOrder?: number },
+  data: { name?: string; description?: string | null; pgrade?: number; defaultLevel?: SkillLevel | null; sortOrder?: number },
 ) {
   const updateData: Record<string, unknown> = {};
   if (data.name !== undefined) {
@@ -94,6 +99,8 @@ export async function updateSkillDefinition(
     updateData.slug = slugify(data.name);
   }
   if (data.description !== undefined) updateData.description = data.description;
+  if (data.pgrade !== undefined) updateData.pgrade = data.pgrade;
+  if (data.defaultLevel !== undefined) updateData.defaultLevel = data.defaultLevel;
   if (data.sortOrder !== undefined) updateData.sortOrder = data.sortOrder;
   return prisma.skillDefinition.update({
     where: { id },

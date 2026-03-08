@@ -961,8 +961,10 @@ model SkillDefinition {
   group       SkillGroup @relation(fields: [groupId], references: [id])
   name        String
   slug        String     @unique
-  description String?
-  sortOrder   Int        @default(0)
+  description  String?
+  pgrade       Int        @default(0)
+  defaultLevel SkillLevel?
+  sortOrder    Int        @default(0)
   createdAt   DateTime   @default(now())
 
   personSkills             PersonSkill[]
@@ -1010,6 +1012,7 @@ model SessionParticipantSkill {
   person            Person          @relation(fields: [personId], references: [id])
   skillDefinitionId String
   skillDefinition   SkillDefinition @relation(fields: [skillDefinitionId], references: [id])
+  level             SkillLevel?
   notes             String?
   createdAt         DateTime        @default(now())
 

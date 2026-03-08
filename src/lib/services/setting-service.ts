@@ -1,4 +1,10 @@
 import { prisma } from "@/lib/db";
+import type { SkillLevel } from "@/generated/prisma/client";
+import {
+  SKILL_LEVELS,
+  SKILL_LEVEL_LABEL,
+  SKILL_LEVEL_DELTA,
+} from "@/lib/constants/skill";
 
 export type ProfileImageLabel = {
   slot: string;
@@ -50,4 +56,60 @@ export async function setSetting(key: string, value: string): Promise<void> {
     update: { value },
     create: { key, value },
   });
+}
+
+// ── Skill Level Configuration ──────────────────────────────────────────────
+
+export type SkillLevelConfig = {
+  level: number; // 1-5
+  enumKey: SkillLevel;
+  label: string;
+  delta: number;
+};
+
+export async function getSkillLevelConfigs(): Promise<SkillLevelConfig[]> {
+  const keys: string[] = [];
+  for (let i = 1; i <= 5; i++) {
+    keys.push(`skill-level-${i}-label`, `skill-level-${i}-factor`);
+  }
+
+  const settings = await prisma.setting.findMany({
+    where: { key: { in: keys } },
+  });
+
+  const map = new Map(settings.map((s) => [s.key, s.value]));
+
+  return SKILL_LEVELS.map((enumKey, i) => {
+    const n = i + 1;
+    return {
+      level: n,
+      enumKey,
+      label: map.get(`skill-level-${n}-label`) ?? SKILL_LEVEL_LABEL[enumKey],
+      delta: parseFloat(
+        map.get(`skill-level-${n}-factor`) ?? String(SKILL_LEVEL_DELTA[enumKey]),
+      ),
+    };
+  });
+}
+
+export async function updateSkillLevelConfig(
+  level: number,
+  label: string,
+  delta: number,
+): Promise<void> {
+  const labelKey = `skill-level-${level}-label`;
+  const factorKey = `skill-level-${level}-factor`;
+
+  await prisma.$transaction([
+    prisma.setting.upsert({
+      where: { key: labelKey },
+      update: { value: label },
+      create: { key: labelKey, value: label },
+    }),
+    prisma.setting.upsert({
+      where: { key: factorKey },
+      update: { value: String(delta) },
+      create: { key: factorKey, value: String(delta) },
+    }),
+  ]);
 }

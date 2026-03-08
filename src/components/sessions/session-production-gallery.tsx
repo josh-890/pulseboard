@@ -66,6 +66,7 @@ export function SessionProductionGallery({ items, sessionId }: SessionProduction
     <>
       <JustifiedGrid
         items={galleryItems}
+        draggable
         onOpen={(id) => {
           const idx = indexMap.get(id);
           if (idx !== undefined) setLightboxIndex(idx);

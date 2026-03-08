@@ -15,6 +15,8 @@ type JustifiedGridProps = {
   /** Enable selection checkboxes (MediaManager mode) */
   selectable?: boolean;
   selectedIds?: Set<string>;
+  /** Enable drag-and-drop on thumbnails */
+  draggable?: boolean;
   onSelect?: (id: string, e: React.MouseEvent) => void;
   onToggleSelect?: (id: string) => void;
   onOpen: (id: string) => void;
@@ -24,6 +26,7 @@ export function JustifiedGrid({
   items,
   selectable,
   selectedIds,
+  draggable: isDraggable,
   onSelect,
   onToggleSelect,
   onOpen,
@@ -75,6 +78,7 @@ export function JustifiedGrid({
                 selectable={selectable}
                 isSelected={selectedIds?.has(item.id)}
                 isMultiSelectMode={isMultiSelectMode}
+                draggable={isDraggable}
                 onSelect={onSelect}
                 onToggleSelect={onToggleSelect}
                 onOpen={onOpen}

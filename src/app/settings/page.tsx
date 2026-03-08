@@ -8,16 +8,18 @@ import { HeroLayoutSelector } from "@/components/settings/hero-layout-selector";
 import { ProfileImageLabels } from "@/components/settings/profile-image-labels";
 import { MediaCategoryManager } from "@/components/settings/media-category-manager";
 import { SkillCatalogManager } from "@/components/settings/skill-catalog-manager";
+import { SkillLevelConfig } from "@/components/settings/skill-level-config";
 import { DatabaseMaintenance } from "@/components/settings/database-maintenance";
-import { getProfileImageLabels } from "@/lib/services/setting-service";
+import { getProfileImageLabels, getSkillLevelConfigs } from "@/lib/services/setting-service";
 import { getAllCategoryGroups } from "@/lib/services/category-service";
 import { getAllSkillGroups } from "@/lib/services/skill-catalog-service";
 
 export default async function SettingsPage() {
-  const [labels, categoryGroups, skillGroups] = await Promise.all([
+  const [labels, categoryGroups, skillGroups, skillLevelConfigs] = await Promise.all([
     getProfileImageLabels(),
     getAllCategoryGroups(),
     getAllSkillGroups(),
+    getSkillLevelConfigs(),
   ]);
 
   return (
@@ -79,6 +81,15 @@ export default async function SettingsPage() {
           person skill development and session participation.
         </p>
         <SkillCatalogManager groups={skillGroups} />
+      </div>
+
+      <div className="rounded-2xl border border-white/30 bg-card/70 p-4 shadow-lg backdrop-blur-md md:p-6 dark:border-white/10">
+        <h2 className="mb-4 text-lg font-semibold">Skill Level Configuration</h2>
+        <p className="mb-4 text-sm text-muted-foreground">
+          Customize skill level names and delta adjustments for the Weighted CP
+          calculation. WCP per skill = pgrade + delta (capped at 10).
+        </p>
+        <SkillLevelConfig configs={skillLevelConfigs} />
       </div>
 
       <div className="rounded-2xl border border-white/30 bg-card/70 p-4 shadow-lg backdrop-blur-md md:p-6 dark:border-white/10">

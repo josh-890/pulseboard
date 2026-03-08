@@ -9,7 +9,7 @@ import {
   deriveCurrentState,
   deriveAffiliations,
 } from "@/lib/services/person-service";
-import { getProfileImageLabels } from "@/lib/services/setting-service";
+import { getProfileImageLabels, getSkillLevelConfigs } from "@/lib/services/setting-service";
 import { getPersonReferenceSession } from "@/lib/services/session-service";
 import { getPersonHeadshots, getFilledHeadshotSlots, getPersonMediaGallery } from "@/lib/services/media-service";
 import { getAllCategoryGroups, getPopulatedCategoriesForPerson } from "@/lib/services/category-service";
@@ -28,7 +28,7 @@ type PersonDetailPageProps = {
 export default async function PersonDetailPage({ params }: PersonDetailPageProps) {
   const { id } = await params;
 
-  const [person, workHistory, connections, profileLabels, refSession, headshots, filledSlots, categoryGroups, populatedCounts, skillGroups] =
+  const [person, workHistory, connections, profileLabels, refSession, headshots, filledSlots, categoryGroups, populatedCounts, skillGroups, skillLevelConfigs] =
     await Promise.all([
       getPersonWithDetails(id),
       getPersonWorkHistory(id),
@@ -40,12 +40,33 @@ export default async function PersonDetailPage({ params }: PersonDetailPageProps
       getAllCategoryGroups(),
       getPopulatedCategoriesForPerson(id),
       getAllSkillGroups(),
+      getSkillLevelConfigs(),
     ]);
 
   if (!person) notFound();
 
   const currentState = deriveCurrentState(person);
   const affiliations = deriveAffiliations(workHistory);
+
+  // Compute Calculated PGRADE (CP) = max skill definition pgrade across active skills
+  // pgrade 0 = excluded from CP calculation
+  const calculatedPgrade = currentState.activeSkills.reduce((max, skill) => {
+    const pg = skill.definitionPgrade;
+    return pg !== null && pg > 0 && pg > max ? pg : max;
+  }, 0) || null;
+
+  // Compute Mean Weighted CP (WCP) = mean of (pgrade + delta) for active skills with pgrade > 0
+  const deltaMap = new Map(skillLevelConfigs.map((c) => [c.enumKey, c.delta]));
+  const wcpSkills = currentState.activeSkills
+    .filter((s) => s.definitionPgrade !== null && s.definitionPgrade > 0)
+    .map((s) => {
+      const delta = s.level ? (deltaMap.get(s.level) ?? 0) : 0;
+      return Math.min(s.definitionPgrade! + delta, 10);
+    });
+  const meanWcp =
+    wcpSkills.length > 0
+      ? wcpSkills.reduce((sum, v) => sum + v, 0) / wcpSkills.length
+      : null;
 
   // Load MediaItems from reference session (authoritative source)
   const galleryItems = refSession
@@ -171,6 +192,8 @@ export default async function PersonDetailPage({ params }: PersonDetailPageProps
         categories={flatCategories}
         categoryCounts={categoryCounts}
         skillGroups={skillGroups}
+        calculatedPgrade={calculatedPgrade}
+        meanWcp={meanWcp}
       />
     </div>
   );

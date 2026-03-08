@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import type { SkillLevel } from "@/generated/prisma/client";
 import {
   createSkillGroup,
   updateSkillGroup,
@@ -60,9 +61,11 @@ export async function createSkillDefinitionAction(
   groupId: string,
   name: string,
   description?: string | null,
+  pgrade?: number,
+  defaultLevel?: SkillLevel | null,
 ): Promise<ActionResult> {
   try {
-    await createSkillDefinition({ groupId, name, description });
+    await createSkillDefinition({ groupId, name, description, pgrade, defaultLevel });
     revalidatePath("/settings");
     return { success: true };
   } catch (err) {
@@ -73,7 +76,7 @@ export async function createSkillDefinitionAction(
 
 export async function updateSkillDefinitionAction(
   id: string,
-  data: { name?: string; description?: string | null; sortOrder?: number },
+  data: { name?: string; description?: string | null; pgrade?: number; defaultLevel?: SkillLevel | null; sortOrder?: number },
 ): Promise<ActionResult> {
   try {
     await updateSkillDefinition(id, data);

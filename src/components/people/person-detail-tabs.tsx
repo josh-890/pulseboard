@@ -75,6 +75,8 @@ type PersonDetailTabsProps = {
   categories?: CategoryWithGroup[];
   categoryCounts?: { categoryId: string; count: number }[];
   skillGroups?: SkillGroupWithDefinitions[];
+  calculatedPgrade?: number | null;
+  meanWcp?: number | null;
 };
 
 // ── Style maps ──────────────────────────────────────────────────────────────
@@ -227,6 +229,64 @@ function PgradeGauge({ value }: { value: number | null | undefined }) {
             }}
           />
         ))}
+      </div>
+    </div>
+  );
+}
+
+// ── CP (Calculated PGRADE) Colors ────────────────────────────────────────────
+
+const CP_COLORS = [
+  "rgb(150,200,230)",
+  "rgb(130,185,220)",
+  "rgb(110,170,210)",
+  "rgb(90,155,200)",
+  "rgb(70,140,190)",
+  "rgb(60,125,180)",
+  "rgb(50,110,175)",
+  "rgb(40,95,170)",
+  "rgb(35,80,160)",
+  "rgb(30,65,150)",
+];
+
+function CpGauge({ value, meanWcp }: { value: number | null | undefined; meanWcp?: number | null }) {
+  const hasValue = value !== null && value !== undefined;
+  const hasWcp = meanWcp !== null && meanWcp !== undefined;
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-center justify-between text-xs">
+        <span className="font-semibold tracking-wide text-muted-foreground">CP</span>
+        <div className="flex items-center gap-2">
+          {hasWcp && (
+            <span className="text-[10px] text-red-400" title="Mean Weighted CP">
+              WCP {meanWcp.toFixed(1)}
+            </span>
+          )}
+          <span className="font-bold text-foreground">{hasValue ? `${value}/10` : "\u2014/10"}</span>
+        </div>
+      </div>
+      <div className="relative">
+        <div className="flex gap-0.5" aria-label={hasValue ? `Calculated PGRADE: ${value} out of 10` : "Calculated PGRADE: not rated"}>
+          {CP_COLORS.map((color, i) => (
+            <div
+              key={i}
+              className="h-2.5 flex-1 rounded-sm first:rounded-l-md last:rounded-r-md"
+              style={{
+                backgroundColor: color,
+                opacity: hasValue && i < value ? 1 : 0.12,
+              }}
+            />
+          ))}
+        </div>
+        {hasWcp && (
+          <div
+            className="absolute -top-2.5 -translate-x-1/2"
+            style={{ left: `${(meanWcp / 10) * 100}%` }}
+            title={`Mean WCP: ${meanWcp.toFixed(1)}`}
+          >
+            <div className="text-red-500 text-[8px] leading-none select-none">&#9660;</div>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -427,10 +487,14 @@ type KpiCounts = {
 function KpiStatsPanel({
   person,
   kpiCounts,
+  calculatedPgrade,
+  meanWcp,
   compact = false,
 }: {
   person: PersonData;
   kpiCounts: KpiCounts;
+  calculatedPgrade?: number | null;
+  meanWcp?: number | null;
   compact?: boolean;
 }) {
   const careerSummary = buildCareerSummary(person);
@@ -466,8 +530,11 @@ function KpiStatsPanel({
         ))}
       </div>
 
-      {/* PGRADE gauge */}
-      <PgradeGauge value={person.pgrade} />
+      {/* PGRADE + CP gauges */}
+      <div className="flex flex-col gap-1">
+        <PgradeGauge value={person.pgrade} />
+        <CpGauge value={calculatedPgrade} meanWcp={meanWcp} />
+      </div>
     </div>
   );
 }
@@ -526,6 +593,8 @@ type HeroSharedProps = {
   photos: GalleryItem[];
   profileLabels: ProfileImageLabel[];
   kpiCounts: KpiCounts;
+  calculatedPgrade?: number | null;
+  meanWcp?: number | null;
   displayName: string;
   initials: string;
   age: number | null;
@@ -600,7 +669,7 @@ function IdentityBlock({ person, displayName, age, aliasPills, nameSize = "text-
 function HeroDensityLayout(props: HeroSharedProps) {
   const { layout } = useHeroLayout();
   const cfg = DENSITY_CONFIGS[layout];
-  const { person, currentState, photos, profileLabels, kpiCounts, displayName, initials, age, aliasPills, referenceSessionId, headshotSlotMap } = props;
+  const { person, currentState, photos, profileLabels, kpiCounts, calculatedPgrade, meanWcp, displayName, initials, age, aliasPills, referenceSessionId, headshotSlotMap } = props;
   const isCompact = layout === "compact";
 
   const handleAssignHeadshot = useCallback(
@@ -672,7 +741,7 @@ function HeroDensityLayout(props: HeroSharedProps) {
 
         {/* Zone 5: KPI Panel */}
         <div className={cn("w-full sm:shrink-0", cfg.kpiWidth)}>
-          <KpiStatsPanel person={person} kpiCounts={kpiCounts} compact={isCompact} />
+          <KpiStatsPanel person={person} kpiCounts={kpiCounts} calculatedPgrade={calculatedPgrade} meanWcp={meanWcp} compact={isCompact} />
         </div>
       </div>
     </div>
@@ -687,6 +756,8 @@ function HeroCard({
   photos,
   profileLabels,
   kpiCounts,
+  calculatedPgrade,
+  meanWcp,
   referenceSessionId,
   headshotSlotMap,
 }: {
@@ -695,6 +766,8 @@ function HeroCard({
   photos: GalleryItem[];
   profileLabels: ProfileImageLabel[];
   kpiCounts: KpiCounts;
+  calculatedPgrade?: number | null;
+  meanWcp?: number | null;
   referenceSessionId?: string;
   headshotSlotMap?: Map<string, number>;
 }) {
@@ -720,6 +793,8 @@ function HeroCard({
     photos,
     profileLabels,
     kpiCounts,
+    calculatedPgrade,
+    meanWcp,
     displayName,
     initials,
     age,
@@ -1173,6 +1248,8 @@ export function PersonDetailTabs({
   categories,
   categoryCounts,
   skillGroups,
+  calculatedPgrade,
+  meanWcp,
 }: PersonDetailTabsProps) {
   const [activeTab, setActiveTab] = useState<TabId>("overview");
 
@@ -1206,6 +1283,8 @@ export function PersonDetailTabs({
         profileLabels={profileLabels}
         referenceSessionId={referenceSessionId}
         headshotSlotMap={heroHeadshotSlotMap}
+        calculatedPgrade={calculatedPgrade}
+        meanWcp={meanWcp}
         kpiCounts={{
           sets: workHistory.length,
           labels: affiliations.length,

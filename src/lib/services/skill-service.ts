@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import type { SkillLevel, SkillEventType, DatePrecision } from "@/generated/prisma/client";
+import { SKILL_LEVEL_VALUE } from "@/lib/constants/skill";
 import type { PersonSkillItem, PersonSkillEventItem, SkillEventMediaThumb, PhotoVariants, GalleryItem, PhotoUrls } from "@/lib/types";
 
 const BASE_URL = process.env.NEXT_PUBLIC_MINIO_URL!;
@@ -84,6 +85,8 @@ export async function getPersonSkillsEnriched(
     skillDefinitionId: s.skillDefinitionId,
     groupName: s.skillDefinition?.group.name ?? null,
     definitionName: s.skillDefinition?.name ?? null,
+    definitionDescription: s.skillDefinition?.description ?? null,
+    definitionPgrade: s.skillDefinition?.pgrade ?? null,
     events: s.events.map((e) => ({
       id: e.id,
       eventType: e.eventType,
@@ -260,8 +263,34 @@ export async function getSkillTimeline(
 
 // ─── Session Participant Skills ──────────────────────────────────────────────
 
-export async function getSessionParticipantSkills(sessionId: string) {
-  return prisma.sessionParticipantSkill.findMany({
+export type EnrichedParticipantSkill = {
+  sessionId: string;
+  personId: string;
+  skillDefinitionId: string;
+  level: SkillLevel | null;
+  notes: string | null;
+  person: {
+    id: string;
+    icgId: string;
+    aliases: { name: string }[];
+  };
+  skillDefinition: {
+    id: string;
+    name: string;
+    slug: string;
+    description: string | null;
+    pgrade: number | null;
+    defaultLevel: SkillLevel | null;
+    group: { name: string };
+  };
+  demonstratedEventId: string | null;
+  eventMedia: { id: string; thumbUrl: string }[];
+};
+
+export async function getSessionParticipantSkills(
+  sessionId: string,
+): Promise<EnrichedParticipantSkill[]> {
+  const entries = await prisma.sessionParticipantSkill.findMany({
     where: { sessionId },
     include: {
       person: {
@@ -278,14 +307,71 @@ export async function getSessionParticipantSkills(sessionId: string) {
     },
     orderBy: { createdAt: "asc" },
   });
+
+  // Batch-fetch DEMONSTRATED events tagged with this session
+  const personIds = [...new Set(entries.map((e) => e.personId))];
+  const events = personIds.length > 0
+    ? await prisma.personSkillEvent.findMany({
+        where: {
+          eventType: "DEMONSTRATED",
+          notes: { contains: `[session:${sessionId}]` },
+          personSkill: { personId: { in: personIds } },
+        },
+        include: {
+          personSkill: { select: { personId: true, skillDefinitionId: true } },
+          media: {
+            include: {
+              mediaItem: {
+                select: { id: true, variants: true, fileRef: true },
+              },
+            },
+            orderBy: { sortOrder: "asc" },
+          },
+        },
+      })
+    : [];
+
+  // Build lookup: personId:skillDefId -> event
+  const eventMap = new Map<string, typeof events[number]>();
+  for (const ev of events) {
+    const key = `${ev.personSkill.personId}:${ev.personSkill.skillDefinitionId}`;
+    eventMap.set(key, ev);
+  }
+
+  return entries.map((e) => {
+    const key = `${e.personId}:${e.skillDefinitionId}`;
+    const ev = eventMap.get(key);
+    return {
+      sessionId: e.sessionId,
+      personId: e.personId,
+      skillDefinitionId: e.skillDefinitionId,
+      level: e.level,
+      notes: e.notes,
+      person: e.person,
+      skillDefinition: e.skillDefinition,
+      demonstratedEventId: ev?.id ?? null,
+      eventMedia: ev
+        ? ev.media.map((m) => {
+            const variants = (m.mediaItem.variants as PhotoVariants) ?? {};
+            const thumbUrl = variants.gallery_512
+              ? buildUrl(variants.gallery_512)
+              : m.mediaItem.fileRef
+                ? buildUrl(m.mediaItem.fileRef)
+                : "";
+            return { id: m.mediaItem.id, thumbUrl };
+          })
+        : [],
+    };
+  });
 }
 
 export async function addSessionParticipantSkill(
   sessionId: string,
   personId: string,
   skillDefinitionId: string,
+  level?: SkillLevel | null,
   notes?: string | null,
-) {
+): Promise<{ sps: { sessionId: string; personId: string; skillDefinitionId: string }; demonstratedEventId: string | null }> {
   return prisma.$transaction(async (tx) => {
     // 1. Create the session participant skill
     const sps = await tx.sessionParticipantSkill.create({
@@ -293,6 +379,7 @@ export async function addSessionParticipantSkill(
         sessionId,
         personId,
         skillDefinitionId,
+        level: level ?? null,
         notes: notes ?? null,
       },
     });
@@ -301,7 +388,7 @@ export async function addSessionParticipantSkill(
     const baselinePersona = await tx.persona.findFirst({
       where: { personId, isBaseline: true },
     });
-    if (!baselinePersona) return sps;
+    if (!baselinePersona) return { sps, demonstratedEventId: null };
 
     // 3. Find or create PersonSkill (linked to baseline persona)
     let personSkill = await tx.personSkill.findFirst({
@@ -320,14 +407,30 @@ export async function addSessionParticipantSkill(
           skillDefinitionId,
           name: def?.name ?? "",
           category: def?.group.name ?? null,
+          level: level ?? null,
         },
       });
-    } else if (!personSkill.personaId) {
-      // Backfill personaId if missing (from earlier auto-creates)
-      personSkill = await tx.personSkill.update({
-        where: { id: personSkill.id },
-        data: { personaId: baselinePersona.id },
-      });
+    } else {
+      if (!personSkill.personaId) {
+        personSkill = await tx.personSkill.update({
+          where: { id: personSkill.id },
+          data: { personaId: baselinePersona.id },
+        });
+      }
+      // Progressive level upgrade
+      if (level && personSkill.level) {
+        if (SKILL_LEVEL_VALUE[level] > SKILL_LEVEL_VALUE[personSkill.level]) {
+          personSkill = await tx.personSkill.update({
+            where: { id: personSkill.id },
+            data: { level },
+          });
+        }
+      } else if (level && !personSkill.level) {
+        personSkill = await tx.personSkill.update({
+          where: { id: personSkill.id },
+          data: { level },
+        });
+      }
     }
 
     // 4. Create DEMONSTRATED event with session date
@@ -336,18 +439,79 @@ export async function addSessionParticipantSkill(
       select: { name: true, date: true, datePrecision: true },
     });
 
-    await tx.personSkillEvent.create({
+    const event = await tx.personSkillEvent.create({
       data: {
         personSkillId: personSkill.id,
         personaId: baselinePersona.id,
         eventType: "DEMONSTRATED",
+        level: level ?? null,
         date: session?.date ?? null,
         datePrecision: session?.datePrecision ?? "UNKNOWN",
         notes: `[session:${sessionId}] Demonstrated in session: ${session?.name ?? "Unknown"}`,
       },
     });
 
-    return sps;
+    return { sps, demonstratedEventId: event.id };
+  });
+}
+
+export async function updateSessionParticipantSkillLevel(
+  sessionId: string,
+  personId: string,
+  skillDefinitionId: string,
+  level: SkillLevel | null,
+) {
+  return prisma.$transaction(async (tx) => {
+    // 1. Update SPS level
+    await tx.sessionParticipantSkill.update({
+      where: {
+        sessionId_personId_skillDefinitionId: {
+          sessionId,
+          personId,
+          skillDefinitionId,
+        },
+      },
+      data: { level },
+    });
+
+    // 2. Update the tagged DEMONSTRATED event's level
+    const personSkill = await tx.personSkill.findFirst({
+      where: { personId, skillDefinitionId },
+    });
+    if (!personSkill) return;
+
+    const event = await tx.personSkillEvent.findFirst({
+      where: {
+        personSkillId: personSkill.id,
+        eventType: "DEMONSTRATED",
+        notes: { contains: `[session:${sessionId}]` },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+    if (event) {
+      await tx.personSkillEvent.update({
+        where: { id: event.id },
+        data: { level },
+      });
+    }
+
+    // 3. Recompute PersonSkill.level as max across all events
+    const allEvents = await tx.personSkillEvent.findMany({
+      where: { personSkillId: personSkill.id, level: { not: null } },
+      select: { level: true },
+    });
+    let maxLevel: SkillLevel | null = null;
+    let maxValue = 0;
+    for (const ev of allEvents) {
+      if (ev.level && SKILL_LEVEL_VALUE[ev.level] > maxValue) {
+        maxValue = SKILL_LEVEL_VALUE[ev.level];
+        maxLevel = ev.level;
+      }
+    }
+    await tx.personSkill.update({
+      where: { id: personSkill.id },
+      data: { level: maxLevel },
+    });
   });
 }
 
@@ -395,6 +559,57 @@ export async function removeSessionParticipantSkill(
 
     return result;
   });
+}
+
+// ─── Session Skill Media Helpers ─────────────────────────────────────────────
+
+export async function addMediaToSessionSkill(
+  sessionId: string,
+  personId: string,
+  skillDefinitionId: string,
+  mediaItemIds: string[],
+) {
+  if (mediaItemIds.length === 0) return;
+  const personSkill = await prisma.personSkill.findFirst({
+    where: { personId, skillDefinitionId },
+  });
+  if (!personSkill) return;
+
+  const event = await prisma.personSkillEvent.findFirst({
+    where: {
+      personSkillId: personSkill.id,
+      eventType: "DEMONSTRATED",
+      notes: { contains: `[session:${sessionId}]` },
+    },
+    orderBy: { createdAt: "desc" },
+  });
+  if (!event) return;
+
+  await addMediaToSkillEvent(event.id, mediaItemIds);
+}
+
+export async function removeMediaFromSessionSkill(
+  sessionId: string,
+  personId: string,
+  skillDefinitionId: string,
+  mediaItemId: string,
+) {
+  const personSkill = await prisma.personSkill.findFirst({
+    where: { personId, skillDefinitionId },
+  });
+  if (!personSkill) return;
+
+  const event = await prisma.personSkillEvent.findFirst({
+    where: {
+      personSkillId: personSkill.id,
+      eventType: "DEMONSTRATED",
+      notes: { contains: `[session:${sessionId}]` },
+    },
+    orderBy: { createdAt: "desc" },
+  });
+  if (!event) return;
+
+  await removeMediaFromSkillEvent(event.id, mediaItemId);
 }
 
 // ─── Skill Event Media ────────────────────────────────────────────────────────

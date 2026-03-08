@@ -117,8 +117,12 @@ export function AddSkillSheet({
                 {skillGroups.map((group) => (
                   <optgroup key={group.id} label={group.name}>
                     {group.definitions.map((def) => (
-                      <option key={def.id} value={def.id}>
-                        {def.name}
+                      <option
+                        key={def.id}
+                        value={def.id}
+                        title={def.description ?? undefined}
+                      >
+                        {def.name}{def.pgrade != null ? ` [PG ${def.pgrade}]` : ""}
                       </option>
                     ))}
                   </optgroup>

@@ -18,6 +18,7 @@ type GalleryThumbnailProps = {
   selectable?: boolean;
   isSelected?: boolean;
   isMultiSelectMode?: boolean;
+  draggable?: boolean;
   onSelect?: (id: string, e: React.MouseEvent) => void;
   onToggleSelect?: (id: string) => void;
   onOpen: (id: string) => void;
@@ -30,6 +31,7 @@ export function GalleryThumbnail({
   selectable,
   isSelected = false,
   isMultiSelectMode = false,
+  draggable: isDraggable = false,
   onSelect,
   onToggleSelect,
   onOpen,
@@ -67,6 +69,15 @@ export function GalleryThumbnail({
     <div
       role="button"
       tabIndex={0}
+      draggable={isDraggable}
+      onDragStart={
+        isDraggable
+          ? (e) => {
+              e.dataTransfer.setData("application/x-media-id", item.id);
+              e.dataTransfer.effectAllowed = "copy";
+            }
+          : undefined
+      }
       onClick={handleClick}
       onDoubleClick={handleDoubleClick}
       onKeyDown={(e) => {
