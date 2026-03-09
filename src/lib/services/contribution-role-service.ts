@@ -1,5 +1,4 @@
 import { prisma } from "@/lib/db";
-import type { SkillLevel } from "@/generated/prisma/client";
 
 function slugify(name: string): string {
   return name
@@ -10,14 +9,14 @@ function slugify(name: string): string {
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
-export type SkillGroupWithDefinitions = Awaited<
-  ReturnType<typeof getAllSkillGroups>
+export type ContributionRoleGroupWithDefinitions = Awaited<
+  ReturnType<typeof getAllContributionRoleGroups>
 >[number];
 
 // ─── Group CRUD ──────────────────────────────────────────────────────────────
 
-export async function getAllSkillGroups() {
-  return prisma.skillGroup.findMany({
+export async function getAllContributionRoleGroups() {
+  return prisma.contributionRoleGroup.findMany({
     include: {
       definitions: {
         orderBy: { sortOrder: "asc" },
@@ -27,14 +26,14 @@ export async function getAllSkillGroups() {
   });
 }
 
-export async function createSkillGroup(data: {
+export async function createContributionRoleGroup(data: {
   name: string;
   sortOrder?: number;
 }) {
-  const maxOrder = await prisma.skillGroup.aggregate({
+  const maxOrder = await prisma.contributionRoleGroup.aggregate({
     _max: { sortOrder: true },
   });
-  return prisma.skillGroup.create({
+  return prisma.contributionRoleGroup.create({
     data: {
       name: data.name,
       sortOrder: data.sortOrder ?? (maxOrder._max.sortOrder ?? 0) + 1,
@@ -42,56 +41,52 @@ export async function createSkillGroup(data: {
   });
 }
 
-export async function updateSkillGroup(
+export async function updateContributionRoleGroup(
   id: string,
   data: { name?: string; sortOrder?: number },
 ) {
-  return prisma.skillGroup.update({
+  return prisma.contributionRoleGroup.update({
     where: { id },
     data,
   });
 }
 
-export async function deleteSkillGroup(id: string) {
-  const count = await prisma.skillDefinition.count({
+export async function deleteContributionRoleGroup(id: string) {
+  const count = await prisma.contributionRoleDefinition.count({
     where: { groupId: id },
   });
   if (count > 0) {
     throw new Error("Cannot delete group with existing definitions");
   }
-  return prisma.skillGroup.delete({ where: { id } });
+  return prisma.contributionRoleGroup.delete({ where: { id } });
 }
 
 // ─── Definition CRUD ─────────────────────────────────────────────────────────
 
-export async function createSkillDefinition(data: {
+export async function createContributionRoleDefinition(data: {
   groupId: string;
   name: string;
   description?: string | null;
-  pgrade?: number;
-  defaultLevel?: SkillLevel | null;
   sortOrder?: number;
 }) {
-  const maxOrder = await prisma.skillDefinition.aggregate({
+  const maxOrder = await prisma.contributionRoleDefinition.aggregate({
     _max: { sortOrder: true },
     where: { groupId: data.groupId },
   });
-  return prisma.skillDefinition.create({
+  return prisma.contributionRoleDefinition.create({
     data: {
       groupId: data.groupId,
       name: data.name,
       slug: slugify(data.name),
       description: data.description ?? null,
-      pgrade: data.pgrade ?? 0,
-      defaultLevel: data.defaultLevel ?? null,
       sortOrder: data.sortOrder ?? (maxOrder._max.sortOrder ?? 0) + 1,
     },
   });
 }
 
-export async function updateSkillDefinition(
+export async function updateContributionRoleDefinition(
   id: string,
-  data: { name?: string; description?: string | null; pgrade?: number; defaultLevel?: SkillLevel | null; sortOrder?: number },
+  data: { name?: string; description?: string | null; sortOrder?: number },
 ) {
   const updateData: Record<string, unknown> = {};
   if (data.name !== undefined) {
@@ -99,41 +94,35 @@ export async function updateSkillDefinition(
     updateData.slug = slugify(data.name);
   }
   if (data.description !== undefined) updateData.description = data.description;
-  if (data.pgrade !== undefined) updateData.pgrade = data.pgrade;
-  if (data.defaultLevel !== undefined) updateData.defaultLevel = data.defaultLevel;
   if (data.sortOrder !== undefined) updateData.sortOrder = data.sortOrder;
-  return prisma.skillDefinition.update({
+  return prisma.contributionRoleDefinition.update({
     where: { id },
     data: updateData,
   });
 }
 
-export async function deleteSkillDefinition(id: string) {
-  // Check if any PersonSkill references this definition
-  const count = await prisma.personSkill.count({
-    where: { skillDefinitionId: id },
+export async function deleteContributionRoleDefinition(id: string) {
+  const contributionCount = await prisma.sessionContribution.count({
+    where: { roleDefinitionId: id },
   });
-  if (count > 0) {
-    throw new Error("Cannot delete definition that is in use by person skills");
+  if (contributionCount > 0) {
+    throw new Error("Cannot delete role that is in use by contributions");
   }
-  // Also check ContributionSkill
-  const csCount = await prisma.contributionSkill.count({
-    where: { skillDefinitionId: id },
+  const creditCount = await prisma.setCreditRaw.count({
+    where: { roleDefinitionId: id },
   });
-  if (csCount > 0) {
-    throw new Error(
-      "Cannot delete definition that is in use by contribution skills",
-    );
+  if (creditCount > 0) {
+    throw new Error("Cannot delete role that is in use by set credits");
   }
-  return prisma.skillDefinition.delete({ where: { id } });
+  return prisma.contributionRoleDefinition.delete({ where: { id } });
 }
 
 // ─── Reorder ─────────────────────────────────────────────────────────────────
 
-export async function reorderSkillGroups(orderedIds: string[]) {
+export async function reorderContributionRoleGroups(orderedIds: string[]) {
   await prisma.$transaction(
     orderedIds.map((id, i) =>
-      prisma.skillGroup.update({
+      prisma.contributionRoleGroup.update({
         where: { id },
         data: { sortOrder: i + 1 },
       }),
@@ -141,10 +130,10 @@ export async function reorderSkillGroups(orderedIds: string[]) {
   );
 }
 
-export async function reorderSkillDefinitions(orderedIds: string[]) {
+export async function reorderContributionRoleDefinitions(orderedIds: string[]) {
   await prisma.$transaction(
     orderedIds.map((id, i) =>
-      prisma.skillDefinition.update({
+      prisma.contributionRoleDefinition.update({
         where: { id },
         data: { sortOrder: i + 1 },
       }),

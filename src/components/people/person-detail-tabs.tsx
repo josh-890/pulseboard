@@ -10,7 +10,6 @@ import type {
   PersonConnection,
   AliasType,
   PersonStatus,
-  ParticipantRole,
   SetType,
   RelationshipSource,
 } from "@/lib/types";
@@ -111,15 +110,7 @@ const ALIAS_TYPE_STYLES: Record<AliasType, string> = {
   alias: "border-white/15 bg-muted/50 text-foreground",
 };
 
-const ROLE_STYLES: Record<ParticipantRole, string> = {
-  MODEL: "bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/30",
-  PHOTOGRAPHER: "bg-purple-500/15 text-purple-600 dark:text-purple-400 border-purple-500/30",
-};
-
-const ROLE_LABELS: Record<ParticipantRole, string> = {
-  MODEL: "Model",
-  PHOTOGRAPHER: "Photographer",
-};
+const ROLE_STYLE_DEFAULT = "bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/30";
 
 const SET_TYPE_STYLES: Record<SetType, string> = {
   photo: "bg-sky-500/15 text-sky-600 dark:text-sky-400 border-sky-500/30",
@@ -1048,10 +1039,10 @@ function CareerTab({
                       <span
                         className={cn(
                           "inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium",
-                          ROLE_STYLES[item.role],
+                          ROLE_STYLE_DEFAULT,
                         )}
                       >
-                        {ROLE_LABELS[item.role]}
+                        {item.role}
                       </span>
                     </td>
                     <td className="py-2.5 pr-4 text-muted-foreground">

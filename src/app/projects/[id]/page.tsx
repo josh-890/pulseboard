@@ -42,8 +42,8 @@ export default async function ProjectDetailPage({
 
   if (!project) notFound();
 
-  const totalParticipants = project.sessions.reduce(
-    (sum, session) => sum + session.participants.length,
+  const totalContributions = project.sessions.reduce(
+    (sum: number, session: (typeof project.sessions)[number]) => sum + session.contributions.length,
     0,
   );
 
@@ -104,9 +104,9 @@ export default async function ProjectDetailPage({
               </p>
             </div>
             <div>
-              <p className="text-2xl font-bold">{totalParticipants}</p>
+              <p className="text-2xl font-bold">{totalContributions}</p>
               <p className="text-xs text-muted-foreground">
-                {totalParticipants === 1 ? "Participant" : "Participants"}
+                {totalContributions === 1 ? "Contributor" : "Contributors"}
               </p>
             </div>
           </div>
@@ -174,29 +174,29 @@ export default async function ProjectDetailPage({
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="rounded-full border border-white/15 bg-muted/50 px-2.5 py-0.5 text-xs text-muted-foreground">
-                    {session.participants.length} {session.participants.length === 1 ? "participant" : "participants"}
+                    {session.contributions.length} {session.contributions.length === 1 ? "contributor" : "contributors"}
                   </span>
                 </div>
               </div>
 
-              {/* Participants list */}
-              {session.participants.length === 0 ? (
+              {/* Contributors list */}
+              {session.contributions.length === 0 ? (
                 <p className="text-sm italic text-muted-foreground/70">
-                  No participants in this session.
+                  No contributors in this session.
                 </p>
               ) : (
                 <ul className="space-y-1.5">
-                  {session.participants.map((participant) => {
-                    const commonAlias = participant.person.aliases[0]?.name;
-                    const displayName = commonAlias ?? participant.person.icgId;
+                  {session.contributions.map((contribution) => {
+                    const commonAlias = contribution.person.aliases[0]?.name;
+                    const displayName = commonAlias ?? contribution.person.icgId;
                     return (
-                      <li key={`${participant.sessionId}-${participant.personId}-${participant.role}`}>
+                      <li key={contribution.id}>
                         <Link
-                          href={`/people/${participant.personId}`}
+                          href={`/people/${contribution.personId}`}
                           className="group flex items-center gap-2.5 rounded-lg border border-transparent px-3 py-2 transition-all hover:border-white/15 hover:bg-card/60 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                         >
                           <span className="inline-flex items-center rounded-full border border-white/15 bg-muted/50 px-2 py-0.5 text-xs font-medium shrink-0 text-muted-foreground">
-                            {participant.role}
+                            {contribution.roleDefinition.name}
                           </span>
                           <span className="text-sm font-medium text-foreground/90 group-hover:text-primary transition-colors">
                             {displayName}

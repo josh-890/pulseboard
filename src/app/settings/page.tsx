@@ -7,19 +7,22 @@ import { DensitySelector } from "@/components/settings/density-selector";
 import { HeroLayoutSelector } from "@/components/settings/hero-layout-selector";
 import { ProfileImageLabels } from "@/components/settings/profile-image-labels";
 import { MediaCategoryManager } from "@/components/settings/media-category-manager";
+import { ContributionRoleManager } from "@/components/settings/contribution-role-manager";
 import { SkillCatalogManager } from "@/components/settings/skill-catalog-manager";
 import { SkillLevelConfig } from "@/components/settings/skill-level-config";
 import { DatabaseMaintenance } from "@/components/settings/database-maintenance";
 import { getProfileImageLabels, getSkillLevelConfigs } from "@/lib/services/setting-service";
 import { getAllCategoryGroups } from "@/lib/services/category-service";
 import { getAllSkillGroups } from "@/lib/services/skill-catalog-service";
+import { getAllContributionRoleGroups } from "@/lib/services/contribution-role-service";
 
 export default async function SettingsPage() {
-  const [labels, categoryGroups, skillGroups, skillLevelConfigs] = await Promise.all([
+  const [labels, categoryGroups, skillGroups, skillLevelConfigs, roleGroups] = await Promise.all([
     getProfileImageLabels(),
     getAllCategoryGroups(),
     getAllSkillGroups(),
     getSkillLevelConfigs(),
+    getAllContributionRoleGroups(),
   ]);
 
   return (
@@ -72,6 +75,14 @@ export default async function SettingsPage() {
           link photos to specific body marks, modifications, or procedures.
         </p>
         <MediaCategoryManager groups={categoryGroups} />
+      </div>
+
+      <div className="rounded-2xl border border-white/30 bg-card/70 p-4 shadow-lg backdrop-blur-md md:p-6 dark:border-white/10">
+        <h2 className="mb-4 text-lg font-semibold">Contribution Roles</h2>
+        <p className="mb-4 text-sm text-muted-foreground">
+          Define role categories for session contributions and set credits (e.g. Model, Photographer).
+        </p>
+        <ContributionRoleManager groups={roleGroups} />
       </div>
 
       <div className="rounded-2xl border border-white/30 bg-card/70 p-4 shadow-lg backdrop-blur-md md:p-6 dark:border-white/10">

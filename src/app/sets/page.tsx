@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import { ImageIcon } from "lucide-react";
 import { getSetsPaginated, getChannelsWithLabelMaps, getRecentChannels, getLastUsedSetType } from "@/lib/services/set-service";
 import { getCoverPhotosForSets } from "@/lib/services/media-service";
+import { getAllContributionRoleGroups } from "@/lib/services/contribution-role-service";
 import type { SetType } from "@/lib/types";
 import { SetGrid } from "@/components/sets/set-grid";
 import { SetSearch } from "@/components/sets/set-search";
@@ -38,11 +39,12 @@ export default async function SetsPage({ searchParams }: SetsPageProps) {
     type: resolvedType ?? ("all" as const),
   };
 
-  const [paginated, channels, recentChannelIds, lastType] = await Promise.all([
+  const [paginated, channels, recentChannelIds, lastType, roleGroups] = await Promise.all([
     getSetsPaginated(filters, undefined, limit),
     getChannelsWithLabelMaps(),
     getRecentChannels(5),
     getLastUsedSetType(),
+    getAllContributionRoleGroups(),
   ]);
 
   // Batch-load cover thumbnails for initial chunk
@@ -64,7 +66,14 @@ export default async function SetsPage({ searchParams }: SetsPageProps) {
             </p>
           </div>
         </div>
-        <AddSetSheet channels={channels} recentChannelIds={recentChannelIds} defaultType={lastType} />
+        <AddSetSheet
+          channels={channels}
+          recentChannelIds={recentChannelIds}
+          defaultType={lastType}
+          roleDefinitions={roleGroups.flatMap((g) =>
+            g.definitions.map((d) => ({ id: d.id, name: d.name, groupName: g.name })),
+          )}
+        />
       </div>
 
       {/* Filter bar */}

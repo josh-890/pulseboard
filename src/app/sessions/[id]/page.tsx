@@ -8,7 +8,7 @@ import { getMediaItemsForSession, getMediaItemsWithLinks, getFilledHeadshotSlots
 import { getProfileImageLabels } from "@/lib/services/setting-service";
 import { getCollectionsForPerson } from "@/lib/services/collection-service";
 import { getAllCategoryGroups } from "@/lib/services/category-service";
-import { getSessionParticipantSkills } from "@/lib/services/skill-service";
+import { getSessionContributions } from "@/lib/services/contribution-service";
 import { getAllSkillGroups } from "@/lib/services/skill-catalog-service";
 import { prisma } from "@/lib/db";
 import { cn, formatPartialDate } from "@/lib/utils";
@@ -24,7 +24,7 @@ import {
 } from "@/components/sessions/session-detail-header";
 import { SessionMergeDialog } from "@/components/sessions/session-merge-dialog";
 import { SessionProductionGallery } from "@/components/sessions/session-production-gallery";
-import { SessionParticipantSkills } from "@/components/sessions/session-participant-skills";
+import { SessionContributionSkills } from "@/components/sessions/session-contribution-skills";
 import { MediaManager } from "@/components/media/media-manager";
 import { BatchUploadZone } from "@/components/media/batch-upload-zone";
 
@@ -82,7 +82,7 @@ export default async function SessionDetailPage({ params }: SessionDetailPagePro
   const isReference = session.type === "REFERENCE";
   const labelOptions = labels.map(({ id, name }) => ({ id, name }));
   const projectOptions = projects.map(({ id, name }) => ({ id, name }));
-  const participantCount = session.participants.length;
+  const contributionCount = session.contributions.length;
   const mediaCount = session._count.mediaItems;
   const setCount = session.setSessionLinks.length;
 
@@ -147,16 +147,10 @@ export default async function SessionDetailPage({ params }: SessionDetailPagePro
     mediaItems = await getMediaItemsForSession(id);
   }
 
-  // Load participant skills for production sessions
-  const [participantSkillEntries, skillGroups] = !isReference
-    ? await Promise.all([getSessionParticipantSkills(id), getAllSkillGroups()])
+  // Load contributions + skill groups for production sessions
+  const [sessionContributions, skillGroups] = !isReference
+    ? await Promise.all([getSessionContributions(id), getAllSkillGroups()])
     : [[], []];
-
-  // Build participant list for the skill add form
-  const participantOptions = session.participants.map((p) => ({
-    personId: p.personId,
-    displayName: p.person.aliases[0]?.name ?? p.person.icgId,
-  }));
 
   return (
     <div className="space-y-6">
@@ -259,9 +253,9 @@ export default async function SessionDetailPage({ params }: SessionDetailPagePro
           <div className="flex shrink-0 gap-4 text-center">
             {!isReference && (
               <div>
-                <p className="text-2xl font-bold">{participantCount}</p>
+                <p className="text-2xl font-bold">{contributionCount}</p>
                 <p className="text-xs text-muted-foreground">
-                  {participantCount === 1 ? "Participant" : "Participants"}
+                  {contributionCount === 1 ? "Contributor" : "Contributors"}
                 </p>
               </div>
             )}
@@ -339,27 +333,27 @@ export default async function SessionDetailPage({ params }: SessionDetailPagePro
         )}
       </SectionCard>
 
-      {/* Participants */}
+      {/* Contributors */}
       {!isReference && (
         <SectionCard
-          title={`Participants (${participantCount})`}
+          title={`Contributors (${contributionCount})`}
           icon={<Users size={18} />}
         >
-          {session.participants.length === 0 ? (
-            <EmptyState message="No participants in this session." />
+          {session.contributions.length === 0 ? (
+            <EmptyState message="No contributors in this session." />
           ) : (
             <ul className="space-y-1.5">
-              {session.participants.map((participant) => {
-                const commonAlias = participant.person.aliases[0]?.name;
-                const displayName = commonAlias ?? participant.person.icgId;
+              {session.contributions.map((contribution) => {
+                const commonAlias = contribution.person.aliases[0]?.name;
+                const displayName = commonAlias ?? contribution.person.icgId;
                 return (
-                  <li key={`${participant.sessionId}-${participant.personId}-${participant.role}`}>
+                  <li key={contribution.id}>
                     <Link
-                      href={`/people/${participant.personId}`}
+                      href={`/people/${contribution.personId}`}
                       className="group flex items-center gap-2.5 rounded-lg border border-transparent px-3 py-2 transition-all hover:border-white/15 hover:bg-card/60 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                     >
                       <span className="inline-flex items-center rounded-full border border-white/15 bg-muted/50 px-2 py-0.5 text-xs font-medium shrink-0 text-muted-foreground">
-                        {participant.role}
+                        {contribution.roleDefinition.name}
                       </span>
                       <span className="text-sm font-medium text-foreground/90 group-hover:text-primary transition-colors">
                         {displayName}
@@ -373,15 +367,15 @@ export default async function SessionDetailPage({ params }: SessionDetailPagePro
         </SectionCard>
       )}
 
-      {/* Participant Skills */}
+      {/* Contribution Skills */}
       {!isReference && (
         <SectionCard
-          title={`Participant Skills (${participantSkillEntries.length})`}
+          title={`Contribution Skills (${sessionContributions.reduce((acc, c) => acc + c.skills.length, 0)})`}
           icon={<Sparkles size={18} />}
         >
-          <SessionParticipantSkills
+          <SessionContributionSkills
             sessionId={id}
-            entries={participantSkillEntries}
+            contributions={sessionContributions}
             skillGroups={skillGroups.map((g) => ({
               id: g.id,
               name: g.name,
@@ -394,7 +388,6 @@ export default async function SessionDetailPage({ params }: SessionDetailPagePro
                 defaultLevel: d.defaultLevel,
               })),
             }))}
-            participants={participantOptions}
           />
         </SectionCard>
       )}

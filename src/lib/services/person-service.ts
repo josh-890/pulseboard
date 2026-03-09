@@ -326,6 +326,7 @@ export async function getPersonWorkHistory(personId: string): Promise<PersonWork
   const participants = await prisma.setParticipant.findMany({
     where: { personId },
     include: {
+      roleDefinition: true,
       set: {
         include: {
           channel: {
@@ -346,7 +347,7 @@ export async function getPersonWorkHistory(personId: string): Promise<PersonWork
       setId: p.set.id,
       setTitle: p.set.title,
       setType: p.set.type,
-      role: p.role,
+      role: p.roleDefinition.name,
       releaseDate: p.set.releaseDate,
       releaseDatePrecision: p.set.releaseDatePrecision,
       channelName: p.set.channel?.name ?? null,
@@ -775,8 +776,13 @@ export async function deletePersonRecord(id: string) {
       where: { personId: id },
     });
 
-    // Delete skills + events, session participant skills
+    // Delete skills + events, contribution skills
     await cascadeDeletePersonSkills(tx, id);
+
+    // Delete session contributions (skills already cascaded above)
+    await tx.sessionContribution.deleteMany({
+      where: { personId: id },
+    });
 
     // Delete set participants
     await tx.setParticipant.deleteMany({

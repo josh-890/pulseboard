@@ -29,7 +29,7 @@ export const createSetStandaloneSchema = z.object({
 });
 
 export const creditEntrySchema = z.object({
-  role: z.enum(["MODEL", "PHOTOGRAPHER"]),
+  roleDefinitionId: z.string().min(1, "Role is required"),
   rawName: z.string().min(1, "Name is required"),
   resolvedPersonId: z.string().optional(),
 });

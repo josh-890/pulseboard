@@ -120,7 +120,7 @@ export function SetCard({ set, photoUrl, unresolvedCreditCount = 0 }: SetCardPro
             <div className="mt-1.5 flex flex-wrap gap-1">
               {visibleCast.map((participant) => (
                 <span
-                  key={`${participant.setId}-${participant.personId}-${participant.role}`}
+                  key={`${participant.setId}-${participant.personId}-${participant.roleDefinitionId}`}
                   className="inline-flex items-center rounded-full border border-white/10 bg-muted/60 px-1.5 py-0.5 text-[10px] text-muted-foreground"
                 >
                   {getCastName(participant.person)}

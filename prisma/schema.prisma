@@ -161,11 +161,6 @@ enum MediaType {
   VIDEO
 }
 
-enum ParticipantRole {
-  MODEL
-  PHOTOGRAPHER
-}
-
 enum ResolutionStatus {
   UNRESOLVED
   RESOLVED
@@ -238,13 +233,12 @@ model Person {
   education            PersonEducation[]
   awards               PersonAward[]
   interests            PersonInterest[]
-  sessionParticipants  SessionParticipant[]
+  contributions        SessionContribution[]
   setParticipants      SetParticipant[]
   resolvedCredits      SetCreditRaw[]
   personMediaLinks     PersonMediaLink[]
   referenceSession     Session?             @relation("ReferenceSession")
   mediaCollections     MediaCollection[]
-  sessionParticipantSkills SessionParticipantSkill[]
 
   createdAt DateTime  @default(now())
 
@@ -690,9 +684,8 @@ model Session {
   updatedAt   DateTime  @updatedAt
 
   mediaItems      MediaItem[]
-  participants    SessionParticipant[]
+  contributions   SessionContribution[]
   setSessionLinks SetSession[]
-  participantSkills SessionParticipantSkill[]
 
   @@index([projectId])
   @@index([labelId])
@@ -795,26 +788,36 @@ model SetMediaItem {
   @@id([setId, mediaItemId])
 }
 
-model SessionParticipant {
-  sessionId         String
-  session           Session         @relation(fields: [sessionId], references: [id])
-  personId          String
-  person            Person          @relation(fields: [personId], references: [id])
-  role              ParticipantRole
+model SessionContribution {
+  id                 String                     @id @default(cuid())
+  sessionId          String
+  session            Session                    @relation(fields: [sessionId], references: [id])
+  personId           String
+  person             Person                     @relation(fields: [personId], references: [id])
+  roleDefinitionId   String
+  roleDefinition     ContributionRoleDefinition @relation(fields: [roleDefinitionId], references: [id])
   creditNameOverride String?
-  createdAt         DateTime        @default(now())
+  notes              String?
+  createdAt          DateTime                   @default(now())
 
-  @@id([sessionId, personId, role])
+  skills             ContributionSkill[]
+
+  @@unique([sessionId, personId, roleDefinitionId])
+  @@index([sessionId])
+  @@index([personId])
+  @@index([roleDefinitionId])
 }
 
 model SetParticipant {
-  setId    String
-  set      Set             @relation(fields: [setId], references: [id])
-  personId String
-  person   Person          @relation(fields: [personId], references: [id])
-  role     ParticipantRole
+  setId            String
+  set              Set                        @relation(fields: [setId], references: [id])
+  personId         String
+  person           Person                     @relation(fields: [personId], references: [id])
+  roleDefinitionId String
+  roleDefinition   ContributionRoleDefinition @relation(fields: [roleDefinitionId], references: [id])
 
-  @@id([setId, personId, role])
+  @@id([setId, personId, roleDefinitionId])
+  @@index([roleDefinitionId])
 }
 
 model SetSession {
@@ -829,10 +832,11 @@ model SetSession {
 }
 
 model SetCreditRaw {
-  id               String           @id @default(cuid())
+  id               String                      @id @default(cuid())
   setId            String
-  set              Set              @relation(fields: [setId], references: [id])
-  role             ParticipantRole
+  set              Set                          @relation(fields: [setId], references: [id])
+  roleDefinitionId String?
+  roleDefinition   ContributionRoleDefinition?  @relation(fields: [roleDefinitionId], references: [id])
   rawName          String
   nameNorm         String?   @map("rawNameNorm")
   resolutionStatus ResolutionStatus @default(UNRESOLVED)
@@ -845,6 +849,7 @@ model SetCreditRaw {
   @@index([resolutionStatus])
   @@index([nameNorm])
   @@index([resolvedPersonId])
+  @@index([roleDefinitionId])
 }
 
 model PersonMediaLink {
@@ -983,7 +988,7 @@ model SkillDefinition {
   createdAt   DateTime   @default(now())
 
   personSkills             PersonSkill[]
-  sessionParticipantSkills SessionParticipantSkill[]
+  contributionSkills       ContributionSkill[]
 
   @@unique([groupId, name])
   @@index([groupId])
@@ -1020,16 +1025,49 @@ model SkillEventMedia {
   @@id([skillEventId, mediaItemId])
 }
 
-model SessionParticipantSkill {
-  sessionId         String
-  session           Session         @relation(fields: [sessionId], references: [id])
-  personId          String
-  person            Person          @relation(fields: [personId], references: [id])
+// ─── Contribution Role Catalog ───────────────────────────────────────────────
+
+model ContributionRoleGroup {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+
+  definitions ContributionRoleDefinition[]
+
+  @@index([sortOrder])
+}
+
+model ContributionRoleDefinition {
+  id            String                @id @default(cuid())
+  groupId       String
+  group         ContributionRoleGroup @relation(fields: [groupId], references: [id])
+  name          String
+  slug          String                @unique
+  description   String?
+  sortOrder     Int                   @default(0)
+  createdAt     DateTime              @default(now())
+
+  contributions   SessionContribution[]
+  setCreditRaws   SetCreditRaw[]
+  setParticipants SetParticipant[]
+
+  @@unique([groupId, name])
+  @@index([groupId])
+  @@index([sortOrder])
+}
+
+model ContributionSkill {
+  id                String              @id @default(cuid())
+  contributionId    String
+  contribution      SessionContribution @relation(fields: [contributionId], references: [id])
   skillDefinitionId String
-  skillDefinition   SkillDefinition @relation(fields: [skillDefinitionId], references: [id])
+  skillDefinition   SkillDefinition     @relation(fields: [skillDefinitionId], references: [id])
   level             SkillLevel?
   notes             String?
-  createdAt         DateTime        @default(now())
+  createdAt         DateTime            @default(now())
 
-  @@id([sessionId, personId, skillDefinitionId])
+  @@unique([contributionId, skillDefinitionId])
+  @@index([contributionId])
+  @@index([skillDefinitionId])
 }

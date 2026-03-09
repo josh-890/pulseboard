@@ -1,8 +1,9 @@
 import { prisma } from "@/lib/db";
-import type { Prisma, SetType, ParticipantRole, ResolutionStatus } from "@/generated/prisma/client";
+import type { Prisma, SetType, ResolutionStatus } from "@/generated/prisma/client";
 import { cascadeDeleteSet } from "./cascade-helpers";
 import type { TxClient } from "./cascade-helpers";
 import { mergeSessionsRecord } from "./session-service";
+import { rebuildSetParticipantsFromContributions } from "./contribution-service";
 
 export type SetFilters = {
   q?: string;
@@ -40,6 +41,7 @@ export async function getSets(filters: SetFilters = {}) {
               aliases: { where: { type: "common" }, take: 1 },
             },
           },
+          roleDefinition: { include: { group: true } },
         },
       },
       _count: {
@@ -94,6 +96,7 @@ export async function getSetsPaginated(
                 aliases: { where: { type: "common" }, take: 1 },
               },
             },
+            roleDefinition: { include: { group: true } },
           },
         },
         _count: {
@@ -129,6 +132,7 @@ export async function getSetById(id: string) {
               aliases: { where: { type: "common" }, take: 1 },
             },
           },
+          roleDefinition: { include: { group: true } },
         },
         orderBy: { createdAt: "asc" },
       },
@@ -139,6 +143,7 @@ export async function getSetById(id: string) {
               aliases: { where: { type: "common" }, take: 1 },
             },
           },
+          roleDefinition: { include: { group: true } },
         },
       },
       labelEvidence: {
@@ -320,64 +325,11 @@ export async function searchPersonsForSelect(q: string) {
   }));
 }
 
-// ── Participant sync: SetParticipant → SessionParticipant ─────────────────────
-
-async function syncSetParticipantsToSessions(tx: TxClient, setId: string) {
-  const links = await tx.setSession.findMany({ where: { setId }, select: { sessionId: true } });
-  if (!links.length) return;
-  const participants = await tx.setParticipant.findMany({ where: { setId } });
-  if (!participants.length) return;
-  for (const link of links) {
-    for (const sp of participants) {
-      await tx.sessionParticipant.upsert({
-        where: {
-          sessionId_personId_role: {
-            sessionId: link.sessionId,
-            personId: sp.personId,
-            role: sp.role,
-          },
-        },
-        create: { sessionId: link.sessionId, personId: sp.personId, role: sp.role },
-        update: {},
-      });
-    }
-  }
-}
-
-async function unsyncParticipantFromSessions(
-  tx: TxClient,
-  setId: string,
-  personId: string,
-  role: ParticipantRole,
-) {
-  const links = await tx.setSession.findMany({ where: { setId }, select: { sessionId: true } });
-  if (!links.length) return;
-
-  for (const link of links) {
-    // Check if any OTHER set linked to this same session still contributes this person+role
-    const otherSetCount = await tx.setParticipant.count({
-      where: {
-        personId,
-        role,
-        set: {
-          sessionLinks: { some: { sessionId: link.sessionId } },
-          id: { not: setId },
-        },
-      },
-    });
-    if (otherSetCount === 0) {
-      await tx.sessionParticipant.deleteMany({
-        where: { sessionId: link.sessionId, personId, role },
-      });
-    }
-  }
-}
-
 // ── SetCreditRaw / SetParticipant operations ────────────────────────────────
 
 export async function createSetCreditsRaw(
   setId: string,
-  credits: { role: ParticipantRole; rawName: string; resolvedPersonId?: string }[],
+  credits: { roleDefinitionId: string; rawName: string; resolvedPersonId?: string }[],
 ) {
   if (credits.length === 0) return;
 
@@ -387,30 +339,42 @@ export async function createSetCreditsRaw(
       await tx.setCreditRaw.create({
         data: {
           setId,
-          role: credit.role,
+          roleDefinitionId: credit.roleDefinitionId,
           rawName: credit.rawName,
+          nameNorm: credit.rawName.toLowerCase(),
           resolvedPersonId: credit.resolvedPersonId ?? null,
           resolutionStatus: isResolved ? "RESOLVED" : "UNRESOLVED",
         },
       });
 
+      // If pre-resolved, create SessionContribution on linked sessions
       if (isResolved && credit.resolvedPersonId) {
-        await tx.setParticipant.upsert({
-          where: {
-            setId_personId_role: {
-              setId,
-              personId: credit.resolvedPersonId,
-              role: credit.role,
-            },
-          },
-          create: { setId, personId: credit.resolvedPersonId, role: credit.role },
-          update: {},
+        const links = await tx.setSession.findMany({
+          where: { setId },
+          select: { sessionId: true },
         });
+        for (const link of links) {
+          await tx.sessionContribution.upsert({
+            where: {
+              sessionId_personId_roleDefinitionId: {
+                sessionId: link.sessionId,
+                personId: credit.resolvedPersonId,
+                roleDefinitionId: credit.roleDefinitionId,
+              },
+            },
+            create: {
+              sessionId: link.sessionId,
+              personId: credit.resolvedPersonId,
+              roleDefinitionId: credit.roleDefinitionId,
+            },
+            update: {},
+          });
+        }
       }
     }
 
-    // Sync all set participants to linked sessions
-    await syncSetParticipantsToSessions(tx, setId);
+    // Rebuild SetParticipant cache from contributions
+    await rebuildSetParticipantsFromContributions(tx, setId);
   });
 }
 
@@ -440,20 +404,33 @@ export async function resolveCreditRaw(creditId: string, personId: string) {
       },
     });
 
-    await tx.setParticipant.upsert({
-      where: {
-        setId_personId_role: {
-          setId: credit.setId,
-          personId,
-          role: credit.role,
-        },
-      },
-      create: { setId: credit.setId, personId, role: credit.role },
-      update: {},
-    });
+    // Create SessionContribution on all linked sessions
+    if (credit.roleDefinitionId) {
+      const links = await tx.setSession.findMany({
+        where: { setId: credit.setId },
+        select: { sessionId: true },
+      });
+      for (const link of links) {
+        await tx.sessionContribution.upsert({
+          where: {
+            sessionId_personId_roleDefinitionId: {
+              sessionId: link.sessionId,
+              personId,
+              roleDefinitionId: credit.roleDefinitionId,
+            },
+          },
+          create: {
+            sessionId: link.sessionId,
+            personId,
+            roleDefinitionId: credit.roleDefinitionId,
+          },
+          update: {},
+        });
+      }
+    }
 
-    // Sync to linked sessions
-    await syncSetParticipantsToSessions(tx, credit.setId);
+    // Rebuild SetParticipant cache
+    await rebuildSetParticipantsFromContributions(tx, credit.setId);
 
     return credit;
   });
@@ -470,12 +447,12 @@ export async function unresolveCreditRaw(creditId: string) {
   return prisma.$transaction(async (tx) => {
     const credit = await tx.setCreditRaw.findUniqueOrThrow({ where: { id: creditId } });
 
-    // Remove the SetParticipant if this was the only credit pointing to that person
-    if (credit.resolvedPersonId) {
+    // Remove SessionContribution if this was the only credit pointing to that person+role
+    if (credit.resolvedPersonId && credit.roleDefinitionId) {
       const otherCredits = await tx.setCreditRaw.count({
         where: {
           setId: credit.setId,
-          role: credit.role,
+          roleDefinitionId: credit.roleDefinitionId,
           resolvedPersonId: credit.resolvedPersonId,
           resolutionStatus: "RESOLVED",
           id: { not: creditId },
@@ -483,23 +460,61 @@ export async function unresolveCreditRaw(creditId: string) {
       });
 
       if (otherCredits === 0) {
-        await tx.setParticipant.deleteMany({
-          where: {
-            setId: credit.setId,
-            personId: credit.resolvedPersonId,
-            role: credit.role,
-          },
+        // Remove contributions from linked sessions
+        const links = await tx.setSession.findMany({
+          where: { setId: credit.setId },
+          select: { sessionId: true },
         });
-
-        // Reverse sync: remove from linked sessions if no other set contributes
-        await unsyncParticipantFromSessions(
-          tx,
-          credit.setId,
-          credit.resolvedPersonId,
-          credit.role,
-        );
+        for (const link of links) {
+          // Only remove if no OTHER set linked to this session still contributes this person+role
+          const otherSetContrib = await tx.sessionContribution.count({
+            where: {
+              sessionId: link.sessionId,
+              personId: credit.resolvedPersonId!,
+              roleDefinitionId: credit.roleDefinitionId!,
+              session: {
+                setSessionLinks: {
+                  some: {
+                    set: {
+                      id: { not: credit.setId },
+                      creditsRaw: {
+                        some: {
+                          resolvedPersonId: credit.resolvedPersonId,
+                          roleDefinitionId: credit.roleDefinitionId,
+                          resolutionStatus: "RESOLVED",
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          });
+          if (otherSetContrib === 0) {
+            // Cascade delete contribution skills first
+            await tx.contributionSkill.deleteMany({
+              where: {
+                contribution: {
+                  sessionId: link.sessionId,
+                  personId: credit.resolvedPersonId!,
+                  roleDefinitionId: credit.roleDefinitionId!,
+                },
+              },
+            });
+            await tx.sessionContribution.deleteMany({
+              where: {
+                sessionId: link.sessionId,
+                personId: credit.resolvedPersonId!,
+                roleDefinitionId: credit.roleDefinitionId!,
+              },
+            });
+          }
+        }
       }
     }
+
+    // Rebuild SetParticipant cache
+    await rebuildSetParticipantsFromContributions(tx, credit.setId);
 
     return tx.setCreditRaw.update({
       where: { id: creditId },
@@ -612,9 +627,11 @@ export async function getSuggestedResolutions(rawName: string, channelId: string
 
   // 2. Find persons frequently appearing in same channel (if channel known)
   if (channelId && suggestions.length < 5) {
-    const channelPersons = await prisma.setParticipant.findMany({
+    const channelPersons = await prisma.sessionContribution.findMany({
       where: {
-        set: { channelId },
+        session: {
+          setSessionLinks: { some: { set: { channelId } } },
+        },
       },
       select: {
         personId: true,
@@ -660,6 +677,7 @@ export async function getSetCredits(setId: string) {
           aliases: { where: { type: "common" }, take: 1 },
         },
       },
+      roleDefinition: { include: { group: true } },
     },
     orderBy: { createdAt: "asc" },
   });

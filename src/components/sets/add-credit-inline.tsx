@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, UserSearch, Loader2, X, UserPlus, Camera, User } from "lucide-react";
+import { Plus, UserSearch, Loader2, X, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,27 +15,20 @@ type PersonResult = {
   commonAlias: string | null;
 };
 
-type AddCreditInlineProps = {
-  setId: string;
+type RoleDefinitionOption = {
+  id: string;
+  name: string;
 };
 
-const ROLE_CONFIG = {
-  MODEL: {
-    label: "Model",
-    icon: <User size={14} />,
-    badge: "border-blue-500/30 bg-blue-500/15 text-blue-600 dark:text-blue-400",
-  },
-  PHOTOGRAPHER: {
-    label: "Photographer",
-    icon: <Camera size={14} />,
-    badge: "border-amber-500/30 bg-amber-500/15 text-amber-600 dark:text-amber-400",
-  },
-} as const;
+type AddCreditInlineProps = {
+  setId: string;
+  roleDefinitions: RoleDefinitionOption[];
+};
 
-export function AddCreditInline({ setId }: AddCreditInlineProps) {
+export function AddCreditInline({ setId, roleDefinitions }: AddCreditInlineProps) {
   const router = useRouter();
   const [isExpanded, setIsExpanded] = useState(false);
-  const [activeRole, setActiveRole] = useState<"MODEL" | "PHOTOGRAPHER">("MODEL");
+  const [activeRoleId, setActiveRoleId] = useState<string>(roleDefinitions[0]?.id ?? "");
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<PersonResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
@@ -95,7 +88,7 @@ export function AddCreditInline({ setId }: AddCreditInlineProps) {
   async function addCredit(rawName: string, resolvedPersonId?: string) {
     setIsSaving(true);
     const result = await saveSetCredits(setId, [
-      { role: activeRole, rawName, resolvedPersonId },
+      { roleDefinitionId: activeRoleId, rawName, resolvedPersonId },
     ]);
     if (result.success) {
       toast.success("Credit added");
@@ -132,7 +125,7 @@ export function AddCreditInline({ setId }: AddCreditInlineProps) {
   async function addBulkCredits(names: string[]) {
     setIsSaving(true);
     const credits = names.map((name) => ({
-      role: activeRole,
+      roleDefinitionId: activeRoleId,
       rawName: name,
     }));
     const result = await saveSetCredits(setId, credits);
@@ -195,19 +188,18 @@ export function AddCreditInline({ setId }: AddCreditInlineProps) {
 
       {/* Role tabs */}
       <div className="flex gap-1 rounded-lg border bg-muted/30 p-1">
-        {(["MODEL", "PHOTOGRAPHER"] as const).map((role) => (
+        {roleDefinitions.map((rd) => (
           <button
-            key={role}
+            key={rd.id}
             type="button"
-            onClick={() => setActiveRole(role)}
+            onClick={() => setActiveRoleId(rd.id)}
             className={`flex flex-1 items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
-              activeRole === role
+              activeRoleId === rd.id
                 ? "bg-background shadow-sm text-foreground"
                 : "text-muted-foreground hover:text-foreground"
             }`}
           >
-            {ROLE_CONFIG[role].icon}
-            {ROLE_CONFIG[role].label}
+            {rd.name}
           </button>
         ))}
       </div>

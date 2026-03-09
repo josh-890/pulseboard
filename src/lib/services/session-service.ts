@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/db";
 import type { Prisma, SessionStatus, SessionType } from "@/generated/prisma/client";
 import { cascadeDeleteSession } from "./cascade-helpers";
+import { rebuildSetParticipantsFromContributions } from "./contribution-service";
 
 const personSelect = {
   select: {
@@ -49,13 +50,14 @@ export async function getSessions(filters: SessionFilters = {}) {
       project: { select: { id: true, name: true } },
       label: { select: { id: true, name: true } },
       person: personSelect,
-      participants: {
+      contributions: {
         include: {
           person: {
             include: {
               aliases: { where: { type: "common" }, take: 1 },
             },
           },
+          roleDefinition: { include: { group: true } },
         },
       },
       _count: {
@@ -76,13 +78,14 @@ export async function getSessionById(id: string) {
       project: { select: { id: true, name: true } },
       label: { select: { id: true, name: true } },
       person: personSelect,
-      participants: {
+      contributions: {
         include: {
           person: {
             include: {
               aliases: { where: { type: "common" }, take: 1 },
             },
           },
+          roleDefinition: { include: { group: true } },
         },
       },
       setSessionLinks: {
@@ -212,27 +215,67 @@ export async function mergeSessionsRecord(survivingId: string, absorbedId: strin
       data: { sessionId: survivingId },
     });
 
-    // 2. Merge SessionParticipants (upsert to avoid dupes)
-    const absorbedParticipants = await tx.sessionParticipant.findMany({
+    // 2. Merge SessionContributions (upsert to avoid dupes)
+    const absorbedContributions = await tx.sessionContribution.findMany({
       where: { sessionId: absorbedId },
+      include: { skills: true },
     });
-    for (const p of absorbedParticipants) {
-      await tx.sessionParticipant.upsert({
+    for (const c of absorbedContributions) {
+      const existing = await tx.sessionContribution.findUnique({
         where: {
-          sessionId_personId_role: {
+          sessionId_personId_roleDefinitionId: {
             sessionId: survivingId,
-            personId: p.personId,
-            role: p.role,
+            personId: c.personId,
+            roleDefinitionId: c.roleDefinitionId,
           },
         },
-        create: {
-          sessionId: survivingId,
-          personId: p.personId,
-          role: p.role,
-          creditNameOverride: p.creditNameOverride,
-        },
-        update: {},
       });
+      if (existing) {
+        // Merge skills into existing contribution
+        for (const skill of c.skills) {
+          await tx.contributionSkill.upsert({
+            where: {
+              contributionId_skillDefinitionId: {
+                contributionId: existing.id,
+                skillDefinitionId: skill.skillDefinitionId,
+              },
+            },
+            create: {
+              contributionId: existing.id,
+              skillDefinitionId: skill.skillDefinitionId,
+              level: skill.level,
+              notes: skill.notes,
+            },
+            update: {},
+          });
+        }
+      } else {
+        // Move contribution to surviving session
+        await tx.contributionSkill.deleteMany({
+          where: { contributionId: c.id },
+        });
+        await tx.sessionContribution.delete({ where: { id: c.id } });
+        const newContrib = await tx.sessionContribution.create({
+          data: {
+            sessionId: survivingId,
+            personId: c.personId,
+            roleDefinitionId: c.roleDefinitionId,
+            creditNameOverride: c.creditNameOverride,
+            notes: c.notes,
+          },
+        });
+        // Re-create skills on the new contribution
+        for (const skill of c.skills) {
+          await tx.contributionSkill.create({
+            data: {
+              contributionId: newContrib.id,
+              skillDefinitionId: skill.skillDefinitionId,
+              level: skill.level,
+              notes: skill.notes,
+            },
+          });
+        }
+      }
     }
 
     // 3. Reassign SetSession rows: absorbed → surviving
@@ -263,13 +306,25 @@ export async function mergeSessionsRecord(survivingId: string, absorbedId: strin
       }
     }
 
-    // 4. Hard-delete absorbed participants
-    await tx.sessionParticipant.deleteMany({ where: { sessionId: absorbedId } });
+    // 4. Hard-delete remaining absorbed contributions (skills already handled)
+    await tx.contributionSkill.deleteMany({
+      where: { contribution: { sessionId: absorbedId } },
+    });
+    await tx.sessionContribution.deleteMany({ where: { sessionId: absorbedId } });
 
     // 5. Delete absorbed session
     await tx.session.delete({
       where: { id: absorbedId },
     });
+
+    // 6. Rebuild SetParticipant cache for all sets linked to surviving session
+    const survivingSetLinks = await tx.setSession.findMany({
+      where: { sessionId: survivingId },
+      select: { setId: true },
+    });
+    for (const link of survivingSetLinks) {
+      await rebuildSetParticipantsFromContributions(tx, link.setId);
+    }
   });
 }
 
@@ -283,17 +338,8 @@ export async function linkSessionToSet(
       data: { setId, sessionId, isPrimary },
     });
 
-    // Sync existing SetParticipants from the set into SessionParticipants
-    const setParticipants = await tx.setParticipant.findMany({ where: { setId } });
-    for (const sp of setParticipants) {
-      await tx.sessionParticipant.upsert({
-        where: {
-          sessionId_personId_role: { sessionId, personId: sp.personId, role: sp.role },
-        },
-        create: { sessionId, personId: sp.personId, role: sp.role },
-        update: {},
-      });
-    }
+    // Rebuild SetParticipant cache from contributions (new session may add participants)
+    await rebuildSetParticipantsFromContributions(tx, setId);
 
     return link;
   });
@@ -331,7 +377,7 @@ export async function searchSessions(q: string) {
       _count: {
         select: {
           mediaItems: true,
-          participants: true,
+          contributions: true,
           setSessionLinks: true,
         },
       },

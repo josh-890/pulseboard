@@ -43,13 +43,14 @@ export async function getProjectById(id: string) {
       },
       sessions: {
         include: {
-          participants: {
+          contributions: {
             include: {
               person: {
                 include: {
                   aliases: { where: { type: "common" }, take: 1 },
                 },
               },
+              roleDefinition: true,
             },
           },
         },

@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { UserPlus, X, UserSearch, Loader2, Camera, User } from "lucide-react";
+import { UserPlus, X, UserSearch, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,9 +17,15 @@ type PersonResult = {
   commonAlias: string | null;
 };
 
+type RoleDefinitionOption = {
+  id: string;
+  name: string;
+  groupName: string;
+};
+
 type CreditItem = {
   tempId: string;
-  role: "MODEL" | "PHOTOGRAPHER";
+  roleDefinitionId: string;
   rawName: string;
   resolvedPersonId?: string;
   resolvedPersonName?: string;
@@ -27,27 +33,17 @@ type CreditItem = {
 
 type CreditEntryStepProps = {
   setId: string;
+  roleDefinitions: RoleDefinitionOption[];
   onClose: () => void;
 };
 
-const ROLE_CONFIG = {
-  MODEL: {
-    label: "Models",
-    icon: <User size={14} />,
-    badge: "border-blue-500/30 bg-blue-500/15 text-blue-600 dark:text-blue-400",
-  },
-  PHOTOGRAPHER: {
-    label: "Photographer",
-    icon: <Camera size={14} />,
-    badge: "border-amber-500/30 bg-amber-500/15 text-amber-600 dark:text-amber-400",
-  },
-} as const;
-
-export function CreditEntryStep({ setId, onClose }: CreditEntryStepProps) {
+export function CreditEntryStep({ setId, roleDefinitions, onClose }: CreditEntryStepProps) {
   const router = useRouter();
 
   // Role tab
-  const [activeRole, setActiveRole] = useState<"MODEL" | "PHOTOGRAPHER">("MODEL");
+  const [activeRoleId, setActiveRoleId] = useState<string>(
+    roleDefinitions[0]?.id ?? "",
+  );
 
   // Search state
   const [searchQuery, setSearchQuery] = useState("");
@@ -101,7 +97,7 @@ export function CreditEntryStep({ setId, onClose }: CreditEntryStepProps) {
   function addResolvedCredit(person: PersonResult) {
     const displayName = person.commonAlias ?? person.icgId;
     // Check if already added for same role
-    if (credits.some((c) => c.resolvedPersonId === person.id && c.role === activeRole)) {
+    if (credits.some((c) => c.resolvedPersonId === person.id && c.roleDefinitionId === activeRoleId)) {
       toast.error("Person already added for this role");
       return;
     }
@@ -109,7 +105,7 @@ export function CreditEntryStep({ setId, onClose }: CreditEntryStepProps) {
       ...credits,
       {
         tempId: String(nextTempId.current++),
-        role: activeRole,
+        roleDefinitionId: activeRoleId,
         rawName: displayName,
         resolvedPersonId: person.id,
         resolvedPersonName: displayName,
@@ -127,7 +123,7 @@ export function CreditEntryStep({ setId, onClose }: CreditEntryStepProps) {
       ...credits,
       {
         tempId: String(nextTempId.current++),
-        role: activeRole,
+        roleDefinitionId: activeRoleId,
         rawName: trimmed,
       },
     ]);
@@ -147,7 +143,7 @@ export function CreditEntryStep({ setId, onClose }: CreditEntryStepProps) {
         const names = q.split(",").map((n) => n.trim()).filter(Boolean);
         const newCredits: CreditItem[] = names.map((name) => ({
           tempId: String(nextTempId.current++),
-          role: activeRole,
+          roleDefinitionId: activeRoleId,
           rawName: name,
         }));
         setCredits([...credits, ...newCredits]);
@@ -182,7 +178,7 @@ export function CreditEntryStep({ setId, onClose }: CreditEntryStepProps) {
       ...credits,
       {
         tempId: String(nextTempId.current++),
-        role: activeRole,
+        roleDefinitionId: activeRoleId,
         rawName: newName.trim(),
         resolvedPersonId: result.id,
         resolvedPersonName: newName.trim(),
@@ -201,7 +197,7 @@ export function CreditEntryStep({ setId, onClose }: CreditEntryStepProps) {
       const result = await saveSetCredits(
         setId,
         credits.map((c) => ({
-          role: c.role,
+          roleDefinitionId: c.roleDefinitionId,
           rawName: c.rawName,
           resolvedPersonId: c.resolvedPersonId,
         })),
@@ -221,8 +217,13 @@ export function CreditEntryStep({ setId, onClose }: CreditEntryStepProps) {
     router.push(`/sets/${setId}`);
   }
 
-  const modelCredits = credits.filter((c) => c.role === "MODEL");
-  const photographerCredits = credits.filter((c) => c.role === "PHOTOGRAPHER");
+  // Group credits by role definition
+  const creditsByRole = new Map<string, CreditItem[]>();
+  for (const c of credits) {
+    const existing = creditsByRole.get(c.roleDefinitionId) ?? [];
+    existing.push(c);
+    creditsByRole.set(c.roleDefinitionId, existing);
+  }
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
@@ -231,19 +232,18 @@ export function CreditEntryStep({ setId, onClose }: CreditEntryStepProps) {
 
           {/* Role tabs */}
           <div className="flex gap-1 rounded-lg border bg-muted/30 p-1">
-            {(["MODEL", "PHOTOGRAPHER"] as const).map((role) => (
+            {roleDefinitions.map((rd) => (
               <button
-                key={role}
+                key={rd.id}
                 type="button"
-                onClick={() => setActiveRole(role)}
+                onClick={() => setActiveRoleId(rd.id)}
                 className={`flex flex-1 items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
-                  activeRole === role
+                  activeRoleId === rd.id
                     ? "bg-background shadow-sm text-foreground"
                     : "text-muted-foreground hover:text-foreground"
                 }`}
               >
-                {ROLE_CONFIG[role].icon}
-                {ROLE_CONFIG[role].label}
+                {rd.name}
               </button>
             ))}
           </div>
@@ -383,22 +383,18 @@ export function CreditEntryStep({ setId, onClose }: CreditEntryStepProps) {
           {/* Credits list */}
           {credits.length > 0 && (
             <section className="space-y-4">
-              {modelCredits.length > 0 && (
-                <div className="space-y-2">
-                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                    Models ({modelCredits.length})
-                  </p>
-                  <CreditList credits={modelCredits} onRemove={removeCredit} />
-                </div>
-              )}
-              {photographerCredits.length > 0 && (
-                <div className="space-y-2">
-                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                    Photographer ({photographerCredits.length})
-                  </p>
-                  <CreditList credits={photographerCredits} onRemove={removeCredit} />
-                </div>
-              )}
+              {roleDefinitions.map((rd) => {
+                const items = creditsByRole.get(rd.id);
+                if (!items || items.length === 0) return null;
+                return (
+                  <div key={rd.id} className="space-y-2">
+                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                      {rd.name} ({items.length})
+                    </p>
+                    <CreditList credits={items} onRemove={removeCredit} />
+                  </div>
+                );
+              })}
             </section>
           )}
 

@@ -52,10 +52,17 @@ export type ChannelOptionWithMaps = {
   labelMaps: LabelMapEntry[];
 };
 
+type RoleDefinitionOption = {
+  id: string;
+  name: string;
+  groupName: string;
+};
+
 type AddSetSheetProps = {
   channels: ChannelOptionWithMaps[];
   recentChannelIds?: string[];
   defaultType?: "photo" | "video" | null;
+  roleDefinitions: RoleDefinitionOption[];
 };
 
 function SectionHeader({ children }: { children: React.ReactNode }) {
@@ -67,7 +74,7 @@ function SectionHeader({ children }: { children: React.ReactNode }) {
   );
 }
 
-export function AddSetSheet({ channels, recentChannelIds = [], defaultType }: AddSetSheetProps) {
+export function AddSetSheet({ channels, recentChannelIds = [], defaultType, roleDefinitions }: AddSetSheetProps) {
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState<1 | 2>(1);
   const [createdSetId, setCreatedSetId] = useState<string | null>(null);
@@ -500,7 +507,7 @@ export function AddSetSheet({ channels, recentChannelIds = [], defaultType }: Ad
         )}
 
         {step === 2 && createdSetId && (
-          <CreditEntryStep setId={createdSetId} onClose={handleClose} />
+          <CreditEntryStep setId={createdSetId} roleDefinitions={roleDefinitions} onClose={handleClose} />
         )}
       </SheetContent>
     </Sheet>

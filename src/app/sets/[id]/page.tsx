@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Camera, Film, Tag, FileText, Check, Circle } from "lucide-react";
 import { getSetById, getChannelsForSelect } from "@/lib/services/set-service";
 import { getSetMediaGallery } from "@/lib/services/media-service";
+import { getAllContributionRoleGroups } from "@/lib/services/contribution-role-service";
 import { SetDetailGallery } from "@/components/sets/set-detail-gallery";
 import { CreditResolutionPanel } from "@/components/sets/credit-resolution-panel";
 import { cn, formatPartialDate } from "@/lib/utils";
@@ -94,9 +95,10 @@ function CompletenessChip({ done, label }: { done: boolean; label: string }) {
 export default async function SetDetailPage({ params }: SetDetailPageProps) {
   const { id } = await params;
 
-  const [set, channels] = await Promise.all([
+  const [set, channels, roleGroups] = await Promise.all([
     getSetById(id),
     getChannelsForSelect(),
+    getAllContributionRoleGroups(),
   ]);
 
   if (!set) notFound();
@@ -266,13 +268,19 @@ export default async function SetDetailPage({ params }: SetDetailPageProps) {
         icon={<FileText size={18} />}
       >
         <div className="space-y-4">
-          <AddCreditInline setId={id} />
+          <AddCreditInline
+            setId={id}
+            roleDefinitions={roleGroups.flatMap((g) =>
+              g.definitions.map((d) => ({ id: d.id, name: d.name })),
+            )}
+          />
           {hasCredits ? (
             <CreditResolutionPanel
               channelId={set.channelId}
               credits={set.creditsRaw.map((c) => ({
                 id: c.id,
-                role: c.role,
+                roleDefinitionId: c.roleDefinitionId ?? "",
+                roleName: c.roleDefinition?.name ?? "Unknown",
                 rawName: c.rawName,
                 resolutionStatus: c.resolutionStatus,
                 resolvedPerson: c.resolvedPerson
@@ -289,7 +297,7 @@ export default async function SetDetailPage({ params }: SetDetailPageProps) {
             />
           ) : (
             <p className="text-sm text-muted-foreground">
-              No credits yet. Add credits to track models and photographers.
+              No credits yet. Add credits to track contributors.
             </p>
           )}
         </div>

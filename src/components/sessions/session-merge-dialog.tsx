@@ -26,7 +26,7 @@ type SearchResult = {
   datePrecision: string;
   _count: {
     mediaItems: number;
-    participants: number;
+    contributions: number;
     setSessionLinks: number;
   };
 };
@@ -146,7 +146,7 @@ export function SessionMergeDialog({ survivingSessionId, survivingSessionName }:
                     </div>
                     <div className="mt-1 flex gap-3 text-xs text-muted-foreground">
                       <span>{r._count.mediaItems} media</span>
-                      <span>{r._count.participants} participants</span>
+                      <span>{r._count.contributions} contributions</span>
                       <span>{r._count.setSessionLinks} sets</span>
                     </div>
                   </button>
@@ -170,7 +170,7 @@ export function SessionMergeDialog({ survivingSessionId, survivingSessionName }:
                   <p className="text-xs text-muted-foreground mb-0.5">Absorb</p>
                   <p className="text-sm font-medium">{selected.name}</p>
                   <p className="text-xs text-muted-foreground">
-                    {selected._count.mediaItems} media, {selected._count.participants} participants
+                    {selected._count.mediaItems} media, {selected._count.contributions} contributions
                   </p>
                 </div>
                 <ArrowRight size={20} className="text-muted-foreground shrink-0" />

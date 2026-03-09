@@ -8,11 +8,6 @@ import {
   deletePersonSkill,
   createSkillEvent,
   deleteSkillEvent,
-  addSessionParticipantSkill,
-  removeSessionParticipantSkill,
-  updateSessionParticipantSkillLevel,
-  addMediaToSessionSkill,
-  removeMediaFromSessionSkill,
   addMediaToSkillEvent,
   removeMediaFromSkillEvent,
 } from "@/lib/services/skill-service";
@@ -128,99 +123,6 @@ export async function deleteSkillEventAction(
 ): Promise<ActionResult> {
   try {
     await deleteSkillEvent(id);
-    revalidatePath(`/people/${personId}`);
-    return { success: true };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Unexpected error";
-    return { success: false, error: message };
-  }
-}
-
-// ─── Session Participant Skill ───────────────────────────────────────────────
-
-export async function addSessionParticipantSkillAction(
-  sessionId: string,
-  personId: string,
-  skillDefinitionId: string,
-  level?: SkillLevel | null,
-  notes?: string | null,
-): Promise<ActionResult & { demonstratedEventId?: string | null }> {
-  try {
-    const { demonstratedEventId } = await addSessionParticipantSkill(
-      sessionId,
-      personId,
-      skillDefinitionId,
-      level,
-      notes,
-    );
-    revalidatePath(`/sessions/${sessionId}`);
-    revalidatePath(`/people/${personId}`);
-    return { success: true, demonstratedEventId };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Unexpected error";
-    return { success: false, error: message };
-  }
-}
-
-export async function removeSessionParticipantSkillAction(
-  sessionId: string,
-  personId: string,
-  skillDefinitionId: string,
-): Promise<ActionResult> {
-  try {
-    await removeSessionParticipantSkill(sessionId, personId, skillDefinitionId);
-    revalidatePath(`/sessions/${sessionId}`);
-    revalidatePath(`/people/${personId}`);
-    return { success: true };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Unexpected error";
-    return { success: false, error: message };
-  }
-}
-
-export async function updateSessionSkillLevelAction(
-  sessionId: string,
-  personId: string,
-  skillDefinitionId: string,
-  level: SkillLevel | null,
-): Promise<ActionResult> {
-  try {
-    await updateSessionParticipantSkillLevel(sessionId, personId, skillDefinitionId, level);
-    revalidatePath(`/sessions/${sessionId}`);
-    revalidatePath(`/people/${personId}`);
-    return { success: true };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Unexpected error";
-    return { success: false, error: message };
-  }
-}
-
-export async function addMediaToSessionSkillAction(
-  sessionId: string,
-  personId: string,
-  skillDefinitionId: string,
-  mediaItemIds: string[],
-): Promise<ActionResult> {
-  try {
-    await addMediaToSessionSkill(sessionId, personId, skillDefinitionId, mediaItemIds);
-    revalidatePath(`/sessions/${sessionId}`);
-    revalidatePath(`/people/${personId}`);
-    return { success: true };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Unexpected error";
-    return { success: false, error: message };
-  }
-}
-
-export async function removeMediaFromSessionSkillAction(
-  sessionId: string,
-  personId: string,
-  skillDefinitionId: string,
-  mediaItemId: string,
-): Promise<ActionResult> {
-  try {
-    await removeMediaFromSessionSkill(sessionId, personId, skillDefinitionId, mediaItemId);
-    revalidatePath(`/sessions/${sessionId}`);
     revalidatePath(`/people/${personId}`);
     return { success: true };
   } catch (err) {

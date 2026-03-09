@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { UserSearch, Loader2, X, UserPlus, Check, Ban, Undo2, Camera, User } from "lucide-react";
+import { UserSearch, Loader2, X, UserPlus, Check, Ban, Undo2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,7 +25,8 @@ type PersonResult = {
 
 type CreditRawItem = {
   id: string;
-  role: "MODEL" | "PHOTOGRAPHER";
+  roleDefinitionId: string;
+  roleName: string;
   rawName: string;
   resolutionStatus: "UNRESOLVED" | "RESOLVED" | "IGNORED";
   resolvedPerson: {
@@ -45,11 +46,6 @@ type SuggestionItem = {
 type CreditResolutionPanelProps = {
   credits: CreditRawItem[];
   channelId?: string | null;
-};
-
-const ROLE_ICON = {
-  MODEL: <User size={12} />,
-  PHOTOGRAPHER: <Camera size={12} />,
 };
 
 export function CreditResolutionPanel({ credits: initialCredits, channelId }: CreditResolutionPanelProps) {
@@ -211,20 +207,27 @@ export function CreditResolutionPanel({ credits: initialCredits, channelId }: Cr
     setSuggestions([]);
   }
 
-  // Group by role
-  const models = credits.filter((c) => c.role === "MODEL");
-  const photographers = credits.filter((c) => c.role === "PHOTOGRAPHER");
+  // Group by role definition
+  const creditsByRole = new Map<string, { roleName: string; items: typeof credits }>();
+  for (const c of credits) {
+    const existing = creditsByRole.get(c.roleDefinitionId);
+    if (existing) {
+      existing.items.push(c);
+    } else {
+      creditsByRole.set(c.roleDefinitionId, { roleName: c.roleName, items: [c] });
+    }
+  }
 
   if (credits.length === 0) return null;
 
   return (
     <div className="space-y-4">
-      {models.length > 0 && (
-        <div className="space-y-2">
+      {Array.from(creditsByRole.entries()).map(([roleDefId, { roleName, items }]) => (
+        <div key={roleDefId} className="space-y-2">
           <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
-            {ROLE_ICON.MODEL} Models ({models.length})
+            {roleName} ({items.length})
           </p>
-          {models.map((credit) => (
+          {items.map((credit) => (
             <CreditRow
               key={credit.id}
               credit={credit}
@@ -254,44 +257,7 @@ export function CreditResolutionPanel({ credits: initialCredits, channelId }: Cr
             />
           ))}
         </div>
-      )}
-
-      {photographers.length > 0 && (
-        <div className="space-y-2">
-          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
-            {ROLE_ICON.PHOTOGRAPHER} Photographers ({photographers.length})
-          </p>
-          {photographers.map((credit) => (
-            <CreditRow
-              key={credit.id}
-              credit={credit}
-              isResolving={resolvingCreditId === credit.id}
-              actionLoading={actionLoading}
-              searchQuery={searchQuery}
-              searchResults={searchResults}
-              isSearching={isSearching}
-              showDropdown={showDropdown && resolvingCreditId === credit.id}
-              showNewPersonForm={showNewPersonForm && resolvingCreditId === credit.id}
-              newIcgId={newIcgId}
-              newName={newName}
-              isCreatingPerson={isCreatingPerson}
-              suggestions={resolvingCreditId === credit.id ? suggestions : []}
-              loadingSuggestions={resolvingCreditId === credit.id && loadingSuggestions}
-              dropdownRef={resolvingCreditId === credit.id ? dropdownRef : undefined}
-              onStartResolving={() => startResolving(credit.id)}
-              onCancelResolving={cancelResolving}
-              onSearchChange={handleSearchChange}
-              onResolve={(personId, personName) => handleResolve(credit.id, personId, personName)}
-              onIgnore={() => handleIgnore(credit.id)}
-              onUnresolve={() => handleUnresolve(credit.id)}
-              onShowNewPerson={() => setShowNewPersonForm(true)}
-              onNewIcgIdChange={setNewIcgId}
-              onNewNameChange={setNewName}
-              onCreateAndResolve={() => handleCreateAndResolve(credit.id)}
-            />
-          ))}
-        </div>
-      )}
+      ))}
     </div>
   );
 }

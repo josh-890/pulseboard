@@ -309,9 +309,9 @@ export async function createMediaItemDirect(
         });
       }
 
-      // Auto-link MODEL participants
+      // Auto-link MODEL participants (on-camera roles)
       const modelParticipants = await tx.setParticipant.findMany({
-        where: { setId: input.setId, role: "MODEL" },
+        where: { setId: input.setId, roleDefinition: { slug: "model" } },
         select: { personId: true },
       });
 

@@ -46,7 +46,7 @@ export type PersonWorkHistoryItem = {
   setId: string;
   setTitle: string;
   setType: import("@/generated/prisma/client").SetType;
-  role: import("@/generated/prisma/client").ParticipantRole;
+  role: string;
   releaseDate: Date | null;
   releaseDatePrecision: string;
   channelName: string | null;

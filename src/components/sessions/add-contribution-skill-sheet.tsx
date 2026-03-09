@@ -9,7 +9,7 @@ import {
   SKILL_LEVEL_LABEL,
   SKILL_LEVEL_STYLES,
 } from "@/lib/constants/skill";
-import { addSessionParticipantSkillAction } from "@/lib/actions/skill-actions";
+import { addContributionSkillAction } from "@/lib/actions/contribution-actions";
 
 type SkillDefOption = {
   id: string;
@@ -26,24 +26,24 @@ type SkillGroupOption = {
   definitions: SkillDefOption[];
 };
 
-type AddSessionSkillSheetProps = {
+type AddContributionSkillSheetProps = {
   sessionId: string;
-  participants: { personId: string; displayName: string }[];
+  contributions: { contributionId: string; displayName: string }[];
   skillGroups: SkillGroupOption[];
   assignedKeys: Set<string>;
   onClose: () => void;
 };
 
-export function AddSessionSkillSheet({
+export function AddContributionSkillSheet({
   sessionId,
-  participants,
+  contributions,
   skillGroups,
   assignedKeys,
   onClose,
-}: AddSessionSkillSheetProps) {
+}: AddContributionSkillSheetProps) {
   const [isPending, startTransition] = useTransition();
-  const [selectedPersonId, setSelectedPersonId] = useState<string>(
-    participants.length === 1 ? participants[0].personId : "",
+  const [selectedContributionId, setSelectedContributionId] = useState<string>(
+    contributions.length === 1 ? contributions[0].contributionId : "",
   );
   const [selectedSkillId, setSelectedSkillId] = useState("");
   const [level, setLevel] = useState<SkillLevel | "">("");
@@ -64,23 +64,23 @@ export function AddSessionSkillSheet({
     setLevel("");
   }
 
-  // Filter out skills already assigned to the selected person
+  // Filter out skills already assigned to the selected contribution
   const availableGroups = skillGroups
     .map((g) => ({
       ...g,
       definitions: g.definitions.filter(
-        (d) => !assignedKeys.has(`${selectedPersonId}:${d.id}`),
+        (d) => !assignedKeys.has(`${selectedContributionId}:${d.id}`),
       ),
     }))
     .filter((g) => g.definitions.length > 0);
 
   function handleSubmit() {
-    if (!selectedPersonId || !selectedSkillId) return;
+    if (!selectedContributionId || !selectedSkillId) return;
     startTransition(async () => {
-      const result = await addSessionParticipantSkillAction(
-        sessionId,
-        selectedPersonId,
+      const result = await addContributionSkillAction(
+        selectedContributionId,
         selectedSkillId,
+        sessionId,
         (level as SkillLevel) || null,
         notes || null,
       );
@@ -101,7 +101,7 @@ export function AddSessionSkillSheet({
       {/* Sheet */}
       <div className="relative w-full max-w-md bg-background border-l border-white/15 shadow-2xl overflow-y-auto">
         <div className="sticky top-0 z-10 flex items-center justify-between border-b border-white/15 bg-background px-6 py-4">
-          <h2 className="text-lg font-semibold">Add Participant Skill</h2>
+          <h2 className="text-lg font-semibold">Add Contribution Skill</h2>
           <button
             type="button"
             onClick={onClose}
@@ -112,34 +112,34 @@ export function AddSessionSkillSheet({
         </div>
 
         <div className="space-y-5 p-6">
-          {/* Participant selector */}
+          {/* Contribution selector */}
           <div>
             <label className="mb-1.5 block text-sm font-medium">
-              Participant
+              Contributor
             </label>
-            {participants.length === 1 ? (
+            {contributions.length === 1 ? (
               <p className="text-sm text-muted-foreground">
-                {participants[0].displayName}
+                {contributions[0].displayName}
               </p>
             ) : (
               <div className="flex flex-wrap gap-2">
-                {participants.map((p) => (
+                {contributions.map((c) => (
                   <button
-                    key={p.personId}
+                    key={c.contributionId}
                     type="button"
                     onClick={() => {
-                      setSelectedPersonId(p.personId);
+                      setSelectedContributionId(c.contributionId);
                       setSelectedSkillId("");
                       setLevel("");
                     }}
                     className={cn(
                       "rounded-full border px-3 py-1.5 text-sm font-medium transition-all",
-                      selectedPersonId === p.personId
+                      selectedContributionId === c.contributionId
                         ? "border-primary bg-primary/15 text-primary"
                         : "border-white/15 text-muted-foreground hover:border-white/30 hover:text-foreground",
                     )}
                   >
-                    {p.displayName}
+                    {c.displayName}
                   </button>
                 ))}
               </div>
@@ -152,7 +152,7 @@ export function AddSessionSkillSheet({
             <select
               value={selectedSkillId}
               onChange={(e) => handleSkillChange(e.target.value)}
-              disabled={!selectedPersonId}
+              disabled={!selectedContributionId}
               className="w-full rounded-lg border border-white/15 bg-muted/30 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-50"
             >
               <option value="">Select a skill...</option>
@@ -213,7 +213,7 @@ export function AddSessionSkillSheet({
           <button
             type="button"
             onClick={handleSubmit}
-            disabled={isPending || !selectedPersonId || !selectedSkillId}
+            disabled={isPending || !selectedContributionId || !selectedSkillId}
             className={cn(
               "flex w-full items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium transition-all",
               "bg-primary text-primary-foreground hover:bg-primary/90",

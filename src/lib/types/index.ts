@@ -53,7 +53,6 @@ export type {
   MediaItem,
   MediaType,
   MediaItemWithUrls,
-  ParticipantRole,
   ResolutionStatus,
   EvidenceType,
   PersonMediaUsage,

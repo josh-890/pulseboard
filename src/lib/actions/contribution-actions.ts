@@ -1,0 +1,137 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import type { SkillLevel } from "@/generated/prisma/client";
+import {
+  addSessionContribution,
+  removeSessionContribution,
+  updateSessionContribution,
+  addContributionSkill,
+  removeContributionSkill,
+  updateContributionSkillLevel,
+  addMediaToContributionSkill,
+  removeMediaFromContributionSkill,
+} from "@/lib/services/contribution-service";
+
+type ActionResult = { success: boolean; error?: string };
+
+export async function addSessionContributionAction(
+  sessionId: string,
+  personId: string,
+  roleDefinitionId: string,
+  opts?: { creditNameOverride?: string; notes?: string },
+): Promise<ActionResult> {
+  try {
+    await addSessionContribution(sessionId, personId, roleDefinitionId, opts);
+    revalidatePath(`/sessions/${sessionId}`);
+    return { success: true };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Unexpected error";
+    return { success: false, error: message };
+  }
+}
+
+export async function removeSessionContributionAction(
+  contributionId: string,
+  sessionId: string,
+): Promise<ActionResult> {
+  try {
+    await removeSessionContribution(contributionId);
+    revalidatePath(`/sessions/${sessionId}`);
+    return { success: true };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Unexpected error";
+    return { success: false, error: message };
+  }
+}
+
+export async function updateSessionContributionAction(
+  contributionId: string,
+  sessionId: string,
+  data: { creditNameOverride?: string | null; notes?: string | null },
+): Promise<ActionResult> {
+  try {
+    await updateSessionContribution(contributionId, data);
+    revalidatePath(`/sessions/${sessionId}`);
+    return { success: true };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Unexpected error";
+    return { success: false, error: message };
+  }
+}
+
+export async function addContributionSkillAction(
+  contributionId: string,
+  skillDefinitionId: string,
+  sessionId: string,
+  level?: SkillLevel | null,
+  notes?: string | null,
+): Promise<ActionResult> {
+  try {
+    await addContributionSkill(contributionId, skillDefinitionId, level, notes);
+    revalidatePath(`/sessions/${sessionId}`);
+    return { success: true };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Unexpected error";
+    return { success: false, error: message };
+  }
+}
+
+export async function removeContributionSkillAction(
+  contributionSkillId: string,
+  sessionId: string,
+): Promise<ActionResult> {
+  try {
+    await removeContributionSkill(contributionSkillId);
+    revalidatePath(`/sessions/${sessionId}`);
+    return { success: true };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Unexpected error";
+    return { success: false, error: message };
+  }
+}
+
+export async function updateContributionSkillLevelAction(
+  contributionSkillId: string,
+  sessionId: string,
+  level: SkillLevel | null,
+): Promise<ActionResult> {
+  try {
+    await updateContributionSkillLevel(contributionSkillId, level);
+    revalidatePath(`/sessions/${sessionId}`);
+    return { success: true };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Unexpected error";
+    return { success: false, error: message };
+  }
+}
+
+export async function addMediaToContributionSkillAction(
+  contributionSkillId: string,
+  mediaItemIds: string[],
+  sessionId: string,
+): Promise<ActionResult> {
+  try {
+    await addMediaToContributionSkill(contributionSkillId, mediaItemIds);
+    revalidatePath(`/sessions/${sessionId}`);
+    return { success: true };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Unexpected error";
+    return { success: false, error: message };
+  }
+}
+
+export async function removeMediaFromContributionSkillAction(
+  contributionSkillId: string,
+  mediaItemId: string,
+  sessionId: string,
+): Promise<ActionResult> {
+  try {
+    await removeMediaFromContributionSkill(contributionSkillId, mediaItemId);
+    revalidatePath(`/sessions/${sessionId}`);
+    return { success: true };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Unexpected error";
+    return { success: false, error: message };
+  }
+}

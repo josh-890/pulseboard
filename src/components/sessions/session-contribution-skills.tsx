@@ -11,39 +11,18 @@ import {
   SKILL_LEVEL_STYLES,
 } from "@/lib/constants/skill";
 import {
-  removeSessionParticipantSkillAction,
-  updateSessionSkillLevelAction,
-  addMediaToSessionSkillAction,
-  removeMediaFromSessionSkillAction,
-} from "@/lib/actions/skill-actions";
-import { AddSessionSkillSheet } from "./add-session-skill-sheet";
+  removeContributionSkillAction,
+  updateContributionSkillLevelAction,
+  addMediaToContributionSkillAction,
+
+} from "@/lib/actions/contribution-actions";
+import { AddContributionSkillSheet } from "./add-contribution-skill-sheet";
 import { SkillEventMediaPicker } from "@/components/people/skill-event-media-picker";
+import type { EnrichedContribution } from "@/lib/services/contribution-service";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
-type ParticipantSkillEntry = {
-  sessionId: string;
-  personId: string;
-  skillDefinitionId: string;
-  level: SkillLevel | null;
-  notes: string | null;
-  person: {
-    id: string;
-    icgId: string;
-    aliases: { name: string }[];
-  };
-  skillDefinition: {
-    id: string;
-    name: string;
-    slug: string;
-    description: string | null;
-    pgrade: number | null;
-    defaultLevel: SkillLevel | null;
-    group: { name: string };
-  };
-  demonstratedEventId: string | null;
-  eventMedia: { id: string; thumbUrl: string }[];
-};
+type ContributionSkillEntry = EnrichedContribution["skills"][number];
 
 type SkillGroupOption = {
   id: string;
@@ -58,11 +37,10 @@ type SkillGroupOption = {
   }[];
 };
 
-type SessionParticipantSkillsProps = {
+type SessionContributionSkillsProps = {
   sessionId: string;
-  entries: ParticipantSkillEntry[];
+  contributions: EnrichedContribution[];
   skillGroups: SkillGroupOption[];
-  participants: { personId: string; displayName: string }[];
 };
 
 // ─── Grouped display ────────────────────────────────────────────────────────
@@ -70,17 +48,23 @@ type SessionParticipantSkillsProps = {
 type GroupedByPerson = {
   personId: string;
   displayName: string;
-  skills: ParticipantSkillEntry[];
+  contributions: {
+    contribution: EnrichedContribution;
+    roleName: string;
+  }[];
 };
 
-function groupByPerson(entries: ParticipantSkillEntry[]): GroupedByPerson[] {
+function groupByPerson(contributions: EnrichedContribution[]): GroupedByPerson[] {
   const map = new Map<string, GroupedByPerson>();
-  for (const e of entries) {
-    const displayName = e.person.aliases[0]?.name ?? e.person.icgId;
-    if (!map.has(e.personId)) {
-      map.set(e.personId, { personId: e.personId, displayName, skills: [] });
+  for (const c of contributions) {
+    const displayName = c.person.aliases[0]?.name ?? c.person.icgId;
+    if (!map.has(c.personId)) {
+      map.set(c.personId, { personId: c.personId, displayName, contributions: [] });
     }
-    map.get(e.personId)!.skills.push(e);
+    map.get(c.personId)!.contributions.push({
+      contribution: c,
+      roleName: c.roleDefinition.name,
+    });
   }
   return Array.from(map.values()).sort((a, b) =>
     a.displayName.localeCompare(b.displayName),
@@ -124,19 +108,19 @@ function LevelPopover({ currentLevel, onSelect, onClose }: LevelPopoverProps) {
 
 // ─── Skill Card ─────────────────────────────────────────────────────────────
 
-type SessionSkillCardProps = {
-  skill: ParticipantSkillEntry;
+type ContributionSkillCardProps = {
+  skill: ContributionSkillEntry;
   sessionId: string;
   isPending: boolean;
-  onRemove: (personId: string, skillDefinitionId: string) => void;
+  onRemove: (contributionSkillId: string) => void;
 };
 
-function SessionSkillCard({
+function ContributionSkillCard({
   skill,
   sessionId,
   isPending,
   onRemove,
-}: SessionSkillCardProps) {
+}: ContributionSkillCardProps) {
   const [levelPopoverOpen, setLevelPopoverOpen] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const [mediaPickerOpen, setMediaPickerOpen] = useState(false);
@@ -145,10 +129,9 @@ function SessionSkillCard({
   const handleLevelChange = useCallback(
     (newLevel: SkillLevel | null) => {
       startTransition(async () => {
-        const result = await updateSessionSkillLevelAction(
+        const result = await updateContributionSkillLevelAction(
+          skill.id,
           sessionId,
-          skill.personId,
-          skill.skillDefinitionId,
           newLevel,
         );
         if (!result.success) {
@@ -156,16 +139,11 @@ function SessionSkillCard({
         }
       });
     },
-    [sessionId, skill.personId, skill.skillDefinitionId],
+    [skill.id, sessionId],
   );
 
   function handleDragOver(e: React.DragEvent) {
-    if (
-      !skill.demonstratedEventId ||
-      !e.dataTransfer.types.includes("application/x-media-id")
-    ) {
-      return;
-    }
+    if (!e.dataTransfer.types.includes("application/x-media-id")) return;
     e.preventDefault();
     e.dataTransfer.dropEffect = "copy";
     setDragOver(true);
@@ -181,44 +159,19 @@ function SessionSkillCard({
     e.preventDefault();
     setDragOver(false);
     const mediaId = e.dataTransfer.getData("application/x-media-id");
-    if (!mediaId || !skill.demonstratedEventId) return;
-
-    // Check if already linked
-    if (skill.eventMedia.some((m) => m.id === mediaId)) {
-      toast.info("Media already linked to this skill");
-      return;
-    }
+    if (!mediaId) return;
 
     startTransition(async () => {
-      const result = await addMediaToSessionSkillAction(
-        sessionId,
-        skill.personId,
-        skill.skillDefinitionId,
+      const result = await addMediaToContributionSkillAction(
+        skill.id,
         [mediaId],
+        sessionId,
       );
       if (!result.success) {
         toast.error(result.error ?? "Failed to link media");
       }
     });
   }
-
-  function handleRemoveMedia(mediaItemId: string) {
-    startTransition(async () => {
-      const result = await removeMediaFromSessionSkillAction(
-        sessionId,
-        skill.personId,
-        skill.skillDefinitionId,
-        mediaItemId,
-      );
-      if (!result.success) {
-        toast.error(result.error ?? "Failed to unlink media");
-      }
-    });
-  }
-
-  const maxThumbs = 4;
-  const visibleMedia = skill.eventMedia.slice(0, maxThumbs);
-  const overflowCount = skill.eventMedia.length - maxThumbs;
 
   return (
     <div
@@ -240,11 +193,6 @@ function SessionSkillCard({
         <span className="text-sm font-medium text-foreground/90">
           {skill.skillDefinition.name}
         </span>
-        {skill.skillDefinition.pgrade != null && (
-          <span className="text-[10px] rounded bg-primary/15 px-1 py-0 font-medium text-primary">
-            PG:{skill.skillDefinition.pgrade}
-          </span>
-        )}
 
         {/* Level badge (clickable) */}
         <div className="relative ml-auto">
@@ -273,7 +221,7 @@ function SessionSkillCard({
         {/* Remove button */}
         <button
           type="button"
-          onClick={() => onRemove(skill.personId, skill.skillDefinitionId)}
+          onClick={() => onRemove(skill.id)}
           disabled={isPending}
           className="rounded-full p-1 text-muted-foreground/50 transition-all hover:bg-destructive/20 hover:text-destructive focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
           aria-label={`Remove ${skill.skillDefinition.name}`}
@@ -283,55 +231,31 @@ function SessionSkillCard({
       </div>
 
       {/* Media row */}
-      {skill.demonstratedEventId && (
-        <div className="mt-2 flex items-center gap-1.5 flex-wrap">
-          {visibleMedia.map((m) => (
-            <div key={m.id} className="group/thumb relative">
-              <img
-                src={m.thumbUrl}
-                alt=""
-                className="h-8 w-8 rounded object-cover"
-              />
-              <button
-                type="button"
-                onClick={() => handleRemoveMedia(m.id)}
-                className="absolute -right-1 -top-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-destructive text-destructive-foreground opacity-0 transition-opacity group-hover/thumb:opacity-100"
-                aria-label="Unlink media"
-              >
-                <X size={8} />
-              </button>
-            </div>
-          ))}
-          {overflowCount > 0 && (
-            <span className="text-xs text-muted-foreground">
-              +{overflowCount}
-            </span>
-          )}
-          <button
-            type="button"
-            onClick={() => setMediaPickerOpen(true)}
-            className="flex h-8 w-8 items-center justify-center rounded border border-dashed border-white/20 text-muted-foreground transition-colors hover:border-white/40 hover:text-foreground"
-            aria-label="Add media"
-          >
-            <ImagePlus size={14} />
-          </button>
-        </div>
-      )}
+      <div className="mt-2 flex items-center gap-1.5 flex-wrap">
+        <button
+          type="button"
+          onClick={() => setMediaPickerOpen(true)}
+          className="flex h-8 w-8 items-center justify-center rounded border border-dashed border-white/20 text-muted-foreground transition-colors hover:border-white/40 hover:text-foreground"
+          aria-label="Add media"
+        >
+          <ImagePlus size={14} />
+        </button>
+      </div>
 
       {/* Drop hint */}
-      {dragOver && skill.demonstratedEventId && (
+      {dragOver && (
         <p className="mt-1.5 text-center text-xs text-primary/70">
           Drop to link media
         </p>
       )}
 
       {/* Media picker sheet */}
-      {mediaPickerOpen && skill.demonstratedEventId && (
+      {mediaPickerOpen && (
         <SkillEventMediaPicker
-          eventId={skill.demonstratedEventId}
+          eventId={skill.id}
           sessionId={sessionId}
-          personId={skill.personId}
-          existingMediaIds={skill.eventMedia.map((m) => m.id)}
+          personId=""
+          existingMediaIds={[]}
           onClose={() => setMediaPickerOpen(false)}
         />
       )}
@@ -341,23 +265,33 @@ function SessionSkillCard({
 
 // ─── Component ──────────────────────────────────────────────────────────────
 
-export function SessionParticipantSkills({
+export function SessionContributionSkills({
   sessionId,
-  entries,
+  contributions,
   skillGroups,
-  participants,
-}: SessionParticipantSkillsProps) {
+}: SessionContributionSkillsProps) {
   const [isAddSheetOpen, setIsAddSheetOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
+  const grouped = groupByPerson(contributions);
   const [expandedPersons, setExpandedPersons] = useState<Set<string>>(
-    () => new Set(groupByPerson(entries).map((g) => g.personId)),
+    () => new Set(grouped.map((g) => g.personId)),
   );
 
-  const grouped = groupByPerson(entries);
+  const totalSkills = contributions.reduce((acc, c) => acc + c.skills.length, 0);
 
-  const assignedKeys = new Set(
-    entries.map((e) => `${e.personId}:${e.skillDefinitionId}`),
-  );
+  // Build assigned keys for the add sheet
+  const assignedKeys = new Set<string>();
+  for (const c of contributions) {
+    for (const s of c.skills) {
+      assignedKeys.add(`${c.id}:${s.skillDefinitionId}`);
+    }
+  }
+
+  // Build contribution options for the add sheet
+  const contributionOptions = contributions.map((c) => ({
+    contributionId: c.id,
+    displayName: `${c.person.aliases[0]?.name ?? c.person.icgId} (${c.roleDefinition.name})`,
+  }));
 
   function togglePerson(personId: string) {
     setExpandedPersons((prev) => {
@@ -368,22 +302,24 @@ export function SessionParticipantSkills({
     });
   }
 
-  function handleRemove(personId: string, skillDefinitionId: string) {
+  function handleRemove(contributionSkillId: string) {
     startTransition(async () => {
-      await removeSessionParticipantSkillAction(
+      const result = await removeContributionSkillAction(
+        contributionSkillId,
         sessionId,
-        personId,
-        skillDefinitionId,
       );
+      if (!result.success) {
+        toast.error(result.error ?? "Failed to remove skill");
+      }
     });
   }
 
   return (
     <div>
       {/* Grouped skill list */}
-      {grouped.length === 0 && !isAddSheetOpen ? (
+      {totalSkills === 0 && !isAddSheetOpen ? (
         <p className="text-sm italic text-muted-foreground/70">
-          No participant skills recorded for this session.
+          No contribution skills recorded for this session.
         </p>
       ) : (
         <div className="space-y-2">
@@ -401,21 +337,31 @@ export function SessionParticipantSkills({
                 )}
                 <span>{group.displayName}</span>
                 <span className="ml-auto text-xs text-muted-foreground">
-                  {group.skills.length}{" "}
-                  {group.skills.length === 1 ? "skill" : "skills"}
+                  {group.contributions.reduce((acc, c) => acc + c.contribution.skills.length, 0)}{" "}
+                  skills
                 </span>
               </button>
 
               {expandedPersons.has(group.personId) && (
-                <div className="ml-6 mt-1 space-y-2">
-                  {group.skills.map((skill) => (
-                    <SessionSkillCard
-                      key={skill.skillDefinitionId}
-                      skill={skill}
-                      sessionId={sessionId}
-                      isPending={isPending}
-                      onRemove={handleRemove}
-                    />
+                <div className="ml-6 mt-1 space-y-3">
+                  {group.contributions.map(({ contribution, roleName }) => (
+                    <div key={contribution.id}>
+                      <span className="inline-flex items-center rounded-full border border-white/15 bg-muted/50 px-2 py-0.5 text-xs font-medium text-muted-foreground mb-1">
+                        {roleName}
+                      </span>
+                      <div className="space-y-2">
+                        {contribution.skills.map((skill) => (
+                          <ContributionSkillCard
+                            key={skill.id}
+                            skill={skill}
+
+                            sessionId={sessionId}
+                            isPending={isPending}
+                            onRemove={handleRemove}
+                          />
+                        ))}
+                      </div>
+                    </div>
                   ))}
                 </div>
               )}
@@ -425,20 +371,22 @@ export function SessionParticipantSkills({
       )}
 
       {/* Add skill button */}
-      <button
-        type="button"
-        onClick={() => setIsAddSheetOpen(true)}
-        className="mt-3 inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-card/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-      >
-        <Plus size={14} />
-        Add skill
-      </button>
+      {contributions.length > 0 && (
+        <button
+          type="button"
+          onClick={() => setIsAddSheetOpen(true)}
+          className="mt-3 inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-card/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+        >
+          <Plus size={14} />
+          Add skill
+        </button>
+      )}
 
       {/* Add skill sheet */}
       {isAddSheetOpen && (
-        <AddSessionSkillSheet
+        <AddContributionSkillSheet
           sessionId={sessionId}
-          participants={participants}
+          contributions={contributionOptions}
           skillGroups={skillGroups}
           assignedKeys={assignedKeys}
           onClose={() => setIsAddSheetOpen(false)}

@@ -12,7 +12,7 @@ type SessionCardProps = {
 
 export function SessionCard({ session }: SessionCardProps) {
   const isReference = session.type === "REFERENCE";
-  const participantCount = session.participants.length;
+  const participantCount = session.contributions.length;
   const mediaCount = session._count.mediaItems;
   const setCount = session._count.setSessionLinks;
   const personName = session.person?.aliases[0]?.name ?? session.person?.icgId;

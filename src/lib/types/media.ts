@@ -1,7 +1,6 @@
 export type {
   MediaItem,
   MediaType,
-  ParticipantRole,
   ResolutionStatus,
   EvidenceType,
   PersonMediaUsage,

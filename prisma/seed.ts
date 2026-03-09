@@ -418,37 +418,37 @@ async function main() {
     },
   });
 
-  // ─── SessionParticipants ────────────────────────────────────────────────────
+  // ─── SessionContributions ───────────────────────────────────────────────────
 
-  await prisma.sessionParticipant.upsert({
+  await prisma.sessionContribution.upsert({
     where: {
-      sessionId_personId_role: {
+      sessionId_personId_roleDefinitionId: {
         sessionId: session.id,
         personId: person.id,
-        role: "MODEL",
+        roleDefinitionId: "crd_model",
       },
     },
     update: {},
     create: {
       sessionId: session.id,
       personId: person.id,
-      role: "MODEL",
+      roleDefinitionId: "crd_model",
     },
   });
 
-  await prisma.sessionParticipant.upsert({
+  await prisma.sessionContribution.upsert({
     where: {
-      sessionId_personId_role: {
+      sessionId_personId_roleDefinitionId: {
         sessionId: session.id,
         personId: person2.id,
-        role: "PHOTOGRAPHER",
+        roleDefinitionId: "crd_photographer",
       },
     },
     update: {},
     create: {
       sessionId: session.id,
       personId: person2.id,
-      role: "PHOTOGRAPHER",
+      roleDefinitionId: "crd_photographer",
     },
   });
 
@@ -572,7 +572,7 @@ async function main() {
     create: {
       id: "seed-credit-raw-1",
       setId: set.id,
-      role: "MODEL",
+      roleDefinitionId: "crd_model",
       rawName: "Jane",
       nameNorm: "jane",
       resolutionStatus: "RESOLVED",
@@ -586,7 +586,7 @@ async function main() {
     create: {
       id: "seed-credit-raw-2",
       setId: set.id,
-      role: "PHOTOGRAPHER",
+      roleDefinitionId: "crd_photographer",
       rawName: "M. Reed",
       nameNorm: "m. reed",
       resolutionStatus: "RESOLVED",
@@ -600,7 +600,7 @@ async function main() {
     create: {
       id: "seed-credit-raw-3",
       setId: set.id,
-      role: "MODEL",
+      roleDefinitionId: "crd_model",
       rawName: "Unknown Guest",
       nameNorm: "unknown guest",
       resolutionStatus: "UNRESOLVED",
@@ -611,25 +611,25 @@ async function main() {
 
   await prisma.setParticipant.upsert({
     where: {
-      setId_personId_role: { setId: set.id, personId: person.id, role: "MODEL" },
+      setId_personId_roleDefinitionId: { setId: set.id, personId: person.id, roleDefinitionId: "crd_model" },
     },
     update: {},
     create: {
       setId: set.id,
       personId: person.id,
-      role: "MODEL",
+      roleDefinitionId: "crd_model",
     },
   });
 
   await prisma.setParticipant.upsert({
     where: {
-      setId_personId_role: { setId: set.id, personId: person2.id, role: "PHOTOGRAPHER" },
+      setId_personId_roleDefinitionId: { setId: set.id, personId: person2.id, roleDefinitionId: "crd_photographer" },
     },
     update: {},
     create: {
       setId: set.id,
       personId: person2.id,
-      role: "PHOTOGRAPHER",
+      roleDefinitionId: "crd_photographer",
     },
   });
 

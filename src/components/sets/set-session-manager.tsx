@@ -40,7 +40,7 @@ type SearchResult = {
   datePrecision: string;
   _count: {
     mediaItems: number;
-    participants: number;
+    contributions: number;
     setSessionLinks: number;
   };
 };
@@ -218,7 +218,7 @@ export function SetSessionManager({ setId, sessionLinks }: SetSessionManagerProp
                   </div>
                   <div className="mt-1 flex gap-3 text-xs text-muted-foreground">
                     <span>{r._count.mediaItems} media</span>
-                    <span>{r._count.participants} participants</span>
+                    <span>{r._count.contributions} contributions</span>
                   </div>
                 </button>
               ))}

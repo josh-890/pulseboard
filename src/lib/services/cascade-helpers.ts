@@ -212,9 +212,9 @@ export async function cascadeDeletePersonSkills(
   await tx.personSkill.deleteMany({
     where: { personId },
   });
-  // Hard-delete session participant skills
-  await tx.sessionParticipantSkill.deleteMany({
-    where: { personId },
+  // Hard-delete contribution skills
+  await tx.contributionSkill.deleteMany({
+    where: { contribution: { personId } },
   });
 }
 
@@ -230,13 +230,11 @@ export async function cascadeDeleteSession(
     where: { sessionId },
   });
 
-  // Hard-delete session participants
-  await tx.sessionParticipant.deleteMany({
-    where: { sessionId },
+  // Hard-delete contribution skills, then contributions
+  await tx.contributionSkill.deleteMany({
+    where: { contribution: { sessionId } },
   });
-
-  // Hard-delete session participant skills
-  await tx.sessionParticipantSkill.deleteMany({
+  await tx.sessionContribution.deleteMany({
     where: { sessionId },
   });
 
