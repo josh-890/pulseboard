@@ -252,17 +252,31 @@ model Person {
 }
 
 model PersonAlias {
-  id        String      @id @default(cuid())
-  personId  String
-  person    Person      @relation(fields: [personId], references: [id])
-  name      String
-  type      AliasType   @default(alias)
-  source    AliasSource @default(MANUAL)
-  nameNorm  String?
+  id           String               @id @default(cuid())
+  personId     String
+  person       Person               @relation(fields: [personId], references: [id])
+  name         String
+  type         AliasType            @default(alias)
+  source       AliasSource          @default(MANUAL)
+  nameNorm     String?
+  notes        String?
+  channelLinks PersonAliasChannel[]
 
   @@index([personId])
   @@index([name])
   @@index([nameNorm])
+}
+
+model PersonAliasChannel {
+  aliasId   String
+  alias     PersonAlias @relation(fields: [aliasId], references: [id])
+  channelId String
+  channel   Channel     @relation(fields: [channelId], references: [id])
+  isPrimary Boolean     @default(false)
+  notes     String?
+
+  @@id([aliasId, channelId])
+  @@index([channelId])
 }
 
 model Persona {
@@ -589,8 +603,9 @@ model Channel {
   platform  String?
   notes     String?
 
-  sets      Set[]
-  labelMaps ChannelLabelMap[]
+  sets       Set[]
+  labelMaps  ChannelLabelMap[]
+  aliasLinks PersonAliasChannel[]
 
   @@index([nameNorm])
 }

@@ -14,6 +14,7 @@ import { getPersonReferenceSession } from "@/lib/services/session-service";
 import { getPersonHeadshots, getFilledHeadshotSlots, getPersonMediaGallery } from "@/lib/services/media-service";
 import { getAllCategoryGroups, getPopulatedCategoriesForPerson } from "@/lib/services/category-service";
 import { getAllSkillGroups } from "@/lib/services/skill-catalog-service";
+import { getPersonAliases } from "@/lib/services/alias-service";
 import { PersonDetailTabs } from "@/components/people/person-detail-tabs";
 import { EditPersonSheet } from "@/components/people/edit-person-sheet";
 import { DeleteButton } from "@/components/shared/delete-button";
@@ -28,7 +29,7 @@ type PersonDetailPageProps = {
 export default async function PersonDetailPage({ params }: PersonDetailPageProps) {
   const { id } = await params;
 
-  const [person, workHistory, connections, profileLabels, refSession, headshots, filledSlots, categoryGroups, populatedCounts, skillGroups, skillLevelConfigs] =
+  const [person, workHistory, connections, profileLabels, refSession, headshots, filledSlots, categoryGroups, populatedCounts, skillGroups, skillLevelConfigs, aliasesWithChannels] =
     await Promise.all([
       getPersonWithDetails(id),
       getPersonWorkHistory(id),
@@ -41,6 +42,7 @@ export default async function PersonDetailPage({ params }: PersonDetailPageProps
       getPopulatedCategoriesForPerson(id),
       getAllSkillGroups(),
       getSkillLevelConfigs(),
+      getPersonAliases(id),
     ]);
 
   if (!person) notFound();
@@ -194,6 +196,7 @@ export default async function PersonDetailPage({ params }: PersonDetailPageProps
         skillGroups={skillGroups}
         calculatedPgrade={calculatedPgrade}
         meanWcp={meanWcp}
+        aliasesWithChannels={aliasesWithChannels}
       />
     </div>
   );

@@ -718,7 +718,16 @@ export async function updatePersonRecord(id: string, data: UpdatePersonInput) {
 
 export async function deletePersonRecord(id: string) {
   return prisma.$transaction(async (tx) => {
-    // Delete aliases
+    // Delete alias channel links, then aliases
+    const aliasIds = (await tx.personAlias.findMany({
+      where: { personId: id },
+      select: { id: true },
+    })).map((a) => a.id);
+    if (aliasIds.length > 0) {
+      await tx.personAliasChannel.deleteMany({
+        where: { aliasId: { in: aliasIds } },
+      });
+    }
     await tx.personAlias.deleteMany({
       where: { personId: id },
     });

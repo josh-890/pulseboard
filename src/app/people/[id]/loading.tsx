@@ -78,7 +78,7 @@ export default function PersonDetailLoading() {
 
       {/* Tab bar — 6+ tabs */}
       <div className="flex gap-1 rounded-xl border border-white/15 bg-card/50 p-1">
-        {["Overview", "Appearance", "Skills", "Career", "Network", "Photos"].map((tab) => (
+        {["Overview", "Aliases", "Appearance", "Skills", "Career", "Network", "Photos"].map((tab) => (
           <Skeleton key={tab} className="h-9 w-24 rounded-lg" />
         ))}
       </div>

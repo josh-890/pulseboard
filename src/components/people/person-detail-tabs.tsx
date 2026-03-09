@@ -46,7 +46,9 @@ import { GalleryLightbox } from "@/components/gallery/gallery-lightbox";
 import { BatchUploadZone } from "@/components/media/batch-upload-zone";
 import { PersonDetailsTab } from "@/components/people/person-details-tab";
 import { PersonSkillsTab } from "@/components/people/person-skills-tab";
+import { PersonAliasesTab } from "@/components/people/person-aliases-tab";
 import type { SkillGroupWithDefinitions } from "@/lib/services/skill-catalog-service";
+import type { PersonAliasWithChannels } from "@/lib/services/alias-service";
 import type { GalleryItem } from "@/lib/types";
 import type { ProfileImageLabel } from "@/lib/services/setting-service";
 import type { CategoryWithGroup } from "@/components/gallery/gallery-info-panel";
@@ -57,7 +59,7 @@ import {
 
 type PersonData = NonNullable<Awaited<ReturnType<typeof getPersonWithDetails>>>;
 
-type TabId = "overview" | "appearance" | "details" | "skills" | "career" | "network" | "photos";
+type TabId = "overview" | "aliases" | "appearance" | "details" | "skills" | "career" | "network" | "photos";
 
 type HeadshotSlotEntry = { mediaItemId: string; slot: number };
 
@@ -77,6 +79,7 @@ type PersonDetailTabsProps = {
   skillGroups?: SkillGroupWithDefinitions[];
   calculatedPgrade?: number | null;
   meanWcp?: number | null;
+  aliasesWithChannels?: PersonAliasWithChannels[];
 };
 
 // ── Style maps ──────────────────────────────────────────────────────────────
@@ -601,33 +604,50 @@ type HeroSharedProps = {
   aliasPills: PersonData["aliases"];
   referenceSessionId?: string;
   headshotSlotMap?: Map<string, number>;
+  onAliasesBadgeClick?: () => void;
 };
 
-function IdentityBlock({ person, displayName, age, aliasPills, nameSize = "text-2xl" }: {
+function IdentityBlock({ person, displayName, age, aliasPills, onAliasesBadgeClick, nameSize = "text-2xl" }: {
   person: PersonData;
   displayName: string;
   age: number | null;
   aliasPills: PersonData["aliases"];
+  onAliasesBadgeClick?: () => void;
   nameSize?: string;
 }) {
+  const birthAlias = aliasPills.find((a) => a.type === "birth");
+  const commonAlias = person.aliases.find((a) => a.type === "common");
+  const totalAliasCount = person.aliases.filter((a) => a.type === "alias").length;
+
   return (
     <div>
       <h1 className={cn("font-bold leading-tight", nameSize)}>{displayName}</h1>
 
-      {aliasPills.length > 0 && (
+      {(birthAlias || totalAliasCount > 0) && (
         <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-          <span className="text-xs text-muted-foreground">AKA:</span>
-          {aliasPills.map((alias) => (
-            <span
-              key={alias.id}
-              className={cn(
-                "inline-flex items-center rounded-full border px-2 py-0.5 text-xs",
-                ALIAS_TYPE_STYLES[alias.type],
-              )}
+          {birthAlias && birthAlias.name !== commonAlias?.name && (
+            <>
+              <span className="text-xs text-muted-foreground">Born:</span>
+              <span
+                className={cn(
+                  "inline-flex items-center rounded-full border px-2 py-0.5 text-xs",
+                  ALIAS_TYPE_STYLES.birth,
+                )}
+              >
+                {birthAlias.name}
+              </span>
+            </>
+          )}
+          {totalAliasCount > 0 && (
+            <button
+              type="button"
+              onClick={onAliasesBadgeClick}
+              className="inline-flex items-center gap-1 rounded-full border border-white/15 bg-muted/50 px-2 py-0.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
             >
-              {alias.name}
-            </span>
-          ))}
+              <BookUser size={11} />
+              {totalAliasCount} {totalAliasCount === 1 ? "alias" : "aliases"}
+            </button>
+          )}
         </div>
       )}
 
@@ -714,6 +734,7 @@ function HeroDensityLayout(props: HeroSharedProps) {
             displayName={displayName}
             age={age}
             aliasPills={aliasPills}
+            onAliasesBadgeClick={props.onAliasesBadgeClick}
             nameSize={cfg.nameSize}
           />
         </div>
@@ -760,6 +781,7 @@ function HeroCard({
   meanWcp,
   referenceSessionId,
   headshotSlotMap,
+  onAliasesBadgeClick,
 }: {
   person: PersonData;
   currentState: PersonCurrentState;
@@ -770,6 +792,7 @@ function HeroCard({
   meanWcp?: number | null;
   referenceSessionId?: string;
   headshotSlotMap?: Map<string, number>;
+  onAliasesBadgeClick?: () => void;
 }) {
   const commonAlias = person.aliases.find((a) => a.type === "common");
   const birthAlias = person.aliases.find((a) => a.type === "birth");
@@ -801,6 +824,7 @@ function HeroCard({
     referenceSessionId,
     headshotSlotMap,
     aliasPills,
+    onAliasesBadgeClick,
   };
 
   return <HeroDensityLayout {...sharedProps} />;
@@ -1250,6 +1274,7 @@ export function PersonDetailTabs({
   skillGroups,
   calculatedPgrade,
   meanWcp,
+  aliasesWithChannels,
 }: PersonDetailTabsProps) {
   const [activeTab, setActiveTab] = useState<TabId>("overview");
 
@@ -1261,8 +1286,15 @@ export function PersonDetailTabs({
     return map;
   }, [headshotSlotEntries]);
 
+  const aliasCount = person.aliases.filter((a) => a.type === "alias").length;
+
+  const handleAliasesBadgeClick = useCallback(() => {
+    setActiveTab("aliases");
+  }, []);
+
   const tabs: { id: TabId; label: string; badge?: number }[] = [
     { id: "overview", label: "Overview" },
+    { id: "aliases", label: "Aliases", badge: aliasCount || undefined },
     { id: "appearance", label: "Appearance" },
     ...(categories && categories.length > 0
       ? [{ id: "details" as TabId, label: "Details", badge: (categoryCounts?.filter((c) => c.count > 0).length) || undefined }]
@@ -1291,6 +1323,7 @@ export function PersonDetailTabs({
           photos: photos.length,
           connections: connections.length,
         }}
+        onAliasesBadgeClick={handleAliasesBadgeClick}
       />
 
       {/* Tab bar — scrollable on mobile */}
@@ -1341,6 +1374,19 @@ export function PersonDetailTabs({
       >
         {activeTab === "overview" && (
           <OverviewTab person={person} currentState={currentState} />
+        )}
+      </div>
+      <div
+        id="tabpanel-aliases"
+        role="tabpanel"
+        aria-labelledby="tab-aliases"
+        hidden={activeTab !== "aliases"}
+      >
+        {activeTab === "aliases" && (
+          <PersonAliasesTab
+            personId={person.id}
+            aliases={aliasesWithChannels ?? []}
+          />
         )}
       </div>
       <div
