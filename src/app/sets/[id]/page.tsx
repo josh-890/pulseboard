@@ -103,19 +103,23 @@ export default async function SetDetailPage({ params }: SetDetailPageProps) {
 
   if (!set) notFound();
 
-  const typeConfig = SET_TYPE_CONFIG[set.type];
+  // Strip participants (not used in template) to avoid RSC payload bloat
+  // that silently breaks client component hydration
+  const { participants: _participants, ...setData } = set;
+
+  const typeConfig = SET_TYPE_CONFIG[setData.type];
 
   // Load gallery items directly as GalleryItem
-  const galleryItems = await getSetMediaGallery(id, set.coverMediaItemId);
+  const galleryItems = await getSetMediaGallery(id, setData.coverMediaItemId);
 
   // Determine if we have credits
-  const hasCredits = set.creditsRaw.length > 0;
-  const unresolvedCount = set.creditsRaw.filter((c) => c.resolutionStatus === "UNRESOLVED").length;
+  const hasCredits = setData.creditsRaw.length > 0;
+  const unresolvedCount = setData.creditsRaw.filter((c) => c.resolutionStatus === "UNRESOLVED").length;
   const hasPhotos = galleryItems.length > 0;
-  const hasLabel = set.labelEvidence.length > 0;
+  const hasLabel = setData.labelEvidence.length > 0;
 
   // Get the primary label from channel's label maps
-  const primaryLabel = set.channel?.labelMaps[0]?.label;
+  const primaryLabel = setData.channel?.labelMaps[0]?.label;
 
   return (
     <div className="space-y-6">
@@ -131,17 +135,17 @@ export default async function SetDetailPage({ params }: SetDetailPageProps) {
         <div className="flex items-center gap-2">
           <EditSetSheet
             set={{
-              id: set.id,
-              type: set.type,
-              title: set.title,
-              channelId: set.channelId,
-              description: set.description,
-              notes: set.notes,
-              releaseDate: set.releaseDate,
-              releaseDatePrecision: set.releaseDatePrecision,
-              category: set.category,
-              genre: set.genre,
-              tags: set.tags,
+              id: setData.id,
+              type: setData.type,
+              title: setData.title,
+              channelId: setData.channelId,
+              description: setData.description,
+              notes: setData.notes,
+              releaseDate: setData.releaseDate,
+              releaseDatePrecision: setData.releaseDatePrecision,
+              category: setData.category,
+              genre: setData.genre,
+              tags: setData.tags,
             }}
             channels={channels}
           />
@@ -168,19 +172,19 @@ export default async function SetDetailPage({ params }: SetDetailPageProps) {
                 {typeConfig.icon}
                 {typeConfig.label}
               </span>
-              {set.releaseDate && (
+              {setData.releaseDate && (
                 <span className="text-sm text-muted-foreground">
-                  {formatPartialDate(set.releaseDate, set.releaseDatePrecision)}
+                  {formatPartialDate(setData.releaseDate, setData.releaseDatePrecision)}
                 </span>
               )}
             </div>
-            <SetInlineTitle setId={id} title={set.title} />
+            <SetInlineTitle setId={id} title={setData.title} />
 
             {/* Channel / label */}
-            {set.channel && (
+            {setData.channel && (
               <p className="mt-2 text-sm text-muted-foreground">
                 <span className="font-medium text-foreground/80">
-                  {set.channel.name}
+                  {setData.channel.name}
                 </span>
                 {primaryLabel && (
                   <>
@@ -200,7 +204,7 @@ export default async function SetDetailPage({ params }: SetDetailPageProps) {
             <div className="mt-2">
               <LabelEvidenceManager
                 setId={id}
-                evidence={set.labelEvidence.map((ev) => ({
+                evidence={setData.labelEvidence.map((ev) => ({
                   setId: ev.setId,
                   labelId: ev.labelId,
                   evidenceType: ev.evidenceType,
@@ -210,14 +214,14 @@ export default async function SetDetailPage({ params }: SetDetailPageProps) {
             </div>
 
             {/* Session links */}
-            {set.sessionLinks && set.sessionLinks.length > 0 && (
+            {setData.sessionLinks && setData.sessionLinks.length > 0 && (
               <div className="mt-2">
                 <p className="mb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
                   Sessions
                 </p>
                 <SetSessionManager
                   setId={id}
-                  sessionLinks={set.sessionLinks.map((link) => ({
+                  sessionLinks={setData.sessionLinks.map((link) => ({
                     setId: link.setId,
                     sessionId: link.sessionId,
                     isPrimary: link.isPrimary,
@@ -236,7 +240,7 @@ export default async function SetDetailPage({ params }: SetDetailPageProps) {
             {/* Completeness checklist */}
             <div className="mt-3 flex flex-wrap gap-1.5">
               <CompletenessChip done label="Title" />
-              <CompletenessChip done={!!set.channel} label="Channel" />
+              <CompletenessChip done={!!setData.channel} label="Channel" />
               <CompletenessChip
                 done={hasCredits && unresolvedCount === 0}
                 label={unresolvedCount > 0 ? `Credits (${unresolvedCount} unresolved)` : "Credits"}
@@ -250,21 +254,21 @@ export default async function SetDetailPage({ params }: SetDetailPageProps) {
 
       {/* Description + notes (inline editable) */}
       <div className="rounded-2xl border border-white/20 bg-card/70 p-6 shadow-md backdrop-blur-sm space-y-3">
-        <SetInlineDescription setId={id} description={set.description} />
-        <SetInlineNotes setId={id} notes={set.notes} />
+        <SetInlineDescription setId={id} description={setData.description} />
+        <SetInlineNotes setId={id} notes={setData.notes} />
       </div>
 
       {/* Photo gallery */}
       <SetDetailGallery
         items={galleryItems}
         entityId={id}
-        primarySessionId={set.sessionLinks?.find((l) => l.isPrimary)?.sessionId}
-        coverMediaItemId={set.coverMediaItemId}
+        primarySessionId={setData.sessionLinks?.find((l) => l.isPrimary)?.sessionId}
+        coverMediaItemId={setData.coverMediaItemId}
       />
 
       {/* Credits & Participants */}
       <SectionCard
-        title={hasCredits ? `Credits (${set.creditsRaw.length})` : "Credits"}
+        title={hasCredits ? `Credits (${setData.creditsRaw.length})` : "Credits"}
         icon={<FileText size={18} />}
       >
         <div className="space-y-4">
@@ -276,8 +280,8 @@ export default async function SetDetailPage({ params }: SetDetailPageProps) {
           />
           {hasCredits ? (
             <CreditResolutionPanel
-              channelId={set.channelId}
-              credits={set.creditsRaw.map((c) => ({
+              channelId={setData.channelId}
+              credits={setData.creditsRaw.map((c) => ({
                 id: c.id,
                 roleDefinitionId: c.roleDefinitionId ?? "",
                 roleName: c.roleDefinition?.name ?? "Unknown",
@@ -304,14 +308,14 @@ export default async function SetDetailPage({ params }: SetDetailPageProps) {
       </SectionCard>
 
       {/* Tags */}
-      {set.tags.length > 0 && (
+      {setData.tags.length > 0 && (
         <div className="rounded-2xl border border-white/20 bg-card/70 p-6 shadow-md backdrop-blur-sm">
           <div className="mb-3 flex items-center gap-2">
             <Tag size={16} className="text-muted-foreground" aria-hidden="true" />
             <h2 className="text-lg font-semibold">Tags</h2>
           </div>
           <div className="flex flex-wrap gap-2">
-            {set.tags.map((tag) => (
+            {setData.tags.map((tag) => (
               <span
                 key={tag}
                 className="inline-flex items-center rounded-full border border-white/10 bg-muted/60 px-2.5 py-0.5 text-xs font-medium text-foreground"

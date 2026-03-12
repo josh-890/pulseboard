@@ -26,12 +26,16 @@ type MediaSearchResult = {
   thumbUrl: string;
 };
 
+type ActionResult = { success: boolean; error?: string };
+
 type SkillEventMediaPickerProps = {
   eventId: string;
   sessionId: string;
   personId: string;
   existingMediaIds: string[];
   onClose: () => void;
+  onAddMedia?: (mediaItemIds: string[]) => Promise<ActionResult>;
+  onRemoveMedia?: (mediaItemId: string) => Promise<ActionResult>;
 };
 
 export function SkillEventMediaPicker({
@@ -40,6 +44,8 @@ export function SkillEventMediaPicker({
   personId,
   existingMediaIds,
   onClose,
+  onAddMedia,
+  onRemoveMedia,
 }: SkillEventMediaPickerProps) {
   const router = useRouter();
   const [results, setResults] = useState<MediaSearchResult[]>([]);
@@ -84,7 +90,9 @@ export function SkillEventMediaPicker({
 
     let hasError = false;
     for (const mediaItemId of toRemove) {
-      const result = await removeMediaFromSkillEventAction(eventId, mediaItemId, personId);
+      const result = onRemoveMedia
+        ? await onRemoveMedia(mediaItemId)
+        : await removeMediaFromSkillEventAction(eventId, mediaItemId, personId);
       if (!result.success) {
         toast.error(result.error ?? "Failed to remove media");
         hasError = true;
@@ -93,7 +101,9 @@ export function SkillEventMediaPicker({
     }
 
     if (!hasError && toAdd.length > 0) {
-      const result = await addMediaToSkillEventAction(eventId, toAdd, personId);
+      const result = onAddMedia
+        ? await onAddMedia(toAdd)
+        : await addMediaToSkillEventAction(eventId, toAdd, personId);
       if (!result.success) {
         toast.error(result.error ?? "Failed to add media");
         hasError = true;

@@ -8,7 +8,7 @@ import { getMediaItemsForSession, getMediaItemsWithLinks, getFilledHeadshotSlots
 import { getProfileImageLabels } from "@/lib/services/setting-service";
 import { getCollectionsForPerson } from "@/lib/services/collection-service";
 import { getAllCategoryGroups } from "@/lib/services/category-service";
-import { getSessionContributions } from "@/lib/services/contribution-service";
+import { getSessionContributions, getContributionSkillMediaMap } from "@/lib/services/contribution-service";
 import { getAllSkillGroups } from "@/lib/services/skill-catalog-service";
 import { prisma } from "@/lib/db";
 import { cn, formatPartialDate } from "@/lib/utils";
@@ -147,10 +147,10 @@ export default async function SessionDetailPage({ params }: SessionDetailPagePro
     mediaItems = await getMediaItemsForSession(id);
   }
 
-  // Load contributions + skill groups for production sessions
-  const [sessionContributions, skillGroups] = !isReference
-    ? await Promise.all([getSessionContributions(id), getAllSkillGroups()])
-    : [[], []];
+  // Load contributions + skill groups + skill media for production sessions
+  const [sessionContributions, skillGroups, contributionSkillMedia] = !isReference
+    ? await Promise.all([getSessionContributions(id), getAllSkillGroups(), getContributionSkillMediaMap(id)])
+    : [[], [], new Map<string, { id: string; thumbUrl: string }[]>()];
 
   return (
     <div className="space-y-6">
@@ -388,6 +388,7 @@ export default async function SessionDetailPage({ params }: SessionDetailPagePro
                 defaultLevel: d.defaultLevel,
               })),
             }))}
+            skillMedia={Object.fromEntries(contributionSkillMedia)}
           />
         </SectionCard>
       )}

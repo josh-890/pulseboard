@@ -411,7 +411,6 @@ export async function getSetMediaGallery(
     },
     orderBy: { sortOrder: "asc" },
   });
-
   const results: GalleryItem[] = [];
   for (const link of links) {
     const item = link.mediaItem;

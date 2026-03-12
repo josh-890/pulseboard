@@ -76,7 +76,7 @@ export function SetDetailGallery({
           }}
         />
       )}
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="space-y-2">
         {primarySessionId && (
           <BatchUploadZone
             sessionId={primarySessionId}

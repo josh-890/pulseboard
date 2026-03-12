@@ -275,6 +275,108 @@ export async function updateContributionSkillLevel(
   });
 }
 
+// ─── Contribution Skill Media Query ──────────────────────────────────────────
+
+type ContributionSkillMediaItem = {
+  id: string;
+  thumbUrl: string;
+};
+
+/**
+ * For each contribution skill in a session, look up the linked PersonSkillEvent
+ * (DEMONSTRATED, tagged with this session) and return its media.
+ * Returns a map: contributionSkillId → media items[].
+ */
+export async function getContributionSkillMediaMap(
+  sessionId: string,
+): Promise<Map<string, ContributionSkillMediaItem[]>> {
+  const BASE_URL = process.env.NEXT_PUBLIC_MINIO_URL ?? "";
+
+  // Get all contribution skills for this session with person + skill info
+  const contributions = await prisma.sessionContribution.findMany({
+    where: { sessionId },
+    include: {
+      skills: {
+        select: {
+          id: true,
+          skillDefinitionId: true,
+          contribution: { select: { personId: true } },
+        },
+      },
+    },
+  });
+
+  const allSkills = contributions.flatMap((c) => c.skills);
+  if (allSkills.length === 0) return new Map();
+
+  // Batch-fetch person skills for all person+skillDefinition combos
+  const personSkills = await prisma.personSkill.findMany({
+    where: {
+      OR: allSkills.map((s) => ({
+        personId: s.contribution.personId,
+        skillDefinitionId: s.skillDefinitionId,
+      })),
+    },
+    select: { id: true, personId: true, skillDefinitionId: true },
+  });
+
+  const psMap = new Map<string, string>();
+  for (const ps of personSkills) {
+    psMap.set(`${ps.personId}:${ps.skillDefinitionId}`, ps.id);
+  }
+
+  // Find DEMONSTRATED events tagged with this session
+  const personSkillIds = [...new Set(personSkills.map((ps) => ps.id))];
+  if (personSkillIds.length === 0) return new Map();
+
+  const events = await prisma.personSkillEvent.findMany({
+    where: {
+      personSkillId: { in: personSkillIds },
+      eventType: "DEMONSTRATED",
+      notes: { contains: `[session:${sessionId}]` },
+    },
+    include: {
+      media: {
+        include: {
+          mediaItem: {
+            select: { id: true, variants: true, fileRef: true },
+          },
+        },
+        orderBy: { sortOrder: "asc" },
+      },
+      personSkill: { select: { personId: true, skillDefinitionId: true } },
+    },
+  });
+
+  // Build reverse map: personId+skillDefId → event media
+  const eventMediaMap = new Map<string, ContributionSkillMediaItem[]>();
+  for (const event of events) {
+    const key = `${event.personSkill.personId}:${event.personSkill.skillDefinitionId}`;
+    const items = event.media.map((sem) => {
+      const variants = (sem.mediaItem.variants ?? {}) as Record<string, string>;
+      const thumbKey = variants.gallery_512 ?? variants.original ?? sem.mediaItem.fileRef ?? "";
+      return {
+        id: sem.mediaItem.id,
+        thumbUrl: thumbKey ? `${BASE_URL}/${thumbKey}` : "",
+      };
+    });
+    const existing = eventMediaMap.get(key) ?? [];
+    eventMediaMap.set(key, [...existing, ...items]);
+  }
+
+  // Map back to contribution skill IDs
+  const result = new Map<string, ContributionSkillMediaItem[]>();
+  for (const skill of allSkills) {
+    const key = `${skill.contribution.personId}:${skill.skillDefinitionId}`;
+    const media = eventMediaMap.get(key);
+    if (media && media.length > 0) {
+      result.set(skill.id, media);
+    }
+  }
+
+  return result;
+}
+
 // ─── Contribution Skill Media Helpers ────────────────────────────────────────
 
 export async function addMediaToContributionSkill(
