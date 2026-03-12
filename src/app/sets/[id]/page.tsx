@@ -280,6 +280,7 @@ export default async function SetDetailPage({ params }: SetDetailPageProps) {
           />
           {hasCredits ? (
             <CreditResolutionPanel
+              setId={id}
               channelId={setData.channelId}
               credits={setData.creditsRaw.map((c) => ({
                 id: c.id,

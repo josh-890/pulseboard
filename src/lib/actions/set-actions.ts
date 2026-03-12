@@ -111,30 +111,34 @@ export async function saveSetLabelEvidence(
 export async function resolveCredit(
   creditId: string,
   personId: string,
+  setId: string,
 ): Promise<SimpleResult> {
   try {
     await resolveCreditRaw(creditId, personId);
     revalidatePath("/sets");
+    revalidatePath(`/sets/${setId}`);
     return { success: true };
   } catch {
     return { success: false, error: "Failed to resolve credit" };
   }
 }
 
-export async function ignoreCredit(creditId: string): Promise<SimpleResult> {
+export async function ignoreCredit(creditId: string, setId: string): Promise<SimpleResult> {
   try {
     await ignoreCreditRaw(creditId);
     revalidatePath("/sets");
+    revalidatePath(`/sets/${setId}`);
     return { success: true };
   } catch {
     return { success: false, error: "Failed to ignore credit" };
   }
 }
 
-export async function unresolveCredit(creditId: string): Promise<SimpleResult> {
+export async function unresolveCredit(creditId: string, setId: string): Promise<SimpleResult> {
   try {
     await unresolveCreditRaw(creditId);
     revalidatePath("/sets");
+    revalidatePath(`/sets/${setId}`);
     return { success: true };
   } catch {
     return { success: false, error: "Failed to unresolve credit" };

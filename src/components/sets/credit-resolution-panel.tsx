@@ -44,11 +44,12 @@ type SuggestionItem = {
 };
 
 type CreditResolutionPanelProps = {
+  setId: string;
   credits: CreditRawItem[];
   channelId?: string | null;
 };
 
-export function CreditResolutionPanel({ credits: initialCredits, channelId }: CreditResolutionPanelProps) {
+export function CreditResolutionPanel({ setId, credits: initialCredits, channelId }: CreditResolutionPanelProps) {
   const router = useRouter();
   const [credits, setCredits] = useState(initialCredits);
 
@@ -100,7 +101,7 @@ export function CreditResolutionPanel({ credits: initialCredits, channelId }: Cr
 
   async function handleResolve(creditId: string, personId: string, personName: string) {
     setActionLoading(creditId);
-    const result = await resolveCredit(creditId, personId);
+    const result = await resolveCredit(creditId, personId, setId);
     if (result.success) {
       setCredits((prev) =>
         prev.map((c) =>
@@ -130,7 +131,7 @@ export function CreditResolutionPanel({ credits: initialCredits, channelId }: Cr
 
   async function handleIgnore(creditId: string) {
     setActionLoading(creditId);
-    const result = await ignoreCredit(creditId);
+    const result = await ignoreCredit(creditId, setId);
     if (result.success) {
       setCredits((prev) =>
         prev.map((c) => (c.id === creditId ? { ...c, resolutionStatus: "IGNORED" as const } : c)),
@@ -144,7 +145,7 @@ export function CreditResolutionPanel({ credits: initialCredits, channelId }: Cr
 
   async function handleUnresolve(creditId: string) {
     setActionLoading(creditId);
-    const result = await unresolveCredit(creditId);
+    const result = await unresolveCredit(creditId, setId);
     if (result.success) {
       setCredits((prev) =>
         prev.map((c) =>
