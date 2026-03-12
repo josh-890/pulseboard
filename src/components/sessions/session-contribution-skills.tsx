@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition, useCallback } from "react";
-import { Plus, X, ChevronDown, ChevronRight, ImagePlus } from "lucide-react";
+import { X, ChevronDown, ChevronRight, ImagePlus } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import type { SkillLevel } from "@/generated/prisma/client";
@@ -11,13 +11,15 @@ import {
   SKILL_LEVEL_STYLES,
 } from "@/lib/constants/skill";
 import {
+  addContributionSkillAction,
   removeContributionSkillAction,
   updateContributionSkillLevelAction,
   addMediaToContributionSkillAction,
-
+  removeMediaFromContributionSkillAction,
 } from "@/lib/actions/contribution-actions";
-import { AddContributionSkillSheet } from "./add-contribution-skill-sheet";
 import { SkillEventMediaPicker } from "@/components/people/skill-event-media-picker";
+import { SkillCombobox } from "@/components/skills/skill-combobox";
+import type { SkillDefOption } from "@/components/skills/skill-combobox";
 import type { EnrichedContribution } from "@/lib/services/contribution-service";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -37,10 +39,16 @@ type SkillGroupOption = {
   }[];
 };
 
+type SkillMediaItem = {
+  id: string;
+  thumbUrl: string;
+};
+
 type SessionContributionSkillsProps = {
   sessionId: string;
   contributions: EnrichedContribution[];
   skillGroups: SkillGroupOption[];
+  skillMedia?: Record<string, SkillMediaItem[]>;
 };
 
 // ─── Grouped display ────────────────────────────────────────────────────────
@@ -113,6 +121,7 @@ type ContributionSkillCardProps = {
   sessionId: string;
   isPending: boolean;
   onRemove: (contributionSkillId: string) => void;
+  mediaItems?: SkillMediaItem[];
 };
 
 function ContributionSkillCard({
@@ -120,6 +129,7 @@ function ContributionSkillCard({
   sessionId,
   isPending,
   onRemove,
+  mediaItems = [],
 }: ContributionSkillCardProps) {
   const [levelPopoverOpen, setLevelPopoverOpen] = useState(false);
   const [dragOver, setDragOver] = useState(false);
@@ -231,14 +241,27 @@ function ContributionSkillCard({
       </div>
 
       {/* Media row */}
-      <div className="mt-2 flex items-center gap-1.5 flex-wrap">
+      <div className="mt-2 flex items-center gap-2 flex-wrap">
+        {mediaItems.map((m) => (
+          <div
+            key={m.id}
+            className="relative h-16 w-16 overflow-hidden rounded-lg border border-white/15 bg-muted/30"
+          >
+            <img
+              src={m.thumbUrl}
+              alt=""
+              className="h-full w-full object-cover"
+              loading="lazy"
+            />
+          </div>
+        ))}
         <button
           type="button"
           onClick={() => setMediaPickerOpen(true)}
-          className="flex h-8 w-8 items-center justify-center rounded border border-dashed border-white/20 text-muted-foreground transition-colors hover:border-white/40 hover:text-foreground"
+          className="flex h-16 w-16 items-center justify-center rounded-lg border border-dashed border-white/20 text-muted-foreground transition-colors hover:border-white/40 hover:text-foreground"
           aria-label="Add media"
         >
-          <ImagePlus size={14} />
+          <ImagePlus size={18} />
         </button>
       </div>
 
@@ -255,8 +278,14 @@ function ContributionSkillCard({
           eventId={skill.id}
           sessionId={sessionId}
           personId=""
-          existingMediaIds={[]}
+          existingMediaIds={mediaItems.map((m) => m.id)}
           onClose={() => setMediaPickerOpen(false)}
+          onAddMedia={async (mediaItemIds) =>
+            addMediaToContributionSkillAction(skill.id, mediaItemIds, sessionId)
+          }
+          onRemoveMedia={async (mediaItemId) =>
+            removeMediaFromContributionSkillAction(skill.id, mediaItemId, sessionId)
+          }
         />
       )}
     </div>
@@ -269,8 +298,8 @@ export function SessionContributionSkills({
   sessionId,
   contributions,
   skillGroups,
+  skillMedia = {},
 }: SessionContributionSkillsProps) {
-  const [isAddSheetOpen, setIsAddSheetOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
   const grouped = groupByPerson(contributions);
   const [expandedPersons, setExpandedPersons] = useState<Set<string>>(
@@ -278,20 +307,6 @@ export function SessionContributionSkills({
   );
 
   const totalSkills = contributions.reduce((acc, c) => acc + c.skills.length, 0);
-
-  // Build assigned keys for the add sheet
-  const assignedKeys = new Set<string>();
-  for (const c of contributions) {
-    for (const s of c.skills) {
-      assignedKeys.add(`${c.id}:${s.skillDefinitionId}`);
-    }
-  }
-
-  // Build contribution options for the add sheet
-  const contributionOptions = contributions.map((c) => ({
-    contributionId: c.id,
-    displayName: `${c.person.aliases[0]?.name ?? c.person.icgId} (${c.roleDefinition.name})`,
-  }));
 
   function togglePerson(personId: string) {
     setExpandedPersons((prev) => {
@@ -314,10 +329,25 @@ export function SessionContributionSkills({
     });
   }
 
+  function handleAutoAdd(contributionId: string, skillDef: SkillDefOption) {
+    startTransition(async () => {
+      const result = await addContributionSkillAction(
+        contributionId,
+        skillDef.id,
+        sessionId,
+        skillDef.defaultLevel ?? null,
+        null,
+      );
+      if (!result.success) {
+        toast.error(result.error ?? "Failed to add skill");
+      }
+    });
+  }
+
   return (
     <div>
       {/* Grouped skill list */}
-      {totalSkills === 0 && !isAddSheetOpen ? (
+      {totalSkills === 0 && contributions.length === 0 ? (
         <p className="text-sm italic text-muted-foreground/70">
           No contribution skills recorded for this session.
         </p>
@@ -344,53 +374,42 @@ export function SessionContributionSkills({
 
               {expandedPersons.has(group.personId) && (
                 <div className="ml-6 mt-1 space-y-3">
-                  {group.contributions.map(({ contribution, roleName }) => (
-                    <div key={contribution.id}>
-                      <span className="inline-flex items-center rounded-full border border-white/15 bg-muted/50 px-2 py-0.5 text-xs font-medium text-muted-foreground mb-1">
-                        {roleName}
-                      </span>
-                      <div className="space-y-2">
-                        {contribution.skills.map((skill) => (
-                          <ContributionSkillCard
-                            key={skill.id}
-                            skill={skill}
-
-                            sessionId={sessionId}
-                            isPending={isPending}
-                            onRemove={handleRemove}
-                          />
-                        ))}
+                  {group.contributions.map(({ contribution, roleName }) => {
+                    const assignedSkillIds = new Set(
+                      contribution.skills.map((s) => s.skillDefinitionId),
+                    );
+                    return (
+                      <div key={contribution.id}>
+                        <span className="inline-flex items-center rounded-full border border-white/15 bg-muted/50 px-2 py-0.5 text-xs font-medium text-muted-foreground mb-1">
+                          {roleName}
+                        </span>
+                        <div className="space-y-2">
+                          {contribution.skills.map((skill) => (
+                            <ContributionSkillCard
+                              key={skill.id}
+                              skill={skill}
+                              sessionId={sessionId}
+                              isPending={isPending}
+                              onRemove={handleRemove}
+                              mediaItems={skillMedia[skill.id]}
+                            />
+                          ))}
+                        </div>
+                        <SkillCombobox
+                          skillGroups={skillGroups}
+                          assignedSkillIds={assignedSkillIds}
+                          onSelect={(def) => handleAutoAdd(contribution.id, def)}
+                          isPending={isPending}
+                          triggerClassName="mt-1"
+                        />
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>
           ))}
         </div>
-      )}
-
-      {/* Add skill button */}
-      {contributions.length > 0 && (
-        <button
-          type="button"
-          onClick={() => setIsAddSheetOpen(true)}
-          className="mt-3 inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-card/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-        >
-          <Plus size={14} />
-          Add skill
-        </button>
-      )}
-
-      {/* Add skill sheet */}
-      {isAddSheetOpen && (
-        <AddContributionSkillSheet
-          sessionId={sessionId}
-          contributions={contributionOptions}
-          skillGroups={skillGroups}
-          assignedKeys={assignedKeys}
-          onClose={() => setIsAddSheetOpen(false)}
-        />
       )}
     </div>
   );

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useState, useTransition } from "react";
 import Link from "next/link";
 import {
   ChevronDown,
@@ -20,11 +20,13 @@ import {
   SKILL_LEVEL_STYLES,
   SKILL_EVENT_STYLES,
 } from "@/lib/constants/skill";
-import { deletePersonSkillAction, deleteSkillEventAction } from "@/lib/actions/skill-actions";
-import { AddSkillSheet } from "./add-skill-sheet";
+import { createPersonSkillAction, deletePersonSkillAction, deleteSkillEventAction } from "@/lib/actions/skill-actions";
+import { EditSkillSheet } from "./edit-skill-sheet";
 import { AddSkillEventDialog } from "./add-skill-event-dialog";
 import { SkillEventMediaPicker } from "./skill-event-media-picker";
 import { GalleryLightbox } from "@/components/gallery/gallery-lightbox";
+import { SkillCombobox } from "@/components/skills/skill-combobox";
+import type { SkillDefOption } from "@/components/skills/skill-combobox";
 
 type PersonaOption = { id: string; label: string };
 
@@ -84,7 +86,7 @@ export function PersonSkillsTab({
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(
     new Set(groupSkills(skills).map((g) => g.groupName)),
   );
-  const [showAddSheet, setShowAddSheet] = useState(false);
+  const [isAddPending, startAddTransition] = useTransition();
   const [editingSkill, setEditingSkill] = useState<PersonSkillItem | null>(
     null,
   );
@@ -153,14 +155,24 @@ export function PersonSkillsTab({
               {skills.length}
             </span>
           </div>
-          <button
-            type="button"
-            onClick={() => setShowAddSheet(true)}
-            className="flex items-center gap-1.5 rounded-lg border border-white/15 px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:border-white/30 hover:text-foreground"
-          >
-            <Plus size={12} />
-            Add Skill
-          </button>
+          <SkillCombobox
+            skillGroups={skillGroups}
+            assignedSkillIds={new Set(
+              skills
+                .filter((s) => s.skillDefinitionId)
+                .map((s) => s.skillDefinitionId!),
+            )}
+            onSelect={(def: SkillDefOption) => {
+              startAddTransition(async () => {
+                await createPersonSkillAction(personId, {
+                  skillDefinitionId: def.id,
+                  level: def.defaultLevel ?? null,
+                });
+              });
+            }}
+            isPending={isAddPending}
+            triggerClassName="flex items-center gap-1.5 rounded-lg border border-white/15 px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:border-white/30 hover:text-foreground"
+          />
         </div>
 
         {grouped.length === 0 ? (
@@ -369,21 +381,10 @@ export function PersonSkillsTab({
         </div>
       )}
 
-      {/* Add skill sheet */}
-      {showAddSheet && (
-        <AddSkillSheet
-          personId={personId}
-          skillGroups={skillGroups}
-          personas={personas}
-          onClose={() => setShowAddSheet(false)}
-        />
-      )}
-
       {/* Edit skill sheet */}
       {editingSkill && (
-        <AddSkillSheet
+        <EditSkillSheet
           personId={personId}
-          skillGroups={skillGroups}
           personas={personas}
           editingSkill={editingSkill}
           onClose={() => setEditingSkill(null)}
