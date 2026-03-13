@@ -635,6 +635,57 @@ export async function getPersonMediaForEntity(
     .filter((item): item is PersonMediaLinkWithItem => item !== null);
 }
 
+/**
+ * Batch-fetch all entity-linked media for a person (body marks, modifications, procedures).
+ * Returns a map keyed by entityId → thumbnail info[].
+ */
+export type EntityMediaThumbnail = {
+  id: string;
+  url: string;
+  width: number;
+  height: number;
+};
+
+export async function getPersonEntityMedia(
+  personId: string,
+): Promise<Map<string, EntityMediaThumbnail[]>> {
+  const links = await prisma.personMediaLink.findMany({
+    where: {
+      personId,
+      OR: [
+        { bodyMarkId: { not: null } },
+        { bodyModificationId: { not: null } },
+        { cosmeticProcedureId: { not: null } },
+      ],
+    },
+    include: { mediaItem: true },
+    orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+  });
+
+  const result = new Map<string, EntityMediaThumbnail[]>();
+  for (const link of links) {
+    const entityId = link.bodyMarkId ?? link.bodyModificationId ?? link.cosmeticProcedureId;
+    if (!entityId) continue;
+    const variants = (link.mediaItem.variants ?? {}) as PhotoVariants;
+    const url = variants.gallery_512
+      ? `${BASE_URL}/${variants.gallery_512}`
+      : variants.profile_256
+        ? `${BASE_URL}/${variants.profile_256}`
+        : variants.original
+          ? `${BASE_URL}/${variants.original}`
+          : null;
+    if (!url) continue;
+    if (!result.has(entityId)) result.set(entityId, []);
+    result.get(entityId)!.push({
+      id: link.mediaItem.id,
+      url,
+      width: link.mediaItem.originalWidth,
+      height: link.mediaItem.originalHeight,
+    });
+  }
+  return result;
+}
+
 // ─── MediaManager queries ───────────────────────────────────────────────────
 
 export type MediaItemWithLinks = {
@@ -856,6 +907,37 @@ export async function getCoverPhotosForSets(
             : null;
       if (url) result.set(link.setId, url);
     }
+  }
+
+  return result;
+}
+
+/**
+ * Batch-load a cover photo URL for each session (first media item by sortOrder).
+ */
+export async function getCoverPhotosForSessions(
+  sessionIds: string[],
+): Promise<Map<string, string>> {
+  if (sessionIds.length === 0) return new Map();
+
+  const mediaItems = await prisma.mediaItem.findMany({
+    where: { sessionId: { in: sessionIds } },
+    select: { sessionId: true, variants: true, fileRef: true },
+    orderBy: { createdAt: "asc" },
+  });
+
+  const result = new Map<string, string>();
+  for (const item of mediaItems) {
+    if (result.has(item.sessionId)) continue; // first per session
+    const variants = (item.variants ?? {}) as PhotoVariants;
+    const url = variants.gallery_512
+      ? buildUrl(variants.gallery_512)
+      : variants.original
+        ? buildUrl(variants.original)
+        : item.fileRef
+          ? buildUrl(item.fileRef)
+          : null;
+    if (url) result.set(item.sessionId, url);
   }
 
   return result;

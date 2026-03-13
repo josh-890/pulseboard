@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { cn } from "@/lib/utils";
 import type { BodyModificationWithEvents } from "@/lib/types";
 import {
@@ -10,8 +11,16 @@ import {
 import { EntityEventTimeline } from "@/components/people/entity-event-timeline";
 import { Pencil, Trash2 } from "lucide-react";
 
+type EntityMediaThumbnail = {
+  id: string;
+  url: string;
+  width: number;
+  height: number;
+};
+
 type BodyModificationCardProps = {
   modification: BodyModificationWithEvents;
+  photos?: EntityMediaThumbnail[];
   onEdit?: () => void;
   onDelete?: () => void;
   onDeleteEvent?: (id: string) => Promise<{ success: boolean; error?: string }>;
@@ -21,6 +30,7 @@ type BodyModificationCardProps = {
 
 export function BodyModificationCard({
   modification,
+  photos,
   onEdit,
   onDelete,
   onDeleteEvent,
@@ -94,6 +104,26 @@ export function BodyModificationCard({
           <span className="text-xs text-muted-foreground/70">Gauge: {modification.gauge}</span>
         )}
       </div>
+
+      {photos && photos.length > 0 && (
+        <div className="mt-3 flex gap-1.5 overflow-x-auto pb-1">
+          {photos.map((photo) => (
+            <div
+              key={photo.id}
+              className="shrink-0 h-14 w-14 overflow-hidden rounded-lg border border-white/10 bg-muted/30"
+            >
+              <Image
+                src={photo.url}
+                alt=""
+                width={photo.width}
+                height={photo.height}
+                unoptimized
+                className="h-full w-full object-cover"
+              />
+            </div>
+          ))}
+        </div>
+      )}
 
       {onDeleteEvent && onAddEvent && (
         <EntityEventTimeline

@@ -289,6 +289,60 @@ export async function deleteMediaItemsAction(
   }
 }
 
+export async function linkMediaToDetailCategoryAction(
+  personId: string,
+  mediaItemIds: string[],
+  categoryId: string,
+  entityField?: "bodyMarkId" | "bodyModificationId" | "cosmeticProcedureId",
+  entityId?: string,
+): Promise<ActionResult> {
+  try {
+    for (const mediaItemId of mediaItemIds) {
+      const existing = await prisma.personMediaLink.findFirst({
+        where: { personId, mediaItemId, usage: "DETAIL", categoryId },
+      });
+      if (!existing) {
+        await prisma.personMediaLink.create({
+          data: {
+            personId,
+            mediaItemId,
+            usage: "DETAIL",
+            categoryId,
+            ...(entityField && entityId ? { [entityField]: entityId } : {}),
+          },
+        });
+      }
+    }
+    revalidatePath(`/people/${personId}`);
+    return { success: true };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Unexpected error";
+    return { success: false, error: message };
+  }
+}
+
+export async function unlinkMediaFromDetailCategoryAction(
+  personId: string,
+  mediaItemIds: string[],
+  categoryId: string,
+): Promise<ActionResult> {
+  try {
+    await prisma.personMediaLink.deleteMany({
+      where: {
+        personId,
+        mediaItemId: { in: mediaItemIds },
+        usage: "DETAIL",
+        categoryId,
+      },
+    });
+    revalidatePath(`/people/${personId}`);
+    return { success: true };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Unexpected error";
+    return { success: false, error: message };
+  }
+}
+
 export async function resetFocalPointAction(
   mediaItemId: string,
   sessionId: string,

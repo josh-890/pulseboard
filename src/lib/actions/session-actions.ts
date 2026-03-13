@@ -10,7 +10,10 @@ import {
   searchSessions,
   linkSessionToSet,
   unlinkSessionFromSet,
+  getSessionsPaginated,
 } from "@/lib/services/session-service";
+import type { SessionFilters } from "@/lib/services/session-service";
+import { getCoverPhotosForSessions } from "@/lib/services/media-service";
 import { prisma } from "@/lib/db";
 
 type ActionResult =
@@ -148,4 +151,20 @@ export async function unlinkSessionAction(
     const message = e instanceof Error ? e.message : "Failed to unlink session";
     return { success: false, error: message };
   }
+}
+
+export async function loadMoreSessions(
+  filters: SessionFilters,
+  cursor: string,
+) {
+  const result = await getSessionsPaginated(filters, cursor, 50);
+  const coverMapRaw = await getCoverPhotosForSessions(
+    result.items.map((s) => s.id),
+  );
+  const photoMap = Object.fromEntries(coverMapRaw);
+  return {
+    items: result.items,
+    nextCursor: result.nextCursor,
+    photoMap,
+  };
 }

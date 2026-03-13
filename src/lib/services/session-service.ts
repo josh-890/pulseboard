@@ -11,12 +11,20 @@ const personSelect = {
   },
 } as const;
 
+export type SessionSort =
+  | "newest"
+  | "date-desc"
+  | "date-asc"
+  | "name-asc"
+  | "media-desc";
+
 export type SessionFilters = {
   q?: string;
   status?: SessionStatus | "all";
   type?: SessionType | "all";
   labelId?: string;
   projectId?: string;
+  sort?: SessionSort;
 };
 
 export async function getSessions(filters: SessionFilters = {}) {
@@ -69,6 +77,97 @@ export async function getSessions(filters: SessionFilters = {}) {
     },
     orderBy: { createdAt: "desc" },
   });
+}
+
+function getSessionOrderBy(sort?: SessionSort): Prisma.SessionOrderByWithRelationInput[] {
+  switch (sort) {
+    case "date-desc":
+      return [{ date: { sort: "desc", nulls: "last" } }];
+    case "date-asc":
+      return [{ date: { sort: "asc", nulls: "last" } }];
+    case "name-asc":
+      return [{ name: "asc" }];
+    case "media-desc":
+      return [{ mediaItems: { _count: "desc" } }];
+    case "newest":
+    default:
+      return [{ createdAt: "desc" }];
+  }
+}
+
+export type PaginatedSessions = {
+  items: Awaited<ReturnType<typeof getSessions>>;
+  nextCursor: string | null;
+  totalCount: number;
+};
+
+export async function getSessionsPaginated(
+  filters: SessionFilters = {},
+  cursor?: string,
+  limit = 50,
+): Promise<PaginatedSessions> {
+  const { q, status, type, labelId, projectId, sort } = filters;
+
+  const where: Prisma.SessionWhereInput = {};
+
+  if (status && status !== "all") {
+    where.status = status;
+  }
+
+  if (type && type !== "all") {
+    where.type = type;
+  }
+
+  if (q) {
+    where.name = { contains: q, mode: "insensitive" };
+  }
+
+  if (labelId) {
+    where.labelId = labelId;
+  }
+
+  if (projectId) {
+    where.projectId = projectId;
+  }
+
+  const orderBy = getSessionOrderBy(sort);
+
+  const [totalCount, sessions] = await Promise.all([
+    prisma.session.count({ where }),
+    prisma.session.findMany({
+      where,
+      include: {
+        project: { select: { id: true, name: true } },
+        label: { select: { id: true, name: true } },
+        person: personSelect,
+        contributions: {
+          include: {
+            person: {
+              include: {
+                aliases: { where: { type: "common" }, take: 1 },
+              },
+            },
+            roleDefinition: { include: { group: true } },
+          },
+        },
+        _count: {
+          select: {
+            mediaItems: true,
+            setSessionLinks: true,
+          },
+        },
+      },
+      orderBy,
+      take: limit + 1,
+      ...(cursor ? { skip: 1, cursor: { id: cursor } } : {}),
+    }),
+  ]);
+
+  const hasMore = sessions.length > limit;
+  const items = hasMore ? sessions.slice(0, limit) : sessions;
+  const nextCursor = hasMore ? items[items.length - 1]!.id : null;
+
+  return { items, nextCursor, totalCount };
 }
 
 export async function getSessionById(id: string) {

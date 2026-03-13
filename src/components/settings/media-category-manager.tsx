@@ -5,6 +5,7 @@ import {
   ChevronDown,
   ChevronRight,
   GripVertical,
+  Lock,
   Pencil,
   Plus,
   Trash2,
@@ -183,6 +184,7 @@ export function MediaCategoryManager({
         const isExpanded = expandedGroups.has(group.id);
         const isEditing = editingGroupId === group.id;
         const hasCategories = group.categories.length > 0;
+        const hasSystemCategory = group.categories.some((c) => !!c.entityModel);
 
         return (
           <div
@@ -247,21 +249,30 @@ export function MediaCategoryManager({
                   >
                     <Pencil size={12} />
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => handleDeleteGroup(group.id)}
-                    disabled={hasCategories}
-                    className={cn(
-                      "rounded-md p-1 transition-colors",
-                      hasCategories
-                        ? "text-muted-foreground/30 cursor-not-allowed"
-                        : "text-muted-foreground hover:text-destructive",
-                    )}
-                    title={hasCategories ? "Remove all categories first" : "Delete group"}
-                    aria-label="Delete group"
-                  >
-                    <Trash2 size={12} />
-                  </button>
+                  {hasSystemCategory ? (
+                    <span
+                      className="rounded-md p-1 text-muted-foreground/40"
+                      title="System group — contains entity-linked categories"
+                    >
+                      <Lock size={12} />
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteGroup(group.id)}
+                      disabled={hasCategories}
+                      className={cn(
+                        "rounded-md p-1 transition-colors",
+                        hasCategories
+                          ? "text-muted-foreground/30 cursor-not-allowed"
+                          : "text-muted-foreground hover:text-destructive",
+                      )}
+                      title={hasCategories ? "Remove all categories first" : "Delete group"}
+                      aria-label="Delete group"
+                    >
+                      <Trash2 size={12} />
+                    </button>
+                  )}
                 </>
               )}
             </div>
@@ -271,6 +282,8 @@ export function MediaCategoryManager({
               <div className="border-t border-white/10 px-3 py-2 space-y-1">
                 {group.categories.map((cat) => {
                   const isEditingCat = editingCatId === cat.id;
+
+                  const isSystem = !!cat.entityModel;
 
                   if (isEditingCat) {
                     return (
@@ -290,17 +303,23 @@ export function MediaCategoryManager({
                           className="flex-1 rounded-md border border-white/15 bg-background/50 px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
                           autoFocus
                         />
-                        <select
-                          value={editCatEntityModel}
-                          onChange={(e) => setEditCatEntityModel(e.target.value)}
-                          className="rounded-md border border-white/15 bg-background/50 px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
-                        >
-                          {ENTITY_MODEL_OPTIONS.map((opt) => (
-                            <option key={opt.value} value={opt.value}>
-                              {opt.label}
-                            </option>
-                          ))}
-                        </select>
+                        {isSystem ? (
+                          <span className="rounded-md border border-white/15 bg-background/50 px-2 py-1 text-xs text-muted-foreground">
+                            {entityModelLabel(cat.entityModel)}
+                          </span>
+                        ) : (
+                          <select
+                            value={editCatEntityModel}
+                            onChange={(e) => setEditCatEntityModel(e.target.value)}
+                            className="rounded-md border border-white/15 bg-background/50 px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
+                          >
+                            {ENTITY_MODEL_OPTIONS.map((opt) => (
+                              <option key={opt.value} value={opt.value}>
+                                {opt.label}
+                              </option>
+                            ))}
+                          </select>
+                        )}
                         <button
                           type="button"
                           onClick={() => handleUpdateCategory(cat.id)}
@@ -343,14 +362,23 @@ export function MediaCategoryManager({
                       >
                         <Pencil size={11} />
                       </button>
-                      <button
-                        type="button"
-                        onClick={() => handleDeleteCategory(cat.id)}
-                        className="invisible rounded-md p-1 text-muted-foreground transition-colors hover:text-destructive group-hover:visible"
-                        aria-label="Delete category"
-                      >
-                        <Trash2 size={11} />
-                      </button>
+                      {isSystem ? (
+                        <span
+                          className="rounded-md p-1 text-muted-foreground/40"
+                          title="System category — linked to entity model"
+                        >
+                          <Lock size={11} />
+                        </span>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteCategory(cat.id)}
+                          className="invisible rounded-md p-1 text-muted-foreground transition-colors hover:text-destructive group-hover:visible"
+                          aria-label="Delete category"
+                        >
+                          <Trash2 size={11} />
+                        </button>
+                      )}
                     </div>
                   );
                 })}

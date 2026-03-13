@@ -38,7 +38,7 @@ export function SetCard({ set, photoUrl, unresolvedCreditCount = 0 }: SetCardPro
           "active:scale-[0.98] active:shadow-sm active:translate-y-0",
           "group-focus-visible:ring-2 group-focus-visible:ring-ring group-focus-visible:ring-offset-2",
           "flex-col sm:flex-row",
-          isCompact ? "sm:h-[100px]" : "sm:h-[140px]",
+          isCompact ? "sm:h-[100px]" : "sm:h-[160px]",
         )}
       >
         {/* Thumbnail */}
@@ -46,7 +46,7 @@ export function SetCard({ set, photoUrl, unresolvedCreditCount = 0 }: SetCardPro
           className={cn(
             "relative shrink-0 overflow-hidden bg-muted/30",
             "h-[120px] w-full sm:h-full",
-            isCompact ? "sm:w-[72px]" : "sm:w-[100px]",
+            isCompact ? "sm:w-[100px]" : "sm:w-[160px]",
           )}
         >
           {photoUrl ? (
@@ -56,7 +56,7 @@ export function SetCard({ set, photoUrl, unresolvedCreditCount = 0 }: SetCardPro
               fill
               className="object-cover object-center"
               unoptimized
-              sizes={isCompact ? "72px" : "100px"}
+              sizes={isCompact ? "100px" : "160px"}
             />
           ) : (
             <div className="flex h-full w-full items-center justify-center text-muted-foreground/30">

@@ -2,6 +2,7 @@
 
 import { useCallback, useState, useTransition } from "react";
 import { ChevronDown, ChevronUp, Plus, Trash2, X } from "lucide-react";
+import { PartialDateInput } from "@/components/shared/partial-date-input";
 import { cn } from "@/lib/utils";
 import type { BodyMarkWithEvents, BodyModificationWithEvents, CosmeticProcedureWithEvents } from "@/lib/types";
 import type { BodyMarkType, BodyModificationType, BodyMarkEventType, BodyModificationEventType, CosmeticProcedureEventType } from "@/generated/prisma/client";
@@ -235,21 +236,13 @@ export function NewPersonaSheet({
               className="w-full rounded-lg border border-white/15 bg-muted/30 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring" autoFocus />
           </div>
 
-          <div>
-            <label className="mb-1.5 block text-sm font-medium">Date</label>
-            <div className="flex gap-2">
-              <input type="date" value={date}
-                onChange={(e) => { setDate(e.target.value); if (e.target.value && datePrecision === "UNKNOWN") setDatePrecision("DAY"); }}
-                className="flex-1 rounded-lg border border-white/15 bg-muted/30 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring" />
-              <select value={datePrecision} onChange={(e) => setDatePrecision(e.target.value)}
-                className="w-28 rounded-lg border border-white/15 bg-muted/30 px-2 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring">
-                <option value="UNKNOWN">Unknown</option>
-                <option value="YEAR">Year</option>
-                <option value="MONTH">Month</option>
-                <option value="DAY">Day</option>
-              </select>
-            </div>
-          </div>
+          <PartialDateInput
+            dateValue={date}
+            precisionValue={datePrecision}
+            onDateChange={setDate}
+            onPrecisionChange={setDatePrecision}
+            label="Date"
+          />
 
           <div>
             <label className="mb-1.5 block text-sm font-medium">Notes</label>

@@ -13,8 +13,9 @@ import {
 } from "@/lib/services/person-service";
 import { getProfileImageLabels, getSkillLevelConfigs } from "@/lib/services/setting-service";
 import { getPersonReferenceSession } from "@/lib/services/session-service";
-import { getPersonHeadshots, getFilledHeadshotSlots, getPersonMediaGallery } from "@/lib/services/media-service";
-import { getAllCategoryGroups, getPopulatedCategoriesForPerson } from "@/lib/services/category-service";
+import { getPersonHeadshots, getFilledHeadshotSlots, getPersonMediaGallery, getPersonEntityMedia } from "@/lib/services/media-service";
+import type { EntityMediaThumbnail } from "@/lib/services/media-service";
+import { getAllCategoryGroups, getPopulatedCategoriesForPerson, ensureEntityCategories } from "@/lib/services/category-service";
 import { getAllSkillGroups } from "@/lib/services/skill-catalog-service";
 import { getPersonAliases } from "@/lib/services/alias-service";
 import { PersonDetailTabs } from "@/components/people/person-detail-tabs";
@@ -31,7 +32,10 @@ type PersonDetailPageProps = {
 export default async function PersonDetailPage({ params }: PersonDetailPageProps) {
   const { id } = await params;
 
-  const [person, workHistory, connections, profileLabels, refSession, headshots, filledSlots, categoryGroups, populatedCounts, skillGroups, skillLevelConfigs, aliasesWithChannels, sessionWorkHistory, productionSessions] =
+  // Ensure system entity categories exist before loading category data
+  await ensureEntityCategories();
+
+  const [person, workHistory, connections, profileLabels, refSession, headshots, filledSlots, categoryGroups, populatedCounts, skillGroups, skillLevelConfigs, aliasesWithChannels, sessionWorkHistory, productionSessions, entityMediaMap] =
     await Promise.all([
       getPersonWithDetails(id),
       getPersonWorkHistory(id),
@@ -47,6 +51,7 @@ export default async function PersonDetailPage({ params }: PersonDetailPageProps
       getPersonAliases(id),
       getPersonSessionWorkHistory(id),
       getPersonProductionSessions(id),
+      getPersonEntityMedia(id),
     ]);
 
   if (!person) notFound();
@@ -95,6 +100,9 @@ export default async function PersonDetailPage({ params }: PersonDetailPageProps
     categoryId,
     count,
   }));
+
+  // Serialize entity media map for client components
+  const entityMedia: Record<string, EntityMediaThumbnail[]> = Object.fromEntries(entityMediaMap);
 
   // Build headshot slot entries for the gallery lightbox (serializable array)
   const headshotSlotEntries = headshots
@@ -203,6 +211,7 @@ export default async function PersonDetailPage({ params }: PersonDetailPageProps
         aliasesWithChannels={aliasesWithChannels}
         sessionWorkHistory={sessionWorkHistory}
         productionSessions={productionSessions}
+        entityMedia={entityMedia}
       />
     </div>
   );

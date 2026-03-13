@@ -37,6 +37,7 @@ import {
   type CreatePersonInput,
 } from "@/lib/validations/person";
 import { ETHNICITY_OPTIONS } from "@/lib/constants/ethnicity";
+import { CountryPicker } from "@/components/shared/country-picker";
 import { createPerson } from "@/lib/actions/person-actions";
 import { PartialDateInput } from "@/components/shared/partial-date-input";
 
@@ -250,7 +251,10 @@ export function AddPersonSheet() {
                         <FormItem>
                           <FormLabel>Nationality</FormLabel>
                           <FormControl>
-                            <Input placeholder="ISO alpha-3, e.g. GER" maxLength={3} {...field} />
+                            <CountryPicker
+                              value={field.value || undefined}
+                              onChange={(code) => field.onChange(code ?? "")}
+                            />
                           </FormControl>
                           <FormMessage />
                         </FormItem>

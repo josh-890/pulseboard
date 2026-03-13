@@ -1,12 +1,21 @@
 "use client";
 
+import Image from "next/image";
 import type { CosmeticProcedureWithEvents } from "@/lib/types";
 import { COSMETIC_PROCEDURE_EVENT_STYLES } from "@/lib/constants/body";
 import { EntityEventTimeline } from "@/components/people/entity-event-timeline";
 import { Pencil, Trash2 } from "lucide-react";
 
+type EntityMediaThumbnail = {
+  id: string;
+  url: string;
+  width: number;
+  height: number;
+};
+
 type CosmeticProcedureCardProps = {
   procedure: CosmeticProcedureWithEvents;
+  photos?: EntityMediaThumbnail[];
   onEdit?: () => void;
   onDelete?: () => void;
   onDeleteEvent?: (id: string) => Promise<{ success: boolean; error?: string }>;
@@ -16,6 +25,7 @@ type CosmeticProcedureCardProps = {
 
 export function CosmeticProcedureCard({
   procedure,
+  photos,
   onEdit,
   onDelete,
   onDeleteEvent,
@@ -71,6 +81,26 @@ export function CosmeticProcedureCard({
 
       {procedure.provider && (
         <p className="mt-1 text-xs text-muted-foreground/70">Provider: {procedure.provider}</p>
+      )}
+
+      {photos && photos.length > 0 && (
+        <div className="mt-3 flex gap-1.5 overflow-x-auto pb-1">
+          {photos.map((photo) => (
+            <div
+              key={photo.id}
+              className="shrink-0 h-14 w-14 overflow-hidden rounded-lg border border-white/10 bg-muted/30"
+            >
+              <Image
+                src={photo.url}
+                alt=""
+                width={photo.width}
+                height={photo.height}
+                unoptimized
+                className="h-full w-full object-cover"
+              />
+            </div>
+          ))}
+        </div>
       )}
 
       {onDeleteEvent && onAddEvent && (

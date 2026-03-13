@@ -21,7 +21,7 @@ export const createPersonSchema = z.object({
   birthdate: z.string().optional(),
   birthdatePrecision: datePrecisionEnum,
   birthPlace: z.string().optional(),
-  nationality: z.string().max(3).optional(),
+  nationality: z.string().length(2).regex(/^[A-Z]{2}$/, "Must be a valid ISO alpha-2 country code").optional().or(z.literal("")),
   ethnicity: z.string().optional(),
   // Physical (static)
   eyeColor: z.string().optional(),
@@ -50,7 +50,7 @@ export const updatePersonSchema = z.object({
   birthdate: z.string().optional(),
   birthdatePrecision: datePrecisionEnum,
   birthPlace: z.string().optional(),
-  nationality: z.string().max(3).optional(),
+  nationality: z.string().length(2).regex(/^[A-Z]{2}$/, "Must be a valid ISO alpha-2 country code").optional().or(z.literal("")),
   ethnicity: z.string().optional(),
   eyeColor: z.string().optional(),
   naturalHairColor: z.string().optional(),

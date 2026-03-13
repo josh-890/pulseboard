@@ -59,12 +59,23 @@ const skillEventInclude = {
   },
 };
 
+export type PersonSort =
+  | "name-asc"
+  | "name-desc"
+  | "newest"
+  | "oldest"
+  | "age-asc"
+  | "age-desc"
+  | "rating-desc"
+  | "updated";
+
 export type PersonFilters = {
   q?: string;
   status?: PersonStatus | "all";
   naturalHairColor?: string;
   bodyType?: string;
   ethnicity?: string;
+  sort?: PersonSort;
 };
 
 export async function getPersons(filters: PersonFilters = {}): Promise<PersonWithCommonAlias[]> {
@@ -1116,12 +1127,35 @@ export type PaginatedPersons = {
   totalCount: number;
 };
 
+function getPersonOrderBy(sort?: PersonSort): Prisma.PersonOrderByWithRelationInput[] {
+  switch (sort) {
+    case "name-asc":
+    case "name-desc":
+      // Name sort handled via raw SQL query path below
+      return [{ createdAt: "asc" }];
+    case "newest":
+      return [{ createdAt: "desc" }];
+    case "oldest":
+      return [{ createdAt: "asc" }];
+    case "age-asc":
+      return [{ birthdate: { sort: "desc", nulls: "last" } }];
+    case "age-desc":
+      return [{ birthdate: { sort: "asc", nulls: "last" } }];
+    case "rating-desc":
+      return [{ rating: { sort: "desc", nulls: "last" } }];
+    case "updated":
+      return [{ createdAt: "desc" }]; // Person has no updatedAt — use createdAt
+    default:
+      return [{ createdAt: "asc" }];
+  }
+}
+
 export async function getPersonsPaginated(
   filters: PersonFilters = {},
   cursor?: string,
   limit = 50,
 ): Promise<PaginatedPersons> {
-  const { q, status, naturalHairColor, bodyType, ethnicity } = filters;
+  const { q, status, naturalHairColor, bodyType, ethnicity, sort } = filters;
 
   const where: Prisma.PersonWhereInput = {};
 
@@ -1154,6 +1188,64 @@ export async function getPersonsPaginated(
     ];
   }
 
+  const orderBy = getPersonOrderBy(sort);
+  const isNameSort = sort === "name-asc" || sort === "name-desc";
+
+  // For name sort, fetch with aliases ordered by nameNorm
+  if (isNameSort) {
+    const [totalCount, allPersons] = await Promise.all([
+      prisma.person.count({ where }),
+      prisma.person.findMany({
+        where,
+        include: {
+          aliases: { where: { type: { in: ["common", "birth"] } } },
+        },
+      }),
+    ]);
+
+    // Sort in-memory by common alias nameNorm
+    const direction = sort === "name-asc" ? 1 : -1;
+    allPersons.sort((a, b) => {
+      const nameA = a.aliases.find((al) => al.type === "common")?.nameNorm ?? "\uffff";
+      const nameB = b.aliases.find((al) => al.type === "common")?.nameNorm ?? "\uffff";
+      return nameA.localeCompare(nameB) * direction;
+    });
+
+    // Find cursor position for pagination
+    let startIdx = 0;
+    if (cursor) {
+      const cursorIdx = allPersons.findIndex((p) => p.id === cursor);
+      startIdx = cursorIdx >= 0 ? cursorIdx + 1 : 0;
+    }
+
+    const pageItems = allPersons.slice(startIdx, startIdx + limit);
+    const hasMore = startIdx + limit < allPersons.length;
+    const nextCursorId = hasMore ? pageItems[pageItems.length - 1]!.id : null;
+
+    return {
+      items: pageItems.map((p) => ({
+        id: p.id,
+        icgId: p.icgId,
+        status: p.status,
+        rating: p.rating,
+        tags: p.tags,
+        naturalHairColor: p.naturalHairColor,
+        bodyType: p.bodyType,
+        ethnicity: p.ethnicity,
+        location: p.location,
+        activeSince: p.activeSince,
+        specialization: p.specialization,
+        createdAt: p.createdAt,
+        commonAlias: p.aliases.find((a) => a.type === "common")?.name ?? null,
+        birthdate: p.birthdate,
+        nationality: p.nationality,
+        birthAlias: p.aliases.find((a) => a.type === "birth")?.name ?? null,
+      })),
+      nextCursor: nextCursorId,
+      totalCount,
+    };
+  }
+
   const [totalCount, persons] = await Promise.all([
     prisma.person.count({ where }),
     prisma.person.findMany({
@@ -1163,7 +1255,7 @@ export async function getPersonsPaginated(
           where: { type: { in: ["common", "birth"] } },
         },
       },
-      orderBy: { createdAt: "asc" },
+      orderBy,
       take: limit + 1,
       ...(cursor ? { skip: 1, cursor: { id: cursor } } : {}),
     }),

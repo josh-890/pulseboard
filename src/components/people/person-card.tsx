@@ -2,7 +2,8 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { MapPin, Sparkles, Globe } from "lucide-react";
+import { MapPin, Sparkles } from "lucide-react";
+import { FlagImage } from "@/components/shared/flag-image";
 import { cn, getInitialsFromName, computeAge } from "@/lib/utils";
 import { useDensity } from "@/components/layout/density-provider";
 import type { PersonWithCommonAlias, PersonStatus } from "@/lib/types";
@@ -55,7 +56,7 @@ export function PersonCard({ person, photoUrl, focalX, focalY }: PersonCardProps
           "active:scale-[0.98] active:shadow-sm active:translate-y-0",
           "group-focus-visible:ring-2 group-focus-visible:ring-ring group-focus-visible:ring-offset-2",
           "flex-col sm:flex-row",
-          isCompact ? "sm:h-[100px]" : "sm:h-[140px]",
+          isCompact ? "sm:h-[100px]" : "sm:h-[160px]",
         )}
       >
         {/* Photo / Initials */}
@@ -63,7 +64,7 @@ export function PersonCard({ person, photoUrl, focalX, focalY }: PersonCardProps
           className={cn(
             "relative shrink-0 overflow-hidden bg-primary/10",
             "h-[120px] w-full sm:h-full",
-            isCompact ? "sm:w-[72px]" : "sm:w-[100px]",
+            isCompact ? "sm:w-[100px]" : "sm:w-[160px]",
           )}
         >
           {photoUrl ? (
@@ -79,7 +80,7 @@ export function PersonCard({ person, photoUrl, focalX, focalY }: PersonCardProps
                     : "center",
               }}
               unoptimized
-              sizes={isCompact ? "72px" : "100px"}
+              sizes={isCompact ? "100px" : "160px"}
             />
           ) : (
             <div className="flex h-full w-full items-center justify-center">
@@ -138,10 +139,7 @@ export function PersonCard({ person, photoUrl, focalX, focalY }: PersonCardProps
             )}
           >
             {person.nationality && (
-              <span className="flex items-center gap-1">
-                <Globe size={isCompact ? 10 : 12} className="shrink-0" />
-                {person.nationality}
-              </span>
+              <FlagImage code={person.nationality} size={isCompact ? 14 : 16} />
             )}
             {age !== null && (
               <span>{age} yrs</span>

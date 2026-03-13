@@ -5,10 +5,21 @@ import type { TxClient } from "./cascade-helpers";
 import { mergeSessionsRecord } from "./session-service";
 import { rebuildSetParticipantsFromContributions } from "./contribution-service";
 
+export type SetSort =
+  | "date-desc"
+  | "date-asc"
+  | "title-asc"
+  | "title-desc"
+  | "newest"
+  | "media-desc";
+
 export type SetFilters = {
   q?: string;
   type?: SetType | "all";
   labelId?: string;
+  channelId?: string;
+  hasMedia?: boolean;
+  sort?: SetSort;
 };
 
 export async function getSets(filters: SetFilters = {}) {
@@ -60,12 +71,30 @@ export type PaginatedSets = {
   totalCount: number;
 };
 
+function getSetOrderBy(sort?: SetSort): Prisma.SetOrderByWithRelationInput[] {
+  switch (sort) {
+    case "date-asc":
+      return [{ releaseDate: { sort: "asc", nulls: "last" } }];
+    case "title-asc":
+      return [{ titleNorm: "asc" }];
+    case "title-desc":
+      return [{ titleNorm: "desc" }];
+    case "newest":
+      return [{ createdAt: "desc" }];
+    case "media-desc":
+      return [{ setMediaItems: { _count: "desc" } }];
+    case "date-desc":
+    default:
+      return [{ releaseDate: { sort: "desc", nulls: "last" } }];
+  }
+}
+
 export async function getSetsPaginated(
   filters: SetFilters = {},
   cursor?: string,
   limit = 50,
 ): Promise<PaginatedSets> {
-  const { q, type, labelId } = filters;
+  const { q, type, labelId, channelId, hasMedia, sort } = filters;
 
   const where: Prisma.SetWhereInput = {};
 
@@ -80,6 +109,16 @@ export async function getSetsPaginated(
   if (labelId) {
     where.channel = { labelMaps: { some: { labelId } } };
   }
+
+  if (channelId) {
+    where.channelId = channelId;
+  }
+
+  if (hasMedia === true) {
+    where.setMediaItems = { some: {} };
+  }
+
+  const orderBy = getSetOrderBy(sort);
 
   const [totalCount, sets] = await Promise.all([
     prisma.set.count({ where }),
@@ -105,7 +144,7 @@ export async function getSetsPaginated(
           },
         },
       },
-      orderBy: { releaseDate: "desc" },
+      orderBy,
       take: limit + 1,
       ...(cursor ? { skip: 1, cursor: { id: cursor } } : {}),
     }),

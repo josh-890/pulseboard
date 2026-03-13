@@ -2,9 +2,12 @@
 
 import { useCallback, useMemo, useState, useTransition } from "react";
 import Image from "next/image";
-import { ChevronDown, ChevronRight, ImageIcon, Layers } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { ChevronDown, ChevronRight, ImageIcon, Layers, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { CategoryWithGroup } from "@/components/gallery/gallery-info-panel";
+import type { PersonCurrentState } from "@/lib/types";
+import { DetailMediaPickerSheet } from "@/components/people/detail-media-picker-sheet";
 
 type CategoryCount = {
   categoryId: string;
@@ -23,17 +26,23 @@ type PersonDetailsTabProps = {
   personId: string;
   categories: CategoryWithGroup[];
   categoryCounts: CategoryCount[];
+  referenceSessionId?: string;
+  currentState?: PersonCurrentState;
 };
 
 export function PersonDetailsTab({
   personId,
   categories,
   categoryCounts,
+  referenceSessionId,
+  currentState,
 }: PersonDetailsTabProps) {
+  const router = useRouter();
   const [showAll, setShowAll] = useState(false);
   const [expandedCategoryId, setExpandedCategoryId] = useState<string | null>(null);
   const [categoryMedia, setCategoryMedia] = useState<Map<string, CategoryMediaItem[]>>(new Map());
   const [, startLoadingTransition] = useTransition();
+  const [pickerCategory, setPickerCategory] = useState<CategoryWithGroup | null>(null);
 
   const countMap = useMemo(() => {
     const map = new Map<string, number>();
@@ -64,27 +73,66 @@ export function PersonDetailsTab({
 
   const handleToggleExpand = useCallback(
     (categoryId: string) => {
-      setExpandedCategoryId((prev) => {
-        if (prev === categoryId) return null;
-        // Load media for the expanded category if not already loaded
-        if (!categoryMedia.has(categoryId)) {
-          startLoadingTransition(async () => {
-            const res = await fetch(`/api/categories/${categoryId}/media?personId=${personId}`);
-            if (res.ok) {
-              const data = await res.json() as CategoryMediaItem[];
-              setCategoryMedia((prev) => {
-                const next = new Map(prev);
-                next.set(categoryId, data);
-                return next;
-              });
-            }
-          });
-        }
-        return categoryId;
-      });
+      if (expandedCategoryId === categoryId) {
+        setExpandedCategoryId(null);
+        return;
+      }
+      setExpandedCategoryId(categoryId);
+      // Load media for the expanded category if not already loaded
+      if (!categoryMedia.has(categoryId)) {
+        startLoadingTransition(async () => {
+          const res = await fetch(`/api/categories/${categoryId}/media?personId=${personId}`);
+          if (res.ok) {
+            const data = await res.json() as CategoryMediaItem[];
+            setCategoryMedia((prev) => {
+              const next = new Map(prev);
+              next.set(categoryId, data);
+              return next;
+            });
+          }
+        });
+      }
     },
-    [personId, categoryMedia],
+    [personId, categoryMedia, expandedCategoryId],
   );
+
+  const getEntitiesForCategory = useCallback(
+    (cat: CategoryWithGroup) => {
+      if (!currentState || !cat.entityModel) return undefined;
+      if (cat.entityModel === "BodyMark") {
+        return currentState.activeBodyMarks.map((m) => ({
+          id: m.id,
+          label: `${m.type} — ${m.bodyRegion}`,
+        }));
+      }
+      if (cat.entityModel === "BodyModification") {
+        return currentState.activeBodyModifications.map((m) => ({
+          id: m.id,
+          label: `${m.type} — ${m.bodyRegion}`,
+        }));
+      }
+      if (cat.entityModel === "CosmeticProcedure") {
+        return currentState.activeCosmeticProcedures.map((m) => ({
+          id: m.id,
+          label: `${m.type} — ${m.bodyRegion}`,
+        }));
+      }
+      return undefined;
+    },
+    [currentState],
+  );
+
+  const handlePickerLinked = useCallback(() => {
+    // Clear cached media for the picker category so it reloads
+    if (pickerCategory) {
+      setCategoryMedia((prev) => {
+        const next = new Map(prev);
+        next.delete(pickerCategory.id);
+        return next;
+      });
+    }
+    router.refresh();
+  }, [pickerCategory, router]);
 
   if (categories.length === 0) {
     return (
@@ -144,37 +192,50 @@ export function PersonDetailsTab({
 
               return (
                 <div key={cat.id}>
-                  <button
-                    type="button"
-                    onClick={() => cat.count > 0 ? handleToggleExpand(cat.id) : undefined}
-                    disabled={cat.count === 0}
-                    className={cn(
-                      "flex w-full items-center gap-3 px-5 py-3 text-left transition-colors",
-                      cat.count > 0
-                        ? "hover:bg-muted/30 cursor-pointer"
-                        : "opacity-50 cursor-default",
-                    )}
-                  >
-                    {cat.count > 0 ? (
-                      isExpanded ? <ChevronDown size={14} className="shrink-0 text-muted-foreground" /> : <ChevronRight size={14} className="shrink-0 text-muted-foreground" />
-                    ) : (
-                      <span className="w-3.5 shrink-0" />
-                    )}
-                    <span className="flex-1 text-sm font-medium">{cat.name}</span>
-                    {cat.entityModel && (
-                      <span className="rounded-full border border-white/15 bg-muted/40 px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
-                        {cat.entityModel}
+                  <div className="flex items-center">
+                    <button
+                      type="button"
+                      onClick={() => cat.count > 0 ? handleToggleExpand(cat.id) : undefined}
+                      disabled={cat.count === 0 && !referenceSessionId}
+                      className={cn(
+                        "flex flex-1 items-center gap-3 px-5 py-3 text-left transition-colors",
+                        cat.count > 0
+                          ? "hover:bg-muted/30 cursor-pointer"
+                          : "opacity-50 cursor-default",
+                      )}
+                    >
+                      {cat.count > 0 ? (
+                        isExpanded ? <ChevronDown size={14} className="shrink-0 text-muted-foreground" /> : <ChevronRight size={14} className="shrink-0 text-muted-foreground" />
+                      ) : (
+                        <span className="w-3.5 shrink-0" />
+                      )}
+                      <span className="flex-1 text-sm font-medium">{cat.name}</span>
+                      {cat.entityModel && (
+                        <span className="rounded-full border border-white/15 bg-muted/40 px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+                          {cat.entityModel}
+                        </span>
+                      )}
+                      <span className={cn(
+                        "rounded-full px-2 py-0.5 text-xs font-medium",
+                        cat.count > 0
+                          ? "bg-primary/10 text-primary"
+                          : "bg-muted/40 text-muted-foreground",
+                      )}>
+                        {cat.count}
                       </span>
+                    </button>
+                    {referenceSessionId && (
+                      <button
+                        type="button"
+                        onClick={() => setPickerCategory(cat)}
+                        className="shrink-0 mr-3 rounded-md p-1 text-muted-foreground transition-colors hover:text-primary hover:bg-primary/10"
+                        title="Manage photos"
+                        aria-label={`Manage photos for ${cat.name}`}
+                      >
+                        <Plus size={14} />
+                      </button>
                     )}
-                    <span className={cn(
-                      "rounded-full px-2 py-0.5 text-xs font-medium",
-                      cat.count > 0
-                        ? "bg-primary/10 text-primary"
-                        : "bg-muted/40 text-muted-foreground",
-                    )}>
-                      {cat.count}
-                    </span>
-                  </button>
+                  </div>
 
                   {/* Expanded gallery */}
                   {isExpanded && (
@@ -222,6 +283,19 @@ export function PersonDetailsTab({
           </div>
         </div>
       ))}
+
+      {/* Detail media picker sheet */}
+      {pickerCategory && referenceSessionId && (
+        <DetailMediaPickerSheet
+          personId={personId}
+          referenceSessionId={referenceSessionId}
+          category={pickerCategory}
+          entities={getEntitiesForCategory(pickerCategory)}
+          open={!!pickerCategory}
+          onOpenChange={(open) => { if (!open) setPickerCategory(null); }}
+          onLinked={handlePickerLinked}
+        />
+      )}
     </div>
   );
 }

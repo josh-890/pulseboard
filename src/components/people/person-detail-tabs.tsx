@@ -18,6 +18,8 @@ import type {
   RelationshipSource,
 } from "@/lib/types";
 import { useHeroLayout, type HeroLayout } from "@/components/layout/hero-layout-provider";
+import { FlagImage } from "@/components/shared/flag-image";
+import { findCountryByCode } from "@/lib/constants/countries";
 import { PersonaTimelineEntry } from "@/components/people/persona-timeline-entry";
 import { BodyMarkCard } from "@/components/people/body-mark-card";
 import { BodyModificationCard } from "@/components/people/body-modification-card";
@@ -56,7 +58,6 @@ import {
   Building2,
   Cpu,
   Activity,
-  Globe,
   ChevronDown,
   ChevronUp,
   Briefcase,
@@ -79,6 +80,7 @@ import { ProductionPhotoList } from "@/components/people/production-photo-list";
 import type { SkillGroupWithDefinitions } from "@/lib/services/skill-catalog-service";
 import type { PersonAliasWithChannels } from "@/lib/services/alias-service";
 import type { GalleryItem } from "@/lib/types";
+import type { EntityMediaThumbnail } from "@/lib/services/media-service";
 import type { ProfileImageLabel } from "@/lib/services/setting-service";
 import type { CategoryWithGroup } from "@/components/gallery/gallery-info-panel";
 import {
@@ -111,6 +113,7 @@ type PersonDetailTabsProps = {
   aliasesWithChannels?: PersonAliasWithChannels[];
   sessionWorkHistory?: PersonSessionWorkEntry[];
   productionSessions?: PersonProductionSession[];
+  entityMedia?: Record<string, EntityMediaThumbnail[]>;
 };
 
 // ── Style maps ──────────────────────────────────────────────────────────────
@@ -347,7 +350,16 @@ function BasicInfoPanel({
         <InfoRow label="Location" value={person.location} labelWidth={labelWidth} />
       )}
       {person.nationality && (
-        <InfoRow label="Nationality" value={person.nationality} labelWidth={labelWidth} />
+        <InfoRow
+          label="Nationality"
+          value={
+            <span className="flex items-center gap-2">
+              <FlagImage code={person.nationality} size={16} />
+              {findCountryByCode(person.nationality)?.name ?? person.nationality}
+            </span>
+          }
+          labelWidth={labelWidth}
+        />
       )}
       {person.ethnicity && (
         <InfoRow label="Ethnicity" value={person.ethnicity} labelWidth={labelWidth} />
@@ -713,9 +725,9 @@ function IdentityBlock({ person, displayName, age, aliasPills, onAliasesBadgeCli
 
       <div className="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
         {person.nationality && (
-          <span className="flex items-center gap-1">
-            <Globe size={14} className="shrink-0" />
-            {person.nationality}
+          <span className="flex items-center gap-1.5">
+            <FlagImage code={person.nationality} size={16} />
+            {findCountryByCode(person.nationality)?.name ?? person.nationality}
           </span>
         )}
         {age !== null && <span>{age} yrs</span>}
@@ -985,10 +997,12 @@ function AppearanceTab({
   person,
   currentState,
   personas,
+  entityMedia,
 }: {
   person: PersonData;
   currentState: PersonCurrentState;
   personas: { id: string; label: string }[];
+  entityMedia?: Record<string, EntityMediaThumbnail[]>;
 }) {
   const [openState, setOpenState] = useState<AppearanceOpenState>(null);
   const [isPending, startTransition] = useTransition();
@@ -1086,6 +1100,7 @@ function AppearanceTab({
                 <BodyMarkCard
                   key={mark.id}
                   mark={mark}
+                  photos={entityMedia?.[mark.id]}
                   onEdit={() => setOpenState({ type: "editBodyMark", mark })}
                   onDelete={() => handleDeleteBodyMark(mark.id)}
                   onDeleteEvent={handleDeleteBodyMarkEvent}
@@ -1121,6 +1136,7 @@ function AppearanceTab({
                 <BodyModificationCard
                   key={mod.id}
                   modification={mod}
+                  photos={entityMedia?.[mod.id]}
                   onEdit={() => setOpenState({ type: "editBodyMod", modification: mod })}
                   onDelete={() => handleDeleteBodyMod(mod.id)}
                   onDeleteEvent={handleDeleteBodyModEvent}
@@ -1156,6 +1172,7 @@ function AppearanceTab({
                 <CosmeticProcedureCard
                   key={proc.id}
                   procedure={proc}
+                  photos={entityMedia?.[proc.id]}
                   onEdit={() => setOpenState({ type: "editCosmProc", procedure: proc })}
                   onDelete={() => handleDeleteCosmProc(proc.id)}
                   onDeleteEvent={handleDeleteCosmProcEvent}
@@ -1504,6 +1521,7 @@ export function PersonDetailTabs({
   aliasesWithChannels,
   sessionWorkHistory,
   productionSessions,
+  entityMedia,
 }: PersonDetailTabsProps) {
   const [activeTab, setActiveTab] = useState<TabId>("overview");
 
@@ -1629,6 +1647,7 @@ export function PersonDetailTabs({
             person={person}
             currentState={currentState}
             personas={person.personas.map((p) => ({ id: p.id, label: p.label }))}
+            entityMedia={entityMedia}
           />
         )}
       </div>
@@ -1644,6 +1663,8 @@ export function PersonDetailTabs({
               personId={person.id}
               categories={categories}
               categoryCounts={categoryCounts ?? []}
+              referenceSessionId={referenceSessionId}
+              currentState={currentState}
             />
           )}
         </div>

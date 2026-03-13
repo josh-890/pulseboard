@@ -1,13 +1,22 @@
 "use client";
 
+import Image from "next/image";
 import { cn } from "@/lib/utils";
 import type { BodyMarkWithEvents } from "@/lib/types";
 import { BODY_MARK_TYPE_STYLES, BODY_MARK_STATUS_STYLES, BODY_MARK_EVENT_STYLES } from "@/lib/constants/body";
 import { EntityEventTimeline } from "@/components/people/entity-event-timeline";
 import { Pencil, Trash2 } from "lucide-react";
 
+type EntityMediaThumbnail = {
+  id: string;
+  url: string;
+  width: number;
+  height: number;
+};
+
 type BodyMarkCardProps = {
   mark: BodyMarkWithEvents;
+  photos?: EntityMediaThumbnail[];
   onEdit?: () => void;
   onDelete?: () => void;
   onDeleteEvent?: (id: string) => Promise<{ success: boolean; error?: string }>;
@@ -17,6 +26,7 @@ type BodyMarkCardProps = {
 
 export function BodyMarkCard({
   mark,
+  photos,
   onEdit,
   onDelete,
   onDeleteEvent,
@@ -95,6 +105,26 @@ export function BodyMarkCard({
           </span>
         )}
       </div>
+
+      {photos && photos.length > 0 && (
+        <div className="mt-3 flex gap-1.5 overflow-x-auto pb-1">
+          {photos.map((photo) => (
+            <div
+              key={photo.id}
+              className="shrink-0 h-14 w-14 overflow-hidden rounded-lg border border-white/10 bg-muted/30"
+            >
+              <Image
+                src={photo.url}
+                alt=""
+                width={photo.width}
+                height={photo.height}
+                unoptimized
+                className="h-full w-full object-cover"
+              />
+            </div>
+          ))}
+        </div>
+      )}
 
       {onDeleteEvent && onAddEvent && (
         <EntityEventTimeline

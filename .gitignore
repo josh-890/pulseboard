@@ -52,3 +52,6 @@ next-env.d.ts
 
 # database backups
 /backups/
+
+# cached flag SVGs (downloaded on demand)
+/public/flags/
