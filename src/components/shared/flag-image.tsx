@@ -3,6 +3,8 @@
 import { useCallback, useState } from "react";
 import { cn } from "@/lib/utils";
 
+const MINIO_URL = process.env.NEXT_PUBLIC_MINIO_URL!;
+
 type FlagImageProps = {
   code: string;
   size?: number;
@@ -11,7 +13,7 @@ type FlagImageProps = {
 
 export function FlagImage({ code, size = 24, className }: FlagImageProps) {
   const lowerCode = code.toLowerCase();
-  const [src, setSrc] = useState(`/flags/${lowerCode}.svg`);
+  const [src, setSrc] = useState(`${MINIO_URL}/flags/${lowerCode}.svg`);
   const [failed, setFailed] = useState(false);
   const [retried, setRetried] = useState(false);
 
@@ -20,7 +22,7 @@ export function FlagImage({ code, size = 24, className }: FlagImageProps) {
       setFailed(true);
       return;
     }
-    // Trigger the caching API route, then retry with the static path
+    // Trigger the caching API route — it downloads from CDN, uploads to MinIO, then redirects
     setRetried(true);
     setSrc(`/api/flags/${lowerCode}`);
   }, [lowerCode, retried]);

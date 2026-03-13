@@ -1,23 +1,46 @@
-import { existsSync } from "fs";
-import { writeFile, mkdir } from "fs/promises";
-import path from "path";
+import "dotenv/config";
+import { S3Client, HeadObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
 import { COUNTRIES } from "../src/lib/constants/countries";
 
-const FLAGS_DIR = path.join(process.cwd(), "public", "flags");
 const CDN_BASE = "https://hatscripts.github.io/circle-flags/flags";
 
-async function main() {
-  await mkdir(FLAGS_DIR, { recursive: true });
+const endpoint = process.env.MINIO_ENDPOINT!;
+const port = process.env.MINIO_PORT!;
+const useSSL = process.env.MINIO_USE_SSL === "true";
+const protocol = useSSL ? "https" : "http";
+const bucket = process.env.MINIO_BUCKET!;
 
-  let downloaded = 0;
+const client = new S3Client({
+  endpoint: `${protocol}://${endpoint}:${port}`,
+  region: "us-east-1",
+  credentials: {
+    accessKeyId: process.env.MINIO_ACCESS_KEY!,
+    secretAccessKey: process.env.MINIO_SECRET_KEY!,
+  },
+  forcePathStyle: true,
+});
+
+async function existsInMinio(key: string): Promise<boolean> {
+  try {
+    await client.send(new HeadObjectCommand({ Bucket: bucket, Key: key }));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function main() {
+  console.log(`Uploading flags to MinIO bucket "${bucket}" at ${protocol}://${endpoint}:${port}\n`);
+
+  let uploaded = 0;
   let skipped = 0;
   let failed = 0;
 
   for (const country of COUNTRIES) {
     const code = country.code.toLowerCase();
-    const localPath = path.join(FLAGS_DIR, `${code}.svg`);
+    const key = `flags/${code}.svg`;
 
-    if (existsSync(localPath)) {
+    if (await existsInMinio(key)) {
       skipped++;
       continue;
     }
@@ -29,9 +52,19 @@ async function main() {
         failed++;
         continue;
       }
-      const svg = await res.arrayBuffer();
-      await writeFile(localPath, Buffer.from(svg));
-      downloaded++;
+
+      const svg = Buffer.from(await res.arrayBuffer());
+      await client.send(
+        new PutObjectCommand({
+          Bucket: bucket,
+          Key: key,
+          Body: svg,
+          ContentType: "image/svg+xml",
+          CacheControl: "public, max-age=31536000, immutable",
+        }),
+      );
+
+      uploaded++;
       process.stdout.write(`  ${country.code}`);
     } catch (err) {
       console.error(`  FAIL: ${country.code} (${country.name}) — ${err}`);
@@ -39,7 +72,7 @@ async function main() {
     }
   }
 
-  console.log(`\n\nDone: ${downloaded} downloaded, ${skipped} already cached, ${failed} failed`);
+  console.log(`\n\nDone: ${uploaded} uploaded, ${skipped} already in MinIO, ${failed} failed`);
 }
 
 main().catch((err) => {
