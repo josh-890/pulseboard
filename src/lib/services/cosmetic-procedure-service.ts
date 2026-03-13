@@ -55,6 +55,9 @@ export async function deleteCosmeticProcedureRecord(id: string) {
     await tx.cosmeticProcedureEvent.deleteMany({
       where: { cosmeticProcedureId: id },
     });
+    await tx.personMediaLink.deleteMany({
+      where: { cosmeticProcedureId: id },
+    });
     return tx.cosmeticProcedure.delete({
       where: { id },
     });

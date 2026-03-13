@@ -58,6 +58,9 @@ export async function deleteBodyModificationRecord(id: string) {
     await tx.bodyModificationEvent.deleteMany({
       where: { bodyModificationId: id },
     });
+    await tx.personMediaLink.deleteMany({
+      where: { bodyModificationId: id },
+    });
     return tx.bodyModification.delete({
       where: { id },
     });

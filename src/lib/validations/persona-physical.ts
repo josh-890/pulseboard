@@ -1,0 +1,24 @@
+import { z } from "zod";
+
+export const recordPhysicalChangeSchema = z
+  .object({
+    personId: z.string().min(1),
+    date: z.string().optional(),
+    datePrecision: z.enum(["UNKNOWN", "YEAR", "MONTH", "DAY"]).default("UNKNOWN"),
+    currentHairColor: z.string().optional(),
+    weight: z.coerce.number().positive().optional(),
+    build: z.string().optional(),
+    visionAids: z.string().optional(),
+    fitnessLevel: z.string().optional(),
+  })
+  .refine(
+    (data) =>
+      data.currentHairColor ||
+      data.weight !== undefined ||
+      data.build ||
+      data.visionAids ||
+      data.fitnessLevel,
+    { message: "At least one physical field is required." },
+  );
+
+export type RecordPhysicalChangeInput = z.output<typeof recordPhysicalChangeSchema>;

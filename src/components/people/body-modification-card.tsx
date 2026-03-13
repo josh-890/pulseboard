@@ -1,13 +1,17 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import type { BodyMarkWithEvents } from "@/lib/types";
-import { BODY_MARK_TYPE_STYLES, BODY_MARK_STATUS_STYLES, BODY_MARK_EVENT_STYLES } from "@/lib/constants/body";
+import type { BodyModificationWithEvents } from "@/lib/types";
+import {
+  BODY_MODIFICATION_TYPE_STYLES,
+  BODY_MODIFICATION_STATUS_STYLES,
+  BODY_MODIFICATION_EVENT_STYLES,
+} from "@/lib/constants/body";
 import { EntityEventTimeline } from "@/components/people/entity-event-timeline";
 import { Pencil, Trash2 } from "lucide-react";
 
-type BodyMarkCardProps = {
-  mark: BodyMarkWithEvents;
+type BodyModificationCardProps = {
+  modification: BodyModificationWithEvents;
   onEdit?: () => void;
   onDelete?: () => void;
   onDeleteEvent?: (id: string) => Promise<{ success: boolean; error?: string }>;
@@ -15,15 +19,15 @@ type BodyMarkCardProps = {
   isPending?: boolean;
 };
 
-export function BodyMarkCard({
-  mark,
+export function BodyModificationCard({
+  modification,
   onEdit,
   onDelete,
   onDeleteEvent,
   onAddEvent,
   isPending,
-}: BodyMarkCardProps) {
-  const locationParts = [mark.bodyRegion, mark.side, mark.position].filter(Boolean);
+}: BodyModificationCardProps) {
+  const locationParts = [modification.bodyRegion, modification.side, modification.position].filter(Boolean);
 
   return (
     <div className="group rounded-xl border border-white/10 bg-card/40 p-4">
@@ -31,22 +35,22 @@ export function BodyMarkCard({
         <span
           className={cn(
             "inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium capitalize",
-            BODY_MARK_TYPE_STYLES[mark.type],
+            BODY_MODIFICATION_TYPE_STYLES[modification.type],
           )}
         >
-          {mark.type}
+          {modification.type}
         </span>
         <span className="text-sm font-medium text-foreground/80">
           {locationParts.join(" · ")}
         </span>
-        {mark.status !== "present" && (
+        {modification.status !== "present" && (
           <span
             className={cn(
               "inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium capitalize",
-              BODY_MARK_STATUS_STYLES[mark.status],
+              BODY_MODIFICATION_STATUS_STYLES[modification.status],
             )}
           >
-            {mark.status}
+            {modification.status}
           </span>
         )}
 
@@ -58,7 +62,7 @@ export function BodyMarkCard({
                 onClick={onEdit}
                 disabled={isPending}
                 className="rounded p-1 text-muted-foreground hover:text-foreground transition-colors"
-                aria-label="Edit body mark"
+                aria-label="Edit body modification"
               >
                 <Pencil size={14} />
               </button>
@@ -69,7 +73,7 @@ export function BodyMarkCard({
                 onClick={onDelete}
                 disabled={isPending}
                 className="rounded p-1 text-muted-foreground hover:text-red-400 transition-colors"
-                aria-label="Delete body mark"
+                aria-label="Delete body modification"
               >
                 <Trash2 size={14} />
               </button>
@@ -78,28 +82,23 @@ export function BodyMarkCard({
         )}
       </div>
 
-      {mark.motif && (
-        <p className="text-sm font-medium text-foreground">{mark.motif}</p>
-      )}
-      {mark.description && (
-        <p className="mt-0.5 text-sm text-muted-foreground">{mark.description}</p>
+      {modification.description && (
+        <p className="text-sm text-muted-foreground">{modification.description}</p>
       )}
 
       <div className="mt-2 flex flex-wrap items-center gap-2">
-        {mark.size && (
-          <span className="text-xs text-muted-foreground/70">{mark.size}</span>
+        {modification.material && (
+          <span className="text-xs text-muted-foreground/70">Material: {modification.material}</span>
         )}
-        {mark.colors.length > 0 && (
-          <span className="text-xs text-muted-foreground/70">
-            {mark.colors.join(", ")}
-          </span>
+        {modification.gauge && (
+          <span className="text-xs text-muted-foreground/70">Gauge: {modification.gauge}</span>
         )}
       </div>
 
       {onDeleteEvent && onAddEvent && (
         <EntityEventTimeline
-          events={mark.events}
-          eventStyles={BODY_MARK_EVENT_STYLES}
+          events={modification.events}
+          eventStyles={BODY_MODIFICATION_EVENT_STYLES}
           onDeleteEvent={onDeleteEvent}
           onAddEvent={onAddEvent}
           isPending={isPending}

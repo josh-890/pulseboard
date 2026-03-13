@@ -88,6 +88,39 @@ export type BodyMarkWithEvents = {
   }[];
 };
 
+export type BodyModificationWithEvents = {
+  id: string;
+  type: import("@/generated/prisma/client").BodyModificationType;
+  bodyRegion: string;
+  side: string | null;
+  position: string | null;
+  description: string | null;
+  material: string | null;
+  gauge: string | null;
+  status: import("@/generated/prisma/client").BodyModificationStatus;
+  events: {
+    id: string;
+    eventType: import("@/generated/prisma/client").BodyModificationEventType;
+    notes: string | null;
+    persona: { id: string; label: string; date: Date | null };
+  }[];
+};
+
+export type CosmeticProcedureWithEvents = {
+  id: string;
+  type: string;
+  bodyRegion: string;
+  description: string | null;
+  provider: string | null;
+  status: string;
+  events: {
+    id: string;
+    eventType: import("@/generated/prisma/client").CosmeticProcedureEventType;
+    notes: string | null;
+    persona: { id: string; label: string; date: Date | null };
+  }[];
+};
+
 export type PersonDigitalIdentityItem = {
   id: string;
   platform: string;
@@ -184,6 +217,10 @@ export type PersonCurrentState = {
   fitnessLevel: string | null;
   // Active body marks (status = present)
   activeBodyMarks: BodyMarkWithEvents[];
+  // All body modifications (with events)
+  activeBodyModifications: BodyModificationWithEvents[];
+  // All cosmetic procedures (with events)
+  activeCosmeticProcedures: CosmeticProcedureWithEvents[];
   // Active digital identities
   activeDigitalIdentities: PersonDigitalIdentityItem[];
   // Active skills

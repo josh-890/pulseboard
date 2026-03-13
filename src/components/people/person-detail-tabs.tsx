@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useState, useTransition } from "react";
 import { cn, computeAge, formatPartialDate } from "@/lib/utils";
 import type { getPersonWithDetails } from "@/lib/services/person-service";
 import type {
@@ -12,12 +12,35 @@ import type {
   PersonProductionSession,
   AliasType,
   PersonStatus,
-
+  BodyMarkWithEvents,
+  BodyModificationWithEvents,
+  CosmeticProcedureWithEvents,
   RelationshipSource,
 } from "@/lib/types";
 import { useHeroLayout, type HeroLayout } from "@/components/layout/hero-layout-provider";
 import { PersonaTimelineEntry } from "@/components/people/persona-timeline-entry";
 import { BodyMarkCard } from "@/components/people/body-mark-card";
+import { BodyModificationCard } from "@/components/people/body-modification-card";
+import { CosmeticProcedureCard } from "@/components/people/cosmetic-procedure-card";
+import { AddBodyMarkSheet } from "@/components/people/add-body-mark-sheet";
+import { EditBodyMarkSheet } from "@/components/people/edit-body-mark-sheet";
+import { AddBodyModificationSheet } from "@/components/people/add-body-modification-sheet";
+import { EditBodyModificationSheet } from "@/components/people/edit-body-modification-sheet";
+import { AddCosmeticProcedureSheet } from "@/components/people/add-cosmetic-procedure-sheet";
+import { EditCosmeticProcedureSheet } from "@/components/people/edit-cosmetic-procedure-sheet";
+import { AddBodyMarkEventDialog } from "@/components/people/add-body-mark-event-dialog";
+import { AddBodyModificationEventDialog } from "@/components/people/add-body-modification-event-dialog";
+import { AddCosmeticProcedureEventDialog } from "@/components/people/add-cosmetic-procedure-event-dialog";
+import { RecordPhysicalChangeSheet } from "@/components/people/record-physical-change-sheet";
+import { NewPersonaSheet } from "@/components/people/new-persona-sheet";
+import {
+  deleteBodyMarkAction,
+  deleteBodyMarkEventAction,
+  deleteBodyModificationAction,
+  deleteBodyModificationEventAction,
+  deleteCosmeticProcedureAction,
+  deleteCosmeticProcedureEventAction,
+} from "@/lib/actions/appearance-actions";
 import { DigitalIdentityRow } from "@/components/people/digital-identity-row";
 import {
   Star,
@@ -39,6 +62,9 @@ import {
   Briefcase,
   Image as ImageIcon,
   Link2,
+  Plus,
+  Wrench,
+  Sparkles,
 } from "lucide-react";
 import Link from "next/link";
 import { CarouselHeader } from "@/components/gallery/carousel-header";
@@ -381,35 +407,69 @@ function PhysicalStatsPanel({
 
 function HistoryPanel({
   personas,
+  personId,
+  currentState,
   defaultOpen = false,
 }: {
   personas: PersonData["personas"];
+  personId: string;
+  currentState: PersonCurrentState;
   defaultOpen?: boolean;
 }) {
   const [timelineOpen, setTimelineOpen] = useState(defaultOpen);
+  const [showNewPersona, setShowNewPersona] = useState(false);
   const visiblePersonas = personas;
 
-  if (visiblePersonas.length === 0) {
-    return <EmptyState message="No persona history recorded." />;
+  if (visiblePersonas.length === 0 && !showNewPersona) {
+    return (
+      <div className="space-y-3">
+        <EmptyState message="No persona history recorded." />
+        <button
+          type="button"
+          onClick={() => setShowNewPersona(true)}
+          className="flex items-center gap-1 text-xs font-medium text-primary hover:text-primary/80 transition-colors"
+        >
+          <Plus size={12} /> New Persona
+        </button>
+        {showNewPersona && (
+          <NewPersonaSheet
+            personId={personId}
+            existingMarks={currentState.activeBodyMarks}
+            existingMods={currentState.activeBodyModifications}
+            existingProcs={currentState.activeCosmeticProcedures}
+            onClose={() => setShowNewPersona(false)}
+          />
+        )}
+      </div>
+    );
   }
 
   return (
     <div>
-      <button
-        type="button"
-        onClick={() => setTimelineOpen(!timelineOpen)}
-        className="mb-3 flex items-center gap-1.5 text-sm font-medium text-primary hover:text-primary/80 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring rounded"
-      >
-        {timelineOpen ? (
-          <>
-            <ChevronUp size={14} /> Hide timeline
-          </>
-        ) : (
-          <>
-            <ChevronDown size={14} /> Show timeline ({visiblePersonas.length})
-          </>
-        )}
-      </button>
+      <div className="mb-3 flex items-center gap-3">
+        <button
+          type="button"
+          onClick={() => setTimelineOpen(!timelineOpen)}
+          className="flex items-center gap-1.5 text-sm font-medium text-primary hover:text-primary/80 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring rounded"
+        >
+          {timelineOpen ? (
+            <>
+              <ChevronUp size={14} /> Hide timeline
+            </>
+          ) : (
+            <>
+              <ChevronDown size={14} /> Show timeline ({visiblePersonas.length})
+            </>
+          )}
+        </button>
+        <button
+          type="button"
+          onClick={() => setShowNewPersona(true)}
+          className="flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
+        >
+          <Plus size={12} /> New Persona
+        </button>
+      </div>
       {timelineOpen && (
         <div className="relative space-y-4">
           <div
@@ -417,9 +477,18 @@ function HistoryPanel({
             aria-hidden="true"
           />
           {visiblePersonas.map((persona) => (
-            <PersonaTimelineEntry key={persona.id} persona={persona} />
+            <PersonaTimelineEntry key={persona.id} persona={persona} personId={personId} />
           ))}
         </div>
+      )}
+      {showNewPersona && (
+        <NewPersonaSheet
+          personId={personId}
+          existingMarks={currentState.activeBodyMarks}
+          existingMods={currentState.activeBodyModifications}
+          existingProcs={currentState.activeCosmeticProcedures}
+          onClose={() => setShowNewPersona(false)}
+        />
       )}
     </div>
   );
@@ -847,16 +916,14 @@ function OverviewTab({
   return (
     <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
       {/* History — full width at top */}
-      {hasHistory && (
-        <SectionCard
-          title="History"
-          icon={<Users size={18} />}
-          badge={person.personas.length}
-          className="md:col-span-2"
-        >
-          <HistoryPanel personas={person.personas} defaultOpen />
-        </SectionCard>
-      )}
+      <SectionCard
+        title="History"
+        icon={<Users size={18} />}
+        badge={person.personas.length}
+        className="md:col-span-2"
+      >
+        <HistoryPanel personas={person.personas} personId={person.id} currentState={currentState} defaultOpen />
+      </SectionCard>
 
       {/* Digital Identities */}
       {hasDigitalIdentities && (
@@ -901,61 +968,256 @@ function OverviewTab({
 
 // ── Appearance Tab ───────────────────────────────────────────────────────────
 
+type AppearanceOpenState =
+  | null
+  | "physicalChange"
+  | "addBodyMark"
+  | { type: "editBodyMark"; mark: BodyMarkWithEvents }
+  | { type: "addBodyMarkEvent"; markId: string; markLabel: string }
+  | "addBodyMod"
+  | { type: "editBodyMod"; modification: BodyModificationWithEvents }
+  | { type: "addBodyModEvent"; modId: string; modLabel: string }
+  | "addCosmProc"
+  | { type: "editCosmProc"; procedure: CosmeticProcedureWithEvents }
+  | { type: "addCosmProcEvent"; procId: string; procLabel: string };
+
 function AppearanceTab({
   person,
   currentState,
+  personas,
 }: {
   person: PersonData;
   currentState: PersonCurrentState;
+  personas: { id: string; label: string }[];
 }) {
+  const [openState, setOpenState] = useState<AppearanceOpenState>(null);
+  const [isPending, startTransition] = useTransition();
+
   const hasStatic = person.height || person.eyeColor || person.naturalHairColor || person.bodyType || person.measurements;
   const hasComputed = currentState.currentHairColor || currentState.weight !== null || currentState.build || currentState.visionAids || currentState.fitnessLevel;
 
+  const handleDeleteBodyMark = useCallback((markId: string) => {
+    startTransition(async () => {
+      await deleteBodyMarkAction(markId, person.id);
+    });
+  }, [person.id]);
+
+  const handleDeleteBodyMarkEvent = useCallback(async (eventId: string) => {
+    return deleteBodyMarkEventAction(eventId, person.id);
+  }, [person.id]);
+
+  const handleDeleteBodyMod = useCallback((modId: string) => {
+    startTransition(async () => {
+      await deleteBodyModificationAction(modId, person.id);
+    });
+  }, [person.id]);
+
+  const handleDeleteBodyModEvent = useCallback(async (eventId: string) => {
+    return deleteBodyModificationEventAction(eventId, person.id);
+  }, [person.id]);
+
+  const handleDeleteCosmProc = useCallback((procId: string) => {
+    startTransition(async () => {
+      await deleteCosmeticProcedureAction(procId, person.id);
+    });
+  }, [person.id]);
+
+  const handleDeleteCosmProcEvent = useCallback(async (eventId: string) => {
+    return deleteCosmeticProcedureEventAction(eventId, person.id);
+  }, [person.id]);
+
   return (
-    <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-      {/* Physical Stats */}
-      <SectionCard title="Physical Stats" icon={<Activity size={18} />}>
-        {!hasStatic && !hasComputed ? (
-          <EmptyState message="No physical stats recorded." />
-        ) : (
-          <dl className="grid grid-cols-1 gap-2 text-sm">
-            {/* Static (from Person) */}
-            {person.height && <InfoRow label="Height" value={`${person.height} cm`} />}
-            {person.eyeColor && <InfoRow label="Eye color" value={<span className="capitalize">{person.eyeColor}</span>} />}
-            {person.naturalHairColor && <InfoRow label="Natural hair" value={<span className="capitalize">{person.naturalHairColor}</span>} />}
-            {person.bodyType && <InfoRow label="Body type" value={<span className="capitalize">{person.bodyType}</span>} />}
-            {person.measurements && <InfoRow label="Measurements" value={person.measurements} />}
-
-            {/* Computed (from PersonaPhysical fold) */}
-            {hasStatic && hasComputed && (
-              <div className="col-span-full my-1 border-t border-white/10" />
-            )}
-            {currentState.currentHairColor && <InfoRow label="Current hair" value={<span className="capitalize">{currentState.currentHairColor}</span>} />}
-            {currentState.weight !== null && currentState.weight !== undefined && <InfoRow label="Weight" value={`${currentState.weight} kg`} />}
-            {currentState.build && <InfoRow label="Build" value={<span className="capitalize">{currentState.build}</span>} />}
-            {currentState.visionAids && <InfoRow label="Vision aids" value={currentState.visionAids} />}
-            {currentState.fitnessLevel && <InfoRow label="Fitness level" value={<span className="capitalize">{currentState.fitnessLevel}</span>} />}
-          </dl>
-        )}
-      </SectionCard>
-
-      {/* Body Marks */}
-      <SectionCard
-        title="Body Marks"
-        icon={<Fingerprint size={18} />}
-        badge={currentState.activeBodyMarks.length}
-      >
-        {currentState.activeBodyMarks.length === 0 ? (
-          <EmptyState message="No body marks recorded." />
-        ) : (
-          <div className="grid grid-cols-1 gap-3">
-            {currentState.activeBodyMarks.map((mark) => (
-              <BodyMarkCard key={mark.id} mark={mark} />
-            ))}
+    <>
+      <div className="space-y-6">
+        {/* Physical Stats */}
+        <SectionCard title="Physical Stats" icon={<Activity size={18} />}>
+          <div className="mb-3 flex justify-end">
+            <button
+              type="button"
+              onClick={() => setOpenState("physicalChange")}
+              className="flex items-center gap-1 rounded-lg border border-white/15 px-2.5 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:border-white/30 hover:text-foreground"
+            >
+              <Plus size={12} />
+              Record Change
+            </button>
           </div>
-        )}
-      </SectionCard>
-    </div>
+          {!hasStatic && !hasComputed ? (
+            <EmptyState message="No physical stats recorded." />
+          ) : (
+            <dl className="grid grid-cols-1 gap-2 text-sm">
+              {person.height && <InfoRow label="Height" value={`${person.height} cm`} />}
+              {person.eyeColor && <InfoRow label="Eye color" value={<span className="capitalize">{person.eyeColor}</span>} />}
+              {person.naturalHairColor && <InfoRow label="Natural hair" value={<span className="capitalize">{person.naturalHairColor}</span>} />}
+              {person.bodyType && <InfoRow label="Body type" value={<span className="capitalize">{person.bodyType}</span>} />}
+              {person.measurements && <InfoRow label="Measurements" value={person.measurements} />}
+              {hasStatic && hasComputed && (
+                <div className="col-span-full my-1 border-t border-white/10" />
+              )}
+              {currentState.currentHairColor && <InfoRow label="Current hair" value={<span className="capitalize">{currentState.currentHairColor}</span>} />}
+              {currentState.weight !== null && currentState.weight !== undefined && <InfoRow label="Weight" value={`${currentState.weight} kg`} />}
+              {currentState.build && <InfoRow label="Build" value={<span className="capitalize">{currentState.build}</span>} />}
+              {currentState.visionAids && <InfoRow label="Vision aids" value={currentState.visionAids} />}
+              {currentState.fitnessLevel && <InfoRow label="Fitness level" value={<span className="capitalize">{currentState.fitnessLevel}</span>} />}
+            </dl>
+          )}
+        </SectionCard>
+
+        {/* Body Marks */}
+        <SectionCard
+          title="Body Marks"
+          icon={<Fingerprint size={18} />}
+          badge={currentState.activeBodyMarks.length}
+        >
+          <div className="mb-3 flex justify-end">
+            <button
+              type="button"
+              onClick={() => setOpenState("addBodyMark")}
+              className="flex items-center gap-1 rounded-lg border border-white/15 px-2.5 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:border-white/30 hover:text-foreground"
+            >
+              <Plus size={12} />
+              Add
+            </button>
+          </div>
+          {currentState.activeBodyMarks.length === 0 ? (
+            <EmptyState message="No body marks recorded." />
+          ) : (
+            <div className="grid grid-cols-1 gap-3">
+              {currentState.activeBodyMarks.map((mark) => (
+                <BodyMarkCard
+                  key={mark.id}
+                  mark={mark}
+                  onEdit={() => setOpenState({ type: "editBodyMark", mark })}
+                  onDelete={() => handleDeleteBodyMark(mark.id)}
+                  onDeleteEvent={handleDeleteBodyMarkEvent}
+                  onAddEvent={() => setOpenState({ type: "addBodyMarkEvent", markId: mark.id, markLabel: `${mark.type} — ${mark.bodyRegion}` })}
+                  isPending={isPending}
+                />
+              ))}
+            </div>
+          )}
+        </SectionCard>
+
+        {/* Body Modifications */}
+        <SectionCard
+          title="Body Modifications"
+          icon={<Wrench size={18} />}
+          badge={currentState.activeBodyModifications.length}
+        >
+          <div className="mb-3 flex justify-end">
+            <button
+              type="button"
+              onClick={() => setOpenState("addBodyMod")}
+              className="flex items-center gap-1 rounded-lg border border-white/15 px-2.5 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:border-white/30 hover:text-foreground"
+            >
+              <Plus size={12} />
+              Add
+            </button>
+          </div>
+          {currentState.activeBodyModifications.length === 0 ? (
+            <EmptyState message="No body modifications recorded." />
+          ) : (
+            <div className="grid grid-cols-1 gap-3">
+              {currentState.activeBodyModifications.map((mod) => (
+                <BodyModificationCard
+                  key={mod.id}
+                  modification={mod}
+                  onEdit={() => setOpenState({ type: "editBodyMod", modification: mod })}
+                  onDelete={() => handleDeleteBodyMod(mod.id)}
+                  onDeleteEvent={handleDeleteBodyModEvent}
+                  onAddEvent={() => setOpenState({ type: "addBodyModEvent", modId: mod.id, modLabel: `${mod.type} — ${mod.bodyRegion}` })}
+                  isPending={isPending}
+                />
+              ))}
+            </div>
+          )}
+        </SectionCard>
+
+        {/* Cosmetic Procedures */}
+        <SectionCard
+          title="Cosmetic Procedures"
+          icon={<Sparkles size={18} />}
+          badge={currentState.activeCosmeticProcedures.length}
+        >
+          <div className="mb-3 flex justify-end">
+            <button
+              type="button"
+              onClick={() => setOpenState("addCosmProc")}
+              className="flex items-center gap-1 rounded-lg border border-white/15 px-2.5 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:border-white/30 hover:text-foreground"
+            >
+              <Plus size={12} />
+              Add
+            </button>
+          </div>
+          {currentState.activeCosmeticProcedures.length === 0 ? (
+            <EmptyState message="No cosmetic procedures recorded." />
+          ) : (
+            <div className="grid grid-cols-1 gap-3">
+              {currentState.activeCosmeticProcedures.map((proc) => (
+                <CosmeticProcedureCard
+                  key={proc.id}
+                  procedure={proc}
+                  onEdit={() => setOpenState({ type: "editCosmProc", procedure: proc })}
+                  onDelete={() => handleDeleteCosmProc(proc.id)}
+                  onDeleteEvent={handleDeleteCosmProcEvent}
+                  onAddEvent={() => setOpenState({ type: "addCosmProcEvent", procId: proc.id, procLabel: `${proc.type} — ${proc.bodyRegion}` })}
+                  isPending={isPending}
+                />
+              ))}
+            </div>
+          )}
+        </SectionCard>
+      </div>
+
+      {/* Sheets & Dialogs */}
+      {openState === "physicalChange" && (
+        <RecordPhysicalChangeSheet personId={person.id} onClose={() => setOpenState(null)} />
+      )}
+      {openState === "addBodyMark" && (
+        <AddBodyMarkSheet personId={person.id} onClose={() => setOpenState(null)} />
+      )}
+      {typeof openState === "object" && openState?.type === "editBodyMark" && (
+        <EditBodyMarkSheet personId={person.id} mark={openState.mark} onClose={() => setOpenState(null)} />
+      )}
+      {typeof openState === "object" && openState?.type === "addBodyMarkEvent" && (
+        <AddBodyMarkEventDialog
+          personId={person.id}
+          bodyMarkId={openState.markId}
+          markLabel={openState.markLabel}
+          personas={personas}
+          onClose={() => setOpenState(null)}
+        />
+      )}
+      {openState === "addBodyMod" && (
+        <AddBodyModificationSheet personId={person.id} onClose={() => setOpenState(null)} />
+      )}
+      {typeof openState === "object" && openState?.type === "editBodyMod" && (
+        <EditBodyModificationSheet personId={person.id} modification={openState.modification} onClose={() => setOpenState(null)} />
+      )}
+      {typeof openState === "object" && openState?.type === "addBodyModEvent" && (
+        <AddBodyModificationEventDialog
+          personId={person.id}
+          bodyModificationId={openState.modId}
+          modificationLabel={openState.modLabel}
+          personas={personas}
+          onClose={() => setOpenState(null)}
+        />
+      )}
+      {openState === "addCosmProc" && (
+        <AddCosmeticProcedureSheet personId={person.id} onClose={() => setOpenState(null)} />
+      )}
+      {typeof openState === "object" && openState?.type === "editCosmProc" && (
+        <EditCosmeticProcedureSheet personId={person.id} procedure={openState.procedure} onClose={() => setOpenState(null)} />
+      )}
+      {typeof openState === "object" && openState?.type === "addCosmProcEvent" && (
+        <AddCosmeticProcedureEventDialog
+          personId={person.id}
+          cosmeticProcedureId={openState.procId}
+          procedureLabel={openState.procLabel}
+          personas={personas}
+          onClose={() => setOpenState(null)}
+        />
+      )}
+    </>
   );
 }
 
@@ -1262,7 +1524,7 @@ export function PersonDetailTabs({
   const tabs: { id: TabId; label: string; badge?: number }[] = [
     { id: "overview", label: "Overview" },
     { id: "aliases", label: "Aliases", badge: aliasCount || undefined },
-    { id: "appearance", label: "Appearance" },
+    { id: "appearance", label: "Appearance", badge: (currentState.activeBodyMarks.length + currentState.activeBodyModifications.length + currentState.activeCosmeticProcedures.length) || undefined },
     ...(categories && categories.length > 0
       ? [{ id: "details" as TabId, label: "Details", badge: (categoryCounts?.filter((c) => c.count > 0).length) || undefined }]
       : []),
@@ -1363,7 +1625,11 @@ export function PersonDetailTabs({
         hidden={activeTab !== "appearance"}
       >
         {activeTab === "appearance" && (
-          <AppearanceTab person={person} currentState={currentState} />
+          <AppearanceTab
+            person={person}
+            currentState={currentState}
+            personas={person.personas.map((p) => ({ id: p.id, label: p.label }))}
+          />
         )}
       </div>
       {categories && categories.length > 0 && (

@@ -149,9 +149,18 @@ export async function getPersonWithDetails(id: string) {
           bodyMarkEvents: {
             include: { bodyMark: true },
           },
+          bodyModificationEvents: {
+            include: { bodyModification: true },
+          },
+          cosmeticProcedureEvents: {
+            include: { cosmeticProcedure: true },
+          },
           digitalIdentities: true,
         },
       },
+      bodyMarks: true,
+      bodyModifications: true,
+      cosmeticProcedures: true,
       skills: {
         include: {
           persona: { select: { label: true } },
@@ -200,6 +209,30 @@ export async function getPersonBodyMarks(personId: string): Promise<BodyMarkWith
       persona: { id: e.persona.id, label: e.persona.label, date: e.persona.date },
     })),
   }));
+}
+
+export async function createBodyMarkRecord(data: import("@/lib/validations/body-mark").CreateBodyMarkInput) {
+  return prisma.bodyMark.create({ data });
+}
+
+export async function updateBodyMarkRecord(id: string, data: Omit<import("@/lib/validations/body-mark").UpdateBodyMarkInput, "id">) {
+  return prisma.bodyMark.update({ where: { id }, data });
+}
+
+export async function deleteBodyMarkRecord(id: string) {
+  return prisma.$transaction(async (tx) => {
+    await tx.bodyMarkEvent.deleteMany({ where: { bodyMarkId: id } });
+    await tx.personMediaLink.deleteMany({ where: { bodyMarkId: id } });
+    return tx.bodyMark.delete({ where: { id } });
+  });
+}
+
+export async function createBodyMarkEventRecord(data: import("@/lib/validations/body-mark").CreateBodyMarkEventInput) {
+  return prisma.bodyMarkEvent.create({ data });
+}
+
+export async function deleteBodyMarkEventRecord(id: string) {
+  return prisma.bodyMarkEvent.delete({ where: { id } });
 }
 
 export async function getPersonDigitalIdentities(personId: string): Promise<PersonDigitalIdentityItem[]> {
@@ -320,6 +353,8 @@ export async function computePersonCurrentState(personId: string): Promise<Perso
     visionAids,
     fitnessLevel,
     activeBodyMarks,
+    activeBodyModifications: [],
+    activeCosmeticProcedures: [],
     activeDigitalIdentities,
     activeSkills,
   };
@@ -563,6 +598,116 @@ export function deriveCurrentState(
     }
   }
 
+  // Include orphaned body marks (entities with no events, e.g. after persona deletion)
+  for (const mark of person.bodyMarks) {
+    if (seenMarkIds.has(mark.id)) continue;
+    activeBodyMarks.push({
+      id: mark.id,
+      type: mark.type,
+      bodyRegion: mark.bodyRegion,
+      side: mark.side,
+      position: mark.position,
+      description: mark.description,
+      motif: mark.motif,
+      colors: mark.colors,
+      size: mark.size,
+      status: mark.status,
+      events: [],
+    });
+  }
+
+  const activeBodyModifications: import("@/lib/types").BodyModificationWithEvents[] = [];
+  const seenModIds = new Set<string>();
+  for (const persona of person.personas) {
+    for (const event of persona.bodyModificationEvents) {
+      if (seenModIds.has(event.bodyModification.id)) continue;
+      seenModIds.add(event.bodyModification.id);
+      const mod = event.bodyModification;
+      const allEvents = person.personas.flatMap((p) =>
+        p.bodyModificationEvents
+          .filter((e) => e.bodyModification.id === mod.id)
+          .map((e) => ({
+            id: e.id,
+            eventType: e.eventType,
+            notes: e.notes,
+            persona: { id: p.id, label: p.label, date: p.date },
+          })),
+      );
+      activeBodyModifications.push({
+        id: mod.id,
+        type: mod.type,
+        bodyRegion: mod.bodyRegion,
+        side: mod.side,
+        position: mod.position,
+        description: mod.description,
+        material: mod.material,
+        gauge: mod.gauge,
+        status: mod.status,
+        events: allEvents,
+      });
+    }
+  }
+
+  // Include orphaned body modifications
+  for (const mod of person.bodyModifications) {
+    if (seenModIds.has(mod.id)) continue;
+    activeBodyModifications.push({
+      id: mod.id,
+      type: mod.type,
+      bodyRegion: mod.bodyRegion,
+      side: mod.side,
+      position: mod.position,
+      description: mod.description,
+      material: mod.material,
+      gauge: mod.gauge,
+      status: mod.status,
+      events: [],
+    });
+  }
+
+  const activeCosmeticProcedures: import("@/lib/types").CosmeticProcedureWithEvents[] = [];
+  const seenProcIds = new Set<string>();
+  for (const persona of person.personas) {
+    for (const event of persona.cosmeticProcedureEvents) {
+      if (seenProcIds.has(event.cosmeticProcedure.id)) continue;
+      seenProcIds.add(event.cosmeticProcedure.id);
+      const proc = event.cosmeticProcedure;
+      const allEvents = person.personas.flatMap((p) =>
+        p.cosmeticProcedureEvents
+          .filter((e) => e.cosmeticProcedure.id === proc.id)
+          .map((e) => ({
+            id: e.id,
+            eventType: e.eventType,
+            notes: e.notes,
+            persona: { id: p.id, label: p.label, date: p.date },
+          })),
+      );
+      activeCosmeticProcedures.push({
+        id: proc.id,
+        type: proc.type,
+        bodyRegion: proc.bodyRegion,
+        description: proc.description,
+        provider: proc.provider,
+        status: proc.status,
+        events: allEvents,
+      });
+    }
+  }
+
+  // Include orphaned cosmetic procedures
+  for (const proc of person.cosmeticProcedures) {
+    if (seenProcIds.has(proc.id)) continue;
+    activeCosmeticProcedures.push({
+      id: proc.id,
+      type: proc.type,
+      bodyRegion: proc.bodyRegion,
+      description: proc.description,
+      provider: proc.provider,
+      status: proc.status,
+      events: [],
+    });
+  }
+
   const activeDigitalIdentities: PersonDigitalIdentityItem[] = [];
   for (const persona of person.personas) {
     for (const i of persona.digitalIdentities) {
@@ -619,6 +764,8 @@ export function deriveCurrentState(
     visionAids,
     fitnessLevel,
     activeBodyMarks,
+    activeBodyModifications,
+    activeCosmeticProcedures,
     activeDigitalIdentities,
     activeSkills,
   };

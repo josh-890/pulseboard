@@ -1,0 +1,90 @@
+"use client";
+
+import { useCallback, useState, useTransition } from "react";
+import { X } from "lucide-react";
+import type { CosmeticProcedureWithEvents } from "@/lib/types";
+import { updateCosmeticProcedureAction } from "@/lib/actions/appearance-actions";
+
+type EditCosmeticProcedureSheetProps = {
+  personId: string;
+  procedure: CosmeticProcedureWithEvents;
+  onClose: () => void;
+};
+
+export function EditCosmeticProcedureSheet({ personId, procedure, onClose }: EditCosmeticProcedureSheetProps) {
+  const [isPending, startTransition] = useTransition();
+  const [type, setType] = useState(procedure.type);
+  const [bodyRegion, setBodyRegion] = useState(procedure.bodyRegion);
+  const [description, setDescription] = useState(procedure.description ?? "");
+  const [provider, setProvider] = useState(procedure.provider ?? "");
+  const [status, setStatus] = useState(procedure.status);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSubmit = useCallback(() => {
+    if (!type.trim()) { setError("Type is required."); return; }
+    if (!bodyRegion.trim()) { setError("Body region is required."); return; }
+    startTransition(async () => {
+      setError(null);
+      const result = await updateCosmeticProcedureAction(procedure.id, personId, {
+        type: type.trim(), bodyRegion: bodyRegion.trim(),
+        description: description.trim() || undefined,
+        provider: provider.trim() || undefined,
+        status: status.trim() || undefined,
+      });
+      if (!result.success) { setError(result.error ?? "Failed to update."); return; }
+      onClose();
+    });
+  }, [procedure.id, personId, type, bodyRegion, description, provider, status, onClose]);
+
+  return (
+    <div className="fixed inset-0 z-50 flex justify-end">
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative w-full max-w-md bg-background border-l border-white/15 shadow-2xl overflow-y-auto">
+        <div className="sticky top-0 z-10 flex items-center justify-between border-b border-white/15 bg-background px-6 py-4">
+          <h2 className="text-lg font-semibold">Edit Cosmetic Procedure</h2>
+          <button type="button" onClick={onClose} className="rounded-md p-1 text-muted-foreground hover:text-foreground"><X size={18} /></button>
+        </div>
+
+        <div className="space-y-5 p-6">
+          <div>
+            <label className="mb-1.5 block text-sm font-medium">Type</label>
+            <input type="text" value={type} onChange={(e) => setType(e.target.value)}
+              className="w-full rounded-lg border border-white/15 bg-muted/30 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring" />
+          </div>
+
+          <div>
+            <label className="mb-1.5 block text-sm font-medium">Body Region</label>
+            <input type="text" value={bodyRegion} onChange={(e) => setBodyRegion(e.target.value)}
+              className="w-full rounded-lg border border-white/15 bg-muted/30 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring" />
+          </div>
+
+          <div>
+            <label className="mb-1.5 block text-sm font-medium">Description</label>
+            <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2}
+              className="w-full rounded-lg border border-white/15 bg-muted/30 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring resize-none" />
+          </div>
+
+          <div>
+            <label className="mb-1.5 block text-sm font-medium">Provider</label>
+            <input type="text" value={provider} onChange={(e) => setProvider(e.target.value)}
+              className="w-full rounded-lg border border-white/15 bg-muted/30 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring" />
+          </div>
+
+          <div>
+            <label className="mb-1.5 block text-sm font-medium">Status</label>
+            <input type="text" value={status} onChange={(e) => setStatus(e.target.value)}
+              placeholder="completed, scheduled..."
+              className="w-full rounded-lg border border-white/15 bg-muted/30 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring" />
+          </div>
+
+          {error && <p className="text-sm text-red-500">{error}</p>}
+
+          <button type="button" onClick={handleSubmit} disabled={isPending || !type.trim() || !bodyRegion.trim()}
+            className="w-full rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50">
+            {isPending ? "Saving..." : "Update Cosmetic Procedure"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}

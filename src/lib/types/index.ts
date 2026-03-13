@@ -28,6 +28,8 @@ export type {
   PersonSessionWorkEntry,
   PersonProductionSession,
   BodyMarkWithEvents,
+  BodyModificationWithEvents,
+  CosmeticProcedureWithEvents,
   PersonDigitalIdentityItem,
   PersonSkillItem,
   PersonSkillEventItem,
