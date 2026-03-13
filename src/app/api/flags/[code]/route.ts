@@ -1,22 +1,26 @@
 import { NextResponse } from "next/server";
-import { HeadObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
+import { GetObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
 import { minioClient, MINIO_BUCKET } from "@/lib/minio";
 
 const CDN_BASE = "https://hatscripts.github.io/circle-flags/flags";
-const BASE_URL = process.env.NEXT_PUBLIC_MINIO_URL!;
+const SVG_HEADERS = {
+  "Content-Type": "image/svg+xml",
+  "Cache-Control": "public, max-age=31536000, immutable",
+};
 
 function flagKey(code: string): string {
   return `flags/${code}.svg`;
 }
 
-async function existsInMinio(key: string): Promise<boolean> {
+async function getFromMinio(key: string): Promise<Buffer | null> {
   try {
-    await minioClient.send(
-      new HeadObjectCommand({ Bucket: MINIO_BUCKET, Key: key }),
+    const res = await minioClient.send(
+      new GetObjectCommand({ Bucket: MINIO_BUCKET, Key: key }),
     );
-    return true;
+    const bytes = await res.Body?.transformToByteArray();
+    return bytes ? Buffer.from(bytes) : null;
   } catch {
-    return false;
+    return null;
   }
 }
 
@@ -32,12 +36,13 @@ export async function GET(
 
   const key = flagKey(code);
 
-  // Already cached in MinIO — redirect to MinIO URL
-  if (await existsInMinio(key)) {
-    return NextResponse.redirect(`${BASE_URL}/${key}`);
+  // Try MinIO first
+  const cached = await getFromMinio(key);
+  if (cached) {
+    return new NextResponse(cached, { headers: SVG_HEADERS });
   }
 
-  // Download from CDN and upload to MinIO
+  // Download from CDN, upload to MinIO, and serve
   try {
     const res = await fetch(`${CDN_BASE}/${code}.svg`);
     if (!res.ok) {
@@ -46,18 +51,20 @@ export async function GET(
 
     const svg = Buffer.from(await res.arrayBuffer());
 
-    await minioClient.send(
-      new PutObjectCommand({
-        Bucket: MINIO_BUCKET,
-        Key: key,
-        Body: svg,
-        ContentType: "image/svg+xml",
-        CacheControl: "public, max-age=31536000, immutable",
-      }),
-    );
+    // Upload to MinIO in background — don't block the response
+    minioClient
+      .send(
+        new PutObjectCommand({
+          Bucket: MINIO_BUCKET,
+          Key: key,
+          Body: svg,
+          ContentType: "image/svg+xml",
+          CacheControl: "public, max-age=31536000, immutable",
+        }),
+      )
+      .catch(() => {});
 
-    // Redirect to the now-cached MinIO URL
-    return NextResponse.redirect(`${BASE_URL}/${key}`);
+    return new NextResponse(svg, { headers: SVG_HEADERS });
   } catch {
     return NextResponse.json({ error: "Failed to fetch flag" }, { status: 502 });
   }
