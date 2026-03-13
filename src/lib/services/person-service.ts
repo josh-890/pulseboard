@@ -10,6 +10,9 @@ import type {
   PersonCurrentState,
   SkillEventMediaThumb,
   PhotoVariants,
+  PersonSessionWorkEntry,
+  PersonProductionSession,
+  SessionThumbnail,
 } from "@/lib/types";
 import type { PersonStatus, Prisma } from "@/generated/prisma/client";
 import type { CreatePersonInput, UpdatePersonInput } from "@/lib/validations/person";
@@ -354,6 +357,149 @@ export async function getPersonWorkHistory(personId: string): Promise<PersonWork
       labelId: p.set.channel?.labelMaps[0]?.label.id ?? null,
       labelName: p.set.channel?.labelMaps[0]?.label.name ?? null,
     }));
+}
+
+function buildSessionThumbnails(
+  mediaItems: { id: string; variants: unknown; fileRef: string | null; originalWidth: number; originalHeight: number }[],
+  limit: number,
+): SessionThumbnail[] {
+  const results: SessionThumbnail[] = [];
+  for (const item of mediaItems) {
+    if (results.length >= limit) break;
+    const variants = (item.variants ?? {}) as PhotoVariants;
+    const url = variants.gallery_512
+      ? buildUrl(variants.gallery_512)
+      : variants.original
+        ? buildUrl(variants.original)
+        : item.fileRef
+          ? buildUrl(item.fileRef)
+          : null;
+    if (url) {
+      results.push({ id: item.id, url, width: item.originalWidth, height: item.originalHeight });
+    }
+  }
+  return results;
+}
+
+export async function getPersonSessionWorkHistory(personId: string): Promise<PersonSessionWorkEntry[]> {
+  const contributions = await prisma.sessionContribution.findMany({
+    where: {
+      personId,
+      session: { type: "PRODUCTION" },
+    },
+    include: {
+      roleDefinition: { select: { name: true } },
+      session: {
+        include: {
+          label: { select: { id: true, name: true } },
+          mediaItems: {
+            take: 6,
+            orderBy: { createdAt: "asc" },
+            select: { id: true, variants: true, fileRef: true, originalWidth: true, originalHeight: true },
+          },
+          _count: { select: { mediaItems: true } },
+          setSessionLinks: {
+            include: {
+              set: {
+                include: {
+                  channel: { select: { name: true } },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  });
+
+  // Group by sessionId to merge multiple roles
+  const sessionMap = new Map<string, PersonSessionWorkEntry>();
+  for (const c of contributions) {
+    const s = c.session;
+    const existing = sessionMap.get(s.id);
+    if (existing) {
+      if (!existing.roles.includes(c.roleDefinition.name)) {
+        existing.roles.push(c.roleDefinition.name);
+      }
+    } else {
+      sessionMap.set(s.id, {
+        sessionId: s.id,
+        sessionName: s.name,
+        sessionDate: s.date,
+        sessionDatePrecision: s.datePrecision,
+        labelId: s.label?.id ?? null,
+        labelName: s.label?.name ?? null,
+        roles: [c.roleDefinition.name],
+        mediaCount: s._count.mediaItems,
+        thumbnails: buildSessionThumbnails(s.mediaItems, 6),
+        linkedSets: s.setSessionLinks.map((link) => ({
+          setId: link.set.id,
+          title: link.set.title,
+          type: link.set.type,
+          releaseDate: link.set.releaseDate,
+          releaseDatePrecision: link.set.releaseDatePrecision,
+          channelName: link.set.channel?.name ?? null,
+        })),
+      });
+    }
+  }
+
+  return Array.from(sessionMap.values()).sort((a, b) => {
+    const aTime = a.sessionDate?.getTime() ?? 0;
+    const bTime = b.sessionDate?.getTime() ?? 0;
+    return bTime - aTime;
+  });
+}
+
+export async function getPersonProductionSessions(personId: string): Promise<PersonProductionSession[]> {
+  const contributions = await prisma.sessionContribution.findMany({
+    where: {
+      personId,
+      session: { type: "PRODUCTION" },
+    },
+    include: {
+      roleDefinition: { select: { name: true } },
+      session: {
+        include: {
+          label: { select: { name: true } },
+          mediaItems: {
+            take: 3,
+            orderBy: { createdAt: "asc" },
+            select: { id: true, variants: true, fileRef: true, originalWidth: true, originalHeight: true },
+          },
+          _count: { select: { mediaItems: true } },
+        },
+      },
+    },
+  });
+
+  const sessionMap = new Map<string, PersonProductionSession>();
+  for (const c of contributions) {
+    const s = c.session;
+    const existing = sessionMap.get(s.id);
+    if (existing) {
+      if (!existing.roles.includes(c.roleDefinition.name)) {
+        existing.roles.push(c.roleDefinition.name);
+      }
+    } else {
+      sessionMap.set(s.id, {
+        sessionId: s.id,
+        sessionName: s.name,
+        sessionDate: s.date,
+        sessionDatePrecision: s.datePrecision,
+        labelName: s.label?.name ?? null,
+        roles: [c.roleDefinition.name],
+        mediaCount: s._count.mediaItems,
+        previewThumbnails: buildSessionThumbnails(s.mediaItems, 3),
+      });
+    }
+  }
+
+  return Array.from(sessionMap.values()).sort((a, b) => {
+    const aTime = a.sessionDate?.getTime() ?? 0;
+    const bTime = b.sessionDate?.getTime() ?? 0;
+    return bTime - aTime;
+  });
 }
 
 /**

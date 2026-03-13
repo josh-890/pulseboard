@@ -135,6 +135,46 @@ export type PersonSkillItem = {
   events: PersonSkillEventItem[];
 };
 
+export type SessionThumbnail = {
+  id: string;
+  url: string;
+  width: number;
+  height: number;
+};
+
+export type LinkedSetSummary = {
+  setId: string;
+  title: string;
+  type: import("@/generated/prisma/client").SetType;
+  releaseDate: Date | null;
+  releaseDatePrecision: string;
+  channelName: string | null;
+};
+
+export type PersonSessionWorkEntry = {
+  sessionId: string;
+  sessionName: string;
+  sessionDate: Date | null;
+  sessionDatePrecision: string;
+  labelId: string | null;
+  labelName: string | null;
+  roles: string[];
+  mediaCount: number;
+  thumbnails: SessionThumbnail[];
+  linkedSets: LinkedSetSummary[];
+};
+
+export type PersonProductionSession = {
+  sessionId: string;
+  sessionName: string;
+  sessionDate: Date | null;
+  sessionDatePrecision: string;
+  labelName: string | null;
+  roles: string[];
+  mediaCount: number;
+  previewThumbnails: SessionThumbnail[];
+};
+
 export type PersonCurrentState = {
   // Latest physical attributes (from PersonaPhysical fold)
   currentHairColor: string | null;

@@ -8,9 +8,11 @@ import type {
   PersonWorkHistoryItem,
   PersonAffiliation,
   PersonConnection,
+  PersonSessionWorkEntry,
+  PersonProductionSession,
   AliasType,
   PersonStatus,
-  SetType,
+
   RelationshipSource,
 } from "@/lib/types";
 import { useHeroLayout, type HeroLayout } from "@/components/layout/hero-layout-provider";
@@ -24,7 +26,7 @@ import {
   Fingerprint,
   Users,
   Film,
-  Camera,
+
   Network,
   MapPin,
   Tag,
@@ -46,6 +48,8 @@ import { BatchUploadZone } from "@/components/media/batch-upload-zone";
 import { PersonDetailsTab } from "@/components/people/person-details-tab";
 import { PersonSkillsTab } from "@/components/people/person-skills-tab";
 import { PersonAliasesTab } from "@/components/people/person-aliases-tab";
+import { CareerSessionList } from "@/components/people/career-session-list";
+import { ProductionPhotoList } from "@/components/people/production-photo-list";
 import type { SkillGroupWithDefinitions } from "@/lib/services/skill-catalog-service";
 import type { PersonAliasWithChannels } from "@/lib/services/alias-service";
 import type { GalleryItem } from "@/lib/types";
@@ -79,6 +83,8 @@ type PersonDetailTabsProps = {
   calculatedPgrade?: number | null;
   meanWcp?: number | null;
   aliasesWithChannels?: PersonAliasWithChannels[];
+  sessionWorkHistory?: PersonSessionWorkEntry[];
+  productionSessions?: PersonProductionSession[];
 };
 
 // ── Style maps ──────────────────────────────────────────────────────────────
@@ -110,12 +116,6 @@ const ALIAS_TYPE_STYLES: Record<AliasType, string> = {
   alias: "border-white/15 bg-muted/50 text-foreground",
 };
 
-const ROLE_STYLE_DEFAULT = "bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/30";
-
-const SET_TYPE_STYLES: Record<SetType, string> = {
-  photo: "bg-sky-500/15 text-sky-600 dark:text-sky-400 border-sky-500/30",
-  video: "bg-violet-500/15 text-violet-600 dark:text-violet-400 border-violet-500/30",
-};
 
 const SOURCE_STYLES: Record<RelationshipSource, string> = {
   derived: "bg-slate-500/15 text-slate-500 border-slate-500/30",
@@ -963,13 +963,33 @@ function AppearanceTab({
 
 function CareerTab({
   person,
-  workHistory,
+  sessionWorkHistory,
   affiliations,
 }: {
   person: PersonData;
-  workHistory: PersonWorkHistoryItem[];
+  sessionWorkHistory: PersonSessionWorkEntry[];
   affiliations: PersonAffiliation[];
 }) {
+  // Derive affiliations from session work history
+  const derivedAffiliations = useMemo(() => {
+    if (affiliations.length > 0) return affiliations;
+    const labelMap = new Map<string, PersonAffiliation>();
+    for (const entry of sessionWorkHistory) {
+      if (!entry.labelId || !entry.labelName) continue;
+      const existing = labelMap.get(entry.labelId);
+      if (existing) {
+        existing.setCount++;
+      } else {
+        labelMap.set(entry.labelId, {
+          labelId: entry.labelId,
+          labelName: entry.labelName,
+          setCount: 1,
+        });
+      }
+    }
+    return Array.from(labelMap.values()).sort((a, b) => b.setCount - a.setCount);
+  }, [affiliations, sessionWorkHistory]);
+
   return (
     <div className="space-y-6">
       {/* Professional Summary */}
@@ -986,80 +1006,16 @@ function CareerTab({
         </SectionCard>
       )}
 
-      {/* Work History */}
+      {/* Session Work History */}
       <SectionCard
         title="Work History"
         icon={<Film size={18} />}
-        badge={workHistory.length}
+        badge={sessionWorkHistory.length}
       >
-        {workHistory.length === 0 ? (
+        {sessionWorkHistory.length === 0 ? (
           <EmptyState message="No work history recorded." />
         ) : (
-          <div className="overflow-x-auto -mx-1">
-            <table className="w-full min-w-[520px] text-sm">
-              <thead>
-                <tr className="border-b border-white/10 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                  <th className="pb-2 pr-4 font-medium">Title</th>
-                  <th className="pb-2 pr-4 font-medium">Type</th>
-                  <th className="pb-2 pr-4 font-medium">Role</th>
-                  <th className="pb-2 pr-4 font-medium">Label</th>
-                  <th className="pb-2 font-medium">Released</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-white/5">
-                {workHistory.map((item) => (
-                  <tr key={item.setId} className="group transition-colors hover:bg-white/5">
-                    <td className="py-2.5 pr-4">
-                      <Link
-                        href={`/sets/${item.setId}`}
-                        className="font-medium text-foreground underline-offset-2 hover:text-primary hover:underline focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                      >
-                        {item.setTitle}
-                      </Link>
-                      {item.channelName && (
-                        <p className="text-xs text-muted-foreground">{item.channelName}</p>
-                      )}
-                    </td>
-                    <td className="py-2.5 pr-4">
-                      <span
-                        className={cn(
-                          "inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium",
-                          SET_TYPE_STYLES[item.setType],
-                        )}
-                      >
-                        {item.setType === "photo" ? (
-                          <Camera size={10} className="mr-1" />
-                        ) : (
-                          <Film size={10} className="mr-1" />
-                        )}
-                        {item.setType}
-                      </span>
-                    </td>
-                    <td className="py-2.5 pr-4">
-                      <span
-                        className={cn(
-                          "inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium",
-                          ROLE_STYLE_DEFAULT,
-                        )}
-                      >
-                        {item.role}
-                      </span>
-                    </td>
-                    <td className="py-2.5 pr-4 text-muted-foreground">
-                      {item.labelName ?? <span className="opacity-40">&mdash;</span>}
-                    </td>
-                    <td className="py-2.5 whitespace-nowrap text-muted-foreground">
-                      {item.releaseDate ? (
-                        formatPartialDate(item.releaseDate, item.releaseDatePrecision)
-                      ) : (
-                        <span className="opacity-40">&mdash;</span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <CareerSessionList entries={sessionWorkHistory} />
         )}
       </SectionCard>
 
@@ -1067,13 +1023,13 @@ function CareerTab({
       <SectionCard
         title="Label Affiliations"
         icon={<Network size={18} />}
-        badge={affiliations.length}
+        badge={derivedAffiliations.length}
       >
-        {affiliations.length === 0 ? (
+        {derivedAffiliations.length === 0 ? (
           <EmptyState message="No label affiliations." />
         ) : (
           <div className="flex flex-wrap gap-2">
-            {affiliations.map((aff) => (
+            {derivedAffiliations.map((aff) => (
               <div
                 key={aff.labelId}
                 className="flex items-center gap-2 rounded-xl border border-white/20 bg-card/50 px-3 py-2"
@@ -1160,6 +1116,7 @@ function PhotosTab({
   filledHeadshotSlots,
   profileLabels,
   headshotSlotEntries,
+  productionSessions,
 }: {
   person: PersonData;
   photos: GalleryItem[];
@@ -1167,12 +1124,15 @@ function PhotosTab({
   filledHeadshotSlots?: number[];
   profileLabels: ProfileImageLabel[];
   headshotSlotEntries?: HeadshotSlotEntry[];
+  productionSessions: PersonProductionSession[];
 }) {
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [slotEntries, setSlotEntries] = useState(headshotSlotEntries ?? []);
 
   const indexMap = new Map<string, number>();
   photos.forEach((p, i) => indexMap.set(p.id, i));
+
+  const totalProductionCount = productionSessions.reduce((sum, s) => sum + s.mediaCount, 0);
 
   // Build Map<mediaItemId, slot> from entries
   const headshotSlotMap = useMemo(() => {
@@ -1209,9 +1169,10 @@ function PhotosTab({
 
   return (
     <div className="space-y-6">
-      <SectionCard title="Gallery" icon={<ImageIcon size={18} />} badge={photos.length}>
+      {/* Reference Photos */}
+      <SectionCard title="Reference Photos" icon={<ImageIcon size={18} />} badge={photos.length}>
         {photos.length === 0 ? (
-          <EmptyState message="No photos uploaded yet." />
+          <EmptyState message="No reference photos uploaded yet." />
         ) : (
           <JustifiedGrid
             items={photos}
@@ -1243,6 +1204,19 @@ function PhotosTab({
           sessionId={referenceSessionId}
         />
       )}
+
+      {/* Production Photos */}
+      <SectionCard
+        title="Production Photos"
+        icon={<Film size={18} />}
+        badge={totalProductionCount}
+      >
+        {productionSessions.length === 0 ? (
+          <EmptyState message="No production session photos." />
+        ) : (
+          <ProductionPhotoList sessions={productionSessions} />
+        )}
+      </SectionCard>
     </div>
   );
 }
@@ -1266,6 +1240,8 @@ export function PersonDetailTabs({
   calculatedPgrade,
   meanWcp,
   aliasesWithChannels,
+  sessionWorkHistory,
+  productionSessions,
 }: PersonDetailTabsProps) {
   const [activeTab, setActiveTab] = useState<TabId>("overview");
 
@@ -1291,9 +1267,9 @@ export function PersonDetailTabs({
       ? [{ id: "details" as TabId, label: "Details", badge: (categoryCounts?.filter((c) => c.count > 0).length) || undefined }]
       : []),
     { id: "skills" as TabId, label: "Skills", badge: currentState.activeSkills.length || undefined },
-    { id: "career", label: "Career", badge: workHistory.length || undefined },
+    { id: "career", label: "Career", badge: (sessionWorkHistory?.length ?? workHistory.length) || undefined },
     { id: "network", label: "Network", badge: connections.length || undefined },
-    { id: "photos", label: "Photos", badge: photos.length || undefined },
+    { id: "photos", label: "Photos", badge: (photos.length + (productionSessions?.reduce((sum, s) => sum + s.mediaCount, 0) ?? 0)) || undefined },
   ];
 
   return (
@@ -1309,9 +1285,9 @@ export function PersonDetailTabs({
         calculatedPgrade={calculatedPgrade}
         meanWcp={meanWcp}
         kpiCounts={{
-          sets: workHistory.length,
+          sets: sessionWorkHistory?.length ?? workHistory.length,
           labels: affiliations.length,
-          photos: photos.length,
+          photos: photos.length + (productionSessions?.reduce((sum, s) => sum + s.mediaCount, 0) ?? 0),
           connections: connections.length,
         }}
         onAliasesBadgeClick={handleAliasesBadgeClick}
@@ -1433,7 +1409,7 @@ export function PersonDetailTabs({
         {activeTab === "career" && (
           <CareerTab
             person={person}
-            workHistory={workHistory}
+            sessionWorkHistory={sessionWorkHistory ?? []}
             affiliations={affiliations}
           />
         )}
@@ -1460,6 +1436,7 @@ export function PersonDetailTabs({
             referenceSessionId={referenceSessionId}
             filledHeadshotSlots={filledHeadshotSlots}
             headshotSlotEntries={headshotSlotEntries}
+            productionSessions={productionSessions ?? []}
           />
         )}
       </div>

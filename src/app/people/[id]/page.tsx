@@ -6,6 +6,8 @@ import {
   getPersonWithDetails,
   getPersonWorkHistory,
   getPersonConnections,
+  getPersonSessionWorkHistory,
+  getPersonProductionSessions,
   deriveCurrentState,
   deriveAffiliations,
 } from "@/lib/services/person-service";
@@ -29,7 +31,7 @@ type PersonDetailPageProps = {
 export default async function PersonDetailPage({ params }: PersonDetailPageProps) {
   const { id } = await params;
 
-  const [person, workHistory, connections, profileLabels, refSession, headshots, filledSlots, categoryGroups, populatedCounts, skillGroups, skillLevelConfigs, aliasesWithChannels] =
+  const [person, workHistory, connections, profileLabels, refSession, headshots, filledSlots, categoryGroups, populatedCounts, skillGroups, skillLevelConfigs, aliasesWithChannels, sessionWorkHistory, productionSessions] =
     await Promise.all([
       getPersonWithDetails(id),
       getPersonWorkHistory(id),
@@ -43,6 +45,8 @@ export default async function PersonDetailPage({ params }: PersonDetailPageProps
       getAllSkillGroups(),
       getSkillLevelConfigs(),
       getPersonAliases(id),
+      getPersonSessionWorkHistory(id),
+      getPersonProductionSessions(id),
     ]);
 
   if (!person) notFound();
@@ -197,6 +201,8 @@ export default async function PersonDetailPage({ params }: PersonDetailPageProps
         calculatedPgrade={calculatedPgrade}
         meanWcp={meanWcp}
         aliasesWithChannels={aliasesWithChannels}
+        sessionWorkHistory={sessionWorkHistory}
+        productionSessions={productionSessions}
       />
     </div>
   );

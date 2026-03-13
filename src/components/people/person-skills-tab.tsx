@@ -116,6 +116,27 @@ export function PersonSkillsTab({
     }
   }, []);
 
+  const openSkillMedia = useCallback(async (skill: PersonSkillItem, thumbIndex: number) => {
+    // Fetch full gallery items for all events of this skill that have media
+    const eventsWithMedia = skill.events.filter((e) => e.media.length > 0);
+    if (eventsWithMedia.length === 0) return;
+    try {
+      const results = await Promise.all(
+        eventsWithMedia.map((e) =>
+          fetch(`/api/skill-events/${e.id}/media`)
+            .then((r) => r.json())
+            .then((d: { items: GalleryItem[] }) => d.items),
+        ),
+      );
+      const allItems = results.flat();
+      if (allItems.length > 0) {
+        setLightboxState({ items: allItems, initialIndex: Math.min(thumbIndex, allItems.length - 1) });
+      }
+    } catch {
+      // silently fail
+    }
+  }, []);
+
   const grouped = groupSkills(skills);
 
   // Collect all events across skills for the timeline
@@ -215,6 +236,7 @@ export function PersonSkillsTab({
                           personId={personId}
                           onEdit={() => setEditingSkill(skill)}
                           onAddEvent={() => setAddingEventForSkill(skill)}
+                          onOpenSkillMedia={openSkillMedia}
                         />
                       ))}
                     </div>
@@ -427,88 +449,128 @@ export function PersonSkillsTab({
 
 // ── Skill Card (inline sub-component) ────────────────────────────────────────
 
+const SKILL_CARD_MAX_THUMBS = 6;
+
 function SkillCard({
   skill,
   personId,
   onEdit,
   onAddEvent,
+  onOpenSkillMedia,
 }: {
   skill: PersonSkillItem;
   personId: string;
   onEdit: () => void;
   onAddEvent: () => void;
+  onOpenSkillMedia: (skill: PersonSkillItem, thumbIndex: number) => void;
 }) {
+  // Aggregate all media across all events for this skill
+  const allMedia = skill.events.flatMap((e) => e.media);
+
   return (
-    <div className="group flex items-center gap-3 rounded-lg px-3 py-2 transition-colors hover:bg-muted/20">
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-2">
-          <span
-            className="text-sm font-medium"
-            title={skill.definitionDescription ?? undefined}
-          >
-            {skill.name}
-          </span>
-          {skill.level && (
+    <div className="group rounded-lg px-3 py-2 transition-colors hover:bg-muted/20">
+      <div className="flex items-center gap-3">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
             <span
-              className={cn(
-                "inline-flex items-center rounded-full border px-2 py-0 text-[10px] font-medium",
-                SKILL_LEVEL_STYLES[skill.level],
-              )}
+              className="text-sm font-medium"
+              title={skill.definitionDescription ?? undefined}
             >
-              {SKILL_LEVEL_LABEL[skill.level]}
+              {skill.name}
             </span>
+            {skill.level && (
+              <span
+                className={cn(
+                  "inline-flex items-center rounded-full border px-2 py-0 text-[10px] font-medium",
+                  SKILL_LEVEL_STYLES[skill.level],
+                )}
+              >
+                {SKILL_LEVEL_LABEL[skill.level]}
+              </span>
+            )}
+            {skill.definitionPgrade != null && (
+              <span className={cn(
+                "text-[10px] rounded px-1.5 py-0.5 font-medium",
+                skill.definitionPgrade > 0
+                  ? "bg-primary/15 text-primary"
+                  : "bg-muted/50 text-muted-foreground/50",
+              )}>
+                PG {skill.definitionPgrade}
+              </span>
+            )}
+          </div>
+          {skill.evidence && (
+            <p className="mt-0.5 text-xs text-muted-foreground/60 italic">
+              {skill.evidence}
+            </p>
           )}
-          {skill.definitionPgrade != null && (
-            <span className={cn(
-              "text-[10px] rounded px-1.5 py-0.5 font-medium",
-              skill.definitionPgrade > 0
-                ? "bg-primary/15 text-primary"
-                : "bg-muted/50 text-muted-foreground/50",
-            )}>
-              PG {skill.definitionPgrade}
-            </span>
+          {skill.events.length > 0 && (
+            <p className="mt-0.5 text-[10px] text-muted-foreground/50">
+              {skill.events.length} event{skill.events.length !== 1 && "s"}
+              {allMedia.length > 0 && <> · {allMedia.length} photo{allMedia.length !== 1 && "s"}</>}
+            </p>
           )}
         </div>
-        {skill.evidence && (
-          <p className="mt-0.5 text-xs text-muted-foreground/60 italic">
-            {skill.evidence}
-          </p>
-        )}
-        {skill.events.length > 0 && (
-          <p className="mt-0.5 text-[10px] text-muted-foreground/50">
-            {skill.events.length} event{skill.events.length !== 1 && "s"}
-          </p>
-        )}
+
+        {/* Actions */}
+        <div className="invisible flex shrink-0 items-center gap-1 group-hover:visible">
+          <button
+            type="button"
+            onClick={onAddEvent}
+            className="rounded-md p-1 text-muted-foreground transition-colors hover:text-foreground"
+            aria-label="Add event"
+            title="Add event"
+          >
+            <Plus size={12} />
+          </button>
+          <button
+            type="button"
+            onClick={onEdit}
+            className="rounded-md p-1 text-muted-foreground transition-colors hover:text-foreground"
+            aria-label="Edit skill"
+          >
+            <Pencil size={12} />
+          </button>
+          <button
+            type="button"
+            onClick={() => deletePersonSkillAction(skill.id, personId)}
+            className="rounded-md p-1 text-muted-foreground transition-colors hover:text-destructive"
+            aria-label="Delete skill"
+          >
+            <Trash2 size={12} />
+          </button>
+        </div>
       </div>
 
-      {/* Actions */}
-      <div className="invisible flex shrink-0 items-center gap-1 group-hover:visible">
-        <button
-          type="button"
-          onClick={onAddEvent}
-          className="rounded-md p-1 text-muted-foreground transition-colors hover:text-foreground"
-          aria-label="Add event"
-          title="Add event"
-        >
-          <Plus size={12} />
-        </button>
-        <button
-          type="button"
-          onClick={onEdit}
-          className="rounded-md p-1 text-muted-foreground transition-colors hover:text-foreground"
-          aria-label="Edit skill"
-        >
-          <Pencil size={12} />
-        </button>
-        <button
-          type="button"
-          onClick={() => deletePersonSkillAction(skill.id, personId)}
-          className="rounded-md p-1 text-muted-foreground transition-colors hover:text-destructive"
-          aria-label="Delete skill"
-        >
-          <Trash2 size={12} />
-        </button>
-      </div>
+      {/* Aggregated media thumbnails */}
+      {allMedia.length > 0 && (
+        <div className="mt-1.5 flex items-center gap-1">
+          {allMedia.slice(0, SKILL_CARD_MAX_THUMBS).map((m, i) => (
+            <button
+              key={m.id}
+              type="button"
+              onClick={() => onOpenSkillMedia(skill, i)}
+              className="h-9 w-9 shrink-0 overflow-hidden rounded border border-white/15 transition-all hover:border-white/40 hover:ring-1 hover:ring-primary/30"
+            >
+              <img
+                src={m.thumbUrl}
+                alt=""
+                className="h-full w-full object-cover"
+                loading="lazy"
+              />
+            </button>
+          ))}
+          {allMedia.length > SKILL_CARD_MAX_THUMBS && (
+            <button
+              type="button"
+              onClick={() => onOpenSkillMedia(skill, SKILL_CARD_MAX_THUMBS)}
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded border border-white/15 bg-muted/30 text-[10px] font-medium text-muted-foreground transition-colors hover:border-white/30 hover:text-foreground"
+            >
+              +{allMedia.length - SKILL_CARD_MAX_THUMBS}
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }

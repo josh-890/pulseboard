@@ -95,6 +95,39 @@ export function toGalleryItem(
 }
 
 
+// ─── Session gallery (production photos) ────────────────────────────────────
+
+export async function getSessionMediaGallery(sessionId: string): Promise<GalleryItem[]> {
+  const items = await prisma.mediaItem.findMany({
+    where: { sessionId },
+    orderBy: { createdAt: "asc" },
+  });
+
+  const results: GalleryItem[] = [];
+  for (const item of items) {
+    const variants = (item.variants ?? {}) as PhotoVariants;
+    if (!variants.original && !item.fileRef) continue;
+
+    results.push({
+      id: item.id,
+      filename: item.filename,
+      mimeType: item.mimeType,
+      originalWidth: item.originalWidth,
+      originalHeight: item.originalHeight,
+      caption: item.caption,
+      createdAt: item.createdAt,
+      urls: buildPhotoUrls(variants, item.fileRef),
+      focalX: item.focalX ?? null,
+      focalY: item.focalY ?? null,
+      tags: item.tags,
+      isFavorite: false,
+      sortOrder: 0,
+      isCover: false,
+    });
+  }
+  return results;
+}
+
 // ─── Set bridge (existing) ───────────────────────────────────────────────────
 
 type CreateMediaItemInput = {
