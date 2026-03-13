@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 
+const CDN = "https://hatscripts.github.io/circle-flags/flags";
+
 type FlagImageProps = {
   code: string;
   size?: number;
@@ -31,7 +33,7 @@ export function FlagImage({ code, size = 24, className }: FlagImageProps) {
   return (
     // eslint-disable-next-line @next/next/no-img-element
     <img
-      src={`/api/flags/${lowerCode}`}
+      src={`${CDN}/${lowerCode}.svg`}
       alt={`Flag of ${code.toUpperCase()}`}
       width={size}
       height={size}
