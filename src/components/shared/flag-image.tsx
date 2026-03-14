@@ -3,7 +3,13 @@
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 
-const CDN = "https://hatscripts.github.io/circle-flags/flags";
+function getFlagSrc(code: string): string {
+  const minioUrl =
+    typeof window !== "undefined"
+      ? (window as unknown as Record<string, string>).__MINIO_URL__
+      : process.env.NEXT_PUBLIC_MINIO_URL;
+  return `${minioUrl}/flags/${code.toLowerCase()}.svg`;
+}
 
 type FlagImageProps = {
   code: string;
@@ -12,7 +18,6 @@ type FlagImageProps = {
 };
 
 export function FlagImage({ code, size = 24, className }: FlagImageProps) {
-  const lowerCode = code.toLowerCase();
   const [failed, setFailed] = useState(false);
 
   if (failed) {
@@ -33,7 +38,7 @@ export function FlagImage({ code, size = 24, className }: FlagImageProps) {
   return (
     // eslint-disable-next-line @next/next/no-img-element
     <img
-      src={`${CDN}/${lowerCode}.svg`}
+      src={getFlagSrc(code)}
       alt={`Flag of ${code.toUpperCase()}`}
       width={size}
       height={size}

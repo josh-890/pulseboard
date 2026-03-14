@@ -26,6 +26,13 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `window.__MINIO_URL__=${JSON.stringify(process.env.NEXT_PUBLIC_MINIO_URL ?? "")};`,
+          }}
+        />
+      </head>
       <body className={`${inter.variable} font-sans antialiased`}>
         <ThemeProvider>
           <PaletteProvider>
