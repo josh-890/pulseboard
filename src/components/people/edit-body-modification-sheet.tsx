@@ -3,6 +3,8 @@
 import { useCallback, useState, useTransition } from "react";
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { BodyRegionCompact } from "@/components/shared/body-region-picker";
+import { getRegionLabel } from "@/lib/constants/body-regions";
 import type { BodyModificationType, BodyModificationStatus } from "@/generated/prisma/client";
 import type { BodyModificationWithEvents } from "@/lib/types";
 import {
@@ -20,9 +22,9 @@ type EditBodyModificationSheetProps = {
 export function EditBodyModificationSheet({ personId, modification, onClose }: EditBodyModificationSheetProps) {
   const [isPending, startTransition] = useTransition();
   const [type, setType] = useState<BodyModificationType>(modification.type);
-  const [bodyRegion, setBodyRegion] = useState(modification.bodyRegion);
-  const [side, setSide] = useState(modification.side ?? "");
-  const [position, setPosition] = useState(modification.position ?? "");
+  const [bodyRegions, setBodyRegions] = useState<string[]>(
+    modification.bodyRegions.length > 0 ? modification.bodyRegions : [],
+  );
   const [description, setDescription] = useState(modification.description ?? "");
   const [material, setMaterial] = useState(modification.material ?? "");
   const [gauge, setGauge] = useState(modification.gauge ?? "");
@@ -30,24 +32,31 @@ export function EditBodyModificationSheet({ personId, modification, onClose }: E
   const [error, setError] = useState<string | null>(null);
 
   const handleSubmit = useCallback(() => {
-    if (!bodyRegion.trim()) { setError("Body region is required."); return; }
+    if (bodyRegions.length === 0) {
+      setError("At least one body region is required.");
+      return;
+    }
     startTransition(async () => {
       setError(null);
+      const primaryRegion = bodyRegions[0];
       const result = await updateBodyModificationAction(modification.id, personId, {
-        type, bodyRegion: bodyRegion.trim(),
-        side: side.trim() || undefined, position: position.trim() || undefined,
-        description: description.trim() || undefined, material: material.trim() || undefined,
-        gauge: gauge.trim() || undefined, status,
+        type,
+        bodyRegion: getRegionLabel(primaryRegion),
+        bodyRegions,
+        description: description.trim() || undefined,
+        material: material.trim() || undefined,
+        gauge: gauge.trim() || undefined,
+        status,
       });
       if (!result.success) { setError(result.error ?? "Failed to update."); return; }
       onClose();
     });
-  }, [modification.id, personId, type, bodyRegion, side, position, description, material, gauge, status, onClose]);
+  }, [modification.id, personId, type, bodyRegions, description, material, gauge, status, onClose]);
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end">
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative w-full max-w-md bg-background border-l border-white/15 shadow-2xl overflow-y-auto">
+      <div className="relative w-full max-w-lg bg-background border-l border-white/15 shadow-2xl overflow-y-auto">
         <div className="sticky top-0 z-10 flex items-center justify-between border-b border-white/15 bg-background px-6 py-4">
           <h2 className="text-lg font-semibold">Edit Body Modification</h2>
           <button type="button" onClick={onClose} className="rounded-md p-1 text-muted-foreground hover:text-foreground"><X size={18} /></button>
@@ -80,23 +89,14 @@ export function EditBodyModificationSheet({ personId, modification, onClose }: E
             </div>
           </div>
 
+          {/* Body Region Picker */}
           <div>
             <label className="mb-1.5 block text-sm font-medium">Body Region</label>
-            <input type="text" value={bodyRegion} onChange={(e) => setBodyRegion(e.target.value)}
-              className="w-full rounded-lg border border-white/15 bg-muted/30 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring" />
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="mb-1.5 block text-sm font-medium">Side</label>
-              <input type="text" value={side} onChange={(e) => setSide(e.target.value)}
-                className="w-full rounded-lg border border-white/15 bg-muted/30 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring" />
-            </div>
-            <div>
-              <label className="mb-1.5 block text-sm font-medium">Position</label>
-              <input type="text" value={position} onChange={(e) => setPosition(e.target.value)}
-                className="w-full rounded-lg border border-white/15 bg-muted/30 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring" />
-            </div>
+            <BodyRegionCompact
+              value={bodyRegions}
+              onChange={setBodyRegions}
+              mode="single"
+            />
           </div>
 
           <div>
@@ -120,7 +120,7 @@ export function EditBodyModificationSheet({ personId, modification, onClose }: E
 
           {error && <p className="text-sm text-red-500">{error}</p>}
 
-          <button type="button" onClick={handleSubmit} disabled={isPending || !bodyRegion.trim()}
+          <button type="button" onClick={handleSubmit} disabled={isPending || bodyRegions.length === 0}
             className="w-full rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50">
             {isPending ? "Saving..." : "Update Body Modification"}
           </button>

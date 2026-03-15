@@ -4,6 +4,7 @@ import Image from "next/image";
 import { cn } from "@/lib/utils";
 import type { BodyMarkWithEvents } from "@/lib/types";
 import { BODY_MARK_TYPE_STYLES, BODY_MARK_STATUS_STYLES, BODY_MARK_EVENT_STYLES } from "@/lib/constants/body";
+import { BodyRegionChips } from "@/components/shared/body-region-picker";
 import { EntityEventTimeline } from "@/components/people/entity-event-timeline";
 import { Pencil, Trash2 } from "lucide-react";
 
@@ -33,7 +34,11 @@ export function BodyMarkCard({
   onAddEvent,
   isPending,
 }: BodyMarkCardProps) {
-  const locationParts = [mark.bodyRegion, mark.side, mark.position].filter(Boolean);
+  // Fall back to free-text display if no structured regions
+  const hasStructuredRegions = mark.bodyRegions.length > 0;
+  const locationParts = hasStructuredRegions
+    ? []
+    : [mark.bodyRegion, mark.side, mark.position].filter(Boolean);
 
   return (
     <div className="group rounded-xl border border-white/10 bg-card/40 p-4">
@@ -46,9 +51,15 @@ export function BodyMarkCard({
         >
           {mark.type}
         </span>
-        <span className="text-sm font-medium text-foreground/80">
-          {locationParts.join(" · ")}
-        </span>
+
+        {hasStructuredRegions ? (
+          <BodyRegionChips regions={mark.bodyRegions} compact />
+        ) : (
+          <span className="text-sm font-medium text-foreground/80">
+            {locationParts.join(" · ")}
+          </span>
+        )}
+
         {mark.status !== "present" && (
           <span
             className={cn(

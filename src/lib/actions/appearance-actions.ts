@@ -47,6 +47,7 @@ export async function createBodyMarkAction(
   data: {
     type: string;
     bodyRegion: string;
+    bodyRegions?: string[];
     side?: string;
     position?: string;
     description?: string;
@@ -69,6 +70,7 @@ export async function createBodyMarkAction(
           personId,
           type: data.type as BodyMarkType,
           bodyRegion: data.bodyRegion,
+          bodyRegions: data.bodyRegions ?? [],
           side: data.side,
           position: data.position,
           description: data.description,
@@ -101,6 +103,7 @@ export async function updateBodyMarkAction(
   data: {
     type?: string;
     bodyRegion?: string;
+    bodyRegions?: string[];
     side?: string;
     position?: string;
     description?: string;
@@ -114,6 +117,7 @@ export async function updateBodyMarkAction(
     await updateBodyMarkRecord(id, {
       type: data.type as BodyMarkType | undefined,
       bodyRegion: data.bodyRegion,
+      bodyRegions: data.bodyRegions,
       side: data.side,
       position: data.position,
       description: data.description,
@@ -189,6 +193,7 @@ export async function createBodyModificationAction(
   data: {
     type: string;
     bodyRegion: string;
+    bodyRegions?: string[];
     side?: string;
     position?: string;
     description?: string;
@@ -210,6 +215,7 @@ export async function createBodyModificationAction(
           personId,
           type: data.type as BodyModificationType,
           bodyRegion: data.bodyRegion,
+          bodyRegions: data.bodyRegions ?? [],
           side: data.side,
           position: data.position,
           description: data.description,
@@ -241,6 +247,7 @@ export async function updateBodyModificationAction(
   data: {
     type?: string;
     bodyRegion?: string;
+    bodyRegions?: string[];
     side?: string;
     position?: string;
     description?: string;
@@ -254,6 +261,7 @@ export async function updateBodyModificationAction(
       id,
       type: data.type as BodyModificationType | undefined,
       bodyRegion: data.bodyRegion,
+      bodyRegions: data.bodyRegions,
       side: data.side,
       position: data.position,
       description: data.description,
@@ -328,6 +336,7 @@ export async function createCosmeticProcedureAction(
   data: {
     type: string;
     bodyRegion: string;
+    bodyRegions?: string[];
     description?: string;
     provider?: string;
     status?: string;
@@ -346,6 +355,7 @@ export async function createCosmeticProcedureAction(
           personId,
           type: data.type,
           bodyRegion: data.bodyRegion,
+          bodyRegions: data.bodyRegions ?? [],
           description: data.description,
           provider: data.provider,
           status: data.status ?? "completed",
@@ -374,6 +384,7 @@ export async function updateCosmeticProcedureAction(
   data: {
     type?: string;
     bodyRegion?: string;
+    bodyRegions?: string[];
     description?: string;
     provider?: string;
     status?: string;

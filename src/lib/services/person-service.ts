@@ -15,6 +15,7 @@ import type {
   SessionThumbnail,
 } from "@/lib/types";
 import type { PersonStatus, Prisma } from "@/generated/prisma/client";
+import { expandRegionFilter } from "@/lib/constants/body-regions";
 import type { CreatePersonInput, UpdatePersonInput } from "@/lib/validations/person";
 import {
   cascadeDeleteSession,
@@ -75,6 +76,8 @@ export type PersonFilters = {
   naturalHairColor?: string;
   bodyType?: string;
   ethnicity?: string;
+  bodyRegions?: string[];
+  bodyRegionMatch?: "any" | "all";
   sort?: PersonSort;
 };
 
@@ -206,6 +209,7 @@ export async function getPersonBodyMarks(personId: string): Promise<BodyMarkWith
     id: m.id,
     type: m.type,
     bodyRegion: m.bodyRegion,
+    bodyRegions: m.bodyRegions,
     side: m.side,
     position: m.position,
     description: m.description,
@@ -597,6 +601,7 @@ export function deriveCurrentState(
         id: mark.id,
         type: mark.type,
         bodyRegion: mark.bodyRegion,
+        bodyRegions: mark.bodyRegions,
         side: mark.side,
         position: mark.position,
         description: mark.description,
@@ -616,6 +621,7 @@ export function deriveCurrentState(
       id: mark.id,
       type: mark.type,
       bodyRegion: mark.bodyRegion,
+      bodyRegions: mark.bodyRegions,
       side: mark.side,
       position: mark.position,
       description: mark.description,
@@ -648,6 +654,7 @@ export function deriveCurrentState(
         id: mod.id,
         type: mod.type,
         bodyRegion: mod.bodyRegion,
+        bodyRegions: mod.bodyRegions,
         side: mod.side,
         position: mod.position,
         description: mod.description,
@@ -666,6 +673,7 @@ export function deriveCurrentState(
       id: mod.id,
       type: mod.type,
       bodyRegion: mod.bodyRegion,
+      bodyRegions: mod.bodyRegions,
       side: mod.side,
       position: mod.position,
       description: mod.description,
@@ -697,6 +705,7 @@ export function deriveCurrentState(
         id: proc.id,
         type: proc.type,
         bodyRegion: proc.bodyRegion,
+        bodyRegions: proc.bodyRegions,
         description: proc.description,
         provider: proc.provider,
         status: proc.status,
@@ -712,6 +721,7 @@ export function deriveCurrentState(
       id: proc.id,
       type: proc.type,
       bodyRegion: proc.bodyRegion,
+      bodyRegions: proc.bodyRegions,
       description: proc.description,
       provider: proc.provider,
       status: proc.status,
@@ -1155,7 +1165,7 @@ export async function getPersonsPaginated(
   cursor?: string,
   limit = 50,
 ): Promise<PaginatedPersons> {
-  const { q, status, naturalHairColor, bodyType, ethnicity, sort } = filters;
+  const { q, status, naturalHairColor, bodyType, ethnicity, bodyRegions, sort } = filters;
 
   const where: Prisma.PersonWhereInput = {};
 
@@ -1173,6 +1183,22 @@ export async function getPersonsPaginated(
 
   if (ethnicity) {
     where.ethnicity = { equals: ethnicity, mode: "insensitive" };
+  }
+
+  // Body region filter: find persons who have body marks/modifications/procedures
+  // in the selected regions. Expands selected IDs to include ancestors and
+  // descendants for hierarchical matching (e.g. selecting "arm.upper.outer_l"
+  // also matches records stored as "arm_l").
+  if (bodyRegions && bodyRegions.length > 0) {
+    const expanded = expandRegionFilter(bodyRegions);
+    const regionCondition: Prisma.PersonWhereInput = {
+      OR: [
+        { bodyMarks: { some: { bodyRegions: { hasSome: expanded } } } },
+        { bodyModifications: { some: { bodyRegions: { hasSome: expanded } } } },
+        { cosmeticProcedures: { some: { bodyRegions: { hasSome: expanded } } } },
+      ],
+    };
+    where.AND = [regionCondition];
   }
 
   if (q) {

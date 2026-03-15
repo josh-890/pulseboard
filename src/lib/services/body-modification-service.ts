@@ -43,6 +43,7 @@ export async function updateBodyModificationRecord(id: string, data: UpdateBodyM
     data: {
       type: data.type,
       bodyRegion: data.bodyRegion,
+      bodyRegions: data.bodyRegions,
       side: data.side,
       position: data.position,
       description: data.description,

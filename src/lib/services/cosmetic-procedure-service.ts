@@ -43,6 +43,7 @@ export async function updateCosmeticProcedureRecord(id: string, data: UpdateCosm
     data: {
       type: data.type,
       bodyRegion: data.bodyRegion,
+      bodyRegions: data.bodyRegions,
       description: data.description,
       provider: data.provider,
       status: data.status,

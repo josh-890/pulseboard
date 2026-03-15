@@ -14,6 +14,7 @@ import { PersonList } from "@/components/people/person-list";
 import { BrowserToolbar } from "@/components/shared/browser-toolbar";
 import type { BrowserToolbarConfig, FilterGroup } from "@/components/shared/browser-toolbar";
 import { HeadshotSlotSelector } from "@/components/people/headshot-slot-selector";
+import { BodyRegionFilterWrapper } from "@/components/people/body-region-filter-wrapper";
 import { AddPersonSheet } from "@/components/people/add-person-sheet";
 
 export const dynamic = "force-dynamic";
@@ -28,6 +29,8 @@ type PeoplePageProps = {
     hairColor?: string;
     bodyType?: string;
     ethnicity?: string;
+    bodyRegions?: string;
+    bodyRegionMatch?: string;
     loaded?: string;
     slot?: string;
     sort?: string;
@@ -61,7 +64,8 @@ const SORT_OPTIONS = [
 
 export default async function PeoplePage({ searchParams }: PeoplePageProps) {
   const {
-    q, status, hairColor, bodyType, ethnicity, loaded,
+    q, status, hairColor, bodyType, ethnicity, bodyRegions: bodyRegionsParam,
+    bodyRegionMatch: bodyRegionMatchParam, loaded,
     slot: slotParam, sort: sortParam,
   } = await searchParams;
 
@@ -74,6 +78,9 @@ export default async function PeoplePage({ searchParams }: PeoplePageProps) {
     status && isPersonStatus(status) ? status : undefined;
   const resolvedSort =
     sortParam && isPersonSort(sortParam) ? sortParam : undefined;
+  const resolvedBodyRegions = bodyRegionsParam?.split(",").filter(Boolean);
+  const resolvedBodyRegionMatch =
+    bodyRegionMatchParam === "all" ? ("all" as const) : ("any" as const);
 
   const filters = {
     q: q?.trim() || undefined,
@@ -81,6 +88,8 @@ export default async function PeoplePage({ searchParams }: PeoplePageProps) {
     naturalHairColor: hairColor || undefined,
     bodyType: bodyType || undefined,
     ethnicity: ethnicity || undefined,
+    bodyRegions: resolvedBodyRegions?.length ? resolvedBodyRegions : undefined,
+    bodyRegionMatch: resolvedBodyRegionMatch,
     sort: resolvedSort,
   };
 
@@ -181,6 +190,7 @@ export default async function PeoplePage({ searchParams }: PeoplePageProps) {
       {/* Unified toolbar */}
       <Suspense>
         <BrowserToolbar config={toolbarConfig}>
+          <BodyRegionFilterWrapper />
           <HeadshotSlotSelector slotLabels={slotLabels} />
         </BrowserToolbar>
       </Suspense>

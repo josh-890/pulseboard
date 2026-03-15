@@ -312,6 +312,7 @@ model BodyMark {
   person      Person         @relation(fields: [personId], references: [id])
   type        BodyMarkType
   bodyRegion  String
+  bodyRegions String[]
   side        String?
   position    String?
   description String?
@@ -326,6 +327,7 @@ model BodyMark {
 
   @@index([personId])
   @@index([status])
+  @@index([bodyRegions], type: Gin)
 }
 
 model BodyMarkEvent {
@@ -415,6 +417,7 @@ model BodyModification {
   person      Person  @relation(fields: [personId], references: [id])
   type        BodyModificationType
   bodyRegion  String
+  bodyRegions String[]
   side        String?
   position    String?
   description String?
@@ -429,6 +432,7 @@ model BodyModification {
   @@index([personId])
   @@index([type])
   @@index([status])
+  @@index([bodyRegions], type: Gin)
 }
 
 model BodyModificationEvent {
@@ -452,6 +456,7 @@ model CosmeticProcedure {
   person      Person  @relation(fields: [personId], references: [id])
   type        String
   bodyRegion  String
+  bodyRegions String[]
   description String?
   provider    String?
   status      String  @default("completed")
@@ -461,6 +466,7 @@ model CosmeticProcedure {
   personMediaLinks PersonMediaLink[]
 
   @@index([personId])
+  @@index([bodyRegions], type: Gin)
 }
 
 model CosmeticProcedureEvent {
@@ -865,6 +871,7 @@ model PersonMediaLink {
 
   slot                 Int?
   bodyRegion           String?
+  bodyRegions          String[]
   bodyMarkId           String?
   bodyMark             BodyMark?           @relation(fields: [bodyMarkId], references: [id])
   bodyModificationId   String?

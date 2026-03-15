@@ -3,6 +3,7 @@
 import Image from "next/image";
 import type { CosmeticProcedureWithEvents } from "@/lib/types";
 import { COSMETIC_PROCEDURE_EVENT_STYLES } from "@/lib/constants/body";
+import { BodyRegionChips } from "@/components/shared/body-region-picker";
 import { EntityEventTimeline } from "@/components/people/entity-event-timeline";
 import { Pencil, Trash2 } from "lucide-react";
 
@@ -38,9 +39,13 @@ export function CosmeticProcedureCard({
         <span className="inline-flex items-center rounded-full border border-purple-500/30 bg-purple-500/15 px-2.5 py-0.5 text-xs font-medium capitalize text-purple-600 dark:text-purple-400">
           {procedure.type}
         </span>
-        <span className="text-sm font-medium text-foreground/80">
-          {procedure.bodyRegion}
-        </span>
+        {procedure.bodyRegions.length > 0 ? (
+          <BodyRegionChips regions={procedure.bodyRegions} compact />
+        ) : (
+          <span className="text-sm font-medium text-foreground/80">
+            {procedure.bodyRegion}
+          </span>
+        )}
         {procedure.status !== "completed" && (
           <span className="inline-flex items-center rounded-full border border-white/15 bg-muted/50 px-2 py-0.5 text-xs font-medium capitalize text-muted-foreground">
             {procedure.status}

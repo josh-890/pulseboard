@@ -70,6 +70,8 @@
   --sidebar-accent-foreground: #3730a3;
   --sidebar-border: rgba(255, 255, 255, 0.2);
   --sidebar-ring: #6366f1;
+  --body-region-base-fill: rgba(100, 116, 139, 0.1);
+  --body-region-base-stroke: rgba(100, 116, 139, 0.3);
 }
 
 .dark {
@@ -99,6 +101,8 @@
   --sidebar-accent-foreground: #c7d2fe;
   --sidebar-border: rgba(148, 163, 184, 0.2);
   --sidebar-ring: #818cf8;
+  --body-region-base-fill: rgba(255, 255, 255, 0.06);
+  --body-region-base-stroke: rgba(255, 255, 255, 0.15);
 }
 
 @layer base {

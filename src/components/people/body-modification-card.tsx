@@ -8,6 +8,7 @@ import {
   BODY_MODIFICATION_STATUS_STYLES,
   BODY_MODIFICATION_EVENT_STYLES,
 } from "@/lib/constants/body";
+import { BodyRegionChips } from "@/components/shared/body-region-picker";
 import { EntityEventTimeline } from "@/components/people/entity-event-timeline";
 import { Pencil, Trash2 } from "lucide-react";
 
@@ -37,7 +38,10 @@ export function BodyModificationCard({
   onAddEvent,
   isPending,
 }: BodyModificationCardProps) {
-  const locationParts = [modification.bodyRegion, modification.side, modification.position].filter(Boolean);
+  const hasStructuredRegions = modification.bodyRegions.length > 0;
+  const locationParts = hasStructuredRegions
+    ? []
+    : [modification.bodyRegion, modification.side, modification.position].filter(Boolean);
 
   return (
     <div className="group rounded-xl border border-white/10 bg-card/40 p-4">
@@ -50,9 +54,13 @@ export function BodyModificationCard({
         >
           {modification.type}
         </span>
-        <span className="text-sm font-medium text-foreground/80">
-          {locationParts.join(" · ")}
-        </span>
+        {hasStructuredRegions ? (
+          <BodyRegionChips regions={modification.bodyRegions} compact />
+        ) : (
+          <span className="text-sm font-medium text-foreground/80">
+            {locationParts.join(" · ")}
+          </span>
+        )}
         {modification.status !== "present" && (
           <span
             className={cn(

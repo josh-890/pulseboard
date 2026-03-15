@@ -73,6 +73,7 @@ export type BodyMarkWithEvents = {
   id: string;
   type: import("@/generated/prisma/client").BodyMarkType;
   bodyRegion: string;
+  bodyRegions: string[];
   side: string | null;
   position: string | null;
   description: string | null;
@@ -92,6 +93,7 @@ export type BodyModificationWithEvents = {
   id: string;
   type: import("@/generated/prisma/client").BodyModificationType;
   bodyRegion: string;
+  bodyRegions: string[];
   side: string | null;
   position: string | null;
   description: string | null;
@@ -110,6 +112,7 @@ export type CosmeticProcedureWithEvents = {
   id: string;
   type: string;
   bodyRegion: string;
+  bodyRegions: string[];
   description: string | null;
   provider: string | null;
   status: string;
