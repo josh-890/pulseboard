@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useMemo, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { cn, computeAge, formatPartialDate } from "@/lib/utils";
 import type { getPersonWithDetails } from "@/lib/services/person-service";
 import type {
@@ -1010,8 +1011,14 @@ function AppearanceTab({
   categories?: CategoryWithGroup[];
   referenceSessionId?: string;
 }) {
+  const router = useRouter();
   const [openState, setOpenState] = useState<AppearanceOpenState>(null);
   const [isPending, startTransition] = useTransition();
+
+  const handleSheetClose = useCallback(() => {
+    setOpenState(null);
+    router.refresh();
+  }, [router]);
 
   const hasStatic = person.height || person.eyeColor || person.naturalHairColor || person.bodyType || person.measurements;
   const hasComputed = currentState.currentHairColor || currentState.weight !== null || currentState.build || currentState.visionAids || currentState.fitnessLevel;
@@ -1242,13 +1249,13 @@ function AppearanceTab({
 
       {/* Sheets & Dialogs */}
       {openState === "physicalChange" && (
-        <RecordPhysicalChangeSheet personId={person.id} onClose={() => setOpenState(null)} />
+        <RecordPhysicalChangeSheet personId={person.id} onClose={handleSheetClose} />
       )}
       {openState === "addBodyMark" && (
-        <AddBodyMarkSheet personId={person.id} referenceSessionId={referenceSessionId} categoryId={findCategoryForEntity("BodyMark")?.id} onClose={() => setOpenState(null)} />
+        <AddBodyMarkSheet personId={person.id} referenceSessionId={referenceSessionId} categoryId={findCategoryForEntity("BodyMark")?.id} onClose={handleSheetClose} />
       )}
       {typeof openState === "object" && openState?.type === "editBodyMark" && (
-        <EditBodyMarkSheet personId={person.id} mark={openState.mark} referenceSessionId={referenceSessionId} categoryId={findCategoryForEntity("BodyMark")?.id} existingPhotos={entityMedia?.[openState.mark.id]} onClose={() => setOpenState(null)} />
+        <EditBodyMarkSheet personId={person.id} mark={openState.mark} referenceSessionId={referenceSessionId} categoryId={findCategoryForEntity("BodyMark")?.id} existingPhotos={entityMedia?.[openState.mark.id]} onClose={handleSheetClose} />
       )}
       {typeof openState === "object" && openState?.type === "addBodyMarkEvent" && (
         <AddBodyMarkEventDialog
@@ -1256,14 +1263,14 @@ function AppearanceTab({
           bodyMarkId={openState.markId}
           markLabel={openState.markLabel}
           personas={personas}
-          onClose={() => setOpenState(null)}
+          onClose={handleSheetClose}
         />
       )}
       {openState === "addBodyMod" && (
-        <AddBodyModificationSheet personId={person.id} referenceSessionId={referenceSessionId} categoryId={findCategoryForEntity("BodyModification")?.id} onClose={() => setOpenState(null)} />
+        <AddBodyModificationSheet personId={person.id} referenceSessionId={referenceSessionId} categoryId={findCategoryForEntity("BodyModification")?.id} onClose={handleSheetClose} />
       )}
       {typeof openState === "object" && openState?.type === "editBodyMod" && (
-        <EditBodyModificationSheet personId={person.id} modification={openState.modification} referenceSessionId={referenceSessionId} categoryId={findCategoryForEntity("BodyModification")?.id} existingPhotos={entityMedia?.[openState.modification.id]} onClose={() => setOpenState(null)} />
+        <EditBodyModificationSheet personId={person.id} modification={openState.modification} referenceSessionId={referenceSessionId} categoryId={findCategoryForEntity("BodyModification")?.id} existingPhotos={entityMedia?.[openState.modification.id]} onClose={handleSheetClose} />
       )}
       {typeof openState === "object" && openState?.type === "addBodyModEvent" && (
         <AddBodyModificationEventDialog
@@ -1271,14 +1278,14 @@ function AppearanceTab({
           bodyModificationId={openState.modId}
           modificationLabel={openState.modLabel}
           personas={personas}
-          onClose={() => setOpenState(null)}
+          onClose={handleSheetClose}
         />
       )}
       {openState === "addCosmProc" && (
-        <AddCosmeticProcedureSheet personId={person.id} referenceSessionId={referenceSessionId} categoryId={findCategoryForEntity("CosmeticProcedure")?.id} onClose={() => setOpenState(null)} />
+        <AddCosmeticProcedureSheet personId={person.id} referenceSessionId={referenceSessionId} categoryId={findCategoryForEntity("CosmeticProcedure")?.id} onClose={handleSheetClose} />
       )}
       {typeof openState === "object" && openState?.type === "editCosmProc" && (
-        <EditCosmeticProcedureSheet personId={person.id} procedure={openState.procedure} referenceSessionId={referenceSessionId} categoryId={findCategoryForEntity("CosmeticProcedure")?.id} existingPhotos={entityMedia?.[openState.procedure.id]} onClose={() => setOpenState(null)} />
+        <EditCosmeticProcedureSheet personId={person.id} procedure={openState.procedure} referenceSessionId={referenceSessionId} categoryId={findCategoryForEntity("CosmeticProcedure")?.id} existingPhotos={entityMedia?.[openState.procedure.id]} onClose={handleSheetClose} />
       )}
       {typeof openState === "object" && openState?.type === "addCosmProcEvent" && (
         <AddCosmeticProcedureEventDialog
@@ -1286,7 +1293,7 @@ function AppearanceTab({
           cosmeticProcedureId={openState.procId}
           procedureLabel={openState.procLabel}
           personas={personas}
-          onClose={() => setOpenState(null)}
+          onClose={handleSheetClose}
         />
       )}
       {typeof openState === "object" && openState?.type === "manageEntityPhotos" && pickerCategory && referenceSessionId && (
@@ -1297,8 +1304,8 @@ function AppearanceTab({
           entities={pickerEntities}
           preselectedEntityId={openState.entityId}
           open
-          onOpenChange={(open) => { if (!open) setOpenState(null); }}
-          onLinked={() => { /* page will revalidate via router.refresh triggered by the sheet */ }}
+          onOpenChange={(open) => { if (!open) handleSheetClose(); }}
+          onLinked={() => { router.refresh(); }}
         />
       )}
     </>
