@@ -7,6 +7,14 @@ import { Front } from "./svg/front";
 import { Back } from "./svg/back";
 import { RegionPopover } from "./region-popover";
 
+function getBodyImageUrl(side: string): string {
+  const minioUrl =
+    typeof window !== "undefined"
+      ? (window as unknown as Record<string, string>).__MINIO_URL__
+      : process.env.NEXT_PUBLIC_MINIO_URL;
+  return `${minioUrl}/body/${side}.png`;
+}
+
 type BodyOverviewProps = {
   side: BodySide;
   selected: string[];
@@ -80,7 +88,7 @@ export function BodyOverview({
       >
         {/* PNG body silhouette background */}
         <image
-          href={`/body/${side}.png`}
+          href={getBodyImageUrl(side)}
           x={0}
           y={0}
           width={260}
