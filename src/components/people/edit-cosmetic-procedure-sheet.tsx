@@ -3,17 +3,27 @@
 import { useCallback, useState, useTransition } from "react";
 import { X } from "lucide-react";
 import { BodyRegionCompact } from "@/components/shared/body-region-picker";
+import {
+  InlineUploadZone,
+  cleanupPendingFiles,
+  uploadAndLinkFiles,
+} from "@/components/shared/inline-upload-zone";
+import type { PendingFile } from "@/components/shared/inline-upload-zone";
 import { getRegionLabel } from "@/lib/constants/body-regions";
 import type { CosmeticProcedureWithEvents } from "@/lib/types";
 import { updateCosmeticProcedureAction } from "@/lib/actions/appearance-actions";
+import type { EntityMediaThumbnail } from "@/lib/services/media-service";
 
 type EditCosmeticProcedureSheetProps = {
   personId: string;
   procedure: CosmeticProcedureWithEvents;
+  referenceSessionId?: string;
+  categoryId?: string;
+  existingPhotos?: EntityMediaThumbnail[];
   onClose: () => void;
 };
 
-export function EditCosmeticProcedureSheet({ personId, procedure, onClose }: EditCosmeticProcedureSheetProps) {
+export function EditCosmeticProcedureSheet({ personId, procedure, referenceSessionId, categoryId, existingPhotos, onClose }: EditCosmeticProcedureSheetProps) {
   const [isPending, startTransition] = useTransition();
   const [type, setType] = useState(procedure.type);
   const [bodyRegions, setBodyRegions] = useState<string[]>(
@@ -23,6 +33,7 @@ export function EditCosmeticProcedureSheet({ personId, procedure, onClose }: Edi
   const [provider, setProvider] = useState(procedure.provider ?? "");
   const [status, setStatus] = useState(procedure.status);
   const [error, setError] = useState<string | null>(null);
+  const [pendingFiles, setPendingFiles] = useState<PendingFile[]>([]);
 
   const handleSubmit = useCallback(() => {
     if (!type.trim()) { setError("Type is required."); return; }
@@ -39,9 +50,20 @@ export function EditCosmeticProcedureSheet({ personId, procedure, onClose }: Edi
         status: status.trim() || undefined,
       });
       if (!result.success) { setError(result.error ?? "Failed to update."); return; }
+      if (pendingFiles.length > 0 && referenceSessionId && categoryId) {
+        await uploadAndLinkFiles(
+          pendingFiles,
+          referenceSessionId,
+          personId,
+          categoryId,
+          "cosmeticProcedureId",
+          procedure.id,
+        );
+        cleanupPendingFiles(pendingFiles);
+      }
       onClose();
     });
-  }, [procedure.id, personId, type, bodyRegions, description, provider, status, onClose]);
+  }, [procedure.id, personId, type, bodyRegions, description, provider, status, pendingFiles, referenceSessionId, categoryId, onClose]);
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end">
@@ -87,6 +109,20 @@ export function EditCosmeticProcedureSheet({ personId, procedure, onClose }: Edi
               placeholder="completed, scheduled..."
               className="w-full rounded-lg border border-white/15 bg-muted/30 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring" />
           </div>
+
+          {/* Inline photo upload */}
+          {referenceSessionId && categoryId && (
+            <InlineUploadZone
+              pendingFiles={pendingFiles}
+              onPendingFilesChange={setPendingFiles}
+              existingPhotos={existingPhotos?.map((p) => ({
+                id: p.id,
+                url: p.url,
+                width: p.width,
+                height: p.height,
+              }))}
+            />
+          )}
 
           {error && <p className="text-sm text-red-500">{error}</p>}
 

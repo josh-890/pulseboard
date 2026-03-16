@@ -25,7 +25,7 @@ async function main() {
       height: 168,
       birthdate: new Date("1996-03-14"),
       birthdatePrecision: "DAY",
-      nationality: "USA",
+      nationality: "US",
       ethnicity: "Caucasian",
 
     },
@@ -42,7 +42,7 @@ async function main() {
       height: 168,
       birthdate: new Date("1996-03-14"),
       birthdatePrecision: "DAY",
-      nationality: "USA",
+      nationality: "US",
       ethnicity: "Caucasian",
     },
   });
@@ -61,7 +61,7 @@ async function main() {
       height: 183,
       birthdate: new Date("1988-07-22"),
       birthdatePrecision: "DAY",
-      nationality: "USA",
+      nationality: "US",
 
     },
     create: {
@@ -76,7 +76,7 @@ async function main() {
       height: 183,
       birthdate: new Date("1988-07-22"),
       birthdatePrecision: "DAY",
-      nationality: "USA",
+      nationality: "US",
     },
   });
 

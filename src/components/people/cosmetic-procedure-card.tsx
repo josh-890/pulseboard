@@ -5,7 +5,7 @@ import type { CosmeticProcedureWithEvents } from "@/lib/types";
 import { COSMETIC_PROCEDURE_EVENT_STYLES } from "@/lib/constants/body";
 import { BodyRegionChips } from "@/components/shared/body-region-picker";
 import { EntityEventTimeline } from "@/components/people/entity-event-timeline";
-import { Pencil, Trash2 } from "lucide-react";
+import { Camera, Pencil, Trash2 } from "lucide-react";
 
 type EntityMediaThumbnail = {
   id: string;
@@ -19,6 +19,7 @@ type CosmeticProcedureCardProps = {
   photos?: EntityMediaThumbnail[];
   onEdit?: () => void;
   onDelete?: () => void;
+  onManagePhotos?: () => void;
   onDeleteEvent?: (id: string) => Promise<{ success: boolean; error?: string }>;
   onAddEvent?: () => void;
   isPending?: boolean;
@@ -29,6 +30,7 @@ export function CosmeticProcedureCard({
   photos,
   onEdit,
   onDelete,
+  onManagePhotos,
   onDeleteEvent,
   onAddEvent,
   isPending,
@@ -52,8 +54,18 @@ export function CosmeticProcedureCard({
           </span>
         )}
 
-        {(onEdit || onDelete) && (
+        {(onEdit || onDelete || onManagePhotos) && (
           <div className="ml-auto flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+            {onManagePhotos && (
+              <button
+                type="button"
+                onClick={onManagePhotos}
+                className="rounded p-1 text-muted-foreground hover:text-amber-400 transition-colors"
+                aria-label="Manage photos"
+              >
+                <Camera size={14} />
+              </button>
+            )}
             {onEdit && (
               <button
                 type="button"
@@ -89,11 +101,16 @@ export function CosmeticProcedureCard({
       )}
 
       {photos && photos.length > 0 && (
-        <div className="mt-3 flex gap-1.5 overflow-x-auto pb-1">
+        <button
+          type="button"
+          onClick={onManagePhotos}
+          className="mt-3 flex gap-1.5 overflow-x-auto pb-1 cursor-pointer group/photos"
+          title="Manage photos"
+        >
           {photos.map((photo) => (
             <div
               key={photo.id}
-              className="shrink-0 h-14 w-14 overflow-hidden rounded-lg border border-white/10 bg-muted/30"
+              className="shrink-0 h-14 w-14 overflow-hidden rounded-lg border border-white/10 bg-muted/30 transition-all group-hover/photos:border-amber-500/40"
             >
               <Image
                 src={photo.url}
@@ -105,7 +122,7 @@ export function CosmeticProcedureCard({
               />
             </div>
           ))}
-        </div>
+        </button>
       )}
 
       {onDeleteEvent && onAddEvent && (

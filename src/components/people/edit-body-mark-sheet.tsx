@@ -4,19 +4,29 @@ import { useCallback, useState, useTransition } from "react";
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { BodyRegionCompact } from "@/components/shared/body-region-picker";
+import {
+  InlineUploadZone,
+  cleanupPendingFiles,
+  uploadAndLinkFiles,
+} from "@/components/shared/inline-upload-zone";
+import type { PendingFile } from "@/components/shared/inline-upload-zone";
 import { getRegionLabel } from "@/lib/constants/body-regions";
 import type { BodyMarkType, BodyMarkStatus } from "@/generated/prisma/client";
 import type { BodyMarkWithEvents } from "@/lib/types";
 import { BODY_MARK_TYPES, BODY_MARK_TYPE_STYLES, BODY_MARK_STATUSES, BODY_MARK_STATUS_STYLES } from "@/lib/constants/body";
 import { updateBodyMarkAction } from "@/lib/actions/appearance-actions";
+import type { EntityMediaThumbnail } from "@/lib/services/media-service";
 
 type EditBodyMarkSheetProps = {
   personId: string;
   mark: BodyMarkWithEvents;
+  referenceSessionId?: string;
+  categoryId?: string;
+  existingPhotos?: EntityMediaThumbnail[];
   onClose: () => void;
 };
 
-export function EditBodyMarkSheet({ personId, mark, onClose }: EditBodyMarkSheetProps) {
+export function EditBodyMarkSheet({ personId, mark, referenceSessionId, categoryId, existingPhotos, onClose }: EditBodyMarkSheetProps) {
   const [isPending, startTransition] = useTransition();
   const [type, setType] = useState<BodyMarkType>(mark.type);
   const [bodyRegions, setBodyRegions] = useState<string[]>(
@@ -28,6 +38,7 @@ export function EditBodyMarkSheet({ personId, mark, onClose }: EditBodyMarkSheet
   const [size, setSize] = useState(mark.size ?? "");
   const [status, setStatus] = useState<BodyMarkStatus>(mark.status);
   const [error, setError] = useState<string | null>(null);
+  const [pendingFiles, setPendingFiles] = useState<PendingFile[]>([]);
 
   const handleSubmit = useCallback(() => {
     if (bodyRegions.length === 0) {
@@ -51,9 +62,20 @@ export function EditBodyMarkSheet({ personId, mark, onClose }: EditBodyMarkSheet
         setError(result.error ?? "Failed to update body mark.");
         return;
       }
+      if (pendingFiles.length > 0 && referenceSessionId && categoryId) {
+        await uploadAndLinkFiles(
+          pendingFiles,
+          referenceSessionId,
+          personId,
+          categoryId,
+          "bodyMarkId",
+          mark.id,
+        );
+        cleanupPendingFiles(pendingFiles);
+      }
       onClose();
     });
-  }, [mark.id, personId, type, bodyRegions, description, motif, colors, size, status, onClose]);
+  }, [mark.id, personId, type, bodyRegions, description, motif, colors, size, status, pendingFiles, referenceSessionId, categoryId, onClose]);
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end">
@@ -144,6 +166,20 @@ export function EditBodyMarkSheet({ personId, mark, onClose }: EditBodyMarkSheet
                 className="w-full rounded-lg border border-white/15 bg-muted/30 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring" />
             </div>
           </div>
+
+          {/* Inline photo upload */}
+          {referenceSessionId && categoryId && (
+            <InlineUploadZone
+              pendingFiles={pendingFiles}
+              onPendingFilesChange={setPendingFiles}
+              existingPhotos={existingPhotos?.map((p) => ({
+                id: p.id,
+                url: p.url,
+                width: p.width,
+                height: p.height,
+              }))}
+            />
+          )}
 
           {error && <p className="text-sm text-red-500">{error}</p>}
 

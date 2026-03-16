@@ -91,6 +91,7 @@ export function toGalleryItem(
     isCover: opts?.coverMediaItemId === item.id,
     links: item.links,
     collectionIds: item.collectionIds,
+    skillEventIds: item.skillEventIds,
   };
 }
 
@@ -491,10 +492,12 @@ export type PersonMediaLinkWithItem = {
   usage: PersonMediaUsage;
   slot: number | null;
   bodyRegion: string | null;
+  bodyRegions: string[];
   bodyMarkId: string | null;
   bodyModificationId: string | null;
   cosmeticProcedureId: string | null;
   categoryId: string | null;
+  personaId: string | null;
   isFavorite: boolean;
   sortOrder: number;
   notes: string | null;
@@ -507,10 +510,12 @@ function toPersonMediaLinkWithItem(
     usage: PersonMediaUsage;
     slot: number | null;
     bodyRegion: string | null;
+    bodyRegions?: string[];
     bodyMarkId: string | null;
     bodyModificationId: string | null;
     cosmeticProcedureId: string | null;
     categoryId: string | null;
+    personaId?: string | null;
     isFavorite: boolean;
     sortOrder: number;
     notes: string | null;
@@ -524,10 +529,12 @@ function toPersonMediaLinkWithItem(
     usage: link.usage,
     slot: link.slot,
     bodyRegion: link.bodyRegion,
+    bodyRegions: link.bodyRegions ?? [],
     bodyMarkId: link.bodyMarkId,
     bodyModificationId: link.bodyModificationId,
     cosmeticProcedureId: link.cosmeticProcedureId,
     categoryId: link.categoryId,
+    personaId: link.personaId ?? null,
     isFavorite: link.isFavorite,
     sortOrder: link.sortOrder,
     notes: link.notes,
@@ -708,15 +715,18 @@ export type MediaItemWithLinks = {
     usage: PersonMediaUsage;
     slot: number | null;
     bodyRegion: string | null;
+    bodyRegions: string[];
     bodyMarkId: string | null;
     bodyModificationId: string | null;
     cosmeticProcedureId: string | null;
     categoryId: string | null;
+    personaId: string | null;
     isFavorite: boolean;
     sortOrder: number;
     notes: string | null;
   }[];
   collectionIds: string[];
+  skillEventIds: string[];
 };
 
 export async function getMediaItemsWithLinks(
@@ -731,6 +741,9 @@ export async function getMediaItemsWithLinks(
       },
       collectionItems: {
         select: { collectionId: true },
+      },
+      skillEventMedia: {
+        select: { skillEventId: true },
       },
     },
     orderBy: { createdAt: "asc" },
@@ -761,15 +774,18 @@ export async function getMediaItemsWithLinks(
           usage: link.usage,
           slot: link.slot,
           bodyRegion: link.bodyRegion,
+          bodyRegions: link.bodyRegions ?? [],
           bodyMarkId: link.bodyMarkId,
           bodyModificationId: link.bodyModificationId,
           cosmeticProcedureId: link.cosmeticProcedureId,
           categoryId: link.categoryId,
+          personaId: link.personaId ?? null,
           isFavorite: link.isFavorite,
           sortOrder: link.sortOrder,
           notes: link.notes,
         })),
         collectionIds: item.collectionItems.map((ci) => ci.collectionId),
+        skillEventIds: item.skillEventMedia.map((sem) => sem.skillEventId),
       };
     })
     .filter((item): item is MediaItemWithLinks => item !== null);
@@ -779,10 +795,12 @@ export type PersonMediaLinkUpdate = {
   usage?: PersonMediaUsage;
   slot?: number | null;
   bodyRegion?: string | null;
+  bodyRegions?: string[];
   bodyMarkId?: string | null;
   bodyModificationId?: string | null;
   cosmeticProcedureId?: string | null;
   categoryId?: string | null;
+  personaId?: string | null;
   isFavorite?: boolean;
   notes?: string | null;
 };

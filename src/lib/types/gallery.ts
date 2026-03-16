@@ -6,10 +6,12 @@ export type PersonMediaLinkSummary = {
   usage: PersonMediaUsage;
   slot: number | null;
   bodyRegion: string | null;
+  bodyRegions: string[];
   bodyMarkId: string | null;
   bodyModificationId: string | null;
   cosmeticProcedureId: string | null;
   categoryId: string | null;
+  personaId: string | null;
   isFavorite: boolean;
   sortOrder: number;
   notes: string | null;
@@ -34,4 +36,6 @@ export type GalleryItem = {
   links?: PersonMediaLinkSummary[];
   /** Present only in MediaManager contexts */
   collectionIds?: string[];
+  /** Skill event IDs linked via SkillEventMedia */
+  skillEventIds?: string[];
 };

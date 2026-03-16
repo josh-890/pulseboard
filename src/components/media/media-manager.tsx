@@ -26,6 +26,8 @@ import { MediaGrid } from "./media-grid";
 import { MediaMetadataPanel } from "./media-metadata-panel";
 
 type EntityOption = { id: string; name: string };
+type PersonaOption = { id: string; label: string; date: string | null };
+type SkillEventOption = { id: string; skillName: string; eventType: string; date: string | null };
 
 type MediaManagerProps = {
   items: MediaItemWithLinks[];
@@ -37,6 +39,8 @@ type MediaManagerProps = {
   bodyMarks: EntityOption[];
   bodyModifications: EntityOption[];
   cosmeticProcedures: EntityOption[];
+  personas: PersonaOption[];
+  skillEvents: SkillEventOption[];
   anchor?: "reference" | "production";
 };
 
@@ -59,6 +63,7 @@ function toGalleryItemLocal(item: MediaItemWithLinks): GalleryItem {
     isCover: false,
     links: item.links,
     collectionIds: item.collectionIds,
+    skillEventIds: item.skillEventIds,
   };
 }
 
@@ -72,6 +77,8 @@ export function MediaManager({
   bodyMarks,
   bodyModifications,
   cosmeticProcedures,
+  personas,
+  skillEvents,
   anchor,
 }: MediaManagerProps) {
   const router = useRouter();
@@ -228,10 +235,12 @@ export function MediaManager({
                   usage: "HEADSHOT" as const,
                   slot: digit,
                   bodyRegion: null,
+                  bodyRegions: [],
                   bodyMarkId: null,
                   bodyModificationId: null,
                   cosmeticProcedureId: null,
                   categoryId: null,
+                  personaId: null,
                   isFavorite: false,
                   sortOrder: 0,
                   notes: null,
@@ -304,6 +313,15 @@ export function MediaManager({
     [],
   );
 
+  const handleLightboxSkillEventIdsChange = useCallback(
+    (itemId: string, ids: string[]) => {
+      setItems((prev) =>
+        prev.map((it) => (it.id === itemId ? { ...it, skillEventIds: ids } : it)),
+      );
+    },
+    [],
+  );
+
   const selectedItems = useMemo(
     () => items.filter((item) => selectedIds.has(item.id)),
     [items, selectedIds],
@@ -319,11 +337,14 @@ export function MediaManager({
       bodyMarks,
       bodyModifications,
       cosmeticProcedures,
+      personas,
+      skillEvents,
       allSlotThumbnails,
       onLinksChange: handleLightboxLinksChange,
       onCollectionIdsChange: handleLightboxCollectionIdsChange,
+      onSkillEventIdsChange: handleLightboxSkillEventIdsChange,
     }),
-    [personId, sessionId, collections, categories, bodyMarks, bodyModifications, cosmeticProcedures, allSlotThumbnails, handleLightboxLinksChange, handleLightboxCollectionIdsChange],
+    [personId, sessionId, collections, categories, bodyMarks, bodyModifications, cosmeticProcedures, personas, skillEvents, allSlotThumbnails, handleLightboxLinksChange, handleLightboxCollectionIdsChange, handleLightboxSkillEventIdsChange],
   );
 
   if (items.length === 0) {

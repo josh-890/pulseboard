@@ -42,7 +42,8 @@ test.describe("People CRUD", () => {
   test("detail page has Edit + Delete buttons and Reference Media card", async ({ page }) => {
     await page.goto("/people/seed-person-1");
     await expect(page.getByRole("button", { name: /^edit$/i })).toBeVisible();
-    await expect(page.getByRole("button", { name: /delete/i })).toBeVisible();
+    // Use .first() because persona timeline entries also have Delete buttons
+    await expect(page.getByRole("button", { name: /delete/i }).first()).toBeVisible();
     // Reference Media card should be visible
     await expect(page.getByText("Reference Media")).toBeVisible();
   });

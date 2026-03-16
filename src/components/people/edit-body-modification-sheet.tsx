@@ -4,6 +4,12 @@ import { useCallback, useState, useTransition } from "react";
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { BodyRegionCompact } from "@/components/shared/body-region-picker";
+import {
+  InlineUploadZone,
+  cleanupPendingFiles,
+  uploadAndLinkFiles,
+} from "@/components/shared/inline-upload-zone";
+import type { PendingFile } from "@/components/shared/inline-upload-zone";
 import { getRegionLabel } from "@/lib/constants/body-regions";
 import type { BodyModificationType, BodyModificationStatus } from "@/generated/prisma/client";
 import type { BodyModificationWithEvents } from "@/lib/types";
@@ -12,14 +18,18 @@ import {
   BODY_MODIFICATION_STATUSES, BODY_MODIFICATION_STATUS_STYLES,
 } from "@/lib/constants/body";
 import { updateBodyModificationAction } from "@/lib/actions/appearance-actions";
+import type { EntityMediaThumbnail } from "@/lib/services/media-service";
 
 type EditBodyModificationSheetProps = {
   personId: string;
   modification: BodyModificationWithEvents;
+  referenceSessionId?: string;
+  categoryId?: string;
+  existingPhotos?: EntityMediaThumbnail[];
   onClose: () => void;
 };
 
-export function EditBodyModificationSheet({ personId, modification, onClose }: EditBodyModificationSheetProps) {
+export function EditBodyModificationSheet({ personId, modification, referenceSessionId, categoryId, existingPhotos, onClose }: EditBodyModificationSheetProps) {
   const [isPending, startTransition] = useTransition();
   const [type, setType] = useState<BodyModificationType>(modification.type);
   const [bodyRegions, setBodyRegions] = useState<string[]>(
@@ -30,6 +40,7 @@ export function EditBodyModificationSheet({ personId, modification, onClose }: E
   const [gauge, setGauge] = useState(modification.gauge ?? "");
   const [status, setStatus] = useState<BodyModificationStatus>(modification.status);
   const [error, setError] = useState<string | null>(null);
+  const [pendingFiles, setPendingFiles] = useState<PendingFile[]>([]);
 
   const handleSubmit = useCallback(() => {
     if (bodyRegions.length === 0) {
@@ -49,9 +60,20 @@ export function EditBodyModificationSheet({ personId, modification, onClose }: E
         status,
       });
       if (!result.success) { setError(result.error ?? "Failed to update."); return; }
+      if (pendingFiles.length > 0 && referenceSessionId && categoryId) {
+        await uploadAndLinkFiles(
+          pendingFiles,
+          referenceSessionId,
+          personId,
+          categoryId,
+          "bodyModificationId",
+          modification.id,
+        );
+        cleanupPendingFiles(pendingFiles);
+      }
       onClose();
     });
-  }, [modification.id, personId, type, bodyRegions, description, material, gauge, status, onClose]);
+  }, [modification.id, personId, type, bodyRegions, description, material, gauge, status, pendingFiles, referenceSessionId, categoryId, onClose]);
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end">
@@ -117,6 +139,20 @@ export function EditBodyModificationSheet({ personId, modification, onClose }: E
                 className="w-full rounded-lg border border-white/15 bg-muted/30 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring" />
             </div>
           </div>
+
+          {/* Inline photo upload */}
+          {referenceSessionId && categoryId && (
+            <InlineUploadZone
+              pendingFiles={pendingFiles}
+              onPendingFilesChange={setPendingFiles}
+              existingPhotos={existingPhotos?.map((p) => ({
+                id: p.id,
+                url: p.url,
+                width: p.width,
+                height: p.height,
+              }))}
+            />
+          )}
 
           {error && <p className="text-sm text-red-500">{error}</p>}
 

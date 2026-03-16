@@ -38,7 +38,7 @@ import {
   deleteCosmeticProcedureEventRecord,
 } from "@/lib/services/cosmetic-procedure-service";
 
-type ActionResult = { success: boolean; error?: string };
+type ActionResult = { success: boolean; error?: string; id?: string };
 
 // ─── Body Mark Actions ───────────────────────────────────────────────────────
 
@@ -63,6 +63,7 @@ export async function createBodyMarkAction(
     const date = data.date ? new Date(data.date) : null;
     const precision = (data.datePrecision ?? "UNKNOWN") as DatePrecision;
 
+    let markId = "";
     await prisma.$transaction(async (tx) => {
       const personaId = await findOrCreatePersonaForDate(tx, personId, date, precision);
       const mark = await tx.bodyMark.create({
@@ -80,6 +81,7 @@ export async function createBodyMarkAction(
           status: (data.status ?? "present") as BodyMarkStatus,
         },
       });
+      markId = mark.id;
       await tx.bodyMarkEvent.create({
         data: {
           bodyMarkId: mark.id,
@@ -90,7 +92,7 @@ export async function createBodyMarkAction(
     });
 
     revalidatePath(`/people/${personId}`);
-    return { success: true };
+    return { success: true, id: markId };
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unexpected error";
     return { success: false, error: message };
@@ -208,6 +210,7 @@ export async function createBodyModificationAction(
     const date = data.date ? new Date(data.date) : null;
     const precision = (data.datePrecision ?? "UNKNOWN") as DatePrecision;
 
+    let modId = "";
     await prisma.$transaction(async (tx) => {
       const personaId = await findOrCreatePersonaForDate(tx, personId, date, precision);
       const mod = await tx.bodyModification.create({
@@ -224,6 +227,7 @@ export async function createBodyModificationAction(
           status: (data.status ?? "present") as BodyModificationStatus,
         },
       });
+      modId = mod.id;
       await tx.bodyModificationEvent.create({
         data: {
           bodyModificationId: mod.id,
@@ -234,7 +238,7 @@ export async function createBodyModificationAction(
     });
 
     revalidatePath(`/people/${personId}`);
-    return { success: true };
+    return { success: true, id: modId };
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unexpected error";
     return { success: false, error: message };
@@ -348,6 +352,7 @@ export async function createCosmeticProcedureAction(
     const date = data.date ? new Date(data.date) : null;
     const precision = (data.datePrecision ?? "UNKNOWN") as DatePrecision;
 
+    let procId = "";
     await prisma.$transaction(async (tx) => {
       const personaId = await findOrCreatePersonaForDate(tx, personId, date, precision);
       const proc = await tx.cosmeticProcedure.create({
@@ -361,6 +366,7 @@ export async function createCosmeticProcedureAction(
           status: data.status ?? "completed",
         },
       });
+      procId = proc.id;
       await tx.cosmeticProcedureEvent.create({
         data: {
           cosmeticProcedureId: proc.id,
@@ -371,7 +377,7 @@ export async function createCosmeticProcedureAction(
     });
 
     revalidatePath(`/people/${personId}`);
-    return { success: true };
+    return { success: true, id: procId };
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unexpected error";
     return { success: false, error: message };

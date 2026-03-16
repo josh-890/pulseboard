@@ -73,6 +73,7 @@ import { JustifiedGrid } from "@/components/gallery/justified-grid";
 import { GalleryLightbox } from "@/components/gallery/gallery-lightbox";
 import { BatchUploadZone } from "@/components/media/batch-upload-zone";
 import { PersonDetailsTab } from "@/components/people/person-details-tab";
+import { DetailMediaPickerSheet } from "@/components/people/detail-media-picker-sheet";
 import { PersonSkillsTab } from "@/components/people/person-skills-tab";
 import { PersonAliasesTab } from "@/components/people/person-aliases-tab";
 import { CareerSessionList } from "@/components/people/career-session-list";
@@ -991,18 +992,23 @@ type AppearanceOpenState =
   | { type: "addBodyModEvent"; modId: string; modLabel: string }
   | "addCosmProc"
   | { type: "editCosmProc"; procedure: CosmeticProcedureWithEvents }
-  | { type: "addCosmProcEvent"; procId: string; procLabel: string };
+  | { type: "addCosmProcEvent"; procId: string; procLabel: string }
+  | { type: "manageEntityPhotos"; entityId: string; entityModel: string; entityLabel: string };
 
 function AppearanceTab({
   person,
   currentState,
   personas,
   entityMedia,
+  categories,
+  referenceSessionId,
 }: {
   person: PersonData;
   currentState: PersonCurrentState;
   personas: { id: string; label: string }[];
   entityMedia?: Record<string, EntityMediaThumbnail[]>;
+  categories?: CategoryWithGroup[];
+  referenceSessionId?: string;
 }) {
   const [openState, setOpenState] = useState<AppearanceOpenState>(null);
   const [isPending, startTransition] = useTransition();
@@ -1039,6 +1045,52 @@ function AppearanceTab({
   const handleDeleteCosmProcEvent = useCallback(async (eventId: string) => {
     return deleteCosmeticProcedureEventAction(eventId, person.id);
   }, [person.id]);
+
+  // Resolve entity model → matching category for photo picker
+  const findCategoryForEntity = useCallback(
+    (entityModel: string) => {
+      if (!categories) return undefined;
+      return categories.find((c) => c.entityModel === entityModel);
+    },
+    [categories],
+  );
+
+  // Get entities list for the picker dropdown (same entity model)
+  const getEntitiesForModel = useCallback(
+    (entityModel: string) => {
+      if (entityModel === "BodyMark") {
+        return currentState.activeBodyMarks.map((m) => ({
+          id: m.id,
+          label: `${m.type} — ${m.bodyRegion}`,
+        }));
+      }
+      if (entityModel === "BodyModification") {
+        return currentState.activeBodyModifications.map((m) => ({
+          id: m.id,
+          label: `${m.type} — ${m.bodyRegion}`,
+        }));
+      }
+      if (entityModel === "CosmeticProcedure") {
+        return currentState.activeCosmeticProcedures.map((m) => ({
+          id: m.id,
+          label: `${m.type} — ${m.bodyRegion}`,
+        }));
+      }
+      return undefined;
+    },
+    [currentState],
+  );
+
+  // The currently selected picker category (derived from openState)
+  const pickerCategory =
+    typeof openState === "object" && openState?.type === "manageEntityPhotos"
+      ? findCategoryForEntity(openState.entityModel)
+      : undefined;
+
+  const pickerEntities =
+    typeof openState === "object" && openState?.type === "manageEntityPhotos"
+      ? getEntitiesForModel(openState.entityModel)
+      : undefined;
 
   return (
     <>
@@ -1103,6 +1155,7 @@ function AppearanceTab({
                   photos={entityMedia?.[mark.id]}
                   onEdit={() => setOpenState({ type: "editBodyMark", mark })}
                   onDelete={() => handleDeleteBodyMark(mark.id)}
+                  onManagePhotos={referenceSessionId ? () => setOpenState({ type: "manageEntityPhotos", entityId: mark.id, entityModel: "BodyMark", entityLabel: `${mark.type} — ${mark.bodyRegion}` }) : undefined}
                   onDeleteEvent={handleDeleteBodyMarkEvent}
                   onAddEvent={() => setOpenState({ type: "addBodyMarkEvent", markId: mark.id, markLabel: `${mark.type} — ${mark.bodyRegion}` })}
                   isPending={isPending}
@@ -1139,6 +1192,7 @@ function AppearanceTab({
                   photos={entityMedia?.[mod.id]}
                   onEdit={() => setOpenState({ type: "editBodyMod", modification: mod })}
                   onDelete={() => handleDeleteBodyMod(mod.id)}
+                  onManagePhotos={referenceSessionId ? () => setOpenState({ type: "manageEntityPhotos", entityId: mod.id, entityModel: "BodyModification", entityLabel: `${mod.type} — ${mod.bodyRegion}` }) : undefined}
                   onDeleteEvent={handleDeleteBodyModEvent}
                   onAddEvent={() => setOpenState({ type: "addBodyModEvent", modId: mod.id, modLabel: `${mod.type} — ${mod.bodyRegion}` })}
                   isPending={isPending}
@@ -1175,6 +1229,7 @@ function AppearanceTab({
                   photos={entityMedia?.[proc.id]}
                   onEdit={() => setOpenState({ type: "editCosmProc", procedure: proc })}
                   onDelete={() => handleDeleteCosmProc(proc.id)}
+                  onManagePhotos={referenceSessionId ? () => setOpenState({ type: "manageEntityPhotos", entityId: proc.id, entityModel: "CosmeticProcedure", entityLabel: `${proc.type} — ${proc.bodyRegion}` }) : undefined}
                   onDeleteEvent={handleDeleteCosmProcEvent}
                   onAddEvent={() => setOpenState({ type: "addCosmProcEvent", procId: proc.id, procLabel: `${proc.type} — ${proc.bodyRegion}` })}
                   isPending={isPending}
@@ -1190,10 +1245,10 @@ function AppearanceTab({
         <RecordPhysicalChangeSheet personId={person.id} onClose={() => setOpenState(null)} />
       )}
       {openState === "addBodyMark" && (
-        <AddBodyMarkSheet personId={person.id} onClose={() => setOpenState(null)} />
+        <AddBodyMarkSheet personId={person.id} referenceSessionId={referenceSessionId} categoryId={findCategoryForEntity("BodyMark")?.id} onClose={() => setOpenState(null)} />
       )}
       {typeof openState === "object" && openState?.type === "editBodyMark" && (
-        <EditBodyMarkSheet personId={person.id} mark={openState.mark} onClose={() => setOpenState(null)} />
+        <EditBodyMarkSheet personId={person.id} mark={openState.mark} referenceSessionId={referenceSessionId} categoryId={findCategoryForEntity("BodyMark")?.id} existingPhotos={entityMedia?.[openState.mark.id]} onClose={() => setOpenState(null)} />
       )}
       {typeof openState === "object" && openState?.type === "addBodyMarkEvent" && (
         <AddBodyMarkEventDialog
@@ -1205,10 +1260,10 @@ function AppearanceTab({
         />
       )}
       {openState === "addBodyMod" && (
-        <AddBodyModificationSheet personId={person.id} onClose={() => setOpenState(null)} />
+        <AddBodyModificationSheet personId={person.id} referenceSessionId={referenceSessionId} categoryId={findCategoryForEntity("BodyModification")?.id} onClose={() => setOpenState(null)} />
       )}
       {typeof openState === "object" && openState?.type === "editBodyMod" && (
-        <EditBodyModificationSheet personId={person.id} modification={openState.modification} onClose={() => setOpenState(null)} />
+        <EditBodyModificationSheet personId={person.id} modification={openState.modification} referenceSessionId={referenceSessionId} categoryId={findCategoryForEntity("BodyModification")?.id} existingPhotos={entityMedia?.[openState.modification.id]} onClose={() => setOpenState(null)} />
       )}
       {typeof openState === "object" && openState?.type === "addBodyModEvent" && (
         <AddBodyModificationEventDialog
@@ -1220,10 +1275,10 @@ function AppearanceTab({
         />
       )}
       {openState === "addCosmProc" && (
-        <AddCosmeticProcedureSheet personId={person.id} onClose={() => setOpenState(null)} />
+        <AddCosmeticProcedureSheet personId={person.id} referenceSessionId={referenceSessionId} categoryId={findCategoryForEntity("CosmeticProcedure")?.id} onClose={() => setOpenState(null)} />
       )}
       {typeof openState === "object" && openState?.type === "editCosmProc" && (
-        <EditCosmeticProcedureSheet personId={person.id} procedure={openState.procedure} onClose={() => setOpenState(null)} />
+        <EditCosmeticProcedureSheet personId={person.id} procedure={openState.procedure} referenceSessionId={referenceSessionId} categoryId={findCategoryForEntity("CosmeticProcedure")?.id} existingPhotos={entityMedia?.[openState.procedure.id]} onClose={() => setOpenState(null)} />
       )}
       {typeof openState === "object" && openState?.type === "addCosmProcEvent" && (
         <AddCosmeticProcedureEventDialog
@@ -1232,6 +1287,18 @@ function AppearanceTab({
           procedureLabel={openState.procLabel}
           personas={personas}
           onClose={() => setOpenState(null)}
+        />
+      )}
+      {typeof openState === "object" && openState?.type === "manageEntityPhotos" && pickerCategory && referenceSessionId && (
+        <DetailMediaPickerSheet
+          personId={person.id}
+          referenceSessionId={referenceSessionId}
+          category={pickerCategory}
+          entities={pickerEntities}
+          preselectedEntityId={openState.entityId}
+          open
+          onOpenChange={(open) => { if (!open) setOpenState(null); }}
+          onLinked={() => { /* page will revalidate via router.refresh triggered by the sheet */ }}
         />
       )}
     </>
@@ -1648,6 +1715,8 @@ export function PersonDetailTabs({
             currentState={currentState}
             personas={person.personas.map((p) => ({ id: p.id, label: p.label }))}
             entityMedia={entityMedia}
+            categories={categories}
+            referenceSessionId={referenceSessionId}
           />
         )}
       </div>

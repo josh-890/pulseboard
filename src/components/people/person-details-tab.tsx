@@ -224,7 +224,7 @@ export function PersonDetailsTab({
                         {cat.count}
                       </span>
                     </button>
-                    {referenceSessionId && (
+                    {referenceSessionId && !cat.entityModel && (
                       <button
                         type="button"
                         onClick={() => setPickerCategory(cat)}
@@ -234,6 +234,11 @@ export function PersonDetailsTab({
                       >
                         <Plus size={14} />
                       </button>
+                    )}
+                    {cat.entityModel && (
+                      <span className="shrink-0 mr-3 text-[10px] text-muted-foreground/50 italic">
+                        via Appearance
+                      </span>
                     )}
                   </div>
 

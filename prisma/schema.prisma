@@ -291,6 +291,7 @@ model Persona {
   bodyModificationEvents    BodyModificationEvent[]
   cosmeticProcedureEvents   CosmeticProcedureEvent[]
   skillEvents               PersonSkillEvent[]
+  mediaLinks                PersonMediaLink[]
 
   @@index([personId])
 }
@@ -880,6 +881,8 @@ model PersonMediaLink {
   cosmeticProcedure    CosmeticProcedure?  @relation(fields: [cosmeticProcedureId], references: [id])
   categoryId           String?
   category             MediaCategory?      @relation(fields: [categoryId], references: [id])
+  personaId            String?
+  persona              Persona?            @relation(fields: [personaId], references: [id], onDelete: SetNull)
 
   createdAt   DateTime         @default(now())
 
@@ -889,6 +892,7 @@ model PersonMediaLink {
   @@index([bodyMarkId])
   @@index([bodyModificationId])
   @@index([cosmeticProcedureId])
+  @@index([personaId])
   @@index([categoryId])
 }
 

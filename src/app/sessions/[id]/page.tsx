@@ -96,12 +96,14 @@ export default async function SessionDetailPage({ params }: SessionDetailPagePro
     bodyMarks: { id: string; name: string }[];
     bodyModifications: { id: string; name: string }[];
     cosmeticProcedures: { id: string; name: string }[];
+    personas: { id: string; label: string; date: string | null }[];
+    skillEvents: { id: string; skillName: string; eventType: string; date: string | null }[];
     filledHeadshotSlots: number[];
   } | null = null;
 
   if (isReference && session.personId) {
     const personId = session.personId;
-    const [itemsWithLinks, slotLabels, collections, categoryGroups, bodyMarks, bodyMods, cosmetics, filledSlots] =
+    const [itemsWithLinks, slotLabels, collections, categoryGroups, bodyMarks, bodyMods, cosmetics, personas, skillEventsRaw, filledSlots] =
       await Promise.all([
         getMediaItemsWithLinks(id, personId),
         getProfileImageLabels(),
@@ -122,6 +124,23 @@ export default async function SessionDetailPage({ params }: SessionDetailPagePro
           select: { id: true, type: true, bodyRegion: true },
           orderBy: { bodyRegion: "asc" },
         }),
+        prisma.persona.findMany({
+          where: { personId },
+          select: { id: true, label: true, date: true },
+          orderBy: { date: "asc" },
+        }),
+        prisma.personSkillEvent.findMany({
+          where: { personSkill: { personId }, eventType: "DEMONSTRATED" },
+          select: {
+            id: true,
+            eventType: true,
+            date: true,
+            personSkill: {
+              select: { skillDefinition: { select: { name: true } } },
+            },
+          },
+          orderBy: { date: "desc" },
+        }),
         getFilledHeadshotSlots(personId),
       ]);
     mediaManagerData = {
@@ -141,6 +160,19 @@ export default async function SessionDetailPage({ params }: SessionDetailPagePro
       bodyMarks: bodyMarks.map((m) => ({ id: m.id, name: `${m.type} — ${m.bodyRegion}` })),
       bodyModifications: bodyMods.map((m) => ({ id: m.id, name: `${m.type} — ${m.bodyRegion}` })),
       cosmeticProcedures: cosmetics.map((m) => ({ id: m.id, name: `${m.type} — ${m.bodyRegion}` })),
+      personas: personas.map((p) => ({
+        id: p.id,
+        label: p.label,
+        date: p.date ? p.date.toISOString().split("T")[0] : null,
+      })),
+      skillEvents: skillEventsRaw
+        .filter((e) => e.personSkill.skillDefinition != null)
+        .map((e) => ({
+          id: e.id,
+          skillName: e.personSkill.skillDefinition!.name,
+          eventType: e.eventType,
+          date: e.date ? e.date.toISOString().split("T")[0] : null,
+        })),
       filledHeadshotSlots: filledSlots,
     };
   } else {
@@ -306,6 +338,8 @@ export default async function SessionDetailPage({ params }: SessionDetailPagePro
               bodyMarks={mediaManagerData.bodyMarks}
               bodyModifications={mediaManagerData.bodyModifications}
               cosmeticProcedures={mediaManagerData.cosmeticProcedures}
+              personas={mediaManagerData.personas}
+              skillEvents={mediaManagerData.skillEvents}
               anchor="reference"
             />
             <div className="mt-4">

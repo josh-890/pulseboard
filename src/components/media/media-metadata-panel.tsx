@@ -31,7 +31,11 @@ import {
   resetFocalPointAction,
   batchSetUsageAction,
   batchRemoveUsageAction,
+  batchEntityLinkAction,
+  batchSetBodyRegionsAction,
 } from "@/lib/actions/media-actions";
+import { EntityCombobox } from "@/components/shared/entity-combobox";
+import { BodyRegionCompact } from "@/components/shared/body-region-picker";
 import {
   assignCategoryAction,
   removeCategoryAction,
@@ -159,10 +163,12 @@ export function MediaMetadataPanel({
               usage,
               slot: null,
               bodyRegion: null,
+              bodyRegions: [],
               bodyMarkId: null,
               bodyModificationId: null,
               cosmeticProcedureId: null,
               categoryId: null,
+              personaId: null,
               isFavorite: false,
               sortOrder: 0,
               notes: null,
@@ -213,10 +219,12 @@ export function MediaMetadataPanel({
               usage: "DETAIL" as PersonMediaUsage,
               slot: null,
               bodyRegion: null,
+              bodyRegions: [],
               bodyMarkId: null,
               bodyModificationId: null,
               cosmeticProcedureId: null,
               categoryId,
+              personaId: null,
               isFavorite: false,
               sortOrder: 0,
               notes: null,
@@ -284,10 +292,12 @@ export function MediaMetadataPanel({
                   usage: "HEADSHOT" as PersonMediaUsage,
                   slot: slotNumber,
                   bodyRegion: null,
+                  bodyRegions: [],
                   bodyMarkId: null,
                   bodyModificationId: null,
                   cosmeticProcedureId: null,
                   categoryId: null,
+                  personaId: null,
                   isFavorite: false,
                   sortOrder: 0,
                   notes: null,
@@ -396,6 +406,9 @@ export function MediaMetadataPanel({
         sessionId={sessionId}
         collections={collections}
         categories={categories}
+        bodyMarks={bodyMarks}
+        bodyModifications={bodyModifications}
+        cosmeticProcedures={cosmeticProcedures}
         expandedSections={expandedSections}
         toggleSection={toggleSection}
         isPending={isPending}
@@ -867,6 +880,9 @@ type BatchPanelProps = {
   sessionId: string;
   collections: CollectionSummary[];
   categories: CategoryWithGroup[];
+  bodyMarks: EntityOption[];
+  bodyModifications: EntityOption[];
+  cosmeticProcedures: EntityOption[];
   expandedSections: Set<string>;
   toggleSection: (section: string) => void;
   isPending: boolean;
@@ -883,6 +899,9 @@ function BatchPanel({
   sessionId,
   collections,
   categories,
+  bodyMarks,
+  bodyModifications,
+  cosmeticProcedures,
   expandedSections,
   toggleSection,
   isPending,
@@ -1149,6 +1168,33 @@ function BatchPanel({
         </>
       )}
 
+      {/* Batch Entity Linking */}
+      <BatchEntityLinkSection
+        items={items}
+        personId={personId}
+        sessionId={sessionId}
+        categories={categories}
+        bodyMarks={bodyMarks}
+        bodyModifications={bodyModifications}
+        cosmeticProcedures={cosmeticProcedures}
+        expandedSections={expandedSections}
+        toggleSection={toggleSection}
+        isPending={isPending}
+        startTransition={startTransition}
+        onBatchComplete={onBatchComplete}
+      />
+
+      {/* Batch Body Regions */}
+      <BatchBodyRegionSection
+        items={items}
+        personId={personId}
+        sessionId={sessionId}
+        expandedSections={expandedSections}
+        toggleSection={toggleSection}
+        startTransition={startTransition}
+        onBatchComplete={onBatchComplete}
+      />
+
       {/* Common Tags */}
       <SectionHeader
         title="Common Tags"
@@ -1189,6 +1235,177 @@ function BatchPanel({
         </div>
       )}
     </div>
+  );
+}
+
+// ─── Batch Entity Link Section ────────────────────────────────────────────────
+
+type BatchEntityLinkSectionProps = {
+  items: MediaItemWithLinks[];
+  personId: string;
+  sessionId: string;
+  categories: CategoryWithGroup[];
+  bodyMarks: EntityOption[];
+  bodyModifications: EntityOption[];
+  cosmeticProcedures: EntityOption[];
+  expandedSections: Set<string>;
+  toggleSection: (section: string) => void;
+  isPending: boolean;
+  startTransition: (callback: () => Promise<void> | void) => void;
+  onBatchComplete?: () => void;
+};
+
+function BatchEntityLinkSection({
+  items,
+  personId,
+  sessionId,
+  categories,
+  bodyMarks,
+  bodyModifications,
+  cosmeticProcedures,
+  expandedSections,
+  toggleSection,
+  isPending,
+  startTransition,
+  onBatchComplete,
+}: BatchEntityLinkSectionProps) {
+  const entityCategories = useMemo(
+    () => categories.filter((c) => c.entityModel),
+    [categories],
+  );
+
+  const handleBatchEntityLink = useCallback(
+    (
+      categoryId: string,
+      entityField: "bodyMarkId" | "bodyModificationId" | "cosmeticProcedureId",
+      entityId: string,
+    ) => {
+      if (!entityId) return;
+      const ids = items.map((item) => item.id);
+      startTransition(async () => {
+        await batchEntityLinkAction(personId, ids, categoryId, entityField, entityId, sessionId);
+        onBatchComplete?.();
+      });
+    },
+    [items, personId, sessionId, startTransition, onBatchComplete],
+  );
+
+  if (entityCategories.length === 0) return null;
+
+  return (
+    <>
+      <SectionHeader
+        title="Entity Link"
+        icon={<Link2 size={14} />}
+        section="entityLink"
+        expanded={expandedSections.has("entityLink")}
+        onToggle={toggleSection}
+      />
+      {expandedSections.has("entityLink") && (
+        <div className="space-y-2 pb-2">
+          <p className="text-[10px] text-muted-foreground">
+            Assign an entity to all {items.length} selected items
+          </p>
+          {entityCategories.map((cat) => {
+            const entityField =
+              cat.entityModel === "BodyMark" ? "bodyMarkId" as const
+                : cat.entityModel === "BodyModification" ? "bodyModificationId" as const
+                : "cosmeticProcedureId" as const;
+            const options =
+              cat.entityModel === "BodyMark" ? bodyMarks
+                : cat.entityModel === "BodyModification" ? bodyModifications
+                : cosmeticProcedures;
+            if (options.length === 0) return null;
+            return (
+              <div key={cat.id}>
+                <span className="mb-1 block text-xs font-medium text-muted-foreground">
+                  {cat.name}
+                </span>
+                <EntityCombobox
+                  entities={options.map((o) => ({ id: o.id, label: o.name }))}
+                  value=""
+                  onChange={(id) => {
+                    if (id) handleBatchEntityLink(cat.id, entityField, id);
+                  }}
+                  placeholder={`Link to ${cat.name.toLowerCase()}...`}
+                  disabled={isPending}
+                  className="text-xs"
+                />
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </>
+  );
+}
+
+// ─── Batch Body Region Section ────────────────────────────────────────────────
+
+type BatchBodyRegionSectionProps = {
+  items: MediaItemWithLinks[];
+  personId: string;
+  sessionId: string;
+  expandedSections: Set<string>;
+  toggleSection: (section: string) => void;
+  startTransition: (callback: () => Promise<void> | void) => void;
+  onBatchComplete?: () => void;
+};
+
+function BatchBodyRegionSection({
+  items,
+  personId,
+  sessionId,
+  expandedSections,
+  toggleSection,
+  startTransition,
+  onBatchComplete,
+}: BatchBodyRegionSectionProps) {
+  // Compute common body regions across all selected items' links
+  const commonBodyRegions = useMemo(() => {
+    const allRegionSets = items.map((item) => {
+      const regions = new Set<string>();
+      for (const link of item.links) {
+        if (link.bodyRegions) {
+          for (const r of link.bodyRegions) regions.add(r);
+        }
+      }
+      return regions;
+    });
+    if (allRegionSets.length === 0) return [] as string[];
+    const first = allRegionSets[0];
+    return [...first].filter((r) => allRegionSets.every((s) => s.has(r)));
+  }, [items]);
+
+  const handleBatchBodyRegions = useCallback(
+    (regions: string[]) => {
+      const ids = items.map((item) => item.id);
+      startTransition(async () => {
+        await batchSetBodyRegionsAction(personId, ids, regions, sessionId);
+        onBatchComplete?.();
+      });
+    },
+    [items, personId, sessionId, startTransition, onBatchComplete],
+  );
+
+  return (
+    <>
+      <SectionHeader
+        title="Body Regions"
+        icon={<Crosshair size={14} />}
+        section="bodyRegions"
+        expanded={expandedSections.has("bodyRegions")}
+        onToggle={toggleSection}
+      />
+      {expandedSections.has("bodyRegions") && (
+        <div className="pb-2">
+          <BodyRegionCompact
+            value={commonBodyRegions}
+            onChange={handleBatchBodyRegions}
+          />
+        </div>
+      )}
+    </>
   );
 }
 

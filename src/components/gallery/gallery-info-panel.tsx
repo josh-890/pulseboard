@@ -11,9 +11,11 @@ import {
   ImageIcon,
   Info,
   Link2,
+  MapPin,
   RotateCcw,
   Search,
   Tag,
+  User,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { GalleryItem, PersonMediaUsage, PersonMediaLinkSummary } from "@/lib/types";
@@ -37,6 +39,9 @@ import {
   removeCategoryAction,
 } from "@/lib/actions/category-actions";
 import { MediaUsageBadge } from "@/components/media/media-badge";
+import { EntityCombobox } from "@/components/shared/entity-combobox";
+import { BodyRegionCompact } from "@/components/shared/body-region-picker";
+import { SKILL_EVENT_STYLES } from "@/lib/constants/skill";
 
 const CONTENT_TAGS = [
   { value: "portrait", label: "Portrait" },
@@ -82,6 +87,15 @@ export type CollectionContext = {
   onCollectionIdsChange?: (itemId: string, collectionIds: string[]) => void;
 };
 
+export type PersonaOption = { id: string; label: string; date: string | null };
+
+export type SkillEventOption = {
+  id: string;
+  skillName: string;
+  eventType: string;
+  date: string | null;
+};
+
 export type ReferenceContext = {
   personId: string;
   sessionId: string;
@@ -90,9 +104,12 @@ export type ReferenceContext = {
   bodyModifications: EntityOption[];
   cosmeticProcedures: EntityOption[];
   categories: CategoryWithGroup[];
+  personas: PersonaOption[];
+  skillEvents: SkillEventOption[];
   allSlotThumbnails?: Map<number, string>;
   onLinksChange?: (itemId: string, links: PersonMediaLinkSummary[]) => void;
   onCollectionIdsChange?: (itemId: string, collectionIds: string[]) => void;
+  onSkillEventIdsChange?: (itemId: string, skillEventIds: string[]) => void;
 };
 
 type GalleryInfoPanelProps = {
@@ -223,10 +240,12 @@ export function GalleryInfoPanel({
             usage,
             slot: null,
             bodyRegion: null,
+            bodyRegions: [],
             bodyMarkId: null,
             bodyModificationId: null,
             cosmeticProcedureId: null,
             categoryId: null,
+            personaId: null,
             isFavorite: false,
             sortOrder: 0,
             notes: null,
@@ -274,6 +293,91 @@ export function GalleryInfoPanel({
     [referenceContext, getLinkForUsage, links, item.id],
   );
 
+  // Body region update — updates bodyRegions on the first link (or PROFILE link)
+  const handleBodyRegionsChange = useCallback(
+    (regions: string[]) => {
+      if (!referenceContext) return;
+      const link = links[0];
+      if (!link) return;
+
+      // Optimistic
+      referenceContext.onLinksChange?.(
+        item.id,
+        links.map((l, i) => (i === 0 ? { ...l, bodyRegions: regions } : l)),
+      );
+
+      startTransition(async () => {
+        await updatePersonMediaLinkAction(
+          link.id,
+          { bodyRegions: regions },
+          referenceContext.personId,
+          referenceContext.sessionId,
+        );
+      });
+    },
+    [referenceContext, links, item.id],
+  );
+
+  // Persona tagging — updates personaId on the first link
+  const handlePersonaChange = useCallback(
+    (personaId: string) => {
+      if (!referenceContext) return;
+      const link = links[0];
+      if (!link) return;
+
+      const value = personaId || null;
+
+      // Optimistic
+      referenceContext.onLinksChange?.(
+        item.id,
+        links.map((l, i) => (i === 0 ? { ...l, personaId: value } : l)),
+      );
+
+      startTransition(async () => {
+        await updatePersonMediaLinkAction(
+          link.id,
+          { personaId: value },
+          referenceContext.personId,
+          referenceContext.sessionId,
+        );
+      });
+    },
+    [referenceContext, links, item.id],
+  );
+
+  // Skill event linking
+  const skillEventIds = useMemo(() => item.skillEventIds ?? [], [item.skillEventIds]);
+
+  const handleSkillEventToggle = useCallback(
+    (eventId: string) => {
+      if (!referenceContext) return;
+      const isLinked = skillEventIds.includes(eventId);
+      const newIds = isLinked
+        ? skillEventIds.filter((id) => id !== eventId)
+        : [...skillEventIds, eventId];
+
+      // Optimistic
+      referenceContext.onSkillEventIdsChange?.(item.id, newIds);
+
+      startTransition(async () => {
+        if (isLinked) {
+          await fetch(`/api/skill-events/${eventId}/media`, {
+            method: "DELETE",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ mediaItemId: item.id }),
+          });
+        } else {
+          await fetch(`/api/skill-events/${eventId}/media`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ mediaItemId: item.id }),
+          });
+        }
+      });
+    },
+    [referenceContext, skillEventIds, item.id],
+  );
+
   const handleRefSlotClick = useCallback(
     (slotNumber: number) => {
       if (!referenceContext) return;
@@ -296,10 +400,12 @@ export function GalleryInfoPanel({
             usage: "HEADSHOT",
             slot: slotNumber,
             bodyRegion: null,
+            bodyRegions: [],
             bodyMarkId: null,
             bodyModificationId: null,
             cosmeticProcedureId: null,
             categoryId: null,
+            personaId: null,
             isFavorite: false,
             sortOrder: 0,
             notes: null,
@@ -392,10 +498,12 @@ export function GalleryInfoPanel({
             usage: "DETAIL",
             slot: null,
             bodyRegion: null,
+            bodyRegions: [],
             bodyMarkId: null,
             bodyModificationId: null,
             cosmeticProcedureId: null,
             categoryId,
+            personaId: null,
             isFavorite: false,
             sortOrder: 0,
             notes: null,
@@ -720,17 +828,112 @@ export function GalleryInfoPanel({
                 );
                 if (options.length === 0) return null;
                 return (
-                  <EntitySelect
-                    key={cat.id}
-                    label={cat.name}
-                    options={options}
-                    value={detailLink?.[entityField] ?? null}
-                    onChange={(v) => {
-                      if (!detailLink) return;
-                      handleEntityLink("DETAIL", entityField, v);
-                    }}
+                  <div key={cat.id}>
+                    <label className="mb-1 block text-xs font-medium text-white/50">
+                      {cat.name}
+                    </label>
+                    <EntityCombobox
+                      entities={options.map((o) => ({ id: o.id, label: o.name }))}
+                      value={detailLink?.[entityField] ?? ""}
+                      onChange={(v) => {
+                        if (!detailLink) return;
+                        handleEntityLink("DETAIL", entityField, v || null);
+                      }}
+                      disabled={isPending}
+                      placeholder="None"
+                      emptyLabel="None"
+                    />
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Body Regions (reference context only, when links exist) */}
+      {referenceContext && links.length > 0 && (
+        <>
+          <SectionHeader
+            title="Body Regions"
+            icon={<MapPin size={14} />}
+            section="body-regions"
+            expanded={expandedSections.has("body-regions")}
+            onToggle={toggleSection}
+          />
+          {expandedSections.has("body-regions") && (
+            <div className="pb-2">
+              <BodyRegionCompact
+                value={links[0].bodyRegions ?? []}
+                onChange={handleBodyRegionsChange}
+                mode="multi"
+              />
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Persona (reference context only, when links exist) */}
+      {referenceContext && links.length > 0 && referenceContext.personas.length > 0 && (
+        <>
+          <SectionHeader
+            title="Persona"
+            icon={<User size={14} />}
+            section="persona"
+            expanded={expandedSections.has("persona")}
+            onToggle={toggleSection}
+          />
+          {expandedSections.has("persona") && (
+            <div className="pb-2">
+              <EntityCombobox
+                entities={referenceContext.personas.map((p) => ({
+                  id: p.id,
+                  label: p.label,
+                  description: p.date ?? undefined,
+                }))}
+                value={links[0].personaId ?? ""}
+                onChange={handlePersonaChange}
+                placeholder="No persona"
+                emptyLabel="No persona"
+                disabled={isPending}
+              />
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Skill Events (reference context only, when skill events exist) */}
+      {referenceContext && referenceContext.skillEvents.length > 0 && (
+        <>
+          <SectionHeader
+            title="Skill Events"
+            icon={<Tag size={14} />}
+            section="skill-events"
+            expanded={expandedSections.has("skill-events")}
+            onToggle={toggleSection}
+          />
+          {expandedSections.has("skill-events") && (
+            <div className="flex flex-wrap gap-1 pb-2">
+              {referenceContext.skillEvents.map((evt) => {
+                const isLinked = skillEventIds.includes(evt.id);
+                const styles = SKILL_EVENT_STYLES[evt.eventType as keyof typeof SKILL_EVENT_STYLES];
+                return (
+                  <button
+                    key={evt.id}
+                    type="button"
                     disabled={isPending}
-                  />
+                    onClick={() => handleSkillEventToggle(evt.id)}
+                    className={cn(
+                      "rounded-md border px-2 py-1 text-xs font-medium transition-all",
+                      "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
+                      isLinked && styles
+                        ? `${styles} border-current/30`
+                        : "border-transparent bg-white/5 text-white/60 hover:bg-white/10 hover:text-white",
+                    )}
+                    aria-pressed={isLinked}
+                  >
+                    {evt.skillName} ({evt.eventType})
+                  </button>
                 );
               })}
             </div>
@@ -1158,43 +1361,6 @@ function SectionHeader({
       <span className="flex-1 text-left">{title}</span>
       {expanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
     </button>
-  );
-}
-
-type EntitySelectProps = {
-  label: string;
-  options: EntityOption[];
-  value: string | null;
-  onChange: (value: string | null) => void;
-  disabled: boolean;
-};
-
-function EntitySelect({
-  label,
-  options,
-  value,
-  onChange,
-  disabled,
-}: EntitySelectProps) {
-  return (
-    <div>
-      <label className="mb-1 block text-xs font-medium text-white/50">
-        {label}
-      </label>
-      <select
-        value={value ?? ""}
-        onChange={(e) => onChange(e.target.value || null)}
-        disabled={disabled}
-        className="w-full rounded-md border border-white/15 bg-white/5 px-2 py-1 text-xs text-white/80 focus:outline-none focus:ring-1 focus:ring-ring"
-      >
-        <option value="">None</option>
-        {options.map((opt) => (
-          <option key={opt.id} value={opt.id}>
-            {opt.name}
-          </option>
-        ))}
-      </select>
-    </div>
   );
 }
 

@@ -4,6 +4,12 @@ import { useCallback, useState, useTransition } from "react";
 import { X } from "lucide-react";
 import { PartialDateInput } from "@/components/shared/partial-date-input";
 import { BodyRegionCompact } from "@/components/shared/body-region-picker";
+import {
+  InlineUploadZone,
+  cleanupPendingFiles,
+  uploadAndLinkFiles,
+} from "@/components/shared/inline-upload-zone";
+import type { PendingFile } from "@/components/shared/inline-upload-zone";
 import { cn } from "@/lib/utils";
 import { getRegionLabel } from "@/lib/constants/body-regions";
 import type { BodyModificationType } from "@/generated/prisma/client";
@@ -12,10 +18,12 @@ import { createBodyModificationAction } from "@/lib/actions/appearance-actions";
 
 type AddBodyModificationSheetProps = {
   personId: string;
+  referenceSessionId?: string;
+  categoryId?: string;
   onClose: () => void;
 };
 
-export function AddBodyModificationSheet({ personId, onClose }: AddBodyModificationSheetProps) {
+export function AddBodyModificationSheet({ personId, referenceSessionId, categoryId, onClose }: AddBodyModificationSheetProps) {
   const [isPending, startTransition] = useTransition();
   const [type, setType] = useState<BodyModificationType>("piercing");
   const [bodyRegions, setBodyRegions] = useState<string[]>([]);
@@ -25,6 +33,7 @@ export function AddBodyModificationSheet({ personId, onClose }: AddBodyModificat
   const [date, setDate] = useState("");
   const [datePrecision, setDatePrecision] = useState("UNKNOWN");
   const [error, setError] = useState<string | null>(null);
+  const [pendingFiles, setPendingFiles] = useState<PendingFile[]>([]);
 
   const handleSubmit = useCallback(() => {
     if (bodyRegions.length === 0) {
@@ -48,9 +57,20 @@ export function AddBodyModificationSheet({ personId, onClose }: AddBodyModificat
         setError(result.error ?? "Failed to create body modification.");
         return;
       }
+      if (pendingFiles.length > 0 && referenceSessionId && categoryId && result.id) {
+        await uploadAndLinkFiles(
+          pendingFiles,
+          referenceSessionId,
+          personId,
+          categoryId,
+          "bodyModificationId",
+          result.id,
+        );
+        cleanupPendingFiles(pendingFiles);
+      }
       onClose();
     });
-  }, [personId, type, bodyRegions, description, material, gauge, date, datePrecision, onClose]);
+  }, [personId, type, bodyRegions, description, material, gauge, date, datePrecision, pendingFiles, referenceSessionId, categoryId, onClose]);
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end">
@@ -125,6 +145,14 @@ export function AddBodyModificationSheet({ personId, onClose }: AddBodyModificat
             />
             <p className="mt-1 text-xs text-muted-foreground/60">A persona will be auto-created or matched by date.</p>
           </div>
+
+          {/* Inline photo upload */}
+          {referenceSessionId && categoryId && (
+            <InlineUploadZone
+              pendingFiles={pendingFiles}
+              onPendingFilesChange={setPendingFiles}
+            />
+          )}
 
           {error && <p className="text-sm text-red-500">{error}</p>}
 

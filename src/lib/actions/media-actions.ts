@@ -343,6 +343,69 @@ export async function unlinkMediaFromDetailCategoryAction(
   }
 }
 
+export async function batchEntityLinkAction(
+  personId: string,
+  mediaItemIds: string[],
+  categoryId: string,
+  entityField: "bodyMarkId" | "bodyModificationId" | "cosmeticProcedureId",
+  entityId: string,
+  sessionId: string,
+): Promise<ActionResult> {
+  try {
+    for (const mediaItemId of mediaItemIds) {
+      const existing = await prisma.personMediaLink.findFirst({
+        where: { personId, mediaItemId, usage: "DETAIL", categoryId },
+      });
+      if (existing) {
+        await prisma.personMediaLink.update({
+          where: { id: existing.id },
+          data: { [entityField]: entityId },
+        });
+      } else {
+        await prisma.personMediaLink.create({
+          data: {
+            personId,
+            mediaItemId,
+            usage: "DETAIL",
+            categoryId,
+            [entityField]: entityId,
+          },
+        });
+      }
+    }
+    revalidatePath(`/sessions/${sessionId}`);
+    revalidatePath(`/people/${personId}`);
+    return { success: true };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Unexpected error";
+    return { success: false, error: message };
+  }
+}
+
+export async function batchSetBodyRegionsAction(
+  personId: string,
+  mediaItemIds: string[],
+  bodyRegions: string[],
+  sessionId: string,
+): Promise<ActionResult> {
+  try {
+    // Update bodyRegions on all DETAIL links for the given media items
+    await prisma.personMediaLink.updateMany({
+      where: {
+        personId,
+        mediaItemId: { in: mediaItemIds },
+      },
+      data: { bodyRegions },
+    });
+    revalidatePath(`/sessions/${sessionId}`);
+    revalidatePath(`/people/${personId}`);
+    return { success: true };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Unexpected error";
+    return { success: false, error: message };
+  }
+}
+
 export async function resetFocalPointAction(
   mediaItemId: string,
   sessionId: string,

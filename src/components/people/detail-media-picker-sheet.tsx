@@ -8,6 +8,7 @@ import {
   linkMediaToDetailCategoryAction,
   unlinkMediaFromDetailCategoryAction,
 } from "@/lib/actions/media-actions";
+import { EntityCombobox } from "@/components/shared/entity-combobox";
 import type { CategoryWithGroup } from "@/components/gallery/gallery-info-panel";
 
 type MediaItem = {
@@ -29,6 +30,7 @@ type DetailMediaPickerSheetProps = {
   referenceSessionId: string;
   category: CategoryWithGroup;
   entities?: Entity[];
+  preselectedEntityId?: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onLinked?: () => void;
@@ -45,6 +47,7 @@ export function DetailMediaPickerSheet({
   referenceSessionId,
   category,
   entities,
+  preselectedEntityId,
   open,
   onOpenChange,
   onLinked,
@@ -53,7 +56,7 @@ export function DetailMediaPickerSheet({
   const [loading, setLoading] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [initialLinked, setInitialLinked] = useState<Set<string>>(new Set());
-  const [selectedEntityId, setSelectedEntityId] = useState<string>("");
+  const [selectedEntityId, setSelectedEntityId] = useState<string>(preselectedEntityId ?? "");
   const [isPending, startTransition] = useTransition();
   const [uploading, setUploading] = useState(false);
 
@@ -200,18 +203,13 @@ export function DetailMediaPickerSheet({
               <label className="mb-1.5 block text-sm font-medium">
                 Link to specific {category.entityModel === "BodyMark" ? "body mark" : category.entityModel === "BodyModification" ? "modification" : "procedure"}
               </label>
-              <select
+              <EntityCombobox
+                entities={entities.map((e) => ({ id: e.id, label: e.label }))}
                 value={selectedEntityId}
-                onChange={(e) => setSelectedEntityId(e.target.value)}
-                className="w-full rounded-lg border border-white/15 bg-muted/30 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
-              >
-                <option value="">None (category only)</option>
-                {entities.map((e) => (
-                  <option key={e.id} value={e.id}>
-                    {e.label}
-                  </option>
-                ))}
-              </select>
+                onChange={setSelectedEntityId}
+                placeholder="None (category only)"
+                emptyLabel="None (category only)"
+              />
             </div>
           )}
 

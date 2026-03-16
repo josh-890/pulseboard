@@ -61,10 +61,18 @@ async function cleanupTestData() {
     // --- Sessions created by tests ---
     // Also delete auto-created DRAFT sessions for test sets
     r = await tx.$executeRaw`
-      DELETE FROM "SessionParticipant" WHERE "sessionId" IN (
+      DELETE FROM "ContributionSkill" WHERE "contributionId" IN (
+        SELECT id FROM "SessionContribution" WHERE "sessionId" IN (
+          SELECT id FROM "Session" WHERE name LIKE 'Test Session %'
+        )
+      )`;
+    if (r) console.log(`  ContributionSkill (test sessions): ${r}`);
+
+    r = await tx.$executeRaw`
+      DELETE FROM "SessionContribution" WHERE "sessionId" IN (
         SELECT id FROM "Session" WHERE name LIKE 'Test Session %'
       )`;
-    if (r) console.log(`  SessionParticipant (test sessions): ${r}`);
+    if (r) console.log(`  SessionContribution (test sessions): ${r}`);
 
     // Delete MediaItems belonging to test sessions
     r = await tx.$executeRaw`
@@ -156,7 +164,7 @@ async function cleanupTestData() {
             await tx.$executeRaw`DELETE FROM "CosmeticProcedureEvent" WHERE "personaId" = ${pId}`;
             await tx.$executeRaw`DELETE FROM "PersonaPhysical" WHERE "personaId" = ${pId}`;
             await tx.$executeRaw`DELETE FROM "PersonDigitalIdentity" WHERE "personaId" = ${pId}`;
-            await tx.$executeRaw`DELETE FROM "PersonSkill" WHERE "personaId" = ${pId}`;
+            await tx.$executeRaw`DELETE FROM "PersonSkillEvent" WHERE "personaId" = ${pId}`;
           }
           await tx.$executeRaw`DELETE FROM "Persona" WHERE "personId" = ${id}`;
         }
@@ -180,6 +188,16 @@ async function cleanupTestData() {
 
         // Digital identities & skills (person-level, not persona-level)
         await tx.$executeRaw`DELETE FROM "PersonDigitalIdentity" WHERE "personId" = ${id}`;
+        await tx.$executeRaw`
+          DELETE FROM "SkillEventMedia" WHERE "skillEventId" IN (
+            SELECT id FROM "PersonSkillEvent" WHERE "personSkillId" IN (
+              SELECT id FROM "PersonSkill" WHERE "personId" = ${id}
+            )
+          )`;
+        await tx.$executeRaw`
+          DELETE FROM "PersonSkillEvent" WHERE "personSkillId" IN (
+            SELECT id FROM "PersonSkill" WHERE "personId" = ${id}
+          )`;
         await tx.$executeRaw`DELETE FROM "PersonSkill" WHERE "personId" = ${id}`;
 
         // Media collections
@@ -192,8 +210,16 @@ async function cleanupTestData() {
         // Participation + media links
         await tx.$executeRaw`DELETE FROM "PersonMediaLink" WHERE "personId" = ${id}`;
         await tx.$executeRaw`DELETE FROM "SetCreditRaw" WHERE "resolvedPersonId" = ${id}`;
-        await tx.$executeRaw`DELETE FROM "SessionParticipant" WHERE "personId" = ${id}`;
+        await tx.$executeRaw`
+          DELETE FROM "ContributionSkill" WHERE "contributionId" IN (
+            SELECT id FROM "SessionContribution" WHERE "personId" = ${id}
+          )`;
+        await tx.$executeRaw`DELETE FROM "SessionContribution" WHERE "personId" = ${id}`;
         await tx.$executeRaw`DELETE FROM "SetParticipant" WHERE "personId" = ${id}`;
+        await tx.$executeRaw`
+          DELETE FROM "PersonAliasChannel" WHERE "aliasId" IN (
+            SELECT id FROM "PersonAlias" WHERE "personId" = ${id}
+          )`;
         await tx.$executeRaw`DELETE FROM "PersonAlias" WHERE "personId" = ${id}`;
 
         // Reference session (cascade its media first)
@@ -218,7 +244,7 @@ async function cleanupTestData() {
       WHERE status = 'DRAFT'
         AND id NOT LIKE 'seed-%'
         AND id NOT IN (SELECT "sessionId" FROM "SetSession")
-        AND id NOT IN (SELECT "sessionId" FROM "SessionParticipant")
+        AND id NOT IN (SELECT "sessionId" FROM "SessionContribution")
         AND id NOT IN (SELECT "sessionId" FROM "MediaItem" WHERE "sessionId" IS NOT NULL)
     `;
     if (r) console.log(`  Session (orphan drafts): ${r}`);
