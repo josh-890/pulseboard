@@ -165,14 +165,24 @@ export async function getPopulatedCategoriesForPerson(personId: string) {
     },
     select: {
       categoryId: true,
+      bodyMarkId: true,
+      bodyModificationId: true,
+      cosmeticProcedureId: true,
+      category: { select: { entityModel: true } },
     },
   });
 
   const counts = new Map<string, number>();
   for (const link of links) {
-    if (link.categoryId) {
-      counts.set(link.categoryId, (counts.get(link.categoryId) ?? 0) + 1);
-    }
+    if (!link.categoryId) continue;
+
+    // Skip orphaned links: category requires an entity but none is set
+    const em = link.category?.entityModel;
+    if (em === "BodyMark" && !link.bodyMarkId) continue;
+    if (em === "BodyModification" && !link.bodyModificationId) continue;
+    if (em === "CosmeticProcedure" && !link.cosmeticProcedureId) continue;
+
+    counts.set(link.categoryId, (counts.get(link.categoryId) ?? 0) + 1);
   }
 
   return counts;
