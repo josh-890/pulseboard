@@ -1,6 +1,7 @@
 import { randomUUID } from "crypto";
 import { prisma } from "@/lib/db";
 import type { PhotoVariants, PhotoUrls } from "@/lib/types";
+import { parsePhotoVariants } from "@/lib/types";
 import type { MediaItemWithUrls, PersonMediaUsage } from "@/lib/types";
 import type { GalleryItem, DuplicateMatch, SimilarMatch } from "@/lib/types";
 import type { PersonMediaLink } from "@/generated/prisma/client";
@@ -51,7 +52,7 @@ type MediaItemRow = {
 };
 
 function toMediaItemWithUrls(item: MediaItemRow): MediaItemWithUrls | null {
-  const variants = (item.variants ?? {}) as PhotoVariants;
+  const variants = parsePhotoVariants(item.variants) ?? ({} as PhotoVariants);
   if (!variants.original && !item.fileRef) return null;
   return {
     id: item.id,
@@ -835,20 +836,29 @@ export async function batchSetUsage(
   if (mediaItemIds.length === 0) return;
 
   await prisma.$transaction(async (tx) => {
-    for (const mediaItemId of mediaItemIds) {
-      const existing = await tx.personMediaLink.findFirst({
-        where: { personId, mediaItemId, usage, ...(usage === "DETAIL" ? { categoryId } : {}) },
+    // Single query to find all existing links
+    const existing = await tx.personMediaLink.findMany({
+      where: {
+        personId,
+        mediaItemId: { in: mediaItemIds },
+        usage,
+        ...(usage === "DETAIL" ? { categoryId } : {}),
+      },
+      select: { mediaItemId: true },
+    });
+    const existingIds = new Set(existing.map((e) => e.mediaItemId));
+
+    // Bulk-create only the missing links
+    const toCreate = mediaItemIds.filter((id) => !existingIds.has(id));
+    if (toCreate.length > 0) {
+      await tx.personMediaLink.createMany({
+        data: toCreate.map((mediaItemId) => ({
+          personId,
+          mediaItemId,
+          usage,
+          ...(categoryId ? { categoryId } : {}),
+        })),
       });
-      if (!existing) {
-        await tx.personMediaLink.create({
-          data: {
-            personId,
-            mediaItemId,
-            usage,
-            ...(categoryId ? { categoryId } : {}),
-          },
-        });
-      }
     }
   });
 }

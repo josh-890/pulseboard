@@ -37,6 +37,7 @@ export type {
   PersonCurrentState,
   SkillLevel,
   SkillEventType,
+  DigitalIdentityStatus,
 } from "./person";
 
 export type {
@@ -54,6 +55,8 @@ export type {
   PhotoVariants,
   PhotoUrls,
 } from "./photo";
+
+export { parsePhotoVariants } from "./photo";
 
 export type {
   MediaItem,

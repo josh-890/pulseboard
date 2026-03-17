@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import type { PhotoVariants } from "@/lib/types";
+import { parsePhotoVariants } from "@/lib/types";
 
 /**
  * Transaction client type — same shape as prisma but scoped to a transaction.
@@ -166,8 +167,8 @@ export async function cascadeHardDeleteMediaItems(
     select: { variants: true },
   });
   const variantsList = toDelete
-    .map((m) => m.variants as unknown as PhotoVariants)
-    .filter(Boolean);
+    .map((m) => parsePhotoVariants(m.variants))
+    .filter((v): v is PhotoVariants => v !== null);
 
   // 6. Hard-delete the media items themselves
   await tx.mediaItem.deleteMany({
@@ -216,6 +217,77 @@ export async function cascadeDeletePersonSkills(
   await tx.contributionSkill.deleteMany({
     where: { contribution: { personId } },
   });
+}
+
+/**
+ * Cascade hard-delete aliases for a person: channel links, then aliases.
+ */
+export async function cascadeDeletePersonAliases(
+  tx: TxClient,
+  personId: string,
+) {
+  const aliases = await tx.personAlias.findMany({
+    where: { personId },
+    select: { id: true },
+  });
+  const aliasIds = aliases.map((a) => a.id);
+  if (aliasIds.length > 0) {
+    await tx.personAliasChannel.deleteMany({
+      where: { aliasId: { in: aliasIds } },
+    });
+  }
+  await tx.personAlias.deleteMany({
+    where: { personId },
+  });
+}
+
+/**
+ * Cascade hard-delete a single persona: physical, body mark events,
+ * body modification events, cosmetic procedure events, digital identities,
+ * skill events, then the persona itself.
+ */
+export async function cascadeDeletePersona(
+  tx: TxClient,
+  personaId: string,
+) {
+  await tx.personaPhysical.deleteMany({
+    where: { personaId },
+  });
+  await tx.bodyMarkEvent.deleteMany({
+    where: { personaId },
+  });
+  await tx.bodyModificationEvent.deleteMany({
+    where: { personaId },
+  });
+  await tx.cosmeticProcedureEvent.deleteMany({
+    where: { personaId },
+  });
+  await tx.personDigitalIdentity.deleteMany({
+    where: { personaId },
+  });
+  // Skill events reference persona via personSkillEvent.personaId
+  await tx.personSkillEvent.deleteMany({
+    where: { personaId },
+  });
+  await tx.persona.delete({
+    where: { id: personaId },
+  });
+}
+
+/**
+ * Cascade hard-delete all personas for a person.
+ */
+export async function cascadeDeletePersonPersonas(
+  tx: TxClient,
+  personId: string,
+) {
+  const personas = await tx.persona.findMany({
+    where: { personId },
+    select: { id: true },
+  });
+  for (const p of personas) {
+    await cascadeDeletePersona(tx, p.id);
+  }
 }
 
 /**

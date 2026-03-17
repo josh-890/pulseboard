@@ -373,6 +373,12 @@ export async function createSetCreditsRaw(
   if (credits.length === 0) return;
 
   await prisma.$transaction(async (tx) => {
+    // Fetch session links once for the entire set (avoids N+1 per credit)
+    const sessionLinks = await tx.setSession.findMany({
+      where: { setId },
+      select: { sessionId: true },
+    });
+
     for (const credit of credits) {
       const isResolved = !!credit.resolvedPersonId;
       await tx.setCreditRaw.create({
@@ -388,11 +394,7 @@ export async function createSetCreditsRaw(
 
       // If pre-resolved, create SessionContribution on linked sessions
       if (isResolved && credit.resolvedPersonId) {
-        const links = await tx.setSession.findMany({
-          where: { setId },
-          select: { sessionId: true },
-        });
-        for (const link of links) {
+        for (const link of sessionLinks) {
           await tx.sessionContribution.upsert({
             where: {
               sessionId_personId_roleDefinitionId: {

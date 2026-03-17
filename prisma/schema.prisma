@@ -110,6 +110,13 @@ enum CosmeticProcedureEventType {
   reversed
 }
 
+enum DigitalIdentityStatus {
+  active
+  inactive
+  suspended
+  deleted
+}
+
 enum EducationType {
   primary
   secondary
@@ -270,6 +277,7 @@ model PersonAliasChannel {
   notes     String?
 
   @@id([aliasId, channelId])
+  @@index([aliasId])
   @@index([channelId])
 }
 
@@ -353,7 +361,7 @@ model PersonDigitalIdentity {
   platform  String
   handle    String?
   url       String?
-  status    String    @default("active")
+  status    DigitalIdentityStatus @default(active)
   validFrom DateTime?
   validFromPrecision DatePrecision @default(UNKNOWN)
   validTo   DateTime?
@@ -593,6 +601,7 @@ model LabelNetworkLink {
   network   Network @relation(fields: [networkId], references: [id])
 
   @@id([labelId, networkId])
+  @@index([networkId])
   @@map("LabelNetwork")
 }
 
@@ -921,6 +930,7 @@ model MediaCollectionItem {
   createdAt    DateTime         @default(now())
 
   @@id([collectionId, mediaItemId])
+  @@index([mediaItemId])
   @@map("MediaCollectionItem")
 }
 
@@ -1034,6 +1044,7 @@ model SkillEventMedia {
   createdAt    DateTime         @default(now())
 
   @@id([skillEventId, mediaItemId])
+  @@index([mediaItemId])
 }
 
 // ─── Contribution Role Catalog ───────────────────────────────────────────────

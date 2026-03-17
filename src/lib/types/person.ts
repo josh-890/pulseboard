@@ -23,6 +23,9 @@ export type {
   SkillEventType,
 } from "@/generated/prisma/client";
 
+import type { DigitalIdentityStatus } from "@/generated/prisma/enums";
+export type { DigitalIdentityStatus };
+
 export type PersonWithCommonAlias = {
   id: string;
   icgId: string;
@@ -129,7 +132,7 @@ export type PersonDigitalIdentityItem = {
   platform: string;
   handle: string | null;
   url: string | null;
-  status: string;
+  status: DigitalIdentityStatus;
   validFrom: Date | null;
   validTo: Date | null;
   personaLabel: string | null;
