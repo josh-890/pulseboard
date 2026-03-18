@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/db";
 import type { SkillLevel, SkillEventType, DatePrecision } from "@/generated/prisma/client";
-import type { PersonSkillItem, PersonSkillEventItem, SkillEventMediaThumb, PhotoVariants, GalleryItem, PhotoUrls } from "@/lib/types";
+import type { PersonSkillItem, PersonSkillEventItem, SkillEventMediaThumb, PhotoVariants, GalleryItem } from "@/lib/types";
 import { buildUrl, buildPhotoUrls } from "@/lib/media-url";
 
 /** Map skill event media rows to thumb type */

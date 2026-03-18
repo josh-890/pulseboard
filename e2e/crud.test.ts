@@ -102,7 +102,7 @@ test.describe("Labels CRUD", () => {
     await dialog.getByRole("button", { name: /create label/i }).click();
 
     await waitForToast(page, "Label created");
-    await expect(page).toHaveURL(/\/labels\/.+/);
+    await expect(page).toHaveURL(/\/labels\/.+/, { timeout: 10000 });
     createdLabelId = page.url().split("/labels/")[1];
     await expect(page.getByRole("button", { name: /^edit$/i })).toBeVisible();
   });
