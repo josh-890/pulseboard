@@ -224,7 +224,7 @@ Standardized to shared `CrudActionResult` and `SimpleActionResult` types in `src
 6. ~~**Add runtime validation for `Json` fields**~~ ✅ `parsePhotoVariants()` guard function exists in `lib/types/photo.ts`; used in cascade-helpers; remaining `as PhotoVariants` casts are safe (data written by upload pipeline)
 
 ### Tier 2 — Architecture Improvements
-7. **Extract `AppearanceTab`** from `person-detail-tabs.tsx` into own file
+7. ~~**Extract `AppearanceTab`**~~ ✅ Extracted to `appearance-tab.tsx` (377 lines) + `person-detail-helpers.tsx` (SectionCard, EmptyState, InfoRow)
 8. **Deduplicate gallery-info-panel / media-metadata-panel** — shared hooks or sub-components
 9. **Extract shared patterns** — `useSearchWithDebounce` hook, `SectionHeader` ~~, `buildUrl` utility~~ (✅ buildUrl extracted to `src/lib/media-url.ts`)
 10. ~~**Standardize action return types**~~ ✅ Shared `CrudActionResult` and `SimpleActionResult` in `src/lib/types/action-result.ts`, adopted across all 17 action files
