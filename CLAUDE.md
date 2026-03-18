@@ -112,7 +112,7 @@ src/
 - No external state libraries
 
 ## Key Architecture Docs
-- `docs/architecture.md` — Page structure, data flow, component hierarchy
+- `docs/architecture.md` — **Architecture reference** — complete system map (routes, services, actions, API routes, component hierarchy, data flows, invariants). **Read this first** when starting a new task. **Keep this document up to date** when adding/removing pages, services, actions, API routes, components, or changing data flows.
 - `docs/style-guide.md` — Design tokens, color palette, glassmorphism system
 - `docs/components.md` — Full component inventory with props
 - `docs/data-model.md` — Database schema and relationships
