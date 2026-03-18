@@ -25,8 +25,7 @@ Comprehensive architecture review covering services, actions, components, API ro
 ### Transaction Usage
 - All multi-step mutations correctly use `prisma.$transaction(async (tx) => {...})`
 - Cascade helpers in `cascade-helpers.ts` accept `TxClient` (transaction-scoped client)
-- **Issue — guard clauses outside transactions**: In `session-service.ts:265-269` and `deleteSessionRecord()` (line 288-293), reference session checks run BEFORE the transaction starts. Another request could change the session between the check and the transaction.
-- **Fix**: Move guard checks inside the transaction callback
+- ~~**Issue — guard clauses outside transactions**~~ ✅ Fixed — guard checks moved inside `$transaction` callbacks in session-service, alias-service, and persona-service
 
 ### N+1 Query Patterns
 
@@ -40,7 +39,7 @@ Comprehensive architecture review covering services, actions, components, API ro
 ### Consistency
 - Naming: consistent `getX()`, `createXRecord()`, `updateXRecord()`, `deleteXRecord()`
 - Include patterns: heavy nested includes (sometimes 4+ levels)
-- **Duplicate utility**: `buildUrl()` and `buildPhotoUrls()` defined independently in 3+ services — should be shared
+- ~~**Duplicate utility**: `buildUrl()` and `buildPhotoUrls()` defined independently in 3+ services~~ ✅ Extracted to `src/lib/media-url.ts`
 
 ### Raw SQL
 - All parameterized correctly via Prisma template literals or `$queryRawUnsafe()` with static SQL
@@ -88,10 +87,12 @@ Comprehensive architecture review covering services, actions, components, API ro
 - Some over-invalidation (e.g., every category action revalidates `/settings`)
 - Missing dashboard revalidation in some person/set creation actions
 
-### Return Types — Three Inconsistent Patterns
-1. `{ success: true; id: string } | { success: false; error: { fieldErrors? } | string }` — CRUD
-2. `{ success: boolean; error?: string }` — simple operations
-3. `MaintenanceActionResult` with `found/fixed/details` — maintenance
+### ~~Return Types — Three Inconsistent Patterns~~ ✅ Fixed
+~~1. `{ success: true; id: string } | { success: false; error: { fieldErrors? } | string }` — CRUD~~
+~~2. `{ success: boolean; error?: string }` — simple operations~~
+~~3. `MaintenanceActionResult` with `found/fixed/details` — maintenance~~
+
+Standardized to shared `CrudActionResult` and `SimpleActionResult` types in `src/lib/types/action-result.ts`. `MaintenanceActionResult` remains domain-specific (appropriate).
 
 ### Large Action Files
 
@@ -215,19 +216,19 @@ Comprehensive architecture review covering services, actions, components, API ro
 ## 6. Priority Items
 
 ### Tier 1 — Hardening for Scale (Items 5-10)
-1. **Add missing FK indexes** — 4 join tables need `@@index`
-2. **Add enums for untyped string fields** — CosmeticProcedure type/status, identity status
-3. **Add try-catch to unprotected API routes** — sessions media/gallery
-4. **Fix N+1 patterns** — credit creation loop, batch operations
-5. **Add missing cascade helpers** — PersonAlias, Persona, SkillDefinition
-6. **Add runtime validation for `Json` fields** — `PhotoVariants` guard function
+1. ~~**Add missing FK indexes**~~ ✅ Already covered — composite PKs on join tables provide B-tree index on first column
+2. ~~**Add enums for untyped string fields**~~ ✅ No change needed — CosmeticProcedure type/status intentionally free-text (medical procedure names); DigitalIdentity already has enum
+3. ~~**Add try-catch to unprotected API routes**~~ ✅ Already fixed in prior commit (sessions media/gallery routes have try-catch)
+4. ~~**Fix N+1 patterns**~~ ✅ Credit creation loop and batchSetUsage already fixed in `8ba2e06`; session merge N+1 acceptable (rare operation, small data)
+5. ~~**Add missing cascade helpers**~~ ✅ Already implemented — `cascadeDeletePersonAliases`, `cascadeDeletePersona`, `cascadeDeletePersonPersonas` exist; SkillDefinition/ContributionRole use refuse-to-delete-if-in-use pattern (correct for catalog items)
+6. ~~**Add runtime validation for `Json` fields**~~ ✅ `parsePhotoVariants()` guard function exists in `lib/types/photo.ts`; used in cascade-helpers; remaining `as PhotoVariants` casts are safe (data written by upload pipeline)
 
 ### Tier 2 — Architecture Improvements
 7. **Extract `AppearanceTab`** from `person-detail-tabs.tsx` into own file
 8. **Deduplicate gallery-info-panel / media-metadata-panel** — shared hooks or sub-components
-9. **Extract shared patterns** — `useSearchWithDebounce` hook, `SectionHeader`, `buildUrl` utility
-10. **Standardize action return types** — single `ActionResult<T>` generic
-11. **Move guard clauses inside transactions** — session-service.ts
+9. **Extract shared patterns** — `useSearchWithDebounce` hook, `SectionHeader` ~~, `buildUrl` utility~~ (✅ buildUrl extracted to `src/lib/media-url.ts`)
+10. ~~**Standardize action return types**~~ ✅ Shared `CrudActionResult` and `SimpleActionResult` in `src/lib/types/action-result.ts`, adopted across all 17 action files
+11. ~~**Move guard clauses inside transactions**~~ ✅ Fixed in session-service (editSessionRecord, deleteSessionRecord), alias-service (deleteAlias), persona-service (deletePersona)
 
 ### Tier 3 — Future Considerations
 12. **Auth middleware** if app leaves local network
