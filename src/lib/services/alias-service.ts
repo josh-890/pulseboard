@@ -175,21 +175,21 @@ export async function updateAlias(
 }
 
 export async function deleteAlias(aliasId: string) {
-  // Guard: cannot delete the sole common alias
-  const alias = await prisma.personAlias.findUniqueOrThrow({
-    where: { id: aliasId },
-  });
-
-  if (alias.type === "common") {
-    const commonCount = await prisma.personAlias.count({
-      where: { personId: alias.personId, type: "common" },
-    });
-    if (commonCount <= 1) {
-      throw new Error("Cannot delete the only common alias for a person.");
-    }
-  }
-
   return prisma.$transaction(async (tx) => {
+    // Guard: cannot delete the sole common alias (inside tx to avoid TOCTOU)
+    const alias = await tx.personAlias.findUniqueOrThrow({
+      where: { id: aliasId },
+    });
+
+    if (alias.type === "common") {
+      const commonCount = await tx.personAlias.count({
+        where: { personId: alias.personId, type: "common" },
+      });
+      if (commonCount <= 1) {
+        throw new Error("Cannot delete the only common alias for a person.");
+      }
+    }
+
     await tx.personAliasChannel.deleteMany({ where: { aliasId } });
     await tx.personAlias.delete({ where: { id: aliasId } });
   });

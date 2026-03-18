@@ -262,37 +262,39 @@ export async function updateSessionRecord(
     datePrecision?: string;
   },
 ) {
-  // Guard: prevent editing reference sessions
-  const existing = await prisma.session.findFirst({ where: { id }, select: { type: true } });
-  if (existing?.type === "REFERENCE") {
-    throw new Error("Cannot edit a reference session");
-  }
+  return prisma.$transaction(async (tx) => {
+    // Guard: prevent editing reference sessions (inside tx to avoid TOCTOU)
+    const existing = await tx.session.findFirst({ where: { id }, select: { type: true } });
+    if (existing?.type === "REFERENCE") {
+      throw new Error("Cannot edit a reference session");
+    }
 
-  return prisma.session.update({
-    where: { id },
-    data: {
-      name: data.name,
-      nameNorm: data.name ? data.name.toLowerCase() : undefined,
-      projectId: data.projectId,
-      labelId: data.labelId,
-      description: data.description,
-      location: data.location,
-      status: data.status ? (data.status as SessionStatus) : undefined,
-      notes: data.notes,
-      date: data.date ? new Date(data.date) : data.date === null ? null : undefined,
-      datePrecision: (data.datePrecision as "UNKNOWN" | "YEAR" | "MONTH" | "DAY") ?? undefined,
-    },
+    return tx.session.update({
+      where: { id },
+      data: {
+        name: data.name,
+        nameNorm: data.name ? data.name.toLowerCase() : undefined,
+        projectId: data.projectId,
+        labelId: data.labelId,
+        description: data.description,
+        location: data.location,
+        status: data.status ? (data.status as SessionStatus) : undefined,
+        notes: data.notes,
+        date: data.date ? new Date(data.date) : data.date === null ? null : undefined,
+        datePrecision: (data.datePrecision as "UNKNOWN" | "YEAR" | "MONTH" | "DAY") ?? undefined,
+      },
+    });
   });
 }
 
 export async function deleteSessionRecord(id: string) {
-  // Guard: prevent manual deletion of REFERENCE sessions
-  const session = await prisma.session.findFirst({ where: { id }, select: { type: true } });
-  if (session?.type === "REFERENCE") {
-    throw new Error("Reference sessions can only be deleted by deleting the associated person");
-  }
-
   return prisma.$transaction(async (tx) => {
+    // Guard: prevent manual deletion of REFERENCE sessions (inside tx to avoid TOCTOU)
+    const session = await tx.session.findFirst({ where: { id }, select: { type: true } });
+    if (session?.type === "REFERENCE") {
+      throw new Error("Reference sessions can only be deleted by deleting the associated person");
+    }
+
     await cascadeDeleteSession(tx, id);
   });
 }

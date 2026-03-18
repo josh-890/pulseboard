@@ -261,12 +261,13 @@ export async function updatePersona(id: string, data: UpdatePersonaInput) {
  * Prevents deleting baseline personas.
  */
 export async function deletePersona(id: string) {
-  const persona = await prisma.persona.findUniqueOrThrow({ where: { id } });
-  if (persona.isBaseline) {
-    throw new Error("Cannot delete baseline persona.");
-  }
-
   return prisma.$transaction(async (tx) => {
+    // Guard: prevent deleting baseline persona (inside tx to avoid TOCTOU)
+    const persona = await tx.persona.findUniqueOrThrow({ where: { id } });
+    if (persona.isBaseline) {
+      throw new Error("Cannot delete baseline persona.");
+    }
+
     // Delete linked events (not the entities)
     await tx.bodyMarkEvent.deleteMany({ where: { personaId: id } });
     await tx.bodyModificationEvent.deleteMany({ where: { personaId: id } });
