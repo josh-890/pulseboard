@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { cn } from "@/lib/utils";
+import { cn, focalStyle } from "@/lib/utils";
 import type { BodyMarkWithEvents } from "@/lib/types";
 import { BODY_MARK_TYPE_STYLES, BODY_MARK_STATUS_STYLES, BODY_MARK_EVENT_STYLES } from "@/lib/constants/body";
 import { BodyRegionChips } from "@/components/shared/body-region-picker";
@@ -13,6 +13,8 @@ type EntityMediaThumbnail = {
   url: string;
   width: number;
   height: number;
+  focalX: number | null;
+  focalY: number | null;
 };
 
 type BodyMarkCardProps = {
@@ -148,6 +150,7 @@ export function BodyMarkCard({
                 height={photo.height}
                 unoptimized
                 className="h-full w-full object-cover"
+                style={focalStyle(photo.focalX, photo.focalY)}
               />
             </div>
           ))}

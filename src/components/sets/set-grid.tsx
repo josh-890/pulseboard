@@ -12,9 +12,15 @@ import type { SetFilters } from "@/lib/services/set-service";
 
 type SetItem = Awaited<ReturnType<typeof getSets>>[number];
 
+type CoverPhotoData = {
+  url: string;
+  focalX: number | null;
+  focalY: number | null;
+};
+
 type SetGridProps = {
   sets: SetItem[];
-  photoMap: Record<string, string>;
+  photoMap: Record<string, CoverPhotoData>;
   nextCursor: string | null;
   totalCount: number;
   filters: SetFilters;
@@ -74,7 +80,7 @@ export function SetGrid({
         )}
       >
         {sets.map((set) => (
-          <SetCard key={set.id} set={set} photoUrl={photoMap[set.id]} unresolvedCreditCount={set._count.creditsRaw} />
+          <SetCard key={set.id} set={set} coverPhoto={photoMap[set.id]} unresolvedCreditCount={set._count.creditsRaw} />
         ))}
       </div>
 

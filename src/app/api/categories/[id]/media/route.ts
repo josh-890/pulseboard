@@ -43,6 +43,8 @@ export async function GET(
       },
       originalWidth: mi.originalWidth,
       originalHeight: mi.originalHeight,
+      focalX: mi.focalX ?? null,
+      focalY: mi.focalY ?? null,
     };
   });
 

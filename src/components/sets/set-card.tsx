@@ -3,15 +3,21 @@
 import Image from "next/image";
 import Link from "next/link";
 import { Camera, Film, AlertTriangle, ImageOff } from "lucide-react";
-import { cn, formatPartialDate } from "@/lib/utils";
+import { cn, formatPartialDate, focalStyle } from "@/lib/utils";
 import { useDensity } from "@/components/layout/density-provider";
 import type { getSets } from "@/lib/services/set-service";
 
 type SetItem = Awaited<ReturnType<typeof getSets>>[number];
 
+type CoverPhotoData = {
+  url: string;
+  focalX: number | null;
+  focalY: number | null;
+};
+
 type SetCardProps = {
   set: SetItem;
-  photoUrl?: string;
+  coverPhoto?: CoverPhotoData;
   unresolvedCreditCount?: number;
 };
 
@@ -22,7 +28,7 @@ function getCastName(
   return common?.name ?? person.icgId;
 }
 
-export function SetCard({ set, photoUrl, unresolvedCreditCount = 0 }: SetCardProps) {
+export function SetCard({ set, coverPhoto, unresolvedCreditCount = 0 }: SetCardProps) {
   const { density } = useDensity();
   const isCompact = density === "compact";
   const isPhoto = set.type === "photo";
@@ -49,12 +55,13 @@ export function SetCard({ set, photoUrl, unresolvedCreditCount = 0 }: SetCardPro
             isCompact ? "sm:w-[100px]" : "sm:w-[160px]",
           )}
         >
-          {photoUrl ? (
+          {coverPhoto ? (
             <Image
-              src={photoUrl}
+              src={coverPhoto.url}
               alt={set.title}
               fill
-              className="object-cover object-center"
+              className="object-cover"
+              style={focalStyle(coverPhoto.focalX, coverPhoto.focalY)}
               unoptimized
               sizes={isCompact ? "100px" : "160px"}
             />
@@ -135,7 +142,7 @@ export function SetCard({ set, photoUrl, unresolvedCreditCount = 0 }: SetCardPro
           )}
 
           {/* Completeness badges */}
-          {!isCompact && (unresolvedCreditCount > 0 || !photoUrl) && (
+          {!isCompact && (unresolvedCreditCount > 0 || !coverPhoto) && (
             <div className="mt-1.5 flex flex-wrap gap-1">
               {unresolvedCreditCount > 0 && (
                 <span className="inline-flex items-center gap-1 rounded-full border border-amber-500/20 bg-amber-500/10 px-1.5 py-0.5 text-[10px] text-amber-600 dark:text-amber-400">
@@ -143,7 +150,7 @@ export function SetCard({ set, photoUrl, unresolvedCreditCount = 0 }: SetCardPro
                   {unresolvedCreditCount} unresolved
                 </span>
               )}
-              {!photoUrl && (
+              {!coverPhoto && (
                 <span className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-muted/40 px-1.5 py-0.5 text-[10px] text-muted-foreground">
                   <ImageOff size={9} />
                   No photos

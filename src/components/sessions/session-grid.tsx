@@ -12,9 +12,15 @@ import type { SessionFilters } from "@/lib/services/session-service";
 
 type SessionItem = Awaited<ReturnType<typeof getSessions>>[number];
 
+type CoverPhotoData = {
+  url: string;
+  focalX: number | null;
+  focalY: number | null;
+};
+
 type SessionGridProps = {
   sessions: SessionItem[];
-  photoMap: Record<string, string>;
+  photoMap: Record<string, CoverPhotoData>;
   nextCursor: string | null;
   totalCount: number;
   filters: SessionFilters;
@@ -77,7 +83,7 @@ export function SessionGrid({
         )}
       >
         {sessions.map((session) => (
-          <SessionCard key={session.id} session={session} photoUrl={photoMap[session.id]} />
+          <SessionCard key={session.id} session={session} coverPhoto={photoMap[session.id]} />
         ))}
       </div>
 

@@ -12,7 +12,6 @@ import { cascadeHardDeleteMediaItems } from "@/lib/services/cascade-helpers";
 import { refreshDashboardStats } from "@/lib/services/view-service";
 import type { PersonMediaLinkUpdate } from "@/lib/services/media-service";
 import type { PersonMediaUsage } from "@/lib/types";
-import type { PhotoVariants } from "@/lib/types";
 
 type ActionResult = { success: boolean; error?: string };
 
@@ -213,16 +212,11 @@ export async function setFocalPointAction(
   focalX: number,
   focalY: number,
   sessionId: string,
+  personId?: string,
 ): Promise<ActionResult> {
   try {
     const clampedX = Math.min(1, Math.max(0, focalX));
     const clampedY = Math.min(1, Math.max(0, focalY));
-
-    const mediaItem = await prisma.mediaItem.findUnique({
-      where: { id: mediaItemId },
-      select: { variants: true, originalWidth: true, originalHeight: true },
-    });
-    if (!mediaItem) return { success: false, error: "Media item not found" };
 
     await prisma.mediaItem.update({
       where: { id: mediaItemId },
@@ -234,25 +228,9 @@ export async function setFocalPointAction(
       },
     });
 
-    // Regenerate profile variants with manual focal point
-    const { regenerateProfileVariants } = await import("@/lib/media-upload");
-    const variants = (mediaItem.variants ?? {}) as PhotoVariants;
-    if (variants.original) {
-      const updatedVariants = await regenerateProfileVariants(
-        variants,
-        mediaItem.originalWidth,
-        mediaItem.originalHeight,
-        clampedX,
-        clampedY,
-      );
-      await prisma.mediaItem.update({
-        where: { id: mediaItemId },
-        data: { variants: updatedVariants as unknown as Record<string, string> },
-      });
-    }
-
     revalidatePath(`/sessions/${sessionId}`);
     revalidatePath("/people");
+    if (personId) revalidatePath(`/people/${personId}`);
     return { success: true };
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unexpected error";
@@ -409,6 +387,7 @@ export async function batchSetBodyRegionsAction(
 export async function resetFocalPointAction(
   mediaItemId: string,
   sessionId: string,
+  personId?: string,
 ): Promise<ActionResult> {
   try {
     await prisma.mediaItem.update({
@@ -424,6 +403,7 @@ export async function resetFocalPointAction(
 
     revalidatePath(`/sessions/${sessionId}`);
     revalidatePath("/people");
+    if (personId) revalidatePath(`/people/${personId}`);
     return { success: true };
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unexpected error";

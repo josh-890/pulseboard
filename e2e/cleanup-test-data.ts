@@ -235,6 +235,68 @@ async function cleanupTestData() {
       console.log(`  Person (full cascade): ${ids.length}`);
     }
 
+    // --- Test artifacts on seed person (body marks, personas, aliases, etc.) ---
+    // These are created by person-detail tests on seed-person-1
+
+    // Body marks with non-seed IDs on seed person
+    r = await tx.$executeRaw`
+      DELETE FROM "BodyMarkEvent" WHERE "bodyMarkId" IN (
+        SELECT id FROM "BodyMark" WHERE "personId" = 'seed-person-1' AND id NOT LIKE 'seed-%'
+      )`;
+    if (r) console.log(`  BodyMarkEvent (test body marks): ${r}`);
+
+    r = await tx.$executeRaw`
+      DELETE FROM "BodyMark" WHERE "personId" = 'seed-person-1' AND id NOT LIKE 'seed-%'`;
+    if (r) console.log(`  BodyMark (test): ${r}`);
+
+    // Body modifications with non-seed IDs on seed person
+    r = await tx.$executeRaw`
+      DELETE FROM "BodyModificationEvent" WHERE "bodyModificationId" IN (
+        SELECT id FROM "BodyModification" WHERE "personId" = 'seed-person-1' AND id NOT LIKE 'seed-%'
+      )`;
+    if (r) console.log(`  BodyModificationEvent (test): ${r}`);
+
+    r = await tx.$executeRaw`
+      DELETE FROM "BodyModification" WHERE "personId" = 'seed-person-1' AND id NOT LIKE 'seed-%'`;
+    if (r) console.log(`  BodyModification (test): ${r}`);
+
+    // Cosmetic procedures with non-seed IDs on seed person
+    r = await tx.$executeRaw`
+      DELETE FROM "CosmeticProcedureEvent" WHERE "cosmeticProcedureId" IN (
+        SELECT id FROM "CosmeticProcedure" WHERE "personId" = 'seed-person-1' AND id NOT LIKE 'seed-%'
+      )`;
+    if (r) console.log(`  CosmeticProcedureEvent (test): ${r}`);
+
+    r = await tx.$executeRaw`
+      DELETE FROM "CosmeticProcedure" WHERE "personId" = 'seed-person-1' AND id NOT LIKE 'seed-%'`;
+    if (r) console.log(`  CosmeticProcedure (test): ${r}`);
+
+    // Personas with non-seed IDs on seed person (cascade physical/events)
+    const testPersonaIds = await tx.$queryRaw<{ id: string }[]>`
+      SELECT id FROM "Persona" WHERE "personId" = 'seed-person-1' AND id NOT LIKE 'seed-%'`;
+    for (const { id: pId } of testPersonaIds) {
+      await tx.$executeRaw`DELETE FROM "BodyMarkEvent" WHERE "personaId" = ${pId}`;
+      await tx.$executeRaw`DELETE FROM "BodyModificationEvent" WHERE "personaId" = ${pId}`;
+      await tx.$executeRaw`DELETE FROM "CosmeticProcedureEvent" WHERE "personaId" = ${pId}`;
+      await tx.$executeRaw`DELETE FROM "PersonaPhysical" WHERE "personaId" = ${pId}`;
+      await tx.$executeRaw`DELETE FROM "PersonDigitalIdentity" WHERE "personaId" = ${pId}`;
+      await tx.$executeRaw`DELETE FROM "PersonSkillEvent" WHERE "personaId" = ${pId}`;
+    }
+    r = await tx.$executeRaw`
+      DELETE FROM "Persona" WHERE "personId" = 'seed-person-1' AND id NOT LIKE 'seed-%'`;
+    if (r) console.log(`  Persona (test): ${r}`);
+
+    // Aliases with non-seed IDs on seed person
+    r = await tx.$executeRaw`
+      DELETE FROM "PersonAliasChannel" WHERE "aliasId" IN (
+        SELECT id FROM "PersonAlias" WHERE "personId" = 'seed-person-1' AND id NOT LIKE 'seed-%'
+      )`;
+    if (r) console.log(`  PersonAliasChannel (test): ${r}`);
+
+    r = await tx.$executeRaw`
+      DELETE FROM "PersonAlias" WHERE "personId" = 'seed-person-1' AND id NOT LIKE 'seed-%'`;
+    if (r) console.log(`  PersonAlias (test): ${r}`);
+
     // --- Orphan DRAFT sessions auto-created by set creation tests ---
     // These sessions are created automatically when a set is created without an existing session
     // They have no name pattern but we can find them by checking sessions with no sets, no participants,

@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { cn } from "@/lib/utils";
+import { cn, focalStyle } from "@/lib/utils";
 import type { BodyModificationWithEvents } from "@/lib/types";
 import {
   BODY_MODIFICATION_TYPE_STYLES,
@@ -17,6 +17,8 @@ type EntityMediaThumbnail = {
   url: string;
   width: number;
   height: number;
+  focalX: number | null;
+  focalY: number | null;
 };
 
 type BodyModificationCardProps = {
@@ -144,6 +146,7 @@ export function BodyModificationCard({
                 height={photo.height}
                 unoptimized
                 className="h-full w-full object-cover"
+                style={focalStyle(photo.focalX, photo.focalY)}
               />
             </div>
           ))}

@@ -4,7 +4,7 @@ import { useCallback, useMemo, useState, useTransition } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { ChevronDown, ChevronRight, ImageIcon, Layers, Plus } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, focalStyle } from "@/lib/utils";
 import type { CategoryWithGroup } from "@/components/gallery/gallery-info-panel";
 import type { PersonCurrentState } from "@/lib/types";
 import { DetailMediaPickerSheet } from "@/components/people/detail-media-picker-sheet";
@@ -20,6 +20,8 @@ type CategoryMediaItem = {
   urls: Record<string, string | null>;
   originalWidth: number;
   originalHeight: number;
+  focalX: number | null;
+  focalY: number | null;
 };
 
 type PersonDetailsTabProps = {
@@ -269,6 +271,7 @@ export function PersonDetailsTab({
                                     height={item.originalHeight}
                                     unoptimized
                                     className="h-full w-full object-cover transition-transform group-hover:scale-105"
+                                    style={focalStyle(item.focalX, item.focalY)}
                                   />
                                 ) : (
                                   <div className="flex h-full w-full items-center justify-center">

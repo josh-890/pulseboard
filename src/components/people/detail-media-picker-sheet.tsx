@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState, useTransition } from "react";
 import Image from "next/image";
 import { Check, ImageIcon, Loader2, Upload, X } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, focalStyle } from "@/lib/utils";
 import {
   linkMediaToDetailCategoryAction,
   unlinkMediaFromDetailCategoryAction,
@@ -17,6 +17,8 @@ type MediaItem = {
   urls: Record<string, string | null>;
   originalWidth: number;
   originalHeight: number;
+  focalX: number | null;
+  focalY: number | null;
   isLinked: boolean;
 };
 
@@ -128,8 +130,8 @@ export function DetailMediaPickerSheet({
             body: formData,
           });
           if (res.ok) {
-            const data = await res.json() as { id: string; filename: string; urls: Record<string, string | null>; originalWidth: number; originalHeight: number };
-            const newItem: MediaItem = { ...data, isLinked: false };
+            const data = await res.json() as { id: string; filename: string; urls: Record<string, string | null>; originalWidth: number; originalHeight: number; focalX: number | null; focalY: number | null };
+            const newItem: MediaItem = { ...data, focalX: data.focalX ?? null, focalY: data.focalY ?? null, isLinked: false };
             setItems((prev) => [newItem, ...prev]);
             setSelected((prev) => new Set([...prev, data.id]));
           }
@@ -249,6 +251,7 @@ export function DetailMediaPickerSheet({
                         height={item.originalHeight}
                         unoptimized
                         className="h-full w-full object-cover"
+                        style={focalStyle(item.focalX, item.focalY)}
                       />
                     ) : (
                       <div className="flex h-full w-full items-center justify-center bg-muted/30">

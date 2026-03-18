@@ -34,6 +34,8 @@ export async function GET(
       urls: item.urls,
       originalWidth: item.originalWidth,
       originalHeight: item.originalHeight,
+      focalX: item.focalX,
+      focalY: item.focalY,
       isLinked: linkedIds.has(item.id),
     }));
 

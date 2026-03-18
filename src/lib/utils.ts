@@ -1,3 +1,4 @@
+import type React from "react"
 import { clsx, type ClassValue } from "clsx"
 import { twMerge } from "tailwind-merge"
 
@@ -90,6 +91,15 @@ export function computeAgeAtEvent(
     return `~${age}`;
   }
   return age.toString();
+}
+
+/** Returns inline style for focal-aware `object-position` on `object-cover` images. */
+export function focalStyle(
+  focalX: number | null | undefined,
+  focalY: number | null | undefined,
+): React.CSSProperties {
+  if (focalX == null || focalY == null) return {};
+  return { objectPosition: `${(focalX * 100).toFixed(1)}% ${(focalY * 100).toFixed(1)}%` };
 }
 
 /** Returns up to 2 initials from the first two words of a name. */

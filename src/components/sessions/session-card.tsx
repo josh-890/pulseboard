@@ -3,19 +3,25 @@
 import Image from "next/image";
 import Link from "next/link";
 import { Building2, Users, ImageIcon, Clapperboard, User } from "lucide-react";
-import { cn, formatPartialDate } from "@/lib/utils";
+import { cn, formatPartialDate, focalStyle } from "@/lib/utils";
 import { useDensity } from "@/components/layout/density-provider";
 import { SessionStatusBadge, SessionTypeBadge } from "./session-status-badge";
 import type { getSessions } from "@/lib/services/session-service";
 
 type SessionItem = Awaited<ReturnType<typeof getSessions>>[number];
 
-type SessionCardProps = {
-  session: SessionItem;
-  photoUrl?: string;
+type CoverPhotoData = {
+  url: string;
+  focalX: number | null;
+  focalY: number | null;
 };
 
-export function SessionCard({ session, photoUrl }: SessionCardProps) {
+type SessionCardProps = {
+  session: SessionItem;
+  coverPhoto?: CoverPhotoData;
+};
+
+export function SessionCard({ session, coverPhoto }: SessionCardProps) {
   const { density } = useDensity();
   const isCompact = density === "compact";
   const isReference = session.type === "REFERENCE";
@@ -43,12 +49,13 @@ export function SessionCard({ session, photoUrl }: SessionCardProps) {
         >
           {/* Thumbnail */}
           <div className="relative shrink-0 overflow-hidden bg-muted/30 h-[100px] w-full sm:h-full sm:w-[100px]">
-            {photoUrl ? (
+            {coverPhoto ? (
               <Image
-                src={photoUrl}
+                src={coverPhoto.url}
                 alt={session.name}
                 fill
-                className="object-cover object-center"
+                className="object-cover"
+                style={focalStyle(coverPhoto.focalX, coverPhoto.focalY)}
                 unoptimized
                 sizes="100px"
               />
@@ -106,12 +113,13 @@ export function SessionCard({ session, photoUrl }: SessionCardProps) {
       >
         {/* Thumbnail */}
         <div className="relative shrink-0 overflow-hidden bg-muted/30 h-[120px] w-full sm:h-full sm:w-[160px]">
-          {photoUrl ? (
+          {coverPhoto ? (
             <Image
-              src={photoUrl}
+              src={coverPhoto.url}
               alt={session.name}
               fill
-              className="object-cover object-center"
+              className="object-cover"
+              style={focalStyle(coverPhoto.focalX, coverPhoto.focalY)}
               unoptimized
               sizes="160px"
             />

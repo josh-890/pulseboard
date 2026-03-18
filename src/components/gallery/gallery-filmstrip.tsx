@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { cn } from "@/lib/utils";
+import { cn, focalStyle } from "@/lib/utils";
 import type { GalleryItem } from "@/lib/types";
 
 type GalleryFilmstripProps = {
@@ -64,6 +64,7 @@ export function GalleryFilmstrip({
                 src={thumbUrl}
                 alt=""
                 className="h-full w-full object-cover"
+                style={focalStyle(item.focalX, item.focalY)}
                 draggable={false}
               />
             </button>

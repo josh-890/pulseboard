@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import type { CosmeticProcedureWithEvents } from "@/lib/types";
+import { focalStyle } from "@/lib/utils";
 import { COSMETIC_PROCEDURE_EVENT_STYLES } from "@/lib/constants/body";
 import { BodyRegionChips } from "@/components/shared/body-region-picker";
 import { EntityEventTimeline } from "@/components/people/entity-event-timeline";
@@ -12,6 +13,8 @@ type EntityMediaThumbnail = {
   url: string;
   width: number;
   height: number;
+  focalX: number | null;
+  focalY: number | null;
 };
 
 type CosmeticProcedureCardProps = {
@@ -119,6 +122,7 @@ export function CosmeticProcedureCard({
                 height={photo.height}
                 unoptimized
                 className="h-full w-full object-cover"
+                style={focalStyle(photo.focalX, photo.focalY)}
               />
             </div>
           ))}

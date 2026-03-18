@@ -652,6 +652,8 @@ export type EntityMediaThumbnail = {
   url: string;
   width: number;
   height: number;
+  focalX: number | null;
+  focalY: number | null;
 };
 
 export async function getPersonEntityMedia(
@@ -689,6 +691,8 @@ export async function getPersonEntityMedia(
       url,
       width: link.mediaItem.originalWidth,
       height: link.mediaItem.originalHeight,
+      focalX: link.mediaItem.focalX ?? null,
+      focalY: link.mediaItem.focalY ?? null,
     });
   }
   return result;
@@ -883,9 +887,15 @@ export async function batchRemoveUsage(
 
 // ─── Set cover photos ────────────────────────────────────────────────────────
 
+export type CoverPhotoData = {
+  url: string;
+  focalX: number | null;
+  focalY: number | null;
+};
+
 export async function getCoverPhotosForSets(
   setIds: string[],
-): Promise<Map<string, string>> {
+): Promise<Map<string, CoverPhotoData>> {
   if (setIds.length === 0) return new Map();
 
   // 1. Load sets that have an explicit cover
@@ -894,12 +904,12 @@ export async function getCoverPhotosForSets(
     select: {
       id: true,
       coverMediaItem: {
-        select: { variants: true, fileRef: true },
+        select: { variants: true, fileRef: true, focalX: true, focalY: true },
       },
     },
   });
 
-  const result = new Map<string, string>();
+  const result = new Map<string, CoverPhotoData>();
   for (const s of setsWithCover) {
     if (s.coverMediaItem) {
       const variants = (s.coverMediaItem.variants ?? {}) as PhotoVariants;
@@ -910,7 +920,11 @@ export async function getCoverPhotosForSets(
           : s.coverMediaItem.fileRef
             ? buildUrl(s.coverMediaItem.fileRef)
             : null;
-      if (url) result.set(s.id, url);
+      if (url) result.set(s.id, {
+        url,
+        focalX: s.coverMediaItem.focalX ?? null,
+        focalY: s.coverMediaItem.focalY ?? null,
+      });
     }
   }
 
@@ -919,7 +933,7 @@ export async function getCoverPhotosForSets(
   if (missingIds.length > 0) {
     const fallbackLinks = await prisma.setMediaItem.findMany({
       where: { setId: { in: missingIds } },
-      include: { mediaItem: { select: { variants: true, fileRef: true } } },
+      include: { mediaItem: { select: { variants: true, fileRef: true, focalX: true, focalY: true } } },
       orderBy: { sortOrder: "asc" },
     });
 
@@ -933,7 +947,11 @@ export async function getCoverPhotosForSets(
           : link.mediaItem.fileRef
             ? buildUrl(link.mediaItem.fileRef)
             : null;
-      if (url) result.set(link.setId, url);
+      if (url) result.set(link.setId, {
+        url,
+        focalX: link.mediaItem.focalX ?? null,
+        focalY: link.mediaItem.focalY ?? null,
+      });
     }
   }
 
@@ -945,16 +963,16 @@ export async function getCoverPhotosForSets(
  */
 export async function getCoverPhotosForSessions(
   sessionIds: string[],
-): Promise<Map<string, string>> {
+): Promise<Map<string, CoverPhotoData>> {
   if (sessionIds.length === 0) return new Map();
 
   const mediaItems = await prisma.mediaItem.findMany({
     where: { sessionId: { in: sessionIds } },
-    select: { sessionId: true, variants: true, fileRef: true },
+    select: { sessionId: true, variants: true, fileRef: true, focalX: true, focalY: true },
     orderBy: { createdAt: "asc" },
   });
 
-  const result = new Map<string, string>();
+  const result = new Map<string, CoverPhotoData>();
   for (const item of mediaItems) {
     if (result.has(item.sessionId)) continue; // first per session
     const variants = (item.variants ?? {}) as PhotoVariants;
@@ -965,7 +983,11 @@ export async function getCoverPhotosForSessions(
         : item.fileRef
           ? buildUrl(item.fileRef)
           : null;
-    if (url) result.set(item.sessionId, url);
+    if (url) result.set(item.sessionId, {
+      url,
+      focalX: item.focalX ?? null,
+      focalY: item.focalY ?? null,
+    });
   }
 
   return result;

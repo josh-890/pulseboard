@@ -165,6 +165,7 @@ export function GalleryInfoPanel({
     new Set(["cover", "headshot", "favorite", "usage", "tags", "focal", "info"]),
   );
   const [isPending, startTransition] = useTransition();
+  const [isFocalPending, startFocalTransition] = useTransition();
 
   const toggleSection = useCallback((section: string) => {
     setExpandedSections((prev) => {
@@ -1122,8 +1123,9 @@ export function GalleryInfoPanel({
             <FocalPointSection
               item={item}
               sessionId={(sessionId ?? referenceContext?.sessionId)!}
-              isPending={isPending}
-              startTransition={startTransition}
+              isPending={isFocalPending}
+              startTransition={startFocalTransition}
+              personId={referenceContext?.personId}
               onFocalPointChange={onFocalPointChange}
               onFocalOverlayToggle={onFocalOverlayToggle}
               focalOverlayActive={focalOverlayActive}
@@ -1193,6 +1195,7 @@ type FocalPointSectionProps = {
   sessionId: string;
   isPending: boolean;
   startTransition: React.TransitionStartFunction;
+  personId?: string;
   onFocalPointChange?: (itemId: string, focalX: number | null, focalY: number | null) => void;
   onFocalOverlayToggle?: () => void;
   focalOverlayActive?: boolean;
@@ -1203,12 +1206,14 @@ function FocalPointSection({
   sessionId,
   isPending,
   startTransition,
+  personId,
   onFocalPointChange,
   onFocalOverlayToggle,
   focalOverlayActive,
 }: FocalPointSectionProps) {
   const hasFocal = item.focalX != null && item.focalY != null;
   const thumbnailUrl = item.urls.gallery_512 ?? item.urls.original;
+  const [isRegenerating, setIsRegenerating] = useState(false);
 
   function handleImageClick(e: React.MouseEvent<HTMLDivElement>) {
     const rect = e.currentTarget.getBoundingClientRect();
@@ -1218,9 +1223,14 @@ function FocalPointSection({
     onFocalPointChange?.(item.id, x, y);
 
     startTransition(async () => {
-      const result = await setFocalPointAction(item.id, x, y, sessionId);
+      const result = await setFocalPointAction(item.id, x, y, sessionId, personId);
       if (!result.success) {
         onFocalPointChange?.(item.id, item.focalX, item.focalY);
+      } else {
+        // Fire-and-forget variant regeneration
+        setIsRegenerating(true);
+        fetch(`/api/media/${item.id}/regenerate-variants`, { method: "POST" })
+          .finally(() => setIsRegenerating(false));
       }
     });
   }
@@ -1229,7 +1239,7 @@ function FocalPointSection({
     onFocalPointChange?.(item.id, null, null);
 
     startTransition(async () => {
-      const result = await resetFocalPointAction(item.id, sessionId);
+      const result = await resetFocalPointAction(item.id, sessionId, personId);
       if (!result.success) {
         onFocalPointChange?.(item.id, item.focalX, item.focalY);
       }
@@ -1248,6 +1258,11 @@ function FocalPointSection({
               <span className="text-white/40">
                 ({Math.round((item.focalX ?? 0) * 100)}%, {Math.round((item.focalY ?? 0) * 100)}%)
               </span>
+              {isRegenerating && (
+                <span className="ml-1 text-[10px] text-white/30 animate-pulse">
+                  regenerating...
+                </span>
+              )}
             </>
           ) : (
             "Not set"
