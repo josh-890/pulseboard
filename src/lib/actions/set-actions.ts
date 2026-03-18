@@ -32,18 +32,11 @@ import { getCoverPhotosForSets } from "@/lib/services/media-service";
 import { getLabels } from "@/lib/services/label-service";
 import { prisma } from "@/lib/db";
 import { z } from "zod";
-
-type ActionResult =
-  | { success: true; id: string }
-  | { success: false; error: { fieldErrors?: Record<string, string[]> } | string };
+import type { CrudActionResult, SimpleActionResult } from "@/lib/types";
 
 type SetIdResult =
   | { success: true; setId: string }
   | { success: false; error: string };
-
-type DeleteResult = { success: boolean; error?: string };
-
-type SimpleResult = { success: boolean; error?: string };
 
 export async function createSetStandalone(raw: unknown): Promise<SetIdResult> {
   const parsed = createSetStandaloneSchema.safeParse(raw);
@@ -75,7 +68,7 @@ export async function createSetStandalone(raw: unknown): Promise<SetIdResult> {
 export async function saveSetCredits(
   setId: string,
   rawCredits: unknown[],
-): Promise<SimpleResult> {
+): Promise<SimpleActionResult> {
   const parsed = z.array(creditEntrySchema).safeParse(rawCredits);
   if (!parsed.success) {
     return { success: false, error: "Invalid credits data" };
@@ -93,7 +86,7 @@ export async function saveSetCredits(
 export async function saveSetLabelEvidence(
   setId: string,
   rawEvidence: unknown[],
-): Promise<SimpleResult> {
+): Promise<SimpleActionResult> {
   const parsed = z.array(labelEvidenceEntrySchema).safeParse(rawEvidence);
   if (!parsed.success) {
     return { success: false, error: "Invalid evidence data" };
@@ -112,7 +105,7 @@ export async function resolveCredit(
   creditId: string,
   personId: string,
   setId: string,
-): Promise<SimpleResult> {
+): Promise<SimpleActionResult> {
   try {
     await resolveCreditRaw(creditId, personId);
     revalidatePath("/sets");
@@ -123,7 +116,7 @@ export async function resolveCredit(
   }
 }
 
-export async function ignoreCredit(creditId: string, setId: string): Promise<SimpleResult> {
+export async function ignoreCredit(creditId: string, setId: string): Promise<SimpleActionResult> {
   try {
     await ignoreCreditRaw(creditId);
     revalidatePath("/sets");
@@ -134,7 +127,7 @@ export async function ignoreCredit(creditId: string, setId: string): Promise<Sim
   }
 }
 
-export async function unresolveCredit(creditId: string, setId: string): Promise<SimpleResult> {
+export async function unresolveCredit(creditId: string, setId: string): Promise<SimpleActionResult> {
   try {
     await unresolveCreditRaw(creditId);
     revalidatePath("/sets");
@@ -150,7 +143,7 @@ export async function searchPersonsAction(q: string) {
   return searchPersonsForSelect(q.trim());
 }
 
-export async function updateSet(raw: unknown): Promise<ActionResult> {
+export async function updateSet(raw: unknown): Promise<CrudActionResult> {
   const parsed = updateSetSchema.safeParse(raw);
   if (!parsed.success) {
     return { success: false, error: parsed.error.flatten() };
@@ -166,7 +159,7 @@ export async function updateSet(raw: unknown): Promise<ActionResult> {
   }
 }
 
-export async function deleteSet(id: string): Promise<DeleteResult> {
+export async function deleteSet(id: string): Promise<SimpleActionResult> {
   try {
     await deleteSetRecord(id);
     revalidatePath("/sets");
@@ -183,7 +176,7 @@ export async function updateSetField(
   id: string,
   field: string,
   value: string,
-): Promise<SimpleResult> {
+): Promise<SimpleActionResult> {
   if (!INLINE_EDITABLE_FIELDS.has(field)) {
     return { success: false, error: `Field "${field}" is not inline-editable` };
   }
@@ -215,7 +208,7 @@ export async function searchLabelsAction(q: string) {
 export async function addManualLabelEvidence(
   setId: string,
   labelId: string,
-): Promise<SimpleResult> {
+): Promise<SimpleActionResult> {
   try {
     await createManualLabelEvidence(setId, labelId);
     revalidatePath(`/sets/${setId}`);
@@ -229,7 +222,7 @@ export async function removeLabelEvidence(
   setId: string,
   labelId: string,
   evidenceType: string,
-): Promise<SimpleResult> {
+): Promise<SimpleActionResult> {
   if (evidenceType !== "CHANNEL_MAP" && evidenceType !== "MANUAL") {
     return { success: false, error: "Invalid evidence type" };
   }
@@ -245,7 +238,7 @@ export async function removeLabelEvidence(
 export async function setSetCover(
   setId: string,
   mediaItemId: string | null,
-): Promise<SimpleResult> {
+): Promise<SimpleActionResult> {
   try {
     await prisma.set.update({
       where: { id: setId },
@@ -270,7 +263,7 @@ export async function getRecentDefaults() {
 export async function addExistingMediaToSetAction(
   setId: string,
   mediaItemIds: string[],
-): Promise<SimpleResult> {
+): Promise<SimpleActionResult> {
   try {
     await addExistingMediaToSet(setId, mediaItemIds);
     revalidatePath(`/sets/${setId}`);
@@ -285,7 +278,7 @@ export async function addExistingMediaToSetAction(
 export async function removeMediaFromSetAction(
   setId: string,
   mediaItemIds: string[],
-): Promise<SimpleResult> {
+): Promise<SimpleActionResult> {
   try {
     await removeMediaFromSet(setId, mediaItemIds);
     revalidatePath(`/sets/${setId}`);
@@ -300,7 +293,7 @@ export async function removeMediaFromSetAction(
 export async function reassignSetSessionAction(
   setId: string,
   targetSessionId: string,
-): Promise<SimpleResult> {
+): Promise<SimpleActionResult> {
   try {
     await reassignSetPrimarySession(setId, targetSessionId);
     revalidatePath(`/sets/${setId}`);

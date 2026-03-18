@@ -12,14 +12,9 @@ import {
 import type { PersonFilters } from "@/lib/services/person-service";
 import { getHeadshotsForPersons } from "@/lib/services/media-service";
 import { prisma } from "@/lib/db";
+import type { CrudActionResult, SimpleActionResult } from "@/lib/types";
 
-type ActionResult =
-  | { success: true; id: string }
-  | { success: false; error: { fieldErrors?: Record<string, string[]> } | string };
-
-type DeleteResult = { success: boolean; error?: string };
-
-export async function createPerson(raw: unknown): Promise<ActionResult> {
+export async function createPerson(raw: unknown): Promise<CrudActionResult> {
   const parsed = createPersonSchema.safeParse(raw);
   if (!parsed.success) {
     return { success: false, error: parsed.error.flatten() };
@@ -40,7 +35,7 @@ export async function createPerson(raw: unknown): Promise<ActionResult> {
   }
 }
 
-export async function updatePerson(raw: unknown): Promise<ActionResult> {
+export async function updatePerson(raw: unknown): Promise<CrudActionResult> {
   const parsed = updatePersonSchema.safeParse(raw);
   if (!parsed.success) {
     return { success: false, error: parsed.error.flatten() };
@@ -56,7 +51,7 @@ export async function updatePerson(raw: unknown): Promise<ActionResult> {
   }
 }
 
-export async function deletePerson(id: string): Promise<DeleteResult> {
+export async function deletePerson(id: string): Promise<SimpleActionResult> {
   try {
     await deletePersonRecord(id);
     revalidatePath("/people");

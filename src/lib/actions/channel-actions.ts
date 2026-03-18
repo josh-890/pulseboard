@@ -7,14 +7,9 @@ import {
   updateChannelRecord,
   deleteChannelRecord,
 } from "@/lib/services/channel-service";
+import type { CrudActionResult, SimpleActionResult } from "@/lib/types";
 
-type ActionResult =
-  | { success: true; id: string }
-  | { success: false; error: { fieldErrors?: Record<string, string[]> } | string };
-
-type DeleteResult = { success: boolean; error?: string };
-
-export async function createChannel(raw: unknown): Promise<ActionResult> {
+export async function createChannel(raw: unknown): Promise<CrudActionResult> {
   const parsed = createChannelSchema.safeParse(raw);
   if (!parsed.success) {
     return { success: false, error: parsed.error.flatten() };
@@ -34,7 +29,7 @@ export async function createChannel(raw: unknown): Promise<ActionResult> {
   }
 }
 
-export async function updateChannel(raw: unknown): Promise<ActionResult> {
+export async function updateChannel(raw: unknown): Promise<CrudActionResult> {
   const parsed = updateChannelSchema.safeParse(raw);
   if (!parsed.success) {
     return { success: false, error: parsed.error.flatten() };
@@ -55,7 +50,7 @@ export async function updateChannel(raw: unknown): Promise<ActionResult> {
   }
 }
 
-export async function deleteChannel(id: string): Promise<DeleteResult> {
+export async function deleteChannel(id: string): Promise<SimpleActionResult> {
   try {
     await deleteChannelRecord(id);
     revalidatePath("/channels");

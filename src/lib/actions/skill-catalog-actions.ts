@@ -10,14 +10,13 @@ import {
   updateSkillDefinition,
   deleteSkillDefinition,
 } from "@/lib/services/skill-catalog-service";
-
-type ActionResult = { success: boolean; error?: string };
+import type { SimpleActionResult } from "@/lib/types";
 
 // ─── Group actions ───────────────────────────────────────────────────────────
 
 export async function createSkillGroupAction(
   name: string,
-): Promise<ActionResult> {
+): Promise<SimpleActionResult> {
   try {
     await createSkillGroup({ name });
     revalidatePath("/settings");
@@ -31,7 +30,7 @@ export async function createSkillGroupAction(
 export async function updateSkillGroupAction(
   id: string,
   data: { name?: string; sortOrder?: number },
-): Promise<ActionResult> {
+): Promise<SimpleActionResult> {
   try {
     await updateSkillGroup(id, data);
     revalidatePath("/settings");
@@ -44,7 +43,7 @@ export async function updateSkillGroupAction(
 
 export async function deleteSkillGroupAction(
   id: string,
-): Promise<ActionResult> {
+): Promise<SimpleActionResult> {
   try {
     await deleteSkillGroup(id);
     revalidatePath("/settings");
@@ -63,7 +62,7 @@ export async function createSkillDefinitionAction(
   description?: string | null,
   pgrade?: number,
   defaultLevel?: SkillLevel | null,
-): Promise<ActionResult> {
+): Promise<SimpleActionResult> {
   try {
     await createSkillDefinition({ groupId, name, description, pgrade, defaultLevel });
     revalidatePath("/settings");
@@ -77,7 +76,7 @@ export async function createSkillDefinitionAction(
 export async function updateSkillDefinitionAction(
   id: string,
   data: { name?: string; description?: string | null; pgrade?: number; defaultLevel?: SkillLevel | null; sortOrder?: number },
-): Promise<ActionResult> {
+): Promise<SimpleActionResult> {
   try {
     await updateSkillDefinition(id, data);
     revalidatePath("/settings");
@@ -90,7 +89,7 @@ export async function updateSkillDefinitionAction(
 
 export async function deleteSkillDefinitionAction(
   id: string,
-): Promise<ActionResult> {
+): Promise<SimpleActionResult> {
   try {
     await deleteSkillDefinition(id);
     revalidatePath("/settings");

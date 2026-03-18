@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/db";
 import type { SkillLevel } from "@/generated/prisma/client";
 import { SKILL_LEVEL_VALUE } from "@/lib/constants/skill";
+import { buildUrl } from "@/lib/media-url";
 import type { TxClient } from "./cascade-helpers";
 
 // ─── Session Contributions ──────────────────────────────────────────────────
@@ -290,7 +291,7 @@ type ContributionSkillMediaItem = {
 export async function getContributionSkillMediaMap(
   sessionId: string,
 ): Promise<Map<string, ContributionSkillMediaItem[]>> {
-  const BASE_URL = process.env.NEXT_PUBLIC_MINIO_URL ?? "";
+
 
   // Get all contribution skills for this session with person + skill info
   const contributions = await prisma.sessionContribution.findMany({
@@ -357,7 +358,7 @@ export async function getContributionSkillMediaMap(
       const thumbKey = variants.gallery_512 ?? variants.original ?? sem.mediaItem.fileRef ?? "";
       return {
         id: sem.mediaItem.id,
-        thumbUrl: thumbKey ? `${BASE_URL}/${thumbKey}` : "",
+        thumbUrl: thumbKey ? buildUrl(thumbKey) : "",
       };
     });
     const existing = eventMediaMap.get(key) ?? [];

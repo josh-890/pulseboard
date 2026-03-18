@@ -1,12 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCategoryMediaForPerson } from "@/lib/services/category-service";
 import type { PhotoVariants } from "@/lib/types";
-
-const BASE_URL = process.env.NEXT_PUBLIC_MINIO_URL!;
-
-function buildUrl(key: string): string {
-  return `${BASE_URL}/${key}`;
-}
+import { buildUrl } from "@/lib/media-url";
 
 export async function GET(
   request: NextRequest,

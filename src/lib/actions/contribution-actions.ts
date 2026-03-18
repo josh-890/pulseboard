@@ -12,15 +12,14 @@ import {
   addMediaToContributionSkill,
   removeMediaFromContributionSkill,
 } from "@/lib/services/contribution-service";
-
-type ActionResult = { success: boolean; error?: string };
+import type { SimpleActionResult } from "@/lib/types";
 
 export async function addSessionContributionAction(
   sessionId: string,
   personId: string,
   roleDefinitionId: string,
   opts?: { creditNameOverride?: string; notes?: string },
-): Promise<ActionResult> {
+): Promise<SimpleActionResult> {
   try {
     await addSessionContribution(sessionId, personId, roleDefinitionId, opts);
     revalidatePath(`/sessions/${sessionId}`);
@@ -34,7 +33,7 @@ export async function addSessionContributionAction(
 export async function removeSessionContributionAction(
   contributionId: string,
   sessionId: string,
-): Promise<ActionResult> {
+): Promise<SimpleActionResult> {
   try {
     await removeSessionContribution(contributionId);
     revalidatePath(`/sessions/${sessionId}`);
@@ -49,7 +48,7 @@ export async function updateSessionContributionAction(
   contributionId: string,
   sessionId: string,
   data: { creditNameOverride?: string | null; notes?: string | null },
-): Promise<ActionResult> {
+): Promise<SimpleActionResult> {
   try {
     await updateSessionContribution(contributionId, data);
     revalidatePath(`/sessions/${sessionId}`);
@@ -66,7 +65,7 @@ export async function addContributionSkillAction(
   sessionId: string,
   level?: SkillLevel | null,
   notes?: string | null,
-): Promise<ActionResult> {
+): Promise<SimpleActionResult> {
   try {
     await addContributionSkill(contributionId, skillDefinitionId, level, notes);
     revalidatePath(`/sessions/${sessionId}`);
@@ -80,7 +79,7 @@ export async function addContributionSkillAction(
 export async function removeContributionSkillAction(
   contributionSkillId: string,
   sessionId: string,
-): Promise<ActionResult> {
+): Promise<SimpleActionResult> {
   try {
     await removeContributionSkill(contributionSkillId);
     revalidatePath(`/sessions/${sessionId}`);
@@ -95,7 +94,7 @@ export async function updateContributionSkillLevelAction(
   contributionSkillId: string,
   sessionId: string,
   level: SkillLevel | null,
-): Promise<ActionResult> {
+): Promise<SimpleActionResult> {
   try {
     await updateContributionSkillLevel(contributionSkillId, level);
     revalidatePath(`/sessions/${sessionId}`);
@@ -110,7 +109,7 @@ export async function addMediaToContributionSkillAction(
   contributionSkillId: string,
   mediaItemIds: string[],
   sessionId: string,
-): Promise<ActionResult> {
+): Promise<SimpleActionResult> {
   try {
     await addMediaToContributionSkill(contributionSkillId, mediaItemIds);
     revalidatePath(`/sessions/${sessionId}`);
@@ -125,7 +124,7 @@ export async function removeMediaFromContributionSkillAction(
   contributionSkillId: string,
   mediaItemId: string,
   sessionId: string,
-): Promise<ActionResult> {
+): Promise<SimpleActionResult> {
   try {
     await removeMediaFromContributionSkill(contributionSkillId, mediaItemId);
     revalidatePath(`/sessions/${sessionId}`);

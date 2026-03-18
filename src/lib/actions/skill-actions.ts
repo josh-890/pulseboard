@@ -11,8 +11,7 @@ import {
   addMediaToSkillEvent,
   removeMediaFromSkillEvent,
 } from "@/lib/services/skill-service";
-
-type ActionResult = { success: boolean; error?: string };
+import type { SimpleActionResult } from "@/lib/types";
 
 // ─── Person Skill CRUD ───────────────────────────────────────────────────────
 
@@ -28,7 +27,7 @@ export async function createPersonSkillAction(
     validFrom?: string | null;
     validTo?: string | null;
   },
-): Promise<ActionResult> {
+): Promise<SimpleActionResult> {
   try {
     await createPersonSkill({
       personId,
@@ -59,7 +58,7 @@ export async function updatePersonSkillAction(
     validFrom?: string | null;
     validTo?: string | null;
   },
-): Promise<ActionResult> {
+): Promise<SimpleActionResult> {
   try {
     await updatePersonSkill(id, {
       level: data.level,
@@ -79,7 +78,7 @@ export async function updatePersonSkillAction(
 export async function deletePersonSkillAction(
   id: string,
   personId: string,
-): Promise<ActionResult> {
+): Promise<SimpleActionResult> {
   try {
     await deletePersonSkill(id);
     revalidatePath(`/people/${personId}`);
@@ -103,7 +102,7 @@ export async function createSkillEventAction(
     date?: string | null;
     datePrecision?: string;
   },
-): Promise<ActionResult> {
+): Promise<SimpleActionResult> {
   try {
     await createSkillEvent({
       ...data,
@@ -120,7 +119,7 @@ export async function createSkillEventAction(
 export async function deleteSkillEventAction(
   id: string,
   personId: string,
-): Promise<ActionResult> {
+): Promise<SimpleActionResult> {
   try {
     await deleteSkillEvent(id);
     revalidatePath(`/people/${personId}`);
@@ -137,7 +136,7 @@ export async function addMediaToSkillEventAction(
   skillEventId: string,
   mediaItemIds: string[],
   personId: string,
-): Promise<ActionResult> {
+): Promise<SimpleActionResult> {
   try {
     await addMediaToSkillEvent(skillEventId, mediaItemIds);
     revalidatePath(`/people/${personId}`);
@@ -152,7 +151,7 @@ export async function removeMediaFromSkillEventAction(
   skillEventId: string,
   mediaItemId: string,
   personId: string,
-): Promise<ActionResult> {
+): Promise<SimpleActionResult> {
   try {
     await removeMediaFromSkillEvent(skillEventId, mediaItemId);
     revalidatePath(`/people/${personId}`);

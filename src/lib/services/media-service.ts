@@ -6,35 +6,12 @@ import type { MediaItemWithUrls, PersonMediaUsage } from "@/lib/types";
 import type { GalleryItem, DuplicateMatch, SimilarMatch } from "@/lib/types";
 import type { PersonMediaLink } from "@/generated/prisma/client";
 import { hammingDistance } from "@/lib/image-hash";
-
-const BASE_URL = process.env.NEXT_PUBLIC_MINIO_URL!;
+import { buildUrl, buildPhotoUrls } from "@/lib/media-url";
 
 function assertValidVariants(variants: PhotoVariants): void {
   if (!variants.original) {
     throw new Error("Cannot create MediaItem without a valid 'original' variant");
   }
-}
-
-function buildUrl(key: string): string {
-  return `${BASE_URL}/${key}`;
-}
-
-function buildPhotoUrls(variants: PhotoVariants, fileRef?: string | null): PhotoUrls {
-  const originalUrl = variants.original
-    ? buildUrl(variants.original)
-    : fileRef
-      ? buildUrl(fileRef)
-      : "";
-  return {
-    original: originalUrl,
-    profile_128: variants.profile_128 ? buildUrl(variants.profile_128) : null,
-    profile_256: variants.profile_256 ? buildUrl(variants.profile_256) : null,
-    profile_512: variants.profile_512 ? buildUrl(variants.profile_512) : null,
-    profile_768: variants.profile_768 ? buildUrl(variants.profile_768) : null,
-    gallery_512: variants.gallery_512 ? buildUrl(variants.gallery_512) : null,
-    gallery_1024: variants.gallery_1024 ? buildUrl(variants.gallery_1024) : null,
-    gallery_1600: variants.gallery_1600 ? buildUrl(variants.gallery_1600) : null,
-  };
 }
 
 type MediaItemRow = {
@@ -678,11 +655,11 @@ export async function getPersonEntityMedia(
     if (!entityId) continue;
     const variants = (link.mediaItem.variants ?? {}) as PhotoVariants;
     const url = variants.gallery_512
-      ? `${BASE_URL}/${variants.gallery_512}`
+      ? buildUrl(variants.gallery_512)
       : variants.profile_256
-        ? `${BASE_URL}/${variants.profile_256}`
+        ? buildUrl(variants.profile_256)
         : variants.original
-          ? `${BASE_URL}/${variants.original}`
+          ? buildUrl(variants.original)
           : null;
     if (!url) continue;
     if (!result.has(entityId)) result.set(entityId, []);

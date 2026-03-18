@@ -7,14 +7,9 @@ import {
   updateProjectRecord,
   deleteProjectRecord,
 } from "@/lib/services/project-service";
+import type { CrudActionResult, SimpleActionResult } from "@/lib/types";
 
-type ActionResult =
-  | { success: true; id: string }
-  | { success: false; error: { fieldErrors?: Record<string, string[]> } | string };
-
-type DeleteResult = { success: boolean; error?: string };
-
-export async function createProject(raw: unknown): Promise<ActionResult> {
+export async function createProject(raw: unknown): Promise<CrudActionResult> {
   const parsed = createProjectSchema.safeParse(raw);
   if (!parsed.success) {
     return { success: false, error: parsed.error.flatten() };
@@ -29,7 +24,7 @@ export async function createProject(raw: unknown): Promise<ActionResult> {
   }
 }
 
-export async function updateProject(raw: unknown): Promise<ActionResult> {
+export async function updateProject(raw: unknown): Promise<CrudActionResult> {
   const parsed = updateProjectSchema.safeParse(raw);
   if (!parsed.success) {
     return { success: false, error: parsed.error.flatten() };
@@ -45,7 +40,7 @@ export async function updateProject(raw: unknown): Promise<ActionResult> {
   }
 }
 
-export async function deleteProject(id: string): Promise<DeleteResult> {
+export async function deleteProject(id: string): Promise<SimpleActionResult> {
   try {
     await deleteProjectRecord(id);
     revalidatePath("/projects");

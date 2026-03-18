@@ -82,6 +82,8 @@ export type { GalleryItem, PersonMediaLinkSummary } from "./gallery";
 
 export type { ActivityItem, ActivityType } from "./activity";
 
+export type { CrudActionResult, SimpleActionResult } from "./action-result";
+
 export type { PaletteConfig, PaletteModeConfig } from "./palette";
 
 // ─── Duplicate detection types ──────────────────────────────────────────────

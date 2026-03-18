@@ -8,14 +8,15 @@ import {
   addToCollection,
   removeFromCollection,
 } from "@/lib/services/collection-service";
+import type { SimpleActionResult } from "@/lib/types";
 
-type ActionResult = { success: boolean; error?: string; id?: string };
+type ActionResultWithId = SimpleActionResult & { id?: string };
 
 export async function createCollectionAction(
   personId: string | null,
   name: string,
   description?: string,
-): Promise<ActionResult> {
+): Promise<ActionResultWithId> {
   try {
     const id = await createCollection({
       name,
@@ -37,7 +38,7 @@ export async function createCollectionAction(
 export async function updateCollectionAction(
   collectionId: string,
   data: { name?: string; description?: string },
-): Promise<ActionResult> {
+): Promise<ActionResultWithId> {
   try {
     await updateCollection(collectionId, data);
     revalidatePath("/collections");
@@ -50,7 +51,7 @@ export async function updateCollectionAction(
 
 export async function deleteCollectionAction(
   collectionId: string,
-): Promise<ActionResult> {
+): Promise<ActionResultWithId> {
   try {
     await deleteCollection(collectionId);
     revalidatePath("/collections");
@@ -64,7 +65,7 @@ export async function deleteCollectionAction(
 export async function addToCollectionAction(
   collectionId: string,
   mediaItemIds: string[],
-): Promise<ActionResult> {
+): Promise<ActionResultWithId> {
   try {
     await addToCollection(collectionId, mediaItemIds);
     revalidatePath("/collections");
@@ -78,7 +79,7 @@ export async function addToCollectionAction(
 export async function removeFromCollectionAction(
   collectionId: string,
   mediaItemIds: string[],
-): Promise<ActionResult> {
+): Promise<ActionResultWithId> {
   try {
     await removeFromCollection(collectionId, mediaItemIds);
     revalidatePath("/collections");

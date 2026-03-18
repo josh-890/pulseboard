@@ -26,11 +26,7 @@ import {
   cascadeDeletePersonSkills,
 } from "@/lib/services/cascade-helpers";
 
-const BASE_URL = process.env.NEXT_PUBLIC_MINIO_URL!;
-
-function buildUrl(key: string): string {
-  return `${BASE_URL}/${key}`;
-}
+import { buildUrl } from "@/lib/media-url";
 
 function mapSkillEventMedia(
   media: { mediaItem: { id: string; variants: unknown; fileRef: string | null; originalWidth: number; originalHeight: number } }[],

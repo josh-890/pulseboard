@@ -15,15 +15,9 @@ import {
 import type { SessionFilters } from "@/lib/services/session-service";
 import { getCoverPhotosForSessions } from "@/lib/services/media-service";
 import { prisma } from "@/lib/db";
+import type { CrudActionResult, SimpleActionResult } from "@/lib/types";
 
-type ActionResult =
-  | { success: true; id: string }
-  | { success: false; error: { fieldErrors?: Record<string, string[]> } | string };
-
-type DeleteResult = { success: boolean; error?: string };
-type SimpleResult = { success: boolean; error?: string };
-
-export async function createSession(raw: unknown): Promise<ActionResult> {
+export async function createSession(raw: unknown): Promise<CrudActionResult> {
   const parsed = createSessionSchema.safeParse(raw);
   if (!parsed.success) {
     return { success: false, error: parsed.error.flatten() };
@@ -49,7 +43,7 @@ export async function createSession(raw: unknown): Promise<ActionResult> {
   }
 }
 
-export async function updateSession(raw: unknown): Promise<ActionResult> {
+export async function updateSession(raw: unknown): Promise<CrudActionResult> {
   const parsed = updateSessionSchema.safeParse(raw);
   if (!parsed.success) {
     return { success: false, error: parsed.error.flatten() };
@@ -65,7 +59,7 @@ export async function updateSession(raw: unknown): Promise<ActionResult> {
   }
 }
 
-export async function deleteSession(id: string): Promise<DeleteResult> {
+export async function deleteSession(id: string): Promise<SimpleActionResult> {
   try {
     await deleteSessionRecord(id);
     revalidatePath("/sessions");
@@ -82,7 +76,7 @@ export async function updateSessionField(
   id: string,
   field: string,
   value: string,
-): Promise<SimpleResult> {
+): Promise<SimpleActionResult> {
   if (!INLINE_EDITABLE_FIELDS.has(field)) {
     return { success: false, error: `Field "${field}" is not inline-editable` };
   }
@@ -104,7 +98,7 @@ export async function updateSessionField(
 export async function mergeSessions(
   survivingId: string,
   absorbedId: string,
-): Promise<SimpleResult> {
+): Promise<SimpleActionResult> {
   try {
     await mergeSessionsRecord(survivingId, absorbedId);
     revalidatePath("/sessions");
@@ -126,7 +120,7 @@ export async function searchSessionsAction(q: string) {
 export async function linkSessionAction(
   setId: string,
   sessionId: string,
-): Promise<SimpleResult> {
+): Promise<SimpleActionResult> {
   try {
     await linkSessionToSet(setId, sessionId);
     revalidatePath(`/sets/${setId}`);
@@ -141,7 +135,7 @@ export async function linkSessionAction(
 export async function unlinkSessionAction(
   setId: string,
   sessionId: string,
-): Promise<SimpleResult> {
+): Promise<SimpleActionResult> {
   try {
     await unlinkSessionFromSet(setId, sessionId);
     revalidatePath(`/sets/${setId}`);

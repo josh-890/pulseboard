@@ -12,14 +12,13 @@ import {
   reorderCategoryGroups,
   reorderCategories,
 } from "@/lib/services/category-service";
-
-type ActionResult = { success: boolean; error?: string };
+import type { SimpleActionResult } from "@/lib/types";
 
 // ─── Group actions ───────────────────────────────────────────────────────────
 
 export async function createCategoryGroupAction(
   name: string,
-): Promise<ActionResult> {
+): Promise<SimpleActionResult> {
   try {
     await createCategoryGroup({ name });
     revalidatePath("/settings");
@@ -33,7 +32,7 @@ export async function createCategoryGroupAction(
 export async function updateCategoryGroupAction(
   id: string,
   data: { name?: string; sortOrder?: number },
-): Promise<ActionResult> {
+): Promise<SimpleActionResult> {
   try {
     await updateCategoryGroup(id, data);
     revalidatePath("/settings");
@@ -46,7 +45,7 @@ export async function updateCategoryGroupAction(
 
 export async function deleteCategoryGroupAction(
   id: string,
-): Promise<ActionResult> {
+): Promise<SimpleActionResult> {
   try {
     await deleteCategoryGroup(id);
     revalidatePath("/settings");
@@ -59,7 +58,7 @@ export async function deleteCategoryGroupAction(
 
 export async function reorderCategoryGroupsAction(
   orderedIds: string[],
-): Promise<ActionResult> {
+): Promise<SimpleActionResult> {
   try {
     await reorderCategoryGroups(orderedIds);
     revalidatePath("/settings");
@@ -76,7 +75,7 @@ export async function createCategoryAction(
   groupId: string,
   name: string,
   entityModel?: string | null,
-): Promise<ActionResult> {
+): Promise<SimpleActionResult> {
   try {
     await createCategory({ groupId, name, entityModel });
     revalidatePath("/settings");
@@ -90,7 +89,7 @@ export async function createCategoryAction(
 export async function updateCategoryAction(
   id: string,
   data: { name?: string; entityModel?: string | null; sortOrder?: number },
-): Promise<ActionResult> {
+): Promise<SimpleActionResult> {
   try {
     await updateCategory(id, data);
     revalidatePath("/settings");
@@ -103,7 +102,7 @@ export async function updateCategoryAction(
 
 export async function deleteCategoryAction(
   id: string,
-): Promise<ActionResult> {
+): Promise<SimpleActionResult> {
   try {
     await deleteCategory(id);
     revalidatePath("/settings");
@@ -116,7 +115,7 @@ export async function deleteCategoryAction(
 
 export async function reorderCategoriesAction(
   orderedIds: string[],
-): Promise<ActionResult> {
+): Promise<SimpleActionResult> {
   try {
     await reorderCategories(orderedIds);
     revalidatePath("/settings");
@@ -135,7 +134,7 @@ export async function assignCategoryAction(
   categoryId: string,
   sessionId: string,
   opts?: { bodyRegion?: string; notes?: string },
-): Promise<ActionResult> {
+): Promise<SimpleActionResult> {
   try {
     // Check if a DETAIL link with this category already exists
     const existing = await prisma.personMediaLink.findFirst({
@@ -167,7 +166,7 @@ export async function removeCategoryAction(
   mediaItemId: string,
   categoryId: string,
   sessionId: string,
-): Promise<ActionResult> {
+): Promise<SimpleActionResult> {
   try {
     await prisma.personMediaLink.deleteMany({
       where: { personId, mediaItemId, usage: "DETAIL", categoryId },

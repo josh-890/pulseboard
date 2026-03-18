@@ -11,12 +11,11 @@ import {
   reorderContributionRoleGroups,
   reorderContributionRoleDefinitions,
 } from "@/lib/services/contribution-role-service";
-
-type ActionResult = { success: boolean; error?: string };
+import type { SimpleActionResult } from "@/lib/types";
 
 export async function createContributionRoleGroupAction(
   name: string,
-): Promise<ActionResult> {
+): Promise<SimpleActionResult> {
   try {
     await createContributionRoleGroup({ name });
     revalidatePath("/settings");
@@ -30,7 +29,7 @@ export async function createContributionRoleGroupAction(
 export async function updateContributionRoleGroupAction(
   id: string,
   data: { name?: string },
-): Promise<ActionResult> {
+): Promise<SimpleActionResult> {
   try {
     await updateContributionRoleGroup(id, data);
     revalidatePath("/settings");
@@ -43,7 +42,7 @@ export async function updateContributionRoleGroupAction(
 
 export async function deleteContributionRoleGroupAction(
   id: string,
-): Promise<ActionResult> {
+): Promise<SimpleActionResult> {
   try {
     await deleteContributionRoleGroup(id);
     revalidatePath("/settings");
@@ -58,7 +57,7 @@ export async function createContributionRoleDefinitionAction(
   groupId: string,
   name: string,
   description?: string | null,
-): Promise<ActionResult> {
+): Promise<SimpleActionResult> {
   try {
     await createContributionRoleDefinition({ groupId, name, description });
     revalidatePath("/settings");
@@ -72,7 +71,7 @@ export async function createContributionRoleDefinitionAction(
 export async function updateContributionRoleDefinitionAction(
   id: string,
   data: { name?: string; description?: string | null },
-): Promise<ActionResult> {
+): Promise<SimpleActionResult> {
   try {
     await updateContributionRoleDefinition(id, data);
     revalidatePath("/settings");
@@ -85,7 +84,7 @@ export async function updateContributionRoleDefinitionAction(
 
 export async function deleteContributionRoleDefinitionAction(
   id: string,
-): Promise<ActionResult> {
+): Promise<SimpleActionResult> {
   try {
     await deleteContributionRoleDefinition(id);
     revalidatePath("/settings");
@@ -98,7 +97,7 @@ export async function deleteContributionRoleDefinitionAction(
 
 export async function reorderContributionRoleGroupsAction(
   orderedIds: string[],
-): Promise<ActionResult> {
+): Promise<SimpleActionResult> {
   try {
     await reorderContributionRoleGroups(orderedIds);
     revalidatePath("/settings");
@@ -111,7 +110,7 @@ export async function reorderContributionRoleGroupsAction(
 
 export async function reorderContributionRoleDefinitionsAction(
   orderedIds: string[],
-): Promise<ActionResult> {
+): Promise<SimpleActionResult> {
   try {
     await reorderContributionRoleDefinitions(orderedIds);
     revalidatePath("/settings");

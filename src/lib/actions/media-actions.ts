@@ -11,15 +11,13 @@ import {
 import { cascadeHardDeleteMediaItems } from "@/lib/services/cascade-helpers";
 import { refreshDashboardStats } from "@/lib/services/view-service";
 import type { PersonMediaLinkUpdate } from "@/lib/services/media-service";
-import type { PersonMediaUsage } from "@/lib/types";
-
-type ActionResult = { success: boolean; error?: string };
+import type { PersonMediaUsage, SimpleActionResult } from "@/lib/types";
 
 export async function assignHeadshotSlot(
   personId: string,
   mediaItemId: string,
   slot: number,
-): Promise<ActionResult> {
+): Promise<SimpleActionResult> {
   try {
     await prisma.$transaction(async (tx) => {
       // Remove the HEADSHOT link from whatever image previously held this slot
@@ -58,7 +56,7 @@ export async function assignHeadshotSlot(
 export async function removeHeadshotSlot(
   personId: string,
   mediaItemId: string,
-): Promise<ActionResult> {
+): Promise<SimpleActionResult> {
   try {
     await prisma.personMediaLink.deleteMany({
       where: { personId, mediaItemId, usage: "HEADSHOT" },
@@ -78,7 +76,7 @@ export async function updatePersonMediaLinkAction(
   data: PersonMediaLinkUpdate,
   personId: string,
   sessionId: string,
-): Promise<ActionResult> {
+): Promise<SimpleActionResult> {
   try {
     await updatePersonMediaLink(linkId, data);
     revalidatePath(`/sessions/${sessionId}`);
@@ -95,7 +93,7 @@ export async function batchUpdateLinksAction(
   data: PersonMediaLinkUpdate,
   personId: string,
   sessionId: string,
-): Promise<ActionResult> {
+): Promise<SimpleActionResult> {
   try {
     await batchUpdatePersonMediaLinks(linkIds, data);
     revalidatePath(`/sessions/${sessionId}`);
@@ -112,7 +110,7 @@ export async function batchSetUsageAction(
   mediaItemIds: string[],
   usage: PersonMediaUsage,
   sessionId: string,
-): Promise<ActionResult> {
+): Promise<SimpleActionResult> {
   try {
     await batchSetUsage(personId, mediaItemIds, usage);
     revalidatePath(`/sessions/${sessionId}`);
@@ -129,7 +127,7 @@ export async function removePersonMediaLinkAction(
   mediaItemId: string,
   usage: PersonMediaUsage,
   sessionId: string,
-): Promise<ActionResult> {
+): Promise<SimpleActionResult> {
   try {
     await prisma.personMediaLink.deleteMany({
       where: {
@@ -152,7 +150,7 @@ export async function batchRemoveUsageAction(
   mediaItemIds: string[],
   usage: PersonMediaUsage,
   sessionId: string,
-): Promise<ActionResult> {
+): Promise<SimpleActionResult> {
   try {
     await batchRemoveUsage(personId, mediaItemIds, usage);
     revalidatePath(`/sessions/${sessionId}`);
@@ -170,7 +168,7 @@ export async function upsertPersonMediaLinkAction(
   usage: PersonMediaUsage,
   data: Omit<PersonMediaLinkUpdate, "usage">,
   sessionId: string,
-): Promise<ActionResult> {
+): Promise<SimpleActionResult> {
   try {
     // For DETAIL usage, match by categoryId; for others, match by usage
     const whereClause =
@@ -213,7 +211,7 @@ export async function setFocalPointAction(
   focalY: number,
   sessionId: string,
   personId?: string,
-): Promise<ActionResult> {
+): Promise<SimpleActionResult> {
   try {
     const clampedX = Math.min(1, Math.max(0, focalX));
     const clampedY = Math.min(1, Math.max(0, focalY));
@@ -242,7 +240,7 @@ export async function deleteMediaItemsAction(
   mediaItemIds: string[],
   personId: string,
   sessionId: string,
-): Promise<ActionResult> {
+): Promise<SimpleActionResult> {
   try {
     const variantsList = await prisma.$transaction(async (tx) => {
       return cascadeHardDeleteMediaItems(tx, mediaItemIds);
@@ -273,7 +271,7 @@ export async function linkMediaToDetailCategoryAction(
   categoryId: string,
   entityField?: "bodyMarkId" | "bodyModificationId" | "cosmeticProcedureId",
   entityId?: string,
-): Promise<ActionResult> {
+): Promise<SimpleActionResult> {
   try {
     for (const mediaItemId of mediaItemIds) {
       const existing = await prisma.personMediaLink.findFirst({
@@ -303,7 +301,7 @@ export async function unlinkMediaFromDetailCategoryAction(
   personId: string,
   mediaItemIds: string[],
   categoryId: string,
-): Promise<ActionResult> {
+): Promise<SimpleActionResult> {
   try {
     await prisma.personMediaLink.deleteMany({
       where: {
@@ -328,7 +326,7 @@ export async function batchEntityLinkAction(
   entityField: "bodyMarkId" | "bodyModificationId" | "cosmeticProcedureId",
   entityId: string,
   sessionId: string,
-): Promise<ActionResult> {
+): Promise<SimpleActionResult> {
   try {
     for (const mediaItemId of mediaItemIds) {
       const existing = await prisma.personMediaLink.findFirst({
@@ -365,7 +363,7 @@ export async function batchSetBodyRegionsAction(
   mediaItemIds: string[],
   bodyRegions: string[],
   sessionId: string,
-): Promise<ActionResult> {
+): Promise<SimpleActionResult> {
   try {
     // Update bodyRegions on all DETAIL links for the given media items
     await prisma.personMediaLink.updateMany({
@@ -388,7 +386,7 @@ export async function resetFocalPointAction(
   mediaItemId: string,
   sessionId: string,
   personId?: string,
-): Promise<ActionResult> {
+): Promise<SimpleActionResult> {
   try {
     await prisma.mediaItem.update({
       where: { id: mediaItemId },

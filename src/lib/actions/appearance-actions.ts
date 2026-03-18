@@ -37,8 +37,9 @@ import {
   createCosmeticProcedureEventRecord,
   deleteCosmeticProcedureEventRecord,
 } from "@/lib/services/cosmetic-procedure-service";
+import type { SimpleActionResult } from "@/lib/types";
 
-type ActionResult = { success: boolean; error?: string; id?: string };
+type ActionResultWithId = SimpleActionResult & { id?: string };
 
 // ─── Body Mark Actions ───────────────────────────────────────────────────────
 
@@ -58,7 +59,7 @@ export async function createBodyMarkAction(
     date?: string | null;
     datePrecision?: string;
   },
-): Promise<ActionResult> {
+): Promise<ActionResultWithId> {
   try {
     const date = data.date ? new Date(data.date) : null;
     const precision = (data.datePrecision ?? "UNKNOWN") as DatePrecision;
@@ -114,7 +115,7 @@ export async function updateBodyMarkAction(
     size?: string;
     status?: string;
   },
-): Promise<ActionResult> {
+): Promise<ActionResultWithId> {
   try {
     await updateBodyMarkRecord(id, {
       type: data.type as BodyMarkType | undefined,
@@ -139,7 +140,7 @@ export async function updateBodyMarkAction(
 export async function deleteBodyMarkAction(
   id: string,
   personId: string,
-): Promise<ActionResult> {
+): Promise<ActionResultWithId> {
   try {
     await deleteBodyMarkRecord(id);
     revalidatePath(`/people/${personId}`);
@@ -158,7 +159,7 @@ export async function createBodyMarkEventAction(
     eventType: string;
     notes?: string;
   },
-): Promise<ActionResult> {
+): Promise<ActionResultWithId> {
   try {
     await createBodyMarkEventRecord({
       bodyMarkId: data.bodyMarkId,
@@ -177,7 +178,7 @@ export async function createBodyMarkEventAction(
 export async function deleteBodyMarkEventAction(
   id: string,
   personId: string,
-): Promise<ActionResult> {
+): Promise<ActionResultWithId> {
   try {
     await deleteBodyMarkEventRecord(id);
     revalidatePath(`/people/${personId}`);
@@ -205,7 +206,7 @@ export async function createBodyModificationAction(
     date?: string | null;
     datePrecision?: string;
   },
-): Promise<ActionResult> {
+): Promise<ActionResultWithId> {
   try {
     const date = data.date ? new Date(data.date) : null;
     const precision = (data.datePrecision ?? "UNKNOWN") as DatePrecision;
@@ -259,7 +260,7 @@ export async function updateBodyModificationAction(
     gauge?: string;
     status?: string;
   },
-): Promise<ActionResult> {
+): Promise<ActionResultWithId> {
   try {
     await updateBodyModificationRecord(id, {
       id,
@@ -284,7 +285,7 @@ export async function updateBodyModificationAction(
 export async function deleteBodyModificationAction(
   id: string,
   personId: string,
-): Promise<ActionResult> {
+): Promise<ActionResultWithId> {
   try {
     await deleteBodyModificationRecord(id);
     revalidatePath(`/people/${personId}`);
@@ -303,7 +304,7 @@ export async function createBodyModificationEventAction(
     eventType: string;
     notes?: string;
   },
-): Promise<ActionResult> {
+): Promise<ActionResultWithId> {
   try {
     await createBodyModificationEventRecord({
       bodyModificationId: data.bodyModificationId,
@@ -322,7 +323,7 @@ export async function createBodyModificationEventAction(
 export async function deleteBodyModificationEventAction(
   id: string,
   personId: string,
-): Promise<ActionResult> {
+): Promise<ActionResultWithId> {
   try {
     await deleteBodyModificationEventRecord(id);
     revalidatePath(`/people/${personId}`);
@@ -347,7 +348,7 @@ export async function createCosmeticProcedureAction(
     date?: string | null;
     datePrecision?: string;
   },
-): Promise<ActionResult> {
+): Promise<ActionResultWithId> {
   try {
     const date = data.date ? new Date(data.date) : null;
     const precision = (data.datePrecision ?? "UNKNOWN") as DatePrecision;
@@ -395,7 +396,7 @@ export async function updateCosmeticProcedureAction(
     provider?: string;
     status?: string;
   },
-): Promise<ActionResult> {
+): Promise<ActionResultWithId> {
   try {
     await updateCosmeticProcedureRecord(id, { id, ...data });
     revalidatePath(`/people/${personId}`);
@@ -409,7 +410,7 @@ export async function updateCosmeticProcedureAction(
 export async function deleteCosmeticProcedureAction(
   id: string,
   personId: string,
-): Promise<ActionResult> {
+): Promise<ActionResultWithId> {
   try {
     await deleteCosmeticProcedureRecord(id);
     revalidatePath(`/people/${personId}`);
@@ -428,7 +429,7 @@ export async function createCosmeticProcedureEventAction(
     eventType: string;
     notes?: string;
   },
-): Promise<ActionResult> {
+): Promise<ActionResultWithId> {
   try {
     await createCosmeticProcedureEventRecord({
       cosmeticProcedureId: data.cosmeticProcedureId,
@@ -447,7 +448,7 @@ export async function createCosmeticProcedureEventAction(
 export async function deleteCosmeticProcedureEventAction(
   id: string,
   personId: string,
-): Promise<ActionResult> {
+): Promise<ActionResultWithId> {
   try {
     await deleteCosmeticProcedureEventRecord(id);
     revalidatePath(`/people/${personId}`);
@@ -471,7 +472,7 @@ export async function recordPhysicalChangeAction(
     visionAids?: string;
     fitnessLevel?: string;
   },
-): Promise<ActionResult> {
+): Promise<ActionResultWithId> {
   try {
     const date = data.date ? new Date(data.date) : null;
     const precision = (data.datePrecision ?? "UNKNOWN") as DatePrecision;
@@ -511,7 +512,7 @@ export async function recordPhysicalChangeAction(
 export async function createPersonaBatchAction(
   personId: string,
   data: CreatePersonaBatchInput,
-): Promise<ActionResult> {
+): Promise<ActionResultWithId> {
   try {
     await createPersonaBatch(personId, data);
     revalidatePath(`/people/${personId}`);
@@ -531,7 +532,7 @@ export async function updatePersonaAction(
     datePrecision?: string;
     notes?: string;
   },
-): Promise<ActionResult> {
+): Promise<ActionResultWithId> {
   try {
     await updatePersona(id, {
       ...data,
@@ -548,7 +549,7 @@ export async function updatePersonaAction(
 export async function deletePersonaAction(
   id: string,
   personId: string,
-): Promise<ActionResult> {
+): Promise<ActionResultWithId> {
   try {
     await deletePersona(id);
     revalidatePath(`/people/${personId}`);

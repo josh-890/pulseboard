@@ -1,12 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import type { Prisma } from "@/generated/prisma/client";
-
-const BASE_URL = process.env.NEXT_PUBLIC_MINIO_URL!;
-
-function buildUrl(key: string): string {
-  return `${BASE_URL}/${key}`;
-}
+import { buildUrl } from "@/lib/media-url";
 
 type PhotoVariants = Record<string, string | undefined>;
 

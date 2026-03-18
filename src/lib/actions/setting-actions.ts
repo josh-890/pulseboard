@@ -6,17 +6,16 @@ import {
   updateSkillLevelConfig,
 } from "@/lib/services/setting-service";
 import { z } from "zod";
+import type { SimpleActionResult } from "@/lib/types";
 
 const updateLabelSchema = z.object({
   slot: z.string().regex(/^p-img0[1-5]$/, "Invalid slot"),
   label: z.string().min(1, "Label is required").max(50, "Label too long"),
 });
 
-type ActionResult = { success: true } | { success: false; error: string };
-
 export async function updateProfileImageLabel(
   data: unknown,
-): Promise<ActionResult> {
+): Promise<SimpleActionResult> {
   const parsed = updateLabelSchema.safeParse(data);
   if (!parsed.success) {
     return { success: false, error: parsed.error.issues[0].message };
@@ -44,7 +43,7 @@ const skillLevelConfigSchema = z.object({
 
 export async function updateSkillLevelConfigAction(
   data: unknown,
-): Promise<ActionResult> {
+): Promise<SimpleActionResult> {
   const parsed = skillLevelConfigSchema.safeParse(data);
   if (!parsed.success) {
     return { success: false, error: parsed.error.issues[0].message };

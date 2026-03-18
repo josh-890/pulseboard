@@ -7,14 +7,9 @@ import {
   updateLabelRecord,
   deleteLabelRecord,
 } from "@/lib/services/label-service";
+import type { CrudActionResult, SimpleActionResult } from "@/lib/types";
 
-type ActionResult =
-  | { success: true; id: string }
-  | { success: false; error: { fieldErrors?: Record<string, string[]> } | string };
-
-type DeleteResult = { success: boolean; error?: string };
-
-export async function createLabel(raw: unknown): Promise<ActionResult> {
+export async function createLabel(raw: unknown): Promise<CrudActionResult> {
   const parsed = createLabelSchema.safeParse(raw);
   if (!parsed.success) {
     return { success: false, error: parsed.error.flatten() };
@@ -32,7 +27,7 @@ export async function createLabel(raw: unknown): Promise<ActionResult> {
   }
 }
 
-export async function updateLabel(raw: unknown): Promise<ActionResult> {
+export async function updateLabel(raw: unknown): Promise<CrudActionResult> {
   const parsed = updateLabelSchema.safeParse(raw);
   if (!parsed.success) {
     return { success: false, error: parsed.error.flatten() };
@@ -51,7 +46,7 @@ export async function updateLabel(raw: unknown): Promise<ActionResult> {
   }
 }
 
-export async function deleteLabel(id: string): Promise<DeleteResult> {
+export async function deleteLabel(id: string): Promise<SimpleActionResult> {
   try {
     await deleteLabelRecord(id);
     revalidatePath("/labels");

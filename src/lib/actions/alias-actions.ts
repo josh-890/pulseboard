@@ -12,8 +12,7 @@ import {
   bulkImportAliases,
   mergeAliases,
 } from "@/lib/services/alias-service";
-
-type ActionResult = { success: boolean; error?: string };
+import type { SimpleActionResult } from "@/lib/types";
 
 // ─── CRUD ───────────────────────────────────────────────────────────────────
 
@@ -26,7 +25,7 @@ export async function createAliasAction(
     notes?: string | null;
     channelIds?: string[];
   },
-): Promise<ActionResult> {
+): Promise<SimpleActionResult> {
   try {
     if (!data.name.trim()) {
       return { success: false, error: "Name is required." };
@@ -54,7 +53,7 @@ export async function updateAliasAction(
     type?: AliasType;
     notes?: string | null;
   },
-): Promise<ActionResult> {
+): Promise<SimpleActionResult> {
   try {
     await updateAlias(aliasId, data);
     revalidatePath(`/people/${personId}`);
@@ -67,7 +66,7 @@ export async function updateAliasAction(
 export async function deleteAliasAction(
   aliasId: string,
   personId: string,
-): Promise<ActionResult> {
+): Promise<SimpleActionResult> {
   try {
     await deleteAlias(aliasId);
     revalidatePath(`/people/${personId}`);
@@ -83,7 +82,7 @@ export async function linkAliasChannelsAction(
   aliasId: string,
   personId: string,
   channelIds: string[],
-): Promise<ActionResult> {
+): Promise<SimpleActionResult> {
   try {
     await linkAliasToChannels(aliasId, channelIds);
     revalidatePath(`/people/${personId}`);
@@ -97,7 +96,7 @@ export async function unlinkAliasChannelAction(
   aliasId: string,
   personId: string,
   channelId: string,
-): Promise<ActionResult> {
+): Promise<SimpleActionResult> {
   try {
     await unlinkAliasFromChannel(aliasId, channelId);
     revalidatePath(`/people/${personId}`);
@@ -112,7 +111,7 @@ export async function setAliasChannelPrimaryAction(
   personId: string,
   channelId: string,
   isPrimary: boolean,
-): Promise<ActionResult> {
+): Promise<SimpleActionResult> {
   try {
     await setAliasChannelPrimary(aliasId, channelId, isPrimary);
     revalidatePath(`/people/${personId}`);
@@ -143,7 +142,7 @@ export async function mergeAliasesAction(
   targetId: string,
   sourceIds: string[],
   personId: string,
-): Promise<ActionResult> {
+): Promise<SimpleActionResult> {
   try {
     await mergeAliases(targetId, sourceIds);
     revalidatePath(`/people/${personId}`);

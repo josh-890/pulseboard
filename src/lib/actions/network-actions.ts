@@ -7,14 +7,9 @@ import {
   updateNetworkRecord,
   deleteNetworkRecord,
 } from "@/lib/services/network-service";
+import type { CrudActionResult, SimpleActionResult } from "@/lib/types";
 
-type ActionResult =
-  | { success: true; id: string }
-  | { success: false; error: { fieldErrors?: Record<string, string[]> } | string };
-
-type DeleteResult = { success: boolean; error?: string };
-
-export async function createNetwork(raw: unknown): Promise<ActionResult> {
+export async function createNetwork(raw: unknown): Promise<CrudActionResult> {
   const parsed = createNetworkSchema.safeParse(raw);
   if (!parsed.success) {
     return { success: false, error: parsed.error.flatten() };
@@ -32,7 +27,7 @@ export async function createNetwork(raw: unknown): Promise<ActionResult> {
   }
 }
 
-export async function updateNetwork(raw: unknown): Promise<ActionResult> {
+export async function updateNetwork(raw: unknown): Promise<CrudActionResult> {
   const parsed = updateNetworkSchema.safeParse(raw);
   if (!parsed.success) {
     return { success: false, error: parsed.error.flatten() };
@@ -51,7 +46,7 @@ export async function updateNetwork(raw: unknown): Promise<ActionResult> {
   }
 }
 
-export async function deleteNetwork(id: string): Promise<DeleteResult> {
+export async function deleteNetwork(id: string): Promise<SimpleActionResult> {
   try {
     await deleteNetworkRecord(id);
     revalidatePath("/networks");
