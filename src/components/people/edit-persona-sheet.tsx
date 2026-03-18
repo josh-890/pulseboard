@@ -3,6 +3,7 @@
 import { useCallback, useState, useTransition } from "react";
 import { X } from "lucide-react";
 import { updatePersonaAction } from "@/lib/actions/appearance-actions";
+import { PartialDateInput } from "@/components/shared/partial-date-input";
 
 type EditPersonaSheetProps = {
   personId: string;
@@ -76,30 +77,13 @@ export function EditPersonaSheet({ personId, persona, onClose }: EditPersonaShee
             />
           </div>
 
-          <div>
-            <label className="mb-1.5 block text-sm font-medium">Date</label>
-            <div className="flex gap-2">
-              <input
-                type="date"
-                value={date}
-                onChange={(e) => {
-                  setDate(e.target.value);
-                  if (e.target.value && datePrecision === "UNKNOWN") setDatePrecision("DAY");
-                }}
-                className="flex-1 rounded-lg border border-white/15 bg-muted/30 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
-              />
-              <select
-                value={datePrecision}
-                onChange={(e) => setDatePrecision(e.target.value)}
-                className="w-28 rounded-lg border border-white/15 bg-muted/30 px-2 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
-              >
-                <option value="UNKNOWN">Unknown</option>
-                <option value="YEAR">Year</option>
-                <option value="MONTH">Month</option>
-                <option value="DAY">Day</option>
-              </select>
-            </div>
-          </div>
+          <PartialDateInput
+            dateValue={date}
+            precisionValue={datePrecision}
+            onDateChange={setDate}
+            onPrecisionChange={setDatePrecision}
+            label="Date"
+          />
 
           <div>
             <label className="mb-1.5 block text-sm font-medium">Notes</label>

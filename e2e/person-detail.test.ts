@@ -534,7 +534,7 @@ test.describe("Photo Management", () => {
 // ── Focal Point ─────────────────────────────────────────────────────────────
 
 test.describe("Focal Point", () => {
-  async function openLightboxOnReferenceSession(page: Page) {
+  async function openInfoPanelOnReferenceSession(page: Page) {
     // Navigate to person detail
     await page.goto(`/people/${SEED_PERSON}`);
     await page.waitForLoadState("networkidle");
@@ -544,106 +544,98 @@ test.describe("Focal Point", () => {
     await page.waitForLoadState("networkidle");
     await page.waitForTimeout(1000);
 
-    // Click the first image thumbnail to open the lightbox
+    // Click the first image thumbnail to select it and open the info panel
     const galleryImg = page.locator("[class*='cursor-pointer'] img, [role='button'] img").first();
     if (!(await galleryImg.isVisible().catch(() => false))) {
       return false;
     }
     await galleryImg.click();
     await page.waitForTimeout(500);
+
+    // Scroll the focal point section into view by clicking its header
+    const focalHeader = page.getByText("Focal Point").first();
+    await focalHeader.scrollIntoViewIfNeeded();
+    await page.waitForTimeout(200);
+
+    // Ensure the section is expanded (click header if collapsed)
+    const focalThumb = page.locator("[aria-label='Click to set focal point']");
+    if (!(await focalThumb.isVisible().catch(() => false))) {
+      await focalHeader.click();
+      await page.waitForTimeout(300);
+    }
+
+    // Scroll the thumbnail fully into view
+    await focalThumb.scrollIntoViewIfNeeded();
+    await page.waitForTimeout(200);
+
     return true;
   }
 
-  test("set focal point via lightbox", async ({ page }) => {
-    const opened = await openLightboxOnReferenceSession(page);
+  test("set focal point via info panel", async ({ page }) => {
+    const opened = await openInfoPanelOnReferenceSession(page);
     if (!opened) {
       test.skip();
       return;
     }
 
-    // Expand the Focal Point section (click header)
-    const focalHeader = page.getByText("Focal Point").first();
-    await focalHeader.click();
-    await page.waitForTimeout(300);
-
-    // Click on the focal point thumbnail to set a focal point
     const focalThumb = page.locator("[aria-label='Click to set focal point']");
     await expect(focalThumb).toBeVisible({ timeout: 3000 });
 
     // Click near center of the thumbnail
-    const box = await focalThumb.boundingBox();
-    if (box) {
-      await page.mouse.click(box.x + box.width * 0.3, box.y + box.height * 0.4);
-      await page.waitForTimeout(1000);
+    await focalThumb.click({ position: { x: 50, y: 30 } });
+    await page.waitForTimeout(1500);
 
-      // Verify "Manual" label and coordinates appear
-      await expect(page.getByText("Manual")).toBeVisible({ timeout: 5000 });
-      // Verify percentage coordinates are shown
-      await expect(page.getByText(/\d+%.*\d+%/)).toBeVisible({ timeout: 3000 });
-    }
+    // Verify "Manual" label and coordinates appear
+    await expect(page.getByText("Manual")).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText(/\d+%.*\d+%/)).toBeVisible({ timeout: 3000 });
   });
 
   test("change focal point does not freeze panel", async ({ page }) => {
-    const opened = await openLightboxOnReferenceSession(page);
+    const opened = await openInfoPanelOnReferenceSession(page);
     if (!opened) {
       test.skip();
       return;
     }
-
-    // Expand the Focal Point section
-    const focalHeader = page.getByText("Focal Point").first();
-    await focalHeader.click();
-    await page.waitForTimeout(300);
 
     const focalThumb = page.locator("[aria-label='Click to set focal point']");
     await expect(focalThumb).toBeVisible({ timeout: 3000 });
 
     // Set focal point
-    const box = await focalThumb.boundingBox();
-    if (box) {
-      await page.mouse.click(box.x + box.width * 0.6, box.y + box.height * 0.3);
-      await page.waitForTimeout(500);
+    await focalThumb.click({ position: { x: 80, y: 20 } });
+    await page.waitForTimeout(500);
 
-      // Immediately verify the panel is still interactive — the "Clear" button should be clickable
-      const clearBtn = page.getByRole("button", { name: "Clear" });
-      await expect(clearBtn).toBeEnabled({ timeout: 3000 });
-    }
+    // Immediately verify the panel is still interactive — the "Clear" button should be clickable
+    const clearBtn = page.getByRole("button", { name: "Clear" });
+    await clearBtn.scrollIntoViewIfNeeded();
+    await expect(clearBtn).toBeEnabled({ timeout: 3000 });
   });
 
   test("reset focal point", async ({ page }) => {
-    const opened = await openLightboxOnReferenceSession(page);
+    const opened = await openInfoPanelOnReferenceSession(page);
     if (!opened) {
       test.skip();
       return;
     }
 
-    // Expand the Focal Point section
-    const focalHeader = page.getByText("Focal Point").first();
-    await focalHeader.click();
-    await page.waitForTimeout(300);
+    const focalThumb = page.locator("[aria-label='Click to set focal point']");
+    await expect(focalThumb).toBeVisible({ timeout: 3000 });
 
-    // If "Manual" is shown, there's a focal point to clear
+    // Ensure a focal point is set first
     const manualLabel = page.getByText("Manual");
-    if (await manualLabel.isVisible().catch(() => false)) {
-      // Click Clear
-      await page.getByRole("button", { name: "Clear" }).click();
-      await page.waitForTimeout(1000);
-
-      // Verify "Not set" appears
-      await expect(page.getByText("Not set")).toBeVisible({ timeout: 5000 });
-    } else {
-      // No focal point set — set one first then clear it
-      const focalThumb = page.locator("[aria-label='Click to set focal point']");
-      const box = await focalThumb.boundingBox();
-      if (box) {
-        await page.mouse.click(box.x + box.width * 0.5, box.y + box.height * 0.5);
-        await page.waitForTimeout(1000);
-
-        await page.getByRole("button", { name: "Clear" }).click();
-        await page.waitForTimeout(1000);
-        await expect(page.getByText("Not set")).toBeVisible({ timeout: 5000 });
-      }
+    if (!(await manualLabel.isVisible().catch(() => false))) {
+      await focalThumb.click({ position: { x: 50, y: 50 } });
+      await page.waitForTimeout(1500);
+      await expect(manualLabel).toBeVisible({ timeout: 5000 });
     }
+
+    // Click Clear
+    const clearBtn = page.getByRole("button", { name: "Clear" });
+    await clearBtn.scrollIntoViewIfNeeded();
+    await clearBtn.click();
+    await page.waitForTimeout(1500);
+
+    // Verify "Not set" appears
+    await expect(page.getByText("Not set")).toBeVisible({ timeout: 5000 });
   });
 });
 
