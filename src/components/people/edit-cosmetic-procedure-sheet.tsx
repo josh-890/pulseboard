@@ -2,6 +2,7 @@
 
 import { useCallback, useState, useTransition } from "react";
 import { X } from "lucide-react";
+import { PartialDateInput } from "@/components/shared/partial-date-input";
 import { BodyRegionCompact } from "@/components/shared/body-region-picker";
 import {
   InlineUploadZone,
@@ -32,6 +33,11 @@ export function EditCosmeticProcedureSheet({ personId, procedure, referenceSessi
   const [description, setDescription] = useState(procedure.description ?? "");
   const [provider, setProvider] = useState(procedure.provider ?? "");
   const [status, setStatus] = useState(procedure.status);
+  const initialEvent = procedure.events.find((e) => e.eventType === "performed");
+  const initDate = initialEvent?.persona.isBaseline ? "" : (initialEvent?.persona.date ? new Date(initialEvent.persona.date).toISOString().split("T")[0] : "");
+  const initPrec = initialEvent?.persona.isBaseline ? "UNKNOWN" : (initialEvent?.persona.datePrecision ?? "UNKNOWN");
+  const [date, setDate] = useState(initDate);
+  const [datePrecision, setDatePrecision] = useState(initPrec);
   const [error, setError] = useState<string | null>(null);
   const [pendingFiles, setPendingFiles] = useState<PendingFile[]>([]);
 
@@ -48,6 +54,8 @@ export function EditCosmeticProcedureSheet({ personId, procedure, referenceSessi
         description: description.trim() || undefined,
         provider: provider.trim() || undefined,
         status: status.trim() || undefined,
+        date: date || null,
+        datePrecision,
       });
       if (!result.success) { setError(result.error ?? "Failed to update."); return; }
       if (pendingFiles.length > 0 && referenceSessionId && categoryId) {
@@ -63,7 +71,7 @@ export function EditCosmeticProcedureSheet({ personId, procedure, referenceSessi
       }
       onClose();
     });
-  }, [procedure.id, personId, type, bodyRegions, description, provider, status, pendingFiles, referenceSessionId, categoryId, onClose]);
+  }, [procedure.id, personId, type, bodyRegions, description, provider, status, date, datePrecision, pendingFiles, referenceSessionId, categoryId, onClose]);
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end">
@@ -80,6 +88,15 @@ export function EditCosmeticProcedureSheet({ personId, procedure, referenceSessi
             <input type="text" value={type} onChange={(e) => setType(e.target.value)}
               className="w-full rounded-lg border border-white/15 bg-muted/30 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring" />
           </div>
+
+          {/* Date */}
+          <PartialDateInput
+            date={date}
+            precision={datePrecision}
+            onDateChange={setDate}
+            onPrecisionChange={setDatePrecision}
+            label="Date"
+          />
 
           {/* Body Region Picker */}
           <div>

@@ -113,6 +113,16 @@ export function BodyMarkCard({
         )}
       </div>
 
+      {onDeleteEvent && onAddEvent && (
+        <EntityEventTimeline
+          events={mark.events}
+          eventStyles={BODY_MARK_EVENT_STYLES}
+          onDeleteEvent={onDeleteEvent}
+          onAddEvent={onAddEvent}
+          isPending={isPending}
+        />
+      )}
+
       {mark.motif && (
         <p className="text-sm font-medium text-foreground">{mark.motif}</p>
       )}
@@ -157,15 +167,6 @@ export function BodyMarkCard({
         </button>
       )}
 
-      {onDeleteEvent && onAddEvent && (
-        <EntityEventTimeline
-          events={mark.events}
-          eventStyles={BODY_MARK_EVENT_STYLES}
-          onDeleteEvent={onDeleteEvent}
-          onAddEvent={onAddEvent}
-          isPending={isPending}
-        />
-      )}
     </div>
   );
 }

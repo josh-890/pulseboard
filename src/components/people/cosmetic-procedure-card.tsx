@@ -95,6 +95,16 @@ export function CosmeticProcedureCard({
         )}
       </div>
 
+      {onDeleteEvent && onAddEvent && (
+        <EntityEventTimeline
+          events={procedure.events}
+          eventStyles={COSMETIC_PROCEDURE_EVENT_STYLES}
+          onDeleteEvent={onDeleteEvent}
+          onAddEvent={onAddEvent}
+          isPending={isPending}
+        />
+      )}
+
       {procedure.description && (
         <p className="text-sm text-muted-foreground">{procedure.description}</p>
       )}
@@ -129,15 +139,6 @@ export function CosmeticProcedureCard({
         </button>
       )}
 
-      {onDeleteEvent && onAddEvent && (
-        <EntityEventTimeline
-          events={procedure.events}
-          eventStyles={COSMETIC_PROCEDURE_EVENT_STYLES}
-          onDeleteEvent={onDeleteEvent}
-          onAddEvent={onAddEvent}
-          isPending={isPending}
-        />
-      )}
     </div>
   );
 }

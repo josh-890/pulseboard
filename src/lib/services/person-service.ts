@@ -193,7 +193,7 @@ export async function getPersonBodyMarks(personId: string): Promise<BodyMarkWith
     include: {
       events: {
         include: {
-          persona: { select: { id: true, label: true, date: true } },
+          persona: { select: { id: true, label: true, date: true, datePrecision: true, isBaseline: true } },
         },
         orderBy: { persona: { date: "asc" } },
       },
@@ -217,7 +217,7 @@ export async function getPersonBodyMarks(personId: string): Promise<BodyMarkWith
       id: e.id,
       eventType: e.eventType,
       notes: e.notes,
-      persona: { id: e.persona.id, label: e.persona.label, date: e.persona.date },
+      persona: { id: e.persona.id, label: e.persona.label, date: e.persona.date, datePrecision: e.persona.datePrecision, isBaseline: e.persona.isBaseline },
     })),
   }));
 }

@@ -3,6 +3,7 @@
 import { useCallback, useState, useTransition } from "react";
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { PartialDateInput } from "@/components/shared/partial-date-input";
 import { BodyRegionCompact } from "@/components/shared/body-region-picker";
 import {
   InlineUploadZone,
@@ -37,6 +38,11 @@ export function EditBodyMarkSheet({ personId, mark, referenceSessionId, category
   const [colors, setColors] = useState(mark.colors.join(", "));
   const [size, setSize] = useState(mark.size ?? "");
   const [status, setStatus] = useState<BodyMarkStatus>(mark.status);
+  const initialEvent = mark.events.find((e) => e.eventType === "added");
+  const initDate = initialEvent?.persona.isBaseline ? "" : (initialEvent?.persona.date ? new Date(initialEvent.persona.date).toISOString().split("T")[0] : "");
+  const initPrec = initialEvent?.persona.isBaseline ? "UNKNOWN" : (initialEvent?.persona.datePrecision ?? "UNKNOWN");
+  const [date, setDate] = useState(initDate);
+  const [datePrecision, setDatePrecision] = useState(initPrec);
   const [error, setError] = useState<string | null>(null);
   const [pendingFiles, setPendingFiles] = useState<PendingFile[]>([]);
 
@@ -57,6 +63,8 @@ export function EditBodyMarkSheet({ personId, mark, referenceSessionId, category
         colors: colors.trim() ? colors.split(",").map((c) => c.trim()) : [],
         size: size.trim() || undefined,
         status,
+        date: date || null,
+        datePrecision,
       });
       if (!result.success) {
         setError(result.error ?? "Failed to update body mark.");
@@ -75,7 +83,7 @@ export function EditBodyMarkSheet({ personId, mark, referenceSessionId, category
       }
       onClose();
     });
-  }, [mark.id, personId, type, bodyRegions, description, motif, colors, size, status, pendingFiles, referenceSessionId, categoryId, onClose]);
+  }, [mark.id, personId, type, bodyRegions, description, motif, colors, size, status, date, datePrecision, pendingFiles, referenceSessionId, categoryId, onClose]);
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end">
@@ -128,6 +136,15 @@ export function EditBodyMarkSheet({ personId, mark, referenceSessionId, category
               ))}
             </div>
           </div>
+
+          {/* Date */}
+          <PartialDateInput
+            date={date}
+            precision={datePrecision}
+            onDateChange={setDate}
+            onPrecisionChange={setDatePrecision}
+            label="Date"
+          />
 
           {/* Body Region Picker */}
           <div>

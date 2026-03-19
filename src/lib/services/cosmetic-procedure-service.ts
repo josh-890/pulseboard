@@ -11,7 +11,7 @@ export async function getPersonCosmeticProcedures(personId: string) {
     include: {
       events: {
         include: {
-          persona: { select: { id: true, label: true, date: true } },
+          persona: { select: { id: true, label: true, date: true, datePrecision: true, isBaseline: true } },
         },
         orderBy: { persona: { date: "asc" } },
       },
@@ -26,7 +26,7 @@ export async function getCosmeticProcedureById(id: string) {
     include: {
       events: {
         include: {
-          persona: { select: { id: true, label: true, date: true } },
+          persona: { select: { id: true, label: true, date: true, datePrecision: true, isBaseline: true } },
         },
       },
     },

@@ -114,6 +114,16 @@ export function BodyModificationCard({
         )}
       </div>
 
+      {onDeleteEvent && onAddEvent && (
+        <EntityEventTimeline
+          events={modification.events}
+          eventStyles={BODY_MODIFICATION_EVENT_STYLES}
+          onDeleteEvent={onDeleteEvent}
+          onAddEvent={onAddEvent}
+          isPending={isPending}
+        />
+      )}
+
       {modification.description && (
         <p className="text-sm text-muted-foreground">{modification.description}</p>
       )}
@@ -153,15 +163,6 @@ export function BodyModificationCard({
         </button>
       )}
 
-      {onDeleteEvent && onAddEvent && (
-        <EntityEventTimeline
-          events={modification.events}
-          eventStyles={BODY_MODIFICATION_EVENT_STYLES}
-          onDeleteEvent={onDeleteEvent}
-          onAddEvent={onAddEvent}
-          isPending={isPending}
-        />
-      )}
     </div>
   );
 }

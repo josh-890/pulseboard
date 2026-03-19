@@ -5,8 +5,21 @@ import type { CreatePersonaBatchInput, UpdatePersonaInput } from "@/lib/validati
 type TxClient = Prisma.TransactionClient;
 
 /**
+ * Get the baseline persona ID for a person. Throws if not found.
+ */
+export async function getBaselinePersonaId(tx: TxClient, personId: string): Promise<string> {
+  const baseline = await tx.persona.findFirst({
+    where: { personId, isBaseline: true },
+    select: { id: true },
+  });
+  if (!baseline) throw new Error(`Baseline persona not found for person ${personId}`);
+  return baseline.id;
+}
+
+/**
  * Find an existing persona for the given date (same calendar month for DAY/MONTH,
  * same year for YEAR), or create a new one. Works inside a transaction for atomicity.
+ * Undated entities attach to the baseline persona.
  */
 export async function findOrCreatePersonaForDate(
   tx: TxClient,
@@ -15,16 +28,7 @@ export async function findOrCreatePersonaForDate(
   datePrecision: DatePrecision,
 ): Promise<string> {
   if (!date || datePrecision === "UNKNOWN") {
-    const persona = await tx.persona.create({
-      data: {
-        personId,
-        label: "Undated change",
-        date: null,
-        datePrecision: "UNKNOWN",
-        isBaseline: false,
-      },
-    });
-    return persona.id;
+    return getBaselinePersonaId(tx, personId);
   }
 
   const year = date.getFullYear();

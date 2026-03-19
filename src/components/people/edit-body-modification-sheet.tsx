@@ -3,6 +3,7 @@
 import { useCallback, useState, useTransition } from "react";
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { PartialDateInput } from "@/components/shared/partial-date-input";
 import { BodyRegionCompact } from "@/components/shared/body-region-picker";
 import {
   InlineUploadZone,
@@ -39,6 +40,11 @@ export function EditBodyModificationSheet({ personId, modification, referenceSes
   const [material, setMaterial] = useState(modification.material ?? "");
   const [gauge, setGauge] = useState(modification.gauge ?? "");
   const [status, setStatus] = useState<BodyModificationStatus>(modification.status);
+  const initialEvent = modification.events.find((e) => e.eventType === "added");
+  const initDate = initialEvent?.persona.isBaseline ? "" : (initialEvent?.persona.date ? new Date(initialEvent.persona.date).toISOString().split("T")[0] : "");
+  const initPrec = initialEvent?.persona.isBaseline ? "UNKNOWN" : (initialEvent?.persona.datePrecision ?? "UNKNOWN");
+  const [date, setDate] = useState(initDate);
+  const [datePrecision, setDatePrecision] = useState(initPrec);
   const [error, setError] = useState<string | null>(null);
   const [pendingFiles, setPendingFiles] = useState<PendingFile[]>([]);
 
@@ -58,6 +64,8 @@ export function EditBodyModificationSheet({ personId, modification, referenceSes
         material: material.trim() || undefined,
         gauge: gauge.trim() || undefined,
         status,
+        date: date || null,
+        datePrecision,
       });
       if (!result.success) { setError(result.error ?? "Failed to update."); return; }
       if (pendingFiles.length > 0 && referenceSessionId && categoryId) {
@@ -73,7 +81,7 @@ export function EditBodyModificationSheet({ personId, modification, referenceSes
       }
       onClose();
     });
-  }, [modification.id, personId, type, bodyRegions, description, material, gauge, status, pendingFiles, referenceSessionId, categoryId, onClose]);
+  }, [modification.id, personId, type, bodyRegions, description, material, gauge, status, date, datePrecision, pendingFiles, referenceSessionId, categoryId, onClose]);
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end">
@@ -110,6 +118,15 @@ export function EditBodyModificationSheet({ personId, modification, referenceSes
               ))}
             </div>
           </div>
+
+          {/* Date */}
+          <PartialDateInput
+            date={date}
+            precision={datePrecision}
+            onDateChange={setDate}
+            onPrecisionChange={setDatePrecision}
+            label="Date"
+          />
 
           {/* Body Region Picker */}
           <div>

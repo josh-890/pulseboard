@@ -88,7 +88,7 @@ export type BodyMarkWithEvents = {
     id: string;
     eventType: import("@/generated/prisma/client").BodyMarkEventType;
     notes: string | null;
-    persona: { id: string; label: string; date: Date | null };
+    persona: { id: string; label: string; date: Date | null; datePrecision: string; isBaseline: boolean };
   }[];
 };
 
@@ -107,7 +107,7 @@ export type BodyModificationWithEvents = {
     id: string;
     eventType: import("@/generated/prisma/client").BodyModificationEventType;
     notes: string | null;
-    persona: { id: string; label: string; date: Date | null };
+    persona: { id: string; label: string; date: Date | null; datePrecision: string; isBaseline: boolean };
   }[];
 };
 
@@ -123,7 +123,7 @@ export type CosmeticProcedureWithEvents = {
     id: string;
     eventType: import("@/generated/prisma/client").CosmeticProcedureEventType;
     notes: string | null;
-    persona: { id: string; label: string; date: Date | null };
+    persona: { id: string; label: string; date: Date | null; datePrecision: string; isBaseline: boolean };
   }[];
 };
 
