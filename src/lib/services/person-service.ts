@@ -243,7 +243,17 @@ export async function createBodyMarkEventRecord(data: import("@/lib/validations/
 }
 
 export async function deleteBodyMarkEventRecord(id: string) {
-  return prisma.bodyMarkEvent.delete({ where: { id } });
+  return prisma.$transaction(async (tx) => {
+    const event = await tx.bodyMarkEvent.delete({ where: { id } });
+    const remaining = await tx.bodyMarkEvent.count({
+      where: { bodyMarkId: event.bodyMarkId },
+    });
+    if (remaining === 0) {
+      await tx.personMediaLink.deleteMany({ where: { bodyMarkId: event.bodyMarkId } });
+      await tx.bodyMark.delete({ where: { id: event.bodyMarkId } });
+    }
+    return event;
+  });
 }
 
 export async function getPersonDigitalIdentities(personId: string): Promise<PersonDigitalIdentityItem[]> {
@@ -590,7 +600,7 @@ export function deriveCurrentState(
             id: e.id,
             eventType: e.eventType,
             notes: e.notes,
-            persona: { id: p.id, label: p.label, date: p.date },
+            persona: { id: p.id, label: p.label, date: p.date, datePrecision: p.datePrecision, isBaseline: p.isBaseline },
           })),
       );
       activeBodyMarks.push({
@@ -643,7 +653,7 @@ export function deriveCurrentState(
             id: e.id,
             eventType: e.eventType,
             notes: e.notes,
-            persona: { id: p.id, label: p.label, date: p.date },
+            persona: { id: p.id, label: p.label, date: p.date, datePrecision: p.datePrecision, isBaseline: p.isBaseline },
           })),
       );
       activeBodyModifications.push({
@@ -694,7 +704,7 @@ export function deriveCurrentState(
             id: e.id,
             eventType: e.eventType,
             notes: e.notes,
-            persona: { id: p.id, label: p.label, date: p.date },
+            persona: { id: p.id, label: p.label, date: p.date, datePrecision: p.datePrecision, isBaseline: p.isBaseline },
           })),
       );
       activeCosmeticProcedures.push({

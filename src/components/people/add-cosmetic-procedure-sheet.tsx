@@ -85,7 +85,6 @@ export function AddCosmeticProcedureSheet({ personId, referenceSessionId, catego
             <BodyRegionCompact
               value={bodyRegions}
               onChange={setBodyRegions}
-              mode="single"
             />
           </div>
 

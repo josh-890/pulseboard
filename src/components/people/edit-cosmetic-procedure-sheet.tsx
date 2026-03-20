@@ -34,7 +34,7 @@ export function EditCosmeticProcedureSheet({ personId, procedure, referenceSessi
   const [provider, setProvider] = useState(procedure.provider ?? "");
   const [status, setStatus] = useState(procedure.status);
   const initialEvent = procedure.events.find((e) => e.eventType === "performed");
-  const initDate = initialEvent?.persona.isBaseline ? "" : (initialEvent?.persona.date ? new Date(initialEvent.persona.date).toISOString().split("T")[0] : "");
+  const initDate = initialEvent?.persona.isBaseline ? "" : (initialEvent?.persona.date ? (() => { const d = new Date(initialEvent.persona.date); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; })() : "");
   const initPrec = initialEvent?.persona.isBaseline ? "UNKNOWN" : (initialEvent?.persona.datePrecision ?? "UNKNOWN");
   const [date, setDate] = useState(initDate);
   const [datePrecision, setDatePrecision] = useState(initPrec);
@@ -91,8 +91,8 @@ export function EditCosmeticProcedureSheet({ personId, procedure, referenceSessi
 
           {/* Date */}
           <PartialDateInput
-            date={date}
-            precision={datePrecision}
+            dateValue={date}
+            precisionValue={datePrecision}
             onDateChange={setDate}
             onPrecisionChange={setDatePrecision}
             label="Date"
@@ -104,7 +104,6 @@ export function EditCosmeticProcedureSheet({ personId, procedure, referenceSessi
             <BodyRegionCompact
               value={bodyRegions}
               onChange={setBodyRegions}
-              mode="single"
             />
           </div>
 

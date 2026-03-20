@@ -70,7 +70,15 @@ export async function createCosmeticProcedureEventRecord(data: CreateCosmeticPro
 }
 
 export async function deleteCosmeticProcedureEventRecord(id: string) {
-  return prisma.cosmeticProcedureEvent.delete({
-    where: { id },
+  return prisma.$transaction(async (tx) => {
+    const event = await tx.cosmeticProcedureEvent.delete({ where: { id } });
+    const remaining = await tx.cosmeticProcedureEvent.count({
+      where: { cosmeticProcedureId: event.cosmeticProcedureId },
+    });
+    if (remaining === 0) {
+      await tx.personMediaLink.deleteMany({ where: { cosmeticProcedureId: event.cosmeticProcedureId } });
+      await tx.cosmeticProcedure.delete({ where: { id: event.cosmeticProcedureId } });
+    }
+    return event;
   });
 }

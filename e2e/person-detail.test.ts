@@ -418,7 +418,7 @@ test.describe("Appearance: Cosmetic Procedures", () => {
     await page.getByRole("button", { name: "Create Cosmetic Procedure" }).click();
 
     await page.waitForTimeout(2000);
-    await expect(page.getByText("Test Rhinoplasty")).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText("Test Rhinoplasty", { exact: true })).toBeVisible({ timeout: 10000 });
   });
 
   test("edit cosmetic procedure", async ({ page }) => {
@@ -471,7 +471,7 @@ test.describe("Appearance: Cosmetic Procedures", () => {
     }
 
     await page.waitForTimeout(2000);
-    await expect(page.getByText("Test Rhinoplasty")).not.toBeVisible({ timeout: 5000 });
+    await expect(page.getByText("Test Rhinoplasty", { exact: true })).not.toBeVisible({ timeout: 5000 });
   });
 });
 

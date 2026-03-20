@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState, useTransition } from "react";
+import { useCallback, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { getPersonWithDetails } from "@/lib/services/person-service";
 import type {
@@ -22,6 +22,7 @@ import { AddBodyMarkEventDialog } from "@/components/people/add-body-mark-event-
 import { AddBodyModificationEventDialog } from "@/components/people/add-body-modification-event-dialog";
 import { AddCosmeticProcedureEventDialog } from "@/components/people/add-cosmetic-procedure-event-dialog";
 import { RecordPhysicalChangeSheet } from "@/components/people/record-physical-change-sheet";
+import { EditPhysicalChangeSheet } from "@/components/people/edit-physical-change-sheet";
 import { DetailMediaPickerSheet } from "@/components/people/detail-media-picker-sheet";
 import {
   deleteBodyMarkAction,
@@ -33,16 +34,33 @@ import {
 } from "@/lib/actions/appearance-actions";
 import {
   Activity,
+  Eye,
   Fingerprint,
+  Pencil,
   Plus,
   Wrench,
   Sparkles,
 } from "lucide-react";
 import { SectionCard, EmptyState, InfoRow } from "@/components/people/person-detail-helpers";
+import { formatPartialDate } from "@/lib/utils";
 import type { EntityMediaThumbnail } from "@/lib/services/media-service";
 import type { CategoryWithGroup } from "@/components/gallery/gallery-info-panel";
 
 type PersonData = NonNullable<Awaited<ReturnType<typeof getPersonWithDetails>>>;
+
+type PhysicalChangeItem = {
+  physicalId: string;
+  personaId: string;
+  personaLabel: string;
+  isBaseline: boolean;
+  date: Date | null;
+  datePrecision: string;
+  currentHairColor: string | null;
+  weight: number | null;
+  build: string | null;
+  visionAids: string | null;
+  fitnessLevel: string | null;
+};
 
 type AppearanceOpenState =
   | null
@@ -56,6 +74,7 @@ type AppearanceOpenState =
   | "addCosmProc"
   | { type: "editCosmProc"; procedure: CosmeticProcedureWithEvents }
   | { type: "addCosmProcEvent"; procId: string; procLabel: string }
+  | { type: "editPhysical"; item: PhysicalChangeItem }
   | { type: "manageEntityPhotos"; entityId: string; entityModel: string; entityLabel: string };
 
 export type AppearanceTabProps = {
@@ -86,6 +105,27 @@ export function AppearanceTab({
 
   const hasStatic = person.height || person.eyeColor || person.naturalHairColor || person.bodyType || person.measurements;
   const hasComputed = currentState.currentHairColor || currentState.weight !== null || currentState.build || currentState.visionAids || currentState.fitnessLevel;
+
+  // Build physical change history from personas
+  const physicalChanges = useMemo<PhysicalChangeItem[]>(() => {
+    return person.personas
+      .filter((p) => p.physicalChange)
+      .map((p) => ({
+        physicalId: p.physicalChange!.id,
+        personaId: p.id,
+        personaLabel: p.label,
+        isBaseline: p.isBaseline,
+        date: p.date,
+        datePrecision: p.datePrecision,
+        currentHairColor: p.physicalChange!.currentHairColor,
+        weight: p.physicalChange!.weight,
+        build: p.physicalChange!.build,
+        visionAids: p.physicalChange!.visionAids,
+        fitnessLevel: p.physicalChange!.fitnessLevel,
+      }));
+  }, [person.personas]);
+
+  const hasSnapshot = hasStatic || hasComputed || currentState.activeBodyMarks.length > 0 || currentState.activeBodyModifications.length > 0 || currentState.activeCosmeticProcedures.length > 0;
 
   const handleDeleteBodyMark = useCallback((markId: string) => {
     startTransition(async () => {
@@ -166,6 +206,106 @@ export function AppearanceTab({
   return (
     <>
       <div className="space-y-6">
+        {/* Current Snapshot */}
+        <SectionCard title="Current Snapshot" icon={<Eye size={18} />}>
+          {!hasSnapshot ? (
+            <EmptyState message="No appearance data recorded yet." />
+          ) : (
+            <div className="space-y-4">
+              {/* Physical Stats */}
+              {(hasStatic || hasComputed) && (
+                <div>
+                  <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Physical Stats</h3>
+                  <dl className="grid grid-cols-1 gap-1.5 text-sm sm:grid-cols-2">
+                    {person.height && <InfoRow label="Height" value={`${person.height} cm`} labelWidth="w-28" />}
+                    {person.eyeColor && <InfoRow label="Eye color" value={<span className="capitalize">{person.eyeColor}</span>} labelWidth="w-28" />}
+                    {person.naturalHairColor && <InfoRow label="Natural hair" value={<span className="capitalize">{person.naturalHairColor}</span>} labelWidth="w-28" />}
+                    {currentState.currentHairColor && <InfoRow label="Current hair" value={<span className="capitalize">{currentState.currentHairColor}</span>} labelWidth="w-28" />}
+                    {currentState.weight !== null && currentState.weight !== undefined && <InfoRow label="Weight" value={`${currentState.weight} kg`} labelWidth="w-28" />}
+                    {person.bodyType && <InfoRow label="Body type" value={<span className="capitalize">{person.bodyType}</span>} labelWidth="w-28" />}
+                    {currentState.build && <InfoRow label="Build" value={<span className="capitalize">{currentState.build}</span>} labelWidth="w-28" />}
+                    {person.measurements && <InfoRow label="Measurements" value={person.measurements} labelWidth="w-28" />}
+                    {currentState.visionAids && <InfoRow label="Vision aids" value={currentState.visionAids} labelWidth="w-28" />}
+                    {currentState.fitnessLevel && <InfoRow label="Fitness" value={<span className="capitalize">{currentState.fitnessLevel}</span>} labelWidth="w-28" />}
+                  </dl>
+                </div>
+              )}
+
+              {/* Active Body Marks */}
+              {currentState.activeBodyMarks.length > 0 && (
+                <div>
+                  <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    Body Marks
+                    <span className="ml-1.5 rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">
+                      {currentState.activeBodyMarks.length}
+                    </span>
+                  </h3>
+                  <div className="flex flex-wrap gap-1.5">
+                    {currentState.activeBodyMarks.map((mark) => (
+                      <span
+                        key={mark.id}
+                        className="rounded-md border border-white/10 bg-muted/30 px-2 py-1 text-xs"
+                      >
+                        <span className="capitalize">{mark.type}</span>
+                        <span className="mx-1 text-muted-foreground">—</span>
+                        {mark.bodyRegion}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Active Body Modifications */}
+              {currentState.activeBodyModifications.length > 0 && (
+                <div>
+                  <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    Body Modifications
+                    <span className="ml-1.5 rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">
+                      {currentState.activeBodyModifications.length}
+                    </span>
+                  </h3>
+                  <div className="flex flex-wrap gap-1.5">
+                    {currentState.activeBodyModifications.map((mod) => (
+                      <span
+                        key={mod.id}
+                        className="rounded-md border border-white/10 bg-muted/30 px-2 py-1 text-xs"
+                      >
+                        <span className="capitalize">{mod.type}</span>
+                        <span className="mx-1 text-muted-foreground">—</span>
+                        {mod.bodyRegion}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Active Cosmetic Procedures */}
+              {currentState.activeCosmeticProcedures.length > 0 && (
+                <div>
+                  <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    Cosmetic Procedures
+                    <span className="ml-1.5 rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">
+                      {currentState.activeCosmeticProcedures.length}
+                    </span>
+                  </h3>
+                  <div className="flex flex-wrap gap-1.5">
+                    {currentState.activeCosmeticProcedures.map((proc) => (
+                      <span
+                        key={proc.id}
+                        className="rounded-md border border-white/10 bg-muted/30 px-2 py-1 text-xs"
+                      >
+                        {proc.type}
+                        <span className="mx-1 text-muted-foreground">—</span>
+                        {proc.bodyRegions?.length ? proc.bodyRegions.join(", ") : proc.bodyRegion}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </SectionCard>
+
         {/* Physical Stats */}
         <SectionCard title="Physical Stats" icon={<Activity size={18} />}>
           <div className="mb-3 flex justify-end">
@@ -181,21 +321,66 @@ export function AppearanceTab({
           {!hasStatic && !hasComputed ? (
             <EmptyState message="No physical stats recorded." />
           ) : (
-            <dl className="grid grid-cols-1 gap-2 text-sm">
-              {person.height && <InfoRow label="Height" value={`${person.height} cm`} />}
-              {person.eyeColor && <InfoRow label="Eye color" value={<span className="capitalize">{person.eyeColor}</span>} />}
-              {person.naturalHairColor && <InfoRow label="Natural hair" value={<span className="capitalize">{person.naturalHairColor}</span>} />}
-              {person.bodyType && <InfoRow label="Body type" value={<span className="capitalize">{person.bodyType}</span>} />}
-              {person.measurements && <InfoRow label="Measurements" value={person.measurements} />}
-              {hasStatic && hasComputed && (
-                <div className="col-span-full my-1 border-t border-white/10" />
+            <>
+              <dl className="grid grid-cols-1 gap-2 text-sm">
+                {person.height && <InfoRow label="Height" value={`${person.height} cm`} />}
+                {person.eyeColor && <InfoRow label="Eye color" value={<span className="capitalize">{person.eyeColor}</span>} />}
+                {person.naturalHairColor && <InfoRow label="Natural hair" value={<span className="capitalize">{person.naturalHairColor}</span>} />}
+                {person.bodyType && <InfoRow label="Body type" value={<span className="capitalize">{person.bodyType}</span>} />}
+                {person.measurements && <InfoRow label="Measurements" value={person.measurements} />}
+              </dl>
+
+              {/* Change History */}
+              {physicalChanges.length > 0 && (
+                <div className="mt-4 border-t border-white/10 pt-4">
+                  <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Change History</h3>
+                  <div className="space-y-2">
+                    {physicalChanges.map((item) => {
+                      const fields: string[] = [];
+                      if (item.currentHairColor) fields.push(`Hair: ${item.currentHairColor}`);
+                      if (item.weight !== null) fields.push(`Weight: ${item.weight} kg`);
+                      if (item.build) fields.push(`Build: ${item.build}`);
+                      if (item.visionAids) fields.push(`Vision: ${item.visionAids}`);
+                      if (item.fitnessLevel) fields.push(`Fitness: ${item.fitnessLevel}`);
+
+                      return (
+                        <div
+                          key={item.physicalId}
+                          className="group flex items-start gap-3 rounded-lg border border-white/10 bg-muted/20 px-3 py-2"
+                        >
+                          <div className="min-w-0 flex-1">
+                            <div className="mb-1 flex items-center gap-2">
+                              <span className="rounded bg-muted/50 px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground">
+                                {formatPartialDate(item.date, item.datePrecision)}
+                              </span>
+                              <span className="text-xs text-muted-foreground">{item.personaLabel}</span>
+                            </div>
+                            <div className="flex flex-wrap gap-1.5">
+                              {fields.map((f) => (
+                                <span
+                                  key={f}
+                                  className="rounded border border-white/10 bg-muted/30 px-1.5 py-0.5 text-[11px]"
+                                >
+                                  {f}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setOpenState({ type: "editPhysical", item })}
+                            className="shrink-0 rounded-md p-1 text-muted-foreground opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100"
+                            title="Edit physical change"
+                          >
+                            <Pencil size={14} />
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
               )}
-              {currentState.currentHairColor && <InfoRow label="Current hair" value={<span className="capitalize">{currentState.currentHairColor}</span>} />}
-              {currentState.weight !== null && currentState.weight !== undefined && <InfoRow label="Weight" value={`${currentState.weight} kg`} />}
-              {currentState.build && <InfoRow label="Build" value={<span className="capitalize">{currentState.build}</span>} />}
-              {currentState.visionAids && <InfoRow label="Vision aids" value={currentState.visionAids} />}
-              {currentState.fitnessLevel && <InfoRow label="Fitness level" value={<span className="capitalize">{currentState.fitnessLevel}</span>} />}
-            </dl>
+            </>
           )}
         </SectionCard>
 
@@ -314,6 +499,9 @@ export function AppearanceTab({
       {/* Sheets & Dialogs */}
       {openState === "physicalChange" && (
         <RecordPhysicalChangeSheet personId={person.id} onClose={handleSheetClose} />
+      )}
+      {typeof openState === "object" && openState?.type === "editPhysical" && (
+        <EditPhysicalChangeSheet personId={person.id} item={openState.item} onClose={handleSheetClose} />
       )}
       {openState === "addBodyMark" && (
         <AddBodyMarkSheet personId={person.id} referenceSessionId={referenceSessionId} categoryId={findCategoryForEntity("BodyMark")?.id} onClose={handleSheetClose} />

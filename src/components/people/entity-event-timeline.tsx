@@ -28,7 +28,9 @@ type EntityEventTimelineProps = {
 
 const TERMINAL_EVENT_TYPES = ["removed", "reversed"];
 
-const COLOR_MAP: Record<string, { bg: string; ring: string; dot: string }> = {
+type DotColors = { bg: string; ring: string; dot: string };
+
+const POPOVER_COLOR_MAP: Record<string, DotColors> = {
   "text-green-400": {
     bg: "bg-green-500",
     ring: "ring-green-500/50",
@@ -46,11 +48,28 @@ const COLOR_MAP: Record<string, { bg: string; ring: string; dot: string }> = {
   },
 };
 
-const DEFAULT_COLORS = {
+const DEFAULT_POPOVER_COLORS: DotColors = {
   bg: "bg-muted-foreground",
   ring: "ring-muted-foreground/50",
   dot: "text-muted-foreground",
 };
+
+const ACTIVE_COLORS: DotColors = {
+  bg: "bg-emerald-500",
+  ring: "ring-emerald-500/50",
+  dot: "text-emerald-400",
+};
+
+const HISTORICAL_COLORS: DotColors = {
+  bg: "bg-amber-500",
+  ring: "ring-amber-500/50",
+  dot: "text-amber-400",
+};
+
+function getDotColors(index: number, total: number, isTerminal: boolean): DotColors {
+  const isLast = index === total - 1;
+  return isLast && !isTerminal ? ACTIVE_COLORS : HISTORICAL_COLORS;
+}
 
 function getYear(date: Date | null): string {
   if (!date) return "";
@@ -60,13 +79,15 @@ function getYear(date: Date | null): string {
 function TimelineDot({
   event,
   style,
-  colors,
+  dotColors,
+  popoverColors,
   onDelete,
   isPending,
 }: {
   event: EventItem;
   style: EventStyle;
-  colors: { bg: string; ring: string; dot: string };
+  dotColors: DotColors;
+  popoverColors: DotColors;
   onDelete: (id: string) => Promise<{ success: boolean; error?: string }>;
   isPending?: boolean;
 }) {
@@ -82,11 +103,11 @@ function TimelineDot({
           type="button"
           className={cn(
             "h-3 w-3 shrink-0 rounded-full transition-all",
-            colors.bg,
+            dotColors.bg,
             "hover:ring-2 hover:ring-offset-2 hover:ring-offset-card",
-            `hover:${colors.ring}`,
+            `hover:${dotColors.ring}`,
             "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-card",
-            `focus-visible:${colors.ring}`,
+            `focus-visible:${dotColors.ring}`,
           )}
           aria-label={`${style.label} event${year ? ` (${year})` : ""}`}
         />
@@ -99,9 +120,9 @@ function TimelineDot({
         <div className="space-y-1.5">
           <div className="flex items-center gap-1.5">
             <span
-              className={cn("h-2 w-2 shrink-0 rounded-full", colors.bg)}
+              className={cn("h-2 w-2 shrink-0 rounded-full", popoverColors.bg)}
             />
-            <span className={cn("text-sm font-medium", colors.dot)}>
+            <span className={cn("text-sm font-medium", popoverColors.dot)}>
               {style.label}
             </span>
           </div>
@@ -113,7 +134,7 @@ function TimelineDot({
           {event.notes && (
             <p className="text-xs text-muted-foreground/70">{event.notes}</p>
           )}
-          <div className="border-t border-white/10 pt-1.5">
+          <div className="border-t border-foreground/10 pt-1.5">
             <button
               type="button"
               onClick={() => {
@@ -161,7 +182,7 @@ export function EntityEventTimeline({
           type="button"
           onClick={onAddEvent}
           disabled={isPending}
-          className="flex h-3 w-3 shrink-0 items-center justify-center rounded-full border border-dashed border-white/30 text-white/30 transition-colors hover:border-white/60 hover:text-white/60 disabled:opacity-50"
+          className="flex h-3 w-3 shrink-0 items-center justify-center rounded-full border border-dashed border-foreground/30 text-foreground/30 transition-colors hover:border-foreground/60 hover:text-foreground/60 disabled:opacity-50"
           aria-label="Add first event"
         >
           <Plus size={8} />
@@ -174,7 +195,7 @@ export function EntityEventTimeline({
     <div
       ref={scrollRef}
       className={cn(
-        "mt-2 flex items-center overflow-x-auto",
+        "mt-2 flex w-full items-center overflow-x-auto",
         "[scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
       )}
     >
@@ -183,17 +204,19 @@ export function EntityEventTimeline({
           color: "text-muted-foreground",
           label: event.eventType,
         };
-        const colors = COLOR_MAP[style.color] ?? DEFAULT_COLORS;
+        const popoverColors = POPOVER_COLOR_MAP[style.color] ?? DEFAULT_POPOVER_COLORS;
+        const dotColors = getDotColors(i, events.length, !!isTerminal);
 
         return (
           <div key={event.id} className="flex items-center">
             {i > 0 && (
-              <div className="h-0.5 min-w-4 flex-1 bg-white/20" />
+              <div className="h-0.5 min-w-4 flex-1 bg-foreground/20" />
             )}
             <TimelineDot
               event={event}
               style={style}
-              colors={colors}
+              dotColors={dotColors}
+              popoverColors={popoverColors}
               onDelete={onDeleteEvent}
               isPending={isPending}
             />
@@ -201,14 +224,21 @@ export function EntityEventTimeline({
         );
       })}
 
+      {isTerminal && (
+        <>
+          <div className="h-0.5 min-w-4 flex-1 bg-foreground/20" />
+          <div className="h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500/60" />
+        </>
+      )}
+
       {!isTerminal && (
         <>
-          <div className="min-w-4 flex-1 border-t border-dashed border-white/20" />
+          <div className="min-w-4 flex-1 border-t border-dashed border-foreground/20" />
           <button
             type="button"
             onClick={onAddEvent}
             disabled={isPending}
-            className="flex h-3 w-3 shrink-0 items-center justify-center rounded-full border border-dashed border-white/30 text-white/30 transition-colors hover:border-white/60 hover:text-white/60 disabled:opacity-50"
+            className="flex h-3 w-3 shrink-0 items-center justify-center rounded-full border border-dashed border-foreground/30 text-foreground/30 transition-colors hover:border-foreground/60 hover:text-foreground/60 disabled:opacity-50"
             aria-label="Add event"
           >
             <Plus size={8} />

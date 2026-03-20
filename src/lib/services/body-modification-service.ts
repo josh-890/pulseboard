@@ -73,7 +73,15 @@ export async function createBodyModificationEventRecord(data: CreateBodyModifica
 }
 
 export async function deleteBodyModificationEventRecord(id: string) {
-  return prisma.bodyModificationEvent.delete({
-    where: { id },
+  return prisma.$transaction(async (tx) => {
+    const event = await tx.bodyModificationEvent.delete({ where: { id } });
+    const remaining = await tx.bodyModificationEvent.count({
+      where: { bodyModificationId: event.bodyModificationId },
+    });
+    if (remaining === 0) {
+      await tx.personMediaLink.deleteMany({ where: { bodyModificationId: event.bodyModificationId } });
+      await tx.bodyModification.delete({ where: { id: event.bodyModificationId } });
+    }
+    return event;
   });
 }

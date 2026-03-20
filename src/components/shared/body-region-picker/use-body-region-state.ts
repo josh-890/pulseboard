@@ -18,57 +18,44 @@ export function useBodyRegionState({
   const [side, setSide] = useState<BodySide>("front");
   const [hoveredRegion, setHoveredRegion] = useState<string | null>(null);
 
-  const toggleRegion = useCallback(
-    (id: string) => {
-      if (mode === "single") {
-        onChange(value.includes(id) ? [] : [id]);
-        return;
-      }
-      if (value.includes(id)) {
-        // Deselect parent and any of its sub-regions
-        onChange(value.filter((r) => r !== id && !r.startsWith(id + ".")));
-      } else {
-        // Select parent, remove any sub-regions (parent supersedes them)
-        onChange([...value.filter((r) => !r.startsWith(id + ".")), id]);
-      }
-    },
-    [value, onChange, mode],
-  );
+  // Not memoized — must always read the latest `value` to avoid stale closure bugs
+  // when multiple regions are clicked in quick succession.
+  const toggleRegion = (id: string) => {
+    if (mode === "single") {
+      onChange(value.includes(id) ? [] : [id]);
+      return;
+    }
+    if (value.includes(id)) {
+      onChange(value.filter((r) => r !== id && !r.startsWith(id + ".")));
+    } else {
+      onChange([...value.filter((r) => !r.startsWith(id + ".")), id]);
+    }
+  };
 
-  /** Toggle a sub-region: if parent was selected, replace it with the sub-region */
-  const toggleSubRegion = useCallback(
-    (subId: string) => {
-      if (mode === "single") {
-        onChange(value.includes(subId) ? [] : [subId]);
-        return;
+  const toggleSubRegion = (subId: string) => {
+    if (mode === "single") {
+      onChange(value.includes(subId) ? [] : [subId]);
+      return;
+    }
+
+    const parentId = subId.includes(".")
+      ? subId.split(".")[0]
+      : null;
+
+    if (value.includes(subId)) {
+      onChange(value.filter((r) => r !== subId));
+    } else {
+      let newValue = [...value, subId];
+      if (parentId && newValue.includes(parentId)) {
+        newValue = newValue.filter((r) => r !== parentId);
       }
+      onChange(newValue);
+    }
+  };
 
-      // Find the parent ID (everything before the last dot, or for "spine" it's special)
-      const parentId = subId.includes(".")
-        ? subId.split(".")[0]
-        : null;
-
-      if (value.includes(subId)) {
-        // Deselect sub-region
-        onChange(value.filter((r) => r !== subId));
-      } else {
-        // Select sub-region, remove parent if it was selected
-        let newValue = [...value, subId];
-        if (parentId && newValue.includes(parentId)) {
-          newValue = newValue.filter((r) => r !== parentId);
-        }
-        onChange(newValue);
-      }
-    },
-    [value, onChange, mode],
-  );
-
-  const removeRegion = useCallback(
-    (id: string) => {
-      onChange(value.filter((r) => r !== id));
-    },
-    [value, onChange],
-  );
+  const removeRegion = (id: string) => {
+    onChange(value.filter((r) => r !== id));
+  };
 
   const clearAll = useCallback(() => {
     onChange([]);

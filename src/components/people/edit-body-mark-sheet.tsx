@@ -39,7 +39,7 @@ export function EditBodyMarkSheet({ personId, mark, referenceSessionId, category
   const [size, setSize] = useState(mark.size ?? "");
   const [status, setStatus] = useState<BodyMarkStatus>(mark.status);
   const initialEvent = mark.events.find((e) => e.eventType === "added");
-  const initDate = initialEvent?.persona.isBaseline ? "" : (initialEvent?.persona.date ? new Date(initialEvent.persona.date).toISOString().split("T")[0] : "");
+  const initDate = initialEvent?.persona.isBaseline ? "" : (initialEvent?.persona.date ? (() => { const d = new Date(initialEvent.persona.date); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; })() : "");
   const initPrec = initialEvent?.persona.isBaseline ? "UNKNOWN" : (initialEvent?.persona.datePrecision ?? "UNKNOWN");
   const [date, setDate] = useState(initDate);
   const [datePrecision, setDatePrecision] = useState(initPrec);
@@ -139,8 +139,8 @@ export function EditBodyMarkSheet({ personId, mark, referenceSessionId, category
 
           {/* Date */}
           <PartialDateInput
-            date={date}
-            precision={datePrecision}
+            dateValue={date}
+            precisionValue={datePrecision}
             onDateChange={setDate}
             onPrecisionChange={setDatePrecision}
             label="Date"

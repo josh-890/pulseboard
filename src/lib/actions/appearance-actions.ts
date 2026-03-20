@@ -657,6 +657,74 @@ export async function recordPhysicalChangeAction(
   }
 }
 
+export async function updatePhysicalChangeAction(
+  physicalId: string,
+  personId: string,
+  data: {
+    currentHairColor?: string;
+    weight?: number;
+    build?: string;
+    visionAids?: string;
+    fitnessLevel?: string;
+    date?: string | null;
+    datePrecision?: string;
+  },
+): Promise<ActionResultWithId> {
+  try {
+    const parsedDate = data.date ? new Date(data.date) : null;
+    const precision = (data.datePrecision ?? "UNKNOWN") as DatePrecision;
+
+    await prisma.$transaction(async (tx) => {
+      // Find the existing physical change + its persona
+      const existing = await tx.personaPhysical.findUniqueOrThrow({
+        where: { id: physicalId },
+        include: { persona: true },
+      });
+
+      const oldPersonaId = existing.personaId;
+
+      // Determine if the date changed → need to move to a different persona
+      const hasDateChange = data.date !== undefined || data.datePrecision !== undefined;
+      let targetPersonaId = oldPersonaId;
+
+      if (hasDateChange) {
+        targetPersonaId = await findOrCreatePersonaForDate(tx, personId, parsedDate, precision);
+      }
+
+      const fieldData = {
+        currentHairColor: data.currentHairColor !== undefined ? (data.currentHairColor || null) : existing.currentHairColor,
+        weight: data.weight !== undefined ? (data.weight || null) : existing.weight,
+        build: data.build !== undefined ? (data.build || null) : existing.build,
+        visionAids: data.visionAids !== undefined ? (data.visionAids || null) : existing.visionAids,
+        fitnessLevel: data.fitnessLevel !== undefined ? (data.fitnessLevel || null) : existing.fitnessLevel,
+      };
+
+      if (targetPersonaId !== oldPersonaId) {
+        // Delete old physical change
+        await tx.personaPhysical.delete({ where: { id: physicalId } });
+        // Upsert on new persona (may already have a physical change)
+        await tx.personaPhysical.upsert({
+          where: { personaId: targetPersonaId },
+          create: { personaId: targetPersonaId, ...fieldData },
+          update: fieldData,
+        });
+      } else {
+        // Same persona — just update fields
+        await tx.personaPhysical.update({
+          where: { id: physicalId },
+          data: fieldData,
+        });
+      }
+    });
+
+    revalidatePath(`/people/${personId}`);
+    return { success: true };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Unexpected error";
+    return { success: false, error: message };
+  }
+}
+
 // ─── Persona Batch/Edit/Delete Actions ──────────────────────────────────────
 
 export async function createPersonaBatchAction(

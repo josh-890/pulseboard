@@ -109,7 +109,6 @@ export function AddBodyModificationSheet({ personId, referenceSessionId, categor
             <BodyRegionCompact
               value={bodyRegions}
               onChange={setBodyRegions}
-              mode="single"
             />
           </div>
 
