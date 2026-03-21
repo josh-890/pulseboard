@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import { Search, Plus, Check, ImageIcon, Loader2, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -225,11 +226,12 @@ export function CollectionMediaPickerPanel({
                 )}
               >
                 {item.thumbUrl ? (
-                  <img
+                  <Image
                     src={item.thumbUrl}
                     alt={item.filename}
-                    className="h-full w-full object-cover"
-                    loading="lazy"
+                    fill
+                    className="object-cover"
+                    unoptimized
                   />
                 ) : (
                   <div className="flex h-full w-full items-center justify-center bg-muted">

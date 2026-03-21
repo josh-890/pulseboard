@@ -49,7 +49,8 @@ export function SessionMergeDialog({ survivingSessionId, survivingSessionName }:
 
   useEffect(() => {
     if (!query.trim()) {
-      setResults([]);
+      // Use a microtask to avoid synchronous setState in effect body
+      queueMicrotask(() => setResults([]));
       return;
     }
 

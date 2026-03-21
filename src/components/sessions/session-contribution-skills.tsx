@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition, useCallback } from "react";
+import Image from "next/image";
 import { X, ChevronDown, ChevronRight, ImagePlus } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -247,11 +248,12 @@ function ContributionSkillCard({
             key={m.id}
             className="relative h-16 w-16 overflow-hidden rounded-lg border border-white/15 bg-muted/30"
           >
-            <img
+            <Image
               src={m.thumbUrl}
               alt=""
-              className="h-full w-full object-cover"
-              loading="lazy"
+              fill
+              className="object-cover"
+              unoptimized
             />
           </div>
         ))}

@@ -2,6 +2,7 @@
 
 import { useCallback, useState, useTransition } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import {
   ChevronDown,
   ChevronRight,
@@ -335,13 +336,14 @@ export function PersonSkillsTab({
                             key={m.id}
                             type="button"
                             onClick={() => openLightbox(event.id, i)}
-                            className="h-9 w-9 shrink-0 overflow-hidden rounded border border-white/15 transition-all hover:border-white/40 hover:ring-1 hover:ring-primary/30"
+                            className="relative h-9 w-9 shrink-0 overflow-hidden rounded border border-white/15 transition-all hover:border-white/40 hover:ring-1 hover:ring-primary/30"
                           >
-                            <img
+                            <Image
                               src={m.thumbUrl}
                               alt=""
-                              className="h-full w-full object-cover"
-                              loading="lazy"
+                              fill
+                              className="object-cover"
+                              unoptimized
                             />
                           </button>
                         ))}
@@ -550,13 +552,14 @@ function SkillCard({
               key={m.id}
               type="button"
               onClick={() => onOpenSkillMedia(skill, i)}
-              className="h-9 w-9 shrink-0 overflow-hidden rounded border border-white/15 transition-all hover:border-white/40 hover:ring-1 hover:ring-primary/30"
+              className="relative h-9 w-9 shrink-0 overflow-hidden rounded border border-white/15 transition-all hover:border-white/40 hover:ring-1 hover:ring-primary/30"
             >
-              <img
+              <Image
                 src={m.thumbUrl}
                 alt=""
-                className="h-full w-full object-cover"
-                loading="lazy"
+                fill
+                className="object-cover"
+                unoptimized
               />
             </button>
           ))}

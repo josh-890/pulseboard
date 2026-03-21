@@ -105,6 +105,7 @@ export default async function SetDetailPage({ params }: SetDetailPageProps) {
 
   // Strip participants (not used in template) to avoid RSC payload bloat
   // that silently breaks client component hydration
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { participants: _participants, ...setData } = set;
 
   const typeConfig = SET_TYPE_CONFIG[setData.type];

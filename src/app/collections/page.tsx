@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { Library, ImageIcon, User, Globe } from "lucide-react";
 import { getAllCollections } from "@/lib/services/collection-service";
 import { AddCollectionDialog } from "@/components/collections/add-collection-dialog";
@@ -50,11 +51,12 @@ export default async function CollectionsPage() {
               {/* Thumbnail */}
               <div className="relative aspect-[4/3] overflow-hidden rounded-t-2xl bg-muted">
                 {collection.thumbnailUrl ? (
-                  <img
+                  <Image
                     src={collection.thumbnailUrl}
                     alt={collection.name}
-                    className="h-full w-full object-cover transition-transform group-hover:scale-105"
-                    loading="lazy"
+                    fill
+                    className="object-cover transition-transform group-hover:scale-105"
+                    unoptimized
                   />
                 ) : (
                   <div className="flex h-full w-full items-center justify-center">

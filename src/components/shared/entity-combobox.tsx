@@ -53,6 +53,7 @@ export function EntityCombobox({
           type="button"
           role="combobox"
           aria-expanded={open}
+          aria-controls="entity-combobox-list"
           disabled={disabled}
           className={cn(
             "flex w-full items-center justify-between rounded-lg border border-white/15 bg-muted/30 px-3 py-2 text-sm transition-colors",
@@ -71,7 +72,7 @@ export function EntityCombobox({
       <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
         <Command>
           <CommandInput placeholder="Search..." />
-          <CommandList>
+          <CommandList id="entity-combobox-list">
             <CommandEmpty>No results found.</CommandEmpty>
             <CommandGroup>
               {/* None option */}
