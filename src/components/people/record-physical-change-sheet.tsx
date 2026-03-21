@@ -1,16 +1,19 @@
 "use client";
 
 import { useCallback, useState, useTransition } from "react";
-import { X } from "lucide-react";
+import { ChevronRight, X } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { PartialDateInput } from "@/components/shared/partial-date-input";
 import { recordPhysicalChangeAction } from "@/lib/actions/appearance-actions";
+import type { PhysicalAttributeGroupWithDefinitions } from "@/lib/services/physical-attribute-catalog-service";
 
 type RecordPhysicalChangeSheetProps = {
   personId: string;
+  attributeGroups?: PhysicalAttributeGroupWithDefinitions[];
   onClose: () => void;
 };
 
-export function RecordPhysicalChangeSheet({ personId, onClose }: RecordPhysicalChangeSheetProps) {
+export function RecordPhysicalChangeSheet({ personId, attributeGroups, onClose }: RecordPhysicalChangeSheetProps) {
   const [isPending, startTransition] = useTransition();
   const [date, setDate] = useState("");
   const [datePrecision, setDatePrecision] = useState("UNKNOWN");
@@ -19,9 +22,12 @@ export function RecordPhysicalChangeSheet({ personId, onClose }: RecordPhysicalC
   const [build, setBuild] = useState("");
   const [visionAids, setVisionAids] = useState("");
   const [fitnessLevel, setFitnessLevel] = useState("");
+  const [attrValues, setAttrValues] = useState<Record<string, string>>({});
+  const [expandedAttrGroups, setExpandedAttrGroups] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
 
-  const hasAnyField = currentHairColor.trim() || weight.trim() || build.trim() || visionAids.trim() || fitnessLevel.trim();
+  const hasAnyAttr = Object.values(attrValues).some((v) => v.trim());
+  const hasAnyField = currentHairColor.trim() || weight.trim() || build.trim() || visionAids.trim() || fitnessLevel.trim() || hasAnyAttr;
 
   const handleSubmit = useCallback(() => {
     if (!hasAnyField) {
@@ -30,6 +36,10 @@ export function RecordPhysicalChangeSheet({ personId, onClose }: RecordPhysicalC
     }
     startTransition(async () => {
       setError(null);
+      const attributes = Object.entries(attrValues)
+        .filter(([, v]) => v.trim())
+        .map(([definitionId, value]) => ({ definitionId, value: value.trim() }));
+
       const result = await recordPhysicalChangeAction(personId, {
         date: date || null,
         datePrecision,
@@ -38,6 +48,7 @@ export function RecordPhysicalChangeSheet({ personId, onClose }: RecordPhysicalC
         build: build.trim() || undefined,
         visionAids: visionAids.trim() || undefined,
         fitnessLevel: fitnessLevel.trim() || undefined,
+        attributes: attributes.length > 0 ? attributes : undefined,
       });
       if (!result.success) {
         setError(result.error ?? "Failed to record change.");
@@ -45,7 +56,7 @@ export function RecordPhysicalChangeSheet({ personId, onClose }: RecordPhysicalC
       }
       onClose();
     });
-  }, [personId, date, datePrecision, currentHairColor, weight, build, visionAids, fitnessLevel, hasAnyField, onClose]);
+  }, [personId, date, datePrecision, currentHairColor, weight, build, visionAids, fitnessLevel, attrValues, hasAnyField, onClose]);
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end">
@@ -128,6 +139,52 @@ export function RecordPhysicalChangeSheet({ personId, onClose }: RecordPhysicalC
               className="w-full rounded-lg border border-white/15 bg-muted/30 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
             />
           </div>
+
+          {/* Extensible Physical Attributes */}
+          {attributeGroups && attributeGroups.length > 0 && (
+            <div className="border-t border-white/10 pt-4 space-y-2">
+              <h3 className="text-sm font-medium text-muted-foreground">Additional Measurements</h3>
+              {attributeGroups.map((group) => {
+                const isExpanded = expandedAttrGroups.has(group.id);
+                return (
+                  <div key={group.id} className="rounded-lg border border-white/10 bg-muted/20">
+                    <button
+                      type="button"
+                      onClick={() => setExpandedAttrGroups((prev) => {
+                        const next = new Set(prev);
+                        if (next.has(group.id)) next.delete(group.id);
+                        else next.add(group.id);
+                        return next;
+                      })}
+                      className="flex w-full items-center gap-1.5 px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                      <ChevronRight size={14} className={cn("transition-transform", isExpanded && "rotate-90")} />
+                      {group.name}
+                      <span className="text-xs font-normal text-muted-foreground/50">{group.definitions.length}</span>
+                    </button>
+                    {isExpanded && (
+                      <div className="border-t border-white/5 px-3 pb-3 pt-2 space-y-3">
+                        {group.definitions.map((def) => (
+                          <div key={def.id}>
+                            <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
+                              {def.name}{def.unit ? ` (${def.unit})` : ""}
+                            </label>
+                            <input
+                              type="text"
+                              value={attrValues[def.id] ?? ""}
+                              onChange={(e) => setAttrValues((prev) => ({ ...prev, [def.id]: e.target.value }))}
+                              placeholder={def.unit ? `e.g. value in ${def.unit}` : "Value..."}
+                              className="w-full rounded-lg border border-white/15 bg-muted/30 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
 
           {error && <p className="text-sm text-red-500">{error}</p>}
 

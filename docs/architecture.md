@@ -92,6 +92,7 @@ All services in `src/lib/services/`. All functions are async, return Promises. S
 **`alias-service.ts`** — Alias CRUD, channel linking, bulk import, merge
 **`skill-service.ts`** — PersonSkill/SkillEvent CRUD, timeline, event media
 **`skill-catalog-service.ts`** — SkillGroup/SkillDefinition catalog CRUD
+**`physical-attribute-catalog-service.ts`** — PhysicalAttributeGroup/PhysicalAttributeDefinition catalog CRUD
 **`persona-service.ts`** — Persona CRUD, physical changes, body mark/modification/procedure events
 **`category-service.ts`** — MediaCategoryGroup/MediaCategory CRUD, person category population counts
 **`collection-service.ts`** — MediaCollection CRUD, item management
@@ -132,6 +133,7 @@ All actions in `src/lib/actions/`. Each validates input with Zod, calls services
 | `collection-actions.ts` | Collection CRUD, add/remove items |
 | `category-actions.ts` | Category group/category CRUD |
 | `skill-catalog-actions.ts` | Skill group/definition CRUD |
+| `physical-attribute-catalog-actions.ts` | Physical attribute group/definition CRUD |
 | `contribution-role-actions.ts` | Role group/definition CRUD |
 | `setting-actions.ts` | App setting updates |
 | `label-actions.ts`, `network-actions.ts`, `channel-actions.ts`, `project-actions.ts` | Entity CRUD |
@@ -251,7 +253,7 @@ Person ──┬── PersonAlias[] ──── PersonAliasChannel[] ───
          ├── Persona[] ──┬── PersonaPhysical?
          │               ├── BodyMarkEvent[] ──── BodyMark
          │               ├── BodyModificationEvent[] ──── BodyModification
-         │               ├── CosmeticProcedureEvent[] ──── CosmeticProcedure
+         │               ├── CosmeticProcedureEvent[] ──── CosmeticProcedure ──?── PhysicalAttributeDefinition
          │               ├── PersonDigitalIdentity[]
          │               └── PersonSkillEvent[] ──── PersonSkill ──── SkillDefinition ──── SkillGroup
          ├── PersonMediaLink[] ──── MediaItem ──── Session
@@ -285,6 +287,10 @@ MediaItem ──┬── PersonMediaLink[] (usage: PROFILE/HEADSHOT/DETAIL/PORT
 - **Session**: `type` (REFERENCE/PRODUCTION), `status` (DRAFT/CONFIRMED), `personId` (unique FK for REFERENCE type)
 - **MediaItem**: `variants` (JSON — profile/gallery sizes), `focalX`/`focalY` (0-1 normalized), `hash` (SHA256), `phash` (dHash)
 - **PersonMediaLink**: `usage` enum, `slot` (for HEADSHOT), `categoryId` (for DETAIL), entity FKs (`bodyMarkId`, etc.)
+- **PhysicalAttributeGroup/Definition**: Admin catalog for extensible physical measurements (mirrors SkillGroup/SkillDefinition pattern)
+- **PersonaPhysicalAttribute**: Key-value measurements per PersonaPhysical (unique on physicalId + definitionId)
+- **CosmeticProcedure**: Optional `attributeDefinitionId` FK to PhysicalAttributeDefinition — links procedure to the physical attribute it affects. Enables derived `AttributeStatus` (NATURAL/ENHANCED/RESTORED) on extensible attributes
+- **CosmeticProcedureEvent**: `valueBefore`/`valueAfter`/`unit` — observation fields for before/after values of a procedure
 
 ### Materialized Views
 

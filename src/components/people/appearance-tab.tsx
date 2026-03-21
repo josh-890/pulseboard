@@ -2,6 +2,7 @@
 
 import { useCallback, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { cn } from "@/lib/utils";
 import type { getPersonWithDetails } from "@/lib/services/person-service";
 import type {
   PersonCurrentState,
@@ -57,8 +58,16 @@ import { SectionCard, EmptyState, InfoRow } from "@/components/people/person-det
 import { formatPartialDate } from "@/lib/utils";
 import type { EntityMediaThumbnail } from "@/lib/services/media-service";
 import type { CategoryWithGroup } from "@/components/gallery/gallery-info-panel";
+import type { PhysicalAttributeGroupWithDefinitions } from "@/lib/services/physical-attribute-catalog-service";
 
 type PersonData = NonNullable<Awaited<ReturnType<typeof getPersonWithDetails>>>;
+
+type PhysicalAttributeItem = {
+  definitionId: string;
+  name: string;
+  unit: string | null;
+  value: string;
+};
 
 type PhysicalChangeItem = {
   physicalId: string;
@@ -72,6 +81,7 @@ type PhysicalChangeItem = {
   build: string | null;
   visionAids: string | null;
   fitnessLevel: string | null;
+  attributes: PhysicalAttributeItem[];
 };
 
 type EventItem = {
@@ -95,7 +105,7 @@ type AppearanceOpenState =
   | "addCosmProc"
   | { type: "editCosmProc"; procedure: CosmeticProcedureWithEvents }
   | { type: "addCosmProcEvent"; procId: string; procLabel: string; computed: CosmeticProcedureWithEvents["computed"] }
-  | { type: "editCosmProcEvent"; event: EventItem; procId: string; eventOverrides: { bodyRegions: string[]; description: string | null; provider: string | null } }
+  | { type: "editCosmProcEvent"; event: EventItem; procId: string; eventOverrides: { bodyRegions: string[]; description: string | null; provider: string | null; valueBefore: string | null; valueAfter: string | null; unit: string | null } }
   | { type: "editPhysical"; item: PhysicalChangeItem }
   | { type: "manageEntityPhotos"; entityId: string; entityModel: string; entityLabel: string };
 
@@ -105,6 +115,7 @@ export type AppearanceTabProps = {
   entityMedia?: Record<string, EntityMediaThumbnail[]>;
   categories?: CategoryWithGroup[];
   referenceSessionId?: string;
+  attributeGroups?: PhysicalAttributeGroupWithDefinitions[];
 };
 
 export function AppearanceTab({
@@ -113,6 +124,7 @@ export function AppearanceTab({
   entityMedia,
   categories,
   referenceSessionId,
+  attributeGroups,
 }: AppearanceTabProps) {
   const router = useRouter();
   const [openState, setOpenState] = useState<AppearanceOpenState>(null);
@@ -125,6 +137,17 @@ export function AppearanceTab({
 
   const hasStatic = person.height || person.eyeColor || person.naturalHairColor || person.bodyType || person.measurements;
   const hasComputed = currentState.currentHairColor || currentState.weight !== null || currentState.build || currentState.visionAids || currentState.fitnessLevel;
+  const hasExtensible = Object.keys(currentState.extensibleAttributes).length > 0;
+
+  // Group extensible attributes by group name for display
+  const extensibleByGroup = useMemo(() => {
+    const groups: Record<string, { name: string; unit: string | null; value: string; status: import("@/lib/types").AttributeStatus }[]> = {};
+    for (const attr of Object.values(currentState.extensibleAttributes)) {
+      if (!groups[attr.groupName]) groups[attr.groupName] = [];
+      groups[attr.groupName].push({ name: attr.name, unit: attr.unit, value: attr.value, status: attr.status });
+    }
+    return groups;
+  }, [currentState.extensibleAttributes]);
 
   // Build physical change history from personas
   const physicalChanges = useMemo<PhysicalChangeItem[]>(() => {
@@ -142,6 +165,12 @@ export function AppearanceTab({
         build: p.physicalChange!.build,
         visionAids: p.physicalChange!.visionAids,
         fitnessLevel: p.physicalChange!.fitnessLevel,
+        attributes: (p.physicalChange!.attributes ?? []).map((a: { attributeDefinitionId: string; value: string; attributeDefinition: { name: string; unit: string | null } }) => ({
+          definitionId: a.attributeDefinitionId,
+          name: a.attributeDefinition.name,
+          unit: a.attributeDefinition.unit,
+          value: a.value,
+        })),
       }));
   }, [person.personas]);
 
@@ -253,7 +282,7 @@ export function AppearanceTab({
               </button>
             }
           >
-            {!hasStatic && !hasComputed ? (
+            {!hasStatic && !hasComputed && !hasExtensible ? (
               <EmptyState message="No physical stats recorded." />
             ) : (
               <>
@@ -270,6 +299,39 @@ export function AppearanceTab({
                   {currentState.fitnessLevel && <InfoRow label="Fitness" value={<span className="capitalize">{currentState.fitnessLevel}</span>} labelWidth="w-28" />}
                 </dl>
 
+                {/* Extensible Physical Attributes */}
+                {hasExtensible && (
+                  <div className="mt-3 space-y-3">
+                    {Object.entries(extensibleByGroup).map(([groupName, attrs]) => (
+                      <div key={groupName}>
+                        <h4 className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">{groupName}</h4>
+                        <dl className="grid grid-cols-1 gap-1.5 text-sm sm:grid-cols-2">
+                          {attrs.map((attr) => {
+                            const displayValue = attr.unit ? `${attr.value} ${attr.unit}` : attr.value;
+                            const statusBadge = attr.status !== "NATURAL" ? (
+                              <span className={cn(
+                                "ml-1.5 inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium",
+                                attr.status === "ENHANCED" && "bg-purple-500/20 text-purple-400",
+                                attr.status === "RESTORED" && "bg-emerald-500/20 text-emerald-400",
+                              )}>
+                                {attr.status === "ENHANCED" ? "Enhanced" : "Restored"}
+                              </span>
+                            ) : null;
+                            return (
+                              <div key={attr.name} className="flex items-start gap-2 px-2.5 py-1.5 rounded-lg bg-muted/20">
+                                <dt className="w-28 shrink-0 text-xs text-muted-foreground">{attr.name}</dt>
+                                <dd className="text-sm text-foreground">
+                                  {displayValue}{statusBadge}
+                                </dd>
+                              </div>
+                            );
+                          })}
+                        </dl>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
                 {/* Change History */}
                 {physicalChanges.length > 0 && (
                   <div className="mt-4 border-t border-white/10 pt-4">
@@ -282,6 +344,9 @@ export function AppearanceTab({
                         if (item.build) fields.push(`Build: ${item.build}`);
                         if (item.visionAids) fields.push(`Vision: ${item.visionAids}`);
                         if (item.fitnessLevel) fields.push(`Fitness: ${item.fitnessLevel}`);
+                        for (const attr of item.attributes) {
+                          fields.push(`${attr.name}: ${attr.value}${attr.unit ? ` ${attr.unit}` : ""}`);
+                        }
 
                         return (
                           <div
@@ -414,7 +479,7 @@ export function AppearanceTab({
                     onAddEvent={() => setOpenState({ type: "addCosmProcEvent", procId: proc.id, procLabel: `${proc.type} — ${proc.bodyRegion}`, computed: proc.computed })}
                     onEditEvent={(event) => {
                       const fullEvent = proc.events.find((e) => e.id === event.id);
-                      setOpenState({ type: "editCosmProcEvent", event, procId: proc.id, eventOverrides: { bodyRegions: fullEvent?.bodyRegions ?? [], description: fullEvent?.description ?? null, provider: fullEvent?.provider ?? null } });
+                      setOpenState({ type: "editCosmProcEvent", event, procId: proc.id, eventOverrides: { bodyRegions: fullEvent?.bodyRegions ?? [], description: fullEvent?.description ?? null, provider: fullEvent?.provider ?? null, valueBefore: fullEvent?.valueBefore ?? null, valueAfter: fullEvent?.valueAfter ?? null, unit: fullEvent?.unit ?? null } });
                     }}
                     isPending={isPending}
                   />
@@ -439,10 +504,10 @@ export function AppearanceTab({
 
       {/* Sheets & Dialogs */}
       {openState === "physicalChange" && (
-        <RecordPhysicalChangeSheet personId={person.id} onClose={handleSheetClose} />
+        <RecordPhysicalChangeSheet personId={person.id} attributeGroups={attributeGroups} onClose={handleSheetClose} />
       )}
       {typeof openState === "object" && openState?.type === "editPhysical" && (
-        <EditPhysicalChangeSheet personId={person.id} item={openState.item} onClose={handleSheetClose} />
+        <EditPhysicalChangeSheet personId={person.id} item={openState.item} attributeGroups={attributeGroups} onClose={handleSheetClose} />
       )}
       {openState === "addBodyMark" && (
         <AddBodyMarkSheet personId={person.id} referenceSessionId={referenceSessionId} categoryId={findCategoryForEntity("BodyMark")?.id} onClose={handleSheetClose} />
@@ -520,10 +585,10 @@ export function AppearanceTab({
         />
       )}
       {openState === "addCosmProc" && (
-        <AddCosmeticProcedureSheet personId={person.id} referenceSessionId={referenceSessionId} categoryId={findCategoryForEntity("CosmeticProcedure")?.id} onClose={handleSheetClose} />
+        <AddCosmeticProcedureSheet personId={person.id} referenceSessionId={referenceSessionId} categoryId={findCategoryForEntity("CosmeticProcedure")?.id} attributeGroups={attributeGroups} onClose={handleSheetClose} />
       )}
       {typeof openState === "object" && openState?.type === "editCosmProc" && (
-        <EditCosmeticProcedureSheet personId={person.id} procedure={openState.procedure} referenceSessionId={referenceSessionId} categoryId={findCategoryForEntity("CosmeticProcedure")?.id} existingPhotos={entityMedia?.[openState.procedure.id]} onClose={handleSheetClose} />
+        <EditCosmeticProcedureSheet personId={person.id} procedure={openState.procedure} referenceSessionId={referenceSessionId} categoryId={findCategoryForEntity("CosmeticProcedure")?.id} existingPhotos={entityMedia?.[openState.procedure.id]} attributeGroups={attributeGroups} onClose={handleSheetClose} />
       )}
       {typeof openState === "object" && openState?.type === "addCosmProcEvent" && (
         <AddCosmeticProcedureEventDialog
@@ -551,6 +616,9 @@ export function AppearanceTab({
             bodyRegions: data.bodyRegions,
             description: data.description,
             provider: data.provider,
+            valueBefore: data.valueBefore,
+            valueAfter: data.valueAfter,
+            unit: data.unit,
           })}
           onClose={handleSheetClose}
         />

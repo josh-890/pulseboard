@@ -8,6 +8,7 @@ import type {
   PersonDigitalIdentityItem,
   PersonSkillItem,
   PersonCurrentState,
+  ExtensibleAttributeValue,
   SkillEventMediaThumb,
   PhotoVariants,
   PersonSessionWorkEntry,
@@ -155,7 +156,17 @@ export async function getPersonWithDetails(id: string) {
       personas: {
         orderBy: [{ isBaseline: "desc" }, { date: "asc" }],
         include: {
-          physicalChange: true,
+          physicalChange: {
+            include: {
+              attributes: {
+                include: {
+                  attributeDefinition: {
+                    include: { group: true },
+                  },
+                },
+              },
+            },
+          },
           bodyMarkEvents: {
             include: { bodyMark: true },
           },
@@ -170,7 +181,11 @@ export async function getPersonWithDetails(id: string) {
       },
       bodyMarks: true,
       bodyModifications: true,
-      cosmeticProcedures: true,
+      cosmeticProcedures: {
+        include: {
+          attributeDefinition: { select: { id: true, name: true, unit: true, group: { select: { name: true } } } },
+        },
+      },
       skills: {
         include: {
           persona: { select: { label: true } },
@@ -373,6 +388,7 @@ export async function computePersonCurrentState(personId: string): Promise<Perso
     build,
     visionAids,
     fitnessLevel,
+    extensibleAttributes: {},
     activeBodyMarks,
     activeBodyModifications: [],
     activeCosmeticProcedures: [],
@@ -591,13 +607,18 @@ function foldBodyModificationState(
 
 function foldCosmeticProcedureState(
   base: { bodyRegions: string[]; description: string | null; provider: string | null },
-  events: { bodyRegions: string[]; description: string | null; provider: string | null }[],
+  events: { bodyRegions: string[]; description: string | null; provider: string | null; valueAfter?: string | null; unit?: string | null }[],
 ) {
-  const result = { bodyRegions: base.bodyRegions, description: base.description, provider: base.provider };
+  const result: { bodyRegions: string[]; description: string | null; provider: string | null; valueAfter: string | null; unit: string | null } = {
+    bodyRegions: base.bodyRegions, description: base.description, provider: base.provider,
+    valueAfter: null, unit: null,
+  };
   for (const e of events) {
     if (e.bodyRegions.length > 0) result.bodyRegions = e.bodyRegions;
     if (e.description !== null) result.description = e.description;
     if (e.provider !== null) result.provider = e.provider;
+    if (e.valueAfter !== undefined && e.valueAfter !== null) result.valueAfter = e.valueAfter;
+    if (e.unit !== undefined && e.unit !== null) result.unit = e.unit;
   }
   return result;
 }
@@ -615,6 +636,8 @@ export function deriveCurrentState(
   let visionAids: string | null = null;
   let fitnessLevel: string | null = null;
 
+  const extensibleAttributes: Record<string, ExtensibleAttributeValue> = {};
+
   for (const persona of person.personas) {
     if (persona.physicalChange) {
       const p = persona.physicalChange;
@@ -623,6 +646,18 @@ export function deriveCurrentState(
       if (p.build !== null) build = p.build;
       if (p.visionAids !== null) visionAids = p.visionAids;
       if (p.fitnessLevel !== null) fitnessLevel = p.fitnessLevel;
+      // Fold extensible attributes — later personas override earlier ones per-key
+      if (p.attributes) {
+        for (const attr of p.attributes) {
+          extensibleAttributes[attr.attributeDefinitionId] = {
+            value: attr.value,
+            unit: attr.attributeDefinition.unit,
+            name: attr.attributeDefinition.name,
+            groupName: attr.attributeDefinition.group.name,
+            status: "NATURAL" as import("@/lib/types").AttributeStatus,
+          };
+        }
+      }
     }
   }
 
@@ -732,11 +767,15 @@ export function deriveCurrentState(
             bodyRegions: e.bodyRegions ?? [],
             description: e.description ?? null,
             provider: e.provider ?? null,
+            valueBefore: e.valueBefore ?? null,
+            valueAfter: e.valueAfter ?? null,
+            unit: e.unit ?? null,
           })),
       );
       activeCosmeticProcedures.push({
         id: proc.id, type: proc.type, bodyRegion: proc.bodyRegion, bodyRegions: proc.bodyRegions,
         description: proc.description, provider: proc.provider, status: proc.status,
+        attributeDefinitionId: proc.attributeDefinitionId,
         events: allEvents,
         computed: foldCosmeticProcedureState(proc, allEvents),
       });
@@ -747,8 +786,9 @@ export function deriveCurrentState(
     activeCosmeticProcedures.push({
       id: proc.id, type: proc.type, bodyRegion: proc.bodyRegion, bodyRegions: proc.bodyRegions,
       description: proc.description, provider: proc.provider, status: proc.status,
+      attributeDefinitionId: proc.attributeDefinitionId,
       events: [],
-      computed: { bodyRegions: proc.bodyRegions, description: proc.description, provider: proc.provider },
+      computed: { bodyRegions: proc.bodyRegions, description: proc.description, provider: proc.provider, valueAfter: null, unit: null },
     });
   }
 
@@ -801,12 +841,41 @@ export function deriveCurrentState(
     });
   }
 
+  // Derive attribute status from cosmetic procedures targeting extensible attributes
+  for (const proc of activeCosmeticProcedures) {
+    if (!proc.attributeDefinitionId) continue;
+    const defId = proc.attributeDefinitionId;
+    const lastEventType = proc.events.length > 0
+      ? proc.events[proc.events.length - 1].eventType
+      : null;
+    const isReversed = lastEventType === "reversed";
+    const derivedStatus: import("@/lib/types").AttributeStatus = isReversed ? "RESTORED" : "ENHANCED";
+
+    if (extensibleAttributes[defId]) {
+      extensibleAttributes[defId].status = derivedStatus;
+    } else {
+      // Procedure targets an attribute not yet in the fold — create it from procedure data
+      const procDef = person.cosmeticProcedures.find((p) => p.id === proc.id);
+      const attrDef = procDef?.attributeDefinition;
+      if (attrDef) {
+        extensibleAttributes[defId] = {
+          value: proc.computed.valueAfter ?? "",
+          unit: attrDef.unit,
+          name: attrDef.name,
+          groupName: attrDef.group.name,
+          status: derivedStatus,
+        };
+      }
+    }
+  }
+
   return {
     currentHairColor,
     weight,
     build,
     visionAids,
     fitnessLevel,
+    extensibleAttributes,
     activeBodyMarks,
     activeBodyModifications,
     activeCosmeticProcedures,

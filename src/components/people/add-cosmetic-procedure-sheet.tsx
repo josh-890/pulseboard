@@ -12,15 +12,17 @@ import {
 import type { PendingFile } from "@/components/shared/inline-upload-zone";
 import { getRegionLabel } from "@/lib/constants/body-regions";
 import { createCosmeticProcedureAction } from "@/lib/actions/appearance-actions";
+import type { PhysicalAttributeGroupWithDefinitions } from "@/lib/services/physical-attribute-catalog-service";
 
 type AddCosmeticProcedureSheetProps = {
   personId: string;
   referenceSessionId?: string;
   categoryId?: string;
+  attributeGroups?: PhysicalAttributeGroupWithDefinitions[];
   onClose: () => void;
 };
 
-export function AddCosmeticProcedureSheet({ personId, referenceSessionId, categoryId, onClose }: AddCosmeticProcedureSheetProps) {
+export function AddCosmeticProcedureSheet({ personId, referenceSessionId, categoryId, attributeGroups, onClose }: AddCosmeticProcedureSheetProps) {
   const [isPending, startTransition] = useTransition();
   const [type, setType] = useState("");
   const [bodyRegions, setBodyRegions] = useState<string[]>([]);
@@ -28,8 +30,14 @@ export function AddCosmeticProcedureSheet({ personId, referenceSessionId, catego
   const [provider, setProvider] = useState("");
   const [date, setDate] = useState("");
   const [datePrecision, setDatePrecision] = useState("UNKNOWN");
+  const [attributeDefinitionId, setAttributeDefinitionId] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pendingFiles, setPendingFiles] = useState<PendingFile[]>([]);
+
+  // Flatten attribute definitions for the select dropdown
+  const allDefinitions = (attributeGroups ?? []).flatMap((g) =>
+    g.definitions.map((d) => ({ id: d.id, name: d.name, unit: d.unit, groupName: g.name })),
+  );
 
   const handleSubmit = useCallback(() => {
     if (!type.trim()) { setError("Procedure type is required."); return; }
@@ -45,6 +53,7 @@ export function AddCosmeticProcedureSheet({ personId, referenceSessionId, catego
         provider: provider.trim() || undefined,
         date: date || null,
         datePrecision,
+        attributeDefinitionId: attributeDefinitionId || undefined,
       });
       if (!result.success) { setError(result.error ?? "Failed to create procedure."); return; }
       if (pendingFiles.length > 0 && referenceSessionId && categoryId && result.id) {
@@ -60,7 +69,7 @@ export function AddCosmeticProcedureSheet({ personId, referenceSessionId, catego
       }
       onClose();
     });
-  }, [personId, type, bodyRegions, description, provider, date, datePrecision, pendingFiles, referenceSessionId, categoryId, onClose]);
+  }, [personId, type, bodyRegions, description, provider, date, datePrecision, attributeDefinitionId, pendingFiles, referenceSessionId, categoryId, onClose]);
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end">
@@ -101,6 +110,29 @@ export function AddCosmeticProcedureSheet({ personId, referenceSessionId, catego
               placeholder="Clinic or practitioner..."
               className="w-full rounded-lg border border-white/15 bg-muted/30 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring" />
           </div>
+
+          {allDefinitions.length > 0 && (
+            <div>
+              <label className="mb-1.5 block text-sm font-medium">Affects Attribute</label>
+              <select
+                value={attributeDefinitionId}
+                onChange={(e) => setAttributeDefinitionId(e.target.value)}
+                className="w-full rounded-lg border border-white/15 bg-muted/30 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+              >
+                <option value="">None</option>
+                {(attributeGroups ?? []).map((g) => (
+                  <optgroup key={g.id} label={g.name}>
+                    {g.definitions.map((d) => (
+                      <option key={d.id} value={d.id}>
+                        {d.name}{d.unit ? ` (${d.unit})` : ""}
+                      </option>
+                    ))}
+                  </optgroup>
+                ))}
+              </select>
+              <p className="mt-1 text-xs text-muted-foreground/60">Link to a physical attribute to track natural/enhanced status.</p>
+            </div>
+          )}
 
           <div>
             <PartialDateInput

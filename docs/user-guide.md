@@ -100,7 +100,9 @@ Shows a link to the person's reference session (auto-created, one per person). D
 
 **Appearance**
 - Current physical state (height, weight, body type, ethnicity, hair color)
-- Active body marks with body region and status
+- Extensible physical attributes with Natural/Enhanced/Restored status badges
+- Active body marks, body modifications, cosmetic procedures with event timelines
+- Cosmetic procedure events support before/after values (e.g. "A → D cup size")
 - Folded chronologically from persona history
 
 **Details**
@@ -578,6 +580,31 @@ Organize photo documentation by category. An accordion interface allows managing
 Categories with an entity model automatically enable entity linking in the lightbox when a photo is assigned to that category.
 
 **Operations:** Add group, add category to group, edit category, delete category, reorder.
+
+### Physical Attribute Catalog
+
+Define custom physical attributes for tracking measurements over time. An accordion interface (like Media Categories and Skills) allows managing attribute groups and definitions.
+
+**Default groups:**
+- Body Measurements (Waist, Hips, Bust/Chest, Inseam, Shoe Size)
+- Facial Features (Nose Shape, Lip Fullness, Jaw Shape)
+- General (Skin Tone, Tan Level)
+
+**Per definition:**
+- Name and slug
+- Unit (optional, e.g. "cm", "cup size")
+- Sort order (drag to reorder)
+
+These definitions are used in two places:
+1. **Recording physical changes** — extensible attribute inputs appear in the Record/Edit Physical Change sheets below the 5 fixed fields
+2. **Cosmetic procedure linking** — an "Affects Attribute" dropdown on add/edit procedure sheets links a procedure to an attribute, enabling automatic **Natural/Enhanced/Restored** status tracking
+
+**Attribute status** (derived automatically, shown as badges in Appearance tab):
+- **Natural** — no cosmetic procedure targets this attribute
+- **Enhanced** (purple badge) — a cosmetic procedure was performed targeting this attribute
+- **Restored** (green badge) — the cosmetic procedure was reversed
+
+**Operations:** Add group, add definition to group, edit definition, delete definition (blocked if in use), reorder.
 
 ---
 

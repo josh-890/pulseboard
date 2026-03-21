@@ -145,7 +145,12 @@ export type CosmeticProcedureEventItem = {
   bodyRegions: string[];
   description: string | null;
   provider: string | null;
+  valueBefore: string | null;
+  valueAfter: string | null;
+  unit: string | null;
 };
+
+export type AttributeStatus = "NATURAL" | "ENHANCED" | "RESTORED";
 
 export type CosmeticProcedureWithEvents = {
   id: string;
@@ -155,11 +160,14 @@ export type CosmeticProcedureWithEvents = {
   description: string | null;
   provider: string | null;
   status: string;
+  attributeDefinitionId: string | null;
   events: CosmeticProcedureEventItem[];
   computed: {
     bodyRegions: string[];
     description: string | null;
     provider: string | null;
+    valueAfter: string | null;
+    unit: string | null;
   };
 };
 
@@ -250,6 +258,14 @@ export type PersonProductionSession = {
   previewThumbnails: SessionThumbnail[];
 };
 
+export type ExtensibleAttributeValue = {
+  value: string;
+  unit: string | null;
+  name: string;
+  groupName: string;
+  status: AttributeStatus;
+};
+
 export type PersonCurrentState = {
   // Latest physical attributes (from PersonaPhysical fold)
   currentHairColor: string | null;
@@ -257,6 +273,8 @@ export type PersonCurrentState = {
   build: string | null;
   visionAids: string | null;
   fitnessLevel: string | null;
+  // Extensible physical attributes (from PersonaPhysicalAttribute fold)
+  extensibleAttributes: Record<string, ExtensibleAttributeValue>;
   // Active body marks (status = present)
   activeBodyMarks: BodyMarkWithEvents[];
   // All body modifications (with events)

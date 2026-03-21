@@ -10,19 +10,22 @@ import { MediaCategoryManager } from "@/components/settings/media-category-manag
 import { ContributionRoleManager } from "@/components/settings/contribution-role-manager";
 import { SkillCatalogManager } from "@/components/settings/skill-catalog-manager";
 import { SkillLevelConfig } from "@/components/settings/skill-level-config";
+import { PhysicalAttributeManager } from "@/components/settings/physical-attribute-manager";
 import { DatabaseMaintenance } from "@/components/settings/database-maintenance";
 import { getProfileImageLabels, getSkillLevelConfigs } from "@/lib/services/setting-service";
 import { getAllCategoryGroups } from "@/lib/services/category-service";
 import { getAllSkillGroups } from "@/lib/services/skill-catalog-service";
 import { getAllContributionRoleGroups } from "@/lib/services/contribution-role-service";
+import { getAllPhysicalAttributeGroups } from "@/lib/services/physical-attribute-catalog-service";
 
 export default async function SettingsPage() {
-  const [labels, categoryGroups, skillGroups, skillLevelConfigs, roleGroups] = await Promise.all([
+  const [labels, categoryGroups, skillGroups, skillLevelConfigs, roleGroups, physicalAttributeGroups] = await Promise.all([
     getProfileImageLabels(),
     getAllCategoryGroups(),
     getAllSkillGroups(),
     getSkillLevelConfigs(),
     getAllContributionRoleGroups(),
+    getAllPhysicalAttributeGroups(),
   ]);
 
   return (
@@ -83,6 +86,15 @@ export default async function SettingsPage() {
           Define role categories for session contributions and set credits (e.g. Model, Photographer).
         </p>
         <ContributionRoleManager groups={roleGroups} />
+      </div>
+
+      <div className="rounded-2xl border border-white/30 bg-card/70 p-4 shadow-lg backdrop-blur-md md:p-6 dark:border-white/10">
+        <h2 className="mb-4 text-lg font-semibold">Physical Attribute Catalog</h2>
+        <p className="mb-4 text-sm text-muted-foreground">
+          Define physical attribute groups and measurements. These are used to track
+          extensible physical attributes over time via persona snapshots.
+        </p>
+        <PhysicalAttributeManager groups={physicalAttributeGroups} />
       </div>
 
       <div className="rounded-2xl border border-white/30 bg-card/70 p-4 shadow-lg backdrop-blur-md md:p-6 dark:border-white/10">

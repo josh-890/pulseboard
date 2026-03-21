@@ -313,6 +313,8 @@ model PersonaPhysical {
   build           String?
   visionAids      String?
   fitnessLevel    String?
+
+  attributes      PersonaPhysicalAttribute[]
 }
 
 model BodyMark {
@@ -482,11 +484,15 @@ model CosmeticProcedure {
   status      String  @default("completed")
   createdAt   DateTime  @default(now())
 
+  attributeDefinitionId String?
+  attributeDefinition   PhysicalAttributeDefinition? @relation(fields: [attributeDefinitionId], references: [id])
+
   events          CosmeticProcedureEvent[]
   personMediaLinks PersonMediaLink[]
 
   @@index([personId])
   @@index([bodyRegions], type: Gin)
+  @@index([attributeDefinitionId])
 }
 
 model CosmeticProcedureEvent {
@@ -501,6 +507,10 @@ model CosmeticProcedureEvent {
   bodyRegions         String[]
   description         String?
   provider            String?
+  // Observation fields (before/after values for procedures that change measurements)
+  valueBefore         String?
+  valueAfter          String?
+  unit                String?
 
   @@index([cosmeticProcedureId])
   @@index([personaId])
@@ -977,6 +987,50 @@ model MediaCategory {
   @@unique([groupId, name])
   @@index([groupId])
   @@index([sortOrder])
+}
+
+// ─── Physical Attribute Catalog ──────────────────────────────────────────────
+
+model PhysicalAttributeGroup {
+  id          String                       @id @default(cuid())
+  name        String                       @unique
+  sortOrder   Int                          @default(0)
+  createdAt   DateTime                     @default(now())
+
+  definitions PhysicalAttributeDefinition[]
+
+  @@index([sortOrder])
+}
+
+model PhysicalAttributeDefinition {
+  id        String                  @id @default(cuid())
+  groupId   String
+  group     PhysicalAttributeGroup  @relation(fields: [groupId], references: [id])
+  name      String
+  slug      String                  @unique
+  unit      String?
+  sortOrder Int                     @default(0)
+  createdAt DateTime                @default(now())
+
+  attributes          PersonaPhysicalAttribute[]
+  cosmeticProcedures  CosmeticProcedure[]
+
+  @@unique([groupId, name])
+  @@index([groupId])
+  @@index([sortOrder])
+}
+
+model PersonaPhysicalAttribute {
+  id                    String                       @id @default(cuid())
+  personaPhysicalId     String
+  personaPhysical       PersonaPhysical              @relation(fields: [personaPhysicalId], references: [id])
+  attributeDefinitionId String
+  attributeDefinition   PhysicalAttributeDefinition  @relation(fields: [attributeDefinitionId], references: [id])
+  value                 String
+
+  @@unique([personaPhysicalId, attributeDefinitionId])
+  @@index([personaPhysicalId])
+  @@index([attributeDefinitionId])
 }
 
 // ─── System ───────────────────────────────────────────────────────────────────

@@ -17,6 +17,7 @@ import { getPersonHeadshots, getFilledHeadshotSlots, getPersonMediaGallery, getP
 import type { EntityMediaThumbnail } from "@/lib/services/media-service";
 import { getAllCategoryGroups, getPopulatedCategoriesForPerson, ensureEntityCategories } from "@/lib/services/category-service";
 import { getAllSkillGroups } from "@/lib/services/skill-catalog-service";
+import { getAllPhysicalAttributeGroups } from "@/lib/services/physical-attribute-catalog-service";
 import { getPersonAliases } from "@/lib/services/alias-service";
 import { PersonDetailTabs } from "@/components/people/person-detail-tabs";
 import { EditPersonSheet } from "@/components/people/edit-person-sheet";
@@ -35,7 +36,7 @@ export default async function PersonDetailPage({ params }: PersonDetailPageProps
   // Ensure system entity categories exist before loading category data
   await ensureEntityCategories();
 
-  const [person, workHistory, connections, profileLabels, refSession, headshots, filledSlots, categoryGroups, populatedCounts, skillGroups, skillLevelConfigs, aliasesWithChannels, sessionWorkHistory, productionSessions, entityMediaMap] =
+  const [person, workHistory, connections, profileLabels, refSession, headshots, filledSlots, categoryGroups, populatedCounts, skillGroups, skillLevelConfigs, aliasesWithChannels, sessionWorkHistory, productionSessions, entityMediaMap, physicalAttributeGroups] =
     await Promise.all([
       getPersonWithDetails(id),
       getPersonWorkHistory(id),
@@ -52,6 +53,7 @@ export default async function PersonDetailPage({ params }: PersonDetailPageProps
       getPersonSessionWorkHistory(id),
       getPersonProductionSessions(id),
       getPersonEntityMedia(id),
+      getAllPhysicalAttributeGroups(),
     ]);
 
   if (!person) notFound();
@@ -206,6 +208,7 @@ export default async function PersonDetailPage({ params }: PersonDetailPageProps
         categories={flatCategories}
         categoryCounts={categoryCounts}
         skillGroups={skillGroups}
+        physicalAttributeGroups={physicalAttributeGroups}
         calculatedPgrade={calculatedPgrade}
         meanWcp={meanWcp}
         aliasesWithChannels={aliasesWithChannels}

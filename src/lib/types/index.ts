@@ -38,6 +38,8 @@ export type {
   PersonSkillEventItem,
   SkillEventMediaThumb,
   PersonCurrentState,
+  AttributeStatus,
+  ExtensibleAttributeValue,
   SkillLevel,
   SkillEventType,
   DigitalIdentityStatus,

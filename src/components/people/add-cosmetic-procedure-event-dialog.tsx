@@ -13,6 +13,8 @@ type CosmeticProcedureComputed = {
   bodyRegions: string[];
   description: string | null;
   provider: string | null;
+  valueAfter: string | null;
+  unit: string | null;
 };
 
 type AddCosmeticProcedureEventDialogProps = {
@@ -43,6 +45,10 @@ export function AddCosmeticProcedureEventDialog({
   const [bodyRegions, setBodyRegions] = useState<string[]>(currentComputed.bodyRegions);
   const [description, setDescription] = useState("");
   const [provider, setProvider] = useState("");
+  // Observation fields
+  const [valueBefore, setValueBefore] = useState("");
+  const [valueAfter, setValueAfter] = useState("");
+  const [unit, setUnit] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   const handleSubmit = useCallback(() => {
@@ -57,6 +63,9 @@ export function AddCosmeticProcedureEventDialog({
         bodyRegions: JSON.stringify(bodyRegions) !== JSON.stringify(currentComputed.bodyRegions) ? bodyRegions : undefined,
         description: description.trim() || undefined,
         provider: provider.trim() || undefined,
+        valueBefore: valueBefore.trim() || null,
+        valueAfter: valueAfter.trim() || null,
+        unit: unit.trim() || null,
       });
       if (!result.success) {
         setError(result.error ?? "Failed to add event.");
@@ -64,7 +73,7 @@ export function AddCosmeticProcedureEventDialog({
       }
       onClose();
     });
-  }, [personId, cosmeticProcedureId, eventType, date, datePrecision, notes, bodyRegions, currentComputed.bodyRegions, description, provider, onClose]);
+  }, [personId, cosmeticProcedureId, eventType, date, datePrecision, notes, bodyRegions, currentComputed.bodyRegions, description, provider, valueBefore, valueAfter, unit, onClose]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
@@ -162,6 +171,43 @@ export function AddCosmeticProcedureEventDialog({
                     placeholder={currentComputed.provider ?? "Clinic or practitioner..."}
                     className="w-full rounded-lg border border-white/15 bg-muted/30 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
                   />
+                </div>
+
+                {/* Value Change (observation) */}
+                <div className="border-t border-white/5 pt-3">
+                  <label className="mb-2 block text-xs font-semibold text-muted-foreground uppercase tracking-wider">Value Change</label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Before</label>
+                      <input
+                        type="text"
+                        value={valueBefore}
+                        onChange={(e) => setValueBefore(e.target.value)}
+                        placeholder={currentComputed.valueAfter ?? "e.g. A cup"}
+                        className="w-full rounded-lg border border-white/15 bg-muted/30 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1.5 block text-xs font-medium text-muted-foreground">After</label>
+                      <input
+                        type="text"
+                        value={valueAfter}
+                        onChange={(e) => setValueAfter(e.target.value)}
+                        placeholder="e.g. D cup"
+                        className="w-full rounded-lg border border-white/15 bg-muted/30 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                      />
+                    </div>
+                  </div>
+                  <div className="mt-2">
+                    <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Unit</label>
+                    <input
+                      type="text"
+                      value={unit}
+                      onChange={(e) => setUnit(e.target.value)}
+                      placeholder={currentComputed.unit ?? "e.g. cup size, mm"}
+                      className="w-full rounded-lg border border-white/15 bg-muted/30 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                    />
+                  </div>
                 </div>
               </div>
             )}

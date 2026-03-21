@@ -625,6 +625,7 @@ export async function createCosmeticProcedureAction(
     provider?: string;
     date?: string | null;
     datePrecision?: string;
+    attributeDefinitionId?: string;
   },
 ): Promise<ActionResultWithId> {
   try {
@@ -643,6 +644,7 @@ export async function createCosmeticProcedureAction(
           description: data.description,
           provider: data.provider,
           status: "completed",
+          attributeDefinitionId: data.attributeDefinitionId ?? null,
         },
       });
       procId = proc.id;
@@ -674,6 +676,7 @@ export async function updateCosmeticProcedureAction(
     provider?: string;
     singleEventDate?: string | null;
     singleEventDatePrecision?: string;
+    attributeDefinitionId?: string | null;
   },
 ): Promise<ActionResultWithId> {
   try {
@@ -686,6 +689,7 @@ export async function updateCosmeticProcedureAction(
           bodyRegions: data.bodyRegions,
           description: data.description,
           provider: data.provider,
+          ...(data.attributeDefinitionId !== undefined ? { attributeDefinitionId: data.attributeDefinitionId } : {}),
         },
       });
 
@@ -742,6 +746,9 @@ export async function createCosmeticProcedureEventAction(
     bodyRegions?: string[];
     description?: string | null;
     provider?: string | null;
+    valueBefore?: string | null;
+    valueAfter?: string | null;
+    unit?: string | null;
   },
 ): Promise<ActionResultWithId> {
   try {
@@ -759,6 +766,9 @@ export async function createCosmeticProcedureEventAction(
           bodyRegions: data.bodyRegions ?? [],
           description: data.description,
           provider: data.provider,
+          valueBefore: data.valueBefore ?? null,
+          valueAfter: data.valueAfter ?? null,
+          unit: data.unit ?? null,
         },
       });
 
@@ -793,6 +803,9 @@ export async function updateCosmeticProcedureEventAction(
     bodyRegions?: string[];
     description?: string | null;
     provider?: string | null;
+    valueBefore?: string | null;
+    valueAfter?: string | null;
+    unit?: string | null;
   },
 ): Promise<ActionResultWithId> {
   try {
@@ -810,6 +823,9 @@ export async function updateCosmeticProcedureEventAction(
           ...(data.bodyRegions !== undefined && { bodyRegions: data.bodyRegions }),
           ...(data.description !== undefined && { description: data.description }),
           ...(data.provider !== undefined && { provider: data.provider }),
+          ...(data.valueBefore !== undefined && { valueBefore: data.valueBefore }),
+          ...(data.valueAfter !== undefined && { valueAfter: data.valueAfter }),
+          ...(data.unit !== undefined && { unit: data.unit }),
         },
       });
 
@@ -872,6 +888,7 @@ export async function recordPhysicalChangeAction(
     build?: string;
     visionAids?: string;
     fitnessLevel?: string;
+    attributes?: { definitionId: string; value: string }[];
   },
 ): Promise<ActionResultWithId> {
   try {
@@ -880,7 +897,7 @@ export async function recordPhysicalChangeAction(
 
     await prisma.$transaction(async (tx) => {
       const personaId = await findOrCreatePersonaForDate(tx, personId, date, precision);
-      await tx.personaPhysical.upsert({
+      const physical = await tx.personaPhysical.upsert({
         where: { personaId },
         create: {
           personaId,
@@ -898,6 +915,26 @@ export async function recordPhysicalChangeAction(
           ...(data.fitnessLevel !== undefined && { fitnessLevel: data.fitnessLevel || null }),
         },
       });
+
+      // Upsert extensible attributes
+      if (data.attributes && data.attributes.length > 0) {
+        for (const attr of data.attributes) {
+          await tx.personaPhysicalAttribute.upsert({
+            where: {
+              personaPhysicalId_attributeDefinitionId: {
+                personaPhysicalId: physical.id,
+                attributeDefinitionId: attr.definitionId,
+              },
+            },
+            create: {
+              personaPhysicalId: physical.id,
+              attributeDefinitionId: attr.definitionId,
+              value: attr.value,
+            },
+            update: { value: attr.value },
+          });
+        }
+      }
     });
 
     revalidatePath(`/people/${personId}`);
@@ -919,6 +956,7 @@ export async function updatePhysicalChangeAction(
     fitnessLevel?: string;
     date?: string | null;
     datePrecision?: string;
+    attributes?: { definitionId: string; value: string }[];
   },
 ): Promise<ActionResultWithId> {
   try {
@@ -947,18 +985,41 @@ export async function updatePhysicalChangeAction(
         fitnessLevel: data.fitnessLevel !== undefined ? (data.fitnessLevel || null) : existing.fitnessLevel,
       };
 
+      let newPhysicalId: string;
       if (targetPersonaId !== oldPersonaId) {
         await tx.personaPhysical.delete({ where: { id: physicalId } });
-        await tx.personaPhysical.upsert({
+        const created = await tx.personaPhysical.upsert({
           where: { personaId: targetPersonaId },
           create: { personaId: targetPersonaId, ...fieldData },
           update: fieldData,
         });
+        newPhysicalId = created.id;
       } else {
         await tx.personaPhysical.update({
           where: { id: physicalId },
           data: fieldData,
         });
+        newPhysicalId = physicalId;
+      }
+
+      // Upsert extensible attributes
+      if (data.attributes && data.attributes.length > 0) {
+        for (const attr of data.attributes) {
+          await tx.personaPhysicalAttribute.upsert({
+            where: {
+              personaPhysicalId_attributeDefinitionId: {
+                personaPhysicalId: newPhysicalId,
+                attributeDefinitionId: attr.definitionId,
+              },
+            },
+            create: {
+              personaPhysicalId: newPhysicalId,
+              attributeDefinitionId: attr.definitionId,
+              value: attr.value,
+            },
+            update: { value: attr.value },
+          });
+        }
       }
     });
 

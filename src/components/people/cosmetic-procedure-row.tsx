@@ -80,6 +80,11 @@ export function CosmeticProcedureRow({
             procedure.bodyRegion
           )}
         </span>
+        {c.valueAfter && (
+          <span className="shrink-0 rounded border border-purple-500/20 bg-purple-500/10 px-1.5 py-0.5 text-[10px] font-medium text-purple-500 dark:text-purple-400">
+            {c.valueAfter}{c.unit ? ` ${c.unit}` : ""}
+          </span>
+        )}
         {procedure.status !== "completed" && (
           <span className="shrink-0 rounded-full border border-white/15 bg-muted/50 px-1.5 py-0.5 text-[10px] font-medium capitalize text-muted-foreground">
             {procedure.status}
@@ -121,6 +126,26 @@ export function CosmeticProcedureRow({
           )}
           {c.provider && (
             <p className="mt-1 text-xs text-muted-foreground/70">Provider: {c.provider}</p>
+          )}
+          {/* Show value change summary from events */}
+          {procedure.events.some((e) => e.valueBefore || e.valueAfter) && (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {procedure.events
+                .filter((e) => e.valueBefore || e.valueAfter)
+                .map((e) => (
+                  <span
+                    key={e.id}
+                    className="rounded border border-purple-500/15 bg-purple-500/5 px-1.5 py-0.5 text-[11px] text-purple-500 dark:text-purple-400"
+                  >
+                    {e.valueBefore && e.valueAfter
+                      ? `${e.valueBefore} → ${e.valueAfter}`
+                      : e.valueAfter
+                        ? `→ ${e.valueAfter}`
+                        : e.valueBefore}
+                    {e.unit ? ` ${e.unit}` : ""}
+                  </span>
+                ))}
+            </div>
           )}
 
           {onDeleteEvent && onAddEvent && (

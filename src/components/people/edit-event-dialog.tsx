@@ -34,6 +34,9 @@ type CosmeticProcedureOverrides = {
   bodyRegions: string[];
   description: string | null;
   provider: string | null;
+  valueBefore: string | null;
+  valueAfter: string | null;
+  unit: string | null;
 };
 
 type EditEventDialogProps = {
@@ -54,6 +57,9 @@ type EditEventDialogProps = {
     material?: string | null;
     gauge?: string | null;
     provider?: string | null;
+    valueBefore?: string | null;
+    valueAfter?: string | null;
+    unit?: string | null;
   }) => Promise<{ success: boolean; error?: string }>;
   onClose: () => void;
 } & (
@@ -94,6 +100,9 @@ export function EditEventDialog(props: EditEventDialogProps) {
   const [material, setMaterial] = useState(entityKind === "bodyModification" ? (overrides.material ?? "") : "");
   const [gauge, setGauge] = useState(entityKind === "bodyModification" ? (overrides.gauge ?? "") : "");
   const [provider, setProvider] = useState(entityKind === "cosmeticProcedure" ? (overrides.provider ?? "") : "");
+  const [valueBefore, setValueBefore] = useState(entityKind === "cosmeticProcedure" ? (overrides.valueBefore ?? "") : "");
+  const [valueAfter, setValueAfter] = useState(entityKind === "cosmeticProcedure" ? (overrides.valueAfter ?? "") : "");
+  const [unitValue, setUnitValue] = useState(entityKind === "cosmeticProcedure" ? (overrides.unit ?? "") : "");
 
   const hasOverrideFields = entityKind !== undefined;
 
@@ -122,6 +131,9 @@ export function EditEventDialog(props: EditEventDialogProps) {
         saveData.bodyRegions = bodyRegions;
         saveData.description = description.trim() || null;
         saveData.provider = provider.trim() || null;
+        saveData.valueBefore = valueBefore.trim() || null;
+        saveData.valueAfter = valueAfter.trim() || null;
+        saveData.unit = unitValue.trim() || null;
       }
 
       const result = await onSave(saveData);
@@ -131,7 +143,7 @@ export function EditEventDialog(props: EditEventDialogProps) {
       }
       onClose();
     });
-  }, [eventType, date, datePrecision, notes, entityKind, bodyRegions, motif, colors, size, description, material, gauge, provider, onSave, onClose]);
+  }, [eventType, date, datePrecision, notes, entityKind, bodyRegions, motif, colors, size, description, material, gauge, provider, valueBefore, valueAfter, unitValue, onSave, onClose]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
@@ -283,16 +295,53 @@ export function EditEventDialog(props: EditEventDialogProps) {
                   )}
 
                   {entityKind === "cosmeticProcedure" && (
-                    <div>
-                      <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Provider</label>
-                      <input
-                        type="text"
-                        value={provider}
-                        onChange={(e) => setProvider(e.target.value)}
-                        placeholder="Clinic or practitioner..."
-                        className="w-full rounded-lg border border-white/15 bg-muted/30 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
-                      />
-                    </div>
+                    <>
+                      <div>
+                        <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Provider</label>
+                        <input
+                          type="text"
+                          value={provider}
+                          onChange={(e) => setProvider(e.target.value)}
+                          placeholder="Clinic or practitioner..."
+                          className="w-full rounded-lg border border-white/15 bg-muted/30 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                        />
+                      </div>
+                      <div className="border-t border-white/5 pt-3">
+                        <label className="mb-2 block text-xs font-semibold text-muted-foreground uppercase tracking-wider">Value Change</label>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Before</label>
+                            <input
+                              type="text"
+                              value={valueBefore}
+                              onChange={(e) => setValueBefore(e.target.value)}
+                              placeholder="e.g. A cup"
+                              className="w-full rounded-lg border border-white/15 bg-muted/30 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                            />
+                          </div>
+                          <div>
+                            <label className="mb-1.5 block text-xs font-medium text-muted-foreground">After</label>
+                            <input
+                              type="text"
+                              value={valueAfter}
+                              onChange={(e) => setValueAfter(e.target.value)}
+                              placeholder="e.g. D cup"
+                              className="w-full rounded-lg border border-white/15 bg-muted/30 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                            />
+                          </div>
+                        </div>
+                        <div className="mt-2">
+                          <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Unit</label>
+                          <input
+                            type="text"
+                            value={unitValue}
+                            onChange={(e) => setUnitValue(e.target.value)}
+                            placeholder="e.g. cup size, mm"
+                            className="w-full rounded-lg border border-white/15 bg-muted/30 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                          />
+                        </div>
+                      </div>
+                    </>
                   )}
                 </div>
               )}

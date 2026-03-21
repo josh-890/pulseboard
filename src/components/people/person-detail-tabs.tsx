@@ -57,6 +57,7 @@ import type { GalleryItem } from "@/lib/types";
 import type { EntityMediaThumbnail } from "@/lib/services/media-service";
 import type { ProfileImageLabel } from "@/lib/services/setting-service";
 import type { CategoryWithGroup } from "@/components/gallery/gallery-info-panel";
+import type { PhysicalAttributeGroupWithDefinitions } from "@/lib/services/physical-attribute-catalog-service";
 import {
   assignHeadshotSlot as assignHeadshotSlotAction,
   removeHeadshotSlot as removeHeadshotSlotAction,
@@ -82,6 +83,7 @@ type PersonDetailTabsProps = {
   categories?: CategoryWithGroup[];
   categoryCounts?: { categoryId: string; count: number }[];
   skillGroups?: SkillGroupWithDefinitions[];
+  physicalAttributeGroups?: PhysicalAttributeGroupWithDefinitions[];
   calculatedPgrade?: number | null;
   meanWcp?: number | null;
   aliasesWithChannels?: PersonAliasWithChannels[];
@@ -1221,6 +1223,7 @@ export function PersonDetailTabs({
   categories,
   categoryCounts,
   skillGroups,
+  physicalAttributeGroups,
   calculatedPgrade,
   meanWcp,
   aliasesWithChannels,
@@ -1359,6 +1362,7 @@ export function PersonDetailTabs({
             entityMedia={entityMedia}
             categories={categories}
             referenceSessionId={referenceSessionId}
+            attributeGroups={physicalAttributeGroups}
           />
         )}
       </div>

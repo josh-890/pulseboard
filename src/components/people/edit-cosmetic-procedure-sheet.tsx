@@ -14,6 +14,7 @@ import { getRegionLabel } from "@/lib/constants/body-regions";
 import type { CosmeticProcedureWithEvents } from "@/lib/types";
 import { updateCosmeticProcedureAction } from "@/lib/actions/appearance-actions";
 import type { EntityMediaThumbnail } from "@/lib/services/media-service";
+import type { PhysicalAttributeGroupWithDefinitions } from "@/lib/services/physical-attribute-catalog-service";
 
 type EditCosmeticProcedureSheetProps = {
   personId: string;
@@ -21,6 +22,7 @@ type EditCosmeticProcedureSheetProps = {
   referenceSessionId?: string;
   categoryId?: string;
   existingPhotos?: EntityMediaThumbnail[];
+  attributeGroups?: PhysicalAttributeGroupWithDefinitions[];
   onClose: () => void;
 };
 
@@ -30,7 +32,7 @@ function formatDateForInput(date: Date | null, isBaseline?: boolean): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
-export function EditCosmeticProcedureSheet({ personId, procedure, referenceSessionId, categoryId, existingPhotos, onClose }: EditCosmeticProcedureSheetProps) {
+export function EditCosmeticProcedureSheet({ personId, procedure, referenceSessionId, categoryId, existingPhotos, attributeGroups, onClose }: EditCosmeticProcedureSheetProps) {
   const [isPending, startTransition] = useTransition();
   const [type, setType] = useState(procedure.type);
   const [bodyRegions, setBodyRegions] = useState<string[]>(
@@ -38,6 +40,7 @@ export function EditCosmeticProcedureSheet({ personId, procedure, referenceSessi
   );
   const [description, setDescription] = useState(procedure.description ?? "");
   const [provider, setProvider] = useState(procedure.provider ?? "");
+  const [attributeDefinitionId, setAttributeDefinitionId] = useState(procedure.attributeDefinitionId ?? "");
   const [error, setError] = useState<string | null>(null);
   const [pendingFiles, setPendingFiles] = useState<PendingFile[]>([]);
 
@@ -61,6 +64,7 @@ export function EditCosmeticProcedureSheet({ personId, procedure, referenceSessi
         bodyRegions,
         description: description.trim() || undefined,
         provider: provider.trim() || undefined,
+        attributeDefinitionId: attributeDefinitionId || null,
         ...(isSingleEvent ? { singleEventDate: date || null, singleEventDatePrecision: datePrecision } : {}),
       });
       if (!result.success) { setError(result.error ?? "Failed to update."); return; }
@@ -77,7 +81,7 @@ export function EditCosmeticProcedureSheet({ personId, procedure, referenceSessi
       }
       onClose();
     });
-  }, [procedure.id, personId, type, bodyRegions, description, provider, isSingleEvent, date, datePrecision, pendingFiles, referenceSessionId, categoryId, onClose]);
+  }, [procedure.id, personId, type, bodyRegions, description, provider, attributeDefinitionId, isSingleEvent, date, datePrecision, pendingFiles, referenceSessionId, categoryId, onClose]);
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end">
@@ -126,6 +130,29 @@ export function EditCosmeticProcedureSheet({ personId, procedure, referenceSessi
             <input type="text" value={provider} onChange={(e) => setProvider(e.target.value)}
               className="w-full rounded-lg border border-white/15 bg-muted/30 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring" />
           </div>
+
+          {attributeGroups && attributeGroups.length > 0 && (
+            <div>
+              <label className="mb-1.5 block text-sm font-medium">Affects Attribute</label>
+              <select
+                value={attributeDefinitionId}
+                onChange={(e) => setAttributeDefinitionId(e.target.value)}
+                className="w-full rounded-lg border border-white/15 bg-muted/30 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+              >
+                <option value="">None</option>
+                {attributeGroups.map((g) => (
+                  <optgroup key={g.id} label={g.name}>
+                    {g.definitions.map((d) => (
+                      <option key={d.id} value={d.id}>
+                        {d.name}{d.unit ? ` (${d.unit})` : ""}
+                      </option>
+                    ))}
+                  </optgroup>
+                ))}
+              </select>
+              <p className="mt-1 text-xs text-muted-foreground/60">Link to a physical attribute to track natural/enhanced status.</p>
+            </div>
+          )}
 
           {/* Inline photo upload */}
           {referenceSessionId && categoryId && (
