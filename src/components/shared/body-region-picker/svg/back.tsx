@@ -13,8 +13,8 @@ export function Back({ selected, hovered, onRegionClick, onRegionHover }: BackPr
   const p = { selected, hovered, onClick: onRegionClick, onHover: onRegionHover };
   return (
     <g id="back">
-      {/* Head (scalp from back) */}
-      <RegionPath id="face" d="M134,25 C154,25 162,40 162,61 C162,78 154,90 146,95 C142,97 138,98 134,97 C130,98 126,97 122,95 C114,90 106,78 106,61 C106,40 114,25 134,25 Z" {...p} />
+      {/* Head (scalp / back of head) */}
+      <RegionPath id="face.scalp" d="M134,25 C154,25 162,40 162,61 C162,78 154,90 146,95 C142,97 138,98 134,97 C130,98 126,97 122,95 C114,90 106,78 106,61 C106,40 114,25 134,25 Z" {...p} />
 
       {/* Neck back */}
       <RegionPath id="neck_back" d="M116,97 L152,97 L152,122 L172,128 L172,138 L94,138 L94,128 L116,122 Z" {...p} />

@@ -601,14 +601,17 @@ type HeroSharedProps = {
   referenceSessionId?: string;
   headshotSlotMap?: Map<string, number>;
   onAliasesBadgeClick?: () => void;
+  onAppearanceClick?: () => void;
 };
 
-function IdentityBlock({ person, displayName, age, aliasPills, onAliasesBadgeClick, nameSize = "text-2xl" }: {
+function IdentityBlock({ person, displayName, age, aliasPills, onAliasesBadgeClick, currentState, onAppearanceClick, nameSize = "text-2xl" }: {
   person: PersonData;
   displayName: string;
   age: number | null;
   aliasPills: PersonData["aliases"];
   onAliasesBadgeClick?: () => void;
+  currentState?: PersonCurrentState;
+  onAppearanceClick?: () => void;
   nameSize?: string;
 }) {
   const birthAlias = aliasPills.find((a) => a.type === "birth");
@@ -676,6 +679,39 @@ function IdentityBlock({ person, displayName, age, aliasPills, onAliasesBadgeCli
           <span className="text-sm font-semibold text-muted-foreground">{person.rating}/5</span>
         </div>
       )}
+
+      {/* Entity pills — at-a-glance appearance summary */}
+      {currentState && (() => {
+        const markTypes = [...new Set(currentState.activeBodyMarks.map((m) => m.type))];
+        const modTypes = [...new Set(currentState.activeBodyModifications.map((m) => m.type))];
+        const procTypes = [...new Set(currentState.activeCosmeticProcedures.map((p) => p.type))];
+        const hasEntities = markTypes.length > 0 || modTypes.length > 0 || procTypes.length > 0;
+        if (!hasEntities) return null;
+
+        const Wrapper = onAppearanceClick ? "button" : "div";
+        return (
+          <Wrapper
+            {...(onAppearanceClick ? { type: "button" as const, onClick: onAppearanceClick } : {})}
+            className="mt-2 flex flex-wrap items-center gap-1.5"
+          >
+            {markTypes.map((t) => (
+              <span key={`mark-${t}`} className="rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[11px] font-medium capitalize text-amber-600 dark:text-amber-400">
+                {t}
+              </span>
+            ))}
+            {modTypes.map((t) => (
+              <span key={`mod-${t}`} className="rounded-full border border-teal-500/30 bg-teal-500/10 px-2 py-0.5 text-[11px] font-medium capitalize text-teal-600 dark:text-teal-400">
+                {t}
+              </span>
+            ))}
+            {procTypes.map((t) => (
+              <span key={`proc-${t}`} className="rounded-full border border-rose-500/30 bg-rose-500/10 px-2 py-0.5 text-[11px] font-medium capitalize text-rose-600 dark:text-rose-400">
+                {t}
+              </span>
+            ))}
+          </Wrapper>
+        );
+      })()}
     </div>
   );
 }
@@ -731,6 +767,8 @@ function HeroDensityLayout(props: HeroSharedProps) {
             age={age}
             aliasPills={aliasPills}
             onAliasesBadgeClick={props.onAliasesBadgeClick}
+            currentState={props.currentState}
+            onAppearanceClick={props.onAppearanceClick}
             nameSize={cfg.nameSize}
           />
         </div>
@@ -778,6 +816,7 @@ function HeroCard({
   referenceSessionId,
   headshotSlotMap,
   onAliasesBadgeClick,
+  onAppearanceClick,
 }: {
   person: PersonData;
   currentState: PersonCurrentState;
@@ -789,6 +828,7 @@ function HeroCard({
   referenceSessionId?: string;
   headshotSlotMap?: Map<string, number>;
   onAliasesBadgeClick?: () => void;
+  onAppearanceClick?: () => void;
 }) {
   const commonAlias = person.aliases.find((a) => a.type === "common");
   const birthAlias = person.aliases.find((a) => a.type === "birth");
@@ -821,6 +861,7 @@ function HeroCard({
     headshotSlotMap,
     aliasPills,
     onAliasesBadgeClick,
+    onAppearanceClick,
   };
 
   return <HeroDensityLayout {...sharedProps} />;
@@ -1203,6 +1244,10 @@ export function PersonDetailTabs({
     setActiveTab("aliases");
   }, []);
 
+  const handleAppearanceClick = useCallback(() => {
+    setActiveTab("appearance");
+  }, []);
+
   const tabs: { id: TabId; label: string; badge?: number }[] = [
     { id: "overview", label: "Overview" },
     { id: "aliases", label: "Aliases", badge: aliasCount || undefined },
@@ -1235,6 +1280,7 @@ export function PersonDetailTabs({
           connections: connections.length,
         }}
         onAliasesBadgeClick={handleAliasesBadgeClick}
+        onAppearanceClick={handleAppearanceClick}
       />
 
       {/* Tab bar — scrollable on mobile */}

@@ -9,9 +9,10 @@ import type {
   BodyModificationWithEvents,
   CosmeticProcedureWithEvents,
 } from "@/lib/types";
-import { BodyMarkCard } from "@/components/people/body-mark-card";
-import { BodyModificationCard } from "@/components/people/body-modification-card";
-import { CosmeticProcedureCard } from "@/components/people/cosmetic-procedure-card";
+import { BodyMarkRow } from "@/components/people/body-mark-row";
+import { BodyModificationRow } from "@/components/people/body-modification-row";
+import { CosmeticProcedureRow } from "@/components/people/cosmetic-procedure-row";
+import { AppearanceBodyMap } from "@/components/people/appearance-body-map";
 import { AddBodyMarkSheet } from "@/components/people/add-body-mark-sheet";
 import { EditBodyMarkSheet } from "@/components/people/edit-body-mark-sheet";
 import { AddBodyModificationSheet } from "@/components/people/add-body-modification-sheet";
@@ -34,7 +35,6 @@ import {
 } from "@/lib/actions/appearance-actions";
 import {
   Activity,
-  Eye,
   Fingerprint,
   Pencil,
   Plus,
@@ -125,8 +125,6 @@ export function AppearanceTab({
       }));
   }, [person.personas]);
 
-  const hasSnapshot = hasStatic || hasComputed || currentState.activeBodyMarks.length > 0 || currentState.activeBodyModifications.length > 0 || currentState.activeCosmeticProcedures.length > 0;
-
   const handleDeleteBodyMark = useCallback((markId: string) => {
     startTransition(async () => {
       await deleteBodyMarkAction(markId, person.id);
@@ -203,297 +201,208 @@ export function AppearanceTab({
       ? getEntitiesForModel(openState.entityModel)
       : undefined;
 
+  const addButton = (onClick: () => void) => (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex items-center gap-1 rounded-lg border border-white/15 px-2.5 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:border-white/30 hover:text-foreground"
+    >
+      <Plus size={12} />
+      Add
+    </button>
+  );
+
   return (
     <>
-      <div className="space-y-6">
-        {/* Current Snapshot */}
-        <SectionCard title="Current Snapshot" icon={<Eye size={18} />}>
-          {!hasSnapshot ? (
-            <EmptyState message="No appearance data recorded yet." />
-          ) : (
-            <div className="space-y-4">
-              {/* Physical Stats */}
-              {(hasStatic || hasComputed) && (
-                <div>
-                  <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Physical Stats</h3>
-                  <dl className="grid grid-cols-1 gap-1.5 text-sm sm:grid-cols-2">
-                    {person.height && <InfoRow label="Height" value={`${person.height} cm`} labelWidth="w-28" />}
-                    {person.eyeColor && <InfoRow label="Eye color" value={<span className="capitalize">{person.eyeColor}</span>} labelWidth="w-28" />}
-                    {person.naturalHairColor && <InfoRow label="Natural hair" value={<span className="capitalize">{person.naturalHairColor}</span>} labelWidth="w-28" />}
-                    {currentState.currentHairColor && <InfoRow label="Current hair" value={<span className="capitalize">{currentState.currentHairColor}</span>} labelWidth="w-28" />}
-                    {currentState.weight !== null && currentState.weight !== undefined && <InfoRow label="Weight" value={`${currentState.weight} kg`} labelWidth="w-28" />}
-                    {person.bodyType && <InfoRow label="Body type" value={<span className="capitalize">{person.bodyType}</span>} labelWidth="w-28" />}
-                    {currentState.build && <InfoRow label="Build" value={<span className="capitalize">{currentState.build}</span>} labelWidth="w-28" />}
-                    {person.measurements && <InfoRow label="Measurements" value={person.measurements} labelWidth="w-28" />}
-                    {currentState.visionAids && <InfoRow label="Vision aids" value={currentState.visionAids} labelWidth="w-28" />}
-                    {currentState.fitnessLevel && <InfoRow label="Fitness" value={<span className="capitalize">{currentState.fitnessLevel}</span>} labelWidth="w-28" />}
-                  </dl>
-                </div>
-              )}
+      <div className="flex gap-6">
+        {/* Left column — content (constrained width) */}
+        <div className="min-w-0 max-w-2xl flex-1 space-y-6">
+          {/* Physical Stats */}
+          <SectionCard
+            title="Physical Stats"
+            icon={<Activity size={18} />}
+            accent="indigo"
+            action={
+              <button
+                type="button"
+                onClick={() => setOpenState("physicalChange")}
+                className="flex items-center gap-1 rounded-lg border border-white/15 px-2.5 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:border-white/30 hover:text-foreground"
+              >
+                <Plus size={12} />
+                Record Change
+              </button>
+            }
+          >
+            {!hasStatic && !hasComputed ? (
+              <EmptyState message="No physical stats recorded." />
+            ) : (
+              <>
+                <dl className="grid grid-cols-1 gap-2 text-sm sm:grid-cols-2">
+                  {person.height && <InfoRow label="Height" value={`${person.height} cm`} labelWidth="w-28" />}
+                  {person.eyeColor && <InfoRow label="Eye color" value={<span className="capitalize">{person.eyeColor}</span>} labelWidth="w-28" />}
+                  {person.naturalHairColor && <InfoRow label="Natural hair" value={<span className="capitalize">{person.naturalHairColor}</span>} labelWidth="w-28" />}
+                  {currentState.currentHairColor && <InfoRow label="Current hair" value={<span className="capitalize">{currentState.currentHairColor}</span>} labelWidth="w-28" />}
+                  {currentState.weight !== null && currentState.weight !== undefined && <InfoRow label="Weight" value={`${currentState.weight} kg`} labelWidth="w-28" />}
+                  {person.bodyType && <InfoRow label="Body type" value={<span className="capitalize">{person.bodyType}</span>} labelWidth="w-28" />}
+                  {currentState.build && <InfoRow label="Build" value={<span className="capitalize">{currentState.build}</span>} labelWidth="w-28" />}
+                  {person.measurements && <InfoRow label="Measurements" value={person.measurements} labelWidth="w-28" />}
+                  {currentState.visionAids && <InfoRow label="Vision aids" value={currentState.visionAids} labelWidth="w-28" />}
+                  {currentState.fitnessLevel && <InfoRow label="Fitness" value={<span className="capitalize">{currentState.fitnessLevel}</span>} labelWidth="w-28" />}
+                </dl>
 
-              {/* Active Body Marks */}
-              {currentState.activeBodyMarks.length > 0 && (
-                <div>
-                  <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                    Body Marks
-                    <span className="ml-1.5 rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">
-                      {currentState.activeBodyMarks.length}
-                    </span>
-                  </h3>
-                  <div className="flex flex-wrap gap-1.5">
-                    {currentState.activeBodyMarks.map((mark) => (
-                      <span
-                        key={mark.id}
-                        className="rounded-md border border-white/10 bg-muted/30 px-2 py-1 text-xs"
-                      >
-                        <span className="capitalize">{mark.type}</span>
-                        <span className="mx-1 text-muted-foreground">—</span>
-                        {mark.bodyRegion}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
+                {/* Change History */}
+                {physicalChanges.length > 0 && (
+                  <div className="mt-4 border-t border-white/10 pt-4">
+                    <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Change History</h3>
+                    <div className="space-y-2">
+                      {physicalChanges.map((item) => {
+                        const fields: string[] = [];
+                        if (item.currentHairColor) fields.push(`Hair: ${item.currentHairColor}`);
+                        if (item.weight !== null) fields.push(`Weight: ${item.weight} kg`);
+                        if (item.build) fields.push(`Build: ${item.build}`);
+                        if (item.visionAids) fields.push(`Vision: ${item.visionAids}`);
+                        if (item.fitnessLevel) fields.push(`Fitness: ${item.fitnessLevel}`);
 
-              {/* Active Body Modifications */}
-              {currentState.activeBodyModifications.length > 0 && (
-                <div>
-                  <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                    Body Modifications
-                    <span className="ml-1.5 rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">
-                      {currentState.activeBodyModifications.length}
-                    </span>
-                  </h3>
-                  <div className="flex flex-wrap gap-1.5">
-                    {currentState.activeBodyModifications.map((mod) => (
-                      <span
-                        key={mod.id}
-                        className="rounded-md border border-white/10 bg-muted/30 px-2 py-1 text-xs"
-                      >
-                        <span className="capitalize">{mod.type}</span>
-                        <span className="mx-1 text-muted-foreground">—</span>
-                        {mod.bodyRegion}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Active Cosmetic Procedures */}
-              {currentState.activeCosmeticProcedures.length > 0 && (
-                <div>
-                  <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                    Cosmetic Procedures
-                    <span className="ml-1.5 rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">
-                      {currentState.activeCosmeticProcedures.length}
-                    </span>
-                  </h3>
-                  <div className="flex flex-wrap gap-1.5">
-                    {currentState.activeCosmeticProcedures.map((proc) => (
-                      <span
-                        key={proc.id}
-                        className="rounded-md border border-white/10 bg-muted/30 px-2 py-1 text-xs"
-                      >
-                        {proc.type}
-                        <span className="mx-1 text-muted-foreground">—</span>
-                        {proc.bodyRegions?.length ? proc.bodyRegions.join(", ") : proc.bodyRegion}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-        </SectionCard>
-
-        {/* Physical Stats */}
-        <SectionCard title="Physical Stats" icon={<Activity size={18} />}>
-          <div className="mb-3 flex justify-end">
-            <button
-              type="button"
-              onClick={() => setOpenState("physicalChange")}
-              className="flex items-center gap-1 rounded-lg border border-white/15 px-2.5 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:border-white/30 hover:text-foreground"
-            >
-              <Plus size={12} />
-              Record Change
-            </button>
-          </div>
-          {!hasStatic && !hasComputed ? (
-            <EmptyState message="No physical stats recorded." />
-          ) : (
-            <>
-              <dl className="grid grid-cols-1 gap-2 text-sm">
-                {person.height && <InfoRow label="Height" value={`${person.height} cm`} />}
-                {person.eyeColor && <InfoRow label="Eye color" value={<span className="capitalize">{person.eyeColor}</span>} />}
-                {person.naturalHairColor && <InfoRow label="Natural hair" value={<span className="capitalize">{person.naturalHairColor}</span>} />}
-                {person.bodyType && <InfoRow label="Body type" value={<span className="capitalize">{person.bodyType}</span>} />}
-                {person.measurements && <InfoRow label="Measurements" value={person.measurements} />}
-              </dl>
-
-              {/* Change History */}
-              {physicalChanges.length > 0 && (
-                <div className="mt-4 border-t border-white/10 pt-4">
-                  <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Change History</h3>
-                  <div className="space-y-2">
-                    {physicalChanges.map((item) => {
-                      const fields: string[] = [];
-                      if (item.currentHairColor) fields.push(`Hair: ${item.currentHairColor}`);
-                      if (item.weight !== null) fields.push(`Weight: ${item.weight} kg`);
-                      if (item.build) fields.push(`Build: ${item.build}`);
-                      if (item.visionAids) fields.push(`Vision: ${item.visionAids}`);
-                      if (item.fitnessLevel) fields.push(`Fitness: ${item.fitnessLevel}`);
-
-                      return (
-                        <div
-                          key={item.physicalId}
-                          className="group flex items-start gap-3 rounded-lg border border-white/10 bg-muted/20 px-3 py-2"
-                        >
-                          <div className="min-w-0 flex-1">
-                            <div className="mb-1 flex items-center gap-2">
-                              <span className="rounded bg-muted/50 px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground">
-                                {formatPartialDate(item.date, item.datePrecision)}
-                              </span>
-                              <span className="text-xs text-muted-foreground">{item.personaLabel}</span>
-                            </div>
-                            <div className="flex flex-wrap gap-1.5">
-                              {fields.map((f) => (
-                                <span
-                                  key={f}
-                                  className="rounded border border-white/10 bg-muted/30 px-1.5 py-0.5 text-[11px]"
-                                >
-                                  {f}
-                                </span>
-                              ))}
-                            </div>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => setOpenState({ type: "editPhysical", item })}
-                            className="shrink-0 rounded-md p-1 text-muted-foreground opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100"
-                            title="Edit physical change"
+                        return (
+                          <div
+                            key={item.physicalId}
+                            className="group/change flex items-start gap-3 rounded-lg border border-white/10 bg-muted/20 px-3 py-2"
                           >
-                            <Pencil size={14} />
-                          </button>
-                        </div>
-                      );
-                    })}
+                            <div className="min-w-0 flex-1">
+                              <div className="mb-1 flex items-center gap-2">
+                                <span className="rounded bg-muted/50 px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground">
+                                  {formatPartialDate(item.date, item.datePrecision)}
+                                </span>
+                                <span className="text-xs text-muted-foreground">{item.personaLabel}</span>
+                              </div>
+                              <div className="flex flex-wrap gap-1.5">
+                                {fields.map((f) => (
+                                  <span
+                                    key={f}
+                                    className="rounded border border-white/10 bg-muted/30 px-1.5 py-0.5 text-[11px]"
+                                  >
+                                    {f}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setOpenState({ type: "editPhysical", item })}
+                              className="shrink-0 rounded-md p-1 text-muted-foreground opacity-0 transition-opacity hover:text-foreground group-hover/change:opacity-100"
+                              title="Edit physical change"
+                            >
+                              <Pencil size={14} />
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
-                </div>
-              )}
-            </>
-          )}
-        </SectionCard>
+                )}
+              </>
+            )}
+          </SectionCard>
 
-        {/* Body Marks */}
-        <SectionCard
-          title="Body Marks"
-          icon={<Fingerprint size={18} />}
-          badge={currentState.activeBodyMarks.length}
-        >
-          <div className="mb-3 flex justify-end">
-            <button
-              type="button"
-              onClick={() => setOpenState("addBodyMark")}
-              className="flex items-center gap-1 rounded-lg border border-white/15 px-2.5 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:border-white/30 hover:text-foreground"
-            >
-              <Plus size={12} />
-              Add
-            </button>
-          </div>
-          {currentState.activeBodyMarks.length === 0 ? (
-            <EmptyState message="No body marks recorded." />
-          ) : (
-            <div className="grid grid-cols-1 gap-3">
-              {currentState.activeBodyMarks.map((mark) => (
-                <BodyMarkCard
-                  key={mark.id}
-                  mark={mark}
-                  photos={entityMedia?.[mark.id]}
-                  onEdit={() => setOpenState({ type: "editBodyMark", mark })}
-                  onDelete={() => handleDeleteBodyMark(mark.id)}
-                  onManagePhotos={referenceSessionId ? () => setOpenState({ type: "manageEntityPhotos", entityId: mark.id, entityModel: "BodyMark", entityLabel: `${mark.type} — ${mark.bodyRegion}` }) : undefined}
-                  onDeleteEvent={handleDeleteBodyMarkEvent}
-                  onAddEvent={() => setOpenState({ type: "addBodyMarkEvent", markId: mark.id, markLabel: `${mark.type} — ${mark.bodyRegion}` })}
-                  isPending={isPending}
-                />
-              ))}
-            </div>
-          )}
-        </SectionCard>
+          {/* Body Marks */}
+          <SectionCard
+            title="Body Marks"
+            icon={<Fingerprint size={18} />}
+            badge={currentState.activeBodyMarks.length}
+            accent="amber"
+            action={addButton(() => setOpenState("addBodyMark"))}
+          >
+            {currentState.activeBodyMarks.length === 0 ? (
+              <EmptyState message="No body marks recorded." />
+            ) : (
+              <div className="space-y-2">
+                {currentState.activeBodyMarks.map((mark) => (
+                  <BodyMarkRow
+                    key={mark.id}
+                    mark={mark}
+                    photos={entityMedia?.[mark.id]}
+                    onEdit={() => setOpenState({ type: "editBodyMark", mark })}
+                    onDelete={() => handleDeleteBodyMark(mark.id)}
+                    onManagePhotos={referenceSessionId ? () => setOpenState({ type: "manageEntityPhotos", entityId: mark.id, entityModel: "BodyMark", entityLabel: `${mark.type} — ${mark.bodyRegion}` }) : undefined}
+                    onDeleteEvent={handleDeleteBodyMarkEvent}
+                    onAddEvent={() => setOpenState({ type: "addBodyMarkEvent", markId: mark.id, markLabel: `${mark.type} — ${mark.bodyRegion}` })}
+                    isPending={isPending}
+                  />
+                ))}
+              </div>
+            )}
+          </SectionCard>
 
-        {/* Body Modifications */}
-        <SectionCard
-          title="Body Modifications"
-          icon={<Wrench size={18} />}
-          badge={currentState.activeBodyModifications.length}
-        >
-          <div className="mb-3 flex justify-end">
-            <button
-              type="button"
-              onClick={() => setOpenState("addBodyMod")}
-              className="flex items-center gap-1 rounded-lg border border-white/15 px-2.5 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:border-white/30 hover:text-foreground"
-            >
-              <Plus size={12} />
-              Add
-            </button>
-          </div>
-          {currentState.activeBodyModifications.length === 0 ? (
-            <EmptyState message="No body modifications recorded." />
-          ) : (
-            <div className="grid grid-cols-1 gap-3">
-              {currentState.activeBodyModifications.map((mod) => (
-                <BodyModificationCard
-                  key={mod.id}
-                  modification={mod}
-                  photos={entityMedia?.[mod.id]}
-                  onEdit={() => setOpenState({ type: "editBodyMod", modification: mod })}
-                  onDelete={() => handleDeleteBodyMod(mod.id)}
-                  onManagePhotos={referenceSessionId ? () => setOpenState({ type: "manageEntityPhotos", entityId: mod.id, entityModel: "BodyModification", entityLabel: `${mod.type} — ${mod.bodyRegion}` }) : undefined}
-                  onDeleteEvent={handleDeleteBodyModEvent}
-                  onAddEvent={() => setOpenState({ type: "addBodyModEvent", modId: mod.id, modLabel: `${mod.type} — ${mod.bodyRegion}` })}
-                  isPending={isPending}
-                />
-              ))}
-            </div>
-          )}
-        </SectionCard>
+          {/* Body Modifications */}
+          <SectionCard
+            title="Body Modifications"
+            icon={<Wrench size={18} />}
+            badge={currentState.activeBodyModifications.length}
+            accent="teal"
+            action={addButton(() => setOpenState("addBodyMod"))}
+          >
+            {currentState.activeBodyModifications.length === 0 ? (
+              <EmptyState message="No body modifications recorded." />
+            ) : (
+              <div className="space-y-2">
+                {currentState.activeBodyModifications.map((mod) => (
+                  <BodyModificationRow
+                    key={mod.id}
+                    modification={mod}
+                    photos={entityMedia?.[mod.id]}
+                    onEdit={() => setOpenState({ type: "editBodyMod", modification: mod })}
+                    onDelete={() => handleDeleteBodyMod(mod.id)}
+                    onManagePhotos={referenceSessionId ? () => setOpenState({ type: "manageEntityPhotos", entityId: mod.id, entityModel: "BodyModification", entityLabel: `${mod.type} — ${mod.bodyRegion}` }) : undefined}
+                    onDeleteEvent={handleDeleteBodyModEvent}
+                    onAddEvent={() => setOpenState({ type: "addBodyModEvent", modId: mod.id, modLabel: `${mod.type} — ${mod.bodyRegion}` })}
+                    isPending={isPending}
+                  />
+                ))}
+              </div>
+            )}
+          </SectionCard>
 
-        {/* Cosmetic Procedures */}
-        <SectionCard
-          title="Cosmetic Procedures"
-          icon={<Sparkles size={18} />}
-          badge={currentState.activeCosmeticProcedures.length}
-        >
-          <div className="mb-3 flex justify-end">
-            <button
-              type="button"
-              onClick={() => setOpenState("addCosmProc")}
-              className="flex items-center gap-1 rounded-lg border border-white/15 px-2.5 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:border-white/30 hover:text-foreground"
-            >
-              <Plus size={12} />
-              Add
-            </button>
+          {/* Cosmetic Procedures */}
+          <SectionCard
+            title="Cosmetic Procedures"
+            icon={<Sparkles size={18} />}
+            badge={currentState.activeCosmeticProcedures.length}
+            accent="rose"
+            action={addButton(() => setOpenState("addCosmProc"))}
+          >
+            {currentState.activeCosmeticProcedures.length === 0 ? (
+              <EmptyState message="No cosmetic procedures recorded." />
+            ) : (
+              <div className="space-y-2">
+                {currentState.activeCosmeticProcedures.map((proc) => (
+                  <CosmeticProcedureRow
+                    key={proc.id}
+                    procedure={proc}
+                    photos={entityMedia?.[proc.id]}
+                    onEdit={() => setOpenState({ type: "editCosmProc", procedure: proc })}
+                    onDelete={() => handleDeleteCosmProc(proc.id)}
+                    onManagePhotos={referenceSessionId ? () => setOpenState({ type: "manageEntityPhotos", entityId: proc.id, entityModel: "CosmeticProcedure", entityLabel: `${proc.type} — ${proc.bodyRegion}` }) : undefined}
+                    onDeleteEvent={handleDeleteCosmProcEvent}
+                    onAddEvent={() => setOpenState({ type: "addCosmProcEvent", procId: proc.id, procLabel: `${proc.type} — ${proc.bodyRegion}` })}
+                    isPending={isPending}
+                  />
+                ))}
+              </div>
+            )}
+          </SectionCard>
+        </div>
+
+        {/* Right column — sticky body map (hidden below lg) */}
+        <div className="hidden w-[380px] shrink-0 lg:block">
+          <div className="sticky top-6">
+            <AppearanceBodyMap currentState={currentState} />
           </div>
-          {currentState.activeCosmeticProcedures.length === 0 ? (
-            <EmptyState message="No cosmetic procedures recorded." />
-          ) : (
-            <div className="grid grid-cols-1 gap-3">
-              {currentState.activeCosmeticProcedures.map((proc) => (
-                <CosmeticProcedureCard
-                  key={proc.id}
-                  procedure={proc}
-                  photos={entityMedia?.[proc.id]}
-                  onEdit={() => setOpenState({ type: "editCosmProc", procedure: proc })}
-                  onDelete={() => handleDeleteCosmProc(proc.id)}
-                  onManagePhotos={referenceSessionId ? () => setOpenState({ type: "manageEntityPhotos", entityId: proc.id, entityModel: "CosmeticProcedure", entityLabel: `${proc.type} — ${proc.bodyRegion}` }) : undefined}
-                  onDeleteEvent={handleDeleteCosmProcEvent}
-                  onAddEvent={() => setOpenState({ type: "addCosmProcEvent", procId: proc.id, procLabel: `${proc.type} — ${proc.bodyRegion}` })}
-                  isPending={isPending}
-                />
-              ))}
-            </div>
-          )}
-        </SectionCard>
+        </div>
+      </div>
+
+      {/* Body map below content on smaller screens */}
+      <div className="mt-6 flex justify-center lg:hidden">
+        <AppearanceBodyMap currentState={currentState} />
       </div>
 
       {/* Sheets & Dialogs */}

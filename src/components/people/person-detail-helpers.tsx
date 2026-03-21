@@ -1,22 +1,34 @@
 import { cn } from "@/lib/utils";
 
+const ACCENT_STYLES = {
+  indigo: "border-l-[3px] border-l-indigo-500/60",
+  amber: "border-l-[3px] border-l-amber-500/60",
+  teal: "border-l-[3px] border-l-teal-500/60",
+  rose: "border-l-[3px] border-l-rose-500/60",
+} as const;
+
 export function SectionCard({
   title,
   icon,
   children,
   className,
   badge,
+  accent,
+  action,
 }: {
   title: string;
   icon: React.ReactNode;
   children: React.ReactNode;
   className?: string;
   badge?: number;
+  accent?: keyof typeof ACCENT_STYLES;
+  action?: React.ReactNode;
 }) {
   return (
     <div
       className={cn(
-        "rounded-2xl border border-white/20 bg-card/70 p-6 shadow-md backdrop-blur-sm",
+        "rounded-2xl border border-white/20 bg-card/70 p-5 shadow-md backdrop-blur-sm",
+        accent && ACCENT_STYLES[accent],
         className,
       )}
     >
@@ -30,6 +42,7 @@ export function SectionCard({
             {badge}
           </span>
         )}
+        {action && <div className="ml-auto">{action}</div>}
       </div>
       {children}
     </div>

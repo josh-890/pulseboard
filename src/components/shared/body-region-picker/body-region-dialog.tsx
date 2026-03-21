@@ -188,7 +188,7 @@ function BodyRegionDialogContent({
 
             {/* Search results */}
             {searchResults.length > 0 && (
-              <div className="max-h-48 overflow-y-auto rounded-lg border border-white/15 bg-card/60 backdrop-blur-sm">
+              <div data-testid="region-search-results" className="max-h-48 overflow-y-auto rounded-lg border border-white/15 bg-card/60 backdrop-blur-sm">
                 {searchResults.slice(0, 15).map((region) => (
                   <button
                     key={region.id}
