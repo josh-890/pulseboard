@@ -18,6 +18,13 @@ type EntityMediaThumbnail = {
   focalY: number | null;
 };
 
+type EventItem = {
+  id: string;
+  eventType: string;
+  notes: string | null;
+  persona: { id: string; label: string; date: Date | null; datePrecision?: string; isBaseline?: boolean };
+};
+
 type CosmeticProcedureRowProps = {
   procedure: CosmeticProcedureWithEvents;
   photos?: EntityMediaThumbnail[];
@@ -26,6 +33,7 @@ type CosmeticProcedureRowProps = {
   onManagePhotos?: () => void;
   onDeleteEvent?: (id: string) => Promise<{ success: boolean; error?: string }>;
   onAddEvent?: () => void;
+  onEditEvent?: (event: EventItem) => void;
   isPending?: boolean;
 };
 
@@ -37,9 +45,11 @@ export function CosmeticProcedureRow({
   onManagePhotos,
   onDeleteEvent,
   onAddEvent,
+  onEditEvent,
   isPending,
 }: CosmeticProcedureRowProps) {
   const [expanded, setExpanded] = useState(false);
+  const c = procedure.computed;
   const photoCount = photos?.length ?? 0;
   const firstEvent = procedure.events.find((e) => e.eventType === "performed");
   const year = firstEvent?.persona.date
@@ -64,8 +74,8 @@ export function CosmeticProcedureRow({
           {procedure.type}
         </span>
         <span className="min-w-0 truncate text-sm text-foreground/80">
-          {procedure.bodyRegions.length > 0 ? (
-            <BodyRegionChips regions={procedure.bodyRegions} compact />
+          {c.bodyRegions.length > 0 ? (
+            <BodyRegionChips regions={c.bodyRegions} compact />
           ) : (
             procedure.bodyRegion
           )}
@@ -106,11 +116,11 @@ export function CosmeticProcedureRow({
             )}
           </div>
 
-          {procedure.description && (
-            <p className="text-sm text-muted-foreground">{procedure.description}</p>
+          {c.description && (
+            <p className="text-sm text-muted-foreground">{c.description}</p>
           )}
-          {procedure.provider && (
-            <p className="mt-1 text-xs text-muted-foreground/70">Provider: {procedure.provider}</p>
+          {c.provider && (
+            <p className="mt-1 text-xs text-muted-foreground/70">Provider: {c.provider}</p>
           )}
 
           {onDeleteEvent && onAddEvent && (
@@ -120,6 +130,7 @@ export function CosmeticProcedureRow({
                 eventStyles={COSMETIC_PROCEDURE_EVENT_STYLES}
                 onDeleteEvent={onDeleteEvent}
                 onAddEvent={onAddEvent}
+                onEditEvent={onEditEvent}
                 isPending={isPending}
               />
             </div>

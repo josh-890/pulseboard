@@ -72,6 +72,18 @@ export type PersonConnection = {
   label: string | null;
 };
 
+export type BodyMarkEventItem = {
+  id: string;
+  eventType: import("@/generated/prisma/client").BodyMarkEventType;
+  notes: string | null;
+  persona: { id: string; label: string; date: Date | null; datePrecision: string; isBaseline: boolean };
+  bodyRegions: string[];
+  motif: string | null;
+  colors: string[];
+  size: string | null;
+  description: string | null;
+};
+
 export type BodyMarkWithEvents = {
   id: string;
   type: import("@/generated/prisma/client").BodyMarkType;
@@ -84,12 +96,25 @@ export type BodyMarkWithEvents = {
   colors: string[];
   size: string | null;
   status: import("@/generated/prisma/client").BodyMarkStatus;
-  events: {
-    id: string;
-    eventType: import("@/generated/prisma/client").BodyMarkEventType;
-    notes: string | null;
-    persona: { id: string; label: string; date: Date | null; datePrecision: string; isBaseline: boolean };
-  }[];
+  events: BodyMarkEventItem[];
+  computed: {
+    bodyRegions: string[];
+    motif: string | null;
+    colors: string[];
+    size: string | null;
+    description: string | null;
+  };
+};
+
+export type BodyModificationEventItem = {
+  id: string;
+  eventType: import("@/generated/prisma/client").BodyModificationEventType;
+  notes: string | null;
+  persona: { id: string; label: string; date: Date | null; datePrecision: string; isBaseline: boolean };
+  bodyRegions: string[];
+  description: string | null;
+  material: string | null;
+  gauge: string | null;
 };
 
 export type BodyModificationWithEvents = {
@@ -103,12 +128,23 @@ export type BodyModificationWithEvents = {
   material: string | null;
   gauge: string | null;
   status: import("@/generated/prisma/client").BodyModificationStatus;
-  events: {
-    id: string;
-    eventType: import("@/generated/prisma/client").BodyModificationEventType;
-    notes: string | null;
-    persona: { id: string; label: string; date: Date | null; datePrecision: string; isBaseline: boolean };
-  }[];
+  events: BodyModificationEventItem[];
+  computed: {
+    bodyRegions: string[];
+    description: string | null;
+    material: string | null;
+    gauge: string | null;
+  };
+};
+
+export type CosmeticProcedureEventItem = {
+  id: string;
+  eventType: import("@/generated/prisma/client").CosmeticProcedureEventType;
+  notes: string | null;
+  persona: { id: string; label: string; date: Date | null; datePrecision: string; isBaseline: boolean };
+  bodyRegions: string[];
+  description: string | null;
+  provider: string | null;
 };
 
 export type CosmeticProcedureWithEvents = {
@@ -119,12 +155,12 @@ export type CosmeticProcedureWithEvents = {
   description: string | null;
   provider: string | null;
   status: string;
-  events: {
-    id: string;
-    eventType: import("@/generated/prisma/client").CosmeticProcedureEventType;
-    notes: string | null;
-    persona: { id: string; label: string; date: Date | null; datePrecision: string; isBaseline: boolean };
-  }[];
+  events: CosmeticProcedureEventItem[];
+  computed: {
+    bodyRegions: string[];
+    description: string | null;
+    provider: string | null;
+  };
 };
 
 export type PersonDigitalIdentityItem = {

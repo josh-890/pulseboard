@@ -12,9 +12,9 @@ import {
 } from "@/components/shared/inline-upload-zone";
 import type { PendingFile } from "@/components/shared/inline-upload-zone";
 import { getRegionLabel } from "@/lib/constants/body-regions";
-import type { BodyMarkType, BodyMarkStatus } from "@/generated/prisma/client";
+import type { BodyMarkType } from "@/generated/prisma/client";
 import type { BodyMarkWithEvents } from "@/lib/types";
-import { BODY_MARK_TYPES, BODY_MARK_TYPE_STYLES, BODY_MARK_STATUSES, BODY_MARK_STATUS_STYLES } from "@/lib/constants/body";
+import { BODY_MARK_TYPES, BODY_MARK_TYPE_STYLES } from "@/lib/constants/body";
 import { updateBodyMarkAction } from "@/lib/actions/appearance-actions";
 import type { EntityMediaThumbnail } from "@/lib/services/media-service";
 
@@ -27,6 +27,12 @@ type EditBodyMarkSheetProps = {
   onClose: () => void;
 };
 
+function formatDateForInput(date: Date | null, isBaseline?: boolean): string {
+  if (isBaseline || !date) return "";
+  const d = new Date(date);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
 export function EditBodyMarkSheet({ personId, mark, referenceSessionId, categoryId, existingPhotos, onClose }: EditBodyMarkSheetProps) {
   const [isPending, startTransition] = useTransition();
   const [type, setType] = useState<BodyMarkType>(mark.type);
@@ -37,14 +43,16 @@ export function EditBodyMarkSheet({ personId, mark, referenceSessionId, category
   const [motif, setMotif] = useState(mark.motif ?? "");
   const [colors, setColors] = useState(mark.colors.join(", "));
   const [size, setSize] = useState(mark.size ?? "");
-  const [status, setStatus] = useState<BodyMarkStatus>(mark.status);
-  const initialEvent = mark.events.find((e) => e.eventType === "added");
-  const initDate = initialEvent?.persona.isBaseline ? "" : (initialEvent?.persona.date ? (() => { const d = new Date(initialEvent.persona.date); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; })() : "");
-  const initPrec = initialEvent?.persona.isBaseline ? "UNKNOWN" : (initialEvent?.persona.datePrecision ?? "UNKNOWN");
-  const [date, setDate] = useState(initDate);
-  const [datePrecision, setDatePrecision] = useState(initPrec);
   const [error, setError] = useState<string | null>(null);
   const [pendingFiles, setPendingFiles] = useState<PendingFile[]>([]);
+
+  // Single-event convenience: show date inline only when entity has exactly 1 event
+  const isSingleEvent = mark.events.length === 1;
+  const initialEvent = mark.events[0];
+  const initDate = isSingleEvent ? formatDateForInput(initialEvent?.persona.date ?? null, initialEvent?.persona.isBaseline) : "";
+  const initPrec = isSingleEvent ? (initialEvent?.persona.isBaseline ? "UNKNOWN" : (initialEvent?.persona.datePrecision ?? "UNKNOWN")) : "UNKNOWN";
+  const [date, setDate] = useState(initDate);
+  const [datePrecision, setDatePrecision] = useState(initPrec);
 
   const handleSubmit = useCallback(() => {
     if (bodyRegions.length === 0) {
@@ -62,9 +70,7 @@ export function EditBodyMarkSheet({ personId, mark, referenceSessionId, category
         motif: motif.trim() || undefined,
         colors: colors.trim() ? colors.split(",").map((c) => c.trim()) : [],
         size: size.trim() || undefined,
-        status,
-        date: date || null,
-        datePrecision,
+        ...(isSingleEvent ? { singleEventDate: date || null, singleEventDatePrecision: datePrecision } : {}),
       });
       if (!result.success) {
         setError(result.error ?? "Failed to update body mark.");
@@ -83,14 +89,14 @@ export function EditBodyMarkSheet({ personId, mark, referenceSessionId, category
       }
       onClose();
     });
-  }, [mark.id, personId, type, bodyRegions, description, motif, colors, size, status, date, datePrecision, pendingFiles, referenceSessionId, categoryId, onClose]);
+  }, [mark.id, personId, type, bodyRegions, description, motif, colors, size, isSingleEvent, date, datePrecision, pendingFiles, referenceSessionId, categoryId, onClose]);
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end">
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
       <div className="relative w-full max-w-lg bg-background border-l border-white/15 shadow-2xl overflow-y-auto">
         <div className="sticky top-0 z-10 flex items-center justify-between border-b border-white/15 bg-background px-6 py-4">
-          <h2 className="text-lg font-semibold">Edit Body Mark</h2>
+          <h2 className="text-lg font-semibold">Edit Body Mark — Base Properties</h2>
           <button type="button" onClick={onClose} className="rounded-md p-1 text-muted-foreground hover:text-foreground">
             <X size={18} />
           </button>
@@ -117,34 +123,16 @@ export function EditBodyMarkSheet({ personId, mark, referenceSessionId, category
             </div>
           </div>
 
-          {/* Status */}
-          <div>
-            <label className="mb-1.5 block text-sm font-medium">Status</label>
-            <div className="flex flex-wrap gap-2">
-              {BODY_MARK_STATUSES.map((s) => (
-                <button
-                  key={s}
-                  type="button"
-                  onClick={() => setStatus(s)}
-                  className={cn(
-                    "rounded-full border px-3 py-1 text-xs font-medium capitalize transition-all",
-                    status === s ? BODY_MARK_STATUS_STYLES[s] : "border-white/15 text-muted-foreground hover:border-white/30",
-                  )}
-                >
-                  {s}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Date */}
-          <PartialDateInput
-            dateValue={date}
-            precisionValue={datePrecision}
-            onDateChange={setDate}
-            onPrecisionChange={setDatePrecision}
-            label="Date"
-          />
+          {/* Date — only for single-event entities */}
+          {isSingleEvent && (
+            <PartialDateInput
+              dateValue={date}
+              precisionValue={datePrecision}
+              onDateChange={setDate}
+              onPrecisionChange={setDatePrecision}
+              label="Date"
+            />
+          )}
 
           {/* Body Region Picker */}
           <div>

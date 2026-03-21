@@ -20,26 +20,58 @@ import {
 } from "@/lib/services/persona-service";
 import type { CreatePersonaBatchInput } from "@/lib/validations/persona";
 import {
-  updateBodyMarkRecord,
   deleteBodyMarkRecord,
-  createBodyMarkEventRecord,
   deleteBodyMarkEventRecord,
 } from "@/lib/services/person-service";
 import {
-  updateBodyModificationRecord,
   deleteBodyModificationRecord,
-  createBodyModificationEventRecord,
   deleteBodyModificationEventRecord,
 } from "@/lib/services/body-modification-service";
 import {
-  updateCosmeticProcedureRecord,
   deleteCosmeticProcedureRecord,
-  createCosmeticProcedureEventRecord,
   deleteCosmeticProcedureEventRecord,
 } from "@/lib/services/cosmetic-procedure-service";
 import type { SimpleActionResult } from "@/lib/types";
 
 type ActionResultWithId = SimpleActionResult & { id?: string };
+
+// ─── Status Derivation ──────────────────────────────────────────────────────
+
+const BODY_MARK_STATUS_MAP: Record<string, BodyMarkStatus> = {
+  added: "present",
+  modified: "modified",
+  removed: "removed",
+};
+
+const BODY_MODIFICATION_STATUS_MAP: Record<string, BodyModificationStatus> = {
+  added: "present",
+  modified: "modified",
+  removed: "removed",
+};
+
+const COSMETIC_PROCEDURE_STATUS_MAP: Record<string, string> = {
+  performed: "completed",
+  revised: "revised",
+  reversed: "reversed",
+};
+
+function deriveBodyMarkStatus(events: { eventType: string }[]): BodyMarkStatus {
+  if (events.length === 0) return "present";
+  const last = events[events.length - 1];
+  return BODY_MARK_STATUS_MAP[last.eventType] ?? "present";
+}
+
+function deriveBodyModificationStatus(events: { eventType: string }[]): BodyModificationStatus {
+  if (events.length === 0) return "present";
+  const last = events[events.length - 1];
+  return BODY_MODIFICATION_STATUS_MAP[last.eventType] ?? "present";
+}
+
+function deriveCosmeticProcedureStatus(events: { eventType: string }[]): string {
+  if (events.length === 0) return "completed";
+  const last = events[events.length - 1];
+  return COSMETIC_PROCEDURE_STATUS_MAP[last.eventType] ?? "completed";
+}
 
 // ─── Body Mark Actions ───────────────────────────────────────────────────────
 
@@ -55,7 +87,6 @@ export async function createBodyMarkAction(
     motif?: string;
     colors?: string[];
     size?: string;
-    status?: string;
     date?: string | null;
     datePrecision?: string;
   },
@@ -79,7 +110,7 @@ export async function createBodyMarkAction(
           motif: data.motif,
           colors: data.colors ?? [],
           size: data.size,
-          status: (data.status ?? "present") as BodyMarkStatus,
+          status: "present" as BodyMarkStatus,
         },
       });
       markId = mark.id;
@@ -113,65 +144,48 @@ export async function updateBodyMarkAction(
     motif?: string;
     colors?: string[];
     size?: string;
-    status?: string;
-    date?: string | null;
-    datePrecision?: string;
+    // Single-event convenience: date change moves the lone event
+    singleEventDate?: string | null;
+    singleEventDatePrecision?: string;
   },
 ): Promise<ActionResultWithId> {
   try {
-    const hasDateChange = data.date !== undefined || data.datePrecision !== undefined;
+    await prisma.$transaction(async (tx) => {
+      // Update entity fields (no status — derived from events)
+      await tx.bodyMark.update({
+        where: { id },
+        data: {
+          type: data.type as BodyMarkType | undefined,
+          bodyRegion: data.bodyRegion,
+          bodyRegions: data.bodyRegions,
+          side: data.side,
+          position: data.position,
+          description: data.description,
+          motif: data.motif,
+          colors: data.colors,
+          size: data.size,
+        },
+      });
 
-    if (hasDateChange) {
-      const parsedDate = data.date ? new Date(data.date) : null;
-      const precision = (data.datePrecision ?? "UNKNOWN") as DatePrecision;
-
-      await prisma.$transaction(async (tx) => {
-        // Find initial "added" event
-        const initialEvent = await tx.bodyMarkEvent.findFirst({
-          where: { bodyMarkId: id, eventType: "added" },
+      // Single-event date convenience
+      if (data.singleEventDate !== undefined) {
+        const events = await tx.bodyMarkEvent.findMany({
+          where: { bodyMarkId: id },
+          orderBy: { persona: { date: "asc" } },
         });
-
-        if (initialEvent) {
+        if (events.length === 1) {
+          const parsedDate = data.singleEventDate ? new Date(data.singleEventDate) : null;
+          const precision = (data.singleEventDatePrecision ?? "UNKNOWN") as DatePrecision;
           const targetPersonaId = await findOrCreatePersonaForDate(tx, personId, parsedDate, precision);
-          if (targetPersonaId !== initialEvent.personaId) {
+          if (targetPersonaId !== events[0].personaId) {
             await tx.bodyMarkEvent.update({
-              where: { id: initialEvent.id },
+              where: { id: events[0].id },
               data: { personaId: targetPersonaId },
             });
           }
         }
-
-        // Update entity fields
-        await tx.bodyMark.update({
-          where: { id },
-          data: {
-            type: data.type as BodyMarkType | undefined,
-            bodyRegion: data.bodyRegion,
-            bodyRegions: data.bodyRegions,
-            side: data.side,
-            position: data.position,
-            description: data.description,
-            motif: data.motif,
-            colors: data.colors,
-            size: data.size,
-            status: data.status as BodyMarkStatus | undefined,
-          },
-        });
-      });
-    } else {
-      await updateBodyMarkRecord(id, {
-        type: data.type as BodyMarkType | undefined,
-        bodyRegion: data.bodyRegion,
-        bodyRegions: data.bodyRegions,
-        side: data.side,
-        position: data.position,
-        description: data.description,
-        motif: data.motif,
-        colors: data.colors,
-        size: data.size,
-        status: data.status as BodyMarkStatus | undefined,
-      });
-    }
+      }
+    });
 
     revalidatePath(`/people/${personId}`);
     return { success: true };
@@ -199,26 +213,104 @@ export async function createBodyMarkEventAction(
   personId: string,
   data: {
     bodyMarkId: string;
-    personaId: string;
     eventType: string;
+    date?: string | null;
+    datePrecision?: string;
     notes?: string;
+    bodyRegions?: string[];
+    motif?: string | null;
+    colors?: string[];
+    size?: string | null;
+    description?: string | null;
   },
 ): Promise<ActionResultWithId> {
   try {
-    await createBodyMarkEventRecord({
-      bodyMarkId: data.bodyMarkId,
-      personaId: data.personaId,
-      eventType: data.eventType as BodyMarkEventType,
-      notes: data.notes,
+    await prisma.$transaction(async (tx) => {
+      const parsedDate = data.date ? new Date(data.date) : null;
+      const precision = (data.datePrecision ?? "UNKNOWN") as DatePrecision;
+      const personaId = await findOrCreatePersonaForDate(tx, personId, parsedDate, precision);
+
+      await tx.bodyMarkEvent.create({
+        data: {
+          bodyMarkId: data.bodyMarkId,
+          personaId,
+          eventType: data.eventType as BodyMarkEventType,
+          notes: data.notes,
+          bodyRegions: data.bodyRegions ?? [],
+          motif: data.motif,
+          colors: data.colors ?? [],
+          size: data.size,
+          description: data.description,
+        },
+      });
+
+      // Auto-update entity status from all events
+      const allEvents = await tx.bodyMarkEvent.findMany({
+        where: { bodyMarkId: data.bodyMarkId },
+        orderBy: { persona: { date: "asc" } },
+        select: { eventType: true },
+      });
+      await tx.bodyMark.update({
+        where: { id: data.bodyMarkId },
+        data: { status: deriveBodyMarkStatus(allEvents) },
+      });
     });
 
-    // Auto-update entity status based on event type
-    if (data.eventType === "removed" || data.eventType === "modified") {
-      await prisma.bodyMark.update({
-        where: { id: data.bodyMarkId },
-        data: { status: data.eventType as BodyMarkStatus },
+    revalidatePath(`/people/${personId}`);
+    return { success: true };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Unexpected error";
+    return { success: false, error: message };
+  }
+}
+
+export async function updateBodyMarkEventAction(
+  eventId: string,
+  personId: string,
+  data: {
+    bodyMarkId: string;
+    eventType: string;
+    date?: string | null;
+    datePrecision?: string;
+    notes?: string;
+    bodyRegions?: string[];
+    motif?: string | null;
+    colors?: string[];
+    size?: string | null;
+    description?: string | null;
+  },
+): Promise<ActionResultWithId> {
+  try {
+    await prisma.$transaction(async (tx) => {
+      const parsedDate = data.date ? new Date(data.date) : null;
+      const precision = (data.datePrecision ?? "UNKNOWN") as DatePrecision;
+      const targetPersonaId = await findOrCreatePersonaForDate(tx, personId, parsedDate, precision);
+
+      await tx.bodyMarkEvent.update({
+        where: { id: eventId },
+        data: {
+          personaId: targetPersonaId,
+          eventType: data.eventType as BodyMarkEventType,
+          notes: data.notes ?? null,
+          ...(data.bodyRegions !== undefined && { bodyRegions: data.bodyRegions }),
+          ...(data.motif !== undefined && { motif: data.motif }),
+          ...(data.colors !== undefined && { colors: data.colors }),
+          ...(data.size !== undefined && { size: data.size }),
+          ...(data.description !== undefined && { description: data.description }),
+        },
       });
-    }
+
+      // Auto-update entity status from all events
+      const allEvents = await tx.bodyMarkEvent.findMany({
+        where: { bodyMarkId: data.bodyMarkId },
+        orderBy: { persona: { date: "asc" } },
+        select: { eventType: true },
+      });
+      await tx.bodyMark.update({
+        where: { id: data.bodyMarkId },
+        data: { status: deriveBodyMarkStatus(allEvents) },
+      });
+    });
 
     revalidatePath(`/people/${personId}`);
     return { success: true };
@@ -231,9 +323,25 @@ export async function createBodyMarkEventAction(
 export async function deleteBodyMarkEventAction(
   id: string,
   personId: string,
+  bodyMarkId?: string,
 ): Promise<ActionResultWithId> {
   try {
+    // Look up bodyMarkId if not provided (for backwards compatibility)
+    const resolvedBodyMarkId = bodyMarkId ?? (await prisma.bodyMarkEvent.findUniqueOrThrow({ where: { id }, select: { bodyMarkId: true } })).bodyMarkId;
+
     await deleteBodyMarkEventRecord(id);
+
+    // Auto-update entity status from remaining events
+    const remainingEvents = await prisma.bodyMarkEvent.findMany({
+      where: { bodyMarkId: resolvedBodyMarkId },
+      orderBy: { persona: { date: "asc" } },
+      select: { eventType: true },
+    });
+    await prisma.bodyMark.update({
+      where: { id: resolvedBodyMarkId },
+      data: { status: deriveBodyMarkStatus(remainingEvents) },
+    });
+
     revalidatePath(`/people/${personId}`);
     return { success: true };
   } catch (err) {
@@ -255,7 +363,6 @@ export async function createBodyModificationAction(
     description?: string;
     material?: string;
     gauge?: string;
-    status?: string;
     date?: string | null;
     datePrecision?: string;
   },
@@ -278,7 +385,7 @@ export async function createBodyModificationAction(
           description: data.description,
           material: data.material,
           gauge: data.gauge,
-          status: (data.status ?? "present") as BodyModificationStatus,
+          status: "present" as BodyModificationStatus,
         },
       });
       modId = mod.id;
@@ -311,62 +418,45 @@ export async function updateBodyModificationAction(
     description?: string;
     material?: string;
     gauge?: string;
-    status?: string;
-    date?: string | null;
-    datePrecision?: string;
+    singleEventDate?: string | null;
+    singleEventDatePrecision?: string;
   },
 ): Promise<ActionResultWithId> {
   try {
-    const hasDateChange = data.date !== undefined || data.datePrecision !== undefined;
+    await prisma.$transaction(async (tx) => {
+      await tx.bodyModification.update({
+        where: { id },
+        data: {
+          type: data.type as BodyModificationType | undefined,
+          bodyRegion: data.bodyRegion,
+          bodyRegions: data.bodyRegions,
+          side: data.side,
+          position: data.position,
+          description: data.description,
+          material: data.material,
+          gauge: data.gauge,
+        },
+      });
 
-    if (hasDateChange) {
-      const parsedDate = data.date ? new Date(data.date) : null;
-      const precision = (data.datePrecision ?? "UNKNOWN") as DatePrecision;
-
-      await prisma.$transaction(async (tx) => {
-        const initialEvent = await tx.bodyModificationEvent.findFirst({
-          where: { bodyModificationId: id, eventType: "added" },
+      // Single-event date convenience
+      if (data.singleEventDate !== undefined) {
+        const events = await tx.bodyModificationEvent.findMany({
+          where: { bodyModificationId: id },
+          orderBy: { persona: { date: "asc" } },
         });
-
-        if (initialEvent) {
+        if (events.length === 1) {
+          const parsedDate = data.singleEventDate ? new Date(data.singleEventDate) : null;
+          const precision = (data.singleEventDatePrecision ?? "UNKNOWN") as DatePrecision;
           const targetPersonaId = await findOrCreatePersonaForDate(tx, personId, parsedDate, precision);
-          if (targetPersonaId !== initialEvent.personaId) {
+          if (targetPersonaId !== events[0].personaId) {
             await tx.bodyModificationEvent.update({
-              where: { id: initialEvent.id },
+              where: { id: events[0].id },
               data: { personaId: targetPersonaId },
             });
           }
         }
-
-        await tx.bodyModification.update({
-          where: { id },
-          data: {
-            type: data.type as BodyModificationType | undefined,
-            bodyRegion: data.bodyRegion,
-            bodyRegions: data.bodyRegions,
-            side: data.side,
-            position: data.position,
-            description: data.description,
-            material: data.material,
-            gauge: data.gauge,
-            status: data.status as BodyModificationStatus | undefined,
-          },
-        });
-      });
-    } else {
-      await updateBodyModificationRecord(id, {
-        id,
-        type: data.type as BodyModificationType | undefined,
-        bodyRegion: data.bodyRegion,
-        bodyRegions: data.bodyRegions,
-        side: data.side,
-        position: data.position,
-        description: data.description,
-        material: data.material,
-        gauge: data.gauge,
-        status: data.status as BodyModificationStatus | undefined,
-      });
-    }
+      }
+    });
 
     revalidatePath(`/people/${personId}`);
     return { success: true };
@@ -394,26 +484,98 @@ export async function createBodyModificationEventAction(
   personId: string,
   data: {
     bodyModificationId: string;
-    personaId: string;
     eventType: string;
+    date?: string | null;
+    datePrecision?: string;
     notes?: string;
+    bodyRegions?: string[];
+    description?: string | null;
+    material?: string | null;
+    gauge?: string | null;
   },
 ): Promise<ActionResultWithId> {
   try {
-    await createBodyModificationEventRecord({
-      bodyModificationId: data.bodyModificationId,
-      personaId: data.personaId,
-      eventType: data.eventType as BodyModificationEventType,
-      notes: data.notes,
+    await prisma.$transaction(async (tx) => {
+      const parsedDate = data.date ? new Date(data.date) : null;
+      const precision = (data.datePrecision ?? "UNKNOWN") as DatePrecision;
+      const personaId = await findOrCreatePersonaForDate(tx, personId, parsedDate, precision);
+
+      await tx.bodyModificationEvent.create({
+        data: {
+          bodyModificationId: data.bodyModificationId,
+          personaId,
+          eventType: data.eventType as BodyModificationEventType,
+          notes: data.notes,
+          bodyRegions: data.bodyRegions ?? [],
+          description: data.description,
+          material: data.material,
+          gauge: data.gauge,
+        },
+      });
+
+      const allEvents = await tx.bodyModificationEvent.findMany({
+        where: { bodyModificationId: data.bodyModificationId },
+        orderBy: { persona: { date: "asc" } },
+        select: { eventType: true },
+      });
+      await tx.bodyModification.update({
+        where: { id: data.bodyModificationId },
+        data: { status: deriveBodyModificationStatus(allEvents) },
+      });
     });
 
-    // Auto-update entity status based on event type
-    if (data.eventType === "removed" || data.eventType === "modified") {
-      await prisma.bodyModification.update({
-        where: { id: data.bodyModificationId },
-        data: { status: data.eventType as BodyModificationStatus },
+    revalidatePath(`/people/${personId}`);
+    return { success: true };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Unexpected error";
+    return { success: false, error: message };
+  }
+}
+
+export async function updateBodyModificationEventAction(
+  eventId: string,
+  personId: string,
+  data: {
+    bodyModificationId: string;
+    eventType: string;
+    date?: string | null;
+    datePrecision?: string;
+    notes?: string;
+    bodyRegions?: string[];
+    description?: string | null;
+    material?: string | null;
+    gauge?: string | null;
+  },
+): Promise<ActionResultWithId> {
+  try {
+    await prisma.$transaction(async (tx) => {
+      const parsedDate = data.date ? new Date(data.date) : null;
+      const precision = (data.datePrecision ?? "UNKNOWN") as DatePrecision;
+      const targetPersonaId = await findOrCreatePersonaForDate(tx, personId, parsedDate, precision);
+
+      await tx.bodyModificationEvent.update({
+        where: { id: eventId },
+        data: {
+          personaId: targetPersonaId,
+          eventType: data.eventType as BodyModificationEventType,
+          notes: data.notes ?? null,
+          ...(data.bodyRegions !== undefined && { bodyRegions: data.bodyRegions }),
+          ...(data.description !== undefined && { description: data.description }),
+          ...(data.material !== undefined && { material: data.material }),
+          ...(data.gauge !== undefined && { gauge: data.gauge }),
+        },
       });
-    }
+
+      const allEvents = await tx.bodyModificationEvent.findMany({
+        where: { bodyModificationId: data.bodyModificationId },
+        orderBy: { persona: { date: "asc" } },
+        select: { eventType: true },
+      });
+      await tx.bodyModification.update({
+        where: { id: data.bodyModificationId },
+        data: { status: deriveBodyModificationStatus(allEvents) },
+      });
+    });
 
     revalidatePath(`/people/${personId}`);
     return { success: true };
@@ -426,9 +588,23 @@ export async function createBodyModificationEventAction(
 export async function deleteBodyModificationEventAction(
   id: string,
   personId: string,
+  bodyModificationId?: string,
 ): Promise<ActionResultWithId> {
   try {
+    const resolvedId = bodyModificationId ?? (await prisma.bodyModificationEvent.findUniqueOrThrow({ where: { id }, select: { bodyModificationId: true } })).bodyModificationId;
+
     await deleteBodyModificationEventRecord(id);
+
+    const remainingEvents = await prisma.bodyModificationEvent.findMany({
+      where: { bodyModificationId: resolvedId },
+      orderBy: { persona: { date: "asc" } },
+      select: { eventType: true },
+    });
+    await prisma.bodyModification.update({
+      where: { id: resolvedId },
+      data: { status: deriveBodyModificationStatus(remainingEvents) },
+    });
+
     revalidatePath(`/people/${personId}`);
     return { success: true };
   } catch (err) {
@@ -447,7 +623,6 @@ export async function createCosmeticProcedureAction(
     bodyRegions?: string[];
     description?: string;
     provider?: string;
-    status?: string;
     date?: string | null;
     datePrecision?: string;
   },
@@ -467,7 +642,7 @@ export async function createCosmeticProcedureAction(
           bodyRegions: data.bodyRegions ?? [],
           description: data.description,
           provider: data.provider,
-          status: data.status ?? "completed",
+          status: "completed",
         },
       });
       procId = proc.id;
@@ -497,48 +672,42 @@ export async function updateCosmeticProcedureAction(
     bodyRegions?: string[];
     description?: string;
     provider?: string;
-    status?: string;
-    date?: string | null;
-    datePrecision?: string;
+    singleEventDate?: string | null;
+    singleEventDatePrecision?: string;
   },
 ): Promise<ActionResultWithId> {
   try {
-    const hasDateChange = data.date !== undefined || data.datePrecision !== undefined;
+    await prisma.$transaction(async (tx) => {
+      await tx.cosmeticProcedure.update({
+        where: { id },
+        data: {
+          type: data.type,
+          bodyRegion: data.bodyRegion,
+          bodyRegions: data.bodyRegions,
+          description: data.description,
+          provider: data.provider,
+        },
+      });
 
-    if (hasDateChange) {
-      const parsedDate = data.date ? new Date(data.date) : null;
-      const precision = (data.datePrecision ?? "UNKNOWN") as DatePrecision;
-
-      await prisma.$transaction(async (tx) => {
-        const initialEvent = await tx.cosmeticProcedureEvent.findFirst({
-          where: { cosmeticProcedureId: id, eventType: "performed" },
+      // Single-event date convenience
+      if (data.singleEventDate !== undefined) {
+        const events = await tx.cosmeticProcedureEvent.findMany({
+          where: { cosmeticProcedureId: id },
+          orderBy: { persona: { date: "asc" } },
         });
-
-        if (initialEvent) {
+        if (events.length === 1) {
+          const parsedDate = data.singleEventDate ? new Date(data.singleEventDate) : null;
+          const precision = (data.singleEventDatePrecision ?? "UNKNOWN") as DatePrecision;
           const targetPersonaId = await findOrCreatePersonaForDate(tx, personId, parsedDate, precision);
-          if (targetPersonaId !== initialEvent.personaId) {
+          if (targetPersonaId !== events[0].personaId) {
             await tx.cosmeticProcedureEvent.update({
-              where: { id: initialEvent.id },
+              where: { id: events[0].id },
               data: { personaId: targetPersonaId },
             });
           }
         }
-
-        await tx.cosmeticProcedure.update({
-          where: { id },
-          data: {
-            type: data.type,
-            bodyRegion: data.bodyRegion,
-            bodyRegions: data.bodyRegions,
-            description: data.description,
-            provider: data.provider,
-            status: data.status,
-          },
-        });
-      });
-    } else {
-      await updateCosmeticProcedureRecord(id, { id, ...data });
-    }
+      }
+    });
 
     revalidatePath(`/people/${personId}`);
     return { success: true };
@@ -566,26 +735,94 @@ export async function createCosmeticProcedureEventAction(
   personId: string,
   data: {
     cosmeticProcedureId: string;
-    personaId: string;
     eventType: string;
+    date?: string | null;
+    datePrecision?: string;
     notes?: string;
+    bodyRegions?: string[];
+    description?: string | null;
+    provider?: string | null;
   },
 ): Promise<ActionResultWithId> {
   try {
-    await createCosmeticProcedureEventRecord({
-      cosmeticProcedureId: data.cosmeticProcedureId,
-      personaId: data.personaId,
-      eventType: data.eventType as CosmeticProcedureEventType,
-      notes: data.notes,
+    await prisma.$transaction(async (tx) => {
+      const parsedDate = data.date ? new Date(data.date) : null;
+      const precision = (data.datePrecision ?? "UNKNOWN") as DatePrecision;
+      const personaId = await findOrCreatePersonaForDate(tx, personId, parsedDate, precision);
+
+      await tx.cosmeticProcedureEvent.create({
+        data: {
+          cosmeticProcedureId: data.cosmeticProcedureId,
+          personaId,
+          eventType: data.eventType as CosmeticProcedureEventType,
+          notes: data.notes,
+          bodyRegions: data.bodyRegions ?? [],
+          description: data.description,
+          provider: data.provider,
+        },
+      });
+
+      const allEvents = await tx.cosmeticProcedureEvent.findMany({
+        where: { cosmeticProcedureId: data.cosmeticProcedureId },
+        orderBy: { persona: { date: "asc" } },
+        select: { eventType: true },
+      });
+      await tx.cosmeticProcedure.update({
+        where: { id: data.cosmeticProcedureId },
+        data: { status: deriveCosmeticProcedureStatus(allEvents) },
+      });
     });
 
-    // Auto-update entity status based on event type
-    if (data.eventType === "reversed" || data.eventType === "revised") {
-      await prisma.cosmeticProcedure.update({
-        where: { id: data.cosmeticProcedureId },
-        data: { status: data.eventType },
+    revalidatePath(`/people/${personId}`);
+    return { success: true };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Unexpected error";
+    return { success: false, error: message };
+  }
+}
+
+export async function updateCosmeticProcedureEventAction(
+  eventId: string,
+  personId: string,
+  data: {
+    cosmeticProcedureId: string;
+    eventType: string;
+    date?: string | null;
+    datePrecision?: string;
+    notes?: string;
+    bodyRegions?: string[];
+    description?: string | null;
+    provider?: string | null;
+  },
+): Promise<ActionResultWithId> {
+  try {
+    await prisma.$transaction(async (tx) => {
+      const parsedDate = data.date ? new Date(data.date) : null;
+      const precision = (data.datePrecision ?? "UNKNOWN") as DatePrecision;
+      const targetPersonaId = await findOrCreatePersonaForDate(tx, personId, parsedDate, precision);
+
+      await tx.cosmeticProcedureEvent.update({
+        where: { id: eventId },
+        data: {
+          personaId: targetPersonaId,
+          eventType: data.eventType as CosmeticProcedureEventType,
+          notes: data.notes ?? null,
+          ...(data.bodyRegions !== undefined && { bodyRegions: data.bodyRegions }),
+          ...(data.description !== undefined && { description: data.description }),
+          ...(data.provider !== undefined && { provider: data.provider }),
+        },
       });
-    }
+
+      const allEvents = await tx.cosmeticProcedureEvent.findMany({
+        where: { cosmeticProcedureId: data.cosmeticProcedureId },
+        orderBy: { persona: { date: "asc" } },
+        select: { eventType: true },
+      });
+      await tx.cosmeticProcedure.update({
+        where: { id: data.cosmeticProcedureId },
+        data: { status: deriveCosmeticProcedureStatus(allEvents) },
+      });
+    });
 
     revalidatePath(`/people/${personId}`);
     return { success: true };
@@ -598,9 +835,23 @@ export async function createCosmeticProcedureEventAction(
 export async function deleteCosmeticProcedureEventAction(
   id: string,
   personId: string,
+  cosmeticProcedureId?: string,
 ): Promise<ActionResultWithId> {
   try {
+    const resolvedId = cosmeticProcedureId ?? (await prisma.cosmeticProcedureEvent.findUniqueOrThrow({ where: { id }, select: { cosmeticProcedureId: true } })).cosmeticProcedureId;
+
     await deleteCosmeticProcedureEventRecord(id);
+
+    const remainingEvents = await prisma.cosmeticProcedureEvent.findMany({
+      where: { cosmeticProcedureId: resolvedId },
+      orderBy: { persona: { date: "asc" } },
+      select: { eventType: true },
+    });
+    await prisma.cosmeticProcedure.update({
+      where: { id: resolvedId },
+      data: { status: deriveCosmeticProcedureStatus(remainingEvents) },
+    });
+
     revalidatePath(`/people/${personId}`);
     return { success: true };
   } catch (err) {
@@ -675,15 +926,12 @@ export async function updatePhysicalChangeAction(
     const precision = (data.datePrecision ?? "UNKNOWN") as DatePrecision;
 
     await prisma.$transaction(async (tx) => {
-      // Find the existing physical change + its persona
       const existing = await tx.personaPhysical.findUniqueOrThrow({
         where: { id: physicalId },
         include: { persona: true },
       });
 
       const oldPersonaId = existing.personaId;
-
-      // Determine if the date changed → need to move to a different persona
       const hasDateChange = data.date !== undefined || data.datePrecision !== undefined;
       let targetPersonaId = oldPersonaId;
 
@@ -700,16 +948,13 @@ export async function updatePhysicalChangeAction(
       };
 
       if (targetPersonaId !== oldPersonaId) {
-        // Delete old physical change
         await tx.personaPhysical.delete({ where: { id: physicalId } });
-        // Upsert on new persona (may already have a physical change)
         await tx.personaPhysical.upsert({
           where: { personaId: targetPersonaId },
           create: { personaId: targetPersonaId, ...fieldData },
           update: fieldData,
         });
       } else {
-        // Same persona — just update fields
         await tx.personaPhysical.update({
           where: { id: physicalId },
           data: fieldData,

@@ -1356,7 +1356,6 @@ export function PersonDetailTabs({
           <AppearanceTab
             person={person}
             currentState={currentState}
-            personas={person.personas.map((p) => ({ id: p.id, label: p.label }))}
             entityMedia={entityMedia}
             categories={categories}
             referenceSessionId={referenceSessionId}

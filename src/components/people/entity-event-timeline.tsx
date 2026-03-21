@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useEffect, useState, useTransition } from "react";
-import { Plus, Trash2 } from "lucide-react";
+import { Pencil, Plus, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   Popover,
@@ -23,6 +23,7 @@ type EntityEventTimelineProps = {
   eventStyles: Record<string, EventStyle>;
   onDeleteEvent: (id: string) => Promise<{ success: boolean; error?: string }>;
   onAddEvent: () => void;
+  onEditEvent?: (event: EventItem) => void;
   isPending?: boolean;
 };
 
@@ -82,6 +83,7 @@ function TimelineDot({
   dotColors,
   popoverColors,
   onDelete,
+  onEdit,
   isPending,
 }: {
   event: EventItem;
@@ -89,6 +91,7 @@ function TimelineDot({
   dotColors: DotColors;
   popoverColors: DotColors;
   onDelete: (id: string) => Promise<{ success: boolean; error?: string }>;
+  onEdit?: (event: EventItem) => void;
   isPending?: boolean;
 }) {
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -134,7 +137,18 @@ function TimelineDot({
           {event.notes && (
             <p className="text-xs text-muted-foreground/70">{event.notes}</p>
           )}
-          <div className="border-t border-foreground/10 pt-1.5">
+          <div className="flex items-center gap-3 border-t border-foreground/10 pt-1.5">
+            {onEdit && (
+              <button
+                type="button"
+                onClick={() => onEdit(event)}
+                disabled={isPending}
+                className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+              >
+                <Pencil size={12} />
+                Edit
+              </button>
+            )}
             <button
               type="button"
               onClick={() => {
@@ -162,6 +176,7 @@ export function EntityEventTimeline({
   eventStyles,
   onDeleteEvent,
   onAddEvent,
+  onEditEvent,
   isPending,
 }: EntityEventTimelineProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -210,7 +225,7 @@ export function EntityEventTimeline({
         return (
           <div key={event.id} className="flex items-center">
             {i > 0 && (
-              <div className="h-0.5 min-w-4 flex-1 bg-foreground/20" />
+              <div className="h-0.5 w-4 bg-foreground/20" />
             )}
             <TimelineDot
               event={event}
@@ -218,6 +233,7 @@ export function EntityEventTimeline({
               dotColors={dotColors}
               popoverColors={popoverColors}
               onDelete={onDeleteEvent}
+              onEdit={onEditEvent}
               isPending={isPending}
             />
           </div>
@@ -226,14 +242,14 @@ export function EntityEventTimeline({
 
       {isTerminal && (
         <>
-          <div className="h-0.5 min-w-4 flex-1 bg-foreground/20" />
+          <div className="h-0.5 w-4 bg-foreground/20" />
           <div className="h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500/60" />
         </>
       )}
 
       {!isTerminal && (
         <>
-          <div className="min-w-4 flex-1 border-t border-dashed border-foreground/20" />
+          <div className="w-4 border-t border-dashed border-foreground/20" />
           <button
             type="button"
             onClick={onAddEvent}

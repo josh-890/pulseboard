@@ -1,67 +1,98 @@
 "use client";
 
 import { useCallback, useState, useTransition } from "react";
-import { Plus, X } from "lucide-react";
+import { ChevronRight, Plus, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { BodyMarkEventType } from "@/generated/prisma/client";
 import { BODY_MARK_EVENT_TYPES, BODY_MARK_EVENT_STYLES } from "@/lib/constants/body";
 import { createBodyMarkEventAction } from "@/lib/actions/appearance-actions";
+import { PartialDateInput } from "@/components/shared/partial-date-input";
+import { BodyRegionCompact } from "@/components/shared/body-region-picker";
 
-type PersonaOption = { id: string; label: string };
+type BodyMarkComputed = {
+  bodyRegions: string[];
+  motif: string | null;
+  colors: string[];
+  size: string | null;
+  description: string | null;
+};
 
 type AddBodyMarkEventDialogProps = {
   personId: string;
   bodyMarkId: string;
   markLabel: string;
-  personas: PersonaOption[];
+  currentComputed: BodyMarkComputed;
   onClose: () => void;
 };
+
+// Exclude "added" — entity already exists
+const AVAILABLE_EVENT_TYPES = BODY_MARK_EVENT_TYPES.filter((t) => t !== "added");
 
 export function AddBodyMarkEventDialog({
   personId,
   bodyMarkId,
   markLabel,
-  personas,
+  currentComputed,
   onClose,
 }: AddBodyMarkEventDialogProps) {
   const [isPending, startTransition] = useTransition();
-  const [eventType, setEventType] = useState<BodyMarkEventType>("modified");
-  const [personaId, setPersonaId] = useState(personas[0]?.id ?? "");
+  const [eventType, setEventType] = useState<BodyMarkEventType>(AVAILABLE_EVENT_TYPES[0]);
+  const [date, setDate] = useState("");
+  const [datePrecision, setDatePrecision] = useState("UNKNOWN");
   const [notes, setNotes] = useState("");
+  const [propsOpen, setPropsOpen] = useState(false);
+
+  // Property overrides (empty = no override)
+  const [bodyRegions, setBodyRegions] = useState<string[]>(currentComputed.bodyRegions);
+  const [motif, setMotif] = useState("");
+  const [colors, setColors] = useState("");
+  const [size, setSize] = useState("");
+  const [description, setDescription] = useState("");
+  const [error, setError] = useState<string | null>(null);
 
   const handleSubmit = useCallback(() => {
-    if (!personaId) return;
     startTransition(async () => {
-      await createBodyMarkEventAction(personId, {
+      setError(null);
+      const result = await createBodyMarkEventAction(personId, {
         bodyMarkId,
-        personaId,
         eventType,
+        date: date || null,
+        datePrecision,
         notes: notes.trim() || undefined,
+        bodyRegions: JSON.stringify(bodyRegions) !== JSON.stringify(currentComputed.bodyRegions) ? bodyRegions : undefined,
+        motif: motif.trim() || undefined,
+        colors: colors.trim() ? colors.split(",").map((c) => c.trim()) : undefined,
+        size: size.trim() || undefined,
+        description: description.trim() || undefined,
       });
+      if (!result.success) {
+        setError(result.error ?? "Failed to add event.");
+        return;
+      }
       onClose();
     });
-  }, [personId, bodyMarkId, eventType, personaId, notes, onClose]);
+  }, [personId, bodyMarkId, eventType, date, datePrecision, notes, bodyRegions, currentComputed.bodyRegions, motif, colors, size, description, onClose]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative w-full max-w-md rounded-2xl border border-white/15 bg-background p-6 shadow-2xl">
+      <div className="relative w-full max-w-md rounded-2xl border border-white/15 bg-background p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
         <div className="mb-5 flex items-center justify-between">
-          <h2 className="text-lg font-semibold">Add Body Mark Event</h2>
+          <h2 className="text-lg font-semibold">Add Event</h2>
           <button type="button" onClick={onClose} className="rounded-md p-1 text-muted-foreground hover:text-foreground">
             <X size={18} />
           </button>
         </div>
 
         <p className="mb-4 text-sm text-muted-foreground">
-          Record an event for <span className="font-medium text-foreground">{markLabel}</span>
+          for <span className="font-medium text-foreground">{markLabel}</span>
         </p>
 
         <div className="space-y-4">
           <div>
             <label className="mb-1.5 block text-sm font-medium">Event Type</label>
             <div className="flex flex-wrap gap-2">
-              {BODY_MARK_EVENT_TYPES.map((et) => {
+              {AVAILABLE_EVENT_TYPES.map((et) => {
                 const style = BODY_MARK_EVENT_STYLES[et];
                 return (
                   <button
@@ -82,19 +113,13 @@ export function AddBodyMarkEventDialog({
             </div>
           </div>
 
-          <div>
-            <label className="mb-1.5 block text-sm font-medium">Persona</label>
-            <select
-              value={personaId}
-              onChange={(e) => setPersonaId(e.target.value)}
-              className="w-full rounded-lg border border-white/15 bg-muted/30 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
-            >
-              <option value="" disabled>Select a persona...</option>
-              {personas.map((p) => (
-                <option key={p.id} value={p.id}>{p.label}</option>
-              ))}
-            </select>
-          </div>
+          <PartialDateInput
+            dateValue={date}
+            precisionValue={datePrecision}
+            onDateChange={setDate}
+            onPrecisionChange={setDatePrecision}
+            label="Date"
+          />
 
           <div>
             <label className="mb-1.5 block text-sm font-medium">Notes (optional)</label>
@@ -107,10 +132,76 @@ export function AddBodyMarkEventDialog({
             />
           </div>
 
+          {/* Collapsible property overrides */}
+          <div className="border-t border-white/10 pt-3">
+            <button
+              type="button"
+              onClick={() => setPropsOpen(!propsOpen)}
+              className="flex w-full items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <ChevronRight size={14} className={cn("transition-transform", propsOpen && "rotate-90")} />
+              Property Changes
+              <span className="text-xs font-normal text-muted-foreground/60">(optional)</span>
+            </button>
+
+            {propsOpen && (
+              <div className="mt-3 space-y-3">
+                <div>
+                  <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Body Regions</label>
+                  <BodyRegionCompact value={bodyRegions} onChange={setBodyRegions} mode="multi" />
+                </div>
+                <div>
+                  <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Motif</label>
+                  <input
+                    type="text"
+                    value={motif}
+                    onChange={(e) => setMotif(e.target.value)}
+                    placeholder={currentComputed.motif ?? "Design or pattern name..."}
+                    className="w-full rounded-lg border border-white/15 bg-muted/30 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Colors</label>
+                    <input
+                      type="text"
+                      value={colors}
+                      onChange={(e) => setColors(e.target.value)}
+                      placeholder={currentComputed.colors.length > 0 ? currentComputed.colors.join(", ") : "black, red..."}
+                      className="w-full rounded-lg border border-white/15 bg-muted/30 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Size</label>
+                    <input
+                      type="text"
+                      value={size}
+                      onChange={(e) => setSize(e.target.value)}
+                      placeholder={currentComputed.size ?? "small, 5cm..."}
+                      className="w-full rounded-lg border border-white/15 bg-muted/30 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Description</label>
+                  <textarea
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    placeholder={currentComputed.description ?? "Detailed description..."}
+                    rows={2}
+                    className="w-full rounded-lg border border-white/15 bg-muted/30 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring resize-none"
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+
+          {error && <p className="text-sm text-red-500">{error}</p>}
+
           <button
             type="button"
             onClick={handleSubmit}
-            disabled={isPending || !personaId}
+            disabled={isPending}
             className={cn(
               "flex w-full items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium transition-all",
               "bg-primary text-primary-foreground hover:bg-primary/90",
@@ -118,7 +209,7 @@ export function AddBodyMarkEventDialog({
             )}
           >
             <Plus size={14} />
-            Add Event
+            {isPending ? "Adding..." : "Add Event"}
           </button>
         </div>
       </div>

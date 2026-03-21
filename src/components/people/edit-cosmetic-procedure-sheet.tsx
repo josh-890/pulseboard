@@ -24,6 +24,12 @@ type EditCosmeticProcedureSheetProps = {
   onClose: () => void;
 };
 
+function formatDateForInput(date: Date | null, isBaseline?: boolean): string {
+  if (isBaseline || !date) return "";
+  const d = new Date(date);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
 export function EditCosmeticProcedureSheet({ personId, procedure, referenceSessionId, categoryId, existingPhotos, onClose }: EditCosmeticProcedureSheetProps) {
   const [isPending, startTransition] = useTransition();
   const [type, setType] = useState(procedure.type);
@@ -32,14 +38,16 @@ export function EditCosmeticProcedureSheet({ personId, procedure, referenceSessi
   );
   const [description, setDescription] = useState(procedure.description ?? "");
   const [provider, setProvider] = useState(procedure.provider ?? "");
-  const [status, setStatus] = useState(procedure.status);
-  const initialEvent = procedure.events.find((e) => e.eventType === "performed");
-  const initDate = initialEvent?.persona.isBaseline ? "" : (initialEvent?.persona.date ? (() => { const d = new Date(initialEvent.persona.date); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; })() : "");
-  const initPrec = initialEvent?.persona.isBaseline ? "UNKNOWN" : (initialEvent?.persona.datePrecision ?? "UNKNOWN");
-  const [date, setDate] = useState(initDate);
-  const [datePrecision, setDatePrecision] = useState(initPrec);
   const [error, setError] = useState<string | null>(null);
   const [pendingFiles, setPendingFiles] = useState<PendingFile[]>([]);
+
+  // Single-event convenience
+  const isSingleEvent = procedure.events.length === 1;
+  const initialEvent = procedure.events[0];
+  const initDate = isSingleEvent ? formatDateForInput(initialEvent?.persona.date ?? null, initialEvent?.persona.isBaseline) : "";
+  const initPrec = isSingleEvent ? (initialEvent?.persona.isBaseline ? "UNKNOWN" : (initialEvent?.persona.datePrecision ?? "UNKNOWN")) : "UNKNOWN";
+  const [date, setDate] = useState(initDate);
+  const [datePrecision, setDatePrecision] = useState(initPrec);
 
   const handleSubmit = useCallback(() => {
     if (!type.trim()) { setError("Type is required."); return; }
@@ -53,9 +61,7 @@ export function EditCosmeticProcedureSheet({ personId, procedure, referenceSessi
         bodyRegions,
         description: description.trim() || undefined,
         provider: provider.trim() || undefined,
-        status: status.trim() || undefined,
-        date: date || null,
-        datePrecision,
+        ...(isSingleEvent ? { singleEventDate: date || null, singleEventDatePrecision: datePrecision } : {}),
       });
       if (!result.success) { setError(result.error ?? "Failed to update."); return; }
       if (pendingFiles.length > 0 && referenceSessionId && categoryId) {
@@ -71,14 +77,14 @@ export function EditCosmeticProcedureSheet({ personId, procedure, referenceSessi
       }
       onClose();
     });
-  }, [procedure.id, personId, type, bodyRegions, description, provider, status, date, datePrecision, pendingFiles, referenceSessionId, categoryId, onClose]);
+  }, [procedure.id, personId, type, bodyRegions, description, provider, isSingleEvent, date, datePrecision, pendingFiles, referenceSessionId, categoryId, onClose]);
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end">
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
       <div className="relative w-full max-w-lg bg-background border-l border-white/15 shadow-2xl overflow-y-auto">
         <div className="sticky top-0 z-10 flex items-center justify-between border-b border-white/15 bg-background px-6 py-4">
-          <h2 className="text-lg font-semibold">Edit Cosmetic Procedure</h2>
+          <h2 className="text-lg font-semibold">Edit Cosmetic Procedure — Base Properties</h2>
           <button type="button" onClick={onClose} className="rounded-md p-1 text-muted-foreground hover:text-foreground"><X size={18} /></button>
         </div>
 
@@ -89,14 +95,16 @@ export function EditCosmeticProcedureSheet({ personId, procedure, referenceSessi
               className="w-full rounded-lg border border-white/15 bg-muted/30 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring" />
           </div>
 
-          {/* Date */}
-          <PartialDateInput
-            dateValue={date}
-            precisionValue={datePrecision}
-            onDateChange={setDate}
-            onPrecisionChange={setDatePrecision}
-            label="Date"
-          />
+          {/* Date — only for single-event entities */}
+          {isSingleEvent && (
+            <PartialDateInput
+              dateValue={date}
+              precisionValue={datePrecision}
+              onDateChange={setDate}
+              onPrecisionChange={setDatePrecision}
+              label="Date"
+            />
+          )}
 
           {/* Body Region Picker */}
           <div>
@@ -116,13 +124,6 @@ export function EditCosmeticProcedureSheet({ personId, procedure, referenceSessi
           <div>
             <label className="mb-1.5 block text-sm font-medium">Provider</label>
             <input type="text" value={provider} onChange={(e) => setProvider(e.target.value)}
-              className="w-full rounded-lg border border-white/15 bg-muted/30 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring" />
-          </div>
-
-          <div>
-            <label className="mb-1.5 block text-sm font-medium">Status</label>
-            <input type="text" value={status} onChange={(e) => setStatus(e.target.value)}
-              placeholder="completed, scheduled..."
               className="w-full rounded-lg border border-white/15 bg-muted/30 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring" />
           </div>
 

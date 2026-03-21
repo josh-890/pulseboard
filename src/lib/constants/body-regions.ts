@@ -3,7 +3,7 @@
 // Flat region list with optional sub-regions accessible via popover.
 // Region IDs: snake_case, L/R suffixed with _l/_r.
 // Sub-region IDs: parent_id.sub_name (e.g., "face.scalp", "shoulder_r.front").
-// Special: "spine" is a shared sub-region of back_upper, back_mid, back_lower.
+// Spine uses dotted IDs per parent (back_upper.spine, back_mid.spine, back_lower.spine).
 
 export type RegionView = "front" | "back" | "both";
 
@@ -136,7 +136,7 @@ const regions: BodyRegion[] = [
     view: "back",
     searchAliases: ["upper back", "thoracic"],
     subRegions: [
-      { id: "spine", label: "Spine", shortLabel: "Spine", searchAliases: ["spine", "spinal", "vertebrae", "spine tattoo"] },
+      { id: "back_upper.spine", label: "Spine", shortLabel: "Spine", searchAliases: ["spine", "spinal", "vertebrae", "spine tattoo"] },
     ],
   },
   { id: "shoulder_blade_r", label: "Right Shoulder Blade", shortLabel: "Scapula (R)", view: "back", searchAliases: ["shoulder blade", "scapula"] },
@@ -148,7 +148,7 @@ const regions: BodyRegion[] = [
     view: "back",
     searchAliases: ["mid back", "middle back"],
     subRegions: [
-      { id: "spine", label: "Spine", shortLabel: "Spine", searchAliases: ["spine", "spinal", "vertebrae", "spine tattoo"] },
+      { id: "back_mid.spine", label: "Spine", shortLabel: "Spine", searchAliases: ["spine", "spinal", "vertebrae", "spine tattoo"] },
     ],
   },
   {
@@ -158,7 +158,7 @@ const regions: BodyRegion[] = [
     view: "back",
     searchAliases: ["lower back", "lumbar"],
     subRegions: [
-      { id: "spine", label: "Spine", shortLabel: "Spine", searchAliases: ["spine", "spinal", "vertebrae", "spine tattoo"] },
+      { id: "back_lower.spine", label: "Spine", shortLabel: "Spine", searchAliases: ["spine", "spinal", "vertebrae", "spine tattoo"] },
     ],
   },
   { id: "sacral", label: "Sacral Region", shortLabel: "Sacral", view: "back", searchAliases: ["sacral", "sacrum", "tailbone", "coccyx"] },
@@ -360,7 +360,6 @@ for (const r of regions) {
   allLabels.set(r.id, { label: r.label, shortLabel: r.shortLabel });
   if (r.subRegions) {
     for (const sub of r.subRegions) {
-      // "spine" appears in multiple parents — only set once
       if (!allLabels.has(sub.id)) {
         allLabels.set(sub.id, { label: sub.label, shortLabel: sub.shortLabel });
       }
@@ -368,7 +367,7 @@ for (const r of regions) {
   }
 }
 
-/** Map of sub-region ID → parent region IDs (spine has multiple parents) */
+/** Map of sub-region ID → parent region IDs */
 const subToParents = new Map<string, string[]>();
 for (const r of regions) {
   if (r.subRegions) {
@@ -493,7 +492,6 @@ export function searchRegions(query: string): Array<{ id: string; label: string;
           sub.id.toLowerCase().includes(q) ||
           sub.searchAliases.some((a) => a.toLowerCase().includes(q))
         ) {
-          // Avoid duplicate entries for "spine"
           if (!results.some((r) => r.id === sub.id)) {
             results.push({ id: sub.id, label: sub.label, isSubRegion: true });
           }
@@ -613,7 +611,7 @@ export const FREE_TEXT_REGION_MAP: Record<string, string[]> = {
   "groin": ["groin_l"],
   "pubic": ["pubic"],
   "tailbone": ["sacral"],
-  "spine": ["spine"],
+  "spine": ["back_upper.spine", "back_mid.spine", "back_lower.spine"],
   "clavicle": ["clavicle_l"],
   "collarbone": ["clavicle_l"],
   "flank": ["flank_l"],

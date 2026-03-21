@@ -22,6 +22,13 @@ type EntityMediaThumbnail = {
   focalY: number | null;
 };
 
+type EventItem = {
+  id: string;
+  eventType: string;
+  notes: string | null;
+  persona: { id: string; label: string; date: Date | null; datePrecision?: string; isBaseline?: boolean };
+};
+
 type BodyModificationRowProps = {
   modification: BodyModificationWithEvents;
   photos?: EntityMediaThumbnail[];
@@ -30,6 +37,7 @@ type BodyModificationRowProps = {
   onManagePhotos?: () => void;
   onDeleteEvent?: (id: string) => Promise<{ success: boolean; error?: string }>;
   onAddEvent?: () => void;
+  onEditEvent?: (event: EventItem) => void;
   isPending?: boolean;
 };
 
@@ -41,10 +49,12 @@ export function BodyModificationRow({
   onManagePhotos,
   onDeleteEvent,
   onAddEvent,
+  onEditEvent,
   isPending,
 }: BodyModificationRowProps) {
   const [expanded, setExpanded] = useState(false);
-  const hasStructuredRegions = modification.bodyRegions.length > 0;
+  const c = modification.computed;
+  const hasStructuredRegions = c.bodyRegions.length > 0;
   const locationParts = hasStructuredRegions
     ? []
     : [modification.bodyRegion, modification.side, modification.position].filter(Boolean);
@@ -78,7 +88,7 @@ export function BodyModificationRow({
         </span>
         <span className="min-w-0 truncate text-sm text-foreground/80">
           {hasStructuredRegions ? (
-            <BodyRegionChips regions={modification.bodyRegions} compact />
+            <BodyRegionChips regions={c.bodyRegions} compact />
           ) : (
             locationParts.join(" · ")
           )}
@@ -124,13 +134,13 @@ export function BodyModificationRow({
             )}
           </div>
 
-          {modification.description && (
-            <p className="text-sm text-muted-foreground">{modification.description}</p>
+          {c.description && (
+            <p className="text-sm text-muted-foreground">{c.description}</p>
           )}
-          {(modification.material || modification.gauge) && (
+          {(c.material || c.gauge) && (
             <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground/70">
-              {modification.material && <span>Material: {modification.material}</span>}
-              {modification.gauge && <span>Gauge: {modification.gauge}</span>}
+              {c.material && <span>Material: {c.material}</span>}
+              {c.gauge && <span>Gauge: {c.gauge}</span>}
             </div>
           )}
 
@@ -141,6 +151,7 @@ export function BodyModificationRow({
                 eventStyles={BODY_MODIFICATION_EVENT_STYLES}
                 onDeleteEvent={onDeleteEvent}
                 onAddEvent={onAddEvent}
+                onEditEvent={onEditEvent}
                 isPending={isPending}
               />
             </div>

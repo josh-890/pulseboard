@@ -586,7 +586,7 @@ test.describe("Appearance: Cosmetic Procedures", () => {
     }
 
     await page.waitForTimeout(2000);
-    await expect(page.getByText("Test Rhinoplasty", { exact: true })).not.toBeVisible({ timeout: 5000 });
+    await expect(page.getByRole("button", { name: /Test Rhinoplasty.*Face/i })).not.toBeVisible({ timeout: 5000 });
   });
 });
 

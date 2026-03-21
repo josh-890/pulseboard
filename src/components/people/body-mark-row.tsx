@@ -18,6 +18,13 @@ type EntityMediaThumbnail = {
   focalY: number | null;
 };
 
+type EventItem = {
+  id: string;
+  eventType: string;
+  notes: string | null;
+  persona: { id: string; label: string; date: Date | null; datePrecision?: string; isBaseline?: boolean };
+};
+
 type BodyMarkRowProps = {
   mark: BodyMarkWithEvents;
   photos?: EntityMediaThumbnail[];
@@ -26,6 +33,7 @@ type BodyMarkRowProps = {
   onManagePhotos?: () => void;
   onDeleteEvent?: (id: string) => Promise<{ success: boolean; error?: string }>;
   onAddEvent?: () => void;
+  onEditEvent?: (event: EventItem) => void;
   isPending?: boolean;
 };
 
@@ -37,10 +45,12 @@ export function BodyMarkRow({
   onManagePhotos,
   onDeleteEvent,
   onAddEvent,
+  onEditEvent,
   isPending,
 }: BodyMarkRowProps) {
   const [expanded, setExpanded] = useState(false);
-  const hasStructuredRegions = mark.bodyRegions.length > 0;
+  const c = mark.computed;
+  const hasStructuredRegions = c.bodyRegions.length > 0;
   const locationParts = hasStructuredRegions
     ? []
     : [mark.bodyRegion, mark.side, mark.position].filter(Boolean);
@@ -75,7 +85,7 @@ export function BodyMarkRow({
         </span>
         <span className="min-w-0 truncate text-sm text-foreground/80">
           {hasStructuredRegions ? (
-            <BodyRegionChips regions={mark.bodyRegions} compact />
+            <BodyRegionChips regions={c.bodyRegions} compact />
           ) : (
             locationParts.join(" · ")
           )}
@@ -147,16 +157,16 @@ export function BodyMarkRow({
             )}
           </div>
 
-          {mark.motif && (
-            <p className="text-sm font-medium text-foreground">{mark.motif}</p>
+          {c.motif && (
+            <p className="text-sm font-medium text-foreground">{c.motif}</p>
           )}
-          {mark.description && (
-            <p className="mt-0.5 text-sm text-muted-foreground">{mark.description}</p>
+          {c.description && (
+            <p className="mt-0.5 text-sm text-muted-foreground">{c.description}</p>
           )}
-          {(mark.size || mark.colors.length > 0) && (
+          {(c.size || c.colors.length > 0) && (
             <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground/70">
-              {mark.size && <span>{mark.size}</span>}
-              {mark.colors.length > 0 && <span>{mark.colors.join(", ")}</span>}
+              {c.size && <span>{c.size}</span>}
+              {c.colors.length > 0 && <span>{c.colors.join(", ")}</span>}
             </div>
           )}
 
@@ -167,6 +177,7 @@ export function BodyMarkRow({
                 eventStyles={BODY_MARK_EVENT_STYLES}
                 onDeleteEvent={onDeleteEvent}
                 onAddEvent={onAddEvent}
+                onEditEvent={onEditEvent}
                 isPending={isPending}
               />
             </div>

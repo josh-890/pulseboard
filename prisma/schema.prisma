@@ -347,6 +347,12 @@ model BodyMarkEvent {
   persona     Persona           @relation(fields: [personaId], references: [id])
   eventType   BodyMarkEventType
   notes       String?
+  // Property overrides (empty array / null = no change)
+  bodyRegions String[]
+  motif       String?
+  colors      String[]
+  size        String?
+  description String?
 
   @@index([bodyMarkId])
   @@index([personaId])
@@ -452,6 +458,11 @@ model BodyModificationEvent {
   persona            Persona @relation(fields: [personaId], references: [id])
   eventType          BodyModificationEventType
   notes              String?
+  // Property overrides (empty array / null = no change)
+  bodyRegions        String[]
+  description        String?
+  material           String?
+  gauge              String?
 
   @@index([bodyModificationId])
   @@index([personaId])
@@ -486,6 +497,10 @@ model CosmeticProcedureEvent {
   persona             Persona @relation(fields: [personaId], references: [id])
   eventType           CosmeticProcedureEventType
   notes               String?
+  // Property overrides (empty array / null = no change)
+  bodyRegions         String[]
+  description         String?
+  provider            String?
 
   @@index([cosmeticProcedureId])
   @@index([personaId])

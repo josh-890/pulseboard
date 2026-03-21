@@ -201,25 +201,26 @@ export async function getPersonBodyMarks(personId: string): Promise<BodyMarkWith
     orderBy: { createdAt: "asc" },
   });
 
-  return marks.map((m) => ({
-    id: m.id,
-    type: m.type,
-    bodyRegion: m.bodyRegion,
-    bodyRegions: m.bodyRegions,
-    side: m.side,
-    position: m.position,
-    description: m.description,
-    motif: m.motif,
-    colors: m.colors,
-    size: m.size,
-    status: m.status,
-    events: m.events.map((e) => ({
+  return marks.map((m) => {
+    const events = m.events.map((e) => ({
       id: e.id,
       eventType: e.eventType,
       notes: e.notes,
       persona: { id: e.persona.id, label: e.persona.label, date: e.persona.date, datePrecision: e.persona.datePrecision, isBaseline: e.persona.isBaseline },
-    })),
-  }));
+      bodyRegions: e.bodyRegions ?? [],
+      motif: e.motif ?? null,
+      colors: e.colors ?? [],
+      size: e.size ?? null,
+      description: e.description ?? null,
+    }));
+    return {
+      id: m.id, type: m.type, bodyRegion: m.bodyRegion, bodyRegions: m.bodyRegions,
+      side: m.side, position: m.position, description: m.description,
+      motif: m.motif, colors: m.colors, size: m.size, status: m.status,
+      events,
+      computed: foldBodyMarkState(m, events),
+    };
+  });
 }
 
 export async function createBodyMarkRecord(data: import("@/lib/validations/body-mark").CreateBodyMarkInput) {
@@ -351,8 +352,7 @@ export async function computePersonCurrentState(personId: string): Promise<Perso
 
   const now = new Date();
 
-  // Active body marks: status = present
-  const activeBodyMarks = bodyMarks.filter((m) => m.status === "present");
+  const activeBodyMarks = bodyMarks;
 
   // Active digital identities: status = active, no validTo or validTo in future
   const activeDigitalIdentities = digitalIdentities.filter((i) => {
@@ -558,6 +558,50 @@ export async function getPersonProductionSessions(personId: string): Promise<Per
   });
 }
 
+// ─── Event-carried state fold helpers ────────────────────────────────────────
+
+function foldBodyMarkState(
+  base: { bodyRegions: string[]; motif: string | null; colors: string[]; size: string | null; description: string | null },
+  events: { bodyRegions: string[]; motif: string | null; colors: string[]; size: string | null; description: string | null }[],
+) {
+  const result = { bodyRegions: base.bodyRegions, motif: base.motif, colors: base.colors, size: base.size, description: base.description };
+  for (const e of events) {
+    if (e.bodyRegions.length > 0) result.bodyRegions = e.bodyRegions;
+    if (e.motif !== null) result.motif = e.motif;
+    if (e.colors.length > 0) result.colors = e.colors;
+    if (e.size !== null) result.size = e.size;
+    if (e.description !== null) result.description = e.description;
+  }
+  return result;
+}
+
+function foldBodyModificationState(
+  base: { bodyRegions: string[]; description: string | null; material: string | null; gauge: string | null },
+  events: { bodyRegions: string[]; description: string | null; material: string | null; gauge: string | null }[],
+) {
+  const result = { bodyRegions: base.bodyRegions, description: base.description, material: base.material, gauge: base.gauge };
+  for (const e of events) {
+    if (e.bodyRegions.length > 0) result.bodyRegions = e.bodyRegions;
+    if (e.description !== null) result.description = e.description;
+    if (e.material !== null) result.material = e.material;
+    if (e.gauge !== null) result.gauge = e.gauge;
+  }
+  return result;
+}
+
+function foldCosmeticProcedureState(
+  base: { bodyRegions: string[]; description: string | null; provider: string | null },
+  events: { bodyRegions: string[]; description: string | null; provider: string | null }[],
+) {
+  const result = { bodyRegions: base.bodyRegions, description: base.description, provider: base.provider };
+  for (const e of events) {
+    if (e.bodyRegions.length > 0) result.bodyRegions = e.bodyRegions;
+    if (e.description !== null) result.description = e.description;
+    if (e.provider !== null) result.provider = e.provider;
+  }
+  return result;
+}
+
 /**
  * Derives current physical state from an already-loaded person with details.
  * Pure sync function — no DB access. Replaces the async `computePersonCurrentState`.
@@ -584,6 +628,7 @@ export function deriveCurrentState(
 
   const now = new Date();
 
+  // ── Body Marks ──
   const activeBodyMarks: BodyMarkWithEvents[] = [];
   const seenMarkIds = new Set<string>();
   for (const persona of person.personas) {
@@ -591,9 +636,7 @@ export function deriveCurrentState(
       if (seenMarkIds.has(event.bodyMark.id)) continue;
       seenMarkIds.add(event.bodyMark.id);
       const mark = event.bodyMark;
-      if (mark.status !== "present") continue;
-      // Collect all events for this mark across all personas
-      const allEvents = person.personas.flatMap((p) =>
+      const allEvents: import("@/lib/types").BodyMarkEventItem[] = person.personas.flatMap((p) =>
         p.bodyMarkEvents
           .filter((e) => e.bodyMark.id === mark.id)
           .map((e) => ({
@@ -601,44 +644,34 @@ export function deriveCurrentState(
             eventType: e.eventType,
             notes: e.notes,
             persona: { id: p.id, label: p.label, date: p.date, datePrecision: p.datePrecision, isBaseline: p.isBaseline },
+            bodyRegions: e.bodyRegions ?? [],
+            motif: e.motif ?? null,
+            colors: e.colors ?? [],
+            size: e.size ?? null,
+            description: e.description ?? null,
           })),
       );
       activeBodyMarks.push({
-        id: mark.id,
-        type: mark.type,
-        bodyRegion: mark.bodyRegion,
-        bodyRegions: mark.bodyRegions,
-        side: mark.side,
-        position: mark.position,
-        description: mark.description,
-        motif: mark.motif,
-        colors: mark.colors,
-        size: mark.size,
-        status: mark.status,
+        id: mark.id, type: mark.type, bodyRegion: mark.bodyRegion, bodyRegions: mark.bodyRegions,
+        side: mark.side, position: mark.position, description: mark.description,
+        motif: mark.motif, colors: mark.colors, size: mark.size, status: mark.status,
         events: allEvents,
+        computed: foldBodyMarkState(mark, allEvents),
       });
     }
   }
-
-  // Include orphaned body marks (entities with no events, e.g. after persona deletion)
   for (const mark of person.bodyMarks) {
     if (seenMarkIds.has(mark.id)) continue;
     activeBodyMarks.push({
-      id: mark.id,
-      type: mark.type,
-      bodyRegion: mark.bodyRegion,
-      bodyRegions: mark.bodyRegions,
-      side: mark.side,
-      position: mark.position,
-      description: mark.description,
-      motif: mark.motif,
-      colors: mark.colors,
-      size: mark.size,
-      status: mark.status,
+      id: mark.id, type: mark.type, bodyRegion: mark.bodyRegion, bodyRegions: mark.bodyRegions,
+      side: mark.side, position: mark.position, description: mark.description,
+      motif: mark.motif, colors: mark.colors, size: mark.size, status: mark.status,
       events: [],
+      computed: { bodyRegions: mark.bodyRegions, motif: mark.motif, colors: mark.colors, size: mark.size, description: mark.description },
     });
   }
 
+  // ── Body Modifications ──
   const activeBodyModifications: import("@/lib/types").BodyModificationWithEvents[] = [];
   const seenModIds = new Set<string>();
   for (const persona of person.personas) {
@@ -646,7 +679,7 @@ export function deriveCurrentState(
       if (seenModIds.has(event.bodyModification.id)) continue;
       seenModIds.add(event.bodyModification.id);
       const mod = event.bodyModification;
-      const allEvents = person.personas.flatMap((p) =>
+      const allEvents: import("@/lib/types").BodyModificationEventItem[] = person.personas.flatMap((p) =>
         p.bodyModificationEvents
           .filter((e) => e.bodyModification.id === mod.id)
           .map((e) => ({
@@ -654,42 +687,33 @@ export function deriveCurrentState(
             eventType: e.eventType,
             notes: e.notes,
             persona: { id: p.id, label: p.label, date: p.date, datePrecision: p.datePrecision, isBaseline: p.isBaseline },
+            bodyRegions: e.bodyRegions ?? [],
+            description: e.description ?? null,
+            material: e.material ?? null,
+            gauge: e.gauge ?? null,
           })),
       );
       activeBodyModifications.push({
-        id: mod.id,
-        type: mod.type,
-        bodyRegion: mod.bodyRegion,
-        bodyRegions: mod.bodyRegions,
-        side: mod.side,
-        position: mod.position,
-        description: mod.description,
-        material: mod.material,
-        gauge: mod.gauge,
-        status: mod.status,
+        id: mod.id, type: mod.type, bodyRegion: mod.bodyRegion, bodyRegions: mod.bodyRegions,
+        side: mod.side, position: mod.position, description: mod.description,
+        material: mod.material, gauge: mod.gauge, status: mod.status,
         events: allEvents,
+        computed: foldBodyModificationState(mod, allEvents),
       });
     }
   }
-
-  // Include orphaned body modifications
   for (const mod of person.bodyModifications) {
     if (seenModIds.has(mod.id)) continue;
     activeBodyModifications.push({
-      id: mod.id,
-      type: mod.type,
-      bodyRegion: mod.bodyRegion,
-      bodyRegions: mod.bodyRegions,
-      side: mod.side,
-      position: mod.position,
-      description: mod.description,
-      material: mod.material,
-      gauge: mod.gauge,
-      status: mod.status,
+      id: mod.id, type: mod.type, bodyRegion: mod.bodyRegion, bodyRegions: mod.bodyRegions,
+      side: mod.side, position: mod.position, description: mod.description,
+      material: mod.material, gauge: mod.gauge, status: mod.status,
       events: [],
+      computed: { bodyRegions: mod.bodyRegions, description: mod.description, material: mod.material, gauge: mod.gauge },
     });
   }
 
+  // ── Cosmetic Procedures ──
   const activeCosmeticProcedures: import("@/lib/types").CosmeticProcedureWithEvents[] = [];
   const seenProcIds = new Set<string>();
   for (const persona of person.personas) {
@@ -697,7 +721,7 @@ export function deriveCurrentState(
       if (seenProcIds.has(event.cosmeticProcedure.id)) continue;
       seenProcIds.add(event.cosmeticProcedure.id);
       const proc = event.cosmeticProcedure;
-      const allEvents = person.personas.flatMap((p) =>
+      const allEvents: import("@/lib/types").CosmeticProcedureEventItem[] = person.personas.flatMap((p) =>
         p.cosmeticProcedureEvents
           .filter((e) => e.cosmeticProcedure.id === proc.id)
           .map((e) => ({
@@ -705,33 +729,26 @@ export function deriveCurrentState(
             eventType: e.eventType,
             notes: e.notes,
             persona: { id: p.id, label: p.label, date: p.date, datePrecision: p.datePrecision, isBaseline: p.isBaseline },
+            bodyRegions: e.bodyRegions ?? [],
+            description: e.description ?? null,
+            provider: e.provider ?? null,
           })),
       );
       activeCosmeticProcedures.push({
-        id: proc.id,
-        type: proc.type,
-        bodyRegion: proc.bodyRegion,
-        bodyRegions: proc.bodyRegions,
-        description: proc.description,
-        provider: proc.provider,
-        status: proc.status,
+        id: proc.id, type: proc.type, bodyRegion: proc.bodyRegion, bodyRegions: proc.bodyRegions,
+        description: proc.description, provider: proc.provider, status: proc.status,
         events: allEvents,
+        computed: foldCosmeticProcedureState(proc, allEvents),
       });
     }
   }
-
-  // Include orphaned cosmetic procedures
   for (const proc of person.cosmeticProcedures) {
     if (seenProcIds.has(proc.id)) continue;
     activeCosmeticProcedures.push({
-      id: proc.id,
-      type: proc.type,
-      bodyRegion: proc.bodyRegion,
-      bodyRegions: proc.bodyRegions,
-      description: proc.description,
-      provider: proc.provider,
-      status: proc.status,
+      id: proc.id, type: proc.type, bodyRegion: proc.bodyRegion, bodyRegions: proc.bodyRegions,
+      description: proc.description, provider: proc.provider, status: proc.status,
       events: [],
+      computed: { bodyRegions: proc.bodyRegions, description: proc.description, provider: proc.provider },
     });
   }
 

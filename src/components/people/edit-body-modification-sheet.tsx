@@ -12,11 +12,10 @@ import {
 } from "@/components/shared/inline-upload-zone";
 import type { PendingFile } from "@/components/shared/inline-upload-zone";
 import { getRegionLabel } from "@/lib/constants/body-regions";
-import type { BodyModificationType, BodyModificationStatus } from "@/generated/prisma/client";
+import type { BodyModificationType } from "@/generated/prisma/client";
 import type { BodyModificationWithEvents } from "@/lib/types";
 import {
   BODY_MODIFICATION_TYPES, BODY_MODIFICATION_TYPE_STYLES,
-  BODY_MODIFICATION_STATUSES, BODY_MODIFICATION_STATUS_STYLES,
 } from "@/lib/constants/body";
 import { updateBodyModificationAction } from "@/lib/actions/appearance-actions";
 import type { EntityMediaThumbnail } from "@/lib/services/media-service";
@@ -30,6 +29,12 @@ type EditBodyModificationSheetProps = {
   onClose: () => void;
 };
 
+function formatDateForInput(date: Date | null, isBaseline?: boolean): string {
+  if (isBaseline || !date) return "";
+  const d = new Date(date);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
 export function EditBodyModificationSheet({ personId, modification, referenceSessionId, categoryId, existingPhotos, onClose }: EditBodyModificationSheetProps) {
   const [isPending, startTransition] = useTransition();
   const [type, setType] = useState<BodyModificationType>(modification.type);
@@ -39,14 +44,16 @@ export function EditBodyModificationSheet({ personId, modification, referenceSes
   const [description, setDescription] = useState(modification.description ?? "");
   const [material, setMaterial] = useState(modification.material ?? "");
   const [gauge, setGauge] = useState(modification.gauge ?? "");
-  const [status, setStatus] = useState<BodyModificationStatus>(modification.status);
-  const initialEvent = modification.events.find((e) => e.eventType === "added");
-  const initDate = initialEvent?.persona.isBaseline ? "" : (initialEvent?.persona.date ? (() => { const d = new Date(initialEvent.persona.date); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; })() : "");
-  const initPrec = initialEvent?.persona.isBaseline ? "UNKNOWN" : (initialEvent?.persona.datePrecision ?? "UNKNOWN");
-  const [date, setDate] = useState(initDate);
-  const [datePrecision, setDatePrecision] = useState(initPrec);
   const [error, setError] = useState<string | null>(null);
   const [pendingFiles, setPendingFiles] = useState<PendingFile[]>([]);
+
+  // Single-event convenience
+  const isSingleEvent = modification.events.length === 1;
+  const initialEvent = modification.events[0];
+  const initDate = isSingleEvent ? formatDateForInput(initialEvent?.persona.date ?? null, initialEvent?.persona.isBaseline) : "";
+  const initPrec = isSingleEvent ? (initialEvent?.persona.isBaseline ? "UNKNOWN" : (initialEvent?.persona.datePrecision ?? "UNKNOWN")) : "UNKNOWN";
+  const [date, setDate] = useState(initDate);
+  const [datePrecision, setDatePrecision] = useState(initPrec);
 
   const handleSubmit = useCallback(() => {
     if (bodyRegions.length === 0) {
@@ -63,9 +70,7 @@ export function EditBodyModificationSheet({ personId, modification, referenceSes
         description: description.trim() || undefined,
         material: material.trim() || undefined,
         gauge: gauge.trim() || undefined,
-        status,
-        date: date || null,
-        datePrecision,
+        ...(isSingleEvent ? { singleEventDate: date || null, singleEventDatePrecision: datePrecision } : {}),
       });
       if (!result.success) { setError(result.error ?? "Failed to update."); return; }
       if (pendingFiles.length > 0 && referenceSessionId && categoryId) {
@@ -81,14 +86,14 @@ export function EditBodyModificationSheet({ personId, modification, referenceSes
       }
       onClose();
     });
-  }, [modification.id, personId, type, bodyRegions, description, material, gauge, status, date, datePrecision, pendingFiles, referenceSessionId, categoryId, onClose]);
+  }, [modification.id, personId, type, bodyRegions, description, material, gauge, isSingleEvent, date, datePrecision, pendingFiles, referenceSessionId, categoryId, onClose]);
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end">
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
       <div className="relative w-full max-w-lg bg-background border-l border-white/15 shadow-2xl overflow-y-auto">
         <div className="sticky top-0 z-10 flex items-center justify-between border-b border-white/15 bg-background px-6 py-4">
-          <h2 className="text-lg font-semibold">Edit Body Modification</h2>
+          <h2 className="text-lg font-semibold">Edit Body Modification — Base Properties</h2>
           <button type="button" onClick={onClose} className="rounded-md p-1 text-muted-foreground hover:text-foreground"><X size={18} /></button>
         </div>
 
@@ -106,27 +111,16 @@ export function EditBodyModificationSheet({ personId, modification, referenceSes
             </div>
           </div>
 
-          <div>
-            <label className="mb-1.5 block text-sm font-medium">Status</label>
-            <div className="flex flex-wrap gap-2">
-              {BODY_MODIFICATION_STATUSES.map((s) => (
-                <button key={s} type="button" onClick={() => setStatus(s)}
-                  className={cn("rounded-full border px-3 py-1 text-xs font-medium capitalize transition-all",
-                    status === s ? BODY_MODIFICATION_STATUS_STYLES[s] : "border-white/15 text-muted-foreground hover:border-white/30")}>
-                  {s}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Date */}
-          <PartialDateInput
-            dateValue={date}
-            precisionValue={datePrecision}
-            onDateChange={setDate}
-            onPrecisionChange={setDatePrecision}
-            label="Date"
-          />
+          {/* Date — only for single-event entities */}
+          {isSingleEvent && (
+            <PartialDateInput
+              dateValue={date}
+              precisionValue={datePrecision}
+              onDateChange={setDate}
+              onPrecisionChange={setDatePrecision}
+              label="Date"
+            />
+          )}
 
           {/* Body Region Picker */}
           <div>

@@ -22,6 +22,7 @@ import { EditCosmeticProcedureSheet } from "@/components/people/edit-cosmetic-pr
 import { AddBodyMarkEventDialog } from "@/components/people/add-body-mark-event-dialog";
 import { AddBodyModificationEventDialog } from "@/components/people/add-body-modification-event-dialog";
 import { AddCosmeticProcedureEventDialog } from "@/components/people/add-cosmetic-procedure-event-dialog";
+import { EditEventDialog } from "@/components/people/edit-event-dialog";
 import { RecordPhysicalChangeSheet } from "@/components/people/record-physical-change-sheet";
 import { EditPhysicalChangeSheet } from "@/components/people/edit-physical-change-sheet";
 import { DetailMediaPickerSheet } from "@/components/people/detail-media-picker-sheet";
@@ -32,7 +33,18 @@ import {
   deleteBodyModificationEventAction,
   deleteCosmeticProcedureAction,
   deleteCosmeticProcedureEventAction,
+  updateBodyMarkEventAction,
+  updateBodyModificationEventAction,
+  updateCosmeticProcedureEventAction,
 } from "@/lib/actions/appearance-actions";
+import {
+  BODY_MARK_EVENT_TYPES,
+  BODY_MARK_EVENT_STYLES,
+  BODY_MODIFICATION_EVENT_TYPES,
+  BODY_MODIFICATION_EVENT_STYLES,
+  COSMETIC_PROCEDURE_EVENT_TYPES,
+  COSMETIC_PROCEDURE_EVENT_STYLES,
+} from "@/lib/constants/body";
 import {
   Activity,
   Fingerprint,
@@ -62,25 +74,34 @@ type PhysicalChangeItem = {
   fitnessLevel: string | null;
 };
 
+type EventItem = {
+  id: string;
+  eventType: string;
+  notes: string | null;
+  persona: { id: string; label: string; date: Date | null; datePrecision?: string; isBaseline?: boolean };
+};
+
 type AppearanceOpenState =
   | null
   | "physicalChange"
   | "addBodyMark"
   | { type: "editBodyMark"; mark: BodyMarkWithEvents }
-  | { type: "addBodyMarkEvent"; markId: string; markLabel: string }
+  | { type: "addBodyMarkEvent"; markId: string; markLabel: string; computed: BodyMarkWithEvents["computed"] }
+  | { type: "editBodyMarkEvent"; event: EventItem; markId: string; eventOverrides: { bodyRegions: string[]; motif: string | null; colors: string[]; size: string | null; description: string | null } }
   | "addBodyMod"
   | { type: "editBodyMod"; modification: BodyModificationWithEvents }
-  | { type: "addBodyModEvent"; modId: string; modLabel: string }
+  | { type: "addBodyModEvent"; modId: string; modLabel: string; computed: BodyModificationWithEvents["computed"] }
+  | { type: "editBodyModEvent"; event: EventItem; modId: string; eventOverrides: { bodyRegions: string[]; description: string | null; material: string | null; gauge: string | null } }
   | "addCosmProc"
   | { type: "editCosmProc"; procedure: CosmeticProcedureWithEvents }
-  | { type: "addCosmProcEvent"; procId: string; procLabel: string }
+  | { type: "addCosmProcEvent"; procId: string; procLabel: string; computed: CosmeticProcedureWithEvents["computed"] }
+  | { type: "editCosmProcEvent"; event: EventItem; procId: string; eventOverrides: { bodyRegions: string[]; description: string | null; provider: string | null } }
   | { type: "editPhysical"; item: PhysicalChangeItem }
   | { type: "manageEntityPhotos"; entityId: string; entityModel: string; entityLabel: string };
 
 export type AppearanceTabProps = {
   person: PersonData;
   currentState: PersonCurrentState;
-  personas: { id: string; label: string }[];
   entityMedia?: Record<string, EntityMediaThumbnail[]>;
   categories?: CategoryWithGroup[];
   referenceSessionId?: string;
@@ -89,7 +110,6 @@ export type AppearanceTabProps = {
 export function AppearanceTab({
   person,
   currentState,
-  personas,
   entityMedia,
   categories,
   referenceSessionId,
@@ -325,7 +345,11 @@ export function AppearanceTab({
                     onDelete={() => handleDeleteBodyMark(mark.id)}
                     onManagePhotos={referenceSessionId ? () => setOpenState({ type: "manageEntityPhotos", entityId: mark.id, entityModel: "BodyMark", entityLabel: `${mark.type} — ${mark.bodyRegion}` }) : undefined}
                     onDeleteEvent={handleDeleteBodyMarkEvent}
-                    onAddEvent={() => setOpenState({ type: "addBodyMarkEvent", markId: mark.id, markLabel: `${mark.type} — ${mark.bodyRegion}` })}
+                    onAddEvent={() => setOpenState({ type: "addBodyMarkEvent", markId: mark.id, markLabel: `${mark.type} — ${mark.bodyRegion}`, computed: mark.computed })}
+                    onEditEvent={(event) => {
+                      const fullEvent = mark.events.find((e) => e.id === event.id);
+                      setOpenState({ type: "editBodyMarkEvent", event, markId: mark.id, eventOverrides: { bodyRegions: fullEvent?.bodyRegions ?? [], motif: fullEvent?.motif ?? null, colors: fullEvent?.colors ?? [], size: fullEvent?.size ?? null, description: fullEvent?.description ?? null } });
+                    }}
                     isPending={isPending}
                   />
                 ))}
@@ -354,7 +378,11 @@ export function AppearanceTab({
                     onDelete={() => handleDeleteBodyMod(mod.id)}
                     onManagePhotos={referenceSessionId ? () => setOpenState({ type: "manageEntityPhotos", entityId: mod.id, entityModel: "BodyModification", entityLabel: `${mod.type} — ${mod.bodyRegion}` }) : undefined}
                     onDeleteEvent={handleDeleteBodyModEvent}
-                    onAddEvent={() => setOpenState({ type: "addBodyModEvent", modId: mod.id, modLabel: `${mod.type} — ${mod.bodyRegion}` })}
+                    onAddEvent={() => setOpenState({ type: "addBodyModEvent", modId: mod.id, modLabel: `${mod.type} — ${mod.bodyRegion}`, computed: mod.computed })}
+                    onEditEvent={(event) => {
+                      const fullEvent = mod.events.find((e) => e.id === event.id);
+                      setOpenState({ type: "editBodyModEvent", event, modId: mod.id, eventOverrides: { bodyRegions: fullEvent?.bodyRegions ?? [], description: fullEvent?.description ?? null, material: fullEvent?.material ?? null, gauge: fullEvent?.gauge ?? null } });
+                    }}
                     isPending={isPending}
                   />
                 ))}
@@ -383,7 +411,11 @@ export function AppearanceTab({
                     onDelete={() => handleDeleteCosmProc(proc.id)}
                     onManagePhotos={referenceSessionId ? () => setOpenState({ type: "manageEntityPhotos", entityId: proc.id, entityModel: "CosmeticProcedure", entityLabel: `${proc.type} — ${proc.bodyRegion}` }) : undefined}
                     onDeleteEvent={handleDeleteCosmProcEvent}
-                    onAddEvent={() => setOpenState({ type: "addCosmProcEvent", procId: proc.id, procLabel: `${proc.type} — ${proc.bodyRegion}` })}
+                    onAddEvent={() => setOpenState({ type: "addCosmProcEvent", procId: proc.id, procLabel: `${proc.type} — ${proc.bodyRegion}`, computed: proc.computed })}
+                    onEditEvent={(event) => {
+                      const fullEvent = proc.events.find((e) => e.id === event.id);
+                      setOpenState({ type: "editCosmProcEvent", event, procId: proc.id, eventOverrides: { bodyRegions: fullEvent?.bodyRegions ?? [], description: fullEvent?.description ?? null, provider: fullEvent?.provider ?? null } });
+                    }}
                     isPending={isPending}
                   />
                 ))}
@@ -423,7 +455,30 @@ export function AppearanceTab({
           personId={person.id}
           bodyMarkId={openState.markId}
           markLabel={openState.markLabel}
-          personas={personas}
+          currentComputed={openState.computed}
+          onClose={handleSheetClose}
+        />
+      )}
+      {typeof openState === "object" && openState?.type === "editBodyMarkEvent" && (
+        <EditEventDialog
+          event={openState.event}
+          entityId={openState.markId}
+          eventTypes={BODY_MARK_EVENT_TYPES as unknown as string[]}
+          eventStyles={BODY_MARK_EVENT_STYLES}
+          entityKind="bodyMark"
+          overrides={openState.eventOverrides}
+          onSave={(data) => updateBodyMarkEventAction(openState.event.id, person.id, {
+            bodyMarkId: openState.markId,
+            eventType: data.eventType,
+            date: data.date,
+            datePrecision: data.datePrecision,
+            notes: data.notes,
+            bodyRegions: data.bodyRegions,
+            motif: data.motif,
+            colors: data.colors,
+            size: data.size,
+            description: data.description,
+          })}
           onClose={handleSheetClose}
         />
       )}
@@ -438,7 +493,29 @@ export function AppearanceTab({
           personId={person.id}
           bodyModificationId={openState.modId}
           modificationLabel={openState.modLabel}
-          personas={personas}
+          currentComputed={openState.computed}
+          onClose={handleSheetClose}
+        />
+      )}
+      {typeof openState === "object" && openState?.type === "editBodyModEvent" && (
+        <EditEventDialog
+          event={openState.event}
+          entityId={openState.modId}
+          eventTypes={BODY_MODIFICATION_EVENT_TYPES as unknown as string[]}
+          eventStyles={BODY_MODIFICATION_EVENT_STYLES}
+          entityKind="bodyModification"
+          overrides={openState.eventOverrides}
+          onSave={(data) => updateBodyModificationEventAction(openState.event.id, person.id, {
+            bodyModificationId: openState.modId,
+            eventType: data.eventType,
+            date: data.date,
+            datePrecision: data.datePrecision,
+            notes: data.notes,
+            bodyRegions: data.bodyRegions,
+            description: data.description,
+            material: data.material,
+            gauge: data.gauge,
+          })}
           onClose={handleSheetClose}
         />
       )}
@@ -453,7 +530,28 @@ export function AppearanceTab({
           personId={person.id}
           cosmeticProcedureId={openState.procId}
           procedureLabel={openState.procLabel}
-          personas={personas}
+          currentComputed={openState.computed}
+          onClose={handleSheetClose}
+        />
+      )}
+      {typeof openState === "object" && openState?.type === "editCosmProcEvent" && (
+        <EditEventDialog
+          event={openState.event}
+          entityId={openState.procId}
+          eventTypes={COSMETIC_PROCEDURE_EVENT_TYPES as unknown as string[]}
+          eventStyles={COSMETIC_PROCEDURE_EVENT_STYLES}
+          entityKind="cosmeticProcedure"
+          overrides={openState.eventOverrides}
+          onSave={(data) => updateCosmeticProcedureEventAction(openState.event.id, person.id, {
+            cosmeticProcedureId: openState.procId,
+            eventType: data.eventType,
+            date: data.date,
+            datePrecision: data.datePrecision,
+            notes: data.notes,
+            bodyRegions: data.bodyRegions,
+            description: data.description,
+            provider: data.provider,
+          })}
           onClose={handleSheetClose}
         />
       )}

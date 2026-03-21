@@ -24,27 +24,30 @@ export function AppearanceBodyMap({ currentState, onRegionClick }: AppearanceBod
     const regions = new Set<string>();
 
     for (const mark of currentState.activeBodyMarks) {
-      const markRegions = mark.bodyRegions.length > 0 ? mark.bodyRegions : [mark.bodyRegion];
+      const c = mark.computed;
+      const markRegions = c.bodyRegions.length > 0 ? c.bodyRegions : [mark.bodyRegion];
       for (const r of markRegions) {
         regions.add(r);
         const list = entities.get(r) ?? [];
-        list.push({ label: `${mark.type}${mark.motif ? `: ${mark.motif}` : ""}`, type: "mark" });
+        list.push({ label: `${mark.type}${c.motif ? `: ${c.motif}` : ""}`, type: "mark" });
         entities.set(r, list);
       }
     }
 
     for (const mod of currentState.activeBodyModifications) {
-      const modRegions = mod.bodyRegions.length > 0 ? mod.bodyRegions : [mod.bodyRegion];
+      const c = mod.computed;
+      const modRegions = c.bodyRegions.length > 0 ? c.bodyRegions : [mod.bodyRegion];
       for (const r of modRegions) {
         regions.add(r);
         const list = entities.get(r) ?? [];
-        list.push({ label: `${mod.type}${mod.description ? `: ${mod.description}` : ""}`, type: "modification" });
+        list.push({ label: `${mod.type}${c.description ? `: ${c.description}` : ""}`, type: "modification" });
         entities.set(r, list);
       }
     }
 
     for (const proc of currentState.activeCosmeticProcedures) {
-      const procRegions = proc.bodyRegions.length > 0 ? proc.bodyRegions : [proc.bodyRegion];
+      const c = proc.computed;
+      const procRegions = c.bodyRegions.length > 0 ? c.bodyRegions : [proc.bodyRegion];
       for (const r of procRegions) {
         regions.add(r);
         const list = entities.get(r) ?? [];
