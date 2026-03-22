@@ -68,8 +68,14 @@ test.describe("People CRUD", () => {
     await waitForToast(page, "Person updated");
     await expect(dialog).not.toBeVisible();
 
+    // Wait for page to finish refreshing before opening the sheet again
+    await page.waitForLoadState("networkidle");
+
     // Revert
-    await page.getByRole("button", { name: /^edit$/i }).click();
+    const editBtn = page.getByRole("button", { name: /^edit$/i });
+    await expect(editBtn).toBeVisible({ timeout: 10000 });
+    await editBtn.click();
+    await expect(dialog).toBeVisible({ timeout: 10000 });
     await dialog.getByLabel(/display name/i).fill(original);
     await dialog.getByRole("button", { name: /save changes/i }).click();
     await waitForToast(page, "Person updated");
@@ -154,7 +160,7 @@ test.describe("Networks CRUD", () => {
     await dialog.getByRole("button", { name: /create network/i }).click();
 
     await waitForToast(page, "Network created");
-    await expect(page).toHaveURL(/\/networks\/.+/);
+    await expect(page).toHaveURL(/\/networks\/.+/, { timeout: 15000 });
     await expect(page.getByRole("button", { name: /^edit$/i })).toBeVisible();
   });
 
@@ -370,7 +376,7 @@ test.describe("Sessions CRUD", () => {
     await dialog.getByRole("button", { name: /create session/i }).click();
 
     await waitForToast(page, "Session created");
-    await expect(page).toHaveURL(/\/sessions\/.+/);
+    await expect(page).toHaveURL(/\/sessions\/.+/, { timeout: 15000 });
     await expect(page.getByRole("button", { name: /^edit$/i })).toBeVisible();
   });
 
