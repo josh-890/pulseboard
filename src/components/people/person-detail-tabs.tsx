@@ -70,6 +70,7 @@ import {
   removeHeadshotSlot as removeHeadshotSlotAction,
 } from "@/lib/actions/media-actions";
 import { updatePersonBio } from "@/lib/actions/person-actions";
+import ReactMarkdown from "react-markdown";
 
 type PersonData = NonNullable<Awaited<ReturnType<typeof getPersonWithDetails>>>;
 
@@ -783,13 +784,31 @@ function HeroCard({
 
 // ── Overview Tab ─────────────────────────────────────────────────────────────
 
-function AboutCard({ person }: { person: PersonData }) {
+function AboutCard({ person, referencePhotos }: { person: PersonData; referencePhotos?: GalleryItem[] }) {
   const [editing, setEditing] = useState(false);
   const [savedBio, setSavedBio] = useState(person.bio ?? "");
   const [draft, setDraft] = useState(person.bio ?? "");
   const [isPending, startTransition] = useTransition();
+  const [showPhotoPicker, setShowPhotoPicker] = useState(false);
 
   const displayName = person.aliases.find((a) => a.type === "common")?.name ?? person.icgId;
+  const photos = referencePhotos ?? [];
+
+  // Build a lookup map for media: references → actual URLs
+  const mediaUrlMap = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const p of photos) {
+      const url = p.urls.gallery_512 ?? p.urls.original;
+      if (url) map.set(p.id, url);
+    }
+    return map;
+  }, [photos]);
+
+  function insertPhoto(mediaId: string) {
+    const tag = `![](media:${mediaId})`;
+    setDraft((prev) => prev ? `${prev}\n${tag}` : tag);
+    setShowPhotoPicker(false);
+  }
 
   function handleSave() {
     startTransition(async () => {
@@ -800,6 +819,36 @@ function AboutCard({ person }: { person: PersonData }) {
       setEditing(false);
     });
   }
+
+  const markdownComponents = useMemo(() => ({
+    h1: ({ children }: { children?: React.ReactNode }) => <p className="text-base font-bold text-foreground mb-1">{children}</p>,
+    h2: ({ children }: { children?: React.ReactNode }) => <p className="text-sm font-semibold text-foreground mb-1">{children}</p>,
+    h3: ({ children }: { children?: React.ReactNode }) => <p className="text-sm font-medium text-foreground mb-0.5">{children}</p>,
+    p: ({ children }: { children?: React.ReactNode }) => <p className="mb-2 last:mb-0">{children}</p>,
+    strong: ({ children }: { children?: React.ReactNode }) => <strong className="font-semibold text-foreground">{children}</strong>,
+    em: ({ children }: { children?: React.ReactNode }) => <em>{children}</em>,
+    ul: ({ children }: { children?: React.ReactNode }) => <ul className="list-disc list-inside mb-2 last:mb-0 space-y-0.5">{children}</ul>,
+    ol: ({ children }: { children?: React.ReactNode }) => <ol className="list-decimal list-inside mb-2 last:mb-0 space-y-0.5">{children}</ol>,
+    a: ({ children }: { href?: string; children?: React.ReactNode }) => <span className="text-primary underline">{children}</span>,
+    img: ({ src, alt }: { src?: string | Blob; alt?: string }) => {
+      if (!src || typeof src !== "string") return null;
+      // Only allow media: references from reference session photos
+      if (!src.startsWith("media:")) return null;
+      const mediaId = src.slice(6);
+      const resolved = mediaUrlMap.get(mediaId);
+      if (!resolved) return null;
+      return (
+        <NextImage
+          src={resolved}
+          alt={alt ?? ""}
+          width={400}
+          height={300}
+          className="rounded-lg my-2 max-w-full w-auto h-auto"
+          unoptimized
+        />
+      );
+    },
+  }), [mediaUrlMap]);
 
   return (
     <SectionCard
@@ -825,9 +874,30 @@ function AboutCard({ person }: { person: PersonData }) {
             onChange={(e) => setDraft(e.target.value)}
             rows={4}
             className="w-full resize-y rounded-lg border border-white/15 bg-muted/30 px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-ring"
-            placeholder="Write a bio..."
+            placeholder="Write a bio... (supports **bold**, *italic*, # headings, - lists)"
           />
-          <div className="flex gap-2">
+          {/* Photo picker */}
+          {showPhotoPicker && photos.length > 0 && (
+            <div className="rounded-lg border border-white/15 bg-muted/30 p-3">
+              <p className="text-xs font-medium text-muted-foreground mb-2">Insert photo from reference session</p>
+              <div className="flex flex-wrap gap-1.5">
+                {photos.map((photo) => {
+                  const thumbUrl = photo.urls.gallery_512 ?? photo.urls.original;
+                  return thumbUrl ? (
+                    <button
+                      key={photo.id}
+                      type="button"
+                      onClick={() => insertPhoto(photo.id)}
+                      className="h-14 w-14 shrink-0 overflow-hidden rounded-md border border-white/10 transition-all hover:border-primary hover:ring-1 hover:ring-primary"
+                    >
+                      <NextImage src={thumbUrl} alt="" width={56} height={56} className="h-full w-full object-cover" unoptimized />
+                    </button>
+                  ) : null;
+                })}
+              </div>
+            </div>
+          )}
+          <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={handleSave}
@@ -843,12 +913,37 @@ function AboutCard({ person }: { person: PersonData }) {
             >
               Cancel
             </button>
+            {photos.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setShowPhotoPicker((v) => !v)}
+                className={cn(
+                  "ml-auto flex items-center gap-1 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors",
+                  showPhotoPicker
+                    ? "border-primary/30 bg-primary/10 text-primary"
+                    : "border-white/15 text-muted-foreground hover:text-foreground"
+                )}
+              >
+                <ImageIcon size={12} /> Photo
+              </button>
+            )}
           </div>
         </div>
       ) : savedBio ? (
-        <p className="whitespace-pre-wrap text-sm leading-relaxed text-muted-foreground">
-          {savedBio}
-        </p>
+        <div
+          role="button"
+          tabIndex={0}
+          onClick={() => { setDraft(savedBio); setEditing(true); }}
+          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { setDraft(savedBio); setEditing(true); } }}
+          className="w-full text-left text-sm leading-relaxed text-muted-foreground rounded-lg px-3 py-2 -mx-3 -my-2 transition-colors hover:bg-muted/30 cursor-text"
+        >
+          <ReactMarkdown
+            components={markdownComponents}
+            urlTransform={(url) => url}
+          >
+            {savedBio}
+          </ReactMarkdown>
+        </div>
       ) : (
         <button
           type="button"
@@ -883,7 +978,7 @@ function OverviewTab({
   return (
     <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
       {/* 1. About */}
-      <AboutCard person={person} />
+      <AboutCard person={person} referencePhotos={referencePhotos} />
 
       {/* 2. Recent Work | Recent Photos */}
       {recentWork.length > 0 && (
