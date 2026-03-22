@@ -242,14 +242,26 @@ export async function cascadeDeletePersonAliases(
 }
 
 /**
- * Cascade hard-delete a single persona: physical, body mark events,
+ * Cascade hard-delete a single persona: physical + attributes, body mark events,
  * body modification events, cosmetic procedure events, digital identities,
- * skill events, then the persona itself.
+ * skill event media + skill events, then the persona itself.
+ * NOTE: Does NOT clean up orphaned parent entities — that's handled by
+ * cascadeDeletePersonPersonas or the caller should do it separately.
  */
 export async function cascadeDeletePersona(
   tx: TxClient,
   personaId: string,
 ) {
+  // PersonaPhysical + PersonaPhysicalAttribute
+  const personaPhysicals = await tx.personaPhysical.findMany({
+    where: { personaId },
+    select: { id: true },
+  });
+  if (personaPhysicals.length > 0) {
+    await tx.personaPhysicalAttribute.deleteMany({
+      where: { personaPhysicalId: { in: personaPhysicals.map((p) => p.id) } },
+    });
+  }
   await tx.personaPhysical.deleteMany({
     where: { personaId },
   });
@@ -265,7 +277,16 @@ export async function cascadeDeletePersona(
   await tx.personDigitalIdentity.deleteMany({
     where: { personaId },
   });
-  // Skill events reference persona via personSkillEvent.personaId
+  // Skill event media, then skill events
+  const skillEvents = await tx.personSkillEvent.findMany({
+    where: { personaId },
+    select: { id: true },
+  });
+  if (skillEvents.length > 0) {
+    await tx.skillEventMedia.deleteMany({
+      where: { skillEventId: { in: skillEvents.map((e) => e.id) } },
+    });
+  }
   await tx.personSkillEvent.deleteMany({
     where: { personaId },
   });

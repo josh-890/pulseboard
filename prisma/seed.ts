@@ -171,7 +171,6 @@ async function main() {
       currentHairColor: "blonde",
       weight: 57.0,
       build: "athletic",
-      fitnessLevel: "high",
     },
   });
 

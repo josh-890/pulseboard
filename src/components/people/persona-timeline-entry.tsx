@@ -23,8 +23,6 @@ export function PersonaTimelineEntry({ persona, personId }: PersonaTimelineEntry
         persona.physicalChange?.currentHairColor ? `Hair: ${persona.physicalChange.currentHairColor}` : null,
         persona.physicalChange?.weight ? `Weight: ${persona.physicalChange.weight} kg` : null,
         persona.physicalChange?.build ? `Build: ${persona.physicalChange.build}` : null,
-        persona.physicalChange?.visionAids ? `Vision aids: ${persona.physicalChange.visionAids}` : null,
-        persona.physicalChange?.fitnessLevel ? `Fitness: ${persona.physicalChange.fitnessLevel}` : null,
       ].filter(Boolean)
     : [];
 

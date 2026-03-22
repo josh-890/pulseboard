@@ -40,6 +40,13 @@ import { ETHNICITY_OPTIONS } from "@/lib/constants/ethnicity";
 import { CountryPicker } from "@/components/shared/country-picker";
 import { updatePerson } from "@/lib/actions/person-actions";
 import { PartialDateInput } from "@/components/shared/partial-date-input";
+import { SelectWithOther } from "@/components/shared/select-with-other";
+import {
+  EYE_COLOR_OPTIONS,
+  NATURAL_HAIR_COLOR_OPTIONS,
+  CURRENT_HAIR_COLOR_OPTIONS,
+  BUILD_OPTIONS,
+} from "@/lib/constants/appearance";
 import type { getPersonWithDetails } from "@/lib/services/person-service";
 
 type PersonDetail = NonNullable<Awaited<ReturnType<typeof getPersonWithDetails>>>;
@@ -89,8 +96,6 @@ export function EditPersonSheet({ person }: EditPersonSheetProps) {
     weight: physical?.weight ?? undefined,
     build: physical?.build ?? undefined,
     currentHairColor: physical?.currentHairColor ?? "",
-    visionAids: physical?.visionAids ?? undefined,
-    fitnessLevel: physical?.fitnessLevel ?? undefined,
   });
 
   const form = useForm<UpdatePersonFormValues, unknown, UpdatePersonInput>({
@@ -385,7 +390,12 @@ export function EditPersonSheet({ person }: EditPersonSheetProps) {
                         <FormItem>
                           <FormLabel>Eye Color</FormLabel>
                           <FormControl>
-                            <Input placeholder="e.g. Brown" {...field} />
+                            <SelectWithOther
+                              options={EYE_COLOR_OPTIONS}
+                              value={field.value || undefined}
+                              onChange={(v) => field.onChange(v ?? "")}
+                              placeholder="Select eye color…"
+                            />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -399,7 +409,12 @@ export function EditPersonSheet({ person }: EditPersonSheetProps) {
                         <FormItem>
                           <FormLabel>Natural Hair Color</FormLabel>
                           <FormControl>
-                            <Input placeholder="e.g. Dark Brown" {...field} />
+                            <SelectWithOther
+                              options={NATURAL_HAIR_COLOR_OPTIONS}
+                              value={field.value || undefined}
+                              onChange={(v) => field.onChange(v ?? "")}
+                              placeholder="Select hair color…"
+                            />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -457,25 +472,14 @@ export function EditPersonSheet({ person }: EditPersonSheetProps) {
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel>Build</FormLabel>
-                          <Select
-                            onValueChange={(v) => field.onChange(v === "_none" ? undefined : v)}
-                            value={field.value ?? "_none"}
-                          >
-                            <FormControl>
-                              <SelectTrigger className="w-full">
-                                <SelectValue placeholder="Select build…" />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              <SelectItem value="_none">— not specified —</SelectItem>
-                              <SelectItem value="slim">Slim</SelectItem>
-                              <SelectItem value="average">Average</SelectItem>
-                              <SelectItem value="athletic">Athletic</SelectItem>
-                              <SelectItem value="muscular">Muscular</SelectItem>
-                              <SelectItem value="curvy">Curvy</SelectItem>
-                              <SelectItem value="other">Other</SelectItem>
-                            </SelectContent>
-                          </Select>
+                          <FormControl>
+                            <SelectWithOther
+                              options={BUILD_OPTIONS}
+                              value={field.value || undefined}
+                              onChange={(v) => field.onChange(v ?? "")}
+                              placeholder="Select build…"
+                            />
+                          </FormControl>
                           <FormMessage />
                         </FormItem>
                       )}
@@ -488,67 +492,18 @@ export function EditPersonSheet({ person }: EditPersonSheetProps) {
                         <FormItem>
                           <FormLabel>Current Hair Color</FormLabel>
                           <FormControl>
-                            <Input placeholder="e.g. Blonde" {...field} />
+                            <SelectWithOther
+                              options={CURRENT_HAIR_COLOR_OPTIONS}
+                              value={field.value || undefined}
+                              onChange={(v) => field.onChange(v ?? "")}
+                              placeholder="Select hair color…"
+                            />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
                       )}
                     />
 
-                    <FormField
-                      control={form.control}
-                      name="visionAids"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Vision Aids</FormLabel>
-                          <Select
-                            onValueChange={(v) => field.onChange(v === "_none" ? undefined : v)}
-                            value={field.value ?? "_none"}
-                          >
-                            <FormControl>
-                              <SelectTrigger className="w-full">
-                                <SelectValue placeholder="Select…" />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              <SelectItem value="_none">— not specified —</SelectItem>
-                              <SelectItem value="none">None</SelectItem>
-                              <SelectItem value="glasses">Glasses</SelectItem>
-                              <SelectItem value="contact lenses">Contact Lenses</SelectItem>
-                              <SelectItem value="both">Both</SelectItem>
-                            </SelectContent>
-                          </Select>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={form.control}
-                      name="fitnessLevel"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Fitness Level</FormLabel>
-                          <Select
-                            onValueChange={(v) => field.onChange(v === "_none" ? undefined : v)}
-                            value={field.value ?? "_none"}
-                          >
-                            <FormControl>
-                              <SelectTrigger className="w-full">
-                                <SelectValue placeholder="Select…" />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              <SelectItem value="_none">— not specified —</SelectItem>
-                              <SelectItem value="low">Low</SelectItem>
-                              <SelectItem value="moderate">Moderate</SelectItem>
-                              <SelectItem value="high">High</SelectItem>
-                            </SelectContent>
-                          </Select>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
                   </div>
                 </section>
 

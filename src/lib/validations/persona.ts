@@ -63,8 +63,6 @@ export const createPersonaBatchSchema = z.object({
   currentHairColor: z.string().optional(),
   weight: z.coerce.number().positive().optional(),
   build: z.string().optional(),
-  visionAids: z.string().optional(),
-  fitnessLevel: z.string().optional(),
 
   // Events for existing entities
   bodyMarkEvents: z.array(bodyMarkEventEntry).default([]),

@@ -18,6 +18,7 @@ import type {
 import type { PersonStatus, Prisma } from "@/generated/prisma/client";
 import { expandRegionFilter } from "@/lib/constants/body-regions";
 import type { CreatePersonInput, UpdatePersonInput } from "@/lib/validations/person";
+import { batchComputeCompleteness } from "@/lib/services/completeness-service";
 import {
   cascadeDeleteSession,
   cascadeDeleteBodyModifications,
@@ -65,7 +66,9 @@ export type PersonSort =
   | "age-asc"
   | "age-desc"
   | "rating-desc"
-  | "updated";
+  | "updated"
+  | "completeness-asc"
+  | "completeness-desc";
 
 export type PersonFilters = {
   q?: string;
@@ -76,6 +79,7 @@ export type PersonFilters = {
   bodyRegions?: string[];
   bodyRegionMatch?: "any" | "all";
   sort?: PersonSort;
+  completeness?: "low" | "medium" | "high";
 };
 
 export async function getPersons(filters: PersonFilters = {}): Promise<PersonWithCommonAlias[]> {
@@ -139,6 +143,7 @@ export async function getPersons(filters: PersonFilters = {}): Promise<PersonWit
     birthdate: p.birthdate,
     nationality: p.nationality,
     birthAlias: p.aliases.find((a) => a.type === "birth")?.name ?? null,
+    completeness: 0,
   }));
 }
 
@@ -351,8 +356,6 @@ export async function computePersonCurrentState(personId: string): Promise<Perso
   let currentHairColor: string | null = null;
   let weight: number | null = null;
   let build: string | null = null;
-  let visionAids: string | null = null;
-  let fitnessLevel: string | null = null;
 
   for (const persona of allPersonas) {
     if (persona.physicalChange) {
@@ -360,8 +363,6 @@ export async function computePersonCurrentState(personId: string): Promise<Perso
       if (p.currentHairColor !== null) currentHairColor = p.currentHairColor;
       if (p.weight !== null) weight = p.weight;
       if (p.build !== null) build = p.build;
-      if (p.visionAids !== null) visionAids = p.visionAids;
-      if (p.fitnessLevel !== null) fitnessLevel = p.fitnessLevel;
     }
   }
 
@@ -386,8 +387,6 @@ export async function computePersonCurrentState(personId: string): Promise<Perso
     currentHairColor,
     weight,
     build,
-    visionAids,
-    fitnessLevel,
     extensibleAttributes: {},
     activeBodyMarks,
     activeBodyModifications: [],
@@ -633,8 +632,6 @@ export function deriveCurrentState(
   let currentHairColor: string | null = null;
   let weight: number | null = null;
   let build: string | null = null;
-  let visionAids: string | null = null;
-  let fitnessLevel: string | null = null;
 
   const extensibleAttributes: Record<string, ExtensibleAttributeValue> = {};
 
@@ -644,8 +641,6 @@ export function deriveCurrentState(
       if (p.currentHairColor !== null) currentHairColor = p.currentHairColor;
       if (p.weight !== null) weight = p.weight;
       if (p.build !== null) build = p.build;
-      if (p.visionAids !== null) visionAids = p.visionAids;
-      if (p.fitnessLevel !== null) fitnessLevel = p.fitnessLevel;
       // Fold extensible attributes — later personas override earlier ones per-key
       if (p.attributes) {
         for (const attr of p.attributes) {
@@ -873,8 +868,6 @@ export function deriveCurrentState(
     currentHairColor,
     weight,
     build,
-    visionAids,
-    fitnessLevel,
     extensibleAttributes,
     activeBodyMarks,
     activeBodyModifications,
@@ -1008,7 +1001,7 @@ export async function createPersonRecord(data: CreatePersonInput) {
     const persona = await tx.persona.create({
       data: {
         personId: person.id,
-        label: data.personaLabel,
+        label: "Baseline",
         isBaseline: true,
         date: new Date(),
       },
@@ -1018,20 +1011,33 @@ export async function createPersonRecord(data: CreatePersonInput) {
       data.weight !== undefined ||
       data.build !== undefined ||
       data.currentHairColor !== undefined ||
-      data.visionAids !== undefined ||
-      data.fitnessLevel !== undefined;
+      data.hairLength !== undefined;
 
     if (hasPhysical) {
-      await tx.personaPhysical.create({
+      const physical = await tx.personaPhysical.create({
         data: {
           personaId: persona.id,
           weight: data.weight,
           build: data.build,
           currentHairColor: data.currentHairColor,
-          visionAids: data.visionAids,
-          fitnessLevel: data.fitnessLevel,
         },
       });
+
+      // Create hair-length attribute if provided
+      if (data.hairLength) {
+        const hairLengthDef = await tx.physicalAttributeDefinition.findFirst({
+          where: { slug: "hair-length" },
+        });
+        if (hairLengthDef) {
+          await tx.personaPhysicalAttribute.create({
+            data: {
+              personaPhysicalId: physical.id,
+              attributeDefinitionId: hairLengthDef.id,
+              value: data.hairLength,
+            },
+          });
+        }
+      }
     }
 
     // Auto-create REFERENCE session for this person
@@ -1091,9 +1097,7 @@ export async function updatePersonRecord(id: string, data: UpdatePersonInput) {
     const hasPhysical =
       data.weight !== undefined ||
       data.build !== undefined ||
-      data.currentHairColor !== undefined ||
-      data.visionAids !== undefined ||
-      data.fitnessLevel !== undefined;
+      data.currentHairColor !== undefined;
 
     if (hasPhysical) {
       const baselinePersona = await tx.persona.findFirst({
@@ -1107,15 +1111,11 @@ export async function updatePersonRecord(id: string, data: UpdatePersonInput) {
             weight: data.weight,
             build: data.build,
             currentHairColor: data.currentHairColor,
-            visionAids: data.visionAids,
-            fitnessLevel: data.fitnessLevel,
           },
           update: {
             weight: data.weight ?? null,
             build: data.build ?? null,
             currentHairColor: data.currentHairColor ?? null,
-            visionAids: data.visionAids ?? null,
-            fitnessLevel: data.fitnessLevel ?? null,
           },
         });
       }
@@ -1247,6 +1247,10 @@ function getPersonOrderBy(sort?: PersonSort): Prisma.PersonOrderByWithRelationIn
       return [{ rating: { sort: "desc", nulls: "last" } }];
     case "updated":
       return [{ createdAt: "desc" }]; // Person has no updatedAt — use createdAt
+    case "completeness-asc":
+    case "completeness-desc":
+      // Completeness sort handled in-memory
+      return [{ createdAt: "asc" }];
     default:
       return [{ createdAt: "asc" }];
   }
@@ -1306,12 +1310,42 @@ export async function getPersonsPaginated(
     ];
   }
 
+  const { completeness: completenessFilter } = filters;
   const orderBy = getPersonOrderBy(sort);
   const isNameSort = sort === "name-asc" || sort === "name-desc";
+  const isCompletenessSort = sort === "completeness-asc" || sort === "completeness-desc";
+  const needsInMemoryPath = isNameSort || isCompletenessSort || !!completenessFilter;
 
-  // For name sort, fetch with aliases ordered by nameNorm
-  if (isNameSort) {
-    const [totalCount, allPersons] = await Promise.all([
+  // Helper to map a raw person to PersonWithCommonAlias (sans completeness)
+  type RawPerson = Awaited<ReturnType<typeof prisma.person.findMany>>[number] & {
+    aliases: { type: string; name: string; nameNorm: string | null }[];
+  };
+
+  function mapPerson(p: RawPerson, score: number): PersonWithCommonAlias {
+    return {
+      id: p.id,
+      icgId: p.icgId,
+      status: p.status,
+      rating: p.rating,
+      tags: p.tags,
+      naturalHairColor: p.naturalHairColor,
+      bodyType: p.bodyType,
+      ethnicity: p.ethnicity,
+      location: p.location,
+      activeSince: p.activeSince,
+      specialization: p.specialization,
+      createdAt: p.createdAt,
+      commonAlias: p.aliases.find((a) => a.type === "common")?.name ?? null,
+      birthdate: p.birthdate,
+      nationality: p.nationality,
+      birthAlias: p.aliases.find((a) => a.type === "birth")?.name ?? null,
+      completeness: score,
+    };
+  }
+
+  // For name sort, completeness sort, or completeness filter — fetch all then sort/filter in-memory
+  if (needsInMemoryPath) {
+    const [totalCountRaw, allPersons] = await Promise.all([
       prisma.person.count({ where }),
       prisma.person.findMany({
         where,
@@ -1321,49 +1355,72 @@ export async function getPersonsPaginated(
       }),
     ]);
 
-    // Sort in-memory by common alias nameNorm
-    const direction = sort === "name-asc" ? 1 : -1;
-    allPersons.sort((a, b) => {
-      const nameA = a.aliases.find((al) => al.type === "common")?.nameNorm ?? "\uffff";
-      const nameB = b.aliases.find((al) => al.type === "common")?.nameNorm ?? "\uffff";
-      return nameA.localeCompare(nameB) * direction;
-    });
+    // Batch compute completeness for all persons
+    const batchData = allPersons.map((p) => ({
+      id: p.id,
+      birthdate: p.birthdate,
+      nationality: p.nationality,
+      sexAtBirth: p.sexAtBirth,
+      ethnicity: p.ethnicity,
+      eyeColor: p.eyeColor,
+      naturalHairColor: p.naturalHairColor,
+      height: p.height,
+      birthPlace: p.birthPlace,
+      birthAlias: p.aliases.find((a) => a.type === "birth")?.name ?? null,
+    }));
+    const completenessMap = await batchComputeCompleteness(
+      batchData,
+      allPersons.map((p) => p.id),
+    );
 
-    // Find cursor position for pagination
+    // Apply completeness filter
+    let filtered = allPersons;
+    if (completenessFilter) {
+      filtered = allPersons.filter((p) => {
+        const score = completenessMap.get(p.id) ?? 0;
+        if (completenessFilter === "low") return score < 40;
+        if (completenessFilter === "medium") return score >= 40 && score <= 70;
+        return score > 70;
+      });
+    }
+
+    // Sort
+    if (isNameSort) {
+      const direction = sort === "name-asc" ? 1 : -1;
+      filtered.sort((a, b) => {
+        const nameA = a.aliases.find((al) => al.type === "common")?.nameNorm ?? "\uffff";
+        const nameB = b.aliases.find((al) => al.type === "common")?.nameNorm ?? "\uffff";
+        return nameA.localeCompare(nameB) * direction;
+      });
+    } else if (isCompletenessSort) {
+      const direction = sort === "completeness-asc" ? 1 : -1;
+      filtered.sort((a, b) => {
+        const scoreA = completenessMap.get(a.id) ?? 0;
+        const scoreB = completenessMap.get(b.id) ?? 0;
+        return (scoreA - scoreB) * direction;
+      });
+    }
+
+    // Paginate
     let startIdx = 0;
     if (cursor) {
-      const cursorIdx = allPersons.findIndex((p) => p.id === cursor);
+      const cursorIdx = filtered.findIndex((p) => p.id === cursor);
       startIdx = cursorIdx >= 0 ? cursorIdx + 1 : 0;
     }
 
-    const pageItems = allPersons.slice(startIdx, startIdx + limit);
-    const hasMore = startIdx + limit < allPersons.length;
+    const pageItems = filtered.slice(startIdx, startIdx + limit);
+    const hasMore = startIdx + limit < filtered.length;
     const nextCursorId = hasMore ? pageItems[pageItems.length - 1]!.id : null;
+    const totalCount = completenessFilter ? filtered.length : totalCountRaw;
 
     return {
-      items: pageItems.map((p) => ({
-        id: p.id,
-        icgId: p.icgId,
-        status: p.status,
-        rating: p.rating,
-        tags: p.tags,
-        naturalHairColor: p.naturalHairColor,
-        bodyType: p.bodyType,
-        ethnicity: p.ethnicity,
-        location: p.location,
-        activeSince: p.activeSince,
-        specialization: p.specialization,
-        createdAt: p.createdAt,
-        commonAlias: p.aliases.find((a) => a.type === "common")?.name ?? null,
-        birthdate: p.birthdate,
-        nationality: p.nationality,
-        birthAlias: p.aliases.find((a) => a.type === "birth")?.name ?? null,
-      })),
+      items: pageItems.map((p) => mapPerson(p, completenessMap.get(p.id) ?? 0)),
       nextCursor: nextCursorId,
       totalCount,
     };
   }
 
+  // Standard cursor-based pagination
   const [totalCount, persons] = await Promise.all([
     prisma.person.count({ where }),
     prisma.person.findMany({
@@ -1383,25 +1440,26 @@ export async function getPersonsPaginated(
   const items = hasMore ? persons.slice(0, limit) : persons;
   const nextCursor = hasMore ? items[items.length - 1]!.id : null;
 
+  // Batch compute completeness
+  const batchData = items.map((p) => ({
+    id: p.id,
+    birthdate: p.birthdate,
+    nationality: p.nationality,
+    sexAtBirth: p.sexAtBirth,
+    ethnicity: p.ethnicity,
+    eyeColor: p.eyeColor,
+    naturalHairColor: p.naturalHairColor,
+    height: p.height,
+    birthPlace: p.birthPlace,
+    birthAlias: p.aliases.find((a) => a.type === "birth")?.name ?? null,
+  }));
+  const completenessMap = await batchComputeCompleteness(
+    batchData,
+    items.map((p) => p.id),
+  );
+
   return {
-    items: items.map((p) => ({
-      id: p.id,
-      icgId: p.icgId,
-      status: p.status,
-      rating: p.rating,
-      tags: p.tags,
-      naturalHairColor: p.naturalHairColor,
-      bodyType: p.bodyType,
-      ethnicity: p.ethnicity,
-      location: p.location,
-      activeSince: p.activeSince,
-      specialization: p.specialization,
-      createdAt: p.createdAt,
-      commonAlias: p.aliases.find((a) => a.type === "common")?.name ?? null,
-      birthdate: p.birthdate,
-      nationality: p.nationality,
-      birthAlias: p.aliases.find((a) => a.type === "birth")?.name ?? null,
-    })),
+    items: items.map((p) => mapPerson(p, completenessMap.get(p.id) ?? 0)),
     nextCursor,
     totalCount,
   };

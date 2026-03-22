@@ -1,10 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { UserPlus } from "lucide-react";
+import { UserPlus, ChevronDown, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -36,10 +36,20 @@ import {
   type CreatePersonFormValues,
   type CreatePersonInput,
 } from "@/lib/validations/person";
+import {
+  EYE_COLOR_OPTIONS,
+  NATURAL_HAIR_COLOR_OPTIONS,
+  CURRENT_HAIR_COLOR_OPTIONS,
+  HAIR_LENGTH_OPTIONS,
+  BUILD_OPTIONS,
+} from "@/lib/constants/appearance";
 import { ETHNICITY_OPTIONS } from "@/lib/constants/ethnicity";
 import { CountryPicker } from "@/components/shared/country-picker";
+import { SelectWithOther } from "@/components/shared/select-with-other";
 import { createPerson } from "@/lib/actions/person-actions";
 import { PartialDateInput } from "@/components/shared/partial-date-input";
+import { generateIcgId } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 
 function SectionHeader({ children }: { children: React.ReactNode }) {
   return (
@@ -53,6 +63,8 @@ function SectionHeader({ children }: { children: React.ReactNode }) {
 export function AddPersonSheet() {
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  const [showAppearance, setShowAppearance] = useState(false);
+  const userEditedIcgId = useRef(false);
 
   const form = useForm<CreatePersonFormValues, unknown, CreatePersonInput>({
     resolver: zodResolver(createPersonSchema),
@@ -60,11 +72,33 @@ export function AddPersonSheet() {
       icgId: "",
       commonName: "",
       status: "active",
-      personaLabel: "Baseline",
     },
   });
 
   const { isSubmitting } = form.formState;
+
+  const watchedName = form.watch("commonName");
+  const watchedBirthdate = form.watch("birthdate");
+
+  // Auto-generate ICG-ID when name or birthdate changes
+  useEffect(() => {
+    if (userEditedIcgId.current) return;
+    if (!watchedName?.trim()) {
+      form.setValue("icgId", "");
+      return;
+    }
+    const id = generateIcgId(watchedName, watchedBirthdate);
+    form.setValue("icgId", id);
+  }, [watchedName, watchedBirthdate, form]);
+
+  function handleRegenerateIcgId() {
+    userEditedIcgId.current = false;
+    const name = form.getValues("commonName");
+    const birthdate = form.getValues("birthdate");
+    if (name?.trim()) {
+      form.setValue("icgId", generateIcgId(name, birthdate));
+    }
+  }
 
   async function onSubmit(values: CreatePersonInput) {
     const result = await createPerson(values);
@@ -74,6 +108,8 @@ export function AddPersonSheet() {
       router.push(`/people/${result.id}`);
       form.reset();
       setOpen(false);
+      setShowAppearance(false);
+      userEditedIcgId.current = false;
       return;
     }
 
@@ -86,7 +122,14 @@ export function AddPersonSheet() {
   }
 
   return (
-    <Sheet open={open} onOpenChange={setOpen}>
+    <Sheet open={open} onOpenChange={(v) => {
+      setOpen(v);
+      if (!v) {
+        form.reset();
+        setShowAppearance(false);
+        userEditedIcgId.current = false;
+      }
+    }}>
       <Button size="sm" onClick={() => setOpen(true)}>
         <UserPlus size={16} />
         Add Person
@@ -98,7 +141,7 @@ export function AddPersonSheet() {
         <SheetHeader className="border-b pb-4 px-4">
           <SheetTitle className="text-lg font-semibold">Add Person</SheetTitle>
           <SheetDescription className="text-xs text-muted-foreground">
-            Required fields: ICG-ID and Display Name.
+            Only Display Name is required. ICG-ID is auto-generated.
           </SheetDescription>
         </SheetHeader>
 
@@ -110,31 +153,11 @@ export function AddPersonSheet() {
             <div className="flex-1 overflow-y-auto px-4 py-4">
               <div className="space-y-6">
 
-                {/* Section 1 — Identity */}
+                {/* Essentials */}
                 <section className="rounded-xl border bg-muted/30 dark:bg-muted/20 p-4 space-y-4">
-                  <SectionHeader>Identity</SectionHeader>
+                  <SectionHeader>Essentials</SectionHeader>
 
                   <div className="grid grid-cols-2 gap-3">
-                    <FormField
-                      control={form.control}
-                      name="icgId"
-                      render={({ field }) => (
-                        <FormItem className="col-span-2">
-                          <FormLabel>ICG-ID <span className="text-destructive">*</span></FormLabel>
-                          <FormControl>
-                            <Input
-                              placeholder="e.g. JD-96ABF"
-                              {...field}
-                              onChange={(e) =>
-                                field.onChange(e.target.value.toUpperCase())
-                              }
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
                     <FormField
                       control={form.control}
                       name="commonName"
@@ -144,6 +167,45 @@ export function AddPersonSheet() {
                           <FormControl>
                             <Input placeholder="Common alias / display name" {...field} />
                           </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="icgId"
+                      render={({ field }) => (
+                        <FormItem className="col-span-2">
+                          <FormLabel className="flex items-center gap-2">
+                            ICG-ID <span className="text-destructive">*</span>
+                            {!userEditedIcgId.current && (
+                              <span className="text-[10px] font-normal text-muted-foreground/70 bg-muted px-1.5 py-0.5 rounded">auto</span>
+                            )}
+                          </FormLabel>
+                          <div className="flex gap-1.5">
+                            <FormControl>
+                              <Input
+                                placeholder="e.g. JD-95@K7R"
+                                className="font-mono"
+                                {...field}
+                                onChange={(e) => {
+                                  userEditedIcgId.current = true;
+                                  field.onChange(e.target.value.toUpperCase());
+                                }}
+                              />
+                            </FormControl>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="shrink-0 h-9 w-9"
+                              onClick={handleRegenerateIcgId}
+                              title="Regenerate ICG-ID"
+                            >
+                              <RefreshCw size={14} />
+                            </Button>
+                          </div>
                           <FormMessage />
                         </FormItem>
                       )}
@@ -173,27 +235,6 @@ export function AddPersonSheet() {
                       )}
                     />
 
-                    <FormField
-                      control={form.control}
-                      name="birthName"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Birth Name</FormLabel>
-                          <FormControl>
-                            <Input placeholder="Legal / birth name" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-                </section>
-
-                {/* Section 2 — Origin */}
-                <section className="rounded-xl border bg-muted/30 dark:bg-muted/20 p-4 space-y-4">
-                  <SectionHeader>Origin</SectionHeader>
-
-                  <div className="grid grid-cols-2 gap-3">
                     <FormField
                       control={form.control}
                       name="sexAtBirth"
@@ -232,12 +273,12 @@ export function AddPersonSheet() {
 
                     <FormField
                       control={form.control}
-                      name="birthPlace"
+                      name="birthName"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Birth Place</FormLabel>
+                          <FormLabel>Birth Name</FormLabel>
                           <FormControl>
-                            <Input placeholder="e.g. Berlin, Germany" {...field} />
+                            <Input placeholder="Legal / birth name" {...field} />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -263,9 +304,23 @@ export function AddPersonSheet() {
 
                     <FormField
                       control={form.control}
+                      name="birthPlace"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Birth Place</FormLabel>
+                          <FormControl>
+                            <Input placeholder="e.g. Berlin, Germany" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
                       name="ethnicity"
                       render={({ field }) => (
-                        <FormItem className="col-span-2">
+                        <FormItem>
                           <FormLabel>Ethnicity</FormLabel>
                           <Select
                             onValueChange={(v) => field.onChange(v === "_none" ? undefined : v)}
@@ -292,204 +347,155 @@ export function AddPersonSheet() {
                   </div>
                 </section>
 
-                {/* Section 3 — Appearance */}
-                <section className="rounded-xl border bg-muted/30 dark:bg-muted/20 p-4 space-y-4">
-                  <SectionHeader>Appearance</SectionHeader>
-
-                  <div className="grid grid-cols-2 gap-3">
-                    <FormField
-                      control={form.control}
-                      name="eyeColor"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Eye Color</FormLabel>
-                          <FormControl>
-                            <Input placeholder="e.g. Brown" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
+                {/* Appearance — collapsible */}
+                <section className="rounded-xl border bg-muted/30 dark:bg-muted/20 overflow-hidden">
+                  <button
+                    type="button"
+                    className="flex w-full items-center justify-between p-4 text-left hover:bg-muted/40 transition-colors"
+                    onClick={() => setShowAppearance(!showAppearance)}
+                  >
+                    <SectionHeader>Appearance</SectionHeader>
+                    <ChevronDown
+                      size={16}
+                      className={cn(
+                        "text-muted-foreground transition-transform duration-200",
+                        showAppearance && "rotate-180",
                       )}
                     />
+                  </button>
 
-                    <FormField
-                      control={form.control}
-                      name="naturalHairColor"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Natural Hair Color</FormLabel>
-                          <FormControl>
-                            <Input placeholder="e.g. Dark Brown" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
+                  {showAppearance && (
+                    <div className="border-t px-4 pb-4 pt-3">
+                      <div className="grid grid-cols-2 gap-3">
+                        <FormField
+                          control={form.control}
+                          name="eyeColor"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Eye Color</FormLabel>
+                              <FormControl>
+                                <SelectWithOther
+                                  options={EYE_COLOR_OPTIONS}
+                                  value={field.value || undefined}
+                                  onChange={(v) => field.onChange(v ?? "")}
+                                  placeholder="Select eye color…"
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
 
-                    <FormField
-                      control={form.control}
-                      name="height"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Height (cm)</FormLabel>
-                          <FormControl>
-                            <Input
-                              type="number"
-                              placeholder="e.g. 170"
-                              {...field}
-                              value={(field.value as number | undefined) ?? ""}
-                              onChange={(e) =>
-                                field.onChange(e.target.value === "" ? undefined : e.target.value)
-                              }
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-                </section>
+                        <FormField
+                          control={form.control}
+                          name="naturalHairColor"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Natural Hair Color</FormLabel>
+                              <FormControl>
+                                <SelectWithOther
+                                  options={NATURAL_HAIR_COLOR_OPTIONS}
+                                  value={field.value || undefined}
+                                  onChange={(v) => field.onChange(v ?? "")}
+                                  placeholder="Select hair color…"
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
 
-                {/* Section 4 — Baseline Persona */}
-                <section className="rounded-xl border bg-muted/30 dark:bg-muted/20 p-4 space-y-4">
-                  <SectionHeader>Baseline Persona</SectionHeader>
+                        <FormField
+                          control={form.control}
+                          name="height"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Height (cm)</FormLabel>
+                              <FormControl>
+                                <Input
+                                  type="number"
+                                  placeholder="e.g. 170"
+                                  {...field}
+                                  value={(field.value as number | undefined) ?? ""}
+                                  onChange={(e) =>
+                                    field.onChange(e.target.value === "" ? undefined : e.target.value)
+                                  }
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
 
-                  <div className="grid grid-cols-2 gap-3">
-                    <FormField
-                      control={form.control}
-                      name="personaLabel"
-                      render={({ field }) => (
-                        <FormItem className="col-span-2">
-                          <FormLabel>Persona Label <span className="text-destructive">*</span></FormLabel>
-                          <FormControl>
-                            <Input placeholder="e.g. Baseline" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
+                        <FormField
+                          control={form.control}
+                          name="currentHairColor"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Current Hair Color</FormLabel>
+                              <FormControl>
+                                <SelectWithOther
+                                  options={CURRENT_HAIR_COLOR_OPTIONS}
+                                  value={field.value || undefined}
+                                  onChange={(v) => field.onChange(v ?? "")}
+                                  placeholder="Select hair color…"
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
 
-                    <FormField
-                      control={form.control}
-                      name="weight"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Weight (kg)</FormLabel>
-                          <FormControl>
-                            <Input
-                              type="number"
-                              step="0.1"
-                              placeholder="e.g. 65"
-                              {...field}
-                              value={(field.value as number | undefined) ?? ""}
-                              onChange={(e) =>
-                                field.onChange(e.target.value === "" ? undefined : e.target.value)
-                              }
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
+                        <FormField
+                          control={form.control}
+                          name="build"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Build</FormLabel>
+                              <FormControl>
+                                <SelectWithOther
+                                  options={BUILD_OPTIONS}
+                                  value={field.value || undefined}
+                                  onChange={(v) => field.onChange(v ?? "")}
+                                  placeholder="Select build…"
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
 
-                    <FormField
-                      control={form.control}
-                      name="build"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Build</FormLabel>
-                          <Select
-                            onValueChange={(v) => field.onChange(v === "_none" ? undefined : v)}
-                            value={field.value ?? "_none"}
-                          >
-                            <FormControl>
-                              <SelectTrigger className="w-full">
-                                <SelectValue placeholder="Select build…" />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              <SelectItem value="_none">— not specified —</SelectItem>
-                              <SelectItem value="slim">Slim</SelectItem>
-                              <SelectItem value="average">Average</SelectItem>
-                              <SelectItem value="athletic">Athletic</SelectItem>
-                              <SelectItem value="muscular">Muscular</SelectItem>
-                              <SelectItem value="curvy">Curvy</SelectItem>
-                              <SelectItem value="other">Other</SelectItem>
-                            </SelectContent>
-                          </Select>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={form.control}
-                      name="currentHairColor"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Current Hair Color</FormLabel>
-                          <FormControl>
-                            <Input placeholder="e.g. Blonde" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={form.control}
-                      name="visionAids"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Vision Aids</FormLabel>
-                          <Select
-                            onValueChange={(v) => field.onChange(v === "_none" ? undefined : v)}
-                            value={field.value ?? "_none"}
-                          >
-                            <FormControl>
-                              <SelectTrigger className="w-full">
-                                <SelectValue placeholder="Select…" />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              <SelectItem value="_none">— not specified —</SelectItem>
-                              <SelectItem value="none">None</SelectItem>
-                              <SelectItem value="glasses">Glasses</SelectItem>
-                              <SelectItem value="contact lenses">Contact Lenses</SelectItem>
-                              <SelectItem value="both">Both</SelectItem>
-                            </SelectContent>
-                          </Select>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={form.control}
-                      name="fitnessLevel"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Fitness Level</FormLabel>
-                          <Select
-                            onValueChange={(v) => field.onChange(v === "_none" ? undefined : v)}
-                            value={field.value ?? "_none"}
-                          >
-                            <FormControl>
-                              <SelectTrigger className="w-full">
-                                <SelectValue placeholder="Select…" />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              <SelectItem value="_none">— not specified —</SelectItem>
-                              <SelectItem value="low">Low</SelectItem>
-                              <SelectItem value="moderate">Moderate</SelectItem>
-                              <SelectItem value="high">High</SelectItem>
-                            </SelectContent>
-                          </Select>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
+                        <FormField
+                          control={form.control}
+                          name="hairLength"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Hair Length</FormLabel>
+                              <Select
+                                onValueChange={(v) => field.onChange(v === "_none" ? undefined : v)}
+                                value={field.value ?? "_none"}
+                              >
+                                <FormControl>
+                                  <SelectTrigger className="w-full">
+                                    <SelectValue placeholder="Select length…" />
+                                  </SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                  <SelectItem value="_none">— not specified —</SelectItem>
+                                  {HAIR_LENGTH_OPTIONS.map((opt) => (
+                                    <SelectItem key={opt} value={opt}>
+                                      {opt}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
+                    </div>
+                  )}
                 </section>
 
               </div>
@@ -502,6 +508,8 @@ export function AddPersonSheet() {
                 onClick={() => {
                   form.reset();
                   setOpen(false);
+                  setShowAppearance(false);
+                  userEditedIcgId.current = false;
                 }}
                 disabled={isSubmitting}
               >

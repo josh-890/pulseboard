@@ -311,8 +311,6 @@ model PersonaPhysical {
   weight          Float?
   currentHairColor String?
   build           String?
-  visionAids      String?
-  fitnessLevel    String?
 
   attributes      PersonaPhysicalAttribute[]
 }

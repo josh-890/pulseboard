@@ -1,53 +1,76 @@
 "use client";
 
-import { useCallback, useState, useTransition } from "react";
+import { useCallback, useMemo, useState, useTransition } from "react";
 import { ChevronRight, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PartialDateInput } from "@/components/shared/partial-date-input";
 import { recordPhysicalChangeAction } from "@/lib/actions/appearance-actions";
 import type { PhysicalAttributeGroupWithDefinitions } from "@/lib/services/physical-attribute-catalog-service";
+import type { PersonCurrentState } from "@/lib/types";
+import { SelectWithOther } from "@/components/shared/select-with-other";
+import { CURRENT_HAIR_COLOR_OPTIONS, BUILD_OPTIONS } from "@/lib/constants/appearance";
 
 type RecordPhysicalChangeSheetProps = {
   personId: string;
+  currentState?: PersonCurrentState;
   attributeGroups?: PhysicalAttributeGroupWithDefinitions[];
   onClose: () => void;
 };
 
-export function RecordPhysicalChangeSheet({ personId, attributeGroups, onClose }: RecordPhysicalChangeSheetProps) {
+export function RecordPhysicalChangeSheet({ personId, currentState, attributeGroups, onClose }: RecordPhysicalChangeSheetProps) {
   const [isPending, startTransition] = useTransition();
   const [date, setDate] = useState("");
   const [datePrecision, setDatePrecision] = useState("UNKNOWN");
-  const [currentHairColor, setCurrentHairColor] = useState("");
-  const [weight, setWeight] = useState("");
-  const [build, setBuild] = useState("");
-  const [visionAids, setVisionAids] = useState("");
-  const [fitnessLevel, setFitnessLevel] = useState("");
-  const [attrValues, setAttrValues] = useState<Record<string, string>>({});
+
+  // Pre-fill with current state values
+  const initialHairColor = currentState?.currentHairColor ?? "";
+  const initialWeight = currentState?.weight != null ? String(currentState.weight) : "";
+  const initialBuild = currentState?.build ?? "";
+  const extensibleAttributes = currentState?.extensibleAttributes;
+  const initialAttrValues = useMemo(() => {
+    if (!extensibleAttributes) return {};
+    const vals: Record<string, string> = {};
+    for (const [defId, attr] of Object.entries(extensibleAttributes)) {
+      vals[defId] = attr.value;
+    }
+    return vals;
+  }, [extensibleAttributes]);
+
+  const [currentHairColor, setCurrentHairColor] = useState(initialHairColor);
+  const [weight, setWeight] = useState(initialWeight);
+  const [build, setBuild] = useState(initialBuild);
+  const [attrValues, setAttrValues] = useState<Record<string, string>>(initialAttrValues);
   const [expandedAttrGroups, setExpandedAttrGroups] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
 
-  const hasAnyAttr = Object.values(attrValues).some((v) => v.trim());
-  const hasAnyField = currentHairColor.trim() || weight.trim() || build.trim() || visionAids.trim() || fitnessLevel.trim() || hasAnyAttr;
+  // Check if any field was actually changed from its initial value
+  const hairChanged = currentHairColor.trim() !== initialHairColor;
+  const weightChanged = weight.trim() !== initialWeight;
+  const buildChanged = build.trim() !== initialBuild;
+  const attrChanged = Object.entries(attrValues).some(
+    ([id, v]) => v.trim() !== (initialAttrValues[id] ?? ""),
+  );
+  const hasAnyChange = hairChanged || weightChanged || buildChanged || attrChanged;
 
   const handleSubmit = useCallback(() => {
-    if (!hasAnyField) {
-      setError("At least one physical field is required.");
+    if (!hasAnyChange) {
+      setError("Change at least one field before recording.");
       return;
     }
     startTransition(async () => {
       setError(null);
+      // Only send changed extensible attributes
       const attributes = Object.entries(attrValues)
+        .filter(([id, v]) => v.trim() !== (initialAttrValues[id] ?? ""))
         .filter(([, v]) => v.trim())
         .map(([definitionId, value]) => ({ definitionId, value: value.trim() }));
 
       const result = await recordPhysicalChangeAction(personId, {
         date: date || null,
         datePrecision,
-        currentHairColor: currentHairColor.trim() || undefined,
-        weight: weight.trim() ? parseFloat(weight) : undefined,
-        build: build.trim() || undefined,
-        visionAids: visionAids.trim() || undefined,
-        fitnessLevel: fitnessLevel.trim() || undefined,
+        currentHairColor: hairChanged && currentHairColor.trim() ? currentHairColor.trim() : undefined,
+        weight: weightChanged && weight.trim() ? parseFloat(weight) : undefined,
+        build: buildChanged && build.trim() ? build.trim() : undefined,
         attributes: attributes.length > 0 ? attributes : undefined,
       });
       if (!result.success) {
@@ -56,7 +79,7 @@ export function RecordPhysicalChangeSheet({ personId, attributeGroups, onClose }
       }
       onClose();
     });
-  }, [personId, date, datePrecision, currentHairColor, weight, build, visionAids, fitnessLevel, attrValues, hasAnyField, onClose]);
+  }, [personId, date, datePrecision, currentHairColor, weight, build, attrValues, hasAnyChange, hairChanged, weightChanged, buildChanged, initialAttrValues, onClose]);
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end">
@@ -71,7 +94,7 @@ export function RecordPhysicalChangeSheet({ personId, attributeGroups, onClose }
 
         <div className="space-y-5 p-6">
           <p className="text-sm text-muted-foreground">
-            Only fill in what changed. A persona will be auto-created or matched by date.
+            Current values are pre-filled. Change only what&apos;s different — unchanged fields are ignored.
           </p>
 
           {/* Date + Precision */}
@@ -85,12 +108,11 @@ export function RecordPhysicalChangeSheet({ personId, attributeGroups, onClose }
 
           <div>
             <label className="mb-1.5 block text-sm font-medium">Current Hair Color</label>
-            <input
-              type="text"
-              value={currentHairColor}
-              onChange={(e) => setCurrentHairColor(e.target.value)}
-              placeholder="e.g. blonde, brunette, red..."
-              className="w-full rounded-lg border border-white/15 bg-muted/30 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+            <SelectWithOther
+              options={CURRENT_HAIR_COLOR_OPTIONS}
+              value={currentHairColor || undefined}
+              onChange={(v) => setCurrentHairColor(v ?? "")}
+              placeholder="Select hair color…"
             />
           </div>
 
@@ -109,34 +131,11 @@ export function RecordPhysicalChangeSheet({ personId, attributeGroups, onClose }
 
           <div>
             <label className="mb-1.5 block text-sm font-medium">Build</label>
-            <input
-              type="text"
-              value={build}
-              onChange={(e) => setBuild(e.target.value)}
-              placeholder="e.g. slim, athletic, muscular..."
-              className="w-full rounded-lg border border-white/15 bg-muted/30 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
-            />
-          </div>
-
-          <div>
-            <label className="mb-1.5 block text-sm font-medium">Vision Aids</label>
-            <input
-              type="text"
-              value={visionAids}
-              onChange={(e) => setVisionAids(e.target.value)}
-              placeholder="e.g. glasses, contacts, none..."
-              className="w-full rounded-lg border border-white/15 bg-muted/30 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
-            />
-          </div>
-
-          <div>
-            <label className="mb-1.5 block text-sm font-medium">Fitness Level</label>
-            <input
-              type="text"
-              value={fitnessLevel}
-              onChange={(e) => setFitnessLevel(e.target.value)}
-              placeholder="e.g. sedentary, moderate, athletic..."
-              className="w-full rounded-lg border border-white/15 bg-muted/30 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+            <SelectWithOther
+              options={BUILD_OPTIONS}
+              value={build || undefined}
+              onChange={(v) => setBuild(v ?? "")}
+              placeholder="Select build…"
             />
           </div>
 
@@ -191,7 +190,7 @@ export function RecordPhysicalChangeSheet({ personId, attributeGroups, onClose }
           <button
             type="button"
             onClick={handleSubmit}
-            disabled={isPending || !hasAnyField}
+            disabled={isPending || !hasAnyChange}
             className="w-full rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
           >
             {isPending ? "Saving..." : "Record Change"}

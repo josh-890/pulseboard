@@ -57,6 +57,7 @@ export default function PeopleLoading() {
                 <Skeleton className="h-4 w-10 rounded-full" />
               </div>
             </div>
+            <Skeleton className="h-[3px] w-3/4 shrink-0" />
           </div>
         ))}
       </div>

@@ -24,8 +24,6 @@ type PhysicalChangeItem = {
   currentHairColor: string | null;
   weight: number | null;
   build: string | null;
-  visionAids: string | null;
-  fitnessLevel: string | null;
   attributes: PhysicalAttributeItem[];
 };
 
@@ -54,8 +52,6 @@ export function EditPhysicalChangeSheet({ personId, item, attributeGroups, onClo
   const [currentHairColor, setCurrentHairColor] = useState(item.currentHairColor ?? "");
   const [weight, setWeight] = useState(item.weight !== null ? String(item.weight) : "");
   const [build, setBuild] = useState(item.build ?? "");
-  const [visionAids, setVisionAids] = useState(item.visionAids ?? "");
-  const [fitnessLevel, setFitnessLevel] = useState(item.fitnessLevel ?? "");
   // Initialize extensible attribute values from existing item
   const [attrValues, setAttrValues] = useState<Record<string, string>>(() => {
     const init: Record<string, string> = {};
@@ -82,7 +78,7 @@ export function EditPhysicalChangeSheet({ personId, item, attributeGroups, onClo
   const [error, setError] = useState<string | null>(null);
 
   const hasAnyAttr = Object.values(attrValues).some((v) => v.trim());
-  const hasAnyField = currentHairColor.trim() || weight.trim() || build.trim() || visionAids.trim() || fitnessLevel.trim() || hasAnyAttr;
+  const hasAnyField = currentHairColor.trim() || weight.trim() || build.trim() || hasAnyAttr;
 
   const handleSubmit = useCallback(() => {
     if (!hasAnyField) {
@@ -101,8 +97,6 @@ export function EditPhysicalChangeSheet({ personId, item, attributeGroups, onClo
         currentHairColor: currentHairColor.trim() || undefined,
         weight: weight.trim() ? parseFloat(weight) : undefined,
         build: build.trim() || undefined,
-        visionAids: visionAids.trim() || undefined,
-        fitnessLevel: fitnessLevel.trim() || undefined,
         attributes: attributes.length > 0 ? attributes : undefined,
       });
       if (!result.success) {
@@ -111,7 +105,7 @@ export function EditPhysicalChangeSheet({ personId, item, attributeGroups, onClo
       }
       onClose();
     });
-  }, [item.physicalId, personId, date, datePrecision, currentHairColor, weight, build, visionAids, fitnessLevel, attrValues, hasAnyField, onClose]);
+  }, [item.physicalId, personId, date, datePrecision, currentHairColor, weight, build, attrValues, hasAnyField, onClose]);
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end">
@@ -168,28 +162,6 @@ export function EditPhysicalChangeSheet({ personId, item, attributeGroups, onClo
               value={build}
               onChange={(e) => setBuild(e.target.value)}
               placeholder="e.g. slim, athletic, muscular..."
-              className="w-full rounded-lg border border-white/15 bg-muted/30 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
-            />
-          </div>
-
-          <div>
-            <label className="mb-1.5 block text-sm font-medium">Vision Aids</label>
-            <input
-              type="text"
-              value={visionAids}
-              onChange={(e) => setVisionAids(e.target.value)}
-              placeholder="e.g. glasses, contacts, none..."
-              className="w-full rounded-lg border border-white/15 bg-muted/30 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
-            />
-          </div>
-
-          <div>
-            <label className="mb-1.5 block text-sm font-medium">Fitness Level</label>
-            <input
-              type="text"
-              value={fitnessLevel}
-              onChange={(e) => setFitnessLevel(e.target.value)}
-              placeholder="e.g. sedentary, moderate, athletic..."
               className="w-full rounded-lg border border-white/15 bg-muted/30 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
             />
           </div>

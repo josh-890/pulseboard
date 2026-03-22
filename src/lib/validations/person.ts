@@ -27,13 +27,11 @@ export const createPersonSchema = z.object({
   eyeColor: z.string().optional(),
   naturalHairColor: z.string().optional(),
   height: z.coerce.number().int().positive().optional(),
-  // Baseline persona
-  personaLabel: z.string().min(1, "Persona label is required").default("Baseline"),
+  // Baseline persona physical
   weight: z.coerce.number().positive().optional(),
   build: z.string().optional(),
   currentHairColor: z.string().optional(),
-  visionAids: z.string().optional(),
-  fitnessLevel: z.string().optional(),
+  hairLength: z.string().optional(),
 });
 
 // Input type (form values — defaults may be undefined before zod applies them)
@@ -64,8 +62,6 @@ export const updatePersonSchema = z.object({
   weight: z.coerce.number().positive().optional(),
   build: z.string().optional(),
   currentHairColor: z.string().optional(),
-  visionAids: z.string().optional(),
-  fitnessLevel: z.string().optional(),
 });
 
 export type UpdatePersonFormValues = z.input<typeof updatePersonSchema>;

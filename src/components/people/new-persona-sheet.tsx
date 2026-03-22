@@ -172,8 +172,6 @@ export function NewPersonaSheet({
   const [currentHairColor, setCurrentHairColor] = useState("");
   const [weight, setWeight] = useState("");
   const [build, setBuild] = useState("");
-  const [visionAids, setVisionAids] = useState("");
-  const [fitnessLevel, setFitnessLevel] = useState("");
 
   // Events for existing entities
   const [markEvents, setMarkEvents] = useState<ExistingMarkEvent[]>([]);
@@ -189,7 +187,7 @@ export function NewPersonaSheet({
 
   const totalChanges = markEvents.length + modEvents.length + procEvents.length +
     newMarks.length + newMods.length + newProcs.length +
-    (currentHairColor || weight || build || visionAids || fitnessLevel ? 1 : 0);
+    (currentHairColor || weight || build ? 1 : 0);
 
   const handleSubmit = useCallback(() => {
     if (!label.trim()) { setError("Label is required."); return; }
@@ -203,8 +201,6 @@ export function NewPersonaSheet({
         currentHairColor: currentHairColor.trim() || undefined,
         weight: weight.trim() ? parseFloat(weight) : undefined,
         build: build.trim() || undefined,
-        visionAids: visionAids.trim() || undefined,
-        fitnessLevel: fitnessLevel.trim() || undefined,
         bodyMarkEvents: markEvents,
         bodyModificationEvents: modEvents,
         cosmeticProcedureEvents: procEvents,
@@ -215,7 +211,7 @@ export function NewPersonaSheet({
       if (!result.success) { setError(result.error ?? "Failed to create persona."); return; }
       onClose();
     });
-  }, [personId, label, date, datePrecision, notes, currentHairColor, weight, build, visionAids, fitnessLevel, markEvents, modEvents, procEvents, newMarks, newMods, newProcs, onClose]);
+  }, [personId, label, date, datePrecision, notes, currentHairColor, weight, build, markEvents, modEvents, procEvents, newMarks, newMods, newProcs, onClose]);
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end">
@@ -251,7 +247,7 @@ export function NewPersonaSheet({
           </div>
 
           {/* Physical Changes */}
-          <CollapsibleSection title="Physical Changes" count={currentHairColor || weight || build || visionAids || fitnessLevel ? 1 : 0}>
+          <CollapsibleSection title="Physical Changes" count={currentHairColor || weight || build ? 1 : 0}>
             <p className="text-xs text-muted-foreground/60 mb-2">Only fill in what changed.</p>
             <div className="grid grid-cols-2 gap-3">
               <div>
@@ -267,16 +263,6 @@ export function NewPersonaSheet({
               <div>
                 <label className="mb-1 block text-xs font-medium">Build</label>
                 <input type="text" value={build} onChange={(e) => setBuild(e.target.value)}
-                  className="w-full rounded-lg border border-white/15 bg-muted/30 px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-ring" />
-              </div>
-              <div>
-                <label className="mb-1 block text-xs font-medium">Vision Aids</label>
-                <input type="text" value={visionAids} onChange={(e) => setVisionAids(e.target.value)}
-                  className="w-full rounded-lg border border-white/15 bg-muted/30 px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-ring" />
-              </div>
-              <div>
-                <label className="mb-1 block text-xs font-medium">Fitness Level</label>
-                <input type="text" value={fitnessLevel} onChange={(e) => setFitnessLevel(e.target.value)}
                   className="w-full rounded-lg border border-white/15 bg-muted/30 px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-ring" />
               </div>
             </div>

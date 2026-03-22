@@ -120,7 +120,7 @@ export async function createPersonaBatch(personId: string, data: CreatePersonaBa
     });
 
     // Physical changes
-    const hasPhysical = data.currentHairColor || data.weight || data.build || data.visionAids || data.fitnessLevel;
+    const hasPhysical = data.currentHairColor || data.weight || data.build;
     if (hasPhysical) {
       await tx.personaPhysical.create({
         data: {
@@ -128,8 +128,6 @@ export async function createPersonaBatch(personId: string, data: CreatePersonaBa
           currentHairColor: data.currentHairColor ?? null,
           weight: data.weight ?? null,
           build: data.build ?? null,
-          visionAids: data.visionAids ?? null,
-          fitnessLevel: data.fitnessLevel ?? null,
         },
       });
     }
@@ -260,9 +258,9 @@ export async function updatePersona(id: string, data: UpdatePersonaInput) {
 }
 
 /**
- * Delete a persona and all linked events. Does NOT delete the entities themselves
- * (body marks, modifications, procedures) — only the events linked to this persona.
- * Prevents deleting baseline personas.
+ * Delete a persona and all linked events. After deleting events, auto-deletes
+ * any parent entities (BodyMark, BodyModification, CosmeticProcedure, PersonSkill)
+ * that are left with zero remaining events. Prevents deleting baseline personas.
  */
 export async function deletePersona(id: string) {
   return prisma.$transaction(async (tx) => {
@@ -272,16 +270,90 @@ export async function deletePersona(id: string) {
       throw new Error("Cannot delete baseline persona.");
     }
 
-    // Delete linked events (not the entities)
+    const personId = persona.personId;
+
+    // Delete linked events (skill event media first, then events)
     await tx.bodyMarkEvent.deleteMany({ where: { personaId: id } });
     await tx.bodyModificationEvent.deleteMany({ where: { personaId: id } });
     await tx.cosmeticProcedureEvent.deleteMany({ where: { personaId: id } });
+    const skillEvents = await tx.personSkillEvent.findMany({
+      where: { personaId: id },
+      select: { id: true },
+    });
+    if (skillEvents.length > 0) {
+      await tx.skillEventMedia.deleteMany({
+        where: { skillEventId: { in: skillEvents.map((e) => e.id) } },
+      });
+    }
     await tx.personSkillEvent.deleteMany({ where: { personaId: id } });
-    // Delete PersonaPhysical
+    // Delete PersonaPhysical + PersonaPhysicalAttribute
+    const personaPhysicals = await tx.personaPhysical.findMany({
+      where: { personaId: id },
+      select: { id: true },
+    });
+    if (personaPhysicals.length > 0) {
+      await tx.personaPhysicalAttribute.deleteMany({
+        where: { personaPhysicalId: { in: personaPhysicals.map((p) => p.id) } },
+      });
+    }
     await tx.personaPhysical.deleteMany({ where: { personaId: id } });
     // Delete digital identities linked to this persona
     await tx.personDigitalIdentity.deleteMany({ where: { personaId: id } });
+
+    // Clean up orphaned parent entities (those with zero remaining events)
+    await cleanupOrphanedEntities(tx, personId);
+
     // Delete the persona
     return tx.persona.delete({ where: { id } });
   });
+}
+
+/**
+ * After deleting events for a persona, find and remove parent entities
+ * (BodyMark, BodyModification, CosmeticProcedure, PersonSkill) that have
+ * zero remaining events. Also cleans up PersonMediaLink references.
+ */
+async function cleanupOrphanedEntities(tx: TxClient, personId: string) {
+  // --- BodyMarks with zero events ---
+  const orphanedBodyMarks = await tx.bodyMark.findMany({
+    where: { personId, events: { none: {} } },
+    select: { id: true },
+  });
+  if (orphanedBodyMarks.length > 0) {
+    const ids = orphanedBodyMarks.map((e) => e.id);
+    await tx.personMediaLink.deleteMany({ where: { bodyMarkId: { in: ids } } });
+    await tx.bodyMark.deleteMany({ where: { id: { in: ids } } });
+  }
+
+  // --- BodyModifications with zero events ---
+  const orphanedBodyMods = await tx.bodyModification.findMany({
+    where: { personId, events: { none: {} } },
+    select: { id: true },
+  });
+  if (orphanedBodyMods.length > 0) {
+    const ids = orphanedBodyMods.map((e) => e.id);
+    await tx.personMediaLink.deleteMany({ where: { bodyModificationId: { in: ids } } });
+    await tx.bodyModification.deleteMany({ where: { id: { in: ids } } });
+  }
+
+  // --- CosmeticProcedures with zero events ---
+  const orphanedProcs = await tx.cosmeticProcedure.findMany({
+    where: { personId, events: { none: {} } },
+    select: { id: true },
+  });
+  if (orphanedProcs.length > 0) {
+    const ids = orphanedProcs.map((e) => e.id);
+    await tx.personMediaLink.deleteMany({ where: { cosmeticProcedureId: { in: ids } } });
+    await tx.cosmeticProcedure.deleteMany({ where: { id: { in: ids } } });
+  }
+
+  // --- PersonSkills with zero events ---
+  const orphanedSkills = await tx.personSkill.findMany({
+    where: { personId, events: { none: {} } },
+    select: { id: true },
+  });
+  if (orphanedSkills.length > 0) {
+    const ids = orphanedSkills.map((e) => e.id);
+    await tx.personSkill.deleteMany({ where: { id: { in: ids } } });
+  }
 }

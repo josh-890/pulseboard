@@ -50,7 +50,7 @@ export function PersonCard({ person, photoUrl, focalX, focalY }: PersonCardProps
     <Link href={`/people/${person.id}`} prefetch={false} className="group block focus-visible:outline-none">
       <div
         className={cn(
-          "flex overflow-hidden rounded-2xl border border-white/20 bg-card/70 shadow-md backdrop-blur-sm",
+          "relative flex overflow-hidden rounded-2xl border border-white/20 bg-card/70 shadow-md backdrop-blur-sm",
           "transition-all duration-200",
           "hover:border-white/30 hover:bg-card/90 hover:shadow-lg hover:-translate-y-0.5",
           "active:scale-[0.98] active:shadow-sm active:translate-y-0",
@@ -105,14 +105,24 @@ export function PersonCard({ person, photoUrl, focalX, focalY }: PersonCardProps
         >
           {/* Name + Status */}
           <div className="flex items-start justify-between gap-2">
-            <p
-              className={cn(
-                "truncate font-semibold leading-tight",
-                isCompact ? "text-sm" : "text-base",
+            <div className="min-w-0">
+              <p
+                className={cn(
+                  "truncate font-semibold leading-tight",
+                  isCompact ? "text-sm" : "text-base",
+                )}
+              >
+                {person.commonAlias ?? person.icgId}
+              </p>
+              {person.commonAlias && (
+                <p className={cn(
+                  "truncate font-mono text-muted-foreground",
+                  isCompact ? "text-[10px]" : "text-xs",
+                )}>
+                  {person.icgId}
+                </p>
               )}
-            >
-              {displayName}
-            </p>
+            </div>
             <span
               className={cn(
                 "inline-flex shrink-0 items-center rounded-full border px-1.5 py-0.5 font-medium",
@@ -177,6 +187,26 @@ export function PersonCard({ person, photoUrl, focalX, focalY }: PersonCardProps
             </div>
           )}
         </div>
+
+        {/* Profile completeness bar — absolutely positioned at bottom edge */}
+        {person.completeness !== undefined && (
+          <div
+            className="absolute bottom-0 left-0 h-[3px] w-full"
+            title={`Profile ${person.completeness}% complete`}
+          >
+            <div
+              className={cn(
+                "h-full transition-all",
+                person.completeness < 40
+                  ? "bg-red-500"
+                  : person.completeness <= 70
+                    ? "bg-amber-500"
+                    : "bg-emerald-500",
+              )}
+              style={{ width: `${person.completeness}%` }}
+            />
+          </div>
+        )}
       </div>
     </Link>
   );

@@ -304,7 +304,7 @@ function PhysicalStatsPanel({
   fieldGap?: string;
 }) {
   const hasStatic = person.height || person.eyeColor || person.naturalHairColor || person.bodyType || person.measurements;
-  const hasComputed = currentState.currentHairColor || currentState.weight !== null || currentState.build || currentState.visionAids || currentState.fitnessLevel;
+  const hasComputed = currentState.currentHairColor || currentState.weight !== null || currentState.build;
 
   if (!hasStatic && !hasComputed) {
     return <EmptyState message="No physical stats recorded." />;
@@ -328,8 +328,6 @@ function PhysicalStatsPanel({
       {currentState.currentHairColor && <InfoRow label="Current hair" value={<span className="capitalize">{currentState.currentHairColor}</span>} labelWidth={labelWidth} />}
       {currentState.weight !== null && currentState.weight !== undefined && <InfoRow label="Weight" value={`${currentState.weight} kg`} labelWidth={labelWidth} />}
       {currentState.build && <InfoRow label="Build" value={<span className="capitalize">{currentState.build}</span>} labelWidth={labelWidth} />}
-      {currentState.visionAids && <InfoRow label="Vision aids" value={currentState.visionAids} labelWidth={labelWidth} />}
-      {currentState.fitnessLevel && <InfoRow label="Fitness level" value={<span className="capitalize">{currentState.fitnessLevel}</span>} labelWidth={labelWidth} />}
     </dl>
   );
 }

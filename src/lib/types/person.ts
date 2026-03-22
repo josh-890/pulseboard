@@ -43,6 +43,7 @@ export type PersonWithCommonAlias = {
   birthdate: Date | null;
   nationality: string | null;
   birthAlias: string | null;
+  completeness: number;
 };
 
 export type PersonWorkHistoryItem = {
@@ -271,8 +272,6 @@ export type PersonCurrentState = {
   currentHairColor: string | null;
   weight: number | null;
   build: string | null;
-  visionAids: string | null;
-  fitnessLevel: string | null;
   // Extensible physical attributes (from PersonaPhysicalAttribute fold)
   extensibleAttributes: Record<string, ExtensibleAttributeValue>;
   // Active body marks (status = present)

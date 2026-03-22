@@ -886,8 +886,6 @@ export async function recordPhysicalChangeAction(
     currentHairColor?: string;
     weight?: number;
     build?: string;
-    visionAids?: string;
-    fitnessLevel?: string;
     attributes?: { definitionId: string; value: string }[];
   },
 ): Promise<ActionResultWithId> {
@@ -904,15 +902,11 @@ export async function recordPhysicalChangeAction(
           currentHairColor: data.currentHairColor ?? null,
           weight: data.weight ?? null,
           build: data.build ?? null,
-          visionAids: data.visionAids ?? null,
-          fitnessLevel: data.fitnessLevel ?? null,
         },
         update: {
           ...(data.currentHairColor !== undefined && { currentHairColor: data.currentHairColor || null }),
           ...(data.weight !== undefined && { weight: data.weight || null }),
           ...(data.build !== undefined && { build: data.build || null }),
-          ...(data.visionAids !== undefined && { visionAids: data.visionAids || null }),
-          ...(data.fitnessLevel !== undefined && { fitnessLevel: data.fitnessLevel || null }),
         },
       });
 
@@ -952,8 +946,6 @@ export async function updatePhysicalChangeAction(
     currentHairColor?: string;
     weight?: number;
     build?: string;
-    visionAids?: string;
-    fitnessLevel?: string;
     date?: string | null;
     datePrecision?: string;
     attributes?: { definitionId: string; value: string }[];
@@ -981,8 +973,6 @@ export async function updatePhysicalChangeAction(
         currentHairColor: data.currentHairColor !== undefined ? (data.currentHairColor || null) : existing.currentHairColor,
         weight: data.weight !== undefined ? (data.weight || null) : existing.weight,
         build: data.build !== undefined ? (data.build || null) : existing.build,
-        visionAids: data.visionAids !== undefined ? (data.visionAids || null) : existing.visionAids,
-        fitnessLevel: data.fitnessLevel !== undefined ? (data.fitnessLevel || null) : existing.fitnessLevel,
       };
 
       let newPhysicalId: string;

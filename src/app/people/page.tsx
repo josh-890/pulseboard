@@ -34,6 +34,7 @@ type PeoplePageProps = {
     loaded?: string;
     slot?: string;
     sort?: string;
+    completeness?: string;
   }>;
 };
 
@@ -41,7 +42,9 @@ const VALID_STATUSES = new Set<string>(["active", "inactive", "wishlist", "archi
 const VALID_SORTS = new Set<string>([
   "name-asc", "name-desc", "newest", "oldest",
   "age-asc", "age-desc", "rating-desc", "updated",
+  "completeness-asc", "completeness-desc",
 ]);
+const VALID_COMPLETENESS = new Set<string>(["low", "medium", "high"]);
 
 function isPersonStatus(value: string): value is PersonStatus {
   return VALID_STATUSES.has(value);
@@ -60,13 +63,15 @@ const SORT_OPTIONS = [
   { value: "age-desc", label: "Oldest people" },
   { value: "rating-desc", label: "Highest rated" },
   { value: "updated", label: "Recently updated" },
+  { value: "completeness-asc", label: "Profile \u2191" },
+  { value: "completeness-desc", label: "Profile \u2193" },
 ];
 
 export default async function PeoplePage({ searchParams }: PeoplePageProps) {
   const {
     q, status, hairColor, bodyType, ethnicity, bodyRegions: bodyRegionsParam,
     bodyRegionMatch: bodyRegionMatchParam, loaded,
-    slot: slotParam, sort: sortParam,
+    slot: slotParam, sort: sortParam, completeness: completenessParam,
   } = await searchParams;
 
   const limit = Math.min(
@@ -81,6 +86,10 @@ export default async function PeoplePage({ searchParams }: PeoplePageProps) {
   const resolvedBodyRegions = bodyRegionsParam?.split(",").filter(Boolean);
   const resolvedBodyRegionMatch =
     bodyRegionMatchParam === "all" ? ("all" as const) : ("any" as const);
+  const resolvedCompleteness =
+    completenessParam && VALID_COMPLETENESS.has(completenessParam)
+      ? (completenessParam as "low" | "medium" | "high")
+      : undefined;
 
   const filters = {
     q: q?.trim() || undefined,
@@ -91,6 +100,7 @@ export default async function PeoplePage({ searchParams }: PeoplePageProps) {
     bodyRegions: resolvedBodyRegions?.length ? resolvedBodyRegions : undefined,
     bodyRegionMatch: resolvedBodyRegionMatch,
     sort: resolvedSort,
+    completeness: resolvedCompleteness,
   };
 
   const parsedSlot = slotParam ? parseInt(slotParam, 10) : undefined;
@@ -131,6 +141,18 @@ export default async function PeoplePage({ searchParams }: PeoplePageProps) {
       ],
     },
   ];
+
+  filterGroups.push({
+    type: "pill",
+    param: "completeness",
+    label: "Profile",
+    options: [
+      { value: "all", label: "All" },
+      { value: "low", label: "Incomplete" },
+      { value: "medium", label: "Partial" },
+      { value: "high", label: "Complete" },
+    ],
+  });
 
   if (hairColors.length > 0) {
     filterGroups.push({

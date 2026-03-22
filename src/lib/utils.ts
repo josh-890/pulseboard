@@ -102,6 +102,17 @@ export function focalStyle(
   return { objectPosition: `${(focalX * 100).toFixed(1)}% ${(focalY * 100).toFixed(1)}%` };
 }
 
+/** Generates an ICG-ID from a display name and optional birthdate ISO string. */
+export function generateIcgId(displayName: string, birthdate?: string): string {
+  const parts = displayName.trim().split(/\s+/).filter(Boolean);
+  const first = (parts[0]?.[0] ?? "X").toUpperCase();
+  const second = (parts.length > 1 ? parts[1]![0] : "X").toUpperCase();
+  const yearDigits = birthdate && birthdate.length >= 4 ? birthdate.slice(2, 4) : "00";
+  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+  const rand = Array.from({ length: 3 }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
+  return `${first}${second}-${yearDigits}@${rand}`;
+}
+
 /** Returns up to 2 initials from the first two words of a name. */
 export function getInitialsFromName(name: string): string {
   const parts = name.trim().split(/\s+/);

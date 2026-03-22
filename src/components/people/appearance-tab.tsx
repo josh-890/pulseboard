@@ -79,8 +79,6 @@ type PhysicalChangeItem = {
   currentHairColor: string | null;
   weight: number | null;
   build: string | null;
-  visionAids: string | null;
-  fitnessLevel: string | null;
   attributes: PhysicalAttributeItem[];
 };
 
@@ -136,7 +134,7 @@ export function AppearanceTab({
   }, [router]);
 
   const hasStatic = person.height || person.eyeColor || person.naturalHairColor || person.bodyType || person.measurements;
-  const hasComputed = currentState.currentHairColor || currentState.weight !== null || currentState.build || currentState.visionAids || currentState.fitnessLevel;
+  const hasComputed = currentState.currentHairColor || currentState.weight !== null || currentState.build;
   const hasExtensible = Object.keys(currentState.extensibleAttributes).length > 0;
 
   // Group extensible attributes by group name for display
@@ -163,8 +161,6 @@ export function AppearanceTab({
         currentHairColor: p.physicalChange!.currentHairColor,
         weight: p.physicalChange!.weight,
         build: p.physicalChange!.build,
-        visionAids: p.physicalChange!.visionAids,
-        fitnessLevel: p.physicalChange!.fitnessLevel,
         attributes: (p.physicalChange!.attributes ?? []).map((a: { attributeDefinitionId: string; value: string; attributeDefinition: { name: string; unit: string | null } }) => ({
           definitionId: a.attributeDefinitionId,
           name: a.attributeDefinition.name,
@@ -295,8 +291,6 @@ export function AppearanceTab({
                   {person.bodyType && <InfoRow label="Body type" value={<span className="capitalize">{person.bodyType}</span>} labelWidth="w-28" />}
                   {currentState.build && <InfoRow label="Build" value={<span className="capitalize">{currentState.build}</span>} labelWidth="w-28" />}
                   {person.measurements && <InfoRow label="Measurements" value={person.measurements} labelWidth="w-28" />}
-                  {currentState.visionAids && <InfoRow label="Vision aids" value={currentState.visionAids} labelWidth="w-28" />}
-                  {currentState.fitnessLevel && <InfoRow label="Fitness" value={<span className="capitalize">{currentState.fitnessLevel}</span>} labelWidth="w-28" />}
                 </dl>
 
                 {/* Extensible Physical Attributes */}
@@ -342,8 +336,6 @@ export function AppearanceTab({
                         if (item.currentHairColor) fields.push(`Hair: ${item.currentHairColor}`);
                         if (item.weight !== null) fields.push(`Weight: ${item.weight} kg`);
                         if (item.build) fields.push(`Build: ${item.build}`);
-                        if (item.visionAids) fields.push(`Vision: ${item.visionAids}`);
-                        if (item.fitnessLevel) fields.push(`Fitness: ${item.fitnessLevel}`);
                         for (const attr of item.attributes) {
                           fields.push(`${attr.name}: ${attr.value}${attr.unit ? ` ${attr.unit}` : ""}`);
                         }
@@ -504,7 +496,7 @@ export function AppearanceTab({
 
       {/* Sheets & Dialogs */}
       {openState === "physicalChange" && (
-        <RecordPhysicalChangeSheet personId={person.id} attributeGroups={attributeGroups} onClose={handleSheetClose} />
+        <RecordPhysicalChangeSheet personId={person.id} currentState={currentState} attributeGroups={attributeGroups} onClose={handleSheetClose} />
       )}
       {typeof openState === "object" && openState?.type === "editPhysical" && (
         <EditPhysicalChangeSheet personId={person.id} item={openState.item} attributeGroups={attributeGroups} onClose={handleSheetClose} />
