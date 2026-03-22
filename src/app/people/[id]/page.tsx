@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
-import { Camera, ArrowRight, ImageIcon } from "lucide-react";
+import { Camera, ArrowRight } from "lucide-react";
 import {
   getPersonWithDetails,
   getPersonWorkHistory,
@@ -133,64 +133,42 @@ export default async function PersonDetailPage({ params }: PersonDetailPageProps
         </div>
       </div>
 
-      {/* Reference Media card */}
+      {/* Compact Reference Media strip */}
       {refSession && (
         <Link
           href={`/sessions/${refSession.id}`}
-          className="group block rounded-2xl border border-white/20 bg-card/70 px-5 py-4 shadow-md backdrop-blur-sm transition-all hover:border-white/30 hover:bg-card/80 hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="group flex items-center gap-3 rounded-xl border border-white/15 bg-card/50 px-4 py-2.5 transition-all hover:border-white/25 hover:bg-card/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
-          <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/15">
-              <Camera size={16} className="text-primary" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <span className="text-sm font-semibold group-hover:text-primary transition-colors">
-                Reference Media
-              </span>
-              <span className="ml-2 text-xs text-muted-foreground">
-                {refSession._count.mediaItems} {refSession._count.mediaItems === 1 ? "item" : "items"}
-              </span>
-            </div>
-            <ArrowRight size={14} className="shrink-0 text-muted-foreground group-hover:text-primary transition-colors" />
-          </div>
+          <Camera size={14} className="shrink-0 text-primary" />
+          <span className="text-sm font-medium group-hover:text-primary transition-colors">
+            Reference Media
+          </span>
+          <span className="rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">
+            {refSession._count.mediaItems}
+          </span>
 
-          {/* Headshot slot strip */}
-          {profileLabels.length > 0 && (
-            <div className="mt-3 flex gap-2">
-              {profileLabels.map((sl, i) => {
-                const slotNumber = i + 1;
-                const hs = headshots.find((h) => h.slot === slotNumber);
-                const thumbUrl = hs?.mediaItem.urls.profile_128 ?? hs?.mediaItem.urls.profile_256 ?? null;
-
-                return (
-                  <div
-                    key={sl.slot}
-                    className="flex flex-col items-center gap-1"
-                  >
-                    <div className="relative h-12 w-12 overflow-hidden rounded-lg border border-white/15 bg-muted/40">
-                      {thumbUrl ? (
-                        <Image
-                          src={thumbUrl}
-                          alt={sl.label}
-                          width={48}
-                          height={48}
-                          className="h-full w-full object-cover"
-                          unoptimized
-                        />
-                      ) : (
-                        <div className="flex h-full w-full items-center justify-center">
-                          <ImageIcon size={14} className="text-muted-foreground/40" />
-                        </div>
-                      )}
-                    </div>
-                    <span className="text-[10px] text-muted-foreground truncate max-w-[48px]">
-                      {sl.label}
-                    </span>
+          {/* Mini thumbnail strip */}
+          {headshots.length > 0 && (
+            <div className="flex gap-1 ml-1">
+              {headshots.slice(0, 6).map((hs) => {
+                const thumbUrl = hs.mediaItem.urls.profile_128 ?? hs.mediaItem.urls.profile_256;
+                return thumbUrl ? (
+                  <div key={hs.mediaItem.id} className="h-8 w-8 shrink-0 overflow-hidden rounded-md border border-white/10">
+                    <Image
+                      src={thumbUrl}
+                      alt=""
+                      width={32}
+                      height={32}
+                      className="h-full w-full object-cover"
+                      unoptimized
+                    />
                   </div>
-                );
+                ) : null;
               })}
             </div>
           )}
+
+          <ArrowRight size={14} className="ml-auto shrink-0 text-muted-foreground group-hover:text-primary transition-colors" />
         </Link>
       )}
 

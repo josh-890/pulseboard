@@ -7,7 +7,7 @@ import type { BodyMarkWithEvents } from "@/lib/types";
 import { BODY_MARK_TYPE_STYLES, BODY_MARK_STATUS_STYLES, BODY_MARK_EVENT_STYLES } from "@/lib/constants/body";
 import { BodyRegionChips } from "@/components/shared/body-region-picker";
 import { EntityEventTimeline } from "@/components/people/entity-event-timeline";
-import { Camera, ChevronRight, ImageIcon, Pencil, Trash2 } from "lucide-react";
+import { Camera, ChevronRight, ImageIcon, Pencil, Pin, PinOff, Trash2 } from "lucide-react";
 
 type EntityMediaThumbnail = {
   id: string;
@@ -34,6 +34,7 @@ type BodyMarkRowProps = {
   onDeleteEvent?: (id: string) => Promise<{ success: boolean; error?: string }>;
   onAddEvent?: () => void;
   onEditEvent?: (event: EventItem) => void;
+  onToggleHeroVisibility?: (visible: boolean) => void;
   isPending?: boolean;
 };
 
@@ -46,6 +47,7 @@ export function BodyMarkRow({
   onDeleteEvent,
   onAddEvent,
   onEditEvent,
+  onToggleHeroVisibility,
   isPending,
 }: BodyMarkRowProps) {
   const [expanded, setExpanded] = useState(false);
@@ -123,6 +125,21 @@ export function BodyMarkRow({
         <div className="border-t border-white/5 px-3 pb-3 pt-2">
           {/* Action buttons */}
           <div className="mb-2 flex items-center gap-1">
+            {onToggleHeroVisibility && (
+              <button
+                type="button"
+                onClick={() => onToggleHeroVisibility(!mark.heroVisible)}
+                disabled={isPending}
+                className={cn(
+                  "rounded p-1 text-xs transition-colors",
+                  mark.heroVisible ? "text-amber-400 hover:text-muted-foreground" : "text-muted-foreground hover:text-amber-400",
+                )}
+                aria-label={mark.heroVisible ? "Unpin from hero card" : "Pin to hero card"}
+                title={mark.heroVisible ? "Unpin from hero card" : "Pin to hero card"}
+              >
+                {mark.heroVisible ? <Pin size={14} /> : <PinOff size={14} />}
+              </button>
+            )}
             {onManagePhotos && (
               <button
                 type="button"

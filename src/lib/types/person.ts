@@ -97,6 +97,8 @@ export type BodyMarkWithEvents = {
   colors: string[];
   size: string | null;
   status: import("@/generated/prisma/client").BodyMarkStatus;
+  heroVisible: boolean;
+  heroOrder: number | null;
   events: BodyMarkEventItem[];
   computed: {
     bodyRegions: string[];
@@ -129,6 +131,8 @@ export type BodyModificationWithEvents = {
   material: string | null;
   gauge: string | null;
   status: import("@/generated/prisma/client").BodyModificationStatus;
+  heroVisible: boolean;
+  heroOrder: number | null;
   events: BodyModificationEventItem[];
   computed: {
     bodyRegions: string[];
@@ -162,6 +166,8 @@ export type CosmeticProcedureWithEvents = {
   provider: string | null;
   status: string;
   attributeDefinitionId: string | null;
+  heroVisible: boolean;
+  heroOrder: number | null;
   events: CosmeticProcedureEventItem[];
   computed: {
     bodyRegions: string[];

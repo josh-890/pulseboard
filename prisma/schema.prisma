@@ -226,6 +226,7 @@ model Person {
   rating         Int?
   pgrade         Int?
   notes          String?
+  bio            String?
   tags           String[]
 
   aliases          PersonAlias[]
@@ -329,6 +330,8 @@ model BodyMark {
   colors      String[]
   size        String?
   status      BodyMarkStatus @default(present)
+  heroVisible Boolean        @default(true)
+  heroOrder   Int?
   createdAt   DateTime       @default(now())
 
   events          BodyMarkEvent[]
@@ -439,6 +442,8 @@ model BodyModification {
   material    String?
   gauge       String?
   status      BodyModificationStatus @default(present)
+  heroVisible Boolean               @default(true)
+  heroOrder   Int?
   createdAt   DateTime  @default(now())
 
   events          BodyModificationEvent[]
@@ -480,6 +485,8 @@ model CosmeticProcedure {
   description String?
   provider    String?
   status      String  @default("completed")
+  heroVisible Boolean @default(true)
+  heroOrder   Int?
   createdAt   DateTime  @default(now())
 
   attributeDefinitionId String?

@@ -37,6 +37,7 @@ import {
   updateBodyMarkEventAction,
   updateBodyModificationEventAction,
   updateCosmeticProcedureEventAction,
+  toggleEntityHeroVisibility,
 } from "@/lib/actions/appearance-actions";
 import {
   BODY_MARK_EVENT_TYPES,
@@ -199,6 +200,15 @@ export function AppearanceTab({
   const handleDeleteCosmProcEvent = useCallback(async (eventId: string) => {
     return deleteCosmeticProcedureEventAction(eventId, person.id);
   }, [person.id]);
+
+  const handleToggleHeroVisibility = useCallback(
+    (entityType: "bodyMark" | "bodyModification" | "cosmeticProcedure", entityId: string, visible: boolean) => {
+      startTransition(async () => {
+        await toggleEntityHeroVisibility(entityType, entityId, visible, person.id);
+      });
+    },
+    [person.id],
+  );
 
   // Resolve entity model → matching category for photo picker
   const findCategoryForEntity = useCallback(
@@ -403,6 +413,7 @@ export function AppearanceTab({
                     onManagePhotos={referenceSessionId ? () => setOpenState({ type: "manageEntityPhotos", entityId: mark.id, entityModel: "BodyMark", entityLabel: `${mark.type} — ${mark.bodyRegion}` }) : undefined}
                     onDeleteEvent={handleDeleteBodyMarkEvent}
                     onAddEvent={() => setOpenState({ type: "addBodyMarkEvent", markId: mark.id, markLabel: `${mark.type} — ${mark.bodyRegion}`, computed: mark.computed })}
+                    onToggleHeroVisibility={(visible) => handleToggleHeroVisibility("bodyMark", mark.id, visible)}
                     onEditEvent={(event) => {
                       const fullEvent = mark.events.find((e) => e.id === event.id);
                       setOpenState({ type: "editBodyMarkEvent", event, markId: mark.id, eventOverrides: { bodyRegions: fullEvent?.bodyRegions ?? [], motif: fullEvent?.motif ?? null, colors: fullEvent?.colors ?? [], size: fullEvent?.size ?? null, description: fullEvent?.description ?? null } });
@@ -436,6 +447,7 @@ export function AppearanceTab({
                     onManagePhotos={referenceSessionId ? () => setOpenState({ type: "manageEntityPhotos", entityId: mod.id, entityModel: "BodyModification", entityLabel: `${mod.type} — ${mod.bodyRegion}` }) : undefined}
                     onDeleteEvent={handleDeleteBodyModEvent}
                     onAddEvent={() => setOpenState({ type: "addBodyModEvent", modId: mod.id, modLabel: `${mod.type} — ${mod.bodyRegion}`, computed: mod.computed })}
+                    onToggleHeroVisibility={(visible) => handleToggleHeroVisibility("bodyModification", mod.id, visible)}
                     onEditEvent={(event) => {
                       const fullEvent = mod.events.find((e) => e.id === event.id);
                       setOpenState({ type: "editBodyModEvent", event, modId: mod.id, eventOverrides: { bodyRegions: fullEvent?.bodyRegions ?? [], description: fullEvent?.description ?? null, material: fullEvent?.material ?? null, gauge: fullEvent?.gauge ?? null } });
@@ -469,6 +481,7 @@ export function AppearanceTab({
                     onManagePhotos={referenceSessionId ? () => setOpenState({ type: "manageEntityPhotos", entityId: proc.id, entityModel: "CosmeticProcedure", entityLabel: `${proc.type} — ${proc.bodyRegion}` }) : undefined}
                     onDeleteEvent={handleDeleteCosmProcEvent}
                     onAddEvent={() => setOpenState({ type: "addCosmProcEvent", procId: proc.id, procLabel: `${proc.type} — ${proc.bodyRegion}`, computed: proc.computed })}
+                    onToggleHeroVisibility={(visible) => handleToggleHeroVisibility("cosmeticProcedure", proc.id, visible)}
                     onEditEvent={(event) => {
                       const fullEvent = proc.events.find((e) => e.id === event.id);
                       setOpenState({ type: "editCosmProcEvent", event, procId: proc.id, eventOverrides: { bodyRegions: fullEvent?.bodyRegions ?? [], description: fullEvent?.description ?? null, provider: fullEvent?.provider ?? null, valueBefore: fullEvent?.valueBefore ?? null, valueAfter: fullEvent?.valueAfter ?? null, unit: fullEvent?.unit ?? null } });

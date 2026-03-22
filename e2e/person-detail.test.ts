@@ -103,12 +103,25 @@ test.describe("Persona CRUD", () => {
 
     // Verify: persona label appears in the timeline (page refreshes)
     await page.waitForTimeout(2000);
+    // History section is collapsed by default — expand it first
+    const showTimelineBtn = page.getByRole("button", { name: /show timeline/i });
+    if (await showTimelineBtn.isVisible().catch(() => false)) {
+      await showTimelineBtn.click();
+      await page.waitForTimeout(500);
+    }
     await expect(page.getByText(label)).toBeVisible({ timeout: 10000 });
   });
 
   test("delete test persona", async ({ page }) => {
     await goToPersonDetail(page);
     await page.waitForTimeout(1000);
+
+    // History section is collapsed by default — expand it first
+    const showTimelineBtn = page.getByRole("button", { name: /show timeline/i });
+    if (await showTimelineBtn.isVisible().catch(() => false)) {
+      await showTimelineBtn.click();
+      await page.waitForTimeout(500);
+    }
 
     // Find a test persona by its label
     const testPersonaText = page.getByText(/Test Persona \d+/).first();

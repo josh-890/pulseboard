@@ -122,11 +122,11 @@ All actions in `src/lib/actions/`. Each validates input with Zod, calls services
 
 | File | Key Actions |
 |------|------------|
-| `person-actions.ts` | `createPerson`, `updatePerson`, `deletePerson` |
+| `person-actions.ts` | `createPerson`, `updatePerson`, `deletePerson`, `updatePersonBio` |
 | `set-actions.ts` | `createSet`, `updateSet`, `deleteSet`, `addExistingMediaToSetAction`, `reassignSetSessionAction` |
 | `session-actions.ts` | `createSession`, `updateSession`, `deleteSession`, `mergeSessionsAction` |
 | `media-actions.ts` | `assignHeadshotSlot`, `updatePersonMediaLinkAction`, `batchSetUsageAction`, `deleteMediaItemsAction`, `setFocalPointAction`, `resetFocalPointAction` |
-| `appearance-actions.ts` | Body mark/modification/procedure CRUD + event CRUD (~15 actions) |
+| `appearance-actions.ts` | Body mark/modification/procedure CRUD + event CRUD (~15 actions), `toggleEntityHeroVisibility` |
 | `contribution-actions.ts` | `addContribution`, `removeContribution`, `addContributionSkill`, `removeContributionSkill` |
 | `skill-actions.ts` | PersonSkill/SkillEvent CRUD, skill event media management |
 | `alias-actions.ts` | Alias CRUD, channel linking, bulk import, merge |

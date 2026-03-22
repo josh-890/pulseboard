@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useState, useTransition } from "react";
 import { cn, computeAge, formatPartialDate } from "@/lib/utils";
 import type { getPersonWithDetails } from "@/lib/services/person-service";
 import type {
@@ -39,7 +39,14 @@ import {
   Image as ImageIcon,
   Link2,
   Plus,
+  LayoutDashboard,
+  Sparkles,
+  FileImage,
+  Zap,
+  Pencil,
+  Info,
 } from "lucide-react";
+import NextImage from "next/image";
 import Link from "next/link";
 import { CarouselHeader } from "@/components/gallery/carousel-header";
 import { JustifiedGrid } from "@/components/gallery/justified-grid";
@@ -62,6 +69,7 @@ import {
   assignHeadshotSlot as assignHeadshotSlotAction,
   removeHeadshotSlot as removeHeadshotSlotAction,
 } from "@/lib/actions/media-actions";
+import { updatePersonBio } from "@/lib/actions/person-actions";
 
 type PersonData = NonNullable<Awaited<ReturnType<typeof getPersonWithDetails>>>;
 
@@ -152,30 +160,6 @@ const PGRADE_COLORS = [
   "rgb(128,96,176)",
 ];
 
-function PgradeGauge({ value }: { value: number | null | undefined }) {
-  const hasValue = value !== null && value !== undefined;
-  return (
-    <div className="space-y-1.5">
-      <div className="flex items-center justify-between text-xs">
-        <span className="font-semibold tracking-wide text-muted-foreground">PGRADE</span>
-        <span className="font-bold text-foreground">{hasValue ? `${value}/10` : "\u2014/10"}</span>
-      </div>
-      <div className="flex gap-0.5" aria-label={hasValue ? `PGRADE: ${value} out of 10` : "PGRADE: not rated"}>
-        {PGRADE_COLORS.map((color, i) => (
-          <div
-            key={i}
-            className="h-2.5 flex-1 rounded-sm first:rounded-l-md last:rounded-r-md"
-            style={{
-              backgroundColor: color,
-              opacity: hasValue && i < value ? 1 : 0.12,
-            }}
-          />
-        ))}
-      </div>
-    </div>
-  );
-}
-
 // ── CP (Calculated PGRADE) Colors ────────────────────────────────────────────
 
 const CP_COLORS = [
@@ -191,104 +175,7 @@ const CP_COLORS = [
   "rgb(30,65,150)",
 ];
 
-function CpGauge({ value, meanWcp }: { value: number | null | undefined; meanWcp?: number | null }) {
-  const hasValue = value !== null && value !== undefined;
-  const hasWcp = meanWcp !== null && meanWcp !== undefined;
-  return (
-    <div className="space-y-1.5">
-      <div className="flex items-center justify-between text-xs">
-        <span className="font-semibold tracking-wide text-muted-foreground">CP</span>
-        <div className="flex items-center gap-2">
-          {hasWcp && (
-            <span className="text-[10px] text-red-400" title="Mean Weighted CP">
-              WCP {meanWcp.toFixed(1)}
-            </span>
-          )}
-          <span className="font-bold text-foreground">{hasValue ? `${value}/10` : "\u2014/10"}</span>
-        </div>
-      </div>
-      <div className="relative">
-        <div className="flex gap-0.5" aria-label={hasValue ? `Calculated PGRADE: ${value} out of 10` : "Calculated PGRADE: not rated"}>
-          {CP_COLORS.map((color, i) => (
-            <div
-              key={i}
-              className="h-2.5 flex-1 rounded-sm first:rounded-l-md last:rounded-r-md"
-              style={{
-                backgroundColor: color,
-                opacity: hasValue && i < value ? 1 : 0.12,
-              }}
-            />
-          ))}
-        </div>
-        {hasWcp && (
-          <div
-            className="absolute -top-2.5 -translate-x-1/2"
-            style={{ left: `${(meanWcp / 10) * 100}%` }}
-            title={`Mean WCP: ${meanWcp.toFixed(1)}`}
-          >
-            <div className="text-red-500 text-[8px] leading-none select-none">&#9660;</div>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
 // ── Basic Info Panel ─────────────────────────────────────────────────────────
-
-function BasicInfoPanel({
-  person,
-  labelWidth = "w-32",
-  fieldGap = "gap-2",
-}: {
-  person: PersonData;
-  labelWidth?: string;
-  fieldGap?: string;
-}) {
-  const hasAny =
-    person.birthdate ||
-    person.birthPlace ||
-    person.location ||
-    person.nationality ||
-    person.ethnicity ||
-    person.sexAtBirth;
-
-  if (!hasAny) {
-    return <EmptyState message="No basic info recorded." />;
-  }
-
-  return (
-    <dl className={cn("grid grid-cols-1 text-sm", fieldGap)}>
-      {person.birthdate && (
-        <InfoRow label="Birthdate" value={formatPartialDate(person.birthdate, person.birthdatePrecision)} labelWidth={labelWidth} />
-      )}
-      {person.birthPlace && (
-        <InfoRow label="Birth place" value={person.birthPlace} labelWidth={labelWidth} />
-      )}
-      {person.location && (
-        <InfoRow label="Location" value={person.location} labelWidth={labelWidth} />
-      )}
-      {person.nationality && (
-        <InfoRow
-          label="Nationality"
-          value={
-            <span className="flex items-center gap-2">
-              <FlagImage code={person.nationality} size={16} />
-              {findCountryByCode(person.nationality)?.name ?? person.nationality}
-            </span>
-          }
-          labelWidth={labelWidth}
-        />
-      )}
-      {person.ethnicity && (
-        <InfoRow label="Ethnicity" value={person.ethnicity} labelWidth={labelWidth} />
-      )}
-      {person.sexAtBirth && (
-        <InfoRow label="Sex at birth" value={<span className="capitalize">{person.sexAtBirth}</span>} labelWidth={labelWidth} />
-      )}
-    </dl>
-  );
-}
 
 // ── Physical Stats Panel ─────────────────────────────────────────────────────
 
@@ -303,7 +190,7 @@ function PhysicalStatsPanel({
   labelWidth?: string;
   fieldGap?: string;
 }) {
-  const hasStatic = person.height || person.eyeColor || person.naturalHairColor || person.bodyType || person.measurements;
+  const hasStatic = person.height || person.eyeColor || person.bodyType || person.measurements;
   const hasComputed = currentState.currentHairColor || currentState.weight !== null || currentState.build;
 
   if (!hasStatic && !hasComputed) {
@@ -315,7 +202,6 @@ function PhysicalStatsPanel({
       {/* Static (from Person) */}
       {person.height && <InfoRow label="Height" value={`${person.height} cm`} labelWidth={labelWidth} />}
       {person.eyeColor && <InfoRow label="Eye color" value={<span className="capitalize">{person.eyeColor}</span>} labelWidth={labelWidth} />}
-      {person.naturalHairColor && <InfoRow label="Natural hair" value={<span className="capitalize">{person.naturalHairColor}</span>} labelWidth={labelWidth} />}
       {person.bodyType && <InfoRow label="Body type" value={<span className="capitalize">{person.bodyType}</span>} labelWidth={labelWidth} />}
       {person.measurements && <InfoRow label="Measurements" value={person.measurements} labelWidth={labelWidth} />}
 
@@ -423,50 +309,6 @@ function HistoryPanel({
   );
 }
 
-// ── Career Summary ───────────────────────────────────────────────────────────
-
-function buildCareerSummary(person: PersonData): string {
-  const pronoun = person.sexAtBirth === "female" ? "She" : person.sexAtBirth === "male" ? "He" : "They";
-  const currentAge = person.birthdate ? computeAge(new Date(person.birthdate)) : null;
-  const status = person.status;
-
-  // No activeSince — short fallback based on status + age
-  if (!person.activeSince) {
-    if (status === "wishlist") return "On the wishlist.";
-    if (status === "archived") return "Archived.";
-    if (currentAge !== null) {
-      const adj = status === "active" ? "Active" : "Inactive";
-      return `${adj}, currently ${currentAge} years old.`;
-    }
-    const adj = status === "active" ? "active" : "inactive";
-    return `Currently ${adj}.`;
-  }
-
-  // Has activeSince
-  const birthYear = person.birthdate ? new Date(person.birthdate).getFullYear() : null;
-  const startAge = birthYear ? person.activeSince - birthYear : null;
-  const currentYear = new Date().getFullYear();
-  const yearsWorking = currentYear - person.activeSince;
-
-  let summary = `${pronoun} started in ${person.activeSince}`;
-  if (startAge !== null && startAge > 0) {
-    summary += ` at age ${startAge}`;
-  }
-  summary += ".";
-
-  if (status === "active" && yearsWorking > 0) {
-    summary += ` Working for ${yearsWorking} ${yearsWorking === 1 ? "year" : "years"}`;
-    if (currentAge !== null) {
-      summary += `, now ${currentAge}`;
-    }
-    summary += ".";
-  } else if (status !== "active") {
-    summary += " Retired.";
-  }
-
-  return summary;
-}
-
 // ── KPI Stats Panel ──────────────────────────────────────────────────────────
 
 type KpiCounts = {
@@ -489,8 +331,6 @@ function KpiStatsPanel({
   meanWcp?: number | null;
   compact?: boolean;
 }) {
-  const careerSummary = buildCareerSummary(person);
-
   const tiles = [
     { icon: <Film size={14} />, count: kpiCounts.sets, label: "Sets" },
     { icon: <Building2 size={14} />, count: kpiCounts.labels, label: "Labels" },
@@ -498,11 +338,12 @@ function KpiStatsPanel({
     { icon: <Link2 size={14} />, count: kpiCounts.connections, label: "Conn." },
   ];
 
-  return (
-    <div className="flex flex-col gap-3">
-      {/* Career summary text */}
-      <p className={cn("leading-relaxed text-muted-foreground", compact ? "text-xs" : "text-sm")}>{careerSummary}</p>
+  const hasPgrade = person.pgrade !== null && person.pgrade !== undefined;
+  const hasCp = calculatedPgrade !== null && calculatedPgrade !== undefined;
+  const hasWcp = meanWcp !== null && meanWcp !== undefined;
 
+  return (
+    <div className="flex flex-col gap-2">
       {/* Stats grid 2x2 */}
       <div className="grid grid-cols-2 gap-2">
         {tiles.map((tile) => (
@@ -522,10 +363,70 @@ function KpiStatsPanel({
         ))}
       </div>
 
-      {/* PGRADE + CP gauges */}
-      <div className="flex flex-col gap-1">
-        <PgradeGauge value={person.pgrade} />
-        <CpGauge value={calculatedPgrade} meanWcp={meanWcp} />
+      {/* PGRADE + CP tiles */}
+      <div className="grid grid-cols-2 gap-2">
+        <div
+          className={cn(
+            "flex flex-col items-center gap-1 rounded-xl border bg-white/5",
+            hasPgrade ? "border-white/10" : "border-white/5",
+            compact ? "px-2 py-1.5" : "px-3 py-2",
+          )}
+          title="Performance Grade — overall subjective rating (1-10 scale)"
+        >
+          <span className="text-[10px] font-semibold tracking-wide text-muted-foreground">PGRADE</span>
+          <span className={cn("text-lg font-bold leading-none", hasPgrade ? "" : "text-muted-foreground/40")}>
+            {hasPgrade ? person.pgrade : "\u2014"}
+          </span>
+          <div className="mt-0.5 flex w-full gap-px">
+            {PGRADE_COLORS.map((color, i) => (
+              <div
+                key={i}
+                className="h-1 flex-1 first:rounded-l-sm last:rounded-r-sm"
+                style={{ backgroundColor: color, opacity: hasPgrade && i < person.pgrade! ? 1 : 0.12 }}
+              />
+            ))}
+          </div>
+        </div>
+        <div
+          className={cn(
+            "flex flex-col items-center gap-1 rounded-xl border bg-white/5",
+            hasCp ? "border-white/10" : "border-white/5",
+            compact ? "px-2 py-1.5" : "px-3 py-2",
+          )}
+          title="Cumulative Points — weighted aggregate of set participation scores"
+        >
+          <div className="flex items-center gap-1">
+            <span className="text-[10px] font-semibold tracking-wide text-muted-foreground">CP</span>
+            {hasWcp && (
+              <span className="text-[9px] text-red-400" title="Weighted Cumulative Points — mean of all weighted set scores">
+                W{meanWcp.toFixed(1)}
+              </span>
+            )}
+          </div>
+          <span className={cn("text-lg font-bold leading-none", hasCp ? "" : "text-muted-foreground/40")}>
+            {hasCp ? calculatedPgrade : "\u2014"}
+          </span>
+          <div className="relative mt-0.5 w-full">
+            <div className="flex w-full gap-px">
+              {CP_COLORS.map((color, i) => (
+                <div
+                  key={i}
+                  className="h-1 flex-1 first:rounded-l-sm last:rounded-r-sm"
+                  style={{ backgroundColor: color, opacity: hasCp && i < calculatedPgrade! ? 1 : 0.12 }}
+                />
+              ))}
+            </div>
+            {hasWcp && (
+              <div
+                className="absolute -top-[5px] -translate-x-1/2 text-red-500 text-[7px] leading-none select-none"
+                style={{ left: `${(meanWcp / 10) * 100}%` }}
+                title={`Mean WCP: ${meanWcp.toFixed(1)}`}
+              >
+                &#9660;
+              </div>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -614,6 +515,9 @@ function IdentityBlock({ person, displayName, age, aliasPills, onAliasesBadgeCli
   return (
     <div>
       <h1 className={cn("font-bold leading-tight", nameSize)}>{displayName}</h1>
+      {displayName !== person.icgId && (
+        <p className="mt-0.5 font-mono text-xs text-muted-foreground">{person.icgId}</p>
+      )}
 
       {(birthAlias || totalAliasCount > 0) && (
         <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
@@ -650,8 +554,15 @@ function IdentityBlock({ person, displayName, age, aliasPills, onAliasesBadgeCli
             {findCountryByCode(person.nationality)?.name ?? person.nationality}
           </span>
         )}
-        {age !== null && <span>{age} yrs</span>}
-        {person.sexAtBirth && <span className="capitalize">{person.sexAtBirth}</span>}
+        {age !== null && (
+          <span>
+            {age} yrs
+            {person.sexAtBirth === "female" ? " \u2640" : person.sexAtBirth === "male" ? " \u2642" : ""}
+          </span>
+        )}
+        {age === null && person.sexAtBirth && (
+          <span>{person.sexAtBirth === "female" ? "\u2640" : person.sexAtBirth === "male" ? "\u2642" : ""}</span>
+        )}
       </div>
 
       <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
@@ -673,13 +584,36 @@ function IdentityBlock({ person, displayName, age, aliasPills, onAliasesBadgeCli
         </div>
       )}
 
-      {/* Entity pills — at-a-glance appearance summary */}
+      {/* Inline basic info (folded from former BasicInfoPanel) */}
+      {(person.birthdate || person.ethnicity) && (
+        <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
+          {person.birthdate && (
+            <span>{formatPartialDate(person.birthdate, person.birthdatePrecision)}</span>
+          )}
+          {person.ethnicity && (
+            <span>{person.ethnicity.split(" \u2192 ")[0]}</span>
+          )}
+        </div>
+      )}
+
+      {/* Entity pills — at-a-glance appearance summary (max 4 + overflow) */}
       {currentState && (() => {
-        const markTypes = [...new Set(currentState.activeBodyMarks.map((m) => m.type))];
-        const modTypes = [...new Set(currentState.activeBodyModifications.map((m) => m.type))];
-        const procTypes = [...new Set(currentState.activeCosmeticProcedures.map((p) => p.type))];
-        const hasEntities = markTypes.length > 0 || modTypes.length > 0 || procTypes.length > 0;
-        if (!hasEntities) return null;
+        const heroEntities = [
+          ...currentState.activeBodyMarks.filter((m) => m.heroVisible).map((m) => ({ kind: "mark" as const, label: m.type, heroOrder: m.heroOrder, id: m.id })),
+          ...currentState.activeBodyModifications.filter((m) => m.heroVisible).map((m) => ({ kind: "mod" as const, label: m.type, heroOrder: m.heroOrder, id: m.id })),
+          ...currentState.activeCosmeticProcedures.filter((p) => p.heroVisible).map((p) => ({ kind: "proc" as const, label: p.type, heroOrder: p.heroOrder, id: p.id })),
+        ].sort((a, b) => (a.heroOrder ?? 999) - (b.heroOrder ?? 999));
+
+        if (heroEntities.length === 0) return null;
+
+        const visiblePills = heroEntities.slice(0, 4);
+        const overflow = heroEntities.length - visiblePills.length;
+
+        const pillStyles = {
+          mark: "border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400",
+          mod: "border-teal-500/30 bg-teal-500/10 text-teal-600 dark:text-teal-400",
+          proc: "border-rose-500/30 bg-rose-500/10 text-rose-600 dark:text-rose-400",
+        };
 
         const Wrapper = onAppearanceClick ? "button" : "div";
         return (
@@ -687,21 +621,16 @@ function IdentityBlock({ person, displayName, age, aliasPills, onAliasesBadgeCli
             {...(onAppearanceClick ? { type: "button" as const, onClick: onAppearanceClick } : {})}
             className="mt-2 flex flex-wrap items-center gap-1.5"
           >
-            {markTypes.map((t) => (
-              <span key={`mark-${t}`} className="rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[11px] font-medium capitalize text-amber-600 dark:text-amber-400">
-                {t}
+            {visiblePills.map((e) => (
+              <span key={`${e.kind}-${e.id}`} className={cn("rounded-full border px-2 py-0.5 text-[11px] font-medium capitalize", pillStyles[e.kind])}>
+                {e.label}
               </span>
             ))}
-            {modTypes.map((t) => (
-              <span key={`mod-${t}`} className="rounded-full border border-teal-500/30 bg-teal-500/10 px-2 py-0.5 text-[11px] font-medium capitalize text-teal-600 dark:text-teal-400">
-                {t}
+            {overflow > 0 && (
+              <span className="rounded-full border border-white/15 bg-muted/50 px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+                +{overflow} more
               </span>
-            ))}
-            {procTypes.map((t) => (
-              <span key={`proc-${t}`} className="rounded-full border border-rose-500/30 bg-rose-500/10 px-2 py-0.5 text-[11px] font-medium capitalize text-rose-600 dark:text-rose-400">
-                {t}
-              </span>
-            ))}
+            )}
           </Wrapper>
         );
       })()}
@@ -752,7 +681,7 @@ function HeroDensityLayout(props: HeroSharedProps) {
           onFindSimilar={handleFindSimilar}
         />
 
-        {/* Zone 2: Identity */}
+        {/* Zone 2: Identity + Basic Info */}
         <div className="shrink-0">
           <IdentityBlock
             person={person}
@@ -766,15 +695,7 @@ function HeroDensityLayout(props: HeroSharedProps) {
           />
         </div>
 
-        {/* Zone 3: Basic Info */}
-        <div className="flex-1 min-w-0">
-          <h3 className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            <BookUser size={12} /> Basic Info
-          </h3>
-          <BasicInfoPanel person={person} labelWidth={cfg.labelWidth} fieldGap={cfg.fieldGap} />
-        </div>
-
-        {/* Zone 4: Physical Stats */}
+        {/* Zone 3: Physical Stats */}
         <div className="flex-1 min-w-0">
           <h3 className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
             <Activity size={12} /> Physical Stats
@@ -787,7 +708,7 @@ function HeroDensityLayout(props: HeroSharedProps) {
           />
         </div>
 
-        {/* Zone 5: KPI Panel */}
+        {/* Zone 4: KPI Panel */}
         <div className={cn("w-full sm:shrink-0", cfg.kpiWidth)}>
           <KpiStatsPanel person={person} kpiCounts={kpiCounts} calculatedPgrade={calculatedPgrade} meanWcp={meanWcp} compact={isCompact} />
         </div>
@@ -827,7 +748,7 @@ function HeroCard({
   const birthAlias = person.aliases.find((a) => a.type === "birth");
   const otherAliases = person.aliases.filter((a) => a.type === "alias");
 
-  const displayName = commonAlias ? `${commonAlias.name} (${person.icgId})` : person.icgId;
+  const displayName = commonAlias ? commonAlias.name : person.icgId;
   const initials = commonAlias
     ? commonAlias.name.charAt(0).toUpperCase()
     : person.icgId.charAt(0).toUpperCase();
@@ -862,40 +783,173 @@ function HeroCard({
 
 // ── Overview Tab ─────────────────────────────────────────────────────────────
 
-function OverviewTab({
-  person,
-  currentState,
-}: {
-  person: PersonData;
-  currentState: PersonCurrentState;
-}) {
-  const hasDigitalIdentities = currentState.activeDigitalIdentities.length > 0;
-  const hasNotesOrTags = person.notes || person.tags.length > 0;
-  const hasHistory = person.personas.length > 0;
+function AboutCard({ person }: { person: PersonData }) {
+  const [editing, setEditing] = useState(false);
+  const [savedBio, setSavedBio] = useState(person.bio ?? "");
+  const [draft, setDraft] = useState(person.bio ?? "");
+  const [isPending, startTransition] = useTransition();
 
-  if (!hasDigitalIdentities && !hasNotesOrTags && !hasHistory) {
-    return (
-      <div className="rounded-2xl border border-white/20 bg-card/70 p-8 text-center shadow-md backdrop-blur-sm">
-        <p className="text-sm text-muted-foreground/70 italic">
-          No additional overview information. Check the other tabs for appearance, career, and network details.
-        </p>
-      </div>
-    );
+  const displayName = person.aliases.find((a) => a.type === "common")?.name ?? person.icgId;
+
+  function handleSave() {
+    startTransition(async () => {
+      const result = await updatePersonBio(person.id, draft);
+      if (result.success) {
+        setSavedBio(draft);
+      }
+      setEditing(false);
+    });
   }
 
   return (
-    <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-      {/* History — full width at top */}
-      <SectionCard
-        title="History"
-        icon={<Users size={18} />}
-        badge={person.personas.length}
-        className="md:col-span-2"
-      >
-        <HistoryPanel personas={person.personas} personId={person.id} currentState={currentState} defaultOpen />
-      </SectionCard>
+    <SectionCard
+      title={`About ${displayName}`}
+      icon={<Info size={18} />}
+      className="md:col-span-2"
+      action={
+        !editing ? (
+          <button
+            type="button"
+            onClick={() => { setDraft(savedBio); setEditing(true); }}
+            className="flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <Pencil size={12} /> Edit
+          </button>
+        ) : undefined
+      }
+    >
+      {editing ? (
+        <div className="space-y-3">
+          <textarea
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            rows={4}
+            className="w-full resize-y rounded-lg border border-white/15 bg-muted/30 px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-ring"
+            placeholder="Write a bio..."
+          />
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={handleSave}
+              disabled={isPending}
+              className="rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
+            >
+              {isPending ? "Saving..." : "Save"}
+            </button>
+            <button
+              type="button"
+              onClick={() => setEditing(false)}
+              className="rounded-lg border border-white/15 px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      ) : savedBio ? (
+        <p className="whitespace-pre-wrap text-sm leading-relaxed text-muted-foreground">
+          {savedBio}
+        </p>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setEditing(true)}
+          className="text-sm text-muted-foreground/50 italic hover:text-muted-foreground transition-colors"
+        >
+          Add a bio...
+        </button>
+      )}
+    </SectionCard>
+  );
+}
 
-      {/* Digital Identities */}
+function OverviewTab({
+  person,
+  currentState,
+  sessionWorkHistory,
+  referencePhotos,
+}: {
+  person: PersonData;
+  currentState: PersonCurrentState;
+  sessionWorkHistory?: PersonSessionWorkEntry[];
+  referencePhotos?: GalleryItem[];
+}) {
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+  const hasDigitalIdentities = currentState.activeDigitalIdentities.length > 0;
+  const hasNotesOrTags = person.notes || person.tags.length > 0;
+  const hasHistory = person.personas.length > 0;
+  const recentWork = (sessionWorkHistory ?? []).slice(0, 3);
+  const recentPhotos = (referencePhotos ?? []).slice(0, 8);
+
+  return (
+    <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+      {/* 1. About */}
+      <AboutCard person={person} />
+
+      {/* 2. Recent Work | Recent Photos */}
+      {recentWork.length > 0 && (
+        <SectionCard title="Recent Work" icon={<Film size={18} />} badge={recentWork.length}>
+          <div className="space-y-2">
+            {recentWork.map((entry) => (
+              <Link
+                key={entry.sessionId}
+                href={`/sessions/${entry.sessionId}`}
+                className="flex items-center gap-3 rounded-lg border border-white/10 bg-card/30 p-2.5 transition-colors hover:border-white/20 hover:bg-card/50"
+              >
+                {entry.thumbnails[0] && (
+                  <div className="h-10 w-10 shrink-0 overflow-hidden rounded-md">
+                    <NextImage src={entry.thumbnails[0].url} alt="" width={40} height={40} className="h-full w-full object-cover" unoptimized />
+                  </div>
+                )}
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium">{entry.sessionName}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {entry.labelName && <span>{entry.labelName}</span>}
+                    {entry.sessionDate && <span> · {formatPartialDate(entry.sessionDate, entry.sessionDatePrecision)}</span>}
+                  </p>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </SectionCard>
+      )}
+
+      {recentPhotos.length > 0 && (
+        <SectionCard title="Recent Photos" icon={<ImageIcon size={18} />} badge={recentPhotos.length}>
+          <div className="flex gap-1.5 overflow-x-auto scrollbar-none pb-1">
+            {recentPhotos.map((photo, idx) => (
+              <button
+                key={photo.id}
+                type="button"
+                onClick={() => setLightboxIndex(idx)}
+                className="h-16 w-16 shrink-0 overflow-hidden rounded-lg border border-white/10 transition-all hover:border-white/25"
+              >
+                <NextImage src={photo.urls.gallery_512 ?? photo.urls.original} alt="" width={64} height={64} className="h-full w-full object-cover" unoptimized />
+              </button>
+            ))}
+          </div>
+          {lightboxIndex !== null && (
+            <GalleryLightbox
+              items={recentPhotos}
+              initialIndex={lightboxIndex}
+              onClose={() => setLightboxIndex(null)}
+            />
+          )}
+        </SectionCard>
+      )}
+
+      {/* 3. History — default collapsed */}
+      {hasHistory && (
+        <SectionCard
+          title="History"
+          icon={<Users size={18} />}
+          badge={person.personas.length}
+          className="md:col-span-2"
+        >
+          <HistoryPanel personas={person.personas} personId={person.id} currentState={currentState} />
+        </SectionCard>
+      )}
+
+      {/* 5. Digital Identities | Notes & Tags */}
       {hasDigitalIdentities && (
         <SectionCard
           title="Digital Identities"
@@ -910,7 +964,6 @@ function OverviewTab({
         </SectionCard>
       )}
 
-      {/* Notes & Tags */}
       {hasNotesOrTags && (
         <SectionCard title="Notes & Tags" icon={<Tag size={18} />}>
           {person.tags.length > 0 && (
@@ -1242,17 +1295,17 @@ export function PersonDetailTabs({
     setActiveTab("appearance");
   }, []);
 
-  const tabs: { id: TabId; label: string; badge?: number }[] = [
-    { id: "overview", label: "Overview" },
-    { id: "aliases", label: "Aliases", badge: aliasCount || undefined },
-    { id: "appearance", label: "Appearance", badge: (currentState.activeBodyMarks.length + currentState.activeBodyModifications.length + currentState.activeCosmeticProcedures.length) || undefined },
+  const tabs: { id: TabId; label: string; badge?: number; icon: React.ReactNode }[] = [
+    { id: "overview", label: "Overview", icon: <LayoutDashboard size={14} /> },
+    { id: "aliases", label: "Aliases", badge: aliasCount || undefined, icon: <BookUser size={14} /> },
+    { id: "appearance", label: "Appearance", badge: (currentState.activeBodyMarks.length + currentState.activeBodyModifications.length + currentState.activeCosmeticProcedures.length) || undefined, icon: <Sparkles size={14} /> },
     ...(categories && categories.length > 0
-      ? [{ id: "details" as TabId, label: "Details", badge: (categoryCounts?.filter((c) => c.count > 0).length) || undefined }]
+      ? [{ id: "details" as TabId, label: "Details", badge: (categoryCounts?.filter((c) => c.count > 0).length) || undefined, icon: <FileImage size={14} /> }]
       : []),
-    { id: "skills" as TabId, label: "Skills", badge: currentState.activeSkills.length || undefined },
-    { id: "career", label: "Career", badge: (sessionWorkHistory?.length ?? workHistory.length) || undefined },
-    { id: "network", label: "Network", badge: connections.length || undefined },
-    { id: "photos", label: "Photos", badge: (photos.length + (productionSessions?.reduce((sum, s) => sum + s.mediaCount, 0) ?? 0)) || undefined },
+    { id: "skills" as TabId, label: "Skills", badge: currentState.activeSkills.length || undefined, icon: <Zap size={14} /> },
+    { id: "career", label: "Career", badge: (sessionWorkHistory?.length ?? workHistory.length) || undefined, icon: <Briefcase size={14} /> },
+    { id: "network", label: "Network", badge: connections.length || undefined, icon: <Users size={14} /> },
+    { id: "photos", label: "Photos", badge: (photos.length + (productionSessions?.reduce((sum, s) => sum + s.mediaCount, 0) ?? 0)) || undefined, icon: <ImageIcon size={14} /> },
   ];
 
   return (
@@ -1299,6 +1352,7 @@ export function PersonDetailTabs({
                 : "text-muted-foreground hover:text-foreground",
             )}
           >
+            <span className="shrink-0" aria-hidden="true">{tab.icon}</span>
             {tab.label}
             {tab.badge !== undefined && tab.badge > 0 && (
               <span
@@ -1324,7 +1378,12 @@ export function PersonDetailTabs({
         hidden={activeTab !== "overview"}
       >
         {activeTab === "overview" && (
-          <OverviewTab person={person} currentState={currentState} />
+          <OverviewTab
+            person={person}
+            currentState={currentState}
+            sessionWorkHistory={sessionWorkHistory}
+            referencePhotos={photos}
+          />
         )}
       </div>
       <div

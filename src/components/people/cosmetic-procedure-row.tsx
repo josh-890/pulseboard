@@ -7,7 +7,7 @@ import type { CosmeticProcedureWithEvents } from "@/lib/types";
 import { COSMETIC_PROCEDURE_EVENT_STYLES } from "@/lib/constants/body";
 import { BodyRegionChips } from "@/components/shared/body-region-picker";
 import { EntityEventTimeline } from "@/components/people/entity-event-timeline";
-import { Camera, ChevronRight, ImageIcon, Pencil, Trash2 } from "lucide-react";
+import { Camera, ChevronRight, ImageIcon, Pencil, Pin, PinOff, Trash2 } from "lucide-react";
 
 type EntityMediaThumbnail = {
   id: string;
@@ -34,6 +34,7 @@ type CosmeticProcedureRowProps = {
   onDeleteEvent?: (id: string) => Promise<{ success: boolean; error?: string }>;
   onAddEvent?: () => void;
   onEditEvent?: (event: EventItem) => void;
+  onToggleHeroVisibility?: (visible: boolean) => void;
   isPending?: boolean;
 };
 
@@ -46,6 +47,7 @@ export function CosmeticProcedureRow({
   onDeleteEvent,
   onAddEvent,
   onEditEvent,
+  onToggleHeroVisibility,
   isPending,
 }: CosmeticProcedureRowProps) {
   const [expanded, setExpanded] = useState(false);
@@ -104,6 +106,21 @@ export function CosmeticProcedureRow({
       {expanded && (
         <div className="border-t border-white/5 px-3 pb-3 pt-2">
           <div className="mb-2 flex items-center gap-1">
+            {onToggleHeroVisibility && (
+              <button
+                type="button"
+                onClick={() => onToggleHeroVisibility(!procedure.heroVisible)}
+                disabled={isPending}
+                className={cn(
+                  "rounded p-1 text-xs transition-colors",
+                  procedure.heroVisible ? "text-rose-400 hover:text-muted-foreground" : "text-muted-foreground hover:text-rose-400",
+                )}
+                aria-label={procedure.heroVisible ? "Unpin from hero card" : "Pin to hero card"}
+                title={procedure.heroVisible ? "Unpin from hero card" : "Pin to hero card"}
+              >
+                {procedure.heroVisible ? <Pin size={14} /> : <PinOff size={14} />}
+              </button>
+            )}
             {onManagePhotos && (
               <button type="button" onClick={onManagePhotos} className="rounded p-1 text-xs text-muted-foreground hover:text-amber-400 transition-colors" aria-label="Manage photos">
                 <Camera size={14} />

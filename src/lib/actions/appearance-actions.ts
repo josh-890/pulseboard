@@ -1073,3 +1073,31 @@ export async function deletePersonaAction(
     return { success: false, error: message };
   }
 }
+
+// ── Hero Visibility ───────────────────────────────────────────────────────────
+
+export async function toggleEntityHeroVisibility(
+  entityType: "bodyMark" | "bodyModification" | "cosmeticProcedure",
+  entityId: string,
+  visible: boolean,
+  personId: string,
+): Promise<ActionResultWithId> {
+  try {
+    switch (entityType) {
+      case "bodyMark":
+        await prisma.bodyMark.update({ where: { id: entityId }, data: { heroVisible: visible } });
+        break;
+      case "bodyModification":
+        await prisma.bodyModification.update({ where: { id: entityId }, data: { heroVisible: visible } });
+        break;
+      case "cosmeticProcedure":
+        await prisma.cosmeticProcedure.update({ where: { id: entityId }, data: { heroVisible: visible } });
+        break;
+    }
+    revalidatePath(`/people/${personId}`);
+    return { success: true };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Unexpected error";
+    return { success: false, error: message };
+  }
+}

@@ -104,6 +104,23 @@ export async function createMinimalPerson(
   }
 }
 
+export async function updatePersonBio(
+  personId: string,
+  bio: string,
+): Promise<SimpleActionResult> {
+  try {
+    const trimmed = bio.trim();
+    await prisma.person.update({
+      where: { id: personId },
+      data: { bio: trimmed || null },
+    });
+    revalidatePath(`/people/${personId}`);
+    return { success: true };
+  } catch {
+    return { success: false, error: "Failed to update bio" };
+  }
+}
+
 export async function loadMorePersons(
   filters: PersonFilters,
   cursor: string,
