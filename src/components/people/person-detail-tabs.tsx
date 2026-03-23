@@ -805,7 +805,7 @@ function AboutCard({ person, referencePhotos }: { person: PersonData; referenceP
   }, [photos]);
 
   function insertPhoto(mediaId: string) {
-    const tag = `![](media:${mediaId})`;
+    const tag = `![w150](media:${mediaId})`;
     setDraft((prev) => prev ? `${prev}\n${tag}` : tag);
     setShowPhotoPicker(false);
   }
@@ -837,13 +837,30 @@ function AboutCard({ person, referencePhotos }: { person: PersonData; referenceP
       const mediaId = src.slice(6);
       const resolved = mediaUrlMap.get(mediaId);
       if (!resolved) return null;
+      // Parse alt text: "w150 left", "w80 right", "w200 inline", "w300"
+      const altStr = alt ?? "";
+      const tokens = altStr.split(/\s+/);
+      const wToken = tokens.find((t) => /^w\d+$/.test(t));
+      const width = wToken ? parseInt(wToken.slice(1), 10)
+        : tokens.includes("small") ? 200
+        : tokens.includes("large") ? 600
+        : 150;
+      const float = tokens.includes("right") ? "right"
+        : tokens.includes("inline") ? "inline"
+        : "left"; // default
+      const floatStyle: React.CSSProperties = float === "left"
+        ? { width: `${width}px`, height: "auto", float: "left", marginRight: "12px", marginBottom: "8px", marginTop: "4px" }
+        : float === "right"
+        ? { width: `${width}px`, height: "auto", float: "right", marginLeft: "12px", marginBottom: "8px", marginTop: "4px" }
+        : { width: `${width}px`, height: "auto", display: "inline-block", verticalAlign: "middle", margin: "0 4px" };
       return (
         <NextImage
           src={resolved}
-          alt={alt ?? ""}
-          width={400}
-          height={300}
-          className="rounded-lg my-2 max-w-full w-auto h-auto"
+          alt=""
+          width={width}
+          height={Math.round(width * 0.75)}
+          style={floatStyle}
+          className="rounded-lg"
           unoptimized
         />
       );
@@ -872,7 +889,7 @@ function AboutCard({ person, referencePhotos }: { person: PersonData; referenceP
           <textarea
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
-            rows={4}
+            rows={Math.min(20, Math.max(6, draft.split("\n").length + 2))}
             className="w-full resize-y rounded-lg border border-white/15 bg-muted/30 px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-ring"
             placeholder="Write a bio... (supports **bold**, *italic*, # headings, - lists)"
           />

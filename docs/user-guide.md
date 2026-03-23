@@ -94,9 +94,64 @@ Shows a link to the person's reference session (auto-created, one per person). D
 #### Tabs
 
 **Overview**
-- ICG-ID, display name, status
-- Career summary (years active, set count, photo count)
-- KPI badges: Photos, Sets, Sessions, Connections
+- **About [Name]** — editable bio section with Markdown support (see [Bio & Markdown](#bio--markdown) below)
+- Recent Photos — horizontal scroll of latest reference photos with lightbox
+- History — collapsible persona timeline
+- Digital Identities, Notes & Tags
+
+#### Bio & Markdown
+
+The About card on the Overview tab supports **Markdown formatting** and **embedded photos**.
+
+**Editing:** Click anywhere on the bio text to enter edit mode, or use the Edit button. The textarea auto-sizes based on content length (6–20 rows).
+
+**Supported Markdown:**
+
+| Syntax | Result |
+|--------|--------|
+| `**bold**` | **bold** |
+| `*italic*` | *italic* |
+| `# Heading` | Heading (levels 1–6) |
+| `- item` | Bulleted list |
+| `1. item` | Numbered list |
+
+**Embedding Photos:**
+
+You can embed photos from the person's reference session directly into the bio.
+
+1. In edit mode, click the **camera icon** button to open the photo picker
+2. Click a thumbnail to insert it at the cursor position
+3. The inserted tag looks like: `![w150 left](media:ID)`
+
+**Image sizing** — control width by changing the number after `w`:
+
+| Tag | Width |
+|-----|-------|
+| `![w80 left](media:ID)` | 80px |
+| `![w150 left](media:ID)` | 150px (default) |
+| `![w300 left](media:ID)` | 300px |
+| `![w600 left](media:ID)` | 600px |
+
+You can also use named sizes: `small` (200px), `large` (600px).
+
+**Image positioning** — control how text wraps around the image:
+
+| Keyword | Behavior |
+|---------|----------|
+| `left` | Image floats left, text wraps on the right **(default)** |
+| `right` | Image floats right, text wraps on the left |
+| `inline` | Image sits inline with text, no wrapping |
+
+**Examples:**
+
+```
+![w150 left](media:abc123)    → 150px wide, text wraps right
+![w300 right](media:abc123)   → 300px wide, text wraps left
+![w80 inline](media:abc123)   → 80px wide, inline with text
+![small left](media:abc123)   → 200px wide, text wraps right
+```
+
+Only photos from the person's reference session can be embedded — external URLs are not supported.
 
 **Appearance**
 - Current physical state (height, weight, body type, ethnicity, hair color)
