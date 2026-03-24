@@ -854,9 +854,9 @@ function HeroDensityLayout(props: HeroSharedProps) {
         />
 
         {/* Zones 2+3: Identity | Physical — 2-col grid, no hairline */}
-        <div className="hidden sm:grid flex-1 min-w-0 grid-cols-[auto_1fr] grid-rows-[auto_1fr] items-start">
+        <div className="hidden sm:grid flex-1 min-w-0 grid-cols-[auto_1fr] grid-rows-[auto_1fr] items-stretch">
           {/* Row 1, Col 1: Name + ICG ID */}
-          <div className="self-end pb-3">
+          <div className="flex items-end pb-1.5">
             <IdentityBlock
               person={person}
               displayName={displayName}
@@ -889,7 +889,7 @@ function HeroDensityLayout(props: HeroSharedProps) {
           </div>
 
           {/* Row 2, Col 1: Aliases + demographics + career */}
-          <div className="pt-3">
+          <div className="flex items-start pt-1.5">
             <IdentityBlock
               person={person}
               displayName={displayName}
