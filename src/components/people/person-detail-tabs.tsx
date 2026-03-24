@@ -727,19 +727,16 @@ function IdentityBlock({ person, displayName, age, heroAliases, onAliasesBadgeCl
       {/* Aliases — inline flow, 3 lines max */}
       <div className="min-h-[3.25rem] max-w-[220px] text-xs leading-relaxed text-muted-foreground line-clamp-3">
         {birthAlias && (
-          <>
-            <span
-              className="text-foreground/70 hover:text-foreground transition-colors cursor-default"
-              title={`Real name${birthAlias.channelNames.length > 0 ? `. Used on: ${birthAlias.channelNames.join(", ")}` : ""}`}
-            >
-              {birthAlias.name}
-            </span>
-            {visibleOthers.length > 0 && <br />}
-          </>
+          <span
+            className="text-foreground/70 hover:text-foreground transition-colors cursor-default"
+            title={`Real name${birthAlias.channelNames.length > 0 ? `. Used on: ${birthAlias.channelNames.join(", ")}` : ""}`}
+          >
+            {birthAlias.name}
+          </span>
         )}
         {visibleOthers.map((a, i) => (
           <span key={a.id}>
-            {i > 0 && <span className="text-white/20"> · </span>}
+            {(i > 0 || birthAlias) && <span className="text-white/20">{" · "}</span>}
             <span
               className="hover:text-foreground transition-colors cursor-default"
               title={a.channelNames.length > 0 ? `Used on: ${a.channelNames.join(", ")}` : undefined}
@@ -753,9 +750,10 @@ function IdentityBlock({ person, displayName, age, heroAliases, onAliasesBadgeCl
           <button
             type="button"
             onClick={onAliasesBadgeClick}
-            className="ml-1 text-muted-foreground/50 hover:text-foreground transition-colors"
+            className="text-muted-foreground/50 hover:text-foreground transition-colors"
           >
-            +{overflow}
+            {" +"}
+            {overflow}
           </button>
         )}
       </div>
