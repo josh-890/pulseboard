@@ -39,14 +39,12 @@ test.describe("People CRUD", () => {
     await expect(page.getByText(name, { exact: false })).toBeVisible();
   });
 
-  test("detail page has Edit + Delete buttons and Reference Media card", async ({ page }) => {
+  test("detail page has Edit + Delete buttons", async ({ page }) => {
     await page.goto("/people/seed-person-1");
     // Scope to the header actions row (not the About card's Edit button)
     await expect(page.getByRole("link", { name: "Back to People" }).locator("..").getByRole("button", { name: /^edit$/i })).toBeVisible();
     // Use .first() because persona timeline entries also have Delete buttons
     await expect(page.getByRole("button", { name: /delete/i }).first()).toBeVisible();
-    // Reference Media card should be visible
-    await expect(page.getByText("Reference Media")).toBeVisible();
   });
 
   test("edit person sheet opens and pre-populates", async ({ page }) => {

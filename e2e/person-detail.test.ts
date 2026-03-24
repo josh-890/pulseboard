@@ -167,15 +167,16 @@ test.describe("Aliases CRUD", () => {
 
     // No toast — verify alias appears in the list after page refresh
     await page.waitForTimeout(2000);
-    await expect(page.getByText(aliasName)).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText(aliasName).first()).toBeVisible({ timeout: 10000 });
   });
 
   test("edit alias", async ({ page }) => {
     await goToPersonDetail(page);
     await switchTab(page, "Aliases");
 
-    // Find any TestAlias row
-    const testAliasText = page.getByText(/TestAlias\d+/).first();
+    // Scope to the Aliases tab panel to avoid matching hero card alias badges
+    const aliasPanel = page.getByRole("tabpanel");
+    const testAliasText = aliasPanel.getByText(/TestAlias\d+/).first();
     if (!(await testAliasText.isVisible().catch(() => false))) {
       test.skip();
       return;
@@ -196,15 +197,16 @@ test.describe("Aliases CRUD", () => {
 
     // Verify updated name appears
     await page.waitForTimeout(2000);
-    await expect(page.getByText(original + "Ed")).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText(original + "Ed").first()).toBeVisible({ timeout: 10000 });
   });
 
   test("delete alias", async ({ page }) => {
     await goToPersonDetail(page);
     await switchTab(page, "Aliases");
 
-    // Find test alias
-    const testAliasText = page.getByText(/TestAlias\d+/).first();
+    // Scope to the Aliases tab panel to avoid matching hero card alias badges
+    const aliasPanel = page.getByRole("tabpanel");
+    const testAliasText = aliasPanel.getByText(/TestAlias\d+/).first();
     if (!(await testAliasText.isVisible().catch(() => false))) {
       test.skip();
       return;
@@ -611,8 +613,10 @@ test.describe("Photo Management", () => {
     await page.goto(`/people/${SEED_PERSON}`);
     await page.waitForLoadState("networkidle");
 
-    // Click the "Reference Media" link card
-    await page.locator("a[href*='/sessions/']").filter({ hasText: "Reference Media" }).click();
+    // Click the reference session link (ref media badge in hero card)
+    const sessionLink = page.locator("a[href*='/sessions/']").first();
+    await expect(sessionLink).toBeVisible({ timeout: 5000 });
+    await sessionLink.click();
     await page.waitForLoadState("networkidle");
 
     // Look for file input (hidden inputs used by drop zones)
@@ -667,8 +671,10 @@ test.describe("Focal Point", () => {
     await page.goto(`/people/${SEED_PERSON}`);
     await page.waitForLoadState("networkidle");
 
-    // Click the "Reference Media" link card to go to reference session
-    await page.locator("a[href*='/sessions/']").filter({ hasText: "Reference Media" }).click();
+    // Click the reference session link (ref media badge in hero card)
+    const sessionLink = page.locator("a[href*='/sessions/']").first();
+    await expect(sessionLink).toBeVisible({ timeout: 5000 });
+    await sessionLink.click();
     await page.waitForLoadState("networkidle");
     await page.waitForTimeout(1000);
 
