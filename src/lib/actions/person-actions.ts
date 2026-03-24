@@ -121,6 +121,44 @@ export async function updatePersonBio(
   }
 }
 
+export async function updatePersonPgrade(
+  personId: string,
+  pgrade: number | null,
+): Promise<SimpleActionResult> {
+  try {
+    if (pgrade !== null && (pgrade < 1 || pgrade > 10)) {
+      return { success: false, error: "PGRADE must be between 1 and 10" };
+    }
+    await prisma.person.update({
+      where: { id: personId },
+      data: { pgrade },
+    });
+    revalidatePath(`/people/${personId}`);
+    return { success: true };
+  } catch {
+    return { success: false, error: "Failed to update PGRADE" };
+  }
+}
+
+export async function updatePersonRating(
+  personId: string,
+  rating: number | null,
+): Promise<SimpleActionResult> {
+  try {
+    if (rating !== null && (rating < 1 || rating > 5)) {
+      return { success: false, error: "Rating must be between 1 and 5" };
+    }
+    await prisma.person.update({
+      where: { id: personId },
+      data: { rating },
+    });
+    revalidatePath(`/people/${personId}`);
+    return { success: true };
+  } catch {
+    return { success: false, error: "Failed to update rating" };
+  }
+}
+
 export async function loadMorePersons(
   filters: PersonFilters,
   cursor: string,

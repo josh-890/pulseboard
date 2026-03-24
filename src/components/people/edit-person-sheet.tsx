@@ -90,6 +90,7 @@ export function EditPersonSheet({ person }: EditPersonSheetProps) {
     location: person.location ?? "",
     notes: person.notes ?? "",
     activeSince: person.activeSince ?? undefined,
+    retiredIn: person.retiredIn ?? undefined,
     specialization: person.specialization ?? "",
     rating: person.rating ?? undefined,
     pgrade: person.pgrade ?? undefined,
@@ -204,7 +205,7 @@ export function EditPersonSheet({ person }: EditPersonSheetProps) {
                 {/* Section 2 — Career & Rating */}
                 <section className="rounded-xl border bg-muted/30 dark:bg-muted/20 p-4 space-y-4">
                   <SectionHeader>Career &amp; Rating</SectionHeader>
-                  <div className="grid grid-cols-3 gap-3">
+                  <div className="grid grid-cols-4 gap-3">
                     <FormField
                       control={form.control}
                       name="activeSince"
@@ -218,7 +219,29 @@ export function EditPersonSheet({ person }: EditPersonSheetProps) {
                               {...field}
                               value={(field.value as number | undefined) ?? ""}
                               onChange={(e) =>
-                                field.onChange(e.target.value === "" ? undefined : e.target.value)
+                                field.onChange(e.target.value === "" ? "" : e.target.value)
+                              }
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="retiredIn"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Retired In</FormLabel>
+                          <FormControl>
+                            <Input
+                              type="number"
+                              placeholder="e.g. 2022"
+                              {...field}
+                              value={(field.value as number | undefined) ?? ""}
+                              onChange={(e) =>
+                                field.onChange(e.target.value === "" ? "" : e.target.value)
                               }
                             />
                           </FormControl>

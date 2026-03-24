@@ -32,7 +32,7 @@ import {
   Tag,
   Building2,
   Cpu,
-  Activity,
+  Camera,
   ChevronDown,
   ChevronUp,
   Briefcase,
@@ -69,7 +69,7 @@ import {
   assignHeadshotSlot as assignHeadshotSlotAction,
   removeHeadshotSlot as removeHeadshotSlotAction,
 } from "@/lib/actions/media-actions";
-import { updatePersonBio } from "@/lib/actions/person-actions";
+import { updatePersonBio, updatePersonPgrade, updatePersonRating } from "@/lib/actions/person-actions";
 import ReactMarkdown from "react-markdown";
 
 type PersonData = NonNullable<Awaited<ReturnType<typeof getPersonWithDetails>>>;
@@ -99,6 +99,7 @@ type PersonDetailTabsProps = {
   sessionWorkHistory?: PersonSessionWorkEntry[];
   productionSessions?: PersonProductionSession[];
   entityMedia?: Record<string, EntityMediaThumbnail[]>;
+  refMediaCount?: number;
 };
 
 // ── Style maps ──────────────────────────────────────────────────────────────
@@ -123,6 +124,13 @@ const ALIAS_TYPE_STYLES: Record<AliasType, string> = {
   alias: "border-white/15 bg-muted/50 text-foreground",
 };
 
+type HeroAliasSummary = {
+  id: string;
+  name: string;
+  type: "common" | "birth" | "alias";
+  usageCount: number;
+  channelNames: string[];
+};
 
 const SOURCE_STYLES: Record<RelationshipSource, string> = {
   derived: "bg-slate-500/15 text-slate-500 border-slate-500/30",
@@ -130,21 +138,6 @@ const SOURCE_STYLES: Record<RelationshipSource, string> = {
 };
 
 // ── Sub-components ──────────────────────────────────────────────────────────
-
-function StarRating({ rating, max = 5 }: { rating: number; max?: number }) {
-  return (
-    <div className="flex items-center gap-0.5" aria-label={`Rating: ${rating} out of ${max}`}>
-      {Array.from({ length: max }, (_, i) => {
-        const filled = i < rating;
-        return filled ? (
-          <Star key={i} size={16} className="fill-amber-400 text-amber-400" aria-hidden="true" />
-        ) : (
-          <StarOff key={i} size={16} className="text-muted-foreground/30" aria-hidden="true" />
-        );
-      })}
-    </div>
-  );
-}
 
 // ── PGRADE Colors ────────────────────────────────────────────────────────────
 
@@ -180,7 +173,7 @@ const CP_COLORS = [
 
 // ── Physical Stats Panel ─────────────────────────────────────────────────────
 
-function PhysicalStatsPanel({
+function PhysicalMetrics({
   person,
   currentState,
   labelWidth = "w-32",
@@ -191,29 +184,34 @@ function PhysicalStatsPanel({
   labelWidth?: string;
   fieldGap?: string;
 }) {
-  const hasStatic = person.height || person.eyeColor || person.bodyType || person.measurements;
-  const hasComputed = currentState.currentHairColor || currentState.weight !== null || currentState.build;
+  return (
+    <dl className={cn("grid grid-cols-1 text-sm", fieldGap)}>
+      <InfoRow label="Height" value={person.height ? `${person.height} cm` : "\u2014"} labelWidth={labelWidth} />
+      <InfoRow label="Weight" value={currentState.weight !== null && currentState.weight !== undefined ? `${currentState.weight} kg` : "\u2014"} labelWidth={labelWidth} />
+      {person.measurements && <InfoRow label="Measurements" value={person.measurements} labelWidth={labelWidth} />}
+    </dl>
+  );
+}
 
-  if (!hasStatic && !hasComputed) {
-    return <EmptyState message="No physical stats recorded." />;
-  }
+function PhysicalDescriptive({
+  person,
+  currentState,
+  labelWidth = "w-32",
+  fieldGap = "gap-2",
+}: {
+  person: PersonData;
+  currentState: PersonCurrentState;
+  labelWidth?: string;
+  fieldGap?: string;
+}) {
+  const hasDescriptive = person.eyeColor || currentState.currentHairColor || person.bodyType || currentState.build;
+  if (!hasDescriptive) return null;
 
   return (
     <dl className={cn("grid grid-cols-1 text-sm", fieldGap)}>
-      {/* Static (from Person) */}
-      {person.height && <InfoRow label="Height" value={`${person.height} cm`} labelWidth={labelWidth} />}
       {person.eyeColor && <InfoRow label="Eye color" value={<span className="capitalize">{person.eyeColor}</span>} labelWidth={labelWidth} />}
-      {person.bodyType && <InfoRow label="Body type" value={<span className="capitalize">{person.bodyType}</span>} labelWidth={labelWidth} />}
-      {person.measurements && <InfoRow label="Measurements" value={person.measurements} labelWidth={labelWidth} />}
-
-      {/* Divider between static and computed */}
-      {hasStatic && hasComputed && (
-        <div className="col-span-full border-t border-white/10" />
-      )}
-
-      {/* Computed (from PersonaPhysical fold) */}
       {currentState.currentHairColor && <InfoRow label="Current hair" value={<span className="capitalize">{currentState.currentHairColor}</span>} labelWidth={labelWidth} />}
-      {currentState.weight !== null && currentState.weight !== undefined && <InfoRow label="Weight" value={`${currentState.weight} kg`} labelWidth={labelWidth} />}
+      {person.bodyType && <InfoRow label="Body type" value={<span className="capitalize">{person.bodyType}</span>} labelWidth={labelWidth} />}
       {currentState.build && <InfoRow label="Build" value={<span className="capitalize">{currentState.build}</span>} labelWidth={labelWidth} />}
     </dl>
   );
@@ -324,14 +322,16 @@ function KpiStatsPanel({
   kpiCounts,
   calculatedPgrade,
   meanWcp,
-  compact = false,
 }: {
   person: PersonData;
   kpiCounts: KpiCounts;
   calculatedPgrade?: number | null;
   meanWcp?: number | null;
-  compact?: boolean;
 }) {
+  const [localPgrade, setLocalPgrade] = useState(person.pgrade);
+  const [localRating, setLocalRating] = useState(person.rating);
+  const [, startTransition] = useTransition();
+
   const tiles = [
     { icon: <Film size={14} />, count: kpiCounts.sets, label: "Sets" },
     { icon: <Building2 size={14} />, count: kpiCounts.labels, label: "Labels" },
@@ -339,93 +339,128 @@ function KpiStatsPanel({
     { icon: <Link2 size={14} />, count: kpiCounts.connections, label: "Conn." },
   ];
 
-  const hasPgrade = person.pgrade !== null && person.pgrade !== undefined;
+  const hasPgrade = localPgrade !== null && localPgrade !== undefined;
   const hasCp = calculatedPgrade !== null && calculatedPgrade !== undefined;
   const hasWcp = meanWcp !== null && meanWcp !== undefined;
 
+  const handlePgradeClick = (segment: number) => {
+    const newValue = segment + 1;
+    // Toggle off if clicking the same value
+    const value = newValue === localPgrade ? null : newValue;
+    setLocalPgrade(value);
+    startTransition(() => {
+      updatePersonPgrade(person.id, value);
+    });
+  };
+
+  const handleRatingClick = (star: number) => {
+    const newValue = star + 1;
+    const value = newValue === localRating ? null : newValue;
+    setLocalRating(value);
+    startTransition(() => {
+      updatePersonRating(person.id, value);
+    });
+  };
+
   return (
-    <div className="flex flex-col gap-2">
-      {/* Stats grid 2x2 */}
-      <div className="grid grid-cols-2 gap-2">
+    <div className="flex flex-col">
+      {/* Compact stats list */}
+      <div className="space-y-1">
         {tiles.map((tile) => (
-          <div
-            key={tile.label}
-            className={cn(
-              "flex flex-col items-center gap-1 rounded-xl border border-white/10 bg-white/5",
-              compact ? "px-2 py-2" : "px-3 py-2.5",
-            )}
-          >
+          <div key={tile.label} className="flex items-center gap-2 text-sm">
             <span className="text-muted-foreground" aria-hidden="true">{tile.icon}</span>
-            <span className="text-lg font-bold leading-none">{tile.count}</span>
-            <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
-              {tile.label}
-            </span>
+            <span className="font-semibold tabular-nums w-6 text-right">{tile.count}</span>
+            <span className="text-xs text-muted-foreground">{tile.label}</span>
           </div>
         ))}
       </div>
 
-      {/* PGRADE + CP tiles */}
-      <div className="grid grid-cols-2 gap-2">
-        <div
-          className={cn(
-            "flex flex-col items-center gap-1 rounded-xl border bg-white/5",
-            hasPgrade ? "border-white/10" : "border-white/5",
-            compact ? "px-2 py-1.5" : "px-3 py-2",
-          )}
-          title="Performance Grade — overall subjective rating (1-10 scale)"
-        >
-          <span className="text-[10px] font-semibold tracking-wide text-muted-foreground">PGRADE</span>
-          <span className={cn("text-lg font-bold leading-none", hasPgrade ? "" : "text-muted-foreground/40")}>
-            {hasPgrade ? person.pgrade : "\u2014"}
-          </span>
-          <div className="mt-0.5 flex w-full gap-px">
+      {/* Separator */}
+      <div className="border-t border-white/10 my-2" />
+
+      {/* PGRADE gauge — clickable */}
+      <div className="space-y-2">
+        <div title="Performance Grade — overall subjective rating (1-10 scale). Click to set.">
+          <div className="flex items-center gap-2 text-sm">
+            <span className="text-[10px] font-semibold tracking-wide text-muted-foreground w-12">PGRADE</span>
+            <span className={cn("font-semibold tabular-nums", hasPgrade ? "" : "text-muted-foreground/40")}>
+              {hasPgrade ? localPgrade : "\u2014"}
+            </span>
+          </div>
+          <div className="mt-1 flex w-full gap-0.5 cursor-pointer" role="slider" aria-label="Set PGRADE" aria-valuemin={1} aria-valuemax={10} aria-valuenow={localPgrade ?? undefined}>
             {PGRADE_COLORS.map((color, i) => (
-              <div
+              <button
                 key={i}
-                className="h-1 flex-1 first:rounded-l-sm last:rounded-r-sm"
-                style={{ backgroundColor: color, opacity: hasPgrade && i < person.pgrade! ? 1 : 0.12 }}
+                type="button"
+                onClick={() => handlePgradeClick(i)}
+                className="h-2.5 flex-1 first:rounded-l-md last:rounded-r-md transition-opacity hover:opacity-80"
+                style={{ backgroundColor: color, opacity: hasPgrade && i < localPgrade! ? 1 : 0.15 }}
+                title={`Set PGRADE to ${i + 1}`}
               />
             ))}
           </div>
         </div>
-        <div
-          className={cn(
-            "flex flex-col items-center gap-1 rounded-xl border bg-white/5",
-            hasCp ? "border-white/10" : "border-white/5",
-            compact ? "px-2 py-1.5" : "px-3 py-2",
-          )}
-          title="Cumulative Points — weighted aggregate of set participation scores"
-        >
-          <div className="flex items-center gap-1">
-            <span className="text-[10px] font-semibold tracking-wide text-muted-foreground">CP</span>
+
+        {/* CP gauge — read-only */}
+        <div title="Cumulative Points — weighted aggregate of set participation scores">
+          <div className="flex items-center gap-2 text-sm">
+            <span className="text-[10px] font-semibold tracking-wide text-muted-foreground w-12">CP</span>
+            <span className={cn("font-semibold tabular-nums", hasCp ? "" : "text-muted-foreground/40")}>
+              {hasCp ? calculatedPgrade : "\u2014"}
+            </span>
             {hasWcp && (
-              <span className="text-[9px] text-red-400" title="Weighted Cumulative Points — mean of all weighted set scores">
+              <span className="text-xs font-semibold text-red-400" title="Weighted Cumulative Points — mean of all weighted set scores">
                 W{meanWcp.toFixed(1)}
               </span>
             )}
           </div>
-          <span className={cn("text-lg font-bold leading-none", hasCp ? "" : "text-muted-foreground/40")}>
-            {hasCp ? calculatedPgrade : "\u2014"}
-          </span>
-          <div className="relative mt-0.5 w-full">
-            <div className="flex w-full gap-px">
+          <div className="relative mt-1 w-full">
+            <div className="flex w-full gap-0.5">
               {CP_COLORS.map((color, i) => (
                 <div
                   key={i}
-                  className="h-1 flex-1 first:rounded-l-sm last:rounded-r-sm"
-                  style={{ backgroundColor: color, opacity: hasCp && i < calculatedPgrade! ? 1 : 0.12 }}
+                  className="h-2.5 flex-1 first:rounded-l-md last:rounded-r-md"
+                  style={{ backgroundColor: color, opacity: hasCp && i < calculatedPgrade! ? 1 : 0.15 }}
                 />
               ))}
             </div>
             {hasWcp && (
               <div
-                className="absolute -top-[5px] -translate-x-1/2 text-red-500 text-[7px] leading-none select-none"
+                className="absolute top-1/2 -translate-x-1/2 -translate-y-1/2 h-2 w-2 rounded-full bg-red-500 ring-1 ring-black/40"
                 style={{ left: `${(meanWcp / 10) * 100}%` }}
                 title={`Mean WCP: ${meanWcp.toFixed(1)}`}
-              >
-                &#9660;
-              </div>
+              />
             )}
+          </div>
+        </div>
+
+        {/* Star Rating — clickable */}
+        <div>
+          <div className="flex items-center gap-2 text-sm">
+            <span className="text-[10px] font-semibold tracking-wide text-muted-foreground w-12">RATING</span>
+            <span className={cn("font-semibold tabular-nums", localRating ? "" : "text-muted-foreground/40")}>
+              {localRating ?? "\u2014"}
+            </span>
+          </div>
+          <div className="mt-1 flex items-center gap-0.5 cursor-pointer" role="slider" aria-label="Set rating" aria-valuemin={1} aria-valuemax={5} aria-valuenow={localRating ?? undefined}>
+            {Array.from({ length: 5 }, (_, i) => {
+              const filled = localRating !== null && localRating !== undefined && i < localRating;
+              return (
+                <button
+                  key={i}
+                  type="button"
+                  onClick={() => handleRatingClick(i)}
+                  className="transition-colors hover:scale-110"
+                  title={`Set rating to ${i + 1}`}
+                >
+                  {filled ? (
+                    <Star size={16} className="fill-amber-400 text-amber-400" />
+                  ) : (
+                    <StarOff size={16} className="text-muted-foreground/30 hover:text-amber-400/50" />
+                  )}
+                </button>
+              );
+            })}
           </div>
         </div>
       </div>
@@ -479,6 +514,99 @@ const DENSITY_CONFIGS: Record<HeroLayout, HeroDensityConfig> = {
   },
 };
 
+// ── Helpers ─────────────────────────────────────────────────────────────────
+
+function formatDateDMY(date: Date, precision: string): string {
+  if (precision === "UNKNOWN") return "";
+  const y = date.getFullYear();
+  if (precision === "YEAR") return `${y}`;
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  if (precision === "MONTH") return `${m}/${y}`;
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${d}/${m}/${y}`;
+}
+
+function CareerTimeline({ activeSince, retiredIn, birthYear, earliestSessionYear }: {
+  activeSince: number | null;
+  retiredIn: number | null;
+  birthYear: number | null;
+  earliestSessionYear: number | null;
+}) {
+  // Effective start: explicit activeSince, or fallback to earliest session year
+  const effectiveStart = activeSince ?? earliestSessionYear;
+  if (!effectiveStart) return null;
+
+  const inferred = activeSince === null;
+  const retired = retiredIn !== null;
+  const conflict = activeSince !== null && earliestSessionYear !== null && earliestSessionYear < activeSince;
+
+  const currentYear = new Date().getFullYear();
+  const endYear = retiredIn ?? currentYear;
+  const duration = endYear - effectiveStart;
+  const startAge = birthYear ? effectiveStart - birthYear : null;
+  const endAge = birthYear && retiredIn ? retiredIn - birthYear : null;
+  // All timeline values are inherently approximate — activeSince/retiredIn are year-only
+
+  // Color scheme: grey for retired, emerald for active, amber for inferred start
+  const dotColor = retired
+    ? "bg-muted-foreground/60"
+    : inferred
+      ? "bg-amber-500 shadow-[0_0_4px_rgba(245,158,11,0.4)]"
+      : "bg-emerald-500 shadow-[0_0_4px_rgba(16,185,129,0.4)]";
+  const lineColor = retired
+    ? "border-muted-foreground/30"
+    : conflict
+      ? "border-red-500/40 border-dashed"
+      : inferred
+        ? "border-amber-500/40 border-dashed"
+        : "border-emerald-500/40";
+
+  return (
+    <div className="mt-2 flex max-w-48 items-center gap-0" aria-label="Career timeline">
+      {/* Start node */}
+      <div className="flex flex-col items-center gap-0.5">
+        {startAge !== null && (
+          <span className="text-[10px] leading-none text-muted-foreground">~{startAge}</span>
+        )}
+        {conflict ? (
+          <span title={`Session found in ${earliestSessionYear}, before activeSince ${activeSince}`}>
+            <Zap size={12} className="fill-red-500 text-red-500" />
+          </span>
+        ) : (
+          <span className={cn("h-2.5 w-2.5 rounded-full", dotColor)} />
+        )}
+        <span className="text-[10px] leading-none text-muted-foreground">{effectiveStart}</span>
+      </div>
+      {/* Line + duration */}
+      <div className="relative mx-1 flex-1 py-2">
+        <div className={cn(
+          "absolute inset-x-0 top-1/2 -translate-y-px border-t-2",
+          lineColor,
+        )} />
+        <span className="relative z-10 mx-auto block w-fit rounded-full bg-card/80 px-1.5 text-[10px] font-medium leading-none text-muted-foreground">
+          ~{duration} yr{duration !== 1 ? "s" : ""}
+        </span>
+      </div>
+      {/* End node (retired) or open arrow (active) */}
+      {retiredIn ? (
+        <div className="flex flex-col items-center gap-0.5">
+          {endAge !== null && (
+            <span className="text-[10px] leading-none text-muted-foreground">~{endAge}</span>
+          )}
+          <span className="h-2.5 w-2.5 rounded-full bg-muted-foreground/60" />
+          <span className="text-[10px] leading-none text-muted-foreground">{retiredIn}</span>
+        </div>
+      ) : (
+        <div className="flex flex-col items-center gap-0.5">
+          <span className="text-[10px] leading-none text-transparent">.</span>
+          <span className="h-0 w-0 border-y-[5px] border-l-[7px] border-y-transparent border-l-emerald-500/60" />
+          <span className="text-[10px] leading-none text-transparent">.</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Hero Card — shared types & identity block ──────────────────────────────
 
 type HeroSharedProps = {
@@ -492,149 +620,177 @@ type HeroSharedProps = {
   displayName: string;
   initials: string;
   age: number | null;
-  aliasPills: PersonData["aliases"];
+  heroAliases: HeroAliasSummary[];
   referenceSessionId?: string;
+  refMediaCount?: number;
   headshotSlotMap?: Map<string, number>;
+  earliestSessionYear?: number | null;
   onAliasesBadgeClick?: () => void;
   onAppearanceClick?: () => void;
 };
 
-function IdentityBlock({ person, displayName, age, aliasPills, onAliasesBadgeClick, currentState, onAppearanceClick, nameSize = "text-2xl" }: {
+function EntityPills({ currentState, onAppearanceClick }: { currentState: PersonCurrentState; onAppearanceClick?: () => void }) {
+  const heroEntities = [
+    ...currentState.activeBodyMarks.filter((m) => m.heroVisible).map((m) => ({ kind: "mark" as const, label: m.type, heroOrder: m.heroOrder, id: m.id })),
+    ...currentState.activeBodyModifications.filter((m) => m.heroVisible).map((m) => ({ kind: "mod" as const, label: m.type, heroOrder: m.heroOrder, id: m.id })),
+    ...currentState.activeCosmeticProcedures.filter((p) => p.heroVisible).map((p) => ({ kind: "proc" as const, label: p.type, heroOrder: p.heroOrder, id: p.id })),
+  ].sort((a, b) => (a.heroOrder ?? 999) - (b.heroOrder ?? 999));
+
+  if (heroEntities.length === 0) return null;
+
+  const visiblePills = heroEntities.slice(0, 4);
+  const overflow = heroEntities.length - visiblePills.length;
+
+  const pillStyles = {
+    mark: "border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400",
+    mod: "border-teal-500/30 bg-teal-500/10 text-teal-600 dark:text-teal-400",
+    proc: "border-rose-500/30 bg-rose-500/10 text-rose-600 dark:text-rose-400",
+  };
+
+  const Wrapper = onAppearanceClick ? "button" : "div";
+  return (
+    <Wrapper
+      {...(onAppearanceClick ? { type: "button" as const, onClick: onAppearanceClick } : {})}
+      className="mt-3 flex flex-wrap items-center gap-1.5"
+    >
+      {visiblePills.map((e) => (
+        <span key={`${e.kind}-${e.id}`} className={cn("rounded-full border px-2 py-0.5 text-[11px] font-medium capitalize", pillStyles[e.kind])}>
+          {e.label}
+        </span>
+      ))}
+      {overflow > 0 && (
+        <span className="rounded-full border border-white/15 bg-muted/50 px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+          +{overflow} more
+        </span>
+      )}
+    </Wrapper>
+  );
+}
+
+function IdentityBlock({ person, displayName, age, heroAliases, onAliasesBadgeClick, nameSize = "text-2xl", earliestSessionYear, referenceSessionId, refMediaCount, section = "all" }: {
   person: PersonData;
   displayName: string;
   age: number | null;
-  aliasPills: PersonData["aliases"];
+  heroAliases: HeroAliasSummary[];
   onAliasesBadgeClick?: () => void;
-  currentState?: PersonCurrentState;
-  onAppearanceClick?: () => void;
   nameSize?: string;
+  earliestSessionYear?: number | null;
+  referenceSessionId?: string;
+  refMediaCount?: number;
+  section?: "top" | "bottom" | "all";
 }) {
-  const birthAlias = aliasPills.find((a) => a.type === "birth");
-  const commonAlias = person.aliases.find((a) => a.type === "common");
-  const totalAliasCount = person.aliases.filter((a) => a.type === "alias").length;
+  const birthAlias = heroAliases.find((a) => a.type === "birth" && a.name !== displayName);
+  const otherAliases = heroAliases.filter((a) => a.type === "alias");
+  const MAX_VISIBLE = 3;
+  const visibleOthers = otherAliases.slice(0, MAX_VISIBLE);
+  const overflow = otherAliases.length - visibleOthers.length;
 
-  return (
-    <div>
+  const topSection = (
+    <>
       <h1 className={cn("font-bold leading-tight", nameSize)}>{displayName}</h1>
       {displayName !== person.icgId && (
-        <p className="mt-0.5 font-mono text-xs text-muted-foreground">{person.icgId}</p>
-      )}
-
-      {(birthAlias || totalAliasCount > 0) && (
-        <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-          {birthAlias && birthAlias.name !== commonAlias?.name && (
-            <>
-              <span className="text-xs text-muted-foreground">Born:</span>
-              <span
-                className={cn(
-                  "inline-flex items-center rounded-full border px-2 py-0.5 text-xs",
-                  ALIAS_TYPE_STYLES.birth,
-                )}
-              >
-                {birthAlias.name}
-              </span>
-            </>
-          )}
-          {totalAliasCount > 0 && (
-            <button
-              type="button"
-              onClick={onAliasesBadgeClick}
-              className="inline-flex items-center gap-1 rounded-full border border-white/15 bg-muted/50 px-2 py-0.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+        <div className="mt-0.5 flex items-center gap-2">
+          <p className="font-mono text-sm text-muted-foreground">{person.icgId}</p>
+          {referenceSessionId && refMediaCount !== undefined && refMediaCount > 0 && (
+            <Link
+              href={`/sessions/${referenceSessionId}`}
+              className="inline-flex items-center gap-1 rounded-full bg-white/5 px-1.5 py-0.5 text-xs text-muted-foreground transition-colors hover:bg-white/10 hover:text-foreground"
             >
-              <BookUser size={11} />
-              {totalAliasCount} {totalAliasCount === 1 ? "alias" : "aliases"}
-            </button>
+              <Camera size={12} />
+              <span>{refMediaCount}</span>
+            </Link>
           )}
         </div>
       )}
+    </>
+  );
 
-      <div className="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
+  const bottomSection = (
+    <>
+      {/* Aliases — plain text, 3 lines max */}
+      <div className="min-h-[3.25rem] text-xs leading-relaxed text-muted-foreground">
+        {birthAlias && (
+          <div
+            className="truncate max-w-[220px]"
+            title={`Real name${birthAlias.channelNames.length > 0 ? `. Used on: ${birthAlias.channelNames.join(", ")}` : ""}`}
+          >
+            <span className="text-amber-500">{birthAlias.name}</span>
+          </div>
+        )}
+        {visibleOthers.length > 0 && (
+          <div className="truncate max-w-[220px]">
+            {visibleOthers.map((a, i) => (
+              <span key={a.id}>
+                {i > 0 && <span className="text-white/20"> · </span>}
+                <span
+                  className="hover:text-foreground transition-colors cursor-default"
+                  title={a.channelNames.length > 0 ? `Used on: ${a.channelNames.join(", ")}` : undefined}
+                >
+                  {a.name}
+                  {a.usageCount > 0 && <span className="text-muted-foreground/50"> ({a.usageCount})</span>}
+                </span>
+              </span>
+            ))}
+            {overflow > 0 && (
+              <button
+                type="button"
+                onClick={onAliasesBadgeClick}
+                className="ml-1 text-muted-foreground/50 hover:text-foreground transition-colors"
+              >
+                +{overflow}
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Nationality / sex / birthdate */}
+      <div className="mt-1.5 min-h-[20px] flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
         {person.nationality && (
           <span className="flex items-center gap-1.5">
             <FlagImage code={person.nationality} size={16} />
             {findCountryByCode(person.nationality)?.name ?? person.nationality}
           </span>
         )}
-        {age !== null && (
-          <span>
-            {age} yrs
-            {person.sexAtBirth === "female" ? " \u2640" : person.sexAtBirth === "male" ? " \u2642" : ""}
-          </span>
-        )}
-        {age === null && person.sexAtBirth && (
+        {person.sexAtBirth && (
           <span>{person.sexAtBirth === "female" ? "\u2640" : person.sexAtBirth === "male" ? "\u2642" : ""}</span>
+        )}
+        {person.birthdate && (
+          <span>{formatDateDMY(person.birthdate, person.birthdatePrecision)}</span>
         )}
       </div>
 
-      <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
+      {/* Age / status */}
+      <div className="mt-1 min-h-[20px] flex flex-wrap items-center gap-x-3 gap-y-1">
+        {age !== null && (
+          <span className="text-sm text-muted-foreground">{age} yrs</span>
+        )}
         <span className="inline-flex items-center gap-1.5 text-sm">
           <span className={cn("inline-block h-2 w-2 rounded-full", STATUS_DOT_COLORS[person.status])} />
           {STATUS_LABELS[person.status]}
         </span>
-        {person.activeSince && (
-          <span className="text-sm text-muted-foreground">
-            Since {person.activeSince}
-          </span>
-        )}
       </div>
 
-      {person.rating !== null && (
-        <div className="mt-2 flex items-center gap-2">
-          <StarRating rating={person.rating} />
-          <span className="text-sm font-semibold text-muted-foreground">{person.rating}/5</span>
-        </div>
+      {/* Career timeline */}
+      {(person.activeSince || earliestSessionYear) && (
+        <CareerTimeline
+          activeSince={person.activeSince}
+          retiredIn={person.retiredIn}
+          birthYear={person.birthdate ? person.birthdate.getFullYear() : null}
+          earliestSessionYear={earliestSessionYear ?? null}
+        />
       )}
+    </>
+  );
 
-      {/* Inline basic info (folded from former BasicInfoPanel) */}
-      {(person.birthdate || person.ethnicity) && (
-        <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
-          {person.birthdate && (
-            <span>{formatPartialDate(person.birthdate, person.birthdatePrecision)}</span>
-          )}
-          {person.ethnicity && (
-            <span>{person.ethnicity.split(" \u2192 ")[0]}</span>
-          )}
-        </div>
-      )}
+  if (section === "top") return <div>{topSection}</div>;
+  if (section === "bottom") return <div>{bottomSection}</div>;
 
-      {/* Entity pills — at-a-glance appearance summary (max 4 + overflow) */}
-      {currentState && (() => {
-        const heroEntities = [
-          ...currentState.activeBodyMarks.filter((m) => m.heroVisible).map((m) => ({ kind: "mark" as const, label: m.type, heroOrder: m.heroOrder, id: m.id })),
-          ...currentState.activeBodyModifications.filter((m) => m.heroVisible).map((m) => ({ kind: "mod" as const, label: m.type, heroOrder: m.heroOrder, id: m.id })),
-          ...currentState.activeCosmeticProcedures.filter((p) => p.heroVisible).map((p) => ({ kind: "proc" as const, label: p.type, heroOrder: p.heroOrder, id: p.id })),
-        ].sort((a, b) => (a.heroOrder ?? 999) - (b.heroOrder ?? 999));
-
-        if (heroEntities.length === 0) return null;
-
-        const visiblePills = heroEntities.slice(0, 4);
-        const overflow = heroEntities.length - visiblePills.length;
-
-        const pillStyles = {
-          mark: "border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400",
-          mod: "border-teal-500/30 bg-teal-500/10 text-teal-600 dark:text-teal-400",
-          proc: "border-rose-500/30 bg-rose-500/10 text-rose-600 dark:text-rose-400",
-        };
-
-        const Wrapper = onAppearanceClick ? "button" : "div";
-        return (
-          <Wrapper
-            {...(onAppearanceClick ? { type: "button" as const, onClick: onAppearanceClick } : {})}
-            className="mt-2 flex flex-wrap items-center gap-1.5"
-          >
-            {visiblePills.map((e) => (
-              <span key={`${e.kind}-${e.id}`} className={cn("rounded-full border px-2 py-0.5 text-[11px] font-medium capitalize", pillStyles[e.kind])}>
-                {e.label}
-              </span>
-            ))}
-            {overflow > 0 && (
-              <span className="rounded-full border border-white/15 bg-muted/50 px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
-                +{overflow} more
-              </span>
-            )}
-          </Wrapper>
-        );
-      })()}
+  return (
+    <div className="flex flex-col">
+      {topSection}
+      <div className="border-t border-white/10 my-1.5" />
+      {bottomSection}
     </div>
   );
 }
@@ -644,8 +800,7 @@ function IdentityBlock({ person, displayName, age, aliasPills, onAliasesBadgeCli
 function HeroDensityLayout(props: HeroSharedProps) {
   const { layout } = useHeroLayout();
   const cfg = DENSITY_CONFIGS[layout];
-  const { person, currentState, photos, profileLabels, kpiCounts, calculatedPgrade, meanWcp, displayName, initials, age, aliasPills, referenceSessionId, headshotSlotMap } = props;
-  const isCompact = layout === "compact";
+  const { person, currentState, photos, profileLabels, kpiCounts, calculatedPgrade, meanWcp, displayName, initials, age, heroAliases, referenceSessionId, headshotSlotMap } = props;
 
   const handleAssignHeadshot = useCallback(
     async (mediaItemId: string, slot: number) => {
@@ -682,36 +837,85 @@ function HeroDensityLayout(props: HeroSharedProps) {
           onFindSimilar={handleFindSimilar}
         />
 
-        {/* Zone 2: Identity + Basic Info */}
-        <div className="shrink-0">
+        {/* Zones 2+3: Identity | Physical — 2-col grid, no hairline */}
+        <div className="hidden sm:grid flex-1 min-w-0 grid-cols-[auto_1fr] grid-rows-[auto_1fr] items-start">
+          {/* Row 1, Col 1: Name + ICG ID */}
+          <div className="self-end pb-3">
+            <IdentityBlock
+              person={person}
+              displayName={displayName}
+              age={age}
+              heroAliases={heroAliases}
+              onAliasesBadgeClick={props.onAliasesBadgeClick}
+              nameSize={cfg.nameSize}
+              earliestSessionYear={props.earliestSessionYear}
+              referenceSessionId={props.referenceSessionId}
+              refMediaCount={props.refMediaCount}
+              section="top"
+            />
+          </div>
+          {/* Rows 1-2, Col 2: Physical stats (single continuous panel) */}
+          <div className={cn("row-span-2 rounded-lg bg-white/[0.02] px-4 py-2 ml-4 border-l border-white/8 flex flex-col", cfg.fieldGap)}>
+            <PhysicalMetrics
+              person={person}
+              currentState={currentState}
+              labelWidth={cfg.labelWidth}
+              fieldGap={cfg.fieldGap}
+            />
+            <PhysicalDescriptive
+              person={person}
+              currentState={currentState}
+              labelWidth={cfg.labelWidth}
+              fieldGap={cfg.fieldGap}
+            />
+            <EntityPills currentState={currentState} onAppearanceClick={props.onAppearanceClick} />
+          </div>
+
+          {/* Row 2, Col 1: Aliases + demographics + career */}
+          <div className="pt-3">
+            <IdentityBlock
+              person={person}
+              displayName={displayName}
+              age={age}
+              heroAliases={heroAliases}
+              onAliasesBadgeClick={props.onAliasesBadgeClick}
+              nameSize={cfg.nameSize}
+              earliestSessionYear={props.earliestSessionYear}
+              referenceSessionId={props.referenceSessionId}
+              refMediaCount={props.refMediaCount}
+              section="bottom"
+            />
+          </div>
+        </div>
+
+        {/* Mobile fallback: stacked layout */}
+        <div className="sm:hidden w-full space-y-3">
           <IdentityBlock
             person={person}
             displayName={displayName}
             age={age}
-            aliasPills={aliasPills}
+            heroAliases={heroAliases}
             onAliasesBadgeClick={props.onAliasesBadgeClick}
-            currentState={props.currentState}
-            onAppearanceClick={props.onAppearanceClick}
             nameSize={cfg.nameSize}
+            earliestSessionYear={props.earliestSessionYear}
+            referenceSessionId={props.referenceSessionId}
+            refMediaCount={props.refMediaCount}
+            section="all"
           />
+          <div className="rounded-lg bg-white/[0.02] px-4 py-1">
+            <PhysicalMetrics person={person} currentState={currentState} labelWidth={cfg.labelWidth} fieldGap={cfg.fieldGap} />
+            <div className="border-t border-white/10 my-1.5" />
+            <PhysicalDescriptive person={person} currentState={currentState} labelWidth={cfg.labelWidth} fieldGap={cfg.fieldGap} />
+            <EntityPills currentState={currentState} onAppearanceClick={props.onAppearanceClick} />
+          </div>
         </div>
 
-        {/* Zone 3: Physical Stats */}
-        <div className="flex-1 min-w-0">
-          <h3 className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            <Activity size={12} /> Physical Stats
-          </h3>
-          <PhysicalStatsPanel
-            person={person}
-            currentState={currentState}
-            labelWidth={cfg.labelWidth}
-            fieldGap={cfg.fieldGap}
-          />
-        </div>
+        {/* Divider 3|4 */}
+        <div className="hidden sm:block w-px self-stretch bg-white/10 [mask-image:linear-gradient(to_bottom,transparent,white_20%,white_80%,transparent)]" />
 
         {/* Zone 4: KPI Panel */}
-        <div className={cn("w-full sm:shrink-0", cfg.kpiWidth)}>
-          <KpiStatsPanel person={person} kpiCounts={kpiCounts} calculatedPgrade={calculatedPgrade} meanWcp={meanWcp} compact={isCompact} />
+        <div className={cn("w-full sm:shrink-0 px-2", cfg.kpiWidth)}>
+          <KpiStatsPanel person={person} kpiCounts={kpiCounts} calculatedPgrade={calculatedPgrade} meanWcp={meanWcp} />
         </div>
       </div>
     </div>
@@ -729,9 +933,12 @@ function HeroCard({
   calculatedPgrade,
   meanWcp,
   referenceSessionId,
+  refMediaCount,
   headshotSlotMap,
+  earliestSessionYear,
   onAliasesBadgeClick,
   onAppearanceClick,
+  aliasesWithChannels,
 }: {
   person: PersonData;
   currentState: PersonCurrentState;
@@ -741,13 +948,14 @@ function HeroCard({
   calculatedPgrade?: number | null;
   meanWcp?: number | null;
   referenceSessionId?: string;
+  refMediaCount?: number;
   headshotSlotMap?: Map<string, number>;
+  earliestSessionYear?: number | null;
   onAliasesBadgeClick?: () => void;
   onAppearanceClick?: () => void;
+  aliasesWithChannels?: PersonAliasWithChannels[];
 }) {
   const commonAlias = person.aliases.find((a) => a.type === "common");
-  const birthAlias = person.aliases.find((a) => a.type === "birth");
-  const otherAliases = person.aliases.filter((a) => a.type === "alias");
 
   const displayName = commonAlias ? commonAlias.name : person.icgId;
   const initials = commonAlias
@@ -756,10 +964,33 @@ function HeroCard({
 
   const age = person.birthdate ? computeAge(new Date(person.birthdate)) : null;
 
-  const aliasPills = [
-    ...(birthAlias && birthAlias.name !== commonAlias?.name ? [birthAlias] : []),
-    ...otherAliases,
-  ];
+  // Build hero alias summaries from aliasesWithChannels (rich data) or fall back to person.aliases
+  const heroAliases: HeroAliasSummary[] = useMemo(() => {
+    if (aliasesWithChannels && aliasesWithChannels.length > 0) {
+      return aliasesWithChannels
+        .map((a) => ({
+          id: a.id,
+          name: a.name,
+          type: a.type,
+          usageCount: a.channelLinks.length,
+          channelNames: a.channelLinks.map((cl) => cl.channelName),
+        }))
+        .sort((a, b) => {
+          // birth first, then common, then alias by usage desc
+          const typeOrder = { birth: 0, common: 1, alias: 2 };
+          if (typeOrder[a.type] !== typeOrder[b.type]) return typeOrder[a.type] - typeOrder[b.type];
+          return b.usageCount - a.usageCount;
+        });
+    }
+    // Fallback: use person.aliases (no channel data)
+    return person.aliases.map((a) => ({
+      id: a.id,
+      name: a.name,
+      type: a.type as "common" | "birth" | "alias",
+      usageCount: 0,
+      channelNames: [],
+    }));
+  }, [aliasesWithChannels, person.aliases]);
 
   const sharedProps: HeroSharedProps = {
     person,
@@ -773,8 +1004,10 @@ function HeroCard({
     initials,
     age,
     referenceSessionId,
+    refMediaCount,
     headshotSlotMap,
-    aliasPills,
+    earliestSessionYear,
+    heroAliases,
     onAliasesBadgeClick,
     onAppearanceClick,
   };
@@ -1386,6 +1619,7 @@ export function PersonDetailTabs({
   sessionWorkHistory,
   productionSessions,
   entityMedia,
+  refMediaCount,
 }: PersonDetailTabsProps) {
   const [activeTab, setActiveTab] = useState<TabId>("overview");
 
@@ -1406,6 +1640,18 @@ export function PersonDetailTabs({
   const handleAppearanceClick = useCallback(() => {
     setActiveTab("appearance");
   }, []);
+
+  const earliestSessionYear = useMemo(() => {
+    const entries = sessionWorkHistory ?? [];
+    let min: number | null = null;
+    for (const e of entries) {
+      if (e.sessionDate) {
+        const y = new Date(e.sessionDate).getFullYear();
+        if (min === null || y < min) min = y;
+      }
+    }
+    return min;
+  }, [sessionWorkHistory]);
 
   const tabs: { id: TabId; label: string; badge?: number; icon: React.ReactNode }[] = [
     { id: "overview", label: "Overview", icon: <LayoutDashboard size={14} /> },
@@ -1429,6 +1675,7 @@ export function PersonDetailTabs({
         photos={photos}
         profileLabels={profileLabels}
         referenceSessionId={referenceSessionId}
+        refMediaCount={refMediaCount}
         headshotSlotMap={heroHeadshotSlotMap}
         calculatedPgrade={calculatedPgrade}
         meanWcp={meanWcp}
@@ -1438,8 +1685,10 @@ export function PersonDetailTabs({
           photos: photos.length + (productionSessions?.reduce((sum, s) => sum + s.mediaCount, 0) ?? 0),
           connections: connections.length,
         }}
+        earliestSessionYear={earliestSessionYear}
         onAliasesBadgeClick={handleAliasesBadgeClick}
         onAppearanceClick={handleAppearanceClick}
+        aliasesWithChannels={aliasesWithChannels}
       />
 
       {/* Tab bar — scrollable on mobile */}

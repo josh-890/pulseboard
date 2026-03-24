@@ -12,75 +12,112 @@ export default function PersonDetailLoading() {
         </div>
       </div>
 
-      {/* Compact Reference Media strip */}
-      <div className="flex items-center gap-3 rounded-xl border border-white/15 bg-card/50 px-4 py-2.5">
-        <Skeleton className="h-3.5 w-3.5 rounded" />
-        <Skeleton className="h-4 w-28" />
-        <Skeleton className="h-4 w-6 rounded-full" />
-        <div className="flex gap-1 ml-1">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <Skeleton key={i} className="h-8 w-8 rounded-md" />
-          ))}
-        </div>
-      </div>
-
       {/* Hero card: 4-zone — Photo | Identity | Physical Stats | KPI */}
       <div className="rounded-2xl border border-white/20 bg-card/70 p-5 shadow-md backdrop-blur-sm">
         <div className="flex flex-col items-center gap-5 sm:flex-row sm:items-start">
           {/* Zone 1: Photo */}
           <Skeleton className="h-[220px] w-[180px] shrink-0 rounded-2xl" />
 
-          {/* Zone 2: Identity + Basic Info */}
-          <div className="w-full space-y-2.5 sm:w-44 sm:shrink-0">
-            <Skeleton className="h-6 w-36" />
-            <div className="flex gap-1.5">
-              <Skeleton className="h-5 w-16 rounded-full" />
-              <Skeleton className="h-5 w-20 rounded-full" />
+          {/* Zones 2+3: Identity | Physical — 2-col grid */}
+          <div className="hidden sm:grid flex-1 min-w-0 grid-cols-[auto_1fr] grid-rows-[auto_1fr] items-start">
+            {/* Row 1: Name area */}
+            <div className="pb-3 space-y-2.5 w-44">
+              <Skeleton className="h-6 w-36" />
+              <div className="flex items-center gap-2">
+                <Skeleton className="h-4 w-20" />
+                <Skeleton className="h-5 w-10 rounded-full" />
+              </div>
             </div>
-            <div className="flex gap-2">
-              <Skeleton className="h-4 w-14" />
-              <Skeleton className="h-4 w-10" />
-            </div>
-            <div className="flex gap-1.5">
-              <Skeleton className="h-4 w-2 rounded-full" />
-              <Skeleton className="h-4 w-12" />
-            </div>
-            <div className="flex gap-0.5">
-              {Array.from({ length: 5 }).map((_, i) => (
-                <Skeleton key={i} className="h-4 w-4" />
+            {/* Rows 1-2: Physical stats (single continuous panel) */}
+            <div className="row-span-2 rounded-lg bg-white/[0.02] px-4 py-2 ml-4 border-l border-white/8 space-y-2">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="flex gap-3">
+                  <Skeleton className="h-4 w-24 shrink-0" />
+                  <Skeleton className="h-4 w-28" />
+                </div>
               ))}
+              <div className="flex gap-1.5 pt-1">
+                <Skeleton className="h-5 w-14 rounded-full" />
+                <Skeleton className="h-5 w-16 rounded-full" />
+              </div>
             </div>
-            {/* Inline basic info (birthdate + ethnicity) */}
-            <div className="flex gap-3">
-              <Skeleton className="h-3 w-20" />
-              <Skeleton className="h-3 w-16" />
+            {/* Row 2: Aliases + demographics */}
+            <div className="pt-3 space-y-2">
+              <div className="min-h-[3.25rem] space-y-1">
+                <Skeleton className="h-3.5 w-36" />
+                <Skeleton className="h-3.5 w-28" />
+              </div>
+              <div className="flex gap-2">
+                <Skeleton className="h-4 w-14" />
+                <Skeleton className="h-4 w-4" />
+                <Skeleton className="h-4 w-16" />
+              </div>
+              <div className="flex gap-2">
+                <Skeleton className="h-4 w-10" />
+                <Skeleton className="h-4 w-2 rounded-full" />
+                <Skeleton className="h-4 w-12" />
+              </div>
+              <div className="flex items-center gap-1">
+                <Skeleton className="h-2.5 w-2.5 rounded-full" />
+                <Skeleton className="h-0.5 w-24" />
+                <Skeleton className="h-3 w-3" />
+              </div>
             </div>
-            {/* Entity pills */}
-            <div className="flex gap-1.5">
-              <Skeleton className="h-5 w-14 rounded-full" />
-              <Skeleton className="h-5 w-16 rounded-full" />
+          </div>
+          {/* Mobile fallback skeleton */}
+          <div className="sm:hidden w-full space-y-2.5">
+            <Skeleton className="h-6 w-36" />
+            <Skeleton className="h-4 w-20" />
+            <div className="rounded-lg bg-white/[0.02] px-4 py-1 space-y-2">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="flex gap-3">
+                  <Skeleton className="h-4 w-24 shrink-0" />
+                  <Skeleton className="h-4 w-28" />
+                </div>
+              ))}
             </div>
           </div>
 
-          {/* Zone 3: Physical Stats */}
-          <div className="flex-1 min-w-0 space-y-2">
-            <Skeleton className="h-3.5 w-24 mb-1" />
+          {/* Divider 3|4 */}
+          <div className="hidden sm:block w-px self-stretch bg-white/10 [mask-image:linear-gradient(to_bottom,transparent,white_20%,white_80%,transparent)]" />
+
+          {/* Zone 4: KPI Panel — compact list */}
+          <div className="w-full sm:w-52 sm:shrink-0 px-2 space-y-1">
             {Array.from({ length: 4 }).map((_, i) => (
-              <div key={i} className="flex gap-3">
-                <Skeleton className="h-4 w-24 shrink-0" />
-                <Skeleton className="h-4 w-28" />
+              <div key={i} className="flex items-center gap-2">
+                <Skeleton className="h-3.5 w-3.5 rounded" />
+                <Skeleton className="h-4 w-6" />
+                <Skeleton className="h-3 w-12" />
               </div>
             ))}
-          </div>
-
-          {/* Zone 4: KPI Panel */}
-          <div className="w-full sm:w-52 sm:shrink-0 space-y-3">
-            <Skeleton className="h-4 w-full" />
-            <Skeleton className="h-4 w-3/4" />
-            <div className="grid grid-cols-2 gap-2">
-              {Array.from({ length: 4 }).map((_, i) => (
-                <Skeleton key={i} className="h-16 rounded-xl" />
-              ))}
+            <div className="border-t border-white/10 my-2" />
+            {/* PGRADE gauge skeleton */}
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <Skeleton className="h-3 w-12" />
+                <Skeleton className="h-4 w-4" />
+              </div>
+              <Skeleton className="h-2.5 w-full rounded-md" />
+            </div>
+            {/* CP gauge skeleton */}
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <Skeleton className="h-3 w-12" />
+                <Skeleton className="h-4 w-4" />
+              </div>
+              <Skeleton className="h-2.5 w-full rounded-md" />
+            </div>
+            {/* Star rating skeleton */}
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <Skeleton className="h-3 w-12" />
+                <Skeleton className="h-4 w-4" />
+              </div>
+              <div className="flex gap-0.5">
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <Skeleton key={i} className="h-4 w-4 rounded" />
+                ))}
+              </div>
             </div>
           </div>
         </div>

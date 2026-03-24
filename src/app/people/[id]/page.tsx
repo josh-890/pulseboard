@@ -1,7 +1,5 @@
 import { notFound } from "next/navigation";
-import Image from "next/image";
 import Link from "next/link";
-import { Camera, ArrowRight } from "lucide-react";
 import {
   getPersonWithDetails,
   getPersonWorkHistory,
@@ -133,45 +131,6 @@ export default async function PersonDetailPage({ params }: PersonDetailPageProps
         </div>
       </div>
 
-      {/* Compact Reference Media strip */}
-      {refSession && (
-        <Link
-          href={`/sessions/${refSession.id}`}
-          className="group flex items-center gap-3 rounded-xl border border-white/15 bg-card/50 px-4 py-2.5 transition-all hover:border-white/25 hover:bg-card/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          <Camera size={14} className="shrink-0 text-primary" />
-          <span className="text-sm font-medium group-hover:text-primary transition-colors">
-            Reference Media
-          </span>
-          <span className="rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">
-            {refSession._count.mediaItems}
-          </span>
-
-          {/* Mini thumbnail strip */}
-          {headshots.length > 0 && (
-            <div className="flex gap-1 ml-1">
-              {headshots.slice(0, 6).map((hs) => {
-                const thumbUrl = hs.mediaItem.urls.profile_128 ?? hs.mediaItem.urls.profile_256;
-                return thumbUrl ? (
-                  <div key={hs.mediaItem.id} className="h-8 w-8 shrink-0 overflow-hidden rounded-md border border-white/10">
-                    <Image
-                      src={thumbUrl}
-                      alt=""
-                      width={32}
-                      height={32}
-                      className="h-full w-full object-cover"
-                      unoptimized
-                    />
-                  </div>
-                ) : null;
-              })}
-            </div>
-          )}
-
-          <ArrowRight size={14} className="ml-auto shrink-0 text-muted-foreground group-hover:text-primary transition-colors" />
-        </Link>
-      )}
-
       <PersonDetailTabs
         person={person}
         currentState={currentState}
@@ -181,6 +140,7 @@ export default async function PersonDetailPage({ params }: PersonDetailPageProps
         photos={galleryItems}
         profileLabels={profileLabels}
         referenceSessionId={refSession?.id}
+        refMediaCount={refSession?._count.mediaItems ?? 0}
         filledHeadshotSlots={filledSlots}
         headshotSlotEntries={headshotSlotEntries}
         categories={flatCategories}

@@ -134,7 +134,7 @@ export function AppearanceTab({
     router.refresh();
   }, [router]);
 
-  const hasStatic = person.height || person.eyeColor || person.naturalHairColor || person.bodyType || person.measurements;
+  const hasStatic = person.ethnicity || person.height || person.eyeColor || person.naturalHairColor || person.bodyType || person.measurements;
   const hasComputed = currentState.currentHairColor || currentState.weight !== null || currentState.build;
   const hasExtensible = Object.keys(currentState.extensibleAttributes).length > 0;
 
@@ -293,6 +293,7 @@ export function AppearanceTab({
             ) : (
               <>
                 <dl className="grid grid-cols-1 gap-2 text-sm sm:grid-cols-2">
+                  {person.ethnicity && <InfoRow label="Ethnicity" value={person.ethnicity} labelWidth="w-28" />}
                   {person.height && <InfoRow label="Height" value={`${person.height} cm`} labelWidth="w-28" />}
                   {person.eyeColor && <InfoRow label="Eye color" value={<span className="capitalize">{person.eyeColor}</span>} labelWidth="w-28" />}
                   {person.naturalHairColor && <InfoRow label="Natural hair" value={<span className="capitalize">{person.naturalHairColor}</span>} labelWidth="w-28" />}
