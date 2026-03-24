@@ -729,7 +729,7 @@ function IdentityBlock({ person, displayName, age, heroAliases, onAliasesBadgeCl
         {birthAlias && (
           <>
             <span
-              className="text-amber-500"
+              className="text-foreground/70 hover:text-foreground transition-colors cursor-default"
               title={`Real name${birthAlias.channelNames.length > 0 ? `. Used on: ${birthAlias.channelNames.join(", ")}` : ""}`}
             >
               {birthAlias.name}
