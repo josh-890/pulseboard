@@ -689,7 +689,7 @@ function IdentityBlock({ person, displayName, age, heroAliases, onAliasesBadgeCl
 }) {
   const birthAlias = heroAliases.find((a) => a.type === "birth" && a.name !== displayName);
   const otherAliases = heroAliases.filter((a) => a.type === "alias");
-  const MAX_VISIBLE = 3;
+  const MAX_VISIBLE = 5;
   const visibleOthers = otherAliases.slice(0, MAX_VISIBLE);
   const overflow = otherAliases.length - visibleOthers.length;
 
@@ -724,40 +724,39 @@ function IdentityBlock({ person, displayName, age, heroAliases, onAliasesBadgeCl
 
   const bottomSection = (
     <>
-      {/* Aliases — plain text, 3 lines max */}
-      <div className="min-h-[3.25rem] text-xs leading-relaxed text-muted-foreground">
+      {/* Aliases — inline flow, 3 lines max */}
+      <div className="min-h-[3.25rem] max-w-[220px] text-xs leading-relaxed text-muted-foreground line-clamp-3">
         {birthAlias && (
-          <div
-            className="truncate max-w-[220px]"
-            title={`Real name${birthAlias.channelNames.length > 0 ? `. Used on: ${birthAlias.channelNames.join(", ")}` : ""}`}
-          >
-            <span className="text-amber-500">{birthAlias.name}</span>
-          </div>
+          <>
+            <span
+              className="text-amber-500"
+              title={`Real name${birthAlias.channelNames.length > 0 ? `. Used on: ${birthAlias.channelNames.join(", ")}` : ""}`}
+            >
+              {birthAlias.name}
+            </span>
+            {visibleOthers.length > 0 && <br />}
+          </>
         )}
-        {visibleOthers.length > 0 && (
-          <div className="truncate max-w-[220px]">
-            {visibleOthers.map((a, i) => (
-              <span key={a.id}>
-                {i > 0 && <span className="text-white/20"> · </span>}
-                <span
-                  className="hover:text-foreground transition-colors cursor-default"
-                  title={a.channelNames.length > 0 ? `Used on: ${a.channelNames.join(", ")}` : undefined}
-                >
-                  {a.name}
-                  {a.usageCount > 0 && <span className="text-muted-foreground/50"> ({a.usageCount})</span>}
-                </span>
-              </span>
-            ))}
-            {overflow > 0 && (
-              <button
-                type="button"
-                onClick={onAliasesBadgeClick}
-                className="ml-1 text-muted-foreground/50 hover:text-foreground transition-colors"
-              >
-                +{overflow}
-              </button>
-            )}
-          </div>
+        {visibleOthers.map((a, i) => (
+          <span key={a.id}>
+            {i > 0 && <span className="text-white/20"> · </span>}
+            <span
+              className="hover:text-foreground transition-colors cursor-default"
+              title={a.channelNames.length > 0 ? `Used on: ${a.channelNames.join(", ")}` : undefined}
+            >
+              {a.name}
+              {a.usageCount > 0 && <span className="text-muted-foreground/50"> ({a.usageCount})</span>}
+            </span>
+          </span>
+        ))}
+        {overflow > 0 && (
+          <button
+            type="button"
+            onClick={onAliasesBadgeClick}
+            className="ml-1 text-muted-foreground/50 hover:text-foreground transition-colors"
+          >
+            +{overflow}
+          </button>
         )}
       </div>
 
