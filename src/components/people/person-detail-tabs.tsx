@@ -689,7 +689,7 @@ function IdentityBlock({ person, displayName, age, heroAliases, onAliasesBadgeCl
 }) {
   const birthAlias = heroAliases.find((a) => a.type === "birth" && a.name !== displayName);
   const otherAliases = heroAliases.filter((a) => a.type === "alias");
-  const MAX_VISIBLE = 5;
+  const MAX_VISIBLE = 8;
   const visibleOthers = otherAliases.slice(0, MAX_VISIBLE);
   const overflow = otherAliases.length - visibleOthers.length;
 
@@ -728,7 +728,7 @@ function IdentityBlock({ person, displayName, age, heroAliases, onAliasesBadgeCl
       <div className="min-h-[3.25rem] max-w-[220px] text-xs leading-relaxed text-muted-foreground line-clamp-3">
         {birthAlias && (
           <span
-            className="text-foreground/70 hover:text-foreground transition-colors cursor-default"
+            className="text-foreground hover:text-foreground transition-colors cursor-default"
             title={`Real name${birthAlias.channelNames.length > 0 ? `. Used on: ${birthAlias.channelNames.join(", ")}` : ""}`}
           >
             {birthAlias.name}
@@ -747,14 +747,16 @@ function IdentityBlock({ person, displayName, age, heroAliases, onAliasesBadgeCl
           </span>
         ))}
         {overflow > 0 && (
-          <button
-            type="button"
-            onClick={onAliasesBadgeClick}
-            className="text-muted-foreground/50 hover:text-foreground transition-colors"
-          >
-            {" +"}
-            {overflow}
-          </button>
+          <>
+            {" "}
+            <button
+              type="button"
+              onClick={onAliasesBadgeClick}
+              className="inline-flex items-center rounded-full border border-white/10 bg-white/5 px-1.5 py-px text-[10px] text-muted-foreground/60 hover:bg-white/10 hover:text-foreground transition-colors align-baseline"
+            >
+              +{overflow}
+            </button>
+          </>
         )}
       </div>
 
