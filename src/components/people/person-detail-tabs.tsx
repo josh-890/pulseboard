@@ -1712,7 +1712,7 @@ export function PersonDetailTabs({
     return map;
   }, [headshotSlotEntries]);
 
-  const aliasCount = person.aliases.filter((a) => a.type === "alias").length;
+  const aliasCount = person.aliases.length;
 
   const handleAliasesBadgeClick = useCallback(() => {
     setActiveTab("aliases");
