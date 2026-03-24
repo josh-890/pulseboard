@@ -10,6 +10,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
+import { DATE_MODIFIER_OPTIONS } from "@/lib/constants/date";
+
 type PartialDateInputProps = {
   dateValue: string;
   precisionValue: string;
@@ -17,6 +19,14 @@ type PartialDateInputProps = {
   onPrecisionChange: (val: string) => void;
   label?: string;
   disabled?: boolean;
+  /** Show modifier dropdown below date row */
+  showModifier?: boolean;
+  modifierValue?: string;
+  onModifierChange?: (val: string) => void;
+  /** Show source text input below date row */
+  showSource?: boolean;
+  sourceValue?: string;
+  onSourceChange?: (val: string) => void;
 };
 
 const MONTH_OPTIONS = [
@@ -57,6 +67,12 @@ export function PartialDateInput({
   onPrecisionChange,
   label,
   disabled,
+  showModifier,
+  modifierValue,
+  onModifierChange,
+  showSource,
+  sourceValue,
+  onSourceChange,
 }: PartialDateInputProps) {
   // Only the year input needs transient local state (while user types < 4 digits)
   // Month and day are set atomically (select / blur), so they can be fully derived.
@@ -231,6 +247,38 @@ export function PartialDateInput({
         )}
       </div>
       <p className="text-xs text-muted-foreground">{precisionLabel}</p>
+      {(showModifier || showSource) && (
+        <div className="flex gap-2 items-center mt-1">
+          {showModifier && onModifierChange && (
+            <Select
+              value={modifierValue || "EXACT"}
+              onValueChange={onModifierChange}
+              disabled={disabled}
+            >
+              <SelectTrigger className="w-[160px] h-8 text-xs">
+                <SelectValue placeholder="Confidence" />
+              </SelectTrigger>
+              <SelectContent>
+                {DATE_MODIFIER_OPTIONS.map((opt) => (
+                  <SelectItem key={opt.value} value={opt.value} className="text-xs">
+                    {opt.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+          {showSource && onSourceChange && (
+            <Input
+              type="text"
+              placeholder="Source…"
+              value={sourceValue ?? ""}
+              onChange={(e) => onSourceChange(e.target.value)}
+              disabled={disabled}
+              className="h-8 text-xs flex-1"
+            />
+          )}
+        </div>
+      )}
     </div>
   );
 }

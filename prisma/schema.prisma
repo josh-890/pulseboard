@@ -80,6 +80,14 @@ enum DatePrecision {
   DAY
 }
 
+enum DateModifier {
+  EXACT
+  APPROXIMATE
+  ESTIMATED
+  BEFORE
+  AFTER
+}
+
 enum BodyModificationType {
   piercing
   stretching
@@ -208,6 +216,8 @@ model Person {
   icgId          String  @unique
   birthdate      DateTime?
   birthdatePrecision DatePrecision @default(UNKNOWN)
+  birthdateModifier  DateModifier  @default(EXACT)
+  birthdateSource    String?
   sexAtBirth     String?
   birthPlace     String?
   nationality    String?
@@ -218,8 +228,14 @@ model Person {
   eyeColor       String?
   bodyType       String?
   measurements   String?
-  activeSince    Int?
-  retiredIn      Int?
+  activeFrom     DateTime?
+  activeFromPrecision DatePrecision @default(UNKNOWN)
+  activeFromModifier  DateModifier  @default(EXACT)
+  activeFromSource    String?
+  retiredAt      DateTime?
+  retiredAtPrecision  DatePrecision @default(UNKNOWN)
+  retiredAtModifier   DateModifier  @default(EXACT)
+  retiredAtSource     String?
   birthMarks     String?
   specialization String?
   status         PersonStatus @default(active)
@@ -291,6 +307,8 @@ model Persona {
   isBaseline Boolean   @default(false)
   date       DateTime?
   datePrecision DatePrecision @default(UNKNOWN)
+  dateModifier  DateModifier  @default(EXACT)
+  dateSource    String?
   createdAt  DateTime  @default(now())
 
   physicalChange    PersonaPhysical?
@@ -726,6 +744,8 @@ model Session {
   notes       String?
   date        DateTime?
   datePrecision DatePrecision @default(UNKNOWN)
+  dateModifier  DateModifier  @default(EXACT)
+  dateSource    String?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
@@ -753,6 +773,8 @@ model Set {
   notes       String?
   releaseDate DateTime?
   releaseDatePrecision DatePrecision @default(UNKNOWN)
+  releaseDateModifier  DateModifier  @default(EXACT)
+  releaseDateSource    String?
   coverMediaItemId String?
   coverMediaItem   MediaItem? @relation("SetCoverMedia", fields: [coverMediaItemId], references: [id])
   category    String?

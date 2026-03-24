@@ -33,6 +33,8 @@ Network ──< LabelNetwork >── Label ──< Channel
 | `ProjectStatus` | `active`, `paused`, `completed` |
 | `ActivityType` | `person_added`, `set_added`, `project_added`, `label_added`, `note` |
 | `EntityType` | `person`, `set` |
+| `DatePrecision` | `UNKNOWN`, `YEAR`, `MONTH`, `DAY` |
+| `DateModifier` | `EXACT`, `APPROXIMATE`, `ESTIMATED`, `BEFORE`, `AFTER` |
 
 ---
 
@@ -302,6 +304,46 @@ Dashboard feed entries.
 | `type` | `ActivityType` | |
 | `createdAt` | `DateTime` | |
 | `deletedAt` | `DateTime?` | |
+
+---
+
+## Temporal Uncertainty
+
+### Date Modifiers
+
+The `DateModifier` enum expresses confidence in a date value:
+
+| Modifier | Display Prefix | Meaning |
+|----------|---------------|---------|
+| `EXACT` | *(none)* | The date is known precisely |
+| `APPROXIMATE` | `~` | Close to the actual date but not confirmed |
+| `ESTIMATED` | `est.` | Derived from indirect evidence |
+| `BEFORE` | `before` | The actual date is on or before this value |
+| `AFTER` | `after` | The actual date is on or after this value |
+
+### Date Fields with Modifier + Source
+
+Several models carry `modifier` (DateModifier, default EXACT) and `source` (String?, free-text provenance note) alongside their date and precision fields:
+
+| Model | Date Field | Precision Field | Modifier Field | Source Field |
+|-------|-----------|----------------|----------------|--------------|
+| `Person` | `birthdate` | `birthdatePrecision` | `birthdateModifier` | `birthdateSource` |
+| `Person` | `activeFrom` | `activeFromPrecision` | `activeFromModifier` | `activeFromSource` |
+| `Person` | `retiredAt` | `retiredAtPrecision` | `retiredAtModifier` | `retiredAtSource` |
+| `Persona` | `date` | `datePrecision` | `dateModifier` | `dateSource` |
+| `Session` | `date` | `datePrecision` | `dateModifier` | `dateSource` |
+| `Set` | `releaseDate` | `releaseDatePrecision` | `releaseDateModifier` | `releaseDateSource` |
+
+### Career Field Changes
+
+The old integer-year career fields have been replaced with full temporal fields:
+
+| Old Field | New Fields |
+|-----------|-----------|
+| `activeSince Int?` (year only) | `activeFrom DateTime?` + `activeFromPrecision` + `activeFromModifier` + `activeFromSource` |
+| `retiredIn Int?` (year only) | `retiredAt DateTime?` + `retiredAtPrecision` + `retiredAtModifier` + `retiredAtSource` |
+
+This allows career dates to carry the same day/month/year precision, modifier, and source tracking as all other temporal fields.
 
 ---
 

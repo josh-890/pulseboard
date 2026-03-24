@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { loadMorePersons } from "@/lib/actions/person-actions";
 import type { PersonWithCommonAlias } from "@/lib/types";
+import { getQuickPlausibilityCount } from "@/lib/services/plausibility-service";
 import type { PersonFilters } from "@/lib/services/person-service";
 
 type PhotoData = {
@@ -92,6 +93,7 @@ export function PersonList({
               photoUrl={photo?.url}
               focalX={photo?.focalX}
               focalY={photo?.focalY}
+              plausibilityCount={getQuickPlausibilityCount(person)}
             />
           );
         })}

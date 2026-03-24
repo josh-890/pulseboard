@@ -18,6 +18,7 @@ import { getAllSkillGroups } from "@/lib/services/skill-catalog-service";
 import { getAllPhysicalAttributeGroups } from "@/lib/services/physical-attribute-catalog-service";
 import { getPersonAliases } from "@/lib/services/alias-service";
 import { PersonDetailTabs } from "@/components/people/person-detail-tabs";
+import { computePlausibilityIssues } from "@/lib/services/plausibility-service";
 import { EditPersonSheet } from "@/components/people/edit-person-sheet";
 import { DeleteButton } from "@/components/shared/delete-button";
 import { deletePerson } from "@/lib/actions/person-actions";
@@ -58,6 +59,19 @@ export default async function PersonDetailPage({ params }: PersonDetailPageProps
 
   const currentState = deriveCurrentState(person);
   const affiliations = deriveAffiliations(workHistory);
+
+  const plausibilityIssues = computePlausibilityIssues({
+    birthdate: person.birthdate,
+    birthdatePrecision: person.birthdatePrecision,
+    birthdateModifier: person.birthdateModifier,
+    status: person.status,
+    activeFrom: person.activeFrom,
+    activeFromPrecision: person.activeFromPrecision,
+    retiredAt: person.retiredAt,
+    retiredAtPrecision: person.retiredAtPrecision,
+    aliases: person.aliases,
+    personas: person.personas,
+  });
 
   // Compute Calculated PGRADE (CP) = max skill definition pgrade across active skills
   // pgrade 0 = excluded from CP calculation
@@ -153,6 +167,7 @@ export default async function PersonDetailPage({ params }: PersonDetailPageProps
         sessionWorkHistory={sessionWorkHistory}
         productionSessions={productionSessions}
         entityMedia={entityMedia}
+        plausibilityIssues={plausibilityIssues}
       />
     </div>
   );

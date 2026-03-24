@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 const datePrecisionEnum = z.enum(["UNKNOWN", "YEAR", "MONTH", "DAY"]).default("UNKNOWN");
+const dateModifierEnum = z.enum(["EXACT", "APPROXIMATE", "ESTIMATED", "BEFORE", "AFTER"]).default("EXACT");
 
 export const createPersonSchema = z.object({
   // Required
@@ -20,6 +21,8 @@ export const createPersonSchema = z.object({
   sexAtBirth: z.enum(["male", "female"]).optional(),
   birthdate: z.string().optional(),
   birthdatePrecision: datePrecisionEnum,
+  birthdateModifier: dateModifierEnum,
+  birthdateSource: z.string().optional(),
   birthPlace: z.string().optional(),
   nationality: z.string().length(2).regex(/^[A-Z]{2}$/, "Must be a valid ISO alpha-2 country code").optional().or(z.literal("")),
   ethnicity: z.string().optional(),
@@ -47,6 +50,8 @@ export const updatePersonSchema = z.object({
   sexAtBirth: z.enum(["male", "female"]).optional(),
   birthdate: z.string().optional(),
   birthdatePrecision: datePrecisionEnum,
+  birthdateModifier: dateModifierEnum,
+  birthdateSource: z.string().optional(),
   birthPlace: z.string().optional(),
   nationality: z.string().length(2).regex(/^[A-Z]{2}$/, "Must be a valid ISO alpha-2 country code").optional().or(z.literal("")),
   ethnicity: z.string().optional(),
@@ -55,8 +60,14 @@ export const updatePersonSchema = z.object({
   height: z.coerce.number().int().positive().optional(),
   location: z.string().optional(),
   notes: z.string().optional(),
-  activeSince: z.union([z.coerce.number().int().positive(), z.literal("").transform(() => undefined)]).optional(),
-  retiredIn: z.union([z.coerce.number().int().positive(), z.literal("").transform(() => undefined)]).optional(),
+  activeFrom: z.string().optional(),
+  activeFromPrecision: datePrecisionEnum,
+  activeFromModifier: dateModifierEnum,
+  activeFromSource: z.string().optional(),
+  retiredAt: z.string().optional(),
+  retiredAtPrecision: datePrecisionEnum,
+  retiredAtModifier: dateModifierEnum,
+  retiredAtSource: z.string().optional(),
   specialization: z.string().optional(),
   rating: z.coerce.number().int().min(1).max(5).optional(),
   pgrade: z.coerce.number().int().min(1).max(10).optional(),

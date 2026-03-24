@@ -18,6 +18,7 @@ Pulseboard is a personal information management tool for tracking people in art/
 10. [Media Management](#10-media-management)
 11. [Settings](#11-settings)
 12. [Workflows](#12-workflows)
+13. [Date Modifiers & Data Quality](#date-modifiers--data-quality)
 
 ---
 
@@ -79,7 +80,7 @@ Click **"Add Person"** to open the creation form:
 | Display Name | Yes | Common alias used throughout the app |
 | Status | Yes | Active, Inactive, Wishlist, or Archived |
 | Sex at Birth | No | |
-| Birthdate | No | With precision: Unknown, Year, Month, or Day |
+| Birthdate | No | With precision (Unknown/Year/Month/Day), modifier, and source |
 | Birth Place | No | |
 | Natural Hair Color | No | |
 
@@ -804,6 +805,43 @@ MediaCollection (global or per-person album)
 - **Compilation** = a set with SetMediaItems pointing to MediaItems from multiple sessions. Derived from `sessionLinks.length > 1`.
 - **Hard deletes** — all destructive operations permanently remove data. Use `scripts/db-backup.sh` for disaster recovery.
 - **Partial dates** — dates can have precision: Unknown (null), Year (YYYY-01-01), Month (YYYY-MM-01), or Day (exact).
+- **Date modifiers** — dates can carry a confidence modifier (see below).
+
+---
+
+## Date Modifiers & Data Quality
+
+### Date Modifiers
+
+When entering or editing dates (birthdate, career dates, persona dates, session dates, set release dates), you can set a **modifier** indicating how confident you are in the value:
+
+| Modifier | Display | When to use |
+|----------|---------|-------------|
+| **Exact** | *(no prefix)* | You know the precise date |
+| **Approximate** | `~` | Close to the real date but unconfirmed (e.g. `~1995`) |
+| **Estimated** | `est.` | Derived from indirect evidence (e.g. `est. March 2020`) |
+| **Before** | `before` | The actual date is on or before this value |
+| **After** | `after` | The actual date is on or after this value |
+
+The modifier selector appears next to every date input that supports precision (birthdate, career dates in Edit Person, persona dates, session dates, set release dates).
+
+### Source Field
+
+Each date also has an optional **Source** text field where you can record where the date information came from (e.g. "interview 2024", "social media post", "estimated from set release dates"). This helps track provenance and aids future verification.
+
+### Career Dates
+
+Career dates (Active From, Retired At) now support **full date precision** — not just a year. You can enter a specific day, month, or year, with a modifier and source, just like birthdates. For example: `~March 2019` or `after 2020`.
+
+### Data Quality Warnings
+
+Pulseboard automatically checks date plausibility and flags potential issues:
+
+- **Hero badge** — an amber warning badge appears on the person's hero card when plausibility issues are detected. Hover or click to see the count.
+- **Data Quality card** — on the person's Overview tab, a "Data Quality" card lists all detected issues with descriptions (e.g. "Birthdate is in the future", "Career start before age 14").
+- **People list indicator** — an amber dot appears on person cards in the `/people` list when that person has plausibility warnings, making it easy to spot records that need attention.
+
+These warnings are informational — they do not block saves or edits. They help identify data entry errors or records that need verification.
 
 ---
 

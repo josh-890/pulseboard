@@ -93,6 +93,50 @@ export function computeAgeAtEvent(
   return age.toString();
 }
 
+/** Returns the display prefix for a date modifier. */
+export function getModifierSymbol(modifier?: string | null): string {
+  if (!modifier || modifier === "EXACT") return "";
+  const symbols: Record<string, string> = {
+    APPROXIMATE: "~",
+    ESTIMATED: "est. ",
+    BEFORE: "before ",
+    AFTER: "after ",
+  };
+  return symbols[modifier] ?? "";
+}
+
+/** Formats a date with partial precision and optional modifier prefix. */
+export function formatPartialDateWithModifier(
+  date: Date | null,
+  precision: string,
+  modifier?: string | null,
+): string {
+  const base = formatPartialDate(date, precision);
+  if (base === "Unknown") return base;
+  return `${getModifierSymbol(modifier)}${base}`;
+}
+
+/** Computes age with modifier awareness. If any modifier ≠ EXACT, prefix with ~. */
+export function computeAgeWithModifier(
+  birthdate: Date | null,
+  birthPrec: string,
+  birthModifier?: string | null,
+  asOf?: Date,
+  asOfPrec?: string,
+  asOfModifier?: string | null,
+): string {
+  const base = computeAgeFromPartialDate(birthdate, birthPrec, asOf);
+  if (base === "Unknown") return base;
+  // If any modifier is non-EXACT, ensure ~ prefix
+  const hasUncertainty =
+    (birthModifier && birthModifier !== "EXACT") ||
+    (asOfModifier && asOfModifier !== "EXACT");
+  if (hasUncertainty && !base.startsWith("~")) {
+    return `~${base}`;
+  }
+  return base;
+}
+
 /** Returns inline style for focal-aware `object-position` on `object-cover` images. */
 export function focalStyle(
   focalX: number | null | undefined,

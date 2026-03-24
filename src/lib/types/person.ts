@@ -21,6 +21,7 @@ export type {
   AliasSource,
   SkillLevel,
   SkillEventType,
+  DateModifier,
 } from "@/generated/prisma/client";
 
 import type { DigitalIdentityStatus } from "@/generated/prisma/enums";
@@ -36,7 +37,10 @@ export type PersonWithCommonAlias = {
   bodyType: string | null;
   ethnicity: string | null;
   location: string | null;
-  activeSince: number | null;
+  activeFrom: Date | null;
+  activeFromPrecision: string;
+  retiredAt: Date | null;
+  retiredAtPrecision: string;
   specialization: string | null;
   createdAt: Date;
   commonAlias: string | null;

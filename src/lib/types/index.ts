@@ -43,6 +43,7 @@ export type {
   SkillLevel,
   SkillEventType,
   DigitalIdentityStatus,
+  DateModifier,
 } from "./person";
 
 export type {

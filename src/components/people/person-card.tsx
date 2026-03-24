@@ -13,6 +13,7 @@ type PersonCardProps = {
   photoUrl?: string;
   focalX?: number | null;
   focalY?: number | null;
+  plausibilityCount?: number;
 };
 
 const STATUS_STYLES: Record<PersonStatus, string> = {
@@ -29,7 +30,7 @@ const STATUS_LABELS: Record<PersonStatus, string> = {
   archived: "Archived",
 };
 
-export function PersonCard({ person, photoUrl, focalX, focalY }: PersonCardProps) {
+export function PersonCard({ person, photoUrl, focalX, focalY, plausibilityCount = 0 }: PersonCardProps) {
   const { density } = useDensity();
   const isCompact = density === "compact";
 
@@ -132,6 +133,12 @@ export function PersonCard({ person, photoUrl, focalX, focalY }: PersonCardProps
             >
               {STATUS_LABELS[person.status]}
             </span>
+            {plausibilityCount > 0 && (
+              <span
+                className="h-2 w-2 rounded-full bg-amber-500 shrink-0"
+                title={`${plausibilityCount} data quality issue${plausibilityCount !== 1 ? "s" : ""}`}
+              />
+            )}
           </div>
 
           {/* Birth alias */}

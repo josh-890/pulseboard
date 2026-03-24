@@ -81,6 +81,8 @@ export function EditPersonSheet({ person }: EditPersonSheetProps) {
       ? person.birthdate.toISOString().slice(0, 10)
       : "",
     birthdatePrecision: (person.birthdatePrecision as "UNKNOWN" | "YEAR" | "MONTH" | "DAY") ?? "UNKNOWN",
+    birthdateModifier: (person.birthdateModifier as "EXACT" | "APPROXIMATE" | "ESTIMATED" | "BEFORE" | "AFTER") ?? "EXACT",
+    birthdateSource: person.birthdateSource ?? "",
     birthPlace: person.birthPlace ?? "",
     nationality: person.nationality ?? "",
     ethnicity: person.ethnicity ?? undefined,
@@ -89,8 +91,18 @@ export function EditPersonSheet({ person }: EditPersonSheetProps) {
     height: person.height ?? undefined,
     location: person.location ?? "",
     notes: person.notes ?? "",
-    activeSince: person.activeSince ?? undefined,
-    retiredIn: person.retiredIn ?? undefined,
+    activeFrom: person.activeFrom
+      ? person.activeFrom.toISOString().slice(0, 10)
+      : "",
+    activeFromPrecision: (person.activeFromPrecision as "UNKNOWN" | "YEAR" | "MONTH" | "DAY") ?? "UNKNOWN",
+    activeFromModifier: (person.activeFromModifier as "EXACT" | "APPROXIMATE" | "ESTIMATED" | "BEFORE" | "AFTER") ?? "EXACT",
+    activeFromSource: person.activeFromSource ?? "",
+    retiredAt: person.retiredAt
+      ? person.retiredAt.toISOString().slice(0, 10)
+      : "",
+    retiredAtPrecision: (person.retiredAtPrecision as "UNKNOWN" | "YEAR" | "MONTH" | "DAY") ?? "UNKNOWN",
+    retiredAtModifier: (person.retiredAtModifier as "EXACT" | "APPROXIMATE" | "ESTIMATED" | "BEFORE" | "AFTER") ?? "EXACT",
+    retiredAtSource: person.retiredAtSource ?? "",
     specialization: person.specialization ?? "",
     rating: person.rating ?? undefined,
     pgrade: person.pgrade ?? undefined,
@@ -206,49 +218,37 @@ export function EditPersonSheet({ person }: EditPersonSheetProps) {
                 <section className="rounded-xl border bg-muted/30 dark:bg-muted/20 p-4 space-y-4">
                   <SectionHeader>Career &amp; Rating</SectionHeader>
                   <div className="grid grid-cols-4 gap-3">
-                    <FormField
-                      control={form.control}
-                      name="activeSince"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Active Since</FormLabel>
-                          <FormControl>
-                            <Input
-                              type="number"
-                              placeholder="e.g. 2018"
-                              {...field}
-                              value={(field.value as number | undefined) ?? ""}
-                              onChange={(e) =>
-                                field.onChange(e.target.value === "" ? "" : e.target.value)
-                              }
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
+                    <FormItem className="col-span-2">
+                      <FormLabel>Active From</FormLabel>
+                      <PartialDateInput
+                        dateValue={form.watch("activeFrom") ?? ""}
+                        precisionValue={form.watch("activeFromPrecision") ?? "UNKNOWN"}
+                        onDateChange={(val) => form.setValue("activeFrom", val || undefined)}
+                        onPrecisionChange={(val) => form.setValue("activeFromPrecision", val as "UNKNOWN" | "YEAR" | "MONTH" | "DAY")}
+                        showModifier
+                        modifierValue={form.watch("activeFromModifier") ?? "EXACT"}
+                        onModifierChange={(val) => form.setValue("activeFromModifier", val as "EXACT" | "APPROXIMATE" | "ESTIMATED" | "BEFORE" | "AFTER")}
+                        showSource
+                        sourceValue={form.watch("activeFromSource") ?? ""}
+                        onSourceChange={(val) => form.setValue("activeFromSource", val || undefined)}
+                      />
+                    </FormItem>
 
-                    <FormField
-                      control={form.control}
-                      name="retiredIn"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Retired In</FormLabel>
-                          <FormControl>
-                            <Input
-                              type="number"
-                              placeholder="e.g. 2022"
-                              {...field}
-                              value={(field.value as number | undefined) ?? ""}
-                              onChange={(e) =>
-                                field.onChange(e.target.value === "" ? "" : e.target.value)
-                              }
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
+                    <FormItem className="col-span-2">
+                      <FormLabel>Retired At</FormLabel>
+                      <PartialDateInput
+                        dateValue={form.watch("retiredAt") ?? ""}
+                        precisionValue={form.watch("retiredAtPrecision") ?? "UNKNOWN"}
+                        onDateChange={(val) => form.setValue("retiredAt", val || undefined)}
+                        onPrecisionChange={(val) => form.setValue("retiredAtPrecision", val as "UNKNOWN" | "YEAR" | "MONTH" | "DAY")}
+                        showModifier
+                        modifierValue={form.watch("retiredAtModifier") ?? "EXACT"}
+                        onModifierChange={(val) => form.setValue("retiredAtModifier", val as "EXACT" | "APPROXIMATE" | "ESTIMATED" | "BEFORE" | "AFTER")}
+                        showSource
+                        sourceValue={form.watch("retiredAtSource") ?? ""}
+                        onSourceChange={(val) => form.setValue("retiredAtSource", val || undefined)}
+                      />
+                    </FormItem>
 
                     <FormField
                       control={form.control}
@@ -337,6 +337,12 @@ export function EditPersonSheet({ person }: EditPersonSheetProps) {
                         precisionValue={form.watch("birthdatePrecision") ?? "UNKNOWN"}
                         onDateChange={(val) => form.setValue("birthdate", val || undefined)}
                         onPrecisionChange={(val) => form.setValue("birthdatePrecision", val as "UNKNOWN" | "YEAR" | "MONTH" | "DAY")}
+                        showModifier
+                        modifierValue={form.watch("birthdateModifier") ?? "EXACT"}
+                        onModifierChange={(val) => form.setValue("birthdateModifier", val as "EXACT" | "APPROXIMATE" | "ESTIMATED" | "BEFORE" | "AFTER")}
+                        showSource
+                        sourceValue={form.watch("birthdateSource") ?? ""}
+                        onSourceChange={(val) => form.setValue("birthdateSource", val || undefined)}
                       />
                     </FormItem>
 

@@ -136,7 +136,10 @@ export async function getPersons(filters: PersonFilters = {}): Promise<PersonWit
     bodyType: p.bodyType,
     ethnicity: p.ethnicity,
     location: p.location,
-    activeSince: p.activeSince,
+    activeFrom: p.activeFrom,
+    activeFromPrecision: p.activeFromPrecision,
+    retiredAt: p.retiredAt,
+    retiredAtPrecision: p.retiredAtPrecision,
     specialization: p.specialization,
     createdAt: p.createdAt,
     commonAlias: p.aliases.find((a) => a.type === "common")?.name ?? null,
@@ -986,6 +989,8 @@ export async function createPersonRecord(data: CreatePersonInput) {
         sexAtBirth: data.sexAtBirth,
         birthdate: data.birthdate ? new Date(data.birthdate) : undefined,
         birthdatePrecision: data.birthdatePrecision ?? "UNKNOWN",
+        birthdateModifier: data.birthdateModifier ?? "EXACT",
+        birthdateSource: data.birthdateSource || undefined,
         birthPlace: data.birthPlace,
         nationality: data.nationality,
         ethnicity: data.ethnicity,
@@ -1005,12 +1010,22 @@ export async function createPersonRecord(data: CreatePersonInput) {
       });
     }
 
+    // Anchor baseline persona date: birthdate+18, or activeFrom if earlier
+    const birthDate = data.birthdate ? new Date(data.birthdate) : null;
+    let baselineDate: Date = new Date();
+    let baselinePrecision: "UNKNOWN" | "YEAR" | "MONTH" | "DAY" = "DAY";
+    if (birthDate) {
+      baselineDate = new Date(birthDate.getFullYear() + 18, 0, 1);
+      baselinePrecision = "YEAR";
+    }
+
     const persona = await tx.persona.create({
       data: {
         personId: person.id,
         label: "Baseline",
         isBaseline: true,
-        date: new Date(),
+        date: baselineDate,
+        datePrecision: baselinePrecision,
       },
     });
 
@@ -1072,6 +1087,8 @@ export async function updatePersonRecord(id: string, data: UpdatePersonInput) {
         sexAtBirth: data.sexAtBirth,
         birthdate: data.birthdate ? new Date(data.birthdate) : null,
         birthdatePrecision: data.birthdatePrecision ?? "UNKNOWN",
+        birthdateModifier: data.birthdateModifier ?? "EXACT",
+        birthdateSource: data.birthdateSource || null,
         birthPlace: data.birthPlace,
         nationality: data.nationality,
         ethnicity: data.ethnicity,
@@ -1080,8 +1097,14 @@ export async function updatePersonRecord(id: string, data: UpdatePersonInput) {
         height: data.height,
         location: data.location,
         notes: data.notes,
-        activeSince: data.activeSince ?? null,
-        retiredIn: data.retiredIn ?? null,
+        activeFrom: data.activeFrom ? new Date(data.activeFrom) : null,
+        activeFromPrecision: data.activeFromPrecision ?? "UNKNOWN",
+        activeFromModifier: data.activeFromModifier ?? "EXACT",
+        activeFromSource: data.activeFromSource || null,
+        retiredAt: data.retiredAt ? new Date(data.retiredAt) : null,
+        retiredAtPrecision: data.retiredAtPrecision ?? "UNKNOWN",
+        retiredAtModifier: data.retiredAtModifier ?? "EXACT",
+        retiredAtSource: data.retiredAtSource || null,
         specialization: data.specialization,
         rating: data.rating,
         pgrade: data.pgrade,
@@ -1126,6 +1149,27 @@ export async function updatePersonRecord(id: string, data: UpdatePersonInput) {
             currentHairColor: data.currentHairColor ?? null,
           },
         });
+      }
+    }
+
+    // Re-anchor baseline persona date when birthdate changes
+    if (data.birthdate !== undefined) {
+      const birthDate = data.birthdate ? new Date(data.birthdate) : null;
+      if (birthDate) {
+        const baselinePersona = await tx.persona.findFirst({
+          where: { personId: id, isBaseline: true },
+        });
+        if (baselinePersona) {
+          let anchorDate = new Date(birthDate.getFullYear() + 18, 0, 1);
+          const activeFromDate = data.activeFrom ? new Date(data.activeFrom) : null;
+          if (activeFromDate && activeFromDate < anchorDate) {
+            anchorDate = activeFromDate;
+          }
+          await tx.persona.update({
+            where: { id: baselinePersona.id },
+            data: { date: anchorDate, datePrecision: "YEAR" },
+          });
+        }
       }
     }
   });
@@ -1340,7 +1384,10 @@ export async function getPersonsPaginated(
       bodyType: p.bodyType,
       ethnicity: p.ethnicity,
       location: p.location,
-      activeSince: p.activeSince,
+      activeFrom: p.activeFrom,
+      activeFromPrecision: p.activeFromPrecision,
+      retiredAt: p.retiredAt,
+      retiredAtPrecision: p.retiredAtPrecision,
       specialization: p.specialization,
       createdAt: p.createdAt,
       commonAlias: p.aliases.find((a) => a.type === "common")?.name ?? null,

@@ -1,6 +1,6 @@
 # Pulseboard — Architecture Reference
 
-> **Last updated:** 2026-03-18
+> **Last updated:** 2026-03-24
 > This document must be kept in sync with code changes. Update it whenever pages, services, components, API routes, or data flows change.
 
 ---
@@ -96,6 +96,7 @@ All services in `src/lib/services/`. All functions are async, return Promises. S
 **`persona-service.ts`** — Persona CRUD, physical changes, body mark/modification/procedure events
 **`category-service.ts`** — MediaCategoryGroup/MediaCategory CRUD, person category population counts
 **`collection-service.ts`** — MediaCollection CRUD, item management
+**`plausibility-service.ts`** — `computePlausibilityIssues(person)` returns date/age plausibility warnings; `getQuickPlausibilityCount(person)` returns count for badge display
 
 ### Entity Services
 
@@ -178,7 +179,7 @@ components/
 ├── networks/         # NetworkList, NetworkCard, add/edit sheets
 ├── collections/      # CollectionList, CollectionDetailGallery, media picker
 ├── settings/         # SkillCatalogManager, MediaCategoryManager, ContributionRoleManager
-├── shared/           # TagInput, PartialDateInput, CountryPicker, EntityCombobox, DeleteButton, BrowserToolbar, BodyRegionPicker, FlagImage
+├── shared/           # TagInput, PartialDateInput (supports modifier+source props), CountryPicker, EntityCombobox, DeleteButton, BrowserToolbar, BodyRegionPicker, FlagImage
 └── ui/               # shadcn/ui primitives (auto-generated, do not edit)
 ```
 
@@ -188,7 +189,7 @@ components/
 ```
 page.tsx (Server Component — calls ~12 service functions)
   └── PersonDetailTabs (Client — receives all data as props, manages tab state)
-        ├── OverviewTab — HeroCard, BasicInfoPanel, PhysicalStatsPanel, HistoryPanel, KpiStatsPanel
+        ├── OverviewTab — HeroCard (plausibility badge), BasicInfoPanel, PhysicalStatsPanel, HistoryPanel, KpiStatsPanel, DataQualityCard (plausibility warnings)
         ├── AppearanceTab (extracted file) — Physical stats, BodyMarkCard, BodyModificationCard, CosmeticProcedureCard + add/edit sheets
         ├── PersonDetailsTab — Category groups with expandable photo galleries via /api/categories/[id]/media
         ├── PersonSkillsTab — Category-grouped skills, event timeline, inline media
@@ -386,7 +387,10 @@ SessionContributionSkills → skill picker
 - `formatRelativeTime(date)` → "2 days ago"
 - `getDisplayName(alias, icgId)` → "John (JD-96ABF)"
 - `formatPartialDate(date, precision)` → "March 1995" / "Unknown"
+- `formatPartialDateWithModifier(date, precision, modifier)` → "~March 1995" / "est. 2020" / "before March 1995"
+- `getModifierSymbol(modifier)` → "", "~", "est.", "before", "after"
 - `computeAge()`, `computeAgeFromPartialDate()`, `computeAgeAtEvent()`
+- `computeAgeWithModifier(birthdate, precision, modifier)` → "~29" (incorporates modifier uncertainty into display)
 - `focalStyle(focalX, focalY)` → `{ objectPosition: "X% Y%" }`
 
 ### `lib/media-url.ts`
@@ -402,6 +406,7 @@ SessionContributionSkills → skill picker
 - `body.ts` — body type, hair, ethnicity, nationality options
 - `skill.ts` — `SKILL_LEVEL_VALUE/LABEL/STYLES`, `SKILL_EVENT_STYLES`
 - `countries.ts` — country list with codes
+- `date.ts` — `DATE_MODIFIER_OPTIONS`, `DATE_MODIFIER_SYMBOLS` (EXACT→"", APPROXIMATE→"~", ESTIMATED→"est.", BEFORE→"before", AFTER→"after")
 
 ### `lib/validations/`
 - Zod schemas for all CRUD inputs: person, set, session, project, label, network, channel, media, persona, body-mark, body-modification, cosmetic-procedure, education, interest

@@ -45,6 +45,7 @@ import {
   Zap,
   Pencil,
   Info,
+  AlertTriangle,
 } from "lucide-react";
 import NextImage from "next/image";
 import Link from "next/link";
@@ -65,6 +66,7 @@ import type { EntityMediaThumbnail } from "@/lib/services/media-service";
 import type { ProfileImageLabel } from "@/lib/services/setting-service";
 import type { CategoryWithGroup } from "@/components/gallery/gallery-info-panel";
 import type { PhysicalAttributeGroupWithDefinitions } from "@/lib/services/physical-attribute-catalog-service";
+import type { PlausibilityIssue } from "@/lib/services/plausibility-service";
 import {
   assignHeadshotSlot as assignHeadshotSlotAction,
   removeHeadshotSlot as removeHeadshotSlotAction,
@@ -100,6 +102,7 @@ type PersonDetailTabsProps = {
   productionSessions?: PersonProductionSession[];
   entityMedia?: Record<string, EntityMediaThumbnail[]>;
   refMediaCount?: number;
+  plausibilityIssues?: PlausibilityIssue[];
 };
 
 // ── Style maps ──────────────────────────────────────────────────────────────
@@ -526,26 +529,29 @@ function formatDateDMY(date: Date, precision: string): string {
   return `${d}/${m}/${y}`;
 }
 
-function CareerTimeline({ activeSince, retiredIn, birthYear, earliestSessionYear }: {
-  activeSince: number | null;
-  retiredIn: number | null;
+function CareerTimeline({ activeFrom, retiredAt, birthYear, earliestSessionYear }: {
+  activeFrom: Date | null;
+  retiredAt: Date | null;
   birthYear: number | null;
   earliestSessionYear: number | null;
 }) {
-  // Effective start: explicit activeSince, or fallback to earliest session year
-  const effectiveStart = activeSince ?? earliestSessionYear;
+  const activeFromYear = activeFrom ? activeFrom.getFullYear() : null;
+  const retiredAtYear = retiredAt ? retiredAt.getFullYear() : null;
+
+  // Effective start: explicit activeFrom, or fallback to earliest session year
+  const effectiveStart = activeFromYear ?? earliestSessionYear;
   if (!effectiveStart) return null;
 
-  const inferred = activeSince === null;
-  const retired = retiredIn !== null;
-  const conflict = activeSince !== null && earliestSessionYear !== null && earliestSessionYear < activeSince;
+  const inferred = activeFromYear === null;
+  const retired = retiredAtYear !== null;
+  const conflict = activeFromYear !== null && earliestSessionYear !== null && earliestSessionYear < activeFromYear;
 
   const currentYear = new Date().getFullYear();
-  const endYear = retiredIn ?? currentYear;
+  const endYear = retiredAtYear ?? currentYear;
   const duration = endYear - effectiveStart;
   const startAge = birthYear ? effectiveStart - birthYear : null;
-  const endAge = birthYear && retiredIn ? retiredIn - birthYear : null;
-  // All timeline values are inherently approximate — activeSince/retiredIn are year-only
+  const endAge = birthYear && retiredAtYear ? retiredAtYear - birthYear : null;
+  // All timeline values are inherently approximate — dates may be year-only
 
   // Color scheme: grey for retired, emerald for active, amber for inferred start
   const dotColor = retired
@@ -569,7 +575,7 @@ function CareerTimeline({ activeSince, retiredIn, birthYear, earliestSessionYear
           <span className="text-[10px] leading-none text-muted-foreground">~{startAge}</span>
         )}
         {conflict ? (
-          <span title={`Session found in ${earliestSessionYear}, before activeSince ${activeSince}`}>
+          <span title={`Session found in ${earliestSessionYear}, before activeFrom ${activeFromYear}`}>
             <Zap size={12} className="fill-red-500 text-red-500" />
           </span>
         ) : (
@@ -588,13 +594,13 @@ function CareerTimeline({ activeSince, retiredIn, birthYear, earliestSessionYear
         </span>
       </div>
       {/* End node (retired) or open arrow (active) */}
-      {retiredIn ? (
+      {retiredAtYear ? (
         <div className="flex flex-col items-center gap-0.5">
           {endAge !== null && (
             <span className="text-[10px] leading-none text-muted-foreground">~{endAge}</span>
           )}
           <span className="h-2.5 w-2.5 rounded-full bg-muted-foreground/60" />
-          <span className="text-[10px] leading-none text-muted-foreground">{retiredIn}</span>
+          <span className="text-[10px] leading-none text-muted-foreground">{retiredAtYear}</span>
         </div>
       ) : (
         <div className="flex flex-col items-center gap-0.5">
@@ -627,6 +633,7 @@ type HeroSharedProps = {
   earliestSessionYear?: number | null;
   onAliasesBadgeClick?: () => void;
   onAppearanceClick?: () => void;
+  plausibilityCount?: number;
 };
 
 function EntityPills({ currentState, onAppearanceClick }: { currentState: PersonCurrentState; onAppearanceClick?: () => void }) {
@@ -667,7 +674,7 @@ function EntityPills({ currentState, onAppearanceClick }: { currentState: Person
   );
 }
 
-function IdentityBlock({ person, displayName, age, heroAliases, onAliasesBadgeClick, nameSize = "text-2xl", earliestSessionYear, referenceSessionId, refMediaCount, section = "all" }: {
+function IdentityBlock({ person, displayName, age, heroAliases, onAliasesBadgeClick, nameSize = "text-2xl", earliestSessionYear, referenceSessionId, refMediaCount, section = "all", plausibilityCount = 0 }: {
   person: PersonData;
   displayName: string;
   age: number | null;
@@ -678,6 +685,7 @@ function IdentityBlock({ person, displayName, age, heroAliases, onAliasesBadgeCl
   referenceSessionId?: string;
   refMediaCount?: number;
   section?: "top" | "bottom" | "all";
+  plausibilityCount?: number;
 }) {
   const birthAlias = heroAliases.find((a) => a.type === "birth" && a.name !== displayName);
   const otherAliases = heroAliases.filter((a) => a.type === "alias");
@@ -691,6 +699,15 @@ function IdentityBlock({ person, displayName, age, heroAliases, onAliasesBadgeCl
       {displayName !== person.icgId && (
         <div className="mt-0.5 flex items-center gap-2">
           <p className="font-mono text-sm text-muted-foreground">{person.icgId}</p>
+          {plausibilityCount > 0 && (
+            <span
+              className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-1.5 py-0.5 text-xs text-amber-500"
+              title={`${plausibilityCount} data quality issue${plausibilityCount !== 1 ? "s" : ""}`}
+            >
+              <AlertTriangle size={12} />
+              <span>{plausibilityCount}</span>
+            </span>
+          )}
           {referenceSessionId && refMediaCount !== undefined && refMediaCount > 0 && (
             <Link
               href={`/sessions/${referenceSessionId}`}
@@ -772,10 +789,10 @@ function IdentityBlock({ person, displayName, age, heroAliases, onAliasesBadgeCl
       </div>
 
       {/* Career timeline */}
-      {(person.activeSince || earliestSessionYear) && (
+      {(person.activeFrom || earliestSessionYear) && (
         <CareerTimeline
-          activeSince={person.activeSince}
-          retiredIn={person.retiredIn}
+          activeFrom={person.activeFrom}
+          retiredAt={person.retiredAt}
           birthYear={person.birthdate ? person.birthdate.getFullYear() : null}
           earliestSessionYear={earliestSessionYear ?? null}
         />
@@ -800,7 +817,7 @@ function IdentityBlock({ person, displayName, age, heroAliases, onAliasesBadgeCl
 function HeroDensityLayout(props: HeroSharedProps) {
   const { layout } = useHeroLayout();
   const cfg = DENSITY_CONFIGS[layout];
-  const { person, currentState, photos, profileLabels, kpiCounts, calculatedPgrade, meanWcp, displayName, initials, age, heroAliases, referenceSessionId, headshotSlotMap } = props;
+  const { person, currentState, photos, profileLabels, kpiCounts, calculatedPgrade, meanWcp, displayName, initials, age, heroAliases, referenceSessionId, headshotSlotMap, plausibilityCount } = props;
 
   const handleAssignHeadshot = useCallback(
     async (mediaItemId: string, slot: number) => {
@@ -851,6 +868,7 @@ function HeroDensityLayout(props: HeroSharedProps) {
               earliestSessionYear={props.earliestSessionYear}
               referenceSessionId={props.referenceSessionId}
               refMediaCount={props.refMediaCount}
+              plausibilityCount={plausibilityCount}
               section="top"
             />
           </div>
@@ -883,6 +901,7 @@ function HeroDensityLayout(props: HeroSharedProps) {
               earliestSessionYear={props.earliestSessionYear}
               referenceSessionId={props.referenceSessionId}
               refMediaCount={props.refMediaCount}
+              plausibilityCount={plausibilityCount}
               section="bottom"
             />
           </div>
@@ -900,6 +919,7 @@ function HeroDensityLayout(props: HeroSharedProps) {
             earliestSessionYear={props.earliestSessionYear}
             referenceSessionId={props.referenceSessionId}
             refMediaCount={props.refMediaCount}
+            plausibilityCount={plausibilityCount}
             section="all"
           />
           <div className="rounded-lg bg-white/[0.02] px-4 py-1">
@@ -939,6 +959,7 @@ function HeroCard({
   onAliasesBadgeClick,
   onAppearanceClick,
   aliasesWithChannels,
+  plausibilityCount = 0,
 }: {
   person: PersonData;
   currentState: PersonCurrentState;
@@ -954,6 +975,7 @@ function HeroCard({
   onAliasesBadgeClick?: () => void;
   onAppearanceClick?: () => void;
   aliasesWithChannels?: PersonAliasWithChannels[];
+  plausibilityCount?: number;
 }) {
   const commonAlias = person.aliases.find((a) => a.type === "common");
 
@@ -1010,6 +1032,7 @@ function HeroCard({
     heroAliases,
     onAliasesBadgeClick,
     onAppearanceClick,
+    plausibilityCount,
   };
 
   return <HeroDensityLayout {...sharedProps} />;
@@ -1207,16 +1230,67 @@ function AboutCard({ person, referencePhotos }: { person: PersonData; referenceP
   );
 }
 
+function DataQualityCard({ issues, onTabSwitch }: { issues: PlausibilityIssue[]; onTabSwitch?: (tab: string) => void }) {
+  if (issues.length === 0) return null;
+  const warnings = issues.filter((i) => i.severity === "warning");
+  const infos = issues.filter((i) => i.severity === "info");
+
+  return (
+    <SectionCard
+      title="Data Quality"
+      icon={<AlertTriangle size={18} className="text-amber-500" />}
+      badge={issues.length}
+    >
+      <div className="space-y-1.5">
+        {warnings.map((issue) => (
+          <div key={issue.id} className="flex items-start gap-2 text-sm">
+            <AlertTriangle size={14} className="mt-0.5 shrink-0 text-amber-500" />
+            <span className="flex-1">{issue.message}</span>
+            {issue.fixTab && onTabSwitch && (
+              <button
+                type="button"
+                className="shrink-0 text-xs text-primary hover:underline"
+                onClick={() => onTabSwitch(issue.fixTab!)}
+              >
+                Fix
+              </button>
+            )}
+          </div>
+        ))}
+        {infos.map((issue) => (
+          <div key={issue.id} className="flex items-start gap-2 text-sm text-muted-foreground">
+            <Info size={14} className="mt-0.5 shrink-0 text-blue-400" />
+            <span className="flex-1">{issue.message}</span>
+            {issue.fixTab && onTabSwitch && (
+              <button
+                type="button"
+                className="shrink-0 text-xs text-primary hover:underline"
+                onClick={() => onTabSwitch(issue.fixTab!)}
+              >
+                Fix
+              </button>
+            )}
+          </div>
+        ))}
+      </div>
+    </SectionCard>
+  );
+}
+
 function OverviewTab({
   person,
   currentState,
   sessionWorkHistory,
   referencePhotos,
+  plausibilityIssues = [],
+  onTabSwitch,
 }: {
   person: PersonData;
   currentState: PersonCurrentState;
   sessionWorkHistory?: PersonSessionWorkEntry[];
   referencePhotos?: GalleryItem[];
+  plausibilityIssues?: PlausibilityIssue[];
+  onTabSwitch?: (tab: string) => void;
 }) {
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const hasDigitalIdentities = currentState.activeDigitalIdentities.length > 0;
@@ -1229,6 +1303,9 @@ function OverviewTab({
     <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
       {/* 1. About */}
       <AboutCard person={person} referencePhotos={referencePhotos} />
+
+      {/* 1b. Data Quality */}
+      <DataQualityCard issues={plausibilityIssues} onTabSwitch={onTabSwitch} />
 
       {/* 2. Recent Work | Recent Photos */}
       {recentWork.length > 0 && (
@@ -1368,11 +1445,14 @@ function CareerTab({
   return (
     <div className="space-y-6">
       {/* Professional Summary */}
-      {(person.activeSince || person.specialization) && (
+      {(person.activeFrom || person.specialization) && (
         <SectionCard title="Professional" icon={<Briefcase size={18} />}>
           <dl className="grid grid-cols-1 gap-2 sm:grid-cols-2 text-sm">
-            {person.activeSince && (
-              <InfoRow label="Active since" value={person.activeSince} />
+            {person.activeFrom && (
+              <InfoRow label="Active from" value={formatDateDMY(person.activeFrom, person.activeFromPrecision)} />
+            )}
+            {person.retiredAt && (
+              <InfoRow label="Retired" value={formatDateDMY(person.retiredAt, person.retiredAtPrecision)} />
             )}
             {person.specialization && (
               <InfoRow label="Specialization" value={person.specialization} />
@@ -1620,6 +1700,7 @@ export function PersonDetailTabs({
   productionSessions,
   entityMedia,
   refMediaCount,
+  plausibilityIssues = [],
 }: PersonDetailTabsProps) {
   const [activeTab, setActiveTab] = useState<TabId>("overview");
 
@@ -1689,6 +1770,7 @@ export function PersonDetailTabs({
         onAliasesBadgeClick={handleAliasesBadgeClick}
         onAppearanceClick={handleAppearanceClick}
         aliasesWithChannels={aliasesWithChannels}
+        plausibilityCount={plausibilityIssues.length}
       />
 
       {/* Tab bar — scrollable on mobile */}
@@ -1744,6 +1826,8 @@ export function PersonDetailTabs({
             currentState={currentState}
             sessionWorkHistory={sessionWorkHistory}
             referencePhotos={photos}
+            plausibilityIssues={plausibilityIssues}
+            onTabSwitch={(tab) => setActiveTab(tab as TabId)}
           />
         )}
       </div>
