@@ -136,7 +136,7 @@ export function EditPersonSheet({ person }: EditPersonSheetProps) {
       setOpen(v);
       if (v) form.reset(getDefaults());
     }}>
-      <Button size="sm" variant="outline" onClick={() => setOpen(true)}>
+      <Button size="sm" variant="outline" onClick={() => setOpen(true)} data-edit-person-trigger>
         <Pencil size={16} />
         Edit
       </Button>

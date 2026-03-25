@@ -46,6 +46,7 @@ import {
   Pencil,
   Info,
   AlertTriangle,
+  ArrowUpDown,
 } from "lucide-react";
 import NextImage from "next/image";
 import Link from "next/link";
@@ -235,7 +236,13 @@ function HistoryPanel({
 }) {
   const [timelineOpen, setTimelineOpen] = useState(defaultOpen);
   const [showNewPersona, setShowNewPersona] = useState(false);
-  const visiblePersonas = personas;
+  const [newestFirst, setNewestFirst] = useState(true);
+  const visiblePersonas = useMemo(() => {
+    if (newestFirst) {
+      return [...personas].reverse();
+    }
+    return personas;
+  }, [personas, newestFirst]);
 
   if (visiblePersonas.length === 0 && !showNewPersona) {
     return (
@@ -279,6 +286,16 @@ function HistoryPanel({
             </>
           )}
         </button>
+        {timelineOpen && (
+          <button
+            type="button"
+            onClick={() => setNewestFirst(!newestFirst)}
+            className="flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
+            title={newestFirst ? "Showing newest first" : "Showing oldest first"}
+          >
+            <ArrowUpDown size={12} /> {newestFirst ? "Newest" : "Oldest"}
+          </button>
+        )}
         <button
           type="button"
           onClick={() => setShowNewPersona(true)}
@@ -289,13 +306,23 @@ function HistoryPanel({
       </div>
       {timelineOpen && (
         <div className="relative space-y-4">
-          <div
-            className="absolute left-1.5 top-3 bottom-3 w-px bg-white/10"
-            aria-hidden="true"
-          />
-          {visiblePersonas.map((persona) => (
-            <PersonaTimelineEntry key={persona.id} persona={persona} personId={personId} />
-          ))}
+          {visiblePersonas.map((persona, i) => {
+            const isFirst = i === 0;
+            const isLast = i === visiblePersonas.length - 1;
+            // In newest-first: open future extends above first entry, line stops at baseline (last)
+            // In oldest-first: line starts at baseline (first), open future extends below last entry
+            const connectAbove = newestFirst ? true : !isFirst;
+            const connectBelow = newestFirst ? !isLast : true;
+            return (
+              <PersonaTimelineEntry
+                key={persona.id}
+                persona={persona}
+                personId={personId}
+                connectAbove={connectAbove}
+                connectBelow={connectBelow}
+              />
+            );
+          })}
         </div>
       )}
       {showNewPersona && (
@@ -1229,7 +1256,7 @@ function AboutCard({ person, referencePhotos }: { person: PersonData; referenceP
   );
 }
 
-function DataQualityCard({ issues, onTabSwitch }: { issues: PlausibilityIssue[]; onTabSwitch?: (tab: string) => void }) {
+function DataQualityCard({ issues, onTabSwitch, onEditPerson }: { issues: PlausibilityIssue[]; onTabSwitch?: (tab: string) => void; onEditPerson?: () => void }) {
   if (issues.length === 0) return null;
   const warnings = issues.filter((i) => i.severity === "warning");
   const infos = issues.filter((i) => i.severity === "info");
@@ -1241,36 +1268,48 @@ function DataQualityCard({ issues, onTabSwitch }: { issues: PlausibilityIssue[];
       badge={issues.length}
     >
       <div className="space-y-1.5">
-        {warnings.map((issue) => (
-          <div key={issue.id} className="flex items-start gap-2 text-sm">
-            <AlertTriangle size={14} className="mt-0.5 shrink-0 text-amber-500" />
-            <span className="flex-1">{issue.message}</span>
-            {issue.fixTab && onTabSwitch && (
-              <button
-                type="button"
-                className="shrink-0 text-xs text-primary hover:underline"
-                onClick={() => onTabSwitch(issue.fixTab!)}
-              >
-                Fix
-              </button>
-            )}
-          </div>
-        ))}
-        {infos.map((issue) => (
-          <div key={issue.id} className="flex items-start gap-2 text-sm text-muted-foreground">
-            <Info size={14} className="mt-0.5 shrink-0 text-blue-400" />
-            <span className="flex-1">{issue.message}</span>
-            {issue.fixTab && onTabSwitch && (
-              <button
-                type="button"
-                className="shrink-0 text-xs text-primary hover:underline"
-                onClick={() => onTabSwitch(issue.fixTab!)}
-              >
-                Fix
-              </button>
-            )}
-          </div>
-        ))}
+        {warnings.map((issue) => {
+          const canFix = (issue.fixTab && onTabSwitch) || (issue.fixAction === "edit-person" && onEditPerson);
+          return (
+            <div key={issue.id} className="flex items-start gap-2 text-sm">
+              <AlertTriangle size={14} className="mt-0.5 shrink-0 text-amber-500" />
+              <span className="flex-1">{issue.message}</span>
+              {canFix && (
+                <button
+                  type="button"
+                  className="shrink-0 text-xs text-primary hover:underline"
+                  onClick={() => {
+                    if (issue.fixAction === "edit-person" && onEditPerson) onEditPerson();
+                    else if (issue.fixTab && onTabSwitch) onTabSwitch(issue.fixTab);
+                  }}
+                >
+                  Fix
+                </button>
+              )}
+            </div>
+          );
+        })}
+        {infos.map((issue) => {
+          const canFix = (issue.fixTab && onTabSwitch) || (issue.fixAction === "edit-person" && onEditPerson);
+          return (
+            <div key={issue.id} className="flex items-start gap-2 text-sm text-muted-foreground">
+              <Info size={14} className="mt-0.5 shrink-0 text-blue-400" />
+              <span className="flex-1">{issue.message}</span>
+              {canFix && (
+                <button
+                  type="button"
+                  className="shrink-0 text-xs text-primary hover:underline"
+                  onClick={() => {
+                    if (issue.fixAction === "edit-person" && onEditPerson) onEditPerson();
+                    else if (issue.fixTab && onTabSwitch) onTabSwitch(issue.fixTab);
+                  }}
+                >
+                  Fix
+                </button>
+              )}
+            </div>
+          );
+        })}
       </div>
     </SectionCard>
   );
@@ -1304,7 +1343,15 @@ function OverviewTab({
       <AboutCard person={person} referencePhotos={referencePhotos} />
 
       {/* 1b. Data Quality */}
-      <DataQualityCard issues={plausibilityIssues} onTabSwitch={onTabSwitch} />
+      <DataQualityCard
+        issues={plausibilityIssues}
+        onTabSwitch={onTabSwitch}
+        onEditPerson={() => {
+          // Click the page-level Edit button to open EditPersonSheet
+          const editBtn = document.querySelector<HTMLButtonElement>("[data-edit-person-trigger]");
+          editBtn?.click();
+        }}
+      />
 
       {/* 2. Recent Work | Recent Photos */}
       {recentWork.length > 0 && (

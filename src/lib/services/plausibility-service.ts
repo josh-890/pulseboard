@@ -7,6 +7,7 @@ export type PlausibilityIssue = {
   message: string;
   fixHint?: string;
   fixTab?: string;
+  fixAction?: "edit-person";
 };
 
 type PersonData = {
@@ -38,7 +39,7 @@ export function computePlausibilityIssues(person: PersonData): PlausibilityIssue
       category: "identity",
       message: "No birthdate set",
       fixHint: "Add birthdate in Edit Person",
-      fixTab: "overview",
+      fixAction: "edit-person",
     });
   } else if (person.birthdatePrecision === "YEAR") {
     issues.push({
@@ -47,7 +48,7 @@ export function computePlausibilityIssues(person: PersonData): PlausibilityIssue
       category: "identity",
       message: "Birthdate has only year precision",
       fixHint: "Add month/day to birthdate",
-      fixTab: "overview",
+      fixAction: "edit-person",
     });
   }
 
@@ -75,7 +76,7 @@ export function computePlausibilityIssues(person: PersonData): PlausibilityIssue
       category: "identity",
       message: "Birthdate marked as exact but has low precision",
       fixHint: "Set modifier to Approximate or add more date precision",
-      fixTab: "overview",
+      fixAction: "edit-person",
     });
   }
 
@@ -91,7 +92,7 @@ export function computePlausibilityIssues(person: PersonData): PlausibilityIssue
       category: "career",
       message: "Active person with no career start date",
       fixHint: "Set Active From in Edit Person",
-      fixTab: "overview",
+      fixAction: "edit-person",
     });
   }
 
@@ -102,7 +103,7 @@ export function computePlausibilityIssues(person: PersonData): PlausibilityIssue
       category: "career",
       message: "Status is active but retirement date is set",
       fixHint: "Clear retirement date or change status to inactive",
-      fixTab: "overview",
+      fixAction: "edit-person",
     });
   }
 
@@ -113,7 +114,7 @@ export function computePlausibilityIssues(person: PersonData): PlausibilityIssue
       category: "career",
       message: "Status is inactive but no retirement date",
       fixHint: "Set Retired At in Edit Person",
-      fixTab: "overview",
+      fixAction: "edit-person",
     });
   }
 
@@ -127,7 +128,7 @@ export function computePlausibilityIssues(person: PersonData): PlausibilityIssue
         category: "timeline",
         message: "Birthdate is in the future",
         fixHint: "Check birthdate in Edit Person",
-        fixTab: "overview",
+        fixAction: "edit-person",
       });
     }
 
@@ -140,7 +141,7 @@ export function computePlausibilityIssues(person: PersonData): PlausibilityIssue
         category: "timeline",
         message: `Current age would be ${ageYears} — verify birthdate`,
         fixHint: "Check birthdate in Edit Person",
-        fixTab: "overview",
+        fixAction: "edit-person",
       });
     }
 
@@ -152,7 +153,7 @@ export function computePlausibilityIssues(person: PersonData): PlausibilityIssue
         category: "timeline",
         message: "Career start is before birthdate",
         fixHint: "Check Active From date",
-        fixTab: "overview",
+        fixAction: "edit-person",
       });
     }
 
@@ -166,7 +167,7 @@ export function computePlausibilityIssues(person: PersonData): PlausibilityIssue
           category: "timeline",
           message: `Career start age is ${startAge} — verify dates`,
           fixHint: "Check birthdate or Active From",
-          fixTab: "overview",
+          fixAction: "edit-person",
         });
       }
     }
@@ -195,7 +196,7 @@ export function computePlausibilityIssues(person: PersonData): PlausibilityIssue
       category: "timeline",
       message: "Retirement date is before career start",
       fixHint: "Check Active From and Retired At dates",
-      fixTab: "overview",
+      fixAction: "edit-person",
     });
   }
 

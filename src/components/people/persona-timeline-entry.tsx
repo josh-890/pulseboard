@@ -13,9 +13,11 @@ type PersonaItem = NonNullable<Awaited<ReturnType<typeof getPersonWithDetails>>>
 type PersonaTimelineEntryProps = {
   persona: PersonaItem;
   personId: string;
+  connectAbove?: boolean;
+  connectBelow?: boolean;
 };
 
-export function PersonaTimelineEntry({ persona, personId }: PersonaTimelineEntryProps) {
+export function PersonaTimelineEntry({ persona, personId, connectAbove, connectBelow }: PersonaTimelineEntryProps) {
   const [editing, setEditing] = useState(false);
   const hasPhysical = !!persona.physicalChange;
   const physicalFields = hasPhysical
@@ -29,6 +31,20 @@ export function PersonaTimelineEntry({ persona, personId }: PersonaTimelineEntry
   return (
     <>
       <div className="group relative pl-6">
+        {/* Timeline connector lines */}
+        {connectAbove && (
+          <div
+            className="absolute left-[5px] top-0 h-[14px] w-px bg-white/10"
+            aria-hidden="true"
+          />
+        )}
+        {connectBelow && (
+          <div
+            className="absolute left-[5px] top-[14px] w-px bg-white/10"
+            style={{ bottom: "-1rem" }}
+            aria-hidden="true"
+          />
+        )}
         {/* Timeline dot */}
         <div
           className={cn(

@@ -65,6 +65,7 @@ export function BodyModificationRow({
   const year = firstEvent?.persona.date
     ? new Date(firstEvent.persona.date).getFullYear()
     : null;
+  const isBaselineDate = firstEvent?.persona.isBaseline ?? false;
 
   return (
     <div className="group rounded-lg border border-white/10 bg-card/30 transition-colors hover:border-white/15">
@@ -112,7 +113,16 @@ export function BodyModificationRow({
           </span>
         )}
         {year && (
-          <span className="shrink-0 text-[11px] text-muted-foreground">{year}</span>
+          isBaselineDate ? (
+            <span
+              className="shrink-0 rounded-full border border-white/10 bg-muted/40 px-1.5 py-0.5 text-[10px] text-muted-foreground"
+              title="Year derived from baseline persona"
+            >
+              baseline
+            </span>
+          ) : (
+            <span className="shrink-0 text-[11px] text-muted-foreground">{year}</span>
+          )
         )}
       </button>
 
