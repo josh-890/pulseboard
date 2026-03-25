@@ -548,11 +548,11 @@ const DENSITY_CONFIGS: Record<HeroLayout, HeroDensityConfig> = {
 
 function formatDateDMY(date: Date, precision: string): string {
   if (precision === "UNKNOWN") return "";
-  const y = date.getFullYear();
+  const y = date.getUTCFullYear();
   if (precision === "YEAR") return `${y}`;
-  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const m = String(date.getUTCMonth() + 1).padStart(2, "0");
   if (precision === "MONTH") return `${m}/${y}`;
-  const d = String(date.getDate()).padStart(2, "0");
+  const d = String(date.getUTCDate()).padStart(2, "0");
   return `${d}/${m}/${y}`;
 }
 
@@ -562,8 +562,8 @@ function CareerTimeline({ activeFrom, retiredAt, birthYear, earliestSessionYear 
   birthYear: number | null;
   earliestSessionYear: number | null;
 }) {
-  const activeFromYear = activeFrom ? activeFrom.getFullYear() : null;
-  const retiredAtYear = retiredAt ? retiredAt.getFullYear() : null;
+  const activeFromYear = activeFrom ? activeFrom.getUTCFullYear() : null;
+  const retiredAtYear = retiredAt ? retiredAt.getUTCFullYear() : null;
 
   // Effective start: explicit activeFrom, or fallback to earliest session year
   const effectiveStart = activeFromYear ?? earliestSessionYear;
@@ -573,7 +573,7 @@ function CareerTimeline({ activeFrom, retiredAt, birthYear, earliestSessionYear 
   const retired = retiredAtYear !== null;
   const conflict = activeFromYear !== null && earliestSessionYear !== null && earliestSessionYear < activeFromYear;
 
-  const currentYear = new Date().getFullYear();
+  const currentYear = new Date().getUTCFullYear();
   const endYear = retiredAtYear ?? currentYear;
   const duration = endYear - effectiveStart;
   const startAge = birthYear ? effectiveStart - birthYear : null;
@@ -819,7 +819,7 @@ function IdentityBlock({ person, displayName, age, heroAliases, onAliasesBadgeCl
         <CareerTimeline
           activeFrom={person.activeFrom}
           retiredAt={person.retiredAt}
-          birthYear={person.birthdate ? person.birthdate.getFullYear() : null}
+          birthYear={person.birthdate ? person.birthdate.getUTCFullYear() : null}
           earliestSessionYear={earliestSessionYear ?? null}
         />
       )}
@@ -1256,62 +1256,44 @@ function AboutCard({ person, referencePhotos }: { person: PersonData; referenceP
   );
 }
 
-function DataQualityCard({ issues, onTabSwitch, onEditPerson }: { issues: PlausibilityIssue[]; onTabSwitch?: (tab: string) => void; onEditPerson?: () => void }) {
+function DataQualityBanner({ issues, onTabSwitch, onEditPerson }: { issues: PlausibilityIssue[]; onTabSwitch?: (tab: string) => void; onEditPerson?: () => void }) {
   if (issues.length === 0) return null;
-  const warnings = issues.filter((i) => i.severity === "warning");
-  const infos = issues.filter((i) => i.severity === "info");
 
   return (
-    <SectionCard
-      title="Data Quality"
-      icon={<AlertTriangle size={18} className="text-amber-500" />}
-      badge={issues.length}
-    >
-      <div className="space-y-1.5">
-        {warnings.map((issue) => {
-          const canFix = (issue.fixTab && onTabSwitch) || (issue.fixAction === "edit-person" && onEditPerson);
-          return (
-            <div key={issue.id} className="flex items-start gap-2 text-sm">
-              <AlertTriangle size={14} className="mt-0.5 shrink-0 text-amber-500" />
-              <span className="flex-1">{issue.message}</span>
-              {canFix && (
-                <button
-                  type="button"
-                  className="shrink-0 text-xs text-primary hover:underline"
-                  onClick={() => {
-                    if (issue.fixAction === "edit-person" && onEditPerson) onEditPerson();
-                    else if (issue.fixTab && onTabSwitch) onTabSwitch(issue.fixTab);
-                  }}
-                >
-                  Fix
-                </button>
-              )}
-            </div>
-          );
-        })}
-        {infos.map((issue) => {
-          const canFix = (issue.fixTab && onTabSwitch) || (issue.fixAction === "edit-person" && onEditPerson);
-          return (
-            <div key={issue.id} className="flex items-start gap-2 text-sm text-muted-foreground">
-              <Info size={14} className="mt-0.5 shrink-0 text-blue-400" />
-              <span className="flex-1">{issue.message}</span>
-              {canFix && (
-                <button
-                  type="button"
-                  className="shrink-0 text-xs text-primary hover:underline"
-                  onClick={() => {
-                    if (issue.fixAction === "edit-person" && onEditPerson) onEditPerson();
-                    else if (issue.fixTab && onTabSwitch) onTabSwitch(issue.fixTab);
-                  }}
-                >
-                  Fix
-                </button>
-              )}
-            </div>
-          );
-        })}
+    <div className="md:col-span-2 rounded-xl border border-amber-500/20 bg-amber-500/5 px-4 py-3 backdrop-blur-sm">
+      <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5">
+        <div className="flex items-center gap-1.5 text-sm font-medium text-amber-500">
+          <AlertTriangle size={14} />
+          <span>{issues.length} data quality {issues.length === 1 ? "issue" : "issues"}</span>
+        </div>
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+          {issues.map((issue) => {
+            const canFix = (issue.fixTab && onTabSwitch) || (issue.fixAction === "edit-person" && onEditPerson);
+            return (
+              <div key={issue.id} className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                {issue.severity === "warning"
+                  ? <AlertTriangle size={12} className="shrink-0 text-amber-500/70" />
+                  : <Info size={12} className="shrink-0 text-blue-400/70" />
+                }
+                <span>{issue.message}</span>
+                {canFix && (
+                  <button
+                    type="button"
+                    className="text-xs font-medium text-primary hover:underline"
+                    onClick={() => {
+                      if (issue.fixAction === "edit-person" && onEditPerson) onEditPerson();
+                      else if (issue.fixTab && onTabSwitch) onTabSwitch(issue.fixTab);
+                    }}
+                  >
+                    Fix
+                  </button>
+                )}
+              </div>
+            );
+          })}
+        </div>
       </div>
-    </SectionCard>
+    </div>
   );
 }
 
@@ -1339,11 +1321,8 @@ function OverviewTab({
 
   return (
     <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-      {/* 1. About */}
-      <AboutCard person={person} referencePhotos={referencePhotos} />
-
-      {/* 1b. Data Quality */}
-      <DataQualityCard
+      {/* 1. Data Quality */}
+      <DataQualityBanner
         issues={plausibilityIssues}
         onTabSwitch={onTabSwitch}
         onEditPerson={() => {
@@ -1353,7 +1332,10 @@ function OverviewTab({
         }}
       />
 
-      {/* 2. Recent Work | Recent Photos */}
+      {/* 2. About */}
+      <AboutCard person={person} referencePhotos={referencePhotos} />
+
+      {/* 3. Recent Work | Recent Photos */}
       {recentWork.length > 0 && (
         <SectionCard title="Recent Work" icon={<Film size={18} />} badge={recentWork.length}>
           <div className="space-y-2">
@@ -1773,7 +1755,7 @@ export function PersonDetailTabs({
     let min: number | null = null;
     for (const e of entries) {
       if (e.sessionDate) {
-        const y = new Date(e.sessionDate).getFullYear();
+        const y = new Date(e.sessionDate).getUTCFullYear();
         if (min === null || y < min) min = y;
       }
     }

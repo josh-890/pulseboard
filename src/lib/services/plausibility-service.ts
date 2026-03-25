@@ -1,4 +1,4 @@
-import type { PersonWithCommonAlias } from "@/lib/types";
+import type { PersonWithCommonAlias, ParticipationConfidence } from "@/lib/types";
 
 export type PlausibilityIssue = {
   id: string;
@@ -8,6 +8,12 @@ export type PlausibilityIssue = {
   fixHint?: string;
   fixTab?: string;
   fixAction?: "edit-person";
+};
+
+type ContributionData = {
+  confidence: ParticipationConfidence;
+  sessionDate: Date | null;
+  sessionDatePrecision: string;
 };
 
 type PersonData = {
@@ -21,6 +27,7 @@ type PersonData = {
   retiredAtPrecision: string;
   aliases: { type: string }[];
   personas: { isBaseline: boolean; date: Date | null; datePrecision: string }[];
+  contributions?: ContributionData[];
 };
 
 /**
@@ -133,7 +140,7 @@ export function computePlausibilityIssues(person: PersonData): PlausibilityIssue
     }
 
     // Age > 100
-    const ageYears = now.getFullYear() - person.birthdate.getFullYear();
+    const ageYears = now.getUTCFullYear() - person.birthdate.getUTCFullYear();
     if (ageYears > 100 && person.birthdatePrecision !== "UNKNOWN") {
       issues.push({
         id: "age-over-100",
@@ -159,7 +166,7 @@ export function computePlausibilityIssues(person: PersonData): PlausibilityIssue
 
     // Career started too young (< 16)
     if (person.activeFrom && person.activeFrom >= person.birthdate) {
-      const startAge = person.activeFrom.getFullYear() - person.birthdate.getFullYear();
+      const startAge = person.activeFrom.getUTCFullYear() - person.birthdate.getUTCFullYear();
       if (startAge < 16) {
         issues.push({
           id: "career-start-too-young",
@@ -182,6 +189,24 @@ export function computePlausibilityIssues(person: PersonData): PlausibilityIssue
         severity: "warning",
         category: "timeline",
         message: "A persona has a date before birthdate",
+        fixHint: "Check persona dates in Appearance tab",
+        fixTab: "appearance",
+      });
+    }
+  }
+
+  // Persona dates before baseline
+  const baseline = person.personas.find((p) => p.isBaseline);
+  if (baseline?.date && baseline.datePrecision !== "UNKNOWN") {
+    const preBaselinePersonas = person.personas.filter(
+      (p) => !p.isBaseline && p.date && p.datePrecision !== "UNKNOWN" && p.date < baseline.date!,
+    );
+    if (preBaselinePersonas.length > 0) {
+      issues.push({
+        id: "persona-before-baseline",
+        severity: "warning",
+        category: "timeline",
+        message: `${preBaselinePersonas.length} persona(s) dated before baseline (${baseline.date.getUTCFullYear()})`,
         fixHint: "Check persona dates in Appearance tab",
         fixTab: "appearance",
       });
@@ -215,17 +240,67 @@ export function computePlausibilityIssues(person: PersonData): PlausibilityIssue
     });
   }
 
+  // ── Participation vs baseline ─────────────────────────────────────────
+  if (baseline?.date && baseline.datePrecision !== "UNKNOWN" && person.contributions) {
+    const confirmedOrProbableBefore = person.contributions.filter(
+      (c) =>
+        (c.confidence === "CONFIRMED" || c.confidence === "PROBABLE") &&
+        c.sessionDate &&
+        c.sessionDatePrecision !== "UNKNOWN" &&
+        c.sessionDate < baseline.date!,
+    );
+    if (confirmedOrProbableBefore.length > 0) {
+      issues.push({
+        id: "participation-before-baseline",
+        severity: "warning",
+        category: "timeline",
+        message: `${confirmedOrProbableBefore.length} confirmed/probable participation(s) before baseline date`,
+        fixHint: "Verify session dates or adjust baseline persona date",
+        fixTab: "career",
+      });
+    }
+
+    const possibleBefore = person.contributions.filter(
+      (c) =>
+        c.confidence === "POSSIBLE" &&
+        c.sessionDate &&
+        c.sessionDatePrecision !== "UNKNOWN" &&
+        c.sessionDate < baseline.date!,
+    );
+    if (possibleBefore.length > 0) {
+      issues.push({
+        id: "possible-participation-before-baseline",
+        severity: "info",
+        category: "timeline",
+        message: `${possibleBefore.length} possible participation(s) before baseline date`,
+        fixHint: "Review uncertain participations or adjust baseline date",
+        fixTab: "career",
+      });
+    }
+  }
+
   return issues;
 }
 
 /**
- * Quick plausibility count for list view. Uses only data in PersonWithCommonAlias.
+ * Quick plausibility count for list view. Delegates to computePlausibilityIssues
+ * with available list-view data. Persona-related checks are skipped (empty array).
  * Returns 0 for clean persons.
  */
 export function getQuickPlausibilityCount(person: PersonWithCommonAlias): number {
-  let count = 0;
-  if (!person.birthdate) count++;
-  if (!person.commonAlias) count++;
-  if (person.status === "active" && person.retiredAt !== null) count++;
-  return count;
+  const aliases: { type: string }[] = [];
+  if (person.commonAlias) aliases.push({ type: "common" });
+
+  return computePlausibilityIssues({
+    birthdate: person.birthdate,
+    birthdatePrecision: person.birthdatePrecision,
+    birthdateModifier: person.birthdateModifier,
+    status: person.status,
+    activeFrom: person.activeFrom,
+    activeFromPrecision: person.activeFromPrecision,
+    retiredAt: person.retiredAt,
+    retiredAtPrecision: person.retiredAtPrecision,
+    aliases,
+    personas: [],
+  }).length;
 }

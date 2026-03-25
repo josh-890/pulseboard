@@ -71,6 +71,11 @@ export default async function PersonDetailPage({ params }: PersonDetailPageProps
     retiredAtPrecision: person.retiredAtPrecision,
     aliases: person.aliases,
     personas: person.personas,
+    contributions: sessionWorkHistory.map((s) => ({
+      confidence: s.confidence,
+      sessionDate: s.sessionDate,
+      sessionDatePrecision: s.sessionDatePrecision,
+    })),
   });
 
   // Compute Calculated PGRADE (CP) = max skill definition pgrade across active skills

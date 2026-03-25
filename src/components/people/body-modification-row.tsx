@@ -63,7 +63,7 @@ export function BodyModificationRow({
   const photoCount = photos?.length ?? 0;
   const firstEvent = modification.events.find((e) => e.eventType === "added");
   const year = firstEvent?.persona.date
-    ? new Date(firstEvent.persona.date).getFullYear()
+    ? new Date(firstEvent.persona.date).getUTCFullYear()
     : null;
   const isBaselineDate = firstEvent?.persona.isBaseline ?? false;
 

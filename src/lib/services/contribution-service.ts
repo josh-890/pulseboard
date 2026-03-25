@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/db";
-import type { SkillLevel } from "@/generated/prisma/client";
+import type { SkillLevel, ParticipationConfidence, ConfidenceSource } from "@/generated/prisma/client";
 import { SKILL_LEVEL_VALUE } from "@/lib/constants/skill";
+import { CONFIDENCE_RANK } from "@/lib/constants/confidence";
 import { buildUrl } from "@/lib/media-url";
 import type { TxClient } from "./cascade-helpers";
 
@@ -39,7 +40,13 @@ export async function addSessionContribution(
   sessionId: string,
   personId: string,
   roleDefinitionId: string,
-  opts?: { creditNameOverride?: string; notes?: string },
+  opts?: {
+    creditNameOverride?: string;
+    notes?: string;
+    confidence?: ParticipationConfidence;
+    confidenceSource?: ConfidenceSource;
+    confirmedAt?: Date | null;
+  },
 ) {
   return prisma.sessionContribution.create({
     data: {
@@ -48,6 +55,9 @@ export async function addSessionContribution(
       roleDefinitionId,
       creditNameOverride: opts?.creditNameOverride ?? null,
       notes: opts?.notes ?? null,
+      confidence: opts?.confidence ?? "CONFIRMED",
+      confidenceSource: opts?.confidenceSource ?? "MANUAL",
+      confirmedAt: opts?.confirmedAt ?? null,
     },
   });
 }
@@ -461,6 +471,7 @@ export async function removeMediaFromContributionSkill(
 /**
  * Rebuilds SetParticipant for a set from SessionContribution via SetSession links.
  * Wipe + rebuild pattern ensures consistency.
+ * Deduplicates by (personId, roleDefinitionId), keeping the highest confidence.
  */
 export async function rebuildSetParticipantsFromContributions(
   tx: TxClient,
@@ -478,25 +489,89 @@ export async function rebuildSetParticipantsFromContributions(
 
   const sessionIds = links.map((l) => l.sessionId);
 
-  // 2. Get all contributions from linked sessions
+  // 2. Get all contributions with confidence fields
   const contributions = await tx.sessionContribution.findMany({
     where: { sessionId: { in: sessionIds } },
-    select: { personId: true, roleDefinitionId: true },
-    distinct: ["personId", "roleDefinitionId"],
+    select: {
+      personId: true,
+      roleDefinitionId: true,
+      confidence: true,
+      confidenceSource: true,
+      confirmedAt: true,
+    },
   });
 
-  // 3. Wipe existing set participants
+  // 3. Dedup by (personId, roleDefinitionId), keeping highest confidence
+  const dedupMap = new Map<
+    string,
+    {
+      personId: string;
+      roleDefinitionId: string;
+      confidence: ParticipationConfidence;
+      confidenceSource: ConfidenceSource;
+      confirmedAt: Date | null;
+    }
+  >();
+  for (const c of contributions) {
+    const key = `${c.personId}:${c.roleDefinitionId}`;
+    const existing = dedupMap.get(key);
+    if (!existing || CONFIDENCE_RANK[c.confidence] > CONFIDENCE_RANK[existing.confidence]) {
+      dedupMap.set(key, {
+        personId: c.personId,
+        roleDefinitionId: c.roleDefinitionId,
+        confidence: c.confidence,
+        confidenceSource: c.confidenceSource,
+        confirmedAt: c.confirmedAt,
+      });
+    }
+  }
+
+  // 4. Wipe existing set participants
   await tx.setParticipant.deleteMany({ where: { setId } });
 
-  // 4. Rebuild
-  if (contributions.length > 0) {
+  // 5. Rebuild with confidence
+  const deduped = Array.from(dedupMap.values());
+  if (deduped.length > 0) {
     await tx.setParticipant.createMany({
-      data: contributions.map((c) => ({
+      data: deduped.map((c) => ({
         setId,
         personId: c.personId,
         roleDefinitionId: c.roleDefinitionId,
+        confidence: c.confidence,
+        confidenceSource: c.confidenceSource,
+        confirmedAt: c.confirmedAt,
       })),
       skipDuplicates: true,
     });
   }
+}
+
+/**
+ * Update confidence on a SessionContribution and rebuild SetParticipant cache.
+ */
+export async function updateSessionContributionConfidence(
+  contributionId: string,
+  confidence: ParticipationConfidence,
+) {
+  return prisma.$transaction(async (tx) => {
+    const contribution = await tx.sessionContribution.update({
+      where: { id: contributionId },
+      data: {
+        confidence,
+        confidenceSource: "MANUAL",
+        confirmedAt: confidence === "CONFIRMED" ? new Date() : null,
+      },
+    });
+
+    // Rebuild SetParticipant for all sets linked to this session
+    const setLinks = await tx.setSession.findMany({
+      where: { sessionId: contribution.sessionId },
+      select: { setId: true },
+    });
+    for (const link of setLinks) {
+      await rebuildSetParticipantsFromContributions(tx, link.setId);
+    }
+
+    return contribution;
+  });
 }

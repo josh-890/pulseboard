@@ -74,7 +74,7 @@ function getDotColors(index: number, total: number, isTerminal: boolean): DotCol
 
 function getYear(date: Date | null): string {
   if (!date) return "";
-  return new Date(date).getFullYear().toString();
+  return new Date(date).getUTCFullYear().toString();
 }
 
 function TimelineDot({

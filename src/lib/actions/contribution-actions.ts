@@ -1,11 +1,12 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import type { SkillLevel } from "@/generated/prisma/client";
+import type { SkillLevel, ParticipationConfidence } from "@/generated/prisma/client";
 import {
   addSessionContribution,
   removeSessionContribution,
   updateSessionContribution,
+  updateSessionContributionConfidence,
   addContributionSkill,
   removeContributionSkill,
   updateContributionSkillLevel,
@@ -18,7 +19,12 @@ export async function addSessionContributionAction(
   sessionId: string,
   personId: string,
   roleDefinitionId: string,
-  opts?: { creditNameOverride?: string; notes?: string },
+  opts?: {
+    creditNameOverride?: string;
+    notes?: string;
+    confidence?: ParticipationConfidence;
+    confidenceSource?: "MANUAL" | "CREDIT_MATCH" | "IMPORT";
+  },
 ): Promise<SimpleActionResult> {
   try {
     await addSessionContribution(sessionId, personId, roleDefinitionId, opts);
@@ -127,6 +133,21 @@ export async function removeMediaFromContributionSkillAction(
 ): Promise<SimpleActionResult> {
   try {
     await removeMediaFromContributionSkill(contributionSkillId, mediaItemId);
+    revalidatePath(`/sessions/${sessionId}`);
+    return { success: true };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Unexpected error";
+    return { success: false, error: message };
+  }
+}
+
+export async function updateContributionConfidenceAction(
+  contributionId: string,
+  sessionId: string,
+  confidence: ParticipationConfidence,
+): Promise<SimpleActionResult> {
+  try {
+    await updateSessionContributionConfidence(contributionId, confidence);
     revalidatePath(`/sessions/${sessionId}`);
     return { success: true };
   } catch (err) {

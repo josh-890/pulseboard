@@ -41,8 +41,7 @@ export function EditPhysicalChangeSheet({ personId, item, attributeGroups, onClo
     ? ""
     : item.date
       ? (() => {
-          const d = new Date(item.date);
-          return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+          return new Date(item.date).toISOString().slice(0, 10);
         })()
       : "";
   const initPrec = item.isBaseline ? "UNKNOWN" : (item.datePrecision ?? "UNKNOWN");

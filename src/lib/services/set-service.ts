@@ -407,6 +407,9 @@ export async function createSetCreditsRaw(
               sessionId: link.sessionId,
               personId: credit.resolvedPersonId,
               roleDefinitionId: credit.roleDefinitionId,
+              confidence: "CONFIRMED",
+              confidenceSource: "CREDIT_MATCH",
+              confirmedAt: new Date(),
             },
             update: {},
           });
@@ -464,6 +467,9 @@ export async function resolveCreditRaw(creditId: string, personId: string) {
             sessionId: link.sessionId,
             personId,
             roleDefinitionId: credit.roleDefinitionId,
+            confidence: "CONFIRMED",
+            confidenceSource: "CREDIT_MATCH",
+            confirmedAt: new Date(),
           },
           update: {},
         });

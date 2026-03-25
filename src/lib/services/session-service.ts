@@ -2,6 +2,7 @@ import { prisma } from "@/lib/db";
 import type { Prisma, SessionStatus, SessionType } from "@/generated/prisma/client";
 import { cascadeDeleteSession } from "./cascade-helpers";
 import { rebuildSetParticipantsFromContributions } from "./contribution-service";
+import { CONFIDENCE_RANK } from "@/lib/constants/confidence";
 
 const personSelect = {
   select: {
@@ -350,6 +351,19 @@ export async function mergeSessionsRecord(survivingId: string, absorbedId: strin
             update: {},
           });
         }
+        // Keep higher confidence from absorbed contribution
+        const absorbedRank = CONFIDENCE_RANK[c.confidence];
+        const existingRank = CONFIDENCE_RANK[existing.confidence];
+        if (absorbedRank > existingRank) {
+          await tx.sessionContribution.update({
+            where: { id: existing.id },
+            data: {
+              confidence: c.confidence,
+              confidenceSource: c.confidenceSource,
+              confirmedAt: c.confirmedAt,
+            },
+          });
+        }
       } else {
         // Move contribution to surviving session
         await tx.contributionSkill.deleteMany({
@@ -363,6 +377,9 @@ export async function mergeSessionsRecord(survivingId: string, absorbedId: strin
             roleDefinitionId: c.roleDefinitionId,
             creditNameOverride: c.creditNameOverride,
             notes: c.notes,
+            confidence: c.confidence,
+            confidenceSource: c.confidenceSource,
+            confirmedAt: c.confirmedAt,
           },
         });
         // Re-create skills on the new contribution

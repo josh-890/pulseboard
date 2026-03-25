@@ -29,6 +29,7 @@ import {
 } from "@/lib/services/cascade-helpers";
 
 import { buildUrl } from "@/lib/media-url";
+import { CONFIDENCE_RANK } from "@/lib/constants/confidence";
 
 function mapSkillEventMedia(
   media: { mediaItem: { id: string; variants: unknown; fileRef: string | null; originalWidth: number; originalHeight: number } }[],
@@ -144,6 +145,8 @@ export async function getPersons(filters: PersonFilters = {}): Promise<PersonWit
     createdAt: p.createdAt,
     commonAlias: p.aliases.find((a) => a.type === "common")?.name ?? null,
     birthdate: p.birthdate,
+    birthdatePrecision: p.birthdatePrecision,
+    birthdateModifier: p.birthdateModifier ?? "EXACT",
     nationality: p.nationality,
     birthAlias: p.aliases.find((a) => a.type === "birth")?.name ?? null,
     completeness: 0,
@@ -431,6 +434,8 @@ export async function getPersonWorkHistory(personId: string): Promise<PersonWork
       channelName: p.set.channel?.name ?? null,
       labelId: p.set.channel?.labelMaps[0]?.label.id ?? null,
       labelName: p.set.channel?.labelMaps[0]?.label.name ?? null,
+      confidence: p.confidence,
+      confidenceSource: p.confidenceSource,
     }));
 }
 
@@ -487,7 +492,7 @@ export async function getPersonSessionWorkHistory(personId: string): Promise<Per
     },
   });
 
-  // Group by sessionId to merge multiple roles
+  // Group by sessionId to merge multiple roles (keep highest confidence)
   const sessionMap = new Map<string, PersonSessionWorkEntry>();
   for (const c of contributions) {
     const s = c.session;
@@ -495,6 +500,11 @@ export async function getPersonSessionWorkHistory(personId: string): Promise<Per
     if (existing) {
       if (!existing.roles.includes(c.roleDefinition.name)) {
         existing.roles.push(c.roleDefinition.name);
+      }
+      // Keep highest confidence across roles
+      if (CONFIDENCE_RANK[c.confidence] > CONFIDENCE_RANK[existing.confidence]) {
+        existing.confidence = c.confidence;
+        existing.confidenceSource = c.confidenceSource;
       }
     } else {
       sessionMap.set(s.id, {
@@ -515,6 +525,8 @@ export async function getPersonSessionWorkHistory(personId: string): Promise<Per
           releaseDatePrecision: link.set.releaseDatePrecision,
           channelName: link.set.channel?.name ?? null,
         })),
+        confidence: c.confidence,
+        confidenceSource: c.confidenceSource,
       });
     }
   }
@@ -556,6 +568,10 @@ export async function getPersonProductionSessions(personId: string): Promise<Per
       if (!existing.roles.includes(c.roleDefinition.name)) {
         existing.roles.push(c.roleDefinition.name);
       }
+      if (CONFIDENCE_RANK[c.confidence] > CONFIDENCE_RANK[existing.confidence]) {
+        existing.confidence = c.confidence;
+        existing.confidenceSource = c.confidenceSource;
+      }
     } else {
       sessionMap.set(s.id, {
         sessionId: s.id,
@@ -566,6 +582,8 @@ export async function getPersonProductionSessions(personId: string): Promise<Per
         roles: [c.roleDefinition.name],
         mediaCount: s._count.mediaItems,
         previewThumbnails: buildSessionThumbnails(s.mediaItems, 3),
+        confidence: c.confidence,
+        confidenceSource: c.confidenceSource,
       });
     }
   }
@@ -1015,7 +1033,7 @@ export async function createPersonRecord(data: CreatePersonInput) {
     let baselineDate: Date = new Date();
     let baselinePrecision: "UNKNOWN" | "YEAR" | "MONTH" | "DAY" = "DAY";
     if (birthDate) {
-      baselineDate = new Date(birthDate.getFullYear() + 18, 0, 1);
+      baselineDate = new Date(Date.UTC(birthDate.getUTCFullYear() + 18, 0, 1));
       baselinePrecision = "YEAR";
     }
 
@@ -1160,7 +1178,7 @@ export async function updatePersonRecord(id: string, data: UpdatePersonInput) {
           where: { personId: id, isBaseline: true },
         });
         if (baselinePersona) {
-          let anchorDate = new Date(birthDate.getFullYear() + 18, 0, 1);
+          let anchorDate = new Date(Date.UTC(birthDate.getUTCFullYear() + 18, 0, 1));
           const activeFromDate = data.activeFrom ? new Date(data.activeFrom) : null;
           if (activeFromDate && activeFromDate < anchorDate) {
             anchorDate = activeFromDate;
@@ -1392,6 +1410,8 @@ export async function getPersonsPaginated(
       createdAt: p.createdAt,
       commonAlias: p.aliases.find((a) => a.type === "common")?.name ?? null,
       birthdate: p.birthdate,
+      birthdatePrecision: p.birthdatePrecision,
+      birthdateModifier: p.birthdateModifier ?? "EXACT",
       nationality: p.nationality,
       birthAlias: p.aliases.find((a) => a.type === "birth")?.name ?? null,
       completeness: score,

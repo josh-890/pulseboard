@@ -209,6 +209,18 @@ enum SkillEventType {
   RETIRED
 }
 
+enum ParticipationConfidence {
+  CONFIRMED
+  PROBABLE
+  POSSIBLE
+}
+
+enum ConfidenceSource {
+  MANUAL
+  CREDIT_MATCH
+  IMPORT
+}
+
 // ─── Person & Aliases ─────────────────────────────────────────────────────────
 
 model Person {
@@ -866,6 +878,9 @@ model SessionContribution {
   roleDefinition     ContributionRoleDefinition @relation(fields: [roleDefinitionId], references: [id])
   creditNameOverride String?
   notes              String?
+  confidence         ParticipationConfidence     @default(CONFIRMED)
+  confidenceSource   ConfidenceSource            @default(MANUAL)
+  confirmedAt        DateTime?
   createdAt          DateTime                   @default(now())
 
   skills             ContributionSkill[]
@@ -883,6 +898,9 @@ model SetParticipant {
   person           Person                     @relation(fields: [personId], references: [id])
   roleDefinitionId String
   roleDefinition   ContributionRoleDefinition @relation(fields: [roleDefinitionId], references: [id])
+  confidence       ParticipationConfidence     @default(CONFIRMED)
+  confidenceSource ConfidenceSource            @default(MANUAL)
+  confirmedAt      DateTime?
 
   @@id([setId, personId, roleDefinitionId])
   @@index([roleDefinitionId])

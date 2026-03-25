@@ -31,13 +31,13 @@ export async function findOrCreatePersonaForDate(
     return getBaselinePersonaId(tx, personId);
   }
 
-  const year = date.getFullYear();
-  const month = date.getMonth(); // 0-indexed
+  const year = date.getUTCFullYear();
+  const month = date.getUTCMonth(); // 0-indexed
 
   if (datePrecision === "YEAR") {
     // Match any persona in the same year
-    const startOfYear = new Date(year, 0, 1);
-    const startOfNextYear = new Date(year + 1, 0, 1);
+    const startOfYear = new Date(Date.UTC(year, 0, 1));
+    const startOfNextYear = new Date(Date.UTC(year + 1, 0, 1));
 
     const existing = await tx.persona.findFirst({
       where: {
@@ -54,7 +54,7 @@ export async function findOrCreatePersonaForDate(
       data: {
         personId,
         label: `${year}`,
-        date: new Date(year, 0, 1),
+        date: new Date(Date.UTC(year, 0, 1)),
         datePrecision: "YEAR",
         isBaseline: false,
       },
@@ -63,8 +63,8 @@ export async function findOrCreatePersonaForDate(
   }
 
   // DAY or MONTH — match by same calendar month
-  const startOfMonth = new Date(year, month, 1);
-  const startOfNextMonth = new Date(year, month + 1, 1);
+  const startOfMonth = new Date(Date.UTC(year, month, 1));
+  const startOfNextMonth = new Date(Date.UTC(year, month + 1, 1));
 
   const existing = await tx.persona.findFirst({
     where: {
@@ -77,7 +77,7 @@ export async function findOrCreatePersonaForDate(
 
   if (existing) return existing.id;
 
-  const monthName = date.toLocaleString("en-US", { month: "long" });
+  const monthName = date.toLocaleString("en-US", { month: "long", timeZone: "UTC" });
   const persona = await tx.persona.create({
     data: {
       personId,

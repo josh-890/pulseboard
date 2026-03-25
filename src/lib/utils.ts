@@ -35,22 +35,27 @@ export function getDisplayName(commonAlias: string | null, icgId: string): strin
 /** Computes age in years from a birthdate. */
 export function computeAge(birthdate: Date): number {
   const now = new Date();
-  let age = now.getFullYear() - birthdate.getFullYear();
-  const monthDiff = now.getMonth() - birthdate.getMonth();
-  if (monthDiff < 0 || (monthDiff === 0 && now.getDate() < birthdate.getDate())) {
+  let age = now.getUTCFullYear() - birthdate.getUTCFullYear();
+  const monthDiff = now.getUTCMonth() - birthdate.getUTCMonth();
+  if (monthDiff < 0 || (monthDiff === 0 && now.getUTCDate() < birthdate.getUTCDate())) {
     age--;
   }
   return age;
 }
 
-/** Formats a date with partial precision support. */
+/** Formats a date with partial precision support. All dates are interpreted as UTC. */
 export function formatPartialDate(date: Date | null, precision: string): string {
   if (!date || precision === "UNKNOWN") return "Unknown";
-  if (precision === "YEAR") return date.getFullYear().toString();
+  if (precision === "YEAR") return date.getUTCFullYear().toString();
   if (precision === "MONTH") {
-    return date.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+    return date.toLocaleDateString("en-US", { month: "long", year: "numeric", timeZone: "UTC" });
   }
-  return date.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+  return date.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric", timeZone: "UTC" });
+}
+
+/** Formats a Date to a UTC YYYY-MM-DD string suitable for form inputs. */
+export function toUTCDateString(date: Date): string {
+  return date.toISOString().slice(0, 10);
 }
 
 /** Computes age from a partial birthdate. Returns "~29" for imprecise dates, "29" for exact. */
@@ -60,10 +65,10 @@ export function computeAgeFromPartialDate(
   asOf: Date = new Date(),
 ): string {
   if (!birthdate || precision === "UNKNOWN") return "Unknown";
-  let age = asOf.getFullYear() - birthdate.getFullYear();
+  let age = asOf.getUTCFullYear() - birthdate.getUTCFullYear();
   if (precision === "DAY") {
-    const monthDiff = asOf.getMonth() - birthdate.getMonth();
-    if (monthDiff < 0 || (monthDiff === 0 && asOf.getDate() < birthdate.getDate())) {
+    const monthDiff = asOf.getUTCMonth() - birthdate.getUTCMonth();
+    if (monthDiff < 0 || (monthDiff === 0 && asOf.getUTCDate() < birthdate.getUTCDate())) {
       age--;
     }
     return age.toString();
@@ -80,10 +85,10 @@ export function computeAgeAtEvent(
 ): string {
   if (!birthdate || !eventDate) return "Unknown";
   if (birthPrec === "UNKNOWN" || eventPrec === "UNKNOWN") return "Unknown";
-  let age = eventDate.getFullYear() - birthdate.getFullYear();
+  let age = eventDate.getUTCFullYear() - birthdate.getUTCFullYear();
   if (birthPrec === "DAY") {
-    const monthDiff = eventDate.getMonth() - birthdate.getMonth();
-    if (monthDiff < 0 || (monthDiff === 0 && eventDate.getDate() < birthdate.getDate())) {
+    const monthDiff = eventDate.getUTCMonth() - birthdate.getUTCMonth();
+    if (monthDiff < 0 || (monthDiff === 0 && eventDate.getUTCDate() < birthdate.getUTCDate())) {
       age--;
     }
   }

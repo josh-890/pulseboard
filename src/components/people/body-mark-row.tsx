@@ -59,7 +59,7 @@ export function BodyMarkRow({
   const photoCount = photos?.length ?? 0;
   const firstEvent = mark.events.find((e) => e.eventType === "added");
   const year = firstEvent?.persona.date
-    ? new Date(firstEvent.persona.date).getFullYear()
+    ? new Date(firstEvent.persona.date).getUTCFullYear()
     : null;
   const isBaselineDate = firstEvent?.persona.isBaseline ?? false;
 

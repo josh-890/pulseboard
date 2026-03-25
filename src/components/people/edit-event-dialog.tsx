@@ -71,8 +71,7 @@ type EditEventDialogProps = {
 
 function formatDateForInput(date: Date | null, isBaseline?: boolean): string {
   if (isBaseline || !date) return "";
-  const d = new Date(date);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  return new Date(date).toISOString().slice(0, 10);
 }
 
 export function EditEventDialog(props: EditEventDialogProps) {

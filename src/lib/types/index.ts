@@ -44,6 +44,8 @@ export type {
   SkillEventType,
   DigitalIdentityStatus,
   DateModifier,
+  ParticipationConfidence,
+  ConfidenceSource,
 } from "./person";
 
 export type {

@@ -22,6 +22,8 @@ export type {
   SkillLevel,
   SkillEventType,
   DateModifier,
+  ParticipationConfidence,
+  ConfidenceSource,
 } from "@/generated/prisma/client";
 
 import type { DigitalIdentityStatus } from "@/generated/prisma/enums";
@@ -45,6 +47,8 @@ export type PersonWithCommonAlias = {
   createdAt: Date;
   commonAlias: string | null;
   birthdate: Date | null;
+  birthdatePrecision: string;
+  birthdateModifier: string;
   nationality: string | null;
   birthAlias: string | null;
   completeness: number;
@@ -60,6 +64,8 @@ export type PersonWorkHistoryItem = {
   channelName: string | null;
   labelId: string | null;
   labelName: string | null;
+  confidence: import("@/generated/prisma/client").ParticipationConfidence;
+  confidenceSource: import("@/generated/prisma/client").ConfidenceSource;
 };
 
 export type PersonAffiliation = {
@@ -256,6 +262,8 @@ export type PersonSessionWorkEntry = {
   mediaCount: number;
   thumbnails: SessionThumbnail[];
   linkedSets: LinkedSetSummary[];
+  confidence: import("@/generated/prisma/client").ParticipationConfidence;
+  confidenceSource: import("@/generated/prisma/client").ConfidenceSource;
 };
 
 export type PersonProductionSession = {
@@ -267,6 +275,8 @@ export type PersonProductionSession = {
   roles: string[];
   mediaCount: number;
   previewThumbnails: SessionThumbnail[];
+  confidence: import("@/generated/prisma/client").ParticipationConfidence;
+  confidenceSource: import("@/generated/prisma/client").ConfidenceSource;
 };
 
 export type ExtensibleAttributeValue = {
