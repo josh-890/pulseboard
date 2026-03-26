@@ -119,6 +119,8 @@ export async function createBodyMarkAction(
           bodyMarkId: mark.id,
           personaId,
           eventType: "added",
+          date,
+          datePrecision: precision,
         },
       });
     });
@@ -171,18 +173,20 @@ export async function updateBodyMarkAction(
       if (data.singleEventDate !== undefined) {
         const events = await tx.bodyMarkEvent.findMany({
           where: { bodyMarkId: id },
-          orderBy: { persona: { date: "asc" } },
+          orderBy: { date: "asc" },
         });
         if (events.length === 1) {
           const parsedDate = data.singleEventDate ? new Date(data.singleEventDate) : null;
           const precision = (data.singleEventDatePrecision ?? "UNKNOWN") as DatePrecision;
           const targetPersonaId = await findOrCreatePersonaForDate(tx, personId, parsedDate, precision);
-          if (targetPersonaId !== events[0].personaId) {
-            await tx.bodyMarkEvent.update({
-              where: { id: events[0].id },
-              data: { personaId: targetPersonaId },
-            });
-          }
+          await tx.bodyMarkEvent.update({
+            where: { id: events[0].id },
+            data: {
+              personaId: targetPersonaId,
+              date: parsedDate,
+              datePrecision: precision,
+            },
+          });
         }
       }
     });
@@ -236,6 +240,8 @@ export async function createBodyMarkEventAction(
           personaId,
           eventType: data.eventType as BodyMarkEventType,
           notes: data.notes,
+          date: parsedDate,
+          datePrecision: precision,
           bodyRegions: data.bodyRegions ?? [],
           motif: data.motif,
           colors: data.colors ?? [],
@@ -247,7 +253,7 @@ export async function createBodyMarkEventAction(
       // Auto-update entity status from all events
       const allEvents = await tx.bodyMarkEvent.findMany({
         where: { bodyMarkId: data.bodyMarkId },
-        orderBy: { persona: { date: "asc" } },
+        orderBy: { date: "asc" },
         select: { eventType: true },
       });
       await tx.bodyMark.update({
@@ -292,6 +298,8 @@ export async function updateBodyMarkEventAction(
           personaId: targetPersonaId,
           eventType: data.eventType as BodyMarkEventType,
           notes: data.notes ?? null,
+          date: parsedDate,
+          datePrecision: precision,
           ...(data.bodyRegions !== undefined && { bodyRegions: data.bodyRegions }),
           ...(data.motif !== undefined && { motif: data.motif }),
           ...(data.colors !== undefined && { colors: data.colors }),
@@ -303,7 +311,7 @@ export async function updateBodyMarkEventAction(
       // Auto-update entity status from all events
       const allEvents = await tx.bodyMarkEvent.findMany({
         where: { bodyMarkId: data.bodyMarkId },
-        orderBy: { persona: { date: "asc" } },
+        orderBy: { date: "asc" },
         select: { eventType: true },
       });
       await tx.bodyMark.update({
@@ -334,7 +342,7 @@ export async function deleteBodyMarkEventAction(
     // Auto-update entity status from remaining events
     const remainingEvents = await prisma.bodyMarkEvent.findMany({
       where: { bodyMarkId: resolvedBodyMarkId },
-      orderBy: { persona: { date: "asc" } },
+      orderBy: { date: "asc" },
       select: { eventType: true },
     });
     await prisma.bodyMark.update({
@@ -394,6 +402,8 @@ export async function createBodyModificationAction(
           bodyModificationId: mod.id,
           personaId,
           eventType: "added",
+          date,
+          datePrecision: precision,
         },
       });
     });
@@ -442,18 +452,20 @@ export async function updateBodyModificationAction(
       if (data.singleEventDate !== undefined) {
         const events = await tx.bodyModificationEvent.findMany({
           where: { bodyModificationId: id },
-          orderBy: { persona: { date: "asc" } },
+          orderBy: { date: "asc" },
         });
         if (events.length === 1) {
           const parsedDate = data.singleEventDate ? new Date(data.singleEventDate) : null;
           const precision = (data.singleEventDatePrecision ?? "UNKNOWN") as DatePrecision;
           const targetPersonaId = await findOrCreatePersonaForDate(tx, personId, parsedDate, precision);
-          if (targetPersonaId !== events[0].personaId) {
-            await tx.bodyModificationEvent.update({
-              where: { id: events[0].id },
-              data: { personaId: targetPersonaId },
-            });
-          }
+          await tx.bodyModificationEvent.update({
+            where: { id: events[0].id },
+            data: {
+              personaId: targetPersonaId,
+              date: parsedDate,
+              datePrecision: precision,
+            },
+          });
         }
       }
     });
@@ -506,6 +518,8 @@ export async function createBodyModificationEventAction(
           personaId,
           eventType: data.eventType as BodyModificationEventType,
           notes: data.notes,
+          date: parsedDate,
+          datePrecision: precision,
           bodyRegions: data.bodyRegions ?? [],
           description: data.description,
           material: data.material,
@@ -515,7 +529,7 @@ export async function createBodyModificationEventAction(
 
       const allEvents = await tx.bodyModificationEvent.findMany({
         where: { bodyModificationId: data.bodyModificationId },
-        orderBy: { persona: { date: "asc" } },
+        orderBy: { date: "asc" },
         select: { eventType: true },
       });
       await tx.bodyModification.update({
@@ -559,6 +573,8 @@ export async function updateBodyModificationEventAction(
           personaId: targetPersonaId,
           eventType: data.eventType as BodyModificationEventType,
           notes: data.notes ?? null,
+          date: parsedDate,
+          datePrecision: precision,
           ...(data.bodyRegions !== undefined && { bodyRegions: data.bodyRegions }),
           ...(data.description !== undefined && { description: data.description }),
           ...(data.material !== undefined && { material: data.material }),
@@ -568,7 +584,7 @@ export async function updateBodyModificationEventAction(
 
       const allEvents = await tx.bodyModificationEvent.findMany({
         where: { bodyModificationId: data.bodyModificationId },
-        orderBy: { persona: { date: "asc" } },
+        orderBy: { date: "asc" },
         select: { eventType: true },
       });
       await tx.bodyModification.update({
@@ -597,7 +613,7 @@ export async function deleteBodyModificationEventAction(
 
     const remainingEvents = await prisma.bodyModificationEvent.findMany({
       where: { bodyModificationId: resolvedId },
-      orderBy: { persona: { date: "asc" } },
+      orderBy: { date: "asc" },
       select: { eventType: true },
     });
     await prisma.bodyModification.update({
@@ -653,6 +669,8 @@ export async function createCosmeticProcedureAction(
           cosmeticProcedureId: proc.id,
           personaId,
           eventType: "performed",
+          date,
+          datePrecision: precision,
         },
       });
     });
@@ -697,18 +715,20 @@ export async function updateCosmeticProcedureAction(
       if (data.singleEventDate !== undefined) {
         const events = await tx.cosmeticProcedureEvent.findMany({
           where: { cosmeticProcedureId: id },
-          orderBy: { persona: { date: "asc" } },
+          orderBy: { date: "asc" },
         });
         if (events.length === 1) {
           const parsedDate = data.singleEventDate ? new Date(data.singleEventDate) : null;
           const precision = (data.singleEventDatePrecision ?? "UNKNOWN") as DatePrecision;
           const targetPersonaId = await findOrCreatePersonaForDate(tx, personId, parsedDate, precision);
-          if (targetPersonaId !== events[0].personaId) {
-            await tx.cosmeticProcedureEvent.update({
-              where: { id: events[0].id },
-              data: { personaId: targetPersonaId },
-            });
-          }
+          await tx.cosmeticProcedureEvent.update({
+            where: { id: events[0].id },
+            data: {
+              personaId: targetPersonaId,
+              date: parsedDate,
+              datePrecision: precision,
+            },
+          });
         }
       }
     });
@@ -763,6 +783,8 @@ export async function createCosmeticProcedureEventAction(
           personaId,
           eventType: data.eventType as CosmeticProcedureEventType,
           notes: data.notes,
+          date: parsedDate,
+          datePrecision: precision,
           bodyRegions: data.bodyRegions ?? [],
           description: data.description,
           provider: data.provider,
@@ -774,7 +796,7 @@ export async function createCosmeticProcedureEventAction(
 
       const allEvents = await tx.cosmeticProcedureEvent.findMany({
         where: { cosmeticProcedureId: data.cosmeticProcedureId },
-        orderBy: { persona: { date: "asc" } },
+        orderBy: { date: "asc" },
         select: { eventType: true },
       });
       await tx.cosmeticProcedure.update({
@@ -820,6 +842,8 @@ export async function updateCosmeticProcedureEventAction(
           personaId: targetPersonaId,
           eventType: data.eventType as CosmeticProcedureEventType,
           notes: data.notes ?? null,
+          date: parsedDate,
+          datePrecision: precision,
           ...(data.bodyRegions !== undefined && { bodyRegions: data.bodyRegions }),
           ...(data.description !== undefined && { description: data.description }),
           ...(data.provider !== undefined && { provider: data.provider }),
@@ -831,7 +855,7 @@ export async function updateCosmeticProcedureEventAction(
 
       const allEvents = await tx.cosmeticProcedureEvent.findMany({
         where: { cosmeticProcedureId: data.cosmeticProcedureId },
-        orderBy: { persona: { date: "asc" } },
+        orderBy: { date: "asc" },
         select: { eventType: true },
       });
       await tx.cosmeticProcedure.update({
@@ -860,7 +884,7 @@ export async function deleteCosmeticProcedureEventAction(
 
     const remainingEvents = await prisma.cosmeticProcedureEvent.findMany({
       where: { cosmeticProcedureId: resolvedId },
-      orderBy: { persona: { date: "asc" } },
+      orderBy: { date: "asc" },
       select: { eventType: true },
     });
     await prisma.cosmeticProcedure.update({
@@ -902,11 +926,15 @@ export async function recordPhysicalChangeAction(
           currentHairColor: data.currentHairColor ?? null,
           weight: data.weight ?? null,
           build: data.build ?? null,
+          date,
+          datePrecision: precision,
         },
         update: {
           ...(data.currentHairColor !== undefined && { currentHairColor: data.currentHairColor || null }),
           ...(data.weight !== undefined && { weight: data.weight || null }),
           ...(data.build !== undefined && { build: data.build || null }),
+          date,
+          datePrecision: precision,
         },
       });
 
@@ -973,6 +1001,8 @@ export async function updatePhysicalChangeAction(
         currentHairColor: data.currentHairColor !== undefined ? (data.currentHairColor || null) : existing.currentHairColor,
         weight: data.weight !== undefined ? (data.weight || null) : existing.weight,
         build: data.build !== undefined ? (data.build || null) : existing.build,
+        date: parsedDate,
+        datePrecision: precision,
       };
 
       let newPhysicalId: string;

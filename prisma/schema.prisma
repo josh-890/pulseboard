@@ -336,14 +336,19 @@ model Persona {
 }
 
 model PersonaPhysical {
-  id              String  @id @default(cuid())
-  personaId       String  @unique
-  persona         Persona @relation(fields: [personaId], references: [id])
+  id              String        @id @default(cuid())
+  personaId       String        @unique
+  persona         Persona       @relation(fields: [personaId], references: [id])
   weight          Float?
   currentHairColor String?
   build           String?
+  date            DateTime?
+  datePrecision   DatePrecision @default(UNKNOWN)
+  dateModifier    DateModifier  @default(EXACT)
 
   attributes      PersonaPhysicalAttribute[]
+
+  @@index([date])
 }
 
 model BodyMark {
@@ -373,13 +378,16 @@ model BodyMark {
 }
 
 model BodyMarkEvent {
-  id          String            @id @default(cuid())
-  bodyMarkId  String
-  bodyMark    BodyMark          @relation(fields: [bodyMarkId], references: [id])
-  personaId   String
-  persona     Persona           @relation(fields: [personaId], references: [id])
-  eventType   BodyMarkEventType
-  notes       String?
+  id            String            @id @default(cuid())
+  bodyMarkId    String
+  bodyMark      BodyMark          @relation(fields: [bodyMarkId], references: [id])
+  personaId     String
+  persona       Persona           @relation(fields: [personaId], references: [id])
+  eventType     BodyMarkEventType
+  notes         String?
+  date          DateTime?
+  datePrecision DatePrecision     @default(UNKNOWN)
+  dateModifier  DateModifier      @default(EXACT)
   // Property overrides (empty array / null = no change)
   bodyRegions String[]
   motif       String?
@@ -389,6 +397,7 @@ model BodyMarkEvent {
 
   @@index([bodyMarkId])
   @@index([personaId])
+  @@index([date])
 }
 
 model PersonDigitalIdentity {
@@ -486,13 +495,16 @@ model BodyModification {
 }
 
 model BodyModificationEvent {
-  id                 String  @id @default(cuid())
+  id                 String               @id @default(cuid())
   bodyModificationId String
-  bodyModification   BodyModification @relation(fields: [bodyModificationId], references: [id])
+  bodyModification   BodyModification     @relation(fields: [bodyModificationId], references: [id])
   personaId          String
-  persona            Persona @relation(fields: [personaId], references: [id])
+  persona            Persona              @relation(fields: [personaId], references: [id])
   eventType          BodyModificationEventType
   notes              String?
+  date               DateTime?
+  datePrecision      DatePrecision        @default(UNKNOWN)
+  dateModifier       DateModifier         @default(EXACT)
   // Property overrides (empty array / null = no change)
   bodyRegions        String[]
   description        String?
@@ -501,6 +513,7 @@ model BodyModificationEvent {
 
   @@index([bodyModificationId])
   @@index([personaId])
+  @@index([date])
 }
 
 // ─── Cosmetic Procedures ─────────────────────────────────────────────────────
@@ -531,13 +544,16 @@ model CosmeticProcedure {
 }
 
 model CosmeticProcedureEvent {
-  id                  String  @id @default(cuid())
+  id                  String                     @id @default(cuid())
   cosmeticProcedureId String
-  cosmeticProcedure   CosmeticProcedure @relation(fields: [cosmeticProcedureId], references: [id])
+  cosmeticProcedure   CosmeticProcedure          @relation(fields: [cosmeticProcedureId], references: [id])
   personaId           String
-  persona             Persona @relation(fields: [personaId], references: [id])
+  persona             Persona                    @relation(fields: [personaId], references: [id])
   eventType           CosmeticProcedureEventType
   notes               String?
+  date                DateTime?
+  datePrecision       DatePrecision              @default(UNKNOWN)
+  dateModifier        DateModifier               @default(EXACT)
   // Property overrides (empty array / null = no change)
   bodyRegions         String[]
   description         String?
@@ -549,6 +565,7 @@ model CosmeticProcedureEvent {
 
   @@index([cosmeticProcedureId])
   @@index([personaId])
+  @@index([date])
 }
 
 // ─── Education & Awards ──────────────────────────────────────────────────────

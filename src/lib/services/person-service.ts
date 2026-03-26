@@ -30,6 +30,7 @@ import {
 
 import { buildUrl } from "@/lib/media-url";
 import { CONFIDENCE_RANK } from "@/lib/constants/confidence";
+import { buildBaselineLabel } from "@/lib/utils";
 
 function mapSkillEventMedia(
   media: { mediaItem: { id: string; variants: unknown; fileRef: string | null; originalWidth: number; originalHeight: number } }[],
@@ -180,12 +181,15 @@ export async function getPersonWithDetails(id: string) {
           },
           bodyMarkEvents: {
             include: { bodyMark: true },
+            orderBy: { date: "asc" },
           },
           bodyModificationEvents: {
             include: { bodyModification: true },
+            orderBy: { date: "asc" },
           },
           cosmeticProcedureEvents: {
             include: { cosmeticProcedure: true },
+            orderBy: { date: "asc" },
           },
           digitalIdentities: true,
         },
@@ -221,7 +225,7 @@ export async function getPersonBodyMarks(personId: string): Promise<BodyMarkWith
         include: {
           persona: { select: { id: true, label: true, date: true, datePrecision: true, isBaseline: true } },
         },
-        orderBy: { persona: { date: "asc" } },
+        orderBy: { date: "asc" },
       },
     },
     orderBy: { createdAt: "asc" },
@@ -232,6 +236,9 @@ export async function getPersonBodyMarks(personId: string): Promise<BodyMarkWith
       id: e.id,
       eventType: e.eventType,
       notes: e.notes,
+      date: e.date,
+      datePrecision: e.datePrecision,
+      dateModifier: e.dateModifier,
       persona: { id: e.persona.id, label: e.persona.label, date: e.persona.date, datePrecision: e.persona.datePrecision, isBaseline: e.persona.isBaseline },
       bodyRegions: e.bodyRegions ?? [],
       motif: e.motif ?? null,
@@ -657,23 +664,31 @@ export function deriveCurrentState(
 
   const extensibleAttributes: Record<string, ExtensibleAttributeValue> = {};
 
-  for (const persona of person.personas) {
-    if (persona.physicalChange) {
-      const p = persona.physicalChange;
-      if (p.currentHairColor !== null) currentHairColor = p.currentHairColor;
-      if (p.weight !== null) weight = p.weight;
-      if (p.build !== null) build = p.build;
-      // Fold extensible attributes — later personas override earlier ones per-key
-      if (p.attributes) {
-        for (const attr of p.attributes) {
-          extensibleAttributes[attr.attributeDefinitionId] = {
-            value: attr.value,
-            unit: attr.attributeDefinition.unit,
-            name: attr.attributeDefinition.name,
-            groupName: attr.attributeDefinition.group.name,
-            status: "NATURAL" as import("@/lib/types").AttributeStatus,
-          };
-        }
+  // Collect all PersonaPhysical records, sort by their own date (nulls first = baseline)
+  const allPhysicals = person.personas
+    .filter((p) => p.physicalChange)
+    .map((p) => p.physicalChange!)
+    .sort((a, b) => {
+      if (!a.date && !b.date) return 0;
+      if (!a.date) return -1;
+      if (!b.date) return 1;
+      return a.date.getTime() - b.date.getTime();
+    });
+
+  for (const p of allPhysicals) {
+    if (p.currentHairColor !== null) currentHairColor = p.currentHairColor;
+    if (p.weight !== null) weight = p.weight;
+    if (p.build !== null) build = p.build;
+    // Fold extensible attributes — later records override earlier ones per-key
+    if (p.attributes) {
+      for (const attr of p.attributes) {
+        extensibleAttributes[attr.attributeDefinitionId] = {
+          value: attr.value,
+          unit: attr.attributeDefinition.unit,
+          name: attr.attributeDefinition.name,
+          groupName: attr.attributeDefinition.group.name,
+          status: "NATURAL" as import("@/lib/types").AttributeStatus,
+        };
       }
     }
   }
@@ -695,6 +710,9 @@ export function deriveCurrentState(
             id: e.id,
             eventType: e.eventType,
             notes: e.notes,
+            date: e.date,
+            datePrecision: e.datePrecision,
+            dateModifier: e.dateModifier,
             persona: { id: p.id, label: p.label, date: p.date, datePrecision: p.datePrecision, isBaseline: p.isBaseline },
             bodyRegions: e.bodyRegions ?? [],
             motif: e.motif ?? null,
@@ -702,7 +720,11 @@ export function deriveCurrentState(
             size: e.size ?? null,
             description: e.description ?? null,
           })),
-      );
+      ).sort((a, b) => {
+        const aTime = (a.date ?? a.persona.date)?.getTime() ?? 0;
+        const bTime = (b.date ?? b.persona.date)?.getTime() ?? 0;
+        return aTime - bTime;
+      });
       activeBodyMarks.push({
         id: mark.id, type: mark.type, bodyRegion: mark.bodyRegion, bodyRegions: mark.bodyRegions,
         side: mark.side, position: mark.position, description: mark.description,
@@ -740,13 +762,20 @@ export function deriveCurrentState(
             id: e.id,
             eventType: e.eventType,
             notes: e.notes,
+            date: e.date,
+            datePrecision: e.datePrecision,
+            dateModifier: e.dateModifier,
             persona: { id: p.id, label: p.label, date: p.date, datePrecision: p.datePrecision, isBaseline: p.isBaseline },
             bodyRegions: e.bodyRegions ?? [],
             description: e.description ?? null,
             material: e.material ?? null,
             gauge: e.gauge ?? null,
           })),
-      );
+      ).sort((a, b) => {
+        const aTime = (a.date ?? a.persona.date)?.getTime() ?? 0;
+        const bTime = (b.date ?? b.persona.date)?.getTime() ?? 0;
+        return aTime - bTime;
+      });
       activeBodyModifications.push({
         id: mod.id, type: mod.type, bodyRegion: mod.bodyRegion, bodyRegions: mod.bodyRegions,
         side: mod.side, position: mod.position, description: mod.description,
@@ -784,6 +813,9 @@ export function deriveCurrentState(
             id: e.id,
             eventType: e.eventType,
             notes: e.notes,
+            date: e.date,
+            datePrecision: e.datePrecision,
+            dateModifier: e.dateModifier,
             persona: { id: p.id, label: p.label, date: p.date, datePrecision: p.datePrecision, isBaseline: p.isBaseline },
             bodyRegions: e.bodyRegions ?? [],
             description: e.description ?? null,
@@ -792,7 +824,11 @@ export function deriveCurrentState(
             valueAfter: e.valueAfter ?? null,
             unit: e.unit ?? null,
           })),
-      );
+      ).sort((a, b) => {
+        const aTime = (a.date ?? a.persona.date)?.getTime() ?? 0;
+        const bTime = (b.date ?? b.persona.date)?.getTime() ?? 0;
+        return aTime - bTime;
+      });
       activeCosmeticProcedures.push({
         id: proc.id, type: proc.type, bodyRegion: proc.bodyRegion, bodyRegions: proc.bodyRegions,
         description: proc.description, provider: proc.provider, status: proc.status,
@@ -1040,7 +1076,7 @@ export async function createPersonRecord(data: CreatePersonInput) {
     const persona = await tx.persona.create({
       data: {
         personId: person.id,
-        label: "Baseline",
+        label: buildBaselineLabel(data.commonName, birthDate, baselineDate),
         isBaseline: true,
         date: baselineDate,
         datePrecision: baselinePrecision,

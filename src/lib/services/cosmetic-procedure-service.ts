@@ -13,7 +13,7 @@ export async function getPersonCosmeticProcedures(personId: string) {
         include: {
           persona: { select: { id: true, label: true, date: true, datePrecision: true, isBaseline: true } },
         },
-        orderBy: { persona: { date: "asc" } },
+        orderBy: { date: "asc" },
       },
     },
     orderBy: { createdAt: "asc" },

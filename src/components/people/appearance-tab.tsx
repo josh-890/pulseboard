@@ -87,6 +87,9 @@ type EventItem = {
   id: string;
   eventType: string;
   notes: string | null;
+  date?: Date | null;
+  datePrecision?: string;
+  dateModifier?: string;
   persona: { id: string; label: string; date: Date | null; datePrecision?: string; isBaseline?: boolean };
 };
 

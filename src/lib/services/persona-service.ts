@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db";
-import type { DatePrecision, Prisma } from "@/generated/prisma/client";
+import type { DateModifier, DatePrecision, Prisma } from "@/generated/prisma/client";
 import type { CreatePersonaBatchInput, UpdatePersonaInput } from "@/lib/validations/persona";
 
 type TxClient = Prisma.TransactionClient;
@@ -32,58 +32,29 @@ export async function findOrCreatePersonaForDate(
   }
 
   const year = date.getUTCFullYear();
-  const month = date.getUTCMonth(); // 0-indexed
 
-  if (datePrecision === "YEAR") {
-    // Match any persona in the same year
-    const startOfYear = new Date(Date.UTC(year, 0, 1));
-    const startOfNextYear = new Date(Date.UTC(year + 1, 0, 1));
-
-    const existing = await tx.persona.findFirst({
-      where: {
-        personId,
-        isBaseline: false,
-        date: { gte: startOfYear, lt: startOfNextYear },
-      },
-      orderBy: { date: "asc" },
-    });
-
-    if (existing) return existing.id;
-
-    const persona = await tx.persona.create({
-      data: {
-        personId,
-        label: `${year}`,
-        date: new Date(Date.UTC(year, 0, 1)),
-        datePrecision: "YEAR",
-        isBaseline: false,
-      },
-    });
-    return persona.id;
-  }
-
-  // DAY or MONTH — match by same calendar month
-  const startOfMonth = new Date(Date.UTC(year, month, 1));
-  const startOfNextMonth = new Date(Date.UTC(year, month + 1, 1));
+  // All non-UNKNOWN dates → YEAR bucket only.
+  // The event's precise date lives on the event itself.
+  const startOfYear = new Date(Date.UTC(year, 0, 1));
+  const startOfNextYear = new Date(Date.UTC(year + 1, 0, 1));
 
   const existing = await tx.persona.findFirst({
     where: {
       personId,
       isBaseline: false,
-      date: { gte: startOfMonth, lt: startOfNextMonth },
+      date: { gte: startOfYear, lt: startOfNextYear },
     },
     orderBy: { date: "asc" },
   });
 
   if (existing) return existing.id;
 
-  const monthName = date.toLocaleString("en-US", { month: "long", timeZone: "UTC" });
   const persona = await tx.persona.create({
     data: {
       personId,
-      label: `${monthName} ${year}`,
-      date,
-      datePrecision,
+      label: `${year}`,
+      date: new Date(Date.UTC(year, 0, 1)),
+      datePrecision: "YEAR",
       isBaseline: false,
     },
   });
@@ -119,6 +90,11 @@ export async function createPersonaBatch(personId: string, data: CreatePersonaBa
       },
     });
 
+    // Event date fields — inherit from persona date
+    const eventDate = data.date ? new Date(data.date) : null;
+    const eventDatePrecision = (data.datePrecision ?? "UNKNOWN") as DatePrecision;
+    const eventDateModifier = "EXACT" as DateModifier;
+
     // Physical changes
     const hasPhysical = data.currentHairColor || data.weight || data.build;
     if (hasPhysical) {
@@ -128,6 +104,9 @@ export async function createPersonaBatch(personId: string, data: CreatePersonaBa
           currentHairColor: data.currentHairColor ?? null,
           weight: data.weight ?? null,
           build: data.build ?? null,
+          date: eventDate,
+          datePrecision: eventDatePrecision,
+          dateModifier: eventDateModifier,
         },
       });
     }
@@ -140,6 +119,9 @@ export async function createPersonaBatch(personId: string, data: CreatePersonaBa
           personaId: persona.id,
           eventType: event.eventType,
           notes: event.notes ?? null,
+          date: eventDate,
+          datePrecision: eventDatePrecision,
+          dateModifier: eventDateModifier,
         },
       });
     }
@@ -165,6 +147,9 @@ export async function createPersonaBatch(personId: string, data: CreatePersonaBa
           bodyMarkId: created.id,
           personaId: persona.id,
           eventType: "added",
+          date: eventDate,
+          datePrecision: eventDatePrecision,
+          dateModifier: eventDateModifier,
         },
       });
     }
@@ -177,6 +162,9 @@ export async function createPersonaBatch(personId: string, data: CreatePersonaBa
           personaId: persona.id,
           eventType: event.eventType,
           notes: event.notes ?? null,
+          date: eventDate,
+          datePrecision: eventDatePrecision,
+          dateModifier: eventDateModifier,
         },
       });
     }
@@ -201,6 +189,9 @@ export async function createPersonaBatch(personId: string, data: CreatePersonaBa
           bodyModificationId: created.id,
           personaId: persona.id,
           eventType: "added",
+          date: eventDate,
+          datePrecision: eventDatePrecision,
+          dateModifier: eventDateModifier,
         },
       });
     }
@@ -213,6 +204,9 @@ export async function createPersonaBatch(personId: string, data: CreatePersonaBa
           personaId: persona.id,
           eventType: event.eventType,
           notes: event.notes ?? null,
+          date: eventDate,
+          datePrecision: eventDatePrecision,
+          dateModifier: eventDateModifier,
         },
       });
     }
@@ -234,6 +228,9 @@ export async function createPersonaBatch(personId: string, data: CreatePersonaBa
           cosmeticProcedureId: created.id,
           personaId: persona.id,
           eventType: "performed",
+          date: eventDate,
+          datePrecision: eventDatePrecision,
+          dateModifier: eventDateModifier,
         },
       });
     }

@@ -13,6 +13,9 @@ type EventItem = {
   id: string;
   eventType: string;
   notes: string | null;
+  date?: Date | null;
+  datePrecision?: string;
+  dateModifier?: string;
   persona: { id: string; label: string; date: Date | null; datePrecision?: string; isBaseline?: boolean };
 };
 
@@ -72,7 +75,8 @@ function getDotColors(index: number, total: number, isTerminal: boolean): DotCol
   return isLast && !isTerminal ? ACTIVE_COLORS : HISTORICAL_COLORS;
 }
 
-function getYear(date: Date | null): string {
+function getYear(event: EventItem): string {
+  const date = event.date ?? event.persona.date;
   if (!date) return "";
   return new Date(date).getUTCFullYear().toString();
 }
@@ -97,7 +101,7 @@ function TimelineDot({
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [, startTransition] = useTransition();
 
-  const year = getYear(event.persona.date);
+  const year = getYear(event);
 
   return (
     <Popover>

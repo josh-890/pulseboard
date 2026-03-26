@@ -10,6 +10,9 @@ type EventItem = {
   id: string;
   eventType: string;
   notes: string | null;
+  date?: Date | null;
+  datePrecision?: string;
+  dateModifier?: string;
   persona: { id: string; label: string; date: Date | null; datePrecision?: string; isBaseline?: boolean };
 };
 
@@ -78,8 +81,11 @@ export function EditEventDialog(props: EditEventDialogProps) {
   const { event, eventTypes, eventStyles, onSave, onClose, entityKind, overrides } = props;
   const [isPending, startTransition] = useTransition();
   const [eventType, setEventType] = useState(event.eventType);
-  const initDate = formatDateForInput(event.persona.date, event.persona.isBaseline);
-  const initPrec = event.persona.isBaseline ? "UNKNOWN" : (event.persona.datePrecision ?? "UNKNOWN");
+  const effectiveDate = event.date ?? event.persona.date;
+  const effectivePrec = event.datePrecision ?? event.persona.datePrecision ?? "UNKNOWN";
+  const isBaseline = !event.date && event.persona.isBaseline;
+  const initDate = formatDateForInput(effectiveDate ?? null, isBaseline);
+  const initPrec = isBaseline ? "UNKNOWN" : effectivePrec;
   const [date, setDate] = useState(initDate);
   const [datePrecision, setDatePrecision] = useState(initPrec);
   const [notes, setNotes] = useState(event.notes ?? "");

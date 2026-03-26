@@ -22,6 +22,9 @@ type EventItem = {
   id: string;
   eventType: string;
   notes: string | null;
+  date?: Date | null;
+  datePrecision?: string;
+  dateModifier?: string;
   persona: { id: string; label: string; date: Date | null; datePrecision?: string; isBaseline?: boolean };
 };
 
@@ -58,10 +61,11 @@ export function BodyMarkRow({
     : [mark.bodyRegion, mark.side, mark.position].filter(Boolean);
   const photoCount = photos?.length ?? 0;
   const firstEvent = mark.events.find((e) => e.eventType === "added");
-  const year = firstEvent?.persona.date
-    ? new Date(firstEvent.persona.date).getUTCFullYear()
+  const firstEventDate = firstEvent?.date ?? firstEvent?.persona.date;
+  const year = firstEventDate
+    ? new Date(firstEventDate).getUTCFullYear()
     : null;
-  const isBaselineDate = firstEvent?.persona.isBaseline ?? false;
+  const isBaselineDate = !firstEvent?.date && (firstEvent?.persona.isBaseline ?? false);
 
   return (
     <div className="group rounded-lg border border-white/10 bg-card/30 transition-colors hover:border-white/15">
