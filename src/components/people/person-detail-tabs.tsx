@@ -104,6 +104,7 @@ type PersonDetailTabsProps = {
   entityMedia?: Record<string, EntityMediaThumbnail[]>;
   refMediaCount?: number;
   plausibilityIssues?: PlausibilityIssue[];
+  initialTab?: string;
 };
 
 // ── Style maps ──────────────────────────────────────────────────────────────
@@ -1729,8 +1730,28 @@ export function PersonDetailTabs({
   entityMedia,
   refMediaCount,
   plausibilityIssues = [],
+  initialTab,
 }: PersonDetailTabsProps) {
-  const [activeTab, setActiveTab] = useState<TabId>("overview");
+  const VALID_TABS: Set<string> = useMemo(
+    () => new Set<string>(["overview", "aliases", "appearance", "details", "skills", "career", "network", "photos"]),
+    [],
+  );
+  const resolvedInitialTab: TabId = initialTab && VALID_TABS.has(initialTab)
+    ? (initialTab as TabId)
+    : "overview";
+  const [activeTab, setActiveTabRaw] = useState<TabId>(resolvedInitialTab);
+
+  // Sync active tab to URL search param (for BrowseNavBar tab preservation)
+  const setActiveTab = useCallback((tab: TabId) => {
+    setActiveTabRaw(tab);
+    const url = new URL(window.location.href);
+    if (tab === "overview") {
+      url.searchParams.delete("tab");
+    } else {
+      url.searchParams.set("tab", tab);
+    }
+    window.history.replaceState(null, "", url.toString());
+  }, []);
 
   const heroHeadshotSlotMap = useMemo(() => {
     const map = new Map<string, number>();
@@ -1744,11 +1765,11 @@ export function PersonDetailTabs({
 
   const handleAliasesBadgeClick = useCallback(() => {
     setActiveTab("aliases");
-  }, []);
+  }, [setActiveTab]);
 
   const handleAppearanceClick = useCallback(() => {
     setActiveTab("appearance");
-  }, []);
+  }, [setActiveTab]);
 
   const earliestSessionYear = useMemo(() => {
     const entries = sessionWorkHistory ?? [];

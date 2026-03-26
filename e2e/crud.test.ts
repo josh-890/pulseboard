@@ -41,16 +41,18 @@ test.describe("People CRUD", () => {
 
   test("detail page has Edit + Delete buttons", async ({ page }) => {
     await page.goto("/people/seed-person-1");
-    // Scope to the header actions row (not the About card's Edit button)
-    await expect(page.getByRole("link", { name: "Back to People" }).locator("..").getByRole("button", { name: /^edit$/i })).toBeVisible();
+    // Scope to the header actions grid row (back link and actions are in separate grid cells)
+    const headerRow = page.getByRole("link", { name: "Back to People" }).locator("../..");
+    await expect(headerRow.getByRole("button", { name: /^edit$/i })).toBeVisible();
     // Use .first() because persona timeline entries also have Delete buttons
     await expect(page.getByRole("button", { name: /delete/i }).first()).toBeVisible();
   });
 
   test("edit person sheet opens and pre-populates", async ({ page }) => {
     await page.goto("/people/seed-person-1");
-    // Scope to the header actions row (not the About card's Edit button)
-    await page.getByRole("link", { name: "Back to People" }).locator("..").getByRole("button", { name: /^edit$/i }).click();
+    // Scope to the header actions grid row (back link and actions are in separate grid cells)
+    const headerRow = page.getByRole("link", { name: "Back to People" }).locator("../..");
+    await headerRow.getByRole("button", { name: /^edit$/i }).click();
 
     const dialog = page.getByRole("dialog");
     await expect(dialog).toBeVisible();
@@ -71,8 +73,8 @@ test.describe("People CRUD", () => {
     // Wait for page to finish refreshing before opening the sheet again
     await page.waitForLoadState("networkidle");
 
-    // Revert — scope to header actions row (not the About card's Edit button)
-    const editBtn = page.getByRole("link", { name: "Back to People" }).locator("..").getByRole("button", { name: /^edit$/i });
+    // Revert — scope to header actions grid row (back link and actions are in separate grid cells)
+    const editBtn = page.getByRole("link", { name: "Back to People" }).locator("../..").getByRole("button", { name: /^edit$/i });
     await expect(editBtn).toBeVisible({ timeout: 10000 });
     await editBtn.click();
     await expect(dialog).toBeVisible({ timeout: 10000 });

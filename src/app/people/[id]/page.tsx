@@ -1,5 +1,6 @@
+import { Suspense } from "react";
 import { notFound } from "next/navigation";
-import Link from "next/link";
+import { BrowseNavBar, BrowseBackLink } from "@/components/people/browse-nav-bar";
 import {
   getPersonWithDetails,
   getPersonWorkHistory,
@@ -27,10 +28,12 @@ export const dynamic = "force-dynamic";
 
 type PersonDetailPageProps = {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ tab?: string }>;
 };
 
-export default async function PersonDetailPage({ params }: PersonDetailPageProps) {
+export default async function PersonDetailPage({ params, searchParams }: PersonDetailPageProps) {
   const { id } = await params;
+  const { tab: initialTab } = await searchParams;
 
   // Ensure system entity categories exist before loading category data
   await ensureEntityCategories();
@@ -130,16 +133,17 @@ export default async function PersonDetailPage({ params }: PersonDetailPageProps
 
   return (
     <div className="space-y-6">
-      {/* Back link + actions row */}
-      <div className="flex items-center justify-between gap-4">
-        <Link
-          href="/people"
-          className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-        >
-          <span aria-hidden="true">←</span>
-          Back to People
-        </Link>
-        <div className="flex items-center gap-2">
+      {/* Back link + browse nav + actions row */}
+      <div className="grid grid-cols-3 items-center gap-4">
+        <div className="flex items-center">
+          <BrowseBackLink />
+        </div>
+        <div className="flex justify-center">
+          <Suspense fallback={null}>
+            <BrowseNavBar personId={id} />
+          </Suspense>
+        </div>
+        <div className="flex items-center justify-end gap-2">
           <EditPersonSheet person={person} />
           <DeleteButton
             title="Delete person?"
@@ -152,6 +156,7 @@ export default async function PersonDetailPage({ params }: PersonDetailPageProps
 
       <PersonDetailTabs
         person={person}
+        initialTab={initialTab}
         currentState={currentState}
         workHistory={workHistory}
         affiliations={affiliations}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { Users, Loader2 } from "lucide-react";
 import { PersonCard } from "./person-card";
 import { useDensity } from "@/components/layout/density-provider";
@@ -10,6 +10,13 @@ import { loadMorePersons } from "@/lib/actions/person-actions";
 import type { PersonWithCommonAlias } from "@/lib/types";
 import { getQuickPlausibilityCount } from "@/lib/services/plausibility-service";
 import type { PersonFilters } from "@/lib/services/person-service";
+import {
+  saveBrowseContext,
+  loadBrowseContext,
+  updateBrowseScrollY,
+  truncateName,
+  filtersMatch,
+} from "@/lib/browse-context";
 
 type PhotoData = {
   url: string;
@@ -26,6 +33,21 @@ type PersonListProps = {
   slot?: number;
 };
 
+/** Extract serializable filter params (string values only) for browse context comparison */
+function filtersToRecord(filters: PersonFilters): Record<string, string> {
+  const result: Record<string, string> = {};
+  if (filters.q) result.q = filters.q;
+  if (filters.status) result.status = filters.status;
+  if (filters.naturalHairColor) result.hairColor = filters.naturalHairColor;
+  if (filters.bodyType) result.bodyType = filters.bodyType;
+  if (filters.ethnicity) result.ethnicity = filters.ethnicity;
+  if (filters.sort) result.sort = filters.sort;
+  if (filters.completeness) result.completeness = filters.completeness;
+  if (filters.bodyRegions?.length) result.bodyRegions = filters.bodyRegions.join(",");
+  if (filters.bodyRegionMatch) result.bodyRegionMatch = filters.bodyRegionMatch;
+  return result;
+}
+
 export function PersonList({
   persons: initialPersons,
   photoMap: initialPhotoMap,
@@ -40,10 +62,77 @@ export function PersonList({
   const [photoMap, setPhotoMap] = useState(initialPhotoMap);
   const [cursor, setCursor] = useState(initialCursor);
   const [isPending, startTransition] = useTransition();
+  const hasRestoredScroll = useRef(false);
 
   useEffect(() => { setPersons(initialPersons); }, [initialPersons]);
   useEffect(() => { setPhotoMap(initialPhotoMap); }, [initialPhotoMap]);
   useEffect(() => { setCursor(initialCursor); }, [initialCursor]);
+
+  // On mount: restore scroll position if returning from detail page with matching filters
+  useEffect(() => {
+    if (hasRestoredScroll.current) return;
+    hasRestoredScroll.current = true;
+
+    const ctx = loadBrowseContext();
+    if (!ctx) return;
+
+    const currentFilters = filtersToRecord(filters);
+    if (!filtersMatch(currentFilters, ctx.filters)) {
+      // Filters changed — context is stale
+      return;
+    }
+
+    if (ctx.scrollY > 0) {
+      requestAnimationFrame(() => {
+        window.scrollTo(0, ctx.scrollY);
+      });
+    }
+  }, [filters]);
+
+  // Build and save browse context whenever person list or cursor changes
+  const saveBrowseContextFromState = useCallback(
+    (currentPersons: PersonWithCommonAlias[], currentCursor: string | null) => {
+      const ids = currentPersons.map((p) => p.id);
+      const names = currentPersons.map((p) =>
+        truncateName(p.commonAlias ?? p.icgId),
+      );
+      saveBrowseContext({
+        ids,
+        names,
+        nextCursor: currentCursor,
+        totalCount,
+        filters: filtersToRecord(filters),
+        slot,
+        scrollY: 0, // will be updated on card click
+      });
+    },
+    [totalCount, filters, slot],
+  );
+
+  // Save context when persons change — but skip on initial mount if stored context
+  // has matching filters with more items (protects context across off-route navigation)
+  const isInitialMount = useRef(true);
+
+  useEffect(() => {
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+
+      const ctx = loadBrowseContext();
+      const currentFilters = filtersToRecord(filters);
+
+      if (ctx && filtersMatch(currentFilters, ctx.filters) && ctx.ids.length >= persons.length) {
+        // Returning with same filters — stored context has >= items, don't overwrite
+        return;
+      }
+    }
+
+    // Either: load-more happened, or first load with new/no context → save
+    saveBrowseContextFromState(persons, cursor);
+  }, [persons, cursor, saveBrowseContextFromState, filters]);
+
+  function handleCardClick() {
+    updateBrowseScrollY(window.scrollY);
+  }
 
   function handleLoadMore() {
     if (!cursor) return;
@@ -94,6 +183,7 @@ export function PersonList({
               focalX={photo?.focalX}
               focalY={photo?.focalY}
               plausibilityCount={getQuickPlausibilityCount(person)}
+              onClick={handleCardClick}
             />
           );
         })}

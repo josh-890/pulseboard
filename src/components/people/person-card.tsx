@@ -14,6 +14,7 @@ type PersonCardProps = {
   focalX?: number | null;
   focalY?: number | null;
   plausibilityCount?: number;
+  onClick?: () => void;
 };
 
 const STATUS_STYLES: Record<PersonStatus, string> = {
@@ -30,7 +31,7 @@ const STATUS_LABELS: Record<PersonStatus, string> = {
   archived: "Archived",
 };
 
-export function PersonCard({ person, photoUrl, focalX, focalY, plausibilityCount = 0 }: PersonCardProps) {
+export function PersonCard({ person, photoUrl, focalX, focalY, plausibilityCount = 0, onClick }: PersonCardProps) {
   const { density } = useDensity();
   const isCompact = density === "compact";
 
@@ -48,7 +49,7 @@ export function PersonCard({ person, photoUrl, focalX, focalY, plausibilityCount
     person.birthAlias && person.birthAlias !== person.commonAlias;
 
   return (
-    <Link href={`/people/${person.id}`} prefetch={false} className="group block focus-visible:outline-none">
+    <Link href={`/people/${person.id}`} prefetch={false} className="group block focus-visible:outline-none" onClick={onClick}>
       <div
         className={cn(
           "relative flex overflow-hidden rounded-2xl border border-white/20 bg-card/70 shadow-md backdrop-blur-sm",

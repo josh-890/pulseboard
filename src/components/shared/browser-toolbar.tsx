@@ -26,6 +26,7 @@ import {
   CommandList,
 } from "@/components/ui/command";
 import { cn } from "@/lib/utils";
+import { clearBrowseContext } from "@/lib/browse-context";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -234,6 +235,7 @@ export function BrowserToolbar({ config, children }: BrowserToolbarProps) {
 
   function handleClearAll() {
     setSearchValue("");
+    clearBrowseContext();
     router.replace(basePath);
   }
 
@@ -365,9 +367,12 @@ export function BrowserToolbar({ config, children }: BrowserToolbarProps) {
         {children}
       </div>
 
-      {/* Active filter chips */}
+      {/* Active filter banner */}
       {hasActiveFilters && (
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-amber-500/20 bg-amber-500/5 px-3 py-2">
+          <span className="mr-1 text-xs font-medium text-amber-400/80">
+            Filtered view
+          </span>
           {currentSort !== defaultSort && (
             <span className="inline-flex items-center gap-1 rounded-full border border-white/15 bg-muted/50 px-2.5 py-1 text-xs font-medium text-muted-foreground">
               <ArrowUpDown size={10} />
@@ -385,14 +390,16 @@ export function BrowserToolbar({ config, children }: BrowserToolbarProps) {
               <X size={10} />
             </button>
           ))}
-          <button
-            type="button"
-            onClick={handleClearAll}
-            className="inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          >
-            <FilterX size={12} />
-            Clear all
-          </button>
+          <div className="ml-auto">
+            <button
+              type="button"
+              onClick={handleClearAll}
+              className="inline-flex items-center gap-1.5 rounded-md border border-amber-500/30 bg-amber-500/10 px-2.5 py-1 text-xs font-medium text-amber-400 transition-colors hover:bg-amber-500/20 hover:text-amber-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/50"
+            >
+              <FilterX size={12} />
+              Clear all
+            </button>
+          </div>
         </div>
       )}
     </div>

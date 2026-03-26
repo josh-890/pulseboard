@@ -1,25 +1,36 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 
 type NavLinkProps = {
   href: string;
+  /** Optional client-side href resolver (e.g. to restore browse context from sessionStorage) */
+  resolveHref?: () => string;
   icon: React.ReactNode;
   label: string;
   collapsed?: boolean;
   onClick?: () => void;
 };
 
-export function NavLink({ href, icon, label, collapsed, onClick }: NavLinkProps) {
+export function NavLink({ href, resolveHref, icon, label, collapsed, onClick }: NavLinkProps) {
   const pathname = usePathname();
+  const router = useRouter();
   const isActive = href === "/" ? pathname === "/" : pathname.startsWith(href);
+
+  function handleClick(e: React.MouseEvent) {
+    if (resolveHref) {
+      e.preventDefault();
+      router.push(resolveHref());
+    }
+    onClick?.();
+  }
 
   return (
     <Link
       href={href}
-      onClick={onClick}
+      onClick={handleClick}
       title={collapsed ? label : undefined}
       className={cn(
         "flex items-center rounded-xl py-2 transition-all duration-200",
