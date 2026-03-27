@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useState, useTransition } from "react";
+import { useEscToClose } from "@/lib/hooks/use-esc-to-close";
 import { X } from "lucide-react";
 import { PartialDateInput } from "@/components/shared/partial-date-input";
 import { BodyRegionCompact } from "@/components/shared/body-region-picker";
@@ -24,6 +25,7 @@ type AddCosmeticProcedureSheetProps = {
 
 export function AddCosmeticProcedureSheet({ personId, referenceSessionId, categoryId, attributeGroups, onClose }: AddCosmeticProcedureSheetProps) {
   const [isPending, startTransition] = useTransition();
+  useEscToClose(onClose);
   const [type, setType] = useState("");
   const [bodyRegions, setBodyRegions] = useState<string[]>([]);
   const [description, setDescription] = useState("");
@@ -72,7 +74,7 @@ export function AddCosmeticProcedureSheet({ personId, referenceSessionId, catego
   }, [personId, type, bodyRegions, description, provider, date, datePrecision, attributeDefinitionId, pendingFiles, referenceSessionId, categoryId, onClose]);
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end">
+    <div role="dialog" aria-modal="true" className="fixed inset-0 z-50 flex justify-end">
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
       <div className="relative w-full max-w-lg bg-background border-l border-white/15 shadow-2xl overflow-y-auto">
         <div className="sticky top-0 z-10 flex items-center justify-between border-b border-white/15 bg-background px-6 py-4">

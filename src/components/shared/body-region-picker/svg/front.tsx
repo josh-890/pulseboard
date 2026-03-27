@@ -10,7 +10,7 @@ type FrontProps = {
 };
 
 export function Front({ selected, hovered, onRegionClick, onRegionHover }: FrontProps) {
-  const p = { selected, hovered, onClick: onRegionClick, onHover: onRegionHover };
+  const p = { selected, hovered, onClick: onRegionClick, onHover: onRegionHover, side: "front" as const };
   return (
     <g id="front">
       {/* Head / Neck */}
@@ -44,7 +44,7 @@ export function Front({ selected, hovered, onRegionClick, onRegionHover }: Front
       <RegionPath id="abdomen_upper" d="M90,218 L164,218 L164,258 L90,258 Z" {...p} />
       <RegionPath id="abdomen_r" d="M89,258 L127,258 L127,295 L80,295 Z" {...p} />
       <RegionPath id="abdomen_l" d="M127,258 L164,258 L176,295 L127,295 Z" {...p} />
-      <RegionPath id="navel" d="M122,277 a5,5 0 1,0 10,0 a5,5 0 1,0 -10,0" {...p} />
+      <RegionPath id="navel" d="M117,277 a10,10 0 1,0 20,0 a10,10 0 1,0 -20,0" {...p} />
       <RegionPath id="abdomen_lower_r" d="M80,295 L127,295 L127,328 L85,328 Z" {...p} />
       <RegionPath id="abdomen_lower_l" d="M127,295 L176,295 L171,328 L127,328 Z" {...p} />
 

@@ -105,6 +105,7 @@ export function BodyOverview({
         <RegionPopover
           regionId={popover.regionId}
           selected={selected}
+          side={side}
           onSelect={handleSubRegionSelect}
           onSelectParent={onRegionClick}
           onClose={handleClosePopover}

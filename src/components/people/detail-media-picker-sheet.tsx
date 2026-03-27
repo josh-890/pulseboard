@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState, useTransition } from "react";
 import Image from "next/image";
+import { useEscToClose } from "@/lib/hooks/use-esc-to-close";
 import { Check, ImageIcon, Loader2, Upload, X } from "lucide-react";
 import { cn, focalStyle } from "@/lib/utils";
 import {
@@ -61,6 +62,8 @@ export function DetailMediaPickerSheet({
   const [selectedEntityId, setSelectedEntityId] = useState<string>(preselectedEntityId ?? "");
   const [isPending, startTransition] = useTransition();
   const [uploading, setUploading] = useState(false);
+  const handleClose = useCallback(() => onOpenChange(false), [onOpenChange]);
+  useEscToClose(handleClose);
 
   // Load media when sheet opens
   useEffect(() => {
@@ -150,7 +153,7 @@ export function DetailMediaPickerSheet({
     [...initialLinked].some((id) => !selected.has(id));
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end">
+    <div role="dialog" aria-modal="true" className="fixed inset-0 z-50 flex justify-end">
       <div
         className="absolute inset-0 bg-black/50 backdrop-blur-sm"
         onClick={() => onOpenChange(false)}

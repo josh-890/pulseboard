@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useState, useTransition } from "react";
+import { useEscToClose } from "@/lib/hooks/use-esc-to-close";
 import { FileUp, X, AlertTriangle, Check } from "lucide-react";
 import { bulkImportAliasesAction } from "@/lib/actions/alias-actions";
 
@@ -22,6 +23,7 @@ type AliasImportDialogProps = {
 
 export function AliasImportDialog({ personId, onClose }: AliasImportDialogProps) {
   const [isPending, startTransition] = useTransition();
+  useEscToClose(onClose);
   const [rawText, setRawText] = useState("");
   const [parsed, setParsed] = useState<ParsedEntry[] | null>(null);
   const [result, setResult] = useState<ImportResult | null>(null);
@@ -69,7 +71,7 @@ export function AliasImportDialog({ personId, onClose }: AliasImportDialogProps)
   }, [parsed, personId]);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
+    <div role="dialog" aria-modal="true" className="fixed inset-0 z-50 flex items-center justify-center">
       <div
         className="absolute inset-0 bg-black/50 backdrop-blur-sm"
         onClick={onClose}

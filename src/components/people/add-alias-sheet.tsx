@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState, useTransition } from "react";
+import { useEscToClose } from "@/lib/hooks/use-esc-to-close";
 import { X, Search, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { PersonAliasWithChannels } from "@/lib/services/alias-service";
@@ -27,6 +28,7 @@ export function AddAliasSheet({
   onClose,
 }: AddAliasSheetProps) {
   const [isPending, startTransition] = useTransition();
+  useEscToClose(onClose);
   const [name, setName] = useState(editingAlias?.name ?? "");
   const [isCommon, setIsCommon] = useState(editingAlias?.isCommon ?? false);
   const [isBirth, setIsBirth] = useState(editingAlias?.isBirth ?? false);
@@ -137,7 +139,7 @@ export function AddAliasSheet({
   }, [editingAlias, name, isCommon, isBirth, notes, selectedChannelIds, personId, onClose]);
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end">
+    <div role="dialog" aria-modal="true" className="fixed inset-0 z-50 flex justify-end">
       <div
         className="absolute inset-0 bg-black/50 backdrop-blur-sm"
         onClick={onClose}

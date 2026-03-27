@@ -10,7 +10,7 @@ type BackProps = {
 };
 
 export function Back({ selected, hovered, onRegionClick, onRegionHover }: BackProps) {
-  const p = { selected, hovered, onClick: onRegionClick, onHover: onRegionHover };
+  const p = { selected, hovered, onClick: onRegionClick, onHover: onRegionHover, side: "back" as const };
   return (
     <g id="back">
       {/* Head (scalp / back of head) */}

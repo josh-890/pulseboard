@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useState, useTransition } from "react";
+import { useEscToClose } from "@/lib/hooks/use-esc-to-close";
 import { ChevronRight, Plus, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { CosmeticProcedureEventType } from "@/generated/prisma/client";
@@ -35,6 +36,7 @@ export function AddCosmeticProcedureEventDialog({
   onClose,
 }: AddCosmeticProcedureEventDialogProps) {
   const [isPending, startTransition] = useTransition();
+  useEscToClose(onClose);
   const [eventType, setEventType] = useState<CosmeticProcedureEventType>(AVAILABLE_EVENT_TYPES[0]);
   const [date, setDate] = useState("");
   const [datePrecision, setDatePrecision] = useState("UNKNOWN");
@@ -76,7 +78,7 @@ export function AddCosmeticProcedureEventDialog({
   }, [personId, cosmeticProcedureId, eventType, date, datePrecision, notes, bodyRegions, currentComputed.bodyRegions, description, provider, valueBefore, valueAfter, unit, onClose]);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
+    <div role="dialog" aria-modal="true" className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
       <div className="relative w-full max-w-md rounded-2xl border border-white/15 bg-background p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
         <div className="mb-5 flex items-center justify-between">

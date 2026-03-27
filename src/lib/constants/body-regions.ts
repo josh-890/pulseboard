@@ -12,6 +12,7 @@ export type SubRegion = {
   label: string;
   shortLabel: string;
   searchAliases: string[];
+  view?: RegionView; // undefined = "both"
 };
 
 export type BodyRegion = {
@@ -66,8 +67,8 @@ const regions: BodyRegion[] = [
     view: "both",
     searchAliases: ["shoulder", "deltoid", "right shoulder"],
     subRegions: [
-      { id: "shoulder_r.front", label: "Front Shoulder (Right)", shortLabel: "Front (R)", searchAliases: ["front shoulder", "anterior deltoid"] },
-      { id: "shoulder_r.back", label: "Back Shoulder (Right)", shortLabel: "Back (R)", searchAliases: ["back shoulder", "rear deltoid", "posterior deltoid"] },
+      { id: "shoulder_r.front", label: "Front Shoulder (Right)", shortLabel: "Front (R)", searchAliases: ["front shoulder", "anterior deltoid"], view: "front" },
+      { id: "shoulder_r.back", label: "Back Shoulder (Right)", shortLabel: "Back (R)", searchAliases: ["back shoulder", "rear deltoid", "posterior deltoid"], view: "back" },
     ],
   },
   {
@@ -77,8 +78,8 @@ const regions: BodyRegion[] = [
     view: "both",
     searchAliases: ["shoulder", "deltoid", "left shoulder"],
     subRegions: [
-      { id: "shoulder_l.front", label: "Front Shoulder (Left)", shortLabel: "Front (L)", searchAliases: ["front shoulder", "anterior deltoid"] },
-      { id: "shoulder_l.back", label: "Back Shoulder (Left)", shortLabel: "Back (L)", searchAliases: ["back shoulder", "rear deltoid", "posterior deltoid"] },
+      { id: "shoulder_l.front", label: "Front Shoulder (Left)", shortLabel: "Front (L)", searchAliases: ["front shoulder", "anterior deltoid"], view: "front" },
+      { id: "shoulder_l.back", label: "Back Shoulder (Left)", shortLabel: "Back (L)", searchAliases: ["back shoulder", "rear deltoid", "posterior deltoid"], view: "back" },
     ],
   },
 
@@ -176,6 +177,8 @@ const regions: BodyRegion[] = [
     view: "both",
     searchAliases: ["upper arm", "bicep", "right arm"],
     subRegions: [
+      { id: "upper_arm_r.front", label: "Front Upper Arm (Right)", shortLabel: "Front (R)", searchAliases: ["front upper arm", "bicep front"], view: "front" },
+      { id: "upper_arm_r.back", label: "Back Upper Arm (Right)", shortLabel: "Back (R)", searchAliases: ["back upper arm", "tricep"], view: "back" },
       { id: "upper_arm_r.outer", label: "Outer Upper Arm (Right)", shortLabel: "Outer (R)", searchAliases: ["outer arm", "lateral arm"] },
       { id: "upper_arm_r.inner", label: "Inner Upper Arm (Right)", shortLabel: "Inner (R)", searchAliases: ["inner arm", "inner bicep"] },
     ],
@@ -187,12 +190,34 @@ const regions: BodyRegion[] = [
     view: "both",
     searchAliases: ["upper arm", "bicep", "left arm"],
     subRegions: [
+      { id: "upper_arm_l.front", label: "Front Upper Arm (Left)", shortLabel: "Front (L)", searchAliases: ["front upper arm", "bicep front"], view: "front" },
+      { id: "upper_arm_l.back", label: "Back Upper Arm (Left)", shortLabel: "Back (L)", searchAliases: ["back upper arm", "tricep"], view: "back" },
       { id: "upper_arm_l.outer", label: "Outer Upper Arm (Left)", shortLabel: "Outer (L)", searchAliases: ["outer arm", "lateral arm"] },
       { id: "upper_arm_l.inner", label: "Inner Upper Arm (Left)", shortLabel: "Inner (L)", searchAliases: ["inner arm", "inner bicep"] },
     ],
   },
-  { id: "elbow_r", label: "Right Elbow", shortLabel: "Elbow (R)", view: "both", searchAliases: ["elbow"] },
-  { id: "elbow_l", label: "Left Elbow", shortLabel: "Elbow (L)", view: "both", searchAliases: ["elbow"] },
+  {
+    id: "elbow_r",
+    label: "Right Elbow",
+    shortLabel: "Elbow (R)",
+    view: "both",
+    searchAliases: ["elbow"],
+    subRegions: [
+      { id: "elbow_r.front", label: "Front Elbow (Right)", shortLabel: "Front (R)", searchAliases: ["cubital fossa", "inside elbow"], view: "front" },
+      { id: "elbow_r.behind", label: "Behind Elbow (Right)", shortLabel: "Behind (R)", searchAliases: ["olecranon", "back of elbow"], view: "back" },
+    ],
+  },
+  {
+    id: "elbow_l",
+    label: "Left Elbow",
+    shortLabel: "Elbow (L)",
+    view: "both",
+    searchAliases: ["elbow"],
+    subRegions: [
+      { id: "elbow_l.front", label: "Front Elbow (Left)", shortLabel: "Front (L)", searchAliases: ["cubital fossa", "inside elbow"], view: "front" },
+      { id: "elbow_l.behind", label: "Behind Elbow (Left)", shortLabel: "Behind (L)", searchAliases: ["olecranon", "back of elbow"], view: "back" },
+    ],
+  },
   {
     id: "forearm_r",
     label: "Right Forearm",
@@ -200,6 +225,8 @@ const regions: BodyRegion[] = [
     view: "both",
     searchAliases: ["forearm", "right forearm"],
     subRegions: [
+      { id: "forearm_r.front", label: "Front Forearm (Right)", shortLabel: "Front (R)", searchAliases: ["front forearm", "inner forearm side"], view: "front" },
+      { id: "forearm_r.back", label: "Back Forearm (Right)", shortLabel: "Back (R)", searchAliases: ["back forearm", "outer forearm side"], view: "back" },
       { id: "forearm_r.outer", label: "Outer Forearm (Right)", shortLabel: "Outer (R)", searchAliases: ["outer forearm"] },
       { id: "forearm_r.inner", label: "Inner Forearm (Right)", shortLabel: "Inner (R)", searchAliases: ["inner forearm", "wrist area"] },
     ],
@@ -211,12 +238,34 @@ const regions: BodyRegion[] = [
     view: "both",
     searchAliases: ["forearm", "left forearm"],
     subRegions: [
+      { id: "forearm_l.front", label: "Front Forearm (Left)", shortLabel: "Front (L)", searchAliases: ["front forearm", "inner forearm side"], view: "front" },
+      { id: "forearm_l.back", label: "Back Forearm (Left)", shortLabel: "Back (L)", searchAliases: ["back forearm", "outer forearm side"], view: "back" },
       { id: "forearm_l.outer", label: "Outer Forearm (Left)", shortLabel: "Outer (L)", searchAliases: ["outer forearm"] },
       { id: "forearm_l.inner", label: "Inner Forearm (Left)", shortLabel: "Inner (L)", searchAliases: ["inner forearm", "wrist area"] },
     ],
   },
-  { id: "wrist_r", label: "Right Wrist", shortLabel: "Wrist (R)", view: "both", searchAliases: ["wrist"] },
-  { id: "wrist_l", label: "Left Wrist", shortLabel: "Wrist (L)", view: "both", searchAliases: ["wrist"] },
+  {
+    id: "wrist_r",
+    label: "Right Wrist",
+    shortLabel: "Wrist (R)",
+    view: "both",
+    searchAliases: ["wrist"],
+    subRegions: [
+      { id: "wrist_r.front", label: "Inner Wrist (Right)", shortLabel: "Inner (R)", searchAliases: ["inner wrist", "palmar wrist"], view: "front" },
+      { id: "wrist_r.back", label: "Outer Wrist (Right)", shortLabel: "Outer (R)", searchAliases: ["outer wrist", "dorsal wrist"], view: "back" },
+    ],
+  },
+  {
+    id: "wrist_l",
+    label: "Left Wrist",
+    shortLabel: "Wrist (L)",
+    view: "both",
+    searchAliases: ["wrist"],
+    subRegions: [
+      { id: "wrist_l.front", label: "Inner Wrist (Left)", shortLabel: "Inner (L)", searchAliases: ["inner wrist", "palmar wrist"], view: "front" },
+      { id: "wrist_l.back", label: "Outer Wrist (Left)", shortLabel: "Outer (L)", searchAliases: ["outer wrist", "dorsal wrist"], view: "back" },
+    ],
+  },
   {
     id: "hand_r",
     label: "Right Hand",
@@ -224,8 +273,8 @@ const regions: BodyRegion[] = [
     view: "both",
     searchAliases: ["hand", "right hand"],
     subRegions: [
-      { id: "hand_r.back", label: "Back of Hand (Right)", shortLabel: "Back (R)", searchAliases: ["back of hand", "dorsum"] },
-      { id: "hand_r.palm", label: "Palm (Right)", shortLabel: "Palm (R)", searchAliases: ["palm"] },
+      { id: "hand_r.back", label: "Back of Hand (Right)", shortLabel: "Back (R)", searchAliases: ["back of hand", "dorsum"], view: "back" },
+      { id: "hand_r.palm", label: "Palm (Right)", shortLabel: "Palm (R)", searchAliases: ["palm"], view: "front" },
       { id: "hand_r.fingers", label: "Fingers (Right)", shortLabel: "Fingers (R)", searchAliases: ["finger", "fingers", "knuckle"] },
     ],
   },
@@ -236,8 +285,8 @@ const regions: BodyRegion[] = [
     view: "both",
     searchAliases: ["hand", "left hand"],
     subRegions: [
-      { id: "hand_l.back", label: "Back of Hand (Left)", shortLabel: "Back (L)", searchAliases: ["back of hand", "dorsum"] },
-      { id: "hand_l.palm", label: "Palm (Left)", shortLabel: "Palm (L)", searchAliases: ["palm"] },
+      { id: "hand_l.back", label: "Back of Hand (Left)", shortLabel: "Back (L)", searchAliases: ["back of hand", "dorsum"], view: "back" },
+      { id: "hand_l.palm", label: "Palm (Left)", shortLabel: "Palm (L)", searchAliases: ["palm"], view: "front" },
       { id: "hand_l.fingers", label: "Fingers (Left)", shortLabel: "Fingers (L)", searchAliases: ["finger", "fingers", "knuckle"] },
     ],
   },
@@ -254,8 +303,8 @@ const regions: BodyRegion[] = [
     view: "both",
     searchAliases: ["thigh", "right thigh", "quad", "hamstring"],
     subRegions: [
-      { id: "thigh_r.front", label: "Front Thigh (Right)", shortLabel: "Front (R)", searchAliases: ["front thigh", "quad"] },
-      { id: "thigh_r.back", label: "Back Thigh (Right)", shortLabel: "Back (R)", searchAliases: ["back thigh", "hamstring"] },
+      { id: "thigh_r.front", label: "Front Thigh (Right)", shortLabel: "Front (R)", searchAliases: ["front thigh", "quad"], view: "front" },
+      { id: "thigh_r.back", label: "Back Thigh (Right)", shortLabel: "Back (R)", searchAliases: ["back thigh", "hamstring"], view: "back" },
       { id: "thigh_r.inner", label: "Inner Thigh (Right)", shortLabel: "Inner (R)", searchAliases: ["inner thigh"] },
       { id: "thigh_r.outer", label: "Outer Thigh (Right)", shortLabel: "Outer (R)", searchAliases: ["outer thigh", "it band"] },
     ],
@@ -267,8 +316,8 @@ const regions: BodyRegion[] = [
     view: "both",
     searchAliases: ["thigh", "left thigh", "quad", "hamstring"],
     subRegions: [
-      { id: "thigh_l.front", label: "Front Thigh (Left)", shortLabel: "Front (L)", searchAliases: ["front thigh", "quad"] },
-      { id: "thigh_l.back", label: "Back Thigh (Left)", shortLabel: "Back (L)", searchAliases: ["back thigh", "hamstring"] },
+      { id: "thigh_l.front", label: "Front Thigh (Left)", shortLabel: "Front (L)", searchAliases: ["front thigh", "quad"], view: "front" },
+      { id: "thigh_l.back", label: "Back Thigh (Left)", shortLabel: "Back (L)", searchAliases: ["back thigh", "hamstring"], view: "back" },
       { id: "thigh_l.inner", label: "Inner Thigh (Left)", shortLabel: "Inner (L)", searchAliases: ["inner thigh"] },
       { id: "thigh_l.outer", label: "Outer Thigh (Left)", shortLabel: "Outer (L)", searchAliases: ["outer thigh", "it band"] },
     ],
@@ -280,8 +329,8 @@ const regions: BodyRegion[] = [
     view: "both",
     searchAliases: ["knee", "kneecap", "right knee"],
     subRegions: [
-      { id: "knee_r.front", label: "Front Knee (Right)", shortLabel: "Front (R)", searchAliases: ["kneecap", "patella"] },
-      { id: "knee_r.behind", label: "Behind Knee (Right)", shortLabel: "Behind (R)", searchAliases: ["behind knee", "popliteal"] },
+      { id: "knee_r.front", label: "Front Knee (Right)", shortLabel: "Front (R)", searchAliases: ["kneecap", "patella"], view: "front" },
+      { id: "knee_r.behind", label: "Behind Knee (Right)", shortLabel: "Behind (R)", searchAliases: ["behind knee", "popliteal"], view: "back" },
     ],
   },
   {
@@ -291,8 +340,8 @@ const regions: BodyRegion[] = [
     view: "both",
     searchAliases: ["knee", "kneecap", "left knee"],
     subRegions: [
-      { id: "knee_l.front", label: "Front Knee (Left)", shortLabel: "Front (L)", searchAliases: ["kneecap", "patella"] },
-      { id: "knee_l.behind", label: "Behind Knee (Left)", shortLabel: "Behind (L)", searchAliases: ["behind knee", "popliteal"] },
+      { id: "knee_l.front", label: "Front Knee (Left)", shortLabel: "Front (L)", searchAliases: ["kneecap", "patella"], view: "front" },
+      { id: "knee_l.behind", label: "Behind Knee (Left)", shortLabel: "Behind (L)", searchAliases: ["behind knee", "popliteal"], view: "back" },
     ],
   },
   {
@@ -302,8 +351,8 @@ const regions: BodyRegion[] = [
     view: "both",
     searchAliases: ["lower leg", "shin", "calf", "right leg"],
     subRegions: [
-      { id: "lower_leg_r.shin", label: "Shin (Right)", shortLabel: "Shin (R)", searchAliases: ["shin", "tibia"] },
-      { id: "lower_leg_r.calf", label: "Calf (Right)", shortLabel: "Calf (R)", searchAliases: ["calf", "gastrocnemius"] },
+      { id: "lower_leg_r.shin", label: "Shin (Right)", shortLabel: "Shin (R)", searchAliases: ["shin", "tibia"], view: "front" },
+      { id: "lower_leg_r.calf", label: "Calf (Right)", shortLabel: "Calf (R)", searchAliases: ["calf", "gastrocnemius"], view: "back" },
     ],
   },
   {
@@ -313,12 +362,32 @@ const regions: BodyRegion[] = [
     view: "both",
     searchAliases: ["lower leg", "shin", "calf", "left leg"],
     subRegions: [
-      { id: "lower_leg_l.shin", label: "Shin (Left)", shortLabel: "Shin (L)", searchAliases: ["shin", "tibia"] },
-      { id: "lower_leg_l.calf", label: "Calf (Left)", shortLabel: "Calf (L)", searchAliases: ["calf", "gastrocnemius"] },
+      { id: "lower_leg_l.shin", label: "Shin (Left)", shortLabel: "Shin (L)", searchAliases: ["shin", "tibia"], view: "front" },
+      { id: "lower_leg_l.calf", label: "Calf (Left)", shortLabel: "Calf (L)", searchAliases: ["calf", "gastrocnemius"], view: "back" },
     ],
   },
-  { id: "ankle_r", label: "Right Ankle", shortLabel: "Ankle (R)", view: "both", searchAliases: ["ankle"] },
-  { id: "ankle_l", label: "Left Ankle", shortLabel: "Ankle (L)", view: "both", searchAliases: ["ankle"] },
+  {
+    id: "ankle_r",
+    label: "Right Ankle",
+    shortLabel: "Ankle (R)",
+    view: "both",
+    searchAliases: ["ankle"],
+    subRegions: [
+      { id: "ankle_r.front", label: "Front Ankle (Right)", shortLabel: "Front (R)", searchAliases: ["front ankle"], view: "front" },
+      { id: "ankle_r.back", label: "Behind Ankle (Right)", shortLabel: "Behind (R)", searchAliases: ["achilles", "back of ankle"], view: "back" },
+    ],
+  },
+  {
+    id: "ankle_l",
+    label: "Left Ankle",
+    shortLabel: "Ankle (L)",
+    view: "both",
+    searchAliases: ["ankle"],
+    subRegions: [
+      { id: "ankle_l.front", label: "Front Ankle (Left)", shortLabel: "Front (L)", searchAliases: ["front ankle"], view: "front" },
+      { id: "ankle_l.back", label: "Behind Ankle (Left)", shortLabel: "Behind (L)", searchAliases: ["achilles", "back of ankle"], view: "back" },
+    ],
+  },
   {
     id: "foot_r",
     label: "Right Foot",
@@ -326,9 +395,9 @@ const regions: BodyRegion[] = [
     view: "both",
     searchAliases: ["foot", "right foot"],
     subRegions: [
-      { id: "foot_r.top", label: "Top of Foot (Right)", shortLabel: "Top (R)", searchAliases: ["top of foot", "dorsum of foot"] },
-      { id: "foot_r.sole", label: "Sole (Right)", shortLabel: "Sole (R)", searchAliases: ["sole", "bottom of foot"] },
-      { id: "foot_r.toes", label: "Toes (Right)", shortLabel: "Toes (R)", searchAliases: ["toe", "toes"] },
+      { id: "foot_r.top", label: "Top of Foot (Right)", shortLabel: "Top (R)", searchAliases: ["top of foot", "dorsum of foot"], view: "front" },
+      { id: "foot_r.sole", label: "Sole (Right)", shortLabel: "Sole (R)", searchAliases: ["sole", "bottom of foot"], view: "back" },
+      { id: "foot_r.toes", label: "Toes (Right)", shortLabel: "Toes (R)", searchAliases: ["toe", "toes"], view: "front" },
     ],
   },
   {
@@ -338,9 +407,9 @@ const regions: BodyRegion[] = [
     view: "both",
     searchAliases: ["foot", "left foot"],
     subRegions: [
-      { id: "foot_l.top", label: "Top of Foot (Left)", shortLabel: "Top (L)", searchAliases: ["top of foot", "dorsum of foot"] },
-      { id: "foot_l.sole", label: "Sole (Left)", shortLabel: "Sole (L)", searchAliases: ["sole", "bottom of foot"] },
-      { id: "foot_l.toes", label: "Toes (Left)", shortLabel: "Toes (L)", searchAliases: ["toe", "toes"] },
+      { id: "foot_l.top", label: "Top of Foot (Left)", shortLabel: "Top (L)", searchAliases: ["top of foot", "dorsum of foot"], view: "front" },
+      { id: "foot_l.sole", label: "Sole (Left)", shortLabel: "Sole (L)", searchAliases: ["sole", "bottom of foot"], view: "back" },
+      { id: "foot_l.toes", label: "Toes (Left)", shortLabel: "Toes (L)", searchAliases: ["toe", "toes"], view: "front" },
     ],
   },
 ];
@@ -445,6 +514,15 @@ export function getSubRegionIds(id: string): string[] {
   const region = BODY_REGION_MAP.get(id);
   if (!region?.subRegions) return [];
   return region.subRegions.map((s) => s.id);
+}
+
+/** Get the view constraint for a sub-region ID. Returns "both" if not found or no view set. */
+export function getSubRegionView(subId: string): RegionView {
+  const dotIdx = subId.lastIndexOf(".");
+  if (dotIdx === -1) return "both";
+  const parentId = subId.slice(0, dotIdx);
+  const region = BODY_REGION_MAP.get(parentId);
+  return region?.subRegions?.find((s) => s.id === subId)?.view ?? "both";
 }
 
 /**

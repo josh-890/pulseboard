@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useState, useTransition } from "react";
+import { useEscToClose } from "@/lib/hooks/use-esc-to-close";
 import { Plus, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { SkillLevel } from "@/generated/prisma/client";
@@ -28,6 +29,7 @@ export function EditSkillSheet({
   onClose,
 }: EditSkillSheetProps) {
   const [isPending, startTransition] = useTransition();
+  useEscToClose(onClose);
   const [level, setLevel] = useState<SkillLevel | "">(
     editingSkill.level ?? "",
   );
@@ -50,7 +52,7 @@ export function EditSkillSheet({
   }, [editingSkill.id, level, evidence, personaId, personId, onClose]);
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end">
+    <div role="dialog" aria-modal="true" className="fixed inset-0 z-50 flex justify-end">
       {/* Backdrop */}
       <div
         className="absolute inset-0 bg-black/50 backdrop-blur-sm"

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useState, useTransition } from "react";
+import { useEscToClose } from "@/lib/hooks/use-esc-to-close";
 import { Merge, X, Link2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { PersonAliasWithChannels } from "@/lib/services/alias-service";
@@ -14,6 +15,7 @@ type AliasMergeDialogProps = {
 
 export function AliasMergeDialog({ personId, aliases, onClose }: AliasMergeDialogProps) {
   const [isPending, startTransition] = useTransition();
+  useEscToClose(onClose);
   const [targetId, setTargetId] = useState(aliases[0]?.id ?? "");
   const [error, setError] = useState<string | null>(null);
 
@@ -39,7 +41,7 @@ export function AliasMergeDialog({ personId, aliases, onClose }: AliasMergeDialo
   }, [targetId, sourceAliases, personId, onClose]);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
+    <div role="dialog" aria-modal="true" className="fixed inset-0 z-50 flex items-center justify-center">
       <div
         className="absolute inset-0 bg-black/50 backdrop-blur-sm"
         onClick={onClose}

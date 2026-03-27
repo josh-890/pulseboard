@@ -7,6 +7,7 @@ import { getSubRegions, getRegionShortLabel } from "@/lib/constants/body-regions
 type RegionPopoverProps = {
   regionId: string;
   selected: string[];
+  side: "front" | "back";
   onSelect: (id: string) => void;
   onSelectParent: (id: string) => void;
   onClose: () => void;
@@ -17,6 +18,7 @@ type RegionPopoverProps = {
 export function RegionPopover({
   regionId,
   selected,
+  side,
   onSelect,
   onSelectParent,
   onClose,
@@ -24,7 +26,8 @@ export function RegionPopover({
   containerRef,
 }: RegionPopoverProps) {
   const ref = useRef<HTMLDivElement>(null);
-  const subRegions = getSubRegions(regionId);
+  const allSubs = getSubRegions(regionId);
+  const subRegions = allSubs.filter((s) => !s.view || s.view === "both" || s.view === side);
 
   // Close on outside click
   useEffect(() => {

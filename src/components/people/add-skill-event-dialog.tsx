@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useState, useTransition } from "react";
+import { useEscToClose } from "@/lib/hooks/use-esc-to-close";
 import { Plus, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PartialDateInput } from "@/components/shared/partial-date-input";
@@ -32,6 +33,7 @@ export function AddSkillEventDialog({
   onClose,
 }: AddSkillEventDialogProps) {
   const [isPending, startTransition] = useTransition();
+  useEscToClose(onClose);
   const [eventType, setEventType] = useState<SkillEventType>("DEMONSTRATED");
   const [level, setLevel] = useState<SkillLevel | "">("");
   const [personaId, setPersonaId] = useState(personas[0]?.id ?? "");
@@ -55,7 +57,7 @@ export function AddSkillEventDialog({
   }, [personId, personSkillId, eventType, level, personaId, date, datePrecision, notes, onClose]);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
+    <div role="dialog" aria-modal="true" className="fixed inset-0 z-50 flex items-center justify-center">
       {/* Backdrop */}
       <div
         className="absolute inset-0 bg-black/50 backdrop-blur-sm"

@@ -2,13 +2,14 @@
 
 import { useCallback } from "react";
 import { cn } from "@/lib/utils";
-import { getRegionLabel } from "@/lib/constants/body-regions";
+import { getRegionLabel, getSubRegionView } from "@/lib/constants/body-regions";
 
 type RegionPathProps = {
   id: string;
   d: string;
   selected: string[];
   hovered: string | null;
+  side: "front" | "back";
   onClick: (id: string, e: React.MouseEvent) => void;
   onHover: (id: string | null) => void;
 };
@@ -18,11 +19,18 @@ export function RegionPath({
   d,
   selected,
   hovered,
+  side,
   onClick,
   onHover,
 }: RegionPathProps) {
-  // Highlight if the region itself is selected OR any of its sub-regions (id + ".") are selected
-  const isSelected = selected.includes(id) || selected.some((s) => s.startsWith(id + "."));
+  // Highlight if the region itself is selected OR any of its view-matching sub-regions are selected
+  const isSelected =
+    selected.includes(id) ||
+    selected.some((s) => {
+      if (!s.startsWith(id + ".")) return false;
+      const v = getSubRegionView(s);
+      return v === "both" || v === side;
+    });
   const isHovered = hovered === id;
 
   const handleClick = useCallback(

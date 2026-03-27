@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useState, useTransition } from "react";
+import { useEscToClose } from "@/lib/hooks/use-esc-to-close";
 import { ChevronRight, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PartialDateInput } from "@/components/shared/partial-date-input";
@@ -80,6 +81,7 @@ function formatDateForInput(date: Date | null, isBaseline?: boolean): string {
 export function EditEventDialog(props: EditEventDialogProps) {
   const { event, eventTypes, eventStyles, onSave, onClose, entityKind, overrides } = props;
   const [isPending, startTransition] = useTransition();
+  useEscToClose(onClose);
   const [eventType, setEventType] = useState(event.eventType);
   const effectiveDate = event.date ?? event.persona.date;
   const effectivePrec = event.datePrecision ?? event.persona.datePrecision ?? "UNKNOWN";
@@ -151,7 +153,7 @@ export function EditEventDialog(props: EditEventDialogProps) {
   }, [eventType, date, datePrecision, notes, entityKind, bodyRegions, motif, colors, size, description, material, gauge, provider, valueBefore, valueAfter, unitValue, onSave, onClose]);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
+    <div role="dialog" aria-modal="true" className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
       <div className="relative w-full max-w-md rounded-2xl border border-white/15 bg-background p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
         <div className="mb-5 flex items-center justify-between">

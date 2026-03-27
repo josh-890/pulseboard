@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useMemo, useEffect } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { X, Search, RotateCcw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -8,6 +8,7 @@ import {
   BODY_REGION_PRESETS,
   getRegionLabel,
 } from "@/lib/constants/body-regions";
+import { useEscToClose } from "@/lib/hooks/use-esc-to-close";
 import { BodyOverview } from "./body-overview";
 import { BodyRegionChips } from "./body-region-chips";
 import { useBodyRegionState } from "./use-body-region-state";
@@ -71,19 +72,10 @@ function BodyRegionDialogContent({
     onOpenChange(false);
   }, [onOpenChange]);
 
-  // Close on Escape
-  useEffect(() => {
-    function handleKeyDown(e: KeyboardEvent) {
-      if (e.key === "Escape") {
-        onOpenChange(false);
-      }
-    }
-    document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [onOpenChange]);
+  useEscToClose(handleCancel);
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center">
+    <div role="dialog" aria-modal="true" className="fixed inset-0 z-[100] flex items-center justify-center">
       {/* Backdrop */}
       <div
         className="absolute inset-0 bg-black/60 backdrop-blur-sm"
