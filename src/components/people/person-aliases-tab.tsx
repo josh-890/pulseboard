@@ -2,6 +2,7 @@
 
 import { useCallback, useMemo, useState, useTransition } from "react";
 import {
+  ArrowDownUp,
   BookUser,
   ChevronDown,
   ChevronRight,
@@ -54,6 +55,7 @@ const SOURCE_LABELS: Record<AliasSource, string> = {
 // ── Types ───────────────────────────────────────────────────────────────────
 
 type ViewMode = "by-alias" | "by-channel";
+type SortMode = "default" | "links";
 
 type PersonAliasesTabProps = {
   personId: string;
@@ -64,6 +66,7 @@ type PersonAliasesTabProps = {
 
 export function PersonAliasesTab({ personId, aliases }: PersonAliasesTabProps) {
   const [viewMode, setViewMode] = useState<ViewMode>("by-alias");
+  const [sortMode, setSortMode] = useState<SortMode>("default");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [addSheetOpen, setAddSheetOpen] = useState(false);
@@ -72,16 +75,22 @@ export function PersonAliasesTab({ personId, aliases }: PersonAliasesTabProps) {
   const [mergeDialogOpen, setMergeDialogOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
 
-  // Filtered aliases
+  // Filtered + sorted aliases
   const filteredAliases = useMemo(() => {
-    if (!searchQuery.trim()) return aliases;
-    const q = searchQuery.toLowerCase();
-    return aliases.filter(
-      (a) =>
-        a.name.toLowerCase().includes(q) ||
-        a.channelLinks.some((cl) => cl.channelName.toLowerCase().includes(q)),
-    );
-  }, [aliases, searchQuery]);
+    let result = aliases;
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      result = result.filter(
+        (a) =>
+          a.name.toLowerCase().includes(q) ||
+          a.channelLinks.some((cl) => cl.channelName.toLowerCase().includes(q)),
+      );
+    }
+    if (sortMode === "links") {
+      result = [...result].sort((a, b) => b.channelLinks.length - a.channelLinks.length);
+    }
+    return result;
+  }, [aliases, searchQuery, sortMode]);
 
   // Stats
   const totalAliases = aliases.length;
@@ -241,6 +250,24 @@ export function PersonAliasesTab({ personId, aliases }: PersonAliasesTabProps) {
           )}
         </div>
 
+        {/* Sort toggle — only in by-alias view */}
+        {viewMode === "by-alias" && (
+          <button
+            type="button"
+            onClick={() => setSortMode((s) => s === "default" ? "links" : "default")}
+            title={sortMode === "links" ? "Sorted by links — click for default" : "Sort by number of channel links"}
+            className={cn(
+              "inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors",
+              sortMode === "links"
+                ? "border-primary/40 bg-primary/10 text-primary"
+                : "border-white/15 bg-card/50 text-muted-foreground hover:text-foreground",
+            )}
+          >
+            <ArrowDownUp size={13} />
+            Links
+          </button>
+        )}
+
         {/* View toggle */}
         <div className="flex rounded-lg border border-white/15 bg-card/50 p-0.5">
           <button
@@ -365,6 +392,67 @@ export function PersonAliasesTab({ personId, aliases }: PersonAliasesTabProps) {
 
 // ── By Alias View ───────────────────────────────────────────────────────────
 
+// ── Channel chip sub-component ───────────────────────────────────────────────
+
+function ChannelChip({
+  aliasId,
+  cl,
+  isPending,
+  onUnlink,
+  onTogglePrimary,
+}: {
+  aliasId: string;
+  cl: PersonAliasWithChannels["channelLinks"][number];
+  isPending: boolean;
+  onUnlink: (aliasId: string, channelId: string) => void;
+  onTogglePrimary: (aliasId: string, channelId: string, current: boolean) => void;
+}) {
+  const tooltip = cl.labelNames.length > 0 ? cl.labelNames.join(", ") : undefined;
+
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs transition-colors",
+        cl.isPrimary
+          ? "border-primary/30 bg-primary/10 text-primary"
+          : "border-white/10 bg-white/5 text-muted-foreground hover:border-white/20",
+      )}
+      title={tooltip}
+    >
+      {/* Star — visual-only for primary, promote action for others */}
+      <button
+        type="button"
+        onClick={cl.isPrimary ? undefined : () => onTogglePrimary(aliasId, cl.channelId, cl.isPrimary)}
+        className={cn(
+          "shrink-0 transition-colors",
+          cl.isPrimary
+            ? "cursor-default text-amber-400"
+            : "cursor-pointer text-muted-foreground/30 hover:text-amber-400",
+        )}
+        title={cl.isPrimary ? "Primary channel" : "Set as primary"}
+        tabIndex={cl.isPrimary ? -1 : 0}
+      >
+        <Star size={10} fill={cl.isPrimary ? "currentColor" : "none"} />
+      </button>
+
+      <span className="max-w-[160px] truncate">{cl.channelName}</span>
+
+      {/* Unlink */}
+      <button
+        type="button"
+        onClick={() => onUnlink(aliasId, cl.channelId)}
+        disabled={isPending}
+        className="shrink-0 text-muted-foreground/40 transition-colors hover:text-red-400"
+        title="Unlink channel"
+      >
+        <X size={10} />
+      </button>
+    </span>
+  );
+}
+
+// ── By Alias View ────────────────────────────────────────────────────────────
+
 function ByAliasView({
   aliases,
   selectedIds,
@@ -384,22 +472,16 @@ function ByAliasView({
   onUnlink: (aliasId: string, channelId: string) => void;
   onTogglePrimary: (aliasId: string, channelId: string, current: boolean) => void;
 }) {
-  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
-
-  const toggleExpand = useCallback((id: string) => {
-    setExpandedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  }, []);
-
   return (
     <div className="space-y-2">
       {aliases.map((alias) => {
-        const isExpanded = expandedIds.has(alias.id);
         const isSelected = selectedIds.has(alias.id);
+
+        // Sort: primary first, then alphabetical
+        const sortedLinks = [...alias.channelLinks].sort((a, b) => {
+          if (a.isPrimary !== b.isPrimary) return a.isPrimary ? -1 : 1;
+          return a.channelName.localeCompare(b.channelName);
+        });
 
         return (
           <div
@@ -429,23 +511,10 @@ function ByAliasView({
                 )}
               </button>
 
-              {/* Expand toggle (if has channels) */}
-              {alias.channelLinks.length > 0 ? (
-                <button
-                  type="button"
-                  onClick={() => toggleExpand(alias.id)}
-                  className="shrink-0 text-muted-foreground hover:text-foreground"
-                >
-                  {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-                </button>
-              ) : (
-                <span className="w-3.5 shrink-0" />
-              )}
-
               {/* Name */}
               <span className="min-w-0 flex-1 truncate font-medium">{alias.name}</span>
 
-              {/* Type pills — an alias can carry multiple tags */}
+              {/* Type pills */}
               <span className="flex shrink-0 gap-1">
                 {getAliasTagLabels(alias).map((label, i) => (
                   <span
@@ -464,14 +533,6 @@ function ByAliasView({
               <span className="shrink-0 rounded-full border border-white/10 bg-muted/30 px-2 py-0.5 text-[10px] text-muted-foreground">
                 {SOURCE_LABELS[alias.source]}
               </span>
-
-              {/* Channel count */}
-              {alias.channelLinks.length > 0 && (
-                <span className="flex shrink-0 items-center gap-1 text-xs text-muted-foreground">
-                  <Hash size={11} />
-                  {alias.channelLinks.length}
-                </span>
-              )}
 
               {/* Actions */}
               <div className="flex shrink-0 items-center gap-1">
@@ -500,44 +561,29 @@ function ByAliasView({
               <div className="px-4 pb-2 text-xs text-muted-foreground italic">{alias.notes}</div>
             )}
 
-            {/* Expanded channel links */}
-            {isExpanded && alias.channelLinks.length > 0 && (
-              <div className="border-t border-white/10 px-4 py-2 space-y-1.5">
-                {alias.channelLinks.map((cl) => (
-                  <div key={cl.channelId} className="flex items-center gap-2 text-sm">
-                    <Hash size={12} className="shrink-0 text-muted-foreground" />
-                    <span className="min-w-0 flex-1 truncate">{cl.channelName}</span>
-                    {cl.labelNames.length > 0 && (
-                      <span className="shrink-0 text-xs text-muted-foreground">
-                        {cl.labelNames.join(", ")}
-                      </span>
-                    )}
-                    <button
-                      type="button"
-                      onClick={() => onTogglePrimary(alias.id, cl.channelId, cl.isPrimary)}
-                      className={cn(
-                        "shrink-0 rounded-md p-1 transition-colors",
-                        cl.isPrimary
-                          ? "text-amber-400 hover:text-amber-300"
-                          : "text-muted-foreground/40 hover:text-amber-400",
-                      )}
-                      title={cl.isPrimary ? "Remove primary" : "Set as primary"}
-                    >
-                      <Star size={12} fill={cl.isPrimary ? "currentColor" : "none"} />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => onUnlink(alias.id, cl.channelId)}
-                      disabled={isPending}
-                      className="shrink-0 rounded-md p-1 text-muted-foreground/40 transition-colors hover:text-red-500"
-                      title="Unlink channel"
-                    >
-                      <X size={12} />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
+            {/* Channel chips — always visible, wrap freely */}
+            <div className="flex flex-wrap items-center gap-1.5 px-4 pb-3 pt-0">
+              {sortedLinks.map((cl) => (
+                <ChannelChip
+                  key={cl.channelId}
+                  aliasId={alias.id}
+                  cl={cl}
+                  isPending={isPending}
+                  onUnlink={onUnlink}
+                  onTogglePrimary={onTogglePrimary}
+                />
+              ))}
+              {/* + link CTA */}
+              <button
+                type="button"
+                onClick={() => onEdit(alias)}
+                className="inline-flex items-center gap-1 rounded-full border border-dashed border-white/20 px-2 py-0.5 text-xs text-muted-foreground/50 transition-colors hover:border-white/40 hover:text-muted-foreground"
+                title="Link to a channel"
+              >
+                <Plus size={10} />
+                link
+              </button>
+            </div>
           </div>
         );
       })}
