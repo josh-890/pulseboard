@@ -295,7 +295,7 @@ export default async function SetDetailPage({ params }: SetDetailPageProps) {
                       icgId: c.resolvedPerson.icgId,
                       aliases: c.resolvedPerson.aliases.map((a) => ({
                         name: a.name,
-                        type: a.type,
+                        isCommon: a.isCommon,
                       })),
                     }
                   : null,

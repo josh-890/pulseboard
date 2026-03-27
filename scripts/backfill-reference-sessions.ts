@@ -12,7 +12,7 @@ async function main() {
       referenceSession: null,
     },
     include: {
-      aliases: { where: { type: "common" }, take: 1 },
+      aliases: { where: { isCommon: true }, take: 1 },
     },
   });
 

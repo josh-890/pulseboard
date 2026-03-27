@@ -1,9 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState, useTransition } from "react";
-import { X, Search } from "lucide-react";
+import { X, Search, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { AliasType } from "@/generated/prisma/client";
 import type { PersonAliasWithChannels } from "@/lib/services/alias-service";
 import {
   createAliasAction,
@@ -16,17 +15,21 @@ type ChannelOption = { id: string; name: string };
 type AddAliasSheetProps = {
   personId: string;
   editingAlias?: PersonAliasWithChannels | null;
+  /** All aliases for this person — used to detect existing common/birth conflicts */
+  existingAliases?: PersonAliasWithChannels[];
   onClose: () => void;
 };
 
 export function AddAliasSheet({
   personId,
   editingAlias,
+  existingAliases = [],
   onClose,
 }: AddAliasSheetProps) {
   const [isPending, startTransition] = useTransition();
   const [name, setName] = useState(editingAlias?.name ?? "");
-  const [type, setType] = useState<AliasType>(editingAlias?.type ?? "alias");
+  const [isCommon, setIsCommon] = useState(editingAlias?.isCommon ?? false);
+  const [isBirth, setIsBirth] = useState(editingAlias?.isBirth ?? false);
   const [notes, setNotes] = useState(editingAlias?.notes ?? "");
   const [channels, setChannels] = useState<ChannelOption[]>([]);
   const [channelSearch, setChannelSearch] = useState("");
@@ -34,6 +37,12 @@ export function AddAliasSheet({
     new Set(editingAlias?.channelLinks.map((cl) => cl.channelId) ?? []),
   );
   const [error, setError] = useState<string | null>(null);
+
+  // Confirmation dialog state
+  const [pendingConfirm, setPendingConfirm] = useState<{
+    type: "common" | "birth";
+    conflictName: string;
+  } | null>(null);
 
   // Load channels on mount
   useEffect(() => {
@@ -56,6 +65,36 @@ export function AddAliasSheet({
     });
   }, []);
 
+  // Find existing common/birth aliases (excluding the one being edited)
+  const existingCommon = existingAliases.find(
+    (a) => a.isCommon && a.id !== editingAlias?.id,
+  );
+  const existingBirth = existingAliases.find(
+    (a) => a.isBirth && a.id !== editingAlias?.id,
+  );
+
+  const handleToggleCommon = useCallback((checked: boolean) => {
+    if (checked && existingCommon) {
+      setPendingConfirm({ type: "common", conflictName: existingCommon.name });
+    } else {
+      setIsCommon(checked);
+    }
+  }, [existingCommon]);
+
+  const handleToggleBirth = useCallback((checked: boolean) => {
+    if (checked && existingBirth) {
+      setPendingConfirm({ type: "birth", conflictName: existingBirth.name });
+    } else {
+      setIsBirth(checked);
+    }
+  }, [existingBirth]);
+
+  const confirmPending = useCallback(() => {
+    if (pendingConfirm?.type === "common") setIsCommon(true);
+    if (pendingConfirm?.type === "birth") setIsBirth(true);
+    setPendingConfirm(null);
+  }, [pendingConfirm]);
+
   const handleSubmit = useCallback(() => {
     if (!name.trim()) {
       setError("Name is required.");
@@ -67,14 +106,14 @@ export function AddAliasSheet({
       if (editingAlias) {
         const result = await updateAliasAction(editingAlias.id, personId, {
           name: name.trim(),
-          type,
+          isCommon,
+          isBirth,
           notes: notes.trim() || null,
         });
         if (!result.success) {
           setError(result.error ?? "Failed to update alias.");
           return;
         }
-        // Sync channel links: add new ones (removals handled via unlink in the tab)
         const existingChannelIds = new Set(editingAlias.channelLinks.map((cl) => cl.channelId));
         const newChannelIds = [...selectedChannelIds].filter((id) => !existingChannelIds.has(id));
         if (newChannelIds.length > 0) {
@@ -83,7 +122,8 @@ export function AddAliasSheet({
       } else {
         const result = await createAliasAction(personId, {
           name: name.trim(),
-          type,
+          isCommon,
+          isBirth,
           notes: notes.trim() || null,
           channelIds: [...selectedChannelIds],
         });
@@ -94,7 +134,7 @@ export function AddAliasSheet({
       }
       onClose();
     });
-  }, [editingAlias, name, type, notes, selectedChannelIds, personId, onClose]);
+  }, [editingAlias, name, isCommon, isBirth, notes, selectedChannelIds, personId, onClose]);
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end">
@@ -131,18 +171,37 @@ export function AddAliasSheet({
             />
           </div>
 
-          {/* Type */}
-          <div>
-            <label className="mb-1.5 block text-sm font-medium">Type</label>
-            <select
-              value={type}
-              onChange={(e) => setType(e.target.value as AliasType)}
-              className="w-full rounded-lg border border-white/15 bg-muted/30 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
-            >
-              <option value="alias">Alias</option>
-              <option value="common">Common</option>
-              <option value="birth">Birth</option>
-            </select>
+          {/* Flags */}
+          <div className="space-y-2">
+            <label className="block text-sm font-medium">Tags</label>
+            <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-white/10 bg-muted/20 px-3 py-2.5 hover:bg-muted/30 transition-colors">
+              <input
+                type="checkbox"
+                checked={isCommon}
+                onChange={(e) => handleToggleCommon(e.target.checked)}
+                className="mt-0.5 accent-primary"
+              />
+              <div>
+                <span className="text-sm font-medium">Common name</span>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  The name this person is listed under in the database
+                </p>
+              </div>
+            </label>
+            <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-white/10 bg-muted/20 px-3 py-2.5 hover:bg-muted/30 transition-colors">
+              <input
+                type="checkbox"
+                checked={isBirth}
+                onChange={(e) => handleToggleBirth(e.target.checked)}
+                className="mt-0.5 accent-amber-500"
+              />
+              <div>
+                <span className="text-sm font-medium">Birth name</span>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  The name this person was given at birth
+                </p>
+              </div>
+            </label>
           </div>
 
           {/* Notes */}
@@ -231,6 +290,52 @@ export function AddAliasSheet({
           </button>
         </div>
       </div>
+
+      {/* Confirmation dialog */}
+      {pendingConfirm && (
+        <div className="absolute inset-0 z-60 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60" onClick={() => setPendingConfirm(null)} />
+          <div className="relative w-full max-w-sm rounded-xl border border-white/15 bg-background p-6 shadow-2xl">
+            <div className="flex items-start gap-3">
+              <AlertTriangle size={18} className="mt-0.5 shrink-0 text-amber-500" />
+              <div>
+                <p className="text-sm font-medium">
+                  {pendingConfirm.type === "common"
+                    ? "Change common name?"
+                    : "Transfer birth name?"}
+                </p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  {pendingConfirm.type === "common"
+                    ? <>
+                        <span className="font-medium text-foreground">{pendingConfirm.conflictName}</span>
+                        {" "}is currently the common name. It will become a plain alias.
+                      </>
+                    : <>
+                        <span className="font-medium text-foreground">{pendingConfirm.conflictName}</span>
+                        {" "}is currently tagged as the birth name. That tag will be removed from it.
+                      </>}
+                </p>
+              </div>
+            </div>
+            <div className="mt-4 flex gap-2 justify-end">
+              <button
+                type="button"
+                onClick={() => setPendingConfirm(null)}
+                className="rounded-lg border border-white/15 px-3 py-1.5 text-sm hover:bg-muted/40 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmPending}
+                className="rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
+              >
+                Confirm
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

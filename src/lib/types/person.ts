@@ -4,7 +4,6 @@ export type {
   Persona,
   PersonRelationship,
   PersonStatus,
-  AliasType,
   RelationshipSource,
   BodyMarkType,
   BodyMarkStatus,

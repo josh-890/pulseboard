@@ -18,7 +18,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { PersonAliasWithChannels } from "@/lib/services/alias-service";
-import type { AliasType, AliasSource } from "@/generated/prisma/client";
+import type { AliasSource } from "@/generated/prisma/client";
 import {
   deleteAliasAction,
   unlinkAliasChannelAction,
@@ -28,19 +28,23 @@ import { AddAliasSheet } from "./add-alias-sheet";
 import { AliasImportDialog } from "./alias-import-dialog";
 import { AliasMergeDialog } from "./alias-merge-dialog";
 
-// ── Style Maps ──────────────────────────────────────────────────────────────
+// ── Alias flag helpers ───────────────────────────────────────────────────────
 
-const ALIAS_TYPE_STYLES: Record<AliasType, string> = {
-  common: "border-primary/30 bg-primary/10 text-primary",
-  birth: "border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400",
-  alias: "border-white/15 bg-muted/50 text-foreground",
-};
+function getAliasTagStyles(alias: { isCommon: boolean; isBirth: boolean }): string[] {
+  const tags: string[] = [];
+  if (alias.isCommon) tags.push("border-primary/30 bg-primary/10 text-primary");
+  if (alias.isBirth) tags.push("border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400");
+  if (!alias.isCommon && !alias.isBirth) tags.push("border-white/15 bg-muted/50 text-foreground");
+  return tags;
+}
 
-const ALIAS_TYPE_LABELS: Record<AliasType, string> = {
-  common: "Common",
-  birth: "Birth",
-  alias: "Alias",
-};
+function getAliasTagLabels(alias: { isCommon: boolean; isBirth: boolean }): string[] {
+  const labels: string[] = [];
+  if (alias.isCommon) labels.push("Common");
+  if (alias.isBirth) labels.push("Birth");
+  if (!alias.isCommon && !alias.isBirth) labels.push("Alias");
+  return labels;
+}
 
 const SOURCE_LABELS: Record<AliasSource, string> = {
   MANUAL: "Manual",
@@ -338,6 +342,7 @@ export function PersonAliasesTab({ personId, aliases }: PersonAliasesTabProps) {
         <AddAliasSheet
           personId={personId}
           editingAlias={editingAlias}
+          existingAliases={aliases}
           onClose={() => { setAddSheetOpen(false); setEditingAlias(null); }}
         />
       )}
@@ -440,14 +445,19 @@ function ByAliasView({
               {/* Name */}
               <span className="min-w-0 flex-1 truncate font-medium">{alias.name}</span>
 
-              {/* Type pill */}
-              <span
-                className={cn(
-                  "shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-medium",
-                  ALIAS_TYPE_STYLES[alias.type],
-                )}
-              >
-                {ALIAS_TYPE_LABELS[alias.type]}
+              {/* Type pills — an alias can carry multiple tags */}
+              <span className="flex shrink-0 gap-1">
+                {getAliasTagLabels(alias).map((label, i) => (
+                  <span
+                    key={label}
+                    className={cn(
+                      "rounded-full border px-2 py-0.5 text-[10px] font-medium",
+                      getAliasTagStyles(alias)[i],
+                    )}
+                  >
+                    {label}
+                  </span>
+                ))}
               </span>
 
               {/* Source pill */}
@@ -589,13 +599,18 @@ function ByChannelView({
                 {group.aliases.map((alias) => (
                   <div key={alias.id} className="flex items-center gap-2 text-sm">
                     <span className="min-w-0 flex-1 truncate">{alias.name}</span>
-                    <span
-                      className={cn(
-                        "shrink-0 rounded-full border px-2 py-0.5 text-[10px]",
-                        ALIAS_TYPE_STYLES[alias.type],
-                      )}
-                    >
-                      {ALIAS_TYPE_LABELS[alias.type]}
+                    <span className="flex shrink-0 gap-1">
+                      {getAliasTagLabels(alias).map((label, i) => (
+                        <span
+                          key={label}
+                          className={cn(
+                            "rounded-full border px-2 py-0.5 text-[10px]",
+                            getAliasTagStyles(alias)[i],
+                          )}
+                        >
+                          {label}
+                        </span>
+                      ))}
                     </span>
                     <button
                       type="button"
@@ -664,13 +679,18 @@ function ByChannelView({
               {unlinked.map((alias) => (
                 <div key={alias.id} className="flex items-center gap-2 text-sm">
                   <span className="min-w-0 flex-1 truncate">{alias.name}</span>
-                  <span
-                    className={cn(
-                      "shrink-0 rounded-full border px-2 py-0.5 text-[10px]",
-                      ALIAS_TYPE_STYLES[alias.type],
-                    )}
-                  >
-                    {ALIAS_TYPE_LABELS[alias.type]}
+                  <span className="flex shrink-0 gap-1">
+                    {getAliasTagLabels(alias).map((label, i) => (
+                      <span
+                        key={label}
+                        className={cn(
+                          "rounded-full border px-2 py-0.5 text-[10px]",
+                          getAliasTagStyles(alias)[i],
+                        )}
+                      >
+                        {label}
+                      </span>
+                    ))}
                   </span>
                   <button
                     type="button"

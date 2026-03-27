@@ -123,7 +123,7 @@ export async function getPersons(filters: PersonFilters = {}): Promise<PersonWit
     where,
     include: {
       aliases: {
-        where: { type: { in: ["common", "birth"] } },
+        where: { OR: [{ isCommon: true }, { isBirth: true }] },
       },
     },
     orderBy: { createdAt: "asc" },
@@ -145,12 +145,12 @@ export async function getPersons(filters: PersonFilters = {}): Promise<PersonWit
     retiredAtPrecision: p.retiredAtPrecision,
     specialization: p.specialization,
     createdAt: p.createdAt,
-    commonAlias: p.aliases.find((a) => a.type === "common")?.name ?? null,
+    commonAlias: p.aliases.find((a) => a.isCommon)?.name ?? null,
     birthdate: p.birthdate,
     birthdatePrecision: p.birthdatePrecision,
     birthdateModifier: p.birthdateModifier ?? "EXACT",
     nationality: p.nationality,
-    birthAlias: p.aliases.find((a) => a.type === "birth")?.name ?? null,
+    birthAlias: p.aliases.find((a) => a.isBirth)?.name ?? null,
     completeness: 0,
   }));
 }
@@ -164,7 +164,7 @@ export async function getPersonWithDetails(id: string) {
     where: { id },
     include: {
       aliases: {
-        orderBy: [{ type: "asc" }, { name: "asc" }],
+        orderBy: [{ isCommon: "desc" }, { isBirth: "desc" }, { name: "asc" }],
       },
       personas: {
         orderBy: [{ isBaseline: "desc" }, { date: "asc" }],
@@ -1005,12 +1005,12 @@ export async function getPersonConnections(personId: string): Promise<PersonConn
     include: {
       personA: {
         include: {
-          aliases: { where: { type: "common" as const }, take: 1 },
+          aliases: { where: { isCommon: true }, take: 1 },
         },
       },
       personB: {
         include: {
-          aliases: { where: { type: "common" as const }, take: 1 },
+          aliases: { where: { isCommon: true }, take: 1 },
         },
       },
     },
@@ -1056,12 +1056,12 @@ export async function createPersonRecord(data: CreatePersonInput) {
     });
 
     await tx.personAlias.create({
-      data: { personId: person.id, name: data.commonName, type: "common" },
+      data: { personId: person.id, name: data.commonName, isCommon: true },
     });
 
     if (data.birthName) {
       await tx.personAlias.create({
-        data: { personId: person.id, name: data.birthName, type: "birth" },
+        data: { personId: person.id, name: data.birthName, isBirth: true },
       });
     }
 
@@ -1169,7 +1169,7 @@ export async function updatePersonRecord(id: string, data: UpdatePersonInput) {
     // Update common alias if provided
     if (data.commonName !== undefined) {
       const commonAlias = await tx.personAlias.findFirst({
-        where: { personId: id, type: "common" },
+        where: { personId: id, isCommon: true },
       });
       if (commonAlias) {
         await tx.personAlias.update({
@@ -1461,7 +1461,7 @@ export async function getPersonsPaginated(
 
   // Helper to map a raw person to PersonWithCommonAlias (sans completeness)
   type RawPerson = Awaited<ReturnType<typeof prisma.person.findMany>>[number] & {
-    aliases: { type: string; name: string; nameNorm: string | null }[];
+    aliases: { isCommon: boolean; isBirth: boolean; name: string; nameNorm: string | null }[];
   };
 
   function mapPerson(p: RawPerson, score: number): PersonWithCommonAlias {
@@ -1481,12 +1481,12 @@ export async function getPersonsPaginated(
       retiredAtPrecision: p.retiredAtPrecision,
       specialization: p.specialization,
       createdAt: p.createdAt,
-      commonAlias: p.aliases.find((a) => a.type === "common")?.name ?? null,
+      commonAlias: p.aliases.find((a) => a.isCommon)?.name ?? null,
       birthdate: p.birthdate,
       birthdatePrecision: p.birthdatePrecision,
       birthdateModifier: p.birthdateModifier ?? "EXACT",
       nationality: p.nationality,
-      birthAlias: p.aliases.find((a) => a.type === "birth")?.name ?? null,
+      birthAlias: p.aliases.find((a) => a.isBirth)?.name ?? null,
       completeness: score,
     };
   }
@@ -1498,7 +1498,7 @@ export async function getPersonsPaginated(
       prisma.person.findMany({
         where,
         include: {
-          aliases: { where: { type: { in: ["common", "birth"] } } },
+          aliases: { where: { OR: [{ isCommon: true }, { isBirth: true }] } },
         },
       }),
     ]);
@@ -1514,7 +1514,7 @@ export async function getPersonsPaginated(
       naturalHairColor: p.naturalHairColor,
       height: p.height,
       birthPlace: p.birthPlace,
-      birthAlias: p.aliases.find((a) => a.type === "birth")?.name ?? null,
+      birthAlias: p.aliases.find((a) => a.isBirth)?.name ?? null,
     }));
     const completenessMap = await batchComputeCompleteness(
       batchData,
@@ -1536,8 +1536,8 @@ export async function getPersonsPaginated(
     if (isNameSort) {
       const direction = sort === "name-asc" ? 1 : -1;
       filtered.sort((a, b) => {
-        const nameA = a.aliases.find((al) => al.type === "common")?.nameNorm ?? "\uffff";
-        const nameB = b.aliases.find((al) => al.type === "common")?.nameNorm ?? "\uffff";
+        const nameA = a.aliases.find((al) => al.isCommon)?.nameNorm ?? "\uffff";
+        const nameB = b.aliases.find((al) => al.isCommon)?.nameNorm ?? "\uffff";
         return nameA.localeCompare(nameB) * direction;
       });
     } else if (isCompletenessSort) {
@@ -1575,7 +1575,7 @@ export async function getPersonsPaginated(
       where,
       include: {
         aliases: {
-          where: { type: { in: ["common", "birth"] } },
+          where: { OR: [{ isCommon: true }, { isBirth: true }] },
         },
       },
       orderBy,
@@ -1599,7 +1599,7 @@ export async function getPersonsPaginated(
     naturalHairColor: p.naturalHairColor,
     height: p.height,
     birthPlace: p.birthPlace,
-    birthAlias: p.aliases.find((a) => a.type === "birth")?.name ?? null,
+    birthAlias: p.aliases.find((a) => a.isBirth)?.name ?? null,
   }));
   const completenessMap = await batchComputeCompleteness(
     batchData,

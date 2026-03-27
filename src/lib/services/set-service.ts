@@ -49,7 +49,7 @@ export async function getSets(filters: SetFilters = {}) {
         include: {
           person: {
             include: {
-              aliases: { where: { type: "common" }, take: 1 },
+              aliases: { where: { isCommon: true }, take: 1 },
             },
           },
           roleDefinition: { include: { group: true } },
@@ -132,7 +132,7 @@ export async function getSetsPaginated(
           include: {
             person: {
               include: {
-                aliases: { where: { type: "common" }, take: 1 },
+                aliases: { where: { isCommon: true }, take: 1 },
               },
             },
             roleDefinition: { include: { group: true } },
@@ -168,7 +168,7 @@ export async function getSetById(id: string) {
         include: {
           resolvedPerson: {
             include: {
-              aliases: { where: { type: "common" }, take: 1 },
+              aliases: { where: { isCommon: true }, take: 1 },
             },
           },
           roleDefinition: { include: { group: true } },
@@ -179,7 +179,7 @@ export async function getSetById(id: string) {
         include: {
           person: {
             include: {
-              aliases: { where: { type: "common" }, take: 1 },
+              aliases: { where: { isCommon: true }, take: 1 },
             },
           },
           roleDefinition: { include: { group: true } },
@@ -345,14 +345,14 @@ export async function searchPersonsForSelect(q: string) {
           aliases: {
             some: {
               name: { contains: q, mode: "insensitive" },
-              type: "common",
+              isCommon: true,
             },
           },
         },
       ],
     },
     include: {
-      aliases: { where: { type: "common" }, take: 1 },
+      aliases: { where: { isCommon: true }, take: 1 },
     },
     take: 20,
     orderBy: { createdAt: "asc" },
@@ -646,7 +646,7 @@ export async function getSuggestedResolutions(rawName: string, channelId: string
         select: {
           id: true,
           icgId: true,
-          aliases: { where: { type: "common" }, take: 1 },
+          aliases: { where: { isCommon: true }, take: 1 },
         },
       },
     },
@@ -686,7 +686,7 @@ export async function getSuggestedResolutions(rawName: string, channelId: string
           select: {
             id: true,
             icgId: true,
-            aliases: { where: { type: "common" }, take: 1 },
+            aliases: { where: { isCommon: true }, take: 1 },
           },
         },
       },
@@ -721,7 +721,7 @@ export async function getSetCredits(setId: string) {
     include: {
       resolvedPerson: {
         include: {
-          aliases: { where: { type: "common" }, take: 1 },
+          aliases: { where: { isCommon: true }, take: 1 },
         },
       },
       roleDefinition: { include: { group: true } },

@@ -5,7 +5,8 @@ import { prisma } from "@/lib/db";
 export type PersonAliasWithChannels = {
   id: string;
   name: string;
-  type: "common" | "birth" | "alias";
+  isCommon: boolean;
+  isBirth: boolean;
   source: "MANUAL" | "IMPORT";
   notes: string | null;
   channelLinks: {
@@ -55,13 +56,14 @@ export async function getPersonAliases(
         },
       },
     },
-    orderBy: [{ type: "asc" }, { name: "asc" }],
+    orderBy: [{ isCommon: "desc" }, { isBirth: "desc" }, { name: "asc" }],
   });
 
   return aliases.map((a) => ({
     id: a.id,
     name: a.name,
-    type: a.type,
+    isCommon: a.isCommon,
+    isBirth: a.isBirth,
     source: a.source,
     notes: a.notes,
     channelLinks: a.channelLinks.map((cl) => ({
@@ -103,7 +105,8 @@ export async function getChannelAliases(
   return links.map((l) => ({
     id: l.alias.id,
     name: l.alias.name,
-    type: l.alias.type,
+    isCommon: l.alias.isCommon,
+    isBirth: l.alias.isBirth,
     source: l.alias.source,
     notes: l.alias.notes,
     channelLinks: l.alias.channelLinks.map((cl) => ({
@@ -121,7 +124,8 @@ export async function getChannelAliases(
 export async function createAlias(
   personId: string,
   name: string,
-  type: "common" | "birth" | "alias",
+  isCommon: boolean = false,
+  isBirth: boolean = false,
   source: "MANUAL" | "IMPORT" = "MANUAL",
   notes?: string | null,
   channelIds?: string[],
@@ -131,7 +135,8 @@ export async function createAlias(
       data: {
         personId,
         name,
-        type,
+        isCommon,
+        isBirth,
         source,
         notes: notes ?? null,
         nameNorm: normalizeForSearch(name),
@@ -156,7 +161,8 @@ export async function updateAlias(
   aliasId: string,
   data: {
     name?: string;
-    type?: "common" | "birth" | "alias";
+    isCommon?: boolean;
+    isBirth?: boolean;
     notes?: string | null;
   },
 ) {
@@ -165,7 +171,8 @@ export async function updateAlias(
     updateData.name = data.name;
     updateData.nameNorm = normalizeForSearch(data.name);
   }
-  if (data.type !== undefined) updateData.type = data.type;
+  if (data.isCommon !== undefined) updateData.isCommon = data.isCommon;
+  if (data.isBirth !== undefined) updateData.isBirth = data.isBirth;
   if (data.notes !== undefined) updateData.notes = data.notes;
 
   return prisma.personAlias.update({
@@ -181,13 +188,8 @@ export async function deleteAlias(aliasId: string) {
       where: { id: aliasId },
     });
 
-    if (alias.type === "common") {
-      const commonCount = await tx.personAlias.count({
-        where: { personId: alias.personId, type: "common" },
-      });
-      if (commonCount <= 1) {
-        throw new Error("Cannot delete the only common alias for a person.");
-      }
+    if (alias.isCommon) {
+      throw new Error("Cannot delete the common alias. Assign another alias as the common name first.");
     }
 
     await tx.personAliasChannel.deleteMany({ where: { aliasId } });
@@ -264,7 +266,8 @@ export async function bulkImportAliases(
           data: {
             personId,
             name: entry.name,
-            type: "alias",
+            isCommon: false,
+            isBirth: false,
             source: "IMPORT",
             nameNorm,
           },

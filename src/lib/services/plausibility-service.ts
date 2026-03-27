@@ -25,7 +25,7 @@ type PersonData = {
   activeFromPrecision: string;
   retiredAt: Date | null;
   retiredAtPrecision: string;
-  aliases: { type: string }[];
+  aliases: { isCommon: boolean }[];
   personas: { isBaseline: boolean; date: Date | null; datePrecision: string }[];
   contributions?: ContributionData[];
 };
@@ -59,7 +59,7 @@ export function computePlausibilityIssues(person: PersonData): PlausibilityIssue
     });
   }
 
-  const hasCommonAlias = person.aliases.some((a) => a.type === "common");
+  const hasCommonAlias = person.aliases.some((a) => a.isCommon);
   if (!hasCommonAlias) {
     issues.push({
       id: "no-common-alias",
@@ -288,8 +288,8 @@ export function computePlausibilityIssues(person: PersonData): PlausibilityIssue
  * Returns 0 for clean persons.
  */
 export function getQuickPlausibilityCount(person: PersonWithCommonAlias): number {
-  const aliases: { type: string }[] = [];
-  if (person.commonAlias) aliases.push({ type: "common" });
+  const aliases: { isCommon: boolean }[] = [];
+  if (person.commonAlias) aliases.push({ isCommon: true });
 
   return computePlausibilityIssues({
     birthdate: person.birthdate,

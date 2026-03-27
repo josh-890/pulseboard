@@ -34,7 +34,7 @@ export async function getAllCollections(filters: {
       _count: { select: { items: true } },
       person: {
         select: {
-          aliases: { where: { type: "common" }, take: 1 },
+          aliases: { where: { isCommon: true }, take: 1 },
         },
       },
       items: {
@@ -117,7 +117,7 @@ export async function getCollectionWithItems(collectionId: string) {
       person: {
         select: {
           id: true,
-          aliases: { where: { type: "common" }, take: 1 },
+          aliases: { where: { isCommon: true }, take: 1 },
         },
       },
       items: {

@@ -8,7 +8,7 @@ const personSelect = {
   select: {
     id: true,
     icgId: true,
-    aliases: { where: { type: "common" as const }, take: 1 },
+    aliases: { where: { isCommon: true }, take: 1 },
   },
 } as const;
 
@@ -63,7 +63,7 @@ export async function getSessions(filters: SessionFilters = {}) {
         include: {
           person: {
             include: {
-              aliases: { where: { type: "common" }, take: 1 },
+              aliases: { where: { isCommon: true }, take: 1 },
             },
           },
           roleDefinition: { include: { group: true } },
@@ -145,7 +145,7 @@ export async function getSessionsPaginated(
           include: {
             person: {
               include: {
-                aliases: { where: { type: "common" }, take: 1 },
+                aliases: { where: { isCommon: true }, take: 1 },
               },
             },
             roleDefinition: { include: { group: true } },
@@ -182,7 +182,7 @@ export async function getSessionById(id: string) {
         include: {
           person: {
             include: {
-              aliases: { where: { type: "common" }, take: 1 },
+              aliases: { where: { isCommon: true }, take: 1 },
             },
           },
           roleDefinition: { include: { group: true } },

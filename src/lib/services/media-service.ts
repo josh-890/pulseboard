@@ -992,7 +992,7 @@ export async function findExactDuplicates(
       personMediaLinks: {
         select: {
           personId: true,
-          person: { select: { aliases: { where: { type: "common" }, take: 1 } } },
+          person: { select: { aliases: { where: { isCommon: true }, take: 1 } } },
         },
       },
     },
@@ -1051,7 +1051,7 @@ export async function findSimilarImages(
       personMediaLinks: {
         take: 1,
         select: {
-          person: { select: { aliases: { where: { type: "common" }, take: 1 } } },
+          person: { select: { aliases: { where: { isCommon: true }, take: 1 } } },
         },
       },
     },

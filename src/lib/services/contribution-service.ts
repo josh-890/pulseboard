@@ -13,7 +13,7 @@ export async function getSessionContributions(sessionId: string) {
     include: {
       person: {
         include: {
-          aliases: { where: { type: "common" }, take: 1 },
+          aliases: { where: { isCommon: true }, take: 1 },
         },
       },
       roleDefinition: {

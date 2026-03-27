@@ -84,12 +84,12 @@ async function main() {
 
   await prisma.personAlias.upsert({
     where: { id: "seed-alias-1" },
-    update: { name: "Jane", type: "common", source: "MANUAL", nameNorm: "jane" },
+    update: { name: "Jane", isCommon: true, source: "MANUAL", nameNorm: "jane" },
     create: {
       id: "seed-alias-1",
       personId: person.id,
       name: "Jane",
-      type: "common",
+      isCommon: true,
       source: "MANUAL",
       nameNorm: "jane",
     },
@@ -97,12 +97,12 @@ async function main() {
 
   await prisma.personAlias.upsert({
     where: { id: "seed-alias-2" },
-    update: { name: "Jane Doe", type: "birth", source: "MANUAL", nameNorm: "jane doe" },
+    update: { name: "Jane Doe", isBirth: true, source: "MANUAL", nameNorm: "jane doe" },
     create: {
       id: "seed-alias-2",
       personId: person.id,
       name: "Jane Doe",
-      type: "birth",
+      isBirth: true,
       source: "MANUAL",
       nameNorm: "jane doe",
     },
@@ -110,12 +110,11 @@ async function main() {
 
   await prisma.personAlias.upsert({
     where: { id: "seed-alias-3" },
-    update: { name: "JD Star", type: "alias", source: "MANUAL", nameNorm: "jd star" },
+    update: { name: "JD Star", source: "MANUAL", nameNorm: "jd star" },
     create: {
       id: "seed-alias-3",
       personId: person.id,
       name: "JD Star",
-      type: "alias",
       source: "MANUAL",
       nameNorm: "jd star",
     },
@@ -123,12 +122,12 @@ async function main() {
 
   await prisma.personAlias.upsert({
     where: { id: "seed-alias-4" },
-    update: { name: "Marcus Reed", type: "common", source: "MANUAL", nameNorm: "marcus reed" },
+    update: { name: "Marcus Reed", isCommon: true, source: "MANUAL", nameNorm: "marcus reed" },
     create: {
       id: "seed-alias-4",
       personId: person2.id,
       name: "Marcus Reed",
-      type: "common",
+      isCommon: true,
       source: "MANUAL",
       nameNorm: "marcus reed",
     },

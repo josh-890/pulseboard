@@ -16,11 +16,6 @@ enum PersonStatus {
   archived
 }
 
-enum AliasType {
-  common
-  birth
-  alias
-}
 
 enum AliasSource {
   MANUAL
@@ -286,7 +281,12 @@ model PersonAlias {
   personId     String
   person       Person               @relation(fields: [personId], references: [id])
   name         String
-  type         AliasType            @default(alias)
+  // isCommon: the name this person is listed under (exactly one per person)
+  // isBirth:  the name given at birth (at most one per person)
+  // Both flags can be true simultaneously. Neither implies the other.
+  // Uniqueness enforced by partial indexes in the DB (not expressible in Prisma SDL).
+  isCommon     Boolean              @default(false)
+  isBirth      Boolean              @default(false)
   source       AliasSource          @default(MANUAL)
   nameNorm     String?
   notes        String?

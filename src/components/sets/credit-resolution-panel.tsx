@@ -32,7 +32,7 @@ type CreditRawItem = {
   resolvedPerson: {
     id: string;
     icgId: string;
-    aliases: { name: string; type: string }[];
+    aliases: { name: string; isCommon: boolean }[];
   } | null;
 };
 
@@ -109,7 +109,7 @@ export function CreditResolutionPanel({ setId, credits: initialCredits, channelI
                 resolvedPerson: {
                   id: personId,
                   icgId: "",
-                  aliases: [{ name: personName, type: "common" }],
+                  aliases: [{ name: personName, isCommon: true }],
                 },
               }
             : c,
@@ -288,7 +288,7 @@ function CreditRow({
 }: CreditRowProps) {
   const isLoading = actionLoading === credit.id;
   const resolvedName =
-    credit.resolvedPerson?.aliases?.find((a) => a.type === "common")?.name ??
+    credit.resolvedPerson?.aliases?.find((a) => a.isCommon)?.name ??
     credit.resolvedPerson?.icgId ??
     null;
 

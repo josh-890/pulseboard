@@ -24,7 +24,7 @@ type SetCardProps = {
 function getCastName(
   person: SetItem["participants"][number]["person"],
 ): string {
-  const common = person.aliases.find((a) => a.type === "common");
+  const common = person.aliases.find((a) => a.isCommon);
   return common?.name ?? person.icgId;
 }
 

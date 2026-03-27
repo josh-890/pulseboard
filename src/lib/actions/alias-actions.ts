@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import type { AliasType, AliasSource } from "@/generated/prisma/client";
+import type { AliasSource } from "@/generated/prisma/client";
 import {
   createAlias,
   updateAlias,
@@ -20,7 +20,8 @@ export async function createAliasAction(
   personId: string,
   data: {
     name: string;
-    type?: AliasType;
+    isCommon?: boolean;
+    isBirth?: boolean;
     source?: AliasSource;
     notes?: string | null;
     channelIds?: string[];
@@ -33,7 +34,8 @@ export async function createAliasAction(
     await createAlias(
       personId,
       data.name.trim(),
-      data.type ?? "alias",
+      data.isCommon ?? false,
+      data.isBirth ?? false,
       data.source ?? "MANUAL",
       data.notes,
       data.channelIds,
@@ -50,7 +52,8 @@ export async function updateAliasAction(
   personId: string,
   data: {
     name?: string;
-    type?: AliasType;
+    isCommon?: boolean;
+    isBirth?: boolean;
     notes?: string | null;
   },
 ): Promise<SimpleActionResult> {

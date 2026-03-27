@@ -18,7 +18,7 @@ async function main() {
     include: {
       person: {
         include: {
-          aliases: { where: { type: "common" }, take: 1 },
+          aliases: { where: { isCommon: true }, take: 1 },
         },
       },
     },

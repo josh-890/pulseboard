@@ -54,7 +54,7 @@ export async function GET(request: Request) {
             select: {
               id: true,
               icgId: true,
-              aliases: { where: { type: "common" }, take: 1 },
+              aliases: { where: { isCommon: true }, take: 1 },
             },
           },
         },

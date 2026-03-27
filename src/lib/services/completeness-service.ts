@@ -28,7 +28,7 @@ export async function computeProfileCompleteness(
     prisma.person.findUnique({
       where: { id: personId },
       include: {
-        aliases: { where: { type: "birth" }, take: 1 },
+        aliases: { where: { isBirth: true }, take: 1 },
       },
     }),
     prisma.personMediaLink.findFirst({

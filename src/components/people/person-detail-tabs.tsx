@@ -10,7 +10,6 @@ import type {
   PersonConnection,
   PersonSessionWorkEntry,
   PersonProductionSession,
-  AliasType,
   PersonStatus,
   RelationshipSource,
 } from "@/lib/types";
@@ -123,16 +122,11 @@ const STATUS_DOT_COLORS: Record<PersonStatus, string> = {
   archived: "bg-red-500",
 };
 
-const ALIAS_TYPE_STYLES: Record<AliasType, string> = {
-  common: "border-primary/30 bg-primary/10 text-primary",
-  birth: "border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400",
-  alias: "border-white/15 bg-muted/50 text-foreground",
-};
-
 type HeroAliasSummary = {
   id: string;
   name: string;
-  type: "common" | "birth" | "alias";
+  isCommon: boolean;
+  isBirth: boolean;
   usageCount: number;
   channelNames: string[];
 };
@@ -715,8 +709,8 @@ function IdentityBlock({ person, displayName, age, heroAliases, onAliasesBadgeCl
   section?: "top" | "bottom" | "all";
   plausibilityCount?: number;
 }) {
-  const birthAlias = heroAliases.find((a) => a.type === "birth" && a.name !== displayName);
-  const otherAliases = heroAliases.filter((a) => a.type === "alias");
+  const birthAlias = heroAliases.find((a) => a.isBirth && a.name !== displayName);
+  const otherAliases = heroAliases.filter((a) => !a.isCommon && !a.isBirth);
   const MAX_VISIBLE = 8;
   const visibleOthers = otherAliases.slice(0, MAX_VISIBLE);
   const overflow = otherAliases.length - visibleOthers.length;
@@ -1004,7 +998,7 @@ function HeroCard({
   aliasesWithChannels?: PersonAliasWithChannels[];
   plausibilityCount?: number;
 }) {
-  const commonAlias = person.aliases.find((a) => a.type === "common");
+  const commonAlias = person.aliases.find((a) => a.isCommon);
 
   const displayName = commonAlias ? commonAlias.name : person.icgId;
   const initials = commonAlias
@@ -1020,14 +1014,15 @@ function HeroCard({
         .map((a) => ({
           id: a.id,
           name: a.name,
-          type: a.type,
+          isCommon: a.isCommon,
+          isBirth: a.isBirth,
           usageCount: a.channelLinks.length,
           channelNames: a.channelLinks.map((cl) => cl.channelName),
         }))
         .sort((a, b) => {
-          // birth first, then common, then alias by usage desc
-          const typeOrder = { birth: 0, common: 1, alias: 2 };
-          if (typeOrder[a.type] !== typeOrder[b.type]) return typeOrder[a.type] - typeOrder[b.type];
+          // birth first, then common, then plain aliases by usage desc
+          const rank = (x: HeroAliasSummary) => (x.isBirth ? 0 : x.isCommon ? 1 : 2);
+          if (rank(a) !== rank(b)) return rank(a) - rank(b);
           return b.usageCount - a.usageCount;
         });
     }
@@ -1035,7 +1030,8 @@ function HeroCard({
     return person.aliases.map((a) => ({
       id: a.id,
       name: a.name,
-      type: a.type as "common" | "birth" | "alias",
+      isCommon: a.isCommon,
+      isBirth: a.isBirth,
       usageCount: 0,
       channelNames: [],
     }));
@@ -1074,7 +1070,7 @@ function AboutCard({ person, referencePhotos }: { person: PersonData; referenceP
   const [isPending, startTransition] = useTransition();
   const [showPhotoPicker, setShowPhotoPicker] = useState(false);
 
-  const displayName = person.aliases.find((a) => a.type === "common")?.name ?? person.icgId;
+  const displayName = person.aliases.find((a) => a.isCommon)?.name ?? person.icgId;
   const photos = referencePhotos ?? [];
 
   // Build a lookup map for media: references → actual URLs
