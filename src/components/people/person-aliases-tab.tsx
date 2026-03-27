@@ -4,8 +4,6 @@ import { useCallback, useMemo, useState, useTransition } from "react";
 import {
   ArrowDownUp,
   BookUser,
-  ChevronDown,
-  ChevronRight,
   FileUp,
   Hash,
   Link2,
@@ -47,6 +45,12 @@ function getAliasTagLabels(alias: { isCommon: boolean; isBirth: boolean }): stri
   return labels;
 }
 
+function getAliasNameColor(alias: { isCommon: boolean; isBirth: boolean }): string {
+  if (alias.isCommon) return "text-primary font-semibold";
+  if (alias.isBirth) return "text-amber-500 dark:text-amber-400";
+  return "";
+}
+
 const SOURCE_LABELS: Record<AliasSource, string> = {
   MANUAL: "Manual",
   IMPORT: "Import",
@@ -66,7 +70,7 @@ type PersonAliasesTabProps = {
 
 export function PersonAliasesTab({ personId, aliases }: PersonAliasesTabProps) {
   const [viewMode, setViewMode] = useState<ViewMode>("by-alias");
-  const [sortMode, setSortMode] = useState<SortMode>("default");
+  const [sortMode, setSortMode] = useState<SortMode>("links");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [addSheetOpen, setAddSheetOpen] = useState(false);
@@ -255,16 +259,16 @@ export function PersonAliasesTab({ personId, aliases }: PersonAliasesTabProps) {
           <button
             type="button"
             onClick={() => setSortMode((s) => s === "default" ? "links" : "default")}
-            title={sortMode === "links" ? "Sorted by links — click for default" : "Sort by number of channel links"}
+            title={sortMode === "default" ? "Sorted A–Z — click to sort by links" : "Sort A–Z"}
             className={cn(
               "inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors",
-              sortMode === "links"
+              sortMode === "default"
                 ? "border-primary/40 bg-primary/10 text-primary"
                 : "border-white/15 bg-card/50 text-muted-foreground hover:text-foreground",
             )}
           >
             <ArrowDownUp size={13} />
-            Links
+            A–Z
           </button>
         )}
 
@@ -512,7 +516,7 @@ function ByAliasView({
               </button>
 
               {/* Name */}
-              <span className="min-w-0 flex-1 truncate font-medium">{alias.name}</span>
+              <span className={cn("min-w-0 flex-1 truncate font-medium", getAliasNameColor(alias))}>{alias.name}</span>
 
               {/* Type pills */}
               <span className="flex shrink-0 gap-1">
@@ -591,6 +595,85 @@ function ByAliasView({
   );
 }
 
+// ── Alias chip (used in By Channel view) ─────────────────────────────────────
+
+function AliasChip({
+  alias,
+  channelId,
+  isPending,
+  onEdit,
+  onUnlink,
+  onTogglePrimary,
+}: {
+  alias: PersonAliasWithChannels & { isPrimary: boolean };
+  channelId: string;
+  isPending: boolean;
+  onEdit: (alias: PersonAliasWithChannels) => void;
+  onUnlink: (aliasId: string, channelId: string) => void;
+  onTogglePrimary: (aliasId: string, channelId: string, current: boolean) => void;
+}) {
+  const typeLabel = getAliasTagLabels(alias)[0];
+  const typeStyle = getAliasTagStyles(alias)[0];
+
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs transition-colors",
+        alias.isPrimary
+          ? "border-primary/30 bg-primary/10 text-primary"
+          : "border-white/10 bg-white/5 text-muted-foreground hover:border-white/20",
+      )}
+      title={typeLabel}
+    >
+      {/* Star — visual-only for primary, promote for others */}
+      <button
+        type="button"
+        onClick={alias.isPrimary ? undefined : () => onTogglePrimary(alias.id, channelId, alias.isPrimary)}
+        className={cn(
+          "shrink-0 transition-colors",
+          alias.isPrimary
+            ? "cursor-default text-amber-400"
+            : "cursor-pointer text-muted-foreground/30 hover:text-amber-400",
+        )}
+        title={alias.isPrimary ? "Primary alias" : "Set as primary"}
+        tabIndex={alias.isPrimary ? -1 : 0}
+      >
+        <Star size={10} fill={alias.isPrimary ? "currentColor" : "none"} />
+      </button>
+
+      <span className={cn("max-w-[140px] truncate", getAliasNameColor(alias))}>{alias.name}</span>
+
+      {/* Type badge — only for Common and Birth, not plain Alias */}
+      {(alias.isCommon || alias.isBirth) && (
+        <span className={cn("rounded-full border px-1.5 py-0 text-[9px] font-medium leading-4", typeStyle)}>
+          {typeLabel}
+        </span>
+      )}
+
+      {/* Edit */}
+      <button
+        type="button"
+        onClick={() => onEdit(alias)}
+        className="shrink-0 text-muted-foreground/40 transition-colors hover:text-foreground"
+        title="Edit alias"
+      >
+        <Pencil size={9} />
+      </button>
+
+      {/* Unlink */}
+      <button
+        type="button"
+        onClick={() => onUnlink(alias.id, channelId)}
+        disabled={isPending}
+        className="shrink-0 text-muted-foreground/40 transition-colors hover:text-red-400"
+        title="Unlink from channel"
+      >
+        <X size={10} />
+      </button>
+    </span>
+  );
+}
+
 // ── By Channel View ─────────────────────────────────────────────────────────
 
 function ByChannelView({
@@ -610,157 +693,91 @@ function ByChannelView({
   onUnlink: (aliasId: string, channelId: string) => void;
   onTogglePrimary: (aliasId: string, channelId: string, current: boolean) => void;
 }) {
-  const [expandedChannels, setExpandedChannels] = useState<Set<string>>(new Set(["__unlinked__"]));
-
-  const toggleChannel = useCallback((key: string) => {
-    setExpandedChannels((prev) => {
-      const next = new Set(prev);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
-      return next;
-    });
-  }, []);
-
   return (
     <div className="space-y-2">
-      {channels.map(([channelId, group]) => {
-        const isExpanded = expandedChannels.has(channelId);
-        return (
-          <div key={channelId} className="rounded-xl border border-white/15 bg-card/60">
-            <button
-              type="button"
-              onClick={() => toggleChannel(channelId)}
-              className="flex w-full items-center gap-2 px-4 py-3 text-left"
-            >
-              {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-              <Hash size={14} className="text-muted-foreground" />
-              <span className="flex-1 font-medium">{group.channelName}</span>
-              <span className="rounded-full bg-muted/40 px-2 py-0.5 text-[10px] text-muted-foreground">
-                {group.aliases.length}
-              </span>
-            </button>
-
-            {isExpanded && (
-              <div className="border-t border-white/10 px-4 py-2 space-y-1.5">
-                {group.aliases.map((alias) => (
-                  <div key={alias.id} className="flex items-center gap-2 text-sm">
-                    <span className="min-w-0 flex-1 truncate">{alias.name}</span>
-                    <span className="flex shrink-0 gap-1">
-                      {getAliasTagLabels(alias).map((label, i) => (
-                        <span
-                          key={label}
-                          className={cn(
-                            "rounded-full border px-2 py-0.5 text-[10px]",
-                            getAliasTagStyles(alias)[i],
-                          )}
-                        >
-                          {label}
-                        </span>
-                      ))}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => onTogglePrimary(alias.id, channelId, alias.isPrimary)}
-                      className={cn(
-                        "shrink-0 rounded-md p-1 transition-colors",
-                        alias.isPrimary
-                          ? "text-amber-400 hover:text-amber-300"
-                          : "text-muted-foreground/40 hover:text-amber-400",
-                      )}
-                      title={alias.isPrimary ? "Remove primary" : "Set as primary"}
-                    >
-                      <Star size={12} fill={alias.isPrimary ? "currentColor" : "none"} />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => onUnlink(alias.id, channelId)}
-                      disabled={isPending}
-                      className="shrink-0 rounded-md p-1 text-muted-foreground/40 transition-colors hover:text-red-500"
-                      title="Unlink"
-                    >
-                      <X size={12} />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => onEdit(alias)}
-                      className="shrink-0 rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                      title="Edit"
-                    >
-                      <Pencil size={13} />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => onDelete(alias.id)}
-                      disabled={isPending}
-                      className="shrink-0 rounded-md p-1 text-muted-foreground transition-colors hover:bg-red-500/10 hover:text-red-500"
-                      title="Delete"
-                    >
-                      <Trash2 size={13} />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        );
-      })}
-
-      {/* Unlinked group */}
+      {/* Unlinked group — shown first */}
       {unlinked.length > 0 && (
         <div className="rounded-xl border border-amber-500/20 bg-amber-500/5">
-          <button
-            type="button"
-            onClick={() => toggleChannel("__unlinked__")}
-            className="flex w-full items-center gap-2 px-4 py-3 text-left"
-          >
-            {expandedChannels.has("__unlinked__") ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+          <div className="flex items-center gap-2 px-4 py-3">
             <span className="flex-1 font-medium text-amber-600 dark:text-amber-400">Unlinked</span>
             <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] text-amber-600 dark:text-amber-400">
               {unlinked.length}
             </span>
-          </button>
-
-          {expandedChannels.has("__unlinked__") && (
-            <div className="border-t border-amber-500/15 px-4 py-2 space-y-1.5">
-              {unlinked.map((alias) => (
-                <div key={alias.id} className="flex items-center gap-2 text-sm">
-                  <span className="min-w-0 flex-1 truncate">{alias.name}</span>
-                  <span className="flex shrink-0 gap-1">
-                    {getAliasTagLabels(alias).map((label, i) => (
-                      <span
-                        key={label}
-                        className={cn(
-                          "rounded-full border px-2 py-0.5 text-[10px]",
-                          getAliasTagStyles(alias)[i],
-                        )}
-                      >
-                        {label}
-                      </span>
-                    ))}
-                  </span>
+          </div>
+          <div className="flex flex-wrap items-center gap-1.5 px-4 pb-3 pt-0">
+            {unlinked.map((alias) => {
+              const typeLabel = getAliasTagLabels(alias)[0];
+              const typeStyle = getAliasTagStyles(alias)[0];
+              return (
+                <span
+                  key={alias.id}
+                  className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-xs text-muted-foreground"
+                >
+                  <span className={cn("max-w-[140px] truncate", getAliasNameColor(alias))}>{alias.name}</span>
+                  {(alias.isCommon || alias.isBirth) && (
+                    <span className={cn("rounded-full border px-1.5 py-0 text-[9px] font-medium leading-4", typeStyle)}>
+                      {typeLabel}
+                    </span>
+                  )}
                   <button
                     type="button"
                     onClick={() => onEdit(alias)}
-                    className="shrink-0 rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                    title="Edit"
+                    className="shrink-0 text-muted-foreground/40 transition-colors hover:text-foreground"
+                    title="Edit alias"
                   >
-                    <Pencil size={13} />
+                    <Pencil size={9} />
                   </button>
                   <button
                     type="button"
                     onClick={() => onDelete(alias.id)}
                     disabled={isPending}
-                    className="shrink-0 rounded-md p-1 text-muted-foreground transition-colors hover:bg-red-500/10 hover:text-red-500"
-                    title="Delete"
+                    className="shrink-0 text-muted-foreground/40 transition-colors hover:text-red-400"
+                    title="Delete alias"
                   >
-                    <Trash2 size={13} />
+                    <X size={10} />
                   </button>
-                </div>
-              ))}
-            </div>
-          )}
+                </span>
+              );
+            })}
+          </div>
         </div>
       )}
+
+      {/* Channel groups */}
+      {channels.map(([channelId, group]) => {
+        const sortedAliases = [...group.aliases].sort((a, b) => {
+          if (a.isPrimary !== b.isPrimary) return a.isPrimary ? -1 : 1;
+          return a.name.localeCompare(b.name);
+        });
+
+        return (
+          <div key={channelId} className="rounded-xl border border-white/15 bg-card/60">
+            {/* Channel header */}
+            <div className="flex items-center gap-2 px-4 py-3">
+              <Hash size={14} className="shrink-0 text-muted-foreground" />
+              <span className="flex-1 font-medium">{group.channelName}</span>
+              <span className="rounded-full bg-muted/40 px-2 py-0.5 text-[10px] text-muted-foreground">
+                {group.aliases.length}
+              </span>
+            </div>
+
+            {/* Alias chips — always visible, wrap freely */}
+            <div className="flex flex-wrap items-center gap-1.5 px-4 pb-3 pt-0">
+              {sortedAliases.map((alias) => (
+                <AliasChip
+                  key={alias.id}
+                  alias={alias}
+                  channelId={channelId}
+                  isPending={isPending}
+                  onEdit={onEdit}
+                  onUnlink={onUnlink}
+                  onTogglePrimary={onTogglePrimary}
+                />
+              ))}
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
