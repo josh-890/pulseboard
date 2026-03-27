@@ -386,40 +386,38 @@ export function MediaManager({
           />
         </div>
 
-        {/* Side panel (desktop) */}
-        {panelVisible && (
-          <div className="hidden lg:block w-[260px] min-w-[200px]">
-            <div className="sticky top-4 max-h-[calc(100vh-8rem)] overflow-y-auto rounded-xl border border-white/15 bg-muted/30 backdrop-blur-sm">
-              {/* Image preview thumbnail */}
-              {previewItem && (
-                <div className="p-3 border-b border-white/10">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={previewItem.urls.gallery_512 ?? previewItem.urls.original ?? ""}
-                    alt={previewItem.caption ?? previewItem.filename}
-                    className="w-full rounded-lg object-contain max-h-[180px]"
-                  />
-                </div>
-              )}
-              <MediaMetadataPanel
-                items={selectedItems}
-                allItems={items}
-                personId={personId}
-                sessionId={sessionId}
-                slotLabels={slotLabels}
-                collections={collections}
-                categories={categories}
-                bodyMarks={bodyMarks}
-                bodyModifications={bodyModifications}
-                cosmeticProcedures={cosmeticProcedures}
-                onItemsChange={handleItemsChange}
-                onRequestDelete={() => setShowDeleteDialog(true)}
-                onClearSelection={clearSelection}
-                onBatchComplete={handleBatchComplete}
-              />
-            </div>
+        {/* Side panel (desktop) — always present to prevent grid reflow on selection */}
+        <div className="hidden lg:block w-[260px] min-w-[200px]">
+          <div className="sticky top-4 max-h-[calc(100vh-8rem)] overflow-y-auto rounded-xl border border-white/15 bg-muted/30 backdrop-blur-sm">
+            {/* Image preview thumbnail */}
+            {previewItem && (
+              <div className="p-3 border-b border-white/10">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={previewItem.urls.gallery_512 ?? previewItem.urls.original ?? ""}
+                  alt={previewItem.caption ?? previewItem.filename}
+                  className="w-full rounded-lg object-contain max-h-[180px]"
+                />
+              </div>
+            )}
+            <MediaMetadataPanel
+              items={selectedItems}
+              allItems={items}
+              personId={personId}
+              sessionId={sessionId}
+              slotLabels={slotLabels}
+              collections={collections}
+              categories={categories}
+              bodyMarks={bodyMarks}
+              bodyModifications={bodyModifications}
+              cosmeticProcedures={cosmeticProcedures}
+              onItemsChange={handleItemsChange}
+              onRequestDelete={() => setShowDeleteDialog(true)}
+              onClearSelection={clearSelection}
+              onBatchComplete={handleBatchComplete}
+            />
           </div>
-        )}
+        </div>
       </div>
 
       {/* Mobile: bottom sheet when selected (portaled to escape backdrop-blur stacking context) */}

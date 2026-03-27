@@ -140,6 +140,15 @@ export function MediaMetadataPanel({
     });
   }, []);
 
+  if (items.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center gap-2 px-4 py-12 text-center">
+        <ImageIcon size={24} className="text-muted-foreground/30" />
+        <p className="text-xs text-muted-foreground/50">Select a photo to view details</p>
+      </div>
+    );
+  }
+
   const handleUsageToggle = useCallback(
     (usage: PersonMediaUsage) => {
       if (!single) return;
