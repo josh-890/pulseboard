@@ -97,7 +97,9 @@ export function BatchUploadZone({
   const [queue, setQueue] = useState<UploadFile[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
-  const [duplicateFile, setDuplicateFile] = useState<UploadFile | null>(null);
+  // Derive the current duplicate to review from the queue (first one wins)
+  // This avoids the race where multiple concurrent uploads overwrite a single state value
+  const duplicateFile = queue.find((f) => f.status === "duplicate") ?? null;
   const inputRef = useRef<HTMLInputElement>(null);
   const activeUploadsRef = useRef(0);
   const abortControllersRef = useRef<Map<string, XMLHttpRequest>>(new Map());
@@ -193,10 +195,7 @@ export function BatchUploadZone({
                       }
                     : f,
                 );
-                // Find the paused item to show dialog
-                const paused = next.find((f) => f.id === item.id);
-                if (paused) setDuplicateFile(paused);
-                // Continue processing other files
+                // Continue processing other files (dialog auto-shows via derived duplicateFile)
                 setTimeout(() => processQueueRef.current(next), 0);
                 return next;
               });
@@ -295,7 +294,6 @@ export function BatchUploadZone({
   const handleDuplicateDecline = useCallback(() => {
     if (!duplicateFile) return;
     const fileId = duplicateFile.id;
-    setDuplicateFile(null);
     setQueue((prev) => {
       const item = prev.find((f) => f.id === fileId);
       if (item) URL.revokeObjectURL(item.preview);
@@ -308,8 +306,7 @@ export function BatchUploadZone({
   const handleDuplicateAccept = useCallback(() => {
     if (!duplicateFile) return;
     const item = duplicateFile;
-    setDuplicateFile(null);
-    // Re-submit with duplicateAction=accept
+    // Re-submit with duplicateAction=accept (status changes to "uploading", next duplicate auto-shows)
     sendUpload(item, { duplicateAction: "accept" });
   }, [duplicateFile, sendUpload]);
 
@@ -317,8 +314,7 @@ export function BatchUploadZone({
     (mediaItemId: string) => {
       if (!duplicateFile) return;
       const item = duplicateFile;
-      setDuplicateFile(null);
-      // Re-submit with duplicateAction=replace
+      // Re-submit with duplicateAction=replace (status changes to "uploading", next duplicate auto-shows)
       sendUpload(item, {
         duplicateAction: "replace",
         replaceMediaItemId: mediaItemId,

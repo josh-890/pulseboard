@@ -98,6 +98,17 @@ export function computeAgeAtEvent(
   return age.toString();
 }
 
+/** Builds the default label for a baseline persona: "Name at 18", or "Name, initially". */
+export function buildBaselineLabel(
+  name: string,
+  birthdate: Date | null,
+  baselineDate: Date | null,
+): string {
+  if (!birthdate || !baselineDate) return `${name}, initially`;
+  const age = baselineDate.getUTCFullYear() - birthdate.getUTCFullYear();
+  return `${name} at ${age}`;
+}
+
 /** Returns the display prefix for a date modifier. */
 export function getModifierSymbol(modifier?: string | null): string {
   if (!modifier || modifier === "EXACT") return "";

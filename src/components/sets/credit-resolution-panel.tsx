@@ -15,7 +15,7 @@ import {
   searchPersonsAction,
   getSuggestionsAction,
 } from "@/lib/actions/set-actions";
-import { createMinimalPerson } from "@/lib/actions/person-actions";
+import { CreatePersonSheet } from "@/components/people/create-person-sheet";
 
 type PersonResult = {
   id: string;
@@ -63,11 +63,8 @@ export function CreditResolutionPanel({ setId, credits: initialCredits, channelI
   const [showDropdown, setShowDropdown] = useState(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
-  // New person form
-  const [showNewPersonForm, setShowNewPersonForm] = useState(false);
-  const [newIcgId, setNewIcgId] = useState("");
-  const [newName, setNewName] = useState("");
-  const [isCreatingPerson, setIsCreatingPerson] = useState(false);
+  // Create person sheet
+  const [showCreateSheet, setShowCreateSheet] = useState(false);
 
   const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -161,23 +158,11 @@ export function CreditResolutionPanel({ setId, credits: initialCredits, channelI
     setActionLoading(null);
   }
 
-  async function handleCreateAndResolve(creditId: string) {
-    if (!newIcgId.trim() || !newName.trim()) {
-      toast.error("ICG-ID and display name are required");
-      return;
+  async function handlePersonCreated(person: { id: string; name: string }) {
+    if (resolvingCreditId) {
+      await handleResolve(resolvingCreditId, person.id, person.name);
     }
-    setIsCreatingPerson(true);
-    const result = await createMinimalPerson({ icgId: newIcgId.trim(), commonName: newName.trim() });
-    if (!result.success) {
-      toast.error(result.error);
-      setIsCreatingPerson(false);
-      return;
-    }
-    setIsCreatingPerson(false);
-    setShowNewPersonForm(false);
-    setNewIcgId("");
-    setNewName("");
-    await handleResolve(creditId, result.id, newName.trim());
+    setShowCreateSheet(false);
   }
 
   function startResolving(creditId: string) {
@@ -185,7 +170,6 @@ export function CreditResolutionPanel({ setId, credits: initialCredits, channelI
     setSearchQuery("");
     setSearchResults([]);
     setShowDropdown(false);
-    setShowNewPersonForm(false);
 
     // Load suggestions for this credit
     const credit = credits.find((c) => c.id === creditId);
@@ -204,7 +188,6 @@ export function CreditResolutionPanel({ setId, credits: initialCredits, channelI
     setSearchQuery("");
     setSearchResults([]);
     setShowDropdown(false);
-    setShowNewPersonForm(false);
     setSuggestions([]);
   }
 
@@ -238,10 +221,6 @@ export function CreditResolutionPanel({ setId, credits: initialCredits, channelI
               searchResults={searchResults}
               isSearching={isSearching}
               showDropdown={showDropdown && resolvingCreditId === credit.id}
-              showNewPersonForm={showNewPersonForm && resolvingCreditId === credit.id}
-              newIcgId={newIcgId}
-              newName={newName}
-              isCreatingPerson={isCreatingPerson}
               suggestions={resolvingCreditId === credit.id ? suggestions : []}
               loadingSuggestions={resolvingCreditId === credit.id && loadingSuggestions}
               dropdownRef={resolvingCreditId === credit.id ? dropdownRef : undefined}
@@ -251,14 +230,17 @@ export function CreditResolutionPanel({ setId, credits: initialCredits, channelI
               onResolve={(personId, personName) => handleResolve(credit.id, personId, personName)}
               onIgnore={() => handleIgnore(credit.id)}
               onUnresolve={() => handleUnresolve(credit.id)}
-              onShowNewPerson={() => setShowNewPersonForm(true)}
-              onNewIcgIdChange={setNewIcgId}
-              onNewNameChange={setNewName}
-              onCreateAndResolve={() => handleCreateAndResolve(credit.id)}
+              onShowCreateSheet={() => setShowCreateSheet(true)}
             />
           ))}
         </div>
       ))}
+
+      <CreatePersonSheet
+        open={showCreateSheet}
+        onOpenChange={setShowCreateSheet}
+        onCreated={handlePersonCreated}
+      />
     </div>
   );
 }
@@ -273,10 +255,6 @@ type CreditRowProps = {
   searchResults: PersonResult[];
   isSearching: boolean;
   showDropdown: boolean;
-  showNewPersonForm: boolean;
-  newIcgId: string;
-  newName: string;
-  isCreatingPerson: boolean;
   suggestions: SuggestionItem[];
   loadingSuggestions: boolean;
   dropdownRef?: React.RefObject<HTMLDivElement | null>;
@@ -286,10 +264,7 @@ type CreditRowProps = {
   onResolve: (personId: string, personName: string) => void;
   onIgnore: () => void;
   onUnresolve: () => void;
-  onShowNewPerson: () => void;
-  onNewIcgIdChange: (v: string) => void;
-  onNewNameChange: (v: string) => void;
-  onCreateAndResolve: () => void;
+  onShowCreateSheet: () => void;
 };
 
 function CreditRow({
@@ -300,10 +275,6 @@ function CreditRow({
   searchResults,
   isSearching,
   showDropdown,
-  showNewPersonForm,
-  newIcgId,
-  newName,
-  isCreatingPerson,
   suggestions,
   loadingSuggestions,
   dropdownRef,
@@ -313,10 +284,7 @@ function CreditRow({
   onResolve,
   onIgnore,
   onUnresolve,
-  onShowNewPerson,
-  onNewIcgIdChange,
-  onNewNameChange,
-  onCreateAndResolve,
+  onShowCreateSheet,
 }: CreditRowProps) {
   const isLoading = actionLoading === credit.id;
   const resolvedName =
@@ -491,45 +459,14 @@ function CreditRow({
             )}
           </div>
 
-          {/* New person inline form */}
-          {!showNewPersonForm && (
-            <button
-              type="button"
-              onClick={onShowNewPerson}
-              className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
-            >
-              <UserPlus size={12} />
-              Create new person
-            </button>
-          )}
-
-          {showNewPersonForm && (
-            <div className="space-y-2 rounded-md border border-white/10 bg-muted/20 p-2">
-              <div className="grid grid-cols-2 gap-2">
-                <Input
-                  placeholder="ICG-ID"
-                  value={newIcgId}
-                  onChange={(e) => onNewIcgIdChange(e.target.value.toUpperCase())}
-                  className="h-7 text-xs"
-                />
-                <Input
-                  placeholder="Display name"
-                  value={newName}
-                  onChange={(e) => onNewNameChange(e.target.value)}
-                  className="h-7 text-xs"
-                />
-              </div>
-              <Button
-                type="button"
-                size="sm"
-                className="h-7 text-xs"
-                onClick={onCreateAndResolve}
-                disabled={isCreatingPerson}
-              >
-                {isCreatingPerson ? <Loader2 size={12} className="animate-spin" /> : "Create & Resolve"}
-              </Button>
-            </div>
-          )}
+          <button
+            type="button"
+            onClick={onShowCreateSheet}
+            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <UserPlus size={12} />
+            Create new person
+          </button>
 
           <Button
             type="button"

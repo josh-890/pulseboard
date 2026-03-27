@@ -89,6 +89,16 @@ export async function updateLabelRecord(id: string, data: {
 
 export async function deleteLabelRecord(id: string) {
   return prisma.$transaction(async (tx) => {
+    // NULL primary label ref on projects and sessions (no schema cascade)
+    await tx.project.updateMany({
+      where: { labelId: id },
+      data: { labelId: null },
+    });
+    await tx.session.updateMany({
+      where: { labelId: id },
+      data: { labelId: null },
+    });
+
     await tx.channelLabelMap.deleteMany({ where: { labelId: id } });
     await tx.setLabelEvidence.deleteMany({ where: { labelId: id } });
     await tx.labelNetworkLink.deleteMany({ where: { labelId: id } });

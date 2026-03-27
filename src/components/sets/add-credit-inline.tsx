@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { saveSetCredits, searchPersonsAction } from "@/lib/actions/set-actions";
-import { createMinimalPerson } from "@/lib/actions/person-actions";
+import { CreatePersonSheet } from "@/components/people/create-person-sheet";
 
 type PersonResult = {
   id: string;
@@ -35,11 +35,8 @@ export function AddCreditInline({ setId, roleDefinitions }: AddCreditInlineProps
   const [showDropdown, setShowDropdown] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
-  // New person form
-  const [showNewPersonForm, setShowNewPersonForm] = useState(false);
-  const [newIcgId, setNewIcgId] = useState("");
-  const [newName, setNewName] = useState("");
-  const [isCreatingPerson, setIsCreatingPerson] = useState(false);
+  // Create person sheet
+  const [showCreateSheet, setShowCreateSheet] = useState(false);
 
   const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -58,9 +55,7 @@ export function AddCreditInline({ setId, roleDefinitions }: AddCreditInlineProps
     setSearchQuery("");
     setSearchResults([]);
     setShowDropdown(false);
-    setShowNewPersonForm(false);
-    setNewIcgId("");
-    setNewName("");
+    setShowCreateSheet(false);
   }
 
   function handleClose() {
@@ -139,23 +134,9 @@ export function AddCreditInline({ setId, roleDefinitions }: AddCreditInlineProps
     setIsSaving(false);
   }
 
-  async function handleCreateAndAdd() {
-    if (!newIcgId.trim() || !newName.trim()) {
-      toast.error("ICG-ID and display name are required");
-      return;
-    }
-    setIsCreatingPerson(true);
-    const result = await createMinimalPerson({ icgId: newIcgId.trim(), commonName: newName.trim() });
-    if (!result.success) {
-      toast.error(result.error);
-      setIsCreatingPerson(false);
-      return;
-    }
-    setIsCreatingPerson(false);
-    setShowNewPersonForm(false);
-    setNewIcgId("");
-    setNewName("");
-    await addCredit(newName.trim(), result.id);
+  async function handlePersonCreated(person: { id: string; name: string }) {
+    setShowCreateSheet(false);
+    await addCredit(person.name, person.id);
   }
 
   if (!isExpanded) {
@@ -281,60 +262,20 @@ export function AddCreditInline({ setId, roleDefinitions }: AddCreditInlineProps
         </div>
       )}
 
-      {/* New person form */}
-      {!showNewPersonForm && (
-        <button
-          type="button"
-          onClick={() => setShowNewPersonForm(true)}
-          className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
-        >
-          <UserPlus size={12} />
-          Create new person
-        </button>
-      )}
+      <button
+        type="button"
+        onClick={() => setShowCreateSheet(true)}
+        className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+      >
+        <UserPlus size={12} />
+        Create new person
+      </button>
 
-      {showNewPersonForm && (
-        <div className="space-y-2 rounded-md border border-white/10 bg-muted/20 p-2">
-          <div className="grid grid-cols-2 gap-2">
-            <Input
-              placeholder="ICG-ID"
-              value={newIcgId}
-              onChange={(e) => setNewIcgId(e.target.value.toUpperCase())}
-              className="h-8 text-sm"
-            />
-            <Input
-              placeholder="Display name"
-              value={newName}
-              onChange={(e) => setNewName(e.target.value)}
-              className="h-8 text-sm"
-            />
-          </div>
-          <div className="flex gap-2">
-            <Button
-              type="button"
-              size="sm"
-              className="h-7 text-xs"
-              onClick={handleCreateAndAdd}
-              disabled={isCreatingPerson}
-            >
-              {isCreatingPerson ? <Loader2 size={12} className="animate-spin" /> : "Create & Add"}
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="h-7 text-xs"
-              onClick={() => {
-                setShowNewPersonForm(false);
-                setNewIcgId("");
-                setNewName("");
-              }}
-            >
-              Cancel
-            </Button>
-          </div>
-        </div>
-      )}
+      <CreatePersonSheet
+        open={showCreateSheet}
+        onOpenChange={setShowCreateSheet}
+        onCreated={handlePersonCreated}
+      />
 
       <p className="text-xs text-muted-foreground">
         Tip: paste comma-separated names and press Enter to bulk-add

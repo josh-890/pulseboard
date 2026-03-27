@@ -142,7 +142,7 @@ async function main() {
     create: {
       id: "seed-persona-1",
       personId: person.id,
-      label: "Baseline",
+      label: "Jane at 23",
       isBaseline: true,
       date: new Date("2020-01-01"),
       notes: "Starting profile data",

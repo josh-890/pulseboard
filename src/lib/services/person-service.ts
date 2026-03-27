@@ -15,6 +15,7 @@ import type {
   PersonProductionSession,
   SessionThumbnail,
 } from "@/lib/types";
+import { parsePhotoVariants } from "@/lib/types";
 import type { PersonStatus, Prisma } from "@/generated/prisma/client";
 import { expandRegionFilter } from "@/lib/constants/body-regions";
 import type { CreatePersonInput, UpdatePersonInput } from "@/lib/validations/person";
@@ -1229,8 +1230,14 @@ export async function updatePersonRecord(id: string, data: UpdatePersonInput) {
   });
 }
 
-export async function deletePersonRecord(id: string) {
+export async function deletePersonRecord(id: string): Promise<PhotoVariants[]> {
   return prisma.$transaction(async (tx) => {
+    // Reset any SetCreditRaw rows resolved to this person (no schema cascade)
+    await tx.setCreditRaw.updateMany({
+      where: { resolvedPersonId: id },
+      data: { resolvedPersonId: null, resolutionStatus: "UNRESOLVED" },
+    });
+
     // Delete alias channel links, then aliases
     const aliasIds = (await tx.personAlias.findMany({
       where: { personId: id },
@@ -1269,15 +1276,18 @@ export async function deletePersonRecord(id: string) {
       });
     }
 
-    // Delete body marks
+    // Clear PersonMediaLink refs before deleting body marks (no schema cascade)
+    await tx.personMediaLink.deleteMany({
+      where: { bodyMark: { personId: id } },
+    });
     await tx.bodyMark.deleteMany({
       where: { personId: id },
     });
 
-    // Delete body modifications + events
+    // Delete body modifications + events + media links
     await cascadeDeleteBodyModifications(tx, id, personaIds);
 
-    // Delete cosmetic procedures + events
+    // Delete cosmetic procedures + events + media links
     await cascadeDeleteCosmeticProcedures(tx, id, personaIds);
 
     // Delete education, awards, interests
@@ -1309,23 +1319,50 @@ export async function deletePersonRecord(id: string) {
       },
     });
 
-    // Cascade-delete the person's reference session (if any)
+    // Collect reference session media variants for MinIO cleanup before cascade-deleting
     const refSession = await tx.session.findFirst({
       where: { personId: id },
+      select: { id: true },
     });
+    let mediaVariants: PhotoVariants[] = [];
     if (refSession) {
+      const sessionMedia = await tx.mediaItem.findMany({
+        where: { sessionId: refSession.id },
+        select: { variants: true },
+      });
+      mediaVariants = sessionMedia
+        .map((m) => parsePhotoVariants(m.variants))
+        .filter((v): v is PhotoVariants => v !== null);
       await cascadeDeleteSession(tx, refSession.id);
     }
 
-    // Delete PersonMediaLinks
+    // Delete remaining media collection structure (MediaCollectionItems for other
+    // sessions were not deleted above — underlying MediaItems belong to those sessions
+    // and must survive)
+    const collectionIds = (await tx.mediaCollection.findMany({
+      where: { personId: id },
+      select: { id: true },
+    })).map((c) => c.id);
+    if (collectionIds.length > 0) {
+      await tx.mediaCollectionItem.deleteMany({
+        where: { collectionId: { in: collectionIds } },
+      });
+      await tx.mediaCollection.deleteMany({
+        where: { id: { in: collectionIds } },
+      });
+    }
+
+    // Delete remaining PersonMediaLinks (personaId ones already NULLed by schema SetNull)
     await tx.personMediaLink.deleteMany({
       where: { personId: id },
     });
 
     // Delete the person
-    return tx.person.delete({
+    await tx.person.delete({
       where: { id },
     });
+
+    return mediaVariants;
   });
 }
 

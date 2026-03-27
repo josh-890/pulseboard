@@ -167,11 +167,7 @@ export function BrowseNavBar({ personId }: BrowseNavBarProps) {
 
 /** Context-aware back link — restores filters + loaded count from browse context */
 export function BrowseBackLink() {
-  // Lazy initializer reads sessionStorage on first client render (safe — this is a client component)
-  const [href] = useState(() => {
-    if (typeof window === "undefined") return "/people";
-    return getBrowseReturnUrl();
-  });
+  const [href] = useState(() => getBrowseReturnUrl());
 
   return (
     <Link

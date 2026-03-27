@@ -736,13 +736,13 @@ function IdentityBlock({ person, displayName, age, heroAliases, onAliasesBadgeCl
               <span>{plausibilityCount}</span>
             </span>
           )}
-          {referenceSessionId && refMediaCount !== undefined && refMediaCount > 0 && (
+          {referenceSessionId && (
             <Link
               href={`/sessions/${referenceSessionId}`}
               className="inline-flex items-center gap-1 rounded-full bg-white/5 px-1.5 py-0.5 text-xs text-muted-foreground transition-colors hover:bg-white/10 hover:text-foreground"
             >
               <Camera size={12} />
-              <span>{refMediaCount}</span>
+              {refMediaCount !== undefined && <span>{refMediaCount}</span>}
             </Link>
           )}
         </div>

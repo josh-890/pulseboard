@@ -119,6 +119,9 @@ export async function deleteChannelRecord(id: string) {
       data: { channelId: null },
     });
 
+    // Remove alias-channel links (no schema cascade)
+    await tx.personAliasChannel.deleteMany({ where: { channelId: id } });
+
     // Remove label mappings
     await tx.channelLabelMap.deleteMany({ where: { channelId: id } });
 

@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { SheetFooter } from "@/components/ui/sheet";
 import { saveSetCredits, searchPersonsAction } from "@/lib/actions/set-actions";
-import { createMinimalPerson } from "@/lib/actions/person-actions";
+import { CreatePersonSheet } from "@/components/people/create-person-sheet";
 
 type PersonResult = {
   id: string;
@@ -51,11 +51,8 @@ export function CreditEntryStep({ setId, roleDefinitions, onClose }: CreditEntry
   const [isSearching, setIsSearching] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
 
-  // New person form
-  const [showNewPersonForm, setShowNewPersonForm] = useState(false);
-  const [newIcgId, setNewIcgId] = useState("");
-  const [newName, setNewName] = useState("");
-  const [isCreatingPerson, setIsCreatingPerson] = useState(false);
+  // Create person sheet
+  const [showCreateSheet, setShowCreateSheet] = useState(false);
 
   // Credits list
   const [credits, setCredits] = useState<CreditItem[]>([]);
@@ -162,33 +159,18 @@ export function CreditEntryStep({ setId, roleDefinitions, onClose }: CreditEntry
     setCredits(credits.filter((c) => c.tempId !== tempId));
   }
 
-  async function handleCreateAndAdd() {
-    if (!newIcgId.trim() || !newName.trim()) {
-      toast.error("ICG-ID and display name are required");
-      return;
-    }
-    setIsCreatingPerson(true);
-    const result = await createMinimalPerson({ icgId: newIcgId.trim(), commonName: newName.trim() });
-    if (!result.success) {
-      toast.error(result.error);
-      setIsCreatingPerson(false);
-      return;
-    }
+  function handlePersonCreated(person: { id: string; name: string }) {
     setCredits([
       ...credits,
       {
         tempId: String(nextTempId.current++),
         roleDefinitionId: activeRoleId,
-        rawName: newName.trim(),
-        resolvedPersonId: result.id,
-        resolvedPersonName: newName.trim(),
+        rawName: person.name,
+        resolvedPersonId: person.id,
+        resolvedPersonName: person.name,
       },
     ]);
-    setNewIcgId("");
-    setNewName("");
-    setShowNewPersonForm(false);
-    setIsCreatingPerson(false);
-    toast.success("Person created and added");
+    setShowCreateSheet(false);
   }
 
   async function handleDone() {
@@ -329,56 +311,23 @@ export function CreditEntryStep({ setId, roleDefinitions, onClose }: CreditEntry
             </p>
           </section>
 
-          {/* New person form */}
-          <section className="rounded-xl border bg-muted/30 dark:bg-muted/20 p-4 space-y-3">
+          {/* Create new person */}
+          <section className="rounded-xl border bg-muted/30 dark:bg-muted/20 p-4">
             <button
               type="button"
-              onClick={() => setShowNewPersonForm((v) => !v)}
+              onClick={() => setShowCreateSheet(true)}
               className="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
             >
               <UserPlus size={15} />
-              {showNewPersonForm ? "Cancel new person" : "Create new person…"}
+              Create new person...
             </button>
-
-            {showNewPersonForm && (
-              <div className="space-y-3 pt-1">
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="mb-1 block text-xs font-medium text-foreground/80">
-                      ICG-ID <span className="text-destructive">*</span>
-                    </label>
-                    <Input
-                      placeholder="e.g. JD-96ABF"
-                      value={newIcgId}
-                      onChange={(e) => setNewIcgId(e.target.value.toUpperCase())}
-                    />
-                  </div>
-                  <div>
-                    <label className="mb-1 block text-xs font-medium text-foreground/80">
-                      Display Name <span className="text-destructive">*</span>
-                    </label>
-                    <Input
-                      placeholder="Display name"
-                      value={newName}
-                      onChange={(e) => setNewName(e.target.value)}
-                    />
-                  </div>
-                </div>
-                <Button
-                  type="button"
-                  size="sm"
-                  onClick={handleCreateAndAdd}
-                  disabled={isCreatingPerson}
-                >
-                  {isCreatingPerson ? (
-                    <Loader2 size={14} className="animate-spin" />
-                  ) : (
-                    "Create & Add"
-                  )}
-                </Button>
-              </div>
-            )}
           </section>
+
+          <CreatePersonSheet
+            open={showCreateSheet}
+            onOpenChange={setShowCreateSheet}
+            onCreated={handlePersonCreated}
+          />
 
           {/* Credits list */}
           {credits.length > 0 && (

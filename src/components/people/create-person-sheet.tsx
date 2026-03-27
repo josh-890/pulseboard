@@ -1,10 +1,6 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { UserPlus } from "lucide-react";
 import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
 import {
   Sheet,
   SheetContent,
@@ -16,17 +12,20 @@ import { createPerson } from "@/lib/actions/person-actions";
 import { PersonForm } from "@/components/people/person-form";
 import type { CreatePersonInput } from "@/lib/validations/person";
 
-export function AddPersonSheet() {
-  const router = useRouter();
-  const [open, setOpen] = useState(false);
+type CreatePersonSheetProps = {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onCreated: (person: { id: string; name: string }) => void;
+};
 
+export function CreatePersonSheet({ open, onOpenChange, onCreated }: CreatePersonSheetProps) {
   async function handleSubmit(data: CreatePersonInput): Promise<{ fieldErrors?: Record<string, string[]> } | void> {
     const result = await createPerson(data);
 
     if (result.success) {
       toast.success("Person created");
-      router.push(`/people/${result.id}`);
-      setOpen(false);
+      onCreated({ id: result.id, name: data.commonName });
+      onOpenChange(false);
       return;
     }
 
@@ -38,17 +37,13 @@ export function AddPersonSheet() {
   }
 
   return (
-    <Sheet open={open} onOpenChange={setOpen}>
-      <Button size="sm" onClick={() => setOpen(true)}>
-        <UserPlus size={16} />
-        Add Person
-      </Button>
+    <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         side="right"
         className="flex w-full flex-col sm:max-w-2xl"
       >
         <SheetHeader className="border-b pb-4 px-4">
-          <SheetTitle className="text-lg font-semibold">Add Person</SheetTitle>
+          <SheetTitle className="text-lg font-semibold">Create Person</SheetTitle>
           <SheetDescription className="text-xs text-muted-foreground">
             Only Display Name is required. ICG-ID is auto-generated.
           </SheetDescription>
@@ -57,7 +52,7 @@ export function AddPersonSheet() {
         <PersonForm
           onSubmit={handleSubmit}
           submitLabel="Create Person"
-          onCancel={() => setOpen(false)}
+          onCancel={() => onOpenChange(false)}
         />
       </SheetContent>
     </Sheet>

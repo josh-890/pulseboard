@@ -1,7 +1,6 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { z } from "zod";
 import { createPersonSchema, updatePersonSchema } from "@/lib/validations/person";
 import {
   createPersonRecord,
@@ -53,54 +52,22 @@ export async function updatePerson(raw: unknown): Promise<CrudActionResult> {
 
 export async function deletePerson(id: string): Promise<SimpleActionResult> {
   try {
-    await deletePersonRecord(id);
+    const variantsList = await deletePersonRecord(id);
+
+    // Best-effort MinIO cleanup after transaction commits
+    if (variantsList.length > 0) {
+      try {
+        const { deleteMediaFiles } = await import("@/lib/media-upload");
+        await deleteMediaFiles(variantsList);
+      } catch (err) {
+        console.error("[deletePerson] MinIO cleanup failed:", err);
+      }
+    }
+
     revalidatePath("/people");
     return { success: true };
   } catch {
     return { success: false, error: "Failed to delete person" };
-  }
-}
-
-const createMinimalPersonSchema = z.object({
-  icgId: z
-    .string()
-    .min(1, "ICG-ID is required")
-    .regex(/^[A-Z]{2}-[0-9]{2}[A-Z0-9@][A-Z0-9]+$/, "Format: XX-00XXX  e.g. JD-96ABF"),
-  commonName: z.string().min(1, "Display name is required"),
-});
-
-export async function createMinimalPerson(
-  raw: unknown,
-): Promise<{ success: true; id: string } | { success: false; error: string }> {
-  const parsed = createMinimalPersonSchema.safeParse(raw);
-  if (!parsed.success) {
-    return {
-      success: false,
-      error: parsed.error.issues[0]?.message ?? "Validation error",
-    };
-  }
-
-  try {
-    const person = await prisma.$transaction(async (tx) => {
-      const p = await tx.person.create({
-        data: { icgId: parsed.data.icgId, status: "active" },
-      });
-      await tx.personAlias.create({
-        data: { personId: p.id, name: parsed.data.commonName, type: "common" },
-      });
-      await tx.persona.create({
-        data: { personId: p.id, label: "Baseline", isBaseline: true, date: new Date() },
-      });
-      return p;
-    });
-
-    revalidatePath("/people");
-    return { success: true, id: person.id };
-  } catch (err) {
-    if (err instanceof Error && err.message.includes("P2002")) {
-      return { success: false, error: "ICG-ID already exists" };
-    }
-    return { success: false, error: "Unexpected error" };
   }
 }
 

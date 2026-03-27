@@ -50,7 +50,7 @@ export async function cascadeDeleteSet(
 }
 
 /**
- * Cascade hard-delete body modifications for a person: events, then modifications.
+ * Cascade hard-delete body modifications for a person: events, media links, then modifications.
  */
 export async function cascadeDeleteBodyModifications(
   tx: TxClient,
@@ -62,13 +62,17 @@ export async function cascadeDeleteBodyModifications(
       where: { personaId: { in: personaIds } },
     });
   }
+  // Clear PersonMediaLink refs before deleting modifications (no schema cascade)
+  await tx.personMediaLink.deleteMany({
+    where: { bodyModification: { personId } },
+  });
   await tx.bodyModification.deleteMany({
     where: { personId },
   });
 }
 
 /**
- * Cascade hard-delete cosmetic procedures for a person: events, then procedures.
+ * Cascade hard-delete cosmetic procedures for a person: events, media links, then procedures.
  */
 export async function cascadeDeleteCosmeticProcedures(
   tx: TxClient,
@@ -80,6 +84,10 @@ export async function cascadeDeleteCosmeticProcedures(
       where: { personaId: { in: personaIds } },
     });
   }
+  // Clear PersonMediaLink refs before deleting procedures (no schema cascade)
+  await tx.personMediaLink.deleteMany({
+    where: { cosmeticProcedure: { personId } },
+  });
   await tx.cosmeticProcedure.deleteMany({
     where: { personId },
   });
