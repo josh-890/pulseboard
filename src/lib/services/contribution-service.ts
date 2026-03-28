@@ -64,10 +64,31 @@ export async function addSessionContribution(
 
 export async function removeSessionContribution(contributionId: string) {
   return prisma.$transaction(async (tx) => {
-    // Cascade delete skills first
+    // Look up person and session before deleting
+    const contribution = await tx.sessionContribution.findUniqueOrThrow({
+      where: { id: contributionId },
+      select: { personId: true, sessionId: true },
+    });
+
+    // Cascade delete skills
     await tx.contributionSkill.deleteMany({
       where: { contributionId },
     });
+
+    // Clean up all PersonMediaLinks for this person's media in the session
+    const mediaItems = await tx.mediaItem.findMany({
+      where: { sessionId: contribution.sessionId },
+      select: { id: true },
+    });
+    if (mediaItems.length > 0) {
+      await tx.personMediaLink.deleteMany({
+        where: {
+          personId: contribution.personId,
+          mediaItemId: { in: mediaItems.map((m) => m.id) },
+        },
+      });
+    }
+
     return tx.sessionContribution.delete({
       where: { id: contributionId },
     });
@@ -574,4 +595,61 @@ export async function updateSessionContributionConfidence(
 
     return contribution;
   });
+}
+
+// ─── Contributors with entities (for lightbox entity linking) ─────────────
+
+export type ContributorWithEntities = {
+  personId: string;
+  personName: string;
+  bodyMarks: { id: string; name: string }[];
+  bodyModifications: { id: string; name: string }[];
+  cosmeticProcedures: { id: string; name: string }[];
+};
+
+export async function getContributorsWithEntities(
+  sessionId: string,
+): Promise<ContributorWithEntities[]> {
+  const contributions = await prisma.sessionContribution.findMany({
+    where: { sessionId },
+    select: {
+      personId: true,
+      person: {
+        select: {
+          aliases: { where: { isCommon: true }, take: 1, select: { name: true } },
+          bodyMarks: {
+            select: { id: true, type: true, bodyRegion: true },
+            orderBy: { createdAt: "asc" },
+          },
+          bodyModifications: {
+            select: { id: true, type: true, bodyRegion: true },
+            orderBy: { createdAt: "asc" },
+          },
+          cosmeticProcedures: {
+            select: { id: true, type: true, bodyRegion: true },
+            orderBy: { createdAt: "asc" },
+          },
+        },
+      },
+    },
+    distinct: ["personId"],
+    orderBy: { createdAt: "asc" },
+  });
+
+  return contributions.map((c) => ({
+    personId: c.personId,
+    personName: c.person.aliases[0]?.name ?? c.personId,
+    bodyMarks: c.person.bodyMarks.map((m) => ({
+      id: m.id,
+      name: `${m.type} — ${m.bodyRegion}`,
+    })),
+    bodyModifications: c.person.bodyModifications.map((m) => ({
+      id: m.id,
+      name: `${m.type} — ${m.bodyRegion}`,
+    })),
+    cosmeticProcedures: c.person.cosmeticProcedures.map((m) => ({
+      id: m.id,
+      name: `${m.type} — ${m.bodyRegion}`,
+    })),
+  }));
 }

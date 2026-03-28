@@ -29,6 +29,7 @@ import {
   updatePersonMediaLinkAction,
   assignHeadshotSlot,
   removeHeadshotSlot,
+  linkMediaToDetailCategoryAction,
 } from "@/lib/actions/media-actions";
 import {
   addToCollectionAction,
@@ -112,6 +113,20 @@ export type ReferenceContext = {
   onSkillEventIdsChange?: (itemId: string, skillEventIds: string[]) => void;
 };
 
+export type ProductionContributor = {
+  personId: string;
+  personName: string;
+  bodyMarks: EntityOption[];
+  bodyModifications: EntityOption[];
+  cosmeticProcedures: EntityOption[];
+};
+
+export type ProductionContext = {
+  sessionId: string;
+  contributors: ProductionContributor[];
+  categories: CategoryWithGroup[];
+};
+
 type GalleryInfoPanelProps = {
   item: GalleryItem;
   // Set context
@@ -138,6 +153,8 @@ type GalleryInfoPanelProps = {
   focalOverlayActive?: boolean;
   // Reference context (optional — renders extra sections when present)
   referenceContext?: ReferenceContext;
+  // Production context (optional — renders entity linking for production sessions)
+  productionContext?: ProductionContext;
   // Standalone collection context (optional — renders collections section without full reference context)
   collectionContext?: CollectionContext;
 };
@@ -159,6 +176,7 @@ export function GalleryInfoPanel({
   onFocalOverlayToggle,
   focalOverlayActive,
   referenceContext,
+  productionContext,
   collectionContext,
 }: GalleryInfoPanelProps) {
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
@@ -166,6 +184,10 @@ export function GalleryInfoPanel({
   );
   const [isPending, startTransition] = useTransition();
   const [isFocalPending, startFocalTransition] = useTransition();
+  // Production entity linking state
+  const [prodLinkPersonId, setProdLinkPersonId] = useState<string>("");
+  const [prodLinkCategoryId, setProdLinkCategoryId] = useState<string>("");
+  const [prodLinkEntityId, setProdLinkEntityId] = useState<string>("");
 
   const toggleSection = useCallback((section: string) => {
     setExpandedSections((prev) => {
@@ -546,6 +568,49 @@ export function GalleryInfoPanel({
   }, [referenceContext, activeCategoryIds]);
   const hasEntityUsage = activeEntityCategories.length > 0;
 
+  // Production entity linking: derived values from selection
+  const prodSelectedContributor = useMemo(
+    () => productionContext?.contributors.find((c) => c.personId === prodLinkPersonId),
+    [productionContext, prodLinkPersonId],
+  );
+  const prodEntityCategories = useMemo(
+    () => productionContext?.categories.filter((c) => c.entityModel) ?? [],
+    [productionContext],
+  );
+  const prodSelectedCategory = useMemo(
+    () => prodEntityCategories.find((c) => c.id === prodLinkCategoryId),
+    [prodEntityCategories, prodLinkCategoryId],
+  );
+  const prodEntityOptions = useMemo(() => {
+    if (!prodSelectedContributor || !prodSelectedCategory?.entityModel) return [];
+    const model = prodSelectedCategory.entityModel;
+    if (model === "BodyMark") return prodSelectedContributor.bodyMarks;
+    if (model === "BodyModification") return prodSelectedContributor.bodyModifications;
+    if (model === "CosmeticProcedure") return prodSelectedContributor.cosmeticProcedures;
+    return [];
+  }, [prodSelectedContributor, prodSelectedCategory]);
+
+  const handleProdEntityLink = useCallback(() => {
+    if (!productionContext || !prodLinkPersonId || !prodLinkCategoryId || !prodLinkEntityId || !prodSelectedCategory?.entityModel) return;
+    const fieldMap: Record<string, "bodyMarkId" | "bodyModificationId" | "cosmeticProcedureId"> = {
+      BodyMark: "bodyMarkId",
+      BodyModification: "bodyModificationId",
+      CosmeticProcedure: "cosmeticProcedureId",
+    };
+    const entityField = fieldMap[prodSelectedCategory.entityModel];
+    startTransition(async () => {
+      await linkMediaToDetailCategoryAction(
+        prodLinkPersonId,
+        [item.id],
+        prodLinkCategoryId,
+        entityField,
+        prodLinkEntityId,
+      );
+      // Reset selection after linking
+      setProdLinkEntityId("");
+    });
+  }, [productionContext, prodLinkPersonId, prodLinkCategoryId, prodLinkEntityId, prodSelectedCategory, item.id]);
+
   return (
     <div className="space-y-1 p-3 text-sm" onClick={(e) => e.stopPropagation()}>
       {/* Cover toggle (set context) */}
@@ -847,6 +912,92 @@ export function GalleryInfoPanel({
                   </div>
                 );
               })}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Production Entity Linking (production context, person picker → category → entity) */}
+      {productionContext && prodEntityCategories.length > 0 && productionContext.contributors.length > 0 && (
+        <>
+          <SectionHeader
+            title="Link to Entity"
+            icon={<Link2 size={14} />}
+            section="prod-linking"
+            expanded={expandedSections.has("prod-linking")}
+            onToggle={toggleSection}
+          />
+          {expandedSections.has("prod-linking") && (
+            <div className="space-y-2 pb-2">
+              {/* Person picker */}
+              <div>
+                <label className="mb-1 block text-xs font-medium text-white/50">Person</label>
+                <select
+                  value={prodLinkPersonId}
+                  onChange={(e) => {
+                    setProdLinkPersonId(e.target.value);
+                    setProdLinkCategoryId("");
+                    setProdLinkEntityId("");
+                  }}
+                  className="w-full rounded-md border border-white/15 bg-black/30 px-2 py-1.5 text-xs text-foreground"
+                >
+                  <option value="">Select person…</option>
+                  {productionContext.contributors.map((c) => (
+                    <option key={c.personId} value={c.personId}>{c.personName}</option>
+                  ))}
+                </select>
+              </div>
+              {/* Category picker */}
+              {prodLinkPersonId && (
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-white/50">Category</label>
+                  <select
+                    value={prodLinkCategoryId}
+                    onChange={(e) => {
+                      setProdLinkCategoryId(e.target.value);
+                      setProdLinkEntityId("");
+                    }}
+                    className="w-full rounded-md border border-white/15 bg-black/30 px-2 py-1.5 text-xs text-foreground"
+                  >
+                    <option value="">Select category…</option>
+                    {prodEntityCategories.map((c) => (
+                      <option key={c.id} value={c.id}>{c.groupName} — {c.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+              {/* Entity picker */}
+              {prodLinkCategoryId && prodEntityOptions.length > 0 && (
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-white/50">
+                    {prodSelectedCategory?.name ?? "Entity"}
+                  </label>
+                  <EntityCombobox
+                    entities={prodEntityOptions.map((o) => ({ id: o.id, label: o.name }))}
+                    value={prodLinkEntityId}
+                    onChange={(v) => setProdLinkEntityId(v)}
+                    placeholder="Select entity…"
+                    emptyLabel="No entities"
+                    disabled={isPending}
+                  />
+                </div>
+              )}
+              {prodLinkCategoryId && prodEntityOptions.length === 0 && (
+                <p className="text-[11px] text-muted-foreground/60 italic">
+                  No {prodSelectedCategory?.name?.toLowerCase() ?? "entities"} for this person.
+                </p>
+              )}
+              {/* Confirm button */}
+              {prodLinkEntityId && (
+                <button
+                  type="button"
+                  onClick={handleProdEntityLink}
+                  disabled={isPending}
+                  className="w-full rounded-md bg-amber-500/20 px-3 py-1.5 text-xs font-medium text-amber-400 transition-colors hover:bg-amber-500/30 disabled:opacity-50"
+                >
+                  Link to Entity
+                </button>
+              )}
             </div>
           )}
         </>

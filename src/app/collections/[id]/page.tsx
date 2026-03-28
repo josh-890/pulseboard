@@ -45,8 +45,8 @@ export default async function CollectionDetailPage({ params }: CollectionDetailP
       {/* Header */}
       <div className="rounded-2xl border border-white/20 bg-card/70 p-6 shadow-md backdrop-blur-sm">
         <div className="flex items-start gap-3">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/15">
-            <Library size={20} className="text-primary" />
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-entity-collection/15">
+            <Library size={20} className="text-entity-collection" />
           </div>
           <div className="min-w-0 flex-1">
             <h1 className="text-2xl font-bold leading-tight">{collection.name}</h1>

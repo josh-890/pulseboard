@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState, useTransition } from "react"
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { PanelRightClose } from "lucide-react";
+import { cn } from "@/lib/utils";
 import type { MediaItemWithLinks } from "@/lib/services/media-service";
 import type { ProfileImageLabel } from "@/lib/services/setting-service";
 import type { CollectionSummary } from "@/lib/services/collection-service";
@@ -93,18 +94,36 @@ export function MediaManager({
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [, startDeleteTransition] = useTransition();
+  const [usageFilter, setUsageFilter] = useState<"all" | "general" | "detail">("all");
+
+  // Filter items by usage type (reference sessions only)
+  const filteredItems = useMemo(() => {
+    if (anchor !== "reference" || usageFilter === "all") return items;
+    if (usageFilter === "detail") {
+      return items.filter((item) => item.links.some((l) => l.usage === "DETAIL"));
+    }
+    // "general" — items with NO detail link
+    return items.filter((item) => !item.links.some((l) => l.usage === "DETAIL"));
+  }, [items, usageFilter, anchor]);
+
+  // Counts for filter pills
+  const filterCounts = useMemo(() => {
+    if (anchor !== "reference") return null;
+    const detail = items.filter((item) => item.links.some((l) => l.usage === "DETAIL")).length;
+    return { all: items.length, general: items.length - detail, detail };
+  }, [items, anchor]);
 
   // Build flat index map for lightbox
   const indexMap = useMemo(() => {
     const map = new Map<string, number>();
-    items.forEach((item, i) => map.set(item.id, i));
+    filteredItems.forEach((item, i) => map.set(item.id, i));
     return map;
-  }, [items]);
+  }, [filteredItems]);
 
-  // Convert items to GalleryItem[] for the lightbox
+  // Convert filtered items to GalleryItem[] for the lightbox
   const galleryItems = useMemo(
-    () => items.map(toGalleryItemLocal),
-    [items],
+    () => filteredItems.map(toGalleryItemLocal),
+    [filteredItems],
   );
 
   // Build slot → thumbnail URL map from all items
@@ -129,7 +148,7 @@ export function MediaManager({
         const currentIdx = indexMap.get(id) ?? 0;
         const start = Math.min(lastIdx, currentIdx);
         const end = Math.max(lastIdx, currentIdx);
-        const rangeIds = items.slice(start, end + 1).map((item) => item.id);
+        const rangeIds = filteredItems.slice(start, end + 1).map((item) => item.id);
 
         setSelectedIds((prev) => {
           const next = new Set(prev);
@@ -155,7 +174,7 @@ export function MediaManager({
       }
       setLastSelectedId(id);
     },
-    [lastSelectedId, indexMap, items],
+    [lastSelectedId, indexMap, filteredItems],
   );
 
   const handleToggleSelect = useCallback((id: string) => {
@@ -365,9 +384,29 @@ export function MediaManager({
         {/* Grid area */}
         <div className="flex-1 min-w-0">
           {/* Toolbar */}
-          <div className="mb-3">
+          <div className="mb-3 flex items-center gap-3">
+            {filterCounts && filterCounts.detail > 0 && (
+              <div className="flex items-center gap-1">
+                {(["all", "general", "detail"] as const).map((filter) => (
+                  <button
+                    key={filter}
+                    type="button"
+                    onClick={() => setUsageFilter(filter)}
+                    className={cn(
+                      "rounded-full px-2.5 py-0.5 text-[11px] font-medium transition-colors",
+                      usageFilter === filter
+                        ? "bg-primary/15 text-primary"
+                        : "text-muted-foreground hover:text-foreground hover:bg-muted/50",
+                    )}
+                  >
+                    {filter === "all" ? "All" : filter === "general" ? "General" : "Detail"}
+                    <span className="ml-1 opacity-60">{filterCounts[filter]}</span>
+                  </button>
+                ))}
+              </div>
+            )}
             <p className="text-xs text-muted-foreground">
-              {items.length} {items.length === 1 ? "item" : "items"}
+              {filteredItems.length} {filteredItems.length === 1 ? "item" : "items"}
               {hasSelection && (
                 <span className="ml-1.5 text-foreground">
                   ({selectedIds.size} selected)
@@ -377,7 +416,7 @@ export function MediaManager({
           </div>
 
           <MediaGrid
-            items={items}
+            items={filteredItems}
             selectedIds={selectedIds}
             anchor={anchor}
             onSelect={handleSelect}

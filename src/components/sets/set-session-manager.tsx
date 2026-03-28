@@ -127,16 +127,16 @@ export function SetSessionManager({ setId, sessionLinks }: SetSessionManagerProp
             key={link.sessionId}
             className="group inline-flex items-center gap-1.5 rounded-full border border-white/20 bg-muted/60 pl-1 pr-2 py-0.5 text-sm"
           >
-            <Clapperboard size={12} className="text-muted-foreground" />
+            <Clapperboard size={12} className="text-entity-session" />
             <Link
               href={`/sessions/${link.session.id}`}
-              className="font-medium hover:text-primary transition-colors"
+              className="font-medium hover:text-entity-session transition-colors"
             >
               {link.session.name}
             </Link>
             <SessionStatusBadge status={link.session.status} className="text-[10px] px-1.5 py-0" />
             {link.isPrimary && (
-              <span className="text-[10px] font-medium text-primary">Primary</span>
+              <span className="text-[10px] font-medium text-entity-session">Primary</span>
             )}
             {!link.isPrimary && (
               <button

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState, useTransition } from "react";
+import { useCallback, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import type { getPersonWithDetails } from "@/lib/services/person-service";
@@ -27,6 +27,7 @@ import { EditEventDialog } from "@/components/people/edit-event-dialog";
 import { RecordPhysicalChangeSheet } from "@/components/people/record-physical-change-sheet";
 import { EditPhysicalChangeSheet } from "@/components/people/edit-physical-change-sheet";
 import { DetailMediaPickerSheet } from "@/components/people/detail-media-picker-sheet";
+import { linkMediaToDetailCategoryAction } from "@/lib/actions/media-actions";
 import {
   deleteBodyMarkAction,
   deleteBodyMarkEventAction,
@@ -109,7 +110,7 @@ type AppearanceOpenState =
   | { type: "addCosmProcEvent"; procId: string; procLabel: string; computed: CosmeticProcedureWithEvents["computed"] }
   | { type: "editCosmProcEvent"; event: EventItem; procId: string; eventOverrides: { bodyRegions: string[]; description: string | null; provider: string | null; valueBefore: string | null; valueAfter: string | null; unit: string | null } }
   | { type: "editPhysical"; item: PhysicalChangeItem }
-  | { type: "manageEntityPhotos"; entityId: string; entityModel: string; entityLabel: string };
+  | { type: "manageEntityPhotos"; entityId: string; entityModel: string; entityType: string; entityLabel: string };
 
 export type AppearanceTabProps = {
   person: PersonData;
@@ -213,13 +214,143 @@ export function AppearanceTab({
     [person.id],
   );
 
-  // Resolve entity model → matching category for photo picker
+  // Resolve entity model + type → matching category for photo picker
   const findCategoryForEntity = useCallback(
-    (entityModel: string) => {
+    (entityModel: string, entityType?: string) => {
       if (!categories) return undefined;
-      return categories.find((c) => c.entityModel === entityModel);
+      const candidates = categories.filter((c) => c.entityModel === entityModel);
+      if (candidates.length <= 1) return candidates[0];
+      // Try to match by entity type → category name/slug
+      if (entityType) {
+        const normalized = entityType.toLowerCase().replace(/[^a-z]/g, "");
+        const match = candidates.find((c) => {
+          const catNorm = c.name.toLowerCase().replace(/[^a-z]/g, "");
+          const slugNorm = c.slug.toLowerCase().replace(/[^a-z]/g, "");
+          return catNorm.includes(normalized) || normalized.includes(catNorm) ||
+            slugNorm.includes(normalized) || normalized.includes(slugNorm);
+        });
+        if (match) return match;
+      }
+      return candidates[0];
     },
     [categories],
+  );
+
+  // ─── Entity detail upload ───────────────────────────────────────────────────
+  const uploadInputRef = useRef<HTMLInputElement>(null);
+  const uploadTargetRef = useRef<{
+    entityField: "bodyMarkId" | "bodyModificationId" | "cosmeticProcedureId";
+    entityId: string;
+    categoryId: string;
+  } | null>(null);
+
+  const handleEntityUpload = useCallback(
+    (entityModel: string, entityId: string, entityType: string) => {
+      if (!referenceSessionId || !categories) return;
+      const cat = findCategoryForEntity(entityModel, entityType);
+      if (!cat) return;
+
+      const fieldMap: Record<string, "bodyMarkId" | "bodyModificationId" | "cosmeticProcedureId"> = {
+        BodyMark: "bodyMarkId",
+        BodyModification: "bodyModificationId",
+        CosmeticProcedure: "cosmeticProcedureId",
+      };
+      uploadTargetRef.current = {
+        entityField: fieldMap[entityModel],
+        entityId,
+        categoryId: cat.id,
+      };
+      uploadInputRef.current?.click();
+    },
+    [referenceSessionId, categories, findCategoryForEntity],
+  );
+
+  const handleEntityFileChange = useCallback(
+    async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      const target = uploadTargetRef.current;
+      if (!file || !target || !referenceSessionId) return;
+
+      // Reset input so same file can be re-selected
+      e.target.value = "";
+
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("sessionId", referenceSessionId);
+      formData.append("personId", person.id);
+
+      try {
+        const res = await fetch("/api/media/upload", { method: "POST", body: formData });
+        const json = await res.json();
+        if (!res.ok || !json.mediaItem?.id) return;
+
+        // Create DETAIL link with entity FK
+        await linkMediaToDetailCategoryAction(
+          person.id,
+          [json.mediaItem.id],
+          target.categoryId,
+          target.entityField,
+          target.entityId,
+        );
+        router.refresh();
+      } catch {
+        // Upload failed silently — could add toast later
+      }
+    },
+    [referenceSessionId, person.id, router],
+  );
+
+  const handleEntityDrop = useCallback(
+    (entityModel: string, entityId: string, entityType: string) =>
+      async (files: FileList) => {
+        if (!referenceSessionId || !categories) return;
+        const cat = findCategoryForEntity(entityModel, entityType);
+        if (!cat) return;
+
+        const fieldMap: Record<string, "bodyMarkId" | "bodyModificationId" | "cosmeticProcedureId"> = {
+          BodyMark: "bodyMarkId",
+          BodyModification: "bodyModificationId",
+          CosmeticProcedure: "cosmeticProcedureId",
+        };
+        const entityField = fieldMap[entityModel];
+
+        for (const file of Array.from(files)) {
+          const formData = new FormData();
+          formData.append("file", file);
+          formData.append("sessionId", referenceSessionId);
+          formData.append("personId", person.id);
+
+          try {
+            let res = await fetch("/api/media/upload", { method: "POST", body: formData });
+            let json = await res.json();
+
+            // Auto-accept duplicates
+            if (json.duplicateFound && !json.mediaItem) {
+              const retryForm = new FormData();
+              retryForm.append("file", file);
+              retryForm.append("sessionId", referenceSessionId);
+              retryForm.append("personId", person.id);
+              retryForm.append("duplicateAction", "accept");
+              res = await fetch("/api/media/upload", { method: "POST", body: retryForm });
+              json = await res.json();
+            }
+
+            if (!json.mediaItem?.id) continue;
+
+            await linkMediaToDetailCategoryAction(
+              person.id,
+              [json.mediaItem.id],
+              cat.id,
+              entityField,
+              entityId,
+            );
+          } catch {
+            // Upload failed silently
+          }
+        }
+        router.refresh();
+      },
+    [referenceSessionId, categories, findCategoryForEntity, person.id, router],
   );
 
   // Get entities list for the picker dropdown (same entity model)
@@ -251,7 +382,7 @@ export function AppearanceTab({
   // The currently selected picker category (derived from openState)
   const pickerCategory =
     typeof openState === "object" && openState?.type === "manageEntityPhotos"
-      ? findCategoryForEntity(openState.entityModel)
+      ? findCategoryForEntity(openState.entityModel, openState.entityType)
       : undefined;
 
   const pickerEntities =
@@ -414,7 +545,9 @@ export function AppearanceTab({
                     photos={entityMedia?.[mark.id]}
                     onEdit={() => setOpenState({ type: "editBodyMark", mark })}
                     onDelete={() => handleDeleteBodyMark(mark.id)}
-                    onManagePhotos={referenceSessionId ? () => setOpenState({ type: "manageEntityPhotos", entityId: mark.id, entityModel: "BodyMark", entityLabel: `${mark.type} — ${mark.bodyRegion}` }) : undefined}
+                    onManagePhotos={referenceSessionId ? () => setOpenState({ type: "manageEntityPhotos", entityId: mark.id, entityModel: "BodyMark", entityType: mark.type, entityLabel: `${mark.type} — ${mark.bodyRegion}` }) : undefined}
+                    onUploadPhoto={referenceSessionId ? () => handleEntityUpload("BodyMark", mark.id, mark.type) : undefined}
+                    onDropFiles={referenceSessionId ? handleEntityDrop("BodyMark", mark.id, mark.type) : undefined}
                     onDeleteEvent={handleDeleteBodyMarkEvent}
                     onAddEvent={() => setOpenState({ type: "addBodyMarkEvent", markId: mark.id, markLabel: `${mark.type} — ${mark.bodyRegion}`, computed: mark.computed })}
                     onToggleHeroVisibility={(visible) => handleToggleHeroVisibility("bodyMark", mark.id, visible)}
@@ -448,7 +581,9 @@ export function AppearanceTab({
                     photos={entityMedia?.[mod.id]}
                     onEdit={() => setOpenState({ type: "editBodyMod", modification: mod })}
                     onDelete={() => handleDeleteBodyMod(mod.id)}
-                    onManagePhotos={referenceSessionId ? () => setOpenState({ type: "manageEntityPhotos", entityId: mod.id, entityModel: "BodyModification", entityLabel: `${mod.type} — ${mod.bodyRegion}` }) : undefined}
+                    onManagePhotos={referenceSessionId ? () => setOpenState({ type: "manageEntityPhotos", entityId: mod.id, entityModel: "BodyModification", entityType: mod.type, entityLabel: `${mod.type} — ${mod.bodyRegion}` }) : undefined}
+                    onUploadPhoto={referenceSessionId ? () => handleEntityUpload("BodyModification", mod.id, mod.type) : undefined}
+                    onDropFiles={referenceSessionId ? handleEntityDrop("BodyModification", mod.id, mod.type) : undefined}
                     onDeleteEvent={handleDeleteBodyModEvent}
                     onAddEvent={() => setOpenState({ type: "addBodyModEvent", modId: mod.id, modLabel: `${mod.type} — ${mod.bodyRegion}`, computed: mod.computed })}
                     onToggleHeroVisibility={(visible) => handleToggleHeroVisibility("bodyModification", mod.id, visible)}
@@ -482,7 +617,9 @@ export function AppearanceTab({
                     photos={entityMedia?.[proc.id]}
                     onEdit={() => setOpenState({ type: "editCosmProc", procedure: proc })}
                     onDelete={() => handleDeleteCosmProc(proc.id)}
-                    onManagePhotos={referenceSessionId ? () => setOpenState({ type: "manageEntityPhotos", entityId: proc.id, entityModel: "CosmeticProcedure", entityLabel: `${proc.type} — ${proc.bodyRegion}` }) : undefined}
+                    onManagePhotos={referenceSessionId ? () => setOpenState({ type: "manageEntityPhotos", entityId: proc.id, entityModel: "CosmeticProcedure", entityType: proc.type, entityLabel: `${proc.type} — ${proc.bodyRegion}` }) : undefined}
+                    onUploadPhoto={referenceSessionId ? () => handleEntityUpload("CosmeticProcedure", proc.id, proc.type) : undefined}
+                    onDropFiles={referenceSessionId ? handleEntityDrop("CosmeticProcedure", proc.id, proc.type) : undefined}
                     onDeleteEvent={handleDeleteCosmProcEvent}
                     onAddEvent={() => setOpenState({ type: "addCosmProcEvent", procId: proc.id, procLabel: `${proc.type} — ${proc.bodyRegion}`, computed: proc.computed })}
                     onToggleHeroVisibility={(visible) => handleToggleHeroVisibility("cosmeticProcedure", proc.id, visible)}
@@ -522,7 +659,7 @@ export function AppearanceTab({
         <AddBodyMarkSheet personId={person.id} referenceSessionId={referenceSessionId} categoryId={findCategoryForEntity("BodyMark")?.id} onClose={handleSheetClose} />
       )}
       {typeof openState === "object" && openState?.type === "editBodyMark" && (
-        <EditBodyMarkSheet personId={person.id} mark={openState.mark} referenceSessionId={referenceSessionId} categoryId={findCategoryForEntity("BodyMark")?.id} existingPhotos={entityMedia?.[openState.mark.id]} onClose={handleSheetClose} />
+        <EditBodyMarkSheet personId={person.id} mark={openState.mark} referenceSessionId={referenceSessionId} categoryId={findCategoryForEntity("BodyMark", openState.mark.type)?.id} existingPhotos={entityMedia?.[openState.mark.id]} onClose={handleSheetClose} />
       )}
       {typeof openState === "object" && openState?.type === "addBodyMarkEvent" && (
         <AddBodyMarkEventDialog
@@ -560,7 +697,7 @@ export function AppearanceTab({
         <AddBodyModificationSheet personId={person.id} referenceSessionId={referenceSessionId} categoryId={findCategoryForEntity("BodyModification")?.id} onClose={handleSheetClose} />
       )}
       {typeof openState === "object" && openState?.type === "editBodyMod" && (
-        <EditBodyModificationSheet personId={person.id} modification={openState.modification} referenceSessionId={referenceSessionId} categoryId={findCategoryForEntity("BodyModification")?.id} existingPhotos={entityMedia?.[openState.modification.id]} onClose={handleSheetClose} />
+        <EditBodyModificationSheet personId={person.id} modification={openState.modification} referenceSessionId={referenceSessionId} categoryId={findCategoryForEntity("BodyModification", openState.modification.type)?.id} existingPhotos={entityMedia?.[openState.modification.id]} onClose={handleSheetClose} />
       )}
       {typeof openState === "object" && openState?.type === "addBodyModEvent" && (
         <AddBodyModificationEventDialog
@@ -597,7 +734,7 @@ export function AppearanceTab({
         <AddCosmeticProcedureSheet personId={person.id} referenceSessionId={referenceSessionId} categoryId={findCategoryForEntity("CosmeticProcedure")?.id} attributeGroups={attributeGroups} onClose={handleSheetClose} />
       )}
       {typeof openState === "object" && openState?.type === "editCosmProc" && (
-        <EditCosmeticProcedureSheet personId={person.id} procedure={openState.procedure} referenceSessionId={referenceSessionId} categoryId={findCategoryForEntity("CosmeticProcedure")?.id} existingPhotos={entityMedia?.[openState.procedure.id]} attributeGroups={attributeGroups} onClose={handleSheetClose} />
+        <EditCosmeticProcedureSheet personId={person.id} procedure={openState.procedure} referenceSessionId={referenceSessionId} categoryId={findCategoryForEntity("CosmeticProcedure", openState.procedure.type)?.id} existingPhotos={entityMedia?.[openState.procedure.id]} attributeGroups={attributeGroups} onClose={handleSheetClose} />
       )}
       {typeof openState === "object" && openState?.type === "addCosmProcEvent" && (
         <AddCosmeticProcedureEventDialog
@@ -632,6 +769,14 @@ export function AppearanceTab({
           onClose={handleSheetClose}
         />
       )}
+      {/* Hidden file input for entity detail uploads */}
+      <input
+        ref={uploadInputRef}
+        type="file"
+        accept="image/jpeg,image/png,image/webp,image/gif"
+        className="hidden"
+        onChange={handleEntityFileChange}
+      />
       {typeof openState === "object" && openState?.type === "manageEntityPhotos" && pickerCategory && referenceSessionId && (
         <DetailMediaPickerSheet
           personId={person.id}

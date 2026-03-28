@@ -26,6 +26,14 @@ export type PaletteModeConfig = {
   sidebarAccentForeground: string;
   sidebarBorder: string;
   sidebarRing: string;
+  entitySession: string;
+  entitySet: string;
+  entityPerson: string;
+  entityCollection: string;
+  entityProject: string;
+  entityLabel: string;
+  entityChannel: string;
+  entityNetwork: string;
 };
 
 export type PaletteConfig = {

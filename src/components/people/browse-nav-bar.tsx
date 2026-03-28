@@ -167,7 +167,11 @@ export function BrowseNavBar({ personId }: BrowseNavBarProps) {
 
 /** Context-aware back link — restores filters + loaded count from browse context */
 export function BrowseBackLink() {
-  const [href] = useState(() => getBrowseReturnUrl());
+  const [href, setHref] = useState("/people");
+
+  useEffect(() => {
+    setHref(getBrowseReturnUrl());
+  }, []);
 
   return (
     <Link

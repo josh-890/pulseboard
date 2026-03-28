@@ -19,7 +19,7 @@ export function LabelCard({ label }: LabelCardProps) {
     >
       <div
         className={cn(
-          "rounded-2xl border border-white/20 bg-card/70 p-5 shadow-md backdrop-blur-sm",
+          "rounded-2xl border border-white/20 border-l-4 border-l-entity-label/40 bg-card/70 p-5 shadow-md backdrop-blur-sm",
           "transition-all duration-200",
           "hover:border-white/30 hover:bg-card/90 hover:shadow-lg hover:-translate-y-0.5",
           "group-focus-visible:ring-2 group-focus-visible:ring-ring group-focus-visible:ring-offset-2",
@@ -27,8 +27,8 @@ export function LabelCard({ label }: LabelCardProps) {
       >
         {/* Icon + name */}
         <div className="mb-3 flex items-start gap-3">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/15">
-            <Building2 size={16} className="text-primary" />
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-entity-label/15">
+            <Building2 size={16} className="text-entity-label" />
           </div>
           <h3 className="line-clamp-2 text-base font-semibold leading-snug">
             {label.name}

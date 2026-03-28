@@ -22,6 +22,10 @@ type BatchUploadZoneProps = {
   filledHeadshotSlots?: number[];
   totalHeadshotSlots?: number;
   onBatchComplete?: () => void;
+  /** Hide the built-in dropzone UI. Use `addFilesRef` to trigger uploads externally. */
+  hideDropzone?: boolean;
+  /** Ref callback that exposes the `addFiles` function for external triggers (button, drag overlay). */
+  addFilesRef?: React.Ref<((files: FileList | File[]) => void) | null>;
 };
 
 type FileStatus = "pending" | "uploading" | "complete" | "error" | "duplicate";
@@ -92,8 +96,11 @@ export function BatchUploadZone({
   filledHeadshotSlots = [],
   totalHeadshotSlots = 5,
   onBatchComplete,
+  hideDropzone = false,
+  addFilesRef,
 }: BatchUploadZoneProps) {
   const router = useRouter();
+  // Keep external ref in sync (called after addFiles is defined below)
   const [queue, setQueue] = useState<UploadFile[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
@@ -377,6 +384,16 @@ export function BatchUploadZone({
     ],
   );
 
+  // Expose addFiles to parent via ref
+  useEffect(() => {
+    if (!addFilesRef) return;
+    if (typeof addFilesRef === "function") {
+      addFilesRef(addFiles);
+    } else {
+      (addFilesRef as React.MutableRefObject<((files: FileList | File[]) => void) | null>).current = addFiles;
+    }
+  }, [addFilesRef, addFiles]);
+
   const retryFile = useCallback(
     (fileId: string) => {
       setQueue((prev) => {
@@ -449,37 +466,39 @@ export function BatchUploadZone({
 
   return (
     <div className="space-y-3">
-      {/* Dropzone */}
-      <div
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
-        onDrop={handleDrop}
-        onClick={() => inputRef.current?.click()}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" || e.key === " ") {
-            e.preventDefault();
-            inputRef.current?.click();
-          }
-        }}
-        role="button"
-        tabIndex={0}
-        aria-label="Upload photos"
-        className={cn(
-          "flex cursor-pointer flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed p-6 transition-all duration-150",
-          isDragging
-            ? "border-primary bg-primary/5"
-            : "border-muted-foreground/30 hover:border-primary/50 hover:bg-accent/5",
-          isUploading && "pointer-events-none opacity-60",
-        )}
-      >
-        <Camera size={24} className="text-muted-foreground" />
-        <p className="text-sm text-muted-foreground">
-          Drop photos here or click to browse
-        </p>
-        <p className="text-xs text-muted-foreground/70">
-          JPEG, PNG, WebP, or GIF up to 25MB &middot; Multiple files supported
-        </p>
-      </div>
+      {/* Dropzone (hidden when parent provides its own triggers) */}
+      {!hideDropzone && (
+        <div
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+          onClick={() => inputRef.current?.click()}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              inputRef.current?.click();
+            }
+          }}
+          role="button"
+          tabIndex={0}
+          aria-label="Upload photos"
+          className={cn(
+            "flex cursor-pointer flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed p-6 transition-all duration-150",
+            isDragging
+              ? "border-primary bg-primary/5"
+              : "border-muted-foreground/30 hover:border-primary/50 hover:bg-accent/5",
+            isUploading && "pointer-events-none opacity-60",
+          )}
+        >
+          <Camera size={24} className="text-muted-foreground" />
+          <p className="text-sm text-muted-foreground">
+            Drop photos here or click to browse
+          </p>
+          <p className="text-xs text-muted-foreground/70">
+            JPEG, PNG, WebP, or GIF up to 25MB &middot; Multiple files supported
+          </p>
+        </div>
+      )}
 
       <input
         ref={inputRef}

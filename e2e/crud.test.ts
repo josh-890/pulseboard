@@ -396,9 +396,7 @@ test.describe("Sessions CRUD", () => {
     await expect(page.getByRole("button", { name: /delete/i })).not.toBeVisible();
     await expect(page.getByRole("button", { name: /merge/i })).not.toBeVisible();
     // Person link should be visible
-    await expect(page.getByRole("link", { name: /jane/i })).toBeVisible();
-    // Reference status badge should be visible
-    await expect(page.getByText("Reference", { exact: true })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Back to Jane" })).toBeVisible();
   });
 
   test("edit session sheet opens and pre-populates", async ({ page }) => {

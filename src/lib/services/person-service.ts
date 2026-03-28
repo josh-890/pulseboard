@@ -1121,8 +1121,8 @@ export async function createPersonRecord(data: CreatePersonInput) {
     const displayName = data.commonName || data.icgId;
     await tx.session.create({
       data: {
-        name: `${displayName} — Reference`,
-        nameNorm: `${displayName.toLowerCase()} — reference`,
+        name: displayName,
+        nameNorm: displayName.toLowerCase(),
         type: "REFERENCE",
         status: "CONFIRMED",
         personId: person.id,

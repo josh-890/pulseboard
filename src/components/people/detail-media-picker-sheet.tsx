@@ -128,15 +128,44 @@ export function DetailMediaPickerSheet({
           formData.append("file", file);
           formData.append("sessionId", referenceSessionId);
           formData.append("personId", personId);
-          const res = await fetch("/api/media/upload", {
+
+          let res = await fetch("/api/media/upload", {
             method: "POST",
             body: formData,
           });
-          if (res.ok) {
-            const data = await res.json() as { id: string; filename: string; urls: Record<string, string | null>; originalWidth: number; originalHeight: number; focalX: number | null; focalY: number | null };
-            const newItem: MediaItem = { ...data, focalX: data.focalX ?? null, focalY: data.focalY ?? null, isLinked: false };
+          if (!res.ok) continue;
+
+          let json = await res.json() as {
+            mediaItem?: { id: string; filename: string; urls: Record<string, string | null> };
+            duplicateFound?: boolean;
+          };
+
+          // Auto-accept duplicates in this context — re-submit with accept flag
+          if (json.duplicateFound && !json.mediaItem) {
+            const retryForm = new FormData();
+            retryForm.append("file", file);
+            retryForm.append("sessionId", referenceSessionId);
+            retryForm.append("personId", personId);
+            retryForm.append("duplicateAction", "accept");
+            res = await fetch("/api/media/upload", { method: "POST", body: retryForm });
+            if (!res.ok) continue;
+            json = await res.json();
+          }
+
+          if (json.mediaItem) {
+            const mi = json.mediaItem;
+            const newItem: MediaItem = {
+              id: mi.id,
+              filename: mi.filename,
+              urls: mi.urls,
+              originalWidth: 0,
+              originalHeight: 0,
+              focalX: null,
+              focalY: null,
+              isLinked: false,
+            };
             setItems((prev) => [newItem, ...prev]);
-            setSelected((prev) => new Set([...prev, data.id]));
+            setSelected((prev) => new Set([...prev, mi.id]));
           }
         }
       } finally {

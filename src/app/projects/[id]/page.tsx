@@ -74,8 +74,8 @@ export default async function ProjectDetailPage({
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="min-w-0 flex-1">
             <div className="mb-2 flex items-center gap-2">
-              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/15">
-                <FolderKanban size={18} className="text-primary" />
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-entity-project/15">
+                <FolderKanban size={18} className="text-entity-project" />
               </div>
               <span
                 className={cn(

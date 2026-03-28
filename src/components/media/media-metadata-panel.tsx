@@ -14,6 +14,8 @@ import {
   RotateCcw,
   Trash2,
   X,
+  MousePointerClick,
+  Maximize2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { MediaItemWithLinks } from "@/lib/services/media-service";
@@ -139,15 +141,6 @@ export function MediaMetadataPanel({
       return next;
     });
   }, []);
-
-  if (items.length === 0) {
-    return (
-      <div className="flex flex-col items-center justify-center gap-2 px-4 py-12 text-center">
-        <ImageIcon size={24} className="text-muted-foreground/30" />
-        <p className="text-xs text-muted-foreground/50">Select a photo to view details</p>
-      </div>
-    );
-  }
 
   const handleUsageToggle = useCallback(
     (usage: PersonMediaUsage) => {
@@ -401,8 +394,17 @@ export function MediaMetadataPanel({
 
   if (items.length === 0) {
     return (
-      <div className="flex h-full items-center justify-center p-6">
-        <p className="text-sm text-muted-foreground">Select a photo to view metadata</p>
+      <div className="flex flex-col items-center justify-center gap-3 px-5 py-14">
+        <div className="space-y-2.5">
+          <div className="flex items-center gap-2 text-muted-foreground/40">
+            <MousePointerClick size={13} className="shrink-0" />
+            <span className="text-xs">Click to view details</span>
+          </div>
+          <div className="flex items-center gap-2 text-muted-foreground/40">
+            <Maximize2 size={13} className="shrink-0" />
+            <span className="text-xs">Double-click to open lightbox</span>
+          </div>
+        </div>
       </div>
     );
   }
@@ -781,6 +783,21 @@ export function MediaMetadataPanel({
             </div>
           )}
         </>
+      )}
+
+      {/* Delete */}
+      {onRequestDelete && (
+        <div className="pt-2">
+          <button
+            type="button"
+            onClick={onRequestDelete}
+            disabled={isPending}
+            className="flex w-full items-center justify-center gap-2 rounded-lg border border-destructive/30 bg-destructive/15 px-3 py-2 text-xs font-medium text-destructive transition-colors hover:bg-destructive/25"
+          >
+            <Trash2 size={14} />
+            Delete
+          </button>
+        </div>
       )}
     </div>
   );

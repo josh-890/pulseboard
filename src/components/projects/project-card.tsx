@@ -34,7 +34,7 @@ export function ProjectCard({ project }: ProjectCardProps) {
     >
       <div
         className={cn(
-          "rounded-2xl border border-white/20 bg-card/70 p-5 shadow-md backdrop-blur-sm",
+          "rounded-2xl border border-white/20 border-l-4 border-l-entity-project/40 bg-card/70 p-5 shadow-md backdrop-blur-sm",
           "transition-all duration-200",
           "hover:border-white/30 hover:bg-card/90 hover:shadow-lg hover:-translate-y-0.5",
           "group-focus-visible:ring-2 group-focus-visible:ring-ring group-focus-visible:ring-offset-2",

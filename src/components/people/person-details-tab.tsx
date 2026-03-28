@@ -1,13 +1,14 @@
 "use client";
 
-import { useCallback, useMemo, useState, useTransition } from "react";
+import { useCallback, useMemo, useRef, useState, useTransition } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { ChevronDown, ChevronRight, ImageIcon, Layers, Plus } from "lucide-react";
+import { ChevronDown, ChevronRight, ImageIcon, Layers, Plus, Upload } from "lucide-react";
 import { cn, focalStyle } from "@/lib/utils";
 import type { CategoryWithGroup } from "@/components/gallery/gallery-info-panel";
 import type { PersonCurrentState } from "@/lib/types";
 import { DetailMediaPickerSheet } from "@/components/people/detail-media-picker-sheet";
+import { linkMediaToDetailCategoryAction } from "@/lib/actions/media-actions";
 
 type CategoryCount = {
   categoryId: string;
@@ -136,6 +137,58 @@ export function PersonDetailsTab({
     router.refresh();
   }, [pickerCategory, router]);
 
+  // ─── Drop-to-upload for non-entity categories ─────────────────────────────
+  const [dragOverCategoryId, setDragOverCategoryId] = useState<string | null>(null);
+  const dragCounterRef = useRef(0);
+
+  const handleCategoryDrop = useCallback(
+    async (categoryId: string, files: FileList) => {
+      if (!referenceSessionId) return;
+
+      for (const file of Array.from(files)) {
+        const formData = new FormData();
+        formData.append("file", file);
+        formData.append("sessionId", referenceSessionId);
+        formData.append("personId", personId);
+
+        try {
+          let res = await fetch("/api/media/upload", { method: "POST", body: formData });
+          let json = await res.json();
+
+          // Auto-accept duplicates
+          if (json.duplicateFound && !json.mediaItem) {
+            const retryForm = new FormData();
+            retryForm.append("file", file);
+            retryForm.append("sessionId", referenceSessionId);
+            retryForm.append("personId", personId);
+            retryForm.append("duplicateAction", "accept");
+            res = await fetch("/api/media/upload", { method: "POST", body: retryForm });
+            json = await res.json();
+          }
+
+          if (!json.mediaItem?.id) continue;
+
+          await linkMediaToDetailCategoryAction(
+            personId,
+            [json.mediaItem.id],
+            categoryId,
+          );
+        } catch {
+          // Upload failed silently
+        }
+      }
+
+      // Refresh cached media for this category + counts
+      setCategoryMedia((prev) => {
+        const next = new Map(prev);
+        next.delete(categoryId);
+        return next;
+      });
+      router.refresh();
+    },
+    [referenceSessionId, personId, router],
+  );
+
   if (categories.length === 0) {
     return (
       <div className="rounded-2xl border border-white/20 bg-card/70 p-6 shadow-md backdrop-blur-sm">
@@ -192,8 +245,37 @@ export function PersonDetailsTab({
               const isExpanded = expandedCategoryId === cat.id;
               const media = categoryMedia.get(cat.id);
 
+              const canDrop = !!referenceSessionId && !cat.entityModel;
+              const isDragOver = dragOverCategoryId === cat.id;
+
               return (
-                <div key={cat.id}>
+                <div
+                  key={cat.id}
+                  className="relative"
+                  onDragEnter={canDrop ? (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    dragCounterRef.current++;
+                    if (e.dataTransfer.types.includes("Files")) setDragOverCategoryId(cat.id);
+                  } : undefined}
+                  onDragOver={canDrop ? (e) => { e.preventDefault(); e.stopPropagation(); } : undefined}
+                  onDragLeave={canDrop ? (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    dragCounterRef.current--;
+                    if (dragCounterRef.current <= 0) {
+                      dragCounterRef.current = 0;
+                      setDragOverCategoryId(null);
+                    }
+                  } : undefined}
+                  onDrop={canDrop ? (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    dragCounterRef.current = 0;
+                    setDragOverCategoryId(null);
+                    if (e.dataTransfer.files.length > 0) handleCategoryDrop(cat.id, e.dataTransfer.files);
+                  } : undefined}
+                >
                   <div className="flex items-center">
                     <button
                       type="button"
@@ -283,6 +365,16 @@ export function PersonDetailsTab({
                           })}
                         </div>
                       )}
+                    </div>
+                  )}
+
+                  {/* Drop overlay */}
+                  {isDragOver && (
+                    <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center border-2 border-dashed border-primary/50 bg-primary/10 backdrop-blur-[1px]">
+                      <div className="flex items-center gap-1.5 text-xs font-medium text-primary">
+                        <Upload size={14} />
+                        Drop to upload to {cat.name}
+                      </div>
                     </div>
                   )}
                 </div>

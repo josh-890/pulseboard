@@ -31,8 +31,8 @@ export default async function ChannelsPage({ searchParams }: ChannelsPageProps) 
       {/* Page header */}
       <div className="flex items-center justify-between gap-4">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/15">
-            <Radio size={20} className="text-primary" />
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-entity-channel/15">
+            <Radio size={20} className="text-entity-channel" />
           </div>
           <div>
             <h1 className="text-2xl font-bold leading-tight">Channels</h1>

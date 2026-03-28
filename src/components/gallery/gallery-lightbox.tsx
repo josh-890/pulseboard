@@ -17,9 +17,9 @@ import type { GalleryItem } from "@/lib/types";
 import type { ProfileImageLabel } from "@/lib/services/setting-service";
 import { GalleryFilmstrip } from "./gallery-filmstrip";
 import { GalleryInfoPanel } from "./gallery-info-panel";
-import type { ReferenceContext, CollectionContext } from "./gallery-info-panel";
+import type { ReferenceContext, ProductionContext, CollectionContext } from "./gallery-info-panel";
 
-export type { ReferenceContext, CategoryWithGroup, CollectionContext } from "./gallery-info-panel";
+export type { ReferenceContext, ProductionContext, ProductionContributor, CategoryWithGroup, CollectionContext } from "./gallery-info-panel";
 
 type GalleryLightboxProps = {
   items: GalleryItem[];
@@ -44,6 +44,8 @@ type GalleryLightboxProps = {
   sessionId?: string;
   // Reference context (optional — forwarded to GalleryInfoPanel)
   referenceContext?: ReferenceContext;
+  // Production context (optional — forwarded to GalleryInfoPanel for entity linking)
+  productionContext?: ProductionContext;
   // Standalone collection context (optional — forwarded to GalleryInfoPanel)
   collectionContext?: CollectionContext;
 };
@@ -70,6 +72,7 @@ function SimpleLightbox({
   onFindSimilar,
   sessionId,
   referenceContext,
+  productionContext,
   collectionContext,
 }: GalleryLightboxProps) {
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
@@ -285,6 +288,7 @@ function SimpleLightbox({
     onFocalOverlayToggle: () => setFocalOverlay((p) => !p),
     focalOverlayActive: focalOverlay,
     referenceContext: augmentedReferenceContext,
+    productionContext,
     collectionContext: augmentedCollectionContext,
   };
 

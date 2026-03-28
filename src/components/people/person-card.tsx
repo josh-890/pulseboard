@@ -52,7 +52,7 @@ export function PersonCard({ person, photoUrl, focalX, focalY, plausibilityCount
     <Link href={`/people/${person.id}`} prefetch={false} className="group block focus-visible:outline-none" onClick={onClick}>
       <div
         className={cn(
-          "relative flex overflow-hidden rounded-2xl border border-white/20 bg-card/70 shadow-md backdrop-blur-sm",
+          "relative flex overflow-hidden rounded-2xl border border-white/20 border-l-4 border-l-entity-person/40 bg-card/70 shadow-md backdrop-blur-sm",
           "transition-all duration-200",
           "hover:border-white/30 hover:bg-card/90 hover:shadow-lg hover:-translate-y-0.5",
           "active:scale-[0.98] active:shadow-sm active:translate-y-0",

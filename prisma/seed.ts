@@ -392,11 +392,11 @@ async function main() {
   // Reference sessions (per-person)
   const refSession = await prisma.session.upsert({
     where: { id: "seed-session-ref" },
-    update: { type: "REFERENCE", status: "CONFIRMED", nameNorm: "jane — reference", name: "Jane — Reference", personId: person.id },
+    update: { type: "REFERENCE", status: "CONFIRMED", nameNorm: "jane", name: "Jane", personId: person.id },
     create: {
       id: "seed-session-ref",
-      name: "Jane — Reference",
-      nameNorm: "jane — reference",
+      name: "Jane",
+      nameNorm: "jane",
       type: "REFERENCE",
       status: "CONFIRMED",
       personId: person.id,
@@ -405,11 +405,11 @@ async function main() {
 
   await prisma.session.upsert({
     where: { id: "seed-ref-session-2" },
-    update: { type: "REFERENCE", status: "CONFIRMED", nameNorm: "marcus reed — reference", personId: person2.id },
+    update: { type: "REFERENCE", status: "CONFIRMED", nameNorm: "marcus reed", name: "Marcus Reed", personId: person2.id },
     create: {
       id: "seed-ref-session-2",
-      name: "Marcus Reed — Reference",
-      nameNorm: "marcus reed — reference",
+      name: "Marcus Reed",
+      nameNorm: "marcus reed",
       type: "REFERENCE",
       status: "CONFIRMED",
       personId: person2.id,

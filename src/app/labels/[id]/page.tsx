@@ -108,8 +108,8 @@ export default async function LabelDetailPage({
       {/* Header card */}
       <div className="rounded-2xl border border-white/20 bg-card/70 p-6 shadow-md backdrop-blur-sm">
         <div className="flex items-start gap-4">
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary/15">
-            <Building2 size={22} className="text-primary" />
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-entity-label/15">
+            <Building2 size={22} className="text-entity-label" />
           </div>
           <div className="min-w-0 flex-1">
             <h1 className="text-2xl font-bold leading-tight">{label.name}</h1>

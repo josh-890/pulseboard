@@ -22,8 +22,8 @@ async function main() {
     const displayName = p.aliases[0]?.name ?? p.icgId;
     await prisma.session.create({
       data: {
-        name: `${displayName} — Reference`,
-        nameNorm: `${displayName.toLowerCase()} — reference`,
+        name: displayName,
+        nameNorm: displayName.toLowerCase(),
         type: "REFERENCE",
         status: "CONFIRMED",
         personId: p.id,

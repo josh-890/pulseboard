@@ -8,7 +8,7 @@ import { getMediaItemsForSession, getMediaItemsWithLinks, getFilledHeadshotSlots
 import { getProfileImageLabels } from "@/lib/services/setting-service";
 import { getCollectionsForPerson } from "@/lib/services/collection-service";
 import { getAllCategoryGroups } from "@/lib/services/category-service";
-import { getSessionContributions, getContributionSkillMediaMap } from "@/lib/services/contribution-service";
+import { getSessionContributions, getContributionSkillMediaMap, getContributorsWithEntities } from "@/lib/services/contribution-service";
 import { getAllSkillGroups } from "@/lib/services/skill-catalog-service";
 import { prisma } from "@/lib/db";
 import { cn, formatPartialDate } from "@/lib/utils";
@@ -23,15 +23,16 @@ import {
   SessionInlineLocation,
 } from "@/components/sessions/session-detail-header";
 import { SessionMergeDialog } from "@/components/sessions/session-merge-dialog";
-import { SessionProductionGallery } from "@/components/sessions/session-production-gallery";
+import { SessionProductionGallery, SessionUploadButton } from "@/components/sessions/session-production-gallery";
+import type { ProductionContext } from "@/components/gallery/gallery-lightbox";
 import { SessionContributionSkills } from "@/components/sessions/session-contribution-skills";
-import { MediaManager } from "@/components/media/media-manager";
-import { BatchUploadZone } from "@/components/media/batch-upload-zone";
+import { ReferenceSessionPage } from "@/components/sessions/reference-session-page";
 
 export const dynamic = "force-dynamic";
 
 type SessionDetailPageProps = {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ tab?: string }>;
 };
 
 // ── Sub-components ──────────────────────────────────────────────────────────
@@ -41,9 +42,10 @@ type SectionCardProps = {
   icon: React.ReactNode;
   children: React.ReactNode;
   className?: string;
+  action?: React.ReactNode;
 };
 
-function SectionCard({ title, icon, children, className }: SectionCardProps) {
+function SectionCard({ title, icon, children, className, action }: SectionCardProps) {
   return (
     <div
       className={cn(
@@ -56,6 +58,7 @@ function SectionCard({ title, icon, children, className }: SectionCardProps) {
           {icon}
         </span>
         <h2 className="text-lg font-semibold">{title}</h2>
+        {action && <div className="ml-auto">{action}</div>}
       </div>
       {children}
     </div>
@@ -68,8 +71,8 @@ function EmptyState({ message }: { message: string }) {
 
 // ── Main page ───────────────────────────────────────────────────────────────
 
-export default async function SessionDetailPage({ params }: SessionDetailPageProps) {
-  const { id } = await params;
+export default async function SessionDetailPage({ params, searchParams }: SessionDetailPageProps) {
+  const [{ id }, resolvedSearchParams] = await Promise.all([params, searchParams]);
 
   const [session, labels, projects] = await Promise.all([
     getSessionById(id),
@@ -179,10 +182,63 @@ export default async function SessionDetailPage({ params }: SessionDetailPagePro
     mediaItems = await getMediaItemsForSession(id);
   }
 
-  // Load contributions + skill groups + skill media for production sessions
-  const [sessionContributions, skillGroups, contributionSkillMedia] = !isReference
-    ? await Promise.all([getSessionContributions(id), getAllSkillGroups(), getContributionSkillMediaMap(id)])
-    : [[], [], new Map<string, { id: string; thumbUrl: string }[]>()];
+  // Reference sessions → dedicated page component
+  if (isReference && mediaManagerData && session.personId) {
+    const personName = session.person?.aliases[0]?.name ?? session.person?.icgId ?? session.name;
+    // Extract first headshot thumbnail as person avatar
+    const firstHeadshot = mediaManagerData.items.find(
+      (item) => item.links.some((l) => l.usage === "HEADSHOT"),
+    );
+    const personThumbUrl = firstHeadshot?.urls.profile_128 ?? firstHeadshot?.urls.profile_256 ?? null;
+
+    return (
+      <ReferenceSessionPage
+        personId={session.personId}
+        personName={personName}
+        personThumbUrl={personThumbUrl}
+        sessionId={id}
+        mediaCount={mediaCount}
+        items={mediaManagerData.items.map(({ createdAt, ...rest }) => ({
+          ...rest,
+          createdAt: createdAt.toISOString() as unknown as Date,
+        }))}
+        slotLabels={mediaManagerData.slotLabels}
+        collections={mediaManagerData.collections}
+        categories={mediaManagerData.categories}
+        bodyMarks={mediaManagerData.bodyMarks}
+        bodyModifications={mediaManagerData.bodyModifications}
+        cosmeticProcedures={mediaManagerData.cosmeticProcedures}
+        personas={mediaManagerData.personas}
+        skillEvents={mediaManagerData.skillEvents}
+        filledHeadshotSlots={mediaManagerData.filledHeadshotSlots}
+        initialTab={resolvedSearchParams.tab}
+      />
+    );
+  }
+
+  // Load contributions + skill groups + skill media + entity data for production sessions
+  const [sessionContributions, skillGroups, contributionSkillMedia, contributorsWithEntities, prodCategoryGroups] = !isReference
+    ? await Promise.all([getSessionContributions(id), getAllSkillGroups(), getContributionSkillMediaMap(id), getContributorsWithEntities(id), getAllCategoryGroups()])
+    : [[], [], new Map<string, { id: string; thumbUrl: string }[]>(), [], []];
+
+  // Build production context for entity linking in lightbox
+  const productionContext: ProductionContext | undefined =
+    !isReference && contributorsWithEntities.length > 0
+      ? {
+          sessionId: id,
+          contributors: contributorsWithEntities,
+          categories: prodCategoryGroups.flatMap((g) =>
+            g.categories.map((c) => ({
+              id: c.id,
+              name: c.name,
+              slug: c.slug,
+              groupId: g.id,
+              groupName: g.name,
+              entityModel: c.entityModel,
+            })),
+          ),
+        }
+      : undefined;
 
   return (
     <div className="space-y-6">
@@ -232,7 +288,7 @@ export default async function SessionDetailPage({ params }: SessionDetailPagePro
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="min-w-0 flex-1">
             <div className="mb-2 flex flex-wrap items-center gap-2">
-              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/15">
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-entity-session/15">
                 {isReference ? (
                   <User size={18} className="text-primary" />
                 ) : (
@@ -240,14 +296,18 @@ export default async function SessionDetailPage({ params }: SessionDetailPagePro
                 )}
               </div>
               <SessionTypeBadge type={session.type} />
-              <SessionStatusBadge status={session.status} />
+              {!isReference && <SessionStatusBadge status={session.status} />}
               {session.date && (
                 <span className="text-sm text-muted-foreground">
                   {formatPartialDate(session.date, session.datePrecision)}
                 </span>
               )}
             </div>
-            <SessionInlineTitle sessionId={id} title={session.name} />
+            {isReference ? (
+              <h1 className="text-2xl font-bold leading-tight">{session.name}</h1>
+            ) : (
+              <SessionInlineTitle sessionId={id} title={session.name} />
+            )}
 
             {/* Label + Project + Person links */}
             <div className="mt-2 flex flex-wrap items-center gap-2">
@@ -309,62 +369,29 @@ export default async function SessionDetailPage({ params }: SessionDetailPagePro
         </div>
       </div>
 
-      {/* Description, Notes, Location (inline editable) */}
-      <div className="rounded-2xl border border-white/20 bg-card/70 p-6 shadow-md backdrop-blur-sm space-y-3">
-        {!isReference && (
+      {/* Description, Notes, Location (inline editable — not for reference sessions) */}
+      {!isReference && (
+        <div className="rounded-2xl border border-white/20 bg-card/70 p-6 shadow-md backdrop-blur-sm space-y-3">
           <SessionInlineLocation sessionId={id} location={session.location} />
-        )}
-        <SessionInlineDescription sessionId={id} description={session.description} />
-        <SessionInlineNotes sessionId={id} notes={session.notes} />
-      </div>
+          <SessionInlineDescription sessionId={id} description={session.description} />
+          <SessionInlineNotes sessionId={id} notes={session.notes} />
+        </div>
+      )}
 
       {/* Media */}
       <SectionCard
         title={`Media (${mediaCount})`}
         icon={<ImageIcon size={18} />}
+        action={<SessionUploadButton />}
       >
-        {isReference && mediaManagerData && session.personId ? (
-          <>
-            <MediaManager
-              items={mediaManagerData.items.map(({ createdAt, ...rest }) => ({
-                ...rest,
-                createdAt: createdAt.toISOString() as unknown as Date,
-              }))}
-              personId={session.personId}
-              sessionId={id}
-              slotLabels={mediaManagerData.slotLabels}
-              collections={mediaManagerData.collections}
-              categories={mediaManagerData.categories}
-              bodyMarks={mediaManagerData.bodyMarks}
-              bodyModifications={mediaManagerData.bodyModifications}
-              cosmeticProcedures={mediaManagerData.cosmeticProcedures}
-              personas={mediaManagerData.personas}
-              skillEvents={mediaManagerData.skillEvents}
-              anchor="reference"
-            />
-            <div className="mt-4">
-              <BatchUploadZone
-                sessionId={id}
-                personId={session.personId}
-                filledHeadshotSlots={mediaManagerData.filledHeadshotSlots}
-                totalHeadshotSlots={mediaManagerData.slotLabels.length || 5}
-              />
-            </div>
-          </>
-        ) : (
-          <>
-            <SessionProductionGallery
-              items={mediaItems.map(({ createdAt, ...rest }) => ({
-                ...rest,
-                createdAt: createdAt.toISOString() as unknown as Date,
-              }))}
-              sessionId={id}
-            />
-            <div className="mt-4">
-              <BatchUploadZone sessionId={id} />
-            </div>
-          </>
-        )}
+        <SessionProductionGallery
+          items={mediaItems.map(({ createdAt, ...rest }) => ({
+            ...rest,
+            createdAt: createdAt.toISOString() as unknown as Date,
+          }))}
+          sessionId={id}
+          productionContext={productionContext}
+        />
       </SectionCard>
 
       {/* Contributors */}
@@ -439,8 +466,8 @@ export default async function SessionDetailPage({ params }: SessionDetailPagePro
             <div className="space-y-2">
               {session.setSessionLinks.map((link) => {
                 const setTypeIcon = link.set.type === "photo"
-                  ? <Camera size={14} className="text-primary" />
-                  : <Film size={14} className="text-primary" />;
+                  ? <Camera size={14} className="text-entity-set" />
+                  : <Film size={14} className="text-entity-set" />;
 
                 return (
                   <Link
@@ -449,11 +476,11 @@ export default async function SessionDetailPage({ params }: SessionDetailPagePro
                     className="group flex items-center justify-between rounded-xl border border-white/15 bg-card/40 px-4 py-3 transition-all hover:border-white/25 hover:bg-card/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   >
                     <div className="flex items-center gap-3 min-w-0">
-                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-entity-set/10">
                         {setTypeIcon}
                       </div>
                       <div className="min-w-0">
-                        <span className="block truncate text-sm font-medium group-hover:text-primary transition-colors">
+                        <span className="block truncate text-sm font-medium group-hover:text-entity-set transition-colors">
                           {link.set.title}
                         </span>
                         {link.set.channel && (
@@ -465,7 +492,7 @@ export default async function SessionDetailPage({ params }: SessionDetailPagePro
                     </div>
                     <div className="ml-3 flex shrink-0 items-center gap-2">
                       {link.isPrimary && (
-                        <span className="rounded-full border border-primary/20 bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
+                        <span className="rounded-full border border-entity-set/20 bg-entity-set/10 px-2 py-0.5 text-xs font-medium text-entity-set">
                           Primary
                         </span>
                       )}

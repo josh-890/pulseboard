@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { cn, computeAge, formatPartialDate } from "@/lib/utils";
 import type { getPersonWithDetails } from "@/lib/services/person-service";
 import type {
@@ -46,6 +46,7 @@ import {
   Info,
   AlertTriangle,
   ArrowUpDown,
+  Upload,
 } from "lucide-react";
 import NextImage from "next/image";
 import Link from "next/link";
@@ -1608,6 +1609,50 @@ function PhotosTab({
 }) {
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [slotEntries, setSlotEntries] = useState(headshotSlotEntries ?? []);
+  const [isDragOver, setIsDragOver] = useState(false);
+  const dragCounterRef = useRef(0);
+  const addFilesRef = useRef<((files: FileList | File[]) => void) | null>(null);
+  const refPhotosContainerRef = useRef<HTMLDivElement>(null);
+
+  // Drag-anywhere overlay for reference photos section
+  useEffect(() => {
+    const el = refPhotosContainerRef.current;
+    if (!el) return;
+
+    function handleDragEnter(e: DragEvent) {
+      e.preventDefault();
+      dragCounterRef.current++;
+      if (e.dataTransfer?.types.includes("Files")) setIsDragOver(true);
+    }
+    function handleDragOver(e: DragEvent) {
+      e.preventDefault();
+    }
+    function handleDragLeave(e: DragEvent) {
+      e.preventDefault();
+      dragCounterRef.current--;
+      if (dragCounterRef.current <= 0) {
+        dragCounterRef.current = 0;
+        setIsDragOver(false);
+      }
+    }
+    function handleDrop(e: DragEvent) {
+      e.preventDefault();
+      dragCounterRef.current = 0;
+      setIsDragOver(false);
+      if (e.dataTransfer?.files.length) addFilesRef.current?.(e.dataTransfer.files);
+    }
+
+    el.addEventListener("dragenter", handleDragEnter);
+    el.addEventListener("dragover", handleDragOver);
+    el.addEventListener("dragleave", handleDragLeave);
+    el.addEventListener("drop", handleDrop);
+    return () => {
+      el.removeEventListener("dragenter", handleDragEnter);
+      el.removeEventListener("dragover", handleDragOver);
+      el.removeEventListener("dragleave", handleDragLeave);
+      el.removeEventListener("drop", handleDrop);
+    };
+  }, []);
 
   const indexMap = new Map<string, number>();
   photos.forEach((p, i) => indexMap.set(p.id, i));
@@ -1650,27 +1695,66 @@ function PhotosTab({
   return (
     <div className="space-y-6">
       {/* Reference Photos */}
-      <SectionCard title="Reference Photos" icon={<ImageIcon size={18} />} badge={photos.length}>
-        {photos.length === 0 ? (
-          <EmptyState message="No reference photos uploaded yet." />
-        ) : (
-          <JustifiedGrid
-            items={photos}
-            onOpen={(id) => {
-              const idx = indexMap.get(id);
-              if (idx !== undefined) setLightboxIndex(idx);
-            }}
+      <div ref={refPhotosContainerRef} className="relative">
+        <SectionCard
+          title="Reference Photos"
+          icon={<ImageIcon size={18} />}
+          badge={photos.length}
+          action={
+            referenceSessionId ? (
+              <button
+                type="button"
+                onClick={() => {
+                  const input = document.querySelector<HTMLInputElement>(
+                    'input[type="file"][accept*="image"]',
+                  );
+                  input?.click();
+                }}
+                className="flex h-7 w-7 items-center justify-center rounded-md border border-white/15 bg-card/60 text-muted-foreground transition-all hover:border-entity-person/30 hover:bg-entity-person/10 hover:text-entity-person focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                aria-label="Upload photos"
+                title="Upload photos"
+              >
+                <Plus size={14} />
+              </button>
+            ) : undefined
+          }
+        >
+          {photos.length === 0 ? (
+            <EmptyState message="No reference photos uploaded yet." />
+          ) : (
+            <JustifiedGrid
+              items={photos}
+              onOpen={(id) => {
+                const idx = indexMap.get(id);
+                if (idx !== undefined) setLightboxIndex(idx);
+              }}
+            />
+          )}
+        </SectionCard>
+
+        {/* Headless upload engine */}
+        {referenceSessionId && (
+          <BatchUploadZone
+            sessionId={referenceSessionId}
+            personId={person.id}
+            filledHeadshotSlots={filledHeadshotSlots}
+            totalHeadshotSlots={profileLabels.length || 5}
+            hideDropzone
+            addFilesRef={addFilesRef}
           />
         )}
-      </SectionCard>
-      {referenceSessionId && (
-        <BatchUploadZone
-          sessionId={referenceSessionId}
-          personId={person.id}
-          filledHeadshotSlots={filledHeadshotSlots}
-          totalHeadshotSlots={profileLabels.length || 5}
-        />
-      )}
+
+        {/* Drag-anywhere overlay */}
+        {isDragOver && (
+          <div className="pointer-events-none absolute inset-0 z-30 flex items-center justify-center rounded-2xl border-2 border-dashed border-entity-person/50 bg-entity-person/5 backdrop-blur-[2px] transition-all">
+            <div className="flex flex-col items-center gap-2">
+              <Upload size={28} className="text-entity-person/60" />
+              <p className="text-sm font-medium text-entity-person/80">Drop to upload</p>
+            </div>
+          </div>
+        )}
+      </div>
+
       {lightboxIndex !== null && (
         <GalleryLightbox
           items={photos}

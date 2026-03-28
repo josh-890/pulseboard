@@ -7,7 +7,8 @@ import type { CosmeticProcedureWithEvents } from "@/lib/types";
 import { COSMETIC_PROCEDURE_EVENT_STYLES } from "@/lib/constants/body";
 import { BodyRegionChips } from "@/components/shared/body-region-picker";
 import { EntityEventTimeline } from "@/components/people/entity-event-timeline";
-import { Camera, ChevronRight, ImageIcon, Pencil, Pin, PinOff, Trash2 } from "lucide-react";
+import { Camera, ChevronRight, ImageIcon, Pencil, Pin, PinOff, Trash2, Upload } from "lucide-react";
+import { useFileDrop } from "@/lib/hooks/use-file-drop";
 
 type EntityMediaThumbnail = {
   id: string;
@@ -34,6 +35,8 @@ type CosmeticProcedureRowProps = {
   onEdit?: () => void;
   onDelete?: () => void;
   onManagePhotos?: () => void;
+  onUploadPhoto?: () => void;
+  onDropFiles?: (files: FileList) => void;
   onDeleteEvent?: (id: string) => Promise<{ success: boolean; error?: string }>;
   onAddEvent?: () => void;
   onEditEvent?: (event: EventItem) => void;
@@ -47,6 +50,8 @@ export function CosmeticProcedureRow({
   onEdit,
   onDelete,
   onManagePhotos,
+  onUploadPhoto,
+  onDropFiles,
   onDeleteEvent,
   onAddEvent,
   onEditEvent,
@@ -54,6 +59,7 @@ export function CosmeticProcedureRow({
   isPending,
 }: CosmeticProcedureRowProps) {
   const [expanded, setExpanded] = useState(false);
+  const { isDragOver, dropProps } = useFileDrop(onDropFiles);
   const c = procedure.computed;
   const photoCount = photos?.length ?? 0;
   const firstEvent = procedure.events.find((e) => e.eventType === "performed");
@@ -118,7 +124,7 @@ export function CosmeticProcedureRow({
       </button>
 
       {expanded && (
-        <div className="border-t border-white/5 px-3 pb-3 pt-2">
+        <div className="relative border-t border-white/5 px-3 pb-3 pt-2" {...dropProps}>
           <div className="mb-2 flex items-center gap-1">
             {onToggleHeroVisibility && (
               <button
@@ -138,6 +144,11 @@ export function CosmeticProcedureRow({
             {onManagePhotos && (
               <button type="button" onClick={onManagePhotos} className="rounded p-1 text-xs text-muted-foreground hover:text-amber-400 transition-colors" aria-label="Manage photos">
                 <Camera size={14} />
+              </button>
+            )}
+            {onUploadPhoto && (
+              <button type="button" onClick={onUploadPhoto} className="rounded p-1 text-xs text-muted-foreground hover:text-amber-400 transition-colors" aria-label="Upload detail photo" title="Upload detail photo">
+                <Upload size={14} />
               </button>
             )}
             {onEdit && (
@@ -216,6 +227,16 @@ export function CosmeticProcedureRow({
                 </div>
               ))}
             </button>
+          )}
+
+          {/* Drop overlay */}
+          {isDragOver && (
+            <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-lg border-2 border-dashed border-amber-500/50 bg-amber-500/10 backdrop-blur-[1px]">
+              <div className="flex items-center gap-1.5 text-xs font-medium text-amber-400">
+                <Upload size={14} />
+                Drop to upload
+              </div>
+            </div>
           )}
         </div>
       )}

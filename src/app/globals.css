@@ -39,6 +39,14 @@
   --radius-2xl: calc(var(--radius) + 8px);
   --radius-3xl: calc(var(--radius) + 12px);
   --radius-4xl: calc(var(--radius) + 16px);
+  --color-entity-session: var(--entity-session);
+  --color-entity-set: var(--entity-set);
+  --color-entity-person: var(--entity-person);
+  --color-entity-collection: var(--entity-collection);
+  --color-entity-project: var(--entity-project);
+  --color-entity-label: var(--entity-label);
+  --color-entity-channel: var(--entity-channel);
+  --color-entity-network: var(--entity-network);
   --breakpoint-3xl: 1920px;
 }
 
@@ -72,6 +80,14 @@
   --sidebar-ring: #6366f1;
   --body-region-base-fill: rgba(100, 116, 139, 0.1);
   --body-region-base-stroke: rgba(100, 116, 139, 0.3);
+  --entity-session: #14b8a6;
+  --entity-set: #f43f5e;
+  --entity-person: #8b5cf6;
+  --entity-collection: #f59e0b;
+  --entity-project: #3b82f6;
+  --entity-label: #f97316;
+  --entity-channel: #0ea5e9;
+  --entity-network: #10b981;
 }
 
 .dark {
@@ -103,6 +119,14 @@
   --sidebar-ring: #818cf8;
   --body-region-base-fill: rgba(255, 255, 255, 0.06);
   --body-region-base-stroke: rgba(255, 255, 255, 0.15);
+  --entity-session: #2dd4bf;
+  --entity-set: #fb7185;
+  --entity-person: #a78bfa;
+  --entity-collection: #fbbf24;
+  --entity-project: #60a5fa;
+  --entity-label: #fb923c;
+  --entity-channel: #38bdf8;
+  --entity-network: #34d399;
 }
 
 @layer base {

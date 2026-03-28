@@ -21,8 +21,8 @@ export default async function LabelsPage({ searchParams }: LabelsPageProps) {
       {/* Page header */}
       <div className="flex items-center justify-between gap-4">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/15">
-            <Building2 size={20} className="text-primary" />
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-entity-label/15">
+            <Building2 size={20} className="text-entity-label" />
           </div>
           <div>
             <h1 className="text-2xl font-bold leading-tight">Labels</h1>

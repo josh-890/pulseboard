@@ -9,7 +9,7 @@ import { SessionGrid } from "@/components/sessions/session-grid";
 import { BrowserToolbar } from "@/components/shared/browser-toolbar";
 import type { BrowserToolbarConfig, FilterGroup } from "@/components/shared/browser-toolbar";
 import { AddSessionSheet } from "@/components/sessions/add-session-sheet";
-import type { SessionStatus, SessionType } from "@/lib/types";
+import type { SessionStatus } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
@@ -20,7 +20,6 @@ type SessionsPageProps = {
   searchParams: Promise<{
     q?: string;
     status?: string;
-    type?: string;
     sort?: string;
     label?: string;
     project?: string;
@@ -29,7 +28,6 @@ type SessionsPageProps = {
 };
 
 const VALID_STATUSES = new Set<string>(["DRAFT", "CONFIRMED"]);
-const VALID_TYPES = new Set<string>(["REFERENCE", "PRODUCTION"]);
 const VALID_SORTS = new Set<string>([
   "newest", "date-desc", "date-asc", "name-asc", "media-desc",
 ]);
@@ -48,7 +46,7 @@ const SORT_OPTIONS = [
 
 export default async function SessionsPage({ searchParams }: SessionsPageProps) {
   const {
-    q, status, type, sort: sortParam,
+    q, status, sort: sortParam,
     label: labelId, project: projectId,
     loaded,
   } = await searchParams;
@@ -59,13 +57,12 @@ export default async function SessionsPage({ searchParams }: SessionsPageProps) 
   );
 
   const resolvedStatus = status && VALID_STATUSES.has(status) ? (status as SessionStatus) : undefined;
-  const resolvedType = type && VALID_TYPES.has(type) ? (type as SessionType) : undefined;
   const resolvedSort = sortParam && isSessionSort(sortParam) ? sortParam : undefined;
 
   const filters = {
     q: q?.trim() || undefined,
     status: resolvedStatus ?? ("all" as const),
-    type: resolvedType ?? ("all" as const),
+    type: "PRODUCTION" as const,
     labelId: labelId || undefined,
     projectId: projectId || undefined,
     sort: resolvedSort,
@@ -86,16 +83,6 @@ export default async function SessionsPage({ searchParams }: SessionsPageProps) 
   const projectOptions = projects.map(({ id, name }) => ({ id, name }));
 
   const filterGroups: FilterGroup[] = [
-    {
-      type: "pill",
-      param: "type",
-      label: "Type",
-      options: [
-        { value: "all", label: "All" },
-        { value: "REFERENCE", label: "Reference" },
-        { value: "PRODUCTION", label: "Production" },
-      ],
-    },
     {
       type: "pill",
       param: "status",
@@ -143,8 +130,8 @@ export default async function SessionsPage({ searchParams }: SessionsPageProps) 
       {/* Page header */}
       <div className="flex items-center justify-between gap-4">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/15">
-            <Clapperboard size={20} className="text-primary" />
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-entity-session/15">
+            <Clapperboard size={20} className="text-entity-session" />
           </div>
           <div>
             <h1 className="text-2xl font-bold leading-tight">Sessions</h1>

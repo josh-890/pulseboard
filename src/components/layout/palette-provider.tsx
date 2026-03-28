@@ -48,6 +48,14 @@ const CSS_VAR_MAP: Record<keyof Omit<PaletteModeConfig, "backgroundGradient">, s
   sidebarAccentForeground: "--sidebar-accent-foreground",
   sidebarBorder: "--sidebar-border",
   sidebarRing: "--sidebar-ring",
+  entitySession: "--entity-session",
+  entitySet: "--entity-set",
+  entityPerson: "--entity-person",
+  entityCollection: "--entity-collection",
+  entityProject: "--entity-project",
+  entityLabel: "--entity-label",
+  entityChannel: "--entity-channel",
+  entityNetwork: "--entity-network",
 };
 
 function applyPaletteVars(config: PaletteModeConfig) {

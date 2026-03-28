@@ -13,8 +13,8 @@ export default async function NetworksPage() {
       {/* Page header */}
       <div className="flex items-center justify-between gap-4">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/15">
-            <Network size={20} className="text-primary" />
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-entity-network/15">
+            <Network size={20} className="text-entity-network" />
           </div>
           <div>
             <h1 className="text-2xl font-bold leading-tight">Networks</h1>
