@@ -68,6 +68,27 @@ export function MediaCollectionIcon() {
   );
 }
 
+type MediaSetCountBadgeProps = {
+  count: number;
+};
+
+export function MediaSetCountBadge({ count }: MediaSetCountBadgeProps) {
+  if (count === 0) return null;
+  return (
+    <span
+      className={cn(
+        "inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-[10px] font-bold leading-none shadow-sm",
+        count > 0
+          ? "bg-violet-500/90 text-white"
+          : "bg-white/80 text-gray-700",
+      )}
+      title={`In ${count} set${count === 1 ? "" : "s"}`}
+    >
+      {count}
+    </span>
+  );
+}
+
 type MediaAnchorBadgeProps = {
   anchor: "reference" | "production";
 };

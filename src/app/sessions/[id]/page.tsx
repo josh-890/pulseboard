@@ -4,7 +4,7 @@ import { Building2, FolderKanban, Users, ImageIcon, Clapperboard, Camera, Film, 
 import { getSessionById } from "@/lib/services/session-service";
 import { getLabels } from "@/lib/services/label-service";
 import { getProjects } from "@/lib/services/project-service";
-import { getMediaItemsForSession, getMediaItemsWithLinks, getFilledHeadshotSlots } from "@/lib/services/media-service";
+import { getSessionMediaGallery, getMediaItemsWithLinks, getFilledHeadshotSlots } from "@/lib/services/media-service";
 import { getProfileImageLabels } from "@/lib/services/setting-service";
 import { getCollectionsForPerson } from "@/lib/services/collection-service";
 import { getAllCategoryGroups } from "@/lib/services/category-service";
@@ -90,7 +90,7 @@ export default async function SessionDetailPage({ params, searchParams }: Sessio
   const setCount = session.setSessionLinks.length;
 
   // Load data for reference sessions (MediaManager) vs regular sessions (SessionMediaGallery)
-  let mediaItems: Awaited<ReturnType<typeof getMediaItemsForSession>> = [];
+  let mediaItems: Awaited<ReturnType<typeof getSessionMediaGallery>> = [];
   let mediaManagerData: {
     items: Awaited<ReturnType<typeof getMediaItemsWithLinks>>;
     slotLabels: Awaited<ReturnType<typeof getProfileImageLabels>>;
@@ -179,7 +179,7 @@ export default async function SessionDetailPage({ params, searchParams }: Sessio
       filledHeadshotSlots: filledSlots,
     };
   } else {
-    mediaItems = await getMediaItemsForSession(id);
+    mediaItems = await getSessionMediaGallery(id);
   }
 
   // Reference sessions → dedicated page component
@@ -385,9 +385,9 @@ export default async function SessionDetailPage({ params, searchParams }: Sessio
         action={<SessionUploadButton />}
       >
         <SessionProductionGallery
-          items={mediaItems.map(({ createdAt, ...rest }) => ({
-            ...rest,
-            createdAt: createdAt.toISOString() as unknown as Date,
+          items={mediaItems.map((item) => ({
+            ...item,
+            createdAt: item.createdAt.toISOString() as unknown as Date,
           }))}
           sessionId={id}
           productionContext={productionContext}

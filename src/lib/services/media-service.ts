@@ -70,6 +70,7 @@ export function toGalleryItem(
     links: item.links,
     collectionIds: item.collectionIds,
     skillEventIds: item.skillEventIds,
+    setCount: item.setCount,
   };
 }
 
@@ -79,6 +80,9 @@ export function toGalleryItem(
 export async function getSessionMediaGallery(sessionId: string): Promise<GalleryItem[]> {
   const items = await prisma.mediaItem.findMany({
     where: { sessionId },
+    include: {
+      setMediaItems: { select: { setId: true } },
+    },
     orderBy: { createdAt: "asc" },
   });
 
@@ -102,6 +106,7 @@ export async function getSessionMediaGallery(sessionId: string): Promise<Gallery
       isFavorite: false,
       sortOrder: 0,
       isCover: false,
+      setCount: item.setMediaItems.length,
     });
   }
   return results;
@@ -709,6 +714,7 @@ export type MediaItemWithLinks = {
   }[];
   collectionIds: string[];
   skillEventIds: string[];
+  setCount: number;
 };
 
 export async function getMediaItemsWithLinks(
@@ -726,6 +732,9 @@ export async function getMediaItemsWithLinks(
       },
       skillEventMedia: {
         select: { skillEventId: true },
+      },
+      setMediaItems: {
+        select: { setId: true },
       },
     },
     orderBy: { createdAt: "asc" },
@@ -768,6 +777,7 @@ export async function getMediaItemsWithLinks(
         })),
         collectionIds: item.collectionItems.map((ci) => ci.collectionId),
         skillEventIds: item.skillEventMedia.map((sem) => sem.skillEventId),
+        setCount: item.setMediaItems.length,
       };
     })
     .filter((item): item is MediaItemWithLinks => item !== null);

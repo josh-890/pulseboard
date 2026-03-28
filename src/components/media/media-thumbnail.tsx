@@ -10,6 +10,7 @@ import {
   MediaTagCountBadge,
   MediaLinkIcon,
   MediaCollectionIcon,
+  MediaSetCountBadge,
 } from "./media-badge";
 
 type MediaThumbnailProps = {
@@ -108,6 +109,13 @@ export function MediaThumbnail({
       {anchor && (
         <div className="absolute right-1.5 top-1.5 z-10">
           <MediaAnchorBadge anchor={anchor} />
+        </div>
+      )}
+
+      {/* Set count badge (bottom-left) */}
+      {item.setCount !== undefined && item.setCount > 0 && (
+        <div className="absolute bottom-1.5 left-1.5 z-10">
+          <MediaSetCountBadge count={item.setCount} />
         </div>
       )}
 

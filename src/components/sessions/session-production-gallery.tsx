@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Plus, Upload } from "lucide-react";
-import type { MediaItemWithUrls } from "@/lib/types";
 import type { GalleryItem } from "@/lib/types";
 import { JustifiedGrid } from "@/components/gallery/justified-grid";
 import { GalleryLightbox } from "@/components/gallery/gallery-lightbox";
@@ -10,29 +9,10 @@ import type { CollectionContext, ProductionContext } from "@/components/gallery/
 import { BatchUploadZone } from "@/components/media/batch-upload-zone";
 
 type SessionProductionGalleryProps = {
-  items: MediaItemWithUrls[];
+  items: GalleryItem[];
   sessionId?: string;
   productionContext?: ProductionContext;
 };
-
-function toGalleryItem(item: MediaItemWithUrls): GalleryItem {
-  return {
-    id: item.id,
-    filename: item.filename,
-    mimeType: item.mimeType,
-    originalWidth: item.originalWidth,
-    originalHeight: item.originalHeight,
-    caption: item.caption,
-    createdAt: item.createdAt,
-    urls: item.urls,
-    focalX: item.focalX,
-    focalY: item.focalY,
-    tags: [],
-    isFavorite: false,
-    sortOrder: 0,
-    isCover: false,
-  };
-}
 
 export function SessionProductionGallery({ items, sessionId, productionContext }: SessionProductionGalleryProps) {
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
@@ -94,24 +74,19 @@ export function SessionProductionGallery({ items, sessionId, productionContext }
     [collections],
   );
 
-  const galleryItems = useMemo(
-    () => items.map(toGalleryItem),
-    [items],
-  );
-
   const indexMap = useMemo(() => {
     const map = new Map<string, number>();
-    galleryItems.forEach((item, i) => map.set(item.id, i));
+    items.forEach((item, i) => map.set(item.id, i));
     return map;
-  }, [galleryItems]);
+  }, [items]);
 
   return (
     <div ref={containerRef} className="relative">
-      {galleryItems.length === 0 ? (
+      {items.length === 0 ? (
         <p className="text-sm italic text-muted-foreground/70">No media items in this session.</p>
       ) : (
         <JustifiedGrid
-          items={galleryItems}
+          items={items}
           draggable
           onOpen={(id) => {
             const idx = indexMap.get(id);
@@ -141,7 +116,7 @@ export function SessionProductionGallery({ items, sessionId, productionContext }
 
       {lightboxIndex !== null && (
         <GalleryLightbox
-          items={galleryItems}
+          items={items}
           initialIndex={lightboxIndex}
           onClose={() => setLightboxIndex(null)}
           onFindSimilar={(mediaItemId) => window.open(`/media/similar?id=${mediaItemId}`, "_blank")}

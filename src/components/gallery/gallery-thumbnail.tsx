@@ -9,6 +9,7 @@ import {
   MediaTagCountBadge,
   MediaLinkIcon,
   MediaCollectionIcon,
+  MediaSetCountBadge,
 } from "@/components/media/media-badge";
 
 type GalleryThumbnailProps = {
@@ -129,6 +130,13 @@ export function GalleryThumbnail({
         >
           <Frame size={10} />
         </span>
+      )}
+
+      {/* Set count badge (bottom-left) */}
+      {item.setCount !== undefined && item.setCount > 0 && (
+        <div className="absolute bottom-1.5 left-1.5">
+          <MediaSetCountBadge count={item.setCount} />
+        </div>
       )}
 
       {/* Badge tray */}

@@ -38,4 +38,6 @@ export type GalleryItem = {
   collectionIds?: string[];
   /** Skill event IDs linked via SkillEventMedia */
   skillEventIds?: string[];
+  /** Number of sets this media item is linked to */
+  setCount?: number;
 };
