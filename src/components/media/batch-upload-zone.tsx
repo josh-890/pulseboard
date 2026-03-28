@@ -357,7 +357,7 @@ export function BatchUploadZone({
       );
 
       const newItems: UploadFile[] = validFiles.map((file, i) => ({
-        id: crypto.randomUUID(),
+        id: globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`,
         file,
         preview: URL.createObjectURL(file),
         status: "pending" as const,
