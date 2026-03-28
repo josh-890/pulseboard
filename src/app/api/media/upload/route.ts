@@ -63,21 +63,28 @@ export async function POST(request: Request) {
 
     // Read buffer and compute hashes
     const buffer = Buffer.from(await file.arrayBuffer());
+    console.log(`[upload] Buffer ready: ${file.name} (${buffer.length} bytes)`);
     const hash = computeSha256(buffer);
     const phash = await computeDHash(buffer);
+    console.log(`[upload] Hashes computed: sha256=${hash.slice(0, 12)}…`);
 
     // Check for duplicate action from client (re-submission after dialog)
     const duplicateAction = formData.get("duplicateAction") as string | null;
     const replaceMediaItemId = formData.get("replaceMediaItemId") as string | null;
 
+    // Generate a unique ID for storage paths (works in all environments)
+    const uniqueId = globalThis.crypto?.randomUUID?.()
+      ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
     // Handle replace action — swap file on existing MediaItem
     if (duplicateAction === "replace" && replaceMediaItemId) {
+      console.log(`[upload] Replace mode: target=${replaceMediaItemId}`);
       const uploadResult = await uploadPhotoToStorage(
         buffer,
         file.type,
         "session",
         sessionId,
-        crypto.randomUUID(),
+        uniqueId,
       );
 
       await replaceMediaItemFile(replaceMediaItemId, {
@@ -110,13 +117,15 @@ export async function POST(request: Request) {
     }
 
     // Proceed with upload (no duplicates, or accepted duplicate)
+    console.log(`[upload] Uploading to MinIO: session/${sessionId}/${uniqueId}`);
     const uploadResult = await uploadPhotoToStorage(
       buffer,
       file.type,
       "session",
       sessionId,
-      crypto.randomUUID(),
+      uniqueId,
     );
+    console.log(`[upload] MinIO upload complete, creating DB record`);
 
     const mediaItem = await createMediaItemDirect({
       sessionId,

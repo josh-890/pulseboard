@@ -1,4 +1,5 @@
 import { S3Client } from "@aws-sdk/client-s3";
+import { NodeHttpHandler } from "@smithy/node-http-handler";
 
 function createMinioClient() {
   const endpoint = process.env.MINIO_ENDPOINT!;
@@ -14,6 +15,10 @@ function createMinioClient() {
       secretAccessKey: process.env.MINIO_SECRET_KEY!,
     },
     forcePathStyle: true,
+    requestHandler: new NodeHttpHandler({
+      requestTimeout: 30_000,      // 30s per request
+      connectionTimeout: 5_000,    // 5s to establish connection
+    }),
   });
 }
 

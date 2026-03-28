@@ -64,6 +64,7 @@ export async function uploadPhotoToStorage(
   const prefix = `${entityType}/${entityId}/${photoId}`;
 
   // Step 1 — Validate decodable via sharp metadata (magic bytes)
+  console.log(`[storage] sharp: reading metadata…`);
   const metadata = await sharp(buffer).metadata();
   const originalWidth = metadata.width ?? 0;
   const originalHeight = metadata.height ?? 0;
@@ -71,6 +72,7 @@ export async function uploadPhotoToStorage(
   if (originalWidth === 0 || originalHeight === 0) {
     throw new Error("Image could not be decoded");
   }
+  console.log(`[storage] sharp: ${originalWidth}×${originalHeight}, normalizing…`);
 
   // Step 2 — Normalize: auto-rotate EXIF, strip metadata, normalize colorspace
   const normalized = await sharp(buffer)
@@ -78,9 +80,11 @@ export async function uploadPhotoToStorage(
     .withMetadata({ orientation: undefined })
     .toColorspace("srgb")
     .toBuffer();
+  console.log(`[storage] sharp: normalized (${normalized.length} bytes)`);
 
   // Upload original (native format)
   const keyOriginal = `${prefix}/original.${ext}`;
+  console.log(`[storage] MinIO PUT: ${keyOriginal}`);
   await minioClient.send(
     new PutObjectCommand({
       Bucket: MINIO_BUCKET,
@@ -89,6 +93,7 @@ export async function uploadPhotoToStorage(
       ContentType: mimeType,
     }),
   );
+  console.log(`[storage] MinIO PUT: original done`);
 
   const variants: PhotoVariants = { original: keyOriginal };
 
