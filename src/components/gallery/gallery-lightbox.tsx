@@ -193,12 +193,16 @@ function SimpleLightbox({
 
       switch (e.key) {
         case "Escape":
+          e.preventDefault();
+          e.stopImmediatePropagation();
           onClose();
           break;
         case "ArrowLeft":
+          e.stopImmediatePropagation();
           goPrev();
           break;
         case "ArrowRight":
+          e.stopImmediatePropagation();
           goNext();
           break;
         case "i":
