@@ -73,6 +73,8 @@ import {
   removeHeadshotSlot as removeHeadshotSlotAction,
 } from "@/lib/actions/media-actions";
 import { updatePersonBio, updatePersonPgrade, updatePersonRating } from "@/lib/actions/person-actions";
+import { setEntityTagsAction } from "@/lib/actions/tag-actions";
+import { TagPicker } from "@/components/shared/tag-picker";
 import ReactMarkdown from "react-markdown";
 
 type PersonData = NonNullable<Awaited<ReturnType<typeof getPersonWithDetails>>>;
@@ -105,6 +107,7 @@ type PersonDetailTabsProps = {
   refMediaCount?: number;
   plausibilityIssues?: PlausibilityIssue[];
   initialTab?: string;
+  entityTags?: { id: string; name: string; group: { name: string; color: string } }[];
 };
 
 // ── Style maps ──────────────────────────────────────────────────────────────
@@ -1302,6 +1305,7 @@ function OverviewTab({
   referencePhotos,
   plausibilityIssues = [],
   onTabSwitch,
+  entityTags = [],
 }: {
   person: PersonData;
   currentState: PersonCurrentState;
@@ -1309,10 +1313,11 @@ function OverviewTab({
   referencePhotos?: GalleryItem[];
   plausibilityIssues?: PlausibilityIssue[];
   onTabSwitch?: (tab: string) => void;
+  entityTags?: { id: string; name: string; group: { name: string; color: string } }[];
 }) {
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const hasDigitalIdentities = currentState.activeDigitalIdentities.length > 0;
-  const hasNotesOrTags = person.notes || person.tags.length > 0;
+  const [tagIds, setTagIds] = useState(entityTags.map((t) => t.id));
   const hasHistory = person.personas.length > 0;
   const recentWork = (sessionWorkHistory ?? []).slice(0, 3);
   const recentPhotos = (referencePhotos ?? []).slice(0, 8);
@@ -1412,27 +1417,26 @@ function OverviewTab({
         </SectionCard>
       )}
 
-      {hasNotesOrTags && (
-        <SectionCard title="Notes & Tags" icon={<Tag size={18} />}>
-          {person.tags.length > 0 && (
-            <div className="mb-3 flex flex-wrap gap-1.5">
-              {person.tags.map((tag) => (
-                <span
-                  key={tag}
-                  className="inline-flex items-center rounded-full border border-white/10 bg-muted/60 px-2.5 py-0.5 text-xs font-medium text-foreground"
-                >
-                  {tag}
-                </span>
-              ))}
-            </div>
-          )}
-          {person.notes && (
-            <p className="whitespace-pre-wrap text-sm leading-relaxed text-muted-foreground">
-              {person.notes}
-            </p>
-          )}
-        </SectionCard>
-      )}
+      <SectionCard title="Notes & Tags" icon={<Tag size={18} />}>
+        <div className="mb-3">
+          <TagPicker
+            scope="PERSON"
+            selectedTagIds={tagIds}
+            onChange={(newIds) => {
+              setTagIds(newIds);
+              setEntityTagsAction("PERSON", person.id, newIds);
+            }}
+            selectedTags={entityTags}
+            placeholder="Add tags…"
+            compact
+          />
+        </div>
+        {person.notes && (
+          <p className="whitespace-pre-wrap text-sm leading-relaxed text-muted-foreground">
+            {person.notes}
+          </p>
+        )}
+      </SectionCard>
     </div>
   );
 }
@@ -1811,6 +1815,7 @@ export function PersonDetailTabs({
   refMediaCount,
   plausibilityIssues = [],
   initialTab,
+  entityTags = [],
 }: PersonDetailTabsProps) {
   const VALID_TABS: Set<string> = useMemo(
     () => new Set<string>(["overview", "aliases", "appearance", "details", "skills", "career", "network", "photos"]),
@@ -1957,6 +1962,7 @@ export function PersonDetailTabs({
             referencePhotos={photos}
             plausibilityIssues={plausibilityIssues}
             onTabSwitch={(tab) => setActiveTab(tab as TabId)}
+            entityTags={entityTags}
           />
         )}
       </div>

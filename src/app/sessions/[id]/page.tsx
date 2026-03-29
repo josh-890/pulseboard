@@ -10,6 +10,7 @@ import { getCollectionsForPerson } from "@/lib/services/collection-service";
 import { getAllCategoryGroups } from "@/lib/services/category-service";
 import { getSessionContributions, getContributionSkillMediaMap, getContributorsWithEntities } from "@/lib/services/contribution-service";
 import { getAllSkillGroups } from "@/lib/services/skill-catalog-service";
+import { getEntityTags } from "@/lib/services/entity-tag-service";
 import { prisma } from "@/lib/db";
 import { cn, formatPartialDate } from "@/lib/utils";
 import { SessionStatusBadge, SessionTypeBadge } from "@/components/sessions/session-status-badge";
@@ -23,6 +24,7 @@ import {
   SessionInlineLocation,
 } from "@/components/sessions/session-detail-header";
 import { SessionMergeDialog } from "@/components/sessions/session-merge-dialog";
+import { SessionTagSection } from "@/components/sessions/session-tag-section";
 import { SessionProductionGallery, SessionUploadButton } from "@/components/sessions/session-production-gallery";
 import type { ProductionContext } from "@/components/gallery/gallery-lightbox";
 import { SessionContributionSkills } from "@/components/sessions/session-contribution-skills";
@@ -81,6 +83,13 @@ export default async function SessionDetailPage({ params, searchParams }: Sessio
   ]);
 
   if (!session) notFound();
+
+  const sessionEntityTags = await getEntityTags("SESSION", id);
+  const sessionTags = sessionEntityTags.map((t) => ({
+    id: t.id,
+    name: t.name,
+    group: t.group,
+  }));
 
   const isReference = session.type === "REFERENCE";
   const labelOptions = labels.map(({ id, name }) => ({ id, name }));
@@ -376,6 +385,11 @@ export default async function SessionDetailPage({ params, searchParams }: Sessio
           <SessionInlineDescription sessionId={id} description={session.description} />
           <SessionInlineNotes sessionId={id} notes={session.notes} />
         </div>
+      )}
+
+      {/* Tags */}
+      {!isReference && (
+        <SessionTagSection sessionId={id} initialTags={sessionTags} />
       )}
 
       {/* Media */}

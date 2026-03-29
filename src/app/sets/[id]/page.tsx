@@ -8,6 +8,7 @@ import { SetDetailGallery } from "@/components/sets/set-detail-gallery";
 import { CreditResolutionPanel } from "@/components/sets/credit-resolution-panel";
 import { cn, formatPartialDate } from "@/lib/utils";
 import type { SetType } from "@/lib/types";
+import { getEntityTags } from "@/lib/services/entity-tag-service";
 import { EditSetSheet } from "@/components/sets/edit-set-sheet";
 import { DeleteButton } from "@/components/shared/delete-button";
 import { AddCreditInline } from "@/components/sets/add-credit-inline";
@@ -95,13 +96,20 @@ function CompletenessChip({ done, label }: { done: boolean; label: string }) {
 export default async function SetDetailPage({ params }: SetDetailPageProps) {
   const { id } = await params;
 
-  const [set, channels, roleGroups] = await Promise.all([
+  const [set, channels, roleGroups, setEntityTags] = await Promise.all([
     getSetById(id),
     getChannelsForSelect(),
     getAllContributionRoleGroups(),
+    getEntityTags("SET", id),
   ]);
 
   if (!set) notFound();
+
+  const setTags = setEntityTags.map((t) => ({
+    id: t.id,
+    name: t.name,
+    group: t.group,
+  }));
 
   // Strip participants (not used in template) to avoid RSC payload bloat
   // that silently breaks client component hydration
@@ -149,6 +157,7 @@ export default async function SetDetailPage({ params }: SetDetailPageProps) {
               tags: setData.tags,
             }}
             channels={channels}
+            entityTags={setTags}
           />
           <DeleteButton
             title="Delete set?"

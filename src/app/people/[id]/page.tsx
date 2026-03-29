@@ -18,6 +18,7 @@ import { getAllCategoryGroups, getPopulatedCategoriesForPerson, ensureEntityCate
 import { getAllSkillGroups } from "@/lib/services/skill-catalog-service";
 import { getAllPhysicalAttributeGroups } from "@/lib/services/physical-attribute-catalog-service";
 import { getPersonAliases } from "@/lib/services/alias-service";
+import { getEntityTags } from "@/lib/services/entity-tag-service";
 import { PersonDetailTabs } from "@/components/people/person-detail-tabs";
 import { computePlausibilityIssues } from "@/lib/services/plausibility-service";
 import { EditPersonSheet } from "@/components/people/edit-person-sheet";
@@ -38,7 +39,7 @@ export default async function PersonDetailPage({ params, searchParams }: PersonD
   // Ensure system entity categories exist before loading category data
   await ensureEntityCategories();
 
-  const [person, workHistory, connections, profileLabels, refSession, headshots, filledSlots, categoryGroups, populatedCounts, skillGroups, skillLevelConfigs, aliasesWithChannels, sessionWorkHistory, productionSessions, entityMediaMap, physicalAttributeGroups] =
+  const [person, workHistory, connections, profileLabels, refSession, headshots, filledSlots, categoryGroups, populatedCounts, skillGroups, skillLevelConfigs, aliasesWithChannels, sessionWorkHistory, productionSessions, entityMediaMap, physicalAttributeGroups, personEntityTags] =
     await Promise.all([
       getPersonWithDetails(id),
       getPersonWorkHistory(id),
@@ -56,6 +57,7 @@ export default async function PersonDetailPage({ params, searchParams }: PersonD
       getPersonProductionSessions(id),
       getPersonEntityMedia(id),
       getAllPhysicalAttributeGroups(),
+      getEntityTags("PERSON", id),
     ]);
 
   if (!person) notFound();
@@ -178,6 +180,11 @@ export default async function PersonDetailPage({ params, searchParams }: PersonD
         productionSessions={productionSessions}
         entityMedia={entityMedia}
         plausibilityIssues={plausibilityIssues}
+        entityTags={personEntityTags.map((t) => ({
+          id: t.id,
+          name: t.name,
+          group: t.group,
+        }))}
       />
     </div>
   );

@@ -59,7 +59,14 @@ export default async function ProjectDetailPage({
           Back to Projects
         </Link>
         <div className="flex items-center gap-2">
-          <EditProjectSheet project={project} />
+          <EditProjectSheet
+            project={project}
+            entityTags={project.projectTags.map((pt) => ({
+              id: pt.tagDefinition.id,
+              name: pt.tagDefinition.name,
+              group: pt.tagDefinition.group,
+            }))}
+          />
           <DeleteButton
             title="Delete project?"
             description="This will permanently remove the project and all associated sessions and sets. This action cannot be undone."

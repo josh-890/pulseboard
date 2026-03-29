@@ -11,21 +11,24 @@ import { ContributionRoleManager } from "@/components/settings/contribution-role
 import { SkillCatalogManager } from "@/components/settings/skill-catalog-manager";
 import { SkillLevelConfig } from "@/components/settings/skill-level-config";
 import { PhysicalAttributeManager } from "@/components/settings/physical-attribute-manager";
+import { TagCatalogManager } from "@/components/settings/tag-catalog-manager";
 import { DatabaseMaintenance } from "@/components/settings/database-maintenance";
 import { getProfileImageLabels, getSkillLevelConfigs } from "@/lib/services/setting-service";
 import { getAllCategoryGroups } from "@/lib/services/category-service";
 import { getAllSkillGroups } from "@/lib/services/skill-catalog-service";
 import { getAllContributionRoleGroups } from "@/lib/services/contribution-role-service";
 import { getAllPhysicalAttributeGroups } from "@/lib/services/physical-attribute-catalog-service";
+import { getAllTagGroups } from "@/lib/services/tag-service";
 
 export default async function SettingsPage() {
-  const [labels, categoryGroups, skillGroups, skillLevelConfigs, roleGroups, physicalAttributeGroups] = await Promise.all([
+  const [labels, categoryGroups, skillGroups, skillLevelConfigs, roleGroups, physicalAttributeGroups, tagGroups] = await Promise.all([
     getProfileImageLabels(),
     getAllCategoryGroups(),
     getAllSkillGroups(),
     getSkillLevelConfigs(),
     getAllContributionRoleGroups(),
     getAllPhysicalAttributeGroups(),
+    getAllTagGroups(),
   ]);
 
   return (
@@ -113,6 +116,15 @@ export default async function SettingsPage() {
           calculation. WCP per skill = pgrade + delta (capped at 10).
         </p>
         <SkillLevelConfig configs={skillLevelConfigs} />
+      </div>
+
+      <div className="rounded-2xl border border-white/30 bg-card/70 p-4 shadow-lg backdrop-blur-md md:p-6 dark:border-white/10">
+        <h2 className="mb-4 text-lg font-semibold">Tag Catalog</h2>
+        <p className="mb-4 text-sm text-muted-foreground">
+          Define tag groups and tags. Tags can be applied to people, sessions, media items, sets,
+          and projects. Each group has a color; each tag has a configurable scope.
+        </p>
+        <TagCatalogManager groups={tagGroups} />
       </div>
 
       <div className="rounded-2xl border border-white/30 bg-card/70 p-4 shadow-lg backdrop-blur-md md:p-6 dark:border-white/10">

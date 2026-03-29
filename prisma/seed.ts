@@ -797,6 +797,102 @@ async function main() {
     data: { skillDefinitionId: "seed-sd-photography" },
   });
 
+  // ─── Tag Catalog ──────────────────────────────────────────────────────────
+
+  const tagGroups = [
+    {
+      slug: "content-type",
+      name: "Content Type",
+      color: "#3b82f6",
+      description: "What type of content this is",
+      tags: [
+        { name: "portrait", scope: ["MEDIA_ITEM"] },
+        { name: "diploma", scope: ["MEDIA_ITEM"] },
+        { name: "tattoo", scope: ["MEDIA_ITEM"] },
+        { name: "document", scope: ["MEDIA_ITEM"] },
+        { name: "general", scope: ["MEDIA_ITEM"] },
+        { name: "outtake", scope: ["MEDIA_ITEM"] },
+      ],
+    },
+    {
+      slug: "style",
+      name: "Style",
+      color: "#10b981",
+      description: "Visual style or setting",
+      tags: [
+        { name: "studio", scope: ["MEDIA_ITEM", "SESSION"] },
+        { name: "outdoor", scope: ["MEDIA_ITEM", "SESSION"] },
+        { name: "candid", scope: ["MEDIA_ITEM", "SESSION"] },
+        { name: "editorial", scope: ["MEDIA_ITEM", "SESSION"] },
+        { name: "test", scope: ["MEDIA_ITEM", "SESSION"] },
+      ],
+    },
+    {
+      slug: "status",
+      name: "Status",
+      color: "#f59e0b",
+      description: "Person classification",
+      tags: [
+        { name: "VIP", scope: ["PERSON"] },
+        { name: "new", scope: ["PERSON"] },
+        { name: "established", scope: ["PERSON"] },
+        { name: "retired", scope: ["PERSON"] },
+      ],
+    },
+    {
+      slug: "uncategorized",
+      name: "Uncategorized",
+      color: "#9ca3af",
+      description: "Tags not yet assigned to a group",
+      tags: [],
+    },
+  ];
+
+  for (let gi = 0; gi < tagGroups.length; gi++) {
+    const g = tagGroups[gi];
+    const group = await prisma.tagGroup.upsert({
+      where: { slug: g.slug },
+      create: {
+        name: g.name,
+        slug: g.slug,
+        color: g.color,
+        description: g.description,
+        sortOrder: gi,
+      },
+      update: {
+        name: g.name,
+        color: g.color,
+        description: g.description,
+        sortOrder: gi,
+      },
+    });
+
+    for (let ti = 0; ti < g.tags.length; ti++) {
+      const t = g.tags[ti];
+      const slug = t.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+      await prisma.tagDefinition.upsert({
+        where: { slug },
+        create: {
+          groupId: group.id,
+          name: t.name,
+          slug,
+          nameNorm: t.name.toLowerCase(),
+          scope: t.scope,
+          sortOrder: ti,
+        },
+        update: {
+          groupId: group.id,
+          name: t.name,
+          nameNorm: t.name.toLowerCase(),
+          scope: t.scope,
+          sortOrder: ti,
+        },
+      });
+    }
+  }
+
+  console.log("Tag catalog seeded.");
+
   // ─── Refresh materialized views ────────────────────────────────────────────
 
   await prisma.$queryRawUnsafe("REFRESH MATERIALIZED VIEW mv_dashboard_stats");

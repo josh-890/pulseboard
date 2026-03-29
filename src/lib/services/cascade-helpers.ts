@@ -38,6 +38,10 @@ export async function cascadeDeleteSet(
     where: { setId },
   });
 
+  await tx.setTag.deleteMany({
+    where: { setId },
+  });
+
   // NULL out coverMediaItemId before deleting the set
   await tx.set.update({
     where: { id: setId },
@@ -109,6 +113,9 @@ export async function cascadeDeletePersonExtras(
   await tx.personInterest.deleteMany({
     where: { personId },
   });
+  await tx.personTag.deleteMany({
+    where: { personId },
+  });
 }
 
 /**
@@ -166,6 +173,11 @@ export async function cascadeHardDeleteMediaItems(
 
   // 4. Hard-delete PersonMediaLink
   await tx.personMediaLink.deleteMany({
+    where: { mediaItemId: { in: mediaItemIds } },
+  });
+
+  // 4b. Hard-delete MediaItemTag
+  await tx.mediaItemTag.deleteMany({
     where: { mediaItemId: { in: mediaItemIds } },
   });
 
@@ -328,6 +340,11 @@ export async function cascadeDeleteSession(
 ) {
   // Hard-delete SetSession rows
   await tx.setSession.deleteMany({
+    where: { sessionId },
+  });
+
+  // Hard-delete SessionTag
+  await tx.sessionTag.deleteMany({
     where: { sessionId },
   });
 

@@ -216,6 +216,12 @@ enum ConfidenceSource {
   IMPORT
 }
 
+enum TagSource {
+  MANUAL
+  IMPORT
+  AUTO
+}
+
 // ─── Person & Aliases ─────────────────────────────────────────────────────────
 
 model Person {
@@ -270,6 +276,7 @@ model Person {
   personMediaLinks     PersonMediaLink[]
   referenceSession     Session?             @relation("ReferenceSession")
   mediaCollections     MediaCollection[]
+  personTags           PersonTag[]
 
   createdAt DateTime  @default(now())
 
@@ -738,8 +745,9 @@ model Project {
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
 
-  labels   ProjectLabel[]
-  sessions Session[]
+  labels      ProjectLabel[]
+  sessions    Session[]
+  projectTags ProjectTag[]
 
   @@index([status])
   @@index([updatedAt])
@@ -778,9 +786,11 @@ model Session {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
+  tags            String[]     @default([])
   mediaItems      MediaItem[]
   contributions   SessionContribution[]
   setSessionLinks SetSession[]
+  sessionTags     SessionTag[]
 
   @@index([projectId])
   @@index([labelId])
@@ -789,6 +799,7 @@ model Session {
   @@index([type])
   @@index([status])
   @@index([nameNorm])
+  @@index([tags], type: Gin)
 }
 
 model Set {
@@ -817,6 +828,7 @@ model Set {
   participants    SetParticipant[]
   labelEvidence   SetLabelEvidence[]
   sessionLinks    SetSession[]
+  setTags         SetTag[]
 
   @@index([channelId])
   @@index([type])
@@ -864,6 +876,7 @@ model MediaItem {
   coverForSets     Set[]             @relation("SetCoverMedia")
   collectionItems  MediaCollectionItem[]
   skillEventMedia  SkillEventMedia[]
+  mediaItemTags    MediaItemTag[]
 
   @@index([sessionId])
   @@index([hash])
@@ -1223,4 +1236,108 @@ model ContributionSkill {
   @@unique([contributionId, skillDefinitionId])
   @@index([contributionId])
   @@index([skillDefinitionId])
+}
+
+// ─── Tagging System ──────────────────────────────────────────────────────────
+
+model TagGroup {
+  id          String          @id @default(cuid())
+  name        String          @unique
+  slug        String          @unique
+  color       String          @default("#6b7280")
+  description String?
+  sortOrder   Int             @default(0)
+  createdAt   DateTime        @default(now())
+  tags        TagDefinition[]
+
+  @@index([sortOrder])
+  @@map("tag_group")
+}
+
+model TagDefinition {
+  id            String          @id @default(cuid())
+  groupId       String
+  group         TagGroup        @relation(fields: [groupId], references: [id])
+  name          String
+  slug          String          @unique
+  nameNorm      String?
+  scope         String[]        @default(["PERSON", "SESSION", "MEDIA_ITEM", "SET", "PROJECT"])
+  sortOrder     Int             @default(0)
+  createdAt     DateTime        @default(now())
+  personTags    PersonTag[]
+  sessionTags   SessionTag[]
+  mediaItemTags MediaItemTag[]
+  setTags       SetTag[]
+  projectTags   ProjectTag[]
+
+  @@unique([groupId, name])
+  @@index([groupId])
+  @@index([sortOrder])
+  @@index([nameNorm])
+  @@map("tag_definition")
+}
+
+model PersonTag {
+  personId        String
+  tagDefinitionId String
+  source          TagSource @default(MANUAL)
+  createdAt       DateTime  @default(now())
+  person          Person    @relation(fields: [personId], references: [id])
+  tagDefinition   TagDefinition @relation(fields: [tagDefinitionId], references: [id])
+
+  @@id([personId, tagDefinitionId])
+  @@index([tagDefinitionId])
+  @@map("person_tag")
+}
+
+model SessionTag {
+  sessionId       String
+  tagDefinitionId String
+  source          TagSource @default(MANUAL)
+  createdAt       DateTime  @default(now())
+  session         Session   @relation(fields: [sessionId], references: [id])
+  tagDefinition   TagDefinition @relation(fields: [tagDefinitionId], references: [id])
+
+  @@id([sessionId, tagDefinitionId])
+  @@index([tagDefinitionId])
+  @@map("session_tag")
+}
+
+model MediaItemTag {
+  mediaItemId     String
+  tagDefinitionId String
+  source          TagSource @default(MANUAL)
+  createdAt       DateTime  @default(now())
+  mediaItem       MediaItem @relation(fields: [mediaItemId], references: [id])
+  tagDefinition   TagDefinition @relation(fields: [tagDefinitionId], references: [id])
+
+  @@id([mediaItemId, tagDefinitionId])
+  @@index([tagDefinitionId])
+  @@map("media_item_tag")
+}
+
+model SetTag {
+  setId           String
+  tagDefinitionId String
+  source          TagSource @default(MANUAL)
+  createdAt       DateTime  @default(now())
+  set             Set       @relation(fields: [setId], references: [id])
+  tagDefinition   TagDefinition @relation(fields: [tagDefinitionId], references: [id])
+
+  @@id([setId, tagDefinitionId])
+  @@index([tagDefinitionId])
+  @@map("set_tag")
+}
+
+model ProjectTag {
+  projectId       String
+  tagDefinitionId String
+  source          TagSource @default(MANUAL)
+  createdAt       DateTime  @default(now())
+  project         Project   @relation(fields: [projectId], references: [id])
+  tagDefinition   TagDefinition @relation(fields: [tagDefinitionId], references: [id])
+
+  @@id([projectId, tagDefinitionId])
+  @@index([tagDefinitionId])
+  @@map("project_tag")
 }

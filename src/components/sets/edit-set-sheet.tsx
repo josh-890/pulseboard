@@ -4,12 +4,11 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Pencil, X } from "lucide-react";
+import { Pencil } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Badge } from "@/components/ui/badge";
 import {
   Sheet,
   SheetContent,
@@ -39,8 +38,11 @@ import {
   type UpdateSetInput,
 } from "@/lib/validations/set";
 import { updateSet } from "@/lib/actions/set-actions";
+import { setEntityTagsAction } from "@/lib/actions/tag-actions";
 import type { SetType } from "@/lib/types";
 import { PartialDateInput } from "@/components/shared/partial-date-input";
+import { TagPicker } from "@/components/shared/tag-picker";
+import type { TagChipData } from "@/components/shared/tag-chips";
 
 type ChannelOption = { id: string; name: string; labelName: string | null };
 
@@ -59,6 +61,7 @@ type EditSetSheetProps = {
     tags: string[];
   };
   channels: ChannelOption[];
+  entityTags?: TagChipData[];
 };
 
 function SectionHeader({ children }: { children: React.ReactNode }) {
@@ -70,10 +73,10 @@ function SectionHeader({ children }: { children: React.ReactNode }) {
   );
 }
 
-export function EditSetSheet({ set, channels }: EditSetSheetProps) {
+export function EditSetSheet({ set, channels, entityTags = [] }: EditSetSheetProps) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
-  const [tagInput, setTagInput] = useState("");
+  const [entityTagIds, setEntityTagIds] = useState(entityTags.map((t) => t.id));
 
   const getDefaults = () => ({
     id: set.id,
@@ -96,18 +99,6 @@ export function EditSetSheet({ set, channels }: EditSetSheetProps) {
   });
 
   const { isSubmitting } = form.formState;
-  const tags = form.watch("tags") ?? [];
-
-  function addTag() {
-    const trimmed = tagInput.trim();
-    if (!trimmed || tags.includes(trimmed)) return;
-    form.setValue("tags", [...tags, trimmed]);
-    setTagInput("");
-  }
-
-  function removeTag(tag: string) {
-    form.setValue("tags", tags.filter((t) => t !== tag));
-  }
 
   async function onSubmit(values: UpdateSetInput) {
     const result = await updateSet(values);
@@ -127,7 +118,7 @@ export function EditSetSheet({ set, channels }: EditSetSheetProps) {
   return (
     <Sheet open={open} onOpenChange={(v) => {
       setOpen(v);
-      if (v) { form.reset(getDefaults()); setTagInput(""); }
+      if (v) { form.reset(getDefaults()); setEntityTagIds(entityTags.map((t) => t.id)); }
     }}>
       <Button size="sm" variant="outline" onClick={() => setOpen(true)}>
         <Pencil size={16} />
@@ -279,36 +270,17 @@ export function EditSetSheet({ set, channels }: EditSetSheetProps) {
                     {/* Tags */}
                     <FormItem>
                       <FormLabel>Tags</FormLabel>
-                      <div className="flex gap-2">
-                        <Input
-                          placeholder="Add a tag…"
-                          value={tagInput}
-                          onChange={(e) => setTagInput(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter") { e.preventDefault(); addTag(); }
-                          }}
-                        />
-                        <Button type="button" variant="outline" size="sm" onClick={addTag}>
-                          Add
-                        </Button>
-                      </div>
-                      {tags.length > 0 && (
-                        <div className="mt-2 flex flex-wrap gap-1.5">
-                          {tags.map((tag) => (
-                            <Badge key={tag} variant="secondary" className="gap-1">
-                              {tag}
-                              <button
-                                type="button"
-                                onClick={() => removeTag(tag)}
-                                className="ml-0.5 rounded-full outline-none hover:text-destructive focus-visible:ring-1 focus-visible:ring-ring"
-                                aria-label={`Remove tag ${tag}`}
-                              >
-                                <X size={10} />
-                              </button>
-                            </Badge>
-                          ))}
-                        </div>
-                      )}
+                      <TagPicker
+                        scope="SET"
+                        selectedTagIds={entityTagIds}
+                        onChange={(newIds) => {
+                          setEntityTagIds(newIds);
+                          setEntityTagsAction("SET", set.id, newIds);
+                        }}
+                        selectedTags={entityTags}
+                        placeholder="Add tags…"
+                        compact
+                      />
                     </FormItem>
                   </div>
                 </section>

@@ -96,6 +96,8 @@ All services in `src/lib/services/`. All functions are async, return Promises. S
 **`persona-service.ts`** — Persona CRUD, physical changes, body mark/modification/procedure events
 **`category-service.ts`** — MediaCategoryGroup/MediaCategory CRUD, person category population counts
 **`collection-service.ts`** — MediaCollection CRUD, item management
+**`tag-service.ts`** — TagGroup/TagDefinition registry CRUD, search, merge, usage counts
+**`entity-tag-service.ts`** — Entity tagging (add/remove/set tags on any entity), dual-storage sync (join tables + String[] cache)
 **`plausibility-service.ts`** — `computePlausibilityIssues(person)` returns date/age plausibility warnings; `getQuickPlausibilityCount(person)` returns count for badge display
 
 ### Entity Services
@@ -132,6 +134,7 @@ All actions in `src/lib/actions/`. Each validates input with Zod, calls services
 | `skill-actions.ts` | PersonSkill/SkillEvent CRUD, skill event media management |
 | `alias-actions.ts` | Alias CRUD, channel linking, bulk import, merge |
 | `collection-actions.ts` | Collection CRUD, add/remove items |
+| `tag-actions.ts` | Tag group/definition CRUD, entity tagging (add/remove/set), merge |
 | `category-actions.ts` | Category group/category CRUD |
 | `skill-catalog-actions.ts` | Skill group/definition CRUD |
 | `physical-attribute-catalog-actions.ts` | Physical attribute group/definition CRUD |
@@ -153,6 +156,7 @@ All actions in `src/lib/actions/`. Each validates input with Zod, calls services
 | `/api/sessions/[id]/media` | GET | Session media with optional DETAIL link status |
 | `/api/sessions/[id]/gallery` | GET | Session gallery as `GalleryItem[]` |
 | `/api/categories/[id]/media` | GET | Category-linked media for a person |
+| `/api/tags/search` | GET | Tag autocomplete search (q, scope) → TagDefinitionWithGroup[] |
 | `/api/channels/search` | GET | All channels for client-side search |
 | `/api/collections/list` | GET | Collections filtered by personId |
 | `/api/skill-events/[id]/media` | GET/POST | Skill event media management |
@@ -179,7 +183,7 @@ components/
 ├── networks/         # NetworkList, NetworkCard, add/edit sheets
 ├── collections/      # CollectionList, CollectionDetailGallery, media picker
 ├── settings/         # SkillCatalogManager, MediaCategoryManager, ContributionRoleManager
-├── shared/           # TagInput, PartialDateInput (supports modifier+source props), CountryPicker, EntityCombobox, DeleteButton, BrowserToolbar, BodyRegionPicker, FlagImage
+├── shared/           # TagInput, TagPicker, TagChips, PartialDateInput (supports modifier+source props), CountryPicker, EntityCombobox, DeleteButton, BrowserToolbar, BodyRegionPicker, FlagImage
 └── ui/               # shadcn/ui primitives (auto-generated, do not edit)
 ```
 
