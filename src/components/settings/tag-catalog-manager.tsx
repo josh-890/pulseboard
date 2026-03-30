@@ -411,7 +411,7 @@ export function TagCatalogManager({
                   <span className="flex items-center gap-1.5 flex-1 text-sm font-semibold">
                     {group.name}
                     {group.isExclusive && (
-                      <Lock size={11} className="text-muted-foreground/50" title="Exclusive group" />
+                      <span title="Exclusive group"><Lock size={11} className="text-muted-foreground/50" /></span>
                     )}
                   </span>
                   {group.description && (
