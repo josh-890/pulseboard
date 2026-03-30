@@ -68,7 +68,7 @@ export function TagPicker({
   );
   const inputRef = useRef<HTMLInputElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>();
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   // Fetch tag info for selected IDs on mount if not provided
   useEffect(() => {
