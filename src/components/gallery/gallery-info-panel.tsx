@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import {
   ChevronDown,
   ChevronUp,
@@ -43,6 +43,11 @@ import { MediaUsageBadge } from "@/components/media/media-badge";
 import { EntityCombobox } from "@/components/shared/entity-combobox";
 import { BodyRegionCompact } from "@/components/shared/body-region-picker";
 import { SKILL_EVENT_STYLES } from "@/lib/constants/skill";
+import { TagPicker } from "@/components/shared/tag-picker";
+import { TagChips } from "@/components/shared/tag-chips";
+import type { TagChipData } from "@/components/shared/tag-chips";
+import { addTagsToEntityAction, removeTagsFromEntityAction } from "@/lib/actions/tag-actions";
+import type { TagDefinitionWithGroup } from "@/lib/services/tag-service";
 
 const CONTENT_TAGS = [
   { value: "portrait", label: "Portrait" },
@@ -180,7 +185,7 @@ export function GalleryInfoPanel({
   collectionContext,
 }: GalleryInfoPanelProps) {
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
-    new Set(["cover", "headshot", "favorite", "usage", "tags", "focal", "info"]),
+    new Set(["cover", "headshot", "favorite", "usage", "tags", "structuredTags", "focal", "info"]),
   );
   const [isPending, startTransition] = useTransition();
   const [isFocalPending, startFocalTransition] = useTransition();
@@ -1219,6 +1224,20 @@ export function GalleryInfoPanel({
         </>
       )}
 
+      {/* Structured Entity Tags */}
+      <SectionHeader
+        title="Structured Tags"
+        icon={<Tag size={14} />}
+        section="structuredTags"
+        expanded={expandedSections.has("structuredTags")}
+        onToggle={toggleSection}
+      />
+      {expandedSections.has("structuredTags") && (
+        <div className="pb-2">
+          <MediaEntityTags mediaItemId={item.id} />
+        </div>
+      )}
+
       {/* Caption */}
       {item.caption && (
         <>
@@ -1553,5 +1572,101 @@ function NotesField({ value, onChange, disabled }: NotesFieldProps) {
       rows={2}
       className="w-full resize-none rounded-md border border-white/15 bg-white/5 px-2 py-1.5 text-xs text-white/80 placeholder:text-white/30 focus:outline-none focus:ring-1 focus:ring-ring"
     />
+  );
+}
+
+// ─── Structured Entity Tags for Media Items ──────────────────────────────────
+
+type MediaEntityTagsProps = {
+  mediaItemId: string;
+};
+
+function MediaEntityTags({ mediaItemId }: MediaEntityTagsProps) {
+  const [tagIds, setTagIds] = useState<string[]>([]);
+  const [tagChips, setTagChips] = useState<TagChipData[]>([]);
+  const [loadedForId, setLoadedForId] = useState<string | null>(null);
+  const [isTagPending, startTagTransition] = useTransition();
+
+  const loaded = loadedForId === mediaItemId;
+
+  // Fetch entity tags on mount / when media item changes
+  useEffect(() => {
+    let cancelled = false;
+
+    fetch(`/api/tags/entity?entityType=MEDIA_ITEM&entityId=${mediaItemId}`)
+      .then((res) => res.json())
+      .then((tags: TagDefinitionWithGroup[]) => {
+        if (cancelled) return;
+        setTagIds(tags.map((t) => t.id));
+        setTagChips(
+          tags.map((t) => ({
+            id: t.id,
+            name: t.name,
+            group: { name: t.group.name, color: t.group.color },
+          })),
+        );
+        setLoadedForId(mediaItemId);
+      })
+      .catch(() => {
+        if (!cancelled) setLoadedForId(mediaItemId);
+      });
+
+    return () => { cancelled = true; };
+  }, [mediaItemId]);
+
+  const handleChange = useCallback(
+    (newIds: string[]) => {
+      const added = newIds.filter((id) => !tagIds.includes(id));
+      const removed = tagIds.filter((id) => !newIds.includes(id));
+      setTagIds(newIds);
+
+      startTagTransition(async () => {
+        if (added.length > 0) {
+          await addTagsToEntityAction("MEDIA_ITEM", mediaItemId, added);
+        }
+        if (removed.length > 0) {
+          await removeTagsFromEntityAction("MEDIA_ITEM", mediaItemId, removed);
+        }
+        // Refresh to get accurate chip data
+        const res = await fetch(`/api/tags/entity?entityType=MEDIA_ITEM&entityId=${mediaItemId}`);
+        const tags: TagDefinitionWithGroup[] = await res.json();
+        setTagIds(tags.map((t) => t.id));
+        setTagChips(
+          tags.map((t) => ({
+            id: t.id,
+            name: t.name,
+            group: { name: t.group.name, color: t.group.color },
+          })),
+        );
+      });
+    },
+    [mediaItemId, tagIds],
+  );
+
+  if (!loaded) {
+    return <div className="py-1 text-[10px] text-white/40">Loading tags...</div>;
+  }
+
+  return (
+    <div className="space-y-2">
+      <TagPicker
+        scope="MEDIA_ITEM"
+        selectedTagIds={tagIds}
+        selectedTags={tagChips}
+        onChange={handleChange}
+        compact
+        placeholder="Add structured tags..."
+      />
+      {tagChips.length > 0 && (
+        <TagChips
+          tags={tagChips}
+          onRemove={(id) => handleChange(tagIds.filter((tid) => tid !== id))}
+          compact
+        />
+      )}
+      {isTagPending && (
+        <div className="text-[10px] text-white/40">Saving...</div>
+      )}
+    </div>
   );
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { ImageIcon, Loader2 } from "lucide-react";
+import { ImageIcon, Loader2, CheckSquare } from "lucide-react";
 import { SetCard } from "./set-card";
 import { useDensity } from "@/components/layout/density-provider";
 import { cn } from "@/lib/utils";
@@ -9,6 +9,8 @@ import { Button } from "@/components/ui/button";
 import { loadMoreSets } from "@/lib/actions/set-actions";
 import type { getSets } from "@/lib/services/set-service";
 import type { SetFilters } from "@/lib/services/set-service";
+import { useBulkSelection } from "@/hooks/use-bulk-selection";
+import { BulkSelectionBar } from "@/components/shared/bulk-selection-bar";
 
 type SetItem = Awaited<ReturnType<typeof getSets>>[number];
 
@@ -39,6 +41,7 @@ export function SetGrid({
   const [photoMap, setPhotoMap] = useState(initialPhotoMap);
   const [cursor, setCursor] = useState(initialCursor);
   const [isPending, startTransition] = useTransition();
+  const bulk = useBulkSelection();
 
   function handleLoadMore() {
     if (!cursor) return;
@@ -71,6 +74,18 @@ export function SetGrid({
 
   return (
     <div className="space-y-4">
+      {/* Select mode toggle */}
+      <div className="flex justify-end">
+        <Button
+          variant={bulk.isSelecting ? "default" : "outline"}
+          size="sm"
+          onClick={() => bulk.isSelecting ? bulk.exitSelection() : bulk.setSelecting(true)}
+        >
+          <CheckSquare size={14} className="mr-1.5" />
+          {bulk.isSelecting ? "Cancel" : "Select"}
+        </Button>
+      </div>
+
       <div
         className={cn(
           "grid gap-4",
@@ -79,9 +94,30 @@ export function SetGrid({
             : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4",
         )}
       >
-        {sets.map((set) => (
-          <SetCard key={set.id} set={set} coverPhoto={photoMap[set.id]} unresolvedCreditCount={set._count.creditsRaw} />
-        ))}
+        {sets.map((set) => {
+          const isSelected = bulk.selectedIds.has(set.id);
+          return (
+            <div key={set.id} className="relative">
+              {bulk.isSelecting && (
+                <button
+                  type="button"
+                  onClick={() => bulk.toggle(set.id)}
+                  className={cn(
+                    "absolute left-2 top-2 z-10 flex h-5 w-5 items-center justify-center rounded border-2 transition-colors",
+                    isSelected
+                      ? "border-primary bg-primary text-primary-foreground"
+                      : "border-white/70 bg-black/30 backdrop-blur-sm",
+                  )}
+                >
+                  {isSelected && <CheckSquare className="h-3.5 w-3.5" />}
+                </button>
+              )}
+              <div className={cn(bulk.isSelecting && isSelected && "ring-2 ring-primary rounded-xl")}>
+                <SetCard set={set} coverPhoto={photoMap[set.id]} unresolvedCreditCount={set._count.creditsRaw} />
+              </div>
+            </div>
+          );
+        })}
       </div>
 
       {/* Load more footer */}
@@ -108,6 +144,18 @@ export function SetGrid({
           </Button>
         )}
       </div>
+
+      {/* Bulk selection bar */}
+      {bulk.isSelecting && (
+        <BulkSelectionBar
+          selectedIds={bulk.selectedIds}
+          entityType="SET"
+          scope="SET"
+          onClear={bulk.clear}
+          totalCount={totalCount}
+          onSelectAll={() => bulk.selectAll(sets.map((s) => s.id))}
+        />
+      )}
     </div>
   );
 }

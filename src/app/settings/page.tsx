@@ -11,17 +11,23 @@ import { ContributionRoleManager } from "@/components/settings/contribution-role
 import { SkillCatalogManager } from "@/components/settings/skill-catalog-manager";
 import { SkillLevelConfig } from "@/components/settings/skill-level-config";
 import { PhysicalAttributeManager } from "@/components/settings/physical-attribute-manager";
-import { TagCatalogManager } from "@/components/settings/tag-catalog-manager";
+import { TagSettingsSection } from "@/components/settings/tag-settings-section";
 import { DatabaseMaintenance } from "@/components/settings/database-maintenance";
 import { getProfileImageLabels, getSkillLevelConfigs } from "@/lib/services/setting-service";
 import { getAllCategoryGroups } from "@/lib/services/category-service";
 import { getAllSkillGroups } from "@/lib/services/skill-catalog-service";
 import { getAllContributionRoleGroups } from "@/lib/services/contribution-role-service";
 import { getAllPhysicalAttributeGroups } from "@/lib/services/physical-attribute-catalog-service";
-import { getAllTagGroups } from "@/lib/services/tag-service";
+import {
+  getAllTagGroups,
+  getPendingTags,
+  getOrphanedTags,
+  getNearDuplicateTags,
+  getTagUsageBreakdown,
+} from "@/lib/services/tag-service";
 
 export default async function SettingsPage() {
-  const [labels, categoryGroups, skillGroups, skillLevelConfigs, roleGroups, physicalAttributeGroups, tagGroups] = await Promise.all([
+  const [labels, categoryGroups, skillGroups, skillLevelConfigs, roleGroups, physicalAttributeGroups, tagGroups, pendingTags, orphanedTags, nearDuplicates, usageBreakdown] = await Promise.all([
     getProfileImageLabels(),
     getAllCategoryGroups(),
     getAllSkillGroups(),
@@ -29,6 +35,10 @@ export default async function SettingsPage() {
     getAllContributionRoleGroups(),
     getAllPhysicalAttributeGroups(),
     getAllTagGroups(),
+    getPendingTags(),
+    getOrphanedTags(),
+    getNearDuplicateTags(),
+    getTagUsageBreakdown(),
   ]);
 
   return (
@@ -124,7 +134,13 @@ export default async function SettingsPage() {
           Define tag groups and tags. Tags can be applied to people, sessions, media items, sets,
           and projects. Each group has a color; each tag has a configurable scope.
         </p>
-        <TagCatalogManager groups={tagGroups} />
+        <TagSettingsSection
+          groups={tagGroups}
+          pendingTags={pendingTags}
+          orphanedTags={orphanedTags}
+          nearDuplicates={nearDuplicates}
+          usageBreakdown={usageBreakdown}
+        />
       </div>
 
       <div className="rounded-2xl border border-white/30 bg-card/70 p-4 shadow-lg backdrop-blur-md md:p-6 dark:border-white/10">

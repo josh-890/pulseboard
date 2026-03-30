@@ -4,6 +4,70 @@ import type { TagDefinitionWithGroup } from "./tag-service";
 
 export type TaggableEntity = "PERSON" | "SESSION" | "MEDIA_ITEM" | "SET" | "PROJECT";
 
+type TxClient = Parameters<Parameters<typeof prisma.$transaction>[0]>[0];
+
+const GROUP_SELECT = { id: true, name: true, slug: true, color: true, isExclusive: true } as const;
+
+// ─── Exclusive Group Enforcement ─────────────────────────────────────────────
+
+async function enforceExclusiveGroups(
+  tx: TxClient,
+  entityType: TaggableEntity,
+  entityId: string,
+  tagDefinitionIds: string[],
+) {
+  if (tagDefinitionIds.length === 0) return;
+
+  // Fetch the groups for the tags being added
+  const tagsToAdd = await tx.tagDefinition.findMany({
+    where: { id: { in: tagDefinitionIds } },
+    include: { group: { select: { id: true, isExclusive: true } } },
+  });
+
+  // Collect exclusive group IDs
+  const exclusiveGroupIds = new Set(
+    tagsToAdd.filter((t) => t.group.isExclusive).map((t) => t.group.id),
+  );
+
+  if (exclusiveGroupIds.size === 0) return;
+
+  // For each exclusive group, find existing tags on this entity from that group and remove them
+  for (const groupId of exclusiveGroupIds) {
+    // Find existing tag IDs from this group on this entity
+    const existingTagsInGroup = await tx.tagDefinition.findMany({
+      where: { groupId },
+      select: { id: true },
+    });
+    const existingTagIds = existingTagsInGroup.map((t) => t.id);
+    // Exclude the ones we're about to add
+    const newTagIdsForGroup = tagsToAdd
+      .filter((t) => t.group.id === groupId)
+      .map((t) => t.id);
+    const toRemove = existingTagIds.filter((id) => !newTagIdsForGroup.includes(id));
+
+    if (toRemove.length === 0) continue;
+
+    const where = { tagDefinitionId: { in: toRemove } };
+    switch (entityType) {
+      case "PERSON":
+        await tx.personTag.deleteMany({ where: { personId: entityId, ...where } });
+        break;
+      case "SESSION":
+        await tx.sessionTag.deleteMany({ where: { sessionId: entityId, ...where } });
+        break;
+      case "MEDIA_ITEM":
+        await tx.mediaItemTag.deleteMany({ where: { mediaItemId: entityId, ...where } });
+        break;
+      case "SET":
+        await tx.setTag.deleteMany({ where: { setId: entityId, ...where } });
+        break;
+      case "PROJECT":
+        await tx.projectTag.deleteMany({ where: { projectId: entityId, ...where } });
+        break;
+    }
+  }
+}
+
 // ─── Core Operations ────────────────────────────────────────────────────────
 
 export async function addTagsToEntity(
@@ -14,6 +78,7 @@ export async function addTagsToEntity(
 ) {
   if (tagDefinitionIds.length === 0) return;
   await prisma.$transaction(async (tx) => {
+    await enforceExclusiveGroups(tx, entityType, entityId, tagDefinitionIds);
     switch (entityType) {
       case "PERSON":
         await tx.personTag.createMany({
@@ -110,7 +175,27 @@ export async function setEntityTags(
     switch (entityType) {
       case "PERSON":
         await tx.personTag.deleteMany({ where: { personId: entityId } });
-        if (tagDefinitionIds.length > 0) {
+        break;
+      case "SESSION":
+        await tx.sessionTag.deleteMany({ where: { sessionId: entityId } });
+        break;
+      case "MEDIA_ITEM":
+        await tx.mediaItemTag.deleteMany({ where: { mediaItemId: entityId } });
+        break;
+      case "SET":
+        await tx.setTag.deleteMany({ where: { setId: entityId } });
+        break;
+      case "PROJECT":
+        await tx.projectTag.deleteMany({ where: { projectId: entityId } });
+        break;
+    }
+
+    if (tagDefinitionIds.length > 0) {
+      // Enforce exclusive groups on the new set
+      await enforceExclusiveGroups(tx, entityType, entityId, tagDefinitionIds);
+
+      switch (entityType) {
+        case "PERSON":
           await tx.personTag.createMany({
             data: tagDefinitionIds.map((tagDefinitionId) => ({
               personId: entityId,
@@ -118,11 +203,8 @@ export async function setEntityTags(
               source,
             })),
           });
-        }
-        break;
-      case "SESSION":
-        await tx.sessionTag.deleteMany({ where: { sessionId: entityId } });
-        if (tagDefinitionIds.length > 0) {
+          break;
+        case "SESSION":
           await tx.sessionTag.createMany({
             data: tagDefinitionIds.map((tagDefinitionId) => ({
               sessionId: entityId,
@@ -130,11 +212,8 @@ export async function setEntityTags(
               source,
             })),
           });
-        }
-        break;
-      case "MEDIA_ITEM":
-        await tx.mediaItemTag.deleteMany({ where: { mediaItemId: entityId } });
-        if (tagDefinitionIds.length > 0) {
+          break;
+        case "MEDIA_ITEM":
           await tx.mediaItemTag.createMany({
             data: tagDefinitionIds.map((tagDefinitionId) => ({
               mediaItemId: entityId,
@@ -142,11 +221,8 @@ export async function setEntityTags(
               source,
             })),
           });
-        }
-        break;
-      case "SET":
-        await tx.setTag.deleteMany({ where: { setId: entityId } });
-        if (tagDefinitionIds.length > 0) {
+          break;
+        case "SET":
           await tx.setTag.createMany({
             data: tagDefinitionIds.map((tagDefinitionId) => ({
               setId: entityId,
@@ -154,11 +230,8 @@ export async function setEntityTags(
               source,
             })),
           });
-        }
-        break;
-      case "PROJECT":
-        await tx.projectTag.deleteMany({ where: { projectId: entityId } });
-        if (tagDefinitionIds.length > 0) {
+          break;
+        case "PROJECT":
           await tx.projectTag.createMany({
             data: tagDefinitionIds.map((tagDefinitionId) => ({
               projectId: entityId,
@@ -166,11 +239,99 @@ export async function setEntityTags(
               source,
             })),
           });
-        }
-        break;
+          break;
+      }
     }
     await syncEntityTagCacheTx(tx, entityType, entityId);
   });
+}
+
+// ─── Bulk Operations ────────────────────────────────────────────────────────
+
+export async function bulkAddTagsToEntities(
+  entityType: TaggableEntity,
+  entityIds: string[],
+  tagDefinitionIds: string[],
+  source: TagSource = "MANUAL",
+) {
+  if (entityIds.length === 0 || tagDefinitionIds.length === 0) return;
+
+  await prisma.$transaction(
+    async (tx) => {
+      for (const entityId of entityIds) {
+        await enforceExclusiveGroups(tx, entityType, entityId, tagDefinitionIds);
+        switch (entityType) {
+          case "PERSON":
+            await tx.personTag.createMany({
+              data: tagDefinitionIds.map((tagDefinitionId) => ({ personId: entityId, tagDefinitionId, source })),
+              skipDuplicates: true,
+            });
+            break;
+          case "SESSION":
+            await tx.sessionTag.createMany({
+              data: tagDefinitionIds.map((tagDefinitionId) => ({ sessionId: entityId, tagDefinitionId, source })),
+              skipDuplicates: true,
+            });
+            break;
+          case "MEDIA_ITEM":
+            await tx.mediaItemTag.createMany({
+              data: tagDefinitionIds.map((tagDefinitionId) => ({ mediaItemId: entityId, tagDefinitionId, source })),
+              skipDuplicates: true,
+            });
+            break;
+          case "SET":
+            await tx.setTag.createMany({
+              data: tagDefinitionIds.map((tagDefinitionId) => ({ setId: entityId, tagDefinitionId, source })),
+              skipDuplicates: true,
+            });
+            break;
+          case "PROJECT":
+            await tx.projectTag.createMany({
+              data: tagDefinitionIds.map((tagDefinitionId) => ({ projectId: entityId, tagDefinitionId, source })),
+              skipDuplicates: true,
+            });
+            break;
+        }
+        await syncEntityTagCacheTx(tx, entityType, entityId);
+      }
+    },
+    { timeout: 30000 },
+  );
+}
+
+export async function bulkRemoveTagsFromEntities(
+  entityType: TaggableEntity,
+  entityIds: string[],
+  tagDefinitionIds: string[],
+) {
+  if (entityIds.length === 0 || tagDefinitionIds.length === 0) return;
+
+  await prisma.$transaction(
+    async (tx) => {
+      const where = { tagDefinitionId: { in: tagDefinitionIds } };
+      for (const entityId of entityIds) {
+        switch (entityType) {
+          case "PERSON":
+            await tx.personTag.deleteMany({ where: { personId: entityId, ...where } });
+            break;
+          case "SESSION":
+            await tx.sessionTag.deleteMany({ where: { sessionId: entityId, ...where } });
+            break;
+          case "MEDIA_ITEM":
+            await tx.mediaItemTag.deleteMany({ where: { mediaItemId: entityId, ...where } });
+            break;
+          case "SET":
+            await tx.setTag.deleteMany({ where: { setId: entityId, ...where } });
+            break;
+          case "PROJECT":
+            await tx.projectTag.deleteMany({ where: { projectId: entityId, ...where } });
+            break;
+        }
+        await syncEntityTagCacheTx(tx, entityType, entityId);
+      }
+    },
+    { timeout: 30000 },
+  );
 }
 
 // ─── Read ───────────────────────────────────────────────────────────────────
@@ -182,7 +343,8 @@ export async function getEntityTags(
   const include = {
     tagDefinition: {
       include: {
-        group: { select: { id: true, name: true, slug: true, color: true } },
+        group: { select: GROUP_SELECT },
+        aliases: { select: { name: true } },
       },
     },
   };
@@ -221,8 +383,6 @@ export async function getEntityTagIds(
 }
 
 // ─── Cache Sync ─────────────────────────────────────────────────────────────
-
-type TxClient = Parameters<Parameters<typeof prisma.$transaction>[0]>[0];
 
 async function syncEntityTagCacheTx(
   tx: TxClient,

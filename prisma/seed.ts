@@ -799,19 +799,33 @@ async function main() {
 
   // ─── Tag Catalog ──────────────────────────────────────────────────────────
 
-  const tagGroups = [
+  type SeedTag = {
+    name: string;
+    scope: string[];
+    description?: string;
+    aliases?: string[];
+  };
+
+  const tagGroups: {
+    slug: string;
+    name: string;
+    color: string;
+    description: string;
+    isExclusive?: boolean;
+    tags: SeedTag[];
+  }[] = [
     {
       slug: "content-type",
       name: "Content Type",
       color: "#3b82f6",
       description: "What type of content this is",
       tags: [
-        { name: "portrait", scope: ["MEDIA_ITEM"] },
-        { name: "diploma", scope: ["MEDIA_ITEM"] },
-        { name: "tattoo", scope: ["MEDIA_ITEM"] },
-        { name: "document", scope: ["MEDIA_ITEM"] },
-        { name: "general", scope: ["MEDIA_ITEM"] },
-        { name: "outtake", scope: ["MEDIA_ITEM"] },
+        { name: "portrait", scope: ["MEDIA_ITEM"], description: "Head/face focused photo" },
+        { name: "diploma", scope: ["MEDIA_ITEM"], description: "Certificate or diploma document" },
+        { name: "tattoo", scope: ["MEDIA_ITEM"], description: "Tattoo detail or documentation" },
+        { name: "document", scope: ["MEDIA_ITEM"], description: "Scanned document or paperwork" },
+        { name: "general", scope: ["MEDIA_ITEM"], description: "General purpose media" },
+        { name: "outtake", scope: ["MEDIA_ITEM"], description: "Unused or rejected take" },
       ],
     },
     {
@@ -820,11 +834,11 @@ async function main() {
       color: "#10b981",
       description: "Visual style or setting",
       tags: [
-        { name: "studio", scope: ["MEDIA_ITEM", "SESSION"] },
-        { name: "outdoor", scope: ["MEDIA_ITEM", "SESSION"] },
-        { name: "candid", scope: ["MEDIA_ITEM", "SESSION"] },
-        { name: "editorial", scope: ["MEDIA_ITEM", "SESSION"] },
-        { name: "test", scope: ["MEDIA_ITEM", "SESSION"] },
+        { name: "studio", scope: ["MEDIA_ITEM", "SESSION"], description: "Shot in a controlled studio environment" },
+        { name: "outdoor", scope: ["MEDIA_ITEM", "SESSION"], description: "Shot outdoors or on location", aliases: ["outdoors", "outside", "exterior"] },
+        { name: "candid", scope: ["MEDIA_ITEM", "SESSION"], description: "Unposed, natural moment" },
+        { name: "editorial", scope: ["MEDIA_ITEM", "SESSION"], description: "Styled editorial or fashion shoot" },
+        { name: "test", scope: ["MEDIA_ITEM", "SESSION"], description: "Test shoot or audition" },
       ],
     },
     {
@@ -832,11 +846,24 @@ async function main() {
       name: "Status",
       color: "#f59e0b",
       description: "Person classification",
+      isExclusive: true,
       tags: [
-        { name: "VIP", scope: ["PERSON"] },
-        { name: "new", scope: ["PERSON"] },
-        { name: "established", scope: ["PERSON"] },
-        { name: "retired", scope: ["PERSON"] },
+        { name: "VIP", scope: ["PERSON"], description: "High-priority person requiring special attention" },
+        { name: "new", scope: ["PERSON"], description: "Recently added to the system" },
+        { name: "established", scope: ["PERSON"], description: "Well-known with extensive history" },
+        { name: "retired", scope: ["PERSON"], description: "No longer active in the industry" },
+      ],
+    },
+    {
+      slug: "tier",
+      name: "Tier",
+      color: "#8b5cf6",
+      description: "Ranking tier — only one can be applied per entity",
+      isExclusive: true,
+      tags: [
+        { name: "A-list", scope: ["PERSON", "SET"], description: "Top tier" },
+        { name: "B-list", scope: ["PERSON", "SET"], description: "Mid tier" },
+        { name: "C-list", scope: ["PERSON", "SET"], description: "Lower tier" },
       ],
     },
     {
@@ -848,6 +875,9 @@ async function main() {
     },
   ];
 
+  const slugify = (name: string) =>
+    name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+
   for (let gi = 0; gi < tagGroups.length; gi++) {
     const g = tagGroups[gi];
     const group = await prisma.tagGroup.upsert({
@@ -857,20 +887,22 @@ async function main() {
         slug: g.slug,
         color: g.color,
         description: g.description,
+        isExclusive: g.isExclusive ?? false,
         sortOrder: gi,
       },
       update: {
         name: g.name,
         color: g.color,
         description: g.description,
+        isExclusive: g.isExclusive ?? false,
         sortOrder: gi,
       },
     });
 
     for (let ti = 0; ti < g.tags.length; ti++) {
       const t = g.tags[ti];
-      const slug = t.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
-      await prisma.tagDefinition.upsert({
+      const slug = slugify(t.name);
+      const tagDef = await prisma.tagDefinition.upsert({
         where: { slug },
         create: {
           groupId: group.id,
@@ -878,6 +910,8 @@ async function main() {
           slug,
           nameNorm: t.name.toLowerCase(),
           scope: t.scope,
+          description: t.description ?? null,
+          status: "active",
           sortOrder: ti,
         },
         update: {
@@ -885,9 +919,31 @@ async function main() {
           name: t.name,
           nameNorm: t.name.toLowerCase(),
           scope: t.scope,
+          description: t.description ?? null,
           sortOrder: ti,
         },
       });
+
+      // Seed aliases
+      if (t.aliases) {
+        for (const aliasName of t.aliases) {
+          const aliasSlug = slugify(aliasName);
+          await prisma.tagAlias.upsert({
+            where: { slug: aliasSlug },
+            create: {
+              tagDefinitionId: tagDef.id,
+              name: aliasName,
+              nameNorm: aliasName.toLowerCase(),
+              slug: aliasSlug,
+            },
+            update: {
+              tagDefinitionId: tagDef.id,
+              name: aliasName,
+              nameNorm: aliasName.toLowerCase(),
+            },
+          });
+        }
+      }
     }
   }
 

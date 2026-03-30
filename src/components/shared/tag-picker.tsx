@@ -12,6 +12,7 @@ import { Plus, Search, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { TagDefinitionWithGroup } from "@/lib/services/tag-service";
 import type { TagChipData } from "@/components/shared/tag-chips";
+import { useRecentTags } from "@/hooks/use-recent-tags";
 
 type TagPickerProps = {
   scope: "PERSON" | "SESSION" | "MEDIA_ITEM" | "SET" | "PROJECT";
@@ -22,12 +23,15 @@ type TagPickerProps = {
   compact?: boolean;
   /** Pre-resolved tag data for display (avoids extra fetch on mount) */
   selectedTags?: TagChipData[];
+  /** Show recently used tags section (default: true) */
+  showRecent?: boolean;
 };
 
 type GroupedResults = {
   groupId: string;
   groupName: string;
   groupColor: string;
+  isExclusive: boolean;
   tags: TagDefinitionWithGroup[];
 };
 
@@ -40,6 +44,7 @@ function groupResults(tags: TagDefinitionWithGroup[]): GroupedResults[] {
         groupId: tag.group.id,
         groupName: tag.group.name,
         groupColor: tag.group.color,
+        isExclusive: tag.group.isExclusive,
         tags: [],
       };
       map.set(tag.group.id, group);
@@ -57,9 +62,11 @@ export function TagPicker({
   placeholder = "Search tags…",
   compact,
   selectedTags: initialSelectedTags,
+  showRecent = true,
 }: TagPickerProps) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<TagDefinitionWithGroup[]>([]);
+  const [popularTags, setPopularTags] = useState<TagDefinitionWithGroup[]>([]);
   const [isOpen, setIsOpen] = useState(false);
   const [highlightIndex, setHighlightIndex] = useState(-1);
   const [isLoading, setIsLoading] = useState(false);
@@ -69,6 +76,9 @@ export function TagPicker({
   const inputRef = useRef<HTMLInputElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const popularFetchedRef = useRef(false);
+
+  const { recentTags, addRecent } = useRecentTags(scope);
 
   // Fetch tag info for selected IDs on mount if not provided
   useEffect(() => {
@@ -93,6 +103,21 @@ export function TagPicker({
     fetchSelected();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Fetch popular tags once
+  const fetchPopular = useCallback(async () => {
+    if (popularFetchedRef.current) return;
+    popularFetchedRef.current = true;
+    try {
+      const res = await fetch(`/api/tags/search?scope=${scope}&popular=true`);
+      if (res.ok) {
+        const data: TagDefinitionWithGroup[] = await res.json();
+        setPopularTags(data);
+      }
+    } catch {
+      // Ignore
+    }
+  }, [scope]);
 
   const search = useCallback(
     (q: string) => {
@@ -130,8 +155,9 @@ export function TagPicker({
 
   const handleFocus = useCallback(() => {
     setIsOpen(true);
+    fetchPopular();
     search(query);
-  }, [search, query]);
+  }, [search, query, fetchPopular]);
 
   // Close on click outside
   useEffect(() => {
@@ -155,6 +181,23 @@ export function TagPicker({
     [results, selectedTagIds],
   );
 
+  const isSearching = query.trim().length > 0;
+
+  // Recently used tags (filtered to exclude already-selected, only when not searching)
+  const filteredRecentTags = useMemo(() => {
+    if (!showRecent || isSearching) return [];
+    return recentTags.filter((t) => !selectedTagIds.includes(t.id));
+  }, [showRecent, isSearching, recentTags, selectedTagIds]);
+
+  // Popular/suggested tags (filtered, only when not searching)
+  const filteredPopularTags = useMemo(() => {
+    if (isSearching) return [];
+    return popularTags
+      .filter((t) => !selectedTagIds.includes(t.id))
+      .filter((t) => !filteredRecentTags.some((r) => r.id === t.id))
+      .slice(0, 10);
+  }, [isSearching, popularTags, selectedTagIds, filteredRecentTags]);
+
   const grouped = useMemo(
     () => groupResults(availableResults),
     [availableResults],
@@ -176,18 +219,38 @@ export function TagPicker({
   );
 
   const selectTag = useCallback(
-    (tag: TagDefinitionWithGroup) => {
-      const newIds = [...selectedTagIds, tag.id];
-      setSelectedTags((prev) => [
-        ...prev,
-        { id: tag.id, name: tag.name, group: tag.group },
-      ]);
+    (tag: TagDefinitionWithGroup | TagChipData) => {
+      const tagGroup = tag.group;
+      const isExclusive = "isExclusive" in tagGroup ? tagGroup.isExclusive : false;
+
+      let newIds: string[];
+      if (isExclusive) {
+        // Remove other tags from the same exclusive group
+        const otherGroupTagIds = selectedTags
+          .filter((t) => t.group.name === tagGroup.name && t.id !== tag.id)
+          .map((t) => t.id);
+        const filteredIds = selectedTagIds.filter((id) => !otherGroupTagIds.includes(id));
+        newIds = [...filteredIds, tag.id];
+        // Update selectedTags removing the other group tags
+        setSelectedTags((prev) => [
+          ...prev.filter((t) => !otherGroupTagIds.includes(t.id)),
+          { id: tag.id, name: tag.name, group: { name: tagGroup.name, color: tagGroup.color } },
+        ]);
+      } else {
+        newIds = [...selectedTagIds, tag.id];
+        setSelectedTags((prev) => [
+          ...prev,
+          { id: tag.id, name: tag.name, group: { name: tagGroup.name, color: tagGroup.color } },
+        ]);
+      }
+
+      addRecent({ id: tag.id, name: tag.name, group: { name: tagGroup.name, color: tagGroup.color } });
       onChange(newIds);
       setQuery("");
       setIsOpen(false);
       inputRef.current?.focus();
     },
-    [selectedTagIds, onChange],
+    [selectedTagIds, selectedTags, onChange, addRecent],
   );
 
   const removeTag = useCallback(
@@ -210,10 +273,9 @@ export function TagPicker({
           const data: TagDefinitionWithGroup[] = await res.json();
           const newTag = data.find((t) => t.id === newId);
           if (newTag) {
-            setSelectedTags((prev) => [
-              ...prev,
-              { id: newTag.id, name: newTag.name, group: newTag.group },
-            ]);
+            const chipData = { id: newTag.id, name: newTag.name, group: newTag.group };
+            setSelectedTags((prev) => [...prev, chipData]);
+            addRecent(chipData);
           }
         }
       } catch {
@@ -224,7 +286,7 @@ export function TagPicker({
       setIsOpen(false);
       inputRef.current?.focus();
     }
-  }, [onCreateTag, query, selectedTagIds, onChange, scope]);
+  }, [onCreateTag, query, selectedTagIds, onChange, scope, addRecent]);
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent<HTMLInputElement>) => {
@@ -264,6 +326,47 @@ export function TagPicker({
       selectedTagIds,
       removeTag,
     ],
+  );
+
+  const renderTagItem = (tag: TagDefinitionWithGroup, index: number, groupColor: string) => (
+    <button
+      key={tag.id}
+      type="button"
+      onClick={() => selectTag(tag)}
+      className={cn(
+        "flex w-full items-start gap-2 px-3 py-1.5 text-left text-xs transition-colors hover:bg-muted/30",
+        highlightIndex === index && "bg-muted/30",
+      )}
+    >
+      <span
+        className="mt-1 inline-block shrink-0 rounded-full"
+        style={{
+          backgroundColor: groupColor,
+          width: 6,
+          height: 6,
+        }}
+      />
+      <span className="min-w-0 flex-1">
+        <span className="flex items-center gap-1.5">
+          {tag.name}
+          {tag.status === "pending" && (
+            <span className="inline-flex items-center rounded-full bg-amber-500/20 px-1.5 py-0.5 text-[9px] font-medium text-amber-600 dark:text-amber-400">
+              pending
+            </span>
+          )}
+        </span>
+        {tag.description && (
+          <span className="block text-[10px] leading-tight text-muted-foreground/60">
+            {tag.description}
+          </span>
+        )}
+        {tag.aliases && tag.aliases.length > 0 && (
+          <span className="block text-[10px] leading-tight text-muted-foreground/40">
+            also: {tag.aliases.map((a) => a.name).join(", ")}
+          </span>
+        )}
+      </span>
+    </button>
   );
 
   return (
@@ -336,7 +439,7 @@ export function TagPicker({
       {isOpen && (
         <div
           ref={dropdownRef}
-          className="absolute z-50 mt-1 max-h-64 w-full overflow-auto rounded-md border border-white/15 bg-white shadow-lg dark:bg-slate-900"
+          className="absolute z-[200] mt-1 max-h-64 w-full overflow-auto rounded-md border border-white/15 bg-white shadow-lg dark:bg-slate-900"
         >
           {isLoading && (
             <div className="px-3 py-2 text-xs text-muted-foreground">
@@ -344,54 +447,190 @@ export function TagPicker({
             </div>
           )}
 
-          {!isLoading && grouped.length === 0 && !query.trim() && (
-            <div className="px-3 py-2 text-xs text-muted-foreground">
-              No tags available for this scope.
+          {/* Recently Used section (only when not searching) */}
+          {!isLoading && !isSearching && filteredRecentTags.length > 0 && (
+            <div>
+              <div className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+                Recently Used
+              </div>
+              {filteredRecentTags.map((tag) => (
+                <button
+                  key={tag.id}
+                  type="button"
+                  onClick={() => {
+                    // Need to fetch full tag data for exclusive group logic
+                    const fullTag = popularTags.find((p) => p.id === tag.id) ??
+                      results.find((r) => r.id === tag.id);
+                    if (fullTag) {
+                      selectTag(fullTag);
+                    } else {
+                      // Fallback: use chip data
+                      selectTag({
+                        ...tag,
+                        slug: "",
+                        status: "active",
+                        description: null,
+                        scope: [],
+                        sortOrder: 0,
+                        group: { ...tag.group, id: "", slug: "", isExclusive: false },
+                      } as TagDefinitionWithGroup);
+                    }
+                  }}
+                  className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs transition-colors hover:bg-muted/30"
+                >
+                  <span
+                    className="inline-block shrink-0 rounded-full"
+                    style={{ backgroundColor: tag.group.color, width: 6, height: 6 }}
+                  />
+                  {tag.name}
+                </button>
+              ))}
             </div>
           )}
 
-          {!isLoading && grouped.length === 0 && query.trim() && !onCreateTag && (
+          {/* Suggested/Popular section (only when not searching) */}
+          {!isLoading && !isSearching && filteredPopularTags.length > 0 && (
+            <div>
+              <div className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+                Suggested
+              </div>
+              {filteredPopularTags.map((tag) => (
+                <button
+                  key={tag.id}
+                  type="button"
+                  onClick={() => selectTag(tag)}
+                  className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs transition-colors hover:bg-muted/30"
+                >
+                  <span
+                    className="inline-block shrink-0 rounded-full"
+                    style={{ backgroundColor: tag.group.color, width: 6, height: 6 }}
+                  />
+                  {tag.name}
+                  {tag.description && (
+                    <span className="text-[10px] text-muted-foreground/50">
+                      — {tag.description}
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Search results */}
+          {!isLoading && isSearching && grouped.length === 0 && !onCreateTag && (
             <div className="px-3 py-2 text-xs text-muted-foreground">
               No matching tags found.
             </div>
           )}
 
-          {grouped.map((group) => (
-            <div key={group.groupId}>
-              <div className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
-                <span
-                  className="inline-block rounded-full"
-                  style={{
-                    backgroundColor: group.groupColor,
-                    width: 8,
-                    height: 8,
-                  }}
-                />
-                {group.groupName}
-              </div>
-              {group.tags.map((tag) => (
-                  <button
-                    key={tag.id}
-                    type="button"
-                    onClick={() => selectTag(tag)}
-                    className={cn(
-                      "flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs transition-colors hover:bg-muted/30",
-                      highlightIndex === flatItems.indexOf(tag) && "bg-muted/30",
-                    )}
-                  >
-                    <span
-                      className="inline-block shrink-0 rounded-full"
-                      style={{
-                        backgroundColor: group.groupColor,
-                        width: 6,
-                        height: 6,
-                      }}
-                    />
-                    {tag.name}
-                  </button>
-              ))}
+          {!isLoading && !isSearching && grouped.length === 0 && filteredRecentTags.length === 0 && filteredPopularTags.length === 0 && (
+            <div className="px-3 py-2 text-xs text-muted-foreground">
+              No tags available for this scope.
             </div>
-          ))}
+          )}
+
+          {/* Grouped tag results (shown when searching, or as full list when no recent/popular) */}
+          {isSearching && grouped.map((group) => {
+            let runningIndex = 0;
+            for (const g of grouped) {
+              if (g.groupId === group.groupId) break;
+              runningIndex += g.tags.length;
+            }
+            return (
+              <div key={group.groupId}>
+                <div className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+                  <span
+                    className="inline-block rounded-full"
+                    style={{
+                      backgroundColor: group.groupColor,
+                      width: 8,
+                      height: 8,
+                    }}
+                  />
+                  {group.groupName}
+                  {group.isExclusive && (
+                    <span className="text-[9px] font-normal normal-case text-muted-foreground/40">
+                      (exclusive)
+                    </span>
+                  )}
+                </div>
+                {group.tags.map((tag, i) =>
+                  renderTagItem(tag, runningIndex + i, group.groupColor),
+                )}
+              </div>
+            );
+          })}
+
+          {/* All tags grouped (when not searching and no recent/popular showing everything) */}
+          {!isSearching && (filteredRecentTags.length > 0 || filteredPopularTags.length > 0) && grouped.length > 0 && (
+            <>
+              <div className="border-t border-white/10 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+                All Tags
+              </div>
+              {grouped.map((group) => {
+                let runningIndex = 0;
+                for (const g of grouped) {
+                  if (g.groupId === group.groupId) break;
+                  runningIndex += g.tags.length;
+                }
+                return (
+                  <div key={group.groupId}>
+                    <div className="flex items-center gap-1.5 px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+                      <span
+                        className="inline-block rounded-full"
+                        style={{
+                          backgroundColor: group.groupColor,
+                          width: 8,
+                          height: 8,
+                        }}
+                      />
+                      {group.groupName}
+                      {group.isExclusive && (
+                        <span className="text-[9px] font-normal normal-case text-muted-foreground/40">
+                          (exclusive)
+                        </span>
+                      )}
+                    </div>
+                    {group.tags.map((tag, i) =>
+                      renderTagItem(tag, runningIndex + i, group.groupColor),
+                    )}
+                  </div>
+                );
+              })}
+            </>
+          )}
+
+          {/* When not searching and no recent/popular, show grouped directly */}
+          {!isSearching && filteredRecentTags.length === 0 && filteredPopularTags.length === 0 && grouped.map((group) => {
+            let runningIndex = 0;
+            for (const g of grouped) {
+              if (g.groupId === group.groupId) break;
+              runningIndex += g.tags.length;
+            }
+            return (
+              <div key={group.groupId}>
+                <div className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+                  <span
+                    className="inline-block rounded-full"
+                    style={{
+                      backgroundColor: group.groupColor,
+                      width: 8,
+                      height: 8,
+                    }}
+                  />
+                  {group.groupName}
+                  {group.isExclusive && (
+                    <span className="text-[9px] font-normal normal-case text-muted-foreground/40">
+                      (exclusive)
+                    </span>
+                  )}
+                </div>
+                {group.tags.map((tag, i) =>
+                  renderTagItem(tag, runningIndex + i, group.groupColor),
+                )}
+              </div>
+            );
+          })}
 
           {/* Create tag option */}
           {!isLoading &&

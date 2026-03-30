@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
-import { Users, Loader2 } from "lucide-react";
+import { Users, Loader2, CheckSquare } from "lucide-react";
 import { PersonCard } from "./person-card";
 import { useDensity } from "@/components/layout/density-provider";
 import { cn } from "@/lib/utils";
@@ -17,6 +17,8 @@ import {
   truncateName,
   filtersMatch,
 } from "@/lib/browse-context";
+import { useBulkSelection } from "@/hooks/use-bulk-selection";
+import { BulkSelectionBar } from "@/components/shared/bulk-selection-bar";
 
 type PhotoData = {
   url: string;
@@ -63,6 +65,7 @@ export function PersonList({
   const [cursor, setCursor] = useState(initialCursor);
   const [isPending, startTransition] = useTransition();
   const hasRestoredScroll = useRef(false);
+  const bulk = useBulkSelection();
 
   useEffect(() => { setPersons(initialPersons); }, [initialPersons]);
   useEffect(() => { setPhotoMap(initialPhotoMap); }, [initialPhotoMap]);
@@ -165,6 +168,18 @@ export function PersonList({
 
   return (
     <div className="space-y-4">
+      {/* Select mode toggle */}
+      <div className="flex justify-end">
+        <Button
+          variant={bulk.isSelecting ? "default" : "outline"}
+          size="sm"
+          onClick={() => bulk.isSelecting ? bulk.exitSelection() : bulk.setSelecting(true)}
+        >
+          <CheckSquare size={14} className="mr-1.5" />
+          {bulk.isSelecting ? "Cancel" : "Select"}
+        </Button>
+      </div>
+
       <div
         className={cn(
           "grid gap-4",
@@ -175,16 +190,34 @@ export function PersonList({
       >
         {persons.map((person) => {
           const photo = photoMap[person.id];
+          const isSelected = bulk.selectedIds.has(person.id);
           return (
-            <PersonCard
-              key={person.id}
-              person={person}
-              photoUrl={photo?.url}
-              focalX={photo?.focalX}
-              focalY={photo?.focalY}
-              plausibilityCount={getQuickPlausibilityCount(person)}
-              onClick={handleCardClick}
-            />
+            <div key={person.id} className="relative">
+              {bulk.isSelecting && (
+                <button
+                  type="button"
+                  onClick={() => bulk.toggle(person.id)}
+                  className={cn(
+                    "absolute left-2 top-2 z-10 flex h-5 w-5 items-center justify-center rounded border-2 transition-colors",
+                    isSelected
+                      ? "border-primary bg-primary text-primary-foreground"
+                      : "border-white/70 bg-black/30 backdrop-blur-sm",
+                  )}
+                >
+                  {isSelected && <CheckSquare className="h-3.5 w-3.5" />}
+                </button>
+              )}
+              <div className={cn(bulk.isSelecting && isSelected && "ring-2 ring-primary rounded-xl")}>
+                <PersonCard
+                  person={person}
+                  photoUrl={photo?.url}
+                  focalX={photo?.focalX}
+                  focalY={photo?.focalY}
+                  plausibilityCount={getQuickPlausibilityCount(person)}
+                  onClick={bulk.isSelecting ? () => bulk.toggle(person.id) : handleCardClick}
+                />
+              </div>
+            </div>
           );
         })}
       </div>
@@ -213,6 +246,18 @@ export function PersonList({
           </Button>
         )}
       </div>
+
+      {/* Bulk selection bar */}
+      {bulk.isSelecting && (
+        <BulkSelectionBar
+          selectedIds={bulk.selectedIds}
+          entityType="PERSON"
+          scope="PERSON"
+          onClear={bulk.clear}
+          totalCount={totalCount}
+          onSelectAll={() => bulk.selectAll(persons.map((p) => p.id))}
+        />
+      )}
     </div>
   );
 }

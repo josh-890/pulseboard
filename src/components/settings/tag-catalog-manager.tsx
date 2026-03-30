@@ -5,6 +5,7 @@ import {
   ChevronDown,
   ChevronRight,
   GripVertical,
+  Lock,
   Pencil,
   Plus,
   Trash2,
@@ -19,6 +20,8 @@ import {
   createTagDefinitionAction,
   updateTagDefinitionAction,
   deleteTagDefinitionAction,
+  createTagAliasAction,
+  deleteTagAliasAction,
 } from "@/lib/actions/tag-actions";
 
 type TagCatalogManagerProps = {
@@ -34,16 +37,8 @@ const SCOPE_OPTIONS = [
 ] as const;
 
 const PRESET_COLORS = [
-  "#3b82f6", // blue
-  "#10b981", // emerald
-  "#f59e0b", // amber
-  "#ef4444", // red
-  "#8b5cf6", // violet
-  "#ec4899", // pink
-  "#14b8a6", // teal
-  "#f97316", // orange
-  "#6366f1", // indigo
-  "#9ca3af", // gray
+  "#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6",
+  "#ec4899", "#14b8a6", "#f97316", "#6366f1", "#9ca3af",
 ] as const;
 
 function ColorDot({ color, size = 10 }: { color: string; size?: number }) {
@@ -155,28 +150,32 @@ export function TagCatalogManager({
   const [newGroupName, setNewGroupName] = useState("");
   const [newGroupColor, setNewGroupColor] = useState("#6b7280");
   const [newGroupDescription, setNewGroupDescription] = useState("");
+  const [newGroupExclusive, setNewGroupExclusive] = useState(false);
 
   // ── Edit group ──
   const [editingGroupId, setEditingGroupId] = useState<string | null>(null);
   const [editGroupName, setEditGroupName] = useState("");
   const [editGroupColor, setEditGroupColor] = useState("");
   const [editGroupDescription, setEditGroupDescription] = useState("");
+  const [editGroupExclusive, setEditGroupExclusive] = useState(false);
 
   // ── Add tag ──
   const [addingTagGroupId, setAddingTagGroupId] = useState<string | null>(null);
   const [newTagName, setNewTagName] = useState("");
   const [newTagScope, setNewTagScope] = useState<string[]>([
-    "PERSON",
-    "SESSION",
-    "MEDIA_ITEM",
-    "SET",
-    "PROJECT",
+    "PERSON", "SESSION", "MEDIA_ITEM", "SET", "PROJECT",
   ]);
+  const [newTagDescription, setNewTagDescription] = useState("");
 
   // ── Edit tag ──
   const [editingTagId, setEditingTagId] = useState<string | null>(null);
   const [editTagName, setEditTagName] = useState("");
   const [editTagScope, setEditTagScope] = useState<string[]>([]);
+  const [editTagDescription, setEditTagDescription] = useState("");
+
+  // ── Alias input ──
+  const [aliasTagId, setAliasTagId] = useState<string | null>(null);
+  const [newAliasName, setNewAliasName] = useState("");
 
   const toggleGroup = useCallback((id: string) => {
     setExpandedGroups((prev) => {
@@ -194,17 +193,19 @@ export function TagCatalogManager({
     const name = newGroupName.trim();
     const color = newGroupColor;
     const description = newGroupDescription.trim() || undefined;
+    const isExclusive = newGroupExclusive;
     startTransition(async () => {
-      const result = await createTagGroupAction(name, color, description);
+      const result = await createTagGroupAction(name, color, description, isExclusive);
       if (result.success) {
         setNewGroupName("");
         setNewGroupColor("#6b7280");
         setNewGroupDescription("");
+        setNewGroupExclusive(false);
         setShowAddGroup(false);
         window.location.reload();
       }
     });
-  }, [newGroupName, newGroupColor, newGroupDescription]);
+  }, [newGroupName, newGroupColor, newGroupDescription, newGroupExclusive]);
 
   const handleUpdateGroup = useCallback(
     (id: string) => {
@@ -214,6 +215,7 @@ export function TagCatalogManager({
           name: editGroupName.trim(),
           color: editGroupColor,
           description: editGroupDescription.trim() || null,
+          isExclusive: editGroupExclusive,
         });
         setGroups((prev) =>
           prev.map((g) =>
@@ -223,6 +225,7 @@ export function TagCatalogManager({
                   name: editGroupName.trim(),
                   color: editGroupColor,
                   description: editGroupDescription.trim() || null,
+                  isExclusive: editGroupExclusive,
                 }
               : g,
           ),
@@ -230,7 +233,7 @@ export function TagCatalogManager({
         setEditingGroupId(null);
       });
     },
-    [editGroupName, editGroupColor, editGroupDescription],
+    [editGroupName, editGroupColor, editGroupDescription, editGroupExclusive],
   );
 
   const handleDeleteGroup = useCallback((id: string) => {
@@ -249,17 +252,19 @@ export function TagCatalogManager({
       if (!newTagName.trim()) return;
       const name = newTagName.trim();
       const scope = newTagScope;
+      const description = newTagDescription.trim() || undefined;
       startTransition(async () => {
-        const result = await createTagDefinitionAction(groupId, name, scope);
+        const result = await createTagDefinitionAction(groupId, name, scope, description);
         if (result.success) {
           setNewTagName("");
           setNewTagScope(["PERSON", "SESSION", "MEDIA_ITEM", "SET", "PROJECT"]);
+          setNewTagDescription("");
           setAddingTagGroupId(null);
           window.location.reload();
         }
       });
     },
-    [newTagName, newTagScope],
+    [newTagName, newTagScope, newTagDescription],
   );
 
   const handleUpdateTag = useCallback(
@@ -269,13 +274,14 @@ export function TagCatalogManager({
         await updateTagDefinitionAction(id, {
           name: editTagName.trim(),
           scope: editTagScope,
+          description: editTagDescription.trim() || null,
         });
         setGroups((prev) =>
           prev.map((g) => ({
             ...g,
             tags: g.tags.map((t) =>
               t.id === id
-                ? { ...t, name: editTagName.trim(), scope: editTagScope }
+                ? { ...t, name: editTagName.trim(), scope: editTagScope, description: editTagDescription.trim() || null }
                 : t,
             ),
           })),
@@ -283,7 +289,7 @@ export function TagCatalogManager({
         setEditingTagId(null);
       });
     },
-    [editTagName, editTagScope],
+    [editTagName, editTagScope, editTagDescription],
   );
 
   const handleDeleteTag = useCallback((id: string) => {
@@ -300,12 +306,37 @@ export function TagCatalogManager({
     });
   }, []);
 
+  // ── Alias actions ──
+
+  const handleAddAlias = useCallback(
+    (tagId: string) => {
+      if (!newAliasName.trim()) return;
+      const name = newAliasName.trim();
+      startTransition(async () => {
+        const result = await createTagAliasAction(tagId, name);
+        if (result.success) {
+          setNewAliasName("");
+          window.location.reload();
+        }
+      });
+    },
+    [newAliasName],
+  );
+
+  const handleDeleteAlias = useCallback((aliasId: string) => {
+    startTransition(async () => {
+      await deleteTagAliasAction(aliasId);
+      window.location.reload();
+    });
+  }, []);
+
   return (
     <div className={cn("space-y-3", isPending && "opacity-70 pointer-events-none")}>
       {groups.map((group) => {
         const isExpanded = expandedGroups.has(group.id);
         const isEditing = editingGroupId === group.id;
         const hasTags = group.tags.length > 0;
+        const pendingCount = group.tags.filter((t) => t.status === "pending").length;
 
         return (
           <div
@@ -356,10 +387,7 @@ export function TagCatalogManager({
                       <X size={12} />
                     </button>
                   </div>
-                  <ColorPicker
-                    value={editGroupColor}
-                    onChange={setEditGroupColor}
-                  />
+                  <ColorPicker value={editGroupColor} onChange={setEditGroupColor} />
                   <input
                     type="text"
                     value={editGroupDescription}
@@ -367,13 +395,33 @@ export function TagCatalogManager({
                     placeholder="Description (optional)"
                     className="rounded-md border border-white/15 bg-background/50 px-2 py-1 text-xs text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
                   />
+                  <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <input
+                      type="checkbox"
+                      checked={editGroupExclusive}
+                      onChange={(e) => setEditGroupExclusive(e.target.checked)}
+                      className="h-3 w-3 rounded border-white/20 bg-background/50"
+                    />
+                    <Lock size={11} className="text-muted-foreground/50" />
+                    Exclusive (only one tag per entity)
+                  </label>
                 </div>
               ) : (
                 <>
-                  <span className="flex-1 text-sm font-semibold">{group.name}</span>
+                  <span className="flex items-center gap-1.5 flex-1 text-sm font-semibold">
+                    {group.name}
+                    {group.isExclusive && (
+                      <Lock size={11} className="text-muted-foreground/50" title="Exclusive group" />
+                    )}
+                  </span>
                   {group.description && (
                     <span className="mr-1 hidden text-xs text-muted-foreground/60 md:inline">
                       {group.description}
+                    </span>
+                  )}
+                  {pendingCount > 0 && (
+                    <span className="rounded-full bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-medium text-amber-600 dark:text-amber-400">
+                      {pendingCount} pending
                     </span>
                   )}
                   <span className="mr-1 text-xs text-muted-foreground">
@@ -386,6 +434,7 @@ export function TagCatalogManager({
                       setEditGroupName(group.name);
                       setEditGroupColor(group.color);
                       setEditGroupDescription(group.description ?? "");
+                      setEditGroupExclusive(group.isExclusive);
                     }}
                     className="rounded-md p-1 text-muted-foreground transition-colors hover:text-foreground"
                     aria-label="Edit group"
@@ -416,6 +465,7 @@ export function TagCatalogManager({
               <div className="border-t border-white/10 px-3 py-2 space-y-1">
                 {group.tags.map((tag) => {
                   const isEditingTag = editingTagId === tag.id;
+                  const isShowingAliases = aliasTagId === tag.id;
 
                   if (isEditingTag) {
                     return (
@@ -455,6 +505,59 @@ export function TagCatalogManager({
                           scope={editTagScope}
                           onChange={setEditTagScope}
                         />
+                        <textarea
+                          value={editTagDescription}
+                          onChange={(e) => setEditTagDescription(e.target.value)}
+                          placeholder="Description (optional, max 500 chars)"
+                          maxLength={500}
+                          rows={2}
+                          className="rounded-md border border-white/15 bg-background/50 px-2 py-1 text-xs text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                        />
+
+                        {/* Aliases section */}
+                        <div className="space-y-1">
+                          <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/60">
+                            Aliases
+                          </span>
+                          <div className="flex flex-wrap gap-1">
+                            {tag.aliases?.map((alias) => (
+                              <span
+                                key={alias.id}
+                                className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-muted/40 px-1.5 py-0.5 text-[10px] text-muted-foreground"
+                              >
+                                {alias.name}
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteAlias(alias.id)}
+                                  className="rounded-full p-0.5 hover:bg-foreground/10"
+                                  aria-label={`Remove alias ${alias.name}`}
+                                >
+                                  <X size={8} />
+                                </button>
+                              </span>
+                            ))}
+                            <div className="flex items-center gap-1">
+                              <input
+                                type="text"
+                                value={isShowingAliases ? newAliasName : ""}
+                                onChange={(e) => {
+                                  setAliasTagId(tag.id);
+                                  setNewAliasName(e.target.value);
+                                }}
+                                onFocus={() => setAliasTagId(tag.id)}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter") handleAddAlias(tag.id);
+                                  if (e.key === "Escape") {
+                                    setAliasTagId(null);
+                                    setNewAliasName("");
+                                  }
+                                }}
+                                placeholder="+ alias"
+                                className="w-20 rounded border border-white/10 bg-background/30 px-1.5 py-0.5 text-[10px] focus:outline-none focus:ring-1 focus:ring-ring"
+                              />
+                            </div>
+                          </div>
+                        </div>
                       </div>
                     );
                   }
@@ -466,7 +569,26 @@ export function TagCatalogManager({
                     >
                       <GripVertical size={12} className="shrink-0 text-muted-foreground/40" />
                       <ColorDot color={group.color} size={8} />
-                      <span className="flex-1 text-sm">{tag.name}</span>
+                      <div className="flex flex-1 flex-col min-w-0">
+                        <span className="flex items-center gap-1.5 text-sm">
+                          {tag.name}
+                          {tag.status === "pending" && (
+                            <span className="rounded-full bg-amber-500/20 px-1.5 py-0.5 text-[9px] font-medium text-amber-600 dark:text-amber-400">
+                              pending
+                            </span>
+                          )}
+                        </span>
+                        {tag.description && (
+                          <span className="text-[10px] text-muted-foreground/50 truncate">
+                            {tag.description}
+                          </span>
+                        )}
+                        {tag.aliases && tag.aliases.length > 0 && (
+                          <span className="text-[10px] text-muted-foreground/40">
+                            aliases: {tag.aliases.map((a) => a.name).join(", ")}
+                          </span>
+                        )}
+                      </div>
                       <ScopeBadges scope={tag.scope} />
                       <button
                         type="button"
@@ -474,6 +596,8 @@ export function TagCatalogManager({
                           setEditingTagId(tag.id);
                           setEditTagName(tag.name);
                           setEditTagScope([...tag.scope]);
+                          setEditTagDescription(tag.description ?? "");
+                          setAliasTagId(tag.id);
                         }}
                         className="invisible rounded-md p-1 text-muted-foreground transition-colors hover:text-foreground group-hover:visible"
                         aria-label="Edit tag"
@@ -521,15 +645,20 @@ export function TagCatalogManager({
                           setAddingTagGroupId(null);
                           setNewTagName("");
                           setNewTagScope(["PERSON", "SESSION", "MEDIA_ITEM", "SET", "PROJECT"]);
+                          setNewTagDescription("");
                         }}
                         className="rounded-md p-1 text-muted-foreground hover:text-foreground"
                       >
                         <X size={12} />
                       </button>
                     </div>
-                    <ScopeCheckboxes
-                      scope={newTagScope}
-                      onChange={setNewTagScope}
+                    <ScopeCheckboxes scope={newTagScope} onChange={setNewTagScope} />
+                    <input
+                      type="text"
+                      value={newTagDescription}
+                      onChange={(e) => setNewTagDescription(e.target.value)}
+                      placeholder="Description (optional)"
+                      className="rounded-md border border-white/15 bg-background/50 px-2 py-1 text-xs text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
                     />
                   </div>
                 ) : (
@@ -578,6 +707,7 @@ export function TagCatalogManager({
                 setNewGroupName("");
                 setNewGroupColor("#6b7280");
                 setNewGroupDescription("");
+                setNewGroupExclusive(false);
               }}
               className="rounded-md p-1 text-muted-foreground hover:text-foreground"
             >
@@ -592,6 +722,16 @@ export function TagCatalogManager({
             placeholder="Description (optional)"
             className="w-full rounded-md border border-white/15 bg-background/50 px-2 py-1 text-xs text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
           />
+          <label className="flex items-center gap-2 text-xs text-muted-foreground">
+            <input
+              type="checkbox"
+              checked={newGroupExclusive}
+              onChange={(e) => setNewGroupExclusive(e.target.checked)}
+              className="h-3 w-3 rounded border-white/20 bg-background/50"
+            />
+            <Lock size={11} className="text-muted-foreground/50" />
+            Exclusive (only one tag per entity)
+          </label>
         </div>
       ) : (
         <button
