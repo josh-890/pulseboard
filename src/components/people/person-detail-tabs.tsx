@@ -1075,7 +1075,7 @@ function AboutCard({ person, referencePhotos }: { person: PersonData; referenceP
   const [showPhotoPicker, setShowPhotoPicker] = useState(false);
 
   const displayName = person.aliases.find((a) => a.isCommon)?.name ?? person.icgId;
-  const photos = referencePhotos ?? [];
+  const photos = useMemo(() => referencePhotos ?? [], [referencePhotos]);
 
   // Build a lookup map for media: references → actual URLs
   const mediaUrlMap = useMemo(() => {

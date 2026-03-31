@@ -390,6 +390,7 @@ export function BatchUploadZone({
     if (typeof addFilesRef === "function") {
       addFilesRef(addFiles);
     } else {
+      // eslint-disable-next-line react-hooks/immutability
       (addFilesRef as React.MutableRefObject<((files: FileList | File[]) => void) | null>).current = addFiles;
     }
   }, [addFilesRef, addFiles]);

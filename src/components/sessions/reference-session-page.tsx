@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback, useRef, useEffect } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { ImageIcon, BookOpen, Plus, Upload } from "lucide-react";
 import { cn, getInitialsFromName } from "@/lib/utils";
@@ -143,10 +144,13 @@ export function ReferenceSessionPage({
         {/* Avatar */}
         <Link href={`/people/${personId}`} className="shrink-0">
           {personThumbUrl ? (
-            <img
+            <Image
               src={personThumbUrl}
               alt=""
+              width={32}
+              height={32}
               className="h-8 w-8 rounded-full object-cover ring-1 ring-white/15"
+              unoptimized
             />
           ) : (
             <div className="flex h-8 w-8 items-center justify-center rounded-full bg-entity-person/15 text-entity-person text-xs font-medium">
