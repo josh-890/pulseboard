@@ -13,7 +13,7 @@ export default function LabelDetailLoading() {
       </div>
 
       {/* Header card */}
-      <div className="rounded-2xl border border-white/20 bg-card/70 p-6 shadow-md backdrop-blur-sm">
+      <div className="rounded-2xl border border-border/60 bg-card p-6 shadow-sm">
         <div className="flex items-start gap-4">
           <Skeleton className="h-12 w-12 shrink-0 rounded-xl" />
           <div className="min-w-0 flex-1">

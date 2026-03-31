@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { Building2, ExternalLink, Network, Radio, FolderKanban } from "lucide-react";
+import { ExternalLink, Network, Radio, FolderKanban } from "lucide-react";
 import { getLabelById } from "@/lib/services/label-service";
 import { cn } from "@/lib/utils";
 import type { ProjectStatus } from "@/lib/types";
@@ -10,6 +10,8 @@ import { deleteLabel } from "@/lib/actions/label-actions";
 import { deleteChannel } from "@/lib/actions/channel-actions";
 import { AddChannelSheet } from "@/components/channels/add-channel-sheet";
 import { EditChannelSheet } from "@/components/channels/edit-channel-sheet";
+import { EntityBadge } from "@/components/shared/entity-badge";
+import { generateEntityVisual } from "@/lib/entity-visual";
 
 export const dynamic = "force-dynamic";
 
@@ -81,6 +83,7 @@ export default async function LabelDetailPage({
 
   if (!label) notFound();
 
+  const visual = generateEntityVisual(label.name, "LABEL");
   const labelOption = [{ id: label.id, name: label.name }];
 
   return (
@@ -105,12 +108,22 @@ export default async function LabelDetailPage({
         </div>
       </div>
 
-      {/* Header card */}
-      <div className="rounded-2xl border border-white/20 bg-card/70 p-6 shadow-md backdrop-blur-sm">
-        <div className="flex items-start gap-4">
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-entity-label/15">
-            <Building2 size={22} className="text-entity-label" />
-          </div>
+      {/* Header card — same visual identity as the list card */}
+      <div
+        className={cn(
+          "relative overflow-hidden rounded-2xl border border-border/60 bg-card p-6 shadow-sm",
+          "border-l-[3px]",
+          visual.accentBorder,
+        )}
+      >
+        <div
+          className={cn(
+            "pointer-events-none absolute inset-0 bg-gradient-to-br",
+            visual.cardGradient,
+          )}
+        />
+        <div className="relative flex items-start gap-4">
+          <EntityBadge visual={visual} size="lg" />
           <div className="min-w-0 flex-1">
             <h1 className="text-2xl font-bold leading-tight">{label.name}</h1>
             {label.description && (

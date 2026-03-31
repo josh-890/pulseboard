@@ -20,16 +20,18 @@ export default function NetworksLoading() {
         {Array.from({ length: 6 }).map((_, i) => (
           <div
             key={i}
-            className="rounded-2xl border border-white/20 bg-card/70 p-5 shadow-md backdrop-blur-sm"
+            className="rounded-xl border border-border/60 bg-card p-4 shadow-sm"
           >
-            <div className="mb-3 flex items-start gap-3">
-              <Skeleton className="h-9 w-9 shrink-0 rounded-xl" />
-              <Skeleton className="h-5 w-32" />
+            <div className="mb-2.5 flex items-start gap-3">
+              <Skeleton className="h-8 w-8 shrink-0 rounded-lg" />
+              <div className="flex-1">
+                <Skeleton className="h-4 w-32 mt-0.5" />
+                <Skeleton className="mt-1 h-3 w-24" />
+              </div>
             </div>
-            <Skeleton className="mb-3 h-4 w-full" />
-            <div className="flex gap-2">
-              <Skeleton className="h-5 w-16 rounded-full" />
-              <Skeleton className="h-5 w-20 rounded-full" />
+            <div className="flex gap-1.5">
+              <Skeleton className="h-5 w-16 rounded-md" />
+              <Skeleton className="h-5 w-20 rounded-md" />
             </div>
           </div>
         ))}

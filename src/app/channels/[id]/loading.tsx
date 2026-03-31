@@ -13,13 +13,13 @@ export default function ChannelDetailLoading() {
       </div>
 
       {/* Header card */}
-      <div className="rounded-2xl border border-white/20 bg-card/70 p-6 shadow-md backdrop-blur-sm">
+      <div className="rounded-2xl border border-border/60 bg-card p-6 shadow-sm">
         <div className="flex items-start gap-4">
           <Skeleton className="h-12 w-12 shrink-0 rounded-xl" />
           <div className="min-w-0 flex-1">
             <Skeleton className="h-7 w-40" />
             <div className="mt-2 flex gap-2">
-              <Skeleton className="h-7 w-24 rounded-full" />
+              <Skeleton className="h-6 w-24 rounded-full" />
               <Skeleton className="h-5 w-16 rounded-full" />
             </div>
             <Skeleton className="mt-2 h-4 w-48" />

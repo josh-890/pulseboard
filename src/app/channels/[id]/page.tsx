@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { Building2, ExternalLink, ImageIcon, Radio } from "lucide-react";
+import { Building2, ExternalLink, ImageIcon } from "lucide-react";
 import { getChannelById } from "@/lib/services/channel-service";
 import { getLabels } from "@/lib/services/label-service";
 import { cn } from "@/lib/utils";
@@ -8,6 +8,8 @@ import { formatRelativeTime } from "@/lib/utils";
 import { EditChannelSheet } from "@/components/channels/edit-channel-sheet";
 import { DeleteButton } from "@/components/shared/delete-button";
 import { deleteChannel } from "@/lib/actions/channel-actions";
+import { EntityBadge } from "@/components/shared/entity-badge";
+import { generateEntityVisual } from "@/lib/entity-visual";
 
 export const dynamic = "force-dynamic";
 
@@ -61,6 +63,7 @@ export default async function ChannelDetailPage({
 
   if (!channel) notFound();
 
+  const visual = generateEntityVisual(channel.name, "CHANNEL");
   const labelOptions = labels.map(({ id, name }) => ({ id, name }));
   const setCount = channel.sets.length;
 
@@ -96,25 +99,35 @@ export default async function ChannelDetailPage({
       </div>
 
       {/* Header card */}
-      <div className="rounded-2xl border border-white/20 bg-card/70 p-6 shadow-md backdrop-blur-sm">
-        <div className="flex items-start gap-4">
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-entity-channel/15">
-            <Radio size={22} className="text-entity-channel" />
-          </div>
+      <div
+        className={cn(
+          "relative overflow-hidden rounded-2xl border border-border/60 bg-card p-6 shadow-sm",
+          "border-l-[3px]",
+          visual.accentBorder,
+        )}
+      >
+        <div
+          className={cn(
+            "pointer-events-none absolute inset-0 bg-gradient-to-br",
+            visual.cardGradient,
+          )}
+        />
+        <div className="relative flex items-start gap-4">
+          <EntityBadge visual={visual} size="lg" />
           <div className="min-w-0 flex-1">
             <h1 className="text-2xl font-bold leading-tight">{channel.name}</h1>
             <div className="mt-2 flex flex-wrap items-center gap-2">
               {channel.labelMaps[0]?.label && (
-              <Link
-                href={`/labels/${channel.labelMaps[0].label.id}`}
-                className="inline-flex items-center gap-1.5 rounded-full border border-white/20 bg-muted/60 px-3 py-1 text-sm font-medium transition-colors hover:bg-muted/80 hover:text-primary"
-              >
-                <Building2 size={12} />
-                {channel.labelMaps[0].label.name}
-              </Link>
+                <Link
+                  href={`/labels/${channel.labelMaps[0].label.id}`}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-muted/50 px-3 py-1 text-sm font-medium transition-colors hover:bg-muted hover:text-primary"
+                >
+                  <Building2 size={12} />
+                  {channel.labelMaps[0].label.name}
+                </Link>
               )}
               {channel.platform && (
-                <span className="inline-flex items-center rounded-full border border-white/15 bg-muted/50 px-2.5 py-0.5 text-xs font-medium text-muted-foreground">
+                <span className="inline-flex items-center rounded-full border border-border/50 bg-muted/40 px-2.5 py-0.5 text-xs font-medium text-muted-foreground">
                   {channel.platform}
                 </span>
               )}

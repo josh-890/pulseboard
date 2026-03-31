@@ -1,11 +1,13 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { Building2, ExternalLink, Network, Radio } from "lucide-react";
+import { Building2, ExternalLink, Radio } from "lucide-react";
 import { getNetworkById } from "@/lib/services/network-service";
 import { cn } from "@/lib/utils";
 import { EditNetworkSheet } from "@/components/networks/edit-network-sheet";
 import { DeleteButton } from "@/components/shared/delete-button";
 import { deleteNetwork } from "@/lib/actions/network-actions";
+import { EntityBadge } from "@/components/shared/entity-badge";
+import { generateEntityVisual } from "@/lib/entity-visual";
 
 export const dynamic = "force-dynamic";
 
@@ -56,6 +58,8 @@ export default async function NetworkDetailPage({
 
   if (!network) notFound();
 
+  const visual = generateEntityVisual(network.name, "NETWORK");
+
   // Compute stats
   const totalLabels = network.labelMemberships.length;
   const totalChannels = network.labelMemberships.reduce(
@@ -92,11 +96,21 @@ export default async function NetworkDetailPage({
       </div>
 
       {/* Header card */}
-      <div className="rounded-2xl border border-white/20 bg-card/70 p-6 shadow-md backdrop-blur-sm">
-        <div className="flex items-start gap-4">
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-entity-network/15">
-            <Network size={22} className="text-entity-network" />
-          </div>
+      <div
+        className={cn(
+          "relative overflow-hidden rounded-2xl border border-border/60 bg-card p-6 shadow-sm",
+          "border-l-[3px]",
+          visual.accentBorder,
+        )}
+      >
+        <div
+          className={cn(
+            "pointer-events-none absolute inset-0 bg-gradient-to-br",
+            visual.cardGradient,
+          )}
+        />
+        <div className="relative flex items-start gap-4">
+          <EntityBadge visual={visual} size="lg" />
           <div className="min-w-0 flex-1">
             <h1 className="text-2xl font-bold leading-tight">{network.name}</h1>
             {network.description && (

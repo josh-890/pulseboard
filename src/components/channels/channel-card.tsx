@@ -1,6 +1,7 @@
 import Link from "next/link";
-import { Radio } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { EntityBadge } from "@/components/shared/entity-badge";
+import { generateEntityVisual } from "@/lib/entity-visual";
 import type { getChannels } from "@/lib/services/channel-service";
 
 type ChannelItem = Awaited<ReturnType<typeof getChannels>>[number];
@@ -10,46 +11,53 @@ type ChannelCardProps = {
 };
 
 export function ChannelCard({ channel }: ChannelCardProps) {
+  const visual = generateEntityVisual(channel.name, "CHANNEL");
   const setCount = channel._count.sets;
 
   return (
-    <Link
-      href={`/channels/${channel.id}`}
-      className="group block focus-visible:outline-none"
-    >
+    <Link href={`/channels/${channel.id}`} className="group block focus-visible:outline-none">
       <div
         className={cn(
-          "rounded-2xl border border-white/20 border-l-4 border-l-entity-channel/40 bg-card/70 p-5 shadow-md backdrop-blur-sm",
-          "transition-all duration-200",
-          "hover:border-white/30 hover:bg-card/90 hover:shadow-lg hover:-translate-y-0.5",
+          "relative overflow-hidden rounded-xl border border-border/60 bg-card shadow-sm",
+          "border-l-[3px]",
+          visual.accentBorder,
+          "transition-all duration-150",
+          "hover:shadow-md hover:-translate-y-px",
           "group-focus-visible:ring-2 group-focus-visible:ring-ring group-focus-visible:ring-offset-2",
         )}
       >
-        {/* Icon + name */}
-        <div className="mb-3 flex items-start gap-3">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-entity-channel/15">
-            <Radio size={16} className="text-entity-channel" />
-          </div>
-          <h3 className="line-clamp-2 text-base font-semibold leading-snug">
-            {channel.name}
-          </h3>
-        </div>
+        <div
+          className={cn(
+            "pointer-events-none absolute inset-0 bg-gradient-to-br",
+            visual.cardGradient,
+          )}
+        />
 
-        {/* Stats */}
-        <div className="flex flex-wrap gap-2 text-xs">
-          {channel.labelMaps[0]?.label && (
-          <span className="inline-flex items-center rounded-full border border-white/15 bg-muted/60 px-2.5 py-0.5 font-medium text-muted-foreground">
-            {channel.labelMaps[0].label.name}
-          </span>
-          )}
-          {channel.platform && (
-            <span className="inline-flex items-center rounded-full border border-white/15 bg-muted/60 px-2.5 py-0.5 font-medium text-muted-foreground">
-              {channel.platform}
+        <div className="relative space-y-2.5 p-4">
+          {/* Badge + title */}
+          <div className="flex items-start gap-3">
+            <EntityBadge visual={visual} size="sm" />
+            <h3 className="min-w-0 flex-1 line-clamp-2 text-sm font-semibold leading-snug">
+              {channel.name}
+            </h3>
+          </div>
+
+          {/* Chips */}
+          <div className="flex flex-wrap gap-1.5">
+            {channel.labelMaps[0]?.label && (
+              <span className="inline-flex items-center rounded-md border border-border/50 bg-muted/40 px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+                {channel.labelMaps[0].label.name}
+              </span>
+            )}
+            {channel.platform && (
+              <span className="inline-flex items-center rounded-md border border-border/50 bg-muted/40 px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+                {channel.platform}
+              </span>
+            )}
+            <span className="inline-flex items-center rounded-md border border-border/50 bg-muted/40 px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+              {setCount} {setCount === 1 ? "set" : "sets"}
             </span>
-          )}
-          <span className="inline-flex items-center rounded-full border border-white/15 bg-muted/60 px-2.5 py-0.5 font-medium text-muted-foreground">
-            {setCount} {setCount === 1 ? "set" : "sets"}
-          </span>
+          </div>
         </div>
       </div>
     </Link>

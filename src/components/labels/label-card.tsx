@@ -1,6 +1,7 @@
 import Link from "next/link";
-import { Building2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { EntityBadge } from "@/components/shared/entity-badge";
+import { generateEntityVisual } from "@/lib/entity-visual";
 import type { getLabels } from "@/lib/services/label-service";
 
 type LabelItem = Awaited<ReturnType<typeof getLabels>>[number];
@@ -10,61 +11,70 @@ type LabelCardProps = {
 };
 
 export function LabelCard({ label }: LabelCardProps) {
+  const visual = generateEntityVisual(label.name, "LABEL");
   const visibleNetworks = label.networks.slice(0, 2);
 
   return (
-    <Link
-      href={`/labels/${label.id}`}
-      className="group block focus-visible:outline-none"
-    >
+    <Link href={`/labels/${label.id}`} className="group block focus-visible:outline-none">
       <div
         className={cn(
-          "rounded-2xl border border-white/20 border-l-4 border-l-entity-label/40 bg-card/70 p-5 shadow-md backdrop-blur-sm",
-          "transition-all duration-200",
-          "hover:border-white/30 hover:bg-card/90 hover:shadow-lg hover:-translate-y-0.5",
+          // Structure: left accent border 3px, all other borders 1px
+          "relative overflow-hidden rounded-xl border border-border/60 bg-card shadow-sm",
+          "border-l-[3px]",
+          visual.accentBorder,
+          "transition-all duration-150",
+          "hover:shadow-md hover:-translate-y-px",
           "group-focus-visible:ring-2 group-focus-visible:ring-ring group-focus-visible:ring-offset-2",
         )}
       >
-        {/* Icon + name */}
-        <div className="mb-3 flex items-start gap-3">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-entity-label/15">
-            <Building2 size={16} className="text-entity-label" />
+        {/* Very subtle colour tint — barely visible, adds depth */}
+        <div
+          className={cn(
+            "pointer-events-none absolute inset-0 bg-gradient-to-br",
+            visual.cardGradient,
+          )}
+        />
+
+        <div className="relative space-y-2.5 p-4">
+          {/* Badge + title */}
+          <div className="flex items-start gap-3">
+            <EntityBadge visual={visual} size="sm" />
+            <h3 className="min-w-0 flex-1 line-clamp-2 text-sm font-semibold leading-snug">
+              {label.name}
+            </h3>
           </div>
-          <h3 className="line-clamp-2 text-base font-semibold leading-snug">
-            {label.name}
-          </h3>
-        </div>
 
-        {/* Count badges */}
-        <div className="mb-2.5 flex flex-wrap gap-2 text-xs">
-          <span className="inline-flex items-center rounded-full border border-white/15 bg-muted/60 px-2.5 py-0.5 font-medium text-muted-foreground">
-            {label.channelMaps.length}{" "}
-            {label.channelMaps.length === 1 ? "channel" : "channels"}
-          </span>
-          <span className="inline-flex items-center rounded-full border border-white/15 bg-muted/60 px-2.5 py-0.5 font-medium text-muted-foreground">
-            {label.projects.length}{" "}
-            {label.projects.length === 1 ? "project" : "projects"}
-          </span>
-        </div>
-
-        {/* Networks */}
-        {visibleNetworks.length > 0 && (
+          {/* Count chips */}
           <div className="flex flex-wrap gap-1.5">
-            {visibleNetworks.map(({ network }) => (
-              <span
-                key={network.id}
-                className="inline-flex items-center rounded-full border border-white/10 bg-muted/50 px-2 py-0.5 text-xs text-muted-foreground"
-              >
-                {network.name}
-              </span>
-            ))}
-            {label.networks.length > 2 && (
-              <span className="inline-flex items-center rounded-full border border-white/10 bg-muted/50 px-2 py-0.5 text-xs text-muted-foreground">
-                +{label.networks.length - 2}
-              </span>
-            )}
+            <span className="inline-flex items-center rounded-md border border-border/50 bg-muted/40 px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+              {label.channelMaps.length}{" "}
+              {label.channelMaps.length === 1 ? "channel" : "channels"}
+            </span>
+            <span className="inline-flex items-center rounded-md border border-border/50 bg-muted/40 px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+              {label.projects.length}{" "}
+              {label.projects.length === 1 ? "project" : "projects"}
+            </span>
           </div>
-        )}
+
+          {/* Network membership pills */}
+          {visibleNetworks.length > 0 && (
+            <div className="flex flex-wrap gap-1">
+              {visibleNetworks.map(({ network }) => (
+                <span
+                  key={network.id}
+                  className="inline-flex items-center rounded-full bg-muted/50 px-2 py-0.5 text-[11px] text-muted-foreground"
+                >
+                  {network.name}
+                </span>
+              ))}
+              {label.networks.length > 2 && (
+                <span className="inline-flex items-center rounded-full bg-muted/50 px-2 py-0.5 text-[11px] text-muted-foreground">
+                  +{label.networks.length - 2}
+                </span>
+              )}
+            </div>
+          )}
+        </div>
       </div>
     </Link>
   );
