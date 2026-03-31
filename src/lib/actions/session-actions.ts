@@ -72,6 +72,20 @@ export async function deleteSession(id: string): Promise<SimpleActionResult> {
 
 const INLINE_EDITABLE_FIELDS = new Set(["name", "description", "notes", "location"]);
 
+export async function setSessionStatusAction(
+  id: string,
+  status: "DRAFT" | "CONFIRMED",
+): Promise<SimpleActionResult> {
+  try {
+    await updateSessionRecord(id, { status });
+    revalidatePath(`/sessions/${id}`);
+    revalidatePath("/sessions");
+    return { success: true };
+  } catch {
+    return { success: false, error: "Failed to update status" };
+  }
+}
+
 export async function updateSessionField(
   id: string,
   field: string,

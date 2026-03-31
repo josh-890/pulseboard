@@ -24,6 +24,7 @@ import {
   SessionInlineLocation,
 } from "@/components/sessions/session-detail-header";
 import { SessionMergeDialog } from "@/components/sessions/session-merge-dialog";
+import { SessionStatusToggle } from "@/components/sessions/session-status-toggle";
 import { SessionTagSection } from "@/components/sessions/session-tag-section";
 import { SessionProductionGallery, SessionUploadButton } from "@/components/sessions/session-production-gallery";
 import type { ProductionContext } from "@/components/gallery/gallery-lightbox";
@@ -306,6 +307,9 @@ export default async function SessionDetailPage({ params, searchParams }: Sessio
               </div>
               <SessionTypeBadge type={session.type} />
               {!isReference && <SessionStatusBadge status={session.status} />}
+              {!isReference && (
+                <SessionStatusToggle sessionId={id} status={session.status} />
+              )}
               {session.date && (
                 <span className="text-sm text-muted-foreground">
                   {formatPartialDate(session.date, session.datePrecision)}
