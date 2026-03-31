@@ -71,13 +71,13 @@ export function PersonaTimelineEntry({ persona, personId, connectAbove, connectB
       {/* Timeline connector lines */}
       {connectAbove && (
         <div
-          className="absolute left-[5px] top-0 h-[14px] w-px bg-border"
+          className="absolute left-[5px] top-0 h-[14px] w-px bg-slate-300 dark:bg-white/10"
           aria-hidden="true"
         />
       )}
       {connectBelow && (
         <div
-          className="absolute left-[5px] top-[14px] w-px bg-border"
+          className="absolute left-[5px] top-[14px] w-px bg-slate-300 dark:bg-white/10"
           style={{ bottom: "-1rem" }}
           aria-hidden="true"
         />
