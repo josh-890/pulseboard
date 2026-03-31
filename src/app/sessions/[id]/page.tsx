@@ -13,7 +13,7 @@ import { getAllSkillGroups } from "@/lib/services/skill-catalog-service";
 import { getEntityTags } from "@/lib/services/entity-tag-service";
 import { prisma } from "@/lib/db";
 import { cn, formatPartialDate } from "@/lib/utils";
-import { SessionStatusBadge, SessionTypeBadge } from "@/components/sessions/session-status-badge";
+import { SessionStatusBadge } from "@/components/sessions/session-status-badge";
 import { EditSessionSheet } from "@/components/sessions/edit-session-sheet";
 import { DeleteButton } from "@/components/shared/delete-button";
 import { deleteSession } from "@/lib/actions/session-actions";
@@ -305,10 +305,11 @@ export default async function SessionDetailPage({ params, searchParams }: Sessio
                   <Clapperboard size={18} className="text-primary" />
                 )}
               </div>
-              <SessionTypeBadge type={session.type} />
-              {!isReference && <SessionStatusBadge status={session.status} />}
-              {!isReference && (
-                <SessionStatusToggle sessionId={id} status={session.status} />
+              {!isReference && session.status === "DRAFT" && (
+                <>
+                  <SessionStatusBadge status={session.status} />
+                  <SessionStatusToggle sessionId={id} status={session.status} />
+                </>
               )}
               {session.date && (
                 <span className="text-sm text-muted-foreground">

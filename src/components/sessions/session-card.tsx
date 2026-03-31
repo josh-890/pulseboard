@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Building2, Users, ImageIcon, Clapperboard, User } from "lucide-react";
 import { cn, formatPartialDate, focalStyle } from "@/lib/utils";
 import { useDensity } from "@/components/layout/density-provider";
-import { SessionStatusBadge, SessionTypeBadge } from "./session-status-badge";
+import { SessionStatusBadge } from "./session-status-badge";
 import type { getSessions } from "@/lib/services/session-service";
 
 type SessionItem = Awaited<ReturnType<typeof getSessions>>[number];
@@ -73,8 +73,7 @@ export function SessionCard({ session, coverPhoto }: SessionCardProps) {
                 {session.name}
               </h3>
               <div className="flex items-center gap-1 shrink-0">
-                <SessionTypeBadge type={session.type} />
-                <SessionStatusBadge status={session.status} />
+                {session.status === "DRAFT" && <SessionStatusBadge status={session.status} />}
               </div>
             </div>
             <div className="mt-0.5 flex flex-wrap items-center gap-2 text-[10px] text-muted-foreground">
@@ -138,8 +137,7 @@ export function SessionCard({ session, coverPhoto }: SessionCardProps) {
               {session.name}
             </h3>
             <div className="flex items-center gap-1 shrink-0">
-              <SessionTypeBadge type={session.type} />
-              <SessionStatusBadge status={session.status} />
+              {session.status === "DRAFT" && <SessionStatusBadge status={session.status} />}
             </div>
           </div>
 
