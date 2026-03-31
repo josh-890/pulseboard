@@ -1,11 +1,11 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { Building2, FolderKanban, Users, ImageIcon, Clapperboard, Camera, Film, User, Sparkles } from "lucide-react";
+import { Users, ImageIcon, Camera, Film, User, Sparkles } from "lucide-react";
 import { getSessionById } from "@/lib/services/session-service";
 import { getLabels } from "@/lib/services/label-service";
 import { getProjects } from "@/lib/services/project-service";
-import { getSessionMediaGallery, getMediaItemsWithLinks, getFilledHeadshotSlots } from "@/lib/services/media-service";
-import { getProfileImageLabels } from "@/lib/services/setting-service";
+import { getSessionMediaGallery, getMediaItemsWithLinks, getFilledHeadshotSlots, getCoverPhotosForSessions, getHeadshotsForPersons } from "@/lib/services/media-service";
+import { getProfileImageLabels, getHeroBackdropEnabled } from "@/lib/services/setting-service";
 import { getCollectionsForPerson } from "@/lib/services/collection-service";
 import { getAllCategoryGroups } from "@/lib/services/category-service";
 import { getSessionContributions, getContributionSkillMediaMap, getContributorsWithEntities } from "@/lib/services/contribution-service";
@@ -13,18 +13,16 @@ import { getAllSkillGroups } from "@/lib/services/skill-catalog-service";
 import { getEntityTags } from "@/lib/services/entity-tag-service";
 import { prisma } from "@/lib/db";
 import { cn, formatPartialDate } from "@/lib/utils";
-import { SessionStatusBadge } from "@/components/sessions/session-status-badge";
 import { EditSessionSheet } from "@/components/sessions/edit-session-sheet";
 import { DeleteButton } from "@/components/shared/delete-button";
 import { deleteSession } from "@/lib/actions/session-actions";
 import {
-  SessionInlineTitle,
   SessionInlineDescription,
   SessionInlineNotes,
   SessionInlineLocation,
 } from "@/components/sessions/session-detail-header";
 import { SessionMergeDialog } from "@/components/sessions/session-merge-dialog";
-import { SessionStatusToggle } from "@/components/sessions/session-status-toggle";
+import { SessionHero } from "@/components/sessions/session-hero";
 import { SessionTagSection } from "@/components/sessions/session-tag-section";
 import { SessionProductionGallery, SessionUploadButton } from "@/components/sessions/session-production-gallery";
 import type { ProductionContext } from "@/components/gallery/gallery-lightbox";
@@ -77,10 +75,11 @@ function EmptyState({ message }: { message: string }) {
 export default async function SessionDetailPage({ params, searchParams }: SessionDetailPageProps) {
   const [{ id }, resolvedSearchParams] = await Promise.all([params, searchParams]);
 
-  const [session, labels, projects] = await Promise.all([
+  const [session, labels, projects, backdropEnabled] = await Promise.all([
     getSessionById(id),
     getLabels(),
     getProjects(),
+    getHeroBackdropEnabled(),
   ]);
 
   if (!session) notFound();
@@ -98,6 +97,15 @@ export default async function SessionDetailPage({ params, searchParams }: Sessio
   const contributionCount = session.contributions.length;
   const mediaCount = session._count.mediaItems;
   const setCount = session.setSessionLinks.length;
+
+  // Hero data: cover photo + contributor headshots (production sessions only)
+  const [coverPhotoMap, headshotMap] = !isReference
+    ? await Promise.all([
+        getCoverPhotosForSessions([id]),
+        getHeadshotsForPersons(session.contributions.map((c) => c.personId)),
+      ])
+    : [new Map<string, import("@/lib/services/media-service").CoverPhotoData>(), new Map<string, import("@/lib/services/media-service").HeadshotData>()];
+  const coverPhoto = coverPhotoMap.get(id) ?? null;
 
   // Load data for reference sessions (MediaManager) vs regular sessions (SessionMediaGallery)
   let mediaItems: Awaited<ReturnType<typeof getSessionMediaGallery>> = [];
@@ -293,95 +301,25 @@ export default async function SessionDetailPage({ params, searchParams }: Sessio
         )}
       </div>
 
-      {/* Header card */}
-      <div className="rounded-2xl border border-white/20 bg-card/70 p-6 shadow-md backdrop-blur-sm">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div className="min-w-0 flex-1">
-            <div className="mb-2 flex flex-wrap items-center gap-2">
-              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-entity-session/15">
-                {isReference ? (
-                  <User size={18} className="text-primary" />
-                ) : (
-                  <Clapperboard size={18} className="text-primary" />
-                )}
-              </div>
-              {!isReference && session.status === "DRAFT" && (
-                <>
-                  <SessionStatusBadge status={session.status} />
-                  <SessionStatusToggle sessionId={id} status={session.status} />
-                </>
-              )}
-              {session.date && (
-                <span className="text-sm text-muted-foreground">
-                  {formatPartialDate(session.date, session.datePrecision)}
-                </span>
-              )}
-            </div>
-            {isReference ? (
-              <h1 className="text-2xl font-bold leading-tight">{session.name}</h1>
-            ) : (
-              <SessionInlineTitle sessionId={id} title={session.name} />
-            )}
-
-            {/* Label + Project + Person links */}
-            <div className="mt-2 flex flex-wrap items-center gap-2">
-              {session.person && (
-                <Link
-                  href={`/people/${session.person.id}`}
-                  className="inline-flex items-center gap-1.5 rounded-full border border-white/20 bg-muted/60 px-3 py-1 text-sm font-medium transition-colors hover:bg-muted/80 hover:text-primary"
-                >
-                  <User size={12} />
-                  {session.person.aliases[0]?.name ?? session.person.icgId}
-                </Link>
-              )}
-              {session.label && (
-                <Link
-                  href={`/labels/${session.label.id}`}
-                  className="inline-flex items-center gap-1.5 rounded-full border border-white/20 bg-muted/60 px-3 py-1 text-sm font-medium transition-colors hover:bg-muted/80 hover:text-primary"
-                >
-                  <Building2 size={12} />
-                  {session.label.name}
-                </Link>
-              )}
-              {session.project && (
-                <Link
-                  href={`/projects/${session.project.id}`}
-                  className="inline-flex items-center gap-1.5 rounded-full border border-white/20 bg-muted/60 px-3 py-1 text-sm font-medium transition-colors hover:bg-muted/80 hover:text-primary"
-                >
-                  <FolderKanban size={12} />
-                  {session.project.name}
-                </Link>
-              )}
+      {/* Hero card */}
+      {!isReference && (
+        <SessionHero
+          session={session}
+          coverPhoto={coverPhoto}
+          headshotMap={headshotMap}
+          backdropEnabled={backdropEnabled}
+        />
+      )}
+      {isReference && (
+        <div className="rounded-2xl border border-white/20 bg-card/70 p-6 shadow-md backdrop-blur-sm">
+          <div className="mb-2 flex flex-wrap items-center gap-2">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-entity-session/15">
+              <User size={18} className="text-primary" />
             </div>
           </div>
-
-          {/* Stats */}
-          <div className="flex shrink-0 gap-4 text-center">
-            {!isReference && (
-              <div>
-                <p className="text-2xl font-bold">{contributionCount}</p>
-                <p className="text-xs text-muted-foreground">
-                  {contributionCount === 1 ? "Contributor" : "Contributors"}
-                </p>
-              </div>
-            )}
-            <div>
-              <p className="text-2xl font-bold">{mediaCount}</p>
-              <p className="text-xs text-muted-foreground">
-                {mediaCount === 1 ? "Media" : "Media"}
-              </p>
-            </div>
-            {!isReference && (
-              <div>
-                <p className="text-2xl font-bold">{setCount}</p>
-                <p className="text-xs text-muted-foreground">
-                  {setCount === 1 ? "Set" : "Sets"}
-                </p>
-              </div>
-            )}
-          </div>
+          <h1 className="text-2xl font-bold leading-tight">{session.name}</h1>
         </div>
-      </div>
+      )}
 
       {/* Description, Notes, Location (inline editable — not for reference sessions) */}
       {!isReference && (

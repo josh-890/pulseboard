@@ -4,6 +4,8 @@ import { revalidatePath } from "next/cache";
 import {
   updateProfileImageLabel as updateLabel,
   updateSkillLevelConfig,
+  HERO_BACKDROP_KEY,
+  setSetting,
 } from "@/lib/services/setting-service";
 import { z } from "zod";
 import type { SimpleActionResult } from "@/lib/types";
@@ -28,6 +30,18 @@ export async function updateProfileImageLabel(
     return { success: true };
   } catch {
     return { success: false, error: "Failed to update label" };
+  }
+}
+
+export async function updateHeroBackdropAction(
+  enabled: boolean,
+): Promise<SimpleActionResult> {
+  try {
+    await setSetting(HERO_BACKDROP_KEY, enabled ? "true" : "false");
+    revalidatePath("/settings");
+    return { success: true };
+  } catch {
+    return { success: false, error: "Failed to update backdrop setting" };
   }
 }
 

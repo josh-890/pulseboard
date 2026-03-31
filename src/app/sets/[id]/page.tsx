@@ -1,50 +1,26 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { Camera, Film, Tag, FileText, Check, Circle } from "lucide-react";
+import { Tag, FileText } from "lucide-react";
 import { getSetById, getChannelsForSelect } from "@/lib/services/set-service";
-import { getSetMediaGallery } from "@/lib/services/media-service";
+import { getSetMediaGallery, getCoverPhotosForSets, getHeadshotsForPersons } from "@/lib/services/media-service";
+import { getHeroBackdropEnabled } from "@/lib/services/setting-service";
 import { getAllContributionRoleGroups } from "@/lib/services/contribution-role-service";
 import { SetDetailGallery } from "@/components/sets/set-detail-gallery";
 import { CreditResolutionPanel } from "@/components/sets/credit-resolution-panel";
-import { cn, formatPartialDate } from "@/lib/utils";
-import type { SetType } from "@/lib/types";
+import { cn } from "@/lib/utils";
 import { getEntityTags } from "@/lib/services/entity-tag-service";
 import { EditSetSheet } from "@/components/sets/edit-set-sheet";
 import { DeleteButton } from "@/components/shared/delete-button";
 import { AddCreditInline } from "@/components/sets/add-credit-inline";
-import { SetInlineTitle, SetInlineDescription, SetInlineNotes } from "@/components/sets/set-detail-header";
-import { LabelEvidenceManager } from "@/components/sets/label-evidence-manager";
-import { SetSessionManager } from "@/components/sets/set-session-manager";
+import { SetInlineDescription, SetInlineNotes } from "@/components/sets/set-detail-header";
 import { deleteSet } from "@/lib/actions/set-actions";
+import { SetHero } from "@/components/sets/set-hero";
 
 
 export const dynamic = "force-dynamic";
 
 type SetDetailPageProps = {
   params: Promise<{ id: string }>;
-};
-
-// ── Helpers ─────────────────────────────────────────────────────────────────
-
-type SetTypeConfig = {
-  icon: React.ReactNode;
-  label: string;
-  className: string;
-};
-
-const SET_TYPE_CONFIG: Record<SetType, SetTypeConfig> = {
-  photo: {
-    icon: <Camera size={12} />,
-    label: "Photo",
-    className:
-      "border-sky-500/30 bg-sky-500/15 text-sky-600 dark:text-sky-400",
-  },
-  video: {
-    icon: <Film size={12} />,
-    label: "Video",
-    className:
-      "border-violet-500/30 bg-violet-500/15 text-violet-600 dark:text-violet-400",
-  },
 };
 
 // ── Sub-components ──────────────────────────────────────────────────────────
@@ -75,32 +51,17 @@ function SectionCard({ title, icon, children, className }: SectionCardProps) {
   );
 }
 
-function CompletenessChip({ done, label }: { done: boolean; label: string }) {
-  return (
-    <span
-      className={cn(
-        "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium",
-        done
-          ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
-          : "border-amber-500/20 bg-amber-500/10 text-amber-600 dark:text-amber-400",
-      )}
-    >
-      {done ? <Check size={10} /> : <Circle size={10} />}
-      {label}
-    </span>
-  );
-}
-
 // ── Main page ───────────────────────────────────────────────────────────────
 
 export default async function SetDetailPage({ params }: SetDetailPageProps) {
   const { id } = await params;
 
-  const [set, channels, roleGroups, setEntityTags] = await Promise.all([
+  const [set, channels, roleGroups, setEntityTags, backdropEnabled] = await Promise.all([
     getSetById(id),
     getChannelsForSelect(),
     getAllContributionRoleGroups(),
     getEntityTags("SET", id),
+    getHeroBackdropEnabled(),
   ]);
 
   if (!set) notFound();
@@ -111,24 +72,25 @@ export default async function SetDetailPage({ params }: SetDetailPageProps) {
     group: t.group,
   }));
 
-  // Strip participants (not used in template) to avoid RSC payload bloat
-  // that silently breaks client component hydration
+  // Strip participants from setData for RSC safety (client components receive slim props)
+  // but keep participants for the SetHero (server component)
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { participants: _participants, ...setData } = set;
+  const participants = set.participants;
 
-  const typeConfig = SET_TYPE_CONFIG[setData.type];
-
-  // Load gallery items directly as GalleryItem
-  const galleryItems = await getSetMediaGallery(id, setData.coverMediaItemId);
+  // Load gallery items + hero data in parallel
+  const participantIds = participants.map((p) => p.personId);
+  const [galleryItems, coverPhotoMap, headshotMap] = await Promise.all([
+    getSetMediaGallery(id, setData.coverMediaItemId),
+    getCoverPhotosForSets([id]),
+    getHeadshotsForPersons(participantIds),
+  ]);
+  const coverPhoto = coverPhotoMap.get(id) ?? null;
 
   // Determine if we have credits
   const hasCredits = setData.creditsRaw.length > 0;
   const unresolvedCount = setData.creditsRaw.filter((c) => c.resolutionStatus === "UNRESOLVED").length;
   const hasPhotos = galleryItems.length > 0;
-  const hasLabel = setData.labelEvidence.length > 0;
-
-  // Get the primary label from channel's label maps
-  const primaryLabel = setData.channel?.labelMaps[0]?.label;
 
   return (
     <div className="space-y-6">
@@ -168,99 +130,17 @@ export default async function SetDetailPage({ params }: SetDetailPageProps) {
         </div>
       </div>
 
-      {/* Header card */}
-      <div className="rounded-2xl border border-white/20 bg-card/70 p-6 shadow-md backdrop-blur-sm">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div className="min-w-0 flex-1">
-            <div className="mb-2 flex flex-wrap items-center gap-2">
-              <span
-                className={cn(
-                  "inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-medium",
-                  typeConfig.className,
-                )}
-              >
-                {typeConfig.icon}
-                {typeConfig.label}
-              </span>
-              {setData.releaseDate && (
-                <span className="text-sm text-muted-foreground">
-                  {formatPartialDate(setData.releaseDate, setData.releaseDatePrecision)}
-                </span>
-              )}
-            </div>
-            <SetInlineTitle setId={id} title={setData.title} />
-
-            {/* Channel / label */}
-            {setData.channel && (
-              <p className="mt-2 text-sm text-muted-foreground">
-                <span className="font-medium text-foreground/80">
-                  {setData.channel.name}
-                </span>
-                {primaryLabel && (
-                  <>
-                    {" · "}
-                    <Link
-                      href={`/labels/${primaryLabel.id}`}
-                      className="hover:text-foreground hover:underline underline-offset-2 transition-colors"
-                    >
-                      {primaryLabel.name}
-                    </Link>
-                  </>
-                )}
-              </p>
-            )}
-
-            {/* Label evidence (manageable) */}
-            <div className="mt-2">
-              <LabelEvidenceManager
-                setId={id}
-                evidence={setData.labelEvidence.map((ev) => ({
-                  setId: ev.setId,
-                  labelId: ev.labelId,
-                  evidenceType: ev.evidenceType,
-                  label: { id: ev.label.id, name: ev.label.name },
-                }))}
-              />
-            </div>
-
-            {/* Session links */}
-            {setData.sessionLinks && setData.sessionLinks.length > 0 && (
-              <div className="mt-2">
-                <p className="mb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                  Sessions
-                </p>
-                <SetSessionManager
-                  setId={id}
-                  sessionLinks={setData.sessionLinks.map((link) => ({
-                    setId: link.setId,
-                    sessionId: link.sessionId,
-                    isPrimary: link.isPrimary,
-                    session: {
-                      id: link.session.id,
-                      name: link.session.name,
-                      status: link.session.status,
-                      date: link.session.date,
-                      datePrecision: link.session.datePrecision,
-                    },
-                  }))}
-                />
-              </div>
-            )}
-
-            {/* Completeness checklist */}
-            <div className="mt-3 flex flex-wrap gap-1.5">
-              <CompletenessChip done label="Title" />
-              <CompletenessChip done={!!setData.channel} label="Channel" />
-              <CompletenessChip
-                done={hasCredits && unresolvedCount === 0}
-                label={unresolvedCount > 0 ? `Credits (${unresolvedCount} unresolved)` : "Credits"}
-              />
-              <CompletenessChip done={hasPhotos} label="Photos" />
-              <CompletenessChip done={hasLabel} label="Label" />
-            </div>
-          </div>
-        </div>
-      </div>
+      {/* Hero card */}
+      <SetHero
+        set={set}
+        coverPhoto={coverPhoto}
+        headshotMap={headshotMap}
+        backdropEnabled={backdropEnabled}
+        hasPhotos={hasPhotos}
+        hasCredits={hasCredits}
+        unresolvedCount={unresolvedCount}
+        mediaCount={galleryItems.length}
+      />
 
       {/* Description + notes (inline editable) */}
       <div className="rounded-2xl border border-white/20 bg-card/70 p-6 shadow-md backdrop-blur-sm space-y-3">

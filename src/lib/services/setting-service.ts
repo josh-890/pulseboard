@@ -58,6 +58,15 @@ export async function setSetting(key: string, value: string): Promise<void> {
   });
 }
 
+// ── Hero Backdrop Setting ───────────────────────────────────────────────────
+
+export const HERO_BACKDROP_KEY = "hero-backdrop";
+
+export async function getHeroBackdropEnabled(): Promise<boolean> {
+  const value = await getSetting(HERO_BACKDROP_KEY);
+  return value === "true";
+}
+
 // ── Skill Level Configuration ──────────────────────────────────────────────
 
 export type SkillLevelConfig = {

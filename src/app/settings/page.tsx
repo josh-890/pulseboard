@@ -5,6 +5,7 @@ import { ThemeToggle } from "@/components/settings/theme-toggle";
 import { PaletteSelector } from "@/components/settings/palette-selector";
 import { DensitySelector } from "@/components/settings/density-selector";
 import { HeroLayoutSelector } from "@/components/settings/hero-layout-selector";
+import { HeroBackdropToggle } from "@/components/settings/hero-backdrop-toggle";
 import { ProfileImageLabels } from "@/components/settings/profile-image-labels";
 import { MediaCategoryManager } from "@/components/settings/media-category-manager";
 import { ContributionRoleManager } from "@/components/settings/contribution-role-manager";
@@ -13,7 +14,7 @@ import { SkillLevelConfig } from "@/components/settings/skill-level-config";
 import { PhysicalAttributeManager } from "@/components/settings/physical-attribute-manager";
 import { TagSettingsSection } from "@/components/settings/tag-settings-section";
 import { DatabaseMaintenance } from "@/components/settings/database-maintenance";
-import { getProfileImageLabels, getSkillLevelConfigs } from "@/lib/services/setting-service";
+import { getProfileImageLabels, getSkillLevelConfigs, getHeroBackdropEnabled } from "@/lib/services/setting-service";
 import { getAllCategoryGroups } from "@/lib/services/category-service";
 import { getAllSkillGroups } from "@/lib/services/skill-catalog-service";
 import { getAllContributionRoleGroups } from "@/lib/services/contribution-role-service";
@@ -27,7 +28,7 @@ import {
 } from "@/lib/services/tag-service";
 
 export default async function SettingsPage() {
-  const [labels, categoryGroups, skillGroups, skillLevelConfigs, roleGroups, physicalAttributeGroups, tagGroups, pendingTags, orphanedTags, nearDuplicates, usageBreakdown] = await Promise.all([
+  const [labels, categoryGroups, skillGroups, skillLevelConfigs, roleGroups, physicalAttributeGroups, tagGroups, pendingTags, orphanedTags, nearDuplicates, usageBreakdown, heroBackdropEnabled] = await Promise.all([
     getProfileImageLabels(),
     getAllCategoryGroups(),
     getAllSkillGroups(),
@@ -39,6 +40,7 @@ export default async function SettingsPage() {
     getOrphanedTags(),
     getNearDuplicateTags(),
     getTagUsageBreakdown(),
+    getHeroBackdropEnabled(),
   ]);
 
   return (
@@ -59,6 +61,9 @@ export default async function SettingsPage() {
               Preview palettes side-by-side
             </Link>
           </div>
+        </div>
+        <div className="mt-4 border-t border-border pt-4">
+          <HeroBackdropToggle initialEnabled={heroBackdropEnabled} />
         </div>
       </div>
 
