@@ -40,4 +40,8 @@ export type GalleryItem = {
   skillEventIds?: string[];
   /** Number of sets this media item is linked to */
   setCount?: number;
+  /** Free-text source clip name for video frames (e.g. "interview_take3.mp4") */
+  sourceVideoRef?: string | null;
+  /** Timecode offset (ms) at which this frame was extracted from the source clip */
+  sourceTimecodeMs?: number | null;
 };

@@ -250,7 +250,7 @@ export function SetHero({
             done={hasCredits && unresolvedCount === 0}
             label={unresolvedCount > 0 ? `Credits (${unresolvedCount} unresolved)` : "Credits"}
           />
-          <CompletenessChip done={hasPhotos} label="Photos" />
+          <CompletenessChip done={hasPhotos} label={set.type === "video" ? "Frames" : "Photos"} />
           <CompletenessChip done={hasLabel} label="Label" />
         </div>
 

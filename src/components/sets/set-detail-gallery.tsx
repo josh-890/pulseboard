@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { FolderSearch, Plus, Upload } from "lucide-react";
+import { Film, FolderSearch, Plus, Upload } from "lucide-react";
 import { JustifiedGrid } from "@/components/gallery/justified-grid";
 import { GalleryLightbox } from "@/components/gallery/gallery-lightbox";
 import type { CollectionContext, ProductionContext } from "@/components/gallery/gallery-lightbox";
@@ -11,12 +11,18 @@ import { Button } from "@/components/ui/button";
 import { setSetCover } from "@/lib/actions/set-actions";
 import type { GalleryItem } from "@/lib/types";
 
+type ClipGroup = {
+  ref: string | null;
+  items: GalleryItem[];
+};
+
 type SetDetailGalleryProps = {
   items: GalleryItem[];
   entityId: string;
   primarySessionId?: string;
   coverMediaItemId?: string | null;
   productionContext?: ProductionContext;
+  setType?: "photo" | "video";
 };
 
 export function SetDetailGallery({
@@ -25,6 +31,7 @@ export function SetDetailGallery({
   primarySessionId,
   coverMediaItemId: initialCoverId,
   productionContext,
+  setType,
 }: SetDetailGalleryProps) {
   const [coverId, setCoverId] = useState(initialCoverId ?? null);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
@@ -98,6 +105,35 @@ export function SetDetailGallery({
     return map;
   }, [items]);
 
+  // For video sets: group items by sourceVideoRef, sorted by timecode within each group
+  const isVideoSet = setType === "video";
+  const clipGroups = useMemo<ClipGroup[]>(() => {
+    if (!isVideoSet) return [];
+    const hasAnyRef = items.some((i) => i.sourceVideoRef);
+    if (!hasAnyRef) return [{ ref: null, items: [...items] }];
+
+    const groupMap = new Map<string, GalleryItem[]>();
+    const ungrouped: GalleryItem[] = [];
+    for (const item of items) {
+      if (item.sourceVideoRef) {
+        const group = groupMap.get(item.sourceVideoRef) ?? [];
+        group.push(item);
+        groupMap.set(item.sourceVideoRef, group);
+      } else {
+        ungrouped.push(item);
+      }
+    }
+    const groups: ClipGroup[] = [];
+    for (const [ref, groupItems] of groupMap) {
+      const sorted = [...groupItems].sort(
+        (a, b) => (a.sourceTimecodeMs ?? Infinity) - (b.sourceTimecodeMs ?? Infinity),
+      );
+      groups.push({ ref, items: sorted });
+    }
+    if (ungrouped.length > 0) groups.push({ ref: null, items: ungrouped });
+    return groups;
+  }, [isVideoSet, items]);
+
   const handleSetCover = useCallback(
     (mediaItemId: string | null) => {
       setCoverId(mediaItemId);
@@ -114,13 +150,35 @@ export function SetDetailGallery({
   return (
     <div ref={containerRef} className="relative">
       {items.length > 0 && (
-        <JustifiedGrid
-          items={items}
-          onOpen={(id) => {
-            const idx = indexMap.get(id);
-            if (idx !== undefined) setLightboxIndex(idx);
-          }}
-        />
+        isVideoSet && clipGroups.length > 0
+          ? clipGroups.map((group) => (
+              <div key={group.ref ?? "__ungrouped"} className="mb-6">
+                <div className="mb-2 flex items-center gap-2">
+                  <Film size={13} className="text-violet-400 shrink-0" />
+                  <span className="text-xs font-medium text-muted-foreground truncate">
+                    {group.ref ?? "No clip name"}
+                  </span>
+                  <span className="text-xs text-muted-foreground/60 shrink-0">
+                    ({group.items.length} {group.items.length === 1 ? "frame" : "frames"})
+                  </span>
+                  <div className="flex-1 h-px bg-white/10" />
+                </div>
+                <JustifiedGrid
+                  items={group.items}
+                  onOpen={(id) => {
+                    const idx = indexMap.get(id);
+                    if (idx !== undefined) setLightboxIndex(idx);
+                  }}
+                />
+              </div>
+            ))
+          : <JustifiedGrid
+              items={items}
+              onOpen={(id) => {
+                const idx = indexMap.get(id);
+                if (idx !== undefined) setLightboxIndex(idx);
+              }}
+            />
       )}
 
       {/* Action bar */}
@@ -159,6 +217,7 @@ export function SetDetailGallery({
           setId={entityId}
           hideDropzone
           addFilesRef={addFilesRef}
+          videoSetMode={isVideoSet}
         />
       )}
 

@@ -154,6 +154,7 @@ export default async function SetDetailPage({ params }: SetDetailPageProps) {
         entityId={id}
         primarySessionId={setData.sessionLinks?.find((l) => l.isPrimary)?.sessionId}
         coverMediaItemId={setData.coverMediaItemId}
+        setType={setData.type as "photo" | "video"}
       />
 
       {/* Credits & Participants */}

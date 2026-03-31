@@ -300,7 +300,7 @@ function SimpleLightbox({
     <div
       role="dialog"
       aria-modal="true"
-      aria-label="Photo lightbox"
+      aria-label="Media lightbox"
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
       className="fixed inset-0 z-[100] flex flex-col bg-black/95 outline-none"
@@ -387,7 +387,7 @@ function SimpleLightbox({
                   <button
                     type="button"
                     onClick={goPrev}
-                    aria-label="Previous photo"
+                    aria-label="Previous"
                     className="absolute left-2 sm:left-4 top-1/2 z-10 -translate-y-1/2 rounded-full bg-black/50 p-2 text-white/80 transition-colors hover:bg-black/70 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50"
                   >
                     <ChevronLeft size={24} />
@@ -397,7 +397,7 @@ function SimpleLightbox({
                   <button
                     type="button"
                     onClick={goNext}
-                    aria-label="Next photo"
+                    aria-label="Next"
                     className="absolute right-2 sm:right-4 top-1/2 z-10 -translate-y-1/2 rounded-full bg-black/50 p-2 text-white/80 transition-colors hover:bg-black/70 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50"
                   >
                     <ChevronRight size={24} />

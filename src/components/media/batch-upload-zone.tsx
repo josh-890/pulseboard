@@ -26,6 +26,8 @@ type BatchUploadZoneProps = {
   hideDropzone?: boolean;
   /** Ref callback that exposes the `addFiles` function for external triggers (button, drag overlay). */
   addFilesRef?: React.Ref<((files: FileList | File[]) => void) | null>;
+  /** When true, shows an optional "Source clip name" field to tag all uploaded frames with a clip group. */
+  videoSetMode?: boolean;
 };
 
 type FileStatus = "pending" | "uploading" | "complete" | "error" | "duplicate";
@@ -98,12 +100,14 @@ export function BatchUploadZone({
   onBatchComplete,
   hideDropzone = false,
   addFilesRef,
+  videoSetMode = false,
 }: BatchUploadZoneProps) {
   const router = useRouter();
   // Keep external ref in sync (called after addFiles is defined below)
   const [queue, setQueue] = useState<UploadFile[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
+  const [sourceVideoRef, setSourceVideoRef] = useState("");
   // Derive the current duplicate to review from the queue (first one wins)
   // This avoids the race where multiple concurrent uploads overwrite a single state value
   const duplicateFile = queue.find((f) => f.status === "duplicate") ?? null;
@@ -142,6 +146,9 @@ export function BatchUploadZone({
       if (item.usage) formData.append("usage", item.usage);
       if (item.slot !== undefined) formData.append("slot", String(item.slot));
       formData.append("sortOrder", String(item.sortOrder));
+      if (videoSetMode && sourceVideoRef.trim()) {
+        formData.append("sourceVideoRef", sourceVideoRef.trim());
+      }
 
       // Extra fields for duplicate action
       if (extraFields) {
@@ -256,7 +263,7 @@ export function BatchUploadZone({
 
       xhr.send(formData);
     },
-    [sessionId, personId, setId],
+    [sessionId, personId, setId, sourceVideoRef, videoSetMode],
   );
 
   const processQueue = useCallback(
@@ -467,6 +474,23 @@ export function BatchUploadZone({
 
   return (
     <div className="space-y-3">
+      {/* Clip name field for video sets */}
+      {videoSetMode && (
+        <div className="flex items-center gap-2">
+          <label htmlFor="sourceVideoRef" className="shrink-0 text-xs font-medium text-muted-foreground">
+            Source clip
+          </label>
+          <input
+            id="sourceVideoRef"
+            type="text"
+            value={sourceVideoRef}
+            onChange={(e) => setSourceVideoRef(e.target.value)}
+            placeholder="e.g. interview_take3.mp4 (optional)"
+            className="flex-1 rounded-md border border-white/10 bg-muted/40 px-2.5 py-1 text-xs text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-ring"
+          />
+        </div>
+      )}
+
       {/* Dropzone (hidden when parent provides its own triggers) */}
       {!hideDropzone && (
         <div

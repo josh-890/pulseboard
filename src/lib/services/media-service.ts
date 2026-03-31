@@ -71,6 +71,8 @@ export function toGalleryItem(
     collectionIds: item.collectionIds,
     skillEventIds: item.skillEventIds,
     setCount: item.setCount,
+    sourceVideoRef: item.sourceVideoRef,
+    sourceTimecodeMs: item.sourceTimecodeMs,
   };
 }
 
@@ -250,6 +252,8 @@ type CreateMediaItemDirectInput = {
   setId?: string;
   hash?: string;
   phash?: string;
+  sourceVideoRef?: string;
+  sourceTimecodeMs?: number;
 };
 
 export async function createMediaItemDirect(
@@ -274,6 +278,8 @@ export async function createMediaItemDirect(
         tags: [],
         hash: input.hash,
         phash: input.phash,
+        sourceVideoRef: input.sourceVideoRef,
+        sourceTimecodeMs: input.sourceTimecodeMs,
       },
     });
 
@@ -450,6 +456,8 @@ export async function getSetMediaGallery(
       sortOrder: link.sortOrder,
       isCover: coverMediaItemId === item.id,
       collectionIds: item.collectionItems.map((ci) => ci.collectionId),
+      sourceVideoRef: item.sourceVideoRef,
+      sourceTimecodeMs: item.sourceTimecodeMs,
     });
   }
   return results;
@@ -715,6 +723,8 @@ export type MediaItemWithLinks = {
   collectionIds: string[];
   skillEventIds: string[];
   setCount: number;
+  sourceVideoRef: string | null;
+  sourceTimecodeMs: number | null;
 };
 
 export async function getMediaItemsWithLinks(
@@ -778,6 +788,8 @@ export async function getMediaItemsWithLinks(
         collectionIds: item.collectionItems.map((ci) => ci.collectionId),
         skillEventIds: item.skillEventMedia.map((sem) => sem.skillEventId),
         setCount: item.setMediaItems.length,
+        sourceVideoRef: item.sourceVideoRef,
+        sourceTimecodeMs: item.sourceTimecodeMs,
       };
     })
     .filter((item): item is MediaItemWithLinks => item !== null);

@@ -153,7 +153,7 @@ export function SetCard({ set, coverPhoto, unresolvedCreditCount = 0 }: SetCardP
               {!coverPhoto && (
                 <span className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-muted/40 px-1.5 py-0.5 text-[10px] text-muted-foreground">
                   <ImageOff size={9} />
-                  No photos
+                  {isPhoto ? "No photos" : "No frames"}
                 </span>
               )}
             </div>

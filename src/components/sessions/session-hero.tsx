@@ -124,6 +124,15 @@ export function SessionHero({
   const mediaCount = session._count.mediaItems;
   const setCount = session.setSessionLinks.length;
 
+  const photoSetCount = session.setSessionLinks.filter((l) => l.set.type === "photo").length;
+  const videoSetCount = session.setSessionLinks.filter((l) => l.set.type === "video").length;
+  const isMixed = photoSetCount > 0 && videoSetCount > 0;
+  const setLabel = isMixed
+    ? `${setCount} ${setCount === 1 ? "set" : "sets"} (${photoSetCount} photo, ${videoSetCount} video)`
+    : setCount === 1
+      ? `1 ${videoSetCount === 1 ? "video " : ""}set`
+      : `${setCount} ${videoSetCount > 0 && photoSetCount === 0 ? "video " : ""}sets`;
+
   const cardContent = (
     <div className="flex gap-5">
       <CoverPanel coverPhoto={coverPhoto} />
@@ -179,7 +188,7 @@ export function SessionHero({
         {/* Stats */}
         <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
           <span>{contributorCount} {contributorCount === 1 ? "contributor" : "contributors"}</span>
-          <span>{setCount} {setCount === 1 ? "set" : "sets"}</span>
+          <span>{setLabel}</span>
           <span>{mediaCount} media</span>
         </div>
       </div>

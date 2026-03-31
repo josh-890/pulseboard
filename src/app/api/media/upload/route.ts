@@ -50,6 +50,9 @@ export async function POST(request: Request) {
       slot: formData.get("slot") || undefined,
       sortOrder: formData.get("sortOrder") || undefined,
     };
+    const sourceVideoRef = (formData.get("sourceVideoRef") as string | null) || undefined;
+    const sourceTimecodeRaw = formData.get("sourceTimecodeMs");
+    const sourceTimecodeMs = sourceTimecodeRaw ? Number(sourceTimecodeRaw) : undefined;
 
     const parsed = mediaUploadSchema.safeParse(metadata);
     if (!parsed.success) {
@@ -142,6 +145,8 @@ export async function POST(request: Request) {
       setId,
       hash,
       phash,
+      sourceVideoRef,
+      sourceTimecodeMs,
     });
 
     return NextResponse.json({ mediaItem }, { status: 201 });

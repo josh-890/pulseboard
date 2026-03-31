@@ -49,6 +49,13 @@ import type { TagChipData } from "@/components/shared/tag-chips";
 import { addTagsToEntityAction, removeTagsFromEntityAction } from "@/lib/actions/tag-actions";
 import type { TagDefinitionWithGroup } from "@/lib/services/tag-service";
 
+function formatTimecode(ms: number): string {
+  const totalSeconds = Math.floor(ms / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes}m ${seconds.toString().padStart(2, "0")}s`;
+}
+
 const CONTENT_TAGS = [
   { value: "portrait", label: "Portrait" },
   { value: "diploma", label: "Diploma" },
@@ -1330,6 +1337,18 @@ export function GalleryInfoPanel({
             <span className="font-medium text-white/80">Added:</span>{" "}
             {new Date(item.createdAt).toLocaleDateString()}
           </p>
+          {item.sourceVideoRef && (
+            <p>
+              <span className="font-medium text-white/80">Source clip:</span>{" "}
+              {item.sourceVideoRef}
+            </p>
+          )}
+          {item.sourceTimecodeMs != null && (
+            <p>
+              <span className="font-medium text-white/80">Timecode:</span>{" "}
+              {formatTimecode(item.sourceTimecodeMs)}
+            </p>
+          )}
           {links.length > 0 && (
             <div className="mt-1 flex flex-wrap items-center gap-1">
               <span className="font-medium text-white/80">Usage:</span>

@@ -562,6 +562,100 @@ async function main() {
     },
   });
 
+  // ─── Video set with frame provenance ───────────────────────────────────────
+
+  const videoSet = await prisma.set.upsert({
+    where: { id: "seed-set-video-1" },
+    update: { titleNorm: "sample video frames" },
+    create: {
+      id: "seed-set-video-1",
+      channelId: channel.id,
+      type: "video",
+      title: "Sample Video Frames",
+      titleNorm: "sample video frames",
+      releaseDate: new Date("2025-03-10"),
+      releaseDatePrecision: "DAY",
+      tags: ["sample", "video"],
+    },
+  });
+
+  const videoFrame1 = await prisma.mediaItem.upsert({
+    where: { id: "seed-media-vf-1" },
+    update: {},
+    create: {
+      id: "seed-media-vf-1",
+      sessionId: session.id,
+      mediaType: "PHOTO",
+      filename: "interview_take3_frame_0042.jpg",
+      mimeType: "image/jpeg",
+      size: 1024000,
+      originalWidth: 1920,
+      originalHeight: 1080,
+      hash: "vf1hash",
+      capturedAt: new Date("2025-03-10T09:15:00Z"),
+      capturedAtPrecision: "DAY",
+      sourceVideoRef: "interview_take3.mp4",
+      sourceTimecodeMs: 1400,
+      tags: [],
+    },
+  });
+
+  const videoFrame2 = await prisma.mediaItem.upsert({
+    where: { id: "seed-media-vf-2" },
+    update: {},
+    create: {
+      id: "seed-media-vf-2",
+      sessionId: session.id,
+      mediaType: "PHOTO",
+      filename: "interview_take3_frame_0098.jpg",
+      mimeType: "image/jpeg",
+      size: 1012000,
+      originalWidth: 1920,
+      originalHeight: 1080,
+      hash: "vf2hash",
+      capturedAt: new Date("2025-03-10T09:15:00Z"),
+      capturedAtPrecision: "DAY",
+      sourceVideoRef: "interview_take3.mp4",
+      sourceTimecodeMs: 3267,
+      tags: [],
+    },
+  });
+
+  const videoFrame3 = await prisma.mediaItem.upsert({
+    where: { id: "seed-media-vf-3" },
+    update: {},
+    create: {
+      id: "seed-media-vf-3",
+      sessionId: session.id,
+      mediaType: "PHOTO",
+      filename: "b_roll_kitchen_frame_0021.jpg",
+      mimeType: "image/jpeg",
+      size: 980000,
+      originalWidth: 1920,
+      originalHeight: 1080,
+      hash: "vf3hash",
+      capturedAt: new Date("2025-03-10T10:00:00Z"),
+      capturedAtPrecision: "DAY",
+      sourceVideoRef: "b_roll_kitchen.mp4",
+      sourceTimecodeMs: 700,
+      tags: [],
+    },
+  });
+
+  for (const [idx, frame] of [videoFrame1, videoFrame2, videoFrame3].entries()) {
+    await prisma.setMediaItem.upsert({
+      where: { setId_mediaItemId: { setId: videoSet.id, mediaItemId: frame.id } },
+      update: {},
+      create: { setId: videoSet.id, mediaItemId: frame.id, sortOrder: idx },
+    });
+  }
+
+  await prisma.setSession.upsert({
+    where: { setId_sessionId: { setId: videoSet.id, sessionId: session.id } },
+    update: {},
+    create: { setId: videoSet.id, sessionId: session.id, isPrimary: true },
+  });
+
   // ─── SetCreditRaw (resolution layer) ───────────────────────────────────────
 
   await prisma.setCreditRaw.upsert({

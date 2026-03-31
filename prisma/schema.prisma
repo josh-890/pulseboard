@@ -864,6 +864,9 @@ model MediaItem {
   focalStatus   String?
   modelVersion  String?
 
+  sourceVideoRef   String?  // free-text clip name; groups frames from same video clip
+  sourceTimecodeMs Int?     // timecode offset (ms) at which this frame was extracted
+
   caption    String?
   tags       String[]
   notes      String?
