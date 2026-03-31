@@ -581,7 +581,7 @@ async function main() {
 
   const videoFrame1 = await prisma.mediaItem.upsert({
     where: { id: "seed-media-vf-1" },
-    update: {},
+    update: { fileRef: "seed/seed-media-vf-1.jpg" },
     create: {
       id: "seed-media-vf-1",
       sessionId: session.id,
@@ -592,6 +592,7 @@ async function main() {
       originalWidth: 1920,
       originalHeight: 1080,
       hash: "vf1hash",
+      fileRef: "seed/seed-media-vf-1.jpg",
       capturedAt: new Date("2025-03-10T09:15:00Z"),
       capturedAtPrecision: "DAY",
       sourceVideoRef: "interview_take3.mp4",
@@ -602,7 +603,7 @@ async function main() {
 
   const videoFrame2 = await prisma.mediaItem.upsert({
     where: { id: "seed-media-vf-2" },
-    update: {},
+    update: { fileRef: "seed/seed-media-vf-2.jpg" },
     create: {
       id: "seed-media-vf-2",
       sessionId: session.id,
@@ -613,6 +614,7 @@ async function main() {
       originalWidth: 1920,
       originalHeight: 1080,
       hash: "vf2hash",
+      fileRef: "seed/seed-media-vf-2.jpg",
       capturedAt: new Date("2025-03-10T09:15:00Z"),
       capturedAtPrecision: "DAY",
       sourceVideoRef: "interview_take3.mp4",
@@ -623,7 +625,7 @@ async function main() {
 
   const videoFrame3 = await prisma.mediaItem.upsert({
     where: { id: "seed-media-vf-3" },
-    update: {},
+    update: { fileRef: "seed/seed-media-vf-3.jpg" },
     create: {
       id: "seed-media-vf-3",
       sessionId: session.id,
@@ -634,6 +636,7 @@ async function main() {
       originalWidth: 1920,
       originalHeight: 1080,
       hash: "vf3hash",
+      fileRef: "seed/seed-media-vf-3.jpg",
       capturedAt: new Date("2025-03-10T10:00:00Z"),
       capturedAtPrecision: "DAY",
       sourceVideoRef: "b_roll_kitchen.mp4",

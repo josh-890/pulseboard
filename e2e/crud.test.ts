@@ -423,6 +423,65 @@ test.describe("Sessions CRUD", () => {
   });
 });
 
+// ── Video sets ────────────────────────────────────────────────────────────────
+
+test.describe("Video sets", () => {
+  test("video set detail shows Frames chip (not Photos)", async ({ page }) => {
+    await page.goto("/sets/seed-set-video-1");
+    // "Frames" completeness chip should be visible
+    await expect(page.getByText("Frames", { exact: true })).toBeVisible();
+    // "Photos" chip must NOT appear
+    await expect(page.getByText("Photos", { exact: true })).not.toBeVisible();
+  });
+
+  test("video set detail shows clip group headers for sourceVideoRef frames", async ({ page }) => {
+    await page.goto("/sets/seed-set-video-1");
+    // Both seed clip names should appear as group headers
+    await expect(page.getByText("interview_take3.mp4")).toBeVisible();
+    await expect(page.getByText("b_roll_kitchen.mp4")).toBeVisible();
+    // Frame counts in headers
+    await expect(page.getByText(/2\s+frames?/)).toBeVisible();
+    await expect(page.getByText(/1\s+frame/)).toBeVisible();
+  });
+
+  test("session with mixed photo+video sets shows breakdown in hero stats", async ({ page }) => {
+    // seed-session-1 has seed-set-1 (photo) + seed-set-video-1 (video) linked
+    await page.goto("/sessions/seed-session-1");
+    await expect(page.getByText(/1 photo.*1 video|2 sets.*1 photo.*1 video/)).toBeVisible();
+  });
+
+  test("create video set selects Video type and appears in list", async ({ page }) => {
+    await page.goto("/sets");
+    await page.getByRole("button", { name: /add set/i }).click();
+
+    const dialog = page.getByRole("dialog");
+    await expect(dialog).toBeVisible();
+
+    // Select Video type
+    await dialog.getByRole("button", { name: "Video" }).click();
+
+    const ts = Date.now();
+    const title = `Test Set Video ${ts}`;
+    await dialog.getByLabel(/title/i).fill(title);
+
+    const channelSelect = dialog.getByRole("combobox", { name: /channel/i });
+    await channelSelect.click();
+    await page.getByRole("option").first().click();
+
+    const createBtn = dialog.getByRole("button", { name: /create set/i });
+    await createBtn.scrollIntoViewIfNeeded();
+    await createBtn.click();
+
+    // Skip credits
+    await expect(dialog.getByText(/add credits/i)).toBeVisible({ timeout: 8000 });
+    await dialog.getByRole("button", { name: /skip/i }).click();
+
+    // Verify set appears in list
+    await page.goto("/sets");
+    await expect(page.getByText(title, { exact: false })).toBeVisible();
+  });
+});
+
 // ── Delete confirmation dialog ────────────────────────────────────────────────
 
 test.describe("Delete confirmation dialog", () => {
