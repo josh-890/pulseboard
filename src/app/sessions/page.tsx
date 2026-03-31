@@ -150,6 +150,7 @@ export default async function SessionsPage({ searchParams }: SessionsPageProps) 
 
       {/* Grid */}
       <SessionGrid
+        key={JSON.stringify(filters)}
         sessions={paginated.items}
         photoMap={photoMap}
         nextCursor={paginated.nextCursor}

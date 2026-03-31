@@ -186,6 +186,7 @@ export default async function SetsPage({ searchParams }: SetsPageProps) {
 
       {/* Grid */}
       <SetGrid
+        key={JSON.stringify(filters)}
         sets={paginated.items}
         photoMap={photoMap}
         nextCursor={paginated.nextCursor}

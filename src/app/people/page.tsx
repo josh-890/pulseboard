@@ -219,6 +219,7 @@ export default async function PeoplePage({ searchParams }: PeoplePageProps) {
 
       {/* People grid */}
       <PersonList
+        key={JSON.stringify(filters)}
         persons={paginated.items}
         photoMap={photoMap}
         nextCursor={paginated.nextCursor}
