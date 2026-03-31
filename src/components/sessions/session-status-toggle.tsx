@@ -19,7 +19,7 @@ export function SessionStatusToggle({ sessionId, status }: SessionStatusTogglePr
         type="button"
         disabled={isPending}
         onClick={() =>
-          startTransition(() => setSessionStatusAction(sessionId, "CONFIRMED"))
+          startTransition(() => void setSessionStatusAction(sessionId, "CONFIRMED"))
         }
         className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3 py-1.5 text-xs font-medium text-emerald-600 transition-colors hover:bg-emerald-500/20 disabled:opacity-50 dark:text-emerald-400"
       >
@@ -34,7 +34,7 @@ export function SessionStatusToggle({ sessionId, status }: SessionStatusTogglePr
       type="button"
       disabled={isPending}
       onClick={() =>
-        startTransition(() => setSessionStatusAction(sessionId, "DRAFT"))
+        startTransition(() => void setSessionStatusAction(sessionId, "DRAFT"))
       }
       className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted disabled:opacity-50"
     >
