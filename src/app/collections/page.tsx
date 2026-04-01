@@ -1,3 +1,4 @@
+import { withTenantFromHeaders } from "@/lib/tenant-context";
 import Link from "next/link";
 import Image from "next/image";
 import { Library, ImageIcon, User, Globe } from "lucide-react";
@@ -7,7 +8,8 @@ import { AddCollectionDialog } from "@/components/collections/add-collection-dia
 export const dynamic = "force-dynamic";
 
 export default async function CollectionsPage() {
-  const collections = await getAllCollections();
+  return withTenantFromHeaders(async () => {
+    const collections = await getAllCollections();
 
   const globalCount = collections.filter((c) => !c.personId).length;
   const personCount = collections.filter((c) => c.personId).length;
@@ -109,5 +111,6 @@ export default async function CollectionsPage() {
         </div>
       )}
     </div>
-  );
+    );
+  });
 }

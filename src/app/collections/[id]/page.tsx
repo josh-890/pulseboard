@@ -1,3 +1,4 @@
+import { withTenantFromHeaders } from "@/lib/tenant-context";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { Library, Globe, User, ImageIcon } from "lucide-react";
@@ -15,16 +16,17 @@ type CollectionDetailPageProps = {
 };
 
 export default async function CollectionDetailPage({ params }: CollectionDetailPageProps) {
-  const { id } = await params;
+  return withTenantFromHeaders(async () => {
+    const { id } = await params;
 
-  const collection = await getCollectionWithItems(id);
-  if (!collection) notFound();
+    const collection = await getCollectionWithItems(id);
+    if (!collection) notFound();
 
-  const galleryItems = await getCollectionGalleryItems(id);
+    const galleryItems = await getCollectionGalleryItems(id);
 
-  const personName = collection.person?.aliases[0]?.name ?? null;
+    const personName = collection.person?.aliases[0]?.name ?? null;
 
-  return (
+    return (
     <div className="space-y-6">
       {/* Back + actions */}
       <div className="flex items-center justify-between gap-4">
@@ -82,5 +84,6 @@ export default async function CollectionDetailPage({ params }: CollectionDetailP
         items={galleryItems}
       />
     </div>
-  );
+    );
+  });
 }

@@ -1,3 +1,4 @@
+import { withTenantFromHeaders } from "@/lib/tenant-context";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { Building2, ExternalLink, Radio } from "lucide-react";
@@ -52,7 +53,8 @@ function EmptyState({ message }: { message: string }) {
 export default async function NetworkDetailPage({
   params,
 }: NetworkDetailPageProps) {
-  const { id } = await params;
+  return withTenantFromHeaders(async () => {
+    const { id } = await params;
 
   const network = await getNetworkById(id);
 
@@ -193,5 +195,6 @@ export default async function NetworkDetailPage({
         )}
       </SectionCard>
     </div>
-  );
+    );
+  });
 }

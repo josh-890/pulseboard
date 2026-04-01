@@ -1,3 +1,4 @@
+import { withTenantFromHeaders } from "@/lib/tenant-context";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { Tag, FileText } from "lucide-react";
@@ -54,7 +55,8 @@ function SectionCard({ title, icon, children, className }: SectionCardProps) {
 // ── Main page ───────────────────────────────────────────────────────────────
 
 export default async function SetDetailPage({ params }: SetDetailPageProps) {
-  const { id } = await params;
+  return withTenantFromHeaders(async () => {
+    const { id } = await params;
 
   const [set, channels, roleGroups, setEntityTags, backdropEnabled] = await Promise.all([
     getSetById(id),
@@ -230,5 +232,6 @@ export default async function SetDetailPage({ params }: SetDetailPageProps) {
         </div>
       )}
     </div>
-  );
+    );
+  });
 }

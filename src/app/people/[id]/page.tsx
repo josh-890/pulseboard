@@ -1,3 +1,4 @@
+import { withTenantFromHeaders } from "@/lib/tenant-context";
 import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import { BrowseNavBar, BrowseBackLink } from "@/components/people/browse-nav-bar";
@@ -33,8 +34,9 @@ type PersonDetailPageProps = {
 };
 
 export default async function PersonDetailPage({ params, searchParams }: PersonDetailPageProps) {
-  const { id } = await params;
-  const { tab: initialTab } = await searchParams;
+  return withTenantFromHeaders(async () => {
+    const { id } = await params;
+    const { tab: initialTab } = await searchParams;
 
   // Ensure system entity categories exist before loading category data
   await ensureEntityCategories();
@@ -187,5 +189,6 @@ export default async function PersonDetailPage({ params, searchParams }: PersonD
         }))}
       />
     </div>
-  );
+    );
+  });
 }

@@ -1,3 +1,4 @@
+import { withTenantFromHeaders } from "@/lib/tenant-context";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { ExternalLink, Network, Radio, FolderKanban } from "lucide-react";
@@ -77,7 +78,8 @@ function EmptyState({ message }: { message: string }) {
 export default async function LabelDetailPage({
   params,
 }: LabelDetailPageProps) {
-  const { id } = await params;
+  return withTenantFromHeaders(async () => {
+    const { id } = await params;
 
   const label = await getLabelById(id);
 
@@ -265,5 +267,6 @@ export default async function LabelDetailPage({
         )}
       </SectionCard>
     </div>
-  );
+    );
+  });
 }

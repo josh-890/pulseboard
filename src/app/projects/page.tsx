@@ -1,3 +1,4 @@
+import { withTenantFromHeaders } from "@/lib/tenant-context";
 import { Suspense } from "react";
 import { FolderKanban } from "lucide-react";
 import { getProjects } from "@/lib/services/project-service";
@@ -20,48 +21,50 @@ function isProjectStatus(value: string): value is ProjectStatus {
 }
 
 export default async function ProjectsPage({ searchParams }: ProjectsPageProps) {
-  const { q, status } = await searchParams;
+  return withTenantFromHeaders(async () => {
+    const { q, status } = await searchParams;
 
-  const resolvedStatus =
-    status && isProjectStatus(status) ? status : undefined;
+    const resolvedStatus =
+      status && isProjectStatus(status) ? status : undefined;
 
-  const projects = await getProjects({
-    q: q?.trim() || undefined,
-    status: resolvedStatus ?? "all",
-  });
+    const projects = await getProjects({
+      q: q?.trim() || undefined,
+      status: resolvedStatus ?? "all",
+    });
 
-  return (
-    <div className="space-y-6">
-      {/* Page header */}
-      <div className="flex items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-entity-project/15">
-            <FolderKanban size={20} className="text-entity-project" />
+    return (
+      <div className="space-y-6">
+        {/* Page header */}
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-entity-project/15">
+              <FolderKanban size={20} className="text-entity-project" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold leading-tight">Projects</h1>
+              <p className="text-sm text-muted-foreground">
+                {projects.length} {projects.length === 1 ? "project" : "projects"}
+              </p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-2xl font-bold leading-tight">Projects</h1>
-            <p className="text-sm text-muted-foreground">
-              {projects.length} {projects.length === 1 ? "project" : "projects"}
-            </p>
-          </div>
+          <AddProjectSheet />
         </div>
-        <AddProjectSheet />
-      </div>
 
-      {/* Filter bar */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
-        <div className="w-full sm:max-w-xs">
+        {/* Filter bar */}
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
+          <div className="w-full sm:max-w-xs">
+            <Suspense>
+              <ProjectSearch />
+            </Suspense>
+          </div>
           <Suspense>
-            <ProjectSearch />
+            <StatusFilter />
           </Suspense>
         </div>
-        <Suspense>
-          <StatusFilter />
-        </Suspense>
-      </div>
 
-      {/* List */}
-      <ProjectList projects={projects} />
-    </div>
-  );
+        {/* List */}
+        <ProjectList projects={projects} />
+      </div>
+    );
+  });
 }

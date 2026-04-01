@@ -1,3 +1,4 @@
+import { withTenantFromHeaders } from "@/lib/tenant-context";
 import { Suspense } from "react";
 import { Clapperboard } from "lucide-react";
 import { getSessionsPaginated } from "@/lib/services/session-service";
@@ -45,11 +46,12 @@ const SORT_OPTIONS = [
 ];
 
 export default async function SessionsPage({ searchParams }: SessionsPageProps) {
-  const {
-    q, status, sort: sortParam,
-    label: labelId, project: projectId,
-    loaded,
-  } = await searchParams;
+  return withTenantFromHeaders(async () => {
+    const {
+      q, status, sort: sortParam,
+      label: labelId, project: projectId,
+      loaded,
+    } = await searchParams;
 
   const limit = Math.min(
     Math.max(PAGE_SIZE, parseInt(loaded ?? "", 10) || PAGE_SIZE),
@@ -158,5 +160,6 @@ export default async function SessionsPage({ searchParams }: SessionsPageProps) 
         filters={filters}
       />
     </div>
-  );
+    );
+  });
 }

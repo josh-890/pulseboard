@@ -1,5 +1,6 @@
 export const dynamic = "force-dynamic";
 
+import { withTenantFromHeaders } from "@/lib/tenant-context";
 import Link from "next/link";
 import { ThemeToggle } from "@/components/settings/theme-toggle";
 import { PaletteSelector } from "@/components/settings/palette-selector";
@@ -28,7 +29,8 @@ import {
 } from "@/lib/services/tag-service";
 
 export default async function SettingsPage() {
-  const [labels, categoryGroups, skillGroups, skillLevelConfigs, roleGroups, physicalAttributeGroups, tagGroups, pendingTags, orphanedTags, nearDuplicates, usageBreakdown, heroBackdropEnabled] = await Promise.all([
+  return withTenantFromHeaders(async () => {
+    const [labels, categoryGroups, skillGroups, skillLevelConfigs, roleGroups, physicalAttributeGroups, tagGroups, pendingTags, orphanedTags, nearDuplicates, usageBreakdown, heroBackdropEnabled] = await Promise.all([
     getProfileImageLabels(),
     getAllCategoryGroups(),
     getAllSkillGroups(),
@@ -157,5 +159,6 @@ export default async function SettingsPage() {
         <DatabaseMaintenance />
       </div>
     </div>
-  );
+    );
+  });
 }

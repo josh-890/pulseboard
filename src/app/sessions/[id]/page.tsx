@@ -1,3 +1,4 @@
+import { withTenantFromHeaders } from "@/lib/tenant-context";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { Users, ImageIcon, Camera, Film, User, Sparkles } from "lucide-react";
@@ -73,7 +74,8 @@ function EmptyState({ message }: { message: string }) {
 // ── Main page ───────────────────────────────────────────────────────────────
 
 export default async function SessionDetailPage({ params, searchParams }: SessionDetailPageProps) {
-  const [{ id }, resolvedSearchParams] = await Promise.all([params, searchParams]);
+  return withTenantFromHeaders(async () => {
+    const [{ id }, resolvedSearchParams] = await Promise.all([params, searchParams]);
 
   const [session, labels, projects, backdropEnabled] = await Promise.all([
     getSessionById(id),
@@ -467,5 +469,6 @@ export default async function SessionDetailPage({ params, searchParams }: Sessio
         </SectionCard>
       )}
     </div>
-  );
+    );
+  });
 }

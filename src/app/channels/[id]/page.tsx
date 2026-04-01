@@ -1,3 +1,4 @@
+import { withTenantFromHeaders } from "@/lib/tenant-context";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { Building2, ExternalLink, ImageIcon } from "lucide-react";
@@ -54,7 +55,8 @@ function EmptyState({ message }: { message: string }) {
 export default async function ChannelDetailPage({
   params,
 }: ChannelDetailPageProps) {
-  const { id } = await params;
+  return withTenantFromHeaders(async () => {
+    const { id } = await params;
 
   const [channel, labels] = await Promise.all([
     getChannelById(id),
@@ -196,5 +198,6 @@ export default async function ChannelDetailPage({
         )}
       </SectionCard>
     </div>
-  );
+    );
+  });
 }

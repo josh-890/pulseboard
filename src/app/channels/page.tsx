@@ -1,3 +1,4 @@
+import { withTenantFromHeaders } from "@/lib/tenant-context";
 import { Suspense } from "react";
 import { Radio } from "lucide-react";
 import { getChannels } from "@/lib/services/channel-service";
@@ -14,50 +15,52 @@ type ChannelsPageProps = {
 };
 
 export default async function ChannelsPage({ searchParams }: ChannelsPageProps) {
-  const { q, labelId } = await searchParams;
+  return withTenantFromHeaders(async () => {
+    const { q, labelId } = await searchParams;
 
-  const [channels, labels] = await Promise.all([
-    getChannels({
-      q: q?.trim() || undefined,
-      labelId: labelId || undefined,
-    }),
-    getLabels(),
-  ]);
+    const [channels, labels] = await Promise.all([
+      getChannels({
+        q: q?.trim() || undefined,
+        labelId: labelId || undefined,
+      }),
+      getLabels(),
+    ]);
 
-  const labelOptions = labels.map(({ id, name }) => ({ id, name }));
+    const labelOptions = labels.map(({ id, name }) => ({ id, name }));
 
-  return (
-    <div className="space-y-6">
-      {/* Page header */}
-      <div className="flex items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-entity-channel/15">
-            <Radio size={20} className="text-entity-channel" />
+    return (
+      <div className="space-y-6">
+        {/* Page header */}
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-entity-channel/15">
+              <Radio size={20} className="text-entity-channel" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold leading-tight">Channels</h1>
+              <p className="text-sm text-muted-foreground">
+                {channels.length} {channels.length === 1 ? "channel" : "channels"}
+              </p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-2xl font-bold leading-tight">Channels</h1>
-            <p className="text-sm text-muted-foreground">
-              {channels.length} {channels.length === 1 ? "channel" : "channels"}
-            </p>
-          </div>
+          <AddChannelSheet labels={labelOptions} />
         </div>
-        <AddChannelSheet labels={labelOptions} />
-      </div>
 
-      {/* Filters */}
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="w-full sm:max-w-xs">
+        {/* Filters */}
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="w-full sm:max-w-xs">
+            <Suspense>
+              <ChannelSearch />
+            </Suspense>
+          </div>
           <Suspense>
-            <ChannelSearch />
+            <LabelFilter labels={labelOptions} />
           </Suspense>
         </div>
-        <Suspense>
-          <LabelFilter labels={labelOptions} />
-        </Suspense>
-      </div>
 
-      {/* List */}
-      <ChannelList channels={channels} />
-    </div>
-  );
+        {/* List */}
+        <ChannelList channels={channels} />
+      </div>
+    );
+  });
 }

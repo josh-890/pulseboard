@@ -1,3 +1,4 @@
+import { withTenantFromHeaders } from "@/lib/tenant-context";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { FolderKanban, Tag, ArrowRight } from "lucide-react";
@@ -36,7 +37,8 @@ const STATUS_LABELS: Record<ProjectStatus, string> = {
 export default async function ProjectDetailPage({
   params,
 }: ProjectDetailPageProps) {
-  const { id } = await params;
+  return withTenantFromHeaders(async () => {
+    const { id } = await params;
 
   const project = await getProjectById(id);
 
@@ -219,5 +221,6 @@ export default async function ProjectDetailPage({
         </div>
       )}
     </div>
-  );
+    );
+  });
 }

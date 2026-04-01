@@ -1,3 +1,4 @@
+import { withTenantFromHeaders } from "@/lib/tenant-context";
 import { Suspense } from "react";
 import { Users } from "lucide-react";
 import {
@@ -68,11 +69,12 @@ const SORT_OPTIONS = [
 ];
 
 export default async function PeoplePage({ searchParams }: PeoplePageProps) {
-  const {
-    q, status, hairColor, bodyType, ethnicity, bodyRegions: bodyRegionsParam,
-    bodyRegionMatch: bodyRegionMatchParam, loaded,
-    slot: slotParam, sort: sortParam, completeness: completenessParam,
-  } = await searchParams;
+  return withTenantFromHeaders(async () => {
+    const {
+      q, status, hairColor, bodyType, ethnicity, bodyRegions: bodyRegionsParam,
+      bodyRegionMatch: bodyRegionMatchParam, loaded,
+      slot: slotParam, sort: sortParam, completeness: completenessParam,
+    } = await searchParams;
 
   const limit = Math.min(
     Math.max(PAGE_SIZE, parseInt(loaded ?? "", 10) || PAGE_SIZE),
@@ -228,5 +230,6 @@ export default async function PeoplePage({ searchParams }: PeoplePageProps) {
         slot={slot}
       />
     </div>
-  );
+    );
+  });
 }

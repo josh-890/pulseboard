@@ -1,3 +1,4 @@
+import { withTenantFromHeaders } from "@/lib/tenant-context";
 import { Suspense } from "react";
 import { Building2 } from "lucide-react";
 import { getLabels } from "@/lib/services/label-service";
@@ -12,37 +13,39 @@ type LabelsPageProps = {
 };
 
 export default async function LabelsPage({ searchParams }: LabelsPageProps) {
-  const { q } = await searchParams;
+  return withTenantFromHeaders(async () => {
+    const { q } = await searchParams;
 
-  const labels = await getLabels(q?.trim() || undefined);
+    const labels = await getLabels(q?.trim() || undefined);
 
-  return (
-    <div className="space-y-6">
-      {/* Page header */}
-      <div className="flex items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-entity-label/15">
-            <Building2 size={20} className="text-entity-label" />
+    return (
+      <div className="space-y-6">
+        {/* Page header */}
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-entity-label/15">
+              <Building2 size={20} className="text-entity-label" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold leading-tight">Labels</h1>
+              <p className="text-sm text-muted-foreground">
+                {labels.length} {labels.length === 1 ? "label" : "labels"}
+              </p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-2xl font-bold leading-tight">Labels</h1>
-            <p className="text-sm text-muted-foreground">
-              {labels.length} {labels.length === 1 ? "label" : "labels"}
-            </p>
-          </div>
+          <AddLabelSheet />
         </div>
-        <AddLabelSheet />
-      </div>
 
-      {/* Search */}
-      <div className="w-full sm:max-w-xs">
-        <Suspense>
-          <LabelSearch />
-        </Suspense>
-      </div>
+        {/* Search */}
+        <div className="w-full sm:max-w-xs">
+          <Suspense>
+            <LabelSearch />
+          </Suspense>
+        </div>
 
-      {/* List */}
-      <LabelList labels={labels} />
-    </div>
-  );
+        {/* List */}
+        <LabelList labels={labels} />
+      </div>
+    );
+  });
 }

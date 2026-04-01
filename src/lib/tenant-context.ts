@@ -18,9 +18,9 @@ export function runWithTenant<T>(tenantId: string, fn: () => T): T {
 
 /**
  * Async helper: reads x-tenant-id from request headers, then runs fn in that tenant context.
- * Use in server actions and API route handlers.
+ * Use in server actions, API route handlers, and page components.
  */
-export async function withTenantFromHeaders<T>(fn: () => Promise<T>): Promise<T> {
+export async function withTenantFromHeaders<T>(fn: () => Promise<T> | T): Promise<T> {
   const { headers } = await import("next/headers");
   const h = await headers();
   const tenantId = h.get("x-tenant-id") ?? resolveFallbackTenant();

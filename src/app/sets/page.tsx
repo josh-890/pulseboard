@@ -1,3 +1,4 @@
+import { withTenantFromHeaders } from "@/lib/tenant-context";
 import { Suspense } from "react";
 import { ImageIcon } from "lucide-react";
 import { getSetsPaginated, getChannelsWithLabelMaps, getRecentChannels, getLastUsedSetType } from "@/lib/services/set-service";
@@ -50,11 +51,12 @@ const SORT_OPTIONS = [
 ];
 
 export default async function SetsPage({ searchParams }: SetsPageProps) {
-  const {
-    q, type, loaded, sort: sortParam,
-    channel: channelId, label: labelId,
-    hasMedia: hasMediaParam,
-  } = await searchParams;
+  return withTenantFromHeaders(async () => {
+    const {
+      q, type, loaded, sort: sortParam,
+      channel: channelId, label: labelId,
+      hasMedia: hasMediaParam,
+    } = await searchParams;
 
   const limit = Math.min(
     Math.max(PAGE_SIZE, parseInt(loaded ?? "", 10) || PAGE_SIZE),
@@ -194,5 +196,6 @@ export default async function SetsPage({ searchParams }: SetsPageProps) {
         filters={filters}
       />
     </div>
-  );
+    );
+  });
 }
