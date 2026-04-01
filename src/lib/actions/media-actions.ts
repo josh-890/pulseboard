@@ -236,6 +236,27 @@ export async function setFocalPointAction(
   }
 }
 
+export async function reorderPersonMediaAction(
+  personId: string,
+  orderedMediaItemIds: string[],
+): Promise<SimpleActionResult> {
+  try {
+    await prisma.$transaction(async (tx) => {
+      for (let i = 0; i < orderedMediaItemIds.length; i++) {
+        await tx.personMediaLink.updateMany({
+          where: { personId, mediaItemId: orderedMediaItemIds[i] },
+          data: { sortOrder: i },
+        });
+      }
+    });
+    revalidatePath(`/people/${personId}`);
+    return { success: true };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Unexpected error";
+    return { success: false, error: message };
+  }
+}
+
 export async function deleteMediaItemsAction(
   mediaItemIds: string[],
   personId: string,

@@ -3,14 +3,23 @@
 import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
-import { PanelRightClose } from "lucide-react";
+import { GripVertical, PanelRightClose } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { MediaItemWithLinks } from "@/lib/services/media-service";
 import type { ProfileImageLabel } from "@/lib/services/setting-service";
 import type { CollectionSummary } from "@/lib/services/collection-service";
 import type { GalleryItem, PersonMediaLinkSummary } from "@/lib/types";
 import type { CategoryWithGroup } from "@/components/gallery/gallery-info-panel";
-import { assignHeadshotSlot, deleteMediaItemsAction } from "@/lib/actions/media-actions";
+import { assignHeadshotSlot, deleteMediaItemsAction, reorderPersonMediaAction } from "@/lib/actions/media-actions";
+import { applyGallerySort, GALLERY_SORT_OPTIONS } from "@/lib/gallery-sort";
+import type { GallerySortMode } from "@/lib/gallery-sort";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -23,6 +32,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { GalleryLightbox } from "@/components/gallery/gallery-lightbox";
 import type { ReferenceContext } from "@/components/gallery/gallery-lightbox";
+import { SortableGallery } from "@/components/gallery/sortable-gallery";
 import { MediaGrid } from "./media-grid";
 import { MediaMetadataPanel } from "./media-metadata-panel";
 
@@ -93,18 +103,23 @@ export function MediaManager({
   const [lastSelectedId, setLastSelectedId] = useState<string | null>(null);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [isReordering, setIsReordering] = useState(false);
+  const [sortMode, setSortMode] = useState<GallerySortMode>("user");
   const [, startDeleteTransition] = useTransition();
   const [usageFilter, setUsageFilter] = useState<"all" | "general" | "detail">("all");
 
-  // Filter items by usage type (reference sessions only)
+  // Filter items by usage type (reference sessions only), then sort
   const filteredItems = useMemo(() => {
-    if (anchor !== "reference" || usageFilter === "all") return items;
-    if (usageFilter === "detail") {
-      return items.filter((item) => item.links.some((l) => l.usage === "DETAIL"));
+    let result = items;
+    if (anchor === "reference" && usageFilter !== "all") {
+      if (usageFilter === "detail") {
+        result = items.filter((item) => item.links.some((l) => l.usage === "DETAIL"));
+      } else {
+        result = items.filter((item) => !item.links.some((l) => l.usage === "DETAIL"));
+      }
     }
-    // "general" — items with NO detail link
-    return items.filter((item) => !item.links.some((l) => l.usage === "DETAIL"));
-  }, [items, usageFilter, anchor]);
+    return applyGallerySort(result, sortMode);
+  }, [items, usageFilter, anchor, sortMode]);
 
   // Counts for filter pills
   const filterCounts = useMemo(() => {
@@ -288,6 +303,19 @@ export function MediaManager({
     router.refresh();
   }, [router]);
 
+  const handleReorder = useCallback((orderedIds: string[]) => {
+    const idMap = new Map(items.map((it) => [it.id, it]));
+    setItems(orderedIds.map((id) => idMap.get(id)).filter((it): it is typeof items[number] => it !== undefined));
+    startDeleteTransition(async () => {
+      await reorderPersonMediaAction(personId, orderedIds);
+    });
+  }, [items, personId]);
+
+  const handleSortChange = useCallback((mode: GallerySortMode) => {
+    setSortMode(mode);
+    if (mode !== "user") setIsReordering(false);
+  }, []);
+
   const handleDeleteConfirm = useCallback(() => {
     const idsToDelete = Array.from(selectedIds);
     setShowDeleteDialog(false);
@@ -385,7 +413,7 @@ export function MediaManager({
         <div className="flex-1 min-w-0">
           {/* Toolbar */}
           <div className="mb-3 flex items-center gap-3">
-            {filterCounts && filterCounts.detail > 0 && (
+            {!isReordering && filterCounts && filterCounts.detail > 0 && (
               <div className="flex items-center gap-1">
                 {(["all", "general", "detail"] as const).map((filter) => (
                   <button
@@ -407,22 +435,62 @@ export function MediaManager({
             )}
             <p className="text-xs text-muted-foreground">
               {filteredItems.length} {filteredItems.length === 1 ? "item" : "items"}
-              {hasSelection && (
+              {hasSelection && !isReordering && (
                 <span className="ml-1.5 text-foreground">
                   ({selectedIds.size} selected)
                 </span>
               )}
             </p>
+            <div className="ml-auto flex items-center gap-2">
+              <Select value={sortMode} onValueChange={handleSortChange}>
+                <SelectTrigger className="h-7 w-[130px] text-xs gap-1">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {GALLERY_SORT_OPTIONS.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value} className="text-xs">
+                      {opt.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {filteredItems.length > 1 && sortMode === "user" && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsReordering((v) => !v);
+                    if (!isReordering) clearSelection();
+                  }}
+                  className={cn(
+                    "flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-medium transition-colors",
+                    isReordering
+                      ? "bg-primary/15 text-primary"
+                      : "text-muted-foreground hover:text-foreground hover:bg-muted/50",
+                  )}
+                >
+                  <GripVertical size={12} />
+                  {isReordering ? "Done" : "Reorder"}
+                </button>
+              )}
+            </div>
           </div>
 
-          <MediaGrid
-            items={filteredItems}
-            selectedIds={selectedIds}
-            anchor={anchor}
-            onSelect={handleSelect}
-            onToggleSelect={handleToggleSelect}
-            onOpen={handleOpen}
-          />
+          {isReordering ? (
+            <SortableGallery
+              items={galleryItems}
+              onReorder={handleReorder}
+              onOpen={handleOpen}
+            />
+          ) : (
+            <MediaGrid
+              items={filteredItems}
+              selectedIds={selectedIds}
+              anchor={anchor}
+              onSelect={handleSelect}
+              onToggleSelect={handleToggleSelect}
+              onOpen={handleOpen}
+            />
+          )}
         </div>
 
         {/* Side panel (desktop) — always present to prevent grid reflow on selection */}

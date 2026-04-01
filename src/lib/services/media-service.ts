@@ -414,6 +414,7 @@ export async function getPersonMediaGallery(
       isCover: false,
     });
   }
+  results.sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
   return results;
 }
 

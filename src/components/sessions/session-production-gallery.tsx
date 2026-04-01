@@ -1,12 +1,33 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import { Plus, Upload } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { Plus, Trash2, Upload, X } from "lucide-react";
 import type { GalleryItem } from "@/lib/types";
 import { JustifiedGrid } from "@/components/gallery/justified-grid";
 import { GalleryLightbox } from "@/components/gallery/gallery-lightbox";
 import type { CollectionContext, ProductionContext } from "@/components/gallery/gallery-lightbox";
 import { BatchUploadZone } from "@/components/media/batch-upload-zone";
+import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { deleteMediaItemsAction } from "@/lib/actions/media-actions";
+import { applyGallerySort, GALLERY_SORT_OPTIONS } from "@/lib/gallery-sort";
+import type { GallerySortMode } from "@/lib/gallery-sort";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 type SessionProductionGalleryProps = {
   items: GalleryItem[];
@@ -14,13 +35,22 @@ type SessionProductionGalleryProps = {
   productionContext?: ProductionContext;
 };
 
-export function SessionProductionGallery({ items, sessionId, productionContext }: SessionProductionGalleryProps) {
+export function SessionProductionGallery({ items: initialItems, sessionId, productionContext }: SessionProductionGalleryProps) {
+  const [localItems, setLocalItems] = useState(initialItems);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [collections, setCollections] = useState<{ id: string; name: string }[]>([]);
   const [isDragOver, setIsDragOver] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [sortMode, setSortMode] = useState<GallerySortMode>("newest");
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [, startTransition] = useTransition();
   const dragCounterRef = useRef(0);
   const addFilesRef = useRef<((files: FileList | File[]) => void) | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setLocalItems(initialItems);
+  }, [initialItems]);
 
   useEffect(() => {
     fetch("/api/collections/list")
@@ -74,20 +104,87 @@ export function SessionProductionGallery({ items, sessionId, productionContext }
     [collections],
   );
 
+  const displayItems = useMemo(() => applyGallerySort(localItems, sortMode), [localItems, sortMode]);
+
   const indexMap = useMemo(() => {
     const map = new Map<string, number>();
-    items.forEach((item, i) => map.set(item.id, i));
+    displayItems.forEach((item, i) => map.set(item.id, i));
     return map;
-  }, [items]);
+  }, [displayItems]);
+
+  const handleToggleSelect = useCallback((id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const clearSelection = useCallback(() => setSelectedIds(new Set()), []);
+
+  const handleDeleteConfirm = useCallback(() => {
+    const idsToDelete = Array.from(selectedIds);
+    setDeleteDialogOpen(false);
+    setLocalItems((prev) => prev.filter((it) => !selectedIds.has(it.id)));
+    clearSelection();
+    startTransition(async () => {
+      await deleteMediaItemsAction(idsToDelete, "", sessionId ?? "");
+    });
+  }, [selectedIds, sessionId, clearSelection]);
+
+  const handleLightboxDelete = useCallback((id: string) => {
+    setLocalItems((prev) => prev.filter((it) => it.id !== id));
+    setLightboxIndex(null);
+    startTransition(async () => {
+      await deleteMediaItemsAction([id], "", sessionId ?? "");
+    });
+  }, [sessionId]);
+
+  const hasSelection = selectedIds.size > 0;
 
   return (
     <div ref={containerRef} className="relative">
-      {items.length === 0 ? (
+      {/* Toolbar */}
+      {localItems.length > 0 && (
+        <div className="mb-3 flex items-center gap-2">
+          {hasSelection ? (
+            <>
+              <span className="text-sm text-muted-foreground">{selectedIds.size} selected</span>
+              <Button variant="destructive" size="sm" className="gap-1.5" onClick={() => setDeleteDialogOpen(true)}>
+                <Trash2 size={14} />
+                Delete
+              </Button>
+              <Button variant="ghost" size="sm" className="gap-1.5" onClick={clearSelection}>
+                <X size={14} />
+                Clear
+              </Button>
+            </>
+          ) : (
+            <Select value={sortMode} onValueChange={(v) => setSortMode(v as GallerySortMode)}>
+              <SelectTrigger className="h-7 w-[130px] text-xs gap-1 ml-auto">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {GALLERY_SORT_OPTIONS.filter((o) => o.value !== "user").map((opt) => (
+                  <SelectItem key={opt.value} value={opt.value} className="text-xs">
+                    {opt.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+        </div>
+      )}
+
+      {displayItems.length === 0 ? (
         <p className="text-sm italic text-muted-foreground/70">No media items in this session.</p>
       ) : (
         <JustifiedGrid
-          items={items}
-          draggable
+          items={displayItems}
+          selectable
+          selectedIds={selectedIds}
+          onToggleSelect={handleToggleSelect}
           onOpen={(id) => {
             const idx = indexMap.get(id);
             if (idx !== undefined) setLightboxIndex(idx);
@@ -114,12 +211,37 @@ export function SessionProductionGallery({ items, sessionId, productionContext }
         </div>
       )}
 
+      {/* Delete confirmation dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Delete {selectedIds.size} {selectedIds.size === 1 ? "item" : "items"}?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              This permanently removes the {selectedIds.size === 1 ? "file" : "files"} and all
+              associated metadata. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteConfirm}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete permanently
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       {lightboxIndex !== null && (
         <GalleryLightbox
-          items={items}
+          items={displayItems}
           initialIndex={lightboxIndex}
           onClose={() => setLightboxIndex(null)}
           onFindSimilar={(mediaItemId) => window.open(`/media/similar?id=${mediaItemId}`, "_blank")}
+          onDelete={handleLightboxDelete}
           sessionId={sessionId}
           productionContext={productionContext}
           collectionContext={collectionContext}

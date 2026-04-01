@@ -10,8 +10,19 @@ import {
   PanelRight,
   PanelRightClose,
   Rows3,
+  Trash2,
   X,
 } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
 import type { GalleryItem } from "@/lib/types";
 import type { ProfileImageLabel } from "@/lib/services/setting-service";
@@ -48,6 +59,8 @@ type GalleryLightboxProps = {
   productionContext?: ProductionContext;
   // Standalone collection context (optional — forwarded to GalleryInfoPanel)
   collectionContext?: CollectionContext;
+  // Delete handler — shows inline confirmation, then calls this
+  onDelete?: (id: string) => void;
 };
 
 export function GalleryLightbox(props: GalleryLightboxProps) {
@@ -74,10 +87,12 @@ function SimpleLightbox({
   referenceContext,
   productionContext,
   collectionContext,
+  onDelete,
 }: GalleryLightboxProps) {
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
   const [showInfoPanel, setShowInfoPanel] = useState(referenceContext ? true : false);
   const [showFilmstrip, setShowFilmstrip] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [focalOverlay, setFocalOverlay] = useState(false);
   const [localFocalPoints, setLocalFocalPoints] = useState<
     Map<string, { focalX: number | null; focalY: number | null }>
@@ -365,6 +380,17 @@ function SimpleLightbox({
               <PanelRight size={16} />
             )}
           </button>
+          {onDelete && (
+            <button
+              type="button"
+              onClick={() => setDeleteConfirmOpen(true)}
+              className="rounded-full bg-white/10 p-2 text-white/70 transition-colors hover:bg-destructive/80 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50"
+              aria-label="Delete this item"
+              title="Delete"
+            >
+              <Trash2 size={16} />
+            </button>
+          )}
           <button
             type="button"
             onClick={onClose}
@@ -475,6 +501,30 @@ function SimpleLightbox({
           <GalleryInfoPanel {...infoPanelProps} />
         </div>
       )}
+
+      {/* Delete confirmation (Radix portals itself to body) */}
+      <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this item?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This permanently removes the file and all associated metadata. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                setDeleteConfirmOpen(false);
+                onDelete?.(item.id);
+              }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete permanently
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>,
     document.body,
   );

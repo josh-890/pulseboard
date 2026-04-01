@@ -29,6 +29,8 @@ import {
 } from "@/lib/services/set-service";
 import type { SetFilters } from "@/lib/services/set-service";
 import { getCoverPhotosForSets } from "@/lib/services/media-service";
+import { cascadeHardDeleteMediaItems } from "@/lib/services/cascade-helpers";
+import { refreshDashboardStats } from "@/lib/services/view-service";
 import { getLabels } from "@/lib/services/label-service";
 import { prisma } from "@/lib/db";
 import { z } from "zod";
@@ -302,6 +304,53 @@ export async function reassignSetSessionAction(
     return { success: true };
   } catch (e) {
     const message = e instanceof Error ? e.message : "Failed to reassign session";
+    return { success: false, error: message };
+  }
+}
+
+export async function deleteSetMediaAction(
+  setId: string,
+  primarySessionId: string,
+  mediaItemIds: string[],
+): Promise<SimpleActionResult> {
+  try {
+    const variantsList = await prisma.$transaction(async (tx) => {
+      return cascadeHardDeleteMediaItems(tx, mediaItemIds);
+    });
+    try {
+      const { deleteMediaFiles } = await import("@/lib/media-upload");
+      await deleteMediaFiles(variantsList);
+    } catch (err) {
+      console.error("[deleteSetMediaAction] MinIO cleanup failed:", err);
+    }
+    await refreshDashboardStats();
+    revalidatePath(`/sets/${setId}`);
+    if (primarySessionId) revalidatePath(`/sessions/${primarySessionId}`);
+    revalidatePath("/sets");
+    return { success: true };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Unexpected error";
+    return { success: false, error: message };
+  }
+}
+
+export async function reorderSetMediaAction(
+  setId: string,
+  orderedMediaItemIds: string[],
+): Promise<SimpleActionResult> {
+  try {
+    await prisma.$transaction(async (tx) => {
+      for (let i = 0; i < orderedMediaItemIds.length; i++) {
+        await tx.setMediaItem.update({
+          where: { setId_mediaItemId: { setId, mediaItemId: orderedMediaItemIds[i] } },
+          data: { sortOrder: i },
+        });
+      }
+    });
+    revalidatePath(`/sets/${setId}`);
+    return { success: true };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Unexpected error";
     return { success: false, error: message };
   }
 }
