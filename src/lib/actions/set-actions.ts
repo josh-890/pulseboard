@@ -26,9 +26,10 @@ import {
   addExistingMediaToSet,
   removeMediaFromSet,
   reassignSetPrimarySession,
+  splitMediaToSession,
 } from "@/lib/services/set-service";
 import type { SetFilters } from "@/lib/services/set-service";
-import { getCoverPhotosForSets } from "@/lib/services/media-service";
+import { getCoverPhotosForSets, getSkillEventMediaConstraints } from "@/lib/services/media-service";
 import { cascadeHardDeleteMediaItems } from "@/lib/services/cascade-helpers";
 import { refreshDashboardStats } from "@/lib/services/view-service";
 import { getLabels } from "@/lib/services/label-service";
@@ -348,6 +349,49 @@ export async function reorderSetMediaAction(
       }
     });
     revalidatePath(`/sets/${setId}`);
+    return { success: true };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Unexpected error";
+    return { success: false, error: message };
+  }
+}
+
+type SplitMediaResult =
+  | { success: true }
+  | { success: false; error: string; blockedItems?: { mediaItemId: string; filename: string; skillEventCount: number }[] };
+
+export async function splitMediaToSessionAction(
+  setId: string,
+  sourceSessionId: string,
+  mediaItemIds: string[],
+  targetSessionId: string,
+): Promise<SplitMediaResult> {
+  try {
+    // Pre-flight: block photos linked to skill events
+    const constraints = await getSkillEventMediaConstraints(mediaItemIds);
+    if (constraints.length > 0) {
+      // Fetch filenames for the blocked items to show in the error
+      const blockedMediaItems = await prisma.mediaItem.findMany({
+        where: { id: { in: constraints.map((c) => c.mediaItemId) } },
+        select: { id: true, filename: true },
+      });
+      const filenameMap = new Map(blockedMediaItems.map((m) => [m.id, m.filename]));
+      return {
+        success: false,
+        error: "Some photos are linked to skill events and cannot be moved.",
+        blockedItems: constraints.map((c) => ({
+          mediaItemId: c.mediaItemId,
+          filename: filenameMap.get(c.mediaItemId) ?? c.mediaItemId,
+          skillEventCount: c.skillEventCount,
+        })),
+      };
+    }
+
+    await splitMediaToSession(setId, mediaItemIds, targetSessionId);
+
+    revalidatePath(`/sets/${setId}`);
+    revalidatePath(`/sessions/${sourceSessionId}`);
+    revalidatePath(`/sessions/${targetSessionId}`);
     return { success: true };
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unexpected error";

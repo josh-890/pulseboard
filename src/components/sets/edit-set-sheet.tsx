@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Sheet,
   SheetContent,
@@ -60,6 +61,10 @@ type EditSetSheetProps = {
     category: string | null;
     genre: string | null;
     tags: string[];
+    isCompilation: boolean;
+    isComplete: boolean;
+    imageCount: number | null;
+    videoLength: string | null;
   };
   channels: ChannelOption[];
   entityTags?: TagChipData[];
@@ -85,13 +90,15 @@ export function EditSetSheet({ set, channels, entityTags = [] }: EditSetSheetPro
     channelId: set.channelId ?? undefined,
     description: set.description ?? "",
     notes: set.notes ?? "",
-    releaseDate: set.releaseDate
-      ? set.releaseDate.toISOString().slice(0, 10)
-      : "",
+    releaseDate: set.releaseDate ? set.releaseDate.toISOString().slice(0, 10) : "",
     releaseDatePrecision: (set.releaseDatePrecision as "UNKNOWN" | "YEAR" | "MONTH" | "DAY") ?? "UNKNOWN",
     category: set.category ?? "",
     genre: set.genre ?? "",
     tags: set.tags,
+    isCompilation: set.isCompilation,
+    isComplete: set.isComplete,
+    imageCount: set.imageCount ?? undefined,
+    videoLength: set.videoLength ?? "",
   });
 
   const form = useForm<UpdateSetFormValues, unknown, UpdateSetInput>({
@@ -100,17 +107,17 @@ export function EditSetSheet({ set, channels, entityTags = [] }: EditSetSheetPro
   });
 
   const { isSubmitting } = form.formState;
+  const isPhoto = set.type === "photo";
+  const isVideo = set.type === "video";
 
   async function onSubmit(values: UpdateSetInput) {
     const result = await updateSet(values);
-
     if (result.success) {
       toast.success("Set updated");
       setOpen(false);
       router.refresh();
       return;
     }
-
     toast.error(typeof result.error === "string" ? result.error : "Failed to update set");
   }
 
@@ -159,6 +166,34 @@ export function EditSetSheet({ set, channels, entityTags = [] }: EditSetSheetPro
                       )}
                     />
 
+                    {/* Flags row */}
+                    <div className="col-span-2 flex flex-wrap gap-x-6 gap-y-2">
+                      <FormField
+                        control={form.control}
+                        name="isComplete"
+                        render={({ field }) => (
+                          <FormItem className="flex items-center gap-2">
+                            <FormControl>
+                              <Checkbox checked={field.value} onCheckedChange={field.onChange} />
+                            </FormControl>
+                            <FormLabel className="!mt-0 cursor-pointer font-normal">Set complete</FormLabel>
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="isCompilation"
+                        render={({ field }) => (
+                          <FormItem className="flex items-center gap-2">
+                            <FormControl>
+                              <Checkbox checked={field.value} onCheckedChange={field.onChange} />
+                            </FormControl>
+                            <FormLabel className="!mt-0 cursor-pointer font-normal">Compilation</FormLabel>
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+
                     <FormItem className="col-span-2">
                       <FormLabel>Release Date</FormLabel>
                       <PartialDateInput
@@ -168,6 +203,48 @@ export function EditSetSheet({ set, channels, entityTags = [] }: EditSetSheetPro
                         onPrecisionChange={(val) => form.setValue("releaseDatePrecision", val as "UNKNOWN" | "YEAR" | "MONTH" | "DAY")}
                       />
                     </FormItem>
+
+                    {/* Photo-only: image count */}
+                    {isPhoto && (
+                      <FormField
+                        control={form.control}
+                        name="imageCount"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Number of images</FormLabel>
+                            <FormControl>
+                              <Input
+                                type="number"
+                                min={1}
+                                placeholder="e.g. 120"
+                                value={field.value ?? ""}
+                                onChange={(e) =>
+                                  field.onChange(e.target.value === "" ? undefined : Number(e.target.value))
+                                }
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    )}
+
+                    {/* Video-only: video length */}
+                    {isVideo && (
+                      <FormField
+                        control={form.control}
+                        name="videoLength"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Video length</FormLabel>
+                            <FormControl>
+                              <Input placeholder="h:mm:ss" {...field} value={field.value ?? ""} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    )}
 
                     <FormField
                       control={form.control}
@@ -239,11 +316,7 @@ export function EditSetSheet({ set, channels, entityTags = [] }: EditSetSheetPro
                         <FormItem>
                           <FormLabel>Description</FormLabel>
                           <FormControl>
-                            <Textarea
-                              placeholder="Brief description…"
-                              rows={2}
-                              {...field}
-                            />
+                            <Textarea placeholder="Brief description…" rows={2} {...field} />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -257,11 +330,7 @@ export function EditSetSheet({ set, channels, entityTags = [] }: EditSetSheetPro
                         <FormItem>
                           <FormLabel>Notes</FormLabel>
                           <FormControl>
-                            <Textarea
-                              placeholder="Internal notes…"
-                              rows={2}
-                              {...field}
-                            />
+                            <Textarea placeholder="Internal notes…" rows={2} {...field} />
                           </FormControl>
                           <FormMessage />
                         </FormItem>

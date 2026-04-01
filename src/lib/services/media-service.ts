@@ -429,6 +429,7 @@ export async function getSetMediaGallery(
     include: {
       mediaItem: {
         include: {
+          session: { select: { id: true, name: true } },
           collectionItems: { select: { collectionId: true } },
         },
       },
@@ -459,9 +460,30 @@ export async function getSetMediaGallery(
       collectionIds: item.collectionItems.map((ci) => ci.collectionId),
       sourceVideoRef: item.sourceVideoRef,
       sourceTimecodeMs: item.sourceTimecodeMs,
+      sessionId: item.sessionId,
+      sessionName: item.session.name,
     });
   }
   return results;
+}
+
+// ─── Skill event media constraint check ──────────────────────────────────────
+
+export async function getSkillEventMediaConstraints(
+  mediaItemIds: string[],
+): Promise<{ mediaItemId: string; skillEventCount: number }[]> {
+  const links = await prisma.skillEventMedia.findMany({
+    where: { mediaItemId: { in: mediaItemIds } },
+    select: { mediaItemId: true },
+  });
+  const counts = new Map<string, number>();
+  for (const l of links) {
+    counts.set(l.mediaItemId, (counts.get(l.mediaItemId) ?? 0) + 1);
+  }
+  return Array.from(counts.entries()).map(([mediaItemId, skillEventCount]) => ({
+    mediaItemId,
+    skillEventCount,
+  }));
 }
 
 // ─── Query functions ─────────────────────────────────────────────────────────

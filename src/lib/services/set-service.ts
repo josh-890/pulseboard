@@ -216,6 +216,10 @@ export async function createSetStandaloneRecord(data: {
   category?: string;
   genre?: string;
   tags?: string[];
+  isCompilation?: boolean;
+  isComplete?: boolean;
+  imageCount?: number;
+  videoLength?: string;
 }) {
   return prisma.$transaction(async (tx) => {
     // Look up channel's primary label via ChannelLabelMap (highest confidence)
@@ -250,6 +254,10 @@ export async function createSetStandaloneRecord(data: {
         category: data.category,
         genre: data.genre,
         tags: data.tags ?? [],
+        isCompilation: data.isCompilation ?? false,
+        isComplete: data.isComplete ?? false,
+        imageCount: data.imageCount ?? null,
+        videoLength: data.videoLength ?? null,
       },
     });
 
@@ -276,6 +284,10 @@ export async function updateSetRecord(id: string, data: {
   category?: string | null;
   genre?: string | null;
   tags?: string[];
+  isCompilation?: boolean;
+  isComplete?: boolean;
+  imageCount?: number | null;
+  videoLength?: string | null;
 }) {
   return prisma.set.update({
     where: { id },
@@ -289,6 +301,10 @@ export async function updateSetRecord(id: string, data: {
       category: data.category,
       genre: data.genre,
       tags: data.tags,
+      isCompilation: data.isCompilation,
+      isComplete: data.isComplete,
+      imageCount: data.imageCount,
+      videoLength: data.videoLength,
     },
   });
 }
@@ -807,6 +823,20 @@ async function syncSetSessionLinks(tx: TxClient, setId: string) {
       });
     }
   }
+}
+
+export async function splitMediaToSession(
+  setId: string,
+  mediaItemIds: string[],
+  targetSessionId: string,
+): Promise<void> {
+  await prisma.$transaction(async (tx) => {
+    await tx.mediaItem.updateMany({
+      where: { id: { in: mediaItemIds } },
+      data: { sessionId: targetSessionId },
+    });
+    await syncSetSessionLinks(tx, setId);
+  });
 }
 
 export async function reassignSetPrimarySession(

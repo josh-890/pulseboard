@@ -5,6 +5,7 @@ import { useState, useCallback, useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Plus, X, Check, XCircle, ChevronDown, ChevronUp } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -97,11 +98,14 @@ export function AddSetSheet({ channels, recentChannelIds = [], defaultType, role
       category: "",
       genre: "",
       tags: [],
+      isCompilation: false,
+      isComplete: false,
     },
   });
 
   const { isSubmitting } = form.formState;
   const tags = form.watch("tags") ?? [];
+  const watchedType = form.watch("type");
 
   // Sort channels: recent first, then alphabetical
   const sortedChannels = useMemo(() => {
@@ -171,6 +175,8 @@ export function AddSetSheet({ channels, recentChannelIds = [], defaultType, role
       category: "",
       genre: "",
       tags: [],
+      isCompilation: false,
+      isComplete: false,
     });
     setTagInput("");
   }
@@ -274,6 +280,80 @@ export function AddSetSheet({ channels, recentChannelIds = [], defaultType, role
                           </FormItem>
                         )}
                       />
+
+                      {/* Flags row */}
+                      <div className="col-span-2 flex flex-wrap gap-x-6 gap-y-2">
+                        <FormField
+                          control={form.control}
+                          name="isComplete"
+                          render={({ field }) => (
+                            <FormItem className="flex items-center gap-2">
+                              <FormControl>
+                                <Checkbox checked={field.value} onCheckedChange={field.onChange} />
+                              </FormControl>
+                              <FormLabel className="!mt-0 cursor-pointer font-normal">Set complete</FormLabel>
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={form.control}
+                          name="isCompilation"
+                          render={({ field }) => (
+                            <FormItem className="flex items-center gap-2">
+                              <FormControl>
+                                <Checkbox checked={field.value} onCheckedChange={field.onChange} />
+                              </FormControl>
+                              <FormLabel className="!mt-0 cursor-pointer font-normal">Compilation</FormLabel>
+                            </FormItem>
+                          )}
+                        />
+                      </div>
+
+                      {/* Photo-only: image count */}
+                      {watchedType === "photo" && (
+                        <FormField
+                          control={form.control}
+                          name="imageCount"
+                          render={({ field }) => (
+                            <FormItem className="col-span-1">
+                              <FormLabel>Number of images</FormLabel>
+                              <FormControl>
+                                <Input
+                                  type="number"
+                                  min={1}
+                                  placeholder="e.g. 120"
+                                  value={field.value ?? ""}
+                                  onChange={(e) =>
+                                    field.onChange(e.target.value === "" ? undefined : Number(e.target.value))
+                                  }
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      )}
+
+                      {/* Video-only: video length */}
+                      {watchedType === "video" && (
+                        <FormField
+                          control={form.control}
+                          name="videoLength"
+                          render={({ field }) => (
+                            <FormItem className="col-span-1">
+                              <FormLabel>Video length</FormLabel>
+                              <FormControl>
+                                <Input
+                                  placeholder="h:mm:ss"
+                                  {...field}
+                                  value={field.value ?? ""}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      )}
 
                       {/* Channel — with recent channels first */}
                       <FormField

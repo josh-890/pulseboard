@@ -44,4 +44,8 @@ export type GalleryItem = {
   sourceVideoRef?: string | null;
   /** Timecode offset (ms) at which this frame was extracted from the source clip */
   sourceTimecodeMs?: number | null;
+  /** Source session ID — only populated in set gallery context */
+  sessionId?: string;
+  /** Source session name — only populated in set gallery context */
+  sessionName?: string;
 };

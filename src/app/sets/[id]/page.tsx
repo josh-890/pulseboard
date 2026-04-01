@@ -117,6 +117,10 @@ export default async function SetDetailPage({ params }: SetDetailPageProps) {
               category: setData.category,
               genre: setData.genre,
               tags: setData.tags,
+              isCompilation: setData.isCompilation,
+              isComplete: setData.isComplete,
+              imageCount: setData.imageCount,
+              videoLength: setData.videoLength,
             }}
             channels={channels}
             entityTags={setTags}
@@ -155,6 +159,13 @@ export default async function SetDetailPage({ params }: SetDetailPageProps) {
         primarySessionId={setData.sessionLinks?.find((l) => l.isPrimary)?.sessionId}
         coverMediaItemId={setData.coverMediaItemId}
         setType={setData.type as "photo" | "video"}
+        isCompilation={setData.isCompilation}
+        sessionLinks={setData.sessionLinks?.map((l) => ({
+          sessionId: l.sessionId,
+          sessionName: l.session.name,
+          sessionDate: l.session.date,
+          isPrimary: l.isPrimary,
+        }))}
       />
 
       {/* Credits & Participants */}

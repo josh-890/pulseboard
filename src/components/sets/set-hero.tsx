@@ -4,7 +4,6 @@ import { Camera, Check, Circle, Film } from "lucide-react";
 import { cn, focalStyle, formatPartialDate, getInitialsFromName } from "@/lib/utils";
 import { SetInlineTitle } from "@/components/sets/set-detail-header";
 import { LabelEvidenceManager } from "@/components/sets/label-evidence-manager";
-import { SetSessionManager } from "@/components/sets/set-session-manager";
 import type { getSetById } from "@/lib/services/set-service";
 import type { CoverPhotoData, HeadshotData } from "@/lib/services/media-service";
 
@@ -132,7 +131,6 @@ export function SetHero({
 }: SetHeroProps) {
   const typeConfig = SET_TYPE_CONFIG[set.type] ?? SET_TYPE_CONFIG.photo;
   const participantCount = set.participants.length;
-  const sessionCount = set.sessionLinks.length;
   const hasLabel = set.labelEvidence.length > 0;
   const primaryLabel = set.channel?.labelMaps[0]?.label;
 
@@ -212,30 +210,6 @@ export function SetHero({
           />
         </div>
 
-        {/* Session links (full interactive manager) */}
-        {set.sessionLinks.length > 0 && (
-          <div className="mt-2">
-            <p className="mb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              Sessions
-            </p>
-            <SetSessionManager
-              setId={set.id}
-              sessionLinks={set.sessionLinks.map((link) => ({
-                setId: link.setId,
-                sessionId: link.sessionId,
-                isPrimary: link.isPrimary,
-                session: {
-                  id: link.session.id,
-                  name: link.session.name,
-                  status: link.session.status,
-                  date: link.session.date,
-                  datePrecision: link.session.datePrecision,
-                },
-              }))}
-            />
-          </div>
-        )}
-
         {/* Participant avatars */}
         <ParticipantAvatars
           participants={set.participants}
@@ -257,8 +231,19 @@ export function SetHero({
         {/* Stats */}
         <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
           <span>{participantCount} {participantCount === 1 ? "participant" : "participants"}</span>
-          <span>{sessionCount} {sessionCount === 1 ? "session" : "sessions"}</span>
           <span>{mediaCount} media</span>
+          {set.imageCount != null && (
+            <span>{set.imageCount} images in set</span>
+          )}
+          {set.videoLength && (
+            <span>{set.videoLength}</span>
+          )}
+          {set.isCompilation && (
+            <span className="text-sky-500 dark:text-sky-400">Compilation</span>
+          )}
+          {set.isComplete && (
+            <span className="text-emerald-500 dark:text-emerald-400">Complete</span>
+          )}
         </div>
       </div>
     </div>
