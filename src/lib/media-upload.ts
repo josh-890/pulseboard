@@ -1,6 +1,6 @@
 import sharp from "sharp";
 import { PutObjectCommand, GetObjectCommand, DeleteObjectsCommand } from "@aws-sdk/client-s3";
-import { minioClient, MINIO_BUCKET } from "./minio";
+import { minioClient, getMinioBucket } from "./minio";
 
 type ProfileVariant = {
   name: string;
@@ -87,7 +87,7 @@ export async function uploadPhotoToStorage(
   console.log(`[storage] MinIO PUT: ${keyOriginal}`);
   await minioClient.send(
     new PutObjectCommand({
-      Bucket: MINIO_BUCKET,
+      Bucket: getMinioBucket(),
       Key: keyOriginal,
       Body: buffer,
       ContentType: mimeType,
@@ -113,7 +113,7 @@ export async function uploadPhotoToStorage(
     const variantKey = `${prefix}/${variant.name}.webp`;
     await minioClient.send(
       new PutObjectCommand({
-        Bucket: MINIO_BUCKET,
+        Bucket: getMinioBucket(),
         Key: variantKey,
         Body: variantBuffer,
         ContentType: "image/webp",
@@ -139,7 +139,7 @@ export async function uploadPhotoToStorage(
     const variantKey = `${prefix}/${variant.name}.webp`;
     await minioClient.send(
       new PutObjectCommand({
-        Bucket: MINIO_BUCKET,
+        Bucket: getMinioBucket(),
         Key: variantKey,
         Body: variantBuffer,
         ContentType: "image/webp",
@@ -221,7 +221,7 @@ export async function regenerateProfileVariants(
   // Download original from MinIO
   const getResult = await minioClient.send(
     new GetObjectCommand({
-      Bucket: MINIO_BUCKET,
+      Bucket: getMinioBucket(),
       Key: originalKey,
     }),
   );
@@ -263,7 +263,7 @@ export async function regenerateProfileVariants(
 
     await minioClient.send(
       new PutObjectCommand({
-        Bucket: MINIO_BUCKET,
+        Bucket: getMinioBucket(),
         Key: variantKey,
         Body: variantBuffer,
         ContentType: "image/webp",
@@ -302,7 +302,7 @@ export async function deleteMediaFiles(variantsList: PhotoVariants[]): Promise<v
     try {
       await minioClient.send(
         new DeleteObjectsCommand({
-          Bucket: MINIO_BUCKET,
+          Bucket: getMinioBucket(),
           Delete: {
             Objects: batch.map((Key) => ({ Key })),
             Quiet: true,

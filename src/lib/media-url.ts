@@ -1,10 +1,25 @@
 import type { PhotoVariants, PhotoUrls } from "@/lib/types";
+import { getCurrentTenantConfig } from "./tenant-context";
+import { isSingleTenantMode } from "./tenants";
 
-const BASE_URL = process.env.NEXT_PUBLIC_MINIO_URL!;
+/**
+ * Get the MinIO base URL for the current tenant.
+ * Format: http://host:port/bucket
+ */
+function getBaseUrl(): string {
+  if (isSingleTenantMode()) {
+    return process.env.NEXT_PUBLIC_MINIO_URL!;
+  }
+  const minioBase = process.env.MINIO_PUBLIC_BASE_URL ?? process.env.NEXT_PUBLIC_MINIO_URL!;
+  // Strip any trailing bucket from the base URL (e.g., "http://host:port/pulseboard" → "http://host:port")
+  const url = new URL(minioBase);
+  const bucket = getCurrentTenantConfig().minioBucket;
+  return `${url.origin}/${bucket}`;
+}
 
 /** Build a full MinIO URL from a storage key. */
 export function buildUrl(key: string): string {
-  return `${BASE_URL}/${key}`;
+  return `${getBaseUrl()}/${key}`;
 }
 
 /** Build a full set of photo URLs from variants and optional fileRef fallback. */

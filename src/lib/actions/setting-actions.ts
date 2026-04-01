@@ -1,5 +1,6 @@
 "use server";
 
+import { withTenantFromHeaders } from "@/lib/tenant-context";
 import { revalidatePath } from "next/cache";
 import {
   updateProfileImageLabel as updateLabel,
@@ -18,31 +19,37 @@ const updateLabelSchema = z.object({
 export async function updateProfileImageLabel(
   data: unknown,
 ): Promise<SimpleActionResult> {
-  const parsed = updateLabelSchema.safeParse(data);
-  if (!parsed.success) {
-    return { success: false, error: parsed.error.issues[0].message };
-  }
+  return withTenantFromHeaders(async () => {
+    const parsed = updateLabelSchema.safeParse(data);
+    if (!parsed.success) {
+      return { success: false, error: parsed.error.issues[0].message };
+    }
 
-  try {
-    await updateLabel(parsed.data.slot, parsed.data.label);
-    revalidatePath("/settings");
-    revalidatePath("/people");
-    return { success: true };
-  } catch {
-    return { success: false, error: "Failed to update label" };
-  }
+    try {
+      await updateLabel(parsed.data.slot, parsed.data.label);
+      revalidatePath("/settings");
+      revalidatePath("/people");
+      return { success: true };
+    } catch {
+      return { success: false, error: "Failed to update label" };
+    }
+
+  });
 }
 
 export async function updateHeroBackdropAction(
   enabled: boolean,
 ): Promise<SimpleActionResult> {
-  try {
-    await setSetting(HERO_BACKDROP_KEY, enabled ? "true" : "false");
-    revalidatePath("/settings");
-    return { success: true };
-  } catch {
-    return { success: false, error: "Failed to update backdrop setting" };
-  }
+  return withTenantFromHeaders(async () => {
+    try {
+      await setSetting(HERO_BACKDROP_KEY, enabled ? "true" : "false");
+      revalidatePath("/settings");
+      return { success: true };
+    } catch {
+      return { success: false, error: "Failed to update backdrop setting" };
+    }
+
+  });
 }
 
 const skillLevelConfigSchema = z.object({
@@ -58,19 +65,22 @@ const skillLevelConfigSchema = z.object({
 export async function updateSkillLevelConfigAction(
   data: unknown,
 ): Promise<SimpleActionResult> {
-  const parsed = skillLevelConfigSchema.safeParse(data);
-  if (!parsed.success) {
-    return { success: false, error: parsed.error.issues[0].message };
-  }
-
-  try {
-    for (const row of parsed.data.levels) {
-      await updateSkillLevelConfig(row.level, row.label, row.delta);
+  return withTenantFromHeaders(async () => {
+    const parsed = skillLevelConfigSchema.safeParse(data);
+    if (!parsed.success) {
+      return { success: false, error: parsed.error.issues[0].message };
     }
-    revalidatePath("/settings");
-    revalidatePath("/people");
-    return { success: true };
-  } catch {
-    return { success: false, error: "Failed to update skill level config" };
-  }
+
+    try {
+      for (const row of parsed.data.levels) {
+        await updateSkillLevelConfig(row.level, row.label, row.delta);
+      }
+      revalidatePath("/settings");
+      revalidatePath("/people");
+      return { success: true };
+    } catch {
+      return { success: false, error: "Failed to update skill level config" };
+    }
+
+  });
 }

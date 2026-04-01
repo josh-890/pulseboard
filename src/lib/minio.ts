@@ -31,4 +31,19 @@ export const minioClient =
 
 if (process.env.NODE_ENV !== "production") globalForMinio.minioClient = minioClient;
 
+import { getCurrentTenantConfig } from "./tenant-context";
+import { isSingleTenantMode } from "./tenants";
+
+/**
+ * Get the MinIO bucket for the current tenant.
+ * In single-tenant mode, falls back to the MINIO_BUCKET env var.
+ */
+export function getMinioBucket(): string {
+  if (isSingleTenantMode()) {
+    return process.env.MINIO_BUCKET!;
+  }
+  return getCurrentTenantConfig().minioBucket;
+}
+
+/** @deprecated Use getMinioBucket() for tenant-aware bucket resolution */
 export const MINIO_BUCKET = process.env.MINIO_BUCKET!;

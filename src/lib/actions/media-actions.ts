@@ -1,5 +1,6 @@
 "use server";
 
+import { withTenantFromHeaders } from "@/lib/tenant-context";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import {
@@ -18,57 +19,63 @@ export async function assignHeadshotSlot(
   mediaItemId: string,
   slot: number,
 ): Promise<SimpleActionResult> {
-  try {
-    await prisma.$transaction(async (tx) => {
-      // Remove the HEADSHOT link from whatever image previously held this slot
-      await tx.personMediaLink.deleteMany({
-        where: { personId, usage: "HEADSHOT", slot },
-      });
+  return withTenantFromHeaders(async () => {
+    try {
+      await prisma.$transaction(async (tx) => {
+        // Remove the HEADSHOT link from whatever image previously held this slot
+        await tx.personMediaLink.deleteMany({
+          where: { personId, usage: "HEADSHOT", slot },
+        });
 
-      // Upsert the link for this person+media+HEADSHOT
-      await tx.personMediaLink.upsert({
-        where: {
-          personId_mediaItemId_usage: {
+        // Upsert the link for this person+media+HEADSHOT
+        await tx.personMediaLink.upsert({
+          where: {
+            personId_mediaItemId_usage: {
+              personId,
+              mediaItemId,
+              usage: "HEADSHOT",
+            },
+          },
+          update: { slot },
+          create: {
             personId,
             mediaItemId,
             usage: "HEADSHOT",
+            slot,
           },
-        },
-        update: { slot },
-        create: {
-          personId,
-          mediaItemId,
-          usage: "HEADSHOT",
-          slot,
-        },
+        });
       });
-    });
 
-    revalidatePath("/people");
-    revalidatePath(`/people/${personId}`);
-    return { success: true };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Unexpected error";
-    return { success: false, error: message };
-  }
+      revalidatePath("/people");
+      revalidatePath(`/people/${personId}`);
+      return { success: true };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unexpected error";
+      return { success: false, error: message };
+    }
+
+  });
 }
 
 export async function removeHeadshotSlot(
   personId: string,
   mediaItemId: string,
 ): Promise<SimpleActionResult> {
-  try {
-    await prisma.personMediaLink.deleteMany({
-      where: { personId, mediaItemId, usage: "HEADSHOT" },
-    });
+  return withTenantFromHeaders(async () => {
+    try {
+      await prisma.personMediaLink.deleteMany({
+        where: { personId, mediaItemId, usage: "HEADSHOT" },
+      });
 
-    revalidatePath("/people");
-    revalidatePath(`/people/${personId}`);
-    return { success: true };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Unexpected error";
-    return { success: false, error: message };
-  }
+      revalidatePath("/people");
+      revalidatePath(`/people/${personId}`);
+      return { success: true };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unexpected error";
+      return { success: false, error: message };
+    }
+
+  });
 }
 
 export async function updatePersonMediaLinkAction(
@@ -77,15 +84,18 @@ export async function updatePersonMediaLinkAction(
   personId: string,
   sessionId: string,
 ): Promise<SimpleActionResult> {
-  try {
-    await updatePersonMediaLink(linkId, data);
-    revalidatePath(`/sessions/${sessionId}`);
-    revalidatePath(`/people/${personId}`);
-    return { success: true };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Unexpected error";
-    return { success: false, error: message };
-  }
+  return withTenantFromHeaders(async () => {
+    try {
+      await updatePersonMediaLink(linkId, data);
+      revalidatePath(`/sessions/${sessionId}`);
+      revalidatePath(`/people/${personId}`);
+      return { success: true };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unexpected error";
+      return { success: false, error: message };
+    }
+
+  });
 }
 
 export async function batchUpdateLinksAction(
@@ -94,15 +104,18 @@ export async function batchUpdateLinksAction(
   personId: string,
   sessionId: string,
 ): Promise<SimpleActionResult> {
-  try {
-    await batchUpdatePersonMediaLinks(linkIds, data);
-    revalidatePath(`/sessions/${sessionId}`);
-    revalidatePath(`/people/${personId}`);
-    return { success: true };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Unexpected error";
-    return { success: false, error: message };
-  }
+  return withTenantFromHeaders(async () => {
+    try {
+      await batchUpdatePersonMediaLinks(linkIds, data);
+      revalidatePath(`/sessions/${sessionId}`);
+      revalidatePath(`/people/${personId}`);
+      return { success: true };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unexpected error";
+      return { success: false, error: message };
+    }
+
+  });
 }
 
 export async function batchSetUsageAction(
@@ -111,15 +124,18 @@ export async function batchSetUsageAction(
   usage: PersonMediaUsage,
   sessionId: string,
 ): Promise<SimpleActionResult> {
-  try {
-    await batchSetUsage(personId, mediaItemIds, usage);
-    revalidatePath(`/sessions/${sessionId}`);
-    revalidatePath(`/people/${personId}`);
-    return { success: true };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Unexpected error";
-    return { success: false, error: message };
-  }
+  return withTenantFromHeaders(async () => {
+    try {
+      await batchSetUsage(personId, mediaItemIds, usage);
+      revalidatePath(`/sessions/${sessionId}`);
+      revalidatePath(`/people/${personId}`);
+      return { success: true };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unexpected error";
+      return { success: false, error: message };
+    }
+
+  });
 }
 
 export async function removePersonMediaLinkAction(
@@ -128,21 +144,24 @@ export async function removePersonMediaLinkAction(
   usage: PersonMediaUsage,
   sessionId: string,
 ): Promise<SimpleActionResult> {
-  try {
-    await prisma.personMediaLink.deleteMany({
-      where: {
-        personId,
-        mediaItemId,
-        usage,
-      },
-    });
-    revalidatePath(`/sessions/${sessionId}`);
-    revalidatePath(`/people/${personId}`);
-    return { success: true };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Unexpected error";
-    return { success: false, error: message };
-  }
+  return withTenantFromHeaders(async () => {
+    try {
+      await prisma.personMediaLink.deleteMany({
+        where: {
+          personId,
+          mediaItemId,
+          usage,
+        },
+      });
+      revalidatePath(`/sessions/${sessionId}`);
+      revalidatePath(`/people/${personId}`);
+      return { success: true };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unexpected error";
+      return { success: false, error: message };
+    }
+
+  });
 }
 
 export async function batchRemoveUsageAction(
@@ -151,15 +170,18 @@ export async function batchRemoveUsageAction(
   usage: PersonMediaUsage,
   sessionId: string,
 ): Promise<SimpleActionResult> {
-  try {
-    await batchRemoveUsage(personId, mediaItemIds, usage);
-    revalidatePath(`/sessions/${sessionId}`);
-    revalidatePath(`/people/${personId}`);
-    return { success: true };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Unexpected error";
-    return { success: false, error: message };
-  }
+  return withTenantFromHeaders(async () => {
+    try {
+      await batchRemoveUsage(personId, mediaItemIds, usage);
+      revalidatePath(`/sessions/${sessionId}`);
+      revalidatePath(`/people/${personId}`);
+      return { success: true };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unexpected error";
+      return { success: false, error: message };
+    }
+
+  });
 }
 
 export async function upsertPersonMediaLinkAction(
@@ -169,40 +191,43 @@ export async function upsertPersonMediaLinkAction(
   data: Omit<PersonMediaLinkUpdate, "usage">,
   sessionId: string,
 ): Promise<SimpleActionResult> {
-  try {
-    // For DETAIL usage, match by categoryId; for others, match by usage
-    const whereClause =
-      usage === "DETAIL" && data.categoryId
-        ? { personId, mediaItemId, usage, categoryId: data.categoryId }
-        : { personId, mediaItemId, usage };
+  return withTenantFromHeaders(async () => {
+    try {
+      // For DETAIL usage, match by categoryId; for others, match by usage
+      const whereClause =
+        usage === "DETAIL" && data.categoryId
+          ? { personId, mediaItemId, usage, categoryId: data.categoryId }
+          : { personId, mediaItemId, usage };
 
-    const existing = await prisma.personMediaLink.findFirst({
-      where: whereClause,
-    });
+      const existing = await prisma.personMediaLink.findFirst({
+        where: whereClause,
+      });
 
-    if (existing) {
-      await prisma.personMediaLink.update({
-        where: { id: existing.id },
-        data,
-      });
-    } else {
-      await prisma.personMediaLink.create({
-        data: {
-          personId,
-          mediaItemId,
-          usage,
-          ...data,
-        },
-      });
+      if (existing) {
+        await prisma.personMediaLink.update({
+          where: { id: existing.id },
+          data,
+        });
+      } else {
+        await prisma.personMediaLink.create({
+          data: {
+            personId,
+            mediaItemId,
+            usage,
+            ...data,
+          },
+        });
+      }
+
+      revalidatePath(`/sessions/${sessionId}`);
+      revalidatePath(`/people/${personId}`);
+      return { success: true };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unexpected error";
+      return { success: false, error: message };
     }
 
-    revalidatePath(`/sessions/${sessionId}`);
-    revalidatePath(`/people/${personId}`);
-    return { success: true };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Unexpected error";
-    return { success: false, error: message };
-  }
+  });
 }
 
 export async function setFocalPointAction(
@@ -212,49 +237,55 @@ export async function setFocalPointAction(
   sessionId: string,
   personId?: string,
 ): Promise<SimpleActionResult> {
-  try {
-    const clampedX = Math.min(1, Math.max(0, focalX));
-    const clampedY = Math.min(1, Math.max(0, focalY));
+  return withTenantFromHeaders(async () => {
+    try {
+      const clampedX = Math.min(1, Math.max(0, focalX));
+      const clampedY = Math.min(1, Math.max(0, focalY));
 
-    await prisma.mediaItem.update({
-      where: { id: mediaItemId },
-      data: {
-        focalX: clampedX,
-        focalY: clampedY,
-        focalSource: "manual",
-        focalStatus: "done",
-      },
-    });
+      await prisma.mediaItem.update({
+        where: { id: mediaItemId },
+        data: {
+          focalX: clampedX,
+          focalY: clampedY,
+          focalSource: "manual",
+          focalStatus: "done",
+        },
+      });
 
-    revalidatePath(`/sessions/${sessionId}`);
-    revalidatePath("/people");
-    if (personId) revalidatePath(`/people/${personId}`);
-    return { success: true };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Unexpected error";
-    return { success: false, error: message };
-  }
+      revalidatePath(`/sessions/${sessionId}`);
+      revalidatePath("/people");
+      if (personId) revalidatePath(`/people/${personId}`);
+      return { success: true };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unexpected error";
+      return { success: false, error: message };
+    }
+
+  });
 }
 
 export async function reorderPersonMediaAction(
   personId: string,
   orderedMediaItemIds: string[],
 ): Promise<SimpleActionResult> {
-  try {
-    await prisma.$transaction(async (tx) => {
-      for (let i = 0; i < orderedMediaItemIds.length; i++) {
-        await tx.personMediaLink.updateMany({
-          where: { personId, mediaItemId: orderedMediaItemIds[i] },
-          data: { sortOrder: i },
-        });
-      }
-    });
-    revalidatePath(`/people/${personId}`);
-    return { success: true };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Unexpected error";
-    return { success: false, error: message };
-  }
+  return withTenantFromHeaders(async () => {
+    try {
+      await prisma.$transaction(async (tx) => {
+        for (let i = 0; i < orderedMediaItemIds.length; i++) {
+          await tx.personMediaLink.updateMany({
+            where: { personId, mediaItemId: orderedMediaItemIds[i] },
+            data: { sortOrder: i },
+          });
+        }
+      });
+      revalidatePath(`/people/${personId}`);
+      return { success: true };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unexpected error";
+      return { success: false, error: message };
+    }
+
+  });
 }
 
 export async function setPersonMediaFavoriteAction(
@@ -262,17 +293,20 @@ export async function setPersonMediaFavoriteAction(
   mediaItemId: string,
   isFavorite: boolean,
 ): Promise<SimpleActionResult> {
-  try {
-    await prisma.personMediaLink.updateMany({
-      where: { personId, mediaItemId },
-      data: { isFavorite },
-    });
-    revalidatePath(`/people/${personId}`);
-    return { success: true };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Unexpected error";
-    return { success: false, error: message };
-  }
+  return withTenantFromHeaders(async () => {
+    try {
+      await prisma.personMediaLink.updateMany({
+        where: { personId, mediaItemId },
+        data: { isFavorite },
+      });
+      revalidatePath(`/people/${personId}`);
+      return { success: true };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unexpected error";
+      return { success: false, error: message };
+    }
+
+  });
 }
 
 export async function deleteMediaItemsAction(
@@ -280,28 +314,31 @@ export async function deleteMediaItemsAction(
   personId: string,
   sessionId: string,
 ): Promise<SimpleActionResult> {
-  try {
-    const variantsList = await prisma.$transaction(async (tx) => {
-      return cascadeHardDeleteMediaItems(tx, mediaItemIds);
-    });
-
-    // Best-effort file cleanup after commit
+  return withTenantFromHeaders(async () => {
     try {
-      const { deleteMediaFiles } = await import("@/lib/media-upload");
-      await deleteMediaFiles(variantsList);
+      const variantsList = await prisma.$transaction(async (tx) => {
+        return cascadeHardDeleteMediaItems(tx, mediaItemIds);
+      });
+
+      // Best-effort file cleanup after commit
+      try {
+        const { deleteMediaFiles } = await import("@/lib/media-upload");
+        await deleteMediaFiles(variantsList);
+      } catch (err) {
+        console.error("[deleteMediaItemsAction] MinIO cleanup failed:", err);
+      }
+
+      await refreshDashboardStats();
+      revalidatePath(`/sessions/${sessionId}`);
+      revalidatePath(`/people/${personId}`);
+      revalidatePath("/people");
+      return { success: true };
     } catch (err) {
-      console.error("[deleteMediaItemsAction] MinIO cleanup failed:", err);
+      const message = err instanceof Error ? err.message : "Unexpected error";
+      return { success: false, error: message };
     }
 
-    await refreshDashboardStats();
-    revalidatePath(`/sessions/${sessionId}`);
-    revalidatePath(`/people/${personId}`);
-    revalidatePath("/people");
-    return { success: true };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Unexpected error";
-    return { success: false, error: message };
-  }
+  });
 }
 
 export async function linkMediaToDetailCategoryAction(
@@ -311,29 +348,32 @@ export async function linkMediaToDetailCategoryAction(
   entityField?: "bodyMarkId" | "bodyModificationId" | "cosmeticProcedureId",
   entityId?: string,
 ): Promise<SimpleActionResult> {
-  try {
-    for (const mediaItemId of mediaItemIds) {
-      const existing = await prisma.personMediaLink.findFirst({
-        where: { personId, mediaItemId, usage: "DETAIL", categoryId },
-      });
-      if (!existing) {
-        await prisma.personMediaLink.create({
-          data: {
-            personId,
-            mediaItemId,
-            usage: "DETAIL",
-            categoryId,
-            ...(entityField && entityId ? { [entityField]: entityId } : {}),
-          },
+  return withTenantFromHeaders(async () => {
+    try {
+      for (const mediaItemId of mediaItemIds) {
+        const existing = await prisma.personMediaLink.findFirst({
+          where: { personId, mediaItemId, usage: "DETAIL", categoryId },
         });
+        if (!existing) {
+          await prisma.personMediaLink.create({
+            data: {
+              personId,
+              mediaItemId,
+              usage: "DETAIL",
+              categoryId,
+              ...(entityField && entityId ? { [entityField]: entityId } : {}),
+            },
+          });
+        }
       }
+      revalidatePath(`/people/${personId}`);
+      return { success: true };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unexpected error";
+      return { success: false, error: message };
     }
-    revalidatePath(`/people/${personId}`);
-    return { success: true };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Unexpected error";
-    return { success: false, error: message };
-  }
+
+  });
 }
 
 export async function unlinkMediaFromDetailCategoryAction(
@@ -341,21 +381,24 @@ export async function unlinkMediaFromDetailCategoryAction(
   mediaItemIds: string[],
   categoryId: string,
 ): Promise<SimpleActionResult> {
-  try {
-    await prisma.personMediaLink.deleteMany({
-      where: {
-        personId,
-        mediaItemId: { in: mediaItemIds },
-        usage: "DETAIL",
-        categoryId,
-      },
-    });
-    revalidatePath(`/people/${personId}`);
-    return { success: true };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Unexpected error";
-    return { success: false, error: message };
-  }
+  return withTenantFromHeaders(async () => {
+    try {
+      await prisma.personMediaLink.deleteMany({
+        where: {
+          personId,
+          mediaItemId: { in: mediaItemIds },
+          usage: "DETAIL",
+          categoryId,
+        },
+      });
+      revalidatePath(`/people/${personId}`);
+      return { success: true };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unexpected error";
+      return { success: false, error: message };
+    }
+
+  });
 }
 
 export async function batchEntityLinkAction(
@@ -366,35 +409,38 @@ export async function batchEntityLinkAction(
   entityId: string,
   sessionId: string,
 ): Promise<SimpleActionResult> {
-  try {
-    for (const mediaItemId of mediaItemIds) {
-      const existing = await prisma.personMediaLink.findFirst({
-        where: { personId, mediaItemId, usage: "DETAIL", categoryId },
-      });
-      if (existing) {
-        await prisma.personMediaLink.update({
-          where: { id: existing.id },
-          data: { [entityField]: entityId },
+  return withTenantFromHeaders(async () => {
+    try {
+      for (const mediaItemId of mediaItemIds) {
+        const existing = await prisma.personMediaLink.findFirst({
+          where: { personId, mediaItemId, usage: "DETAIL", categoryId },
         });
-      } else {
-        await prisma.personMediaLink.create({
-          data: {
-            personId,
-            mediaItemId,
-            usage: "DETAIL",
-            categoryId,
-            [entityField]: entityId,
-          },
-        });
+        if (existing) {
+          await prisma.personMediaLink.update({
+            where: { id: existing.id },
+            data: { [entityField]: entityId },
+          });
+        } else {
+          await prisma.personMediaLink.create({
+            data: {
+              personId,
+              mediaItemId,
+              usage: "DETAIL",
+              categoryId,
+              [entityField]: entityId,
+            },
+          });
+        }
       }
+      revalidatePath(`/sessions/${sessionId}`);
+      revalidatePath(`/people/${personId}`);
+      return { success: true };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unexpected error";
+      return { success: false, error: message };
     }
-    revalidatePath(`/sessions/${sessionId}`);
-    revalidatePath(`/people/${personId}`);
-    return { success: true };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Unexpected error";
-    return { success: false, error: message };
-  }
+
+  });
 }
 
 export async function batchSetBodyRegionsAction(
@@ -403,22 +449,25 @@ export async function batchSetBodyRegionsAction(
   bodyRegions: string[],
   sessionId: string,
 ): Promise<SimpleActionResult> {
-  try {
-    // Update bodyRegions on all DETAIL links for the given media items
-    await prisma.personMediaLink.updateMany({
-      where: {
-        personId,
-        mediaItemId: { in: mediaItemIds },
-      },
-      data: { bodyRegions },
-    });
-    revalidatePath(`/sessions/${sessionId}`);
-    revalidatePath(`/people/${personId}`);
-    return { success: true };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Unexpected error";
-    return { success: false, error: message };
-  }
+  return withTenantFromHeaders(async () => {
+    try {
+      // Update bodyRegions on all DETAIL links for the given media items
+      await prisma.personMediaLink.updateMany({
+        where: {
+          personId,
+          mediaItemId: { in: mediaItemIds },
+        },
+        data: { bodyRegions },
+      });
+      revalidatePath(`/sessions/${sessionId}`);
+      revalidatePath(`/people/${personId}`);
+      return { success: true };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unexpected error";
+      return { success: false, error: message };
+    }
+
+  });
 }
 
 export async function resetFocalPointAction(
@@ -426,24 +475,27 @@ export async function resetFocalPointAction(
   sessionId: string,
   personId?: string,
 ): Promise<SimpleActionResult> {
-  try {
-    await prisma.mediaItem.update({
-      where: { id: mediaItemId },
-      data: {
-        focalX: null,
-        focalY: null,
-        focalSource: null,
-        focalStatus: null,
-        modelVersion: null,
-      },
-    });
+  return withTenantFromHeaders(async () => {
+    try {
+      await prisma.mediaItem.update({
+        where: { id: mediaItemId },
+        data: {
+          focalX: null,
+          focalY: null,
+          focalSource: null,
+          focalStatus: null,
+          modelVersion: null,
+        },
+      });
 
-    revalidatePath(`/sessions/${sessionId}`);
-    revalidatePath("/people");
-    if (personId) revalidatePath(`/people/${personId}`);
-    return { success: true };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Unexpected error";
-    return { success: false, error: message };
-  }
+      revalidatePath(`/sessions/${sessionId}`);
+      revalidatePath("/people");
+      if (personId) revalidatePath(`/people/${personId}`);
+      return { success: true };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unexpected error";
+      return { success: false, error: message };
+    }
+
+  });
 }

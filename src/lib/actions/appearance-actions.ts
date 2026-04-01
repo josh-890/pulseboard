@@ -1,5 +1,6 @@
 "use server";
 
+import { withTenantFromHeaders } from "@/lib/tenant-context";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import type {
@@ -91,46 +92,49 @@ export async function createBodyMarkAction(
     datePrecision?: string;
   },
 ): Promise<ActionResultWithId> {
-  try {
-    const date = data.date ? new Date(data.date) : null;
-    const precision = (data.datePrecision ?? "UNKNOWN") as DatePrecision;
+  return withTenantFromHeaders(async () => {
+    try {
+      const date = data.date ? new Date(data.date) : null;
+      const precision = (data.datePrecision ?? "UNKNOWN") as DatePrecision;
 
-    let markId = "";
-    await prisma.$transaction(async (tx) => {
-      const personaId = await findOrCreatePersonaForDate(tx, personId, date, precision);
-      const mark = await tx.bodyMark.create({
-        data: {
-          personId,
-          type: data.type as BodyMarkType,
-          bodyRegion: data.bodyRegion,
-          bodyRegions: data.bodyRegions ?? [],
-          side: data.side,
-          position: data.position,
-          description: data.description,
-          motif: data.motif,
-          colors: data.colors ?? [],
-          size: data.size,
-          status: "present" as BodyMarkStatus,
-        },
+      let markId = "";
+      await prisma.$transaction(async (tx) => {
+        const personaId = await findOrCreatePersonaForDate(tx, personId, date, precision);
+        const mark = await tx.bodyMark.create({
+          data: {
+            personId,
+            type: data.type as BodyMarkType,
+            bodyRegion: data.bodyRegion,
+            bodyRegions: data.bodyRegions ?? [],
+            side: data.side,
+            position: data.position,
+            description: data.description,
+            motif: data.motif,
+            colors: data.colors ?? [],
+            size: data.size,
+            status: "present" as BodyMarkStatus,
+          },
+        });
+        markId = mark.id;
+        await tx.bodyMarkEvent.create({
+          data: {
+            bodyMarkId: mark.id,
+            personaId,
+            eventType: "added",
+            date,
+            datePrecision: precision,
+          },
+        });
       });
-      markId = mark.id;
-      await tx.bodyMarkEvent.create({
-        data: {
-          bodyMarkId: mark.id,
-          personaId,
-          eventType: "added",
-          date,
-          datePrecision: precision,
-        },
-      });
-    });
 
-    revalidatePath(`/people/${personId}`);
-    return { success: true, id: markId };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Unexpected error";
-    return { success: false, error: message };
-  }
+      revalidatePath(`/people/${personId}`);
+      return { success: true, id: markId };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unexpected error";
+      return { success: false, error: message };
+    }
+
+  });
 }
 
 export async function updateBodyMarkAction(
@@ -151,66 +155,72 @@ export async function updateBodyMarkAction(
     singleEventDatePrecision?: string;
   },
 ): Promise<ActionResultWithId> {
-  try {
-    await prisma.$transaction(async (tx) => {
-      // Update entity fields (no status — derived from events)
-      await tx.bodyMark.update({
-        where: { id },
-        data: {
-          type: data.type as BodyMarkType | undefined,
-          bodyRegion: data.bodyRegion,
-          bodyRegions: data.bodyRegions,
-          side: data.side,
-          position: data.position,
-          description: data.description,
-          motif: data.motif,
-          colors: data.colors,
-          size: data.size,
-        },
+  return withTenantFromHeaders(async () => {
+    try {
+      await prisma.$transaction(async (tx) => {
+        // Update entity fields (no status — derived from events)
+        await tx.bodyMark.update({
+          where: { id },
+          data: {
+            type: data.type as BodyMarkType | undefined,
+            bodyRegion: data.bodyRegion,
+            bodyRegions: data.bodyRegions,
+            side: data.side,
+            position: data.position,
+            description: data.description,
+            motif: data.motif,
+            colors: data.colors,
+            size: data.size,
+          },
+        });
+
+        // Single-event date convenience
+        if (data.singleEventDate !== undefined) {
+          const events = await tx.bodyMarkEvent.findMany({
+            where: { bodyMarkId: id },
+            orderBy: { date: "asc" },
+          });
+          if (events.length === 1) {
+            const parsedDate = data.singleEventDate ? new Date(data.singleEventDate) : null;
+            const precision = (data.singleEventDatePrecision ?? "UNKNOWN") as DatePrecision;
+            const targetPersonaId = await findOrCreatePersonaForDate(tx, personId, parsedDate, precision);
+            await tx.bodyMarkEvent.update({
+              where: { id: events[0].id },
+              data: {
+                personaId: targetPersonaId,
+                date: parsedDate,
+                datePrecision: precision,
+              },
+            });
+          }
+        }
       });
 
-      // Single-event date convenience
-      if (data.singleEventDate !== undefined) {
-        const events = await tx.bodyMarkEvent.findMany({
-          where: { bodyMarkId: id },
-          orderBy: { date: "asc" },
-        });
-        if (events.length === 1) {
-          const parsedDate = data.singleEventDate ? new Date(data.singleEventDate) : null;
-          const precision = (data.singleEventDatePrecision ?? "UNKNOWN") as DatePrecision;
-          const targetPersonaId = await findOrCreatePersonaForDate(tx, personId, parsedDate, precision);
-          await tx.bodyMarkEvent.update({
-            where: { id: events[0].id },
-            data: {
-              personaId: targetPersonaId,
-              date: parsedDate,
-              datePrecision: precision,
-            },
-          });
-        }
-      }
-    });
+      revalidatePath(`/people/${personId}`);
+      return { success: true };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unexpected error";
+      return { success: false, error: message };
+    }
 
-    revalidatePath(`/people/${personId}`);
-    return { success: true };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Unexpected error";
-    return { success: false, error: message };
-  }
+  });
 }
 
 export async function deleteBodyMarkAction(
   id: string,
   personId: string,
 ): Promise<ActionResultWithId> {
-  try {
-    await deleteBodyMarkRecord(id);
-    revalidatePath(`/people/${personId}`);
-    return { success: true };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Unexpected error";
-    return { success: false, error: message };
-  }
+  return withTenantFromHeaders(async () => {
+    try {
+      await deleteBodyMarkRecord(id);
+      revalidatePath(`/people/${personId}`);
+      return { success: true };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unexpected error";
+      return { success: false, error: message };
+    }
+
+  });
 }
 
 export async function createBodyMarkEventAction(
@@ -228,46 +238,49 @@ export async function createBodyMarkEventAction(
     description?: string | null;
   },
 ): Promise<ActionResultWithId> {
-  try {
-    await prisma.$transaction(async (tx) => {
-      const parsedDate = data.date ? new Date(data.date) : null;
-      const precision = (data.datePrecision ?? "UNKNOWN") as DatePrecision;
-      const personaId = await findOrCreatePersonaForDate(tx, personId, parsedDate, precision);
+  return withTenantFromHeaders(async () => {
+    try {
+      await prisma.$transaction(async (tx) => {
+        const parsedDate = data.date ? new Date(data.date) : null;
+        const precision = (data.datePrecision ?? "UNKNOWN") as DatePrecision;
+        const personaId = await findOrCreatePersonaForDate(tx, personId, parsedDate, precision);
 
-      await tx.bodyMarkEvent.create({
-        data: {
-          bodyMarkId: data.bodyMarkId,
-          personaId,
-          eventType: data.eventType as BodyMarkEventType,
-          notes: data.notes,
-          date: parsedDate,
-          datePrecision: precision,
-          bodyRegions: data.bodyRegions ?? [],
-          motif: data.motif,
-          colors: data.colors ?? [],
-          size: data.size,
-          description: data.description,
-        },
+        await tx.bodyMarkEvent.create({
+          data: {
+            bodyMarkId: data.bodyMarkId,
+            personaId,
+            eventType: data.eventType as BodyMarkEventType,
+            notes: data.notes,
+            date: parsedDate,
+            datePrecision: precision,
+            bodyRegions: data.bodyRegions ?? [],
+            motif: data.motif,
+            colors: data.colors ?? [],
+            size: data.size,
+            description: data.description,
+          },
+        });
+
+        // Auto-update entity status from all events
+        const allEvents = await tx.bodyMarkEvent.findMany({
+          where: { bodyMarkId: data.bodyMarkId },
+          orderBy: { date: "asc" },
+          select: { eventType: true },
+        });
+        await tx.bodyMark.update({
+          where: { id: data.bodyMarkId },
+          data: { status: deriveBodyMarkStatus(allEvents) },
+        });
       });
 
-      // Auto-update entity status from all events
-      const allEvents = await tx.bodyMarkEvent.findMany({
-        where: { bodyMarkId: data.bodyMarkId },
-        orderBy: { date: "asc" },
-        select: { eventType: true },
-      });
-      await tx.bodyMark.update({
-        where: { id: data.bodyMarkId },
-        data: { status: deriveBodyMarkStatus(allEvents) },
-      });
-    });
+      revalidatePath(`/people/${personId}`);
+      return { success: true };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unexpected error";
+      return { success: false, error: message };
+    }
 
-    revalidatePath(`/people/${personId}`);
-    return { success: true };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Unexpected error";
-    return { success: false, error: message };
-  }
+  });
 }
 
 export async function updateBodyMarkEventAction(
@@ -286,46 +299,49 @@ export async function updateBodyMarkEventAction(
     description?: string | null;
   },
 ): Promise<ActionResultWithId> {
-  try {
-    await prisma.$transaction(async (tx) => {
-      const parsedDate = data.date ? new Date(data.date) : null;
-      const precision = (data.datePrecision ?? "UNKNOWN") as DatePrecision;
-      const targetPersonaId = await findOrCreatePersonaForDate(tx, personId, parsedDate, precision);
+  return withTenantFromHeaders(async () => {
+    try {
+      await prisma.$transaction(async (tx) => {
+        const parsedDate = data.date ? new Date(data.date) : null;
+        const precision = (data.datePrecision ?? "UNKNOWN") as DatePrecision;
+        const targetPersonaId = await findOrCreatePersonaForDate(tx, personId, parsedDate, precision);
 
-      await tx.bodyMarkEvent.update({
-        where: { id: eventId },
-        data: {
-          personaId: targetPersonaId,
-          eventType: data.eventType as BodyMarkEventType,
-          notes: data.notes ?? null,
-          date: parsedDate,
-          datePrecision: precision,
-          ...(data.bodyRegions !== undefined && { bodyRegions: data.bodyRegions }),
-          ...(data.motif !== undefined && { motif: data.motif }),
-          ...(data.colors !== undefined && { colors: data.colors }),
-          ...(data.size !== undefined && { size: data.size }),
-          ...(data.description !== undefined && { description: data.description }),
-        },
+        await tx.bodyMarkEvent.update({
+          where: { id: eventId },
+          data: {
+            personaId: targetPersonaId,
+            eventType: data.eventType as BodyMarkEventType,
+            notes: data.notes ?? null,
+            date: parsedDate,
+            datePrecision: precision,
+            ...(data.bodyRegions !== undefined && { bodyRegions: data.bodyRegions }),
+            ...(data.motif !== undefined && { motif: data.motif }),
+            ...(data.colors !== undefined && { colors: data.colors }),
+            ...(data.size !== undefined && { size: data.size }),
+            ...(data.description !== undefined && { description: data.description }),
+          },
+        });
+
+        // Auto-update entity status from all events
+        const allEvents = await tx.bodyMarkEvent.findMany({
+          where: { bodyMarkId: data.bodyMarkId },
+          orderBy: { date: "asc" },
+          select: { eventType: true },
+        });
+        await tx.bodyMark.update({
+          where: { id: data.bodyMarkId },
+          data: { status: deriveBodyMarkStatus(allEvents) },
+        });
       });
 
-      // Auto-update entity status from all events
-      const allEvents = await tx.bodyMarkEvent.findMany({
-        where: { bodyMarkId: data.bodyMarkId },
-        orderBy: { date: "asc" },
-        select: { eventType: true },
-      });
-      await tx.bodyMark.update({
-        where: { id: data.bodyMarkId },
-        data: { status: deriveBodyMarkStatus(allEvents) },
-      });
-    });
+      revalidatePath(`/people/${personId}`);
+      return { success: true };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unexpected error";
+      return { success: false, error: message };
+    }
 
-    revalidatePath(`/people/${personId}`);
-    return { success: true };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Unexpected error";
-    return { success: false, error: message };
-  }
+  });
 }
 
 export async function deleteBodyMarkEventAction(
@@ -333,29 +349,32 @@ export async function deleteBodyMarkEventAction(
   personId: string,
   bodyMarkId?: string,
 ): Promise<ActionResultWithId> {
-  try {
-    // Look up bodyMarkId if not provided (for backwards compatibility)
-    const resolvedBodyMarkId = bodyMarkId ?? (await prisma.bodyMarkEvent.findUniqueOrThrow({ where: { id }, select: { bodyMarkId: true } })).bodyMarkId;
+  return withTenantFromHeaders(async () => {
+    try {
+      // Look up bodyMarkId if not provided (for backwards compatibility)
+      const resolvedBodyMarkId = bodyMarkId ?? (await prisma.bodyMarkEvent.findUniqueOrThrow({ where: { id }, select: { bodyMarkId: true } })).bodyMarkId;
 
-    await deleteBodyMarkEventRecord(id);
+      await deleteBodyMarkEventRecord(id);
 
-    // Auto-update entity status from remaining events
-    const remainingEvents = await prisma.bodyMarkEvent.findMany({
-      where: { bodyMarkId: resolvedBodyMarkId },
-      orderBy: { date: "asc" },
-      select: { eventType: true },
-    });
-    await prisma.bodyMark.update({
-      where: { id: resolvedBodyMarkId },
-      data: { status: deriveBodyMarkStatus(remainingEvents) },
-    });
+      // Auto-update entity status from remaining events
+      const remainingEvents = await prisma.bodyMarkEvent.findMany({
+        where: { bodyMarkId: resolvedBodyMarkId },
+        orderBy: { date: "asc" },
+        select: { eventType: true },
+      });
+      await prisma.bodyMark.update({
+        where: { id: resolvedBodyMarkId },
+        data: { status: deriveBodyMarkStatus(remainingEvents) },
+      });
 
-    revalidatePath(`/people/${personId}`);
-    return { success: true };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Unexpected error";
-    return { success: false, error: message };
-  }
+      revalidatePath(`/people/${personId}`);
+      return { success: true };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unexpected error";
+      return { success: false, error: message };
+    }
+
+  });
 }
 
 // ─── Body Modification Actions ───────────────────────────────────────────────
@@ -375,45 +394,48 @@ export async function createBodyModificationAction(
     datePrecision?: string;
   },
 ): Promise<ActionResultWithId> {
-  try {
-    const date = data.date ? new Date(data.date) : null;
-    const precision = (data.datePrecision ?? "UNKNOWN") as DatePrecision;
+  return withTenantFromHeaders(async () => {
+    try {
+      const date = data.date ? new Date(data.date) : null;
+      const precision = (data.datePrecision ?? "UNKNOWN") as DatePrecision;
 
-    let modId = "";
-    await prisma.$transaction(async (tx) => {
-      const personaId = await findOrCreatePersonaForDate(tx, personId, date, precision);
-      const mod = await tx.bodyModification.create({
-        data: {
-          personId,
-          type: data.type as BodyModificationType,
-          bodyRegion: data.bodyRegion,
-          bodyRegions: data.bodyRegions ?? [],
-          side: data.side,
-          position: data.position,
-          description: data.description,
-          material: data.material,
-          gauge: data.gauge,
-          status: "present" as BodyModificationStatus,
-        },
+      let modId = "";
+      await prisma.$transaction(async (tx) => {
+        const personaId = await findOrCreatePersonaForDate(tx, personId, date, precision);
+        const mod = await tx.bodyModification.create({
+          data: {
+            personId,
+            type: data.type as BodyModificationType,
+            bodyRegion: data.bodyRegion,
+            bodyRegions: data.bodyRegions ?? [],
+            side: data.side,
+            position: data.position,
+            description: data.description,
+            material: data.material,
+            gauge: data.gauge,
+            status: "present" as BodyModificationStatus,
+          },
+        });
+        modId = mod.id;
+        await tx.bodyModificationEvent.create({
+          data: {
+            bodyModificationId: mod.id,
+            personaId,
+            eventType: "added",
+            date,
+            datePrecision: precision,
+          },
+        });
       });
-      modId = mod.id;
-      await tx.bodyModificationEvent.create({
-        data: {
-          bodyModificationId: mod.id,
-          personaId,
-          eventType: "added",
-          date,
-          datePrecision: precision,
-        },
-      });
-    });
 
-    revalidatePath(`/people/${personId}`);
-    return { success: true, id: modId };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Unexpected error";
-    return { success: false, error: message };
-  }
+      revalidatePath(`/people/${personId}`);
+      return { success: true, id: modId };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unexpected error";
+      return { success: false, error: message };
+    }
+
+  });
 }
 
 export async function updateBodyModificationAction(
@@ -432,64 +454,70 @@ export async function updateBodyModificationAction(
     singleEventDatePrecision?: string;
   },
 ): Promise<ActionResultWithId> {
-  try {
-    await prisma.$transaction(async (tx) => {
-      await tx.bodyModification.update({
-        where: { id },
-        data: {
-          type: data.type as BodyModificationType | undefined,
-          bodyRegion: data.bodyRegion,
-          bodyRegions: data.bodyRegions,
-          side: data.side,
-          position: data.position,
-          description: data.description,
-          material: data.material,
-          gauge: data.gauge,
-        },
+  return withTenantFromHeaders(async () => {
+    try {
+      await prisma.$transaction(async (tx) => {
+        await tx.bodyModification.update({
+          where: { id },
+          data: {
+            type: data.type as BodyModificationType | undefined,
+            bodyRegion: data.bodyRegion,
+            bodyRegions: data.bodyRegions,
+            side: data.side,
+            position: data.position,
+            description: data.description,
+            material: data.material,
+            gauge: data.gauge,
+          },
+        });
+
+        // Single-event date convenience
+        if (data.singleEventDate !== undefined) {
+          const events = await tx.bodyModificationEvent.findMany({
+            where: { bodyModificationId: id },
+            orderBy: { date: "asc" },
+          });
+          if (events.length === 1) {
+            const parsedDate = data.singleEventDate ? new Date(data.singleEventDate) : null;
+            const precision = (data.singleEventDatePrecision ?? "UNKNOWN") as DatePrecision;
+            const targetPersonaId = await findOrCreatePersonaForDate(tx, personId, parsedDate, precision);
+            await tx.bodyModificationEvent.update({
+              where: { id: events[0].id },
+              data: {
+                personaId: targetPersonaId,
+                date: parsedDate,
+                datePrecision: precision,
+              },
+            });
+          }
+        }
       });
 
-      // Single-event date convenience
-      if (data.singleEventDate !== undefined) {
-        const events = await tx.bodyModificationEvent.findMany({
-          where: { bodyModificationId: id },
-          orderBy: { date: "asc" },
-        });
-        if (events.length === 1) {
-          const parsedDate = data.singleEventDate ? new Date(data.singleEventDate) : null;
-          const precision = (data.singleEventDatePrecision ?? "UNKNOWN") as DatePrecision;
-          const targetPersonaId = await findOrCreatePersonaForDate(tx, personId, parsedDate, precision);
-          await tx.bodyModificationEvent.update({
-            where: { id: events[0].id },
-            data: {
-              personaId: targetPersonaId,
-              date: parsedDate,
-              datePrecision: precision,
-            },
-          });
-        }
-      }
-    });
+      revalidatePath(`/people/${personId}`);
+      return { success: true };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unexpected error";
+      return { success: false, error: message };
+    }
 
-    revalidatePath(`/people/${personId}`);
-    return { success: true };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Unexpected error";
-    return { success: false, error: message };
-  }
+  });
 }
 
 export async function deleteBodyModificationAction(
   id: string,
   personId: string,
 ): Promise<ActionResultWithId> {
-  try {
-    await deleteBodyModificationRecord(id);
-    revalidatePath(`/people/${personId}`);
-    return { success: true };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Unexpected error";
-    return { success: false, error: message };
-  }
+  return withTenantFromHeaders(async () => {
+    try {
+      await deleteBodyModificationRecord(id);
+      revalidatePath(`/people/${personId}`);
+      return { success: true };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unexpected error";
+      return { success: false, error: message };
+    }
+
+  });
 }
 
 export async function createBodyModificationEventAction(
@@ -506,44 +534,47 @@ export async function createBodyModificationEventAction(
     gauge?: string | null;
   },
 ): Promise<ActionResultWithId> {
-  try {
-    await prisma.$transaction(async (tx) => {
-      const parsedDate = data.date ? new Date(data.date) : null;
-      const precision = (data.datePrecision ?? "UNKNOWN") as DatePrecision;
-      const personaId = await findOrCreatePersonaForDate(tx, personId, parsedDate, precision);
+  return withTenantFromHeaders(async () => {
+    try {
+      await prisma.$transaction(async (tx) => {
+        const parsedDate = data.date ? new Date(data.date) : null;
+        const precision = (data.datePrecision ?? "UNKNOWN") as DatePrecision;
+        const personaId = await findOrCreatePersonaForDate(tx, personId, parsedDate, precision);
 
-      await tx.bodyModificationEvent.create({
-        data: {
-          bodyModificationId: data.bodyModificationId,
-          personaId,
-          eventType: data.eventType as BodyModificationEventType,
-          notes: data.notes,
-          date: parsedDate,
-          datePrecision: precision,
-          bodyRegions: data.bodyRegions ?? [],
-          description: data.description,
-          material: data.material,
-          gauge: data.gauge,
-        },
+        await tx.bodyModificationEvent.create({
+          data: {
+            bodyModificationId: data.bodyModificationId,
+            personaId,
+            eventType: data.eventType as BodyModificationEventType,
+            notes: data.notes,
+            date: parsedDate,
+            datePrecision: precision,
+            bodyRegions: data.bodyRegions ?? [],
+            description: data.description,
+            material: data.material,
+            gauge: data.gauge,
+          },
+        });
+
+        const allEvents = await tx.bodyModificationEvent.findMany({
+          where: { bodyModificationId: data.bodyModificationId },
+          orderBy: { date: "asc" },
+          select: { eventType: true },
+        });
+        await tx.bodyModification.update({
+          where: { id: data.bodyModificationId },
+          data: { status: deriveBodyModificationStatus(allEvents) },
+        });
       });
 
-      const allEvents = await tx.bodyModificationEvent.findMany({
-        where: { bodyModificationId: data.bodyModificationId },
-        orderBy: { date: "asc" },
-        select: { eventType: true },
-      });
-      await tx.bodyModification.update({
-        where: { id: data.bodyModificationId },
-        data: { status: deriveBodyModificationStatus(allEvents) },
-      });
-    });
+      revalidatePath(`/people/${personId}`);
+      return { success: true };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unexpected error";
+      return { success: false, error: message };
+    }
 
-    revalidatePath(`/people/${personId}`);
-    return { success: true };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Unexpected error";
-    return { success: false, error: message };
-  }
+  });
 }
 
 export async function updateBodyModificationEventAction(
@@ -561,44 +592,47 @@ export async function updateBodyModificationEventAction(
     gauge?: string | null;
   },
 ): Promise<ActionResultWithId> {
-  try {
-    await prisma.$transaction(async (tx) => {
-      const parsedDate = data.date ? new Date(data.date) : null;
-      const precision = (data.datePrecision ?? "UNKNOWN") as DatePrecision;
-      const targetPersonaId = await findOrCreatePersonaForDate(tx, personId, parsedDate, precision);
+  return withTenantFromHeaders(async () => {
+    try {
+      await prisma.$transaction(async (tx) => {
+        const parsedDate = data.date ? new Date(data.date) : null;
+        const precision = (data.datePrecision ?? "UNKNOWN") as DatePrecision;
+        const targetPersonaId = await findOrCreatePersonaForDate(tx, personId, parsedDate, precision);
 
-      await tx.bodyModificationEvent.update({
-        where: { id: eventId },
-        data: {
-          personaId: targetPersonaId,
-          eventType: data.eventType as BodyModificationEventType,
-          notes: data.notes ?? null,
-          date: parsedDate,
-          datePrecision: precision,
-          ...(data.bodyRegions !== undefined && { bodyRegions: data.bodyRegions }),
-          ...(data.description !== undefined && { description: data.description }),
-          ...(data.material !== undefined && { material: data.material }),
-          ...(data.gauge !== undefined && { gauge: data.gauge }),
-        },
+        await tx.bodyModificationEvent.update({
+          where: { id: eventId },
+          data: {
+            personaId: targetPersonaId,
+            eventType: data.eventType as BodyModificationEventType,
+            notes: data.notes ?? null,
+            date: parsedDate,
+            datePrecision: precision,
+            ...(data.bodyRegions !== undefined && { bodyRegions: data.bodyRegions }),
+            ...(data.description !== undefined && { description: data.description }),
+            ...(data.material !== undefined && { material: data.material }),
+            ...(data.gauge !== undefined && { gauge: data.gauge }),
+          },
+        });
+
+        const allEvents = await tx.bodyModificationEvent.findMany({
+          where: { bodyModificationId: data.bodyModificationId },
+          orderBy: { date: "asc" },
+          select: { eventType: true },
+        });
+        await tx.bodyModification.update({
+          where: { id: data.bodyModificationId },
+          data: { status: deriveBodyModificationStatus(allEvents) },
+        });
       });
 
-      const allEvents = await tx.bodyModificationEvent.findMany({
-        where: { bodyModificationId: data.bodyModificationId },
-        orderBy: { date: "asc" },
-        select: { eventType: true },
-      });
-      await tx.bodyModification.update({
-        where: { id: data.bodyModificationId },
-        data: { status: deriveBodyModificationStatus(allEvents) },
-      });
-    });
+      revalidatePath(`/people/${personId}`);
+      return { success: true };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unexpected error";
+      return { success: false, error: message };
+    }
 
-    revalidatePath(`/people/${personId}`);
-    return { success: true };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Unexpected error";
-    return { success: false, error: message };
-  }
+  });
 }
 
 export async function deleteBodyModificationEventAction(
@@ -606,27 +640,30 @@ export async function deleteBodyModificationEventAction(
   personId: string,
   bodyModificationId?: string,
 ): Promise<ActionResultWithId> {
-  try {
-    const resolvedId = bodyModificationId ?? (await prisma.bodyModificationEvent.findUniqueOrThrow({ where: { id }, select: { bodyModificationId: true } })).bodyModificationId;
+  return withTenantFromHeaders(async () => {
+    try {
+      const resolvedId = bodyModificationId ?? (await prisma.bodyModificationEvent.findUniqueOrThrow({ where: { id }, select: { bodyModificationId: true } })).bodyModificationId;
 
-    await deleteBodyModificationEventRecord(id);
+      await deleteBodyModificationEventRecord(id);
 
-    const remainingEvents = await prisma.bodyModificationEvent.findMany({
-      where: { bodyModificationId: resolvedId },
-      orderBy: { date: "asc" },
-      select: { eventType: true },
-    });
-    await prisma.bodyModification.update({
-      where: { id: resolvedId },
-      data: { status: deriveBodyModificationStatus(remainingEvents) },
-    });
+      const remainingEvents = await prisma.bodyModificationEvent.findMany({
+        where: { bodyModificationId: resolvedId },
+        orderBy: { date: "asc" },
+        select: { eventType: true },
+      });
+      await prisma.bodyModification.update({
+        where: { id: resolvedId },
+        data: { status: deriveBodyModificationStatus(remainingEvents) },
+      });
 
-    revalidatePath(`/people/${personId}`);
-    return { success: true };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Unexpected error";
-    return { success: false, error: message };
-  }
+      revalidatePath(`/people/${personId}`);
+      return { success: true };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unexpected error";
+      return { success: false, error: message };
+    }
+
+  });
 }
 
 // ─── Cosmetic Procedure Actions ──────────────────────────────────────────────
@@ -644,43 +681,46 @@ export async function createCosmeticProcedureAction(
     attributeDefinitionId?: string;
   },
 ): Promise<ActionResultWithId> {
-  try {
-    const date = data.date ? new Date(data.date) : null;
-    const precision = (data.datePrecision ?? "UNKNOWN") as DatePrecision;
+  return withTenantFromHeaders(async () => {
+    try {
+      const date = data.date ? new Date(data.date) : null;
+      const precision = (data.datePrecision ?? "UNKNOWN") as DatePrecision;
 
-    let procId = "";
-    await prisma.$transaction(async (tx) => {
-      const personaId = await findOrCreatePersonaForDate(tx, personId, date, precision);
-      const proc = await tx.cosmeticProcedure.create({
-        data: {
-          personId,
-          type: data.type,
-          bodyRegion: data.bodyRegion,
-          bodyRegions: data.bodyRegions ?? [],
-          description: data.description,
-          provider: data.provider,
-          status: "completed",
-          attributeDefinitionId: data.attributeDefinitionId ?? null,
-        },
+      let procId = "";
+      await prisma.$transaction(async (tx) => {
+        const personaId = await findOrCreatePersonaForDate(tx, personId, date, precision);
+        const proc = await tx.cosmeticProcedure.create({
+          data: {
+            personId,
+            type: data.type,
+            bodyRegion: data.bodyRegion,
+            bodyRegions: data.bodyRegions ?? [],
+            description: data.description,
+            provider: data.provider,
+            status: "completed",
+            attributeDefinitionId: data.attributeDefinitionId ?? null,
+          },
+        });
+        procId = proc.id;
+        await tx.cosmeticProcedureEvent.create({
+          data: {
+            cosmeticProcedureId: proc.id,
+            personaId,
+            eventType: "performed",
+            date,
+            datePrecision: precision,
+          },
+        });
       });
-      procId = proc.id;
-      await tx.cosmeticProcedureEvent.create({
-        data: {
-          cosmeticProcedureId: proc.id,
-          personaId,
-          eventType: "performed",
-          date,
-          datePrecision: precision,
-        },
-      });
-    });
 
-    revalidatePath(`/people/${personId}`);
-    return { success: true, id: procId };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Unexpected error";
-    return { success: false, error: message };
-  }
+      revalidatePath(`/people/${personId}`);
+      return { success: true, id: procId };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unexpected error";
+      return { success: false, error: message };
+    }
+
+  });
 }
 
 export async function updateCosmeticProcedureAction(
@@ -697,62 +737,68 @@ export async function updateCosmeticProcedureAction(
     attributeDefinitionId?: string | null;
   },
 ): Promise<ActionResultWithId> {
-  try {
-    await prisma.$transaction(async (tx) => {
-      await tx.cosmeticProcedure.update({
-        where: { id },
-        data: {
-          type: data.type,
-          bodyRegion: data.bodyRegion,
-          bodyRegions: data.bodyRegions,
-          description: data.description,
-          provider: data.provider,
-          ...(data.attributeDefinitionId !== undefined ? { attributeDefinitionId: data.attributeDefinitionId } : {}),
-        },
+  return withTenantFromHeaders(async () => {
+    try {
+      await prisma.$transaction(async (tx) => {
+        await tx.cosmeticProcedure.update({
+          where: { id },
+          data: {
+            type: data.type,
+            bodyRegion: data.bodyRegion,
+            bodyRegions: data.bodyRegions,
+            description: data.description,
+            provider: data.provider,
+            ...(data.attributeDefinitionId !== undefined ? { attributeDefinitionId: data.attributeDefinitionId } : {}),
+          },
+        });
+
+        // Single-event date convenience
+        if (data.singleEventDate !== undefined) {
+          const events = await tx.cosmeticProcedureEvent.findMany({
+            where: { cosmeticProcedureId: id },
+            orderBy: { date: "asc" },
+          });
+          if (events.length === 1) {
+            const parsedDate = data.singleEventDate ? new Date(data.singleEventDate) : null;
+            const precision = (data.singleEventDatePrecision ?? "UNKNOWN") as DatePrecision;
+            const targetPersonaId = await findOrCreatePersonaForDate(tx, personId, parsedDate, precision);
+            await tx.cosmeticProcedureEvent.update({
+              where: { id: events[0].id },
+              data: {
+                personaId: targetPersonaId,
+                date: parsedDate,
+                datePrecision: precision,
+              },
+            });
+          }
+        }
       });
 
-      // Single-event date convenience
-      if (data.singleEventDate !== undefined) {
-        const events = await tx.cosmeticProcedureEvent.findMany({
-          where: { cosmeticProcedureId: id },
-          orderBy: { date: "asc" },
-        });
-        if (events.length === 1) {
-          const parsedDate = data.singleEventDate ? new Date(data.singleEventDate) : null;
-          const precision = (data.singleEventDatePrecision ?? "UNKNOWN") as DatePrecision;
-          const targetPersonaId = await findOrCreatePersonaForDate(tx, personId, parsedDate, precision);
-          await tx.cosmeticProcedureEvent.update({
-            where: { id: events[0].id },
-            data: {
-              personaId: targetPersonaId,
-              date: parsedDate,
-              datePrecision: precision,
-            },
-          });
-        }
-      }
-    });
+      revalidatePath(`/people/${personId}`);
+      return { success: true };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unexpected error";
+      return { success: false, error: message };
+    }
 
-    revalidatePath(`/people/${personId}`);
-    return { success: true };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Unexpected error";
-    return { success: false, error: message };
-  }
+  });
 }
 
 export async function deleteCosmeticProcedureAction(
   id: string,
   personId: string,
 ): Promise<ActionResultWithId> {
-  try {
-    await deleteCosmeticProcedureRecord(id);
-    revalidatePath(`/people/${personId}`);
-    return { success: true };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Unexpected error";
-    return { success: false, error: message };
-  }
+  return withTenantFromHeaders(async () => {
+    try {
+      await deleteCosmeticProcedureRecord(id);
+      revalidatePath(`/people/${personId}`);
+      return { success: true };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unexpected error";
+      return { success: false, error: message };
+    }
+
+  });
 }
 
 export async function createCosmeticProcedureEventAction(
@@ -771,46 +817,49 @@ export async function createCosmeticProcedureEventAction(
     unit?: string | null;
   },
 ): Promise<ActionResultWithId> {
-  try {
-    await prisma.$transaction(async (tx) => {
-      const parsedDate = data.date ? new Date(data.date) : null;
-      const precision = (data.datePrecision ?? "UNKNOWN") as DatePrecision;
-      const personaId = await findOrCreatePersonaForDate(tx, personId, parsedDate, precision);
+  return withTenantFromHeaders(async () => {
+    try {
+      await prisma.$transaction(async (tx) => {
+        const parsedDate = data.date ? new Date(data.date) : null;
+        const precision = (data.datePrecision ?? "UNKNOWN") as DatePrecision;
+        const personaId = await findOrCreatePersonaForDate(tx, personId, parsedDate, precision);
 
-      await tx.cosmeticProcedureEvent.create({
-        data: {
-          cosmeticProcedureId: data.cosmeticProcedureId,
-          personaId,
-          eventType: data.eventType as CosmeticProcedureEventType,
-          notes: data.notes,
-          date: parsedDate,
-          datePrecision: precision,
-          bodyRegions: data.bodyRegions ?? [],
-          description: data.description,
-          provider: data.provider,
-          valueBefore: data.valueBefore ?? null,
-          valueAfter: data.valueAfter ?? null,
-          unit: data.unit ?? null,
-        },
+        await tx.cosmeticProcedureEvent.create({
+          data: {
+            cosmeticProcedureId: data.cosmeticProcedureId,
+            personaId,
+            eventType: data.eventType as CosmeticProcedureEventType,
+            notes: data.notes,
+            date: parsedDate,
+            datePrecision: precision,
+            bodyRegions: data.bodyRegions ?? [],
+            description: data.description,
+            provider: data.provider,
+            valueBefore: data.valueBefore ?? null,
+            valueAfter: data.valueAfter ?? null,
+            unit: data.unit ?? null,
+          },
+        });
+
+        const allEvents = await tx.cosmeticProcedureEvent.findMany({
+          where: { cosmeticProcedureId: data.cosmeticProcedureId },
+          orderBy: { date: "asc" },
+          select: { eventType: true },
+        });
+        await tx.cosmeticProcedure.update({
+          where: { id: data.cosmeticProcedureId },
+          data: { status: deriveCosmeticProcedureStatus(allEvents) },
+        });
       });
 
-      const allEvents = await tx.cosmeticProcedureEvent.findMany({
-        where: { cosmeticProcedureId: data.cosmeticProcedureId },
-        orderBy: { date: "asc" },
-        select: { eventType: true },
-      });
-      await tx.cosmeticProcedure.update({
-        where: { id: data.cosmeticProcedureId },
-        data: { status: deriveCosmeticProcedureStatus(allEvents) },
-      });
-    });
+      revalidatePath(`/people/${personId}`);
+      return { success: true };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unexpected error";
+      return { success: false, error: message };
+    }
 
-    revalidatePath(`/people/${personId}`);
-    return { success: true };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Unexpected error";
-    return { success: false, error: message };
-  }
+  });
 }
 
 export async function updateCosmeticProcedureEventAction(
@@ -830,46 +879,49 @@ export async function updateCosmeticProcedureEventAction(
     unit?: string | null;
   },
 ): Promise<ActionResultWithId> {
-  try {
-    await prisma.$transaction(async (tx) => {
-      const parsedDate = data.date ? new Date(data.date) : null;
-      const precision = (data.datePrecision ?? "UNKNOWN") as DatePrecision;
-      const targetPersonaId = await findOrCreatePersonaForDate(tx, personId, parsedDate, precision);
+  return withTenantFromHeaders(async () => {
+    try {
+      await prisma.$transaction(async (tx) => {
+        const parsedDate = data.date ? new Date(data.date) : null;
+        const precision = (data.datePrecision ?? "UNKNOWN") as DatePrecision;
+        const targetPersonaId = await findOrCreatePersonaForDate(tx, personId, parsedDate, precision);
 
-      await tx.cosmeticProcedureEvent.update({
-        where: { id: eventId },
-        data: {
-          personaId: targetPersonaId,
-          eventType: data.eventType as CosmeticProcedureEventType,
-          notes: data.notes ?? null,
-          date: parsedDate,
-          datePrecision: precision,
-          ...(data.bodyRegions !== undefined && { bodyRegions: data.bodyRegions }),
-          ...(data.description !== undefined && { description: data.description }),
-          ...(data.provider !== undefined && { provider: data.provider }),
-          ...(data.valueBefore !== undefined && { valueBefore: data.valueBefore }),
-          ...(data.valueAfter !== undefined && { valueAfter: data.valueAfter }),
-          ...(data.unit !== undefined && { unit: data.unit }),
-        },
+        await tx.cosmeticProcedureEvent.update({
+          where: { id: eventId },
+          data: {
+            personaId: targetPersonaId,
+            eventType: data.eventType as CosmeticProcedureEventType,
+            notes: data.notes ?? null,
+            date: parsedDate,
+            datePrecision: precision,
+            ...(data.bodyRegions !== undefined && { bodyRegions: data.bodyRegions }),
+            ...(data.description !== undefined && { description: data.description }),
+            ...(data.provider !== undefined && { provider: data.provider }),
+            ...(data.valueBefore !== undefined && { valueBefore: data.valueBefore }),
+            ...(data.valueAfter !== undefined && { valueAfter: data.valueAfter }),
+            ...(data.unit !== undefined && { unit: data.unit }),
+          },
+        });
+
+        const allEvents = await tx.cosmeticProcedureEvent.findMany({
+          where: { cosmeticProcedureId: data.cosmeticProcedureId },
+          orderBy: { date: "asc" },
+          select: { eventType: true },
+        });
+        await tx.cosmeticProcedure.update({
+          where: { id: data.cosmeticProcedureId },
+          data: { status: deriveCosmeticProcedureStatus(allEvents) },
+        });
       });
 
-      const allEvents = await tx.cosmeticProcedureEvent.findMany({
-        where: { cosmeticProcedureId: data.cosmeticProcedureId },
-        orderBy: { date: "asc" },
-        select: { eventType: true },
-      });
-      await tx.cosmeticProcedure.update({
-        where: { id: data.cosmeticProcedureId },
-        data: { status: deriveCosmeticProcedureStatus(allEvents) },
-      });
-    });
+      revalidatePath(`/people/${personId}`);
+      return { success: true };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unexpected error";
+      return { success: false, error: message };
+    }
 
-    revalidatePath(`/people/${personId}`);
-    return { success: true };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Unexpected error";
-    return { success: false, error: message };
-  }
+  });
 }
 
 export async function deleteCosmeticProcedureEventAction(
@@ -877,27 +929,30 @@ export async function deleteCosmeticProcedureEventAction(
   personId: string,
   cosmeticProcedureId?: string,
 ): Promise<ActionResultWithId> {
-  try {
-    const resolvedId = cosmeticProcedureId ?? (await prisma.cosmeticProcedureEvent.findUniqueOrThrow({ where: { id }, select: { cosmeticProcedureId: true } })).cosmeticProcedureId;
+  return withTenantFromHeaders(async () => {
+    try {
+      const resolvedId = cosmeticProcedureId ?? (await prisma.cosmeticProcedureEvent.findUniqueOrThrow({ where: { id }, select: { cosmeticProcedureId: true } })).cosmeticProcedureId;
 
-    await deleteCosmeticProcedureEventRecord(id);
+      await deleteCosmeticProcedureEventRecord(id);
 
-    const remainingEvents = await prisma.cosmeticProcedureEvent.findMany({
-      where: { cosmeticProcedureId: resolvedId },
-      orderBy: { date: "asc" },
-      select: { eventType: true },
-    });
-    await prisma.cosmeticProcedure.update({
-      where: { id: resolvedId },
-      data: { status: deriveCosmeticProcedureStatus(remainingEvents) },
-    });
+      const remainingEvents = await prisma.cosmeticProcedureEvent.findMany({
+        where: { cosmeticProcedureId: resolvedId },
+        orderBy: { date: "asc" },
+        select: { eventType: true },
+      });
+      await prisma.cosmeticProcedure.update({
+        where: { id: resolvedId },
+        data: { status: deriveCosmeticProcedureStatus(remainingEvents) },
+      });
 
-    revalidatePath(`/people/${personId}`);
-    return { success: true };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Unexpected error";
-    return { success: false, error: message };
-  }
+      revalidatePath(`/people/${personId}`);
+      return { success: true };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unexpected error";
+      return { success: false, error: message };
+    }
+
+  });
 }
 
 // ─── Physical Change Action ─────────────────────────────────────────────────
@@ -913,58 +968,61 @@ export async function recordPhysicalChangeAction(
     attributes?: { definitionId: string; value: string }[];
   },
 ): Promise<ActionResultWithId> {
-  try {
-    const date = data.date ? new Date(data.date) : null;
-    const precision = (data.datePrecision ?? "UNKNOWN") as DatePrecision;
+  return withTenantFromHeaders(async () => {
+    try {
+      const date = data.date ? new Date(data.date) : null;
+      const precision = (data.datePrecision ?? "UNKNOWN") as DatePrecision;
 
-    await prisma.$transaction(async (tx) => {
-      const personaId = await findOrCreatePersonaForDate(tx, personId, date, precision);
-      const physical = await tx.personaPhysical.upsert({
-        where: { personaId },
-        create: {
-          personaId,
-          currentHairColor: data.currentHairColor ?? null,
-          weight: data.weight ?? null,
-          build: data.build ?? null,
-          date,
-          datePrecision: precision,
-        },
-        update: {
-          ...(data.currentHairColor !== undefined && { currentHairColor: data.currentHairColor || null }),
-          ...(data.weight !== undefined && { weight: data.weight || null }),
-          ...(data.build !== undefined && { build: data.build || null }),
-          date,
-          datePrecision: precision,
-        },
-      });
+      await prisma.$transaction(async (tx) => {
+        const personaId = await findOrCreatePersonaForDate(tx, personId, date, precision);
+        const physical = await tx.personaPhysical.upsert({
+          where: { personaId },
+          create: {
+            personaId,
+            currentHairColor: data.currentHairColor ?? null,
+            weight: data.weight ?? null,
+            build: data.build ?? null,
+            date,
+            datePrecision: precision,
+          },
+          update: {
+            ...(data.currentHairColor !== undefined && { currentHairColor: data.currentHairColor || null }),
+            ...(data.weight !== undefined && { weight: data.weight || null }),
+            ...(data.build !== undefined && { build: data.build || null }),
+            date,
+            datePrecision: precision,
+          },
+        });
 
-      // Upsert extensible attributes
-      if (data.attributes && data.attributes.length > 0) {
-        for (const attr of data.attributes) {
-          await tx.personaPhysicalAttribute.upsert({
-            where: {
-              personaPhysicalId_attributeDefinitionId: {
+        // Upsert extensible attributes
+        if (data.attributes && data.attributes.length > 0) {
+          for (const attr of data.attributes) {
+            await tx.personaPhysicalAttribute.upsert({
+              where: {
+                personaPhysicalId_attributeDefinitionId: {
+                  personaPhysicalId: physical.id,
+                  attributeDefinitionId: attr.definitionId,
+                },
+              },
+              create: {
                 personaPhysicalId: physical.id,
                 attributeDefinitionId: attr.definitionId,
+                value: attr.value,
               },
-            },
-            create: {
-              personaPhysicalId: physical.id,
-              attributeDefinitionId: attr.definitionId,
-              value: attr.value,
-            },
-            update: { value: attr.value },
-          });
+              update: { value: attr.value },
+            });
+          }
         }
-      }
-    });
+      });
 
-    revalidatePath(`/people/${personId}`);
-    return { success: true };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Unexpected error";
-    return { success: false, error: message };
-  }
+      revalidatePath(`/people/${personId}`);
+      return { success: true };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unexpected error";
+      return { success: false, error: message };
+    }
+
+  });
 }
 
 export async function updatePhysicalChangeAction(
@@ -979,76 +1037,79 @@ export async function updatePhysicalChangeAction(
     attributes?: { definitionId: string; value: string }[];
   },
 ): Promise<ActionResultWithId> {
-  try {
-    const parsedDate = data.date ? new Date(data.date) : null;
-    const precision = (data.datePrecision ?? "UNKNOWN") as DatePrecision;
+  return withTenantFromHeaders(async () => {
+    try {
+      const parsedDate = data.date ? new Date(data.date) : null;
+      const precision = (data.datePrecision ?? "UNKNOWN") as DatePrecision;
 
-    await prisma.$transaction(async (tx) => {
-      const existing = await tx.personaPhysical.findUniqueOrThrow({
-        where: { id: physicalId },
-        include: { persona: true },
-      });
-
-      const oldPersonaId = existing.personaId;
-      const hasDateChange = data.date !== undefined || data.datePrecision !== undefined;
-      let targetPersonaId = oldPersonaId;
-
-      if (hasDateChange) {
-        targetPersonaId = await findOrCreatePersonaForDate(tx, personId, parsedDate, precision);
-      }
-
-      const fieldData = {
-        currentHairColor: data.currentHairColor !== undefined ? (data.currentHairColor || null) : existing.currentHairColor,
-        weight: data.weight !== undefined ? (data.weight || null) : existing.weight,
-        build: data.build !== undefined ? (data.build || null) : existing.build,
-        date: parsedDate,
-        datePrecision: precision,
-      };
-
-      let newPhysicalId: string;
-      if (targetPersonaId !== oldPersonaId) {
-        await tx.personaPhysical.delete({ where: { id: physicalId } });
-        const created = await tx.personaPhysical.upsert({
-          where: { personaId: targetPersonaId },
-          create: { personaId: targetPersonaId, ...fieldData },
-          update: fieldData,
-        });
-        newPhysicalId = created.id;
-      } else {
-        await tx.personaPhysical.update({
+      await prisma.$transaction(async (tx) => {
+        const existing = await tx.personaPhysical.findUniqueOrThrow({
           where: { id: physicalId },
-          data: fieldData,
+          include: { persona: true },
         });
-        newPhysicalId = physicalId;
-      }
 
-      // Upsert extensible attributes
-      if (data.attributes && data.attributes.length > 0) {
-        for (const attr of data.attributes) {
-          await tx.personaPhysicalAttribute.upsert({
-            where: {
-              personaPhysicalId_attributeDefinitionId: {
+        const oldPersonaId = existing.personaId;
+        const hasDateChange = data.date !== undefined || data.datePrecision !== undefined;
+        let targetPersonaId = oldPersonaId;
+
+        if (hasDateChange) {
+          targetPersonaId = await findOrCreatePersonaForDate(tx, personId, parsedDate, precision);
+        }
+
+        const fieldData = {
+          currentHairColor: data.currentHairColor !== undefined ? (data.currentHairColor || null) : existing.currentHairColor,
+          weight: data.weight !== undefined ? (data.weight || null) : existing.weight,
+          build: data.build !== undefined ? (data.build || null) : existing.build,
+          date: parsedDate,
+          datePrecision: precision,
+        };
+
+        let newPhysicalId: string;
+        if (targetPersonaId !== oldPersonaId) {
+          await tx.personaPhysical.delete({ where: { id: physicalId } });
+          const created = await tx.personaPhysical.upsert({
+            where: { personaId: targetPersonaId },
+            create: { personaId: targetPersonaId, ...fieldData },
+            update: fieldData,
+          });
+          newPhysicalId = created.id;
+        } else {
+          await tx.personaPhysical.update({
+            where: { id: physicalId },
+            data: fieldData,
+          });
+          newPhysicalId = physicalId;
+        }
+
+        // Upsert extensible attributes
+        if (data.attributes && data.attributes.length > 0) {
+          for (const attr of data.attributes) {
+            await tx.personaPhysicalAttribute.upsert({
+              where: {
+                personaPhysicalId_attributeDefinitionId: {
+                  personaPhysicalId: newPhysicalId,
+                  attributeDefinitionId: attr.definitionId,
+                },
+              },
+              create: {
                 personaPhysicalId: newPhysicalId,
                 attributeDefinitionId: attr.definitionId,
+                value: attr.value,
               },
-            },
-            create: {
-              personaPhysicalId: newPhysicalId,
-              attributeDefinitionId: attr.definitionId,
-              value: attr.value,
-            },
-            update: { value: attr.value },
-          });
+              update: { value: attr.value },
+            });
+          }
         }
-      }
-    });
+      });
 
-    revalidatePath(`/people/${personId}`);
-    return { success: true };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Unexpected error";
-    return { success: false, error: message };
-  }
+      revalidatePath(`/people/${personId}`);
+      return { success: true };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unexpected error";
+      return { success: false, error: message };
+    }
+
+  });
 }
 
 // ─── Persona Batch/Edit/Delete Actions ──────────────────────────────────────
@@ -1057,14 +1118,17 @@ export async function createPersonaBatchAction(
   personId: string,
   data: CreatePersonaBatchInput,
 ): Promise<ActionResultWithId> {
-  try {
-    await createPersonaBatch(personId, data);
-    revalidatePath(`/people/${personId}`);
-    return { success: true };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Unexpected error";
-    return { success: false, error: message };
-  }
+  return withTenantFromHeaders(async () => {
+    try {
+      await createPersonaBatch(personId, data);
+      revalidatePath(`/people/${personId}`);
+      return { success: true };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unexpected error";
+      return { success: false, error: message };
+    }
+
+  });
 }
 
 export async function updatePersonaAction(
@@ -1077,31 +1141,37 @@ export async function updatePersonaAction(
     notes?: string;
   },
 ): Promise<ActionResultWithId> {
-  try {
-    await updatePersona(id, {
-      ...data,
-      datePrecision: data.datePrecision as "UNKNOWN" | "YEAR" | "MONTH" | "DAY" | undefined,
-    });
-    revalidatePath(`/people/${personId}`);
-    return { success: true };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Unexpected error";
-    return { success: false, error: message };
-  }
+  return withTenantFromHeaders(async () => {
+    try {
+      await updatePersona(id, {
+        ...data,
+        datePrecision: data.datePrecision as "UNKNOWN" | "YEAR" | "MONTH" | "DAY" | undefined,
+      });
+      revalidatePath(`/people/${personId}`);
+      return { success: true };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unexpected error";
+      return { success: false, error: message };
+    }
+
+  });
 }
 
 export async function deletePersonaAction(
   id: string,
   personId: string,
 ): Promise<ActionResultWithId> {
-  try {
-    await deletePersona(id);
-    revalidatePath(`/people/${personId}`);
-    return { success: true };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Unexpected error";
-    return { success: false, error: message };
-  }
+  return withTenantFromHeaders(async () => {
+    try {
+      await deletePersona(id);
+      revalidatePath(`/people/${personId}`);
+      return { success: true };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unexpected error";
+      return { success: false, error: message };
+    }
+
+  });
 }
 
 // ── Hero Visibility ───────────────────────────────────────────────────────────
@@ -1112,22 +1182,25 @@ export async function toggleEntityHeroVisibility(
   visible: boolean,
   personId: string,
 ): Promise<ActionResultWithId> {
-  try {
-    switch (entityType) {
-      case "bodyMark":
-        await prisma.bodyMark.update({ where: { id: entityId }, data: { heroVisible: visible } });
-        break;
-      case "bodyModification":
-        await prisma.bodyModification.update({ where: { id: entityId }, data: { heroVisible: visible } });
-        break;
-      case "cosmeticProcedure":
-        await prisma.cosmeticProcedure.update({ where: { id: entityId }, data: { heroVisible: visible } });
-        break;
+  return withTenantFromHeaders(async () => {
+    try {
+      switch (entityType) {
+        case "bodyMark":
+          await prisma.bodyMark.update({ where: { id: entityId }, data: { heroVisible: visible } });
+          break;
+        case "bodyModification":
+          await prisma.bodyModification.update({ where: { id: entityId }, data: { heroVisible: visible } });
+          break;
+        case "cosmeticProcedure":
+          await prisma.cosmeticProcedure.update({ where: { id: entityId }, data: { heroVisible: visible } });
+          break;
+      }
+      revalidatePath(`/people/${personId}`);
+      return { success: true };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unexpected error";
+      return { success: false, error: message };
     }
-    revalidatePath(`/people/${personId}`);
-    return { success: true };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Unexpected error";
-    return { success: false, error: message };
-  }
+
+  });
 }

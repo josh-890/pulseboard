@@ -1,5 +1,6 @@
 "use server";
 
+import { withTenantFromHeaders } from "@/lib/tenant-context";
 import { revalidatePath } from "next/cache";
 import type { AliasSource } from "@/generated/prisma/client";
 import {
@@ -27,24 +28,27 @@ export async function createAliasAction(
     channelIds?: string[];
   },
 ): Promise<SimpleActionResult> {
-  try {
-    if (!data.name.trim()) {
-      return { success: false, error: "Name is required." };
+  return withTenantFromHeaders(async () => {
+    try {
+      if (!data.name.trim()) {
+        return { success: false, error: "Name is required." };
+      }
+      await createAlias(
+        personId,
+        data.name.trim(),
+        data.isCommon ?? false,
+        data.isBirth ?? false,
+        data.source ?? "MANUAL",
+        data.notes,
+        data.channelIds,
+      );
+      revalidatePath(`/people/${personId}`);
+      return { success: true };
+    } catch (err) {
+      return { success: false, error: err instanceof Error ? err.message : "Unexpected error" };
     }
-    await createAlias(
-      personId,
-      data.name.trim(),
-      data.isCommon ?? false,
-      data.isBirth ?? false,
-      data.source ?? "MANUAL",
-      data.notes,
-      data.channelIds,
-    );
-    revalidatePath(`/people/${personId}`);
-    return { success: true };
-  } catch (err) {
-    return { success: false, error: err instanceof Error ? err.message : "Unexpected error" };
-  }
+
+  });
 }
 
 export async function updateAliasAction(
@@ -57,26 +61,32 @@ export async function updateAliasAction(
     notes?: string | null;
   },
 ): Promise<SimpleActionResult> {
-  try {
-    await updateAlias(aliasId, data);
-    revalidatePath(`/people/${personId}`);
-    return { success: true };
-  } catch (err) {
-    return { success: false, error: err instanceof Error ? err.message : "Unexpected error" };
-  }
+  return withTenantFromHeaders(async () => {
+    try {
+      await updateAlias(aliasId, data);
+      revalidatePath(`/people/${personId}`);
+      return { success: true };
+    } catch (err) {
+      return { success: false, error: err instanceof Error ? err.message : "Unexpected error" };
+    }
+
+  });
 }
 
 export async function deleteAliasAction(
   aliasId: string,
   personId: string,
 ): Promise<SimpleActionResult> {
-  try {
-    await deleteAlias(aliasId);
-    revalidatePath(`/people/${personId}`);
-    return { success: true };
-  } catch (err) {
-    return { success: false, error: err instanceof Error ? err.message : "Unexpected error" };
-  }
+  return withTenantFromHeaders(async () => {
+    try {
+      await deleteAlias(aliasId);
+      revalidatePath(`/people/${personId}`);
+      return { success: true };
+    } catch (err) {
+      return { success: false, error: err instanceof Error ? err.message : "Unexpected error" };
+    }
+
+  });
 }
 
 // ─── Channel Links ──────────────────────────────────────────────────────────
@@ -86,13 +96,16 @@ export async function linkAliasChannelsAction(
   personId: string,
   channelIds: string[],
 ): Promise<SimpleActionResult> {
-  try {
-    await linkAliasToChannels(aliasId, channelIds);
-    revalidatePath(`/people/${personId}`);
-    return { success: true };
-  } catch (err) {
-    return { success: false, error: err instanceof Error ? err.message : "Unexpected error" };
-  }
+  return withTenantFromHeaders(async () => {
+    try {
+      await linkAliasToChannels(aliasId, channelIds);
+      revalidatePath(`/people/${personId}`);
+      return { success: true };
+    } catch (err) {
+      return { success: false, error: err instanceof Error ? err.message : "Unexpected error" };
+    }
+
+  });
 }
 
 export async function unlinkAliasChannelAction(
@@ -100,13 +113,16 @@ export async function unlinkAliasChannelAction(
   personId: string,
   channelId: string,
 ): Promise<SimpleActionResult> {
-  try {
-    await unlinkAliasFromChannel(aliasId, channelId);
-    revalidatePath(`/people/${personId}`);
-    return { success: true };
-  } catch (err) {
-    return { success: false, error: err instanceof Error ? err.message : "Unexpected error" };
-  }
+  return withTenantFromHeaders(async () => {
+    try {
+      await unlinkAliasFromChannel(aliasId, channelId);
+      revalidatePath(`/people/${personId}`);
+      return { success: true };
+    } catch (err) {
+      return { success: false, error: err instanceof Error ? err.message : "Unexpected error" };
+    }
+
+  });
 }
 
 export async function setAliasChannelPrimaryAction(
@@ -115,13 +131,16 @@ export async function setAliasChannelPrimaryAction(
   channelId: string,
   isPrimary: boolean,
 ): Promise<SimpleActionResult> {
-  try {
-    await setAliasChannelPrimary(aliasId, channelId, isPrimary);
-    revalidatePath(`/people/${personId}`);
-    return { success: true };
-  } catch (err) {
-    return { success: false, error: err instanceof Error ? err.message : "Unexpected error" };
-  }
+  return withTenantFromHeaders(async () => {
+    try {
+      await setAliasChannelPrimary(aliasId, channelId, isPrimary);
+      revalidatePath(`/people/${personId}`);
+      return { success: true };
+    } catch (err) {
+      return { success: false, error: err instanceof Error ? err.message : "Unexpected error" };
+    }
+
+  });
 }
 
 // ─── Bulk Import ────────────────────────────────────────────────────────────
@@ -130,13 +149,16 @@ export async function bulkImportAliasesAction(
   personId: string,
   entries: { name: string; channelName?: string }[],
 ): Promise<{ success: boolean; error?: string; created?: number; linked?: number; unmatched?: string[] }> {
-  try {
-    const result = await bulkImportAliases(personId, entries);
-    revalidatePath(`/people/${personId}`);
-    return { success: true, ...result };
-  } catch (err) {
-    return { success: false, error: err instanceof Error ? err.message : "Unexpected error" };
-  }
+  return withTenantFromHeaders(async () => {
+    try {
+      const result = await bulkImportAliases(personId, entries);
+      revalidatePath(`/people/${personId}`);
+      return { success: true, ...result };
+    } catch (err) {
+      return { success: false, error: err instanceof Error ? err.message : "Unexpected error" };
+    }
+
+  });
 }
 
 // ─── Merge ──────────────────────────────────────────────────────────────────
@@ -146,11 +168,14 @@ export async function mergeAliasesAction(
   sourceIds: string[],
   personId: string,
 ): Promise<SimpleActionResult> {
-  try {
-    await mergeAliases(targetId, sourceIds);
-    revalidatePath(`/people/${personId}`);
-    return { success: true };
-  } catch (err) {
-    return { success: false, error: err instanceof Error ? err.message : "Unexpected error" };
-  }
+  return withTenantFromHeaders(async () => {
+    try {
+      await mergeAliases(targetId, sourceIds);
+      revalidatePath(`/people/${personId}`);
+      return { success: true };
+    } catch (err) {
+      return { success: false, error: err instanceof Error ? err.message : "Unexpected error" };
+    }
+
+  });
 }

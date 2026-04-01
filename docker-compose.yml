@@ -4,12 +4,28 @@ services:
     ports:
       - "3000:3000"
     environment:
-      - DATABASE_URL=${DATABASE_URL}
+      # ── Shared MinIO connection ──
       - MINIO_ENDPOINT=${MINIO_ENDPOINT}
       - MINIO_PORT=${MINIO_PORT}
       - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY}
       - MINIO_SECRET_KEY=${MINIO_SECRET_KEY}
-      - MINIO_BUCKET=${MINIO_BUCKET}
       - MINIO_USE_SSL=${MINIO_USE_SSL}
       - NEXT_PUBLIC_MINIO_URL=${NEXT_PUBLIC_MINIO_URL}
+      # ── Auth ──
+      - SESSION_SECRET=${SESSION_SECRET}
+      # ── Single-tenant fallback (used when TENANT_REGISTRY is not set) ──
+      - DATABASE_URL=${DATABASE_URL:-}
+      - MINIO_BUCKET=${MINIO_BUCKET:-}
+      # ── Multi-tenant registry (comma-separated tenant IDs) ──
+      - TENANT_REGISTRY=${TENANT_REGISTRY:-}
+      # ── Tenant: alice ──
+      - TENANT_ALICE_DATABASE_URL=${TENANT_ALICE_DATABASE_URL:-}
+      - TENANT_ALICE_MINIO_BUCKET=${TENANT_ALICE_MINIO_BUCKET:-}
+      - TENANT_ALICE_PASSWORD=${TENANT_ALICE_PASSWORD:-}
+      - TENANT_ALICE_NAME=${TENANT_ALICE_NAME:-}
+      # ── Tenant: bob ──
+      - TENANT_BOB_DATABASE_URL=${TENANT_BOB_DATABASE_URL:-}
+      - TENANT_BOB_MINIO_BUCKET=${TENANT_BOB_MINIO_BUCKET:-}
+      - TENANT_BOB_PASSWORD=${TENANT_BOB_PASSWORD:-}
+      - TENANT_BOB_NAME=${TENANT_BOB_NAME:-}
     restart: unless-stopped

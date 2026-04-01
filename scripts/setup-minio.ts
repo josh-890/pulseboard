@@ -10,7 +10,6 @@ const endpoint = process.env.MINIO_ENDPOINT!;
 const port = process.env.MINIO_PORT!;
 const useSSL = process.env.MINIO_USE_SSL === "true";
 const protocol = useSSL ? "https" : "http";
-const bucket = process.env.MINIO_BUCKET!;
 
 const client = new S3Client({
   endpoint: `${protocol}://${endpoint}:${port}`,
@@ -22,7 +21,7 @@ const client = new S3Client({
   forcePathStyle: true,
 });
 
-async function main() {
+async function ensureBucket(bucket: string) {
   console.log(`Checking bucket "${bucket}" on ${protocol}://${endpoint}:${port}...`);
 
   try {
@@ -54,7 +53,41 @@ async function main() {
       Policy: JSON.stringify(policy),
     }),
   );
-  console.log("Public-read policy applied.");
+  console.log(`Public-read policy applied to "${bucket}".`);
+}
+
+async function main() {
+  const buckets: string[] = [];
+
+  // Multi-tenant mode: set up buckets for all tenants
+  const registry = process.env.TENANT_REGISTRY;
+  if (registry) {
+    const tenantIds = registry.split(",").map((s) => s.trim());
+    for (const id of tenantIds) {
+      const upper = id.toUpperCase();
+      const bucket = process.env[`TENANT_${upper}_MINIO_BUCKET`];
+      if (bucket) {
+        buckets.push(bucket);
+      } else {
+        console.warn(`WARNING: TENANT_${upper}_MINIO_BUCKET not set, skipping tenant "${id}"`);
+      }
+    }
+  }
+
+  // Single-tenant fallback
+  if (buckets.length === 0) {
+    const bucket = process.env.MINIO_BUCKET;
+    if (!bucket) {
+      console.error("ERROR: No MINIO_BUCKET or TENANT_*_MINIO_BUCKET configured.");
+      process.exit(1);
+    }
+    buckets.push(bucket);
+  }
+
+  for (const bucket of buckets) {
+    await ensureBucket(bucket);
+  }
+
   console.log("Done!");
 }
 

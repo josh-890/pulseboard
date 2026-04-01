@@ -8,7 +8,7 @@ const nextConfig: NextConfig = {
         protocol: "http",
         hostname: "10.66.20.5",
         port: "9000",
-        pathname: "/pulseboard/**",
+        pathname: "/pulseboard*/**",
       },
     ],
   },

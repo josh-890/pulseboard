@@ -13,11 +13,13 @@ import {
   ChevronsRight,
   Clapperboard,
   Library,
+  LogOut,
 } from "lucide-react";
 import { NavLink } from "./nav-link";
 import { useSidebar } from "./sidebar-provider";
 import { cn } from "@/lib/utils";
 import { getBrowseReturnUrl } from "@/lib/browse-context";
+import { logoutAction } from "@/lib/actions/auth-actions";
 
 const navItems = [
   { href: "/", icon: <LayoutDashboard size={20} />, label: "Dashboard" },
@@ -63,6 +65,21 @@ export function Sidebar() {
           <NavLink key={item.href} {...item} collapsed={collapsed} />
         ))}
       </nav>
+
+      {/* Logout button */}
+      <div className={cn("border-t border-white/10 p-3", collapsed && "px-2")}>
+        <button
+          onClick={() => logoutAction()}
+          title="Sign out"
+          className={cn(
+            "flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground",
+            collapsed && "justify-center px-0",
+          )}
+        >
+          <LogOut size={20} />
+          {!collapsed && <span>Sign out</span>}
+        </button>
+      </div>
     </aside>
   );
 }

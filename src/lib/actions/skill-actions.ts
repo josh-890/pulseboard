@@ -1,5 +1,6 @@
 "use server";
 
+import { withTenantFromHeaders } from "@/lib/tenant-context";
 import { revalidatePath } from "next/cache";
 import type { SkillLevel, SkillEventType } from "@/generated/prisma/client";
 import {
@@ -28,24 +29,27 @@ export async function createPersonSkillAction(
     validTo?: string | null;
   },
 ): Promise<SimpleActionResult> {
-  try {
-    await createPersonSkill({
-      personId,
-      skillDefinitionId: data.skillDefinitionId,
-      name: data.name,
-      category: data.category,
-      level: data.level,
-      evidence: data.evidence,
-      personaId: data.personaId,
-      validFrom: data.validFrom ? new Date(data.validFrom) : null,
-      validTo: data.validTo ? new Date(data.validTo) : null,
-    });
-    revalidatePath(`/people/${personId}`);
-    return { success: true };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Unexpected error";
-    return { success: false, error: message };
-  }
+  return withTenantFromHeaders(async () => {
+    try {
+      await createPersonSkill({
+        personId,
+        skillDefinitionId: data.skillDefinitionId,
+        name: data.name,
+        category: data.category,
+        level: data.level,
+        evidence: data.evidence,
+        personaId: data.personaId,
+        validFrom: data.validFrom ? new Date(data.validFrom) : null,
+        validTo: data.validTo ? new Date(data.validTo) : null,
+      });
+      revalidatePath(`/people/${personId}`);
+      return { success: true };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unexpected error";
+      return { success: false, error: message };
+    }
+
+  });
 }
 
 export async function updatePersonSkillAction(
@@ -59,34 +63,40 @@ export async function updatePersonSkillAction(
     validTo?: string | null;
   },
 ): Promise<SimpleActionResult> {
-  try {
-    await updatePersonSkill(id, {
-      level: data.level,
-      evidence: data.evidence,
-      personaId: data.personaId,
-      validFrom: data.validFrom ? new Date(data.validFrom) : null,
-      validTo: data.validTo ? new Date(data.validTo) : null,
-    });
-    revalidatePath(`/people/${personId}`);
-    return { success: true };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Unexpected error";
-    return { success: false, error: message };
-  }
+  return withTenantFromHeaders(async () => {
+    try {
+      await updatePersonSkill(id, {
+        level: data.level,
+        evidence: data.evidence,
+        personaId: data.personaId,
+        validFrom: data.validFrom ? new Date(data.validFrom) : null,
+        validTo: data.validTo ? new Date(data.validTo) : null,
+      });
+      revalidatePath(`/people/${personId}`);
+      return { success: true };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unexpected error";
+      return { success: false, error: message };
+    }
+
+  });
 }
 
 export async function deletePersonSkillAction(
   id: string,
   personId: string,
 ): Promise<SimpleActionResult> {
-  try {
-    await deletePersonSkill(id);
-    revalidatePath(`/people/${personId}`);
-    return { success: true };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Unexpected error";
-    return { success: false, error: message };
-  }
+  return withTenantFromHeaders(async () => {
+    try {
+      await deletePersonSkill(id);
+      revalidatePath(`/people/${personId}`);
+      return { success: true };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unexpected error";
+      return { success: false, error: message };
+    }
+
+  });
 }
 
 // ─── Skill Event CRUD ────────────────────────────────────────────────────────
@@ -103,31 +113,37 @@ export async function createSkillEventAction(
     datePrecision?: string;
   },
 ): Promise<SimpleActionResult> {
-  try {
-    await createSkillEvent({
-      ...data,
-      date: data.date ? new Date(data.date) : null,
-    });
-    revalidatePath(`/people/${personId}`);
-    return { success: true };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Unexpected error";
-    return { success: false, error: message };
-  }
+  return withTenantFromHeaders(async () => {
+    try {
+      await createSkillEvent({
+        ...data,
+        date: data.date ? new Date(data.date) : null,
+      });
+      revalidatePath(`/people/${personId}`);
+      return { success: true };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unexpected error";
+      return { success: false, error: message };
+    }
+
+  });
 }
 
 export async function deleteSkillEventAction(
   id: string,
   personId: string,
 ): Promise<SimpleActionResult> {
-  try {
-    await deleteSkillEvent(id);
-    revalidatePath(`/people/${personId}`);
-    return { success: true };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Unexpected error";
-    return { success: false, error: message };
-  }
+  return withTenantFromHeaders(async () => {
+    try {
+      await deleteSkillEvent(id);
+      revalidatePath(`/people/${personId}`);
+      return { success: true };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unexpected error";
+      return { success: false, error: message };
+    }
+
+  });
 }
 
 // ─── Skill Event Media ──────────────────────────────────────────────────────
@@ -137,14 +153,17 @@ export async function addMediaToSkillEventAction(
   mediaItemIds: string[],
   personId: string,
 ): Promise<SimpleActionResult> {
-  try {
-    await addMediaToSkillEvent(skillEventId, mediaItemIds);
-    revalidatePath(`/people/${personId}`);
-    return { success: true };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Unexpected error";
-    return { success: false, error: message };
-  }
+  return withTenantFromHeaders(async () => {
+    try {
+      await addMediaToSkillEvent(skillEventId, mediaItemIds);
+      revalidatePath(`/people/${personId}`);
+      return { success: true };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unexpected error";
+      return { success: false, error: message };
+    }
+
+  });
 }
 
 export async function removeMediaFromSkillEventAction(
@@ -152,12 +171,15 @@ export async function removeMediaFromSkillEventAction(
   mediaItemId: string,
   personId: string,
 ): Promise<SimpleActionResult> {
-  try {
-    await removeMediaFromSkillEvent(skillEventId, mediaItemId);
-    revalidatePath(`/people/${personId}`);
-    return { success: true };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Unexpected error";
-    return { success: false, error: message };
-  }
+  return withTenantFromHeaders(async () => {
+    try {
+      await removeMediaFromSkillEvent(skillEventId, mediaItemId);
+      revalidatePath(`/people/${personId}`);
+      return { success: true };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unexpected error";
+      return { success: false, error: message };
+    }
+
+  });
 }
