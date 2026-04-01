@@ -8,7 +8,7 @@ import { HeroLayoutProvider } from "@/components/layout/hero-layout-provider";
 import { SidebarProvider } from "@/components/layout/sidebar-provider";
 import { AppShell } from "@/components/layout/app-shell";
 import { Toaster } from "@/components/ui/sonner";
-import { runWithTenant, getCurrentTenantConfig } from "@/lib/tenant-context";
+import { setCurrentTenantId, getCurrentTenantConfig } from "@/lib/tenant-context";
 import { isSingleTenantMode } from "@/lib/tenants";
 import "./globals.css";
 
@@ -43,8 +43,9 @@ export default async function RootLayout({
 }>) {
   const h = await headers();
   const tenantId = h.get("x-tenant-id") ?? (isSingleTenantMode() ? "default" : "default");
+  setCurrentTenantId(tenantId);
 
-  return runWithTenant(tenantId, () => (
+  return (
     <html lang="en" suppressHydrationWarning>
       <head>
         <script
@@ -68,5 +69,5 @@ export default async function RootLayout({
         </ThemeProvider>
       </body>
     </html>
-  ));
+  );
 }
