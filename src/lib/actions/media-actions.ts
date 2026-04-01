@@ -257,6 +257,24 @@ export async function reorderPersonMediaAction(
   }
 }
 
+export async function setPersonMediaFavoriteAction(
+  personId: string,
+  mediaItemId: string,
+  isFavorite: boolean,
+): Promise<SimpleActionResult> {
+  try {
+    await prisma.personMediaLink.updateMany({
+      where: { personId, mediaItemId },
+      data: { isFavorite },
+    });
+    revalidatePath(`/people/${personId}`);
+    return { success: true };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Unexpected error";
+    return { success: false, error: message };
+  }
+}
+
 export async function deleteMediaItemsAction(
   mediaItemIds: string[],
   personId: string,

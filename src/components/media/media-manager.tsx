@@ -104,7 +104,10 @@ export function MediaManager({
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [isReordering, setIsReordering] = useState(false);
-  const [sortMode, setSortMode] = useState<GallerySortMode>("user");
+  const [sortMode, setSortMode] = useState<GallerySortMode>(() => {
+    if (typeof window === "undefined") return "user";
+    return (localStorage.getItem("gallery_sort_reference") as GallerySortMode) ?? "user";
+  });
   const [, startDeleteTransition] = useTransition();
   const [usageFilter, setUsageFilter] = useState<"all" | "general" | "detail">("all");
 
@@ -313,6 +316,7 @@ export function MediaManager({
 
   const handleSortChange = useCallback((mode: GallerySortMode) => {
     setSortMode(mode);
+    localStorage.setItem("gallery_sort_reference", mode);
     if (mode !== "user") setIsReordering(false);
   }, []);
 

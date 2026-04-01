@@ -41,7 +41,10 @@ export function SessionProductionGallery({ items: initialItems, sessionId, produ
   const [collections, setCollections] = useState<{ id: string; name: string }[]>([]);
   const [isDragOver, setIsDragOver] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [sortMode, setSortMode] = useState<GallerySortMode>("newest");
+  const [sortMode, setSortMode] = useState<GallerySortMode>(() => {
+    if (typeof window === "undefined") return "newest";
+    return (localStorage.getItem("gallery_sort_session") as GallerySortMode) ?? "newest";
+  });
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [, startTransition] = useTransition();
   const dragCounterRef = useRef(0);
@@ -161,7 +164,7 @@ export function SessionProductionGallery({ items: initialItems, sessionId, produ
               </Button>
             </>
           ) : (
-            <Select value={sortMode} onValueChange={(v) => setSortMode(v as GallerySortMode)}>
+            <Select value={sortMode} onValueChange={(v) => { const m = v as GallerySortMode; setSortMode(m); localStorage.setItem("gallery_sort_session", m); }}>
               <SelectTrigger className="h-7 w-[130px] text-xs gap-1 ml-auto">
                 <SelectValue />
               </SelectTrigger>

@@ -61,7 +61,10 @@ export function SetDetailGallery({
   const [isDragOver, setIsDragOver] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [isReordering, setIsReordering] = useState(false);
-  const [sortMode, setSortMode] = useState<GallerySortMode>("user");
+  const [sortMode, setSortMode] = useState<GallerySortMode>(() => {
+    if (typeof window === "undefined") return "user";
+    return (localStorage.getItem("gallery_sort_set") as GallerySortMode) ?? "user";
+  });
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [, startTransition] = useTransition();
   const dragCounterRef = useRef(0);
@@ -216,6 +219,7 @@ export function SetDetailGallery({
 
   const handleSortChange = useCallback((mode: GallerySortMode) => {
     setSortMode(mode);
+    localStorage.setItem("gallery_sort_set", mode);
     if (mode !== "user") setIsReordering(false);
   }, []);
 

@@ -71,6 +71,7 @@ import type { PlausibilityIssue } from "@/lib/services/plausibility-service";
 import {
   assignHeadshotSlot as assignHeadshotSlotAction,
   removeHeadshotSlot as removeHeadshotSlotAction,
+  setPersonMediaFavoriteAction,
 } from "@/lib/actions/media-actions";
 import { updatePersonBio, updatePersonPgrade, updatePersonRating } from "@/lib/actions/person-actions";
 import { setEntityTagsAction } from "@/lib/actions/tag-actions";
@@ -659,6 +660,7 @@ type HeroSharedProps = {
   earliestSessionYear?: number | null;
   onAliasesBadgeClick?: () => void;
   onAppearanceClick?: () => void;
+  onFavoriteToggle?: (itemId: string) => void;
   plausibilityCount?: number;
 };
 
@@ -842,7 +844,7 @@ function IdentityBlock({ person, displayName, age, heroAliases, onAliasesBadgeCl
 function HeroDensityLayout(props: HeroSharedProps) {
   const { layout } = useHeroLayout();
   const cfg = DENSITY_CONFIGS[layout];
-  const { person, currentState, photos, profileLabels, kpiCounts, calculatedPgrade, meanWcp, displayName, initials, age, heroAliases, referenceSessionId, headshotSlotMap, plausibilityCount } = props;
+  const { person, currentState, photos, profileLabels, kpiCounts, calculatedPgrade, meanWcp, displayName, initials, age, heroAliases, referenceSessionId, headshotSlotMap, plausibilityCount, onFavoriteToggle } = props;
 
   const handleAssignHeadshot = useCallback(
     async (mediaItemId: string, slot: number) => {
@@ -877,6 +879,7 @@ function HeroDensityLayout(props: HeroSharedProps) {
           profileLabels={profileLabels}
           headshotSlotMap={headshotSlotMap}
           onFindSimilar={handleFindSimilar}
+          onFavoriteToggle={onFavoriteToggle}
         />
 
         {/* Zones 2+3: Identity | Physical — 2-col grid, no hairline */}
@@ -983,6 +986,7 @@ function HeroCard({
   earliestSessionYear,
   onAliasesBadgeClick,
   onAppearanceClick,
+  onFavoriteToggle,
   aliasesWithChannels,
   plausibilityCount = 0,
 }: {
@@ -999,6 +1003,7 @@ function HeroCard({
   earliestSessionYear?: number | null;
   onAliasesBadgeClick?: () => void;
   onAppearanceClick?: () => void;
+  onFavoriteToggle?: (itemId: string) => void;
   aliasesWithChannels?: PersonAliasWithChannels[];
   plausibilityCount?: number;
 }) {
@@ -1059,6 +1064,7 @@ function HeroCard({
     heroAliases,
     onAliasesBadgeClick,
     onAppearanceClick,
+    onFavoriteToggle,
     plausibilityCount,
   };
 
@@ -1825,6 +1831,25 @@ export function PersonDetailTabs({
     ? (initialTab as TabId)
     : "overview";
   const [activeTab, setActiveTabRaw] = useState<TabId>(resolvedInitialTab);
+  const [localPhotos, setLocalPhotos] = useState<GalleryItem[]>(photos);
+  const [, startPhotoTransition] = useTransition();
+
+  // Sync local photos when server re-renders with new data
+  useEffect(() => {
+    setLocalPhotos(photos);
+  }, [photos]);
+
+  const handleFavoriteToggle = useCallback((itemId: string) => {
+    const item = localPhotos.find((p) => p.id === itemId);
+    if (!item) return;
+    const newFavorite = !item.isFavorite;
+    setLocalPhotos((prev) =>
+      prev.map((p) => (p.id === itemId ? { ...p, isFavorite: newFavorite } : p)),
+    );
+    startPhotoTransition(async () => {
+      await setPersonMediaFavoriteAction(person.id, itemId, newFavorite);
+    });
+  }, [localPhotos, person.id]);
 
   // Sync active tab to URL search param (for BrowseNavBar tab preservation)
   const setActiveTab = useCallback((tab: TabId) => {
@@ -1887,7 +1912,7 @@ export function PersonDetailTabs({
       <HeroCard
         person={person}
         currentState={currentState}
-        photos={photos}
+        photos={localPhotos}
         profileLabels={profileLabels}
         referenceSessionId={referenceSessionId}
         refMediaCount={refMediaCount}
@@ -1903,6 +1928,7 @@ export function PersonDetailTabs({
         earliestSessionYear={earliestSessionYear}
         onAliasesBadgeClick={handleAliasesBadgeClick}
         onAppearanceClick={handleAppearanceClick}
+        onFavoriteToggle={handleFavoriteToggle}
         aliasesWithChannels={aliasesWithChannels}
         plausibilityCount={plausibilityIssues.length}
       />
