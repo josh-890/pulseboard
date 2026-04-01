@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { headers } from "next/headers";
 import { Inter } from "next/font/google";
 import { ThemeProvider } from "@/components/layout/theme-provider";
 import { PaletteProvider } from "@/components/layout/palette-provider";
@@ -8,7 +7,7 @@ import { HeroLayoutProvider } from "@/components/layout/hero-layout-provider";
 import { SidebarProvider } from "@/components/layout/sidebar-provider";
 import { AppShell } from "@/components/layout/app-shell";
 import { Toaster } from "@/components/ui/sonner";
-import { setCurrentTenantId, getCurrentTenantConfig } from "@/lib/tenant-context";
+import { getCurrentTenantConfig } from "@/lib/tenant-context";
 import { isSingleTenantMode } from "@/lib/tenants";
 import "./globals.css";
 
@@ -41,10 +40,6 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const h = await headers();
-  const tenantId = h.get("x-tenant-id") ?? (isSingleTenantMode() ? "default" : "default");
-  setCurrentTenantId(tenantId);
-
   return (
     <html lang="en" suppressHydrationWarning>
       <head>

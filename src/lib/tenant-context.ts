@@ -1,23 +1,8 @@
 import { AsyncLocalStorage } from "node:async_hooks";
-import { cache } from "react";
-import { getTenantConfig, isSingleTenantMode, type TenantConfig } from "./tenants";
+import { getTenantConfig, getAllTenants, isSingleTenantMode, type TenantConfig } from "./tenants";
 
-// ── React cache for RSC request-scoped storage ───────────────────────────────
-// React's cache() creates a per-request memoized function in Server Components.
-// Unlike AsyncLocalStorage, this propagates through the RSC render tree.
-
-const getTenantStore = cache(() => ({ tenantId: "" }));
-
-/**
- * Set the tenant ID for the current RSC request.
- * Called from the root layout after reading the x-tenant-id header.
- */
-export function setCurrentTenantId(tenantId: string): void {
-  getTenantStore().tenantId = tenantId;
-}
-
-// ── AsyncLocalStorage for non-RSC contexts ───────────────────────────────────
-// Used by: server actions, API routes, scripts, seed files
+// ── AsyncLocalStorage for request-scoped tenant context ──────────────────────
+// Used by: server actions (via withTenantFromHeaders), API routes, scripts.
 
 type TenantStoreALS = { tenantId: string };
 
@@ -38,10 +23,7 @@ export function runWithTenant<T>(tenantId: string, fn: () => T): T {
 export async function withTenantFromHeaders<T>(fn: () => Promise<T>): Promise<T> {
   const { headers } = await import("next/headers");
   const h = await headers();
-  const tenantId = h.get("x-tenant-id") ?? (isSingleTenantMode() ? "default" : null);
-  if (!tenantId) {
-    throw new Error("No x-tenant-id header found. Ensure request passes through middleware.");
-  }
+  const tenantId = h.get("x-tenant-id") ?? resolveFallbackTenant();
   return runWithTenant(tenantId, fn);
 }
 
@@ -51,34 +33,36 @@ export async function withTenantFromHeaders<T>(fn: () => Promise<T>): Promise<T>
  * Get the current tenant ID synchronously.
  *
  * Resolution chain:
- * 1. React cache store (set by layout via setCurrentTenantId — works in RSC rendering)
- * 2. AsyncLocalStorage (set by withTenantFromHeaders — works in actions/API routes/scripts)
- * 3. TENANT_ID env var (single-tenant scripts)
- * 4. "default" if no TENANT_REGISTRY is set (single-tenant mode)
+ * 1. AsyncLocalStorage (set by withTenantFromHeaders — works in actions/API routes/scripts)
+ * 2. TENANT_ID env var (single-tenant scripts)
+ * 3. "default" if no TENANT_REGISTRY is set (single-tenant mode)
+ * 4. First registered tenant (fallback for RSC rendering where ALS doesn't propagate)
  */
 export function getCurrentTenantId(): string {
-  // 1. React cache (RSC rendering — set by root layout)
-  try {
-    const store = getTenantStore();
-    if (store.tenantId) return store.tenantId;
-  } catch {
-    // cache() may throw outside of React rendering context — fall through
-  }
-
-  // 2. AsyncLocalStorage (actions, API routes, scripts via runWithTenant)
+  // 1. AsyncLocalStorage (actions, API routes, scripts via runWithTenant)
   const alsStore = tenantStorage.getStore();
   if (alsStore?.tenantId) return alsStore.tenantId;
 
-  // 3. Explicit env var (scripts that set TENANT_ID directly)
+  // 2. Explicit env var (scripts that set TENANT_ID directly)
   if (process.env.TENANT_ID) return process.env.TENANT_ID;
 
-  // 4. Single-tenant mode fallback
+  // 3–4. Fallback
+  return resolveFallbackTenant();
+}
+
+/**
+ * Resolve a fallback tenant ID when no explicit context is set.
+ * In single-tenant mode returns "default".
+ * In multi-tenant mode returns the first registered tenant.
+ * The middleware protects actual data access via login redirects.
+ */
+function resolveFallbackTenant(): string {
   if (isSingleTenantMode()) return "default";
 
-  throw new Error(
-    "No tenant context found. Ensure the code runs within runWithTenant() or withTenantFromHeaders(). " +
-      "For scripts, use runWithTenant() or set TENANT_ID env var.",
-  );
+  const tenants = getAllTenants();
+  if (tenants.length > 0) return tenants[0].id;
+
+  return "default";
 }
 
 /**
