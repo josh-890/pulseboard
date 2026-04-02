@@ -292,24 +292,9 @@ export async function deleteBodyMarkEventRecord(id: string) {
   });
 }
 
-export async function getPersonDigitalIdentities(personId: string): Promise<PersonDigitalIdentityItem[]> {
-  const identities = await prisma.personDigitalIdentity.findMany({
-    where: { personId },
-    include: { persona: { select: { label: true } } },
-    orderBy: { validFrom: "asc" },
-  });
-
-  return identities.map((i) => ({
-    id: i.id,
-    platform: i.platform,
-    handle: i.handle,
-    url: i.url,
-    status: i.status,
-    validFrom: i.validFrom,
-    validTo: i.validTo,
-    personaLabel: i.persona?.label ?? null,
-  }));
-}
+// Re-export from dedicated service for backward compatibility
+import { getPersonDigitalIdentities } from "./digital-identity-service";
+export { getPersonDigitalIdentities };
 
 export async function getPersonSkills(personId: string): Promise<PersonSkillItem[]> {
   const skills = await prisma.personSkill.findMany({

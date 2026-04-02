@@ -10,6 +10,7 @@ import type {
   PersonConnection,
   PersonSessionWorkEntry,
   PersonProductionSession,
+  PersonDigitalIdentityItem,
   PersonStatus,
   RelationshipSource,
 } from "@/lib/types";
@@ -19,7 +20,6 @@ import { findCountryByCode } from "@/lib/constants/countries";
 import { PersonaTimelineEntry } from "@/components/people/persona-timeline-entry";
 import { AppearanceTab } from "@/components/people/appearance-tab";
 import { NewPersonaSheet } from "@/components/people/new-persona-sheet";
-import { DigitalIdentityRow } from "@/components/people/digital-identity-row";
 import {
   Star,
   StarOff,
@@ -30,7 +30,6 @@ import {
   MapPin,
   Tag,
   Building2,
-  Cpu,
   Camera,
   ChevronDown,
   ChevronUp,
@@ -58,6 +57,7 @@ import { PersonDetailsTab } from "@/components/people/person-details-tab";
 import { SectionCard, EmptyState, InfoRow } from "@/components/people/person-detail-helpers";
 import { PersonSkillsTab } from "@/components/people/person-skills-tab";
 import { PersonAliasesTab } from "@/components/people/person-aliases-tab";
+import { DigitalIdentitySection } from "@/components/people/digital-identity-section";
 import { CareerSessionList } from "@/components/people/career-session-list";
 import { ProductionPhotoList } from "@/components/people/production-photo-list";
 import type { SkillGroupWithDefinitions } from "@/lib/services/skill-catalog-service";
@@ -107,6 +107,7 @@ type PersonDetailTabsProps = {
   entityMedia?: Record<string, EntityMediaThumbnail[]>;
   refMediaCount?: number;
   plausibilityIssues?: PlausibilityIssue[];
+  digitalIdentities?: PersonDigitalIdentityItem[];
   initialTab?: string;
   entityTags?: { id: string; name: string; group: { name: string; color: string } }[];
 };
@@ -1311,6 +1312,7 @@ function OverviewTab({
   referencePhotos,
   plausibilityIssues = [],
   onTabSwitch,
+  digitalIdentities = [],
   entityTags = [],
 }: {
   person: PersonData;
@@ -1319,10 +1321,10 @@ function OverviewTab({
   referencePhotos?: GalleryItem[];
   plausibilityIssues?: PlausibilityIssue[];
   onTabSwitch?: (tab: string) => void;
+  digitalIdentities?: PersonDigitalIdentityItem[];
   entityTags?: { id: string; name: string; group: { name: string; color: string } }[];
 }) {
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
-  const hasDigitalIdentities = currentState.activeDigitalIdentities.length > 0;
   const [tagIds, setTagIds] = useState(entityTags.map((t) => t.id));
   const hasHistory = person.personas.length > 0;
   const recentWork = (sessionWorkHistory ?? []).slice(0, 3);
@@ -1409,19 +1411,7 @@ function OverviewTab({
       )}
 
       {/* 5. Digital Identities | Notes & Tags */}
-      {hasDigitalIdentities && (
-        <SectionCard
-          title="Digital Identities"
-          icon={<Cpu size={18} />}
-          badge={currentState.activeDigitalIdentities.length}
-        >
-          <div className="space-y-2">
-            {currentState.activeDigitalIdentities.map((identity) => (
-              <DigitalIdentityRow key={identity.id} identity={identity} />
-            ))}
-          </div>
-        </SectionCard>
-      )}
+      <DigitalIdentitySection personId={person.id} identities={digitalIdentities} />
 
       <SectionCard title="Notes & Tags" icon={<Tag size={18} />}>
         <div className="mb-3">
@@ -1820,6 +1810,7 @@ export function PersonDetailTabs({
   entityMedia,
   refMediaCount,
   plausibilityIssues = [],
+  digitalIdentities = [],
   initialTab,
   entityTags = [],
 }: PersonDetailTabsProps) {
@@ -1988,6 +1979,7 @@ export function PersonDetailTabs({
             referencePhotos={photos}
             plausibilityIssues={plausibilityIssues}
             onTabSwitch={(tab) => setActiveTab(tab as TabId)}
+            digitalIdentities={digitalIdentities}
             entityTags={entityTags}
           />
         )}
