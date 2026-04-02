@@ -3,7 +3,6 @@ import Link from "next/link";
 import { Camera, Check, Circle, Film } from "lucide-react";
 import { cn, focalStyle, formatPartialDate, getInitialsFromName } from "@/lib/utils";
 import { SetInlineTitle } from "@/components/sets/set-detail-header";
-import { LabelEvidenceManager } from "@/components/sets/label-evidence-manager";
 import type { getSetById } from "@/lib/services/set-service";
 import type { CoverPhotoData, HeadshotData } from "@/lib/services/media-service";
 
@@ -29,22 +28,6 @@ const SET_TYPE_CONFIG: Record<string, SetTypeConfig> = {
   },
 };
 
-function CompletenessChip({ done, label }: { done: boolean; label: string }) {
-  return (
-    <span
-      className={cn(
-        "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium",
-        done
-          ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
-          : "border-amber-500/20 bg-amber-500/10 text-amber-600 dark:text-amber-400",
-      )}
-    >
-      {done ? <Check size={10} /> : <Circle size={10} />}
-      {label}
-    </span>
-  );
-}
-
 function ParticipantAvatars({
   participants,
   headshotMap,
@@ -63,10 +46,7 @@ function ParticipantAvatars({
   const overflowText = overflow > 0 ? ` +${overflow}` : "";
 
   return (
-    <div className="mt-3">
-      <p className="mb-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground/70">
-        Participants
-      </p>
+    <div>
       <div className="flex items-center">
         {visible.map((p, i) => {
           const name = p.person.aliases[0]?.name ?? p.person.icgId ?? "";
@@ -78,19 +58,19 @@ function ParticipantAvatars({
               href={`/people/${p.personId}`}
               title={name}
               className="relative shrink-0 transition-transform hover:z-10 hover:scale-110"
-              style={{ marginLeft: i > 0 ? -8 : 0 }}
+              style={{ marginLeft: i > 0 ? -10 : 0 }}
             >
               {photoUrl ? (
                 <Image
                   src={photoUrl}
                   alt={name}
-                  width={32}
-                  height={32}
-                  className="h-8 w-8 rounded-full border-2 border-card object-cover"
+                  width={40}
+                  height={40}
+                  className="h-10 w-10 rounded-full border-2 border-card object-cover"
                   unoptimized
                 />
               ) : (
-                <div className="flex h-8 w-8 items-center justify-center rounded-full border-2 border-card bg-muted text-xs font-semibold text-muted-foreground">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full border-2 border-card bg-muted text-sm font-semibold text-muted-foreground">
                   {initials}
                 </div>
               )}
@@ -113,9 +93,6 @@ type SetHeroProps = {
   coverPhoto: CoverPhotoData | null;
   headshotMap: Map<string, HeadshotData>;
   backdropEnabled: boolean;
-  hasPhotos: boolean;
-  hasCredits: boolean;
-  unresolvedCount: number;
   mediaCount: number;
 };
 
@@ -124,18 +101,14 @@ export function SetHero({
   coverPhoto,
   headshotMap,
   backdropEnabled,
-  hasPhotos,
-  hasCredits,
-  unresolvedCount,
   mediaCount,
 }: SetHeroProps) {
   const typeConfig = SET_TYPE_CONFIG[set.type] ?? SET_TYPE_CONFIG.photo;
   const participantCount = set.participants.length;
-  const hasLabel = set.labelEvidence.length > 0;
   const primaryLabel = set.channel?.labelMaps[0]?.label;
 
   const coverPanel = coverPhoto ? (
-    <div className="relative h-[220px] w-[160px] shrink-0 overflow-hidden rounded-xl">
+    <div className="relative h-[250px] w-[180px] shrink-0 overflow-hidden rounded-xl">
       <Image
         src={coverPhoto.url}
         alt=""
@@ -143,11 +116,11 @@ export function SetHero({
         className="object-cover"
         style={focalStyle(coverPhoto.focalX, coverPhoto.focalY)}
         unoptimized
-        sizes="160px"
+        sizes="180px"
       />
     </div>
   ) : (
-    <div className="flex h-[220px] w-[160px] shrink-0 items-center justify-center overflow-hidden rounded-xl bg-gradient-to-br from-entity-set/20 to-entity-set/5">
+    <div className="flex h-[250px] w-[180px] shrink-0 items-center justify-center overflow-hidden rounded-xl bg-gradient-to-br from-entity-set/20 to-entity-set/5">
       <Film size={40} className="text-entity-set/40" />
     </div>
   );
@@ -157,12 +130,12 @@ export function SetHero({
       {coverPanel}
 
       {/* Metadata */}
-      <div className="min-w-0 flex-1">
-        {/* Type badge + date */}
-        <div className="mb-2 flex flex-wrap items-center gap-2">
+      <div className="min-w-0 flex-1 flex flex-col">
+        {/* Line 1: Type · Date · Channel */}
+        <div className="flex flex-wrap items-center gap-1.5 text-sm text-muted-foreground">
           <span
             className={cn(
-              "inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-medium",
+              "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium",
               typeConfig.className,
             )}
           >
@@ -170,79 +143,87 @@ export function SetHero({
             {typeConfig.label}
           </span>
           {set.releaseDate && (
-            <span className="text-sm text-muted-foreground">
-              {formatPartialDate(set.releaseDate, set.releaseDatePrecision)}
-            </span>
+            <>
+              <span>·</span>
+              <span>{formatPartialDate(set.releaseDate, set.releaseDatePrecision)}</span>
+            </>
+          )}
+          {set.channel && (
+            <>
+              <span>·</span>
+              <Link
+                href={`/channels/${set.channel.id}`}
+                className="font-medium text-foreground/80 hover:text-foreground hover:underline underline-offset-2 transition-colors"
+              >
+                {set.channel.name}
+              </Link>
+            </>
           )}
         </div>
 
-        {/* Title */}
-        <SetInlineTitle setId={set.id} title={set.title} />
-
-        {/* Channel · primary label */}
-        {set.channel && (
-          <p className="mt-2 text-sm text-muted-foreground">
-            <span className="font-medium text-foreground/80">{set.channel.name}</span>
-            {primaryLabel && (
-              <>
-                {" · "}
-                <Link
-                  href={`/labels/${primaryLabel.id}`}
-                  className="hover:text-foreground hover:underline underline-offset-2 transition-colors"
-                >
-                  {primaryLabel.name}
-                </Link>
-              </>
-            )}
-          </p>
-        )}
-
-        {/* Label evidence */}
-        <div className="mt-2">
-          <LabelEvidenceManager
-            setId={set.id}
-            evidence={set.labelEvidence.map((ev) => ({
-              setId: ev.setId,
-              labelId: ev.labelId,
-              evidenceType: ev.evidenceType,
-              label: { id: ev.label.id, name: ev.label.name },
-            }))}
-          />
+        {/* Line 2: Title */}
+        <div className="mt-1">
+          <SetInlineTitle setId={set.id} title={set.title} />
         </div>
 
-        {/* Participant avatars */}
+        {/* Separator */}
+        <hr className="my-3 border-white/10" />
+
+        {/* People block */}
         <ParticipantAvatars
           participants={set.participants}
           headshotMap={headshotMap}
         />
+        {participantCount === 0 && (
+          <p className="text-xs text-muted-foreground/50 italic">No participants</p>
+        )}
 
-        {/* Completeness chips */}
-        <div className="mt-3 flex flex-wrap gap-1.5">
-          <CompletenessChip done label="Title" />
-          <CompletenessChip done={!!set.channel} label="Channel" />
-          <CompletenessChip
-            done={hasCredits && unresolvedCount === 0}
-            label={unresolvedCount > 0 ? `Credits (${unresolvedCount} unresolved)` : "Credits"}
-          />
-          <CompletenessChip done={hasPhotos} label={set.type === "video" ? "Frames" : "Photos"} />
-          <CompletenessChip done={hasLabel} label="Label" />
-        </div>
+        {/* Separator */}
+        <hr className="my-3 border-white/10" />
 
-        {/* Stats */}
-        <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
-          <span>{participantCount} {participantCount === 1 ? "participant" : "participants"}</span>
+        {/* Meta row */}
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
           <span>{mediaCount} media</span>
           {set.imageCount != null && (
-            <span>{set.imageCount} images in set</span>
+            <>
+              <span>·</span>
+              <span>{set.imageCount} images in set</span>
+            </>
           )}
           {set.videoLength && (
-            <span>{set.videoLength}</span>
+            <>
+              <span>·</span>
+              <span>{set.videoLength}</span>
+            </>
+          )}
+          {primaryLabel && (
+            <>
+              <span>·</span>
+              <Link
+                href={`/labels/${primaryLabel.id}`}
+                className="hover:text-foreground hover:underline underline-offset-2 transition-colors"
+              >
+                {primaryLabel.name}
+              </Link>
+            </>
+          )}
+          <span>·</span>
+          {set.isComplete ? (
+            <span className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
+              <Check size={12} />
+              Complete
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1 text-amber-600 dark:text-amber-400">
+              <Circle size={12} />
+              Incomplete
+            </span>
           )}
           {set.isCompilation && (
-            <span className="text-sky-500 dark:text-sky-400">Compilation</span>
-          )}
-          {set.isComplete && (
-            <span className="text-emerald-500 dark:text-emerald-400">Complete</span>
+            <>
+              <span>·</span>
+              <span className="text-sky-500 dark:text-sky-400">Compilation</span>
+            </>
           )}
         </div>
       </div>

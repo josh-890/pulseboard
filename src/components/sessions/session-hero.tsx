@@ -1,6 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
-import { Building2, Clapperboard, FolderKanban } from "lucide-react";
+import { Clapperboard, FolderKanban } from "lucide-react";
 import { cn, focalStyle, formatPartialDate, getInitialsFromName } from "@/lib/utils";
 import { SessionStatusBadge } from "@/components/sessions/session-status-badge";
 import { SessionStatusToggle } from "@/components/sessions/session-status-toggle";
@@ -35,10 +35,7 @@ function ContributorAvatars({
   const overflowText = overflow > 0 ? ` +${overflow}` : "";
 
   return (
-    <div className="mt-3">
-      <p className="mb-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground/70">
-        Contributors
-      </p>
+    <div>
       <div className="flex items-center">
         {visible.map((c, i) => {
           const name = c.person.aliases[0]?.name ?? c.person.icgId ?? "";
@@ -50,19 +47,19 @@ function ContributorAvatars({
               href={`/people/${c.personId}`}
               title={name}
               className="relative shrink-0 transition-transform hover:z-10 hover:scale-110"
-              style={{ marginLeft: i > 0 ? -8 : 0 }}
+              style={{ marginLeft: i > 0 ? -10 : 0 }}
             >
               {photoUrl ? (
                 <Image
                   src={photoUrl}
                   alt={name}
-                  width={32}
-                  height={32}
-                  className="h-8 w-8 rounded-full border-2 border-card object-cover"
+                  width={40}
+                  height={40}
+                  className="h-10 w-10 rounded-full border-2 border-card object-cover"
                   unoptimized
                 />
               ) : (
-                <div className="flex h-8 w-8 items-center justify-center rounded-full border-2 border-card bg-muted text-xs font-semibold text-muted-foreground">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full border-2 border-card bg-muted text-sm font-semibold text-muted-foreground">
                   {initials}
                 </div>
               )}
@@ -80,11 +77,8 @@ function ContributorAvatars({
   );
 }
 
-function CoverPanel({ coverPhoto, isBackdrop }: { coverPhoto: CoverPhotoData | null; isBackdrop?: boolean }) {
-  const panelClass = cn(
-    "relative shrink-0 overflow-hidden rounded-xl bg-muted/30",
-    isBackdrop ? "h-[220px] w-[160px]" : "h-[220px] w-[160px]",
-  );
+function CoverPanel({ coverPhoto }: { coverPhoto: CoverPhotoData | null }) {
+  const panelClass = "relative h-[250px] w-[180px] shrink-0 overflow-hidden rounded-xl";
 
   if (coverPhoto) {
     return (
@@ -96,7 +90,7 @@ function CoverPanel({ coverPhoto, isBackdrop }: { coverPhoto: CoverPhotoData | n
           className="object-cover"
           style={focalStyle(coverPhoto.focalX, coverPhoto.focalY)}
           unoptimized
-          sizes="160px"
+          sizes="180px"
         />
       </div>
     );
@@ -138,58 +132,70 @@ export function SessionHero({
       <CoverPanel coverPhoto={coverPhoto} />
 
       {/* Metadata */}
-      <div className="min-w-0 flex-1">
-        {/* Status + date row */}
-        <div className="mb-2 flex flex-wrap items-center gap-2">
+      <div className="min-w-0 flex-1 flex flex-col">
+        {/* Line 1: Date · Label */}
+        <div className="flex flex-wrap items-center gap-1.5 text-sm text-muted-foreground">
+          {session.date && (
+            <span>{formatPartialDate(session.date, session.datePrecision)}</span>
+          )}
+          {session.date && session.label && <span>·</span>}
+          {session.label && (
+            <Link
+              href={`/labels/${session.label.id}`}
+              className="font-medium text-foreground/80 hover:text-foreground hover:underline underline-offset-2 transition-colors"
+            >
+              {session.label.name}
+            </Link>
+          )}
+        </div>
+
+        {/* Line 2: Title */}
+        <div className="mt-1">
+          <SessionInlineTitle sessionId={session.id} title={session.name} />
+        </div>
+
+        {/* Line 3: Status badge + toggle */}
+        <div className="mt-2 flex items-center gap-2">
           {session.status === "DRAFT" && (
             <>
               <SessionStatusBadge status={session.status} />
               <SessionStatusToggle sessionId={session.id} status={session.status} />
             </>
           )}
-          {session.date && (
-            <span className="text-sm text-muted-foreground">
-              {formatPartialDate(session.date, session.datePrecision)}
-            </span>
-          )}
         </div>
 
-        {/* Title */}
-        <SessionInlineTitle sessionId={session.id} title={session.name} />
+        {/* Separator */}
+        <hr className="my-3 border-white/10" />
 
-        {/* Pill links */}
-        <div className="mt-2 flex flex-wrap items-center gap-2">
-          {session.label && (
-            <Link
-              href={`/labels/${session.label.id}`}
-              className="inline-flex items-center gap-1.5 rounded-full border border-white/20 bg-muted/60 px-3 py-1 text-sm font-medium transition-colors hover:bg-muted/80 hover:text-primary"
-            >
-              <Building2 size={12} />
-              {session.label.name}
-            </Link>
-          )}
-          {session.project && (
-            <Link
-              href={`/projects/${session.project.id}`}
-              className="inline-flex items-center gap-1.5 rounded-full border border-white/20 bg-muted/60 px-3 py-1 text-sm font-medium transition-colors hover:bg-muted/80 hover:text-primary"
-            >
-              <FolderKanban size={12} />
-              {session.project.name}
-            </Link>
-          )}
-        </div>
-
-        {/* Contributor avatars */}
+        {/* People block */}
         <ContributorAvatars
           contributions={session.contributions}
           headshotMap={headshotMap}
         />
+        {contributorCount === 0 && (
+          <p className="text-xs text-muted-foreground/50 italic">No contributors</p>
+        )}
 
-        {/* Stats */}
-        <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
-          <span>{contributorCount} {contributorCount === 1 ? "contributor" : "contributors"}</span>
-          <span>{setLabel}</span>
+        {/* Separator */}
+        <hr className="my-3 border-white/10" />
+
+        {/* Meta row */}
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
           <span>{mediaCount} media</span>
+          <span>·</span>
+          <span>{setLabel}</span>
+          {session.project && (
+            <>
+              <span>·</span>
+              <Link
+                href={`/projects/${session.project.id}`}
+                className="inline-flex items-center gap-1 hover:text-foreground hover:underline underline-offset-2 transition-colors"
+              >
+                <FolderKanban size={12} />
+                {session.project.name}
+              </Link>
+            </>
+          )}
         </div>
       </div>
     </div>

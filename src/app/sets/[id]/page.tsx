@@ -16,6 +16,7 @@ import { AddCreditInline } from "@/components/sets/add-credit-inline";
 import { SetInlineDescription, SetInlineNotes } from "@/components/sets/set-detail-header";
 import { deleteSet } from "@/lib/actions/set-actions";
 import { SetHero } from "@/components/sets/set-hero";
+import { LabelEvidenceManager } from "@/components/sets/label-evidence-manager";
 
 
 export const dynamic = "force-dynamic";
@@ -142,9 +143,6 @@ export default async function SetDetailPage({ params }: SetDetailPageProps) {
         coverPhoto={coverPhoto}
         headshotMap={headshotMap}
         backdropEnabled={backdropEnabled}
-        hasPhotos={hasPhotos}
-        hasCredits={hasCredits}
-        unresolvedCount={unresolvedCount}
         mediaCount={galleryItems.length}
       />
 
@@ -176,6 +174,15 @@ export default async function SetDetailPage({ params }: SetDetailPageProps) {
         icon={<FileText size={18} />}
       >
         <div className="space-y-4">
+          <LabelEvidenceManager
+            setId={id}
+            evidence={set.labelEvidence.map((ev) => ({
+              setId: ev.setId,
+              labelId: ev.labelId,
+              evidenceType: ev.evidenceType,
+              label: { id: ev.label.id, name: ev.label.name },
+            }))}
+          />
           <AddCreditInline
             setId={id}
             roleDefinitions={roleGroups.flatMap((g) =>
