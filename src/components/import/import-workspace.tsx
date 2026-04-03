@@ -1,0 +1,389 @@
+'use client'
+
+import { useState, useMemo, useCallback, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
+import type { ImportBatch, ImportItem } from '@/generated/prisma/client'
+import {
+  User,
+  Users,
+  Radio,
+  ImageIcon,
+  Globe,
+  Tag,
+  RefreshCw,
+  ChevronLeft,
+  Loader2,
+  Play,
+  ArrowRight,
+} from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { ImportStatusBadge } from './import-status-badge'
+import { ImportItemDetail } from './import-item-detail'
+import { cn } from '@/lib/utils'
+import Link from 'next/link'
+
+type ImportBatchWithItems = ImportBatch & { items: ImportItem[] }
+
+type ImportWorkspaceProps = {
+  batch: ImportBatchWithItems
+}
+
+type EntityTab = 'PERSON' | 'PERSON_ALIAS' | 'DIGITAL_IDENTITY' | 'CHANNEL' | 'SET' | 'CO_MODEL'
+
+const TAB_CONFIG: Array<{ type: EntityTab; label: string; icon: React.ReactNode }> = [
+  { type: 'PERSON', label: 'Person', icon: <User size={14} /> },
+  { type: 'PERSON_ALIAS', label: 'Aliases', icon: <Tag size={14} /> },
+  { type: 'DIGITAL_IDENTITY', label: 'Identities', icon: <Globe size={14} /> },
+  { type: 'CHANNEL', label: 'Channels', icon: <Radio size={14} /> },
+  { type: 'SET', label: 'Sets', icon: <ImageIcon size={14} /> },
+  { type: 'CO_MODEL', label: 'Co-Models', icon: <Users size={14} /> },
+]
+
+function getStatusCounts(items: ImportItem[]): Record<string, number> {
+  const counts: Record<string, number> = {}
+  for (const item of items) {
+    counts[item.status] = (counts[item.status] || 0) + 1
+  }
+  return counts
+}
+
+export function ImportWorkspace({ batch }: ImportWorkspaceProps) {
+  const router = useRouter()
+  const [activeTab, setActiveTab] = useState<EntityTab>('PERSON')
+  const [selectedItemId, setSelectedItemId] = useState<string | null>(null)
+  const [isRefreshing, setIsRefreshing] = useState(false)
+  const [isImporting, setIsImporting] = useState(false)
+  const [importingItemId, setImportingItemId] = useState<string | null>(null)
+
+  // Group items by type
+  const itemsByType = useMemo(() => {
+    const groups: Record<string, ImportItem[]> = {}
+    for (const item of batch.items) {
+      const key = item.type
+      if (!groups[key]) groups[key] = []
+      groups[key].push(item)
+    }
+    return groups
+  }, [batch.items])
+
+  const currentItems = useMemo(() => itemsByType[activeTab] || [], [itemsByType, activeTab])
+  const selectedItem = selectedItemId
+    ? batch.items.find((i) => i.id === selectedItemId)
+    : null
+
+  const statusCounts = useMemo(() => getStatusCounts(batch.items), [batch.items])
+
+  // Refresh matches
+  const handleRefresh = useCallback(async () => {
+    setIsRefreshing(true)
+    try {
+      await fetch(`/api/import/${batch.id}/refresh`, { method: 'POST' })
+      router.refresh()
+    } finally {
+      setIsRefreshing(false)
+    }
+  }, [batch.id, router])
+
+  // Import single item
+  const handleImportItem = useCallback(
+    async (itemId: string) => {
+      setImportingItemId(itemId)
+      setIsImporting(true)
+      try {
+        const res = await fetch(
+          `/api/import/${batch.id}/items/${itemId}/import`,
+          { method: 'POST' },
+        )
+        const result = await res.json()
+        if (!result.success) {
+          alert(`Import failed: ${result.error}`)
+        }
+        router.refresh()
+      } finally {
+        setIsImporting(false)
+        setImportingItemId(null)
+      }
+    },
+    [batch.id, router],
+  )
+
+  // Skip item
+  const handleSkipItem = useCallback(
+    async (itemId: string) => {
+      await fetch(`/api/import/${batch.id}/items/${itemId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'SKIPPED' }),
+      })
+      router.refresh()
+    },
+    [batch.id, router],
+  )
+
+  // Save edits to item data
+  const handleSaveEdits = useCallback(
+    async (itemId: string, editedData: Record<string, unknown>) => {
+      await fetch(`/api/import/${batch.id}/items/${itemId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ editedData }),
+      })
+      router.refresh()
+    },
+    [batch.id, router],
+  )
+
+  // Import all ready items in sequence
+  const handleImportAll = useCallback(async () => {
+    const readyItems = batch.items
+      .filter((i) => i.status === 'NEW' || i.status === 'MATCHED')
+      .sort((a, b) => a.sortOrder - b.sortOrder)
+
+    if (readyItems.length === 0) return
+    if (!confirm(`Import ${readyItems.length} ready items in dependency order?`)) return
+
+    setIsImporting(true)
+    for (const item of readyItems) {
+      setImportingItemId(item.id)
+      try {
+        const res = await fetch(
+          `/api/import/${batch.id}/items/${item.id}/import`,
+          { method: 'POST' },
+        )
+        const result = await res.json()
+        if (!result.success) {
+          alert(`Import failed for ${item.type}: ${result.error}`)
+          break
+        }
+      } catch (err) {
+        alert(`Import error: ${err}`)
+        break
+      }
+    }
+    setIsImporting(false)
+    setImportingItemId(null)
+    router.refresh()
+  }, [batch, router])
+
+  // Person tab always has exactly 1 item — auto-select it, hide sidebar
+  const isPersonTab = activeTab === 'PERSON' && currentItems.length === 1
+  useEffect(() => {
+    if (isPersonTab) {
+      setSelectedItemId(currentItems[0].id)
+    }
+  }, [isPersonTab, currentItems])
+
+  const readyCount =
+    (statusCounts.NEW || 0) + (statusCounts.MATCHED || 0)
+
+  return (
+    <div className="flex h-[calc(100vh-4rem)] flex-col">
+      {/* Header */}
+      <div className="shrink-0 border-b border-border/50 px-4 py-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Link href="/import">
+              <Button variant="ghost" size="icon" className="h-8 w-8">
+                <ChevronLeft size={16} />
+              </Button>
+            </Link>
+            <div>
+              <h1 className="text-lg font-semibold">
+                {batch.subjectName}{' '}
+                <span className="text-sm font-normal text-muted-foreground">
+                  ({batch.subjectIcgId})
+                </span>
+              </h1>
+              <p className="text-xs text-muted-foreground">
+                {batch.items.length} items
+                {batch.extractionDate &&
+                  ` · Extracted ${batch.extractionDate.toLocaleDateString()}`}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleRefresh}
+              disabled={isRefreshing}
+            >
+              <RefreshCw
+                size={14}
+                className={cn(isRefreshing && 'animate-spin')}
+              />
+              Refresh
+            </Button>
+            {readyCount > 0 && (
+              <Button
+                size="sm"
+                onClick={handleImportAll}
+                disabled={isImporting}
+              >
+                {isImporting ? (
+                  <Loader2 size={14} className="animate-spin" />
+                ) : (
+                  <Play size={14} />
+                )}
+                Import All ({readyCount})
+              </Button>
+            )}
+          </div>
+        </div>
+
+        {/* Status summary bar */}
+        <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+          {Object.entries(statusCounts).map(([status, count]) => (
+            <span key={status} className="flex items-center gap-1">
+              <ImportStatusBadge status={status} />
+              <span className="text-muted-foreground">{count}</span>
+            </span>
+          ))}
+        </div>
+      </div>
+
+      {/* Entity type tabs */}
+      <div className="shrink-0 border-b border-border/50 px-4">
+        <Tabs
+          value={activeTab}
+          onValueChange={(v: string) => {
+            setActiveTab(v as EntityTab)
+            setSelectedItemId(null)
+          }}
+        >
+          <TabsList className="h-auto gap-1 bg-transparent p-0">
+            {TAB_CONFIG.map(({ type, label, icon }) => {
+              const count = (itemsByType[type] || []).length
+              if (count === 0) return null
+              return (
+                <TabsTrigger
+                  key={type}
+                  value={type}
+                  className="gap-1.5 rounded-lg px-3 py-1.5 text-xs data-[state=active]:bg-muted"
+                >
+                  {icon}
+                  {label}
+                  <span className="ml-0.5 text-[10px] text-muted-foreground">
+                    {count}
+                  </span>
+                </TabsTrigger>
+              )
+            })}
+          </TabsList>
+        </Tabs>
+      </div>
+
+      {/* Split panel: item list + detail */}
+      <div className="flex min-h-0 flex-1">
+        {/* Left: Item list (hidden for Person tab — always 1 item) */}
+        {!isPersonTab && <div className="w-80 shrink-0 overflow-y-auto border-r border-border/50 lg:w-96">
+          {currentItems.map((item) => {
+            const data = item.data as Record<string, unknown>
+            const isActive = selectedItemId === item.id
+            const isCurrentlyImporting = importingItemId === item.id
+
+            let displayName = ''
+            switch (item.type) {
+              case 'PERSON':
+                displayName = `${data.name} (${data.icgId})`
+                break
+              case 'PERSON_ALIAS':
+                displayName = data.name as string
+                if (data.channelName)
+                  displayName += ` @ ${data.channelName}`
+                break
+              case 'DIGITAL_IDENTITY':
+                displayName = `${data.platform}: ${data.url ? (data.url as string).slice(0, 40) : data.handle}`
+                break
+              case 'CHANNEL':
+              case 'LABEL':
+                displayName = data.name as string
+                break
+              case 'SET': {
+                const isVideo = data.isVideo as boolean
+                displayName = `${isVideo ? '🎬' : '📷'} ${data.title}`
+                break
+              }
+              case 'CO_MODEL':
+                displayName = `${data.name} (${data.icgId})`
+                break
+              case 'CREDIT':
+                displayName = data.name as string
+                break
+            }
+
+            return (
+              <button
+                key={item.id}
+                className={cn(
+                  'flex w-full items-center gap-2 border-b border-border/30 px-3 py-2.5 text-left transition-colors hover:bg-muted/50',
+                  isActive && 'bg-muted',
+                )}
+                onClick={() => setSelectedItemId(item.id)}
+              >
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm">{displayName}</p>
+                  {item.matchDetails && (
+                    <p className="truncate text-[10px] text-muted-foreground">
+                      {item.matchDetails}
+                    </p>
+                  )}
+                  {item.blockedReason && (
+                    <p className="truncate text-[10px] text-orange-500">
+                      {item.blockedReason}
+                    </p>
+                  )}
+                  {/* Duplicate flag for sets */}
+                  {item.type === 'SET' && (data.duplicateOf as unknown[])?.length > 0 && (
+                    <p className="text-[10px] text-amber-500">
+                      Possible duplicate
+                    </p>
+                  )}
+                </div>
+
+                <div className="flex shrink-0 items-center gap-1.5">
+                  {isCurrentlyImporting ? (
+                    <Loader2 size={12} className="animate-spin text-primary" />
+                  ) : (
+                    <ImportStatusBadge
+                      status={item.status}
+                      showLabel={false}
+                    />
+                  )}
+                </div>
+              </button>
+            )
+          })}
+
+          {currentItems.length === 0 && (
+            <div className="p-8 text-center text-sm text-muted-foreground">
+              No items in this category
+            </div>
+          )}
+        </div>}
+
+        {/* Right: Detail panel */}
+        <div className="flex-1 overflow-y-auto p-4">
+          {selectedItem ? (
+            <ImportItemDetail
+              item={selectedItem}
+              onImport={handleImportItem}
+              onSkip={handleSkipItem}
+              onSaveEdits={handleSaveEdits}
+              isImporting={importingItemId === selectedItem.id}
+            />
+          ) : (
+            <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+              <div className="text-center">
+                <ArrowRight size={24} className="mx-auto mb-2 opacity-30" />
+                Select an item to view details
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}

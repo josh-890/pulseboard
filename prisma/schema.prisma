@@ -237,7 +237,8 @@ model Person {
   ethnicity      String?
   location       String?
   height         Int?
-  naturalHairColor String?
+  naturalHairColor  String?
+  naturalBreastSize String?    // Cup letter (A/B/C/D/DD/E/F/G+)
   eyeColor       String?
   bodyType       String?
   measurements   String?
@@ -347,9 +348,12 @@ model PersonaPhysical {
   personaId       String        @unique
   persona         Persona       @relation(fields: [personaId], references: [id])
   weight          Float?
-  currentHairColor String?
-  build           String?
-  date            DateTime?
+  currentHairColor  String?
+  breastSize        String?    // Current cup letter (A/B/C/D/DD/E/F/G+)
+  breastStatus      String?    // "natural" | "enhanced"
+  breastDescription String?    // Free text, e.g. "Large (Real)"
+  build             String?
+  date              DateTime?
   datePrecision   DatePrecision @default(UNKNOWN)
   dateModifier    DateModifier  @default(EXACT)
 
@@ -824,6 +828,7 @@ model Set {
   isComplete    Boolean   @default(false)
   imageCount    Int?
   videoLength   String?
+  externalId    String?   @unique  // External source ID (e.g., CoverId from import files)
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
@@ -1366,4 +1371,81 @@ model ProjectTag {
   @@id([projectId, tagDefinitionId])
   @@index([tagDefinitionId])
   @@map("project_tag")
+}
+
+// ─── Import Pipeline ────────────────────────────────────────────────────────
+
+enum ImportBatchStatus {
+  PARSING
+  REVIEW
+  IMPORTING
+  COMPLETED
+  FAILED
+}
+
+enum ImportItemStatus {
+  NEW
+  MATCHED
+  PROBABLE
+  BLOCKED
+  QUEUED
+  IMPORTING
+  IMPORTED
+  SKIPPED
+  FAILED
+}
+
+enum ImportItemType {
+  PERSON
+  PERSON_ALIAS
+  DIGITAL_IDENTITY
+  CHANNEL
+  LABEL
+  SET
+  CO_MODEL
+  CREDIT
+}
+
+model ImportBatch {
+  id              String            @id @default(cuid())
+  filename        String
+  subjectName     String
+  subjectIcgId    String
+  status          ImportBatchStatus @default(PARSING)
+  rawContent      String
+  parsedAt        DateTime?
+  notes           String?
+  extractionDate  DateTime?
+  previousBatchId String?
+  previousBatch   ImportBatch?      @relation("BatchHistory", fields: [previousBatchId], references: [id])
+  nextBatches     ImportBatch[]     @relation("BatchHistory")
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  items           ImportItem[]
+
+  @@index([subjectIcgId])
+  @@map("import_batch")
+}
+
+model ImportItem {
+  id                String           @id @default(cuid())
+  batchId           String
+  batch             ImportBatch      @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  type              ImportItemType
+  status            ImportItemStatus @default(NEW)
+  sortOrder         Int              @default(0)
+  data              Json
+  rawText           String?
+  matchedEntityId   String?
+  matchConfidence   Float?
+  matchDetails      String?
+  dependsOn         String[]
+  blockedReason     String?
+  editedData        Json?
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+
+  @@index([batchId, type])
+  @@index([batchId, status])
+  @@map("import_item")
 }

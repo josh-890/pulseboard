@@ -29,11 +29,15 @@ export const createPersonSchema = z.object({
   // Physical (static)
   eyeColor: z.string().optional(),
   naturalHairColor: z.string().optional(),
+  naturalBreastSize: z.string().optional(),
   height: z.coerce.number().int().positive().optional(),
   // Baseline persona physical
   weight: z.coerce.number().positive().optional(),
   build: z.string().optional(),
   currentHairColor: z.string().optional(),
+  breastSize: z.string().optional(),
+  breastStatus: z.string().optional(),
+  breastDescription: z.string().optional(),
   hairLength: z.string().optional(),
 });
 
@@ -57,6 +61,7 @@ export const updatePersonSchema = z.object({
   ethnicity: z.string().optional(),
   eyeColor: z.string().optional(),
   naturalHairColor: z.string().optional(),
+  naturalBreastSize: z.string().optional(),
   height: z.coerce.number().int().positive().optional(),
   location: z.string().optional(),
   notes: z.string().optional(),

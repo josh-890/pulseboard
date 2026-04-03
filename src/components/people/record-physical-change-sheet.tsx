@@ -9,7 +9,7 @@ import { recordPhysicalChangeAction } from "@/lib/actions/appearance-actions";
 import type { PhysicalAttributeGroupWithDefinitions } from "@/lib/services/physical-attribute-catalog-service";
 import type { PersonCurrentState } from "@/lib/types";
 import { SelectWithOther } from "@/components/shared/select-with-other";
-import { CURRENT_HAIR_COLOR_OPTIONS, BUILD_OPTIONS } from "@/lib/constants/appearance";
+import { CURRENT_HAIR_COLOR_OPTIONS, BUILD_OPTIONS, BREAST_SIZE_OPTIONS, BREAST_STATUS_OPTIONS } from "@/lib/constants/appearance";
 
 type RecordPhysicalChangeSheetProps = {
   personId: string;
@@ -28,6 +28,9 @@ export function RecordPhysicalChangeSheet({ personId, currentState, attributeGro
   const initialHairColor = currentState?.currentHairColor ?? "";
   const initialWeight = currentState?.weight != null ? String(currentState.weight) : "";
   const initialBuild = currentState?.build ?? "";
+  const initialBreastSize = currentState?.breastSize ?? "";
+  const initialBreastStatus = currentState?.breastStatus ?? "";
+  const initialBreastDescription = currentState?.breastDescription ?? "";
   const extensibleAttributes = currentState?.extensibleAttributes;
   const initialAttrValues = useMemo(() => {
     if (!extensibleAttributes) return {};
@@ -41,6 +44,9 @@ export function RecordPhysicalChangeSheet({ personId, currentState, attributeGro
   const [currentHairColor, setCurrentHairColor] = useState(initialHairColor);
   const [weight, setWeight] = useState(initialWeight);
   const [build, setBuild] = useState(initialBuild);
+  const [breastSize, setBreastSize] = useState(initialBreastSize);
+  const [breastStatus, setBreastStatus] = useState(initialBreastStatus);
+  const [breastDescription, setBreastDescription] = useState(initialBreastDescription);
   const [attrValues, setAttrValues] = useState<Record<string, string>>(initialAttrValues);
   const [expandedAttrGroups, setExpandedAttrGroups] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
@@ -49,10 +55,13 @@ export function RecordPhysicalChangeSheet({ personId, currentState, attributeGro
   const hairChanged = currentHairColor.trim() !== initialHairColor;
   const weightChanged = weight.trim() !== initialWeight;
   const buildChanged = build.trim() !== initialBuild;
+  const breastSizeChanged = breastSize.trim() !== initialBreastSize;
+  const breastStatusChanged = breastStatus.trim() !== initialBreastStatus;
+  const breastDescChanged = breastDescription.trim() !== initialBreastDescription;
   const attrChanged = Object.entries(attrValues).some(
     ([id, v]) => v.trim() !== (initialAttrValues[id] ?? ""),
   );
-  const hasAnyChange = hairChanged || weightChanged || buildChanged || attrChanged;
+  const hasAnyChange = hairChanged || weightChanged || buildChanged || breastSizeChanged || breastStatusChanged || breastDescChanged || attrChanged;
 
   const handleSubmit = useCallback(() => {
     if (!hasAnyChange) {
@@ -73,6 +82,9 @@ export function RecordPhysicalChangeSheet({ personId, currentState, attributeGro
         currentHairColor: hairChanged && currentHairColor.trim() ? currentHairColor.trim() : undefined,
         weight: weightChanged && weight.trim() ? parseFloat(weight) : undefined,
         build: buildChanged && build.trim() ? build.trim() : undefined,
+        breastSize: breastSizeChanged && breastSize.trim() ? breastSize.trim() : undefined,
+        breastStatus: breastStatusChanged && breastStatus.trim() ? breastStatus.trim() : undefined,
+        breastDescription: breastDescChanged && breastDescription.trim() ? breastDescription.trim() : undefined,
         attributes: attributes.length > 0 ? attributes : undefined,
       });
       if (!result.success) {
@@ -81,7 +93,7 @@ export function RecordPhysicalChangeSheet({ personId, currentState, attributeGro
       }
       onClose();
     });
-  }, [personId, date, datePrecision, currentHairColor, weight, build, attrValues, hasAnyChange, hairChanged, weightChanged, buildChanged, initialAttrValues, onClose]);
+  }, [personId, date, datePrecision, currentHairColor, weight, build, breastSize, breastStatus, breastDescription, attrValues, hasAnyChange, hairChanged, weightChanged, buildChanged, breastSizeChanged, breastStatusChanged, breastDescChanged, initialAttrValues, onClose]);
 
   return (
     <div role="dialog" aria-modal="true" className="fixed inset-0 z-50 flex justify-end">
@@ -138,6 +150,37 @@ export function RecordPhysicalChangeSheet({ personId, currentState, attributeGro
               value={build || undefined}
               onChange={(v) => setBuild(v ?? "")}
               placeholder="Select build…"
+            />
+          </div>
+
+          <div>
+            <label className="mb-1.5 block text-sm font-medium">Breast Size</label>
+            <SelectWithOther
+              options={BREAST_SIZE_OPTIONS}
+              value={breastSize || undefined}
+              onChange={(v) => setBreastSize(v ?? "")}
+              placeholder="Select cup size…"
+            />
+          </div>
+
+          <div>
+            <label className="mb-1.5 block text-sm font-medium">Breast Status</label>
+            <SelectWithOther
+              options={BREAST_STATUS_OPTIONS}
+              value={breastStatus || undefined}
+              onChange={(v) => setBreastStatus(v ?? "")}
+              placeholder="Select status…"
+            />
+          </div>
+
+          <div>
+            <label className="mb-1.5 block text-sm font-medium">Breast Description</label>
+            <input
+              type="text"
+              value={breastDescription}
+              onChange={(e) => setBreastDescription(e.target.value)}
+              placeholder="e.g. Large (Real)"
+              className="w-full rounded-lg border border-white/15 bg-muted/30 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
             />
           </div>
 

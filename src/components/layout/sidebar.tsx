@@ -14,6 +14,7 @@ import {
   Clapperboard,
   Library,
   LogOut,
+  Upload,
 } from "lucide-react";
 import { NavLink } from "./nav-link";
 import { useSidebar } from "./sidebar-provider";
@@ -31,6 +32,7 @@ const navItems = [
   { href: "/labels", icon: <Building2 size={20} />, label: "Labels" },
   { href: "/channels", icon: <Radio size={20} />, label: "Channels" },
   { href: "/networks", icon: <Network size={20} />, label: "Networks" },
+  { href: "/import", icon: <Upload size={20} />, label: "Import" },
   { href: "/settings", icon: <Settings size={20} />, label: "Settings" },
 ];
 

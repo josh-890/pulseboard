@@ -193,7 +193,7 @@ function PhysicalMetrics({
     <dl className={cn("grid grid-cols-1 text-sm", fieldGap)}>
       <InfoRow label="Height" value={person.height ? `${person.height} cm` : "\u2014"} labelWidth={labelWidth} />
       <InfoRow label="Weight" value={currentState.weight !== null && currentState.weight !== undefined ? `${currentState.weight} kg` : "\u2014"} labelWidth={labelWidth} />
-      {person.measurements && <InfoRow label="Measurements" value={person.measurements} labelWidth={labelWidth} />}
+      <InfoRow label="Measurements" value={person.measurements ?? "—"} labelWidth={labelWidth} />
     </dl>
   );
 }
@@ -209,15 +209,14 @@ function PhysicalDescriptive({
   labelWidth?: string;
   fieldGap?: string;
 }) {
-  const hasDescriptive = person.eyeColor || currentState.currentHairColor || person.bodyType || currentState.build;
-  if (!hasDescriptive) return null;
-
   return (
     <dl className={cn("grid grid-cols-1 text-sm", fieldGap)}>
-      {person.eyeColor && <InfoRow label="Eye color" value={<span className="capitalize">{person.eyeColor}</span>} labelWidth={labelWidth} />}
-      {currentState.currentHairColor && <InfoRow label="Current hair" value={<span className="capitalize">{currentState.currentHairColor}</span>} labelWidth={labelWidth} />}
-      {person.bodyType && <InfoRow label="Body type" value={<span className="capitalize">{person.bodyType}</span>} labelWidth={labelWidth} />}
-      {currentState.build && <InfoRow label="Build" value={<span className="capitalize">{currentState.build}</span>} labelWidth={labelWidth} />}
+      <InfoRow label="Eye color" value={person.eyeColor ? <span className="capitalize">{person.eyeColor}</span> : "—"} labelWidth={labelWidth} />
+      <InfoRow label="Current hair" value={currentState.currentHairColor ? <span className="capitalize">{currentState.currentHairColor}</span> : "—"} labelWidth={labelWidth} />
+      {currentState.breastSize && <InfoRow label="Current breasts" value={currentState.breastSize} labelWidth={labelWidth} />}
+      {currentState.breastStatus && <InfoRow label="Breast status" value={<span className="capitalize">{currentState.breastStatus}</span>} labelWidth={labelWidth} />}
+      <InfoRow label="Body type" value={person.bodyType ? <span className="capitalize">{person.bodyType}</span> : "—"} labelWidth={labelWidth} />
+      <InfoRow label="Build" value={currentState.build ? <span className="capitalize">{currentState.build}</span> : "—"} labelWidth={labelWidth} />
     </dl>
   );
 }

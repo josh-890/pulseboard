@@ -1,6 +1,6 @@
 # Pulseboard — Architecture Reference
 
-> **Last updated:** 2026-03-24
+> **Last updated:** 2026-04-02
 > This document must be kept in sync with code changes. Update it whenever pages, services, components, API routes, or data flows change.
 
 ---
@@ -55,6 +55,7 @@ Media path:
 | `/networks` | `getNetworks()` | `NetworkList`, `NetworkCard`, `AddNetworkSheet` |
 | `/collections` | `getAllCollections()` | `CollectionList`, `AddCollectionDialog` |
 | `/settings` | `getAllSkillGroups()`, `getAllCategoryGroups()`, `getAllContributionRoleGroups()` | `SkillCatalogManager`, `MediaCategoryManager`, `ContributionRoleManager` |
+| `/import` | `getAllBatches()` | `ImportUploadZone`, `ImportBatchList` |
 
 ### Detail Pages
 
@@ -68,6 +69,7 @@ Media path:
 | `/labels/[id]` | `getLabelById()` | `LabelDetail`, `EditLabelSheet` |
 | `/channels/[id]` | `getChannelById()` | `ChannelDetail`, `EditChannelSheet` |
 | `/networks/[id]` | `getNetworkById()` | `NetworkDetail`, `EditNetworkSheet` |
+| `/import/[id]` | `refreshBatchMatches()` | `ImportWorkspace` → `ImportItemDetail`, `ImportStatusBadge` |
 
 ---
 
@@ -106,6 +108,20 @@ All services in `src/lib/services/`. All functions are async, return Promises. S
 
 ### Infrastructure Services
 
+### Import Pipeline Services
+
+All import services in `src/lib/services/import/`.
+
+**`parser.ts`** — Pure function: raw file text → `ParsedImportData` (person profile, digital identities, channel appearances, sets with co-model references, co-model directory). Handles edge cases (PowerShell artifacts, em-dash nulls, duplicate detection).
+
+**`matcher.ts`** — Tiered DB matching: exact ID → fuzzy name (pg_trgm). Functions: `matchPerson`, `matchChannel`, `matchLabel`, `matchSet`, `matchAllEntities`. Returns confidence scores (0.0–1.0).
+
+**`staging-service.ts`** — Batch lifecycle: `createBatch` (parse + match + stage), `refreshBatchMatches` (re-run on every page load), `computeDependencies` (block/unblock items), `getAllBatches`, `updateItemStatus`, `markItemImported`.
+
+**`import-executor.ts`** — Per-entity import: `importItem` dispatches to type-specific functions (`importLabel`, `importChannel`, `importPerson`, `importAlias`, `importDigitalIdentity`, `importSet`, `importCoModel`). Each validates dependencies, calls existing service functions, updates ImportItem status.
+
+### Infrastructure Services
+
 **`view-service.ts`** — Materialized view refresh (`mv_dashboard_stats`, `mv_person_current_state`, `mv_person_affiliations`)
 **`stats-service.ts`** — Dashboard KPI counts from `mv_dashboard_stats`
 **`activity-service.ts`** — Activity feed queries
@@ -141,6 +157,7 @@ All actions in `src/lib/actions/`. Each validates input with Zod, calls services
 | `contribution-role-actions.ts` | Role group/definition CRUD |
 | `setting-actions.ts` | App setting updates |
 | `label-actions.ts`, `network-actions.ts`, `channel-actions.ts`, `project-actions.ts` | Entity CRUD |
+| `import-actions.ts` | `getImportBatchesAction`, `deleteImportBatchAction`, `updateImportItemStatusAction`, `importSingleItemAction`, `refreshBatchMatchesAction` |
 | `database-maintenance-actions.ts` | Orphan/duplicate cleanup, view refresh |
 
 ---
@@ -160,6 +177,11 @@ All actions in `src/lib/actions/`. Each validates input with Zod, calls services
 | `/api/channels/search` | GET | All channels for client-side search |
 | `/api/collections/list` | GET | Collections filtered by personId |
 | `/api/skill-events/[id]/media` | GET/POST | Skill event media management |
+| `/api/import/upload` | POST | Upload text file → parse → create ImportBatch + ImportItems |
+| `/api/import/[batchId]` | GET, DELETE | Get batch with items / delete batch |
+| `/api/import/[batchId]/refresh` | POST | Force re-run matching for all items |
+| `/api/import/[batchId]/items/[itemId]` | PATCH | Update item status or edited data |
+| `/api/import/[batchId]/items/[itemId]/import` | POST | Execute import for single item |
 | `/api/flags/[code]` | GET | Country flag image |
 
 ---
@@ -182,6 +204,7 @@ components/
 ├── channels/         # ChannelList, ChannelCard, add/edit sheets
 ├── networks/         # NetworkList, NetworkCard, add/edit sheets
 ├── collections/      # CollectionList, CollectionDetailGallery, media picker
+├── import/           # ImportWorkspace, ImportItemDetail, ImportStatusBadge, ImportUploadZone, ImportBatchList
 ├── settings/         # SkillCatalogManager, MediaCategoryManager, ContributionRoleManager
 ├── shared/           # TagInput, TagPicker, TagChips, PartialDateInput (supports modifier+source props), CountryPicker, EntityCombobox, DeleteButton, BrowserToolbar, BodyRegionPicker, FlagImage
 └── ui/               # shadcn/ui primitives (auto-generated, do not edit)
@@ -228,6 +251,19 @@ JustifiedGrid or MediaGrid (thumbnail display)
             └── Delete action
 ```
 
+**Import Workspace:**
+```
+page.tsx (Server Component — calls refreshBatchMatches)
+  └── ImportWorkspace (Client — split panel layout)
+        ├── Header — batch info, status summary, Refresh + Import All buttons
+        ├── Entity tabs — Person | Aliases | Identities | Channels | Sets | Co-Models
+        ├── Left panel — item list with status badges, match details, blocked reasons
+        └── Right panel → ImportItemDetail
+              ├── Match info (green) / Blocked warning (orange) / Duplicate warning (amber)
+              ├── Type-specific detail views (PersonDetail, SetDetail, etc.)
+              └── Import / Skip action buttons
+```
+
 **Shared Helpers** (`person-detail-helpers.tsx`):
 - `SectionCard` — glassmorphism card with icon, title, badge
 - `EmptyState` — italic placeholder text
@@ -272,6 +308,8 @@ Session ──┬── MediaItem[]
           ├── SessionContribution[]
           └── SetSession[] ──── Set
 
+ImportBatch ──── ImportItem[] (staged entities with match data, dependency tracking)
+
 Set ──┬── SetMediaItem[] ──── MediaItem
       ├── SetParticipant[] (derived from contributions)
       ├── SetCreditRaw[] (unresolved credits)
@@ -286,6 +324,9 @@ MediaItem ──┬── PersonMediaLink[] (usage: PROFILE/HEADSHOT/DETAIL/PORT
 
 ### Key Fields
 
+- **Set**: `externalId` (optional, unique) — external source ID from import files
+- **ImportBatch**: `subjectIcgId`, `rawContent`, `status` (PARSING→REVIEW→IMPORTING→COMPLETED), `previousBatchId` (self-relation for versioning)
+- **ImportItem**: `type` (PERSON/PERSON_ALIAS/DIGITAL_IDENTITY/CHANNEL/LABEL/SET/CO_MODEL/CREDIT), `status` (NEW/MATCHED/PROBABLE/BLOCKED/IMPORTED/SKIPPED/FAILED), `data` (JSON), `editedData` (JSON), `dependsOn` (String[]), `matchedEntityId`, `matchConfidence`
 - **Person**: `icgId` (unique, mandatory), `status` (active/inactive/wishlist/archived), `rating`, `pgrade`
 - **PersonAlias**: `type` (common/birth/alias), `nameNorm` for search. One `common` alias = display name
 - **Persona**: `isBaseline` (one per person, auto-created), `date` + `datePrecision`

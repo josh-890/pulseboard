@@ -210,7 +210,14 @@ export const COUNTRIES: Country[] = [
 const CODE_MAP = new Map(COUNTRIES.map((c) => [c.code, c]));
 
 export function findCountryByCode(code: string): Country | undefined {
-  return CODE_MAP.get(code.toUpperCase());
+  const upper = code.toUpperCase();
+  // Try direct 2-letter lookup first
+  const direct = CODE_MAP.get(upper);
+  if (direct) return direct;
+  // Try 3-letter IOC → 2-letter → lookup
+  const alpha2 = IOC_TO_ALPHA2.get(upper);
+  if (alpha2) return CODE_MAP.get(alpha2);
+  return undefined;
 }
 
 export function searchCountries(query: string): Country[] {
@@ -233,8 +240,12 @@ export function resolveNationalityToCode(value: string): string | null {
   if (!v) return null;
   const upper = v.toUpperCase();
 
-  // Exact code match
+  // Exact 2-letter code match
   if (CODE_MAP.has(upper)) return upper;
+
+  // Exact 3-letter IOC code match
+  const fromIoc = IOC_TO_ALPHA2.get(upper);
+  if (fromIoc) return fromIoc;
 
   // Name or alias match (case-insensitive)
   const lower = v.toLowerCase();
@@ -248,4 +259,69 @@ export function resolveNationalityToCode(value: string): string | null {
   if (partials.length === 1) return partials[0].code;
 
   return null;
+}
+
+// ─── IOC / 3-letter code support ────────────────────────────────────────────
+
+/** ISO alpha-2 → IOC 3-letter code mapping. */
+const ALPHA2_TO_IOC: Record<string, string> = {
+  AF: "AFG", AL: "ALB", DZ: "ALG", AS: "ASA", AD: "AND", AO: "ANG",
+  AG: "ANT", AR: "ARG", AM: "ARM", AU: "AUS", AT: "AUT", AZ: "AZE",
+  BS: "BAH", BH: "BRN", BD: "BAN", BB: "BAR", BY: "BLR", BE: "BEL",
+  BZ: "BIZ", BJ: "BEN", BT: "BHU", BO: "BOL", BA: "BIH", BW: "BOT",
+  BR: "BRA", BN: "BRU", BG: "BUL", BF: "BUR", BI: "BDI", CV: "CPV",
+  KH: "CAM", CM: "CMR", CA: "CAN", CF: "CAF", TD: "CHA", CL: "CHI",
+  CN: "CHN", CO: "COL", KM: "COM", CG: "CGO", CD: "COD", CR: "CRC",
+  CI: "CIV", HR: "CRO", CU: "CUB", CY: "CYP", CZ: "CZE", DK: "DEN",
+  DJ: "DJI", DM: "DMA", DO: "DOM", EC: "ECU", EG: "EGY", SV: "ESA",
+  GQ: "GEQ", ER: "ERI", EE: "EST", SZ: "SWZ", ET: "ETH", FJ: "FIJ",
+  FI: "FIN", FR: "FRA", GA: "GAB", GM: "GAM", GE: "GEO", DE: "GER",
+  GH: "GHA", GR: "GRE", GD: "GRN", GT: "GUA", GN: "GUI", GW: "GBS",
+  GY: "GUY", HT: "HAI", HN: "HON", HK: "HKG", HU: "HUN", IS: "ISL",
+  IN: "IND", ID: "INA", IR: "IRI", IQ: "IRQ", IE: "IRL", IL: "ISR",
+  IT: "ITA", JM: "JAM", JP: "JPN", JO: "JOR", KZ: "KAZ", KE: "KEN",
+  KI: "KIR", KP: "PRK", KR: "KOR", KW: "KUW", KG: "KGZ", LA: "LAO",
+  LV: "LAT", LB: "LBN", LS: "LES", LR: "LBR", LY: "LBA", LI: "LIE",
+  LT: "LTU", LU: "LUX", MO: "MAC", MG: "MAD", MW: "MAW", MY: "MAS",
+  MV: "MDV", ML: "MLI", MT: "MLT", MH: "MHL", MR: "MTN", MU: "MRI",
+  MX: "MEX", FM: "FSM", MD: "MDA", MC: "MON", MN: "MGL", ME: "MNE",
+  MA: "MAR", MZ: "MOZ", MM: "MYA", NA: "NAM", NR: "NRU", NP: "NEP",
+  NL: "NED", NZ: "NZL", NI: "NCA", NE: "NIG", NG: "NGR", MK: "MKD",
+  NO: "NOR", OM: "OMA", PK: "PAK", PW: "PLW", PS: "PLE", PA: "PAN",
+  PG: "PNG", PY: "PAR", PE: "PER", PH: "PHI", PL: "POL", PT: "POR",
+  PR: "PUR", QA: "QAT", RO: "ROU", RU: "RUS", RW: "RWA", KN: "SKN",
+  LC: "LCA", VC: "VIN", WS: "SAM", SM: "SMR", ST: "STP", SA: "KSA",
+  SN: "SEN", RS: "SRB", SC: "SEY", SL: "SLE", SG: "SGP", SK: "SVK",
+  SI: "SLO", SB: "SOL", SO: "SOM", ZA: "RSA", SS: "SSD", ES: "ESP",
+  LK: "SRI", SD: "SUD", SR: "SUR", SE: "SWE", CH: "SUI", SY: "SYR",
+  TW: "TPE", TJ: "TJK", TZ: "TAN", TH: "THA", TL: "TLS", TG: "TOG",
+  TO: "TGA", TT: "TTO", TN: "TUN", TR: "TUR", TM: "TKM", TV: "TUV",
+  UG: "UGA", UA: "UKR", AE: "UAE", GB: "GBR", US: "USA", UY: "URU",
+  UZ: "UZB", VU: "VAN", VE: "VEN", VN: "VIE", YE: "YEM", ZM: "ZAM",
+  ZW: "ZIM",
+};
+
+/** IOC 3-letter → ISO alpha-2 reverse map. */
+const IOC_TO_ALPHA2 = new Map(
+  Object.entries(ALPHA2_TO_IOC).map(([a2, ioc]) => [ioc, a2]),
+);
+
+/** Get the 3-letter IOC code for a 2-letter ISO code. */
+export function toIocCode(alpha2: string): string {
+  return ALPHA2_TO_IOC[alpha2.toUpperCase()] ?? alpha2.toUpperCase();
+}
+
+/** Get the 2-letter ISO code from a 3-letter IOC code. */
+export function fromIocCode(ioc: string): string {
+  return IOC_TO_ALPHA2.get(ioc.toUpperCase()) ?? ioc.toUpperCase();
+}
+
+/**
+ * Resolve free-text nationality to a 3-letter IOC code.
+ * "Germany" → "GER", "DE" → "GER", "German" → "GER"
+ */
+export function resolveNationalityToIoc(value: string): string | null {
+  const alpha2 = resolveNationalityToCode(value);
+  if (!alpha2) return null;
+  return toIocCode(alpha2);
 }

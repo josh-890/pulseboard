@@ -7,6 +7,8 @@ import { cn } from "@/lib/utils";
 import { PartialDateInput } from "@/components/shared/partial-date-input";
 import { updatePhysicalChangeAction } from "@/lib/actions/appearance-actions";
 import type { PhysicalAttributeGroupWithDefinitions } from "@/lib/services/physical-attribute-catalog-service";
+import { SelectWithOther } from "@/components/shared/select-with-other";
+import { BREAST_SIZE_OPTIONS, BREAST_STATUS_OPTIONS } from "@/lib/constants/appearance";
 
 type PhysicalAttributeItem = {
   definitionId: string;
@@ -25,6 +27,9 @@ type PhysicalChangeItem = {
   currentHairColor: string | null;
   weight: number | null;
   build: string | null;
+  breastSize: string | null;
+  breastStatus: string | null;
+  breastDescription: string | null;
   attributes: PhysicalAttributeItem[];
 };
 
@@ -53,6 +58,9 @@ export function EditPhysicalChangeSheet({ personId, item, attributeGroups, onClo
   const [currentHairColor, setCurrentHairColor] = useState(item.currentHairColor ?? "");
   const [weight, setWeight] = useState(item.weight !== null ? String(item.weight) : "");
   const [build, setBuild] = useState(item.build ?? "");
+  const [breastSize, setBreastSize] = useState(item.breastSize ?? "");
+  const [breastStatus, setBreastStatus] = useState(item.breastStatus ?? "");
+  const [breastDescription, setBreastDescription] = useState(item.breastDescription ?? "");
   // Initialize extensible attribute values from existing item
   const [attrValues, setAttrValues] = useState<Record<string, string>>(() => {
     const init: Record<string, string> = {};
@@ -79,7 +87,7 @@ export function EditPhysicalChangeSheet({ personId, item, attributeGroups, onClo
   const [error, setError] = useState<string | null>(null);
 
   const hasAnyAttr = Object.values(attrValues).some((v) => v.trim());
-  const hasAnyField = currentHairColor.trim() || weight.trim() || build.trim() || hasAnyAttr;
+  const hasAnyField = currentHairColor.trim() || weight.trim() || build.trim() || breastSize.trim() || breastStatus.trim() || breastDescription.trim() || hasAnyAttr;
 
   const handleSubmit = useCallback(() => {
     if (!hasAnyField) {
@@ -98,6 +106,9 @@ export function EditPhysicalChangeSheet({ personId, item, attributeGroups, onClo
         currentHairColor: currentHairColor.trim() || undefined,
         weight: weight.trim() ? parseFloat(weight) : undefined,
         build: build.trim() || undefined,
+        breastSize: breastSize.trim() || undefined,
+        breastStatus: breastStatus.trim() || undefined,
+        breastDescription: breastDescription.trim() || undefined,
         attributes: attributes.length > 0 ? attributes : undefined,
       });
       if (!result.success) {
@@ -106,7 +117,7 @@ export function EditPhysicalChangeSheet({ personId, item, attributeGroups, onClo
       }
       onClose();
     });
-  }, [item.physicalId, personId, date, datePrecision, currentHairColor, weight, build, attrValues, hasAnyField, onClose]);
+  }, [item.physicalId, personId, date, datePrecision, currentHairColor, weight, build, breastSize, breastStatus, breastDescription, attrValues, hasAnyField, onClose]);
 
   return (
     <div role="dialog" aria-modal="true" className="fixed inset-0 z-50 flex justify-end">
@@ -163,6 +174,37 @@ export function EditPhysicalChangeSheet({ personId, item, attributeGroups, onClo
               value={build}
               onChange={(e) => setBuild(e.target.value)}
               placeholder="e.g. slim, athletic, muscular..."
+              className="w-full rounded-lg border border-white/15 bg-muted/30 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+            />
+          </div>
+
+          <div>
+            <label className="mb-1.5 block text-sm font-medium">Breast Size</label>
+            <SelectWithOther
+              options={BREAST_SIZE_OPTIONS}
+              value={breastSize || undefined}
+              onChange={(v) => setBreastSize(v ?? "")}
+              placeholder="Select cup size…"
+            />
+          </div>
+
+          <div>
+            <label className="mb-1.5 block text-sm font-medium">Breast Status</label>
+            <SelectWithOther
+              options={BREAST_STATUS_OPTIONS}
+              value={breastStatus || undefined}
+              onChange={(v) => setBreastStatus(v ?? "")}
+              placeholder="Select status…"
+            />
+          </div>
+
+          <div>
+            <label className="mb-1.5 block text-sm font-medium">Breast Description</label>
+            <input
+              type="text"
+              value={breastDescription}
+              onChange={(e) => setBreastDescription(e.target.value)}
+              placeholder="e.g. Large (Real)"
               className="w-full rounded-lg border border-white/15 bg-muted/30 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
             />
           </div>

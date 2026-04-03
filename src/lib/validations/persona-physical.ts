@@ -8,12 +8,18 @@ export const recordPhysicalChangeSchema = z
     currentHairColor: z.string().optional(),
     weight: z.coerce.number().positive().optional(),
     build: z.string().optional(),
+    breastSize: z.string().optional(),
+    breastStatus: z.string().optional(),
+    breastDescription: z.string().optional(),
   })
   .refine(
     (data) =>
       data.currentHairColor ||
       data.weight !== undefined ||
-      data.build,
+      data.build ||
+      data.breastSize ||
+      data.breastStatus ||
+      data.breastDescription,
     { message: "At least one physical field is required." },
   );
 

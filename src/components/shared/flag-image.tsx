@@ -2,13 +2,16 @@
 
 import { useState } from "react";
 import { cn } from "@/lib/utils";
+import { fromIocCode } from "@/lib/constants/countries";
 
 function getFlagSrc(code: string): string {
   const minioUrl =
     typeof window !== "undefined"
       ? (window as unknown as Record<string, string>).__MINIO_URL__
       : process.env.NEXT_PUBLIC_MINIO_URL;
-  return `${minioUrl}/flags/${code.toLowerCase()}.svg`;
+  // Flag SVG files use 2-letter ISO codes; convert IOC 3-letter if needed
+  const alpha2 = code.length === 3 ? fromIocCode(code) : code;
+  return `${minioUrl}/flags/${alpha2.toLowerCase()}.svg`;
 }
 
 type FlagImageProps = {

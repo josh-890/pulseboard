@@ -300,6 +300,9 @@ export type PersonCurrentState = {
   currentHairColor: string | null;
   weight: number | null;
   build: string | null;
+  breastSize: string | null;
+  breastStatus: string | null;
+  breastDescription: string | null;
   // Extensible physical attributes (from PersonaPhysicalAttribute fold)
   extensibleAttributes: Record<string, ExtensibleAttributeValue>;
   // Active body marks (status = present)

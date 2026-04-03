@@ -47,3 +47,21 @@ export const BUILD_OPTIONS = [
   "Muscular",
   "Curvy",
 ] as const;
+
+export const BREAST_SIZE_OPTIONS = [
+  "AA",
+  "A",
+  "B",
+  "C",
+  "D",
+  "DD/E",
+  "F",
+  "G+",
+] as const;
+
+export const BREAST_STATUS_OPTIONS = [
+  "Natural",
+  "Enhanced",
+  "Reduced",
+  "Unknown",
+] as const;

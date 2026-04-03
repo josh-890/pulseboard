@@ -356,6 +356,9 @@ export async function computePersonCurrentState(personId: string): Promise<Perso
   let currentHairColor: string | null = null;
   let weight: number | null = null;
   let build: string | null = null;
+  let breastSize: string | null = null;
+  let breastStatus: string | null = null;
+  let breastDescription: string | null = null;
 
   for (const persona of allPersonas) {
     if (persona.physicalChange) {
@@ -363,6 +366,9 @@ export async function computePersonCurrentState(personId: string): Promise<Perso
       if (p.currentHairColor !== null) currentHairColor = p.currentHairColor;
       if (p.weight !== null) weight = p.weight;
       if (p.build !== null) build = p.build;
+      if (p.breastSize !== null) breastSize = p.breastSize;
+      if (p.breastStatus !== null) breastStatus = p.breastStatus;
+      if (p.breastDescription !== null) breastDescription = p.breastDescription;
     }
   }
 
@@ -387,6 +393,9 @@ export async function computePersonCurrentState(personId: string): Promise<Perso
     currentHairColor,
     weight,
     build,
+    breastSize,
+    breastStatus,
+    breastDescription,
     extensibleAttributes: {},
     activeBodyMarks,
     activeBodyModifications: [],
@@ -647,6 +656,9 @@ export function deriveCurrentState(
   let currentHairColor: string | null = null;
   let weight: number | null = null;
   let build: string | null = null;
+  let breastSize: string | null = null;
+  let breastStatus: string | null = null;
+  let breastDescription: string | null = null;
 
   const extensibleAttributes: Record<string, ExtensibleAttributeValue> = {};
 
@@ -665,6 +677,9 @@ export function deriveCurrentState(
     if (p.currentHairColor !== null) currentHairColor = p.currentHairColor;
     if (p.weight !== null) weight = p.weight;
     if (p.build !== null) build = p.build;
+    if (p.breastSize !== null) breastSize = p.breastSize;
+    if (p.breastStatus !== null) breastStatus = p.breastStatus;
+    if (p.breastDescription !== null) breastDescription = p.breastDescription;
     // Fold extensible attributes — later records override earlier ones per-key
     if (p.attributes) {
       for (const attr of p.attributes) {
@@ -918,6 +933,9 @@ export function deriveCurrentState(
     currentHairColor,
     weight,
     build,
+    breastSize,
+    breastStatus,
+    breastDescription,
     extensibleAttributes,
     activeBodyMarks,
     activeBodyModifications,
@@ -1036,6 +1054,7 @@ export async function createPersonRecord(data: CreatePersonInput) {
         ethnicity: data.ethnicity,
         eyeColor: data.eyeColor,
         naturalHairColor: data.naturalHairColor,
+        naturalBreastSize: data.naturalBreastSize,
         height: data.height,
       },
     });
@@ -1073,6 +1092,9 @@ export async function createPersonRecord(data: CreatePersonInput) {
       data.weight !== undefined ||
       data.build !== undefined ||
       data.currentHairColor !== undefined ||
+      data.breastSize !== undefined ||
+      data.breastStatus !== undefined ||
+      data.breastDescription !== undefined ||
       data.hairLength !== undefined;
 
     if (hasPhysical) {
@@ -1082,6 +1104,9 @@ export async function createPersonRecord(data: CreatePersonInput) {
           weight: data.weight,
           build: data.build,
           currentHairColor: data.currentHairColor,
+          breastSize: data.breastSize,
+          breastStatus: data.breastStatus,
+          breastDescription: data.breastDescription,
         },
       });
 
@@ -1134,6 +1159,7 @@ export async function updatePersonRecord(id: string, data: UpdatePersonInput) {
         ethnicity: data.ethnicity,
         eyeColor: data.eyeColor,
         naturalHairColor: data.naturalHairColor,
+        naturalBreastSize: data.naturalBreastSize,
         height: data.height,
         location: data.location,
         notes: data.notes,

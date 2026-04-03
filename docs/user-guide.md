@@ -16,9 +16,10 @@ Pulseboard is a personal information management tool for tracking people in art/
 8. [Channels](#8-channels)
 9. [Networks](#9-networks)
 10. [Media Management](#10-media-management)
-11. [Settings](#11-settings)
-12. [Workflows](#12-workflows)
-13. [Date Modifiers & Data Quality](#date-modifiers--data-quality)
+11. [Data Import](#11-data-import)
+12. [Settings](#12-settings)
+13. [Workflows](#13-workflows)
+14. [Date Modifiers & Data Quality](#date-modifiers--data-quality)
 
 ---
 
@@ -593,7 +594,82 @@ Active elements in the info panel use **amber-500** color accents.
 
 ---
 
-## 11. Settings
+## 11. Data Import
+
+**Routes:** `/import`, `/import/[id]`
+
+The import pipeline enables semi-automatic data ingestion from structured text files (one file per person). Data is parsed, staged for review, matched against existing DB records, and imported entity-by-entity with dependency tracking.
+
+### Uploading a File
+
+1. Navigate to **Import** in the sidebar
+2. Drag and drop a `.txt` file onto the upload zone (or click to browse)
+3. The file is parsed server-side and a new **Import Batch** is created
+4. You're redirected to the **Import Workspace** for review
+
+**Filename format:** `YYYY-MM-DD_Name_(ICG-ID).txt` — the date is used as the extraction date for versioning.
+
+### Import Workspace
+
+The workspace has a split-panel layout:
+
+- **Header** — Subject name, ICG-ID, item count, extraction date, status summary (New/Blocked/Matched/Imported counts)
+- **Entity tabs** — Person, Aliases, Identities, Channels, Sets, Co-Models
+- **Left panel** — Scrollable item list with status badges, match details, and blocking reasons
+- **Right panel** — Detail view for the selected item with all parsed fields
+
+### Entity Statuses
+
+| Status | Meaning |
+|--------|---------|
+| **New** | Not in DB, ready to import |
+| **Matched** | Exact match found in DB (confidence 100%) |
+| **Probable** | Fuzzy match found, needs confirmation |
+| **Blocked** | Dependencies not yet imported (e.g., set waiting for channel + person) |
+| **Imported** | Successfully imported to DB |
+| **Skipped** | User chose to skip |
+| **Failed** | Import attempted but failed |
+
+### Matching
+
+Matching runs automatically on every page load (dynamic sync). If you create an entity in the regular app, refreshing the import page will detect it.
+
+- **Person/Co-Model**: Exact ICG-ID match, then fuzzy name via trigram similarity (>0.6)
+- **Channel**: Exact normalized name, then trigram (>0.7)
+- **Set**: Exact external ID, then title + channel + date (within 30 days), then title-only (>0.8)
+- **Label**: Exact normalized name only
+
+Use the **Refresh** button to manually re-run matching.
+
+### Dependency Order
+
+Items must be imported in dependency order:
+
+1. **Labels** (auto-derived from channel names)
+2. **Channels** (depend on labels)
+3. **Person** (the subject)
+4. **Co-Models** (other people referenced in sets)
+5. **Aliases** (depend on person)
+6. **Digital Identities** (depend on person)
+7. **Sets** (depend on channel + person + co-models)
+8. **Credits** (depend on sets)
+
+Blocked items show which dependencies are missing (e.g., "Waiting for: CHANNEL:FEMJOY, PERSON:CX-82HO").
+
+### Importing
+
+- Click an item, then click **Import** to import it individually
+- Click **Import All** to import all ready items (New + Matched) in dependency order
+- Click **Skip** to mark an item as skipped
+- Sets with the same title + date across different channels are flagged as **Possible duplicates**
+
+### Versioning
+
+When uploading a newer file for the same person (same ICG-ID), the system links batches via `previousBatchId` for history tracking.
+
+---
+
+## 12. Settings
 
 **Route:** `/settings`
 
@@ -664,7 +740,7 @@ These definitions are used in two places:
 
 ---
 
-## 12. Workflows
+## 13. Workflows
 
 ### Documenting a New Person
 
@@ -866,5 +942,7 @@ These warnings are informational — they do not block saves or edits. They help
 | `/channels/[id]` | Channel detail |
 | `/networks` | Networks list |
 | `/networks/[id]` | Network detail |
+| `/import` | Import batch list |
+| `/import/[id]` | Import workspace |
 | `/settings` | Settings |
 | `/media/similar` | Find similar images |

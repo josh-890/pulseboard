@@ -33,6 +33,8 @@ import {
   CURRENT_HAIR_COLOR_OPTIONS,
   HAIR_LENGTH_OPTIONS,
   BUILD_OPTIONS,
+  BREAST_SIZE_OPTIONS,
+  BREAST_STATUS_OPTIONS,
 } from "@/lib/constants/appearance";
 import { ETHNICITY_OPTIONS } from "@/lib/constants/ethnicity";
 import { CountryPicker } from "@/components/shared/country-picker";
@@ -374,6 +376,25 @@ export function PersonForm({ onSubmit, submitLabel = "Create Person", onCancel }
 
                     <FormField
                       control={form.control}
+                      name="naturalBreastSize"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Natural Breast Size</FormLabel>
+                          <FormControl>
+                            <SelectWithOther
+                              options={BREAST_SIZE_OPTIONS}
+                              value={field.value || undefined}
+                              onChange={(v) => field.onChange(v ?? "")}
+                              placeholder="Select cup size..."
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
                       name="height"
                       render={({ field }) => (
                         <FormItem>
@@ -425,6 +446,62 @@ export function PersonForm({ onSubmit, submitLabel = "Create Person", onCancel }
                               value={field.value || undefined}
                               onChange={(v) => field.onChange(v ?? "")}
                               placeholder="Select build..."
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="breastSize"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Current Breast Size</FormLabel>
+                          <FormControl>
+                            <SelectWithOther
+                              options={BREAST_SIZE_OPTIONS}
+                              value={field.value || undefined}
+                              onChange={(v) => field.onChange(v ?? "")}
+                              placeholder="Select cup size..."
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="breastStatus"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Breast Status</FormLabel>
+                          <FormControl>
+                            <SelectWithOther
+                              options={BREAST_STATUS_OPTIONS}
+                              value={field.value || undefined}
+                              onChange={(v) => field.onChange(v ?? "")}
+                              placeholder="Select status..."
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="breastDescription"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Breast Description</FormLabel>
+                          <FormControl>
+                            <Input
+                              placeholder="e.g. Large (Real)"
+                              {...field}
+                              value={field.value ?? ""}
                             />
                           </FormControl>
                           <FormMessage />

@@ -965,6 +965,9 @@ export async function recordPhysicalChangeAction(
     currentHairColor?: string;
     weight?: number;
     build?: string;
+    breastSize?: string;
+    breastStatus?: string;
+    breastDescription?: string;
     attributes?: { definitionId: string; value: string }[];
   },
 ): Promise<ActionResultWithId> {
@@ -982,6 +985,9 @@ export async function recordPhysicalChangeAction(
             currentHairColor: data.currentHairColor ?? null,
             weight: data.weight ?? null,
             build: data.build ?? null,
+            breastSize: data.breastSize ?? null,
+            breastStatus: data.breastStatus ?? null,
+            breastDescription: data.breastDescription ?? null,
             date,
             datePrecision: precision,
           },
@@ -989,6 +995,9 @@ export async function recordPhysicalChangeAction(
             ...(data.currentHairColor !== undefined && { currentHairColor: data.currentHairColor || null }),
             ...(data.weight !== undefined && { weight: data.weight || null }),
             ...(data.build !== undefined && { build: data.build || null }),
+            ...(data.breastSize !== undefined && { breastSize: data.breastSize || null }),
+            ...(data.breastStatus !== undefined && { breastStatus: data.breastStatus || null }),
+            ...(data.breastDescription !== undefined && { breastDescription: data.breastDescription || null }),
             date,
             datePrecision: precision,
           },
@@ -1032,6 +1041,9 @@ export async function updatePhysicalChangeAction(
     currentHairColor?: string;
     weight?: number;
     build?: string;
+    breastSize?: string;
+    breastStatus?: string;
+    breastDescription?: string;
     date?: string | null;
     datePrecision?: string;
     attributes?: { definitionId: string; value: string }[];
@@ -1060,6 +1072,9 @@ export async function updatePhysicalChangeAction(
           currentHairColor: data.currentHairColor !== undefined ? (data.currentHairColor || null) : existing.currentHairColor,
           weight: data.weight !== undefined ? (data.weight || null) : existing.weight,
           build: data.build !== undefined ? (data.build || null) : existing.build,
+          breastSize: data.breastSize !== undefined ? (data.breastSize || null) : existing.breastSize,
+          breastStatus: data.breastStatus !== undefined ? (data.breastStatus || null) : existing.breastStatus,
+          breastDescription: data.breastDescription !== undefined ? (data.breastDescription || null) : existing.breastDescription,
           date: parsedDate,
           datePrecision: precision,
         };

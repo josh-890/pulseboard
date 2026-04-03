@@ -47,6 +47,7 @@ import {
   NATURAL_HAIR_COLOR_OPTIONS,
   CURRENT_HAIR_COLOR_OPTIONS,
   BUILD_OPTIONS,
+  BREAST_SIZE_OPTIONS,
 } from "@/lib/constants/appearance";
 import type { getPersonWithDetails } from "@/lib/services/person-service";
 
@@ -89,6 +90,7 @@ export function EditPersonSheet({ person }: EditPersonSheetProps) {
     ethnicity: person.ethnicity ?? undefined,
     eyeColor: person.eyeColor ?? "",
     naturalHairColor: person.naturalHairColor ?? "",
+    naturalBreastSize: person.naturalBreastSize ?? "",
     height: person.height ?? undefined,
     location: person.location ?? "",
     notes: person.notes ?? "",
@@ -444,6 +446,25 @@ export function EditPersonSheet({ person }: EditPersonSheetProps) {
                               value={field.value || undefined}
                               onChange={(v) => field.onChange(v ?? "")}
                               placeholder="Select hair color…"
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="naturalBreastSize"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Natural Breast Size</FormLabel>
+                          <FormControl>
+                            <SelectWithOther
+                              options={BREAST_SIZE_OPTIONS}
+                              value={field.value || undefined}
+                              onChange={(v) => field.onChange(v ?? "")}
+                              placeholder="Select cup size…"
                             />
                           </FormControl>
                           <FormMessage />
