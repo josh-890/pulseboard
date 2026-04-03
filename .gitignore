@@ -52,3 +52,6 @@ next-env.d.ts
 
 # database backups
 /backups/
+
+# import source data files
+docs/2026-*
