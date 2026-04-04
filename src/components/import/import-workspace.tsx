@@ -35,9 +35,9 @@ type EntityTab = 'PERSON' | 'PERSON_ALIAS' | 'DIGITAL_IDENTITY' | 'CHANNEL' | 'S
 
 const TAB_CONFIG: Array<{ type: EntityTab; label: string; icon: React.ReactNode }> = [
   { type: 'PERSON', label: 'Person', icon: <User size={14} /> },
-  { type: 'PERSON_ALIAS', label: 'Aliases', icon: <Tag size={14} /> },
   { type: 'DIGITAL_IDENTITY', label: 'Identities', icon: <Globe size={14} /> },
   { type: 'CHANNEL', label: 'Channels', icon: <Radio size={14} /> },
+  { type: 'PERSON_ALIAS', label: 'Aliases', icon: <Tag size={14} /> },
   { type: 'SET', label: 'Sets', icon: <ImageIcon size={14} /> },
   { type: 'CO_MODEL', label: 'Co-Models', icon: <Users size={14} /> },
 ]

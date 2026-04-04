@@ -10,7 +10,7 @@ import type { ImportItem } from '@/generated/prisma/client'
 import { createLabelRecord } from '@/lib/services/label-service'
 import { createChannelRecord } from '@/lib/services/channel-service'
 import { createPersonRecord } from '@/lib/services/person-service'
-import { createAlias } from '@/lib/services/alias-service'
+import { createAlias, linkAliasToChannels } from '@/lib/services/alias-service'
 import { createDigitalIdentity } from '@/lib/services/digital-identity-service'
 import { markItemImported, computeDependencies } from './staging-service'
 import { parseBreastDescription, extractCupFromMeasurements } from './import-utils'
@@ -318,13 +318,32 @@ export async function importAlias(item: ImportItem): Promise<ImportResult> {
       return { success: false, entityId: null, error: 'Person not yet imported' }
     }
 
-    // Resolve channel if this is a channel-specific alias
-    let channelIds: string[] | undefined
+    // Resolve channel
+    let channelId: string | null = null
     if (channelName) {
-      const channelId = await resolveEntityId(item.batchId, `CHANNEL:${channelName.toUpperCase()}`)
-      if (channelId) channelIds = [channelId]
+      channelId = await resolveEntityId(item.batchId, `CHANNEL:${channelName.toUpperCase()}`)
     }
 
+    // Check if person already has an alias with this name
+    const existingAlias = await prisma.personAlias.findFirst({
+      where: {
+        personId,
+        nameNorm: name.toLowerCase(),
+      },
+      select: { id: true },
+    })
+
+    if (existingAlias) {
+      // Alias exists — just link to channel
+      if (channelId) {
+        await linkAliasToChannels(existingAlias.id, [channelId])
+      }
+      await markItemImported(item.id, existingAlias.id)
+      return { success: true, entityId: existingAlias.id, error: null }
+    }
+
+    // Alias doesn't exist — create it with channel link
+    const channelIds = channelId ? [channelId] : undefined
     const alias = await createAlias(personId, name, false, false, 'IMPORT', null, channelIds)
     await markItemImported(item.id, alias.id)
 

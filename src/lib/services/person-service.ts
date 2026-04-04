@@ -1060,12 +1060,12 @@ export async function createPersonRecord(data: CreatePersonInput) {
     });
 
     await tx.personAlias.create({
-      data: { personId: person.id, name: data.commonName, isCommon: true },
+      data: { personId: person.id, name: data.commonName, nameNorm: data.commonName.toLowerCase(), isCommon: true },
     });
 
     if (data.birthName) {
       await tx.personAlias.create({
-        data: { personId: person.id, name: data.birthName, isBirth: true },
+        data: { personId: person.id, name: data.birthName, nameNorm: data.birthName.toLowerCase(), isBirth: true },
       });
     }
 
@@ -1185,7 +1185,7 @@ export async function updatePersonRecord(id: string, data: UpdatePersonInput) {
       if (commonAlias) {
         await tx.personAlias.update({
           where: { id: commonAlias.id },
-          data: { name: data.commonName },
+          data: { name: data.commonName, nameNorm: data.commonName.toLowerCase() },
         });
       }
     }

@@ -154,35 +154,10 @@ export async function createBatch(
     blockedReason: null,
   })
 
-  // ── Aliases (tier 3, depend on person) ────────────────────────────────
-  // Filter out the common name (already created with person)
-  const commonNameLower = parsed.person.name.toLowerCase()
-  const uniqueAliases = parsed.person.aliases.filter(
-    (a) => a.toLowerCase() !== commonNameLower,
-  )
-
-  for (const alias of uniqueAliases) {
-    items.push({
-      type: 'PERSON_ALIAS',
-      data: { name: alias },
-      rawText: null,
-      sortOrder: 30,
-      status: 'NEW',
-      matchedEntityId: null,
-      matchConfidence: null,
-      matchDetails: null,
-      dependsOn: [`PERSON:${parsed.person.icgId}`],
-      blockedReason: null,
-    })
-  }
-
-  // Channel-specific aliases
+  // ── Aliases (tier 3, depend on person + channel) ──────────────────────
+  // Driven exclusively by channel appearances (Channel/Name blocks).
+  // Each appearance becomes a PERSON_ALIAS item linked to its channel.
   for (const ca of parsed.channelAppearances) {
-    // Skip if alias matches the common name
-    if (ca.aliasOnChannel.toLowerCase() === commonNameLower) continue
-    // Skip if already in the AKA aliases
-    if (uniqueAliases.some((a) => a.toLowerCase() === ca.aliasOnChannel.toLowerCase())) continue
-
     items.push({
       type: 'PERSON_ALIAS',
       data: {
