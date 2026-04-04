@@ -66,6 +66,7 @@ export async function createChannelRecord(data: {
     const channel = await tx.channel.create({
       data: {
         name: data.name,
+        nameNorm: data.name.toLowerCase(),
         shortName: data.shortName || null,
         platform: data.platform,
         url: data.url,
@@ -102,6 +103,7 @@ export async function updateChannelRecord(
       where: { id },
       data: {
         name: data.name,
+        nameNorm: data.name ? data.name.toLowerCase() : undefined,
         shortName: data.shortName,
         platform: data.platform,
         url: data.url,

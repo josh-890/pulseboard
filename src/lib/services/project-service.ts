@@ -82,6 +82,7 @@ export async function createProjectRecord(data: {
   return prisma.project.create({
     data: {
       name: data.name,
+      nameNorm: data.name.toLowerCase(),
       description: data.description,
       status: data.status ?? "active",
       tags: data.tags ?? [],
@@ -99,6 +100,7 @@ export async function updateProjectRecord(id: string, data: {
     where: { id },
     data: {
       name: data.name,
+      nameNorm: data.name ? data.name.toLowerCase() : undefined,
       description: data.description,
       status: data.status,
       tags: data.tags,

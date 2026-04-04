@@ -66,6 +66,7 @@ export async function createNetworkRecord(data: {
   return prisma.network.create({
     data: {
       name: data.name,
+      nameNorm: data.name.toLowerCase(),
       description: data.description,
       website: data.website,
     },
@@ -81,6 +82,7 @@ export async function updateNetworkRecord(id: string, data: {
     where: { id },
     data: {
       name: data.name,
+      nameNorm: data.name ? data.name.toLowerCase() : undefined,
       description: data.description,
       website: data.website,
     },
