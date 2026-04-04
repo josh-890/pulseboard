@@ -19,10 +19,8 @@ export async function POST(request: Request) {
     // Create the channel with label
     const channel = await createChannelRecord({ name, shortName, labelId })
 
-    // Save the import alias if the import name differs from the channel name
-    if (importName.toLowerCase() !== name.toLowerCase()) {
-      await addChannelImportAlias(channel.id, importName)
-    }
+    // Always save the import alias — it's the source-system name for future imports
+    await addChannelImportAlias(channel.id, importName)
 
     // Mark the channel import item as matched
     const item = await prisma.importItem.update({
