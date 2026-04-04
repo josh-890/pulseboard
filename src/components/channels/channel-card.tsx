@@ -37,9 +37,16 @@ export function ChannelCard({ channel }: ChannelCardProps) {
           {/* Badge + title */}
           <div className="flex items-start gap-3">
             <EntityBadge visual={visual} size="sm" />
-            <h3 className="min-w-0 flex-1 line-clamp-2 text-sm font-semibold leading-snug">
-              {channel.name}
-            </h3>
+            <div className="min-w-0 flex-1">
+              <h3 className="line-clamp-2 text-sm font-semibold leading-snug">
+                {channel.name}
+              </h3>
+              {channel.shortName && (
+                <p className="mt-0.5 text-[11px] font-medium text-muted-foreground">
+                  {channel.shortName}
+                </p>
+              )}
+            </div>
           </div>
 
           {/* Chips */}
