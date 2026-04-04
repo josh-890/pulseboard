@@ -31,7 +31,30 @@ export function ImportBatchList({ batches }: ImportBatchListProps) {
     <div className="space-y-2">
       {batches.map((batch) => {
         const imported = batch.itemCounts.IMPORTED || 0
+        const skipped = batch.itemCounts.SKIPPED || 0
         const total = batch.totalItems
+        const processed = imported + skipped
+        const ready = (batch.itemCounts.NEW || 0) + (batch.itemCounts.MATCHED || 0) + (batch.itemCounts.PROBABLE || 0)
+
+        // Derive a human-readable status
+        let statusLabel: string
+        let statusBadge: string
+        if (batch.status === 'COMPLETED' || processed === total) {
+          statusLabel = 'Completed'
+          statusBadge = 'IMPORTED'
+        } else if (batch.status === 'FAILED') {
+          statusLabel = 'Failed'
+          statusBadge = 'FAILED'
+        } else if (imported > 0) {
+          statusLabel = `${imported} of ${total} imported`
+          statusBadge = 'IMPORTING'
+        } else if (ready > 0) {
+          statusLabel = 'Ready to review'
+          statusBadge = 'NEW'
+        } else {
+          statusLabel = 'Ready to review'
+          statusBadge = 'NEW'
+        }
 
         return (
           <Link
@@ -51,13 +74,10 @@ export function ImportBatchList({ batches }: ImportBatchListProps) {
                 <span className="shrink-0 text-xs text-muted-foreground">
                   ({batch.subjectIcgId})
                 </span>
-                <ImportStatusBadge status={batch.status === 'COMPLETED' ? 'IMPORTED' : batch.status === 'FAILED' ? 'FAILED' : 'NEW'} />
+                <ImportStatusBadge status={statusBadge} />
               </div>
               <div className="mt-0.5 flex items-center gap-3 text-xs text-muted-foreground">
-                <span>{total} items</span>
-                {imported > 0 && (
-                  <span className="text-emerald-500">{imported} imported</span>
-                )}
+                <span>{statusLabel}</span>
                 {batch.extractionDate && (
                   <span>
                     Extracted {batch.extractionDate.toLocaleDateString()}
@@ -65,6 +85,15 @@ export function ImportBatchList({ batches }: ImportBatchListProps) {
                 )}
                 <span>{formatRelativeTime(batch.createdAt)}</span>
               </div>
+              {/* Progress bar for partially imported batches */}
+              {imported > 0 && processed < total && (
+                <div className="mt-1.5 h-1 w-full max-w-48 overflow-hidden rounded-full bg-muted">
+                  <div
+                    className="h-full rounded-full bg-emerald-500 transition-all"
+                    style={{ width: `${Math.round((processed / total) * 100)}%` }}
+                  />
+                </div>
+              )}
             </div>
 
             <div className="flex items-center gap-2">

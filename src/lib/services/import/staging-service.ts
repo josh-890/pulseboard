@@ -107,35 +107,8 @@ export async function createBatch(
     blockedReason: string | null
   }> = []
 
-  // ── Labels (auto-derived from channel names, tier 0) ──────────────────
+  // ── Channels (standalone — label resolved via channel linking) ─────────
   const uniqueChannels = extractUniqueChannels(parsed)
-  const labelItemKeys: string[] = [] // track for dependency linking
-
-  for (const channelName of uniqueChannels) {
-    const labelMatch = matches.labels.get(channelName)
-    const status: ImportItemStatus =
-      labelMatch?.matchedEntityId
-        ? labelMatch.matchConfidence === 1.0
-          ? 'MATCHED'
-          : 'PROBABLE'
-        : 'NEW'
-
-    items.push({
-      type: 'LABEL',
-      data: { name: channelName },
-      rawText: null,
-      sortOrder: 0,
-      status,
-      matchedEntityId: labelMatch?.matchedEntityId ?? null,
-      matchConfidence: labelMatch?.matchConfidence ?? null,
-      matchDetails: labelMatch?.matchDetails ?? null,
-      dependsOn: [],
-      blockedReason: null,
-    })
-    labelItemKeys.push(`LABEL:${channelName}`)
-  }
-
-  // ── Channels (tier 1, depend on labels) ───────────────────────────────
   for (const channelName of uniqueChannels) {
     const channelMatch = matches.channels.get(channelName)
     const status: ImportItemStatus =
@@ -154,7 +127,7 @@ export async function createBatch(
       matchedEntityId: channelMatch?.matchedEntityId ?? null,
       matchConfidence: channelMatch?.matchConfidence ?? null,
       matchDetails: channelMatch?.matchDetails ?? null,
-      dependsOn: [`LABEL:${channelName}`],
+      dependsOn: [],
       blockedReason: null,
     })
   }
@@ -418,6 +391,8 @@ export async function refreshBatchMatches(batchId: string): Promise<ImportBatchW
   for (const item of batch.items) {
     if (item.status === 'IMPORTED' || item.status === 'SKIPPED') continue
 
+    // Don't downgrade manually resolved items — if an item was already matched
+    // (e.g., via channel linking) but the auto-matcher can't find it, keep the manual resolution
     let newMatch: { matchedEntityId: string | null; matchConfidence: number | null; matchDetails: string | null } | null = null
     const data = item.data as Record<string, unknown>
 
@@ -446,8 +421,18 @@ export async function refreshBatchMatches(batchId: string): Promise<ImportBatchW
         newMatch = matches.sets.get(externalId) ?? null
         break
       }
+      case 'DIGITAL_IDENTITY': {
+        const key = `${data.platform}:${data.url || data.handle || ''}`
+        newMatch = matches.identities.get(key) ?? null
+        break
+      }
       default:
         continue
+    }
+
+    // Preserve manually resolved items when auto-matcher finds nothing
+    if (item.matchedEntityId && item.status === 'MATCHED' && (!newMatch || !newMatch.matchedEntityId)) {
+      continue
     }
 
     if (newMatch) {
@@ -541,12 +526,20 @@ export async function computeDependencies(batchId: string): Promise<void> {
           blockedReason: `Waiting for: ${unresolvedDeps.join(', ')}`,
         },
       })
-    } else if (unresolvedDeps.length === 0 && item.status === 'BLOCKED') {
-      // Unblock
+    } else if (unresolvedDeps.length > 0 && item.status === 'MATCHED') {
+      // MATCHED items keep their status but update the blocked reason for display
       await prisma.importItem.update({
         where: { id: item.id },
         data: {
-          status: 'NEW',
+          blockedReason: `Waiting for: ${unresolvedDeps.join(', ')}`,
+        },
+      })
+    } else if (unresolvedDeps.length === 0 && (item.status === 'BLOCKED' || item.status === 'MATCHED')) {
+      // Unblock — clear stale blocked reason; unblock BLOCKED items to NEW
+      await prisma.importItem.update({
+        where: { id: item.id },
+        data: {
+          status: item.status === 'BLOCKED' ? 'NEW' : item.status,
           blockedReason: null,
         },
       })

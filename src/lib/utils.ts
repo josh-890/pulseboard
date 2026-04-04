@@ -180,3 +180,42 @@ export function getInitialsFromName(name: string): string {
   if (parts.length === 1) return parts[0].charAt(0).toUpperCase();
   return `${parts[0].charAt(0)}${parts[1].charAt(0)}`.toUpperCase();
 }
+
+/**
+ * Generate a short name / acronym for a channel name.
+ *
+ * Strategy:
+ * - Multi-word: first letter of each word → "FemJoy Video" → "FJV"
+ * - Single all-caps word: first + last consonant → "METCN" → "MC"
+ * - Single mixed-case word: uppercase letters → "FemJoy" → "FJ"
+ * - Single lowercase/short: first 2-3 chars → "indie" → "IND"
+ * - Hyphenated: treat parts as words → "MC-NUDES" → "MCN"
+ */
+export function generateChannelShortName(name: string): string {
+  const trimmed = name.trim()
+  if (!trimmed) return ""
+
+  // Split on whitespace or hyphens
+  const parts = trimmed.split(/[\s-]+/).filter(Boolean)
+
+  if (parts.length > 1) {
+    // Multi-word: first letter of each part
+    return parts.map((p) => p.charAt(0).toUpperCase()).join("")
+  }
+
+  const word = parts[0]
+
+  // Check for camelCase / PascalCase (e.g. "FemJoy" → "FJ")
+  const camelParts = word.match(/[A-Z][a-z]*/g)
+  if (camelParts && camelParts.length > 1) {
+    return camelParts.map((p) => p.charAt(0).toUpperCase()).join("")
+  }
+
+  // All uppercase: take first 2-3 chars
+  if (word === word.toUpperCase() && word.length > 3) {
+    return word.slice(0, 3)
+  }
+
+  // Fallback: first 2 characters
+  return word.slice(0, 2).toUpperCase()
+}

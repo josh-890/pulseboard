@@ -7,6 +7,8 @@ import {
   createChannelRecord,
   updateChannelRecord,
   deleteChannelRecord,
+  addChannelImportAlias,
+  removeChannelImportAlias,
 } from "@/lib/services/channel-service";
 import type { CrudActionResult, SimpleActionResult } from "@/lib/types";
 
@@ -43,6 +45,7 @@ export async function updateChannel(raw: unknown): Promise<CrudActionResult> {
     try {
       await updateChannelRecord(parsed.data.id, {
         ...parsed.data,
+        shortName: parsed.data.shortName || null,
         url: parsed.data.url || null,
         platform: parsed.data.platform || null,
       });
@@ -68,5 +71,29 @@ export async function deleteChannel(id: string): Promise<SimpleActionResult> {
       return { success: false, error: "Failed to delete channel" };
     }
 
+  });
+}
+
+export async function addImportAlias(channelId: string, alias: string): Promise<SimpleActionResult> {
+  return withTenantFromHeaders(async () => {
+    try {
+      await addChannelImportAlias(channelId, alias);
+      revalidatePath(`/channels/${channelId}`);
+      return { success: true };
+    } catch {
+      return { success: false, error: "Failed to add import alias" };
+    }
+  });
+}
+
+export async function removeImportAlias(channelId: string, alias: string): Promise<SimpleActionResult> {
+  return withTenantFromHeaders(async () => {
+    try {
+      await removeChannelImportAlias(channelId, alias);
+      revalidatePath(`/channels/${channelId}`);
+      return { success: true };
+    } catch {
+      return { success: false, error: "Failed to remove import alias" };
+    }
   });
 }

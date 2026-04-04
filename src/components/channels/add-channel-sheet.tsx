@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -30,6 +30,7 @@ import {
   type CreateChannelInput,
 } from "@/lib/validations/channel";
 import { createChannel } from "@/lib/actions/channel-actions";
+import { cn } from "@/lib/utils";
 
 type AddChannelSheetProps = {
   labels: { id: string; name: string }[];
@@ -48,31 +49,71 @@ function SectionHeader({ children }: { children: React.ReactNode }) {
 export function AddChannelSheet({ labels, defaultLabelId }: AddChannelSheetProps) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  const [isSuggestion, setIsSuggestion] = useState(true);
+  const [shortNameAvailable, setShortNameAvailable] = useState<boolean | null>(null);
+  const checkTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const form = useForm<CreateChannelFormValues, unknown, CreateChannelInput>({
     resolver: zodResolver(createChannelSchema),
     defaultValues: {
       labelId: defaultLabelId ?? "",
       name: "",
+      shortName: "",
       platform: "",
       url: "",
     },
   });
 
   const { isSubmitting } = form.formState;
+  const shortNameValue = form.watch("shortName");
+
+  // Check availability when shortName changes
+  useEffect(() => {
+    if (!shortNameValue?.trim()) {
+      setShortNameAvailable(null);
+      return;
+    }
+    if (checkTimerRef.current) clearTimeout(checkTimerRef.current);
+    checkTimerRef.current = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/channels/short-name?check=${encodeURIComponent(shortNameValue.trim())}`);
+        const data = await res.json();
+        setShortNameAvailable(data.available);
+      } catch {
+        setShortNameAvailable(null);
+      }
+    }, 300);
+    return () => { if (checkTimerRef.current) clearTimeout(checkTimerRef.current); };
+  }, [shortNameValue]);
+
+  // Fetch unique suggestion when name changes and shortName is still a suggestion
+  const nameDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  function handleNameChange(newName: string) {
+    if (!isSuggestion) return;
+    if (nameDebounceRef.current) clearTimeout(nameDebounceRef.current);
+    nameDebounceRef.current = setTimeout(async () => {
+      if (!newName.trim()) { form.setValue("shortName", ""); return; }
+      try {
+        const res = await fetch(`/api/channels/short-name?name=${encodeURIComponent(newName.trim())}`);
+        const data = await res.json();
+        if (data.suggestion) form.setValue("shortName", data.suggestion, { shouldDirty: true });
+      } catch { /* ignore */ }
+    }, 300);
+  }
 
   async function onSubmit(values: CreateChannelInput) {
     const result = await createChannel(values);
-
     if (result.success) {
       toast.success("Channel created");
       form.reset();
+      setIsSuggestion(true);
+      setShortNameAvailable(null);
       setOpen(false);
       router.push(`/channels/${result.id}`);
       return;
     }
-
-    toast.error(typeof result.error === "string" ? result.error : "Failed to create channel");
+    const err = typeof result.error === "string" ? result.error : "Failed to create channel";
+    toast.error(err);
   }
 
   return (
@@ -129,8 +170,49 @@ export function AddChannelSheet({ labels, defaultLabelId }: AddChannelSheetProps
                         <FormItem>
                           <FormLabel>Name <span className="text-destructive">*</span></FormLabel>
                           <FormControl>
-                            <Input placeholder="Channel name" {...field} />
+                            <Input
+                              placeholder="Channel name"
+                              {...field}
+                              onChange={(e) => {
+                                field.onChange(e);
+                                handleNameChange(e.target.value);
+                              }}
+                            />
                           </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="shortName"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Short Name</FormLabel>
+                          <div className="space-y-1">
+                            <FormControl>
+                              <Input
+                                placeholder="e.g. FJ"
+                                {...field}
+                                className={cn(
+                                  isSuggestion && field.value && "italic !text-amber-500 dark:!text-amber-400 !border-amber-400/50 !bg-amber-500/5",
+                                )}
+                                onFocus={() => {
+                                  if (isSuggestion) setIsSuggestion(false);
+                                }}
+                                onChange={(e) => {
+                                  field.onChange(e);
+                                  setIsSuggestion(false);
+                                }}
+                              />
+                            </FormControl>
+                            {shortNameAvailable === false && (
+                              <p className="text-xs text-destructive">Already taken</p>
+                            )}
+                            {isSuggestion && field.value && (
+                              <p className="text-[10px] text-amber-500 dark:text-amber-400">Auto-suggested — edit to change</p>
+                            )}
+                          </div>
                           <FormMessage />
                         </FormItem>
                       )}
@@ -170,12 +252,12 @@ export function AddChannelSheet({ labels, defaultLabelId }: AddChannelSheetProps
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => { form.reset(); setOpen(false); }}
+                onClick={() => { form.reset(); setIsSuggestion(true); setShortNameAvailable(null); setOpen(false); }}
                 disabled={isSubmitting}
               >
                 Cancel
               </Button>
-              <Button type="submit" disabled={isSubmitting}>
+              <Button type="submit" disabled={isSubmitting || shortNameAvailable === false}>
                 {isSubmitting ? "Creating..." : "Create Channel"}
               </Button>
             </SheetFooter>

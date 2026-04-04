@@ -61,7 +61,7 @@ export function ImportUploadZone() {
   return (
     <div
       className={cn(
-        'relative rounded-xl border-2 border-dashed p-8 text-center transition-colors',
+        'relative rounded-xl border-2 border-dashed p-5 text-center transition-colors',
         isDragOver
           ? 'border-primary bg-primary/5'
           : 'border-border/50 hover:border-border',

@@ -100,6 +100,21 @@ export async function matchPerson(icgId: string, name: string): Promise<PersonMa
 export async function matchChannel(channelName: string): Promise<ChannelMatchResult> {
   const nameNorm = normalizeForMatch(channelName)
 
+  // Tier 0: Exact match on importAliases
+  const aliasMatch = await prisma.channel.findFirst({
+    where: { importAliases: { has: channelName } },
+    select: { id: true, name: true },
+  })
+
+  if (aliasMatch) {
+    return {
+      matchedEntityId: aliasMatch.id,
+      matchConfidence: 1.0,
+      matchDetails: `Import alias match: "${aliasMatch.name}"`,
+      existingName: aliasMatch.name,
+    }
+  }
+
   // Tier 1: Exact nameNorm match
   const exactMatch = await prisma.channel.findFirst({
     where: { nameNorm },
@@ -115,13 +130,13 @@ export async function matchChannel(channelName: string): Promise<ChannelMatchRes
     }
   }
 
-  // Tier 2: Fuzzy match via pg_trgm
+  // Tier 2: Fuzzy match via pg_trgm (return best match)
   const fuzzyResults = await prisma.$queryRaw<
     Array<{ id: string; name: string; sim: number }>
   >`
     SELECT id, name, similarity("nameNorm", ${nameNorm}) AS sim
     FROM "Channel"
-    WHERE similarity("nameNorm", ${nameNorm}) > 0.7
+    WHERE similarity("nameNorm", ${nameNorm}) > 0.5
     ORDER BY sim DESC
     LIMIT 1
   `
@@ -137,6 +152,30 @@ export async function matchChannel(channelName: string): Promise<ChannelMatchRes
   }
 
   return { matchedEntityId: null, matchConfidence: null, matchDetails: null }
+}
+
+/** Return multiple fuzzy channel suggestions for the resolution UI */
+export async function suggestChannels(
+  channelName: string,
+): Promise<Array<{ id: string; name: string; similarity: number }>> {
+  const nameNorm = normalizeForMatch(channelName)
+  if (!nameNorm) return []
+
+  const results = await prisma.$queryRaw<
+    Array<{ id: string; name: string; sim: number }>
+  >`
+    SELECT id, name, similarity("nameNorm", ${nameNorm}) AS sim
+    FROM "Channel"
+    WHERE similarity("nameNorm", ${nameNorm}) > 0.3
+    ORDER BY sim DESC
+    LIMIT 10
+  `
+
+  return results.map((r) => ({
+    id: r.id,
+    name: r.name,
+    similarity: Number(r.sim),
+  }))
 }
 
 // ─── Label Matching ─────────────────────────────────────────────────────────
@@ -238,6 +277,66 @@ export async function matchSet(set: ParsedSet): Promise<SetMatchResult> {
   return { matchedEntityId: null, matchConfidence: null, matchDetails: null }
 }
 
+// ─── Digital Identity Matching ──────────────────────────────────────────────
+
+export type IdentityMatchResult = MatchResult & {
+  comparisonStatus: 'identical' | 'new'
+}
+
+/**
+ * Compare an import identity against a person's existing digital identities.
+ * Matches by URL (primary) or platform+handle combo (fallback).
+ */
+export async function matchDigitalIdentity(
+  personId: string,
+  platform: string,
+  url: string | null,
+  handle: string | null,
+): Promise<IdentityMatchResult> {
+  // Try URL match first (most reliable)
+  if (url) {
+    const urlMatch = await prisma.personDigitalIdentity.findFirst({
+      where: { personId, url },
+      select: { id: true, platform: true },
+    })
+    if (urlMatch) {
+      return {
+        matchedEntityId: urlMatch.id,
+        matchConfidence: 1.0,
+        matchDetails: `Identical: ${urlMatch.platform} URL already exists`,
+        comparisonStatus: 'identical',
+      }
+    }
+  }
+
+  // Fallback: platform + handle match
+  if (handle) {
+    const handleMatch = await prisma.personDigitalIdentity.findFirst({
+      where: {
+        personId,
+        platform: { equals: platform, mode: 'insensitive' },
+        handle: { equals: handle, mode: 'insensitive' },
+      },
+      select: { id: true },
+    })
+    if (handleMatch) {
+      return {
+        matchedEntityId: handleMatch.id,
+        matchConfidence: 1.0,
+        matchDetails: `Identical: ${platform} handle already exists`,
+        comparisonStatus: 'identical',
+      }
+    }
+  }
+
+  return {
+    matchedEntityId: null,
+    matchConfidence: null,
+    matchDetails: null,
+    comparisonStatus: 'new',
+  }
+}
+
 // ─── Batch Matching ─────────────────────────────────────────────────────────
 
 export type BatchMatchResults = {
@@ -246,6 +345,7 @@ export type BatchMatchResults = {
   labels: Map<string, MatchResult>           // keyed by uppercase label name (= channel name)
   sets: Map<string, SetMatchResult>          // keyed by externalId
   coModels: Map<string, PersonMatchResult>   // keyed by icgId
+  identities: Map<string, IdentityMatchResult>  // keyed by item data key (platform:url or platform:handle)
 }
 
 export async function matchAllEntities(data: ParsedImportData): Promise<BatchMatchResults> {
@@ -291,5 +391,20 @@ export async function matchAllEntities(data: ParsedImportData): Promise<BatchMat
     coModels.set(icgId, await matchPerson(icgId, cm.name))
   }
 
-  return { person, channels, labels, sets, coModels }
+  // Match digital identities (only if person is already in DB)
+  const identities = new Map<string, IdentityMatchResult>()
+  const personId = person.matchedEntityId
+  if (personId && data.digitalIdentities) {
+    for (const di of data.digitalIdentities) {
+      const key = `${di.platform}:${di.url || ''}`
+      identities.set(key, await matchDigitalIdentity(
+        personId,
+        di.platform,
+        di.url || null,
+        null,
+      ))
+    }
+  }
+
+  return { person, channels, labels, sets, coModels, identities }
 }

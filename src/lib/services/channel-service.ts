@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import type { Prisma } from "@/generated/prisma/client";
+import { generateChannelShortName } from "@/lib/utils";
 
 export async function getChannels(filters?: { q?: string; labelId?: string }) {
   const where: Prisma.ChannelWhereInput = {};
@@ -37,12 +38,26 @@ export async function getChannelById(id: string) {
   });
 }
 
+export async function removeChannelImportAlias(channelId: string, alias: string) {
+  const channel = await prisma.channel.findUniqueOrThrow({
+    where: { id: channelId },
+    select: { importAliases: true },
+  })
+  return prisma.channel.update({
+    where: { id: channelId },
+    data: {
+      importAliases: channel.importAliases.filter((a) => a !== alias),
+    },
+  })
+}
+
 export async function countChannels(): Promise<number> {
   return prisma.channel.count();
 }
 
 export async function createChannelRecord(data: {
   name: string;
+  shortName?: string;
   platform?: string;
   url?: string;
   labelId?: string;
@@ -51,6 +66,7 @@ export async function createChannelRecord(data: {
     const channel = await tx.channel.create({
       data: {
         name: data.name,
+        shortName: data.shortName || null,
         platform: data.platform,
         url: data.url,
       },
@@ -75,6 +91,7 @@ export async function updateChannelRecord(
   id: string,
   data: {
     name?: string;
+    shortName?: string | null;
     platform?: string | null;
     url?: string | null;
     labelId?: string;
@@ -85,6 +102,7 @@ export async function updateChannelRecord(
       where: { id },
       data: {
         name: data.name,
+        shortName: data.shortName,
         platform: data.platform,
         url: data.url,
       },
@@ -129,4 +147,73 @@ export async function deleteChannelRecord(id: string) {
       where: { id },
     });
   });
+}
+
+/** Add an import alias to a channel (idempotent) */
+export async function addChannelImportAlias(channelId: string, alias: string) {
+  const channel = await prisma.channel.findUniqueOrThrow({
+    where: { id: channelId },
+    select: { importAliases: true },
+  })
+
+  if (channel.importAliases.includes(alias)) return // already exists
+
+  return prisma.channel.update({
+    where: { id: channelId },
+    data: {
+      importAliases: { push: alias },
+    },
+  })
+}
+
+/** Search channels by name for the resolution UI */
+export async function searchChannelsForResolution(query: string) {
+  return prisma.channel.findMany({
+    where: {
+      name: { contains: query, mode: 'insensitive' },
+    },
+    select: {
+      id: true,
+      name: true,
+      labelMaps: {
+        select: { label: { select: { name: true } } },
+        take: 1,
+      },
+    },
+    take: 20,
+    orderBy: { name: 'asc' },
+  })
+}
+
+/** Check if a shortName is available (optionally excluding a specific channel) */
+export async function isShortNameAvailable(
+  shortName: string,
+  excludeChannelId?: string,
+): Promise<boolean> {
+  const existing = await prisma.channel.findUnique({
+    where: { shortName },
+    select: { id: true },
+  })
+  if (!existing) return true
+  return excludeChannelId ? existing.id === excludeChannelId : false
+}
+
+/** Generate a unique shortName suggestion for a channel name */
+export async function suggestUniqueShortName(
+  channelName: string,
+  excludeChannelId?: string,
+): Promise<string> {
+  const base = generateChannelShortName(channelName)
+  if (!base) return ""
+
+  // Check if base is available
+  if (await isShortNameAvailable(base, excludeChannelId)) return base
+
+  // Try appending digits: FJ2, FJ3, ...
+  for (let i = 2; i <= 99; i++) {
+    const candidate = `${base}${i}`
+    if (await isShortNameAvailable(candidate, excludeChannelId)) return candidate
+  }
+
+  return base // unlikely fallback
 }

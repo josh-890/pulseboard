@@ -13,13 +13,15 @@ import {
   RefreshCw,
   ChevronLeft,
   Loader2,
-  Play,
   ArrowRight,
+  Play,
+  Check,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ImportStatusBadge } from './import-status-badge'
 import { ImportItemDetail } from './import-item-detail'
+import { ChannelResolution } from './channel-resolution'
 import { cn } from '@/lib/utils'
 import Link from 'next/link'
 
@@ -39,14 +41,6 @@ const TAB_CONFIG: Array<{ type: EntityTab; label: string; icon: React.ReactNode 
   { type: 'SET', label: 'Sets', icon: <ImageIcon size={14} /> },
   { type: 'CO_MODEL', label: 'Co-Models', icon: <Users size={14} /> },
 ]
-
-function getStatusCounts(items: ImportItem[]): Record<string, number> {
-  const counts: Record<string, number> = {}
-  for (const item of items) {
-    counts[item.status] = (counts[item.status] || 0) + 1
-  }
-  return counts
-}
 
 export function ImportWorkspace({ batch }: ImportWorkspaceProps) {
   const router = useRouter()
@@ -72,7 +66,21 @@ export function ImportWorkspace({ batch }: ImportWorkspaceProps) {
     ? batch.items.find((i) => i.id === selectedItemId)
     : null
 
-  const statusCounts = useMemo(() => getStatusCounts(batch.items), [batch.items])
+  // Per-tab status: how many items are importable vs blocked/done
+  const tabStatus = useMemo(() => {
+    const result: Record<string, { ready: number; blocked: number; done: number }> = {}
+    for (const item of batch.items) {
+      if (!result[item.type]) result[item.type] = { ready: 0, blocked: 0, done: 0 }
+      if (item.status === 'NEW' || item.status === 'MATCHED' || item.status === 'PROBABLE') {
+        result[item.type].ready++
+      } else if (item.status === 'IMPORTED' || item.status === 'SKIPPED') {
+        result[item.type].done++
+      } else if (item.status === 'BLOCKED') {
+        result[item.type].blocked++
+      }
+    }
+    return result
+  }, [batch.items])
 
   // Refresh matches
   const handleRefresh = useCallback(async () => {
@@ -134,14 +142,13 @@ export function ImportWorkspace({ batch }: ImportWorkspaceProps) {
     [batch.id, router],
   )
 
-  // Import all ready items in sequence
-  const handleImportAll = useCallback(async () => {
-    const readyItems = batch.items
-      .filter((i) => i.status === 'NEW' || i.status === 'MATCHED')
+  // Import all ready items in the current tab
+  const handleImportAllInTab = useCallback(async () => {
+    const readyItems = currentItems
+      .filter((i) => i.status === 'NEW' || i.status === 'PROBABLE')
       .sort((a, b) => a.sortOrder - b.sortOrder)
 
     if (readyItems.length === 0) return
-    if (!confirm(`Import ${readyItems.length} ready items in dependency order?`)) return
 
     setIsImporting(true)
     for (const item of readyItems) {
@@ -153,7 +160,7 @@ export function ImportWorkspace({ batch }: ImportWorkspaceProps) {
         )
         const result = await res.json()
         if (!result.success) {
-          alert(`Import failed for ${item.type}: ${result.error}`)
+          alert(`Import failed: ${result.error}`)
           break
         }
       } catch (err) {
@@ -164,7 +171,19 @@ export function ImportWorkspace({ batch }: ImportWorkspaceProps) {
     setIsImporting(false)
     setImportingItemId(null)
     router.refresh()
-  }, [batch, router])
+  }, [currentItems, batch.id, router])
+
+  // Count importable items in current tab
+  const tabReadyCount = useMemo(
+    () => currentItems.filter((i) => i.status === 'NEW' || i.status === 'PROBABLE').length,
+    [currentItems],
+  )
+
+  // Count identical (already matched) items in current tab
+  const tabIdenticalCount = useMemo(
+    () => currentItems.filter((i) => i.status === 'MATCHED').length,
+    [currentItems],
+  )
 
   // Person tab always has exactly 1 item — auto-select it, hide sidebar
   const isPersonTab = activeTab === 'PERSON' && currentItems.length === 1
@@ -173,9 +192,6 @@ export function ImportWorkspace({ batch }: ImportWorkspaceProps) {
       setSelectedItemId(currentItems[0].id)
     }
   }, [isPersonTab, currentItems])
-
-  const readyCount =
-    (statusCounts.NEW || 0) + (statusCounts.MATCHED || 0)
 
   return (
     <div className="flex h-[calc(100vh-4rem)] flex-col">
@@ -196,9 +212,8 @@ export function ImportWorkspace({ batch }: ImportWorkspaceProps) {
                 </span>
               </h1>
               <p className="text-xs text-muted-foreground">
-                {batch.items.length} items
                 {batch.extractionDate &&
-                  ` · Extracted ${batch.extractionDate.toLocaleDateString()}`}
+                  `Extracted ${batch.extractionDate.toLocaleDateString()}`}
               </p>
             </div>
           </div>
@@ -216,32 +231,9 @@ export function ImportWorkspace({ batch }: ImportWorkspaceProps) {
               />
               Refresh
             </Button>
-            {readyCount > 0 && (
-              <Button
-                size="sm"
-                onClick={handleImportAll}
-                disabled={isImporting}
-              >
-                {isImporting ? (
-                  <Loader2 size={14} className="animate-spin" />
-                ) : (
-                  <Play size={14} />
-                )}
-                Import All ({readyCount})
-              </Button>
-            )}
           </div>
         </div>
 
-        {/* Status summary bar */}
-        <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
-          {Object.entries(statusCounts).map(([status, count]) => (
-            <span key={status} className="flex items-center gap-1">
-              <ImportStatusBadge status={status} />
-              <span className="text-muted-foreground">{count}</span>
-            </span>
-          ))}
-        </div>
       </div>
 
       {/* Entity type tabs */}
@@ -257,6 +249,15 @@ export function ImportWorkspace({ batch }: ImportWorkspaceProps) {
             {TAB_CONFIG.map(({ type, label, icon }) => {
               const count = (itemsByType[type] || []).length
               if (count === 0) return null
+              const status = tabStatus[type]
+              // Dot color: green if all done, blue if some ready, orange if all blocked, gray otherwise
+              const dotColor = status?.done === count
+                ? 'bg-emerald-500'
+                : status?.ready > 0
+                  ? 'bg-blue-500'
+                  : status?.blocked > 0
+                    ? 'bg-orange-500'
+                    : 'bg-muted-foreground/50'
               return (
                 <TabsTrigger
                   key={type}
@@ -265,7 +266,8 @@ export function ImportWorkspace({ batch }: ImportWorkspaceProps) {
                 >
                   {icon}
                   {label}
-                  <span className="ml-0.5 text-[10px] text-muted-foreground">
+                  <span className="ml-0.5 flex items-center gap-1 text-[10px] text-muted-foreground">
+                    <span className={cn('inline-block h-1.5 w-1.5 rounded-full', dotColor)} />
                     {count}
                   </span>
                 </TabsTrigger>
@@ -274,6 +276,32 @@ export function ImportWorkspace({ batch }: ImportWorkspaceProps) {
           </TabsList>
         </Tabs>
       </div>
+
+      {/* Tab action bar — shown when there are actionable items */}
+      {!isPersonTab && (tabReadyCount > 0 || tabIdenticalCount > 0) && (
+        <div className="flex shrink-0 items-center gap-3 border-b border-border/50 px-4 py-2">
+          {tabReadyCount > 0 && (
+            <Button
+              size="sm"
+              onClick={handleImportAllInTab}
+              disabled={isImporting}
+            >
+              {isImporting ? (
+                <Loader2 size={14} className="animate-spin" />
+              ) : (
+                <Play size={14} />
+              )}
+              Import All New ({tabReadyCount})
+            </Button>
+          )}
+          {tabIdenticalCount > 0 && (
+            <span className="flex items-center gap-1 text-xs text-emerald-500">
+              <Check size={12} />
+              {tabIdenticalCount} already in database
+            </span>
+          )}
+        </div>
+      )}
 
       {/* Split panel: item list + detail */}
       <div className="flex min-h-0 flex-1">
@@ -367,13 +395,20 @@ export function ImportWorkspace({ batch }: ImportWorkspaceProps) {
         {/* Right: Detail panel */}
         <div className="flex-1 overflow-y-auto p-4">
           {selectedItem ? (
-            <ImportItemDetail
-              item={selectedItem}
-              onImport={handleImportItem}
-              onSkip={handleSkipItem}
-              onSaveEdits={handleSaveEdits}
-              isImporting={importingItemId === selectedItem.id}
-            />
+            selectedItem.type === 'CHANNEL' ? (
+              <ChannelResolution
+                item={selectedItem}
+                onResolved={() => router.refresh()}
+              />
+            ) : (
+              <ImportItemDetail
+                item={selectedItem}
+                onImport={handleImportItem}
+                onSkip={handleSkipItem}
+                onSaveEdits={handleSaveEdits}
+                isImporting={importingItemId === selectedItem.id}
+              />
+            )
           ) : (
             <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
               <div className="text-center">

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -30,11 +30,13 @@ import {
   type UpdateChannelInput,
 } from "@/lib/validations/channel";
 import { updateChannel } from "@/lib/actions/channel-actions";
+import { cn } from "@/lib/utils";
 
 type EditChannelSheetProps = {
   channel: {
     id: string;
     name: string;
+    shortName: string | null;
     labelId: string | null;
     platform: string | null;
     url: string | null;
@@ -54,6 +56,9 @@ function SectionHeader({ children }: { children: React.ReactNode }) {
 export function EditChannelSheet({ channel, labels }: EditChannelSheetProps) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  const [isSuggestion, setIsSuggestion] = useState(false);
+  const [shortNameAvailable, setShortNameAvailable] = useState<boolean | null>(null);
+  const checkTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const form = useForm<UpdateChannelFormValues, unknown, UpdateChannelInput>({
     resolver: zodResolver(updateChannelSchema),
@@ -61,39 +66,101 @@ export function EditChannelSheet({ channel, labels }: EditChannelSheetProps) {
       id: channel.id,
       labelId: channel.labelId ?? "",
       name: channel.name,
+      shortName: channel.shortName ?? "",
       platform: channel.platform ?? "",
       url: channel.url ?? "",
     },
   });
 
   const { isSubmitting } = form.formState;
+  const shortNameValue = form.watch("shortName");
+
+  // Check availability when shortName changes
+  useEffect(() => {
+    if (!shortNameValue?.trim()) {
+      setShortNameAvailable(null);
+      return;
+    }
+    // If the shortName hasn't changed from the original, it's always available
+    if (shortNameValue.trim() === channel.shortName) {
+      setShortNameAvailable(true);
+      return;
+    }
+    if (checkTimerRef.current) clearTimeout(checkTimerRef.current);
+    checkTimerRef.current = setTimeout(async () => {
+      try {
+        const res = await fetch(
+          `/api/channels/short-name?check=${encodeURIComponent(shortNameValue.trim())}&excludeId=${channel.id}`
+        );
+        const data = await res.json();
+        setShortNameAvailable(data.available);
+      } catch {
+        setShortNameAvailable(null);
+      }
+    }, 300);
+    return () => { if (checkTimerRef.current) clearTimeout(checkTimerRef.current); };
+  }, [shortNameValue, channel.shortName, channel.id]);
+
+  // Fetch unique suggestion when name changes and shortName is a suggestion
+  const nameDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  function handleNameChange(newName: string) {
+    if (!isSuggestion) return;
+    if (nameDebounceRef.current) clearTimeout(nameDebounceRef.current);
+    nameDebounceRef.current = setTimeout(async () => {
+      if (!newName.trim()) { form.setValue("shortName", ""); return; }
+      try {
+        const res = await fetch(
+          `/api/channels/short-name?name=${encodeURIComponent(newName.trim())}&excludeId=${channel.id}`
+        );
+        const data = await res.json();
+        if (data.suggestion) form.setValue("shortName", data.suggestion, { shouldDirty: true });
+      } catch { /* ignore */ }
+    }, 300);
+  }
+
+  function handleOpenChange(v: boolean) {
+    setOpen(v);
+    if (v) {
+      form.reset({
+        id: channel.id,
+        labelId: channel.labelId ?? "",
+        name: channel.name,
+        shortName: channel.shortName ?? "",
+        platform: channel.platform ?? "",
+        url: channel.url ?? "",
+      });
+      setShortNameAvailable(null);
+      setIsSuggestion(!channel.shortName);
+    }
+  }
+
+  // On open: if shortName is empty, fetch a unique suggestion
+  useEffect(() => {
+    if (!open || channel.shortName || !channel.name) return;
+    fetch(
+      `/api/channels/short-name?name=${encodeURIComponent(channel.name.trim())}&excludeId=${channel.id}`
+    )
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.suggestion) form.setValue("shortName", data.suggestion, { shouldDirty: true });
+      })
+      .catch(() => { /* ignore */ });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
   async function onSubmit(values: UpdateChannelInput) {
     const result = await updateChannel(values);
-
     if (result.success) {
       toast.success("Channel updated");
       setOpen(false);
       router.refresh();
       return;
     }
-
     toast.error(typeof result.error === "string" ? result.error : "Failed to update channel");
   }
 
   return (
-    <Sheet open={open} onOpenChange={(v) => {
-      setOpen(v);
-      if (v) {
-        form.reset({
-          id: channel.id,
-          labelId: channel.labelId ?? "",
-          name: channel.name,
-          platform: channel.platform ?? "",
-          url: channel.url ?? "",
-        });
-      }
-    }}>
+    <Sheet open={open} onOpenChange={handleOpenChange}>
       <Button size="sm" variant="outline" onClick={() => setOpen(true)}>
         <Pencil size={16} />
         Edit
@@ -146,8 +213,49 @@ export function EditChannelSheet({ channel, labels }: EditChannelSheetProps) {
                         <FormItem>
                           <FormLabel>Name <span className="text-destructive">*</span></FormLabel>
                           <FormControl>
-                            <Input placeholder="Channel name" {...field} />
+                            <Input
+                              placeholder="Channel name"
+                              {...field}
+                              onChange={(e) => {
+                                field.onChange(e);
+                                handleNameChange(e.target.value);
+                              }}
+                            />
                           </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="shortName"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Short Name</FormLabel>
+                          <div className="space-y-1">
+                            <FormControl>
+                              <Input
+                                placeholder="e.g. FJ"
+                                {...field}
+                                className={cn(
+                                  isSuggestion && field.value && "italic !text-amber-500 dark:!text-amber-400 !border-amber-400/50 !bg-amber-500/5",
+                                )}
+                                onFocus={() => {
+                                  if (isSuggestion) setIsSuggestion(false);
+                                }}
+                                onChange={(e) => {
+                                  field.onChange(e);
+                                  setIsSuggestion(false);
+                                }}
+                              />
+                            </FormControl>
+                            {shortNameAvailable === false && (
+                              <p className="text-xs text-destructive">Already taken</p>
+                            )}
+                            {isSuggestion && field.value && (
+                              <p className="text-[10px] text-amber-500 dark:text-amber-400">Auto-suggested — edit to change</p>
+                            )}
+                          </div>
                           <FormMessage />
                         </FormItem>
                       )}
@@ -192,7 +300,7 @@ export function EditChannelSheet({ channel, labels }: EditChannelSheetProps) {
               >
                 Cancel
               </Button>
-              <Button type="submit" disabled={isSubmitting}>
+              <Button type="submit" disabled={isSubmitting || shortNameAvailable === false}>
                 {isSubmitting ? "Saving..." : "Save Changes"}
               </Button>
             </SheetFooter>

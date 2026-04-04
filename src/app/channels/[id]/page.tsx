@@ -1,7 +1,7 @@
 import { withTenantFromHeaders } from "@/lib/tenant-context";
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { Building2, ExternalLink, ImageIcon } from "lucide-react";
+import { Building2, ExternalLink, ImageIcon, FileInput } from "lucide-react";
 import { getChannelById } from "@/lib/services/channel-service";
 import { getLabels } from "@/lib/services/label-service";
 import { cn } from "@/lib/utils";
@@ -11,6 +11,7 @@ import { DeleteButton } from "@/components/shared/delete-button";
 import { deleteChannel } from "@/lib/actions/channel-actions";
 import { EntityBadge } from "@/components/shared/entity-badge";
 import { generateEntityVisual } from "@/lib/entity-visual";
+import { ImportAliases } from "@/components/channels/import-aliases";
 
 export const dynamic = "force-dynamic";
 
@@ -85,6 +86,7 @@ export default async function ChannelDetailPage({
             channel={{
               id: channel.id,
               name: channel.name,
+              shortName: channel.shortName,
               labelId: channel.labelMaps[0]?.label.id ?? null,
               platform: channel.platform,
               url: channel.url,
@@ -117,7 +119,14 @@ export default async function ChannelDetailPage({
         <div className="relative flex items-start gap-4">
           <EntityBadge visual={visual} size="lg" />
           <div className="min-w-0 flex-1">
-            <h1 className="text-2xl font-bold leading-tight">{channel.name}</h1>
+            <h1 className="text-2xl font-bold leading-tight">
+              {channel.name}
+              {channel.shortName && (
+                <span className="ml-2 text-base font-normal text-muted-foreground">
+                  ({channel.shortName})
+                </span>
+              )}
+            </h1>
             <div className="mt-2 flex flex-wrap items-center gap-2">
               {channel.labelMaps[0]?.label && (
                 <Link
@@ -158,6 +167,14 @@ export default async function ChannelDetailPage({
           </p>
         </div>
       </div>
+
+      {/* Import Aliases */}
+      <SectionCard
+        title="Import Aliases"
+        icon={<FileInput size={18} />}
+      >
+        <ImportAliases channelId={channel.id} aliases={channel.importAliases} />
+      </SectionCard>
 
       {/* Sets */}
       <SectionCard

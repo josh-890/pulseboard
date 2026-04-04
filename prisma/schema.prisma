@@ -694,12 +694,14 @@ model LabelNetworkLink {
 }
 
 model Channel {
-  id        String  @id @default(cuid())
-  name      String
-  nameNorm  String?
-  url       String?
-  platform  String?
-  notes     String?
+  id            String   @id @default(cuid())
+  name          String
+  nameNorm      String?
+  shortName     String?  @unique
+  url           String?
+  platform      String?
+  notes         String?
+  importAliases String[] @default([])
 
   sets       Set[]
   labelMaps  ChannelLabelMap[]
