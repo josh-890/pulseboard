@@ -14,6 +14,7 @@ import {
   extractUniqueCoModels,
   detectPotentialDuplicates,
 } from './parser'
+import type { ParsedSet } from './parser'
 import { matchAllEntities } from './matcher'
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -343,11 +344,148 @@ export async function createBatch(
   // Now compute blocked status based on actual item IDs
   await computeDependencies(batch.id)
 
+  // ── Create StagingSet records for each SET ImportItem ──────────────
+  await createStagingSetsForBatch(batch.id, parsed.sets, parsed.person.icgId, matches)
+
   // Re-fetch with updated statuses
   return prisma.importBatch.findUniqueOrThrow({
     where: { id: batch.id },
     include: { items: { orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }] } },
   })
+}
+
+// ─── Create StagingSet Records ──────────────────────────────────────────────
+
+type StagingIngestSummary = {
+  created: number
+  skipped: number
+  byMatchType: { none: number; exact: number; probable: number }
+}
+
+async function createStagingSetsForBatch(
+  batchId: string,
+  parsedSets: ParsedSet[],
+  subjectIcgId: string,
+  matches: Awaited<ReturnType<typeof matchAllEntities>>,
+): Promise<StagingIngestSummary> {
+  const summary: StagingIngestSummary = {
+    created: 0,
+    skipped: 0,
+    byMatchType: { none: 0, exact: 0, probable: 0 },
+  }
+
+  // Get SET import items to link
+  const setItems = await prisma.importItem.findMany({
+    where: { batchId, type: 'SET' },
+    select: { id: true, data: true },
+    orderBy: { createdAt: 'asc' },
+  })
+
+  // Resolve person if already in DB
+  const person = await prisma.person.findUnique({
+    where: { icgId: subjectIcgId },
+    select: { id: true },
+  })
+
+  for (let idx = 0; idx < parsedSets.length; idx++) {
+    const set = parsedSets[idx]
+    const importItem = setItems[idx]
+    if (!importItem) continue
+
+    // Re-import protection: skip if this exact set already exists in staging for this person
+    if (set.externalId) {
+      const existing = await prisma.stagingSet.findFirst({
+        where: { externalId: set.externalId, subjectIcgId },
+        select: { id: true },
+      })
+      if (existing) {
+        summary.skipped++
+        continue
+      }
+    }
+
+    const setMatch = matches.sets.get(set.externalId)
+    const participantIcgIds = set.modelsList.map((m) => m.icgId)
+
+    // Track match type for summary
+    if (setMatch?.matchedEntityId) {
+      if (setMatch.matchConfidence === 1.0) summary.byMatchType.exact++
+      else summary.byMatchType.probable++
+    } else {
+      summary.byMatchType.none++
+    }
+
+    // Resolve channel if already matched
+    const channelName = set.channelName.toUpperCase()
+    const channelMatch = matches.channels.get(channelName)
+    const channelId = channelMatch?.matchedEntityId ?? null
+
+    // Parse release date precision
+    let releaseDatePrecision: 'UNKNOWN' | 'YEAR' | 'MONTH' | 'DAY' = 'UNKNOWN'
+    if (set.date) {
+      if (/^\d{4}-\d{2}-\d{2}$/.test(set.date)) releaseDatePrecision = 'DAY'
+      else if (/^\d{4}-\d{2}$/.test(set.date)) releaseDatePrecision = 'MONTH'
+      else if (/^\d{4}$/.test(set.date)) releaseDatePrecision = 'YEAR'
+    }
+
+    // Cross-batch duplicate detection: check existing staging sets by externalId
+    let duplicateGroupId: string | null = null
+    if (set.externalId) {
+      const existingStaging = await prisma.stagingSet.findFirst({
+        where: { externalId: set.externalId },
+        select: { duplicateGroupId: true, id: true },
+      })
+      if (existingStaging) {
+        // Join existing group or create one from the existing record's ID
+        duplicateGroupId = existingStaging.duplicateGroupId ?? existingStaging.id
+        // Ensure the existing record also has the group ID
+        if (!existingStaging.duplicateGroupId) {
+          await prisma.stagingSet.update({
+            where: { id: existingStaging.id },
+            data: { duplicateGroupId },
+          })
+        }
+      }
+    }
+
+    await prisma.stagingSet.create({
+      data: {
+        title: set.title,
+        titleNorm: set.title.toLowerCase(),
+        externalId: set.externalId || null,
+        channelName: set.channelName,
+        channelId,
+        releaseDate: set.date ? new Date(set.date) : null,
+        releaseDatePrecision,
+        isVideo: set.isVideo,
+        imageCount: set.imageCount,
+        artist: set.artist,
+        artistNorm: set.artist?.toLowerCase() ?? null,
+        coverImageUrl: set.coverImageUrl,
+        description: set.description,
+        participants: set.modelsList,
+        participantIcgIds,
+        importBatchId: batchId,
+        importItemId: importItem.id,
+        subjectPersonId: person?.id ?? null,
+        subjectIcgId,
+        matchedSetId: setMatch?.matchedEntityId ?? null,
+        matchConfidence: setMatch?.matchConfidence ?? null,
+        matchDetails: setMatch?.matchDetails ?? null,
+        status: 'PENDING',
+        duplicateGroupId,
+      },
+    })
+    summary.created++
+  }
+
+  // Store summary on the batch for quick display
+  await prisma.importBatch.update({
+    where: { id: batchId },
+    data: { stagingSummary: summary },
+  })
+
+  return summary
 }
 
 // ─── Refresh Batch Matches ──────────────────────────────────────────────────
@@ -435,10 +573,55 @@ export async function refreshBatchMatches(batchId: string): Promise<ImportBatchW
   // Recompute dependencies
   await computeDependencies(batchId)
 
+  // Refresh StagingSet records: update match data, resolve channelId/subjectPersonId
+  await refreshStagingSets(batchId, parsed, matches)
+
   return prisma.importBatch.findUniqueOrThrow({
     where: { id: batchId },
     include: { items: { orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }] } },
   })
+}
+
+async function refreshStagingSets(
+  batchId: string,
+  parsed: ReturnType<typeof parseImportFile>,
+  matches: Awaited<ReturnType<typeof matchAllEntities>>,
+): Promise<void> {
+  const stagingSets = await prisma.stagingSet.findMany({
+    where: { importBatchId: batchId },
+    select: { id: true, externalId: true, status: true },
+  })
+
+  // Resolve person
+  const person = await prisma.person.findUnique({
+    where: { icgId: parsed.person.icgId },
+    select: { id: true },
+  })
+
+  for (const ss of stagingSets) {
+    // Skip terminal statuses
+    if (ss.status === 'PROMOTED' || ss.status === 'INACTIVE' || ss.status === 'SKIPPED') continue
+
+    // Re-match set
+    const setMatch = ss.externalId ? matches.sets.get(ss.externalId) ?? null : null
+
+    // Find the matching parsed set to resolve channel
+    const parsedSet = parsed.sets.find((s) => s.externalId === ss.externalId)
+    const channelName = parsedSet?.channelName.toUpperCase()
+    const channelMatch = channelName ? matches.channels.get(channelName) : null
+
+    await prisma.stagingSet.update({
+      where: { id: ss.id },
+      data: {
+        matchedSetId: setMatch?.matchedEntityId ?? null,
+        matchConfidence: setMatch?.matchConfidence ?? null,
+        matchDetails: setMatch?.matchDetails ?? null,
+        // Don't change user-controlled status — only update match data
+        channelId: channelMatch?.matchedEntityId ?? null,
+        subjectPersonId: person?.id ?? null,
+      },
+    })
+  }
 }
 
 // ─── Compute Dependencies ───────────────────────────────────────────────────

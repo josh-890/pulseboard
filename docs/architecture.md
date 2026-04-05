@@ -56,6 +56,7 @@ Media path:
 | `/collections` | `getAllCollections()` | `CollectionList`, `AddCollectionDialog` |
 | `/settings` | `getAllSkillGroups()`, `getAllCategoryGroups()`, `getAllContributionRoleGroups()` | `SkillCatalogManager`, `MediaCategoryManager`, `ContributionRoleManager` |
 | `/import` | `getAllBatches()` | `ImportUploadZone`, `ImportBatchList` |
+| `/staging-sets` | (client-fetched via API) | `StagingSetsWorkspace` → `StagingSetDetail`, `SetComparisonGrid` |
 
 ### Detail Pages
 
@@ -69,7 +70,7 @@ Media path:
 | `/labels/[id]` | `getLabelById()` | `LabelDetail`, `EditLabelSheet` |
 | `/channels/[id]` | `getChannelById()` | `ChannelDetail`, `EditChannelSheet` |
 | `/networks/[id]` | `getNetworkById()` | `NetworkDetail`, `EditNetworkSheet` |
-| `/import/[id]` | `refreshBatchMatches()` | `ImportWorkspace` → `ImportItemDetail`, `ImportStatusBadge` |
+| `/import/[id]` | `refreshBatchMatches()` | `ImportWorkspace` → `ImportItemDetail`, `ImportStatusBadge`, `SetBatchSummary` (SET tab) |
 
 ---
 
@@ -116,9 +117,11 @@ All import services in `src/lib/services/import/`.
 
 **`matcher.ts`** — Tiered DB matching: exact ID → fuzzy name (pg_trgm). Functions: `matchPerson`, `matchChannel`, `matchLabel`, `matchSet`, `matchAllEntities`. Returns confidence scores (0.0–1.0).
 
-**`staging-service.ts`** — Batch lifecycle: `createBatch` (parse + match + stage), `refreshBatchMatches` (re-run on every page load), `computeDependencies` (block/unblock items), `getAllBatches`, `updateItemStatus`, `markItemImported`.
+**`staging-service.ts`** — Batch lifecycle: `createBatch` (parse + match + stage), `refreshBatchMatches` (re-run on every page load), `computeDependencies` (block/unblock items), `getAllBatches`, `updateItemStatus`, `markItemImported`. Creates StagingSet records during batch creation with re-import dedup (skips existing by externalId + subjectIcgId).
 
-**`import-executor.ts`** — Per-entity import: `importItem` dispatches to type-specific functions (`importLabel`, `importChannel`, `importPerson`, `importAlias`, `importDigitalIdentity`, `importSet`, `importCoModel`). Each validates dependencies, calls existing service functions, updates ImportItem status.
+**`staging-set-service.ts`** — StagingSet CRUD + querying. `getStagingSetsFiltered` (paginated, filterable by status/person/channel/date/priority/search), `getStagingSetStats`, `getStagingSetComparison` (side-by-side diff vs production Set), `updateStagingSetFields`, `bulkUpdateStatus`. Lifecycle statuses: PENDING → REVIEWING → APPROVED → PROMOTED / INACTIVE / SKIPPED. Match info separate in `matchedSetId`/`matchConfidence` fields.
+
+**`import-executor.ts`** — Per-entity import: `importItem` dispatches to type-specific functions (`importLabel`, `importChannel`, `importPerson`, `importAlias`, `importDigitalIdentity`, `importSet`, `importCoModel`). Set import routes through `enrichExistingSet` (matched) or `createNewSet` (unresolved), marks StagingSet as PROMOTED.
 
 ### Infrastructure Services
 
@@ -182,6 +185,13 @@ All actions in `src/lib/actions/`. Each validates input with Zod, calls services
 | `/api/import/[batchId]/refresh` | POST | Force re-run matching for all items |
 | `/api/import/[batchId]/items/[itemId]` | PATCH | Update item status or edited data |
 | `/api/import/[batchId]/items/[itemId]/import` | POST | Execute import for single item |
+| `/api/staging-sets` | GET | Filtered staging set list (status, person, channel, date, search, sort) |
+| `/api/staging-sets/stats` | GET | Staging set counts by status + match type |
+| `/api/staging-sets/[id]` | GET, PATCH | Get/update staging set (fields, status, priority, notes) |
+| `/api/staging-sets/[id]/comparison` | GET | Side-by-side diff vs production Set |
+| `/api/staging-sets/[id]/promote` | POST | Promote staging set to production |
+| `/api/staging-sets/bulk-update` | POST | Bulk status change |
+| `/api/staging-sets/bulk-promote` | POST | Bulk promote to production |
 | `/api/flags/[code]` | GET | Country flag image |
 
 ---

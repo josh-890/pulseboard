@@ -278,6 +278,7 @@ model Person {
   referenceSession     Session?             @relation("ReferenceSession")
   mediaCollections     MediaCollection[]
   personTags           PersonTag[]
+  stagingSetsAsSubject StagingSet[]         @relation("StagingSetSubject")
 
   createdAt DateTime  @default(now())
 
@@ -703,9 +704,10 @@ model Channel {
   notes         String?
   importAliases String[] @default([])
 
-  sets       Set[]
-  labelMaps  ChannelLabelMap[]
-  aliasLinks PersonAliasChannel[]
+  sets        Set[]
+  labelMaps   ChannelLabelMap[]
+  aliasLinks  PersonAliasChannel[]
+  stagingSets StagingSet[]
 
   @@index([nameNorm])
 }
@@ -834,12 +836,14 @@ model Set {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
-  setMediaItems   SetMediaItem[]
-  creditsRaw      SetCreditRaw[]
-  participants    SetParticipant[]
-  labelEvidence   SetLabelEvidence[]
-  sessionLinks    SetSession[]
-  setTags         SetTag[]
+  setMediaItems     SetMediaItem[]
+  creditsRaw        SetCreditRaw[]
+  participants      SetParticipant[]
+  labelEvidence     SetLabelEvidence[]
+  sessionLinks      SetSession[]
+  setTags           SetTag[]
+  stagingMatches    StagingSet[]     @relation("StagingSetMatch")
+  stagingPromotions StagingSet[]     @relation("StagingSetPromoted")
 
   @@index([channelId])
   @@index([type])
@@ -1421,9 +1425,11 @@ model ImportBatch {
   previousBatchId String?
   previousBatch   ImportBatch?      @relation("BatchHistory", fields: [previousBatchId], references: [id])
   nextBatches     ImportBatch[]     @relation("BatchHistory")
+  stagingSummary  Json?
   createdAt       DateTime          @default(now())
   updatedAt       DateTime          @updatedAt
   items           ImportItem[]
+  stagingSets     StagingSet[]
 
   @@index([subjectIcgId])
   @@map("import_batch")
@@ -1447,7 +1453,86 @@ model ImportItem {
   createdAt         DateTime         @default(now())
   updatedAt         DateTime         @updatedAt
 
+  stagingSet        StagingSet?
+
   @@index([batchId, type])
   @@index([batchId, status])
   @@map("import_item")
+}
+
+// ─── Staging Sets ─────────────────────────────────────────────────────────────
+
+enum StagingSetStatus {
+  PENDING
+  REVIEWING
+  APPROVED
+  PROMOTED
+  INACTIVE
+  SKIPPED
+}
+
+model StagingSet {
+  id                String            @id @default(cuid())
+
+  // Raw import data
+  title             String
+  titleNorm         String?
+  externalId        String?
+  channelName       String
+  channelId         String?
+  channel           Channel?          @relation(fields: [channelId], references: [id])
+  releaseDate       DateTime?
+  releaseDatePrecision DatePrecision  @default(UNKNOWN)
+  isVideo           Boolean           @default(false)
+  imageCount        Int?
+  artist            String?
+  artistNorm        String?
+  coverImageUrl     String?
+  description       String?
+  participants      Json?
+  participantIcgIds String[]
+
+  // Provenance
+  importBatchId     String
+  importBatch       ImportBatch       @relation(fields: [importBatchId], references: [id], onDelete: Cascade)
+  importItemId      String?           @unique
+  importItem        ImportItem?       @relation(fields: [importItemId], references: [id])
+  subjectPersonId   String?
+  subjectPerson     Person?           @relation("StagingSetSubject", fields: [subjectPersonId], references: [id])
+  subjectIcgId      String
+
+  // Matching
+  matchedSetId      String?
+  matchedSet        Set?              @relation("StagingSetMatch", fields: [matchedSetId], references: [id])
+  matchConfidence   Float?
+  matchDetails      String?
+
+  // Resolution
+  status            StagingSetStatus  @default(PENDING)
+  promotedSetId     String?
+  promotedSet       Set?              @relation("StagingSetPromoted", fields: [promotedSetId], references: [id])
+
+  // Duplicate/reupload tracking
+  duplicateGroupId  String?
+  isDuplicate       Boolean           @default(false)
+  isReupload        Boolean           @default(false)
+
+  // User annotations
+  priority          Int?
+  notes             String?
+
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  @@index([externalId])
+  @@index([channelId])
+  @@index([channelName])
+  @@index([subjectPersonId])
+  @@index([subjectIcgId])
+  @@index([titleNorm])
+  @@index([artistNorm])
+  @@index([importBatchId])
+  @@index([status])
+  @@index([duplicateGroupId])
+  @@map("staging_set")
 }

@@ -13,6 +13,7 @@ import { createPersonRecord } from '@/lib/services/person-service'
 import { createAlias, linkAliasToChannels } from '@/lib/services/alias-service'
 import { createDigitalIdentity } from '@/lib/services/digital-identity-service'
 import { markItemImported, computeDependencies } from './staging-service'
+import { markStagingSetPromoted } from './staging-set-service'
 import { parseBreastDescription, extractCupFromMeasurements } from './import-utils'
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -389,42 +390,195 @@ export async function importDigitalIdentity(item: ImportItem): Promise<ImportRes
 
 export async function importSet(item: ImportItem): Promise<ImportResult> {
   try {
-    const data = (item.editedData ?? item.data) as ItemData
+    // Load the linked StagingSet for richer data
+    const stagingSet = await prisma.stagingSet.findUnique({
+      where: { importItemId: item.id },
+    })
 
-    if (item.matchedEntityId) {
-      await markItemImported(item.id, item.matchedEntityId)
-      return { success: true, entityId: item.matchedEntityId, error: null }
+    // Fall back to ImportItem data if no StagingSet (shouldn't happen for new batches)
+    const data = stagingSet
+      ? {
+          title: stagingSet.title,
+          channelName: stagingSet.channelName,
+          isVideo: stagingSet.isVideo,
+          date: stagingSet.releaseDate?.toISOString().split('T')[0] ?? null,
+          releaseDatePrecision: stagingSet.releaseDatePrecision,
+          description: stagingSet.description,
+          imageCount: stagingSet.imageCount,
+          externalId: stagingSet.externalId,
+          artist: stagingSet.artist,
+          modelsList: stagingSet.participants as Array<{ name: string; icgId: string; url: string }> | null,
+        }
+      : (item.editedData ?? item.data) as ItemData
+
+    // Path A: Enrich existing set (matched by externalId or user-confirmed)
+    const matchedSetId = stagingSet?.matchedSetId ?? item.matchedEntityId
+    if (matchedSetId) {
+      const enrichResult = await enrichExistingSet(item, matchedSetId, data)
+      if (stagingSet) await markStagingSetPromoted(stagingSet.id, matchedSetId)
+      return enrichResult
     }
 
-    // Resolve channel
+    // Path B: Create new set
+    const createResult = await createNewSet(item, data)
+    if (stagingSet && createResult.entityId) {
+      await markStagingSetPromoted(stagingSet.id, createResult.entityId)
+    }
+    return createResult
+  } catch (err) {
+    return { success: false, entityId: null, error: String(err) }
+  }
+}
+
+/** Path A: Enrich an existing set — add participants, credits, fill empty fields */
+async function enrichExistingSet(
+  item: ImportItem,
+  setId: string,
+  data: ItemData | Record<string, unknown>,
+): Promise<ImportResult> {
+  try {
+    await prisma.$transaction(async (tx) => {
+      // Find the primary session for this set
+      const setSession = await tx.setSession.findFirst({
+        where: { setId, isPrimary: true },
+        select: { sessionId: true },
+      })
+      if (!setSession) return
+
+      const sessionId = setSession.sessionId
+      const modelRole = await tx.contributionRoleDefinition.findFirst({
+        where: { slug: 'model' },
+        select: { id: true },
+      })
+      if (!modelRole) return
+
+      // Add subject person as participant
+      const personItem = await tx.importItem.findFirst({
+        where: { batchId: item.batchId, type: 'PERSON' },
+        select: { matchedEntityId: true },
+      })
+      if (personItem?.matchedEntityId) {
+        await tx.sessionContribution.upsert({
+          where: {
+            sessionId_personId_roleDefinitionId: {
+              sessionId,
+              personId: personItem.matchedEntityId,
+              roleDefinitionId: modelRole.id,
+            },
+          },
+          update: {},
+          create: {
+            sessionId,
+            personId: personItem.matchedEntityId,
+            roleDefinitionId: modelRole.id,
+            confidence: 'CONFIRMED',
+            confidenceSource: 'CREDIT_MATCH',
+          },
+        })
+      }
+
+      // Add co-model contributions
+      const modelsList = (data.modelsList ?? (data as ItemData).modelsList) as Array<{ name: string; icgId: string; url: string }> | null
+      if (modelsList) {
+        const personIcgId = await getSubjectIcgId(item.batchId)
+        for (const model of modelsList) {
+          if (model.icgId === personIcgId) continue
+          const coModelPerson = await tx.person.findUnique({
+            where: { icgId: model.icgId },
+            select: { id: true },
+          })
+          if (!coModelPerson) continue
+
+          await tx.sessionContribution.upsert({
+            where: {
+              sessionId_personId_roleDefinitionId: {
+                sessionId,
+                personId: coModelPerson.id,
+                roleDefinitionId: modelRole.id,
+              },
+            },
+            update: {},
+            create: {
+              sessionId,
+              personId: coModelPerson.id,
+              roleDefinitionId: modelRole.id,
+              confidence: 'CONFIRMED',
+              confidenceSource: 'CREDIT_MATCH',
+            },
+          })
+        }
+      }
+
+      // Add artist credit if not already present
+      const artist = data.artist as string | null
+      if (artist) {
+        const existingCredit = await tx.setCreditRaw.findFirst({
+          where: { setId, nameNorm: artist.toLowerCase() },
+          select: { id: true },
+        })
+        if (!existingCredit) {
+          await tx.setCreditRaw.create({
+            data: {
+              setId,
+              rawName: artist,
+              nameNorm: artist.toLowerCase(),
+              resolutionStatus: 'UNRESOLVED',
+            },
+          })
+        }
+      }
+
+      // Fill empty fields on the Set
+      const existingSet = await tx.set.findUnique({
+        where: { id: setId },
+        select: { description: true, imageCount: true },
+      })
+      if (existingSet) {
+        const updates: Record<string, unknown> = {}
+        if (!existingSet.description && data.description) updates.description = data.description
+        if (existingSet.imageCount == null && data.imageCount != null) updates.imageCount = data.imageCount
+        if (Object.keys(updates).length > 0) {
+          await tx.set.update({ where: { id: setId }, data: updates })
+        }
+      }
+    })
+
+    await markItemImported(item.id, setId)
+    await computeDependencies(item.batchId)
+    return { success: true, entityId: setId, error: null }
+  } catch (err) {
+    return { success: false, entityId: null, error: String(err) }
+  }
+}
+
+/** Path B: Create a brand new Set + Session from import data */
+async function createNewSet(
+  item: ImportItem,
+  data: ItemData | Record<string, unknown>,
+): Promise<ImportResult> {
+  try {
     const channelName = (data.channelName as string).toUpperCase()
     const channelId = await resolveEntityId(item.batchId, `CHANNEL:${channelName}`)
     if (!channelId) {
       return { success: false, entityId: null, error: `Channel "${data.channelName}" not yet imported` }
     }
 
-    // Determine set type and date precision
     const isVideo = data.isVideo as boolean
     const dateStr = data.date as string | null
     let releaseDatePrecision: 'UNKNOWN' | 'YEAR' | 'MONTH' | 'DAY' = 'UNKNOWN'
     if (dateStr) {
-      // YYYY-MM-DD format → DAY precision
       if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) releaseDatePrecision = 'DAY'
       else if (/^\d{4}-\d{2}$/.test(dateStr)) releaseDatePrecision = 'MONTH'
       else if (/^\d{4}$/.test(dateStr)) releaseDatePrecision = 'YEAR'
     }
 
-    // Create the set using the existing standalone service
-    // We need to use prisma directly to include externalId
     const result = await prisma.$transaction(async (tx) => {
-      // Look up channel's primary label
       const channelLabel = await tx.channelLabelMap.findFirst({
         where: { channelId },
         orderBy: { confidence: 'desc' },
         select: { labelId: true },
       })
 
-      // Create session
       const title = data.title as string
       const session = await tx.session.create({
         data: {
@@ -437,7 +591,6 @@ export async function importSet(item: ImportItem): Promise<ImportResult> {
         },
       })
 
-      // Create set with externalId
       const set = await tx.set.create({
         data: {
           type: isVideo ? 'video' : 'photo',
@@ -452,16 +605,11 @@ export async function importSet(item: ImportItem): Promise<ImportResult> {
         },
       })
 
-      // Create SetSession link
       await tx.setSession.create({
-        data: {
-          setId: set.id,
-          sessionId: session.id,
-          isPrimary: true,
-        },
+        data: { setId: set.id, sessionId: session.id, isPrimary: true },
       })
 
-      // Create artist credit if present
+      // Artist credit
       const artist = data.artist as string | null
       if (artist) {
         await tx.setCreditRaw.create({
@@ -474,24 +622,53 @@ export async function importSet(item: ImportItem): Promise<ImportResult> {
         })
       }
 
-      // Add subject person as session contribution (if person is imported)
+      // Subject person contribution
       const personItem = await tx.importItem.findFirst({
         where: { batchId: item.batchId, type: 'PERSON' },
         select: { matchedEntityId: true },
       })
 
-      if (personItem?.matchedEntityId) {
-        // Find or use a default "Model" contribution role
-        const modelRole = await tx.contributionRoleDefinition.findFirst({
-          where: { slug: 'model' },
-          select: { id: true },
-        })
+      const modelRole = await tx.contributionRoleDefinition.findFirst({
+        where: { slug: 'model' },
+        select: { id: true },
+      })
 
-        if (modelRole) {
-          await tx.sessionContribution.create({
-            data: {
+      if (personItem?.matchedEntityId && modelRole) {
+        await tx.sessionContribution.create({
+          data: {
+            sessionId: session.id,
+            personId: personItem.matchedEntityId,
+            roleDefinitionId: modelRole.id,
+            confidence: 'CONFIRMED',
+            confidenceSource: 'CREDIT_MATCH',
+          },
+        })
+      }
+
+      // Co-model contributions
+      const modelsList = (data.modelsList ?? (data as ItemData).modelsList) as Array<{ name: string; icgId: string; url: string }> | null
+      if (modelsList && modelRole) {
+        const personIcgId = await getSubjectIcgId(item.batchId)
+        for (const model of modelsList) {
+          if (model.icgId === personIcgId) continue
+          const coModelPerson = await tx.person.findUnique({
+            where: { icgId: model.icgId },
+            select: { id: true },
+          })
+          if (!coModelPerson) continue
+
+          await tx.sessionContribution.upsert({
+            where: {
+              sessionId_personId_roleDefinitionId: {
+                sessionId: session.id,
+                personId: coModelPerson.id,
+                roleDefinitionId: modelRole.id,
+              },
+            },
+            update: {},
+            create: {
               sessionId: session.id,
-              personId: personItem.matchedEntityId,
+              personId: coModelPerson.id,
               roleDefinitionId: modelRole.id,
               confidence: 'CONFIRMED',
               confidenceSource: 'CREDIT_MATCH',
@@ -500,53 +677,11 @@ export async function importSet(item: ImportItem): Promise<ImportResult> {
         }
       }
 
-      // Add co-model contributions
-      const modelsList = data.modelsList as Array<{ name: string; icgId: string; url: string }> | undefined
-      if (modelsList) {
-        const personIcgId = await getSubjectIcgId(item.batchId)
-        for (const model of modelsList) {
-          if (model.icgId === personIcgId) continue // Skip subject
-
-          // Find co-model's person record
-          const coModelPerson = await tx.person.findUnique({
-            where: { icgId: model.icgId },
-            select: { id: true },
-          })
-          if (!coModelPerson) continue
-
-          const modelRole = await tx.contributionRoleDefinition.findFirst({
-            where: { slug: 'model' },
-            select: { id: true },
-          })
-
-          if (modelRole) {
-            await tx.sessionContribution.upsert({
-              where: {
-                sessionId_personId_roleDefinitionId: {
-                  sessionId: session.id,
-                  personId: coModelPerson.id,
-                  roleDefinitionId: modelRole.id,
-                },
-              },
-              update: {},
-              create: {
-                sessionId: session.id,
-                personId: coModelPerson.id,
-                roleDefinitionId: modelRole.id,
-                confidence: 'CONFIRMED',
-                confidenceSource: 'CREDIT_MATCH',
-              },
-            })
-          }
-        }
-      }
-
       return { setId: set.id, sessionId: session.id }
     })
 
     await markItemImported(item.id, result.setId)
     await computeDependencies(item.batchId)
-
     return { success: true, entityId: result.setId, error: null }
   } catch (err) {
     return { success: false, entityId: null, error: String(err) }

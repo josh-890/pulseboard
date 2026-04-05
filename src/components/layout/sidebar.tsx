@@ -13,6 +13,7 @@ import {
   ChevronsRight,
   Clapperboard,
   Library,
+  Layers,
   LogOut,
   Upload,
 } from "lucide-react";
@@ -33,6 +34,7 @@ const navItems = [
   { href: "/channels", icon: <Radio size={20} />, label: "Channels" },
   { href: "/networks", icon: <Network size={20} />, label: "Networks" },
   { href: "/import", icon: <Upload size={20} />, label: "Import" },
+  { href: "/staging-sets", icon: <Layers size={20} />, label: "Staging Sets" },
   { href: "/settings", icon: <Settings size={20} />, label: "Settings" },
 ];
 

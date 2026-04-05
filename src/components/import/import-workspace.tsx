@@ -22,6 +22,7 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ImportStatusBadge } from './import-status-badge'
 import { ImportItemDetail } from './import-item-detail'
 import { ChannelResolution } from './channel-resolution'
+import { SetBatchSummary } from './set-batch-summary'
 import { cn } from '@/lib/utils'
 import Link from 'next/link'
 
@@ -49,7 +50,6 @@ export function ImportWorkspace({ batch }: ImportWorkspaceProps) {
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [isImporting, setIsImporting] = useState(false)
   const [importingItemId, setImportingItemId] = useState<string | null>(null)
-
   // Group items by type
   const itemsByType = useMemo(() => {
     const groups: Record<string, ImportItem[]> = {}
@@ -61,7 +61,20 @@ export function ImportWorkspace({ batch }: ImportWorkspaceProps) {
     return groups
   }, [batch.items])
 
-  const currentItems = useMemo(() => itemsByType[activeTab] || [], [itemsByType, activeTab])
+  const currentItems = useMemo(() => {
+    const items = itemsByType[activeTab] || []
+    if (activeTab === 'SET') {
+      return [...items].sort((a, b) => {
+        const dateA = (a.data as Record<string, unknown>).date as string | null
+        const dateB = (b.data as Record<string, unknown>).date as string | null
+        if (!dateA && !dateB) return 0
+        if (!dateA) return 1
+        if (!dateB) return -1
+        return dateA.localeCompare(dateB)
+      })
+    }
+    return items
+  }, [itemsByType, activeTab])
   const selectedItem = selectedItemId
     ? batch.items.find((i) => i.id === selectedItemId)
     : null
@@ -277,8 +290,8 @@ export function ImportWorkspace({ batch }: ImportWorkspaceProps) {
         </Tabs>
       </div>
 
-      {/* Tab action bar — shown when there are actionable items */}
-      {!isPersonTab && (tabReadyCount > 0 || tabIdenticalCount > 0) && (
+      {/* Tab action bar — shown when there are actionable items (not for SET tab — has own bulk actions) */}
+      {!isPersonTab && activeTab !== 'SET' && (tabReadyCount > 0 || tabIdenticalCount > 0) && (
         <div className="flex shrink-0 items-center gap-3 border-b border-border/50 px-4 py-2">
           {tabReadyCount > 0 && (
             <Button
@@ -304,6 +317,10 @@ export function ImportWorkspace({ batch }: ImportWorkspaceProps) {
       )}
 
       {/* Split panel: item list + detail */}
+      {/* SET tab shows summary card with link to staging workspace */}
+      {activeTab === 'SET' ? (
+        <SetBatchSummary batch={batch} />
+      ) : (
       <div className="flex min-h-0 flex-1">
         {/* Left: Item list (hidden for Person tab — always 1 item) */}
         {!isPersonTab && <div className="w-80 shrink-0 overflow-y-auto border-r border-border/50 lg:w-96">
@@ -330,8 +347,8 @@ export function ImportWorkspace({ batch }: ImportWorkspaceProps) {
                 displayName = data.name as string
                 break
               case 'SET': {
-                const isVideo = data.isVideo as boolean
-                displayName = `${isVideo ? '🎬' : '📷'} ${data.title}`
+                const dateStr = data.date as string | null
+                displayName = `${dateStr ?? '????-??-??'} ${data.channelName}`
                 break
               }
               case 'CO_MODEL':
@@ -352,7 +369,14 @@ export function ImportWorkspace({ batch }: ImportWorkspaceProps) {
                 onClick={() => setSelectedItemId(item.id)}
               >
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm">{displayName}</p>
+                  {item.type === 'SET' ? (
+                    <>
+                      <p className="truncate text-xs text-muted-foreground">{displayName}</p>
+                      <p className="truncate text-sm">{(data.title as string)}</p>
+                    </>
+                  ) : (
+                    <p className="truncate text-sm">{displayName}</p>
+                  )}
                   {item.matchDetails && (
                     <p className="truncate text-[10px] text-muted-foreground">
                       {item.matchDetails}
@@ -419,6 +443,7 @@ export function ImportWorkspace({ batch }: ImportWorkspaceProps) {
           )}
         </div>
       </div>
+      )}
     </div>
   )
 }
