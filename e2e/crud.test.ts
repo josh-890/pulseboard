@@ -426,12 +426,12 @@ test.describe("Sessions CRUD", () => {
 // ── Video sets ────────────────────────────────────────────────────────────────
 
 test.describe("Video sets", () => {
-  test("video set detail shows Frames chip (not Photos)", async ({ page }) => {
+  test("video set detail shows Video type chip", async ({ page }) => {
     await page.goto("/sets/seed-set-video-1");
-    // "Frames" completeness chip should be visible
-    await expect(page.getByText("Frames", { exact: true })).toBeVisible();
-    // "Photos" chip must NOT appear
-    await expect(page.getByText("Photos", { exact: true })).not.toBeVisible();
+    // "Video" type chip should be visible
+    await expect(page.getByText("Video", { exact: true })).toBeVisible();
+    // Media count should appear
+    await expect(page.getByText(/\d+ media/)).toBeVisible();
   });
 
   test("video set detail shows clip group headers for sourceVideoRef frames", async ({ page }) => {
