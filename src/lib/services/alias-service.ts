@@ -26,7 +26,9 @@ export type BulkImportResult = {
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
-function normalizeForSearch(name: string): string {
+import { refreshStatusesForNameNorm } from '@/lib/services/import/participant-status-service'
+
+export function normalizeForSearch(name: string): string {
   return name
     .toLowerCase()
     .normalize("NFD")
@@ -130,7 +132,7 @@ export async function createAlias(
   notes?: string | null,
   channelIds?: string[],
 ) {
-  return prisma.$transaction(async (tx) => {
+  const result = await prisma.$transaction(async (tx) => {
     const alias = await tx.personAlias.create({
       data: {
         personId,
@@ -155,6 +157,11 @@ export async function createAlias(
 
     return alias;
   });
+
+  // Refresh participant statuses on staging sets that match this alias name
+  refreshStatusesForNameNorm(normalizeForSearch(name)).catch(() => {});
+
+  return result;
 }
 
 export async function updateAlias(

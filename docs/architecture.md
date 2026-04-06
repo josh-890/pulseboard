@@ -56,7 +56,7 @@ Media path:
 | `/collections` | `getAllCollections()` | `CollectionList`, `AddCollectionDialog` |
 | `/settings` | `getAllSkillGroups()`, `getAllCategoryGroups()`, `getAllContributionRoleGroups()` | `SkillCatalogManager`, `MediaCategoryManager`, `ContributionRoleManager` |
 | `/import` | `getAllBatches()` | `ImportUploadZone`, `ImportBatchList` |
-| `/staging-sets` | (client-fetched via API) | `StagingSetsWorkspace` → `StagingSetDetail`, `SetComparisonGrid` |
+| `/staging-sets` | (client-fetched via API) | `StagingSetsWorkspace` → `StagingSetFilterBar`, `StagingSetGrid` → `StagingSetCard`, `StagingSetSlidePanel` → `StagingSetCoverUpload`, `SetComparisonGrid` |
 
 ### Detail Pages
 
@@ -192,6 +192,7 @@ All actions in `src/lib/actions/`. Each validates input with Zod, calls services
 | `/api/staging-sets/[id]/promote` | POST | Promote staging set to production |
 | `/api/staging-sets/bulk-update` | POST | Bulk status change |
 | `/api/staging-sets/bulk-promote` | POST | Bulk promote to production |
+| `/api/staging-sets/[id]/cover` | POST | Upload cover image (FormData → resize → MinIO) |
 | `/api/flags/[code]` | GET | Country flag image |
 
 ---

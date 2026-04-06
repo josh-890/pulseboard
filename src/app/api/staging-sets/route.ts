@@ -18,6 +18,10 @@ export async function GET(request: Request) {
         ? priorityParam.split(',').map(Number)
         : undefined
 
+      const isVideoParam = url.searchParams.get('isVideo')
+      const isVideo = isVideoParam === 'true' ? true : isVideoParam === 'false' ? false : undefined
+      const noDate = url.searchParams.get('noDate') === 'true' || undefined
+
       const result = await getStagingSetsFiltered({
         status,
         hasMatch: url.searchParams.get('hasMatch') === 'true'
@@ -26,6 +30,8 @@ export async function GET(request: Request) {
             ? false
             : undefined,
         matchType: (url.searchParams.get('matchType') as 'exact' | 'probable') || undefined,
+        isVideo,
+        noDate,
         personId: url.searchParams.get('personId') || undefined,
         channelId: url.searchParams.get('channelId') || undefined,
         dateFrom: url.searchParams.get('dateFrom') || undefined,
@@ -33,9 +39,10 @@ export async function GET(request: Request) {
         batchId: url.searchParams.get('batchId') || undefined,
         priority,
         search: url.searchParams.get('search') || undefined,
-        sort: (url.searchParams.get('sort') as 'date' | 'title' | 'priority' | 'importDate') || undefined,
+        sort: (url.searchParams.get('sort') as 'date' | 'title' | 'priority' | 'importDate' | 'undatedFirst') || undefined,
         sortDir: (url.searchParams.get('sortDir') as 'asc' | 'desc') || undefined,
         cursor: url.searchParams.get('cursor') || undefined,
+        offset: url.searchParams.get('offset') ? Number(url.searchParams.get('offset')) : undefined,
         limit: url.searchParams.get('limit') ? Number(url.searchParams.get('limit')) : undefined,
       })
 

@@ -16,6 +16,14 @@ export type StagingSetWithRelations = StagingSet & {
   matchedSet: { id: string; title: string; channelId: string | null } | null
 }
 
+export type ParticipantStatus = {
+  name: string
+  icgId: string
+  status: 'known' | 'candidate' | 'new'
+  personId?: string
+  thumbnailUrl?: string
+}
+
 type ParticipantInfo = {
   personId: string
   name: string
@@ -294,6 +302,8 @@ export type StagingSetFilters = {
   status?: StagingSetStatus[]
   hasMatch?: boolean
   matchType?: 'exact' | 'probable'
+  isVideo?: boolean
+  noDate?: boolean
   personId?: string
   channelId?: string
   dateFrom?: string
@@ -301,9 +311,10 @@ export type StagingSetFilters = {
   batchId?: string
   priority?: number[]
   search?: string
-  sort?: 'date' | 'title' | 'priority' | 'importDate'
+  sort?: 'date' | 'title' | 'priority' | 'importDate' | 'undatedFirst'
   sortDir?: 'asc' | 'desc'
   cursor?: string
+  offset?: number
   limit?: number
 }
 
@@ -366,6 +377,14 @@ export async function getStagingSetsFiltered(filters: StagingSetFilters): Promis
     conditions.push({ priority: { in: filters.priority } })
   }
 
+  if (filters.isVideo !== undefined) {
+    conditions.push({ isVideo: filters.isVideo })
+  }
+
+  if (filters.noDate) {
+    conditions.push({ releaseDate: null })
+  }
+
   if (filters.search) {
     const term = filters.search.toLowerCase()
     conditions.push({
@@ -373,6 +392,8 @@ export async function getStagingSetsFiltered(filters: StagingSetFilters): Promis
         { titleNorm: { contains: term } },
         { channelName: { contains: filters.search, mode: 'insensitive' } },
         { artistNorm: { contains: term } },
+        { subjectIcgId: { contains: term, mode: 'insensitive' } },
+        { participantNamesNorm: { contains: term } },
       ],
     })
   }
@@ -381,36 +402,52 @@ export async function getStagingSetsFiltered(filters: StagingSetFilters): Promis
     where.AND = conditions
   }
 
-  // Sort
+  // Sort — always include { id: 'asc' } as final tiebreaker so cursor
+  // pagination is deterministic even when primary sort columns have duplicates.
   const sortDir = filters.sortDir ?? 'asc'
   let orderBy: Prisma.StagingSetOrderByWithRelationInput[]
   switch (filters.sort) {
     case 'title':
-      orderBy = [{ titleNorm: sortDir }, { releaseDate: 'asc' }]
+      orderBy = [{ titleNorm: sortDir }, { releaseDate: 'asc' }, { id: 'asc' }]
       break
     case 'priority':
-      orderBy = [{ priority: { sort: sortDir, nulls: 'last' } }, { releaseDate: 'asc' }]
+      orderBy = [{ priority: { sort: sortDir, nulls: 'last' } }, { releaseDate: 'asc' }, { id: 'asc' }]
       break
     case 'importDate':
-      orderBy = [{ createdAt: sortDir }]
+      orderBy = [{ createdAt: sortDir }, { id: 'asc' }]
+      break
+    case 'undatedFirst':
+      orderBy = [{ releaseDate: { sort: 'asc', nulls: 'first' } }, { title: 'asc' }, { id: 'asc' }]
       break
     default: // 'date'
-      orderBy = [{ releaseDate: { sort: sortDir, nulls: 'last' } }, { title: 'asc' }]
+      orderBy = [{ releaseDate: { sort: sortDir, nulls: 'last' } }, { title: 'asc' }, { id: 'asc' }]
   }
 
   const limit = filters.limit ?? 100
 
+  const findArgs = {
+    where,
+    include: {
+      channel: { select: { id: true, name: true } },
+      matchedSet: { select: { id: true, title: true, channelId: true } },
+    } as const,
+    orderBy,
+    take: limit + 1,
+    skip: 0 as number,
+    cursor: undefined as { id: string } | undefined,
+  }
+
+  // Prefer offset pagination (reliable with any sort order).
+  // Fall back to cursor pagination for backwards compatibility.
+  if (filters.offset != null) {
+    findArgs.skip = filters.offset
+  } else if (filters.cursor) {
+    findArgs.cursor = { id: filters.cursor }
+    findArgs.skip = 1
+  }
+
   const [items, total] = await Promise.all([
-    prisma.stagingSet.findMany({
-      where,
-      include: {
-        channel: { select: { id: true, name: true } },
-        matchedSet: { select: { id: true, title: true, channelId: true } },
-      },
-      orderBy,
-      take: limit + 1,
-      ...(filters.cursor ? { cursor: { id: filters.cursor }, skip: 1 } : {}),
-    }),
+    prisma.stagingSet.findMany(findArgs),
     prisma.stagingSet.count({ where }),
   ])
 
@@ -430,12 +467,13 @@ export type StagingSetStats = {
   total: number
   byStatus: Record<string, number>
   byMatchType: { none: number; exact: number; probable: number }
+  byType: { photo: number; video: number }
 }
 
 export async function getStagingSetStats(batchId?: string): Promise<StagingSetStats> {
   const where: Prisma.StagingSetWhereInput = batchId ? { importBatchId: batchId } : {}
 
-  const [total, statusCounts, exactCount, probableCount] = await Promise.all([
+  const [total, statusCounts, exactCount, probableCount, videoCount] = await Promise.all([
     prisma.stagingSet.count({ where }),
     prisma.stagingSet.groupBy({
       by: ['status'],
@@ -447,6 +485,9 @@ export async function getStagingSetStats(batchId?: string): Promise<StagingSetSt
     }),
     prisma.stagingSet.count({
       where: { ...where, matchedSetId: { not: null }, matchConfidence: { lt: 1.0 } },
+    }),
+    prisma.stagingSet.count({
+      where: { ...where, isVideo: true },
     }),
   ])
 
@@ -462,6 +503,10 @@ export async function getStagingSetStats(batchId?: string): Promise<StagingSetSt
       none: total - exactCount - probableCount,
       exact: exactCount,
       probable: probableCount,
+    },
+    byType: {
+      photo: total - videoCount,
+      video: videoCount,
     },
   }
 }

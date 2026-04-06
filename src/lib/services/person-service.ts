@@ -20,6 +20,7 @@ import type { PersonStatus, Prisma } from "@/generated/prisma/client";
 import { expandRegionFilter } from "@/lib/constants/body-regions";
 import type { CreatePersonInput, UpdatePersonInput } from "@/lib/validations/person";
 import { batchComputeCompleteness } from "@/lib/services/completeness-service";
+import { refreshStatusesForIcgId } from "@/lib/services/import/participant-status-service";
 import {
   cascadeDeleteSession,
   cascadeDeleteBodyModifications,
@@ -1039,7 +1040,7 @@ export async function countPersons(): Promise<number> {
 }
 
 export async function createPersonRecord(data: CreatePersonInput) {
-  return prisma.$transaction(async (tx) => {
+  const person = await prisma.$transaction(async (tx) => {
     const person = await tx.person.create({
       data: {
         icgId: data.icgId,
@@ -1141,6 +1142,11 @@ export async function createPersonRecord(data: CreatePersonInput) {
 
     return person;
   });
+
+  // Refresh participant statuses on staging sets that reference this icgId
+  refreshStatusesForIcgId(data.icgId).catch(() => {});
+
+  return person;
 }
 
 export async function updatePersonRecord(id: string, data: UpdatePersonInput) {

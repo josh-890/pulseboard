@@ -1,50 +1,28 @@
 'use client'
 
-import { useState, useEffect, useCallback, useMemo } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import { useSearchParams } from 'next/navigation'
 import {
-  ImageIcon,
-  Film,
-  Users,
-  ArrowRight,
   Loader2,
   Check,
   X,
   Archive,
-  Link2,
-  Search,
+  CheckSquare,
+  RefreshCw,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { cn } from '@/lib/utils'
-import { StagingSetDetail } from './staging-set-detail'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { StagingSetGrid } from './staging-set-grid'
+import { StagingSetFilterBar, DEFAULT_FILTERS } from './staging-set-filter-bar'
+import { StagingSetSlidePanel } from './staging-set-slide-panel'
+import { useGridKeyboardNav } from '@/hooks/use-grid-keyboard-nav'
+import type { StagingSetFilterState } from './staging-set-filter-bar'
 import type { StagingSetWithRelations, StagingSetStats } from '@/lib/services/import/staging-set-service'
 import type { StagingSetStatus } from '@/generated/prisma/client'
-
-// ─── Constants ─────────────────────────────────────────────────────────────
-
-const STATUS_CONFIG: Array<{ value: StagingSetStatus; label: string; dot: string }> = [
-  { value: 'PENDING', label: 'Pending', dot: 'bg-blue-500' },
-  { value: 'REVIEWING', label: 'Reviewing', dot: 'bg-yellow-500' },
-  { value: 'APPROVED', label: 'Approved', dot: 'bg-cyan-500' },
-  { value: 'PROMOTED', label: 'Promoted', dot: 'bg-emerald-500' },
-  { value: 'INACTIVE', label: 'Inactive', dot: 'bg-gray-400' },
-  { value: 'SKIPPED', label: 'Skipped', dot: 'bg-gray-400' },
-]
-
-const PRIORITY_LABELS: Record<number, string> = {
-  1: 'Low',
-  2: 'Medium',
-  3: 'High',
-  4: 'Urgent',
-}
-
-const PRIORITY_COLORS: Record<number, string> = {
-  1: 'text-gray-400',
-  2: 'text-blue-400',
-  3: 'text-amber-400',
-  4: 'text-red-400',
-}
+import {
+  refreshParticipantStatusesAction,
+  autoRefreshParticipantStatusesAction,
+} from '@/lib/actions/staging-set-actions'
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
@@ -57,74 +35,141 @@ type FetchResult = {
 // ─── Component ─────────────────────────────────────────────────────────────
 
 export function StagingSetsWorkspace() {
-  const router = useRouter()
   const searchParams = useSearchParams()
 
-  // ── Filter state from URL ──────────────────────────────────────────────
-  const batchId = searchParams.get('batchId') || undefined
-  const [statusFilter, setStatusFilter] = useState<StagingSetStatus[]>(
-    () => {
-      const param = searchParams.get('status')
-      return param ? param.split(',') as StagingSetStatus[] : ['PENDING', 'REVIEWING', 'APPROVED']
-    }
-  )
-  const [searchQuery, setSearchQuery] = useState(searchParams.get('search') || '')
-  const [sortBy, setSortBy] = useState<'date' | 'title' | 'priority' | 'importDate'>(
-    (searchParams.get('sort') as 'date') || 'date'
+  // ── Tab state ─────────────────────────────────────────────────────────
+  const [activeTab, setActiveTab] = useState<'photo' | 'video'>(
+    searchParams.get('type') === 'video' ? 'video' : 'photo',
   )
 
-  // ���─ Data state ─────────────────────────────────────────────────────────
+  // ── Filter state ──────────────────────────────────────────────────────
+  const [filters, setFilters] = useState<StagingSetFilterState>(() => {
+    const statusParam = searchParams.get('status')
+    const batchId = searchParams.get('batchId') || undefined
+    return {
+      ...DEFAULT_FILTERS,
+      status: statusParam
+        ? (statusParam.split(',') as StagingSetStatus[])
+        : DEFAULT_FILTERS.status,
+      batchId,
+      search: searchParams.get('search') || '',
+      sort: (searchParams.get('sort') as StagingSetFilterState['sort']) || 'date',
+      groupBy: (searchParams.get('groupBy') as StagingSetFilterState['groupBy']) || 'none',
+    }
+  })
+
+  // ── Data state ────────────────────────────────────────────────────────
   const [data, setData] = useState<FetchResult | null>(null)
   const [stats, setStats] = useState<StagingSetStats | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [isLoadingMore, setIsLoadingMore] = useState(false)
+
+  const [isRefreshing, setIsRefreshing] = useState(false)
+
+  // ── Selection state ───────────────────────────────────────────────────
   const [selectedId, setSelectedId] = useState<string | null>(null)
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [isMultiSelectMode, setIsMultiSelectMode] = useState(false)
+  const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set())
   const [isProcessing, setIsProcessing] = useState(false)
 
-  // ── Fetch data ─────────────────────────────────────────────────────────
-  const fetchData = useCallback(async () => {
-    setIsLoading(true)
-    const params = new URLSearchParams()
-    if (statusFilter.length) params.set('status', statusFilter.join(','))
-    if (searchQuery) params.set('search', searchQuery)
-    if (batchId) params.set('batchId', batchId)
-    params.set('sort', sortBy)
-    params.set('limit', '200')
-
-    try {
-      const [listRes, statsRes] = await Promise.all([
-        fetch(`/api/staging-sets?${params}`),
-        fetch(`/api/staging-sets/stats${batchId ? `?batchId=${batchId}` : ''}`),
-      ])
-      const [listData, statsData] = await Promise.all([
-        listRes.json() as Promise<FetchResult>,
-        statsRes.json() as Promise<StagingSetStats>,
-      ])
-      setData(listData)
-      setStats(statsData)
-    } catch {
-      // Silently fail
-    } finally {
-      setIsLoading(false)
-    }
-  }, [statusFilter, searchQuery, batchId, sortBy])
-
-  useEffect(() => { fetchData() }, [fetchData])
-
+  const isPanelOpen = selectedId !== null
   const selectedSet = useMemo(
     () => data?.items.find((s) => s.id === selectedId) ?? null,
     [data, selectedId],
   )
 
-  // ── Actions ────────────────────────────────────────────────────────────
+  // ── Grid ref for keyboard nav ─────────────────────────────────────────
+  const gridRef = useRef<HTMLDivElement | null>(null)
+  const scrollToIndexRef = useRef<((index: number) => void) | null>(null)
 
-  const handleStatusChange = useCallback(async (id: string, status: StagingSetStatus) => {
-    await fetch(`/api/staging-sets/${id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status }),
-    })
+  // ── Fetch data ────────────────────────────────────────────────────────
+  const fetchData = useCallback(async (append?: boolean, _cursor?: string, offset?: number) => {
+    if (!append) setIsLoading(true)
+    else setIsLoadingMore(true)
+
+    const params = new URLSearchParams()
+    if (filters.status.length) params.set('status', filters.status.join(','))
+    if (filters.search) params.set('search', filters.search)
+    if (filters.batchId) params.set('batchId', filters.batchId)
+    if (filters.noDate) params.set('noDate', 'true')
+    if (filters.matchType === 'exact') params.set('matchType', 'exact')
+    else if (filters.matchType === 'probable') params.set('matchType', 'probable')
+    else if (filters.matchType === 'none') params.set('hasMatch', 'false')
+    if (filters.dateFrom) params.set('dateFrom', filters.dateFrom)
+    if (filters.dateTo) params.set('dateTo', filters.dateTo)
+    if (filters.priority.length) params.set('priority', filters.priority.join(','))
+    if (filters.channelId) params.set('channelId', filters.channelId)
+    params.set('isVideo', activeTab === 'video' ? 'true' : 'false')
+    params.set('sort', filters.sort)
+    params.set('limit', '50')
+    if (offset != null) params.set('offset', String(offset))
+
+    try {
+      const [listRes, statsRes] = await Promise.all([
+        fetch(`/api/staging-sets?${params}`),
+        // Stats should reflect all items, not just current page
+        !append ? fetch(`/api/staging-sets/stats${filters.batchId ? `?batchId=${filters.batchId}` : ''}`) : Promise.resolve(null),
+      ])
+      const listData = (await listRes.json()) as FetchResult
+
+      if (append) {
+        setData((prev) => prev ? {
+          items: [...prev.items, ...listData.items],
+          total: listData.total,
+          nextCursor: listData.nextCursor,
+        } : listData)
+      } else {
+        setData(listData)
+      }
+
+      if (statsRes) {
+        const statsData = (await statsRes.json()) as StagingSetStats
+        setStats(statsData)
+      }
+    } catch {
+      // Silently fail
+    } finally {
+      setIsLoading(false)
+      setIsLoadingMore(false)
+    }
+  }, [filters, activeTab])
+
+  useEffect(() => {
     fetchData()
+  }, [fetchData])
+
+  // Auto-refresh participant statuses if >24hrs stale (runs once on mount)
+  const autoRefreshRan = useRef(false)
+  useEffect(() => {
+    if (autoRefreshRan.current) return
+    autoRefreshRan.current = true
+    autoRefreshParticipantStatusesAction().then(({ updated }) => {
+      if (updated > 0) fetchData(false)
+    }).catch(() => {})
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Actions ───────────────────────────────────────────────────────────
+  const handleStatusChange = useCallback(async (id: string, status: StagingSetStatus) => {
+    // Optimistic update
+    setData((prev) => {
+      if (!prev) return prev
+      return {
+        ...prev,
+        items: prev.items.map((item) =>
+          item.id === id ? { ...item, status } : item,
+        ),
+      }
+    })
+    try {
+      await fetch(`/api/staging-sets/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status }),
+      })
+      fetchData()
+    } catch {
+      fetchData() // revert on error
+    }
   }, [fetchData])
 
   const handlePromote = useCallback(async (id: string) => {
@@ -150,46 +195,47 @@ export function StagingSetsWorkspace() {
     fetchData()
   }, [fetchData])
 
-  // ── Bulk actions ───────────────────────────────────────────────────────
-
+  // ── Bulk actions ──────────────────────────────────────────────────────
   const handleBulkStatus = useCallback(async (status: StagingSetStatus) => {
-    if (selectedIds.size === 0) return
+    if (checkedIds.size === 0) return
     setIsProcessing(true)
     try {
       await fetch('/api/staging-sets/bulk-update', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ids: Array.from(selectedIds), status }),
+        body: JSON.stringify({ ids: Array.from(checkedIds), status }),
       })
-      setSelectedIds(new Set())
+      setCheckedIds(new Set())
+      setIsMultiSelectMode(false)
       fetchData()
     } finally {
       setIsProcessing(false)
     }
-  }, [selectedIds, fetchData])
+  }, [checkedIds, fetchData])
 
   const handleBulkPromote = useCallback(async () => {
-    if (selectedIds.size === 0) return
+    if (checkedIds.size === 0) return
     setIsProcessing(true)
     try {
       const res = await fetch('/api/staging-sets/bulk-promote', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ids: Array.from(selectedIds) }),
+        body: JSON.stringify({ ids: Array.from(checkedIds) }),
       })
       const result = await res.json()
       if (result.failed?.length > 0) {
         alert(`${result.failed.length} failed to promote`)
       }
-      setSelectedIds(new Set())
+      setCheckedIds(new Set())
+      setIsMultiSelectMode(false)
       fetchData()
     } finally {
       setIsProcessing(false)
     }
-  }, [selectedIds, fetchData])
+  }, [checkedIds, fetchData])
 
-  const toggleSelect = useCallback((id: string) => {
-    setSelectedIds((prev) => {
+  const toggleCheck = useCallback((id: string) => {
+    setCheckedIds((prev) => {
       const next = new Set(prev)
       if (next.has(id)) next.delete(id)
       else next.add(id)
@@ -197,86 +243,154 @@ export function StagingSetsWorkspace() {
     })
   }, [])
 
-  const toggleSelectAll = useCallback(() => {
+  const selectAll = useCallback(() => {
     if (!data) return
-    setSelectedIds((prev) => {
-      if (prev.size === data.items.length) return new Set()
-      return new Set(data.items.map((s) => s.id))
-    })
+    setCheckedIds(new Set(data.items.map((s) => s.id)))
   }, [data])
 
-  // ── Status filter toggle ───────────────────────────────────────────────
+  // ── Keyboard navigation ───────────────────────────────────────────────
+  const visibleIds = useMemo(
+    () => data?.items.map((i) => i.id) ?? [],
+    [data],
+  )
 
-  const toggleStatusFilter = useCallback((status: StagingSetStatus) => {
-    setStatusFilter((prev) =>
-      prev.includes(status)
-        ? prev.filter((s) => s !== status)
-        : [...prev, status]
-    )
+  const keyboardActions = useMemo(() => {
+    const getId = () => visibleIds[keyNav.focusedIndex] ?? null
+    return [
+      {
+        key: 'a',
+        action: () => {
+          const id = getId()
+          if (id) handleStatusChange(id, 'APPROVED')
+        },
+      },
+      {
+        key: 's',
+        action: () => {
+          const id = getId()
+          if (id) handleStatusChange(id, 'SKIPPED')
+        },
+      },
+      {
+        key: 'i',
+        action: () => {
+          const id = getId()
+          if (id) handleStatusChange(id, 'INACTIVE')
+        },
+      },
+      {
+        key: 'p',
+        action: () => {
+          const id = getId()
+          if (id) handlePromote(id)
+        },
+      },
+    ]
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visibleIds, handleStatusChange, handlePromote])
+
+  const keyNav = useGridKeyboardNav({
+    itemIds: visibleIds,
+    gridRef,
+    onFocusChange: () => {},
+    enabled: !isMultiSelectMode,
+    actions: keyboardActions,
+    onEscape: () => setSelectedId(null),
+    onOpen: (id) => setSelectedId(id),
+    onToggle: (id) => toggleCheck(id),
+    onScrollToIndex: (index) => scrollToIndexRef.current?.(index),
+  })
+
+  // ── Load more ─────────────────────────────────────────────────────────
+  const handleLoadMore = useCallback(() => {
+    if (!data || data.items.length >= data.total) return
+    fetchData(true, undefined, data.items.length)
+  }, [data, fetchData])
+
+  // ── Tab change ────────────────────────────────────────────────────────
+  const handleTabChange = useCallback((tab: string) => {
+    setActiveTab(tab as 'photo' | 'video')
+    setSelectedId(null)
+    setCheckedIds(new Set())
   }, [])
 
-  // ── Render ─────────────────────────────────────────────────────────────
+  // ── Render ────────────────────────────────────────────────────────────
+  const photoCount = stats?.byType.photo ?? 0
+  const videoCount = stats?.byType.video ?? 0
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      {/* Filter bar */}
-      <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-border/50 px-4 py-2">
-        {/* Status chips */}
-        {STATUS_CONFIG.map(({ value, label, dot }) => {
-          const isActive = statusFilter.includes(value)
-          const count = stats?.byStatus[value] ?? 0
-          return (
-            <button
-              key={value}
-              onClick={() => toggleStatusFilter(value)}
-              className={cn(
-                'flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors',
-                isActive
-                  ? 'border-border bg-muted text-foreground'
-                  : 'border-transparent text-muted-foreground hover:bg-muted/50',
-              )}
-            >
-              <span className={cn('inline-block h-1.5 w-1.5 rounded-full', dot)} />
-              {label}
-              {count > 0 && <span className="text-[10px] text-muted-foreground">{count}</span>}
-            </button>
-          )
-        })}
+      {/* Tabs */}
+      <div className="flex items-center gap-4 border-b border-border/50 px-4">
+        <Tabs value={activeTab} onValueChange={handleTabChange}>
+          <TabsList className="h-10">
+            <TabsTrigger value="photo" className="gap-1.5">
+              Photo Sets
+              <span className="text-[10px] text-muted-foreground">({photoCount})</span>
+            </TabsTrigger>
+            <TabsTrigger value="video" className="gap-1.5">
+              Video Sets
+              <span className="text-[10px] text-muted-foreground">({videoCount})</span>
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
 
-        <div className="ml-auto flex items-center gap-2">
-          {/* Search */}
-          <div className="relative">
-            <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              placeholder="Search title, channel, artist..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="h-8 w-48 pl-8 text-xs"
-            />
-          </div>
+        <span className="ml-auto" />
 
-          {/* Sort */}
-          <select
-            value={sortBy}
-            onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
-            className="h-8 rounded-md border border-input bg-background px-2 text-xs"
-          >
-            <option value="date">Sort: Date</option>
-            <option value="title">Sort: Title</option>
-            <option value="priority">Sort: Priority</option>
-            <option value="importDate">Sort: Import Date</option>
-          </select>
-        </div>
+        {/* Refresh participant statuses */}
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8"
+          title="Refresh participant statuses"
+          disabled={isRefreshing}
+          onClick={async () => {
+            setIsRefreshing(true)
+            try {
+              await refreshParticipantStatusesAction()
+              // Re-fetch current data to reflect updated statuses
+              fetchData(false)
+            } finally {
+              setIsRefreshing(false)
+            }
+          }}
+        >
+          <RefreshCw size={14} className={isRefreshing ? 'animate-spin' : ''} />
+        </Button>
+
+        {/* Multi-select toggle */}
+        <Button
+          variant={isMultiSelectMode ? 'default' : 'outline'}
+          size="sm"
+          onClick={() => {
+            if (isMultiSelectMode) {
+              setIsMultiSelectMode(false)
+              setCheckedIds(new Set())
+            } else {
+              setIsMultiSelectMode(true)
+            }
+          }}
+        >
+          <CheckSquare size={14} />
+          {isMultiSelectMode ? 'Cancel' : 'Select'}
+        </Button>
       </div>
 
-      {/* Progress bar */}
+      {/* Filter bar */}
+      <StagingSetFilterBar
+        filters={filters}
+        onChange={setFilters}
+        stats={stats}
+      />
+
+      {/* Summary line */}
       {stats && (
         <div className="flex shrink-0 items-center gap-3 border-b border-border/30 px-4 py-1.5 text-[10px] text-muted-foreground">
           <span>{data?.total ?? 0} items</span>
           {stats.byMatchType.exact > 0 && (
             <span className="flex items-center gap-1">
               <span className="inline-block h-1.5 w-1.5 rounded-full bg-purple-500" />
-              {stats.byMatchType.exact} exact matches
+              {stats.byMatchType.exact} exact
             </span>
           )}
           {stats.byMatchType.probable > 0 && (
@@ -285,139 +399,69 @@ export function StagingSetsWorkspace() {
               {stats.byMatchType.probable} probable
             </span>
           )}
-          {batchId && (
-            <button
-              onClick={() => router.push('/staging-sets')}
-              className="ml-auto text-primary hover:underline"
-            >
-              Show all batches
-            </button>
-          )}
         </div>
       )}
 
-      {/* Split panel */}
+      {/* Main content: grid + slide panel */}
       <div className="flex min-h-0 flex-1">
-        {/* Left: List */}
-        <div className="w-80 shrink-0 overflow-y-auto border-r border-border/50 lg:w-96">
+        {/* Grid area */}
+        <div className="flex-1 overflow-y-auto p-4" ref={gridRef}>
           {isLoading ? (
-            <div className="flex items-center justify-center py-12">
-              <Loader2 size={20} className="animate-spin text-muted-foreground" />
-            </div>
-          ) : data?.items.length === 0 ? (
-            <div className="p-8 text-center text-sm text-muted-foreground">
-              No staging sets match your filters
+            <div className="flex items-center justify-center py-16">
+              <Loader2 size={24} className="animate-spin text-muted-foreground" />
             </div>
           ) : (
-            data?.items.map((ss) => {
-              const isActive = selectedId === ss.id
-              const isChecked = selectedIds.has(ss.id)
-              const participants = (ss.participants as Array<{ name: string }>) ?? []
-              const statusCfg = STATUS_CONFIG.find((c) => c.value === ss.status)
-
-              return (
-                <div
-                  key={ss.id}
-                  className={cn(
-                    'flex items-center gap-2 border-b border-border/30 px-3 py-2.5 transition-colors hover:bg-muted/50',
-                    isActive && 'bg-muted',
-                  )}
-                >
-                  {/* Checkbox */}
-                  <input
-                    type="checkbox"
-                    checked={isChecked}
-                    onChange={() => toggleSelect(ss.id)}
-                    className="h-3.5 w-3.5 shrink-0 rounded border-border"
-                  />
-
-                  {/* Content */}
-                  <button
-                    className="min-w-0 flex-1 text-left"
-                    onClick={() => setSelectedId(ss.id)}
-                  >
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                      {ss.isVideo ? <Film size={10} /> : <ImageIcon size={10} />}
-                      <span>{ss.releaseDate ? new Date(ss.releaseDate).toISOString().split('T')[0] : '????-??-??'}</span>
-                      <span className="truncate">{ss.channelName}</span>
-                      {participants.length > 1 && (
-                        <span className="flex items-center gap-0.5">
-                          <Users size={9} />
-                          {participants.length}
-                        </span>
-                      )}
-                    </div>
-                    <p className="truncate text-sm">{ss.title}</p>
-                    {ss.matchedSetId && ss.status !== 'PROMOTED' && (
-                      <p className="truncate text-[10px] text-purple-400">
-                        {ss.matchConfidence === 1.0 ? 'Exact match' : `Match ${((ss.matchConfidence ?? 0) * 100).toFixed(0)}%`}
-                      </p>
-                    )}
-                    {ss.duplicateGroupId && (
-                      <p className="flex items-center gap-0.5 text-[10px] text-amber-500">
-                        <Link2 size={9} /> Duplicate group
-                      </p>
-                    )}
-                  </button>
-
-                  {/* Status + priority */}
-                  <div className="flex shrink-0 flex-col items-end gap-0.5">
-                    <span className={cn('inline-block h-2 w-2 rounded-full', statusCfg?.dot ?? 'bg-gray-400')} />
-                    {ss.priority && (
-                      <span className={cn('text-[9px] font-medium', PRIORITY_COLORS[ss.priority])}>
-                        {PRIORITY_LABELS[ss.priority]}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              )
-            })
-          )}
-        </div>
-
-        {/* Right: Detail */}
-        <div className="flex-1 overflow-y-auto">
-          {selectedSet ? (
-            <StagingSetDetail
-              stagingSet={selectedSet}
-              onStatusChange={handleStatusChange}
-              onPromote={handlePromote}
-              onFieldUpdate={handleFieldUpdate}
-              isProcessing={isProcessing}
+            <StagingSetGrid
+              items={data?.items ?? []}
+              groupBy={filters.groupBy}
+              focusedId={keyNav.focusedId}
+              selectedId={selectedId}
+              isMultiSelectMode={isMultiSelectMode}
+              checkedIds={checkedIds}
+              onSelect={(id) => setSelectedId(id === selectedId ? null : id)}
+              onToggleCheck={toggleCheck}
+              onLoadMore={handleLoadMore}
+              hasMore={!!data && data.items.length < data.total}
+              isLoadingMore={isLoadingMore}
+              total={data?.total ?? 0}
+              scrollRef={gridRef}
+              onVirtualizerReady={(fn) => { scrollToIndexRef.current = fn }}
             />
-          ) : (
-            <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-              <div className="text-center">
-                <ArrowRight size={24} className="mx-auto mb-2 opacity-30" />
-                Select a staging set to view details
-              </div>
-            </div>
           )}
         </div>
+
+        {/* Slide-out detail panel */}
+        <StagingSetSlidePanel
+          stagingSet={selectedSet}
+          isOpen={isPanelOpen}
+          onClose={() => setSelectedId(null)}
+          onStatusChange={handleStatusChange}
+          onPromote={handlePromote}
+          onFieldUpdate={handleFieldUpdate}
+          onRefresh={() => fetchData()}
+          isProcessing={isProcessing}
+        />
       </div>
 
       {/* Bulk action bar */}
-      {selectedIds.size > 0 && (
+      {isMultiSelectMode && checkedIds.size > 0 && (
         <div className="flex shrink-0 items-center gap-3 border-t border-border/50 bg-muted/50 px-4 py-2">
           <button
-            onClick={toggleSelectAll}
+            onClick={selectAll}
             className="text-xs text-muted-foreground hover:text-foreground"
           >
-            {selectedIds.size === data?.items.length ? 'Deselect all' : 'Select all'}
+            {checkedIds.size === data?.items.length ? 'Deselect all' : 'Select all'}
           </button>
-          <span className="text-xs font-medium">{selectedIds.size} selected</span>
+          <span className="text-xs font-medium">{checkedIds.size} selected</span>
           <div className="ml-auto flex items-center gap-2">
             <Button size="sm" variant="outline" onClick={() => handleBulkStatus('APPROVED')} disabled={isProcessing}>
-              <Check size={14} />
-              Approve
+              <Check size={14} /> Approve
             </Button>
             <Button size="sm" variant="outline" onClick={() => handleBulkStatus('INACTIVE')} disabled={isProcessing}>
-              <Archive size={14} />
-              Inactive
+              <Archive size={14} /> Inactive
             </Button>
             <Button size="sm" variant="outline" onClick={() => handleBulkStatus('SKIPPED')} disabled={isProcessing}>
-              <X size={14} />
-              Skip
+              <X size={14} /> Skip
             </Button>
             <Button size="sm" onClick={handleBulkPromote} disabled={isProcessing}>
               {isProcessing ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}

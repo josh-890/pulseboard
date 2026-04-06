@@ -16,6 +16,7 @@ import {
 } from './parser'
 import type { ParsedSet } from './parser'
 import { matchAllEntities } from './matcher'
+import { normalizeForSearch } from '@/lib/services/alias-service'
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -387,6 +388,32 @@ async function createStagingSetsForBatch(
     select: { id: true },
   })
 
+  // Batch lookup for participant resolution statuses
+  const allParticipantIcgIds = new Set<string>()
+  const allParticipantNames = new Set<string>()
+  for (const set of parsedSets) {
+    for (const m of set.modelsList) {
+      allParticipantIcgIds.add(m.icgId)
+      allParticipantNames.add(normalizeForSearch(m.name))
+    }
+  }
+
+  const knownPersons = await prisma.person.findMany({
+    where: { icgId: { in: Array.from(allParticipantIcgIds) } },
+    select: { id: true, icgId: true },
+  })
+  const personByIcgId = new Map(knownPersons.map((p) => [p.icgId, p.id]))
+
+  const candidateAliases = await prisma.personAlias.findMany({
+    where: { nameNorm: { in: Array.from(allParticipantNames) } },
+    select: { nameNorm: true },
+  })
+  const candidateNameNorms = new Set(candidateAliases.map((a) => a.nameNorm))
+
+  // Batch fetch headshot thumbnails for known persons
+  const { getHeadshotsForPersons } = await import('@/lib/services/media-service')
+  const headshotMap = await getHeadshotsForPersons(Array.from(personByIcgId.values()))
+
   for (let idx = 0; idx < parsedSets.length; idx++) {
     const set = parsedSets[idx]
     const importItem = setItems[idx]
@@ -448,6 +475,23 @@ async function createStagingSetsForBatch(
       }
     }
 
+    // Compute participant resolution statuses
+    const participantStatuses = set.modelsList.map((m) => {
+      const personId = personByIcgId.get(m.icgId)
+      if (personId) {
+        const headshot = headshotMap.get(personId)
+        return {
+          name: m.name, icgId: m.icgId, status: 'known' as const,
+          personId, thumbnailUrl: headshot?.url,
+        }
+      }
+      const nameNorm = normalizeForSearch(m.name)
+      if (candidateNameNorms.has(nameNorm)) {
+        return { name: m.name, icgId: m.icgId, status: 'candidate' as const }
+      }
+      return { name: m.name, icgId: m.icgId, status: 'new' as const }
+    })
+
     await prisma.stagingSet.create({
       data: {
         title: set.title,
@@ -465,6 +509,10 @@ async function createStagingSetsForBatch(
         description: set.description,
         participants: set.modelsList,
         participantIcgIds,
+        participantNamesNorm: set.modelsList.length > 0
+          ? set.modelsList.map((m) => m.name.toLowerCase()).join(', ')
+          : null,
+        participantStatuses,
         importBatchId: batchId,
         importItemId: importItem.id,
         subjectPersonId: person?.id ?? null,

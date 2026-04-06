@@ -1489,8 +1489,10 @@ model StagingSet {
   artistNorm        String?
   coverImageUrl     String?
   description       String?
-  participants      Json?
-  participantIcgIds String[]
+  participants          Json?
+  participantIcgIds     String[]
+  participantNamesNorm  String?
+  participantStatuses   Json?
 
   // Provenance
   importBatchId     String
@@ -1531,6 +1533,7 @@ model StagingSet {
   @@index([subjectIcgId])
   @@index([titleNorm])
   @@index([artistNorm])
+  @@index([participantNamesNorm])
   @@index([importBatchId])
   @@index([status])
   @@index([duplicateGroupId])
