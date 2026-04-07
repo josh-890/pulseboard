@@ -31,6 +31,7 @@ import {
 } from "@/lib/validations/channel";
 import { createChannel } from "@/lib/actions/channel-actions";
 import { cn } from "@/lib/utils";
+import { CHANNEL_TIER_CONFIG } from "@/lib/constants/channel-tier";
 
 type AddChannelSheetProps = {
   labels: { id: string; name: string }[];
@@ -61,6 +62,7 @@ export function AddChannelSheet({ labels, defaultLabelId }: AddChannelSheetProps
       shortName: "",
       platform: "",
       url: "",
+      tier: "NORMAL",
     },
   });
 
@@ -238,6 +240,28 @@ export function AddChannelSheet({ labels, defaultLabelId }: AddChannelSheetProps
                           <FormLabel>URL</FormLabel>
                           <FormControl>
                             <Input placeholder="https://example.com" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="tier"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Tier</FormLabel>
+                          <FormControl>
+                            <select
+                              {...field}
+                              className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                            >
+                              {CHANNEL_TIER_CONFIG.map((t) => (
+                                <option key={t.value} value={t.value}>
+                                  {t.letter} · {t.label}
+                                </option>
+                              ))}
+                            </select>
                           </FormControl>
                           <FormMessage />
                         </FormItem>

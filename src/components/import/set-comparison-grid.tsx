@@ -1,11 +1,15 @@
 'use client'
 
 import { cn } from '@/lib/utils'
-import { Check, Plus, ArrowRight } from 'lucide-react'
+import { Check, Plus, ArrowRight, Loader2 } from 'lucide-react'
+import { useState } from 'react'
 import type { StagingSetComparison } from '@/lib/services/import/staging-set-service'
 
 type SetComparisonGridProps = {
   comparison: StagingSetComparison
+  onConfirmMatch?: () => void
+  onClearMatch?: () => void
+  onApplyField?: (field: string) => Promise<void>
 }
 
 function FieldRow({
@@ -13,32 +17,54 @@ function FieldRow({
   existingValue,
   importedValue,
   highlight,
+  isSame,
+  onApply,
+  applyingField,
 }: {
   label: string
   existingValue: string | null | undefined
   importedValue: string | null | undefined
   highlight?: boolean
+  /** Override: treat values as matching even if strings differ (e.g. resolved channel) */
+  isSame?: boolean
+  onApply?: () => void
+  applyingField?: boolean
 }) {
-  const existing = existingValue ?? '—'
-  const imported = importedValue ?? '—'
-  const isDiff = existing !== imported && importedValue != null
+  const existing = existingValue ?? '\u2014'
+  const imported = importedValue ?? '\u2014'
+  const isDiff = !isSame && existing !== imported && importedValue != null
 
   return (
     <div className={cn(
-      'grid grid-cols-[120px_1fr_1fr] gap-2 border-b border-border/30 py-1.5',
-      highlight && 'bg-emerald-500/5',
+      'grid grid-cols-[120px_1fr_1fr_24px] gap-2 border-b border-border/30 py-1.5',
+      highlight && 'bg-blue-500/5',
     )}>
       <span className="text-xs font-medium text-muted-foreground">{label}</span>
       <span className="text-sm">{existing}</span>
-      <span className={cn('text-sm', isDiff && 'font-medium text-emerald-600 dark:text-emerald-400')}>
+      <span className={cn('text-sm', isDiff && 'font-medium text-amber-600 dark:text-amber-400')}>
         {imported}
+      </span>
+      <span className="flex items-center justify-center">
+        {isDiff && onApply && (
+          <button
+            onClick={onApply}
+            disabled={applyingField}
+            className="rounded p-0.5 text-muted-foreground transition-colors hover:bg-blue-500/10 hover:text-blue-600 disabled:opacity-50"
+            title="Apply to existing set"
+          >
+            {applyingField ? <Loader2 size={12} className="animate-spin" /> : <ArrowRight size={12} />}
+          </button>
+        )}
       </span>
     </div>
   )
 }
 
-export function SetComparisonGrid({ comparison }: SetComparisonGridProps) {
+export function SetComparisonGrid({ comparison, onConfirmMatch, onClearMatch, onApplyField }: SetComparisonGridProps) {
   const { stagingSet, matchedSet, diff } = comparison
+  const [applyingField, setApplyingField] = useState<string | null>(null)
+  const [confirmLoading, setConfirmLoading] = useState(false)
+  const [clearLoading, setClearLoading] = useState(false)
 
   if (!matchedSet) return null
 
@@ -49,17 +75,82 @@ export function SetComparisonGrid({ comparison }: SetComparisonGridProps) {
     ? new Date(matchedSet.releaseDate).toLocaleDateString()
     : null
 
+  // Channel is the same if the staging set resolved to the same channel as the matched set
+  const channelIsSame = !!(
+    stagingSet.channelId && matchedSet.channel?.id &&
+    stagingSet.channelId === matchedSet.channel.id
+  )
+
+  const isConfirmed = stagingSet.matchConfidence === 1.0
+
+  const handleApply = async (field: string) => {
+    if (!onApplyField) return
+    setApplyingField(field)
+    try {
+      await onApplyField(field)
+    } finally {
+      setApplyingField(null)
+    }
+  }
+
+  const handleConfirm = async () => {
+    if (!onConfirmMatch) return
+    setConfirmLoading(true)
+    try {
+      onConfirmMatch()
+    } finally {
+      setConfirmLoading(false)
+    }
+  }
+
+  const handleClear = async () => {
+    if (!onClearMatch) return
+    setClearLoading(true)
+    try {
+      onClearMatch()
+    } finally {
+      setClearLoading(false)
+    }
+  }
+
   return (
     <div className="space-y-4">
+      {/* Confirm / Clear match buttons */}
+      {(onConfirmMatch || onClearMatch) && (
+        <div className="flex items-center gap-2">
+          {onConfirmMatch && !isConfirmed && (
+            <button
+              onClick={handleConfirm}
+              disabled={confirmLoading}
+              className="inline-flex items-center gap-1.5 rounded-md border border-purple-500/30 bg-purple-500/10 px-2.5 py-1 text-xs font-medium text-purple-700 transition-colors hover:bg-purple-500/20 disabled:opacity-50 dark:text-purple-400"
+            >
+              {confirmLoading ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />}
+              Confirm Match
+            </button>
+          )}
+          {onClearMatch && (
+            <button
+              onClick={handleClear}
+              disabled={clearLoading}
+              className="inline-flex items-center gap-1.5 rounded-md border border-border/50 px-2.5 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-50"
+            >
+              {clearLoading ? <Loader2 size={12} className="animate-spin" /> : null}
+              Wrong Match
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Column headers */}
-      <div className="grid grid-cols-[120px_1fr_1fr] gap-2">
+      <div className="grid grid-cols-[120px_1fr_1fr_24px] gap-2">
         <span />
         <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
           Existing in DB
         </span>
-        <span className="text-xs font-semibold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
+        <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
           Import Data
         </span>
+        <span />
       </div>
 
       {/* Core fields */}
@@ -73,6 +164,14 @@ export function SetComparisonGrid({ comparison }: SetComparisonGridProps) {
           label="Channel"
           existingValue={matchedSet.channel?.name}
           importedValue={stagingSet.channelName}
+          isSame={channelIsSame}
+        />
+        <FieldRow
+          label="External ID"
+          existingValue={matchedSet.externalId}
+          importedValue={stagingSet.externalId}
+          onApply={onApplyField ? () => handleApply('externalId') : undefined}
+          applyingField={applyingField === 'externalId'}
         />
         <FieldRow
           label="Date"
@@ -89,12 +188,16 @@ export function SetComparisonGrid({ comparison }: SetComparisonGridProps) {
           existingValue={matchedSet.imageCount?.toString()}
           importedValue={stagingSet.imageCount?.toString()}
           highlight={matchedSet.imageCount == null && stagingSet.imageCount != null}
+          onApply={onApplyField ? () => handleApply('imageCount') : undefined}
+          applyingField={applyingField === 'imageCount'}
         />
         <FieldRow
           label="Description"
           existingValue={matchedSet.description?.slice(0, 80)}
           importedValue={stagingSet.description?.slice(0, 80)}
           highlight={!matchedSet.description && !!stagingSet.description}
+          onApply={onApplyField ? () => handleApply('description') : undefined}
+          applyingField={applyingField === 'description'}
         />
       </div>
 
@@ -112,8 +215,8 @@ export function SetComparisonGrid({ comparison }: SetComparisonGridProps) {
         ))}
         {diff.newParticipants.map((p) => (
           <div key={p.icgId} className="flex items-center gap-2 py-1">
-            <Plus size={12} className="text-emerald-500" />
-            <span className="text-sm font-medium text-emerald-600 dark:text-emerald-400">
+            <Plus size={12} className="text-blue-500" />
+            <span className="text-sm font-medium text-blue-600 dark:text-blue-400">
               {p.name}
             </span>
             <span className="text-[10px] text-muted-foreground">({p.icgId})</span>
@@ -134,11 +237,23 @@ export function SetComparisonGrid({ comparison }: SetComparisonGridProps) {
             </div>
           ))}
           {diff.newCredits.map((name) => (
-            <div key={name} className="flex items-center gap-2 py-1">
-              <Plus size={12} className="text-emerald-500" />
-              <span className="text-sm font-medium text-emerald-600 dark:text-emerald-400">
-                {name}
-              </span>
+            <div key={name} className="flex items-center justify-between py-1">
+              <div className="flex items-center gap-2">
+                <Plus size={12} className="text-blue-500" />
+                <span className="text-sm font-medium text-blue-600 dark:text-blue-400">
+                  {name}
+                </span>
+              </div>
+              {onApplyField && (
+                <button
+                  onClick={() => handleApply('artist')}
+                  disabled={applyingField === 'artist'}
+                  className="rounded p-0.5 text-muted-foreground transition-colors hover:bg-blue-500/10 hover:text-blue-600 disabled:opacity-50"
+                  title="Add credit to existing set"
+                >
+                  {applyingField === 'artist' ? <Loader2 size={12} className="animate-spin" /> : <ArrowRight size={12} />}
+                </button>
+              )}
             </div>
           ))}
         </div>

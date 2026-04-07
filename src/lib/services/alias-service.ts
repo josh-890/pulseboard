@@ -27,14 +27,9 @@ export type BulkImportResult = {
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
 import { refreshStatusesForNameNorm } from '@/lib/services/import/participant-status-service'
+import { normalizeForSearch } from '@/lib/normalize'
 
-export function normalizeForSearch(name: string): string {
-  return name
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .trim();
-}
+export { normalizeForSearch } from '@/lib/normalize'
 
 // ─── Queries ────────────────────────────────────────────────────────────────
 

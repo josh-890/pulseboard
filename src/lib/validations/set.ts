@@ -22,6 +22,7 @@ const commonSetFields = {
   isComplete: z.boolean().default(false),
   imageCount: z.number().int().positive().optional(),
   videoLength: videoLengthSchema,
+  externalId: z.string().optional(),
 };
 
 export const updateSetSchema = z.object({

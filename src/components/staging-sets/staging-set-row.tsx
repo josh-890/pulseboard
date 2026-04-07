@@ -14,8 +14,17 @@ const STATUS_BADGE: Record<StagingSetStatus, { label: string; className: string 
   REVIEWING: { label: 'Reviewing', className: 'bg-yellow-500/15 text-yellow-500' },
   APPROVED: { label: 'Approved', className: 'bg-cyan-500/15 text-cyan-500' },
   PROMOTED: { label: 'Promoted', className: 'bg-emerald-500/15 text-emerald-500' },
-  INACTIVE: { label: 'Inactive', className: 'bg-gray-400/15 text-gray-400' },
-  SKIPPED: { label: 'Skipped', className: 'bg-gray-400/15 text-gray-400' },
+  INACTIVE: { label: 'Inactive', className: 'bg-gray-400/15 text-gray-600 dark:text-gray-400' },
+  SKIPPED: { label: 'Skipped', className: 'bg-gray-400/15 text-gray-600 dark:text-gray-400' },
+}
+
+const STATUS_TINT: Record<StagingSetStatus, string> = {
+  PENDING: '',
+  REVIEWING: 'bg-yellow-500/[0.04]',
+  APPROVED: 'bg-emerald-500/[0.06]',
+  PROMOTED: 'bg-emerald-500/[0.10]',
+  INACTIVE: 'opacity-50',
+  SKIPPED: 'opacity-40',
 }
 
 const PRIORITY_DOT: Record<number, string> = {
@@ -113,12 +122,16 @@ export const StagingSetRow = memo(function StagingSetRow({
         type="button"
         onClick={() => onSelect(ss.id)}
         className={cn(
-          'group flex w-full items-center gap-3 overflow-hidden rounded-xl border border-white/20 bg-card/70 px-3 py-2 shadow-sm backdrop-blur-sm',
+          'group flex w-full items-center gap-3 overflow-hidden rounded-xl border border-slate-200 bg-white/70 px-3 py-2 shadow-sm backdrop-blur-sm dark:border-border/40 dark:bg-card/70',
           'text-left transition-all duration-150',
-          'hover:border-white/30 hover:bg-card/90 hover:shadow-md',
+          'hover:border-slate-300 hover:bg-white/90 hover:shadow-md dark:hover:border-border/60 dark:hover:bg-card/90',
           'active:scale-[0.995]',
           'border-l-4',
-          ss.priority ? PRIORITY_BORDER[ss.priority] ?? 'border-l-transparent' : 'border-l-transparent',
+          hasMatch
+            ? 'border-l-purple-500'
+            : ss.priority ? PRIORITY_BORDER[ss.priority] ?? 'border-l-transparent' : 'border-l-transparent',
+          STATUS_TINT[ss.status],
+          hasMatch && 'bg-purple-500/[0.06]',
           isSelected && 'ring-2 ring-primary',
           isFocused && !isSelected && 'ring-2 ring-ring',
           isMultiSelectMode && isChecked && 'ring-2 ring-primary',
@@ -148,7 +161,7 @@ export const StagingSetRow = memo(function StagingSetRow({
           {/* Line 1: date · channel + dup icon */}
           <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
             <span className="shrink-0">{dateStr}</span>
-            <span className="text-muted-foreground/40">·</span>
+            <span className="opacity-50">·</span>
             <span
               className={cn(
                 'truncate',

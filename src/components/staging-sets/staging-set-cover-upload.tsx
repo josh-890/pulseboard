@@ -18,6 +18,7 @@ export function StagingSetCoverUpload({
   onUploaded,
 }: StagingSetCoverUploadProps) {
   const [isUploading, setIsUploading] = useState(false)
+  const [imgError, setImgError] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const handleUpload = useCallback(async (file: File) => {
@@ -70,7 +71,7 @@ export function StagingSetCoverUpload({
               : 'border-border/50 hover:border-primary/50',
         )}
       >
-        {currentUrl ? (
+        {currentUrl && !imgError ? (
           <>
             <Image
               src={currentUrl}
@@ -78,6 +79,7 @@ export function StagingSetCoverUpload({
               fill
               className="object-cover"
               unoptimized
+              onError={() => setImgError(true)}
             />
             <div className="absolute inset-0 flex items-center justify-center bg-black/0 opacity-0 transition-all hover:bg-black/40 hover:opacity-100">
               <span className="flex items-center gap-1.5 rounded-full bg-black/60 px-3 py-1.5 text-xs text-white backdrop-blur-sm">

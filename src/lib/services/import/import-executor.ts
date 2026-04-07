@@ -6,15 +6,18 @@
  */
 
 import { prisma } from '@/lib/db'
+import { normalizeForSearch } from '@/lib/normalize'
 import type { ImportItem } from '@/generated/prisma/client'
 import { createLabelRecord } from '@/lib/services/label-service'
 import { createChannelRecord } from '@/lib/services/channel-service'
 import { createPersonRecord } from '@/lib/services/person-service'
 import { createAlias, linkAliasToChannels } from '@/lib/services/alias-service'
 import { createDigitalIdentity } from '@/lib/services/digital-identity-service'
+import { rebuildSetParticipantsFromContributions } from '@/lib/services/contribution-service'
 import { markItemImported, computeDependencies } from './staging-service'
 import { markStagingSetPromoted } from './staging-set-service'
 import { parseBreastDescription, extractCupFromMeasurements } from './import-utils'
+import { transferStagingCoverToSet } from './cover-transfer'
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -415,7 +418,15 @@ export async function importSet(item: ImportItem): Promise<ImportResult> {
     const matchedSetId = stagingSet?.matchedSetId ?? item.matchedEntityId
     if (matchedSetId) {
       const enrichResult = await enrichExistingSet(item, matchedSetId, data)
-      if (stagingSet) await markStagingSetPromoted(stagingSet.id, matchedSetId)
+      if (stagingSet) {
+        await markStagingSetPromoted(stagingSet.id, matchedSetId)
+        // Transfer cover image (fire-and-forget, non-critical)
+        if (stagingSet.coverImageUrl) {
+          transferStagingCoverToSet(stagingSet.coverImageUrl, matchedSetId).catch((err) =>
+            console.error('Cover transfer failed (enrich):', err),
+          )
+        }
+      }
       return enrichResult
     }
 
@@ -423,6 +434,12 @@ export async function importSet(item: ImportItem): Promise<ImportResult> {
     const createResult = await createNewSet(item, data)
     if (stagingSet && createResult.entityId) {
       await markStagingSetPromoted(stagingSet.id, createResult.entityId)
+      // Transfer cover image (fire-and-forget, non-critical)
+      if (stagingSet.coverImageUrl) {
+        transferStagingCoverToSet(stagingSet.coverImageUrl, createResult.entityId).catch((err) =>
+          console.error('Cover transfer failed (create):', err),
+        )
+      }
     }
     return createResult
   } catch (err) {
@@ -475,6 +492,31 @@ async function enrichExistingSet(
             confidenceSource: 'CREDIT_MATCH',
           },
         })
+
+        // Create resolved credit for subject person (if not already present)
+        const subjectPerson = await tx.person.findUnique({
+          where: { id: personItem.matchedEntityId },
+          select: { aliases: { where: { isCommon: true }, select: { name: true }, take: 1 } },
+        })
+        const subjectName = subjectPerson?.aliases[0]?.name
+        if (subjectName) {
+          const existingSubjectCredit = await tx.setCreditRaw.findFirst({
+            where: { setId, resolvedPersonId: personItem.matchedEntityId },
+            select: { id: true },
+          })
+          if (!existingSubjectCredit) {
+            await tx.setCreditRaw.create({
+              data: {
+                setId,
+                rawName: subjectName,
+                nameNorm: normalizeForSearch(subjectName),
+                roleDefinitionId: modelRole.id,
+                resolutionStatus: 'RESOLVED',
+                resolvedPersonId: personItem.matchedEntityId,
+              },
+            })
+          }
+        }
       }
 
       // Add co-model contributions
@@ -506,6 +548,24 @@ async function enrichExistingSet(
               confidenceSource: 'CREDIT_MATCH',
             },
           })
+
+          // Create resolved credit for co-model (if not already present)
+          const existingCoCredit = await tx.setCreditRaw.findFirst({
+            where: { setId, resolvedPersonId: coModelPerson.id },
+            select: { id: true },
+          })
+          if (!existingCoCredit) {
+            await tx.setCreditRaw.create({
+              data: {
+                setId,
+                rawName: model.name,
+                nameNorm: normalizeForSearch(model.name),
+                roleDefinitionId: modelRole.id,
+                resolutionStatus: 'RESOLVED',
+                resolvedPersonId: coModelPerson.id,
+              },
+            })
+          }
         }
       }
 
@@ -513,7 +573,7 @@ async function enrichExistingSet(
       const artist = data.artist as string | null
       if (artist) {
         const existingCredit = await tx.setCreditRaw.findFirst({
-          where: { setId, nameNorm: artist.toLowerCase() },
+          where: { setId, nameNorm: normalizeForSearch(artist) },
           select: { id: true },
         })
         if (!existingCredit) {
@@ -521,7 +581,7 @@ async function enrichExistingSet(
             data: {
               setId,
               rawName: artist,
-              nameNorm: artist.toLowerCase(),
+              nameNorm: normalizeForSearch(artist),
               resolutionStatus: 'UNRESOLVED',
             },
           })
@@ -541,6 +601,9 @@ async function enrichExistingSet(
           await tx.set.update({ where: { id: setId }, data: updates })
         }
       }
+
+      // Rebuild SetParticipant cache from SessionContribution
+      await rebuildSetParticipantsFromContributions(tx, setId)
     })
 
     await markItemImported(item.id, setId)
@@ -583,7 +646,7 @@ async function createNewSet(
       const session = await tx.session.create({
         data: {
           name: title,
-          nameNorm: title.toLowerCase(),
+          nameNorm: normalizeForSearch(title),
           status: 'DRAFT',
           date: dateStr ? new Date(dateStr) : undefined,
           datePrecision: releaseDatePrecision,
@@ -595,7 +658,7 @@ async function createNewSet(
         data: {
           type: isVideo ? 'video' : 'photo',
           title,
-          titleNorm: title.toLowerCase(),
+          titleNorm: normalizeForSearch(title),
           channelId,
           description: data.description as string | undefined,
           releaseDate: dateStr ? new Date(dateStr) : undefined,
@@ -616,7 +679,7 @@ async function createNewSet(
           data: {
             setId: set.id,
             rawName: artist,
-            nameNorm: artist.toLowerCase(),
+            nameNorm: normalizeForSearch(artist),
             resolutionStatus: 'UNRESOLVED',
           },
         })
@@ -643,6 +706,25 @@ async function createNewSet(
             confidenceSource: 'CREDIT_MATCH',
           },
         })
+
+        // Create resolved credit for subject person
+        const subjectPerson = await tx.person.findUnique({
+          where: { id: personItem.matchedEntityId },
+          select: { aliases: { where: { isCommon: true }, select: { name: true }, take: 1 } },
+        })
+        const subjectName = subjectPerson?.aliases[0]?.name
+        if (subjectName) {
+          await tx.setCreditRaw.create({
+            data: {
+              setId: set.id,
+              rawName: subjectName,
+              nameNorm: normalizeForSearch(subjectName),
+              roleDefinitionId: modelRole.id,
+              resolutionStatus: 'RESOLVED',
+              resolvedPersonId: personItem.matchedEntityId,
+            },
+          })
+        }
       }
 
       // Co-model contributions
@@ -674,8 +756,23 @@ async function createNewSet(
               confidenceSource: 'CREDIT_MATCH',
             },
           })
+
+          // Create resolved credit for co-model
+          await tx.setCreditRaw.create({
+            data: {
+              setId: set.id,
+              rawName: model.name,
+              nameNorm: normalizeForSearch(model.name),
+              roleDefinitionId: modelRole.id,
+              resolutionStatus: 'RESOLVED',
+              resolvedPersonId: coModelPerson.id,
+            },
+          })
         }
       }
+
+      // Rebuild SetParticipant cache from SessionContribution
+      await rebuildSetParticipantsFromContributions(tx, set.id)
 
       return { setId: set.id, sessionId: session.id }
     })

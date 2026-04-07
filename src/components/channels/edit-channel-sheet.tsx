@@ -31,6 +31,8 @@ import {
 } from "@/lib/validations/channel";
 import { updateChannel } from "@/lib/actions/channel-actions";
 import { cn } from "@/lib/utils";
+import { CHANNEL_TIER_CONFIG } from "@/lib/constants/channel-tier";
+import type { ChannelTier } from "@/generated/prisma/client";
 
 type EditChannelSheetProps = {
   channel: {
@@ -40,6 +42,7 @@ type EditChannelSheetProps = {
     labelId: string | null;
     platform: string | null;
     url: string | null;
+    tier: ChannelTier;
   };
   labels: { id: string; name: string }[];
 };
@@ -69,6 +72,7 @@ export function EditChannelSheet({ channel, labels }: EditChannelSheetProps) {
       shortName: channel.shortName ?? "",
       platform: channel.platform ?? "",
       url: channel.url ?? "",
+      tier: channel.tier ?? "NORMAL",
     },
   });
 
@@ -128,6 +132,7 @@ export function EditChannelSheet({ channel, labels }: EditChannelSheetProps) {
         shortName: channel.shortName ?? "",
         platform: channel.platform ?? "",
         url: channel.url ?? "",
+        tier: channel.tier ?? "NORMAL",
       });
       setShortNameAvailable(null);
       setIsSuggestion(!channel.shortName);
@@ -281,6 +286,28 @@ export function EditChannelSheet({ channel, labels }: EditChannelSheetProps) {
                           <FormLabel>URL</FormLabel>
                           <FormControl>
                             <Input placeholder="https://example.com" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="tier"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Tier</FormLabel>
+                          <FormControl>
+                            <select
+                              {...field}
+                              className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                            >
+                              {CHANNEL_TIER_CONFIG.map((t) => (
+                                <option key={t.value} value={t.value}>
+                                  {t.letter} · {t.label}
+                                </option>
+                              ))}
+                            </select>
                           </FormControl>
                           <FormMessage />
                         </FormItem>

@@ -12,18 +12,11 @@
 
 import { prisma } from '@/lib/db'
 import { Prisma } from '@/generated/prisma/client'
+import { normalizeForSearch } from '@/lib/normalize'
 import { getHeadshotsForPersons } from '@/lib/services/media-service'
 import type { ParticipantStatus } from './staging-set-service'
 
 const REFRESH_SETTING_KEY = 'participantStatuses.lastRefresh'
-
-function normalizeForSearch(name: string): string {
-  return name
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .trim()
-}
 
 type RawParticipant = { name: string; icgId: string }
 

@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { normalizeForSearch } from "@/lib/normalize";
 
 export async function getNetworks(q?: string) {
   return prisma.network.findMany({
@@ -66,7 +67,7 @@ export async function createNetworkRecord(data: {
   return prisma.network.create({
     data: {
       name: data.name,
-      nameNorm: data.name.toLowerCase(),
+      nameNorm: normalizeForSearch(data.name),
       description: data.description,
       website: data.website,
     },
@@ -82,7 +83,7 @@ export async function updateNetworkRecord(id: string, data: {
     where: { id },
     data: {
       name: data.name,
-      nameNorm: data.name ? data.name.toLowerCase() : undefined,
+      nameNorm: data.name ? normalizeForSearch(data.name) : undefined,
       description: data.description,
       website: data.website,
     },

@@ -7,12 +7,13 @@
  */
 
 import { prisma } from '@/lib/db'
-import type { DatePrecision, Prisma, StagingSet, StagingSetStatus } from '@/generated/prisma/client'
+import { normalizeForSearch } from '@/lib/normalize'
+import type { ChannelTier, DatePrecision, Prisma, StagingSet, StagingSetStatus } from '@/generated/prisma/client'
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
 export type StagingSetWithRelations = StagingSet & {
-  channel: { id: string; name: string } | null
+  channel: { id: string; name: string; tier: ChannelTier } | null
   matchedSet: { id: string; title: string; channelId: string | null } | null
 }
 
@@ -46,6 +47,7 @@ export type StagingSetComparison = {
     releaseDatePrecision: string
     imageCount: number | null
     description: string | null
+    externalId: string | null
     participants: ParticipantInfo[]
     credits: CreditInfo[]
   } | null
@@ -62,7 +64,7 @@ export async function getStagingSetsForBatch(batchId: string): Promise<StagingSe
   return prisma.stagingSet.findMany({
     where: { importBatchId: batchId },
     include: {
-      channel: { select: { id: true, name: true } },
+      channel: { select: { id: true, name: true, tier: true } },
       matchedSet: { select: { id: true, title: true, channelId: true } },
     },
     orderBy: [{ releaseDate: 'asc' }, { title: 'asc' }],
@@ -73,7 +75,7 @@ export async function getStagingSetById(id: string): Promise<StagingSetWithRelat
   return prisma.stagingSet.findUnique({
     where: { id },
     include: {
-      channel: { select: { id: true, name: true } },
+      channel: { select: { id: true, name: true, tier: true } },
       matchedSet: { select: { id: true, title: true, channelId: true } },
     },
   })
@@ -91,7 +93,7 @@ export async function getStagingSetsForPerson(
       ],
     },
     include: {
-      channel: { select: { id: true, name: true } },
+      channel: { select: { id: true, name: true, tier: true } },
       matchedSet: { select: { id: true, title: true, channelId: true } },
     },
     orderBy: [{ releaseDate: 'asc' }, { title: 'asc' }],
@@ -109,7 +111,7 @@ export async function getStagingSetsForChannel(
       ],
     },
     include: {
-      channel: { select: { id: true, name: true } },
+      channel: { select: { id: true, name: true, tier: true } },
       matchedSet: { select: { id: true, title: true, channelId: true } },
     },
     orderBy: [{ releaseDate: 'asc' }, { title: 'asc' }],
@@ -122,7 +124,7 @@ export async function getStagingSetDuplicateGroup(
   return prisma.stagingSet.findMany({
     where: { duplicateGroupId: groupId },
     include: {
-      channel: { select: { id: true, name: true } },
+      channel: { select: { id: true, name: true, tier: true } },
       matchedSet: { select: { id: true, title: true, channelId: true } },
     },
     orderBy: [{ createdAt: 'asc' }],
@@ -137,7 +139,7 @@ export async function getStagingSetComparison(
   const stagingSet = await prisma.stagingSet.findUnique({
     where: { id: stagingSetId },
     include: {
-      channel: { select: { id: true, name: true } },
+      channel: { select: { id: true, name: true, tier: true } },
       matchedSet: { select: { id: true, title: true, channelId: true } },
     },
   })
@@ -154,7 +156,7 @@ export async function getStagingSetComparison(
     const existingSet = await prisma.set.findUnique({
       where: { id: stagingSet.matchedSetId },
       include: {
-        channel: { select: { id: true, name: true } },
+        channel: { select: { id: true, name: true, tier: true } },
         sessionLinks: {
           where: { isPrimary: true },
           select: {
@@ -199,6 +201,7 @@ export async function getStagingSetComparison(
         releaseDatePrecision: existingSet.releaseDatePrecision,
         imageCount: existingSet.imageCount,
         description: existingSet.description,
+        externalId: existingSet.externalId,
         participants: existingParticipants,
         credits: existingSet.creditsRaw.map((c) => ({
           rawName: c.rawName,
@@ -231,6 +234,7 @@ export async function getStagingSetComparison(
       const fieldChecks: Array<{ field: string; existing: unknown; imported: unknown }> = [
         { field: 'description', existing: existingSet.description, imported: stagingSet.description },
         { field: 'imageCount', existing: existingSet.imageCount, imported: stagingSet.imageCount },
+        { field: 'externalId', existing: existingSet.externalId, imported: stagingSet.externalId },
       ]
       for (const check of fieldChecks) {
         if (check.existing == null && check.imported != null) {
@@ -306,6 +310,7 @@ export type StagingSetFilters = {
   noDate?: boolean
   personId?: string
   channelId?: string
+  channelTier?: ChannelTier[]
   dateFrom?: string
   dateTo?: string
   batchId?: string
@@ -357,6 +362,15 @@ export async function getStagingSetsFiltered(filters: StagingSetFilters): Promis
       OR: [
         { channelId: filters.channelId },
         { channelName: { equals: filters.channelId, mode: 'insensitive' } },
+      ],
+    })
+  }
+
+  if (filters.channelTier?.length) {
+    conditions.push({
+      OR: [
+        { channel: { tier: { in: filters.channelTier } } },
+        { channelId: null }, // always show unresolved staging sets
       ],
     })
   }
@@ -428,7 +442,7 @@ export async function getStagingSetsFiltered(filters: StagingSetFilters): Promis
   const findArgs = {
     where,
     include: {
-      channel: { select: { id: true, name: true } },
+      channel: { select: { id: true, name: true, tier: true } },
       matchedSet: { select: { id: true, title: true, channelId: true } },
     } as const,
     orderBy,
@@ -528,16 +542,19 @@ export async function updateStagingSetFields(
     notes: string | null
     priority: number | null
     status: StagingSetStatus
+    matchConfidence: number | null
+    matchedSetId: string | null
+    matchDetails: string | null
   }>,
 ): Promise<StagingSet> {
   const updateData: Prisma.StagingSetUpdateInput = { ...data }
 
   // Auto-compute normalized fields
   if ('title' in data && data.title !== undefined) {
-    updateData.titleNorm = data.title.toLowerCase()
+    updateData.titleNorm = normalizeForSearch(data.title)
   }
   if ('artist' in data) {
-    updateData.artistNorm = data.artist?.toLowerCase() ?? null
+    updateData.artistNorm = data.artist ? normalizeForSearch(data.artist) : null
   }
 
   return prisma.stagingSet.update({

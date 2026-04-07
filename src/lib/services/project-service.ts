@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import type { Prisma, ProjectStatus } from "@/generated/prisma/client";
+import { normalizeForSearch } from "@/lib/normalize";
 import { cascadeDeleteSession } from "./cascade-helpers";
 
 export type ProjectFilters = {
@@ -82,7 +83,7 @@ export async function createProjectRecord(data: {
   return prisma.project.create({
     data: {
       name: data.name,
-      nameNorm: data.name.toLowerCase(),
+      nameNorm: normalizeForSearch(data.name),
       description: data.description,
       status: data.status ?? "active",
       tags: data.tags ?? [],
@@ -100,7 +101,7 @@ export async function updateProjectRecord(id: string, data: {
     where: { id },
     data: {
       name: data.name,
-      nameNorm: data.name ? data.name.toLowerCase() : undefined,
+      nameNorm: data.name ? normalizeForSearch(data.name) : undefined,
       description: data.description,
       status: data.status,
       tags: data.tags,

@@ -124,6 +124,7 @@ export default async function SetDetailPage({ params }: SetDetailPageProps) {
               isComplete: setData.isComplete,
               imageCount: setData.imageCount,
               videoLength: setData.videoLength,
+              externalId: setData.externalId,
             }}
             channels={channels}
             entityTags={setTags}

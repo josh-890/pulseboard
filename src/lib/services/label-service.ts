@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { normalizeForSearch } from "@/lib/normalize";
 
 export async function getLabels(q?: string) {
   return prisma.label.findMany({
@@ -66,7 +67,7 @@ export async function createLabelRecord(data: {
   return prisma.label.create({
     data: {
       name: data.name,
-      nameNorm: data.name.toLowerCase(),
+      nameNorm: normalizeForSearch(data.name),
       description: data.description,
       website: data.website,
     },
@@ -82,7 +83,7 @@ export async function updateLabelRecord(id: string, data: {
     where: { id },
     data: {
       name: data.name,
-      nameNorm: data.name ? data.name.toLowerCase() : undefined,
+      nameNorm: data.name ? normalizeForSearch(data.name) : undefined,
       description: data.description,
       website: data.website,
     },

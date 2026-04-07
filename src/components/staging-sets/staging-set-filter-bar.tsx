@@ -4,8 +4,9 @@ import { useEffect, useRef, useState } from 'react'
 import { Search, CalendarDays, X } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
-import type { StagingSetStatus } from '@/generated/prisma/client'
+import type { ChannelTier, StagingSetStatus } from '@/generated/prisma/client'
 import type { StagingSetStats } from '@/lib/services/import/staging-set-service'
+import { CHANNEL_TIER_CONFIG, DEFAULT_STAGING_TIERS } from '@/lib/constants/channel-tier'
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
@@ -15,6 +16,7 @@ export type StagingSetFilterState = {
   matchType: 'exact' | 'probable' | 'none' | undefined
   search: string
   channelId: string | undefined
+  channelTier: ChannelTier[]
   dateFrom: string | undefined
   dateTo: string | undefined
   priority: number[]
@@ -30,6 +32,7 @@ export const DEFAULT_FILTERS: StagingSetFilterState = {
   matchType: undefined,
   search: '',
   channelId: undefined,
+  channelTier: [...DEFAULT_STAGING_TIERS],
   dateFrom: undefined,
   dateTo: undefined,
   priority: [],
@@ -107,9 +110,20 @@ export function StagingSetFilterBar({ filters, onChange, stats }: StagingSetFilt
     onChange({ ...filters, matchType: filters.matchType === value ? undefined : value })
   }
 
+  const toggleTier = (value: ChannelTier) => {
+    const next = filters.channelTier.includes(value)
+      ? filters.channelTier.filter((t) => t !== value)
+      : [...filters.channelTier, value]
+    onChange({ ...filters, channelTier: next })
+  }
+
+  const tierDiffersFromDefault =
+    filters.channelTier.length !== DEFAULT_STAGING_TIERS.length ||
+    !DEFAULT_STAGING_TIERS.every((t) => filters.channelTier.includes(t))
+
   const hasActiveFilters = filters.search || filters.noDate || filters.matchType ||
     filters.channelId || filters.dateFrom || filters.dateTo || filters.priority.length > 0 ||
-    filters.batchId
+    filters.batchId || tierDiffersFromDefault
 
   return (
     <div className="sticky top-0 z-10 flex flex-col gap-2 border-b border-border/50 bg-background/95 px-4 py-2.5 backdrop-blur-sm">
@@ -126,7 +140,7 @@ export function StagingSetFilterBar({ filters, onChange, stats }: StagingSetFilt
                 'flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors',
                 isActive
                   ? 'border-border bg-muted text-foreground'
-                  : 'border-transparent text-muted-foreground hover:bg-muted/50',
+                  : 'border-slate-200 bg-slate-50 text-muted-foreground hover:bg-slate-100 hover:text-foreground dark:border-border/50 dark:bg-muted/50 dark:hover:border-border dark:hover:bg-muted',
               )}
             >
               <span className={cn('inline-block h-1.5 w-1.5 rounded-full', dot)} />
@@ -147,8 +161,8 @@ export function StagingSetFilterBar({ filters, onChange, stats }: StagingSetFilt
               className={cn(
                 'rounded-full border px-2 py-1 text-xs transition-colors',
                 isActive
-                  ? 'border-purple-500/50 bg-purple-500/15 text-purple-400'
-                  : 'border-transparent text-muted-foreground hover:bg-muted/50',
+                  ? 'border-purple-500/50 bg-purple-500/15 text-purple-700 dark:text-purple-400'
+                  : 'border-slate-200 bg-slate-50 text-muted-foreground hover:bg-slate-100 hover:text-foreground dark:border-border/50 dark:bg-muted/50 dark:hover:border-border dark:hover:bg-muted',
               )}
             >
               {label}
@@ -161,12 +175,33 @@ export function StagingSetFilterBar({ filters, onChange, stats }: StagingSetFilt
           className={cn(
             'rounded-full border px-2 py-1 text-xs transition-colors',
             filters.noDate
-              ? 'border-amber-500/50 bg-amber-500/15 text-amber-400'
-              : 'border-transparent text-muted-foreground hover:bg-muted/50',
+              ? 'border-amber-500/50 bg-amber-500/15 text-amber-700 dark:text-amber-400'
+              : 'border-slate-200 bg-slate-50 text-muted-foreground hover:bg-slate-100 hover:text-foreground dark:border-border/50 dark:bg-muted/50 dark:hover:border-border dark:hover:bg-muted',
           )}
         >
           No date
         </button>
+
+        <span className="mx-1 h-4 w-px bg-border/50" />
+
+        {CHANNEL_TIER_CONFIG.map(({ value, letter, dot, border, bg, text }) => {
+          const isActive = filters.channelTier.includes(value)
+          return (
+            <button
+              key={value}
+              onClick={() => toggleTier(value)}
+              className={cn(
+                'flex items-center gap-1 rounded-full border px-2 py-1 text-xs transition-colors',
+                isActive
+                  ? cn(border, bg, text)
+                  : 'border-slate-200 bg-slate-50 text-muted-foreground hover:bg-slate-100 hover:text-foreground dark:border-border/50 dark:bg-muted/50 dark:hover:border-border dark:hover:bg-muted',
+              )}
+            >
+              <span className={cn('inline-block h-1.5 w-1.5 rounded-full', dot)} />
+              {letter}
+            </button>
+          )
+        })}
 
         {hasActiveFilters && (
           <button
@@ -174,7 +209,7 @@ export function StagingSetFilterBar({ filters, onChange, stats }: StagingSetFilt
               setSearchInput('')
               onChange({ ...DEFAULT_FILTERS, status: filters.status })
             }}
-            className="ml-1 flex items-center gap-1 rounded-full border border-transparent px-2 py-1 text-xs text-muted-foreground hover:bg-muted/50"
+            className="ml-1 flex items-center gap-1 rounded-full border border-border/40 bg-muted/30 px-2 py-1 text-xs text-muted-foreground hover:border-border hover:bg-muted/60 hover:text-foreground"
           >
             <X size={10} />
             Clear

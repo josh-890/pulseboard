@@ -20,8 +20,8 @@ import type { StagingSetFilterState } from './staging-set-filter-bar'
 import type { StagingSetWithRelations, StagingSetStats } from '@/lib/services/import/staging-set-service'
 import type { StagingSetStatus } from '@/generated/prisma/client'
 import {
-  refreshParticipantStatusesAction,
-  autoRefreshParticipantStatusesAction,
+  refreshAllStagingDataAction,
+  autoRefreshStagingDataAction,
 } from '@/lib/actions/staging-set-actions'
 
 // ─── Types ─────────────────────────────────────────────────────────────────
@@ -42,21 +42,43 @@ export function StagingSetsWorkspace() {
     searchParams.get('type') === 'video' ? 'video' : 'photo',
   )
 
-  // ── Filter state ──────────────────────────────────────────────────────
+  // ── Filter state (persisted to sessionStorage) ─────────────────────────
+  const FILTER_STORAGE_KEY = 'staging-sets-filters'
   const [filters, setFilters] = useState<StagingSetFilterState>(() => {
+    // URL params take priority (e.g. deep link with ?status=PROMOTED)
     const statusParam = searchParams.get('status')
     const batchId = searchParams.get('batchId') || undefined
+    if (statusParam || batchId) {
+      return {
+        ...DEFAULT_FILTERS,
+        status: statusParam
+          ? (statusParam.split(',') as StagingSetStatus[])
+          : DEFAULT_FILTERS.status,
+        batchId,
+        search: searchParams.get('search') || '',
+        sort: (searchParams.get('sort') as StagingSetFilterState['sort']) || 'date',
+        groupBy: (searchParams.get('groupBy') as StagingSetFilterState['groupBy']) || 'none',
+      }
+    }
+    // Otherwise restore from sessionStorage (merge with defaults for backwards compat)
+    try {
+      const saved = sessionStorage.getItem(FILTER_STORAGE_KEY)
+      if (saved) return { ...DEFAULT_FILTERS, ...JSON.parse(saved) } as StagingSetFilterState
+    } catch {}
     return {
       ...DEFAULT_FILTERS,
-      status: statusParam
-        ? (statusParam.split(',') as StagingSetStatus[])
-        : DEFAULT_FILTERS.status,
-      batchId,
       search: searchParams.get('search') || '',
       sort: (searchParams.get('sort') as StagingSetFilterState['sort']) || 'date',
       groupBy: (searchParams.get('groupBy') as StagingSetFilterState['groupBy']) || 'none',
     }
   })
+
+  // Persist filter changes to sessionStorage
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(FILTER_STORAGE_KEY, JSON.stringify(filters))
+    } catch {}
+  }, [filters])
 
   // ── Data state ────────────────────────────────────────────────────────
   const [data, setData] = useState<FetchResult | null>(null)
@@ -82,6 +104,44 @@ export function StagingSetsWorkspace() {
   const gridRef = useRef<HTMLDivElement | null>(null)
   const scrollToIndexRef = useRef<((index: number) => void) | null>(null)
 
+  // ── Scroll position persistence ──────────────────────────────────────
+  const SCROLL_STORAGE_KEY = 'pulseboard-staging-scroll'
+  const scrollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Save scroll position on scroll (debounced)
+  useEffect(() => {
+    const el = gridRef.current
+    if (!el) return
+    const handleScroll = () => {
+      if (scrollTimerRef.current) clearTimeout(scrollTimerRef.current)
+      scrollTimerRef.current = setTimeout(() => {
+        try {
+          sessionStorage.setItem(SCROLL_STORAGE_KEY, String(el.scrollTop))
+        } catch {}
+      }, 200)
+    }
+    el.addEventListener('scroll', handleScroll, { passive: true })
+    return () => el.removeEventListener('scroll', handleScroll)
+  }, [isLoading]) // re-attach after loading completes and grid mounts
+
+  // Restore scroll position after initial data load
+  const scrollRestoredRef = useRef(false)
+  useEffect(() => {
+    if (isLoading || scrollRestoredRef.current || !data) return
+    scrollRestoredRef.current = true
+    try {
+      const saved = sessionStorage.getItem(SCROLL_STORAGE_KEY)
+      if (saved) {
+        const scrollTop = parseInt(saved, 10)
+        if (scrollTop > 0) {
+          requestAnimationFrame(() => {
+            gridRef.current?.scrollTo({ top: scrollTop })
+          })
+        }
+      }
+    } catch {}
+  }, [isLoading, data])
+
   // ── Fetch data ────────────────────────────────────────────────────────
   const fetchData = useCallback(async (append?: boolean, _cursor?: string, offset?: number) => {
     if (!append) setIsLoading(true)
@@ -99,6 +159,7 @@ export function StagingSetsWorkspace() {
     if (filters.dateTo) params.set('dateTo', filters.dateTo)
     if (filters.priority.length) params.set('priority', filters.priority.join(','))
     if (filters.channelId) params.set('channelId', filters.channelId)
+    if (filters.channelTier?.length) params.set('channelTier', filters.channelTier.join(','))
     params.set('isVideo', activeTab === 'video' ? 'true' : 'false')
     params.set('sort', filters.sort)
     params.set('limit', '50')
@@ -143,14 +204,25 @@ export function StagingSetsWorkspace() {
   useEffect(() => {
     if (autoRefreshRan.current) return
     autoRefreshRan.current = true
-    autoRefreshParticipantStatusesAction().then(({ updated }) => {
-      if (updated > 0) fetchData(false)
+    autoRefreshStagingDataAction().then(({ statuses, matches }) => {
+      if (statuses > 0 || matches > 0) fetchDataPreservingScroll(false)
     }).catch(() => {})
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // ── Scroll-preserving fetch (for operations that must refetch) ──────
+  const fetchDataPreservingScroll = useCallback(async (...args: Parameters<typeof fetchData>) => {
+    const scrollTop = gridRef.current?.scrollTop ?? 0
+    await fetchData(...args)
+    requestAnimationFrame(() => {
+      gridRef.current?.scrollTo({ top: scrollTop })
+    })
+  }, [fetchData])
+
   // ── Actions ───────────────────────────────────────────────────────────
   const handleStatusChange = useCallback(async (id: string, status: StagingSetStatus) => {
-    // Optimistic update
+    // Capture old status for revert + stats update
+    const oldStatus = data?.items.find((s) => s.id === id)?.status
+    // Optimistic update — no refetch needed
     setData((prev) => {
       if (!prev) return prev
       return {
@@ -160,17 +232,44 @@ export function StagingSetsWorkspace() {
         ),
       }
     })
+    // Optimistic stats update
+    if (oldStatus && oldStatus !== status) {
+      setStats((prev) => {
+        if (!prev) return prev
+        const byStatus = { ...prev.byStatus }
+        byStatus[oldStatus] = Math.max(0, (byStatus[oldStatus] ?? 0) - 1)
+        byStatus[status] = (byStatus[status] ?? 0) + 1
+        return { ...prev, byStatus }
+      })
+    }
     try {
       await fetch(`/api/staging-sets/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status }),
       })
-      fetchData()
     } catch {
-      fetchData() // revert on error
+      // Revert optimistic update on error
+      if (oldStatus) {
+        setData((prev) => {
+          if (!prev) return prev
+          return {
+            ...prev,
+            items: prev.items.map((item) =>
+              item.id === id ? { ...item, status: oldStatus } : item,
+            ),
+          }
+        })
+        setStats((prev) => {
+          if (!prev) return prev
+          const byStatus = { ...prev.byStatus }
+          byStatus[status] = Math.max(0, (byStatus[status] ?? 0) - 1)
+          byStatus[oldStatus] = (byStatus[oldStatus] ?? 0) + 1
+          return { ...prev, byStatus }
+        })
+      }
     }
-  }, [fetchData])
+  }, [data?.items])
 
   const handlePromote = useCallback(async (id: string) => {
     setIsProcessing(true)
@@ -180,20 +279,29 @@ export function StagingSetsWorkspace() {
       if (!result.success) {
         alert(`Promote failed: ${result.error}`)
       }
-      fetchData()
+      fetchDataPreservingScroll()
     } finally {
       setIsProcessing(false)
     }
-  }, [fetchData])
+  }, [fetchDataPreservingScroll])
 
   const handleFieldUpdate = useCallback(async (id: string, fields: Record<string, unknown>) => {
+    // Optimistic local update — no refetch needed
+    setData((prev) => {
+      if (!prev) return prev
+      return {
+        ...prev,
+        items: prev.items.map((item) =>
+          item.id === id ? { ...item, ...fields } : item,
+        ),
+      }
+    })
     await fetch(`/api/staging-sets/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(fields),
     })
-    fetchData()
-  }, [fetchData])
+  }, [])
 
   // ── Bulk actions ──────────────────────────────────────────────────────
   const handleBulkStatus = useCallback(async (status: StagingSetStatus) => {
@@ -207,11 +315,11 @@ export function StagingSetsWorkspace() {
       })
       setCheckedIds(new Set())
       setIsMultiSelectMode(false)
-      fetchData()
+      fetchDataPreservingScroll()
     } finally {
       setIsProcessing(false)
     }
-  }, [checkedIds, fetchData])
+  }, [checkedIds, fetchDataPreservingScroll])
 
   const handleBulkPromote = useCallback(async () => {
     if (checkedIds.size === 0) return
@@ -228,11 +336,11 @@ export function StagingSetsWorkspace() {
       }
       setCheckedIds(new Set())
       setIsMultiSelectMode(false)
-      fetchData()
+      fetchDataPreservingScroll()
     } finally {
       setIsProcessing(false)
     }
-  }, [checkedIds, fetchData])
+  }, [checkedIds, fetchDataPreservingScroll])
 
   const toggleCheck = useCallback((id: string) => {
     setCheckedIds((prev) => {
@@ -337,19 +445,19 @@ export function StagingSetsWorkspace() {
 
         <span className="ml-auto" />
 
-        {/* Refresh participant statuses */}
+        {/* Refresh statuses + matches */}
         <Button
           variant="ghost"
           size="icon"
           className="h-8 w-8"
-          title="Refresh participant statuses"
+          title="Refresh statuses and matches"
           disabled={isRefreshing}
           onClick={async () => {
             setIsRefreshing(true)
             try {
-              await refreshParticipantStatusesAction()
-              // Re-fetch current data to reflect updated statuses
-              fetchData(false)
+              await refreshAllStagingDataAction()
+              // Re-fetch current data to reflect updated statuses + matches
+              fetchDataPreservingScroll(false)
             } finally {
               setIsRefreshing(false)
             }
@@ -438,7 +546,7 @@ export function StagingSetsWorkspace() {
           onStatusChange={handleStatusChange}
           onPromote={handlePromote}
           onFieldUpdate={handleFieldUpdate}
-          onRefresh={() => fetchData()}
+          onRefresh={() => fetchDataPreservingScroll()}
           isProcessing={isProcessing}
         />
       </div>

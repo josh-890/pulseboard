@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import type { Prisma, SessionStatus, SessionType } from "@/generated/prisma/client";
+import { normalizeForSearch } from "@/lib/normalize";
 import { cascadeDeleteSession } from "./cascade-helpers";
 import { rebuildSetParticipantsFromContributions } from "./contribution-service";
 import { CONFIDENCE_RANK } from "@/lib/constants/confidence";
@@ -236,7 +237,7 @@ export async function createSessionRecord(data: {
   return prisma.session.create({
     data: {
       name: data.name,
-      nameNorm: data.name.toLowerCase(),
+      nameNorm: normalizeForSearch(data.name),
       projectId: data.projectId || undefined,
       labelId: data.labelId || undefined,
       description: data.description,
@@ -274,7 +275,7 @@ export async function updateSessionRecord(
       where: { id },
       data: {
         name: data.name,
-        nameNorm: data.name ? data.name.toLowerCase() : undefined,
+        nameNorm: data.name ? normalizeForSearch(data.name) : undefined,
         projectId: data.projectId,
         labelId: data.labelId,
         description: data.description,

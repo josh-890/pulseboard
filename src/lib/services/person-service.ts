@@ -17,6 +17,7 @@ import type {
 } from "@/lib/types";
 import { parsePhotoVariants } from "@/lib/types";
 import type { PersonStatus, Prisma } from "@/generated/prisma/client";
+import { normalizeForSearch } from "@/lib/normalize";
 import { expandRegionFilter } from "@/lib/constants/body-regions";
 import type { CreatePersonInput, UpdatePersonInput } from "@/lib/validations/person";
 import { batchComputeCompleteness } from "@/lib/services/completeness-service";
@@ -1061,12 +1062,12 @@ export async function createPersonRecord(data: CreatePersonInput) {
     });
 
     await tx.personAlias.create({
-      data: { personId: person.id, name: data.commonName, nameNorm: data.commonName.toLowerCase(), isCommon: true },
+      data: { personId: person.id, name: data.commonName, nameNorm: normalizeForSearch(data.commonName), isCommon: true },
     });
 
     if (data.birthName) {
       await tx.personAlias.create({
-        data: { personId: person.id, name: data.birthName, nameNorm: data.birthName.toLowerCase(), isBirth: true },
+        data: { personId: person.id, name: data.birthName, nameNorm: normalizeForSearch(data.birthName), isBirth: true },
       });
     }
 
@@ -1133,7 +1134,7 @@ export async function createPersonRecord(data: CreatePersonInput) {
     await tx.session.create({
       data: {
         name: displayName,
-        nameNorm: displayName.toLowerCase(),
+        nameNorm: normalizeForSearch(displayName),
         type: "REFERENCE",
         status: "CONFIRMED",
         personId: person.id,
@@ -1191,7 +1192,7 @@ export async function updatePersonRecord(id: string, data: UpdatePersonInput) {
       if (commonAlias) {
         await tx.personAlias.update({
           where: { id: commonAlias.id },
-          data: { name: data.commonName, nameNorm: data.commonName.toLowerCase() },
+          data: { name: data.commonName, nameNorm: normalizeForSearch(data.commonName) },
         });
       }
     }

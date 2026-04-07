@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { withTenantFromHeaders } from '@/lib/tenant-context'
 import { getStagingSetsFiltered } from '@/lib/services/import/staging-set-service'
-import type { StagingSetStatus } from '@/generated/prisma/client'
+import type { ChannelTier, StagingSetStatus } from '@/generated/prisma/client'
 
 export async function GET(request: Request) {
   return withTenantFromHeaders(async () => {
@@ -16,6 +16,11 @@ export async function GET(request: Request) {
       const priorityParam = url.searchParams.get('priority')
       const priority = priorityParam
         ? priorityParam.split(',').map(Number)
+        : undefined
+
+      const channelTierParam = url.searchParams.get('channelTier')
+      const channelTier = channelTierParam
+        ? (channelTierParam.split(',') as ChannelTier[])
         : undefined
 
       const isVideoParam = url.searchParams.get('isVideo')
@@ -34,6 +39,7 @@ export async function GET(request: Request) {
         noDate,
         personId: url.searchParams.get('personId') || undefined,
         channelId: url.searchParams.get('channelId') || undefined,
+        channelTier,
         dateFrom: url.searchParams.get('dateFrom') || undefined,
         dateTo: url.searchParams.get('dateTo') || undefined,
         batchId: url.searchParams.get('batchId') || undefined,

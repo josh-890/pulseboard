@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import type { Prisma, SetType, ResolutionStatus } from "@/generated/prisma/client";
+import { normalizeForSearch } from "@/lib/normalize";
 import { cascadeDeleteSet } from "./cascade-helpers";
 import type { TxClient } from "./cascade-helpers";
 import { mergeSessionsRecord } from "./session-service";
@@ -220,8 +221,9 @@ export async function createSetStandaloneRecord(data: {
   isComplete?: boolean;
   imageCount?: number;
   videoLength?: string;
+  externalId?: string;
 }) {
-  return prisma.$transaction(async (tx) => {
+  const result = await prisma.$transaction(async (tx) => {
     // Look up channel's primary label via ChannelLabelMap (highest confidence)
     const channelLabel = await tx.channelLabelMap.findFirst({
       where: { channelId: data.channelId },
@@ -233,7 +235,7 @@ export async function createSetStandaloneRecord(data: {
     const session = await tx.session.create({
       data: {
         name: data.title,
-        nameNorm: data.title.toLowerCase(),
+        nameNorm: normalizeForSearch(data.title),
         status: "DRAFT",
         date: data.releaseDate ? new Date(data.releaseDate) : undefined,
         datePrecision: (data.releaseDatePrecision as "UNKNOWN" | "YEAR" | "MONTH" | "DAY") ?? "UNKNOWN",
@@ -246,6 +248,7 @@ export async function createSetStandaloneRecord(data: {
       data: {
         type: data.type,
         title: data.title,
+        titleNorm: normalizeForSearch(data.title),
         channelId: data.channelId,
         description: data.description,
         notes: data.notes,
@@ -258,6 +261,7 @@ export async function createSetStandaloneRecord(data: {
         isComplete: data.isComplete ?? false,
         imageCount: data.imageCount ?? null,
         videoLength: data.videoLength ?? null,
+        externalId: data.externalId ?? null,
       },
     });
 
@@ -272,6 +276,14 @@ export async function createSetStandaloneRecord(data: {
 
     return { setId: set.id, sessionId: session.id };
   });
+
+  // Fire-and-forget: update staging set matches for this title+channel
+  import('@/lib/services/import/match-refresh-service').then(
+    ({ refreshMatchesForTitle }) =>
+      refreshMatchesForTitle(data.title, data.channelId).catch(() => {}),
+  );
+
+  return result;
 }
 
 export async function updateSetRecord(id: string, data: {
@@ -288,11 +300,13 @@ export async function updateSetRecord(id: string, data: {
   isComplete?: boolean;
   imageCount?: number | null;
   videoLength?: string | null;
+  externalId?: string | null;
 }) {
   return prisma.set.update({
     where: { id },
     data: {
       title: data.title,
+      titleNorm: data.title ? normalizeForSearch(data.title) : undefined,
       channelId: data.channelId,
       description: data.description,
       notes: data.notes,
@@ -305,6 +319,7 @@ export async function updateSetRecord(id: string, data: {
       isComplete: data.isComplete,
       imageCount: data.imageCount,
       videoLength: data.videoLength,
+      externalId: data.externalId,
     },
   });
 }
@@ -402,7 +417,7 @@ export async function createSetCreditsRaw(
           setId,
           roleDefinitionId: credit.roleDefinitionId,
           rawName: credit.rawName,
-          nameNorm: credit.rawName.toLowerCase(),
+          nameNorm: normalizeForSearch(credit.rawName),
           resolvedPersonId: credit.resolvedPersonId ?? null,
           resolutionStatus: isResolved ? "RESOLVED" : "UNRESOLVED",
         },

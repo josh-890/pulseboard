@@ -225,6 +225,12 @@ export function SetHero({
               <span className="text-sky-500 dark:text-sky-400">Compilation</span>
             </>
           )}
+          {set.externalId && (
+            <>
+              <span>·</span>
+              <span className="text-muted-foreground/70 font-mono text-xs">ID: {set.externalId}</span>
+            </>
+          )}
         </div>
       </div>
     </div>

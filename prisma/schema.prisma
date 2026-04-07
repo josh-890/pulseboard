@@ -222,6 +222,14 @@ enum TagSource {
   AUTO
 }
 
+enum ChannelTier {
+  PREMIUM
+  HIGH
+  NORMAL
+  LOW
+  TRASH
+}
+
 // ─── Person & Aliases ─────────────────────────────────────────────────────────
 
 model Person {
@@ -703,6 +711,7 @@ model Channel {
   platform      String?
   notes         String?
   importAliases String[] @default([])
+  tier          ChannelTier @default(NORMAL)
 
   sets        Set[]
   labelMaps   ChannelLabelMap[]

@@ -65,6 +65,7 @@ type EditSetSheetProps = {
     isComplete: boolean;
     imageCount: number | null;
     videoLength: string | null;
+    externalId: string | null;
   };
   channels: ChannelOption[];
   entityTags?: TagChipData[];
@@ -99,6 +100,7 @@ export function EditSetSheet({ set, channels, entityTags = [] }: EditSetSheetPro
     isComplete: set.isComplete,
     imageCount: set.imageCount ?? undefined,
     videoLength: set.videoLength ?? "",
+    externalId: set.externalId ?? "",
   });
 
   const form = useForm<UpdateSetFormValues, unknown, UpdateSetInput>({
@@ -268,6 +270,20 @@ export function EditSetSheet({ set, channels, entityTags = [] }: EditSetSheetPro
                           <FormLabel>Genre</FormLabel>
                           <FormControl>
                             <Input placeholder="e.g. Glamour" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="externalId"
+                      render={({ field }) => (
+                        <FormItem className="col-span-2">
+                          <FormLabel>External ID</FormLabel>
+                          <FormControl>
+                            <Input placeholder="e.g. source site ID" {...field} />
                           </FormControl>
                           <FormMessage />
                         </FormItem>

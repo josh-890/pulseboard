@@ -5,6 +5,7 @@ import { Building2, ExternalLink, ImageIcon, FileInput } from "lucide-react";
 import { getChannelById } from "@/lib/services/channel-service";
 import { getLabels } from "@/lib/services/label-service";
 import { cn } from "@/lib/utils";
+import { CHANNEL_TIER_CONFIG } from "@/lib/constants/channel-tier";
 import { formatRelativeTime } from "@/lib/utils";
 import { EditChannelSheet } from "@/components/channels/edit-channel-sheet";
 import { DeleteButton } from "@/components/shared/delete-button";
@@ -90,6 +91,7 @@ export default async function ChannelDetailPage({
               labelId: channel.labelMaps[0]?.label.id ?? null,
               platform: channel.platform,
               url: channel.url,
+              tier: channel.tier,
             }}
             labels={labelOptions}
           />
@@ -128,6 +130,14 @@ export default async function ChannelDetailPage({
               )}
             </h1>
             <div className="mt-2 flex flex-wrap items-center gap-2">
+              {(() => {
+                const tc = CHANNEL_TIER_CONFIG.find((t) => t.value === channel.tier);
+                return tc ? (
+                  <span className={cn('inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-semibold', tc.border, tc.bg, tc.text)}>
+                    {tc.letter} · {tc.label}
+                  </span>
+                ) : null;
+              })()}
               {channel.labelMaps[0]?.label && (
                 <Link
                   href={`/labels/${channel.labelMaps[0].label.id}`}

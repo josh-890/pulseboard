@@ -28,8 +28,8 @@ const STATUS_BADGE: Record<string, { label: string; className: string }> = {
   REVIEWING: { label: 'Reviewing', className: 'bg-yellow-500/10 text-yellow-600' },
   APPROVED: { label: 'Approved', className: 'bg-cyan-500/10 text-cyan-600' },
   PROMOTED: { label: 'Promoted', className: 'bg-emerald-500/10 text-emerald-600' },
-  INACTIVE: { label: 'Inactive', className: 'bg-gray-500/10 text-gray-500' },
-  SKIPPED: { label: 'Skipped', className: 'bg-gray-500/10 text-gray-500' },
+  INACTIVE: { label: 'Inactive', className: 'bg-gray-500/10 text-gray-600 dark:text-gray-500' },
+  SKIPPED: { label: 'Skipped', className: 'bg-gray-500/10 text-gray-600 dark:text-gray-500' },
 }
 
 const PRIORITY_OPTIONS = [
@@ -161,6 +161,38 @@ function PanelContent({
     setIsEditing(false)
   }, [editFields, stagingSet, onFieldUpdate])
 
+  const handleConfirmMatch = useCallback(async () => {
+    await fetch(`/api/staging-sets/${stagingSet.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ matchConfidence: 1.0 }),
+    })
+    onRefresh()
+  }, [stagingSet.id, onRefresh])
+
+  const handleClearMatch = useCallback(async () => {
+    await fetch(`/api/staging-sets/${stagingSet.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ matchedSetId: null, matchConfidence: null, matchDetails: null }),
+    })
+    setComparison(null)
+    onRefresh()
+  }, [stagingSet.id, onRefresh])
+
+  const handleApplyField = useCallback(async (field: string) => {
+    if (!comparison?.matchedSet) return
+    const r = await fetch(`/api/staging-sets/${stagingSet.id}/apply-field`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ field, matchedSetId: comparison.matchedSet.id }),
+    })
+    if (r.ok) {
+      const updated = await r.json()
+      setComparison(updated)
+    }
+  }, [stagingSet.id, comparison])
+
   const handleCoverUploaded = useCallback(() => {
     onRefresh()
   }, [onRefresh])
@@ -197,9 +229,9 @@ function PanelContent({
         {hasMatch && isExactMatch && stagingSet.status !== 'PROMOTED' && (
           <div className="rounded-lg border border-purple-500/20 bg-purple-500/5 p-3">
             <div className="flex items-start gap-2">
-              <Info size={14} className="mt-0.5 shrink-0 text-purple-500" />
+              <Check size={14} className="mt-0.5 shrink-0 text-purple-500" />
               <p className="text-xs font-medium text-purple-700 dark:text-purple-400">
-                Exact match — will add participant and merge data
+                Confirmed match — will add participant and merge data on promote
               </p>
             </div>
           </div>
@@ -240,7 +272,12 @@ function PanelContent({
               <Loader2 size={16} className="animate-spin text-muted-foreground" />
             </div>
           ) : comparison ? (
-            <SetComparisonGrid comparison={comparison} />
+            <SetComparisonGrid
+              comparison={comparison}
+              onConfirmMatch={handleConfirmMatch}
+              onClearMatch={handleClearMatch}
+              onApplyField={handleApplyField}
+            />
           ) : null
         )}
 

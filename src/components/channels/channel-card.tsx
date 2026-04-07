@@ -2,6 +2,7 @@ import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { EntityBadge } from "@/components/shared/entity-badge";
 import { generateEntityVisual } from "@/lib/entity-visual";
+import { CHANNEL_TIER_CONFIG } from "@/lib/constants/channel-tier";
 import type { getChannels } from "@/lib/services/channel-service";
 
 type ChannelItem = Awaited<ReturnType<typeof getChannels>>[number];
@@ -13,6 +14,9 @@ type ChannelCardProps = {
 export function ChannelCard({ channel }: ChannelCardProps) {
   const visual = generateEntityVisual(channel.name, "CHANNEL");
   const setCount = channel._count.sets;
+  const tierConfig = channel.tier !== 'NORMAL'
+    ? CHANNEL_TIER_CONFIG.find((t) => t.value === channel.tier)
+    : null;
 
   return (
     <Link href={`/channels/${channel.id}`} className="group block focus-visible:outline-none">
@@ -51,6 +55,11 @@ export function ChannelCard({ channel }: ChannelCardProps) {
 
           {/* Chips */}
           <div className="flex flex-wrap gap-1.5">
+            {tierConfig && (
+              <span className={cn('inline-flex items-center rounded-md border px-1.5 py-0.5 text-[10px] font-semibold', tierConfig.border, tierConfig.bg, tierConfig.text)}>
+                {tierConfig.letter}
+              </span>
+            )}
             {channel.labelMaps[0]?.label && (
               <span className="inline-flex items-center rounded-md border border-border/50 bg-muted/40 px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
                 {channel.labelMaps[0].label.name}

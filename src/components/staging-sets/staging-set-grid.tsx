@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { ChevronDown, ChevronRight, ImageIcon, Loader2 } from 'lucide-react'
+import { ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown, ImageIcon, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { StagingSetRow } from './staging-set-row'
 import type { StagingSetWithRelations } from '@/lib/services/import/staging-set-service'
@@ -187,8 +187,29 @@ export function StagingSetGrid({
   onVirtualizerReady,
 }: StagingSetGridProps) {
   // Track collapsed groups + a default mode for newly loaded groups
-  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set())
-  const [defaultCollapsed, setDefaultCollapsed] = useState(false)
+  // Persist to sessionStorage so state survives tab switches and page revisits
+  const COLLAPSE_STORAGE_KEY = 'pulseboard-staging-collapse'
+
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(() => {
+    try {
+      const saved = sessionStorage.getItem(COLLAPSE_STORAGE_KEY)
+      if (saved) {
+        const parsed = JSON.parse(saved)
+        if (parsed.groupBy === groupBy) return new Set<string>(parsed.groups)
+      }
+    } catch {}
+    return new Set<string>()
+  })
+  const [defaultCollapsed, setDefaultCollapsed] = useState(() => {
+    try {
+      const saved = sessionStorage.getItem(COLLAPSE_STORAGE_KEY)
+      if (saved) {
+        const parsed = JSON.parse(saved)
+        if (parsed.groupBy === groupBy) return parsed.defaultCollapsed ?? false
+      }
+    } catch {}
+    return false
+  })
 
   const groups = useMemo(() => computeGroups(items, groupBy), [items, groupBy])
 
@@ -206,6 +227,48 @@ export function StagingSetGrid({
     }
     return keys
   }, [groups, groupBy])
+
+  // Persist/restore collapse state to sessionStorage
+  const prevGroupByRef = useRef(groupBy)
+  const skipNextSaveRef = useRef(false)
+
+  // On groupBy change: restore from storage or reset
+  useEffect(() => {
+    if (prevGroupByRef.current !== groupBy) {
+      prevGroupByRef.current = groupBy
+      if (groupBy === 'none') return
+      try {
+        const saved = sessionStorage.getItem(COLLAPSE_STORAGE_KEY)
+        if (saved) {
+          const parsed = JSON.parse(saved)
+          if (parsed.groupBy === groupBy) {
+            skipNextSaveRef.current = true // Don't overwrite storage with restored state
+            setCollapsedGroups(new Set<string>(parsed.groups))
+            setDefaultCollapsed(parsed.defaultCollapsed ?? false)
+            return
+          }
+        }
+      } catch {}
+      setCollapsedGroups(new Set())
+      setDefaultCollapsed(false)
+    }
+  }, [groupBy])
+
+  // Save collapse state when it changes (skip saves triggered by restore)
+  useEffect(() => {
+    if (groupBy === 'none') return
+    if (skipNextSaveRef.current) {
+      skipNextSaveRef.current = false
+      return
+    }
+    try {
+      sessionStorage.setItem(COLLAPSE_STORAGE_KEY, JSON.stringify({
+        groupBy,
+        defaultCollapsed,
+        groups: [...collapsedGroups],
+      }))
+    } catch {}
+  }, [groupBy, defaultCollapsed, collapsedGroups])
 
   // Effective collapsed set: in "default collapsed" mode, all keys are collapsed
   // except those explicitly expanded (toggled). In normal mode, only explicitly
@@ -252,6 +315,31 @@ export function StagingSetGrid({
       const next = new Set(prev)
       if (next.has(key)) next.delete(key)
       else next.add(key)
+      return next
+    })
+  }
+
+  /** Expand or collapse all level-2 children of a level-1 group */
+  const toggleChildren = (parentKey: string) => {
+    const childKeys = allGroupKeys.filter((k) => k.startsWith(parentKey + '/'))
+    const allChildrenExpanded = childKeys.every((k) => !effectiveCollapsed.has(k))
+    setCollapsedGroups((prev) => {
+      const next = new Set(prev)
+      if (defaultCollapsed) {
+        // In defaultCollapsed mode, collapsedGroups holds EXCEPTIONS (expanded items)
+        // To expand children: add them as exceptions
+        // To collapse children: remove exceptions
+        for (const k of childKeys) {
+          if (allChildrenExpanded) next.delete(k) // remove exception → re-collapse
+          else next.add(k) // add exception → expand
+        }
+      } else {
+        // Normal mode: collapsed set = what's collapsed
+        for (const k of childKeys) {
+          if (allChildrenExpanded) next.add(k)
+          else next.delete(k)
+        }
+      }
       return next
     })
   }
@@ -354,26 +442,43 @@ export function StagingSetGrid({
               }}
             >
               {entry.type === 'header' && (
-                <button
-                  onClick={() => toggleGroup(entry.key)}
-                  className={cn(
-                    'flex w-full items-center gap-2 bg-background/95 text-left backdrop-blur-sm',
-                    entry.level === 2 ? 'pl-6 py-1' : 'py-2',
+                <div className="flex w-full items-center gap-2 bg-background/95 backdrop-blur-sm">
+                  <button
+                    onClick={() => toggleGroup(entry.key)}
+                    className={cn(
+                      'flex flex-1 items-center gap-2 text-left',
+                      entry.level === 2 ? 'pl-6 py-1' : 'py-2',
+                    )}
+                  >
+                    {effectiveCollapsed.has(entry.key) ? (
+                      <ChevronRight size={entry.level === 2 ? 12 : 14} className="text-muted-foreground" />
+                    ) : (
+                      <ChevronDown size={entry.level === 2 ? 12 : 14} className="text-muted-foreground" />
+                    )}
+                    <span className={entry.level === 2 ? 'text-xs font-medium text-muted-foreground' : 'text-sm font-medium'}>
+                      {entry.key.includes('/') ? entry.key.split('/').pop() : entry.key}
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      ({entry.count})
+                    </span>
+                    <span className="flex-1 border-b border-border/30" />
+                  </button>
+                  {entry.level === 1 && groupBy === 'channelYear' && !effectiveCollapsed.has(entry.key) && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); toggleChildren(entry.key) }}
+                      className="shrink-0 p-1.5 text-muted-foreground hover:text-foreground"
+                      title={
+                        allGroupKeys.filter((k) => k.startsWith(entry.key + '/')).every((k) => !effectiveCollapsed.has(k))
+                          ? 'Collapse all years'
+                          : 'Expand all years'
+                      }
+                    >
+                      {allGroupKeys.filter((k) => k.startsWith(entry.key + '/')).every((k) => !effectiveCollapsed.has(k))
+                        ? <ChevronsDownUp size={14} />
+                        : <ChevronsUpDown size={14} />}
+                    </button>
                   )}
-                >
-                  {effectiveCollapsed.has(entry.key) ? (
-                    <ChevronRight size={entry.level === 2 ? 12 : 14} className="text-muted-foreground" />
-                  ) : (
-                    <ChevronDown size={entry.level === 2 ? 12 : 14} className="text-muted-foreground" />
-                  )}
-                  <span className={entry.level === 2 ? 'text-xs font-medium text-muted-foreground' : 'text-sm font-medium'}>
-                    {entry.key.includes('/') ? entry.key.split('/').pop() : entry.key}
-                  </span>
-                  <span className="text-xs text-muted-foreground">
-                    ({entry.count})
-                  </span>
-                  <span className="flex-1 border-b border-border/30" />
-                </button>
+                </div>
               )}
 
               {entry.type === 'item' && (

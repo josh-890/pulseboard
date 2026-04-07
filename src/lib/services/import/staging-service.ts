@@ -495,7 +495,7 @@ async function createStagingSetsForBatch(
     await prisma.stagingSet.create({
       data: {
         title: set.title,
-        titleNorm: set.title.toLowerCase(),
+        titleNorm: normalizeForSearch(set.title),
         externalId: set.externalId || null,
         channelName: set.channelName,
         channelId,
@@ -504,13 +504,13 @@ async function createStagingSetsForBatch(
         isVideo: set.isVideo,
         imageCount: set.imageCount,
         artist: set.artist,
-        artistNorm: set.artist?.toLowerCase() ?? null,
+        artistNorm: set.artist ? normalizeForSearch(set.artist) : null,
         coverImageUrl: set.coverImageUrl,
         description: set.description,
         participants: set.modelsList,
         participantIcgIds,
         participantNamesNorm: set.modelsList.length > 0
-          ? set.modelsList.map((m) => m.name.toLowerCase()).join(', ')
+          ? set.modelsList.map((m) => normalizeForSearch(m.name)).join(', ')
           : null,
         participantStatuses,
         importBatchId: batchId,

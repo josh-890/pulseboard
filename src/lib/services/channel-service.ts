@@ -1,8 +1,9 @@
 import { prisma } from "@/lib/db";
-import type { Prisma } from "@/generated/prisma/client";
+import type { Prisma, ChannelTier } from "@/generated/prisma/client";
+import { normalizeForSearch } from "@/lib/normalize";
 import { generateChannelShortName } from "@/lib/utils";
 
-export async function getChannels(filters?: { q?: string; labelId?: string }) {
+export async function getChannels(filters?: { q?: string; labelId?: string; tier?: ChannelTier[] }) {
   const where: Prisma.ChannelWhereInput = {};
 
   if (filters?.q) {
@@ -10,6 +11,9 @@ export async function getChannels(filters?: { q?: string; labelId?: string }) {
   }
   if (filters?.labelId) {
     where.labelMaps = { some: { labelId: filters.labelId } };
+  }
+  if (filters?.tier?.length) {
+    where.tier = { in: filters.tier };
   }
 
   return prisma.channel.findMany({
@@ -61,15 +65,17 @@ export async function createChannelRecord(data: {
   platform?: string;
   url?: string;
   labelId?: string;
+  tier?: ChannelTier;
 }) {
   return prisma.$transaction(async (tx) => {
     const channel = await tx.channel.create({
       data: {
         name: data.name,
-        nameNorm: data.name.toLowerCase(),
+        nameNorm: normalizeForSearch(data.name),
         shortName: data.shortName || null,
         platform: data.platform,
         url: data.url,
+        tier: data.tier,
       },
     });
 
@@ -96,6 +102,7 @@ export async function updateChannelRecord(
     platform?: string | null;
     url?: string | null;
     labelId?: string;
+    tier?: ChannelTier;
   },
 ) {
   return prisma.$transaction(async (tx) => {
@@ -103,10 +110,11 @@ export async function updateChannelRecord(
       where: { id },
       data: {
         name: data.name,
-        nameNorm: data.name ? data.name.toLowerCase() : undefined,
+        nameNorm: data.name ? normalizeForSearch(data.name) : undefined,
         shortName: data.shortName,
         platform: data.platform,
         url: data.url,
+        tier: data.tier,
       },
     });
 
