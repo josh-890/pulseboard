@@ -155,8 +155,8 @@ function buildFlatList(
 
 // ─── Size estimates ───────────────────────────────────────────────────────
 
-const HEADER_HEIGHT = 36
-const SUB_HEADER_HEIGHT = 28
+const HEADER_HEIGHT = 48
+const SUB_HEADER_HEIGHT = 32
 const ITEM_HEIGHT = 100
 const SENTINEL_HEIGHT = 48
 
@@ -426,10 +426,14 @@ export function StagingSetGrid({
       >
         {virtualItems.map((virtualRow) => {
           const entry = flatList[virtualRow.index]
+          // Use stable keys: staging set ID for items, group key for headers
+          const stableKey = entry.type === 'item' ? entry.data.id
+            : entry.type === 'header' ? `h:${entry.key}`
+            : 'sentinel'
 
           return (
             <div
-              key={virtualRow.key}
+              key={stableKey}
               data-index={virtualRow.index}
               ref={virtualizer.measureElement}
               style={{
@@ -442,26 +446,37 @@ export function StagingSetGrid({
               }}
             >
               {entry.type === 'header' && (
-                <div className="flex w-full items-center gap-2 bg-background/95 backdrop-blur-sm">
+                <div className={cn(
+                  'flex w-full items-center gap-2 bg-background/95 backdrop-blur-sm',
+                  entry.level === 1 && 'mt-2 border-b border-border/40 pb-1',
+                )}>
                   <button
                     onClick={() => toggleGroup(entry.key)}
                     className={cn(
                       'flex flex-1 items-center gap-2 text-left',
-                      entry.level === 2 ? 'pl-6 py-1' : 'py-2',
+                      entry.level === 2 ? 'pl-6 py-1.5' : 'py-2.5',
                     )}
                   >
                     {effectiveCollapsed.has(entry.key) ? (
-                      <ChevronRight size={entry.level === 2 ? 12 : 14} className="text-muted-foreground" />
+                      <ChevronRight size={entry.level === 2 ? 13 : 16} className="text-muted-foreground" />
                     ) : (
-                      <ChevronDown size={entry.level === 2 ? 12 : 14} className="text-muted-foreground" />
+                      <ChevronDown size={entry.level === 2 ? 13 : 16} className="text-muted-foreground" />
                     )}
-                    <span className={entry.level === 2 ? 'text-xs font-medium text-muted-foreground' : 'text-sm font-medium'}>
+                    <span className={entry.level === 2
+                      ? 'text-xs font-medium text-muted-foreground'
+                      : 'text-sm font-semibold'
+                    }>
                       {entry.key.includes('/') ? entry.key.split('/').pop() : entry.key}
                     </span>
-                    <span className="text-xs text-muted-foreground">
-                      ({entry.count})
+                    <span className={cn(
+                      'rounded-full px-1.5 py-0.5 text-[10px] font-medium',
+                      entry.level === 1
+                        ? 'bg-muted text-muted-foreground'
+                        : 'text-muted-foreground/70',
+                    )}>
+                      {entry.count}
                     </span>
-                    <span className="flex-1 border-b border-border/30" />
+                    {entry.level === 2 && <span className="flex-1 border-b border-border/20" />}
                   </button>
                   {entry.level === 1 && groupBy === 'channelYear' && !effectiveCollapsed.has(entry.key) && (
                     <button

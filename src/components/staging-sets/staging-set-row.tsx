@@ -1,6 +1,7 @@
 'use client'
 
-import { memo, useState } from 'react'
+import { memo, useState, useRef, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import Image from 'next/image'
 import { Camera, CheckSquare, Film, Link2 } from 'lucide-react'
 import { cn, getInitialsFromName } from '@/lib/utils'
@@ -63,6 +64,78 @@ type StagingSetRowProps = {
   isChecked: boolean
   onSelect: (id: string) => void
   onToggleCheck: (id: string) => void
+}
+
+// ─── Cover Thumbnail with hover preview ───────────────────────────────────
+
+function CoverThumbnail({
+  coverImageUrl,
+  title,
+  isVideo,
+  imgError,
+  onImgError,
+}: {
+  coverImageUrl: string | null
+  title: string
+  isVideo: boolean
+  imgError: boolean
+  onImgError: () => void
+}) {
+  const thumbRef = useRef<HTMLDivElement>(null)
+  const [hover, setHover] = useState(false)
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null)
+
+  const showPreview = useCallback(() => {
+    if (!thumbRef.current || !coverImageUrl) return
+    const rect = thumbRef.current.getBoundingClientRect()
+    // Clamp top so preview doesn't overflow below viewport (max preview height ~400px)
+    const maxTop = window.innerHeight - 420
+    setPos({ top: Math.min(rect.top, Math.max(8, maxTop)), left: rect.right + 8 })
+    setHover(true)
+  }, [coverImageUrl])
+
+  const hidePreview = useCallback(() => setHover(false), [])
+
+  return (
+    <div
+      ref={thumbRef}
+      className="relative h-[80px] w-[56px] shrink-0 overflow-hidden rounded-lg bg-muted/30"
+      onMouseEnter={showPreview}
+      onMouseLeave={hidePreview}
+    >
+      {coverImageUrl && !imgError ? (
+        <>
+          <Image
+            src={coverImageUrl}
+            alt={title}
+            fill
+            className="object-contain"
+            unoptimized
+            sizes="56px"
+            onError={onImgError}
+          />
+          {hover && pos && createPortal(
+            <div
+              className="pointer-events-none fixed z-[100] overflow-hidden rounded-lg border border-border bg-background shadow-xl"
+              style={{ top: pos.top, left: pos.left }}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={coverImageUrl}
+                alt={title}
+                className="block max-h-[400px] max-w-[300px]"
+              />
+            </div>,
+            document.body,
+          )}
+        </>
+      ) : (
+        <div className="flex h-full w-full items-center justify-center text-muted-foreground/20">
+          {isVideo ? <Film size={20} /> : <Camera size={20} />}
+        </div>
+      )}
+    </div>
+  )
 }
 
 // ─── Component ─────────────────────────────────────────────────────────────
@@ -138,23 +211,13 @@ export const StagingSetRow = memo(function StagingSetRow({
         )}
       >
         {/* Cover thumbnail */}
-        <div className="relative h-[80px] w-[56px] shrink-0 overflow-hidden rounded-lg bg-muted/30">
-          {ss.coverImageUrl && !imgError ? (
-            <Image
-              src={ss.coverImageUrl}
-              alt={ss.title}
-              fill
-              className="object-contain"
-              unoptimized
-              sizes="56px"
-              onError={() => setImgError(true)}
-            />
-          ) : (
-            <div className="flex h-full w-full items-center justify-center text-muted-foreground/20">
-              {ss.isVideo ? <Film size={20} /> : <Camera size={20} />}
-            </div>
-          )}
-        </div>
+        <CoverThumbnail
+          coverImageUrl={ss.coverImageUrl}
+          title={ss.title}
+          isVideo={ss.isVideo}
+          imgError={imgError}
+          onImgError={() => setImgError(true)}
+        />
 
         {/* Info section */}
         <div className="flex min-w-0 flex-col gap-0.5">
