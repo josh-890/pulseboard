@@ -187,11 +187,17 @@ export function StagingSetsWorkspace() {
       const listData = (await listRes.json()) as FetchResult
 
       if (append) {
-        setData((prev) => prev ? {
-          items: [...prev.items, ...listData.items],
-          total: listData.total,
-          nextCursor: listData.nextCursor,
-        } : listData)
+        setData((prev) => {
+          if (!prev) return listData
+          // Deduplicate: offset pagination can return overlapping items if data shifts
+          const existingIds = new Set(prev.items.map((i) => i.id))
+          const newItems = listData.items.filter((i) => !existingIds.has(i.id))
+          return {
+            items: [...prev.items, ...newItems],
+            total: listData.total,
+            nextCursor: listData.nextCursor,
+          }
+        })
       } else {
         setData(listData)
       }
