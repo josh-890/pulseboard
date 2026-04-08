@@ -28,6 +28,15 @@ const STATUS_TINT: Record<StagingSetStatus, string> = {
   SKIPPED: 'opacity-40',
 }
 
+const STATUS_HOVER_TINT: Record<StagingSetStatus, string> = {
+  PENDING: 'hover:bg-slate-100/80 dark:hover:bg-card/90',
+  REVIEWING: 'hover:bg-yellow-500/[0.08]',
+  APPROVED: 'hover:bg-emerald-500/[0.10]',
+  PROMOTED: 'hover:bg-emerald-500/[0.16]',
+  INACTIVE: '',
+  SKIPPED: '',
+}
+
 const PRIORITY_DOT: Record<number, string> = {
   1: 'bg-gray-400',
   2: 'bg-blue-400',
@@ -197,14 +206,14 @@ export const StagingSetRow = memo(function StagingSetRow({
         className={cn(
           'group flex w-full items-center gap-3 overflow-hidden rounded-xl border border-slate-200 bg-white/70 px-3 py-2 shadow-sm backdrop-blur-sm dark:border-border/40 dark:bg-card/70',
           'text-left transition-all duration-150',
-          'hover:border-slate-300 hover:bg-white/90 hover:shadow-md dark:hover:border-border/60 dark:hover:bg-card/90',
+          'hover:border-slate-400 hover:shadow-md dark:hover:border-border/70',
           'active:scale-[0.995]',
           'border-l-4',
           hasMatch
             ? 'border-l-purple-500'
             : ss.priority ? PRIORITY_BORDER[ss.priority] ?? 'border-l-transparent' : 'border-l-transparent',
           STATUS_TINT[ss.status],
-          hasMatch && 'bg-purple-500/[0.06]',
+          hasMatch ? 'bg-purple-500/[0.06] hover:bg-purple-500/[0.12]' : STATUS_HOVER_TINT[ss.status],
           isSelected && 'ring-2 ring-primary',
           isFocused && !isSelected && 'ring-2 ring-ring',
           isMultiSelectMode && isChecked && 'ring-2 ring-primary',
