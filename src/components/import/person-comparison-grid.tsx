@@ -5,7 +5,7 @@ import { cn } from '@/lib/utils'
 import { Input } from '@/components/ui/input'
 import { AlertTriangle, Plus, Pencil, Check, X, RotateCcw } from 'lucide-react'
 import { parseBreastDescription, extractCupFromMeasurements } from '@/lib/services/import/import-utils'
-import { resolveNationalityToIoc } from '@/lib/constants/countries'
+import { resolveNationalityToIoc, toIocCode } from '@/lib/constants/countries'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -229,6 +229,13 @@ function valuesMatch(
     return db === `${src} cm`
   }
 
+  // Nationality: normalize both sides to IOC code (e.g. "DE" → "GER", "Germany" → "GER")
+  if (targetKey === 'nationality') {
+    const srcIoc = resolveNationalityToIoc(sourceValue)
+    const dbIoc = dbValue.length === 2 ? toIocCode(dbValue) : resolveNationalityToIoc(dbValue)
+    if (srcIoc && dbIoc && srcIoc === dbIoc) return true
+  }
+
   return false
 }
 
@@ -240,17 +247,25 @@ function birthdateMatches(
   if (!dbValue) return false
   const db = normalizeValue(dbValue)
 
-  // Try matching "march 1982" format
   const monthIdx = parseInt(birthMonth, 10)
   const monthName = !isNaN(monthIdx) ? MONTH_NAMES[monthIdx] : normalizeValue(birthMonth)
   const year = birthYear.trim()
 
+  // Exact format match: "march 1982" === "march 1982"
   if (monthName && year) {
-    return db === `${monthName} ${year}`
+    if (db === `${monthName} ${year}`) return true
   }
   if (year && !monthName) {
-    return db === year
+    if (db === year) return true
   }
+
+  // DB has more precision (e.g. "march 23, 1982") — import has month+year only.
+  // If year matches and month matches, treat as match (DB is more precise, don't overwrite).
+  if (year && db.includes(year)) {
+    if (monthName && db.startsWith(monthName)) return true
+    if (!monthName) return true
+  }
+
   return false
 }
 

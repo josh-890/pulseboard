@@ -38,6 +38,11 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.
     color: 'bg-primary/15 text-primary border-primary/20',
     icon: <Loader2 size={10} className="animate-spin" />,
   },
+  PARTIAL: {
+    label: 'In Progress',
+    color: 'bg-blue-500/15 text-blue-500 border-blue-500/20',
+    icon: <Clock size={10} />,
+  },
   IMPORTED: {
     label: 'Imported',
     color: 'bg-emerald-500/15 text-emerald-500 border-emerald-500/20',

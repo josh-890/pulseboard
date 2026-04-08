@@ -155,7 +155,15 @@ export function ImportItemDetail({
           <div className="flex items-center gap-2 text-sm text-emerald-700 dark:text-emerald-400">
             <Check size={14} />
             Successfully imported
-            {item.matchedEntityId && (
+            {item.matchedEntityId && item.type === 'PERSON' && (
+              <a
+                href={`/people/${item.matchedEntityId}`}
+                className="inline-flex items-center gap-1 text-xs text-emerald-600 underline underline-offset-2 hover:text-emerald-500 dark:text-emerald-400"
+              >
+                View person <ExternalLink size={10} />
+              </a>
+            )}
+            {item.matchedEntityId && !['PERSON', 'CO_MODEL'].includes(item.type) && (
               <span className="text-xs text-muted-foreground">
                 (ID: {item.matchedEntityId})
               </span>
@@ -164,25 +172,27 @@ export function ImportItemDetail({
         </div>
       )}
 
-      {/* Data fields */}
-      <div className="rounded-lg border border-border/50 bg-card/50 p-4">
-        {item.type === 'PERSON' && (
-          <PersonDetailEditable
-            item={item}
-            data={data}
-            isActionable={isActionable}
-            onSaveEdits={onSaveEdits}
-          />
-        )}
-        {item.type === 'PERSON_ALIAS' && <AliasDetail data={data} />}
-        {item.type === 'DIGITAL_IDENTITY' && <IdentityDetail data={data} />}
-        {(item.type === 'CHANNEL' || item.type === 'LABEL') && (
-          <ChannelDetail data={data} />
-        )}
-        {item.type === 'SET' && <SetDetail data={data} />}
-        {item.type === 'CO_MODEL' && <CoModelDetail data={data} />}
-        {item.type === 'CREDIT' && <CreditDetail data={data} />}
-      </div>
+      {/* Data fields — hide comparison after import (stale data is misleading) */}
+      {item.status !== 'IMPORTED' && (
+        <div className="rounded-lg border border-border/50 bg-card/50 p-4">
+          {item.type === 'PERSON' && (
+            <PersonDetailEditable
+              item={item}
+              data={data}
+              isActionable={isActionable}
+              onSaveEdits={onSaveEdits}
+            />
+          )}
+          {item.type === 'PERSON_ALIAS' && <AliasDetail data={data} />}
+          {item.type === 'DIGITAL_IDENTITY' && <IdentityDetail data={data} />}
+          {(item.type === 'CHANNEL' || item.type === 'LABEL') && (
+            <ChannelDetail data={data} />
+          )}
+          {item.type === 'SET' && <SetDetail data={data} />}
+          {item.type === 'CO_MODEL' && <CoModelDetail data={data} />}
+          {item.type === 'CREDIT' && <CreditDetail data={data} />}
+        </div>
+      )}
 
       {/* Duplicate warning for sets */}
       {item.type === 'SET' && (data.duplicateOf as unknown[])?.length > 0 && (

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { formatPartialDate } from '@/lib/utils'
 import { withTenantFromHeaders } from '@/lib/tenant-context'
+import { toIocCode } from '@/lib/constants/countries'
 
 export async function GET(
   _req: Request,
@@ -34,7 +35,9 @@ export async function GET(
         birthdate: person.birthdate
           ? formatPartialDate(person.birthdate, person.birthdatePrecision)
           : null,
-        nationality: person.nationality,
+        nationality: person.nationality
+          ? (person.nationality.length === 2 ? toIocCode(person.nationality) : person.nationality)
+          : null,
         height: person.height,
         naturalHairColor: person.naturalHairColor,
         naturalBreastSize: person.naturalBreastSize,

@@ -47,7 +47,7 @@ export function ImportBatchList({ batches }: ImportBatchListProps) {
           statusBadge = 'FAILED'
         } else if (imported > 0) {
           statusLabel = `${imported} of ${total} imported`
-          statusBadge = 'IMPORTING'
+          statusBadge = 'PARTIAL'
         } else if (ready > 0) {
           statusLabel = 'Ready to review'
           statusBadge = 'NEW'

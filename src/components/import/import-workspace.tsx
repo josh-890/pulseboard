@@ -84,7 +84,10 @@ export function ImportWorkspace({ batch }: ImportWorkspaceProps) {
     const result: Record<string, { ready: number; blocked: number; done: number }> = {}
     for (const item of batch.items) {
       if (!result[item.type]) result[item.type] = { ready: 0, blocked: 0, done: 0 }
-      if (item.status === 'NEW' || item.status === 'MATCHED' || item.status === 'PROBABLE') {
+      // SET items are always sent to staging workspace on batch creation — treat as done
+      if (item.type === 'SET') {
+        result[item.type].done++
+      } else if (item.status === 'NEW' || item.status === 'MATCHED' || item.status === 'PROBABLE') {
         result[item.type].ready++
       } else if (item.status === 'IMPORTED' || item.status === 'SKIPPED') {
         result[item.type].done++
