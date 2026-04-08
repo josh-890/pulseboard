@@ -295,21 +295,21 @@ export function StagingSetGrid({
     [groups, groupBy, effectiveCollapsed, hasMore],
   )
 
+  // Stable key function so virtualizer tracks items across expand/collapse
+  const getItemKey = useCallback((index: number) => {
+    const entry = flatList[index]
+    if (entry.type === 'item') return entry.data.id
+    if (entry.type === 'header') return `h:${entry.key}`
+    return 'sentinel'
+  }, [flatList])
+
   const virtualizer = useVirtualizer({
     count: flatList.length,
     getScrollElement: () => scrollRef.current,
     estimateSize: (index) => estimateSize(flatList[index]),
+    getItemKey,
     overscan: 10,
   })
-
-  // Invalidate cached measurements when the flat list changes (expand/collapse)
-  const prevFlatLenRef = useRef(flatList.length)
-  useEffect(() => {
-    if (prevFlatLenRef.current !== flatList.length) {
-      prevFlatLenRef.current = flatList.length
-      virtualizer.measure()
-    }
-  }, [flatList.length, virtualizer])
 
   // Expose scrollToIndex to parent for keyboard nav
   useEffect(() => {
