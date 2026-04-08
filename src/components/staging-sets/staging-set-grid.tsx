@@ -190,26 +190,29 @@ export function StagingSetGrid({
   // Persist to sessionStorage so state survives tab switches and page revisits
   const COLLAPSE_STORAGE_KEY = 'pulseboard-staging-collapse'
 
-  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(() => {
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set<string>())
+  const [defaultCollapsed, setDefaultCollapsed] = useState(false)
+
+  const prevGroupByRef = useRef(groupBy)
+  const skipNextSaveRef = useRef(false)
+
+  // Restore collapse state from sessionStorage after hydration
+  const collapseRestoredRef = useRef(false)
+  useEffect(() => {
+    if (collapseRestoredRef.current) return
+    collapseRestoredRef.current = true
     try {
       const saved = sessionStorage.getItem(COLLAPSE_STORAGE_KEY)
       if (saved) {
         const parsed = JSON.parse(saved)
-        if (parsed.groupBy === groupBy) return new Set<string>(parsed.groups)
+        if (parsed.groupBy === groupBy) {
+          skipNextSaveRef.current = true
+          setCollapsedGroups(new Set<string>(parsed.groups))
+          setDefaultCollapsed(parsed.defaultCollapsed ?? false)
+        }
       }
     } catch {}
-    return new Set<string>()
-  })
-  const [defaultCollapsed, setDefaultCollapsed] = useState(() => {
-    try {
-      const saved = sessionStorage.getItem(COLLAPSE_STORAGE_KEY)
-      if (saved) {
-        const parsed = JSON.parse(saved)
-        if (parsed.groupBy === groupBy) return parsed.defaultCollapsed ?? false
-      }
-    } catch {}
-    return false
-  })
+  }, [groupBy])
 
   const groups = useMemo(() => computeGroups(items, groupBy), [items, groupBy])
 
@@ -229,8 +232,6 @@ export function StagingSetGrid({
   }, [groups, groupBy])
 
   // Persist/restore collapse state to sessionStorage
-  const prevGroupByRef = useRef(groupBy)
-  const skipNextSaveRef = useRef(false)
 
   // On groupBy change: restore from storage or reset
   useEffect(() => {
@@ -300,6 +301,15 @@ export function StagingSetGrid({
     estimateSize: (index) => estimateSize(flatList[index]),
     overscan: 10,
   })
+
+  // Invalidate cached measurements when the flat list changes (expand/collapse)
+  const prevFlatLenRef = useRef(flatList.length)
+  useEffect(() => {
+    if (prevFlatLenRef.current !== flatList.length) {
+      prevFlatLenRef.current = flatList.length
+      virtualizer.measure()
+    }
+  }, [flatList.length, virtualizer])
 
   // Expose scrollToIndex to parent for keyboard nav
   useEffect(() => {

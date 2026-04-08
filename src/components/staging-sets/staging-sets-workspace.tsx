@@ -44,6 +44,7 @@ export function StagingSetsWorkspace() {
 
   // ── Filter state (persisted to sessionStorage) ─────────────────────────
   const FILTER_STORAGE_KEY = 'staging-sets-filters'
+  // Initialize with defaults to avoid hydration mismatch (sessionStorage only on client)
   const [filters, setFilters] = useState<StagingSetFilterState>(() => {
     // URL params take priority (e.g. deep link with ?status=PROMOTED)
     const statusParam = searchParams.get('status')
@@ -60,11 +61,6 @@ export function StagingSetsWorkspace() {
         groupBy: (searchParams.get('groupBy') as StagingSetFilterState['groupBy']) || 'none',
       }
     }
-    // Otherwise restore from sessionStorage (merge with defaults for backwards compat)
-    try {
-      const saved = sessionStorage.getItem(FILTER_STORAGE_KEY)
-      if (saved) return { ...DEFAULT_FILTERS, ...JSON.parse(saved) } as StagingSetFilterState
-    } catch {}
     return {
       ...DEFAULT_FILTERS,
       search: searchParams.get('search') || '',
@@ -72,6 +68,23 @@ export function StagingSetsWorkspace() {
       groupBy: (searchParams.get('groupBy') as StagingSetFilterState['groupBy']) || 'none',
     }
   })
+
+  // Restore from sessionStorage after hydration (avoids server/client mismatch)
+  const filtersRestoredRef = useRef(false)
+  useEffect(() => {
+    if (filtersRestoredRef.current) return
+    filtersRestoredRef.current = true
+    // Skip if URL params were used
+    const statusParam = searchParams.get('status')
+    const batchId = searchParams.get('batchId')
+    if (statusParam || batchId) return
+    try {
+      const saved = sessionStorage.getItem(FILTER_STORAGE_KEY)
+      if (saved) {
+        setFilters({ ...DEFAULT_FILTERS, ...JSON.parse(saved) } as StagingSetFilterState)
+      }
+    } catch {}
+  }, [searchParams])
 
   // Persist filter changes to sessionStorage
   useEffect(() => {
