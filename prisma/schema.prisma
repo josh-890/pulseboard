@@ -803,6 +803,9 @@ model Session {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
+  coverMediaItemId String?
+  coverMediaItem   MediaItem? @relation("SessionCoverMedia", fields: [coverMediaItemId], references: [id])
+
   tags            String[]     @default([])
   mediaItems      MediaItem[]
   contributions   SessionContribution[]
@@ -817,6 +820,7 @@ model Session {
   @@index([status])
   @@index([nameNorm])
   @@index([tags], type: Gin)
+  @@index([coverMediaItemId])
 }
 
 model Set {
@@ -901,6 +905,7 @@ model MediaItem {
   setMediaItems    SetMediaItem[]
   personMediaLinks PersonMediaLink[]
   coverForSets     Set[]             @relation("SetCoverMedia")
+  coverForSessions Session[]         @relation("SessionCoverMedia")
   collectionItems  MediaCollectionItem[]
   skillEventMedia  SkillEventMedia[]
   mediaItemTags    MediaItemTag[]

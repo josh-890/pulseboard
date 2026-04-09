@@ -189,6 +189,25 @@ export async function unlinkSessionAction(
   });
 }
 
+export async function setSessionCover(
+  sessionId: string,
+  mediaItemId: string | null,
+): Promise<SimpleActionResult> {
+  return withTenantFromHeaders(async () => {
+    try {
+      await prisma.session.update({
+        where: { id: sessionId },
+        data: { coverMediaItemId: mediaItemId },
+      });
+      revalidatePath("/sessions");
+      revalidatePath(`/sessions/${sessionId}`);
+      return { success: true };
+    } catch {
+      return { success: false, error: "Failed to update cover image" };
+    }
+  });
+}
+
 export async function loadMoreSessions(
   filters: SessionFilters,
   cursor: string,

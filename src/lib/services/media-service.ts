@@ -986,28 +986,63 @@ export async function getCoverPhotosForSessions(
 ): Promise<Map<string, CoverPhotoData>> {
   if (sessionIds.length === 0) return new Map();
 
-  const mediaItems = await prisma.mediaItem.findMany({
-    where: { sessionId: { in: sessionIds } },
-    select: { sessionId: true, variants: true, fileRef: true, focalX: true, focalY: true },
-    orderBy: { createdAt: "asc" },
-  });
+  // Fetch sessions to get explicit cover FK, plus all media items for fallback
+  const [sessions, mediaItems] = await Promise.all([
+    prisma.session.findMany({
+      where: { id: { in: sessionIds } },
+      select: {
+        id: true,
+        coverMediaItemId: true,
+        coverMediaItem: {
+          select: { variants: true, fileRef: true, focalX: true, focalY: true },
+        },
+      },
+    }),
+    prisma.mediaItem.findMany({
+      where: { sessionId: { in: sessionIds } },
+      select: { sessionId: true, variants: true, fileRef: true, focalX: true, focalY: true },
+      orderBy: { createdAt: "asc" },
+    }),
+  ]);
 
-  const result = new Map<string, CoverPhotoData>();
+  // Build fallback map: first media item per session
+  const fallbackMap = new Map<string, CoverPhotoData>();
   for (const item of mediaItems) {
-    if (result.has(item.sessionId)) continue; // first per session
+    if (fallbackMap.has(item.sessionId)) continue;
     const variants = (item.variants ?? {}) as PhotoVariants;
     const url = variants.gallery_512
       ? buildUrl(variants.gallery_512)
-      : variants.original
-        ? buildUrl(variants.original)
+      : variants.master_4000
+        ? buildUrl(variants.master_4000)
         : item.fileRef
           ? buildUrl(item.fileRef)
           : null;
-    if (url) result.set(item.sessionId, {
-      url,
-      focalX: item.focalX ?? null,
-      focalY: item.focalY ?? null,
-    });
+    if (url) fallbackMap.set(item.sessionId, { url, focalX: item.focalX ?? null, focalY: item.focalY ?? null });
+  }
+
+  // Prefer explicit cover over fallback
+  const result = new Map<string, CoverPhotoData>();
+  for (const session of sessions) {
+    if (session.coverMediaItem) {
+      const variants = (session.coverMediaItem.variants ?? {}) as PhotoVariants;
+      const url = variants.gallery_512
+        ? buildUrl(variants.gallery_512)
+        : variants.master_4000
+          ? buildUrl(variants.master_4000)
+          : session.coverMediaItem.fileRef
+            ? buildUrl(session.coverMediaItem.fileRef)
+            : null;
+      if (url) {
+        result.set(session.id, {
+          url,
+          focalX: session.coverMediaItem.focalX ?? null,
+          focalY: session.coverMediaItem.focalY ?? null,
+        });
+        continue;
+      }
+    }
+    const fallback = fallbackMap.get(session.id);
+    if (fallback) result.set(session.id, fallback);
   }
 
   return result;

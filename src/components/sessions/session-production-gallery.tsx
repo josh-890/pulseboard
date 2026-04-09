@@ -19,6 +19,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { deleteMediaItemsAction } from "@/lib/actions/media-actions";
+import { setSessionCover } from "@/lib/actions/session-actions";
 import { applyGallerySort, GALLERY_SORT_OPTIONS } from "@/lib/gallery-sort";
 import type { GallerySortMode } from "@/lib/gallery-sort";
 import {
@@ -32,11 +33,13 @@ import {
 type SessionProductionGalleryProps = {
   items: GalleryItem[];
   sessionId?: string;
+  coverMediaItemId?: string | null;
   productionContext?: ProductionContext;
 };
 
-export function SessionProductionGallery({ items: initialItems, sessionId, productionContext }: SessionProductionGalleryProps) {
+export function SessionProductionGallery({ items: initialItems, sessionId, coverMediaItemId: initialCoverId, productionContext }: SessionProductionGalleryProps) {
   const [localItems, setLocalItems] = useState(initialItems);
+  const [coverId, setCoverId] = useState(initialCoverId ?? null);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [collections, setCollections] = useState<{ id: string; name: string }[]>([]);
   const [isDragOver, setIsDragOver] = useState(false);
@@ -114,6 +117,11 @@ export function SessionProductionGallery({ items: initialItems, sessionId, produ
     displayItems.forEach((item, i) => map.set(item.id, i));
     return map;
   }, [displayItems]);
+
+  const handleSetCover = useCallback((mediaItemId: string | null) => {
+    setCoverId(mediaItemId);
+    if (sessionId) setSessionCover(sessionId, mediaItemId);
+  }, [sessionId]);
 
   const handleToggleSelect = useCallback((id: string) => {
     setSelectedIds((prev) => {
@@ -243,6 +251,8 @@ export function SessionProductionGallery({ items: initialItems, sessionId, produ
           items={displayItems}
           initialIndex={lightboxIndex}
           onClose={() => setLightboxIndex(null)}
+          onSetCover={handleSetCover}
+          coverMediaItemId={coverId}
           onFindSimilar={(mediaItemId) => window.open(`/media/similar?id=${mediaItemId}`, "_blank")}
           onDelete={handleLightboxDelete}
           sessionId={sessionId}

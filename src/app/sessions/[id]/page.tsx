@@ -349,6 +349,7 @@ export default async function SessionDetailPage({ params, searchParams }: Sessio
             createdAt: item.createdAt.toISOString() as unknown as Date,
           }))}
           sessionId={id}
+          coverMediaItemId={session.coverMediaItemId ?? null}
           productionContext={productionContext}
         />
       </SectionCard>
