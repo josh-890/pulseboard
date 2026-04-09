@@ -14,7 +14,7 @@ const STATUS_BADGE: Record<StagingSetStatus, { label: string; className: string 
   PENDING: { label: 'Pending', className: 'bg-blue-500/15 text-blue-500' },
   REVIEWING: { label: 'Reviewing', className: 'bg-yellow-500/15 text-yellow-500' },
   APPROVED: { label: 'Approved', className: 'bg-cyan-500/15 text-cyan-500' },
-  PROMOTED: { label: 'Promoted', className: 'bg-yellow-400/20 text-yellow-400 font-semibold ring-1 ring-yellow-400/50' },
+  PROMOTED: { label: 'Promoted', className: 'bg-green-500 text-white font-semibold' },
   INACTIVE: { label: 'Inactive', className: 'bg-gray-400/15 text-gray-600 dark:text-gray-400' },
   SKIPPED: { label: 'Skipped', className: 'bg-gray-400/15 text-gray-600 dark:text-gray-400' },
 }
@@ -23,7 +23,7 @@ const STATUS_TINT: Record<StagingSetStatus, string> = {
   PENDING: '',
   REVIEWING: 'bg-yellow-500/[0.04]',
   APPROVED: 'bg-emerald-500/[0.06]',
-  PROMOTED: 'bg-yellow-400/[0.06]',
+  PROMOTED: 'bg-green-500/[0.22]',
   INACTIVE: 'opacity-50',
   SKIPPED: 'opacity-40',
 }
@@ -32,7 +32,7 @@ const STATUS_HOVER_TINT: Record<StagingSetStatus, string> = {
   PENDING: 'hover:bg-slate-100/80 dark:hover:bg-card/90',
   REVIEWING: 'hover:bg-yellow-500/[0.08]',
   APPROVED: 'hover:bg-emerald-500/[0.10]',
-  PROMOTED: 'hover:bg-yellow-400/[0.12]',
+  PROMOTED: 'hover:bg-green-500/[0.30]',
   INACTIVE: '',
   SKIPPED: '',
 }
