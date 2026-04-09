@@ -52,6 +52,7 @@ Media path:
 | `/projects` | `getProjectsPaginated()` | `ProjectList`, `ProjectCard`, `AddProjectSheet` |
 | `/labels` | `getAllLabels()` | `LabelList`, `LabelCard`, `AddLabelSheet` |
 | `/channels` | `getChannels()` | `ChannelList`, `ChannelCard`, `AddChannelSheet` |
+| `/artists` | `getArtists()` | `ArtistCard`, `ArtistSearch`, `AddArtistButton` |
 | `/networks` | `getNetworks()` | `NetworkList`, `NetworkCard`, `AddNetworkSheet` |
 | `/collections` | `getAllCollections()` | `CollectionList`, `AddCollectionDialog` |
 | `/settings` | `getAllSkillGroups()`, `getAllCategoryGroups()`, `getAllContributionRoleGroups()` | `SkillCatalogManager`, `MediaCategoryManager`, `ContributionRoleManager` |
@@ -69,6 +70,7 @@ Media path:
 | `/projects/[id]` | `getProjectById()`, `getProjectSessions()` | `ProjectDetail`, `EditProjectSheet` |
 | `/labels/[id]` | `getLabelById()` | `LabelDetail`, `EditLabelSheet` |
 | `/channels/[id]` | `getChannelById()` | `ChannelDetail`, `EditChannelSheet` |
+| `/artists/[id]` | `getArtistById()`, `getArtistStats()`, `getArtistCareer()` | `ArtistDetailHeader`, `EditArtistSheet` |
 | `/networks/[id]` | `getNetworkById()` | `NetworkDetail`, `EditNetworkSheet` |
 | `/import/[id]` | `refreshBatchMatches()` | `ImportWorkspace` → `ImportItemDetail`, `ImportStatusBadge`, `SetBatchSummary` (SET tab) |
 
@@ -106,6 +108,8 @@ All services in `src/lib/services/`. All functions are async, return Promises. S
 ### Entity Services
 
 **`label-service.ts`**, **`network-service.ts`**, **`channel-service.ts`**, **`project-service.ts`** — Standard CRUD for each entity
+
+**`artist-service.ts`** — Artist CRUD, search, stats (set/channel/media counts from resolved credits), career listing (sets grouped by channel). Artists are lightweight behind-camera entities (name, nationality, bio) separate from the deep Person model. Linked via `SetCreditRaw.resolvedArtistId` — bypass SessionContribution chain entirely.
 
 ### Infrastructure Services
 

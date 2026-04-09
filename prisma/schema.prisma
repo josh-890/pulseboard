@@ -988,10 +988,14 @@ model SetCreditRaw {
   createdAt        DateTime         @default(now())
   updatedAt        DateTime         @updatedAt
 
+  resolvedArtistId String?
+  resolvedArtist   Artist?          @relation(fields: [resolvedArtistId], references: [id])
+
   @@index([setId])
   @@index([resolutionStatus])
   @@index([nameNorm])
   @@index([resolvedPersonId])
+  @@index([resolvedArtistId])
   @@index([roleDefinitionId])
 }
 
@@ -1419,6 +1423,20 @@ enum ImportItemType {
   SET
   CO_MODEL
   CREDIT
+}
+
+model Artist {
+  id          String   @id @default(cuid())
+  name        String
+  nameNorm    String
+  nationality String?
+  bio         String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  creditsRaw  SetCreditRaw[]
+
+  @@index([nameNorm])
 }
 
 model ImportBatch {

@@ -16,6 +16,7 @@ import {
   Layers,
   LogOut,
   Upload,
+  Palette,
 } from "lucide-react";
 import { NavLink } from "./nav-link";
 import { useSidebar } from "./sidebar-provider";
@@ -32,6 +33,7 @@ const navItems = [
   { href: "/projects", icon: <FolderKanban size={20} />, label: "Projects" },
   { href: "/labels", icon: <Building2 size={20} />, label: "Labels" },
   { href: "/channels", icon: <Radio size={20} />, label: "Channels" },
+  { href: "/artists", icon: <Palette size={20} />, label: "Artists" },
   { href: "/networks", icon: <Network size={20} />, label: "Networks" },
   { href: "/import", icon: <Upload size={20} />, label: "Import" },
   { href: "/staging-sets", icon: <Layers size={20} />, label: "Staging Sets" },

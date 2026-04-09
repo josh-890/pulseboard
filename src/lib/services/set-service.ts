@@ -172,6 +172,7 @@ export async function getSetById(id: string) {
               aliases: { where: { isCommon: true }, take: 1 },
             },
           },
+          resolvedArtist: true,
           roleDefinition: { include: { group: true } },
         },
         orderBy: { createdAt: "asc" },
@@ -368,6 +369,7 @@ export async function getChannelsWithLabelMaps() {
 }
 
 export async function searchPersonsForSelect(q: string) {
+  const qLower = q.toLowerCase();
   const persons = await prisma.person.findMany({
     where: {
       OR: [
@@ -376,30 +378,48 @@ export async function searchPersonsForSelect(q: string) {
           aliases: {
             some: {
               name: { contains: q, mode: "insensitive" },
-              isCommon: true,
             },
           },
         },
       ],
     },
     include: {
-      aliases: { where: { isCommon: true }, take: 1 },
+      aliases: {
+        where: {
+          OR: [
+            { isCommon: true },
+            { name: { contains: q, mode: "insensitive" } },
+          ],
+        },
+      },
     },
     take: 20,
     orderBy: { createdAt: "asc" },
   });
-  return persons.map((p) => ({
-    id: p.id,
-    icgId: p.icgId,
-    commonAlias: p.aliases[0]?.name ?? null,
-  }));
+  return persons.map((p) => {
+    const common = p.aliases.find((a) => a.isCommon);
+    const commonName = common?.name ?? null;
+    // Show a.k.a. only when the common name doesn't match the query
+    const commonMatches = commonName?.toLowerCase().includes(qLower) || p.icgId.toLowerCase().includes(qLower);
+    const matchedAliases = commonMatches
+      ? []
+      : p.aliases
+          .filter((a) => !a.isCommon && a.name.toLowerCase().includes(qLower))
+          .map((a) => a.name);
+    return {
+      id: p.id,
+      icgId: p.icgId,
+      commonAlias: commonName,
+      matchedAlias: matchedAliases.length > 0 ? matchedAliases.join(", ") : null,
+    };
+  });
 }
 
 // ── SetCreditRaw / SetParticipant operations ────────────────────────────────
 
 export async function createSetCreditsRaw(
   setId: string,
-  credits: { roleDefinitionId: string; rawName: string; resolvedPersonId?: string }[],
+  credits: { roleDefinitionId: string; rawName: string; resolvedPersonId?: string; resolvedArtistId?: string }[],
 ) {
   if (credits.length === 0) return;
 
@@ -411,7 +431,9 @@ export async function createSetCreditsRaw(
     });
 
     for (const credit of credits) {
-      const isResolved = !!credit.resolvedPersonId;
+      const isResolvedPerson = !!credit.resolvedPersonId;
+      const isResolvedArtist = !!credit.resolvedArtistId;
+      const isResolved = isResolvedPerson || isResolvedArtist;
       await tx.setCreditRaw.create({
         data: {
           setId,
@@ -419,12 +441,14 @@ export async function createSetCreditsRaw(
           rawName: credit.rawName,
           nameNorm: normalizeForSearch(credit.rawName),
           resolvedPersonId: credit.resolvedPersonId ?? null,
+          resolvedArtistId: credit.resolvedArtistId ?? null,
           resolutionStatus: isResolved ? "RESOLVED" : "UNRESOLVED",
         },
       });
 
-      // If pre-resolved, create SessionContribution on linked sessions
-      if (isResolved && credit.resolvedPersonId) {
+      // If pre-resolved as person, create SessionContribution on linked sessions
+      // Artists bypass the contribution chain entirely
+      if (isResolvedPerson && credit.resolvedPersonId) {
         for (const link of sessionLinks) {
           await tx.sessionContribution.upsert({
             where: {
@@ -521,9 +545,31 @@ export async function ignoreCreditRaw(creditId: string) {
   });
 }
 
+export async function resolveCreditAsArtistRaw(creditId: string, artistId: string) {
+  return prisma.setCreditRaw.update({
+    where: { id: creditId },
+    data: {
+      resolutionStatus: "RESOLVED" as ResolutionStatus,
+      resolvedArtistId: artistId,
+      resolvedPersonId: null,
+    },
+  });
+}
+
 export async function unresolveCreditRaw(creditId: string) {
   return prisma.$transaction(async (tx) => {
     const credit = await tx.setCreditRaw.findUniqueOrThrow({ where: { id: creditId } });
+
+    // Artist credits: just clear the field, no contribution cleanup needed
+    if (credit.resolvedArtistId) {
+      return tx.setCreditRaw.update({
+        where: { id: creditId },
+        data: {
+          resolutionStatus: "UNRESOLVED" as ResolutionStatus,
+          resolvedArtistId: null,
+        },
+      });
+    }
 
     // Remove SessionContribution if this was the only credit pointing to that person+role
     if (credit.resolvedPersonId && credit.roleDefinitionId) {
@@ -599,9 +645,20 @@ export async function unresolveCreditRaw(creditId: string) {
       data: {
         resolutionStatus: "UNRESOLVED" as ResolutionStatus,
         resolvedPersonId: null,
+        resolvedArtistId: null,
       },
     });
   });
+}
+
+export async function deleteCreditRaw(creditId: string) {
+  const credit = await prisma.setCreditRaw.findUniqueOrThrow({ where: { id: creditId } });
+  if (credit.resolutionStatus === "RESOLVED") {
+    // Unresolve first to clean up contributions, then delete
+    await unresolveCreditRaw(creditId);
+  }
+  await prisma.setCreditRaw.delete({ where: { id: creditId } });
+  return credit.setId;
 }
 
 // ── Label evidence management ────────────────────────────────────────────────

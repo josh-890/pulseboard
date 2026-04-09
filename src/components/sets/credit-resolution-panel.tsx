@@ -3,36 +3,51 @@
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { UserSearch, Loader2, X, UserPlus, Check, Ban, Undo2 } from "lucide-react";
+import { UserSearch, Loader2, X, UserPlus, Check, Ban, Undo2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import {
   resolveCredit,
+  resolveCreditAsArtist,
   ignoreCredit,
   unresolveCredit,
+  deleteCredit,
   searchPersonsAction,
+  searchArtistsAction,
   getSuggestionsAction,
 } from "@/lib/actions/set-actions";
 import { CreatePersonSheet } from "@/components/people/create-person-sheet";
+import { CreateArtistSheet } from "@/components/artists/create-artist-sheet";
 
 type PersonResult = {
   id: string;
   icgId: string;
   commonAlias: string | null;
+  matchedAlias: string | null;
+};
+
+type ArtistResult = {
+  id: string;
+  name: string;
+  nationality: string | null;
 };
 
 type CreditRawItem = {
   id: string;
-  roleDefinitionId: string;
-  roleName: string;
+  roleDefinitionId: string | null;
+  roleName: string | null;
   rawName: string;
   resolutionStatus: "UNRESOLVED" | "RESOLVED" | "IGNORED";
   resolvedPerson: {
     id: string;
     icgId: string;
     aliases: { name: string; isCommon: boolean }[];
+  } | null;
+  resolvedArtist: {
+    id: string;
+    name: string;
   } | null;
 };
 
@@ -53,18 +68,26 @@ export function CreditResolutionPanel({ setId, credits: initialCredits, channelI
   const router = useRouter();
   const [credits, setCredits] = useState(initialCredits);
 
+  // Re-sync when server data changes (e.g. after router.refresh())
+  useEffect(() => {
+    setCredits(initialCredits);
+  }, [initialCredits]);
+
   // Track which credit is being resolved inline
   const [resolvingCreditId, setResolvingCreditId] = useState<string | null>(null);
+  const [resolveMode, setResolveMode] = useState<"person" | "artist">("person");
   const [suggestions, setSuggestions] = useState<SuggestionItem[]>([]);
   const [loadingSuggestions, setLoadingSuggestions] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<PersonResult[]>([]);
+  const [artistSearchResults, setArtistSearchResults] = useState<ArtistResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
-  // Create person sheet
-  const [showCreateSheet, setShowCreateSheet] = useState(false);
+  // Create sheets
+  const [showCreatePersonSheet, setShowCreatePersonSheet] = useState(false);
+  const [showCreateArtistSheet, setShowCreateArtistSheet] = useState(false);
 
   const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -84,19 +107,27 @@ export function CreditResolutionPanel({ setId, credits: initialCredits, channelI
     if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
     if (!q.trim()) {
       setSearchResults([]);
+      setArtistSearchResults([]);
       setShowDropdown(false);
       return;
     }
     searchTimeoutRef.current = setTimeout(async () => {
       setIsSearching(true);
-      const results = await searchPersonsAction(q);
-      setSearchResults(results);
+      if (resolveMode === "artist") {
+        const results = await searchArtistsAction(q);
+        setArtistSearchResults(results);
+        setSearchResults([]);
+      } else {
+        const results = await searchPersonsAction(q);
+        setSearchResults(results);
+        setArtistSearchResults([]);
+      }
       setShowDropdown(true);
       setIsSearching(false);
     }, 300);
   }
 
-  async function handleResolve(creditId: string, personId: string, personName: string) {
+  async function handleResolve(creditId: string, personId: string, personName: string, icgId: string) {
     setActionLoading(creditId);
     const result = await resolveCredit(creditId, personId, setId);
     if (result.success) {
@@ -108,9 +139,10 @@ export function CreditResolutionPanel({ setId, credits: initialCredits, channelI
                 resolutionStatus: "RESOLVED" as const,
                 resolvedPerson: {
                   id: personId,
-                  icgId: "",
+                  icgId,
                   aliases: [{ name: personName, isCommon: true }],
                 },
+                resolvedArtist: null,
               }
             : c,
         ),
@@ -122,6 +154,33 @@ export function CreditResolutionPanel({ setId, credits: initialCredits, channelI
       router.refresh();
     } else {
       toast.error(result.error ?? "Failed to resolve");
+    }
+    setActionLoading(null);
+  }
+
+  async function handleResolveAsArtist(creditId: string, artistId: string, artistName: string) {
+    setActionLoading(creditId);
+    const result = await resolveCreditAsArtist(creditId, artistId, setId);
+    if (result.success) {
+      setCredits((prev) =>
+        prev.map((c) =>
+          c.id === creditId
+            ? {
+                ...c,
+                resolutionStatus: "RESOLVED" as const,
+                resolvedPerson: null,
+                resolvedArtist: { id: artistId, name: artistName },
+              }
+            : c,
+        ),
+      );
+      setResolvingCreditId(null);
+      setSearchQuery("");
+      setArtistSearchResults([]);
+      setShowDropdown(false);
+      router.refresh();
+    } else {
+      toast.error(result.error ?? "Failed to resolve as artist");
     }
     setActionLoading(null);
   }
@@ -147,7 +206,7 @@ export function CreditResolutionPanel({ setId, credits: initialCredits, channelI
       setCredits((prev) =>
         prev.map((c) =>
           c.id === creditId
-            ? { ...c, resolutionStatus: "UNRESOLVED" as const, resolvedPerson: null }
+            ? { ...c, resolutionStatus: "UNRESOLVED" as const, resolvedPerson: null, resolvedArtist: null }
             : c,
         ),
       );
@@ -158,28 +217,54 @@ export function CreditResolutionPanel({ setId, credits: initialCredits, channelI
     setActionLoading(null);
   }
 
+  async function handleDelete(creditId: string) {
+    setActionLoading(creditId);
+    const result = await deleteCredit(creditId, setId);
+    if (result.success) {
+      setCredits((prev) => prev.filter((c) => c.id !== creditId));
+      router.refresh();
+    } else {
+      toast.error(result.error ?? "Failed to delete credit");
+    }
+    setActionLoading(null);
+  }
+
   async function handlePersonCreated(person: { id: string; name: string }) {
     if (resolvingCreditId) {
-      await handleResolve(resolvingCreditId, person.id, person.name);
+      await handleResolve(resolvingCreditId, person.id, person.name, "");
     }
-    setShowCreateSheet(false);
+    setShowCreatePersonSheet(false);
+  }
+
+  async function handleArtistCreated(artist: { id: string; name: string }) {
+    if (resolvingCreditId) {
+      await handleResolveAsArtist(resolvingCreditId, artist.id, artist.name);
+    }
+    setShowCreateArtistSheet(false);
   }
 
   function startResolving(creditId: string) {
     setResolvingCreditId(creditId);
     setSearchQuery("");
     setSearchResults([]);
+    setArtistSearchResults([]);
     setShowDropdown(false);
 
-    // Load suggestions for this credit
+    // Default mode: credits with no role → artist, credits with role → person
     const credit = credits.find((c) => c.id === creditId);
-    if (credit) {
+    const defaultMode = credit?.roleDefinitionId ? "person" : "artist";
+    setResolveMode(defaultMode);
+
+    // Load suggestions for person mode
+    if (credit && defaultMode === "person") {
       setLoadingSuggestions(true);
       setSuggestions([]);
       getSuggestionsAction(credit.rawName, channelId ?? null).then((result) => {
         setSuggestions(result);
         setLoadingSuggestions(false);
       });
+    } else {
+      setSuggestions([]);
     }
   }
 
@@ -187,18 +272,20 @@ export function CreditResolutionPanel({ setId, credits: initialCredits, channelI
     setResolvingCreditId(null);
     setSearchQuery("");
     setSearchResults([]);
+    setArtistSearchResults([]);
     setShowDropdown(false);
     setSuggestions([]);
   }
 
-  // Group by role definition
+  // Group by role definition (null roleDefinitionId → "Other" group)
   const creditsByRole = new Map<string, { roleName: string; items: typeof credits }>();
   for (const c of credits) {
-    const existing = creditsByRole.get(c.roleDefinitionId);
+    const key = c.roleDefinitionId ?? "__none__";
+    const existing = creditsByRole.get(key);
     if (existing) {
       existing.items.push(c);
     } else {
-      creditsByRole.set(c.roleDefinitionId, { roleName: c.roleName, items: [c] });
+      creditsByRole.set(key, { roleName: c.roleName ?? "Artist", items: [c] });
     }
   }
 
@@ -216,9 +303,12 @@ export function CreditResolutionPanel({ setId, credits: initialCredits, channelI
               key={credit.id}
               credit={credit}
               isResolving={resolvingCreditId === credit.id}
+              resolveMode={resolveMode}
+              onResolveModeChange={setResolveMode}
               actionLoading={actionLoading}
               searchQuery={searchQuery}
               searchResults={searchResults}
+              artistSearchResults={artistSearchResults}
               isSearching={isSearching}
               showDropdown={showDropdown && resolvingCreditId === credit.id}
               suggestions={resolvingCreditId === credit.id ? suggestions : []}
@@ -227,19 +317,27 @@ export function CreditResolutionPanel({ setId, credits: initialCredits, channelI
               onStartResolving={() => startResolving(credit.id)}
               onCancelResolving={cancelResolving}
               onSearchChange={handleSearchChange}
-              onResolve={(personId, personName) => handleResolve(credit.id, personId, personName)}
+              onResolve={(personId, personName, icgId) => handleResolve(credit.id, personId, personName, icgId)}
+              onResolveAsArtist={(artistId, artistName) => handleResolveAsArtist(credit.id, artistId, artistName)}
               onIgnore={() => handleIgnore(credit.id)}
               onUnresolve={() => handleUnresolve(credit.id)}
-              onShowCreateSheet={() => setShowCreateSheet(true)}
+              onDelete={() => handleDelete(credit.id)}
+              onShowCreatePersonSheet={() => setShowCreatePersonSheet(true)}
+              onShowCreateArtistSheet={() => setShowCreateArtistSheet(true)}
             />
           ))}
         </div>
       ))}
 
       <CreatePersonSheet
-        open={showCreateSheet}
-        onOpenChange={setShowCreateSheet}
+        open={showCreatePersonSheet}
+        onOpenChange={setShowCreatePersonSheet}
         onCreated={handlePersonCreated}
+      />
+      <CreateArtistSheet
+        open={showCreateArtistSheet}
+        onOpenChange={setShowCreateArtistSheet}
+        onCreated={handleArtistCreated}
       />
     </div>
   );
@@ -250,9 +348,12 @@ export function CreditResolutionPanel({ setId, credits: initialCredits, channelI
 type CreditRowProps = {
   credit: CreditRawItem;
   isResolving: boolean;
+  resolveMode: "person" | "artist";
+  onResolveModeChange: (mode: "person" | "artist") => void;
   actionLoading: string | null;
   searchQuery: string;
   searchResults: PersonResult[];
+  artistSearchResults: ArtistResult[];
   isSearching: boolean;
   showDropdown: boolean;
   suggestions: SuggestionItem[];
@@ -261,18 +362,24 @@ type CreditRowProps = {
   onStartResolving: () => void;
   onCancelResolving: () => void;
   onSearchChange: (q: string) => void;
-  onResolve: (personId: string, personName: string) => void;
+  onResolve: (personId: string, personName: string, icgId: string) => void;
+  onResolveAsArtist: (artistId: string, artistName: string) => void;
   onIgnore: () => void;
   onUnresolve: () => void;
-  onShowCreateSheet: () => void;
+  onDelete: () => void;
+  onShowCreatePersonSheet: () => void;
+  onShowCreateArtistSheet: () => void;
 };
 
 function CreditRow({
   credit,
   isResolving,
+  resolveMode,
+  onResolveModeChange,
   actionLoading,
   searchQuery,
   searchResults,
+  artistSearchResults,
   isSearching,
   showDropdown,
   suggestions,
@@ -282,9 +389,12 @@ function CreditRow({
   onCancelResolving,
   onSearchChange,
   onResolve,
+  onResolveAsArtist,
   onIgnore,
   onUnresolve,
-  onShowCreateSheet,
+  onDelete,
+  onShowCreatePersonSheet,
+  onShowCreateArtistSheet,
 }: CreditRowProps) {
   const isLoading = actionLoading === credit.id;
   const resolvedName =
@@ -343,17 +453,35 @@ function CreditRow({
               >
                 <Ban size={12} className="mr-1" /> Ignore
               </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 text-xs text-destructive/70 hover:text-destructive"
+                onClick={onDelete}
+              >
+                <Trash2 size={12} />
+              </Button>
             </>
           )}
           {!isLoading && credit.resolutionStatus === "IGNORED" && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-7 text-xs"
-              onClick={onUnresolve}
-            >
-              <Undo2 size={12} className="mr-1" /> Undo
-            </Button>
+            <>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 text-xs"
+                onClick={onUnresolve}
+              >
+                <Undo2 size={12} className="mr-1" /> Undo
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 text-xs text-destructive/70 hover:text-destructive"
+                onClick={onDelete}
+              >
+                <Trash2 size={12} />
+              </Button>
+            </>
           )}
           {!isLoading && credit.resolutionStatus === "RESOLVED" && (
             <Button
@@ -378,20 +506,61 @@ function CreditRow({
           >
             {resolvedName}
           </Link>
+          <span className="ml-1.5 text-[10px] text-muted-foreground">({credit.resolvedPerson.icgId})</span>
+        </div>
+      )}
+
+      {/* Resolved artist link */}
+      {credit.resolutionStatus === "RESOLVED" && credit.resolvedArtist && (
+        <div className="pl-2 text-sm">
+          <span className="text-muted-foreground">→ </span>
+          <Link
+            href={`/artists/${credit.resolvedArtist.id}`}
+            className="text-primary hover:underline underline-offset-2"
+          >
+            {credit.resolvedArtist.name}
+          </Link>
+          <span className="ml-1.5 text-[10px] text-muted-foreground">(artist)</span>
         </div>
       )}
 
       {/* Inline resolve search */}
       {isResolving && (
         <div className="space-y-2 pt-1">
-          {/* Suggestion pills */}
-          {loadingSuggestions && (
+          {/* Person / Artist mode toggle */}
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => { onResolveModeChange("person"); onSearchChange(""); }}
+              className={`rounded-full px-2.5 py-0.5 text-xs font-medium transition-colors ${
+                resolveMode === "person"
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-muted text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              Person
+            </button>
+            <button
+              type="button"
+              onClick={() => { onResolveModeChange("artist"); onSearchChange(""); }}
+              className={`rounded-full px-2.5 py-0.5 text-xs font-medium transition-colors ${
+                resolveMode === "artist"
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-muted text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              Artist
+            </button>
+          </div>
+
+          {/* Suggestion pills (person mode only) */}
+          {resolveMode === "person" && loadingSuggestions && (
             <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
               <Loader2 size={10} className="animate-spin" />
               Loading suggestions…
             </div>
           )}
-          {!loadingSuggestions && suggestions.length > 0 && (
+          {resolveMode === "person" && !loadingSuggestions && suggestions.length > 0 && (
             <div className="space-y-1">
               <p className="text-xs text-muted-foreground">Suggested</p>
               <div className="flex flex-wrap gap-1.5">
@@ -399,7 +568,7 @@ function CreditRow({
                   <button
                     key={s.id}
                     type="button"
-                    onClick={() => onResolve(s.id, s.commonAlias ?? s.icgId)}
+                    onClick={() => onResolve(s.id, s.commonAlias ?? s.icgId, s.icgId)}
                     className="inline-flex items-center gap-1 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2 py-0.5 text-xs font-medium text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 transition-colors"
                   >
                     {s.commonAlias ?? s.icgId}
@@ -419,7 +588,7 @@ function CreditRow({
                 className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none"
               />
               <Input
-                placeholder="Search person…"
+                placeholder={resolveMode === "artist" ? "Search artist…" : "Search person…"}
                 value={searchQuery}
                 onChange={(e) => onSearchChange(e.target.value)}
                 className="pl-8 h-8 text-sm"
@@ -433,7 +602,8 @@ function CreditRow({
               )}
             </div>
 
-            {showDropdown && searchResults.length > 0 && (
+            {/* Person search results */}
+            {resolveMode === "person" && showDropdown && searchResults.length > 0 && (
               <div className="absolute z-50 mt-1 w-full rounded-lg border border-white/20 bg-card shadow-lg">
                 <ul className="max-h-36 overflow-y-auto py-1">
                   {searchResults.map((person) => (
@@ -441,16 +611,43 @@ function CreditRow({
                       <button
                         type="button"
                         onClick={() =>
-                          onResolve(person.id, person.commonAlias ?? person.icgId)
+                          onResolve(person.id, person.commonAlias ?? person.icgId, person.icgId)
                         }
                         className="w-full flex items-center justify-between gap-2 px-3 py-1.5 text-sm hover:bg-muted/50 text-left transition-colors"
                       >
                         <span className="font-medium">
                           {person.commonAlias ?? person.icgId}
+                          {person.matchedAlias && (
+                            <span className="font-normal text-muted-foreground"> (a.k.a.: {person.matchedAlias})</span>
+                          )}
                         </span>
                         <span className="text-xs text-muted-foreground shrink-0">
-                          {person.icgId}
+                          ({person.icgId})
                         </span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {/* Artist search results */}
+            {resolveMode === "artist" && showDropdown && artistSearchResults.length > 0 && (
+              <div className="absolute z-50 mt-1 w-full rounded-lg border border-white/20 bg-card shadow-lg">
+                <ul className="max-h-36 overflow-y-auto py-1">
+                  {artistSearchResults.map((artist) => (
+                    <li key={artist.id}>
+                      <button
+                        type="button"
+                        onClick={() => onResolveAsArtist(artist.id, artist.name)}
+                        className="w-full flex items-center justify-between gap-2 px-3 py-1.5 text-sm hover:bg-muted/50 text-left transition-colors"
+                      >
+                        <span className="font-medium">{artist.name}</span>
+                        {artist.nationality && (
+                          <span className="text-xs text-muted-foreground shrink-0">
+                            {artist.nationality}
+                          </span>
+                        )}
                       </button>
                     </li>
                   ))}
@@ -459,14 +656,25 @@ function CreditRow({
             )}
           </div>
 
-          <button
-            type="button"
-            onClick={onShowCreateSheet}
-            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
-          >
-            <UserPlus size={12} />
-            Create new person
-          </button>
+          {resolveMode === "person" ? (
+            <button
+              type="button"
+              onClick={onShowCreatePersonSheet}
+              className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <UserPlus size={12} />
+              Create new person
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={onShowCreateArtistSheet}
+              className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <UserPlus size={12} />
+              Create new artist
+            </button>
+          )}
 
           <Button
             type="button"

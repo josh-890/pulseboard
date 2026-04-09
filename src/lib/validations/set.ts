@@ -43,6 +43,7 @@ export const creditEntrySchema = z.object({
   roleDefinitionId: z.string().min(1, "Role is required"),
   rawName: z.string().min(1, "Name is required"),
   resolvedPersonId: z.string().optional(),
+  resolvedArtistId: z.string().optional(),
 });
 
 export const labelEvidenceEntrySchema = z.object({

@@ -6,18 +6,27 @@ import { Plus, UserSearch, Loader2, X, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { saveSetCredits, searchPersonsAction } from "@/lib/actions/set-actions";
+import { saveSetCredits, searchPersonsAction, searchArtistsAction } from "@/lib/actions/set-actions";
 import { CreatePersonSheet } from "@/components/people/create-person-sheet";
+import { CreateArtistSheet } from "@/components/artists/create-artist-sheet";
 
 type PersonResult = {
   id: string;
   icgId: string;
   commonAlias: string | null;
+  matchedAlias: string | null;
+};
+
+type ArtistResult = {
+  id: string;
+  name: string;
+  nationality: string | null;
 };
 
 type RoleDefinitionOption = {
   id: string;
   name: string;
+  groupName: string;
 };
 
 type AddCreditInlineProps = {
@@ -31,12 +40,18 @@ export function AddCreditInline({ setId, roleDefinitions }: AddCreditInlineProps
   const [activeRoleId, setActiveRoleId] = useState<string>(roleDefinitions[0]?.id ?? "");
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<PersonResult[]>([]);
+  const [artistSearchResults, setArtistSearchResults] = useState<ArtistResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
-  // Create person sheet
+  // Create sheets
   const [showCreateSheet, setShowCreateSheet] = useState(false);
+  const [showCreateArtistSheet, setShowCreateArtistSheet] = useState(false);
+
+  // Determine if active role is behind-camera (artist-type)
+  const activeRole = roleDefinitions.find((rd) => rd.id === activeRoleId);
+  const isArtistRole = activeRole?.groupName === "Behind Camera";
 
   const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -54,8 +69,10 @@ export function AddCreditInline({ setId, roleDefinitions }: AddCreditInlineProps
   function reset() {
     setSearchQuery("");
     setSearchResults([]);
+    setArtistSearchResults([]);
     setShowDropdown(false);
     setShowCreateSheet(false);
+    setShowCreateArtistSheet(false);
   }
 
   function handleClose() {
@@ -68,22 +85,30 @@ export function AddCreditInline({ setId, roleDefinitions }: AddCreditInlineProps
     if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
     if (!q.trim()) {
       setSearchResults([]);
+      setArtistSearchResults([]);
       setShowDropdown(false);
       return;
     }
     searchTimeoutRef.current = setTimeout(async () => {
       setIsSearching(true);
-      const results = await searchPersonsAction(q);
-      setSearchResults(results);
+      if (isArtistRole) {
+        const results = await searchArtistsAction(q);
+        setArtistSearchResults(results);
+        setSearchResults([]);
+      } else {
+        const results = await searchPersonsAction(q);
+        setSearchResults(results);
+        setArtistSearchResults([]);
+      }
       setShowDropdown(true);
       setIsSearching(false);
     }, 300);
   }
 
-  async function addCredit(rawName: string, resolvedPersonId?: string) {
+  async function addCredit(rawName: string, resolvedPersonId?: string, resolvedArtistId?: string) {
     setIsSaving(true);
     const result = await saveSetCredits(setId, [
-      { roleDefinitionId: activeRoleId, rawName, resolvedPersonId },
+      { roleDefinitionId: activeRoleId, rawName, resolvedPersonId, resolvedArtistId },
     ]);
     if (result.success) {
       toast.success("Credit added");
@@ -98,6 +123,10 @@ export function AddCreditInline({ setId, roleDefinitions }: AddCreditInlineProps
   function handleSelectPerson(person: PersonResult) {
     const displayName = person.commonAlias ?? person.icgId;
     addCredit(displayName, person.id);
+  }
+
+  function handleSelectArtist(artist: ArtistResult) {
+    addCredit(artist.name, undefined, artist.id);
   }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
@@ -137,6 +166,11 @@ export function AddCreditInline({ setId, roleDefinitions }: AddCreditInlineProps
   async function handlePersonCreated(person: { id: string; name: string }) {
     setShowCreateSheet(false);
     await addCredit(person.name, person.id);
+  }
+
+  async function handleArtistCreated(artist: { id: string; name: string }) {
+    setShowCreateArtistSheet(false);
+    await addCredit(artist.name, undefined, artist.id);
   }
 
   if (!isExpanded) {
@@ -193,10 +227,10 @@ export function AddCreditInline({ setId, roleDefinitions }: AddCreditInlineProps
             className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none"
           />
           <Input
-            placeholder="Search person, or type raw name + Enter…"
+            placeholder={isArtistRole ? "Search artist, or type raw name + Enter…" : "Search person, or type raw name + Enter…"}
             value={searchQuery}
             onChange={(e) => handleSearchChange(e.target.value)}
-            onFocus={() => searchResults.length > 0 && setShowDropdown(true)}
+            onFocus={() => (searchResults.length > 0 || artistSearchResults.length > 0) && setShowDropdown(true)}
             onKeyDown={handleKeyDown}
             className="pl-8 pr-8"
             autoFocus
@@ -214,6 +248,7 @@ export function AddCreditInline({ setId, roleDefinitions }: AddCreditInlineProps
               onClick={() => {
                 setSearchQuery("");
                 setSearchResults([]);
+                setArtistSearchResults([]);
                 setShowDropdown(false);
               }}
               className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
@@ -224,7 +259,8 @@ export function AddCreditInline({ setId, roleDefinitions }: AddCreditInlineProps
           )}
         </div>
 
-        {showDropdown && searchResults.length > 0 && (
+        {/* Person search results */}
+        {!isArtistRole && showDropdown && searchResults.length > 0 && (
           <div className="absolute z-50 mt-1 w-full rounded-lg border border-white/20 bg-card shadow-lg">
             <ul className="max-h-48 overflow-y-auto py-1">
               {searchResults.map((person) => (
@@ -237,9 +273,12 @@ export function AddCreditInline({ setId, roleDefinitions }: AddCreditInlineProps
                   >
                     <span className="font-medium">
                       {person.commonAlias ?? person.icgId}
+                      {person.matchedAlias && (
+                        <span className="font-normal text-muted-foreground"> (a.k.a.: {person.matchedAlias})</span>
+                      )}
                     </span>
                     <span className="text-xs text-muted-foreground shrink-0">
-                      {person.icgId}
+                      ({person.icgId})
                     </span>
                   </button>
                 </li>
@@ -248,7 +287,32 @@ export function AddCreditInline({ setId, roleDefinitions }: AddCreditInlineProps
           </div>
         )}
 
-        {showDropdown && searchResults.length === 0 && !isSearching && searchQuery.trim() && (
+        {/* Artist search results */}
+        {isArtistRole && showDropdown && artistSearchResults.length > 0 && (
+          <div className="absolute z-50 mt-1 w-full rounded-lg border border-white/20 bg-card shadow-lg">
+            <ul className="max-h-48 overflow-y-auto py-1">
+              {artistSearchResults.map((artist) => (
+                <li key={artist.id}>
+                  <button
+                    type="button"
+                    onClick={() => handleSelectArtist(artist)}
+                    className="w-full flex items-center justify-between gap-2 px-3 py-2 text-sm hover:bg-muted/50 text-left transition-colors"
+                    disabled={isSaving}
+                  >
+                    <span className="font-medium">{artist.name}</span>
+                    {artist.nationality && (
+                      <span className="text-xs text-muted-foreground shrink-0">
+                        {artist.nationality}
+                      </span>
+                    )}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {showDropdown && searchResults.length === 0 && artistSearchResults.length === 0 && !isSearching && searchQuery.trim() && (
           <div className="absolute z-50 mt-1 w-full rounded-lg border border-white/20 bg-card shadow-lg px-3 py-2 text-sm text-muted-foreground">
             No results — press Enter to add as raw name
           </div>
@@ -262,19 +326,35 @@ export function AddCreditInline({ setId, roleDefinitions }: AddCreditInlineProps
         </div>
       )}
 
-      <button
-        type="button"
-        onClick={() => setShowCreateSheet(true)}
-        className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
-      >
-        <UserPlus size={12} />
-        Create new person
-      </button>
+      {isArtistRole ? (
+        <button
+          type="button"
+          onClick={() => setShowCreateArtistSheet(true)}
+          className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+        >
+          <UserPlus size={12} />
+          Create new artist
+        </button>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setShowCreateSheet(true)}
+          className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+        >
+          <UserPlus size={12} />
+          Create new person
+        </button>
+      )}
 
       <CreatePersonSheet
         open={showCreateSheet}
         onOpenChange={setShowCreateSheet}
         onCreated={handlePersonCreated}
+      />
+      <CreateArtistSheet
+        open={showCreateArtistSheet}
+        onOpenChange={setShowCreateArtistSheet}
+        onCreated={handleArtistCreated}
       />
 
       <p className="text-xs text-muted-foreground">

@@ -19,6 +19,8 @@ import {
   resolveCreditRaw,
   ignoreCreditRaw,
   unresolveCreditRaw,
+  resolveCreditAsArtistRaw,
+  deleteCreditRaw,
   getRecentChannels,
   getLastUsedSetType,
   createManualLabelEvidence,
@@ -32,6 +34,7 @@ import {
 import type { SetFilters } from "@/lib/services/set-service";
 import { getCoverPhotosForSets, getSkillEventMediaConstraints } from "@/lib/services/media-service";
 import { cascadeHardDeleteMediaItems } from "@/lib/services/cascade-helpers";
+import { searchArtists } from "@/lib/services/artist-service";
 import { refreshDashboardStats } from "@/lib/services/view-service";
 import { getLabels } from "@/lib/services/label-service";
 import { prisma } from "@/lib/db";
@@ -157,6 +160,44 @@ export async function unresolveCredit(creditId: string, setId: string): Promise<
       return { success: false, error: "Failed to unresolve credit" };
     }
 
+  });
+}
+
+export async function deleteCredit(creditId: string, setId: string): Promise<SimpleActionResult> {
+  return withTenantFromHeaders(async () => {
+    try {
+      await deleteCreditRaw(creditId);
+      revalidatePath("/sets");
+      revalidatePath(`/sets/${setId}`);
+      return { success: true };
+    } catch {
+      return { success: false, error: "Failed to delete credit" };
+    }
+  });
+}
+
+export async function resolveCreditAsArtist(
+  creditId: string,
+  artistId: string,
+  setId: string,
+): Promise<SimpleActionResult> {
+  return withTenantFromHeaders(async () => {
+    try {
+      await resolveCreditAsArtistRaw(creditId, artistId);
+      revalidatePath("/sets");
+      revalidatePath(`/sets/${setId}`);
+      revalidatePath("/artists");
+      return { success: true };
+    } catch {
+      return { success: false, error: "Failed to resolve credit as artist" };
+    }
+  });
+}
+
+export async function searchArtistsAction(q: string) {
+  return withTenantFromHeaders(async () => {
+    if (!q.trim()) return [];
+    return searchArtists(q.trim());
   });
 }
 

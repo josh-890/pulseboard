@@ -187,7 +187,7 @@ export default async function SetDetailPage({ params }: SetDetailPageProps) {
           <AddCreditInline
             setId={id}
             roleDefinitions={roleGroups.flatMap((g) =>
-              g.definitions.map((d) => ({ id: d.id, name: d.name })),
+              g.definitions.map((d) => ({ id: d.id, name: d.name, groupName: g.name })),
             )}
           />
           {hasCredits ? (
@@ -196,8 +196,8 @@ export default async function SetDetailPage({ params }: SetDetailPageProps) {
               channelId={setData.channelId}
               credits={setData.creditsRaw.map((c) => ({
                 id: c.id,
-                roleDefinitionId: c.roleDefinitionId ?? "",
-                roleName: c.roleDefinition?.name ?? "Unknown",
+                roleDefinitionId: c.roleDefinitionId ?? null,
+                roleName: c.roleDefinition?.name ?? null,
                 rawName: c.rawName,
                 resolutionStatus: c.resolutionStatus,
                 resolvedPerson: c.resolvedPerson
@@ -209,6 +209,9 @@ export default async function SetDetailPage({ params }: SetDetailPageProps) {
                         isCommon: a.isCommon,
                       })),
                     }
+                  : null,
+                resolvedArtist: c.resolvedArtist
+                  ? { id: c.resolvedArtist.id, name: c.resolvedArtist.name }
                   : null,
               }))}
             />
