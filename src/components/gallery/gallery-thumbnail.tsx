@@ -122,10 +122,13 @@ export function GalleryThumbnail({
         </button>
       )}
 
-      {/* Cover badge */}
+      {/* Cover badge — shift right when select checkbox is visible */}
       {item.isCover && (
         <span
-          className="absolute left-1.5 top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-amber-500 text-white"
+          className={cn(
+            "absolute top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-amber-500 text-white pointer-events-none",
+            selectable ? "left-8" : "left-1.5",
+          )}
           aria-label="Cover image"
         >
           <Frame size={10} />

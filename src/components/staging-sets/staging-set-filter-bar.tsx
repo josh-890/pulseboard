@@ -54,7 +54,7 @@ const STATUS_CONFIG: Array<{ value: StagingSetStatus; label: string; dot: string
   { value: 'PENDING', label: 'Pending', dot: 'bg-blue-500' },
   { value: 'REVIEWING', label: 'Reviewing', dot: 'bg-yellow-500' },
   { value: 'APPROVED', label: 'Approved', dot: 'bg-cyan-500' },
-  { value: 'PROMOTED', label: 'Promoted', dot: 'bg-emerald-500' },
+  { value: 'PROMOTED', label: 'Promoted', dot: 'bg-violet-500' },
   { value: 'INACTIVE', label: 'Inactive', dot: 'bg-gray-400' },
   { value: 'SKIPPED', label: 'Skipped', dot: 'bg-gray-400' },
 ]

@@ -27,7 +27,7 @@ const STATUS_BADGE: Record<string, { label: string; className: string }> = {
   PENDING: { label: 'Pending', className: 'bg-blue-500/10 text-blue-600' },
   REVIEWING: { label: 'Reviewing', className: 'bg-yellow-500/10 text-yellow-600' },
   APPROVED: { label: 'Approved', className: 'bg-cyan-500/10 text-cyan-600' },
-  PROMOTED: { label: 'Promoted', className: 'bg-emerald-500/10 text-emerald-600' },
+  PROMOTED: { label: 'Promoted', className: 'bg-violet-500/15 text-violet-500 font-semibold ring-1 ring-violet-500/40' },
   INACTIVE: { label: 'Inactive', className: 'bg-gray-500/10 text-gray-600 dark:text-gray-500' },
   SKIPPED: { label: 'Skipped', className: 'bg-gray-500/10 text-gray-600 dark:text-gray-500' },
 }
