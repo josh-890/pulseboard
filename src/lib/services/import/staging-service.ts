@@ -359,7 +359,8 @@ export async function createBatch(
 
 type StagingIngestSummary = {
   created: number
-  skipped: number
+  skipped: number      // omitted — exact production match, nothing to review
+  duplicated: number   // added but marked isDuplicate (already in staging for this person)
   byMatchType: { none: number; exact: number; probable: number }
 }
 
@@ -372,6 +373,7 @@ async function createStagingSetsForBatch(
   const summary: StagingIngestSummary = {
     created: 0,
     skipped: 0,
+    duplicated: 0,
     byMatchType: { none: 0, exact: 0, probable: 0 },
   }
 
@@ -419,19 +421,14 @@ async function createStagingSetsForBatch(
     const importItem = setItems[idx]
     if (!importItem) continue
 
-    // Re-import protection: skip if this exact set already exists in staging for this person
-    if (set.externalId) {
-      const existing = await prisma.stagingSet.findFirst({
-        where: { externalId: set.externalId, subjectIcgId },
-        select: { id: true },
-      })
-      if (existing) {
-        summary.skipped++
-        continue
-      }
+    const setMatch = matches.sets.get(set.externalId)
+
+    // Omit if already in production with exact match — nothing left to review
+    if (setMatch?.matchedEntityId && setMatch.matchConfidence === 1.0) {
+      summary.skipped++
+      continue
     }
 
-    const setMatch = matches.sets.get(set.externalId)
     const participantIcgIds = set.modelsList.map((m) => m.icgId)
 
     // Track match type for summary
@@ -455,23 +452,16 @@ async function createStagingSetsForBatch(
       else if (/^\d{4}$/.test(set.date)) releaseDatePrecision = 'YEAR'
     }
 
-    // Cross-batch duplicate detection: check existing staging sets by externalId
-    let duplicateGroupId: string | null = null
+    // If the same externalId already exists in staging (any person) → omit entirely.
+    // A set is a set regardless of which person's import file referenced it.
     if (set.externalId) {
       const existingStaging = await prisma.stagingSet.findFirst({
         where: { externalId: set.externalId },
-        select: { duplicateGroupId: true, id: true },
+        select: { id: true },
       })
       if (existingStaging) {
-        // Join existing group or create one from the existing record's ID
-        duplicateGroupId = existingStaging.duplicateGroupId ?? existingStaging.id
-        // Ensure the existing record also has the group ID
-        if (!existingStaging.duplicateGroupId) {
-          await prisma.stagingSet.update({
-            where: { id: existingStaging.id },
-            data: { duplicateGroupId },
-          })
-        }
+        summary.skipped++
+        continue
       }
     }
 
@@ -521,7 +511,6 @@ async function createStagingSetsForBatch(
         matchConfidence: setMatch?.matchConfidence ?? null,
         matchDetails: setMatch?.matchDetails ?? null,
         status: 'PENDING',
-        duplicateGroupId,
       },
     })
     summary.created++

@@ -3,7 +3,7 @@
 import { memo, useState, useRef, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import Image from 'next/image'
-import { Camera, CheckSquare, Film, Link2 } from 'lucide-react'
+import { Camera, CheckSquare, Copy, Film } from 'lucide-react'
 import { cn, getInitialsFromName } from '@/lib/utils'
 import type { StagingSetWithRelations, ParticipantStatus } from '@/lib/services/import/staging-set-service'
 import type { StagingSetStatus } from '@/generated/prisma/client'
@@ -170,6 +170,7 @@ export const StagingSetRow = memo(function StagingSetRow({
       : `${((ss.matchConfidence ?? 0) * 100).toFixed(0)}%`
     : null
   const badge = STATUS_BADGE[ss.status]
+  const isDup = ss.isDuplicate || !!ss.duplicateGroupId
 
   // Build line 3 segments (no participant names — those are in the avatar stack)
   const line3Parts: string[] = []
@@ -204,16 +205,21 @@ export const StagingSetRow = memo(function StagingSetRow({
         type="button"
         onClick={() => onSelect(ss.id)}
         className={cn(
-          'group flex w-full items-center gap-3 overflow-hidden rounded-xl border border-slate-200 bg-white/70 px-3 py-2 shadow-sm backdrop-blur-sm dark:border-border/40 dark:bg-card/70',
+          'group flex w-full items-center gap-3 overflow-hidden rounded-xl border px-3 py-2 shadow-sm backdrop-blur-sm',
           'text-left transition-all duration-150',
-          'hover:border-slate-400 hover:shadow-md dark:hover:border-border/70',
           'active:scale-[0.995]',
           'border-l-4',
-          hasMatch
-            ? 'border-l-purple-500'
-            : ss.priority ? PRIORITY_BORDER[ss.priority] ?? 'border-l-transparent' : 'border-l-transparent',
-          STATUS_TINT[ss.status],
-          hasMatch ? 'bg-purple-500/[0.06] hover:bg-purple-500/[0.12]' : STATUS_HOVER_TINT[ss.status],
+          isDup
+            ? 'border-orange-500 bg-orange-500/[0.10] hover:bg-orange-500/[0.18] dark:bg-orange-500/[0.12] dark:hover:bg-orange-500/[0.20]'
+            : cn(
+                'border-slate-200 bg-white/70 dark:border-border/40 dark:bg-card/70',
+                'hover:border-slate-400 hover:shadow-md dark:hover:border-border/70',
+                hasMatch
+                  ? 'border-l-purple-500'
+                  : ss.priority ? PRIORITY_BORDER[ss.priority] ?? 'border-l-transparent' : 'border-l-transparent',
+                STATUS_TINT[ss.status],
+                hasMatch ? 'bg-purple-500/[0.06] hover:bg-purple-500/[0.12]' : STATUS_HOVER_TINT[ss.status],
+              ),
           isSelected && 'ring-2 ring-primary',
           isFocused && !isSelected && 'ring-2 ring-ring',
           isMultiSelectMode && isChecked && 'ring-2 ring-primary',
@@ -242,11 +248,6 @@ export const StagingSetRow = memo(function StagingSetRow({
             >
               {ss.channelName}
             </span>
-            {ss.duplicateGroupId && (
-              <span className="shrink-0 text-amber-500" title="Duplicate group">
-                <Link2 size={11} />
-              </span>
-            )}
             {ss.isVideo && (
               <span className="shrink-0 text-violet-400" title="Video">
                 <Film size={11} />
@@ -316,6 +317,14 @@ export const StagingSetRow = memo(function StagingSetRow({
 
         {/* Right section: badges */}
         <div className="flex shrink-0 items-center gap-2">
+          {/* Duplicate badge */}
+          {isDup && (
+            <span className="inline-flex items-center gap-1 rounded-md border border-orange-500/60 bg-orange-500/25 px-2 py-0.5 text-xs font-bold tracking-wide text-orange-500 dark:text-orange-400">
+              <Copy size={10} />
+              DUPLICATE
+            </span>
+          )}
+
           {/* Match badge */}
           {matchLabel && (
             <span className="rounded-full bg-purple-500/90 px-1.5 py-0.5 text-[10px] font-medium text-white">

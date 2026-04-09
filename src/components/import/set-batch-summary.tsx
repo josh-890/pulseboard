@@ -29,13 +29,13 @@ export function SetBatchSummary({ batch }: SetBatchSummaryProps) {
     [batch.items],
   )
 
-  // Fetch staging set stats for this batch
+  // Fetch global staging set stats (all batches)
   useEffect(() => {
     let cancelled = false
     const load = async () => {
       setIsLoading(true)
       try {
-        const r = await fetch(`/api/staging-sets/stats?batchId=${batch.id}`)
+        const r = await fetch('/api/staging-sets/stats')
         const data: StagingStats = await r.json()
         if (!cancelled) setStats(data)
       } catch {
@@ -46,12 +46,13 @@ export function SetBatchSummary({ batch }: SetBatchSummaryProps) {
     }
     load()
     return () => { cancelled = true }
-  }, [batch.id])
+  }, [])
 
   // Parse the stored summary if available
   const summary = batch.stagingSummary as {
     created: number
     skipped: number
+    duplicated: number
     byMatchType: { none: number; exact: number; probable: number }
   } | null
 
@@ -66,10 +67,10 @@ export function SetBatchSummary({ batch }: SetBatchSummaryProps) {
             </div>
             <div>
               <h2 className="text-lg font-semibold">
-                {setItemCount} sets in staging
+                {setItemCount} sets parsed
               </h2>
               <p className="text-xs text-muted-foreground">
-                From this import batch
+                Added to the staging list
               </p>
             </div>
           </div>
@@ -128,11 +129,20 @@ export function SetBatchSummary({ batch }: SetBatchSummaryProps) {
                 </div>
               )}
 
-              {/* Re-import info */}
-              {summary && summary.skipped > 0 && (
-                <p className="mt-2 text-xs text-muted-foreground italic">
-                  {summary.skipped} sets were already in staging and left unchanged
-                </p>
+              {/* Duplicate / omitted info */}
+              {summary && (summary.duplicated > 0 || summary.skipped > 0) && (
+                <div className="mt-2 space-y-1">
+                  {summary.duplicated > 0 && (
+                    <p className="text-xs text-orange-400">
+                      {summary.duplicated} already in staging (marked as duplicates)
+                    </p>
+                  )}
+                  {summary.skipped > 0 && (
+                    <p className="text-xs text-muted-foreground italic">
+                      {summary.skipped} exact matches omitted (already in production)
+                    </p>
+                  )}
+                </div>
               )}
             </div>
           ) : (
@@ -143,13 +153,18 @@ export function SetBatchSummary({ batch }: SetBatchSummaryProps) {
         </div>
 
         {/* Link to staging workspace */}
-        <Link href={`/staging-sets?batchId=${batch.id}`}>
+        <Link href="/staging-sets">
           <Button variant="outline" className="w-full gap-2">
             <Layers size={16} />
-            Open in Staging Workspace
+            Open Staging List
             <ExternalLink size={12} className="ml-auto text-muted-foreground" />
           </Button>
         </Link>
+        <p className="text-center text-xs text-muted-foreground">
+          <Link href={`/staging-sets?batchId=${batch.id}`} className="underline underline-offset-2 hover:text-foreground">
+            View this batch only →
+          </Link>
+        </p>
       </div>
     </div>
   )
