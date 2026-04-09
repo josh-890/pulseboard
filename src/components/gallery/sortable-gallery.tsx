@@ -45,7 +45,7 @@ function SortableItem({ item, isActiveDrag, onOpen }: SortableItemProps) {
   };
 
   const thumbUrl =
-    item.urls.gallery_512 ?? item.urls.gallery_1024 ?? item.urls.original;
+    item.urls.gallery_512 ?? item.urls.view_1200 ?? item.urls.gallery_1024 ?? item.urls.original;
 
   return (
     <div
@@ -88,7 +88,7 @@ export function SortableGallery({ items, onReorder, onOpen }: SortableGalleryPro
 
   const activeItem = activeId ? items.find((it) => it.id === activeId) : null;
   const overlayUrl = activeItem
-    ? (activeItem.urls.gallery_512 ?? activeItem.urls.gallery_1024 ?? activeItem.urls.original)
+    ? (activeItem.urls.gallery_512 ?? activeItem.urls.view_1200 ?? activeItem.urls.gallery_1024 ?? activeItem.urls.original)
     : null;
 
   function handleDragStart(event: DragStartEvent) {

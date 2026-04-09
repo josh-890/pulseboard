@@ -288,7 +288,7 @@ function SimpleLightbox({
   if (!item) return null;
 
   const displayUrl =
-    item.urls.gallery_1600 ?? item.urls.gallery_1024 ?? item.urls.original;
+    item.urls.full_2400 ?? item.urls.gallery_1600 ?? item.urls.gallery_1024 ?? item.urls.original;
 
   const infoPanelProps = {
     item,

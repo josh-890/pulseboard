@@ -377,7 +377,7 @@ All searchable entities have `nameNorm`/`titleNorm` fields with `pg_trgm` trigra
 
 4. **Server actions are the write boundary** — Components never call services directly for mutations. Actions validate with Zod, call services, revalidate paths.
 
-5. **Photo variants** — Every uploaded image generates responsive variants (profile_128/256/512/768, gallery_512/1024/1600) via Sharp. Stored as JSON in `MediaItem.variants`. URLs built with `buildUrl(key)` from `src/lib/media-url.ts`.
+5. **Photo variants** — Every uploaded image generates: `master_4000` (WebP q88, 4000px LS — processing master, replaces raw original), `gallery_512` (WebP q85, 512px LS), `view_1200` (WebP q83, 1200px LS), `full_2400` (WebP q85, 2400px LS), `profile_128/512/768` (WebP q82, 4:5 cover crop). Legacy variants `original`, `gallery_1024`, `gallery_1600`, `profile_256` remain in DB for existing images (backward-compat). Stored as JSON in `MediaItem.variants`. URLs built via `buildPhotoUrls()` / `buildUrl()` from `src/lib/media-url.ts`. Lightbox uses `full_2400 ?? gallery_1600 ?? gallery_1024 ?? original`.
 
 6. **Focal points** — `focalX`/`focalY` (0-1 normalized) on MediaItem. `focalStyle()` utility returns `{ objectPosition }` CSS. Variant regeneration is fire-and-forget via `/api/media/[id]/regenerate-variants`.
 

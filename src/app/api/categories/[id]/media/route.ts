@@ -24,8 +24,9 @@ export async function GET(
     const items = links.map((link) => {
       const mi = link.mediaItem;
       const variants = (mi.variants ?? {}) as PhotoVariants;
-      const originalUrl = variants.original
-        ? buildUrl(variants.original)
+      const bestMaster = variants.master_4000 ?? variants.original;
+      const originalUrl = bestMaster
+        ? buildUrl(bestMaster)
         : mi.fileRef
           ? buildUrl(mi.fileRef)
           : "";
@@ -35,7 +36,6 @@ export async function GET(
         filename: mi.filename,
         urls: {
           original: originalUrl,
-          profile_256: variants.profile_256 ? buildUrl(variants.profile_256) : null,
           gallery_512: variants.gallery_512 ? buildUrl(variants.gallery_512) : null,
         },
         originalWidth: mi.originalWidth,

@@ -339,7 +339,7 @@ export function PersonDetailsTab({
                       ) : (
                         <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2">
                           {media.map((item) => {
-                            const thumbUrl = item.urls.gallery_512 ?? item.urls.profile_256 ?? item.urls.original;
+                            const thumbUrl = item.urls.gallery_512 ?? item.urls.original;
                             return (
                               <div
                                 key={item.id}

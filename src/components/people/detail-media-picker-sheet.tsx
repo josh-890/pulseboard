@@ -261,7 +261,7 @@ export function DetailMediaPickerSheet({
               {items.map((item) => {
                 const isSelected = selected.has(item.id);
                 const thumbUrl =
-                  item.urls.gallery_512 ?? item.urls.profile_256 ?? item.urls.original;
+                  item.urls.gallery_512 ?? item.urls.original;
 
                 return (
                   <button

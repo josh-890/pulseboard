@@ -209,7 +209,7 @@ export default async function SessionDetailPage({ params, searchParams }: Sessio
     const firstHeadshot = mediaManagerData.items.find(
       (item) => item.links.some((l) => l.usage === "HEADSHOT"),
     );
-    const personThumbUrl = firstHeadshot?.urls.profile_128 ?? firstHeadshot?.urls.profile_256 ?? null;
+    const personThumbUrl = firstHeadshot?.urls.profile_128 ?? null;
 
     return (
       <ReferenceSessionPage

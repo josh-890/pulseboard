@@ -32,8 +32,8 @@ export async function POST(
       }
 
       const variants = (mediaItem.variants ?? {}) as PhotoVariants;
-      if (!variants.original) {
-        return NextResponse.json({ error: "No original variant" }, { status: 400 });
+      if (!variants.master_4000 && !variants.original) {
+        return NextResponse.json({ error: "No master variant" }, { status: 400 });
       }
 
       const updatedVariants = await regenerateProfileVariants(

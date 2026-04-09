@@ -1,6 +1,7 @@
 import sharp from "sharp";
 import { PutObjectCommand, GetObjectCommand, DeleteObjectsCommand } from "@aws-sdk/client-s3";
 import { minioClient, getMinioBucket } from "./minio";
+import type { PhotoVariants } from "@/lib/types";
 
 type ProfileVariant = {
   name: string;
@@ -10,42 +11,25 @@ type ProfileVariant = {
 
 type GalleryVariant = {
   name: string;
-  width: number;
+  maxSide: number;
+  quality: number;
 };
 
 const PROFILE_VARIANTS: ProfileVariant[] = [
   { name: "profile_128", width: 128, height: 160 },
-  { name: "profile_256", width: 256, height: 320 },
   { name: "profile_512", width: 512, height: 640 },
   { name: "profile_768", width: 768, height: 960 },
 ];
 
 const GALLERY_VARIANTS: GalleryVariant[] = [
-  { name: "gallery_512", width: 512 },
-  { name: "gallery_1024", width: 1024 },
-  { name: "gallery_1600", width: 1600 },
+  { name: "gallery_512", maxSide: 512,  quality: 85 },
+  { name: "view_1200",   maxSide: 1200, quality: 83 },
+  { name: "full_2400",   maxSide: 2400, quality: 85 },
 ];
 
-function mimeToExtension(mimeType: string): string {
-  const map: Record<string, string> = {
-    "image/jpeg": "jpg",
-    "image/png": "png",
-    "image/webp": "webp",
-    "image/gif": "gif",
-  };
-  return map[mimeType] ?? "jpg";
-}
+const MASTER_MAX_SIDE = 4000;
+const MASTER_QUALITY = 88;
 
-export type PhotoVariants = {
-  original: string;
-  profile_128?: string;
-  profile_256?: string;
-  profile_512?: string;
-  profile_768?: string;
-  gallery_512?: string;
-  gallery_1024?: string;
-  gallery_1600?: string;
-};
 
 export type UploadResult = {
   variants: PhotoVariants;
@@ -60,7 +44,6 @@ export async function uploadPhotoToStorage(
   entityId: string,
   photoId: string,
 ): Promise<UploadResult> {
-  const ext = mimeToExtension(mimeType);
   const prefix = `${entityType}/${entityId}/${photoId}`;
 
   // Step 1 — Validate decodable via sharp metadata (magic bytes)
@@ -82,20 +65,24 @@ export async function uploadPhotoToStorage(
     .toBuffer();
   console.log(`[storage] sharp: normalized (${normalized.length} bytes)`);
 
-  // Upload original (native format)
-  const keyOriginal = `${prefix}/original.${ext}`;
-  console.log(`[storage] MinIO PUT: ${keyOriginal}`);
+  // Upload master_4000 (compressed WebP processing master — replaces raw original)
+  const masterBuffer = await sharp(normalized)
+    .resize({ width: MASTER_MAX_SIDE, height: MASTER_MAX_SIDE, fit: "inside", withoutEnlargement: true })
+    .webp({ quality: MASTER_QUALITY })
+    .toBuffer();
+  const keyMaster = `${prefix}/master_4000.webp`;
+  console.log(`[storage] MinIO PUT: ${keyMaster} (${masterBuffer.length} bytes)`);
   await minioClient.send(
     new PutObjectCommand({
       Bucket: getMinioBucket(),
-      Key: keyOriginal,
-      Body: buffer,
-      ContentType: mimeType,
+      Key: keyMaster,
+      Body: masterBuffer,
+      ContentType: "image/webp",
     }),
   );
-  console.log(`[storage] MinIO PUT: original done`);
+  console.log(`[storage] MinIO PUT: master_4000 done`);
 
-  const variants: PhotoVariants = { original: keyOriginal };
+  const variants: PhotoVariants = { master_4000: keyMaster };
 
   // Generate profile variants (4:5 cover crop, WebP)
   for (const variant of PROFILE_VARIANTS) {
@@ -123,17 +110,14 @@ export async function uploadPhotoToStorage(
     variants[variant.name as keyof PhotoVariants] = variantKey;
   }
 
-  // Generate gallery variants (aspect-preserved, WebP)
+  // Generate gallery variants (aspect-preserved, longest-side, WebP)
   for (const variant of GALLERY_VARIANTS) {
-    // Skip if original is smaller than this variant width
-    if (originalWidth <= variant.width) continue;
+    // Skip if original's longest side is already <= this variant's max side
+    if (Math.max(originalWidth, originalHeight) <= variant.maxSide) continue;
 
     const variantBuffer = await sharp(normalized)
-      .resize(variant.width, undefined, {
-        fit: "inside",
-        withoutEnlargement: true,
-      })
-      .toFormat("webp", { quality: 85 })
+      .resize({ width: variant.maxSide, height: variant.maxSide, fit: "inside", withoutEnlargement: true })
+      .toFormat("webp", { quality: variant.quality })
       .toBuffer();
 
     const variantKey = `${prefix}/${variant.name}.webp`;
@@ -215,14 +199,14 @@ export async function regenerateProfileVariants(
   focalX: number,
   focalY: number,
 ): Promise<PhotoVariants> {
-  const originalKey = variants.original;
-  if (!originalKey) return variants;
+  const masterKey = variants.master_4000 ?? variants.original;
+  if (!masterKey) return variants;
 
-  // Download original from MinIO
+  // Download master from MinIO (master_4000 for new uploads, original for legacy)
   const getResult = await minioClient.send(
     new GetObjectCommand({
       Bucket: getMinioBucket(),
-      Key: originalKey,
+      Key: masterKey,
     }),
   );
 
@@ -257,8 +241,8 @@ export async function regenerateProfileVariants(
       .toFormat("webp", { quality: 82 })
       .toBuffer();
 
-    // Derive key from original key pattern: prefix/variant.webp
-    const prefix = originalKey.substring(0, originalKey.lastIndexOf("/"));
+    // Derive key from master key pattern: prefix/variant.webp
+    const prefix = masterKey.substring(0, masterKey.lastIndexOf("/"));
     const variantKey = `${prefix}/${variant.name}.webp`;
 
     await minioClient.send(

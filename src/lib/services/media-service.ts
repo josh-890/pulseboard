@@ -9,8 +9,8 @@ import { hammingDistance } from "@/lib/image-hash";
 import { buildUrl, buildPhotoUrls } from "@/lib/media-url";
 
 function assertValidVariants(variants: PhotoVariants): void {
-  if (!variants.original) {
-    throw new Error("Cannot create MediaItem without a valid 'original' variant");
+  if (!variants.master_4000 && !variants.original) {
+    throw new Error("Cannot create MediaItem without a valid 'master_4000' or 'original' variant");
   }
 }
 
@@ -30,7 +30,7 @@ type MediaItemRow = {
 
 function toMediaItemWithUrls(item: MediaItemRow): MediaItemWithUrls | null {
   const variants = parsePhotoVariants(item.variants) ?? ({} as PhotoVariants);
-  if (!variants.original && !item.fileRef) return null;
+  if (!variants.master_4000 && !variants.original && !item.fileRef) return null;
   return {
     id: item.id,
     filename: item.filename,
@@ -91,7 +91,7 @@ export async function getSessionMediaGallery(sessionId: string): Promise<Gallery
   const results: GalleryItem[] = [];
   for (const item of items) {
     const variants = (item.variants ?? {}) as PhotoVariants;
-    if (!variants.original && !item.fileRef) continue;
+    if (!variants.master_4000 && !variants.original && !item.fileRef) continue;
 
     results.push({
       id: item.id,
@@ -394,7 +394,7 @@ export async function getPersonMediaGallery(
   const results: GalleryItem[] = [];
   for (const item of items) {
     const variants = (item.variants ?? {}) as PhotoVariants;
-    if (!variants.original && !item.fileRef) continue;
+    if (!variants.master_4000 && !variants.original && !item.fileRef) continue;
 
     const link = item.personMediaLinks[0];
     results.push({
@@ -440,7 +440,7 @@ export async function getSetMediaGallery(
   for (const link of links) {
     const item = link.mediaItem;
     const variants = (item.variants ?? {}) as PhotoVariants;
-    if (!variants.original && !item.fileRef) continue;
+    if (!variants.master_4000 && !variants.original && !item.fileRef) continue;
 
     results.push({
       id: item.id,
@@ -692,11 +692,9 @@ export async function getPersonEntityMedia(
     const variants = (link.mediaItem.variants ?? {}) as PhotoVariants;
     const url = variants.gallery_512
       ? buildUrl(variants.gallery_512)
-      : variants.profile_256
-        ? buildUrl(variants.profile_256)
-        : variants.original
-          ? buildUrl(variants.original)
-          : null;
+      : (variants.master_4000 ?? variants.original)
+        ? buildUrl((variants.master_4000 ?? variants.original)!)
+        : null;
     if (!url) continue;
     if (!result.has(entityId)) result.set(entityId, []);
     result.get(entityId)!.push({
@@ -776,7 +774,7 @@ export async function getMediaItemsWithLinks(
   return items
     .map((item) => {
       const variants = (item.variants ?? {}) as PhotoVariants;
-      if (!variants.original && !item.fileRef) return null;
+      if (!variants.master_4000 && !variants.original && !item.fileRef) return null;
 
       return {
         id: item.id,
@@ -1020,7 +1018,7 @@ export async function getCoverPhotosForSessions(
 function getThumbnailUrl(variants: unknown, fileRef?: string | null): string {
   const v = (variants ?? {}) as PhotoVariants;
   if (v.gallery_512) return buildUrl(v.gallery_512);
-  if (v.profile_256) return buildUrl(v.profile_256);
+  if (v.master_4000) return buildUrl(v.master_4000);
   if (v.original) return buildUrl(v.original);
   if (fileRef) return buildUrl(fileRef);
   return "";

@@ -139,34 +139,38 @@ Store:
 
 Goal: cards and profile display.
 
-| Name        | Width | Fit   | Ratio |
-| ----------- | ----- | ----- | ----- |
-| profile_128 | 128   | cover | 4:5   |
-| profile_256 | 256   | cover | 4:5   |
-| profile_512 | 512   | cover | 4:5   |
-| profile_768 | 768   | cover | 4:5   |
+| Name        | Width | Height | Fit   | Ratio | Quality |
+| ----------- | ----- | ------ | ----- | ----- | ------- |
+| profile_128 | 128   | 160    | cover | 4:5   | 82      |
+| profile_512 | 512   | 640    | cover | 4:5   | 82      |
+| profile_768 | 768   | 960    | cover | 4:5   | 82      |
 
 Rules:
 
 * Cropping is allowed.
 * Focus point optional (default: center).
+* `profile_256` is **deprecated** — still present on legacy images, not generated for new uploads.
 
 ---
 
 ## 3.2 GALLERY Renditions
 
-Goal: justified gallery and detail views.
+Goal: justified gallery and detail views. All use **longest-side** sizing (width and height both capped at max side).
 
-| Name         | Max Width | Fit    |
-| ------------ | --------- | ------ |
-| gallery_512  | 512       | inside |
-| gallery_1024 | 1024      | inside |
-| gallery_1600 | 1600      | inside |
+| Name         | Max Side | Fit    | Quality | Use                              |
+| ------------ | -------- | ------ | ------- | -------------------------------- |
+| gallery_512  | 512      | inside | 85      | Thumbnail grids                  |
+| view_1200    | 1200     | inside | 83      | Medium display / DnD overlays    |
+| full_2400    | 2400     | inside | 85      | Lightbox / HiDPI display         |
+| master_4000  | 4000     | inside | 88      | Processing master (replaces raw) |
 
 Rules:
 
 * Aspect ratio must be preserved.
 * No cropping.
+* Longest-side constraint (not width-only): `sharp.resize({ width: N, height: N, fit: 'inside' })`.
+* `gallery_1024` / `gallery_1600` are **deprecated** — still present on legacy images, not generated for new uploads.
+* Raw `original` is **deprecated** — `master_4000` is the new processing master for new uploads.
 
 ---
 
@@ -239,23 +243,25 @@ enum PhotoRole {
 ## 4.4 Variants JSON Shape
 
 ```ts
-type ImageVariants = {
-  profile_128?: Variant
-  profile_256?: Variant
-  profile_512?: Variant
-  profile_768?: Variant
-
-  gallery_512?: Variant
-  gallery_1024?: Variant
-  gallery_1600?: Variant
-}
-
-type Variant = {
-  url: string
-  width: number
-  height: number
+// src/lib/types/photo.ts
+type PhotoVariants = {
+  // Current variants (new uploads)
+  master_4000?: string  // processing master — replaces raw original
+  gallery_512?: string
+  view_1200?: string
+  full_2400?: string
+  profile_128?: string
+  profile_512?: string
+  profile_768?: string
+  // Legacy variants (existing images only)
+  original?: string     // raw upload — backward compat
+  gallery_1024?: string
+  gallery_1600?: string
+  profile_256?: string  // deprecated
 }
 ```
+
+Each value is a MinIO storage key (not a URL). URLs are built via `buildPhotoUrls(variants)` in `src/lib/media-url.ts`.
 
 ---
 
@@ -398,9 +404,11 @@ Layout:
 
 # 8. Performance Rules
 
-* Gallery grid uses `gallery_512`
-* Lightbox uses `gallery_1024`
-* Optional zoom uses `gallery_1600`
+* Gallery grid thumbnails: `gallery_512 ?? original`
+* Lightbox display: `full_2400 ?? gallery_1600 ?? gallery_1024 ?? original`
+* Profile carousel: `profile_512 ?? profile_768 ?? original`
+* Headshot slots: `profile_128 ?? original`
+* DnD overlays: `gallery_512 ?? view_1200 ?? gallery_1024 ?? original`
 
 Never load high-resolution images directly in the grid.
 

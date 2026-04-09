@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/db";
-import type { GalleryItem } from "@/lib/types";
-import type { PhotoUrls } from "@/lib/types";
+import type { GalleryItem, PhotoVariants, PhotoUrls } from "@/lib/types";
+import { buildUrl, buildPhotoUrls } from "@/lib/media-url";
 
 export type CollectionSummary = {
   id: string;
@@ -12,9 +12,6 @@ export type CollectionSummary = {
   personName: string | null;
 };
 
-import { buildUrl } from "@/lib/media-url";
-
-type PhotoVariants = Record<string, string | undefined>;
 
 export async function getAllCollections(filters: {
   personId?: string | null;
@@ -151,16 +148,7 @@ export async function getCollectionGalleryItems(collectionId: string): Promise<G
     .map((ci) => {
       const m = ci.mediaItem;
       const variants = (m.variants as PhotoVariants) ?? {};
-      const urls: PhotoUrls = {
-        original: variants.original ? buildUrl(variants.original) : m.fileRef ? buildUrl(m.fileRef) : "",
-        profile_128: variants.profile_128 ? buildUrl(variants.profile_128) : null,
-        profile_256: variants.profile_256 ? buildUrl(variants.profile_256) : null,
-        profile_512: variants.profile_512 ? buildUrl(variants.profile_512) : null,
-        profile_768: variants.profile_768 ? buildUrl(variants.profile_768) : null,
-        gallery_512: variants.gallery_512 ? buildUrl(variants.gallery_512) : null,
-        gallery_1024: variants.gallery_1024 ? buildUrl(variants.gallery_1024) : null,
-        gallery_1600: variants.gallery_1600 ? buildUrl(variants.gallery_1600) : null,
-      };
+      const urls: PhotoUrls = buildPhotoUrls(variants, m.fileRef);
 
       return {
         id: m.id,
