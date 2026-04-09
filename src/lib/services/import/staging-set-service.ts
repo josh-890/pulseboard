@@ -306,6 +306,7 @@ export type StagingSetFilters = {
   status?: StagingSetStatus[]
   hasMatch?: boolean
   matchType?: 'exact' | 'probable'
+  showDuplicates?: boolean
   isVideo?: boolean
   noDate?: boolean
   personId?: string
@@ -345,6 +346,15 @@ export async function getStagingSetsFiltered(filters: StagingSetFilters): Promis
     conditions.push({ matchedSetId: { not: null }, matchConfidence: 1.0 })
   } else if (filters.matchType === 'probable') {
     conditions.push({ matchedSetId: { not: null }, matchConfidence: { lt: 1.0 } })
+  }
+
+  if (filters.showDuplicates) {
+    conditions.push({
+      OR: [
+        { isDuplicate: true },
+        { duplicateGroupId: { not: null } },
+      ],
+    })
   }
 
   if (filters.personId) {
@@ -482,12 +492,13 @@ export type StagingSetStats = {
   byStatus: Record<string, number>
   byMatchType: { none: number; exact: number; probable: number }
   byType: { photo: number; video: number }
+  duplicateCount: number
 }
 
 export async function getStagingSetStats(batchId?: string): Promise<StagingSetStats> {
   const where: Prisma.StagingSetWhereInput = batchId ? { importBatchId: batchId } : {}
 
-  const [total, statusCounts, exactCount, probableCount, videoCount] = await Promise.all([
+  const [total, statusCounts, exactCount, probableCount, videoCount, duplicateCount] = await Promise.all([
     prisma.stagingSet.count({ where }),
     prisma.stagingSet.groupBy({
       by: ['status'],
@@ -502,6 +513,9 @@ export async function getStagingSetStats(batchId?: string): Promise<StagingSetSt
     }),
     prisma.stagingSet.count({
       where: { ...where, isVideo: true },
+    }),
+    prisma.stagingSet.count({
+      where: { ...where, OR: [{ isDuplicate: true }, { duplicateGroupId: { not: null } }] },
     }),
   ])
 
@@ -522,6 +536,7 @@ export async function getStagingSetStats(batchId?: string): Promise<StagingSetSt
       photo: total - videoCount,
       video: videoCount,
     },
+    duplicateCount,
   }
 }
 
@@ -545,6 +560,7 @@ export async function updateStagingSetFields(
     matchConfidence: number | null
     matchedSetId: string | null
     matchDetails: string | null
+    isDuplicate: boolean
   }>,
 ): Promise<StagingSet> {
   const updateData: Prisma.StagingSetUpdateInput = { ...data }

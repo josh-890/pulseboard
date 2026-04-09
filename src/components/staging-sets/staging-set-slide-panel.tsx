@@ -265,6 +265,57 @@ function PanelContent({
           </div>
         )}
 
+        {/* Duplicate action banner */}
+        {(stagingSet.isDuplicate || stagingSet.duplicateGroupId) && stagingSet.status !== 'SKIPPED' && (
+          <div className={cn(
+            'rounded-lg border p-3',
+            stagingSet.duplicateGroupId
+              ? 'border-orange-500/30 bg-orange-500/8'
+              : 'border-amber-500/30 bg-amber-500/8',
+          )}>
+            <p className={cn(
+              'mb-1 text-xs font-semibold',
+              stagingSet.duplicateGroupId
+                ? 'text-orange-600 dark:text-orange-400'
+                : 'text-amber-600 dark:text-amber-400',
+            )}>
+              {stagingSet.duplicateGroupId ? 'Confirmed duplicate' : 'Possible duplicate'}
+            </p>
+            <p className="mb-3 text-xs text-muted-foreground">
+              {stagingSet.duplicateGroupId
+                ? 'Same set was already imported from another file. Resolve to hide it and prevent re-flagging on future imports.'
+                : 'Another staging set shares the same channel and release date. Resolve if this is confirmed the same set, or dismiss if they are different sets.'}
+            </p>
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                className={cn(
+                  'text-xs',
+                  stagingSet.duplicateGroupId
+                    ? 'border-orange-500/40 text-orange-600 hover:bg-orange-500/10 dark:text-orange-400'
+                    : 'border-amber-500/40 text-amber-600 hover:bg-amber-500/10 dark:text-amber-400',
+                )}
+                disabled={isProcessing}
+                onClick={() => onStatusChange(stagingSet.id, 'SKIPPED')}
+              >
+                <Archive size={12} />
+                Resolve (skip)
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="text-xs text-muted-foreground hover:text-foreground"
+                disabled={isProcessing}
+                onClick={() => onFieldUpdate(stagingSet.id, { isDuplicate: false })}
+              >
+                <RotateCcw size={12} />
+                Dismiss warning
+              </Button>
+            </div>
+          </div>
+        )}
+
         {/* Comparison grid */}
         {hasMatch && stagingSet.status !== 'PROMOTED' && (
           isLoadingComparison ? (

@@ -13,6 +13,7 @@ import { CHANNEL_TIER_CONFIG, DEFAULT_STAGING_TIERS } from '@/lib/constants/chan
 export type StagingSetFilterState = {
   status: StagingSetStatus[]
   noDate: boolean
+  showDuplicates: boolean
   matchType: 'exact' | 'probable' | 'none' | undefined
   search: string
   channelId: string | undefined
@@ -29,6 +30,7 @@ export type StagingSetFilterState = {
 export const DEFAULT_FILTERS: StagingSetFilterState = {
   status: ['PENDING', 'REVIEWING', 'APPROVED'],
   noDate: false,
+  showDuplicates: false,
   matchType: undefined,
   search: '',
   channelId: undefined,
@@ -121,9 +123,9 @@ export function StagingSetFilterBar({ filters, onChange, stats }: StagingSetFilt
     filters.channelTier.length !== DEFAULT_STAGING_TIERS.length ||
     !DEFAULT_STAGING_TIERS.every((t) => filters.channelTier.includes(t))
 
-  const hasActiveFilters = filters.search || filters.noDate || filters.matchType ||
-    filters.channelId || filters.dateFrom || filters.dateTo || filters.priority.length > 0 ||
-    filters.batchId || tierDiffersFromDefault
+  const hasActiveFilters = filters.search || filters.noDate || filters.showDuplicates ||
+    filters.matchType || filters.channelId || filters.dateFrom || filters.dateTo ||
+    filters.priority.length > 0 || filters.batchId || tierDiffersFromDefault
 
   return (
     <div className="sticky top-0 z-10 flex flex-col gap-2 border-b border-border/50 bg-background/95 px-4 py-2.5 backdrop-blur-sm">
@@ -180,6 +182,21 @@ export function StagingSetFilterBar({ filters, onChange, stats }: StagingSetFilt
           )}
         >
           No date
+        </button>
+
+        <button
+          onClick={() => onChange({ ...filters, showDuplicates: !filters.showDuplicates })}
+          className={cn(
+            'flex items-center gap-1 rounded-full border px-2 py-1 text-xs transition-colors',
+            filters.showDuplicates
+              ? 'border-orange-500/50 bg-orange-500/15 text-orange-700 dark:text-orange-400'
+              : 'border-slate-200 bg-slate-50 text-muted-foreground hover:bg-slate-100 hover:text-foreground dark:border-border/50 dark:bg-muted/50 dark:hover:border-border dark:hover:bg-muted',
+          )}
+        >
+          Duplicates
+          {(stats?.duplicateCount ?? 0) > 0 && (
+            <span className="text-[10px] text-muted-foreground">{stats!.duplicateCount}</span>
+          )}
         </button>
 
         <span className="mx-1 h-4 w-px bg-border/50" />

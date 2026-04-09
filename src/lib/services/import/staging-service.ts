@@ -465,6 +465,32 @@ async function createStagingSetsForBatch(
       }
     }
 
+    // Probable staging duplicate: same channel + release date (different externalId).
+    // Catches the same set appearing in two different import files (e.g. Naiads from
+    // Corinna's file already imported; Anna-Leah's file references the same set under a
+    // different or absent externalId). Still add the set so the user can review it, but
+    // mark isDuplicate=true so it shows an amber "POSSIBLE DUP" warning.
+    // Exception: if the matching entry is already SKIPPED (user resolved it), omit entirely.
+    let isProbableDuplicate = false
+    if (channelId && set.date) {
+      const probableExisting = await prisma.stagingSet.findFirst({
+        where: {
+          channelId,
+          releaseDate: new Date(set.date),
+          ...(set.externalId ? { externalId: { not: set.externalId } } : {}),
+        },
+        select: { id: true, status: true },
+      })
+      if (probableExisting) {
+        if (probableExisting.status === 'SKIPPED') {
+          summary.skipped++
+          continue
+        }
+        isProbableDuplicate = true
+        summary.duplicated++
+      }
+    }
+
     // Compute participant resolution statuses
     const participantStatuses = set.modelsList.map((m) => {
       const personId = personByIcgId.get(m.icgId)
@@ -510,6 +536,7 @@ async function createStagingSetsForBatch(
         matchedSetId: setMatch?.matchedEntityId ?? null,
         matchConfidence: setMatch?.matchConfidence ?? null,
         matchDetails: setMatch?.matchDetails ?? null,
+        isDuplicate: isProbableDuplicate,
         status: 'PENDING',
       },
     })

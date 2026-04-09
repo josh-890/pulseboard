@@ -3,7 +3,7 @@
 import { memo, useState, useRef, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import Image from 'next/image'
-import { Camera, CheckSquare, Copy, Film } from 'lucide-react'
+import { AlertTriangle, Camera, CheckSquare, Copy, Film } from 'lucide-react'
 import { cn, getInitialsFromName } from '@/lib/utils'
 import type { StagingSetWithRelations, ParticipantStatus } from '@/lib/services/import/staging-set-service'
 import type { StagingSetStatus } from '@/generated/prisma/client'
@@ -170,7 +170,9 @@ export const StagingSetRow = memo(function StagingSetRow({
       : `${((ss.matchConfidence ?? 0) * 100).toFixed(0)}%`
     : null
   const badge = STATUS_BADGE[ss.status]
-  const isDup = ss.isDuplicate || !!ss.duplicateGroupId
+  const isDupExact = !!ss.duplicateGroupId
+  const isDupProbable = ss.isDuplicate && !ss.duplicateGroupId
+  const isDup = isDupExact || isDupProbable
 
   // Build line 3 segments (no participant names — those are in the avatar stack)
   const line3Parts: string[] = []
@@ -209,8 +211,10 @@ export const StagingSetRow = memo(function StagingSetRow({
           'text-left transition-all duration-150',
           'active:scale-[0.995]',
           'border-l-4',
-          isDup
+          isDupExact
             ? 'border-orange-500 bg-orange-500/[0.10] hover:bg-orange-500/[0.18] dark:bg-orange-500/[0.12] dark:hover:bg-orange-500/[0.20]'
+            : isDupProbable
+            ? 'border-amber-500 bg-amber-500/[0.08] hover:bg-amber-500/[0.14] dark:bg-amber-500/[0.10] dark:hover:bg-amber-500/[0.18]'
             : cn(
                 'border-slate-200 bg-white/70 dark:border-border/40 dark:bg-card/70',
                 'hover:border-slate-400 hover:shadow-md dark:hover:border-border/70',
@@ -317,11 +321,17 @@ export const StagingSetRow = memo(function StagingSetRow({
 
         {/* Right section: badges */}
         <div className="flex shrink-0 items-center gap-2">
-          {/* Duplicate badge */}
-          {isDup && (
+          {/* Duplicate badges */}
+          {isDupExact && (
             <span className="inline-flex items-center gap-1 rounded-md border border-orange-500/60 bg-orange-500/25 px-2 py-0.5 text-xs font-bold tracking-wide text-orange-500 dark:text-orange-400">
               <Copy size={10} />
               DUPLICATE
+            </span>
+          )}
+          {isDupProbable && (
+            <span className="inline-flex items-center gap-1 rounded-md border border-amber-500/50 bg-amber-500/15 px-2 py-0.5 text-xs font-semibold tracking-wide text-amber-600 dark:text-amber-400">
+              <AlertTriangle size={10} />
+              POSSIBLE DUP
             </span>
           )}
 

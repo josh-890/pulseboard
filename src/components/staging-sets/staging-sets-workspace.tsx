@@ -165,6 +165,7 @@ export function StagingSetsWorkspace() {
     if (filters.search) params.set('search', filters.search)
     if (filters.batchId) params.set('batchId', filters.batchId)
     if (filters.noDate) params.set('noDate', 'true')
+    if (filters.showDuplicates) params.set('showDuplicates', 'true')
     if (filters.matchType === 'exact') params.set('matchType', 'exact')
     else if (filters.matchType === 'probable') params.set('matchType', 'probable')
     else if (filters.matchType === 'none') params.set('hasMatch', 'false')

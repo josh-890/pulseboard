@@ -27,6 +27,8 @@ export async function GET(request: Request) {
       const isVideo = isVideoParam === 'true' ? true : isVideoParam === 'false' ? false : undefined
       const noDate = url.searchParams.get('noDate') === 'true' || undefined
 
+      const showDuplicates = url.searchParams.get('showDuplicates') === 'true' || undefined
+
       const result = await getStagingSetsFiltered({
         status,
         hasMatch: url.searchParams.get('hasMatch') === 'true'
@@ -35,6 +37,7 @@ export async function GET(request: Request) {
             ? false
             : undefined,
         matchType: (url.searchParams.get('matchType') as 'exact' | 'probable') || undefined,
+        showDuplicates,
         isVideo,
         noDate,
         personId: url.searchParams.get('personId') || undefined,
