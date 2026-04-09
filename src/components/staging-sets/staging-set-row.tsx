@@ -147,6 +147,34 @@ function CoverThumbnail({
   )
 }
 
+// ─── Participant Avatar ────────────────────────────────────────────────────
+
+function ParticipantAvatar({ p }: { p: ParticipantStatus }) {
+  const [imgError, setImgError] = useState(false)
+  return (
+    <div
+      className={cn(
+        'relative flex h-12 w-12 items-center justify-center overflow-hidden rounded-full border-2 bg-muted text-sm font-medium text-muted-foreground',
+        STATUS_BORDER[p.status],
+      )}
+    >
+      {p.thumbnailUrl && !imgError ? (
+        <Image
+          src={p.thumbnailUrl}
+          alt={p.name}
+          fill
+          className="object-cover"
+          unoptimized
+          sizes="48px"
+          onError={() => setImgError(true)}
+        />
+      ) : (
+        getInitialsFromName(p.name)
+      )}
+    </div>
+  )
+}
+
 // ─── Component ─────────────────────────────────────────────────────────────
 
 export const StagingSetRow = memo(function StagingSetRow({
@@ -170,7 +198,10 @@ export const StagingSetRow = memo(function StagingSetRow({
       : `${((ss.matchConfidence ?? 0) * 100).toFixed(0)}%`
     : null
   const badge = STATUS_BADGE[ss.status]
-  const isDupExact = !!ss.duplicateGroupId
+  // isDuplicate=true means this entry IS the duplicate (the secondary one).
+  // duplicateGroupId alone (isDuplicate=false) means it's the canonical entry in a group —
+  // no warning needed on it, especially after the duplicate sibling has been resolved/skipped.
+  const isDupExact = ss.isDuplicate && !!ss.duplicateGroupId
   const isDupProbable = ss.isDuplicate && !ss.duplicateGroupId
   const isDup = isDupExact || isDupProbable
 
@@ -279,25 +310,7 @@ export const StagingSetRow = memo(function StagingSetRow({
                 title={participantTooltip(p)}
                 className="flex flex-col items-center gap-0.5"
               >
-                <div
-                  className={cn(
-                    'relative flex h-12 w-12 items-center justify-center overflow-hidden rounded-full border-2 bg-muted text-sm font-medium text-muted-foreground',
-                    STATUS_BORDER[p.status],
-                  )}
-                >
-                  {p.thumbnailUrl ? (
-                    <Image
-                      src={p.thumbnailUrl}
-                      alt={p.name}
-                      fill
-                      className="object-cover"
-                      unoptimized
-                      sizes="48px"
-                    />
-                  ) : (
-                    getInitialsFromName(p.name)
-                  )}
-                </div>
+                <ParticipantAvatar p={p} />
                 <span className="max-w-14 truncate text-[10px] text-muted-foreground">
                   {p.name}
                 </span>

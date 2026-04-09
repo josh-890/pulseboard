@@ -349,12 +349,7 @@ export async function getStagingSetsFiltered(filters: StagingSetFilters): Promis
   }
 
   if (filters.showDuplicates) {
-    conditions.push({
-      OR: [
-        { isDuplicate: true },
-        { duplicateGroupId: { not: null } },
-      ],
-    })
+    conditions.push({ isDuplicate: true })
   }
 
   if (filters.personId) {
@@ -515,7 +510,7 @@ export async function getStagingSetStats(batchId?: string): Promise<StagingSetSt
       where: { ...where, isVideo: true },
     }),
     prisma.stagingSet.count({
-      where: { ...where, OR: [{ isDuplicate: true }, { duplicateGroupId: { not: null } }] },
+      where: { ...where, isDuplicate: true },
     }),
   ])
 
