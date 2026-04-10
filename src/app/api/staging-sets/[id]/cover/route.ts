@@ -44,9 +44,21 @@ export async function POST(
         .jpeg({ quality: 80 })
         .toBuffer()
 
-      // Upload to MinIO
-      const key = `staging/${id}/cover.jpg`
+      // Use a versioned key so the URL changes on every upload — prevents the
+      // browser from serving a cached copy of the old image after a replace.
+      const version = Date.now()
+      const key = `staging/${id}/cover-${version}.jpg`
       const bucket = getMinioBucket()
+
+      // Delete any previous cover object(s) for this staging set
+      const { ListObjectsV2Command } = await import('@aws-sdk/client-s3')
+      const listed = await minioClient.send(new ListObjectsV2Command({ Bucket: bucket, Prefix: `staging/${id}/cover-` }))
+      for (const obj of listed.Contents ?? []) {
+        if (obj.Key && obj.Key !== key) {
+          await minioClient.send(new DeleteObjectCommand({ Bucket: bucket, Key: obj.Key }))
+        }
+      }
+
       await minioClient.send(
         new PutObjectCommand({
           Bucket: bucket,
@@ -78,8 +90,13 @@ export async function DELETE(
   return withTenantFromHeaders(async () => {
     const { id } = await params
     try {
+      const { ListObjectsV2Command } = await import('@aws-sdk/client-s3')
       const bucket = getMinioBucket()
-      await minioClient.send(new DeleteObjectCommand({ Bucket: bucket, Key: `staging/${id}/cover.jpg` }))
+      // Delete all cover objects for this staging set (versioned + legacy cover.jpg)
+      const listed = await minioClient.send(new ListObjectsV2Command({ Bucket: bucket, Prefix: `staging/${id}/cover` }))
+      for (const obj of listed.Contents ?? []) {
+        if (obj.Key) await minioClient.send(new DeleteObjectCommand({ Bucket: bucket, Key: obj.Key }))
+      }
       await prisma.stagingSet.update({ where: { id }, data: { coverImageUrl: null } })
       return NextResponse.json({ ok: true })
     } catch (err) {
