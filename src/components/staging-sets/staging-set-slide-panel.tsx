@@ -297,7 +297,10 @@ function PanelContent({
                     : 'border-amber-500/40 text-amber-600 hover:bg-amber-500/10 dark:text-amber-400',
                 )}
                 disabled={isProcessing}
-                onClick={() => onStatusChange(stagingSet.id, 'SKIPPED')}
+                onClick={async () => {
+                  await fetch(`/api/staging-sets/${stagingSet.id}/resolve-duplicate`, { method: 'POST' })
+                  onRefresh()
+                }}
               >
                 <Archive size={12} />
                 Resolve (skip)
@@ -307,7 +310,7 @@ function PanelContent({
                 variant="ghost"
                 className="text-xs text-muted-foreground hover:text-foreground"
                 disabled={isProcessing}
-                onClick={() => onFieldUpdate(stagingSet.id, { isDuplicate: false })}
+                onClick={() => onFieldUpdate(stagingSet.id, { isDuplicate: false, duplicateGroupId: null })}
               >
                 <RotateCcw size={12} />
                 Dismiss warning

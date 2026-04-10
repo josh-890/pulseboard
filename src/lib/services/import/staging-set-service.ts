@@ -277,6 +277,42 @@ export async function linkStagingSetDuplicate(
   })
 }
 
+/**
+ * Resolve a duplicate entry: skip it and clean up the group.
+ * - Marks this entry SKIPPED + clears its duplicateGroupId
+ * - If only one non-skipped sibling remains in the group, clears its duplicateGroupId too
+ *   (it is now the unique surviving entry — no badge needed)
+ */
+export async function resolveStagingSetDuplicate(id: string): Promise<StagingSet> {
+  return prisma.$transaction(async (tx) => {
+    const entry = await tx.stagingSet.findUniqueOrThrow({
+      where: { id },
+      select: { duplicateGroupId: true },
+    })
+    const groupId = entry.duplicateGroupId
+
+    const updated = await tx.stagingSet.update({
+      where: { id },
+      data: { status: 'SKIPPED', duplicateGroupId: null, isDuplicate: false },
+    })
+
+    if (groupId) {
+      const remaining = await tx.stagingSet.findMany({
+        where: { duplicateGroupId: groupId, status: { not: 'SKIPPED' } },
+        select: { id: true },
+      })
+      if (remaining.length === 1) {
+        await tx.stagingSet.update({
+          where: { id: remaining[0].id },
+          data: { duplicateGroupId: null, isDuplicate: false },
+        })
+      }
+    }
+
+    return updated
+  })
+}
+
 export async function markStagingSetPromoted(
   id: string,
   promotedSetId: string,
@@ -349,7 +385,12 @@ export async function getStagingSetsFiltered(filters: StagingSetFilters): Promis
   }
 
   if (filters.showDuplicates) {
-    conditions.push({ isDuplicate: true })
+    conditions.push({
+      OR: [
+        { isDuplicate: true },
+        { duplicateGroupId: { not: null } },
+      ],
+    })
   }
 
   if (filters.personId) {
@@ -510,7 +551,7 @@ export async function getStagingSetStats(batchId?: string): Promise<StagingSetSt
       where: { ...where, isVideo: true },
     }),
     prisma.stagingSet.count({
-      where: { ...where, isDuplicate: true },
+      where: { ...where, OR: [{ isDuplicate: true }, { duplicateGroupId: { not: null } }] },
     }),
   ])
 
@@ -556,6 +597,7 @@ export async function updateStagingSetFields(
     matchedSetId: string | null
     matchDetails: string | null
     isDuplicate: boolean
+    duplicateGroupId: string | null
   }>,
 ): Promise<StagingSet> {
   const updateData: Prisma.StagingSetUpdateInput = { ...data }

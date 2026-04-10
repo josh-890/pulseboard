@@ -198,10 +198,9 @@ export const StagingSetRow = memo(function StagingSetRow({
       : `${((ss.matchConfidence ?? 0) * 100).toFixed(0)}%`
     : null
   const badge = STATUS_BADGE[ss.status]
-  // isDuplicate=true means this entry IS the duplicate (the secondary one).
-  // duplicateGroupId alone (isDuplicate=false) means it's the canonical entry in a group —
-  // no warning needed on it, especially after the duplicate sibling has been resolved/skipped.
-  const isDupExact = ss.isDuplicate && !!ss.duplicateGroupId
+  // duplicateGroupId != null means this entry is part of a known duplicate group.
+  // isDuplicate=true (without duplicateGroupId) means probable match by channel+date.
+  const isDupExact = !!ss.duplicateGroupId
   const isDupProbable = ss.isDuplicate && !ss.duplicateGroupId
   const isDup = isDupExact || isDupProbable
 
