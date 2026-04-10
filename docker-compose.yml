@@ -33,7 +33,7 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '4'      # leave headroom so Unraid stays responsive during build
+          cpus: '2'      # 4-core host — leave 2 cores for Unraid array/VMs
           memory: 6g
 
 networks:
