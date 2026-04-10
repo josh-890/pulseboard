@@ -287,7 +287,7 @@ export async function resolveStagingSetDuplicate(id: string): Promise<StagingSet
   return prisma.$transaction(async (tx) => {
     const entry = await tx.stagingSet.findUniqueOrThrow({
       where: { id },
-      select: { duplicateGroupId: true },
+      select: { duplicateGroupId: true, channelId: true, releaseDate: true },
     })
     const groupId = entry.duplicateGroupId
 
@@ -297,6 +297,7 @@ export async function resolveStagingSetDuplicate(id: string): Promise<StagingSet
     })
 
     if (groupId) {
+      // Confirmed duplicate group: clear groupId from sole survivor
       const remaining = await tx.stagingSet.findMany({
         where: { duplicateGroupId: groupId, status: { not: 'SKIPPED' } },
         select: { id: true },
@@ -305,6 +306,26 @@ export async function resolveStagingSetDuplicate(id: string): Promise<StagingSet
         await tx.stagingSet.update({
           where: { id: remaining[0].id },
           data: { duplicateGroupId: null, isDuplicate: false },
+        })
+      }
+    } else if (entry.channelId && entry.releaseDate) {
+      // Probable duplicate (no groupId): find counterparts by channel+date.
+      // If exactly 1 active counterpart remains it is now unique — clear its flag.
+      // If 2+ remain they are still mutual duplicates — leave their flags intact.
+      const remaining = await tx.stagingSet.findMany({
+        where: {
+          channelId: entry.channelId,
+          releaseDate: entry.releaseDate,
+          isDuplicate: true,
+          id: { not: id },
+          status: { not: 'SKIPPED' },
+        },
+        select: { id: true },
+      })
+      if (remaining.length === 1) {
+        await tx.stagingSet.update({
+          where: { id: remaining[0].id },
+          data: { isDuplicate: false },
         })
       }
     }
