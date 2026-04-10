@@ -10,7 +10,7 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN npx prisma generate
-RUN npm run build
+RUN nice -n 10 npm run build
 
 # Stage 3: Production runner
 FROM node:20-alpine AS runner

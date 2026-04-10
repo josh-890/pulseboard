@@ -30,6 +30,11 @@ services:
       br0.20:
         ipv4_address: 10.66.20.65
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '4'      # leave headroom so Unraid stays responsive during build
+          memory: 6g
 
 networks:
   br0.20:
