@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import sharp from 'sharp'
-import { PutObjectCommand } from '@aws-sdk/client-s3'
+import { DeleteObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3'
 import { withTenantFromHeaders } from '@/lib/tenant-context'
 import { minioClient, getMinioBucket } from '@/lib/minio'
 import { buildUrl } from '@/lib/media-url'
@@ -67,6 +67,24 @@ export async function POST(
     } catch (err) {
       console.error('Cover upload error:', err)
       return NextResponse.json({ error: 'Upload failed' }, { status: 500 })
+    }
+  })
+}
+
+export async function DELETE(
+  _request: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  return withTenantFromHeaders(async () => {
+    const { id } = await params
+    try {
+      const bucket = getMinioBucket()
+      await minioClient.send(new DeleteObjectCommand({ Bucket: bucket, Key: `staging/${id}/cover.jpg` }))
+      await prisma.stagingSet.update({ where: { id }, data: { coverImageUrl: null } })
+      return NextResponse.json({ ok: true })
+    } catch (err) {
+      console.error('Cover delete error:', err)
+      return NextResponse.json({ error: 'Delete failed' }, { status: 500 })
     }
   })
 }

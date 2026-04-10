@@ -193,7 +193,7 @@ function PanelContent({
     }
   }, [stagingSet.id, comparison])
 
-  const handleCoverUploaded = useCallback(() => {
+  const handleCoverUploaded = useCallback((_url: string | null) => {
     onRefresh()
   }, [onRefresh])
 

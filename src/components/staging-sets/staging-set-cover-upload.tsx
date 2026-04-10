@@ -2,14 +2,14 @@
 
 import { useCallback, useRef, useState } from 'react'
 import Image from 'next/image'
-import { Camera, Loader2, Upload } from 'lucide-react'
+import { Camera, Loader2, Upload, X } from 'lucide-react'
 import { useFileDrop } from '@/lib/hooks/use-file-drop'
 import { cn } from '@/lib/utils'
 
 type StagingSetCoverUploadProps = {
   stagingSetId: string
   currentUrl: string | null
-  onUploaded: (url: string) => void
+  onUploaded: (url: string | null) => void
 }
 
 export function StagingSetCoverUpload({
@@ -18,12 +18,17 @@ export function StagingSetCoverUpload({
   onUploaded,
 }: StagingSetCoverUploadProps) {
   const [isUploading, setIsUploading] = useState(false)
+  // Cache-bust suffix appended after each successful upload so the browser
+  // refetches the new image even though the MinIO key (and URL) never changes.
+  const [cacheBust, setCacheBust] = useState('')
   const [imgError, setImgError] = useState(false)
+  const [uploadError, setUploadError] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const handleUpload = useCallback(async (file: File) => {
     if (!file.type.startsWith('image/')) return
     setIsUploading(true)
+    setUploadError(null)
     try {
       const formData = new FormData()
       formData.append('file', file)
@@ -32,11 +37,29 @@ export function StagingSetCoverUpload({
         body: formData,
       })
       const data = await res.json()
-      if (data.url) onUploaded(data.url)
+      if (data.url) {
+        setCacheBust(`?t=${Date.now()}`)
+        setImgError(false)
+        onUploaded(data.url)
+      } else {
+        setUploadError(data.error ?? 'Upload failed')
+      }
     } catch {
-      // Silently fail
+      setUploadError('Upload failed — check your connection')
     } finally {
       setIsUploading(false)
+    }
+  }, [stagingSetId, onUploaded])
+
+  const handleClear = useCallback(async (e: React.MouseEvent) => {
+    e.stopPropagation()
+    try {
+      await fetch(`/api/staging-sets/${stagingSetId}/cover`, { method: 'DELETE' })
+      setCacheBust('')
+      setImgError(false)
+      onUploaded(null)
+    } catch {
+      // ignore
     }
   }, [stagingSetId, onUploaded])
 
@@ -45,6 +68,8 @@ export function StagingSetCoverUpload({
   }, [handleUpload])
 
   const { isDragOver, dropProps } = useFileDrop(onDropFiles)
+
+  const displayUrl = currentUrl ? `${currentUrl}${cacheBust}` : null
 
   return (
     <div className="relative">
@@ -71,10 +96,10 @@ export function StagingSetCoverUpload({
               : 'border-border/50 hover:border-primary/50',
         )}
       >
-        {currentUrl && !imgError ? (
+        {displayUrl && !imgError ? (
           <>
             <Image
-              src={currentUrl}
+              src={displayUrl}
               alt="Cover"
               fill
               className="object-cover"
@@ -103,6 +128,23 @@ export function StagingSetCoverUpload({
           </div>
         )}
       </div>
+
+      {/* Clear button — only visible when a cover exists */}
+      {currentUrl && !isUploading && (
+        <button
+          type="button"
+          onClick={handleClear}
+          className="absolute -right-2 -top-2 flex h-5 w-5 items-center justify-center rounded-full bg-destructive text-destructive-foreground shadow-sm hover:bg-destructive/80"
+          title="Remove cover image"
+        >
+          <X size={10} />
+        </button>
+      )}
+
+      {/* Upload error */}
+      {uploadError && (
+        <p className="mt-1 text-xs text-destructive">{uploadError}</p>
+      )}
     </div>
   )
 }
