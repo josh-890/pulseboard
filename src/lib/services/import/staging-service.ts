@@ -377,6 +377,31 @@ async function createStagingSetsForBatch(
     byMatchType: { none: 0, exact: 0, probable: 0 },
   }
 
+  // Clean up orphaned duplicate groups: a group whose only non-SKIPPED member is
+  // the last survivor no longer needs a duplicateGroupId (the "duplicate" is gone).
+  // This happens when a sibling was resolved/skipped in a previous session and the
+  // surviving canonical entry was left with a stale groupId showing an orange badge.
+  {
+    const activeWithGroup = await prisma.stagingSet.findMany({
+      where: { duplicateGroupId: { not: null }, status: { not: 'SKIPPED' } },
+      select: { id: true, duplicateGroupId: true },
+    })
+    const groupMembers = new Map<string, string[]>()
+    for (const entry of activeWithGroup) {
+      const gid = entry.duplicateGroupId!
+      groupMembers.set(gid, [...(groupMembers.get(gid) ?? []), entry.id])
+    }
+    const orphanedIds = [...groupMembers.values()]
+      .filter((ids) => ids.length === 1)
+      .map((ids) => ids[0])
+    if (orphanedIds.length > 0) {
+      await prisma.stagingSet.updateMany({
+        where: { id: { in: orphanedIds } },
+        data: { duplicateGroupId: null, isDuplicate: false },
+      })
+    }
+  }
+
   // Get SET import items to link
   const setItems = await prisma.importItem.findMany({
     where: { batchId, type: 'SET' },
@@ -488,6 +513,11 @@ async function createStagingSetsForBatch(
         }
         isProbableDuplicate = true
         summary.duplicated++
+        // Flag the existing entry too — both sides must appear in the duplicates filter
+        await prisma.stagingSet.update({
+          where: { id: probableExisting.id },
+          data: { isDuplicate: true },
+        })
       }
     }
 

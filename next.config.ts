@@ -2,10 +2,9 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   output: "standalone",
-  // Skip full tsc + eslint during docker build — both run clean in dev before pushing.
+  // Skip full tsc during docker build — already clean in dev before pushing.
   // SWC-only compilation cuts the CPU spike that was freezing the Unraid build host.
   typescript: { ignoreBuildErrors: true },
-  eslint: { ignoreDuringBuilds: true },
   images: {
     remotePatterns: [
       {
