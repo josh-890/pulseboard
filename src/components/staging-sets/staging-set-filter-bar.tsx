@@ -52,13 +52,13 @@ type StagingSetFilterBarProps = {
 
 // ─── Constants ─────────────────────────────────────────────────────────────
 
-const STATUS_CONFIG: Array<{ value: StagingSetStatus; label: string; dot: string }> = [
-  { value: 'PENDING', label: 'Pending', dot: 'bg-blue-500' },
-  { value: 'REVIEWING', label: 'Reviewing', dot: 'bg-yellow-500' },
-  { value: 'APPROVED', label: 'Approved', dot: 'bg-cyan-500' },
-  { value: 'PROMOTED', label: 'Promoted', dot: 'bg-green-500' },
-  { value: 'INACTIVE', label: 'Inactive', dot: 'bg-gray-400' },
-  { value: 'SKIPPED', label: 'Skipped', dot: 'bg-gray-400' },
+const STATUS_CONFIG: Array<{ value: StagingSetStatus; label: string; dot: string; active: string }> = [
+  { value: 'PENDING',   label: 'Pending',   dot: 'bg-blue-500',   active: 'border-blue-500/60 bg-blue-500/15 text-blue-700 dark:text-blue-400' },
+  { value: 'REVIEWING', label: 'Reviewing', dot: 'bg-yellow-500', active: 'border-yellow-500/60 bg-yellow-500/15 text-yellow-700 dark:text-yellow-400' },
+  { value: 'APPROVED',  label: 'Approved',  dot: 'bg-cyan-500',   active: 'border-cyan-500/60 bg-cyan-500/15 text-cyan-700 dark:text-cyan-400' },
+  { value: 'PROMOTED',  label: 'Promoted',  dot: 'bg-green-500',  active: 'border-green-500/60 bg-green-500/15 text-green-700 dark:text-green-400' },
+  { value: 'INACTIVE',  label: 'Inactive',  dot: 'bg-gray-400',   active: 'border-gray-400/60 bg-gray-400/15 text-gray-600 dark:text-gray-300' },
+  { value: 'SKIPPED',   label: 'Skipped',   dot: 'bg-gray-400',   active: 'border-gray-400/60 bg-gray-400/15 text-gray-600 dark:text-gray-300' },
 ]
 
 const MATCH_TYPES: Array<{ value: 'exact' | 'probable' | 'none'; label: string }> = [
@@ -131,7 +131,7 @@ export function StagingSetFilterBar({ filters, onChange, stats }: StagingSetFilt
     <div className="sticky top-0 z-10 flex flex-col gap-2 border-b border-border/50 bg-background/95 px-4 py-2.5 backdrop-blur-sm">
       {/* Row 1: Status chips + match chips + no-date + clear */}
       <div className="flex flex-wrap items-center gap-1.5">
-        {STATUS_CONFIG.map(({ value, label, dot }) => {
+        {STATUS_CONFIG.map(({ value, label, dot, active }) => {
           const isActive = filters.status.includes(value)
           const count = stats?.byStatus[value] ?? 0
           return (
@@ -141,7 +141,7 @@ export function StagingSetFilterBar({ filters, onChange, stats }: StagingSetFilt
               className={cn(
                 'flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors',
                 isActive
-                  ? 'border-border bg-muted text-foreground'
+                  ? active
                   : 'border-slate-200 bg-slate-50 text-muted-foreground hover:bg-slate-100 hover:text-foreground dark:border-border/50 dark:bg-muted/50 dark:hover:border-border dark:hover:bg-muted',
               )}
             >
