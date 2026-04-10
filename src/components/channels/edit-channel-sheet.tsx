@@ -43,6 +43,7 @@ type EditChannelSheetProps = {
     platform: string | null;
     url: string | null;
     tier: ChannelTier;
+    setCount?: number;
   };
   labels: { id: string; name: string }[];
 };
@@ -78,6 +79,8 @@ export function EditChannelSheet({ channel, labels }: EditChannelSheetProps) {
 
   const { isSubmitting } = form.formState;
   const shortNameValue = form.watch("shortName");
+  const watchedLabelId = form.watch("labelId");
+  const labelIsChanging = !!watchedLabelId && watchedLabelId !== (channel.labelId ?? "");
 
   // Check availability when shortName changes
   useEffect(() => {
@@ -208,6 +211,11 @@ export function EditChannelSheet({ channel, labels }: EditChannelSheetProps) {
                             </select>
                           </FormControl>
                           <FormMessage />
+                          {labelIsChanging && (channel.setCount ?? 0) > 0 && (
+                            <p className="text-[11px] text-amber-600 dark:text-amber-400">
+                              {channel.setCount} set{channel.setCount === 1 ? "" : "s"} in this channel — their label affiliations and sessions will be updated on save.
+                            </p>
+                          )}
                         </FormItem>
                       )}
                     />

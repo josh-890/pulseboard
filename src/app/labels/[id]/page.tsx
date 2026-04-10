@@ -219,7 +219,7 @@ export default async function LabelDetailPage({
                   )}
                   <div className="mt-2 flex items-center gap-1.5">
                     <EditChannelSheet
-                      channel={{ ...channel, labelId: channelMap.labelId }}
+                      channel={{ ...channel, labelId: channelMap.labelId, setCount: channel._count.sets }}
                       labels={labelOption}
                     />
                     <DeleteButton

@@ -2,6 +2,7 @@ import { prisma } from "@/lib/db";
 import type { Prisma, ChannelTier } from "@/generated/prisma/client";
 import { normalizeForSearch } from "@/lib/normalize";
 import { generateChannelShortName } from "@/lib/utils";
+import { refreshPersonAffiliations } from "@/lib/services/view-service";
 
 export async function getChannels(filters?: { q?: string; labelId?: string; tier?: ChannelTier[] }) {
   const where: Prisma.ChannelWhereInput = {};
@@ -105,8 +106,10 @@ export async function updateChannelRecord(
     tier?: ChannelTier;
   },
 ) {
-  return prisma.$transaction(async (tx) => {
-    const channel = await tx.channel.update({
+  let labelActuallyChanged = false;
+
+  const channel = await prisma.$transaction(async (tx) => {
+    const updated = await tx.channel.update({
       where: { id },
       data: {
         name: data.name,
@@ -118,25 +121,79 @@ export async function updateChannelRecord(
       },
     });
 
-    // Update primary label mapping if labelId changed
     if (data.labelId !== undefined) {
-      // Remove existing mappings
-      await tx.channelLabelMap.deleteMany({ where: { channelId: id } });
+      // Read old label before replacing
+      const oldMap = await tx.channelLabelMap.findFirst({
+        where: { channelId: id },
+        select: { labelId: true },
+      });
+      const oldLabelId = oldMap?.labelId ?? null;
+      const newLabelId = data.labelId || null;
 
-      // Add new mapping if provided
-      if (data.labelId) {
+      // Replace ChannelLabelMap (existing behaviour)
+      await tx.channelLabelMap.deleteMany({ where: { channelId: id } });
+      if (newLabelId) {
         await tx.channelLabelMap.create({
-          data: {
-            channelId: id,
-            labelId: data.labelId,
-            confidence: 1.0,
-          },
+          data: { channelId: id, labelId: newLabelId, confidence: 1.0 },
         });
+      }
+
+      if (oldLabelId !== newLabelId) {
+        labelActuallyChanged = true;
+
+        // Cascade Session.labelId — only for sessions whose sets all belong to this channel.
+        // Guards against accidentally relabelling shared/compilation sessions.
+        if (oldLabelId) {
+          const setsInChannel = await tx.set.findMany({
+            where: { channelId: id },
+            select: { id: true },
+          });
+          const setIds = setsInChannel.map((s) => s.id);
+
+          if (setIds.length > 0) {
+            // Sessions that touch at least one set in this channel
+            const channelLinks = await tx.setSession.findMany({
+              where: { setId: { in: setIds } },
+              select: { sessionId: true },
+            });
+            const candidateSessionIds = [...new Set(channelLinks.map((l) => l.sessionId))];
+
+            // All set links for those sessions (detect cross-channel/compilation sessions)
+            const allLinks = await tx.setSession.findMany({
+              where: { sessionId: { in: candidateSessionIds } },
+              select: { sessionId: true, setId: true },
+            });
+            const sessionSetMap = new Map<string, string[]>();
+            for (const link of allLinks) {
+              sessionSetMap.set(link.sessionId, [...(sessionSetMap.get(link.sessionId) ?? []), link.setId]);
+            }
+
+            // Keep only sessions where every linked set is in this channel
+            const channelSetIds = new Set(setIds);
+            const pureSessionIds = [...sessionSetMap.entries()]
+              .filter(([, sids]) => sids.every((sid) => channelSetIds.has(sid)))
+              .map(([sessionId]) => sessionId);
+
+            if (pureSessionIds.length > 0) {
+              await tx.session.updateMany({
+                where: { id: { in: pureSessionIds }, labelId: oldLabelId },
+                data: { labelId: newLabelId },
+              });
+            }
+          }
+        }
       }
     }
 
-    return channel;
+    return updated;
   });
+
+  // Refresh materialized view outside the transaction (DDL-like op, must run after commit)
+  if (labelActuallyChanged) {
+    await refreshPersonAffiliations();
+  }
+
+  return channel;
 }
 
 export async function deleteChannelRecord(id: string) {

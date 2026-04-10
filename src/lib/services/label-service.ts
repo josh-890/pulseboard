@@ -35,6 +35,7 @@ export async function getLabelById(id: string) {
                 orderBy: { releaseDate: "desc" },
                 take: 10,
               },
+              _count: { select: { sets: true } },
             },
           },
         },

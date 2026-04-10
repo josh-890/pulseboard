@@ -92,6 +92,7 @@ export default async function ChannelDetailPage({
               platform: channel.platform,
               url: channel.url,
               tier: channel.tier,
+              setCount: channel.sets.length,
             }}
             labels={labelOptions}
           />

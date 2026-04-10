@@ -5,6 +5,7 @@ import { cascadeDeleteSet } from "./cascade-helpers";
 import type { TxClient } from "./cascade-helpers";
 import { mergeSessionsRecord } from "./session-service";
 import { rebuildSetParticipantsFromContributions } from "./contribution-service";
+import { refreshPersonAffiliations } from "./view-service";
 
 export type SetSort =
   | "date-desc"
@@ -303,26 +304,68 @@ export async function updateSetRecord(id: string, data: {
   videoLength?: string | null;
   externalId?: string | null;
 }) {
-  return prisma.set.update({
-    where: { id },
-    data: {
-      title: data.title,
-      titleNorm: data.title ? normalizeForSearch(data.title) : undefined,
-      channelId: data.channelId,
-      description: data.description,
-      notes: data.notes,
-      releaseDate: data.releaseDate ? new Date(data.releaseDate) : data.releaseDate === null ? null : undefined,
-      releaseDatePrecision: (data.releaseDatePrecision as "UNKNOWN" | "YEAR" | "MONTH" | "DAY") ?? undefined,
-      category: data.category,
-      genre: data.genre,
-      tags: data.tags,
-      isCompilation: data.isCompilation,
-      isComplete: data.isComplete,
-      imageCount: data.imageCount,
-      videoLength: data.videoLength,
-      externalId: data.externalId,
-    },
+  const setData = {
+    title: data.title,
+    titleNorm: data.title ? normalizeForSearch(data.title) : undefined,
+    channelId: data.channelId,
+    description: data.description,
+    notes: data.notes,
+    releaseDate: data.releaseDate ? new Date(data.releaseDate) : data.releaseDate === null ? null : undefined,
+    releaseDatePrecision: (data.releaseDatePrecision as "UNKNOWN" | "YEAR" | "MONTH" | "DAY") ?? undefined,
+    category: data.category,
+    genre: data.genre,
+    tags: data.tags,
+    isCompilation: data.isCompilation,
+    isComplete: data.isComplete,
+    imageCount: data.imageCount,
+    videoLength: data.videoLength,
+    externalId: data.externalId,
+  };
+
+  // When channelId is not changing, simple update with no side effects
+  if (data.channelId === undefined) {
+    return prisma.set.update({ where: { id }, data: setData });
+  }
+
+  // Channel is being changed — wrap in transaction and cascade session label
+  const result = await prisma.$transaction(async (tx) => {
+    const updated = await tx.set.update({ where: { id }, data: setData });
+
+    if (data.channelId) {
+      // Look up the new channel's primary label
+      const newChannelMap = await tx.channelLabelMap.findFirst({
+        where: { channelId: data.channelId },
+        orderBy: { confidence: "desc" },
+        select: { labelId: true },
+      });
+
+      // Find the primary session for this set
+      const primaryLink = await tx.setSession.findFirst({
+        where: { setId: id, isPrimary: true },
+        select: { sessionId: true },
+      });
+
+      if (primaryLink && newChannelMap?.labelId) {
+        // Only update session label if this session belongs exclusively to this set
+        // (guards against accidentally relabelling shared/compilation sessions)
+        const linkedSetCount = await tx.setSession.count({
+          where: { sessionId: primaryLink.sessionId },
+        });
+        if (linkedSetCount === 1) {
+          await tx.session.update({
+            where: { id: primaryLink.sessionId },
+            data: { labelId: newChannelMap.labelId },
+          });
+        }
+      }
+    }
+
+    return updated;
   });
+
+  // Refresh materialized view outside the transaction
+  await refreshPersonAffiliations();
+  return result;
 }
 
 export async function deleteSetRecord(id: string) {
