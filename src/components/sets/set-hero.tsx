@@ -52,64 +52,62 @@ function ParticipantAvatars({
   const MAX_VISIBLE = 5;
   const visible = participants.slice(0, MAX_VISIBLE);
   const overflow = participants.length - MAX_VISIBLE;
-  const names = visible
-    .map((p) => p.person.aliases[0]?.name ?? p.person.icgId)
-    .join(" · ");
-  const overflowText = overflow > 0 ? ` +${overflow}` : "";
 
   return (
-    <div>
-      <div className="flex items-center">
-        {visible.map((p, i) => {
-          const name = p.person.aliases[0]?.name ?? p.person.icgId ?? "";
-          const initials = getInitialsFromName(name);
-          const photoUrl = headshotMap.get(p.personId)?.url ?? null;
-          const age = computeProductionAge(
-            p.person.birthdate,
-            p.person.birthdatePrecision,
-            productionDate?.date ?? null,
-            productionDate?.datePrecision ?? "UNKNOWN",
-            productionDate?.dateIsConfirmed ?? false,
-            fallbackDate,
-            fallbackPrecision,
-          );
-          return (
-            <Link
-              key={p.personId}
-              href={`/people/${p.personId}`}
-              title={name}
-              className="relative shrink-0 transition-transform hover:z-10 hover:scale-110"
-              style={{ marginLeft: i > 0 ? -10 : 0 }}
-            >
-              {photoUrl ? (
-                <Image
-                  src={photoUrl}
-                  alt={name}
-                  width={40}
-                  height={40}
-                  className="h-10 w-10 rounded-full border-2 border-card object-cover"
-                  unoptimized
-                />
-              ) : (
-                <div className="flex h-10 w-10 items-center justify-center rounded-full border-2 border-card bg-muted text-sm font-semibold text-muted-foreground">
-                  {initials}
-                </div>
-              )}
-              {age && (
-                <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 rounded-full bg-card/90 px-1 text-[9px] font-medium leading-tight text-muted-foreground ring-1 ring-white/20">
-                  {age}
-                </span>
-              )}
-            </Link>
-          );
-        })}
-        {overflow > 0 && (
-          <span className="ml-2 text-xs text-muted-foreground">+{overflow}</span>
-        )}
-      </div>
-      <p className="mt-1 text-xs text-muted-foreground">
-        {names}{overflowText}
-      </p>
+    <div className="flex flex-wrap items-start gap-2">
+      {visible.map((p) => {
+        const name = p.person.aliases[0]?.name ?? p.person.icgId ?? "";
+        const firstName = name.split(" ")[0];
+        const initials = getInitialsFromName(name);
+        const photoUrl = headshotMap.get(p.personId)?.url ?? null;
+        const age = computeProductionAge(
+          p.person.birthdate,
+          p.person.birthdatePrecision,
+          productionDate?.date ?? null,
+          productionDate?.datePrecision ?? "UNKNOWN",
+          productionDate?.dateIsConfirmed ?? false,
+          fallbackDate,
+          fallbackPrecision,
+        );
+        return (
+          <Link
+            key={p.personId}
+            href={`/people/${p.personId}`}
+            className="flex flex-col items-center gap-0.5 transition-transform hover:scale-105"
+            style={{ width: 56 }}
+          >
+            {photoUrl ? (
+              <Image
+                src={photoUrl}
+                alt={name}
+                width={48}
+                height={48}
+                className="h-12 w-12 rounded-full border-2 border-card object-cover"
+                unoptimized
+              />
+            ) : (
+              <div className="flex h-12 w-12 items-center justify-center rounded-full border-2 border-card bg-muted text-sm font-semibold text-muted-foreground">
+                {initials}
+              </div>
+            )}
+            <span className="w-full truncate text-center text-[9px] leading-tight text-muted-foreground" title={name}>
+              {firstName}
+            </span>
+            {age && (
+              <span className="text-[9px] leading-none text-muted-foreground/60">
+                {age}
+              </span>
+            )}
+          </Link>
+        );
+      })}
+      {overflow > 0 && (
+        <div className="flex flex-col items-center gap-0.5" style={{ width: 56 }}>
+          <div className="flex h-12 w-12 items-center justify-center rounded-full border-2 border-card bg-muted text-xs text-muted-foreground">
+            +{overflow}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -46,9 +46,37 @@ export async function updatePerson(raw: unknown): Promise<CrudActionResult> {
     }
 
     try {
+      const birthdateChanged =
+        parsed.data.birthdate !== undefined || parsed.data.birthdatePrecision !== undefined;
+
       await updatePersonRecord(parsed.data.id, parsed.data);
       revalidatePath("/people");
       revalidatePath(`/people/${parsed.data.id}`);
+
+      // Birthdate changes affect computed ages on all linked sessions and sets
+      if (birthdateChanged) {
+        const [sessionLinks, setLinks] = await Promise.all([
+          prisma.sessionContribution.findMany({
+            where: { personId: parsed.data.id },
+            select: { sessionId: true },
+          }),
+          prisma.setParticipant.findMany({
+            where: { personId: parsed.data.id },
+            select: { setId: true },
+          }),
+        ]);
+        const sessionIds = [...new Set(sessionLinks.map((l) => l.sessionId))];
+        const setIds = [...new Set(setLinks.map((l) => l.setId))];
+        if (sessionIds.length > 0) revalidatePath("/sessions");
+        if (setIds.length > 0) revalidatePath("/sets");
+        for (const sessionId of sessionIds) {
+          revalidatePath(`/sessions/${sessionId}`);
+        }
+        for (const setId of setIds) {
+          revalidatePath(`/sets/${setId}`);
+        }
+      }
+
       return { success: true, id: parsed.data.id };
     } catch {
       return { success: false, error: "Unexpected error" };

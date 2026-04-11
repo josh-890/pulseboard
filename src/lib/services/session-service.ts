@@ -453,7 +453,7 @@ export async function mergeSessionsRecord(survivingId: string, absorbedId: strin
       where: { id: absorbedId },
     });
 
-    // 6. Rebuild SetParticipant cache for all sets linked to surviving session
+    // 6. Rebuild SetParticipant cache + collect all linked set IDs
     const survivingSetLinks = await tx.setSession.findMany({
       where: { sessionId: survivingId },
       select: { setId: true },
@@ -461,6 +461,36 @@ export async function mergeSessionsRecord(survivingId: string, absorbedId: strin
     for (const link of survivingSetLinks) {
       await rebuildSetParticipantsFromContributions(tx, link.setId);
     }
+    const affectedSetIds = survivingSetLinks.map((l) => l.setId);
+
+    // 7. Reconcile session date — production date must not be later than earliest linked set release date
+    const survivingSession = await tx.session.findFirst({
+      where: { id: survivingId },
+      select: { date: true, datePrecision: true, dateIsConfirmed: true },
+    });
+    if (survivingSession && !survivingSession.dateIsConfirmed && affectedSetIds.length > 0) {
+      const linkedSets = await tx.set.findMany({
+        where: { id: { in: affectedSetIds }, releaseDate: { not: null } },
+        select: { releaseDate: true, releaseDatePrecision: true },
+        orderBy: { releaseDate: "asc" },
+      });
+      if (linkedSets.length > 0) {
+        const earliest = linkedSets[0]!;
+        const sessionDate = survivingSession.date;
+        // Update if session has no date, or its date is strictly after the earliest release date
+        if (!sessionDate || sessionDate > earliest.releaseDate!) {
+          await tx.session.update({
+            where: { id: survivingId },
+            data: {
+              date: earliest.releaseDate,
+              datePrecision: (earliest.releaseDatePrecision as "UNKNOWN" | "YEAR" | "MONTH" | "DAY") ?? "UNKNOWN",
+            },
+          });
+        }
+      }
+    }
+
+    return { affectedSetIds };
   });
 }
 

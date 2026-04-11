@@ -93,6 +93,11 @@ function ParticipantAvatar({
           >
             {name.split(" ")[0]}
           </span>
+          {age && (
+            <span className="text-[8px] leading-none text-muted-foreground/60">
+              {age}
+            </span>
+          )}
         </div>
       </TooltipTrigger>
 

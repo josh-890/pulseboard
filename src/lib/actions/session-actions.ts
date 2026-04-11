@@ -137,11 +137,14 @@ export async function mergeSessions(
 ): Promise<SimpleActionResult> {
   return withTenantFromHeaders(async () => {
     try {
-      await mergeSessionsRecord(survivingId, absorbedId);
+      const { affectedSetIds } = await mergeSessionsRecord(survivingId, absorbedId);
       revalidatePath("/sessions");
       revalidatePath(`/sessions/${survivingId}`);
       revalidatePath("/sets");
       revalidatePath("/");
+      for (const setId of affectedSetIds) {
+        revalidatePath(`/sets/${setId}`);
+      }
       return { success: true };
     } catch (e) {
       const message = e instanceof Error ? e.message : "Failed to merge sessions";
