@@ -156,8 +156,22 @@ export function SetHero({
 
       {/* Metadata */}
       <div className="min-w-0 flex-1 flex flex-col">
-        {/* Line 1: Type · Date · Channel */}
+        {/* Line 1: Date · Channel · Type pill */}
         <div className="flex flex-wrap items-center gap-1.5 text-sm text-muted-foreground">
+          {set.releaseDate && (
+            <span>{formatPartialDateISO(set.releaseDate, set.releaseDatePrecision)}</span>
+          )}
+          {set.channel && (
+            <>
+              {set.releaseDate && <span>·</span>}
+              <Link
+                href={`/channels/${set.channel.id}`}
+                className="font-medium text-foreground/80 hover:text-foreground hover:underline underline-offset-2 transition-colors"
+              >
+                {set.channel.name}
+              </Link>
+            </>
+          )}
           <span
             className={cn(
               "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium",
@@ -167,23 +181,6 @@ export function SetHero({
             {typeConfig.icon}
             {typeConfig.label}
           </span>
-          {set.releaseDate && (
-            <>
-              <span>·</span>
-              <span>{formatPartialDateISO(set.releaseDate, set.releaseDatePrecision)}</span>
-            </>
-          )}
-          {set.channel && (
-            <>
-              <span>·</span>
-              <Link
-                href={`/channels/${set.channel.id}`}
-                className="font-medium text-foreground/80 hover:text-foreground hover:underline underline-offset-2 transition-colors"
-              >
-                {set.channel.name}
-              </Link>
-            </>
-          )}
         </div>
 
         {/* Line 2: Title */}
