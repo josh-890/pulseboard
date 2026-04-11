@@ -7,6 +7,7 @@ import {
   FolderSearch,
   GripVertical,
   Loader2,
+  Unlink,
   Plus,
   Scissors,
   Search,
@@ -44,6 +45,7 @@ import {
 import {
   setSetCover,
   deleteSetMediaAction,
+  removeMediaFromSetAction,
   reorderSetMediaAction,
   splitMediaToSessionAction,
 } from "@/lib/actions/set-actions";
@@ -287,9 +289,9 @@ export function SetDetailGallery({
     return groups;
   }, [isVideoSet, items]);
 
-  // Session-grouped view for compilations (only when sortMode === "user")
+  // Session-grouped view for any set with multi-session media (only when sortMode === "user")
   const sessionGroups = useMemo<SessionGroup[]>(() => {
-    if (!isCompilation || !isGroupBySession || sortMode !== "user") return [];
+    if (!isGroupBySession || sortMode !== "user") return [];
 
     const sessionInfoMap = new Map<string, SessionLink>(
       (sessionLinks ?? []).map((l) => [l.sessionId, l]),
@@ -382,6 +384,16 @@ export function SetDetailGallery({
     [entityId, primarySessionId],
   );
 
+  const handleRemoveFromSet = useCallback(() => {
+    const idsToRemove = Array.from(selectedIds);
+    setLocalItems((prev) => prev.filter((it) => !selectedIds.has(it.id)));
+    clearSelection();
+    startTransition(async () => {
+      const result = await removeMediaFromSetAction(entityId, idsToRemove);
+      if (!result.success) toast.error(result.error ?? "Failed to remove from set");
+    });
+  }, [selectedIds, entityId, clearSelection]);
+
   const handleReorder = useCallback(
     (orderedIds: string[]) => {
       const idSet = new Map(localItems.map((it) => [it.id, it]));
@@ -434,7 +446,7 @@ export function SetDetailGallery({
   );
 
   const hasSelection = selectedIds.size > 0;
-  const showSessionGroups = isCompilation && isGroupBySession && sortMode === "user" && sessionGroups.length > 0;
+  const showSessionGroups = isGroupBySession && sortMode === "user" && sessionGroups.length > 0;
 
   return (
     <div ref={containerRef} className="relative">
@@ -527,6 +539,16 @@ export function SetDetailGallery({
             >
               <Trash2 size={14} />
               Delete
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5"
+              onClick={handleRemoveFromSet}
+              title="Remove from this set without deleting the media"
+            >
+              <Unlink size={14} />
+              Remove from set
             </Button>
             {isCompilation && (
               <Button
