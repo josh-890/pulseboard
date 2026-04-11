@@ -46,6 +46,7 @@ import {
   AlertTriangle,
   ArrowUpDown,
   Upload,
+  ScrollText,
 } from "lucide-react";
 import NextImage from "next/image";
 import Link from "next/link";
@@ -57,6 +58,8 @@ import { PersonDetailsTab } from "@/components/people/person-details-tab";
 import { SectionCard, EmptyState, InfoRow } from "@/components/people/person-detail-helpers";
 import { PersonSkillsTab } from "@/components/people/person-skills-tab";
 import { PersonAliasesTab } from "@/components/people/person-aliases-tab";
+import { PersonResearchTab } from "@/components/people/person-research-tab";
+import type { PersonResearchItem } from "@/lib/services/research-service";
 import { DigitalIdentitySection } from "@/components/people/digital-identity-section";
 import { CareerSessionList } from "@/components/people/career-session-list";
 import { ProductionPhotoList } from "@/components/people/production-photo-list";
@@ -80,7 +83,7 @@ import ReactMarkdown from "react-markdown";
 
 type PersonData = NonNullable<Awaited<ReturnType<typeof getPersonWithDetails>>>;
 
-type TabId = "overview" | "aliases" | "appearance" | "details" | "skills" | "career" | "network" | "photos";
+type TabId = "overview" | "aliases" | "appearance" | "details" | "skills" | "career" | "network" | "photos" | "research";
 
 type HeadshotSlotEntry = { mediaItemId: string; slot: number };
 
@@ -110,6 +113,7 @@ type PersonDetailTabsProps = {
   digitalIdentities?: PersonDigitalIdentityItem[];
   initialTab?: string;
   entityTags?: { id: string; name: string; group: { name: string; color: string } }[];
+  researchEntries?: PersonResearchItem[];
 };
 
 // ── Style maps ──────────────────────────────────────────────────────────────
@@ -1812,9 +1816,10 @@ export function PersonDetailTabs({
   digitalIdentities = [],
   initialTab,
   entityTags = [],
+  researchEntries = [],
 }: PersonDetailTabsProps) {
   const VALID_TABS: Set<string> = useMemo(
-    () => new Set<string>(["overview", "aliases", "appearance", "details", "skills", "career", "network", "photos"]),
+    () => new Set<string>(["overview", "aliases", "appearance", "details", "skills", "career", "network", "photos", "research"]),
     [],
   );
   const resolvedInitialTab: TabId = initialTab && VALID_TABS.has(initialTab)
@@ -1894,6 +1899,7 @@ export function PersonDetailTabs({
     { id: "career", label: "Career", badge: (sessionWorkHistory?.length ?? workHistory.length) || undefined, icon: <Briefcase size={14} /> },
     { id: "network", label: "Network", badge: connections.length || undefined, icon: <Users size={14} /> },
     { id: "photos", label: "Photos", badge: (photos.length + (productionSessions?.reduce((sum, s) => sum + s.mediaCount, 0) ?? 0)) || undefined, icon: <ImageIcon size={14} /> },
+    { id: "research" as TabId, label: "Research", badge: researchEntries.length || undefined, icon: <ScrollText size={14} /> },
   ];
 
   return (
@@ -2086,6 +2092,19 @@ export function PersonDetailTabs({
             filledHeadshotSlots={filledHeadshotSlots}
             headshotSlotEntries={headshotSlotEntries}
             productionSessions={productionSessions ?? []}
+          />
+        )}
+      </div>
+      <div
+        id="tabpanel-research"
+        role="tabpanel"
+        aria-labelledby="tab-research"
+        hidden={activeTab !== "research"}
+      >
+        {activeTab === "research" && (
+          <PersonResearchTab
+            personId={person.id}
+            initialEntries={researchEntries}
           />
         )}
       </div>

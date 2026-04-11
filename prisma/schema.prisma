@@ -287,6 +287,7 @@ model Person {
   mediaCollections     MediaCollection[]
   personTags           PersonTag[]
   stagingSetsAsSubject StagingSet[]         @relation("StagingSetSubject")
+  research             PersonResearch[]
 
   createdAt DateTime  @default(now())
 
@@ -1571,4 +1572,17 @@ model StagingSet {
   @@index([status])
   @@index([duplicateGroupId])
   @@map("staging_set")
+}
+
+model PersonResearch {
+  id        String   @id @default(cuid())
+  personId  String
+  person    Person   @relation(fields: [personId], references: [id])
+  title     String
+  content   String   @default("")
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([personId])
 }
