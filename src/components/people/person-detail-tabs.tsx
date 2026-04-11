@@ -1314,7 +1314,6 @@ function OverviewTab({
   referencePhotos,
   plausibilityIssues = [],
   onTabSwitch,
-  digitalIdentities = [],
   entityTags = [],
 }: {
   person: PersonData;
@@ -1323,7 +1322,6 @@ function OverviewTab({
   referencePhotos?: GalleryItem[];
   plausibilityIssues?: PlausibilityIssue[];
   onTabSwitch?: (tab: string) => void;
-  digitalIdentities?: PersonDigitalIdentityItem[];
   entityTags?: { id: string; name: string; group: { name: string; color: string } }[];
 }) {
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
@@ -1981,7 +1979,6 @@ export function PersonDetailTabs({
             referencePhotos={photos}
             plausibilityIssues={plausibilityIssues}
             onTabSwitch={(tab) => setActiveTab(tab as TabId)}
-            digitalIdentities={digitalIdentities}
             entityTags={entityTags}
           />
         )}
