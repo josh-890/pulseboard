@@ -46,6 +46,7 @@ type EditSessionSheetProps = {
     notes: string | null;
     date: Date | null;
     datePrecision: string;
+    dateIsConfirmed: boolean;
   };
   labels: { id: string; name: string }[];
   projects: { id: string; name: string }[];
@@ -82,6 +83,7 @@ export function EditSessionSheet({ session, labels, projects }: EditSessionSheet
       notes: session.notes,
       date: formatDateForInput(session.date),
       datePrecision: session.datePrecision as "UNKNOWN" | "YEAR" | "MONTH" | "DAY",
+      dateIsConfirmed: session.dateIsConfirmed,
     },
   });
 
@@ -165,6 +167,15 @@ export function EditSessionSheet({ session, labels, projects }: EditSessionSheet
                         onDateChange={(v) => form.setValue("date", v)}
                         onPrecisionChange={(v) => form.setValue("datePrecision", v as "UNKNOWN" | "YEAR" | "MONTH" | "DAY")}
                       />
+                      <label className="mt-1.5 flex cursor-pointer items-center gap-2 text-xs text-muted-foreground">
+                        <input
+                          type="checkbox"
+                          className="h-3.5 w-3.5 rounded border-input accent-primary"
+                          checked={form.watch("dateIsConfirmed") ?? false}
+                          onChange={(e) => form.setValue("dateIsConfirmed", e.target.checked)}
+                        />
+                        Production date confirmed (disables automatic ~)
+                      </label>
                     </FormItem>
                     <FormField
                       control={form.control}

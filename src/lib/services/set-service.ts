@@ -61,6 +61,11 @@ export async function getSets(filters: SetFilters = {}) {
         where: { resolvedArtistId: { not: null } },
         select: { resolvedArtistId: true, resolvedArtist: { select: { id: true, name: true } } },
       },
+      sessionLinks: {
+        where: { isPrimary: true },
+        select: { session: { select: { date: true, datePrecision: true, dateIsConfirmed: true } } },
+        take: 1,
+      },
       _count: {
         select: {
           creditsRaw: { where: { resolutionStatus: "UNRESOLVED" } },
@@ -149,6 +154,11 @@ export async function getSetsPaginated(
           where: { resolvedArtistId: { not: null } },
           select: { resolvedArtistId: true, resolvedArtist: { select: { id: true, name: true } } },
         },
+        sessionLinks: {
+          where: { isPrimary: true },
+          select: { session: { select: { date: true, datePrecision: true, dateIsConfirmed: true } } },
+          take: 1,
+        },
         _count: {
           select: {
             creditsRaw: { where: { resolutionStatus: "UNRESOLVED" } },
@@ -205,7 +215,7 @@ export async function getSetById(id: string) {
       sessionLinks: {
         include: {
           session: {
-            select: { id: true, name: true, status: true, date: true, datePrecision: true },
+            select: { id: true, name: true, status: true, date: true, datePrecision: true, dateIsConfirmed: true },
           },
         },
         orderBy: { isPrimary: "desc" },

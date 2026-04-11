@@ -84,6 +84,11 @@ export function SessionWorkCard({ entry }: SessionWorkCardProps) {
                   {formatPartialDate(entry.sessionDate, entry.sessionDatePrecision)}
                 </span>
               )}
+              {entry.ageAtProduction && (
+                <span className="shrink-0 rounded-full bg-muted/60 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+                  age {entry.ageAtProduction}
+                </span>
+              )}
             </div>
 
             {/* Roles + media count */}

@@ -264,12 +264,14 @@ export type PersonSessionWorkEntry = {
   sessionName: string;
   sessionDate: Date | null;
   sessionDatePrecision: string;
+  sessionDateIsConfirmed: boolean;
   labelId: string | null;
   labelName: string | null;
   roles: string[];
   mediaCount: number;
   thumbnails: SessionThumbnail[];
   linkedSets: LinkedSetSummary[];
+  ageAtProduction: string;
   confidence: import("@/generated/prisma/client").ParticipationConfidence;
   confidenceSource: import("@/generated/prisma/client").ConfidenceSource;
 };

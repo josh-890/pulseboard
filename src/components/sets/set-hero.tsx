@@ -1,7 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { Camera, Check, Circle, Film } from "lucide-react";
-import { cn, focalStyle, formatPartialDate, getInitialsFromName } from "@/lib/utils";
+import { cn, focalStyle, formatPartialDate, getInitialsFromName, computeProductionAge } from "@/lib/utils";
 import { SetInlineTitle } from "@/components/sets/set-detail-header";
 import type { getSetById } from "@/lib/services/set-service";
 import type { CoverPhotoData, HeadshotData } from "@/lib/services/media-service";
@@ -28,12 +28,24 @@ const SET_TYPE_CONFIG: Record<string, SetTypeConfig> = {
   },
 };
 
+type ProductionDateInfo = {
+  date: Date | null;
+  datePrecision: string;
+  dateIsConfirmed: boolean;
+};
+
 function ParticipantAvatars({
   participants,
   headshotMap,
+  productionDate,
+  fallbackDate,
+  fallbackPrecision,
 }: {
   participants: Participant[];
   headshotMap: Map<string, HeadshotData>;
+  productionDate: ProductionDateInfo | null;
+  fallbackDate: Date | null;
+  fallbackPrecision: string;
 }) {
   if (participants.length === 0) return null;
 
@@ -52,6 +64,15 @@ function ParticipantAvatars({
           const name = p.person.aliases[0]?.name ?? p.person.icgId ?? "";
           const initials = getInitialsFromName(name);
           const photoUrl = headshotMap.get(p.personId)?.url ?? null;
+          const age = computeProductionAge(
+            p.person.birthdate,
+            p.person.birthdatePrecision,
+            productionDate?.date ?? null,
+            productionDate?.datePrecision ?? "UNKNOWN",
+            productionDate?.dateIsConfirmed ?? false,
+            fallbackDate,
+            fallbackPrecision,
+          );
           return (
             <Link
               key={p.personId}
@@ -73,6 +94,11 @@ function ParticipantAvatars({
                 <div className="flex h-10 w-10 items-center justify-center rounded-full border-2 border-card bg-muted text-sm font-semibold text-muted-foreground">
                   {initials}
                 </div>
+              )}
+              {age && (
+                <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 rounded-full bg-card/90 px-1 text-[9px] font-medium leading-tight text-muted-foreground ring-1 ring-white/20">
+                  {age}
+                </span>
               )}
             </Link>
           );
@@ -106,6 +132,7 @@ export function SetHero({
   const typeConfig = SET_TYPE_CONFIG[set.type] ?? SET_TYPE_CONFIG.photo;
   const participantCount = set.participants.length;
   const primaryLabel = set.channel?.labelMaps[0]?.label;
+  const primarySession = set.sessionLinks.find((l) => l.isPrimary)?.session ?? set.sessionLinks[0]?.session ?? null;
 
   const coverPanel = coverPhoto ? (
     <div className="relative h-[250px] w-[180px] shrink-0 overflow-hidden rounded-xl">
@@ -173,6 +200,13 @@ export function SetHero({
         <ParticipantAvatars
           participants={set.participants}
           headshotMap={headshotMap}
+          productionDate={primarySession ? {
+            date: primarySession.date,
+            datePrecision: primarySession.datePrecision,
+            dateIsConfirmed: primarySession.dateIsConfirmed,
+          } : null}
+          fallbackDate={set.releaseDate}
+          fallbackPrecision={set.releaseDatePrecision}
         />
         {participantCount === 0 && (
           <p className="text-xs text-muted-foreground/50 italic">No participants</p>

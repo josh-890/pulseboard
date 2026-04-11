@@ -796,10 +796,11 @@ model Session {
   type        SessionType   @default(PRODUCTION)
   status      SessionStatus @default(DRAFT)
   notes       String?
-  date        DateTime?
-  datePrecision DatePrecision @default(UNKNOWN)
-  dateModifier  DateModifier  @default(EXACT)
-  dateSource    String?
+  date              DateTime?
+  datePrecision     DatePrecision @default(UNKNOWN)
+  dateModifier      DateModifier  @default(EXACT)
+  dateSource        String?
+  dateIsConfirmed   Boolean       @default(false)
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 

@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { Camera, Film, AlertTriangle } from "lucide-react";
-import { cn, focalStyle, formatPartialDateISO, getInitialsFromName } from "@/lib/utils";
+import { cn, focalStyle, formatPartialDateISO, getInitialsFromName, computeProductionAge } from "@/lib/utils";
 import { useDensity } from "@/components/layout/density-provider";
 import {
   Tooltip,
@@ -48,10 +48,12 @@ function ParticipantAvatar({
   name,
   headshot,
   size,
+  age,
 }: {
   name: string;
   headshot?: HeadshotData;
   size: number;
+  age?: string;
 }) {
   const initials = getInitialsFromName(name);
 
@@ -120,6 +122,7 @@ function ParticipantAvatar({
           )}
         </div>
         <span className="text-xs font-medium text-popover-foreground">{name}</span>
+        {age && <span className="text-xs text-muted-foreground">{age}</span>}
       </TooltipContent>
     </Tooltip>
   );
@@ -147,6 +150,9 @@ export function SetCard({ set, coverPhoto, headshotMap = {}, unresolvedCreditCou
 
   // Up to 4 participants for the avatar row
   const avatarParticipants = set.participants.slice(0, 4);
+
+  // Primary session for production age
+  const primarySession = set.sessionLinks[0]?.session ?? null;
 
   return (
     <Link href={`/sets/${set.id}`} prefetch={false} className="group block focus-visible:outline-none">
@@ -246,6 +252,15 @@ export function SetCard({ set, coverPhoto, headshotMap = {}, unresolvedCreditCou
                     name={getPersonName(p.person)}
                     headshot={headshotMap[p.personId]}
                     size={28}
+                    age={computeProductionAge(
+                      p.person.birthdate,
+                      p.person.birthdatePrecision,
+                      primarySession?.date ?? null,
+                      primarySession?.datePrecision ?? "UNKNOWN",
+                      primarySession?.dateIsConfirmed ?? false,
+                      set.releaseDate,
+                      set.releaseDatePrecision,
+                    )}
                   />
                 ))}
                 {set.participants.length > 4 && (

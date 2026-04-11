@@ -25,6 +25,7 @@ export const updateSessionSchema = z.object({
   notes: z.string().nullable().optional(),
   date: z.string().nullable().optional(),
   datePrecision: datePrecisionEnum,
+  dateIsConfirmed: z.boolean().optional(),
 });
 
 export type CreateSessionFormValues = z.input<typeof createSessionSchema>;

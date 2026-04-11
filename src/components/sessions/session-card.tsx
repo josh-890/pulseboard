@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { Clapperboard, ImageIcon, Camera, Film } from "lucide-react";
-import { cn, focalStyle, formatPartialDateISO, getInitialsFromName } from "@/lib/utils";
+import { cn, focalStyle, formatPartialDateISO, getInitialsFromName, computeProductionAge } from "@/lib/utils";
 import { useDensity } from "@/components/layout/density-provider";
 import { SessionStatusBadge } from "./session-status-badge";
 import {
@@ -47,10 +47,12 @@ function ContributorAvatar({
   name,
   headshot,
   size,
+  age,
 }: {
   name: string;
   headshot?: HeadshotData;
   size: number;
+  age?: string;
 }) {
   const initials = getInitialsFromName(name);
 
@@ -116,6 +118,7 @@ function ContributorAvatar({
           )}
         </div>
         <span className="text-xs font-medium text-popover-foreground">{name}</span>
+        {age && <span className="text-xs text-muted-foreground">{age}</span>}
       </TooltipContent>
     </Tooltip>
   );
@@ -240,6 +243,13 @@ export function SessionCard({ session, coverPhoto, headshotMap = {} }: SessionCa
                     name={getContributorName(c.person)}
                     headshot={headshotMap[c.person.id]}
                     size={28}
+                    age={computeProductionAge(
+                      c.person.birthdate,
+                      c.person.birthdatePrecision,
+                      session.date,
+                      session.datePrecision,
+                      session.dateIsConfirmed,
+                    )}
                   />
                 ))}
                 {session.contributions.length > 4 && (

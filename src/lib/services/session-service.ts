@@ -268,6 +268,7 @@ export async function updateSessionRecord(
     notes?: string | null;
     date?: string | null;
     datePrecision?: string;
+    dateIsConfirmed?: boolean;
   },
 ) {
   return prisma.$transaction(async (tx) => {
@@ -290,6 +291,7 @@ export async function updateSessionRecord(
         notes: data.notes,
         date: data.date ? new Date(data.date) : data.date === null ? null : undefined,
         datePrecision: (data.datePrecision as "UNKNOWN" | "YEAR" | "MONTH" | "DAY") ?? undefined,
+        dateIsConfirmed: data.dateIsConfirmed,
       },
     });
   });

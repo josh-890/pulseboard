@@ -1,7 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { Clapperboard, FolderKanban } from "lucide-react";
-import { cn, focalStyle, formatPartialDate, getInitialsFromName } from "@/lib/utils";
+import { cn, focalStyle, formatPartialDate, getInitialsFromName, computeProductionAge } from "@/lib/utils";
 import { SessionStatusBadge } from "@/components/sessions/session-status-badge";
 import { SessionStatusToggle } from "@/components/sessions/session-status-toggle";
 import { SessionInlineTitle } from "@/components/sessions/session-detail-header";
@@ -20,9 +20,15 @@ type SessionHeroProps = {
 function ContributorAvatars({
   contributions,
   headshotMap,
+  sessionDate,
+  sessionDatePrecision,
+  sessionDateIsConfirmed,
 }: {
   contributions: Session["contributions"];
   headshotMap: Map<string, HeadshotData>;
+  sessionDate: Date | null;
+  sessionDatePrecision: string;
+  sessionDateIsConfirmed: boolean;
 }) {
   if (contributions.length === 0) return null;
 
@@ -41,6 +47,13 @@ function ContributorAvatars({
           const name = c.person.aliases[0]?.name ?? c.person.icgId ?? "";
           const initials = getInitialsFromName(name);
           const photoUrl = headshotMap.get(c.personId)?.url ?? null;
+          const age = computeProductionAge(
+            c.person.birthdate,
+            c.person.birthdatePrecision,
+            sessionDate,
+            sessionDatePrecision,
+            sessionDateIsConfirmed,
+          );
           return (
             <Link
               key={c.personId}
@@ -62,6 +75,11 @@ function ContributorAvatars({
                 <div className="flex h-10 w-10 items-center justify-center rounded-full border-2 border-card bg-muted text-sm font-semibold text-muted-foreground">
                   {initials}
                 </div>
+              )}
+              {age && (
+                <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 rounded-full bg-card/90 px-1 text-[9px] font-medium leading-tight text-muted-foreground ring-1 ring-white/20">
+                  {age}
+                </span>
               )}
             </Link>
           );
@@ -171,6 +189,9 @@ export function SessionHero({
         <ContributorAvatars
           contributions={session.contributions}
           headshotMap={headshotMap}
+          sessionDate={session.date}
+          sessionDatePrecision={session.datePrecision}
+          sessionDateIsConfirmed={session.dateIsConfirmed}
         />
         {contributorCount === 0 && (
           <p className="text-xs text-muted-foreground/50 italic">No contributors</p>

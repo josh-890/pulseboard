@@ -32,6 +32,7 @@ import {
 } from "@/lib/services/cascade-helpers";
 
 import { buildUrl } from "@/lib/media-url";
+import { computeProductionAge } from "@/lib/utils";
 import { CONFIDENCE_RANK } from "@/lib/constants/confidence";
 import { buildBaselineLabel } from "@/lib/utils";
 
@@ -466,35 +467,42 @@ function buildSessionThumbnails(
 }
 
 export async function getPersonSessionWorkHistory(personId: string): Promise<PersonSessionWorkEntry[]> {
-  const contributions = await prisma.sessionContribution.findMany({
-    where: {
-      personId,
-      session: { type: "PRODUCTION" },
-    },
-    include: {
-      roleDefinition: { select: { name: true } },
-      session: {
-        include: {
-          label: { select: { id: true, name: true } },
-          mediaItems: {
-            take: 6,
-            orderBy: { createdAt: "asc" },
-            select: { id: true, variants: true, fileRef: true, originalWidth: true, originalHeight: true },
-          },
-          _count: { select: { mediaItems: true } },
-          setSessionLinks: {
-            include: {
-              set: {
-                include: {
-                  channel: { select: { name: true } },
+  const [person, contributions] = await Promise.all([
+    prisma.person.findUnique({
+      where: { id: personId },
+      select: { birthdate: true, birthdatePrecision: true },
+    }),
+    prisma.sessionContribution.findMany({
+      where: {
+        personId,
+        session: { type: "PRODUCTION" },
+      },
+      include: {
+        roleDefinition: { select: { name: true } },
+        session: {
+          include: {
+            label: { select: { id: true, name: true } },
+            mediaItems: {
+              take: 6,
+              orderBy: { createdAt: "asc" },
+              select: { id: true, variants: true, fileRef: true, originalWidth: true, originalHeight: true },
+            },
+            _count: { select: { mediaItems: true } },
+            setSessionLinks: {
+              include: {
+                set: {
+                  include: {
+                    channel: { select: { name: true } },
+                  },
                 },
               },
+              orderBy: { isPrimary: "desc" },
             },
           },
         },
       },
-    },
-  });
+    }),
+  ]);
 
   // Group by sessionId to merge multiple roles (keep highest confidence)
   const sessionMap = new Map<string, PersonSessionWorkEntry>();
@@ -511,11 +519,24 @@ export async function getPersonSessionWorkHistory(personId: string): Promise<Per
         existing.confidenceSource = c.confidenceSource;
       }
     } else {
+      const primarySet = s.setSessionLinks[0]?.set ?? null;
+      const ageAtProduction = person
+        ? computeProductionAge(
+            person.birthdate,
+            person.birthdatePrecision,
+            s.date,
+            s.datePrecision,
+            s.dateIsConfirmed,
+            primarySet?.releaseDate ?? null,
+            primarySet?.releaseDatePrecision,
+          )
+        : "";
       sessionMap.set(s.id, {
         sessionId: s.id,
         sessionName: s.name,
         sessionDate: s.date,
         sessionDatePrecision: s.datePrecision,
+        sessionDateIsConfirmed: s.dateIsConfirmed,
         labelId: s.label?.id ?? null,
         labelName: s.label?.name ?? null,
         roles: [c.roleDefinition.name],
@@ -529,6 +550,7 @@ export async function getPersonSessionWorkHistory(personId: string): Promise<Per
           releaseDatePrecision: link.set.releaseDatePrecision,
           channelName: link.set.channel?.name ?? null,
         })),
+        ageAtProduction,
         confidence: c.confidence,
         confidenceSource: c.confidenceSource,
       });

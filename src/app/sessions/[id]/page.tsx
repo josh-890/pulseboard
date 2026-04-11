@@ -285,6 +285,7 @@ export default async function SessionDetailPage({ params, searchParams }: Sessio
                 notes: session.notes,
                 date: session.date,
                 datePrecision: session.datePrecision,
+                dateIsConfirmed: session.dateIsConfirmed,
               }}
               labels={labelOptions}
               projects={projectOptions}

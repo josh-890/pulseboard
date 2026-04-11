@@ -109,6 +109,46 @@ export function computeAgeAtEvent(
   return age.toString();
 }
 
+/**
+ * Computes a model's age at the time of production.
+ * Uses session production date when available; falls back to set release date.
+ * Always adds "~" when the date is unconfirmed or imprecise.
+ * Returns "" (blank) when age cannot be determined.
+ */
+export function computeProductionAge(
+  birthdate: Date | null,
+  birthdatePrecision: string,
+  sessionDate: Date | null,
+  sessionDatePrecision: string,
+  sessionDateIsConfirmed: boolean,
+  fallbackDate?: Date | null,
+  fallbackDatePrecision?: string,
+): string {
+  if (!birthdate || birthdatePrecision === "UNKNOWN") return "";
+
+  let eventDate: Date | null = null;
+  let eventPrec = "UNKNOWN";
+  let forceApproximate = false;
+
+  if (sessionDate) {
+    eventDate = sessionDate;
+    eventPrec = sessionDatePrecision;
+    forceApproximate = !sessionDateIsConfirmed;
+  } else if (fallbackDate) {
+    eventDate = fallbackDate;
+    eventPrec = fallbackDatePrecision ?? "UNKNOWN";
+    forceApproximate = true; // release date fallback is always approximate
+  }
+
+  if (!eventDate || eventPrec === "UNKNOWN") return "";
+
+  const base = computeAgeAtEvent(birthdate, birthdatePrecision, eventDate, eventPrec);
+  if (base === "Unknown") return "";
+
+  if (forceApproximate && !base.startsWith("~")) return `~${base}`;
+  return base;
+}
+
 /** Builds the default label for a baseline persona: "Name at 18", or "Name, initially". */
 export function buildBaselineLabel(
   name: string,
