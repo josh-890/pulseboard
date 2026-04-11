@@ -1,7 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { Clapperboard, FolderKanban } from "lucide-react";
-import { cn, focalStyle, formatPartialDate, getInitialsFromName, computeProductionAge } from "@/lib/utils";
+import { cn, focalStyle, formatPartialDateISO, getInitialsFromName, computeProductionAge } from "@/lib/utils";
 import { SessionStatusBadge } from "@/components/sessions/session-status-badge";
 import { SessionStatusToggle } from "@/components/sessions/session-status-toggle";
 import { SessionInlineTitle } from "@/components/sessions/session-detail-header";
@@ -152,7 +152,7 @@ export function SessionHero({
         {/* Line 1: Date · Label */}
         <div className="flex flex-wrap items-center gap-1.5 text-sm text-muted-foreground">
           {session.date && (
-            <span>{formatPartialDate(session.date, session.datePrecision)}</span>
+            <span>{formatPartialDateISO(session.date, session.datePrecision)}</span>
           )}
           {session.date && session.label && <span>·</span>}
           {session.label && (

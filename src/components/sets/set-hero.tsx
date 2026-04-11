@@ -1,7 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { Camera, Check, Circle, Film } from "lucide-react";
-import { cn, focalStyle, formatPartialDate, getInitialsFromName, computeProductionAge } from "@/lib/utils";
+import { cn, focalStyle, formatPartialDateISO, getInitialsFromName, computeProductionAge } from "@/lib/utils";
 import { SetInlineTitle } from "@/components/sets/set-detail-header";
 import type { getSetById } from "@/lib/services/set-service";
 import type { CoverPhotoData, HeadshotData } from "@/lib/services/media-service";
@@ -170,7 +170,7 @@ export function SetHero({
           {set.releaseDate && (
             <>
               <span>·</span>
-              <span>{formatPartialDate(set.releaseDate, set.releaseDatePrecision)}</span>
+              <span>{formatPartialDateISO(set.releaseDate, set.releaseDatePrecision)}</span>
             </>
           )}
           {set.channel && (

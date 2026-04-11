@@ -13,7 +13,7 @@ import { getSessionContributions, getContributionSkillMediaMap, getContributorsW
 import { getAllSkillGroups } from "@/lib/services/skill-catalog-service";
 import { getEntityTags } from "@/lib/services/entity-tag-service";
 import { prisma } from "@/lib/db";
-import { cn, formatPartialDate } from "@/lib/utils";
+import { cn, formatPartialDateISO } from "@/lib/utils";
 import { EditSessionSheet } from "@/components/sessions/edit-session-sheet";
 import { DeleteButton } from "@/components/shared/delete-button";
 import { deleteSession } from "@/lib/actions/session-actions";
@@ -459,7 +459,7 @@ export default async function SessionDetailPage({ params, searchParams }: Sessio
                       )}
                       {link.set.releaseDate && (
                         <span className="text-xs text-muted-foreground">
-                          {formatPartialDate(link.set.releaseDate, link.set.releaseDatePrecision)}
+                          {formatPartialDateISO(link.set.releaseDate, link.set.releaseDatePrecision)}
                         </span>
                       )}
                     </div>
