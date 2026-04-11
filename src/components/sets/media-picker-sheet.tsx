@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
-import { Search, Plus, Check, ImageIcon, Loader2 } from "lucide-react";
+import { Search, Plus, Check, ImageIcon, Loader2, Filter } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -30,15 +30,22 @@ type MediaSearchResult = {
   createdAt: string;
 };
 
+type SessionLink = {
+  sessionId: string;
+  sessionName: string;
+};
+
 type MediaPickerSheetProps = {
   setId: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  sessionLinks?: SessionLink[];
 };
 
-export function MediaPickerSheet({ setId, open, onOpenChange }: MediaPickerSheetProps) {
+export function MediaPickerSheet({ setId, open, onOpenChange, sessionLinks }: MediaPickerSheetProps) {
   const router = useRouter();
   const [query, setQuery] = useState("");
+  const [sessionFilter, setSessionFilter] = useState<string>("");
   const [results, setResults] = useState<MediaSearchResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -49,8 +56,9 @@ export function MediaPickerSheet({ setId, open, onOpenChange }: MediaPickerSheet
   const loadingRef = useRef(false);
   const nextCursorRef = useRef<string | null>(null);
   const queryRef = useRef("");
+  const sessionFilterRef = useRef("");
 
-  const doSearch = useCallback(async (q: string, cursor?: string) => {
+  const doSearch = useCallback(async (q: string, cursor?: string, sessionId?: string) => {
     setLoading(true);
     try {
       const params = new URLSearchParams();
@@ -58,6 +66,8 @@ export function MediaPickerSheet({ setId, open, onOpenChange }: MediaPickerSheet
       params.set("excludeSetId", setId);
       params.set("limit", "40");
       if (cursor) params.set("cursor", cursor);
+      const sid = sessionId ?? sessionFilterRef.current;
+      if (sid) params.set("sessionId", sid);
 
       const res = await fetch(`/api/media/search?${params.toString()}`);
       const data = await res.json() as {
@@ -79,6 +89,8 @@ export function MediaPickerSheet({ setId, open, onOpenChange }: MediaPickerSheet
   useEffect(() => {
     if (!open) {
       setQuery("");
+      setSessionFilter("");
+      sessionFilterRef.current = "";
       setResults([]);
       setSelected(new Set());
       setNextCursor(null);
@@ -107,6 +119,14 @@ export function MediaPickerSheet({ setId, open, onOpenChange }: MediaPickerSheet
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
   }, [query, open, doSearch]);
+
+  // Re-search when session filter changes
+  useEffect(() => {
+    if (!open) return;
+    sessionFilterRef.current = sessionFilter;
+    doSearch(query, undefined, sessionFilter);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionFilter]);
 
   // Keep refs in sync for scroll handler
   loadingRef.current = loading;
@@ -169,18 +189,43 @@ export function MediaPickerSheet({ setId, open, onOpenChange }: MediaPickerSheet
 
         <div className="flex flex-col gap-4 flex-1 min-h-0 pt-4">
           {/* Search */}
-          <div className="relative">
-            <Search
-              size={16}
-              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
-            />
-            <Input
-              placeholder="Search by filename..."
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              className="pl-9"
-              autoFocus
-            />
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <Search
+                size={16}
+                className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+              />
+              <Input
+                placeholder="Search by filename..."
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                className="pl-9"
+                autoFocus
+              />
+            </div>
+            {sessionLinks && sessionLinks.length > 0 && (
+              <div className="relative">
+                <Filter
+                  size={14}
+                  className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground"
+                />
+                <select
+                  value={sessionFilter}
+                  onChange={(e) => setSessionFilter(e.target.value)}
+                  className={cn(
+                    "h-9 rounded-md border border-input bg-background pl-7 pr-3 text-xs ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+                    sessionFilter && "border-primary/60 bg-primary/5 text-primary",
+                  )}
+                >
+                  <option value="">All sessions</option>
+                  {sessionLinks.map((s) => (
+                    <option key={s.sessionId} value={s.sessionId}>
+                      {s.sessionName}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
           </div>
 
           {/* Results grid */}

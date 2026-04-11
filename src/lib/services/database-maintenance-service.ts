@@ -28,7 +28,7 @@ export async function findAndFixOrphanedMedia(): Promise<MaintenanceResult> {
         variants IS NULL
         OR variants::text = '{}'
         OR variants::text = 'null'
-        OR NOT (variants ? 'original')
+        OR (NOT (variants ? 'original') AND NOT (variants ? 'master_4000'))
       )
     `;
 

@@ -634,7 +634,12 @@ export function SetDetailGallery({
         </div>
       )}
 
-      <MediaPickerSheet setId={entityId} open={pickerOpen} onOpenChange={setPickerOpen} />
+      <MediaPickerSheet
+        setId={entityId}
+        open={pickerOpen}
+        onOpenChange={setPickerOpen}
+        sessionLinks={sessionLinks?.map((l) => ({ sessionId: l.sessionId, sessionName: l.sessionName }))}
+      />
 
       {/* Delete confirmation dialog */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
