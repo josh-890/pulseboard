@@ -229,6 +229,15 @@ export async function countSessions(): Promise<number> {
   return prisma.session.count();
 }
 
+/** Returns the set IDs of all sets linked to a session (for cache invalidation). */
+export async function getLinkedSetIds(sessionId: string): Promise<string[]> {
+  const links = await prisma.setSession.findMany({
+    where: { sessionId },
+    select: { setId: true },
+  });
+  return links.map((l) => l.setId);
+}
+
 export async function createSessionRecord(data: {
   name: string;
   projectId?: string;

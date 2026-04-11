@@ -342,42 +342,54 @@ export async function updateSetRecord(id: string, data: {
     externalId: data.externalId,
   };
 
-  // When channelId is not changing, simple update with no side effects
-  if (data.channelId === undefined) {
+  const releaseDateChanging = data.releaseDate !== undefined;
+  const needsTransaction = data.channelId !== undefined || releaseDateChanging;
+
+  // Simple update — no side effects
+  if (!needsTransaction) {
     return prisma.set.update({ where: { id }, data: setData });
   }
 
-  // Channel is being changed — wrap in transaction and cascade session label
+  // Wrap in transaction to cascade side effects
   const result = await prisma.$transaction(async (tx) => {
     const updated = await tx.set.update({ where: { id }, data: setData });
 
-    if (data.channelId) {
-      // Look up the new channel's primary label
+    // Find the primary session (needed for both channel-label and date sync)
+    const primaryLink = await tx.setSession.findFirst({
+      where: { setId: id, isPrimary: true },
+      select: { sessionId: true, session: { select: { dateIsConfirmed: true } } },
+    });
+
+    // For both cascades below, we only touch the session when it belongs exclusively to this set
+    const sessionIsExclusive =
+      primaryLink != null &&
+      (await tx.setSession.count({ where: { sessionId: primaryLink.sessionId } })) === 1;
+
+    // When channel changes — cascade label to primary session
+    if (data.channelId && sessionIsExclusive) {
       const newChannelMap = await tx.channelLabelMap.findFirst({
         where: { channelId: data.channelId },
         orderBy: { confidence: "desc" },
         select: { labelId: true },
       });
-
-      // Find the primary session for this set
-      const primaryLink = await tx.setSession.findFirst({
-        where: { setId: id, isPrimary: true },
-        select: { sessionId: true },
-      });
-
-      if (primaryLink && newChannelMap?.labelId) {
-        // Only update session label if this session belongs exclusively to this set
-        // (guards against accidentally relabelling shared/compilation sessions)
-        const linkedSetCount = await tx.setSession.count({
-          where: { sessionId: primaryLink.sessionId },
+      if (newChannelMap?.labelId) {
+        await tx.session.update({
+          where: { id: primaryLink!.sessionId },
+          data: { labelId: newChannelMap.labelId },
         });
-        if (linkedSetCount === 1) {
-          await tx.session.update({
-            where: { id: primaryLink.sessionId },
-            data: { labelId: newChannelMap.labelId },
-          });
-        }
       }
+    }
+
+    // When releaseDate changes — sync primary session date if not confirmed
+    // (session date was seeded from release date and is just a copy)
+    if (releaseDateChanging && sessionIsExclusive && !primaryLink!.session.dateIsConfirmed) {
+      await tx.session.update({
+        where: { id: primaryLink!.sessionId },
+        data: {
+          date: data.releaseDate ? new Date(data.releaseDate) : null,
+          datePrecision: (data.releaseDatePrecision as "UNKNOWN" | "YEAR" | "MONTH" | "DAY") ?? "UNKNOWN",
+        },
+      });
     }
 
     return updated;

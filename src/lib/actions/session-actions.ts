@@ -12,6 +12,7 @@ import {
   linkSessionToSet,
   unlinkSessionFromSet,
   getSessionsPaginated,
+  getLinkedSetIds,
 } from "@/lib/services/session-service";
 import type { SessionFilters } from "@/lib/services/session-service";
 import { getCoverPhotosForSessions, getHeadshotsForPersons } from "@/lib/services/media-service";
@@ -55,9 +56,14 @@ export async function updateSession(raw: unknown): Promise<CrudActionResult> {
     }
 
     try {
+      // Fetch linked set IDs before updating (session date change affects set hero ages)
+      const linkedSetIds = await getLinkedSetIds(parsed.data.id);
       await updateSessionRecord(parsed.data.id, parsed.data);
       revalidatePath("/sessions");
       revalidatePath(`/sessions/${parsed.data.id}`);
+      for (const setId of linkedSetIds) {
+        revalidatePath(`/sets/${setId}`);
+      }
       return { success: true, id: parsed.data.id };
     } catch {
       return { success: false, error: "Unexpected error" };
