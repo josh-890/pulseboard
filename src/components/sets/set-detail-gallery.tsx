@@ -600,9 +600,10 @@ export function SetDetailGallery({
                 variant={showSessionGroups ? "secondary" : "outline"}
                 size="sm"
                 className="gap-1.5"
-                onClick={() => setIsGroupBySession((v) => !v)}
-                disabled={sortMode !== "user"}
-                title={sortMode !== "user" ? "Switch to manual order to group by session" : undefined}
+                onClick={() => {
+                  if (sortMode !== "user") handleSortChange("user");
+                  setIsGroupBySession((v) => !v);
+                }}
               >
                 <Clapperboard size={14} />
                 Group by session
