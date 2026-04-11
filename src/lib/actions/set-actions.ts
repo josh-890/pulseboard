@@ -32,7 +32,7 @@ import {
   splitMediaToSession,
 } from "@/lib/services/set-service";
 import type { SetFilters } from "@/lib/services/set-service";
-import { getCoverPhotosForSets, getSkillEventMediaConstraints } from "@/lib/services/media-service";
+import { getCoverPhotosForSets, getSkillEventMediaConstraints, getHeadshotsForPersons } from "@/lib/services/media-service";
 import { cascadeHardDeleteMediaItems } from "@/lib/services/cascade-helpers";
 import { searchArtists } from "@/lib/services/artist-service";
 import { refreshDashboardStats } from "@/lib/services/view-service";
@@ -513,14 +513,20 @@ export async function loadMoreSets(
 ) {
   return withTenantFromHeaders(async () => {
     const result = await getSetsPaginated(filters, cursor, 50);
-    const coverMapRaw = await getCoverPhotosForSets(
-      result.items.map((s) => s.id),
-    );
+    const personIds = [
+      ...new Set(result.items.flatMap((s) => s.participants.map((p) => p.personId))),
+    ];
+    const [coverMapRaw, headshotMapRaw] = await Promise.all([
+      getCoverPhotosForSets(result.items.map((s) => s.id)),
+      getHeadshotsForPersons(personIds),
+    ]);
     const photoMap = Object.fromEntries(coverMapRaw);
+    const headshotMap = Object.fromEntries(headshotMapRaw);
     return {
       items: result.items,
       nextCursor: result.nextCursor,
       photoMap,
+      headshotMap,
     };
 
   });

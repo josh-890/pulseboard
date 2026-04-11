@@ -3,7 +3,7 @@ import { Suspense } from "react";
 import { Clapperboard } from "lucide-react";
 import { getSessionsPaginated } from "@/lib/services/session-service";
 import type { SessionSort } from "@/lib/services/session-service";
-import { getCoverPhotosForSessions } from "@/lib/services/media-service";
+import { getCoverPhotosForSessions, getHeadshotsForPersons } from "@/lib/services/media-service";
 import { getLabels } from "@/lib/services/label-service";
 import { getProjects } from "@/lib/services/project-service";
 import { SessionGrid } from "@/components/sessions/session-grid";
@@ -76,10 +76,17 @@ export default async function SessionsPage({ searchParams }: SessionsPageProps) 
     getProjects(),
   ]);
 
-  // Batch-load cover photos for sessions
+  // Batch-load cover photos and contributor headshots
   const sessionIds = paginated.items.map((s) => s.id);
-  const coverMapRaw = await getCoverPhotosForSessions(sessionIds);
+  const allPersonIds = [
+    ...new Set(paginated.items.flatMap((s) => s.contributions.map((c) => c.person.id))),
+  ];
+  const [coverMapRaw, headshotMapRaw] = await Promise.all([
+    getCoverPhotosForSessions(sessionIds),
+    getHeadshotsForPersons(allPersonIds),
+  ]);
   const photoMap = Object.fromEntries(coverMapRaw);
+  const headshotMap = Object.fromEntries(headshotMapRaw);
 
   const labelOptions = labels.map(({ id, name }) => ({ id, name }));
   const projectOptions = projects.map(({ id, name }) => ({ id, name }));
@@ -155,6 +162,7 @@ export default async function SessionsPage({ searchParams }: SessionsPageProps) 
         key={JSON.stringify(filters)}
         sessions={paginated.items}
         photoMap={photoMap}
+        headshotMap={headshotMap}
         nextCursor={paginated.nextCursor}
         totalCount={paginated.totalCount}
         filters={filters}

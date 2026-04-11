@@ -70,6 +70,9 @@ export async function getSessions(filters: SessionFilters = {}) {
           roleDefinition: { include: { group: true } },
         },
       },
+      setSessionLinks: {
+        select: { set: { select: { type: true } } },
+      },
       _count: {
         select: {
           mediaItems: true,
@@ -151,6 +154,9 @@ export async function getSessionsPaginated(
             },
             roleDefinition: { include: { group: true } },
           },
+        },
+        setSessionLinks: {
+          select: { set: { select: { type: true } } },
         },
         _count: {
           select: {

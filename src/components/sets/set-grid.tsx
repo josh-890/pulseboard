@@ -20,9 +20,16 @@ type CoverPhotoData = {
   focalY: number | null;
 };
 
+type HeadshotData = {
+  url: string;
+  focalX: number | null;
+  focalY: number | null;
+};
+
 type SetGridProps = {
   sets: SetItem[];
   photoMap: Record<string, CoverPhotoData>;
+  headshotMap: Record<string, HeadshotData>;
   nextCursor: string | null;
   totalCount: number;
   filters: SetFilters;
@@ -31,6 +38,7 @@ type SetGridProps = {
 export function SetGrid({
   sets: initialSets,
   photoMap: initialPhotoMap,
+  headshotMap: initialHeadshotMap,
   nextCursor: initialCursor,
   totalCount,
   filters,
@@ -39,6 +47,7 @@ export function SetGrid({
   const isCompact = density === "compact";
   const [sets, setSets] = useState(initialSets);
   const [photoMap, setPhotoMap] = useState(initialPhotoMap);
+  const [headshotMap, setHeadshotMap] = useState(initialHeadshotMap);
   const [cursor, setCursor] = useState(initialCursor);
   const [isPending, startTransition] = useTransition();
   const bulk = useBulkSelection();
@@ -56,6 +65,7 @@ export function SetGrid({
         return next;
       });
       setPhotoMap((prev) => ({ ...prev, ...result.photoMap }));
+      setHeadshotMap((prev) => ({ ...prev, ...result.headshotMap }));
       setCursor(result.nextCursor);
     });
   }
@@ -113,7 +123,7 @@ export function SetGrid({
                 </button>
               )}
               <div className={cn(bulk.isSelecting && isSelected && "ring-2 ring-primary rounded-xl")}>
-                <SetCard set={set} coverPhoto={photoMap[set.id]} unresolvedCreditCount={set._count.creditsRaw} />
+                <SetCard set={set} coverPhoto={photoMap[set.id]} headshotMap={headshotMap} unresolvedCreditCount={set._count.creditsRaw} />
               </div>
             </div>
           );

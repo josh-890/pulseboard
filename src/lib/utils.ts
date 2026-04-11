@@ -58,6 +58,17 @@ export function toUTCDateString(date: Date): string {
   return date.toISOString().slice(0, 10);
 }
 
+/** Formats a partial-precision date as ISO-style: "2024", "2024-03", or "2024-03-15". */
+export function formatPartialDateISO(date: Date | null | undefined, precision: string | null | undefined): string {
+  if (!date) return "";
+  const y = date.getUTCFullYear();
+  const m = String(date.getUTCMonth() + 1).padStart(2, "0");
+  const d = String(date.getUTCDate()).padStart(2, "0");
+  if (!precision || precision === "YEAR") return String(y);
+  if (precision === "MONTH") return `${y}-${m}`;
+  return `${y}-${m}-${d}`;
+}
+
 /** Computes age from a partial birthdate. Returns "~29" for imprecise dates, "29" for exact. */
 export function computeAgeFromPartialDate(
   birthdate: Date | null,

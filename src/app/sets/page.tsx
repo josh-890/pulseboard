@@ -3,7 +3,7 @@ import { Suspense } from "react";
 import { ImageIcon } from "lucide-react";
 import { getSetsPaginated, getChannelsWithLabelMaps, getRecentChannels, getLastUsedSetType } from "@/lib/services/set-service";
 import type { SetSort } from "@/lib/services/set-service";
-import { getCoverPhotosForSets } from "@/lib/services/media-service";
+import { getCoverPhotosForSets, getHeadshotsForPersons } from "@/lib/services/media-service";
 import { getAllContributionRoleGroups } from "@/lib/services/contribution-role-service";
 import type { SetType } from "@/lib/types";
 import { SetGrid } from "@/components/sets/set-grid";
@@ -83,9 +83,16 @@ export default async function SetsPage({ searchParams }: SetsPageProps) {
     getAllContributionRoleGroups(),
   ]);
 
-  // Batch-load cover thumbnails for initial chunk
-  const coverMapRaw = await getCoverPhotosForSets(paginated.items.map((s) => s.id));
+  // Batch-load cover thumbnails and participant headshots for initial chunk
+  const allPersonIds = [
+    ...new Set(paginated.items.flatMap((s) => s.participants.map((p) => p.personId))),
+  ];
+  const [coverMapRaw, headshotMapRaw] = await Promise.all([
+    getCoverPhotosForSets(paginated.items.map((s) => s.id)),
+    getHeadshotsForPersons(allPersonIds),
+  ]);
   const photoMap = Object.fromEntries(coverMapRaw);
+  const headshotMap = Object.fromEntries(headshotMapRaw);
 
   // Build channel and label options from loaded channels
   const channelOptions = channels.map((c) => ({
@@ -191,6 +198,7 @@ export default async function SetsPage({ searchParams }: SetsPageProps) {
         key={JSON.stringify(filters)}
         sets={paginated.items}
         photoMap={photoMap}
+        headshotMap={headshotMap}
         nextCursor={paginated.nextCursor}
         totalCount={paginated.totalCount}
         filters={filters}

@@ -14,7 +14,7 @@ import {
   getSessionsPaginated,
 } from "@/lib/services/session-service";
 import type { SessionFilters } from "@/lib/services/session-service";
-import { getCoverPhotosForSessions } from "@/lib/services/media-service";
+import { getCoverPhotosForSessions, getHeadshotsForPersons } from "@/lib/services/media-service";
 import { prisma } from "@/lib/db";
 import type { CrudActionResult, SimpleActionResult } from "@/lib/types";
 
@@ -214,14 +214,20 @@ export async function loadMoreSessions(
 ) {
   return withTenantFromHeaders(async () => {
     const result = await getSessionsPaginated(filters, cursor, 50);
-    const coverMapRaw = await getCoverPhotosForSessions(
-      result.items.map((s) => s.id),
-    );
+    const personIds = [
+      ...new Set(result.items.flatMap((s) => s.contributions.map((c) => c.person.id))),
+    ];
+    const [coverMapRaw, headshotMapRaw] = await Promise.all([
+      getCoverPhotosForSessions(result.items.map((s) => s.id)),
+      getHeadshotsForPersons(personIds),
+    ]);
     const photoMap = Object.fromEntries(coverMapRaw);
+    const headshotMap = Object.fromEntries(headshotMapRaw);
     return {
       items: result.items,
       nextCursor: result.nextCursor,
       photoMap,
+      headshotMap,
     };
 
   });

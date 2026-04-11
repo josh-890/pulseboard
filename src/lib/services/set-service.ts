@@ -57,9 +57,14 @@ export async function getSets(filters: SetFilters = {}) {
           roleDefinition: { include: { group: true } },
         },
       },
+      creditsRaw: {
+        where: { resolvedArtistId: { not: null } },
+        select: { resolvedArtistId: true, resolvedArtist: { select: { id: true, name: true } } },
+      },
       _count: {
         select: {
           creditsRaw: { where: { resolutionStatus: "UNRESOLVED" } },
+          setMediaItems: true,
         },
       },
     },
@@ -140,9 +145,14 @@ export async function getSetsPaginated(
             roleDefinition: { include: { group: true } },
           },
         },
+        creditsRaw: {
+          where: { resolvedArtistId: { not: null } },
+          select: { resolvedArtistId: true, resolvedArtist: { select: { id: true, name: true } } },
+        },
         _count: {
           select: {
             creditsRaw: { where: { resolutionStatus: "UNRESOLVED" } },
+            setMediaItems: true,
           },
         },
       },

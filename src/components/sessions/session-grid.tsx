@@ -20,9 +20,16 @@ type CoverPhotoData = {
   focalY: number | null;
 };
 
+type HeadshotData = {
+  url: string;
+  focalX: number | null;
+  focalY: number | null;
+};
+
 type SessionGridProps = {
   sessions: SessionItem[];
   photoMap: Record<string, CoverPhotoData>;
+  headshotMap: Record<string, HeadshotData>;
   nextCursor: string | null;
   totalCount: number;
   filters: SessionFilters;
@@ -31,6 +38,7 @@ type SessionGridProps = {
 export function SessionGrid({
   sessions: initialSessions,
   photoMap: initialPhotoMap,
+  headshotMap: initialHeadshotMap,
   nextCursor: initialCursor,
   totalCount,
   filters,
@@ -39,12 +47,14 @@ export function SessionGrid({
   const isCompact = density === "compact";
   const [sessions, setSessions] = useState(initialSessions);
   const [photoMap, setPhotoMap] = useState(initialPhotoMap);
+  const [headshotMap, setHeadshotMap] = useState(initialHeadshotMap);
   const [cursor, setCursor] = useState(initialCursor);
   const [isPending, startTransition] = useTransition();
   const bulk = useBulkSelection();
 
   useEffect(() => { setSessions(initialSessions); }, [initialSessions]);
   useEffect(() => { setPhotoMap(initialPhotoMap); }, [initialPhotoMap]);
+  useEffect(() => { setHeadshotMap(initialHeadshotMap); }, [initialHeadshotMap]);
   useEffect(() => { setCursor(initialCursor); }, [initialCursor]);
 
   function handleLoadMore() {
@@ -59,6 +69,7 @@ export function SessionGrid({
         return next;
       });
       setPhotoMap((prev) => ({ ...prev, ...result.photoMap }));
+      setHeadshotMap((prev) => ({ ...prev, ...result.headshotMap }));
       setCursor(result.nextCursor);
     });
   }
@@ -116,7 +127,7 @@ export function SessionGrid({
                 </button>
               )}
               <div className={cn(bulk.isSelecting && isSelected && "ring-2 ring-primary rounded-xl")}>
-                <SessionCard session={session} coverPhoto={photoMap[session.id]} />
+                <SessionCard session={session} coverPhoto={photoMap[session.id]} headshotMap={headshotMap} />
               </div>
             </div>
           );
