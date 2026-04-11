@@ -60,7 +60,6 @@ import { PersonSkillsTab } from "@/components/people/person-skills-tab";
 import { PersonAliasesTab } from "@/components/people/person-aliases-tab";
 import { PersonResearchTab } from "@/components/people/person-research-tab";
 import type { PersonResearchItem } from "@/lib/services/research-service";
-import { DigitalIdentitySection } from "@/components/people/digital-identity-section";
 import { CareerSessionList } from "@/components/people/career-session-list";
 import { ProductionPhotoList } from "@/components/people/production-photo-list";
 import type { SkillGroupWithDefinitions } from "@/lib/services/skill-catalog-service";
@@ -1413,9 +1412,7 @@ function OverviewTab({
         </SectionCard>
       )}
 
-      {/* 5. Digital Identities | Notes & Tags */}
-      <DigitalIdentitySection personId={person.id} identities={digitalIdentities} />
-
+      {/* 5. Notes & Tags */}
       <SectionCard title="Notes & Tags" icon={<Tag size={18} />}>
         <div className="mb-3">
           <TagPicker
@@ -1999,6 +1996,7 @@ export function PersonDetailTabs({
           <PersonAliasesTab
             personId={person.id}
             aliases={aliasesWithChannels ?? []}
+            digitalIdentities={digitalIdentities ?? []}
           />
         )}
       </div>

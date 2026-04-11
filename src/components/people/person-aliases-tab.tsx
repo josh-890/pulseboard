@@ -26,6 +26,8 @@ import {
 import { AddAliasSheet } from "./add-alias-sheet";
 import { AliasImportDialog } from "./alias-import-dialog";
 import { AliasMergeDialog } from "./alias-merge-dialog";
+import { DigitalIdentitySection } from "./digital-identity-section";
+import type { PersonDigitalIdentityItem } from "@/lib/types";
 
 // ── Alias flag helpers ───────────────────────────────────────────────────────
 
@@ -64,11 +66,12 @@ type SortMode = "default" | "links";
 type PersonAliasesTabProps = {
   personId: string;
   aliases: PersonAliasWithChannels[];
+  digitalIdentities: PersonDigitalIdentityItem[];
 };
 
 // ── Main Component ──────────────────────────────────────────────────────────
 
-export function PersonAliasesTab({ personId, aliases }: PersonAliasesTabProps) {
+export function PersonAliasesTab({ personId, aliases, digitalIdentities }: PersonAliasesTabProps) {
   const [viewMode, setViewMode] = useState<ViewMode>("by-alias");
   const [sortMode, setSortMode] = useState<SortMode>("links");
   const [searchQuery, setSearchQuery] = useState("");
@@ -367,6 +370,9 @@ export function PersonAliasesTab({ personId, aliases }: PersonAliasesTabProps) {
           </button>
         </div>
       )}
+
+      {/* Digital Identities */}
+      <DigitalIdentitySection personId={personId} identities={digitalIdentities} />
 
       {/* Sheets/Dialogs */}
       {addSheetOpen && (
