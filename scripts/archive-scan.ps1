@@ -90,7 +90,6 @@ param(
     [switch]$DryRun
 )
 
-Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
 # ── Validation ────────────────────────────────────────────────────────────────
@@ -192,10 +191,10 @@ if ($DryRun) { Write-Host "(dry-run mode — no changes will be written)" }
 Write-Host ""
 Write-Host "Fetching known archive paths..."
 try {
-    $entries = Invoke-RestMethod `
+    $entries = @(Invoke-RestMethod `
         -Uri "$BaseUrl/api/archive/paths" `
         -Headers $headers `
-        -Method Get
+        -Method Get)
 } catch {
     Write-Error "Failed to fetch paths: $_"
     exit 1
@@ -209,17 +208,27 @@ if ($total -eq 0) {
     exit 0
 }
 
+# Normalise: Invoke-RestMethod on PS 5.1 can return a Hashtable instead of
+# PSCustomObject for single-element arrays. Convert everything to PSCustomObject.
+$entries = $entries | ForEach-Object {
+    if ($_ -is [System.Collections.Hashtable]) {
+        [PSCustomObject]$_
+    } else {
+        $_
+    }
+}
+
 # 2. Check each path on the local filesystem
 $results = @()
 $counts  = @{ ok = 0; incomplete = 0; missing = 0; error = 0 }
 
 foreach ($entry in $entries) {
     $result = Check-ArchivePath `
-        -Id          $entry.id `
-        -Type        $entry.type `
-        -ArchivePath $entry.path `
-        -IsVideo     $entry.isVideo `
-        -FolderName  $entry.folderName
+        -Id          ([string]$entry.id) `
+        -Type        ([string]$entry.type) `
+        -ArchivePath ([string]$entry.path) `
+        -IsVideo     ([bool]$entry.isVideo) `
+        -FolderName  ([string]$entry.folderName)
 
     $results += $result
 

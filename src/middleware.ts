@@ -4,7 +4,7 @@ import { isSingleTenantMode } from "@/lib/tenants";
 
 // Routes that don't require authentication
 const PUBLIC_PATHS = ["/login", "/api/health"];
-const PUBLIC_PREFIXES = ["/_next/", "/favicon.ico", "/flags/"];
+const PUBLIC_PREFIXES = ["/_next/", "/favicon.ico", "/flags/", "/api/archive/"];
 
 function isPublicPath(pathname: string): boolean {
   if (PUBLIC_PATHS.includes(pathname)) return true;

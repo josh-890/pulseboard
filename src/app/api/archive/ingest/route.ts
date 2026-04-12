@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
-import { withTenantFromHeaders } from '@/lib/tenant-context'
+import { runWithTenant } from '@/lib/tenant-context'
+import { getAllTenants, isSingleTenantMode } from '@/lib/tenants'
 import { ingestScanResults } from '@/lib/services/archive-service'
 import type { ScanResult } from '@/lib/services/archive-service'
 
@@ -9,12 +10,21 @@ function isAuthorized(request: Request): boolean {
   return request.headers.get('x-archive-key') === apiKey
 }
 
+function resolveTenant(request: Request): string {
+  const requested = request.headers.get('x-tenant-id')
+  if (requested) return requested
+  if (isSingleTenantMode()) return 'default'
+  const tenants = getAllTenants()
+  return tenants[0]?.id ?? 'default'
+}
+
 export async function POST(request: Request) {
   if (!isAuthorized(request)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  return withTenantFromHeaders(async () => {
+  const tenantId = resolveTenant(request)
+  return runWithTenant(tenantId, async () => {
     let results: ScanResult[]
     try {
       results = await request.json()
