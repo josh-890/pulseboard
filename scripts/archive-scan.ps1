@@ -239,6 +239,13 @@ foreach ($entry in $entries) {
 
     if ($VerbosePreference -ne "SilentlyContinue") {
         Write-Host "  [$label] $($entry.path)"
+        if ($entry.isVideo) {
+            $exts = $VideoExtensions -join ", "
+            Write-Host "          video file expected: $($entry.folderName).{$exts}"
+            Write-Host "          video present: $($result.videoPresent) — frames: $($result.fileCount)"
+        } else {
+            Write-Host "          files: $($result.fileCount)"
+        }
     }
 
     switch ($label) {
