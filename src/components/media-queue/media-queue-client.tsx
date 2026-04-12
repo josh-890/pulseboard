@@ -10,13 +10,13 @@ import { toggleMediaQueueAction, updateMediaPriorityAction } from '@/lib/actions
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const ARCHIVE_STATUS_CONFIG: Record<ArchiveStatus, { label: string; dot: string }> = {
-  UNKNOWN:    { label: 'No path',    dot: 'bg-gray-300 dark:bg-gray-600' },
-  PENDING:    { label: 'Pending',    dot: 'bg-blue-400' },
-  OK:         { label: 'Verified',   dot: 'bg-green-500' },
-  CHANGED:    { label: 'Changed',    dot: 'bg-amber-500' },
-  MISSING:    { label: 'Missing',    dot: 'bg-red-500' },
-  INCOMPLETE: { label: 'Incomplete', dot: 'bg-orange-500' },
+const ARCHIVE_STATUS_CONFIG: Record<ArchiveStatus, { label: string; dot: string; text: string }> = {
+  UNKNOWN:    { label: 'No path',    dot: 'bg-gray-300 dark:bg-gray-600',  text: 'text-muted-foreground/60' },
+  PENDING:    { label: 'Pending',    dot: 'bg-blue-400',                   text: 'text-blue-500' },
+  OK:         { label: 'Verified',   dot: 'bg-green-500',                  text: 'text-green-500' },
+  CHANGED:    { label: 'Changed',    dot: 'bg-amber-500',                  text: 'text-amber-500' },
+  MISSING:    { label: 'Missing',    dot: 'bg-red-500',                    text: 'text-red-500' },
+  INCOMPLETE: { label: 'Incomplete', dot: 'bg-orange-500',                 text: 'text-orange-500' },
 }
 
 const PRIORITY_CONFIG: Record<number, { label: string; badge: string; ring: string }> = {
@@ -93,10 +93,10 @@ function QueueRow({
       <span className="min-w-0 flex-1 truncate text-sm font-medium">{item.title}</span>
 
       {/* Archive status */}
-      <span
-        className={cn('h-2 w-2 shrink-0 rounded-full', arc.dot)}
-        title={arc.label}
-      />
+      <span className="flex shrink-0 items-center gap-1.5">
+        <span className={cn('h-2 w-2 shrink-0 rounded-full', arc.dot)} />
+        <span className={cn('text-xs font-medium', arc.text)}>{arc.label}</span>
+      </span>
       {item.archivePath ? (
         <span
           className="max-w-[200px] truncate font-mono text-[10px] text-muted-foreground"
