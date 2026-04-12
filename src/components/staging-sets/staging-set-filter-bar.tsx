@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { Search, CalendarDays, X } from 'lucide-react'
+import { Search, CalendarDays, X, HardDrive } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
 import type { ChannelTier, StagingSetStatus } from '@/generated/prisma/client'
@@ -9,6 +9,8 @@ import type { StagingSetStats } from '@/lib/services/import/staging-set-service'
 import { CHANNEL_TIER_CONFIG, DEFAULT_STAGING_TIERS } from '@/lib/constants/channel-tier'
 
 // ─── Types ─────────────────────────────────────────────────────────────────
+
+export type ArchiveFilterValue = 'hasPath' | 'ok' | 'changed' | 'missing' | 'inQueue' | 'needsMedia'
 
 export type StagingSetFilterState = {
   status: StagingSetStatus[]
@@ -22,6 +24,7 @@ export type StagingSetFilterState = {
   dateTo: string | undefined
   priority: number[]
   batchId: string | undefined
+  archiveFilter: ArchiveFilterValue | undefined
   sort: 'date' | 'title' | 'priority' | 'importDate' | 'undatedFirst'
   sortDir: 'asc' | 'desc'
   groupBy: 'none' | 'channel' | 'person' | 'year' | 'status' | 'channelYear'
@@ -39,6 +42,7 @@ export const DEFAULT_FILTERS: StagingSetFilterState = {
   dateTo: undefined,
   priority: [],
   batchId: undefined,
+  archiveFilter: undefined,
   sort: 'date',
   sortDir: 'asc',
   groupBy: 'none',
@@ -74,6 +78,15 @@ const SORT_OPTIONS = [
   { value: 'importDate', label: 'Import Date' },
   { value: 'undatedFirst', label: 'Undated First' },
 ] as const
+
+const ARCHIVE_FILTERS: Array<{ value: ArchiveFilterValue; label: string; dot?: string; active: string }> = [
+  { value: 'hasPath',    label: 'Has path',    dot: 'bg-blue-400',   active: 'border-blue-500/50 bg-blue-500/15 text-blue-700 dark:text-blue-400' },
+  { value: 'ok',        label: 'Verified',    dot: 'bg-green-500',  active: 'border-green-500/50 bg-green-500/15 text-green-700 dark:text-green-400' },
+  { value: 'changed',   label: 'Changed',     dot: 'bg-amber-500',  active: 'border-amber-500/50 bg-amber-500/15 text-amber-700 dark:text-amber-400' },
+  { value: 'missing',   label: 'Missing',     dot: 'bg-red-500',    active: 'border-red-500/50 bg-red-500/15 text-red-700 dark:text-red-400' },
+  { value: 'inQueue',   label: 'In queue',                          active: 'border-violet-500/50 bg-violet-500/15 text-violet-700 dark:text-violet-400' },
+  { value: 'needsMedia', label: 'Needs media',                      active: 'border-orange-500/50 bg-orange-500/15 text-orange-700 dark:text-orange-400' },
+]
 
 const GROUP_OPTIONS = [
   { value: 'none', label: 'No grouping' },
@@ -232,6 +245,29 @@ export function StagingSetFilterBar({ filters, onChange, stats }: StagingSetFilt
             Clear
           </button>
         )}
+      </div>
+
+      {/* Row 1b: Archive filter chips */}
+      <div className="flex flex-wrap items-center gap-1.5">
+        <HardDrive size={13} className="shrink-0 text-muted-foreground" />
+        {ARCHIVE_FILTERS.map(({ value, label, dot, active }) => {
+          const isActive = filters.archiveFilter === value
+          return (
+            <button
+              key={value}
+              onClick={() => onChange({ ...filters, archiveFilter: isActive ? undefined : value })}
+              className={cn(
+                'flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors',
+                isActive
+                  ? active
+                  : 'border-slate-200 bg-slate-50 text-muted-foreground hover:bg-slate-100 hover:text-foreground dark:border-border/50 dark:bg-muted/50 dark:hover:border-border dark:hover:bg-muted',
+              )}
+            >
+              {dot && <span className={cn('inline-block h-1.5 w-1.5 rounded-full', dot)} />}
+              {label}
+            </button>
+          )
+        })}
       </div>
 
       {/* Row 2: Search + date range + sort + group by */}

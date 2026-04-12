@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { withTenantFromHeaders } from '@/lib/tenant-context'
 import { getStagingSetsFiltered } from '@/lib/services/import/staging-set-service'
 import type { ChannelTier, StagingSetStatus } from '@/generated/prisma/client'
+import type { ArchiveFilterValue } from '@/components/staging-sets/staging-set-filter-bar'
 
 export async function GET(request: Request) {
   return withTenantFromHeaders(async () => {
@@ -47,6 +48,7 @@ export async function GET(request: Request) {
         dateTo: url.searchParams.get('dateTo') || undefined,
         batchId: url.searchParams.get('batchId') || undefined,
         priority,
+        archiveFilter: (url.searchParams.get('archiveFilter') as ArchiveFilterValue) || undefined,
         search: url.searchParams.get('search') || undefined,
         sort: (url.searchParams.get('sort') as 'date' | 'title' | 'priority' | 'importDate' | 'undatedFirst') || undefined,
         sortDir: (url.searchParams.get('sortDir') as 'asc' | 'desc') || undefined,

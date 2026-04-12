@@ -172,6 +172,7 @@ export function StagingSetsWorkspace() {
     if (filters.dateFrom) params.set('dateFrom', filters.dateFrom)
     if (filters.dateTo) params.set('dateTo', filters.dateTo)
     if (filters.priority.length) params.set('priority', filters.priority.join(','))
+    if (filters.archiveFilter) params.set('archiveFilter', filters.archiveFilter)
     if (filters.channelId) params.set('channelId', filters.channelId)
     if (filters.channelTier?.length) params.set('channelTier', filters.channelTier.join(','))
     params.set('isVideo', activeTab === 'video' ? 'true' : 'false')

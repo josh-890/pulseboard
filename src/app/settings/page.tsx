@@ -16,7 +16,7 @@ import { PhysicalAttributeManager } from "@/components/settings/physical-attribu
 import { TagSettingsSection } from "@/components/settings/tag-settings-section";
 import { DatabaseMaintenance } from "@/components/settings/database-maintenance";
 import { getProfileImageLabels, getSkillLevelConfigs, getHeroBackdropEnabled, getSetting } from "@/lib/services/setting-service";
-import { ARCHIVE_PHOTOSET_ROOT_KEY, ARCHIVE_VIDEOSET_ROOT_KEY } from "@/lib/services/archive-service";
+import { ARCHIVE_PHOTOSET_ROOT_KEY, ARCHIVE_VIDEOSET_ROOT_KEY, ARCHIVE_LAST_SCAN_KEY, ARCHIVE_LAST_SCAN_SUMMARY_KEY } from "@/lib/services/archive-service";
 import { ArchiveSettings } from "@/components/settings/archive-settings";
 import { getAllCategoryGroups } from "@/lib/services/category-service";
 import { getAllSkillGroups } from "@/lib/services/skill-catalog-service";
@@ -32,7 +32,7 @@ import {
 
 export default async function SettingsPage() {
   return withTenantFromHeaders(async () => {
-    const [labels, categoryGroups, skillGroups, skillLevelConfigs, roleGroups, physicalAttributeGroups, tagGroups, pendingTags, orphanedTags, nearDuplicates, usageBreakdown, heroBackdropEnabled, archivePhotosetRoot, archiveVideosetRoot] = await Promise.all([
+    const [labels, categoryGroups, skillGroups, skillLevelConfigs, roleGroups, physicalAttributeGroups, tagGroups, pendingTags, orphanedTags, nearDuplicates, usageBreakdown, heroBackdropEnabled, archivePhotosetRoot, archiveVideosetRoot, archiveLastScan, archiveLastScanSummary] = await Promise.all([
     getProfileImageLabels(),
     getAllCategoryGroups(),
     getAllSkillGroups(),
@@ -47,6 +47,8 @@ export default async function SettingsPage() {
     getHeroBackdropEnabled(),
     getSetting(ARCHIVE_PHOTOSET_ROOT_KEY),
     getSetting(ARCHIVE_VIDEOSET_ROOT_KEY),
+    getSetting(ARCHIVE_LAST_SCAN_KEY),
+    getSetting(ARCHIVE_LAST_SCAN_SUMMARY_KEY),
   ]);
 
   return (
@@ -164,6 +166,17 @@ export default async function SettingsPage() {
           photosetRoot={archivePhotosetRoot ?? ""}
           videosetRoot={archiveVideosetRoot ?? ""}
         />
+        {archiveLastScan && (
+          <div className="mt-4 border-t border-border pt-4">
+            <p className="text-xs text-muted-foreground">
+              <span className="font-medium">Last scan:</span>{" "}
+              {new Date(archiveLastScan).toLocaleString()}
+            </p>
+            {archiveLastScanSummary && (
+              <p className="mt-0.5 text-xs text-muted-foreground">{archiveLastScanSummary}</p>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="rounded-2xl border border-white/30 bg-card/70 p-4 shadow-lg backdrop-blur-md md:p-6 dark:border-white/10">

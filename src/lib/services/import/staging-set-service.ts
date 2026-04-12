@@ -373,6 +373,7 @@ export type StagingSetFilters = {
   dateTo?: string
   batchId?: string
   priority?: number[]
+  archiveFilter?: 'hasPath' | 'ok' | 'changed' | 'missing' | 'inQueue' | 'needsMedia'
   search?: string
   sort?: 'date' | 'title' | 'priority' | 'importDate' | 'undatedFirst'
   sortDir?: 'asc' | 'desc'
@@ -456,6 +457,29 @@ export async function getStagingSetsFiltered(filters: StagingSetFilters): Promis
 
   if (filters.priority?.length) {
     conditions.push({ priority: { in: filters.priority } })
+  }
+
+  if (filters.archiveFilter) {
+    switch (filters.archiveFilter) {
+      case 'hasPath':
+        conditions.push({ archivePath: { not: null } })
+        break
+      case 'ok':
+        conditions.push({ archiveStatus: 'OK' })
+        break
+      case 'changed':
+        conditions.push({ archiveStatus: 'CHANGED' })
+        break
+      case 'missing':
+        conditions.push({ archiveStatus: 'MISSING' })
+        break
+      case 'inQueue':
+        conditions.push({ mediaQueueAt: { not: null } })
+        break
+      case 'needsMedia':
+        conditions.push({ archivePath: null, mediaQueueAt: null })
+        break
+    }
   }
 
   if (filters.isVideo !== undefined) {

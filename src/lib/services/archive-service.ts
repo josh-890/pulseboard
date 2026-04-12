@@ -9,13 +9,15 @@
  */
 
 import { prisma } from '@/lib/db'
-import { getSetting } from '@/lib/services/setting-service'
+import { getSetting, setSetting } from '@/lib/services/setting-service'
 import type { ArchiveStatus } from '@/generated/prisma/client'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 export const ARCHIVE_PHOTOSET_ROOT_KEY = 'archive.photosetRoot'
 export const ARCHIVE_VIDEOSET_ROOT_KEY = 'archive.videosetRoot'
+export const ARCHIVE_LAST_SCAN_KEY = 'archive.lastScan'
+export const ARCHIVE_LAST_SCAN_SUMMARY_KEY = 'archive.lastScanSummary'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -272,9 +274,17 @@ export async function getArchivePaths(): Promise<ArchivePathEntry[]> {
 /** Called by the ingest API route to store scan results. */
 export async function ingestScanResults(results: ScanResult[]): Promise<void> {
   const now = new Date()
+  const counts = { ok: 0, changed: 0, missing: 0, incomplete: 0, errors: 0 }
 
   for (const r of results) {
     const status = _deriveStatus(r)
+
+    // Count for summary
+    if (status === 'OK') counts.ok++
+    else if (status === 'CHANGED') counts.changed++
+    else if (status === 'MISSING') counts.missing++
+    else if (status === 'INCOMPLETE') counts.incomplete++
+    if (r.error) counts.errors++
 
     if (r.type === 'staging') {
       // Shift current count → prev before writing new count
@@ -282,13 +292,19 @@ export async function ingestScanResults(results: ScanResult[]): Promise<void> {
         where: { id: r.id },
         select: { archiveFileCount: true },
       })
+      const prevCount = current?.archiveFileCount ?? null
+      const derivedStatus: ArchiveStatus =
+        status === 'OK' && prevCount !== null && r.fileCount !== null && r.fileCount !== prevCount
+          ? 'CHANGED'
+          : status
+      if (derivedStatus === 'CHANGED') { counts.changed++; counts.ok-- }
       await prisma.stagingSet.update({
         where: { id: r.id },
         data: {
-          archiveStatus: status,
+          archiveStatus: derivedStatus,
           archiveLastChecked: now,
           archiveFileCount: r.fileCount,
-          archiveFileCountPrev: current?.archiveFileCount ?? null,
+          archiveFileCountPrev: prevCount,
           archiveVideoPresent: r.videoPresent,
         },
       })
@@ -297,18 +313,29 @@ export async function ingestScanResults(results: ScanResult[]): Promise<void> {
         where: { id: r.id },
         select: { archiveFileCount: true },
       })
+      const prevCount = current?.archiveFileCount ?? null
+      const derivedStatus: ArchiveStatus =
+        status === 'OK' && prevCount !== null && r.fileCount !== null && r.fileCount !== prevCount
+          ? 'CHANGED'
+          : status
+      if (derivedStatus === 'CHANGED') { counts.changed++; counts.ok-- }
       await prisma.set.update({
         where: { id: r.id },
         data: {
-          archiveStatus: status,
+          archiveStatus: derivedStatus,
           archiveLastChecked: now,
           archiveFileCount: r.fileCount,
-          archiveFileCountPrev: current?.archiveFileCount ?? null,
+          archiveFileCountPrev: prevCount,
           archiveVideoPresent: r.videoPresent,
         },
       })
     }
   }
+
+  // Record last scan timestamp and summary
+  const summary = `${results.length} checked — OK: ${counts.ok}, Changed: ${counts.changed}, Missing: ${counts.missing}, Incomplete: ${counts.incomplete}${counts.errors > 0 ? `, Errors: ${counts.errors}` : ''}`
+  await setSetting(ARCHIVE_LAST_SCAN_KEY, now.toISOString())
+  await setSetting(ARCHIVE_LAST_SCAN_SUMMARY_KEY, summary)
 }
 
 function _deriveStatus(r: ScanResult): ArchiveStatus {
