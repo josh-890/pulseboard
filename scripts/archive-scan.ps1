@@ -121,56 +121,58 @@ function Check-ArchivePath {
         [string]$FolderName
     )
 
-    $result = [ordered]@{
-        id           = $Id
-        type         = $Type
-        path         = $ArchivePath
-        exists       = $false
-        fileCount    = $null
-        videoPresent = $null
-        error        = $null
-    }
+    # Use PSCustomObject (not hashtable) so ConvertTo-Json serialises correctly in PS 5.1
+    $exists       = $false
+    $fileCount    = $null
+    $videoPresent = $null
+    $errorMsg     = $null
 
     try {
         if (-not (Test-Path -LiteralPath $ArchivePath -PathType Container)) {
-            # Folder does not exist
-            return $result
-        }
-
-        $result.exists = $true
-
-        if ($IsVideo) {
-            # Count frames\ subfolder
-            $framesDir = Join-Path $ArchivePath "frames"
-            if (Test-Path -LiteralPath $framesDir -PathType Container) {
-                $result.fileCount = (Get-ChildItem -LiteralPath $framesDir -File).Count
-            } else {
-                $result.fileCount = 0
-            }
-
-            # Check for video file: {folderName}.{ext}
-            $videoFound = $false
-            foreach ($ext in $VideoExtensions) {
-                $candidate = Join-Path $ArchivePath ($FolderName + $ext)
-                if (Test-Path -LiteralPath $candidate -PathType Leaf) {
-                    $videoFound = $true
-                    break
-                }
-            }
-            $result.videoPresent = $videoFound
-
+            # Folder does not exist — leave defaults
         } else {
-            # Count files directly in the folder (non-recursive)
-            $result.fileCount = (Get-ChildItem -LiteralPath $ArchivePath -File).Count
-        }
+            $exists = $true
 
+            if ($IsVideo) {
+                # Count frames\ subfolder
+                $framesDir = Join-Path $ArchivePath "frames"
+                if (Test-Path -LiteralPath $framesDir -PathType Container) {
+                    $fileCount = (Get-ChildItem -LiteralPath $framesDir -File).Count
+                } else {
+                    $fileCount = 0
+                }
+
+                # Check for video file: {folderName}.{ext}
+                $videoFound = $false
+                foreach ($ext in $VideoExtensions) {
+                    $candidate = Join-Path $ArchivePath ($FolderName + $ext)
+                    if (Test-Path -LiteralPath $candidate -PathType Leaf) {
+                        $videoFound = $true
+                        break
+                    }
+                }
+                $videoPresent = $videoFound
+
+            } else {
+                # Count files directly in the folder (non-recursive)
+                $fileCount = (Get-ChildItem -LiteralPath $ArchivePath -File).Count
+            }
+        }
     } catch {
-        $result.exists    = $false
-        $result.fileCount = $null
-        $result.error     = $_.Exception.Message
+        $exists    = $false
+        $fileCount = $null
+        $errorMsg  = $_.Exception.Message
     }
 
-    return $result
+    return [PSCustomObject]@{
+        id           = $Id
+        type         = $Type
+        path         = $ArchivePath
+        exists       = $exists
+        fileCount    = $fileCount
+        videoPresent = $videoPresent
+        error        = $errorMsg
+    }
 }
 
 function Get-StatusLabel {
@@ -219,7 +221,8 @@ $entries = $entries | ForEach-Object {
 }
 
 # 2. Check each path on the local filesystem
-$results = @()
+# Use ArrayList to avoid PS 5.1 array-coercion issues with +=
+$results = [System.Collections.ArrayList]::new()
 $counts  = @{ ok = 0; incomplete = 0; missing = 0; error = 0 }
 
 foreach ($entry in $entries) {
@@ -230,7 +233,7 @@ foreach ($entry in $entries) {
         -IsVideo     ([bool]$entry.isVideo) `
         -FolderName  ([string]$entry.folderName)
 
-    $results += $result
+    [void]$results.Add($result)
 
     $label = Get-StatusLabel $result
 
