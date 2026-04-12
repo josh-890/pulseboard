@@ -23,6 +23,7 @@ import {
   refreshAllStagingDataAction,
   autoRefreshStagingDataAction,
 } from '@/lib/actions/staging-set-actions'
+import { toggleMediaQueueAction } from '@/lib/actions/archive-actions'
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
@@ -324,6 +325,23 @@ export function StagingSetsWorkspace() {
     })
   }, [])
 
+  // ── Queue toggle ─────────────────────────────────────────────────────
+  const handleQueueToggle = useCallback(async (id: string) => {
+    // Optimistic toggle — flip mediaQueueAt locally so icon updates instantly
+    setData((prev) => {
+      if (!prev) return prev
+      return {
+        ...prev,
+        items: prev.items.map((item) =>
+          item.id === id
+            ? { ...item, mediaQueueAt: item.mediaQueueAt ? null : new Date(), mediaPriority: item.mediaQueueAt ? null : 2 }
+            : item,
+        ),
+      }
+    })
+    await toggleMediaQueueAction(id, 'staging')
+  }, [])
+
   // ── Bulk actions ──────────────────────────────────────────────────────
   const handleBulkStatus = useCallback(async (status: StagingSetStatus) => {
     if (checkedIds.size === 0) return
@@ -549,6 +567,7 @@ export function StagingSetsWorkspace() {
               checkedIds={checkedIds}
               onSelect={(id) => setSelectedId(id === selectedId ? null : id)}
               onToggleCheck={toggleCheck}
+              onQueueToggle={handleQueueToggle}
               onLoadMore={handleLoadMore}
               hasMore={!!data && data.items.length < data.total}
               isLoadingMore={isLoadingMore}

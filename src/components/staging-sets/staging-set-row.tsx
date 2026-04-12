@@ -3,7 +3,7 @@
 import { memo, useState, useRef, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import Image from 'next/image'
-import { AlertTriangle, Camera, CheckSquare, Copy, Film } from 'lucide-react'
+import { AlertTriangle, Camera, CheckSquare, Copy, Film, Flag } from 'lucide-react'
 import { cn, getInitialsFromName } from '@/lib/utils'
 import type { StagingSetWithRelations, ParticipantStatus } from '@/lib/services/import/staging-set-service'
 import type { StagingSetStatus, ArchiveStatus } from '@/generated/prisma/client'
@@ -74,6 +74,13 @@ function participantTooltip(p: ParticipantStatus): string {
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
+const MEDIA_PRIORITY_LABEL: Record<number, string> = { 1: 'P1', 2: 'P2', 3: 'P3' }
+const MEDIA_PRIORITY_CLASS: Record<number, string> = {
+  1: 'bg-red-500/90 text-white',
+  2: 'bg-amber-500/90 text-white',
+  3: 'bg-slate-500/70 text-white',
+}
+
 type StagingSetRowProps = {
   stagingSet: StagingSetWithRelations
   isSelected: boolean
@@ -82,6 +89,7 @@ type StagingSetRowProps = {
   isChecked: boolean
   onSelect: (id: string) => void
   onToggleCheck: (id: string) => void
+  onQueueToggle?: (id: string) => void
 }
 
 // ─── Cover Thumbnail with hover preview ───────────────────────────────────
@@ -194,6 +202,7 @@ export const StagingSetRow = memo(function StagingSetRow({
   isChecked,
   onSelect,
   onToggleCheck,
+  onQueueToggle,
 }: StagingSetRowProps) {
   const [imgError, setImgError] = useState(false)
   const statuses = (ss.participantStatuses as ParticipantStatus[] | null) ?? []
@@ -237,6 +246,27 @@ export const StagingSetRow = memo(function StagingSetRow({
           )}
         >
           {isChecked && <CheckSquare className="h-3.5 w-3.5" />}
+        </button>
+      )}
+      {/* Queue flag button */}
+      {onQueueToggle && (
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); onQueueToggle(ss.id) }}
+          title={ss.mediaQueueAt ? 'Remove from media queue' : 'Add to media queue'}
+          className={cn(
+            'flex shrink-0 flex-col items-center gap-0.5 transition-colors',
+            ss.mediaQueueAt
+              ? 'text-violet-500 hover:text-violet-600 dark:text-violet-400'
+              : 'text-muted-foreground/30 hover:text-muted-foreground/70',
+          )}
+        >
+          <Flag size={14} className={ss.mediaQueueAt ? 'fill-current' : ''} />
+          {ss.mediaPriority && MEDIA_PRIORITY_LABEL[ss.mediaPriority] && (
+            <span className={cn('rounded px-0.5 text-[8px] font-bold leading-tight', MEDIA_PRIORITY_CLASS[ss.mediaPriority])}>
+              {MEDIA_PRIORITY_LABEL[ss.mediaPriority]}
+            </span>
+          )}
         </button>
       )}
 

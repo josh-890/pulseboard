@@ -25,6 +25,7 @@ type StagingSetGridProps = {
   checkedIds: Set<string>
   onSelect: (id: string) => void
   onToggleCheck: (id: string) => void
+  onQueueToggle?: (id: string) => void
   onLoadMore: () => void
   hasMore: boolean
   isLoadingMore: boolean
@@ -179,6 +180,7 @@ export function StagingSetGrid({
   checkedIds,
   onSelect,
   onToggleCheck,
+  onQueueToggle,
   onLoadMore,
   hasMore,
   isLoadingMore,
@@ -516,6 +518,7 @@ export function StagingSetGrid({
                     isChecked={checkedIds.has(entry.data.id)}
                     onSelect={onSelect}
                     onToggleCheck={onToggleCheck}
+                    onQueueToggle={onQueueToggle}
                   />
                 </div>
               )}

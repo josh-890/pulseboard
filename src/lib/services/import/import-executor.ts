@@ -434,6 +434,22 @@ export async function importSet(item: ImportItem): Promise<ImportResult> {
     const createResult = await createNewSet(item, data)
     if (stagingSet && createResult.entityId) {
       await markStagingSetPromoted(stagingSet.id, createResult.entityId)
+      // Copy archive + queue fields from staging set to promoted set
+      if (stagingSet.archivePath || stagingSet.mediaQueueAt) {
+        await prisma.set.update({
+          where: { id: createResult.entityId },
+          data: {
+            archivePath: stagingSet.archivePath,
+            archiveStatus: stagingSet.archivePath ? stagingSet.archiveStatus : 'UNKNOWN',
+            archiveLastChecked: stagingSet.archiveLastChecked,
+            archiveFileCount: stagingSet.archiveFileCount,
+            archiveFileCountPrev: stagingSet.archiveFileCountPrev,
+            archiveVideoPresent: stagingSet.archiveVideoPresent,
+            mediaPriority: stagingSet.mediaPriority,
+            mediaQueueAt: stagingSet.mediaQueueAt,
+          },
+        })
+      }
       // Transfer cover image (fire-and-forget, non-critical)
       if (stagingSet.coverImageUrl) {
         transferStagingCoverToSet(stagingSet.coverImageUrl, createResult.entityId).catch((err) =>

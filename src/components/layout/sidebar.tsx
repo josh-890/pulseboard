@@ -17,6 +17,7 @@ import {
   LogOut,
   Upload,
   Palette,
+  HardDrive,
 } from "lucide-react";
 import { NavLink } from "./nav-link";
 import { useSidebar } from "./sidebar-provider";
@@ -37,6 +38,7 @@ const navItems = [
   { href: "/networks", icon: <Network size={20} />, label: "Networks" },
   { href: "/import", icon: <Upload size={20} />, label: "Import" },
   { href: "/staging-sets", icon: <Layers size={20} />, label: "Staging Sets" },
+  { href: "/media-queue", icon: <HardDrive size={20} />, label: "Media Queue" },
   { href: "/settings", icon: <Settings size={20} />, label: "Settings" },
 ];
 
