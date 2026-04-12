@@ -291,21 +291,31 @@ export async function getArchivePaths(): Promise<ArchivePathEntry[]> {
     return root.replace(/[/\\]$/, '') + sep + relativePath
   }
 
+  /**
+   * Derive the folder name from the stored relative path.
+   * The video file must be named after its containing folder, so we use
+   * the last path segment of the stored archivePath rather than rebuilding
+   * from DB fields — this way manually edited paths work correctly.
+   * e.g. "FJ-FemJoy\2012\2012-08-08-FJ Jane - Meadow\" → "2012-08-08-FJ Jane - Meadow"
+   */
+  function folderNameFromPath(relativePath: string): string {
+    const trimmed = relativePath.replace(/[/\\]$/, '')
+    const segments = trimmed.split(/[/\\]/)
+    return segments[segments.length - 1] ?? ''
+  }
+
   const results: ArchivePathEntry[] = []
 
   for (const ss of stagingSets) {
     if (!ss.archivePath) continue
     const fullPath = toFullPath(ss.archivePath, ss.isVideo)
     if (!fullPath) continue // root not configured — skip
-    const dateStr = ss.releaseDate?.toISOString().split('T')[0] ?? '0000-00-00'
-    const shortName = ss.channel?.shortName ?? ''
-    const first = _firstParticipant(ss.participants)
     results.push({
       id: ss.id,
       type: 'staging',
       path: fullPath,
       isVideo: ss.isVideo,
-      folderName: buildFolderName(dateStr, shortName, first, ss.title),
+      folderName: folderNameFromPath(ss.archivePath),
     })
   }
 
@@ -314,15 +324,12 @@ export async function getArchivePaths(): Promise<ArchivePathEntry[]> {
     const isVideo = set.type === 'video'
     const fullPath = toFullPath(set.archivePath, isVideo)
     if (!fullPath) continue
-    const dateStr = set.releaseDate?.toISOString().split('T')[0] ?? '0000-00-00'
-    const shortName = set.channel?.shortName ?? ''
-    const first = set.participants[0]?.person.aliases[0]?.name ?? null
     results.push({
       id: set.id,
       type: 'set',
       path: fullPath,
       isVideo,
-      folderName: buildFolderName(dateStr, shortName, first, set.title),
+      folderName: folderNameFromPath(set.archivePath),
     })
   }
 
