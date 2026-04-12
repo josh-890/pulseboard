@@ -60,6 +60,7 @@ export function AddChannelSheet({ labels, defaultLabelId }: AddChannelSheetProps
       labelId: defaultLabelId ?? "",
       name: "",
       shortName: "",
+      channelFolder: "",
       platform: "",
       url: "",
       tier: "NORMAL",
@@ -104,7 +105,10 @@ export function AddChannelSheet({ labels, defaultLabelId }: AddChannelSheetProps
   }
 
   async function onSubmit(values: CreateChannelInput) {
-    const result = await createChannel(values);
+    // Auto-derive channelFolder if not set: "{shortName}-{name}"
+    const channelFolder = values.channelFolder?.trim() ||
+      (values.shortName && values.name ? `${values.shortName}-${values.name}` : undefined)
+    const result = await createChannel({ ...values, channelFolder });
     if (result.success) {
       toast.success("Channel created");
       form.reset();
@@ -215,6 +219,25 @@ export function AddChannelSheet({ labels, defaultLabelId }: AddChannelSheetProps
                               <p className="text-[10px] text-amber-500 dark:text-amber-400">Auto-suggested — edit to change</p>
                             )}
                           </div>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="channelFolder"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Archive Folder</FormLabel>
+                          <FormControl>
+                            <Input
+                              placeholder="e.g. SN-ChannelName"
+                              {...field}
+                            />
+                          </FormControl>
+                          <p className="text-[10px] text-muted-foreground">
+                            Folder name under the archive root — leave blank to auto-derive from Short Name + Name
+                          </p>
                           <FormMessage />
                         </FormItem>
                       )}

@@ -63,6 +63,7 @@ export async function countChannels(): Promise<number> {
 export async function createChannelRecord(data: {
   name: string;
   shortName?: string;
+  channelFolder?: string;
   platform?: string;
   url?: string;
   labelId?: string;
@@ -74,6 +75,7 @@ export async function createChannelRecord(data: {
         name: data.name,
         nameNorm: normalizeForSearch(data.name),
         shortName: data.shortName || null,
+        channelFolder: data.channelFolder || null,
         platform: data.platform,
         url: data.url,
         tier: data.tier,
@@ -100,6 +102,7 @@ export async function updateChannelRecord(
   data: {
     name?: string;
     shortName?: string | null;
+    channelFolder?: string | null;
     platform?: string | null;
     url?: string | null;
     labelId?: string;
@@ -115,6 +118,7 @@ export async function updateChannelRecord(
         name: data.name,
         nameNorm: data.name ? normalizeForSearch(data.name) : undefined,
         shortName: data.shortName,
+        channelFolder: data.channelFolder,
         platform: data.platform,
         url: data.url,
         tier: data.tier,

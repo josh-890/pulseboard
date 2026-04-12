@@ -713,6 +713,7 @@ model Channel {
   notes         String?
   importAliases String[] @default([])
   tier          ChannelTier @default(NORMAL)
+  channelFolder String?
 
   sets        Set[]
   labelMaps   ChannelLabelMap[]
@@ -851,6 +852,18 @@ model Set {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
+  // Archive tracking
+  archivePath          String?
+  archiveStatus        ArchiveStatus @default(UNKNOWN)
+  archiveLastChecked   DateTime?
+  archiveFileCount     Int?
+  archiveFileCountPrev Int?
+  archiveVideoPresent  Boolean?
+
+  // Media queue
+  mediaPriority  Int?
+  mediaQueueAt   DateTime?
+
   setMediaItems     SetMediaItem[]
   creditsRaw        SetCreditRaw[]
   participants      SetParticipant[]
@@ -865,6 +878,8 @@ model Set {
   @@index([releaseDate])
   @@index([titleNorm])
   @@index([coverMediaItemId])
+  @@index([archiveStatus])
+  @@index([mediaQueueAt])
 }
 
 // ─── Media ───────────────────────────────────────────────────────────────────
@@ -1505,6 +1520,15 @@ enum StagingSetStatus {
   SKIPPED
 }
 
+enum ArchiveStatus {
+  UNKNOWN
+  PENDING
+  OK
+  CHANGED
+  MISSING
+  INCOMPLETE
+}
+
 model StagingSet {
   id                String            @id @default(cuid())
 
@@ -1557,6 +1581,18 @@ model StagingSet {
   priority          Int?
   notes             String?
 
+  // Archive tracking
+  archivePath          String?
+  archiveStatus        ArchiveStatus @default(UNKNOWN)
+  archiveLastChecked   DateTime?
+  archiveFileCount     Int?
+  archiveFileCountPrev Int?
+  archiveVideoPresent  Boolean?
+
+  // Media queue
+  mediaPriority  Int?
+  mediaQueueAt   DateTime?
+
   createdAt         DateTime          @default(now())
   updatedAt         DateTime          @updatedAt
 
@@ -1568,6 +1604,8 @@ model StagingSet {
   @@index([titleNorm])
   @@index([artistNorm])
   @@index([participantNamesNorm])
+  @@index([archiveStatus])
+  @@index([mediaQueueAt])
   @@index([importBatchId])
   @@index([status])
   @@index([duplicateGroupId])

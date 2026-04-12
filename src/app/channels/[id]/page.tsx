@@ -88,6 +88,7 @@ export default async function ChannelDetailPage({
               id: channel.id,
               name: channel.name,
               shortName: channel.shortName,
+              channelFolder: channel.channelFolder,
               labelId: channel.labelMaps[0]?.label.id ?? null,
               platform: channel.platform,
               url: channel.url,

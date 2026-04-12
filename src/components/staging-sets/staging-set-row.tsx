@@ -6,9 +6,18 @@ import Image from 'next/image'
 import { AlertTriangle, Camera, CheckSquare, Copy, Film } from 'lucide-react'
 import { cn, getInitialsFromName } from '@/lib/utils'
 import type { StagingSetWithRelations, ParticipantStatus } from '@/lib/services/import/staging-set-service'
-import type { StagingSetStatus } from '@/generated/prisma/client'
+import type { StagingSetStatus, ArchiveStatus } from '@/generated/prisma/client'
 
 // ─── Constants ─────────────────────────────────────────────────────────────
+
+const ARCHIVE_DOT: Record<ArchiveStatus, { title: string; dot: string }> = {
+  UNKNOWN:    { title: 'No archive path',     dot: 'bg-gray-300 dark:bg-gray-600' },
+  PENDING:    { title: 'Path recorded',       dot: 'bg-blue-400' },
+  OK:         { title: 'Archive verified',    dot: 'bg-green-500' },
+  CHANGED:    { title: 'Archive changed',     dot: 'bg-amber-500' },
+  MISSING:    { title: 'Archive missing',     dot: 'bg-red-500' },
+  INCOMPLETE: { title: 'Archive incomplete',  dot: 'bg-orange-500' },
+}
 
 const STATUS_BADGE: Record<StagingSetStatus, { label: string; className: string }> = {
   PENDING: { label: 'Pending', className: 'bg-blue-500/15 text-blue-500' },
@@ -202,7 +211,6 @@ export const StagingSetRow = memo(function StagingSetRow({
   // isDuplicate=true (without duplicateGroupId) means probable match by channel+date.
   const isDupExact = !!ss.duplicateGroupId
   const isDupProbable = ss.isDuplicate && !ss.duplicateGroupId
-  const isDup = isDupExact || isDupProbable
 
   // Build line 3 segments (no participant names — those are in the avatar stack)
   const line3Parts: string[] = []
@@ -353,6 +361,17 @@ export const StagingSetRow = memo(function StagingSetRow({
               {matchLabel}
             </span>
           )}
+
+          {/* Archive status dot */}
+          {ss.archiveStatus !== 'UNKNOWN' && (() => {
+            const arc = ARCHIVE_DOT[ss.archiveStatus]
+            return (
+              <span
+                className={cn('h-2 w-2 shrink-0 rounded-full', arc.dot)}
+                title={arc.title}
+              />
+            )
+          })()}
 
           {/* Status badge */}
           <span className={cn('rounded-full px-2 py-0.5 text-[10px] font-medium', badge.className)}>

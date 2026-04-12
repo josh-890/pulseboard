@@ -39,6 +39,7 @@ type EditChannelSheetProps = {
     id: string;
     name: string;
     shortName: string | null;
+    channelFolder: string | null;
     labelId: string | null;
     platform: string | null;
     url: string | null;
@@ -71,6 +72,7 @@ export function EditChannelSheet({ channel, labels }: EditChannelSheetProps) {
       labelId: channel.labelId ?? "",
       name: channel.name,
       shortName: channel.shortName ?? "",
+      channelFolder: channel.channelFolder ?? "",
       platform: channel.platform ?? "",
       url: channel.url ?? "",
       tier: channel.tier ?? "NORMAL",
@@ -133,6 +135,7 @@ export function EditChannelSheet({ channel, labels }: EditChannelSheetProps) {
         labelId: channel.labelId ?? "",
         name: channel.name,
         shortName: channel.shortName ?? "",
+        channelFolder: channel.channelFolder ?? "",
         platform: channel.platform ?? "",
         url: channel.url ?? "",
         tier: channel.tier ?? "NORMAL",
@@ -269,6 +272,25 @@ export function EditChannelSheet({ channel, labels }: EditChannelSheetProps) {
                               <p className="text-[10px] text-amber-500 dark:text-amber-400">Auto-suggested — edit to change</p>
                             )}
                           </div>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="channelFolder"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Archive Folder</FormLabel>
+                          <FormControl>
+                            <Input
+                              placeholder={`e.g. ${form.watch("shortName") || "SN"}-${form.watch("name") || "ChannelName"}`}
+                              {...field}
+                            />
+                          </FormControl>
+                          <p className="text-[10px] text-muted-foreground">
+                            Folder name under the archive root (e.g. MA-MySite)
+                          </p>
                           <FormMessage />
                         </FormItem>
                       )}

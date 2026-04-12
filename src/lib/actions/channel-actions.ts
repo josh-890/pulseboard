@@ -23,6 +23,7 @@ export async function createChannel(raw: unknown): Promise<CrudActionResult> {
       const channel = await createChannelRecord({
         ...parsed.data,
         url: parsed.data.url || undefined,
+        channelFolder: parsed.data.channelFolder || undefined,
       });
       revalidatePath("/channels");
       revalidatePath("/labels");
@@ -46,6 +47,7 @@ export async function updateChannel(raw: unknown): Promise<CrudActionResult> {
       await updateChannelRecord(parsed.data.id, {
         ...parsed.data,
         shortName: parsed.data.shortName || null,
+        channelFolder: parsed.data.channelFolder || null,
         url: parsed.data.url || null,
         platform: parsed.data.platform || null,
       });

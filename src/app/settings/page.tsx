@@ -15,7 +15,9 @@ import { SkillLevelConfig } from "@/components/settings/skill-level-config";
 import { PhysicalAttributeManager } from "@/components/settings/physical-attribute-manager";
 import { TagSettingsSection } from "@/components/settings/tag-settings-section";
 import { DatabaseMaintenance } from "@/components/settings/database-maintenance";
-import { getProfileImageLabels, getSkillLevelConfigs, getHeroBackdropEnabled } from "@/lib/services/setting-service";
+import { getProfileImageLabels, getSkillLevelConfigs, getHeroBackdropEnabled, getSetting } from "@/lib/services/setting-service";
+import { ARCHIVE_PHOTOSET_ROOT_KEY, ARCHIVE_VIDEOSET_ROOT_KEY } from "@/lib/services/archive-service";
+import { ArchiveSettings } from "@/components/settings/archive-settings";
 import { getAllCategoryGroups } from "@/lib/services/category-service";
 import { getAllSkillGroups } from "@/lib/services/skill-catalog-service";
 import { getAllContributionRoleGroups } from "@/lib/services/contribution-role-service";
@@ -30,7 +32,7 @@ import {
 
 export default async function SettingsPage() {
   return withTenantFromHeaders(async () => {
-    const [labels, categoryGroups, skillGroups, skillLevelConfigs, roleGroups, physicalAttributeGroups, tagGroups, pendingTags, orphanedTags, nearDuplicates, usageBreakdown, heroBackdropEnabled] = await Promise.all([
+    const [labels, categoryGroups, skillGroups, skillLevelConfigs, roleGroups, physicalAttributeGroups, tagGroups, pendingTags, orphanedTags, nearDuplicates, usageBreakdown, heroBackdropEnabled, archivePhotosetRoot, archiveVideosetRoot] = await Promise.all([
     getProfileImageLabels(),
     getAllCategoryGroups(),
     getAllSkillGroups(),
@@ -43,6 +45,8 @@ export default async function SettingsPage() {
     getNearDuplicateTags(),
     getTagUsageBreakdown(),
     getHeroBackdropEnabled(),
+    getSetting(ARCHIVE_PHOTOSET_ROOT_KEY),
+    getSetting(ARCHIVE_VIDEOSET_ROOT_KEY),
   ]);
 
   return (
@@ -147,6 +151,18 @@ export default async function SettingsPage() {
           orphanedTags={orphanedTags}
           nearDuplicates={nearDuplicates}
           usageBreakdown={usageBreakdown}
+        />
+      </div>
+
+      <div className="rounded-2xl border border-white/30 bg-card/70 p-4 shadow-lg backdrop-blur-md md:p-6 dark:border-white/10">
+        <h2 className="mb-2 text-lg font-semibold">Archive Storage</h2>
+        <p className="mb-4 text-sm text-muted-foreground">
+          Configure the root folders for your local photo and video archives.
+          These are used to auto-suggest archive paths for sets.
+        </p>
+        <ArchiveSettings
+          photosetRoot={archivePhotosetRoot ?? ""}
+          videosetRoot={archiveVideosetRoot ?? ""}
         />
       </div>
 

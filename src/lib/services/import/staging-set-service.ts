@@ -13,7 +13,7 @@ import type { ChannelTier, DatePrecision, Prisma, StagingSet, StagingSetStatus }
 // ─── Types ──────────────────────────────────────────────────────────────────
 
 export type StagingSetWithRelations = StagingSet & {
-  channel: { id: string; name: string; tier: ChannelTier } | null
+  channel: { id: string; name: string; tier: ChannelTier; shortName: string | null; channelFolder: string | null } | null
   matchedSet: { id: string; title: string; channelId: string | null } | null
 }
 
@@ -64,7 +64,7 @@ export async function getStagingSetsForBatch(batchId: string): Promise<StagingSe
   return prisma.stagingSet.findMany({
     where: { importBatchId: batchId },
     include: {
-      channel: { select: { id: true, name: true, tier: true } },
+      channel: { select: { id: true, name: true, tier: true, shortName: true, channelFolder: true } },
       matchedSet: { select: { id: true, title: true, channelId: true } },
     },
     orderBy: [{ releaseDate: 'asc' }, { title: 'asc' }],
@@ -75,7 +75,7 @@ export async function getStagingSetById(id: string): Promise<StagingSetWithRelat
   return prisma.stagingSet.findUnique({
     where: { id },
     include: {
-      channel: { select: { id: true, name: true, tier: true } },
+      channel: { select: { id: true, name: true, tier: true, shortName: true, channelFolder: true } },
       matchedSet: { select: { id: true, title: true, channelId: true } },
     },
   })
@@ -93,7 +93,7 @@ export async function getStagingSetsForPerson(
       ],
     },
     include: {
-      channel: { select: { id: true, name: true, tier: true } },
+      channel: { select: { id: true, name: true, tier: true, shortName: true, channelFolder: true } },
       matchedSet: { select: { id: true, title: true, channelId: true } },
     },
     orderBy: [{ releaseDate: 'asc' }, { title: 'asc' }],
@@ -111,7 +111,7 @@ export async function getStagingSetsForChannel(
       ],
     },
     include: {
-      channel: { select: { id: true, name: true, tier: true } },
+      channel: { select: { id: true, name: true, tier: true, shortName: true, channelFolder: true } },
       matchedSet: { select: { id: true, title: true, channelId: true } },
     },
     orderBy: [{ releaseDate: 'asc' }, { title: 'asc' }],
@@ -124,7 +124,7 @@ export async function getStagingSetDuplicateGroup(
   return prisma.stagingSet.findMany({
     where: { duplicateGroupId: groupId },
     include: {
-      channel: { select: { id: true, name: true, tier: true } },
+      channel: { select: { id: true, name: true, tier: true, shortName: true, channelFolder: true } },
       matchedSet: { select: { id: true, title: true, channelId: true } },
     },
     orderBy: [{ createdAt: 'asc' }],
@@ -139,7 +139,7 @@ export async function getStagingSetComparison(
   const stagingSet = await prisma.stagingSet.findUnique({
     where: { id: stagingSetId },
     include: {
-      channel: { select: { id: true, name: true, tier: true } },
+      channel: { select: { id: true, name: true, tier: true, shortName: true, channelFolder: true } },
       matchedSet: { select: { id: true, title: true, channelId: true } },
     },
   })
@@ -156,7 +156,7 @@ export async function getStagingSetComparison(
     const existingSet = await prisma.set.findUnique({
       where: { id: stagingSet.matchedSetId },
       include: {
-        channel: { select: { id: true, name: true, tier: true } },
+        channel: { select: { id: true, name: true, tier: true, shortName: true, channelFolder: true } },
         sessionLinks: {
           where: { isPrimary: true },
           select: {
@@ -509,7 +509,7 @@ export async function getStagingSetsFiltered(filters: StagingSetFilters): Promis
   const findArgs = {
     where,
     include: {
-      channel: { select: { id: true, name: true, tier: true } },
+      channel: { select: { id: true, name: true, tier: true, shortName: true, channelFolder: true } },
       matchedSet: { select: { id: true, title: true, channelId: true } },
     } as const,
     orderBy,

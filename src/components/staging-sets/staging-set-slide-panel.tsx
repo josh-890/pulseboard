@@ -6,11 +6,15 @@ import {
   X,
   Archive,
   Loader2,
-  Info,
+
   AlertTriangle,
   ExternalLink,
   RotateCcw,
   Save,
+  FolderOpen,
+  FolderCheck,
+  FolderX,
+  Pencil,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -18,7 +22,8 @@ import { cn } from '@/lib/utils'
 import { StagingSetCoverUpload } from './staging-set-cover-upload'
 import { SetComparisonGrid } from '@/components/import/set-comparison-grid'
 import type { StagingSetWithRelations, StagingSetComparison } from '@/lib/services/import/staging-set-service'
-import type { StagingSetStatus } from '@/generated/prisma/client'
+import type { StagingSetStatus, ArchiveStatus } from '@/generated/prisma/client'
+import { recordArchivePathAction, clearArchivePathAction } from '@/lib/actions/archive-actions'
 import Link from 'next/link'
 
 // ─── Constants ─────────────────────────────────────────────────────────────
@@ -193,7 +198,8 @@ function PanelContent({
     }
   }, [stagingSet.id, comparison])
 
-  const handleCoverUploaded = useCallback((_url: string | null) => {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const handleCoverUploaded = useCallback((_coverUrl: string | null) => {
     onRefresh()
   }, [onRefresh])
 
@@ -388,6 +394,9 @@ function PanelContent({
           </div>
         )}
 
+        {/* Archive */}
+        <ArchiveSection stagingSet={stagingSet} onRefresh={onRefresh} />
+
         {/* Annotations */}
         <div className="rounded-lg border border-border/50 bg-card/50 p-3">
           <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Annotations</h3>
@@ -450,6 +459,255 @@ function PanelContent({
           </Button>
         )}
       </div>
+    </div>
+  )
+}
+
+// ─── Archive Status Config ──────────────────────────────────────────────────
+
+const ARCHIVE_STATUS_CONFIG: Record<ArchiveStatus, { label: string; dot: string; icon: React.ReactNode }> = {
+  UNKNOWN:    { label: 'No path',   dot: 'bg-gray-400',   icon: <FolderOpen size={13} className="text-gray-400" /> },
+  PENDING:    { label: 'Pending',   dot: 'bg-blue-400',   icon: <FolderOpen size={13} className="text-blue-400" /> },
+  OK:         { label: 'OK',        dot: 'bg-green-500',  icon: <FolderCheck size={13} className="text-green-500" /> },
+  CHANGED:    { label: 'Changed',   dot: 'bg-amber-500',  icon: <FolderCheck size={13} className="text-amber-500" /> },
+  MISSING:    { label: 'Missing',   dot: 'bg-red-500',    icon: <FolderX size={13} className="text-red-500" /> },
+  INCOMPLETE: { label: 'Incomplete',dot: 'bg-orange-500', icon: <FolderX size={13} className="text-orange-500" /> },
+}
+
+// ─── Archive Section ────────────────────────────────────────────────────────
+
+type ArchiveSectionProps = {
+  stagingSet: StagingSetWithRelations
+  onRefresh: () => void
+}
+
+function ArchiveSection({ stagingSet, onRefresh }: ArchiveSectionProps) {
+  const [isExpanded, setIsExpanded] = useState(true)
+  const [suggestedPath, setSuggestedPath] = useState<string | null>(null)
+  const [isLoadingSuggestion, setIsLoadingSuggestion] = useState(false)
+  const [isEditing, setIsEditing] = useState(false)
+  const [editPath, setEditPath] = useState(stagingSet.archivePath ?? '')
+  const [isSaving, setIsSaving] = useState(false)
+
+  const archiveStatus = stagingSet.archiveStatus
+  const statusCfg = ARCHIVE_STATUS_CONFIG[archiveStatus]
+  const hasPath = !!stagingSet.archivePath
+
+  // Load auto-suggestion when panel opens and no path is set
+  useEffect(() => {
+    if (hasPath || !stagingSet.channel?.shortName) return
+    let cancelled = false
+    setIsLoadingSuggestion(true)
+    fetch(`/api/staging-sets/${stagingSet.id}/archive-path-suggestion`)
+      .then((r) => r.json())
+      .then((d: { path: string | null }) => { if (!cancelled) setSuggestedPath(d.path) })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setIsLoadingSuggestion(false) })
+    return () => { cancelled = true }
+  }, [stagingSet.id, hasPath, stagingSet.channel?.shortName])
+
+  const handleConfirm = useCallback(async (path: string) => {
+    if (!path.trim()) return
+    setIsSaving(true)
+    try {
+      await recordArchivePathAction(stagingSet.id, 'staging', path.trim())
+      onRefresh()
+    } finally {
+      setIsSaving(false)
+      setIsEditing(false)
+    }
+  }, [stagingSet.id, onRefresh])
+
+  const handleClear = useCallback(async () => {
+    setIsSaving(true)
+    try {
+      await clearArchivePathAction(stagingSet.id, 'staging')
+      setSuggestedPath(null)
+      onRefresh()
+    } finally {
+      setIsSaving(false)
+    }
+  }, [stagingSet.id, onRefresh])
+
+  return (
+    <div className="rounded-lg border border-border/50 bg-card/50">
+      {/* Header */}
+      <button
+        type="button"
+        onClick={() => setIsExpanded((v) => !v)}
+        className="flex w-full items-center justify-between px-3 py-2.5 text-left"
+      >
+        <div className="flex items-center gap-2">
+          {statusCfg.icon}
+          <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Archive</h3>
+          {hasPath && (
+            <span className={cn(
+              'rounded-full px-1.5 py-0.5 text-[10px] font-medium',
+              archiveStatus === 'OK' && 'bg-green-500/15 text-green-600 dark:text-green-400',
+              archiveStatus === 'PENDING' && 'bg-blue-500/15 text-blue-600 dark:text-blue-400',
+              archiveStatus === 'CHANGED' && 'bg-amber-500/15 text-amber-600 dark:text-amber-400',
+              archiveStatus === 'MISSING' && 'bg-red-500/15 text-red-600 dark:text-red-400',
+              archiveStatus === 'INCOMPLETE' && 'bg-orange-500/15 text-orange-600 dark:text-orange-400',
+            )}>
+              {statusCfg.label}
+            </span>
+          )}
+        </div>
+        <span className="text-[10px] text-muted-foreground">{isExpanded ? '▲' : '▼'}</span>
+      </button>
+
+      {isExpanded && (
+        <div className="border-t border-border/40 px-3 pb-3 pt-2 space-y-2.5">
+          {hasPath ? (
+            <>
+              {/* Confirmed path display */}
+              {isEditing ? (
+                <div className="space-y-1.5">
+                  <Input
+                    value={editPath}
+                    onChange={(e) => setEditPath(e.target.value)}
+                    className="h-7 font-mono text-xs"
+                    autoFocus
+                  />
+                  <div className="flex gap-1.5">
+                    <Button size="sm" className="h-6 text-xs" onClick={() => handleConfirm(editPath)} disabled={isSaving}>
+                      <Save size={11} /> Save
+                    </Button>
+                    <Button size="sm" variant="ghost" className="h-6 text-xs" onClick={() => { setIsEditing(false); setEditPath(stagingSet.archivePath ?? '') }}>
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-start gap-1.5">
+                  <code className="flex-1 break-all rounded bg-muted/50 px-1.5 py-1 text-[10px] leading-tight text-muted-foreground">
+                    {stagingSet.archivePath}
+                  </code>
+                  <button
+                    type="button"
+                    onClick={() => { setIsEditing(true); setEditPath(stagingSet.archivePath ?? '') }}
+                    className="shrink-0 rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+                    title="Edit path"
+                  >
+                    <Pencil size={11} />
+                  </button>
+                </div>
+              )}
+
+              {/* Scan details */}
+              {stagingSet.archiveLastChecked && (
+                <div className="space-y-0.5 text-[10px] text-muted-foreground">
+                  <div>Last checked: {new Date(stagingSet.archiveLastChecked).toLocaleString()}</div>
+                  {stagingSet.archiveFileCount != null && (
+                    <div>
+                      {stagingSet.isVideo ? 'Frames' : 'Files'}: {stagingSet.archiveFileCount}
+                      {stagingSet.archiveFileCountPrev != null && stagingSet.archiveFileCountPrev !== stagingSet.archiveFileCount && (
+                        <span className="ml-1 text-amber-500">
+                          (was {stagingSet.archiveFileCountPrev})
+                        </span>
+                      )}
+                    </div>
+                  )}
+                  {stagingSet.isVideo && stagingSet.archiveVideoPresent != null && (
+                    <div className={stagingSet.archiveVideoPresent ? 'text-green-500' : 'text-red-500'}>
+                      Video file: {stagingSet.archiveVideoPresent ? 'present' : 'missing'}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {!isEditing && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-6 text-xs text-muted-foreground hover:text-destructive"
+                  onClick={handleClear}
+                  disabled={isSaving}
+                >
+                  <X size={11} /> Clear path
+                </Button>
+              )}
+            </>
+          ) : (
+            <>
+              {/* Auto-suggestion */}
+              {isLoadingSuggestion ? (
+                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <Loader2 size={11} className="animate-spin" />
+                  Building suggested path…
+                </div>
+              ) : suggestedPath ? (
+                <div className="space-y-1.5">
+                  <p className="text-[10px] text-muted-foreground">Suggested path:</p>
+                  {isEditing ? (
+                    <>
+                      <Input
+                        value={editPath}
+                        onChange={(e) => setEditPath(e.target.value)}
+                        className="h-7 font-mono text-xs"
+                        autoFocus
+                      />
+                      <div className="flex gap-1.5">
+                        <Button size="sm" className="h-6 text-xs" onClick={() => handleConfirm(editPath)} disabled={isSaving}>
+                          <Save size={11} /> Confirm
+                        </Button>
+                        <Button size="sm" variant="ghost" className="h-6 text-xs" onClick={() => { setIsEditing(false); setEditPath(suggestedPath) }}>
+                          Cancel
+                        </Button>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <code className="block break-all rounded bg-muted/50 px-1.5 py-1 text-[10px] leading-tight text-muted-foreground">
+                        {suggestedPath}
+                      </code>
+                      <div className="flex gap-1.5">
+                        <Button size="sm" className="h-6 text-xs" onClick={() => handleConfirm(suggestedPath)} disabled={isSaving}>
+                          <Check size={11} /> Confirm
+                        </Button>
+                        <Button size="sm" variant="outline" className="h-6 text-xs" onClick={() => { setIsEditing(true); setEditPath(suggestedPath) }}>
+                          <Pencil size={11} /> Edit
+                        </Button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-1.5">
+                  {!stagingSet.channel?.shortName && (
+                    <p className="text-[10px] text-amber-500">
+                      Channel needs a short name to auto-suggest a path.
+                    </p>
+                  )}
+                  {isEditing ? (
+                    <>
+                      <Input
+                        value={editPath}
+                        onChange={(e) => setEditPath(e.target.value)}
+                        placeholder="Enter full archive folder path…"
+                        className="h-7 font-mono text-xs"
+                        autoFocus
+                      />
+                      <div className="flex gap-1.5">
+                        <Button size="sm" className="h-6 text-xs" onClick={() => handleConfirm(editPath)} disabled={isSaving || !editPath.trim()}>
+                          <Save size={11} /> Save
+                        </Button>
+                        <Button size="sm" variant="ghost" className="h-6 text-xs" onClick={() => setIsEditing(false)}>
+                          Cancel
+                        </Button>
+                      </div>
+                    </>
+                  ) : (
+                    <Button size="sm" variant="outline" className="h-6 text-xs" onClick={() => setIsEditing(true)}>
+                      <FolderOpen size={11} /> Enter path manually
+                    </Button>
+                  )}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
     </div>
   )
 }
