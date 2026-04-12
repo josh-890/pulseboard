@@ -92,21 +92,38 @@ function QueueRow({
       {/* Title */}
       <span className="min-w-0 flex-1 truncate text-sm font-medium">{item.title}</span>
 
-      {/* Archive status */}
-      <span className="flex shrink-0 items-center gap-1.5">
-        <span className={cn('h-2 w-2 shrink-0 rounded-full', arc.dot)} />
-        <span className={cn('text-xs font-medium', arc.text)}>{arc.label}</span>
-      </span>
-      {item.archivePath ? (
-        <span
-          className="max-w-[200px] truncate font-mono text-[10px] text-muted-foreground"
-          title={item.archivePath}
-        >
-          {item.archivePath.split(/[\\/]/).pop()}
+      {/* Archive status — descriptive */}
+      <span className="flex min-w-0 shrink-0 flex-col gap-0.5">
+        {/* Folder line */}
+        <span className="flex items-center gap-1.5">
+          <span className={cn('h-1.5 w-1.5 shrink-0 rounded-full', arc.dot)} />
+          <span className={cn('text-xs font-medium', arc.text)}>
+            {item.archiveStatus === 'UNKNOWN'
+              ? 'No archive path'
+              : item.archiveStatus === 'PENDING'
+              ? 'Path recorded — not scanned yet'
+              : item.archiveStatus === 'MISSING'
+              ? 'Archive folder missing'
+              : 'Archive folder present'}
+          </span>
         </span>
-      ) : (
-        <span className="text-xs text-muted-foreground/40">no path</span>
-      )}
+        {/* Detail line — only when folder exists */}
+        {(item.archiveStatus === 'OK' || item.archiveStatus === 'CHANGED' || item.archiveStatus === 'INCOMPLETE') && (
+          <span className="flex items-center gap-2 pl-3 text-[11px] text-muted-foreground">
+            {item.archiveFileCount != null && (
+              <span>{item.archiveFileCount} {item.isVideo ? 'frames' : 'pics'}</span>
+            )}
+            {item.isVideo && (
+              <span className={item.archiveVideoPresent ? 'text-green-500' : 'text-red-500'}>
+                · video file {item.archiveVideoPresent ? 'present' : 'missing'}
+              </span>
+            )}
+            {item.archiveStatus === 'CHANGED' && (
+              <span className="text-amber-500">· count changed</span>
+            )}
+          </span>
+        )}
+      </span>
 
       {/* Priority selector */}
       <select
