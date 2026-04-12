@@ -11,6 +11,7 @@ services:
       - NEXT_PUBLIC_MINIO_URL=${NEXT_PUBLIC_MINIO_URL}
       # ── Auth ──
       - SESSION_SECRET=${SESSION_SECRET}
+      - ARCHIVE_API_KEY=${ARCHIVE_API_KEY:-}
       # ── Single-tenant fallback (used when TENANT_REGISTRY is not set) ──
       - DATABASE_URL=${DATABASE_URL:-}
       - MINIO_BUCKET=${MINIO_BUCKET:-}
