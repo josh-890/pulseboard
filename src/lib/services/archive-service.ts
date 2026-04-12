@@ -58,9 +58,10 @@ export type MediaQueueItem = {
 // ─── Path Construction ────────────────────────────────────────────────────────
 
 /**
- * Build the expected archive folder path for a staging set.
- * Returns null if the channel has no shortName/channelFolder or archive roots
- * are not configured.
+ * Build the expected RELATIVE archive path for a staging set.
+ * Relative means: {chanFolder}\{year}\{folderName}\
+ * The root (e.g. x:\Sites\) is NOT included — it lives in Settings and may change.
+ * Returns null if essential data (shortName, releaseDate) is missing.
  */
 export async function buildExpectedPathForStagingSet(stagingSetId: string): Promise<string | null> {
   const ss = await prisma.stagingSet.findUnique({
@@ -69,16 +70,14 @@ export async function buildExpectedPathForStagingSet(stagingSetId: string): Prom
       releaseDate: true,
       isVideo: true,
       title: true,
-      artist: true,
       participants: true,
       channel: { select: { shortName: true, channelFolder: true } },
     },
   })
   if (!ss || !ss.releaseDate || !ss.channel?.shortName) return null
 
-  return _buildPath({
+  return _buildRelativePath({
     releaseDate: ss.releaseDate,
-    isVideo: ss.isVideo,
     shortName: ss.channel.shortName,
     channelFolder: ss.channel.channelFolder,
     title: ss.title,
@@ -87,7 +86,7 @@ export async function buildExpectedPathForStagingSet(stagingSetId: string): Prom
 }
 
 /**
- * Build the expected archive folder path for a promoted Set.
+ * Build the expected RELATIVE archive path for a promoted Set.
  */
 export async function buildExpectedPathForSet(setId: string): Promise<string | null> {
   const set = await prisma.set.findUnique({
@@ -106,11 +105,9 @@ export async function buildExpectedPathForSet(setId: string): Promise<string | n
   if (!set || !set.releaseDate || !set.channel?.shortName) return null
 
   const firstParticipantName = set.participants[0]?.person.aliases[0]?.name ?? null
-  const isVideo = set.type === 'video'
 
-  return _buildPath({
+  return _buildRelativePath({
     releaseDate: set.releaseDate,
-    isVideo,
     shortName: set.channel.shortName,
     channelFolder: set.channel.channelFolder,
     title: set.title,
@@ -118,25 +115,31 @@ export async function buildExpectedPathForSet(setId: string): Promise<string | n
   })
 }
 
-async function _buildPath(args: {
+/**
+ * Reconstruct the full filesystem path from a stored relative path.
+ * Returns null if the root is not configured in Settings.
+ */
+export async function buildFullPath(relativePath: string, isVideo: boolean): Promise<string | null> {
+  const rootKey = isVideo ? ARCHIVE_VIDEOSET_ROOT_KEY : ARCHIVE_PHOTOSET_ROOT_KEY
+  const root = await getSetting(rootKey)
+  if (!root) return null
+  const sep = root.includes('/') ? '/' : '\\'
+  return root.replace(/[/\\]$/, '') + sep + relativePath
+}
+
+function _buildRelativePath(args: {
   releaseDate: Date
-  isVideo: boolean
   shortName: string
   channelFolder: string | null
   title: string
   firstParticipantName: string | null
-}): Promise<string | null> {
-  const rootKey = args.isVideo ? ARCHIVE_VIDEOSET_ROOT_KEY : ARCHIVE_PHOTOSET_ROOT_KEY
-  const root = await getSetting(rootKey)
-  if (!root) return null
-
+}): string {
   const dateStr = args.releaseDate.toISOString().split('T')[0] // yyyy-mm-dd
   const year = dateStr.slice(0, 4)
   const chanFolder = args.channelFolder ?? `${args.shortName}-unknown`
   const folderName = buildFolderName(dateStr, args.shortName, args.firstParticipantName, args.title)
-
-  const sep = root.includes('/') ? '/' : '\\'
-  return [root.replace(/[/\\]$/, ''), chanFolder, year, folderName].join(sep) + sep
+  // Use backslash as separator — Windows paths; normalised by the scan script on other OS
+  return `${chanFolder}\\${year}\\${folderName}\\`
 }
 
 /**
@@ -161,11 +164,34 @@ function _firstParticipant(participants: unknown): string | null {
 
 // ─── Path Management ──────────────────────────────────────────────────────────
 
+/**
+ * Extract the channel-folder segment from a relative path.
+ * e.g. "FJ-Femjoy\2012\..." → "FJ-Femjoy"
+ */
+function _extractChannelFolderFromPath(relativePath: string): string | null {
+  const segment = relativePath.split(/[/\\]/)[0]
+  return segment?.trim() || null
+}
+
 export async function recordStagingSetArchivePath(id: string, path: string): Promise<void> {
   await prisma.stagingSet.update({
     where: { id },
     data: { archivePath: path, archiveStatus: 'PENDING' },
   })
+  // Auto-learn channelFolder from the path if the channel doesn't have one yet
+  const ss = await prisma.stagingSet.findUnique({
+    where: { id },
+    select: { channelId: true, channel: { select: { channelFolder: true } } },
+  })
+  if (ss?.channelId && !ss.channel?.channelFolder) {
+    const extracted = _extractChannelFolderFromPath(path)
+    if (extracted) {
+      await prisma.channel.update({
+        where: { id: ss.channelId },
+        data: { channelFolder: extracted },
+      })
+    }
+  }
 }
 
 export async function clearStagingSetArchivePath(id: string): Promise<void> {
@@ -187,6 +213,20 @@ export async function recordSetArchivePath(id: string, path: string): Promise<vo
     where: { id },
     data: { archivePath: path, archiveStatus: 'PENDING' },
   })
+  // Auto-learn channelFolder from the path if the channel doesn't have one yet
+  const set = await prisma.set.findUnique({
+    where: { id },
+    select: { channelId: true, channel: { select: { channelFolder: true } } },
+  })
+  if (set?.channelId && !set.channel?.channelFolder) {
+    const extracted = _extractChannelFolderFromPath(path)
+    if (extracted) {
+      await prisma.channel.update({
+        where: { id: set.channelId },
+        data: { channelFolder: extracted },
+      })
+    }
+  }
 }
 
 export async function clearSetArchivePath(id: string): Promise<void> {
@@ -205,9 +245,16 @@ export async function clearSetArchivePath(id: string): Promise<void> {
 
 // ─── Scan API Support ─────────────────────────────────────────────────────────
 
-/** Returns all records with a recorded archivePath, for the scan script. */
+/**
+ * Returns all records with a recorded archivePath, for the scan script.
+ * The `path` field is the FULL filesystem path (root + relative) reconstructed
+ * from current Settings. Entries whose root is not configured are excluded.
+ */
 export async function getArchivePaths(): Promise<ArchivePathEntry[]> {
-  const [stagingSets, sets] = await Promise.all([
+  // Load both roots upfront (one DB round-trip each)
+  const [photoRoot, videoRoot, stagingSets, sets] = await Promise.all([
+    getSetting(ARCHIVE_PHOTOSET_ROOT_KEY),
+    getSetting(ARCHIVE_VIDEOSET_ROOT_KEY),
     prisma.stagingSet.findMany({
       where: { archivePath: { not: null } },
       select: {
@@ -237,17 +284,26 @@ export async function getArchivePaths(): Promise<ArchivePathEntry[]> {
     }),
   ])
 
+  function toFullPath(relativePath: string, isVideo: boolean): string | null {
+    const root = isVideo ? videoRoot : photoRoot
+    if (!root) return null
+    const sep = root.includes('/') ? '/' : '\\'
+    return root.replace(/[/\\]$/, '') + sep + relativePath
+  }
+
   const results: ArchivePathEntry[] = []
 
   for (const ss of stagingSets) {
     if (!ss.archivePath) continue
+    const fullPath = toFullPath(ss.archivePath, ss.isVideo)
+    if (!fullPath) continue // root not configured — skip
     const dateStr = ss.releaseDate?.toISOString().split('T')[0] ?? '0000-00-00'
     const shortName = ss.channel?.shortName ?? ''
     const first = _firstParticipant(ss.participants)
     results.push({
       id: ss.id,
       type: 'staging',
-      path: ss.archivePath,
+      path: fullPath,
       isVideo: ss.isVideo,
       folderName: buildFolderName(dateStr, shortName, first, ss.title),
     })
@@ -255,14 +311,16 @@ export async function getArchivePaths(): Promise<ArchivePathEntry[]> {
 
   for (const set of sets) {
     if (!set.archivePath) continue
+    const isVideo = set.type === 'video'
+    const fullPath = toFullPath(set.archivePath, isVideo)
+    if (!fullPath) continue
     const dateStr = set.releaseDate?.toISOString().split('T')[0] ?? '0000-00-00'
     const shortName = set.channel?.shortName ?? ''
     const first = set.participants[0]?.person.aliases[0]?.name ?? null
-    const isVideo = set.type === 'video'
     results.push({
       id: set.id,
       type: 'set',
-      path: set.archivePath,
+      path: fullPath,
       isVideo,
       folderName: buildFolderName(dateStr, shortName, first, set.title),
     })

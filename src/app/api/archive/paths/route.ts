@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { withTenantFromHeaders } from '@/lib/tenant-context'
 import { getArchivePaths } from '@/lib/services/archive-service'
 
 function isAuthorized(request: Request): boolean {
@@ -12,6 +13,8 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const paths = await getArchivePaths()
-  return NextResponse.json(paths)
+  return withTenantFromHeaders(async () => {
+    const paths = await getArchivePaths()
+    return NextResponse.json(paths)
+  })
 }

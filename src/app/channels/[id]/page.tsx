@@ -1,7 +1,7 @@
 import { withTenantFromHeaders } from "@/lib/tenant-context";
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { Building2, ExternalLink, ImageIcon, FileInput } from "lucide-react";
+import { Building2, ExternalLink, ImageIcon, FileInput, HardDrive } from "lucide-react";
 import { getChannelById } from "@/lib/services/channel-service";
 import { getLabels } from "@/lib/services/label-service";
 import { cn } from "@/lib/utils";
@@ -13,6 +13,7 @@ import { deleteChannel } from "@/lib/actions/channel-actions";
 import { EntityBadge } from "@/components/shared/entity-badge";
 import { generateEntityVisual } from "@/lib/entity-visual";
 import { ImportAliases } from "@/components/channels/import-aliases";
+import { ChannelFolderInline } from "@/components/channels/channel-folder-inline";
 
 export const dynamic = "force-dynamic";
 
@@ -179,6 +180,22 @@ export default async function ChannelDetailPage({
           </p>
         </div>
       </div>
+
+      {/* Archive Folder */}
+      <SectionCard title="Archive Folder" icon={<HardDrive size={18} />}>
+        <p className="mb-3 text-sm text-muted-foreground">
+          Folder name used to build archive paths for this channel&apos;s sets.
+        </p>
+        <ChannelFolderInline
+          channelId={channel.id}
+          channelFolder={channel.channelFolder ?? null}
+          suggestion={
+            channel.shortName
+              ? `${channel.shortName}-${channel.name}`
+              : channel.name
+          }
+        />
+      </SectionCard>
 
       {/* Import Aliases */}
       <SectionCard

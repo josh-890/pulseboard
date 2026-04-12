@@ -488,12 +488,22 @@ function ArchiveSection({ stagingSet, onRefresh }: ArchiveSectionProps) {
   const [isEditing, setIsEditing] = useState(false)
   const [editPath, setEditPath] = useState(stagingSet.archivePath ?? '')
   const [isSaving, setIsSaving] = useState(false)
+  const [archiveRoot, setArchiveRoot] = useState<string | null>(null)
 
   const archiveStatus = stagingSet.archiveStatus
   const statusCfg = ARCHIVE_STATUS_CONFIG[archiveStatus]
   const hasPath = !!stagingSet.archivePath
 
-  // Load auto-suggestion when panel opens and no path is set
+  // Fetch archive root so we can show it as context
+  useEffect(() => {
+    const rootKey = stagingSet.isVideo ? 'archive.videosetRoot' : 'archive.photosetRoot'
+    fetch(`/api/settings/value?key=${encodeURIComponent(rootKey)}`)
+      .then((r) => r.json())
+      .then((d: { value: string | null }) => setArchiveRoot(d.value))
+      .catch(() => {})
+  }, [stagingSet.isVideo])
+
+  // Load auto-suggestion (relative path) when panel opens and no path is set
   useEffect(() => {
     if (hasPath || !stagingSet.channel?.shortName) return
     let cancelled = false
@@ -558,14 +568,23 @@ function ArchiveSection({ stagingSet, onRefresh }: ArchiveSectionProps) {
 
       {isExpanded && (
         <div className="border-t border-border/40 px-3 pb-3 pt-2 space-y-2.5">
+          {/* Root prefix hint */}
+          {archiveRoot && (
+            <p className="text-[10px] text-muted-foreground/70">
+              Root: <code className="rounded bg-muted/40 px-1">{archiveRoot}</code>
+            </p>
+          )}
+
           {hasPath ? (
             <>
-              {/* Confirmed path display */}
+              {/* Confirmed relative path display */}
               {isEditing ? (
                 <div className="space-y-1.5">
+                  <p className="text-[10px] text-muted-foreground">Relative folder path:</p>
                   <Input
                     value={editPath}
                     onChange={(e) => setEditPath(e.target.value)}
+                    placeholder="e.g. MA-MySite\2012\2012-08-08-MA Jane - Waterworld\"
                     className="h-7 font-mono text-xs"
                     autoFocus
                   />
@@ -638,12 +657,13 @@ function ArchiveSection({ stagingSet, onRefresh }: ArchiveSectionProps) {
                 </div>
               ) : suggestedPath ? (
                 <div className="space-y-1.5">
-                  <p className="text-[10px] text-muted-foreground">Suggested path:</p>
+                  <p className="text-[10px] text-muted-foreground">Suggested relative path:</p>
                   {isEditing ? (
                     <>
                       <Input
                         value={editPath}
                         onChange={(e) => setEditPath(e.target.value)}
+                        placeholder="e.g. MA-MySite\2012\2012-08-08-MA Jane - Waterworld\"
                         className="h-7 font-mono text-xs"
                         autoFocus
                       />
@@ -681,10 +701,11 @@ function ArchiveSection({ stagingSet, onRefresh }: ArchiveSectionProps) {
                   )}
                   {isEditing ? (
                     <>
+                      <p className="text-[10px] text-muted-foreground">Relative folder path (from root above):</p>
                       <Input
                         value={editPath}
                         onChange={(e) => setEditPath(e.target.value)}
-                        placeholder="Enter full archive folder path…"
+                        placeholder="e.g. MA-MySite\2012\2012-08-08-MA Jane - Waterworld\"
                         className="h-7 font-mono text-xs"
                         autoFocus
                       />
@@ -699,7 +720,7 @@ function ArchiveSection({ stagingSet, onRefresh }: ArchiveSectionProps) {
                     </>
                   ) : (
                     <Button size="sm" variant="outline" className="h-6 text-xs" onClick={() => setIsEditing(true)}>
-                      <FolderOpen size={11} /> Enter path manually
+                      <FolderOpen size={11} /> Enter relative path manually
                     </Button>
                   )}
                 </div>

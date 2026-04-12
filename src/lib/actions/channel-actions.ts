@@ -99,3 +99,19 @@ export async function removeImportAlias(channelId: string, alias: string): Promi
     }
   });
 }
+
+export async function updateChannelFolderAction(
+  channelId: string,
+  folderName: string | null,
+): Promise<SimpleActionResult> {
+  return withTenantFromHeaders(async () => {
+    try {
+      await updateChannelRecord(channelId, { channelFolder: folderName || null });
+      revalidatePath(`/channels/${channelId}`);
+      revalidatePath("/channels");
+      return { success: true };
+    } catch {
+      return { success: false, error: "Failed to update archive folder name" };
+    }
+  });
+}

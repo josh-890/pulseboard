@@ -17,6 +17,7 @@ import { SetInlineDescription, SetInlineNotes } from "@/components/sets/set-deta
 import { deleteSet } from "@/lib/actions/set-actions";
 import { SetHero } from "@/components/sets/set-hero";
 import { LabelEvidenceManager } from "@/components/sets/label-evidence-manager";
+import { SetArchivePanel } from "@/components/sets/set-archive-panel";
 
 
 export const dynamic = "force-dynamic";
@@ -222,6 +223,20 @@ export default async function SetDetailPage({ params }: SetDetailPageProps) {
           )}
         </div>
       </SectionCard>
+
+      {/* Archive & Media Queue */}
+      <SetArchivePanel
+        setId={id}
+        isVideo={setData.type === 'video'}
+        archivePath={setData.archivePath ?? null}
+        archiveStatus={setData.archiveStatus}
+        archiveLastChecked={setData.archiveLastChecked ?? null}
+        archiveFileCount={setData.archiveFileCount ?? null}
+        archiveFileCountPrev={setData.archiveFileCountPrev ?? null}
+        archiveVideoPresent={setData.archiveVideoPresent ?? null}
+        mediaPriority={setData.mediaPriority ?? null}
+        mediaQueueAt={setData.mediaQueueAt ?? null}
+      />
 
       {/* Tags */}
       {setData.tags.length > 0 && (
