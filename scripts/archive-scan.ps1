@@ -250,19 +250,19 @@ foreach ($entry in $entries) {
 if ($DryRun) {
     Write-Host ""
     Write-Host "Dry-run: would send the following results:"
-    $results | ConvertTo-Json -Depth 5 | Write-Host
+    ConvertTo-Json -InputObject @($results) -Depth 5 | Write-Host
 } else {
     Write-Host ""
     Write-Host "Sending scan results..."
     try {
-        $ingestHeaders = $headers.Clone()
-        $ingestHeaders["Content-Type"] = "application/json"
-        $body     = $results | ConvertTo-Json -Depth 5
+        # @($results) ensures a JSON array even when there is only one result
+        $body     = ConvertTo-Json -InputObject @($results) -Depth 5
         $response = Invoke-RestMethod `
-            -Uri     "$BaseUrl/api/archive/ingest" `
-            -Headers $ingestHeaders `
-            -Method  Post `
-            -Body    $body
+            -Uri         "$BaseUrl/api/archive/ingest" `
+            -Headers     $headers `
+            -Method      Post `
+            -Body        $body `
+            -ContentType "application/json"
         Write-Host "  Ingested $($response.count) result(s)"
     } catch {
         Write-Error "Failed to ingest results: $_"
