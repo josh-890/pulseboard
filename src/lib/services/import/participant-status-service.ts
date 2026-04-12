@@ -30,7 +30,7 @@ export async function refreshStatusesForIcgId(icgId: string): Promise<number> {
   const affected = await prisma.stagingSet.findMany({
     where: {
       participantIcgIds: { has: icgId },
-      status: { notIn: ['PROMOTED', 'SKIPPED'] },
+      status: { notIn: ['SKIPPED'] },
     },
     select: { id: true, participants: true },
   })
@@ -48,7 +48,7 @@ export async function refreshStatusesForNameNorm(nameNorm: string): Promise<numb
   const affected = await prisma.stagingSet.findMany({
     where: {
       participantNamesNorm: { contains: nameNorm, mode: 'insensitive' },
-      status: { notIn: ['PROMOTED', 'SKIPPED'] },
+      status: { notIn: ['SKIPPED'] },
     },
     select: { id: true, participants: true },
   })
@@ -67,7 +67,7 @@ export async function refreshAllParticipantStatuses(): Promise<number> {
   const sets = await prisma.stagingSet.findMany({
     where: {
       participants: { not: Prisma.JsonNullValueFilter.DbNull },
-      status: { notIn: ['PROMOTED', 'SKIPPED'] },
+      status: { notIn: ['SKIPPED'] },
     },
     select: { id: true, participants: true },
   })
