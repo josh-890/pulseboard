@@ -422,7 +422,9 @@ function Walk-Root {
     $channelFolders = Get-ChildItem -LiteralPath $Root -Directory -ErrorAction SilentlyContinue
 
     foreach ($cf in $channelFolders) {
-        $cfMtime = $cf.LastWriteTime
+        # Always use UTC for mtime comparisons — the server stores/returns UTC timestamps.
+        # LastWriteTime is local time; LastWriteTimeUtc is always UTC regardless of timezone.
+        $cfMtime = $cf.LastWriteTimeUtc
 
         # ── Level 1 skip: channelFolder mtime unchanged ─────────────────────
         # Look up any known leaf under this channelFolder to get its stored mtime
@@ -432,7 +434,7 @@ function Walk-Root {
             if ($key.StartsWith($normCfPrefix + "\")) {
                 $stored = $ByPath[$key]
                 if ($stored.chanFolderModifiedAt) {
-                    $storedCfMtime = [datetime]$stored.chanFolderModifiedAt
+                    $storedCfMtime = [datetime]::Parse($stored.chanFolderModifiedAt, $null, [System.Globalization.DateTimeStyles]::RoundtripKind).ToUniversalTime()
                     break
                 }
             }
@@ -449,7 +451,7 @@ function Walk-Root {
         $yearDirs = Get-ChildItem -LiteralPath $cf.FullName -Directory -ErrorAction SilentlyContinue
 
         foreach ($yf in $yearDirs) {
-            $yrMtime = $yf.LastWriteTime
+            $yrMtime = $yf.LastWriteTimeUtc
 
             # ── Level 2 skip: year dir mtime unchanged ──────────────────────
             $normYrPrefix = Normalize-Path $yf.FullName
@@ -458,7 +460,7 @@ function Walk-Root {
                 if ($key.StartsWith($normYrPrefix + "\")) {
                     $stored = $ByPath[$key]
                     if ($stored.yearDirModifiedAt) {
-                        $storedYrMtime = [datetime]$stored.yearDirModifiedAt
+                        $storedYrMtime = [datetime]::Parse($stored.yearDirModifiedAt, $null, [System.Globalization.DateTimeStyles]::RoundtripKind).ToUniversalTime()
                         break
                     }
                 }
@@ -475,7 +477,7 @@ function Walk-Root {
             $leafDirs = Get-ChildItem -LiteralPath $yf.FullName -Directory -ErrorAction SilentlyContinue
 
             foreach ($lf in $leafDirs) {
-                $lfMtime   = $lf.LastWriteTime
+                $lfMtime   = $lf.LastWriteTimeUtc
                 $normPath  = Normalize-Path $lf.FullName
                 $folderName = $lf.Name
                 $parsed    = Parse-FolderName $folderName
@@ -484,7 +486,7 @@ function Walk-Root {
 
                 # ── Level 3 skip: leaf mtime unchanged ──────────────────────
                 if ($existing -and $existing.leafDirModifiedAt) {
-                    $storedLfMtime = [datetime]$existing.leafDirModifiedAt
+                    $storedLfMtime = [datetime]::Parse($existing.leafDirModifiedAt, $null, [System.Globalization.DateTimeStyles]::RoundtripKind).ToUniversalTime()
                     if ([Math]::Abs(($lfMtime - $storedLfMtime).TotalSeconds) -lt 2) {
                         # Still need to update parent mtimes if they changed
                         # Send an unchanged record so the server refreshes cf/year mtimes
