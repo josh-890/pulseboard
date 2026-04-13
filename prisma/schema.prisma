@@ -1645,10 +1645,19 @@ model ArchiveFolder {
   scannedAt       DateTime
   tenant          String             // which tenant DB this record belongs to
 
+  // Smart scan fields
+  contentSignature    String?        // SHA256(sorted filename:size) first 16 hex chars — rename fingerprint
+  leafDirModifiedAt   DateTime?      // leaf folder LastWriteTime — skip file listing if unchanged
+  yearDirModifiedAt   DateTime?      // year folder LastWriteTime — skip all leaves if unchanged
+  chanFolderModifiedAt DateTime?     // channelFolder LastWriteTime — skip entire subtree if unchanged
+  lastRenamedFrom     String?        // previous fullPath — set when rename was detected
+  lastRenamedAt       DateTime?      // timestamp when rename was detected
+
   @@index([folderName])
   @@index([parsedDate, parsedShortName])
   @@index([linkedSetId])
   @@index([linkedStagingId])
   @@index([tenant])
+  @@index([contentSignature])
   @@map("archive_folder")
 }

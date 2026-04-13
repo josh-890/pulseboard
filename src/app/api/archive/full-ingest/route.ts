@@ -36,14 +36,15 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Expected array of folder items' }, { status: 400 })
     }
 
-    const { upserted } = await upsertArchiveFolders(items, tenantId)
+    const counts = await upsertArchiveFolders(items, tenantId)
 
-    // Run matching pass asynchronously — do not block the response
-    // The client gets an immediate acknowledgement; matching runs in the background
-    runMatchingPass(tenantId).catch((err) => {
-      console.error('[archive/full-ingest] matching pass failed:', err)
-    })
+    // Run matching pass for newly created folders asynchronously
+    if (counts.created > 0) {
+      runMatchingPass(tenantId).catch((err) => {
+        console.error('[archive/full-ingest] matching pass failed:', err)
+      })
+    }
 
-    return NextResponse.json({ ok: true, upserted })
+    return NextResponse.json({ ok: true, ...counts })
   })
 }

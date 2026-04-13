@@ -8,23 +8,32 @@
     Targeted (default):
         Fetches all recorded archive paths from the Pulseboard app, checks each
         folder on the local filesystem, and POSTs the results to the ingest API.
-        The app updates each set's archive status (OK, MISSING, CHANGED, INCOMPLETE)
-        based on the results.
+        The app updates each set's archive status (OK, MISSING, CHANGED, INCOMPLETE).
 
     Full:
-        Walks the entire archive filesystem (photoset root and/or videoset root),
-        discovering every leaf folder regardless of whether it is already in the
-        database. Sends discovered folder metadata in batches to the full-ingest API.
-        The app upserts ArchiveFolder records and runs a matching pass to link
-        discovered folders to existing DB records.
+        Smart bidirectional reconciliation. Before walking the filesystem the script
+        downloads all known ArchiveFolder records from the app (preload). It then
+        walks the archive root(s) and for each folder:
 
-    In both modes the script never reads roots or constructs paths itself — Targeted
-    mode receives full filesystem paths from the app; Full mode uses the root paths
-    you supply via -PhotosetRoot and -VideosetRoot (or environment variables).
+        - Computes a content signature (SHA256 of sorted filename:size pairs) that is
+          stable across renames, moves, and copy+delete operations.
+        - Compares the folder's LastWriteTime against the stored value at all three
+          levels (channelFolder / year / leaf) to decide whether to skip reading the
+          directory entirely.
+        - Classifies each folder as: create (new), update (changed), rename (path
+          changed but signature matches known folder), or unchanged (nothing changed).
+        - Sends only the delta (changed/new/renamed folders) to the server in batches.
+          Unchanged subtrees are skipped without any network traffic.
+
+        The server handles rename propagation: if a renamed folder was linked to a
+        Set or StagingSet, the archivePath on that record is automatically updated.
+
+    In both modes the script never modifies files — it only reads the filesystem
+    and sends data to the app API.
 
     Authentication uses a shared API key sent as the x-archive-key header.
-    Set ARCHIVE_API_KEY in the app's .env (on the server) and pass the same
-    value here via -ApiKey or the ARCHIVE_API_KEY environment variable.
+    Set ARCHIVE_API_KEY in the app's .env and pass the same value here via -ApiKey
+    or the ARCHIVE_API_KEY environment variable.
 
 .PARAMETER BaseUrl
     Base URL of the Pulseboard app.
@@ -33,39 +42,30 @@
 .PARAMETER ApiKey
     API key for authenticating with the archive endpoints.
     Default: value of ARCHIVE_API_KEY environment variable.
-    Required if the environment variable is not set.
 
 .PARAMETER Tenant
-    Tenant ID to scan (e.g. "pulse" or "xpulse").
-    Sent as the x-tenant-id header so the app queries the correct database.
+    Tenant ID (e.g. "pulse" or "xpulse").
     Default: value of ARCHIVE_TENANT environment variable.
-    If omitted, the app uses its default tenant (first in TENANT_REGISTRY).
 
 .PARAMETER Mode
     Scan mode: Targeted (default) or Full.
-    Targeted: check only paths already recorded in the database.
-    Full:     walk the entire archive filesystem and discover all folders.
 
 .PARAMETER PhotosetRoot
-    Root folder for photosets used in Full mode (e.g. "X:\Sites\").
+    Root folder for photosets in Full mode (e.g. "X:\Sites\").
     Default: value of ARCHIVE_PHOTOSET_ROOT environment variable.
-    Required in Full mode if -VideosetRoot is not provided.
 
 .PARAMETER VideosetRoot
-    Root folder for videosets used in Full mode (e.g. "M:\VSites\").
+    Root folder for videosets in Full mode (e.g. "M:\VSites\").
     Default: value of ARCHIVE_VIDEOSET_ROOT environment variable.
-    Required in Full mode if -PhotosetRoot is not provided.
 
 .PARAMETER BatchSize
-    Number of folders to send per POST request in Full mode. Default: 200.
+    Number of folders to send per POST in Full mode. Default: 200.
 
 .PARAMETER DryRun
-    If specified, prints what would be sent without POSTing results to the app.
-    The filesystem is still checked; only the ingest step is skipped.
+    Print what would be sent without POSTing to the app. Filesystem is still read.
 
 .PARAMETER Verbose
-    If specified, prints the status of every path as it is checked (Targeted mode)
-    or every folder discovered (Full mode).
+    Print per-folder status during the walk.
 
 .EXAMPLE
     .\archive-scan.ps1 -BaseUrl http://10.66.20.65:3000 -ApiKey s3cr3t -Tenant pulse
@@ -76,45 +76,44 @@
     .\archive-scan.ps1 -BaseUrl http://10.66.20.65:3000 -ApiKey s3cr3t -Tenant xpulse `
         -Mode Full -PhotosetRoot "X:\Sites\" -VideosetRoot "M:\VSites\"
 
-    Full filesystem walk of both roots for the "xpulse" tenant.
+    Smart full scan with rename detection and skip logic.
 
 .EXAMPLE
-    .\archive-scan.ps1 -BaseUrl http://10.66.20.65:3000 -ApiKey s3cr3t -Tenant pulse `
-        -Mode Full -PhotosetRoot "X:\Sites\" -DryRun
+    .\archive-scan.ps1 -Mode Full -PhotosetRoot "X:\Sites\" -DryRun
 
-    Full walk dry-run — print discovered folders without sending to the app.
+    Dry-run: walk filesystem, classify folders, print what would be sent.
 
 .EXAMPLE
-    $env:ARCHIVE_BASE_URL     = "http://10.66.20.65:3000"
-    $env:ARCHIVE_API_KEY      = "s3cr3t"
-    $env:ARCHIVE_TENANT       = "pulse"
+    $env:ARCHIVE_BASE_URL      = "http://10.66.20.65:3000"
+    $env:ARCHIVE_API_KEY       = "s3cr3t"
+    $env:ARCHIVE_TENANT        = "pulse"
     $env:ARCHIVE_PHOTOSET_ROOT = "X:\Sites\"
     $env:ARCHIVE_VIDEOSET_ROOT = "M:\VSites\"
     .\archive-scan.ps1 -Mode Full
 
-    Full walk using environment variables so credentials stay out of shell history.
-
 .NOTES
-    Requires PowerShell 5.1 or later (built into Windows 10/11).
-    No external dependencies — uses only built-in cmdlets.
+    Requires PowerShell 5.1 or later (Windows 10/11 built-in).
+    No external dependencies.
 
-    Targeted mode — video extensions checked: .mp4, .wmv, .mkv, .avi, .mov
-    For videosets the script checks:
-      - Folder exists
-      - frames\ subfolder file count
-      - Presence of {folderName}.{ext} in the folder root
-    For photosets the script checks:
-      - Folder exists
-      - Count of files directly in the folder root (non-recursive)
+    Targeted mode:
+      Video extensions checked: .mp4, .wmv, .mkv, .avi, .mov
+      Videosets: folder exists + frames\ count + {folderName}.{ext} present
+      Photosets: folder exists + root file count
 
-    Full mode — folder name convention parsed:
-      {YYYY-MM-DD}-{ShortName} {Participant} - {Title}
-    Folders that don't match the convention are still recorded as orphans
-    (parsedDate/parsedShortName/parsedTitle will be null).
-
-    Full mode walks exactly 3 levels deep:
+    Full mode — folder structure expected (3 levels deep):
       {root}\{channelFolder}\{year}\{folderName}\
-    Folders at other depths are ignored.
+
+    Content signature (rename fingerprint):
+      SHA256(sorted "filename:filesize" strings, "|"-delimited), first 16 hex chars.
+      Photosets: files in leaf folder root.
+      Videosets: files in frames\ subfolder.
+      Stable across: rename, move, copy+delete (file names/sizes preserved).
+      Changes when: files added/removed/renamed inside the folder.
+
+    Skip logic (directory LastWriteTime comparison):
+      chanFolderModifiedAt unchanged → skip all year dirs inside (0 reads)
+      yearDirModifiedAt unchanged    → skip all leaf dirs inside (0 reads)
+      leafDirModifiedAt unchanged    → skip file listing (action = unchanged)
 #>
 
 [CmdletBinding()]
@@ -135,7 +134,7 @@ $ErrorActionPreference = "Stop"
 # ── Validation ────────────────────────────────────────────────────────────────
 
 if (-not $ApiKey) {
-    Write-Error "API key is required. Pass -ApiKey or set the ARCHIVE_API_KEY environment variable."
+    Write-Error "API key is required. Pass -ApiKey or set ARCHIVE_API_KEY."
     exit 1
 }
 
@@ -146,84 +145,61 @@ if ($Mode -eq 'Full' -and -not $PhotosetRoot -and -not $VideosetRoot) {
 
 $BaseUrl = $BaseUrl.TrimEnd("/")
 
-# ── Build request headers ─────────────────────────────────────────────────────
+# ── Request headers ───────────────────────────────────────────────────────────
 
 $headers = @{ "x-archive-key" = $ApiKey }
-if ($Tenant) {
-    $headers["x-tenant-id"] = $Tenant
-}
+if ($Tenant) { $headers["x-tenant-id"] = $Tenant }
 
 # ── Shared helpers ────────────────────────────────────────────────────────────
 
 $VideoExtensions = @(".mp4", ".wmv", ".mkv", ".avi", ".mov")
 
-function Get-StatusLabel {
-    param($Result)
-    if ($Result.error)                      { return "ERROR" }
-    if (-not $Result.exists)                { return "MISSING" }
-    if ($Result.videoPresent -eq $false)    { return "INCOMPLETE" }
-    return "OK"
+function Normalize-Path {
+    param([string]$P)
+    return $P.TrimEnd("/\").ToLower().Replace("/","\")
 }
 
-# ── Targeted mode ─────────────────────────────────────────────────────────────
+# ── TARGETED MODE ─────────────────────────────────────────────────────────────
 
 function Check-ArchivePath {
-    param(
-        [string]$Id,
-        [string]$Type,
-        [string]$ArchivePath,
-        [bool]$IsVideo,
-        [string]$FolderName
-    )
+    param([string]$Id, [string]$Type, [string]$ArchivePath, [bool]$IsVideo, [string]$FolderName)
 
-    $exists       = $false
-    $fileCount    = $null
-    $videoPresent = $null
-    $errorMsg     = $null
+    $exists = $false; $fileCount = $null; $videoPresent = $null; $errorMsg = $null
 
     try {
-        if (-not (Test-Path -LiteralPath $ArchivePath -PathType Container)) {
-            # Folder does not exist — leave defaults
-        } else {
+        if (Test-Path -LiteralPath $ArchivePath -PathType Container) {
             $exists = $true
-
             if ($IsVideo) {
                 $framesDir = Join-Path $ArchivePath "frames"
-                if (Test-Path -LiteralPath $framesDir -PathType Container) {
-                    $fileCount = (Get-ChildItem -LiteralPath $framesDir -File).Count
-                } else {
-                    $fileCount = 0
-                }
-
+                $fileCount = if (Test-Path -LiteralPath $framesDir -PathType Container) {
+                    (Get-ChildItem -LiteralPath $framesDir -File).Count
+                } else { 0 }
                 $videoFound = $false
                 foreach ($ext in $VideoExtensions) {
-                    $candidate = Join-Path $ArchivePath ($FolderName + $ext)
-                    if (Test-Path -LiteralPath $candidate -PathType Leaf) {
-                        $videoFound = $true
-                        break
+                    if (Test-Path -LiteralPath (Join-Path $ArchivePath ($FolderName + $ext)) -PathType Leaf) {
+                        $videoFound = $true; break
                     }
                 }
                 $videoPresent = $videoFound
-
             } else {
                 $fileCount = (Get-ChildItem -LiteralPath $ArchivePath -File).Count
             }
         }
     } catch {
-        $exists    = $false
-        $fileCount = $null
-        $errorMsg  = $_.Exception.Message
+        $exists = $false; $fileCount = $null; $errorMsg = $_.Exception.Message
     }
 
     return [PSCustomObject]@{
-        id           = $Id
-        type         = $Type
-        path         = $ArchivePath
-        exists       = $exists
-        fileCount    = $fileCount
-        videoPresent = $videoPresent
-        error        = $errorMsg
+        id = $Id; type = $Type; path = $ArchivePath
+        exists = $exists; fileCount = $fileCount; videoPresent = $videoPresent; error = $errorMsg
     }
+}
+
+function Get-TargetedStatusLabel { param($R)
+    if ($R.error) { return "ERROR" }
+    if (-not $R.exists) { return "MISSING" }
+    if ($R.videoPresent -eq $false) { return "INCOMPLETE" }
+    return "OK"
 }
 
 function Run-TargetedScan {
@@ -231,24 +207,15 @@ function Run-TargetedScan {
     Write-Host ""
     Write-Host "Fetching known archive paths..."
     try {
-        $entries = @(Invoke-RestMethod `
-            -Uri "$BaseUrl/api/archive/paths" `
-            -Headers $headers `
-            -Method Get)
+        $entries = @(Invoke-RestMethod -Uri "$BaseUrl/api/archive/paths" -Headers $headers -Method Get)
     } catch {
-        Write-Error "Failed to fetch paths: $_"
-        exit 1
+        Write-Error "Failed to fetch paths: $_"; exit 1
     }
 
     $total = $entries.Count
     Write-Host "  Found $total path(s) to check"
+    if ($total -eq 0) { Write-Host "Nothing to scan."; exit 0 }
 
-    if ($total -eq 0) {
-        Write-Host "Nothing to scan."
-        exit 0
-    }
-
-    # PS 5.1: Invoke-RestMethod can return Hashtable for single-element arrays
     $entries = $entries | ForEach-Object {
         if ($_ -is [System.Collections.Hashtable]) { [PSCustomObject]$_ } else { $_ }
     }
@@ -258,21 +225,17 @@ function Run-TargetedScan {
 
     foreach ($entry in $entries) {
         $result = Check-ArchivePath `
-            -Id          ([string]$entry.id) `
-            -Type        ([string]$entry.type) `
-            -ArchivePath ([string]$entry.path) `
-            -IsVideo     ([bool]$entry.isVideo) `
-            -FolderName  ([string]$entry.folderName)
+            -Id ([string]$entry.id) -Type ([string]$entry.type) `
+            -ArchivePath ([string]$entry.path) -IsVideo ([bool]$entry.isVideo) `
+            -FolderName ([string]$entry.folderName)
 
         [void]$results.Add($result)
-
-        $label = Get-StatusLabel $result
+        $label = Get-TargetedStatusLabel $result
 
         if ($VerbosePreference -ne "SilentlyContinue") {
             Write-Host "  [$label] $($entry.path)"
             if ($entry.isVideo) {
-                $exts = $VideoExtensions -join ", "
-                Write-Host "          video file expected: $($entry.folderName).{$exts}"
+                Write-Host "          video file expected: $($entry.folderName).{$($VideoExtensions -join ', ')}"
                 Write-Host "          video present: $($result.videoPresent) — frames: $($result.fileCount)"
             } else {
                 Write-Host "          files: $($result.fileCount)"
@@ -288,24 +251,17 @@ function Run-TargetedScan {
     }
 
     if ($DryRun) {
-        Write-Host ""
-        Write-Host "Dry-run: would send the following results:"
+        Write-Host ""; Write-Host "Dry-run: would send:"
         ConvertTo-Json -InputObject @($results) -Depth 5 | Write-Host
     } else {
-        Write-Host ""
-        Write-Host "Sending scan results..."
+        Write-Host ""; Write-Host "Sending scan results..."
         try {
-            $body     = ConvertTo-Json -InputObject @($results) -Depth 5
-            $response = Invoke-RestMethod `
-                -Uri         "$BaseUrl/api/archive/ingest" `
-                -Headers     $headers `
-                -Method      Post `
-                -Body        $body `
-                -ContentType "application/json"
+            $body = ConvertTo-Json -InputObject @($results) -Depth 5
+            $response = Invoke-RestMethod -Uri "$BaseUrl/api/archive/ingest" -Headers $headers `
+                -Method Post -Body $body -ContentType "application/json"
             Write-Host "  Ingested $($response.count) result(s)"
         } catch {
-            Write-Error "Failed to ingest results: $_"
-            exit 1
+            Write-Error "Failed to ingest results: $_"; exit 1
         }
     }
 
@@ -318,79 +274,116 @@ function Run-TargetedScan {
     Write-Host "────────────────────────────────────────────────"
 }
 
-# ── Full walk mode ────────────────────────────────────────────────────────────
+# ── FULL MODE — Helpers ───────────────────────────────────────────────────────
+
+function Compute-FolderSignature {
+    param([string]$FolderPath, [bool]$IsVideo)
+
+    $searchPath = if ($IsVideo) { Join-Path $FolderPath "frames" } else { $FolderPath }
+
+    if (-not (Test-Path -LiteralPath $searchPath -PathType Container)) {
+        return "empty"
+    }
+
+    $parts = @(Get-ChildItem -LiteralPath $searchPath -File -ErrorAction SilentlyContinue |
+        Sort-Object Name |
+        ForEach-Object { "$($_.Name):$($_.Length)" })
+
+    if ($parts.Count -eq 0) { return "empty" }
+
+    $combined = $parts -join "|"
+    $sha    = [System.Security.Cryptography.SHA256]::Create()
+    $bytes  = [System.Text.Encoding]::UTF8.GetBytes($combined)
+    $hash   = $sha.ComputeHash($bytes)
+    $sha.Dispose()
+    return [BitConverter]::ToString($hash).Replace("-","").Substring(0,16).ToLower()
+}
+
+function Get-FileCount {
+    param([string]$FolderPath, [bool]$IsVideo)
+    if ($IsVideo) {
+        $framesDir = Join-Path $FolderPath "frames"
+        if (Test-Path -LiteralPath $framesDir -PathType Container) {
+            return (Get-ChildItem -LiteralPath $framesDir -File -ErrorAction SilentlyContinue).Count
+        }
+        return 0
+    }
+    return (Get-ChildItem -LiteralPath $FolderPath -File -ErrorAction SilentlyContinue).Count
+}
+
+function Get-VideoPresent {
+    param([string]$FolderPath, [string]$FolderName)
+    foreach ($ext in $VideoExtensions) {
+        if (Test-Path -LiteralPath (Join-Path $FolderPath ($FolderName + $ext)) -PathType Leaf) {
+            return $true
+        }
+    }
+    return $false
+}
 
 function Parse-FolderName {
     param([string]$Name)
-    # Convention: YYYY-MM-DD-ShortName Participant - Title
-    # Examples:
-    #   "2012-08-08-FJ Jane Doe - Summer Meadow"
-    #   "2015-03-21-MA Jane - Waterfall"  (no middle name)
     if ($Name -match '^(\d{4}-\d{2}-\d{2})-([A-Za-z0-9]+)\s+(.+?)\s+-\s+(.+)$') {
         return [PSCustomObject]@{
-            parsedDate      = $Matches[1]           # "YYYY-MM-DD"
-            parsedShortName = $Matches[2]           # e.g. "FJ"
-            parsedTitle     = $Matches[4]           # e.g. "Summer Meadow"
+            parsedDate      = $Matches[1]
+            parsedShortName = $Matches[2]
+            parsedTitle     = $Matches[4]
         }
     }
     return $null
 }
 
-function Check-FullFolder {
-    param(
-        [string]$FolderPath,
-        [bool]$IsVideo
-    )
+# ── FULL MODE — Preload ───────────────────────────────────────────────────────
 
-    $fileCount    = $null
-    $videoPresent = $null
-    $folderName   = Split-Path $FolderPath -Leaf
+function Load-KnownFolders {
+    Write-Host "  Preloading known folders from server..."
 
-    try {
-        if ($IsVideo) {
-            $framesDir = Join-Path $FolderPath "frames"
-            if (Test-Path -LiteralPath $framesDir -PathType Container) {
-                $fileCount = (Get-ChildItem -LiteralPath $framesDir -File).Count
-            } else {
-                $fileCount = 0
-            }
+    $byPath = @{}    # normalised fullPath → record
+    $bySig  = @{}    # contentSignature → record (for rename detection)
+    $cursor = $null
+    $total  = 0
 
-            $videoFound = $false
-            foreach ($ext in $VideoExtensions) {
-                $candidate = Join-Path $FolderPath ($folderName + $ext)
-                if (Test-Path -LiteralPath $candidate -PathType Leaf) {
-                    $videoFound = $true
-                    break
+    do {
+        $url = "$BaseUrl/api/archive/folders?pageSize=2000"
+        if ($cursor) { $url += "&cursor=$cursor" }
+
+        try {
+            $page = Invoke-RestMethod -Uri $url -Headers $headers -Method Get
+        } catch {
+            Write-Error "Failed to preload known folders: $_"; exit 1
+        }
+
+        # PS 5.1: normalise Hashtable → PSCustomObject
+        $records = @($page.records) | ForEach-Object {
+            if ($_ -is [System.Collections.Hashtable]) { [PSCustomObject]$_ } else { $_ }
+        }
+
+        foreach ($rec in $records) {
+            $normPath = Normalize-Path ([string]$rec.fullPath)
+            $byPath[$normPath] = $rec
+            $sig = [string]$rec.contentSignature
+            if ($sig -and $sig -ne "" -and $sig -ne "empty") {
+                # A signature might appear twice in edge cases; keep the first seen
+                if (-not $bySig.ContainsKey($sig)) {
+                    $bySig[$sig] = $rec
                 }
             }
-            $videoPresent = $videoFound
-        } else {
-            $fileCount = (Get-ChildItem -LiteralPath $FolderPath -File).Count
         }
-    } catch {
-        $fileCount    = $null
-        $videoPresent = $null
-    }
 
-    $parsed = Parse-FolderName $folderName
+        $total  += $records.Count
+        $cursor  = $page.nextCursor
+        Write-Host "    Loaded $total record(s)..."
 
-    return [PSCustomObject]@{
-        fullPath        = $FolderPath
-        isVideo         = $IsVideo
-        fileCount       = $fileCount
-        videoPresent    = $videoPresent
-        folderName      = $folderName
-        parsedDate      = if ($parsed) { $parsed.parsedDate      } else { $null }
-        parsedShortName = if ($parsed) { $parsed.parsedShortName } else { $null }
-        parsedTitle     = if ($parsed) { $parsed.parsedTitle     } else { $null }
-    }
+    } while ($cursor)
+
+    Write-Host "  Preload complete: $total folder(s) known"
+    return $byPath, $bySig
 }
 
-function Walk-ArchiveRoot {
-    param(
-        [string]$Root,
-        [bool]$IsVideo
-    )
+# ── FULL MODE — Walk ──────────────────────────────────────────────────────────
+
+function Walk-Root {
+    param([string]$Root, [bool]$IsVideo, [hashtable]$ByPath, [hashtable]$BySig)
 
     $rootLabel = if ($IsVideo) { "videoset" } else { "photoset" }
     Write-Host "  Walking $rootLabel root: $Root"
@@ -400,118 +393,274 @@ function Walk-ArchiveRoot {
         return [System.Collections.ArrayList]::new()
     }
 
-    $folders = [System.Collections.ArrayList]::new()
+    $delta      = [System.Collections.ArrayList]::new()
+    $skippedCF  = 0  # channelFolders skipped entirely
+    $skippedYr  = 0  # year dirs skipped
+    $skippedLf  = 0  # leaves skipped (unchanged)
+    $processed  = 0
 
-    # Walk exactly 3 levels: root → channelFolder → year → folderName
     $channelFolders = Get-ChildItem -LiteralPath $Root -Directory -ErrorAction SilentlyContinue
-    foreach ($cf in $channelFolders) {
-        $yearFolders = Get-ChildItem -LiteralPath $cf.FullName -Directory -ErrorAction SilentlyContinue
-        foreach ($yf in $yearFolders) {
-            $leafFolders = Get-ChildItem -LiteralPath $yf.FullName -Directory -ErrorAction SilentlyContinue
-            foreach ($lf in $leafFolders) {
-                $item = Check-FullFolder -FolderPath $lf.FullName -IsVideo $IsVideo
-                [void]$folders.Add($item)
 
-                if ($VerbosePreference -ne "SilentlyContinue") {
-                    $parsedTag = if ($item.parsedDate) { "[$($item.parsedDate) · $($item.parsedShortName)]" } else { "[unparsed]" }
-                    $vcTag = if ($IsVideo) { "video:$(if ($item.videoPresent) {'ok'} else {'missing'}) frames:$($item.fileCount)" } else { "files:$($item.fileCount)" }
-                    Write-Host "    $parsedTag $($lf.Name) — $vcTag"
+    foreach ($cf in $channelFolders) {
+        $cfMtime = $cf.LastWriteTime
+
+        # ── Level 1 skip: channelFolder mtime unchanged ─────────────────────
+        # Look up any known leaf under this channelFolder to get its stored mtime
+        $normCfPrefix = Normalize-Path $cf.FullName
+        $storedCfMtime = $null
+        foreach ($key in $ByPath.Keys) {
+            if ($key.StartsWith($normCfPrefix + "\")) {
+                $stored = $ByPath[$key]
+                if ($stored.chanFolderModifiedAt) {
+                    $storedCfMtime = [datetime]$stored.chanFolderModifiedAt
+                    break
                 }
+            }
+        }
+
+        if ($storedCfMtime -ne $null -and [Math]::Abs(($cfMtime - $storedCfMtime).TotalSeconds) -lt 2) {
+            if ($VerbosePreference -ne "SilentlyContinue") {
+                Write-Host "    [SKIP] $($cf.Name) (channelFolder unchanged)"
+            }
+            $skippedCF++
+            continue
+        }
+
+        $yearDirs = Get-ChildItem -LiteralPath $cf.FullName -Directory -ErrorAction SilentlyContinue
+
+        foreach ($yf in $yearDirs) {
+            $yrMtime = $yf.LastWriteTime
+
+            # ── Level 2 skip: year dir mtime unchanged ──────────────────────
+            $normYrPrefix = Normalize-Path $yf.FullName
+            $storedYrMtime = $null
+            foreach ($key in $ByPath.Keys) {
+                if ($key.StartsWith($normYrPrefix + "\")) {
+                    $stored = $ByPath[$key]
+                    if ($stored.yearDirModifiedAt) {
+                        $storedYrMtime = [datetime]$stored.yearDirModifiedAt
+                        break
+                    }
+                }
+            }
+
+            if ($storedYrMtime -ne $null -and [Math]::Abs(($yrMtime - $storedYrMtime).TotalSeconds) -lt 2) {
+                if ($VerbosePreference -ne "SilentlyContinue") {
+                    Write-Host "      [SKIP] $($cf.Name)\$($yf.Name) (year unchanged)"
+                }
+                $skippedYr++
+                continue
+            }
+
+            $leafDirs = Get-ChildItem -LiteralPath $yf.FullName -Directory -ErrorAction SilentlyContinue
+
+            foreach ($lf in $leafDirs) {
+                $lfMtime   = $lf.LastWriteTime
+                $normPath  = Normalize-Path $lf.FullName
+                $folderName = $lf.Name
+                $parsed    = Parse-FolderName $folderName
+
+                $existing  = $ByPath[$normPath]  # exact path match
+
+                # ── Level 3 skip: leaf mtime unchanged ──────────────────────
+                if ($existing -and $existing.leafDirModifiedAt) {
+                    $storedLfMtime = [datetime]$existing.leafDirModifiedAt
+                    if ([Math]::Abs(($lfMtime - $storedLfMtime).TotalSeconds) -lt 2) {
+                        # Still need to update parent mtimes if they changed
+                        # Send an unchanged record so the server refreshes cf/year mtimes
+                        $item = [PSCustomObject]@{
+                            action             = "unchanged"
+                            fullPath           = $lf.FullName
+                            isVideo            = $IsVideo
+                            fileCount          = $null
+                            videoPresent       = $null
+                            folderName         = $folderName
+                            contentSignature   = [string]$existing.contentSignature
+                            leafDirModifiedAt  = $lfMtime.ToString("o")
+                            yearDirModifiedAt  = $yrMtime.ToString("o")
+                            chanFolderModifiedAt = $cfMtime.ToString("o")
+                            parsedDate         = $null
+                            parsedShortName    = $null
+                            parsedTitle        = $null
+                        }
+                        [void]$delta.Add($item)
+                        $skippedLf++
+
+                        if ($VerbosePreference -ne "SilentlyContinue") {
+                            Write-Host "        [UNCHANGED] $folderName"
+                        }
+                        continue
+                    }
+                }
+
+                # Need to read the folder
+                $processed++
+                $sig       = Compute-FolderSignature $lf.FullName $IsVideo
+                $fileCount = Get-FileCount $lf.FullName $IsVideo
+                $videoPresent = if ($IsVideo) { Get-VideoPresent $lf.FullName $folderName } else { $null }
+
+                $action = "create"
+                $previousFullPath = $null
+
+                if ($existing) {
+                    # Known path — content changed (mtime differed)
+                    $action = "update"
+                } elseif ($sig -ne "empty" -and $BySig.ContainsKey($sig)) {
+                    # Unknown path but known signature → RENAME
+                    $action = "rename"
+                    $previousFullPath = [string]$BySig[$sig].fullPath
+
+                    if ($VerbosePreference -ne "SilentlyContinue") {
+                        Write-Host "        [RENAME] $folderName"
+                        Write-Host "                 was: $previousFullPath"
+                    }
+                } else {
+                    if ($VerbosePreference -ne "SilentlyContinue") {
+                        Write-Host "        [NEW] $folderName — sig:$sig files:$fileCount"
+                    }
+                }
+
+                $item = [PSCustomObject]@{
+                    action             = $action
+                    fullPath           = $lf.FullName
+                    isVideo            = $IsVideo
+                    fileCount          = $fileCount
+                    videoPresent       = $videoPresent
+                    folderName         = $folderName
+                    contentSignature   = $sig
+                    leafDirModifiedAt  = $lfMtime.ToString("o")
+                    yearDirModifiedAt  = $yrMtime.ToString("o")
+                    chanFolderModifiedAt = $cfMtime.ToString("o")
+                    parsedDate         = if ($parsed) { $parsed.parsedDate      } else { $null }
+                    parsedShortName    = if ($parsed) { $parsed.parsedShortName } else { $null }
+                    parsedTitle        = if ($parsed) { $parsed.parsedTitle     } else { $null }
+                }
+
+                if ($previousFullPath) {
+                    $item | Add-Member -NotePropertyName previousFullPath -NotePropertyValue $previousFullPath
+                }
+
+                [void]$delta.Add($item)
             }
         }
     }
 
-    Write-Host "    Discovered $($folders.Count) folder(s)"
-    return $folders
+    Write-Host "    Processed: $processed folder(s) | Skipped channelFolders: $skippedCF | Skipped years: $skippedYr | Skipped leaves: $skippedLf"
+    return $delta
 }
 
-function Send-Batch {
-    param(
-        [System.Collections.ArrayList]$Batch
-    )
-    $body     = ConvertTo-Json -InputObject @($Batch) -Depth 5
+# ── FULL MODE — Send ──────────────────────────────────────────────────────────
+
+function Send-SmartBatch {
+    param([System.Collections.ArrayList]$Batch)
+    $body     = ConvertTo-Json -InputObject @($Batch) -Depth 6
     $response = Invoke-RestMethod `
         -Uri         "$BaseUrl/api/archive/full-ingest" `
         -Headers     $headers `
         -Method      Post `
         -Body        $body `
         -ContentType "application/json"
-    return $response.upserted
+    return $response
 }
 
 function Run-FullScan {
-    Write-Host "Mode: Full"
+    Write-Host "Mode: Full (smart — with mtime skip + rename detection)"
     Write-Host ""
 
-    $allFolders = [System.Collections.ArrayList]::new()
+    # ── Step 1: Preload known folders ────────────────────────────────────────
+    $byPath, $bySig = Load-KnownFolders
+    Write-Host ""
+
+    # ── Step 2: Walk roots ───────────────────────────────────────────────────
+    $allDelta = [System.Collections.ArrayList]::new()
 
     if ($PhotosetRoot) {
         $root = $PhotosetRoot.TrimEnd("/\")
-        $found = Walk-ArchiveRoot -Root $root -IsVideo $false
-        foreach ($f in $found) { [void]$allFolders.Add($f) }
+        $found = Walk-Root -Root $root -IsVideo $false -ByPath $byPath -BySig $bySig
+        foreach ($f in $found) { [void]$allDelta.Add($f) }
     }
 
     if ($VideosetRoot) {
         $root = $VideosetRoot.TrimEnd("/\")
-        $found = Walk-ArchiveRoot -Root $root -IsVideo $true
-        foreach ($f in $found) { [void]$allFolders.Add($f) }
+        $found = Walk-Root -Root $root -IsVideo $true -ByPath $byPath -BySig $bySig
+        foreach ($f in $found) { [void]$allDelta.Add($f) }
     }
 
-    $total = $allFolders.Count
-    Write-Host ""
-    Write-Host "Total folders discovered: $total"
+    $totalDelta = $allDelta.Count
+    $creates   = @($allDelta | Where-Object { $_.action -eq 'create' }).Count
+    $updates   = @($allDelta | Where-Object { $_.action -eq 'update' }).Count
+    $renames   = @($allDelta | Where-Object { $_.action -eq 'rename' }).Count
+    $unchanged = @($allDelta | Where-Object { $_.action -eq 'unchanged' }).Count
 
-    if ($total -eq 0) {
-        Write-Host "Nothing found."
+    Write-Host ""
+    Write-Host "Delta summary:"
+    Write-Host ("  New:       " + $creates)
+    Write-Host ("  Changed:   " + $updates)
+    Write-Host ("  Renamed:   " + $renames)
+    Write-Host ("  Unchanged: $unchanged (mtime-only update)")
+    Write-Host ("  Total items to send: " + $totalDelta)
+
+    if ($totalDelta -eq 0) {
+        Write-Host ""
+        Write-Host "Nothing changed since last scan."
         exit 0
     }
 
     if ($DryRun) {
         Write-Host ""
-        Write-Host "Dry-run: would send $total folder(s) in batches of $BatchSize"
-        $firstBatch = [System.Collections.ArrayList]::new()
-        for ($i = 0; $i -lt [Math]::Min(5, $total); $i++) {
-            [void]$firstBatch.Add($allFolders[$i])
+        Write-Host "Dry-run: would send $totalDelta item(s) in batches of $BatchSize"
+        $preview = [System.Collections.ArrayList]::new()
+        for ($i = 0; $i -lt [Math]::Min(3, $totalDelta); $i++) {
+            [void]$preview.Add($allDelta[$i])
         }
-        Write-Host "First batch preview:"
-        ConvertTo-Json -InputObject @($firstBatch) -Depth 5 | Write-Host
-    } else {
-        Write-Host ""
-        Write-Host "Sending $total folder(s) in batches of $BatchSize..."
-
-        $sent      = 0
-        $upserted  = 0
-        $batchNum  = 0
-
-        while ($sent -lt $total) {
-            $batchNum++
-            $end   = [Math]::Min($sent + $BatchSize, $total)
-            $batch = [System.Collections.ArrayList]::new()
-
-            for ($i = $sent; $i -lt $end; $i++) {
-                [void]$batch.Add($allFolders[$i])
-            }
-
-            try {
-                $count = Send-Batch -Batch $batch
-                $upserted += $count
-                $pct = [Math]::Round(($end / $total) * 100)
-                Write-Host "  Batch $batchNum`: sent $($batch.Count) — upserted $count — progress $pct%"
-            } catch {
-                Write-Error "Batch $batchNum failed: $_"
-                exit 1
-            }
-
-            $sent = $end
-        }
-
-        Write-Host ""
-        Write-Host "── Summary ────────────────────────────────────"
-        Write-Host ("  Folders discovered: " + $total)
-        Write-Host ("  Upserted in DB:     " + $upserted)
-        Write-Host "  Matching pass:       running in background on server"
-        Write-Host "────────────────────────────────────────────────"
+        Write-Host "First items preview:"
+        ConvertTo-Json -InputObject @($preview) -Depth 6 | Write-Host
+        return
     }
+
+    # ── Step 3: POST delta in batches ────────────────────────────────────────
+    Write-Host ""
+    Write-Host "Sending delta in batches of $BatchSize..."
+
+    $sent       = 0
+    $totalSent  = 0
+    $batchNum   = 0
+    $totCre     = 0; $totUpd = 0; $totRen = 0; $totUnch = 0
+
+    while ($sent -lt $totalDelta) {
+        $batchNum++
+        $end   = [Math]::Min($sent + $BatchSize, $totalDelta)
+        $batch = [System.Collections.ArrayList]::new()
+        for ($i = $sent; $i -lt $end; $i++) {
+            [void]$batch.Add($allDelta[$i])
+        }
+
+        try {
+            $resp = Send-SmartBatch -Batch $batch
+            $totCre  += [int]$resp.created
+            $totUpd  += [int]$resp.updated
+            $totRen  += [int]$resp.renamed
+            $totUnch += [int]$resp.unchanged
+            $pct = [Math]::Round(($end / $totalDelta) * 100)
+            Write-Host "  Batch $batchNum`: sent $($batch.Count) — $pct% complete"
+        } catch {
+            Write-Error "Batch $batchNum failed: $_"; exit 1
+        }
+
+        $sent += $end - $sent
+        $totalSent += $batch.Count
+    }
+
+    Write-Host ""
+    Write-Host "── Summary ────────────────────────────────────"
+    Write-Host ("  New:              " + $totCre)
+    Write-Host ("  Updated:          " + $totUpd)
+    Write-Host ("  Renamed:          " + $totRen)
+    Write-Host ("  Unchanged (mtime):" + $totUnch)
+    if ($creates -gt 0) {
+        Write-Host "  Matching pass:    running in background on server"
+    }
+    Write-Host "────────────────────────────────────────────────"
 }
 
 # ── Main ──────────────────────────────────────────────────────────────────────

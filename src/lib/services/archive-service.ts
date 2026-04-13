@@ -584,13 +584,29 @@ export async function updateSetMediaPriority(id: string, priority: number): Prom
 
 // ─── Full-Walk Ingest Types ───────────────────────────────────────────────────
 
-export type FullIngestItem = {
+/** Returned by GET /api/archive/folders — used by scan script for preload */
+export type ScanPreloadRecord = {
+  id: string
   fullPath: string
+  contentSignature: string | null
+  leafDirModifiedAt: string | null    // ISO string or null
+  yearDirModifiedAt: string | null
+  chanFolderModifiedAt: string | null
+}
+
+export type FullIngestItem = {
+  action: 'create' | 'update' | 'rename' | 'unchanged'
+  fullPath: string
+  previousFullPath?: string           // rename only
   isVideo: boolean
   fileCount: number | null
   videoPresent: boolean | null
   folderName: string
-  parsedDate: string | null      // "YYYY-MM-DD" or null
+  contentSignature: string
+  leafDirModifiedAt: string           // ISO string
+  yearDirModifiedAt: string
+  chanFolderModifiedAt: string
+  parsedDate: string | null           // "YYYY-MM-DD" or null
   parsedShortName: string | null
   parsedTitle: string | null
 }
@@ -616,6 +632,8 @@ export type ArchiveFolderEntry = {
   suggestedSetTitle: string | null
   suggestedStagingTitle: string | null
   scannedAt: Date
+  lastRenamedAt: Date | null
+  lastRenamedFrom: string | null
 }
 
 export type PhantomEntry = {
@@ -663,51 +681,227 @@ export type WorkspacePage = {
   nextCursor: string | null
 }
 
+// ─── Scan Preload ─────────────────────────────────────────────────────────────
+
+/**
+ * Returns all ArchiveFolder records for the current tenant as lightweight
+ * preload records — used by the scan script to build its in-memory lookup maps.
+ * Cursor-paginated for tenants with > 5,000 folders.
+ */
+export async function getArchiveFoldersForScan(
+  cursor?: string,
+  pageSize = 2000,
+): Promise<{ records: ScanPreloadRecord[]; nextCursor: string | null }> {
+  const rows = await prisma.archiveFolder.findMany({
+    take: pageSize,
+    ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+    orderBy: { id: 'asc' },
+    select: {
+      id: true,
+      fullPath: true,
+      contentSignature: true,
+      leafDirModifiedAt: true,
+      yearDirModifiedAt: true,
+      chanFolderModifiedAt: true,
+    },
+  })
+
+  const records: ScanPreloadRecord[] = rows.map((r) => ({
+    id: r.id,
+    fullPath: r.fullPath,
+    contentSignature: r.contentSignature,
+    leafDirModifiedAt: r.leafDirModifiedAt?.toISOString() ?? null,
+    yearDirModifiedAt: r.yearDirModifiedAt?.toISOString() ?? null,
+    chanFolderModifiedAt: r.chanFolderModifiedAt?.toISOString() ?? null,
+  }))
+
+  return {
+    records,
+    nextCursor: rows.length === pageSize ? (rows[rows.length - 1]?.id ?? null) : null,
+  }
+}
+
 // ─── Full-Walk Ingest ─────────────────────────────────────────────────────────
 
 /**
- * Upsert a batch of ArchiveFolder records from a full-walk scan.
- * Existing rows (matched by fullPath) are updated; new rows are created.
- * Returns the number of rows upserted.
+ * Process a batch of smart scan items from a full-walk scan.
+ *
+ * Action semantics:
+ *   create    — new folder, never seen before → insert + run matching
+ *   update    — known folder (by fullPath), content changed → update fields, preserve links
+ *   rename    — known folder (by previousFullPath), path changed → update path + propagate to linked record
+ *   unchanged — mtime identical → only update parent mtime cache fields
+ *
+ * Returns counts of each action processed.
  */
 export async function upsertArchiveFolders(
   items: FullIngestItem[],
   tenant: string,
-): Promise<{ upserted: number }> {
+): Promise<{ created: number; updated: number; renamed: number; unchanged: number }> {
   const now = new Date()
+  const counts = { created: 0, updated: 0, renamed: 0, unchanged: 0 }
 
   for (const item of items) {
     const parsedDate = item.parsedDate ? new Date(item.parsedDate) : null
+    const leafDirModifiedAt = new Date(item.leafDirModifiedAt)
+    const yearDirModifiedAt = new Date(item.yearDirModifiedAt)
+    const chanFolderModifiedAt = new Date(item.chanFolderModifiedAt)
 
-    await prisma.archiveFolder.upsert({
-      where: { fullPath: item.fullPath },
-      create: {
-        fullPath: item.fullPath,
-        isVideo: item.isVideo,
-        fileCount: item.fileCount,
-        videoPresent: item.videoPresent,
-        folderName: item.folderName,
-        parsedDate,
-        parsedShortName: item.parsedShortName,
-        parsedTitle: item.parsedTitle,
-        scannedAt: now,
-        tenant,
-      },
-      update: {
-        isVideo: item.isVideo,
-        fileCount: item.fileCount,
-        videoPresent: item.videoPresent,
-        folderName: item.folderName,
-        parsedDate,
-        parsedShortName: item.parsedShortName,
-        parsedTitle: item.parsedTitle,
-        scannedAt: now,
-        // Do NOT reset link fields — preserve confirmed links across re-scans
-      },
-    })
+    if (item.action === 'create') {
+      await prisma.archiveFolder.create({
+        data: {
+          fullPath: item.fullPath,
+          isVideo: item.isVideo,
+          fileCount: item.fileCount,
+          videoPresent: item.videoPresent,
+          folderName: item.folderName,
+          parsedDate,
+          parsedShortName: item.parsedShortName,
+          parsedTitle: item.parsedTitle,
+          contentSignature: item.contentSignature,
+          leafDirModifiedAt,
+          yearDirModifiedAt,
+          chanFolderModifiedAt,
+          scannedAt: now,
+          tenant,
+        },
+      })
+      counts.created++
+
+    } else if (item.action === 'update') {
+      await prisma.archiveFolder.update({
+        where: { fullPath: item.fullPath },
+        data: {
+          fileCount: item.fileCount,
+          videoPresent: item.videoPresent,
+          folderName: item.folderName,
+          parsedDate,
+          parsedShortName: item.parsedShortName,
+          parsedTitle: item.parsedTitle,
+          contentSignature: item.contentSignature,
+          leafDirModifiedAt,
+          yearDirModifiedAt,
+          chanFolderModifiedAt,
+          scannedAt: now,
+          // Preserve all link fields
+        },
+      })
+      counts.updated++
+
+    } else if (item.action === 'rename' && item.previousFullPath) {
+      // Find existing record by previous path
+      const existing = await prisma.archiveFolder.findUnique({
+        where: { fullPath: item.previousFullPath },
+        select: {
+          id: true,
+          linkedSetId: true,
+          linkedStagingId: true,
+          isVideo: true,
+          relativePath: true,
+        },
+      })
+
+      if (existing) {
+        // Compute new relative path by stripping root from new fullPath
+        const newRelative = await _computeRelativePath(item.fullPath, item.isVideo)
+
+        await prisma.archiveFolder.update({
+          where: { id: existing.id },
+          data: {
+            fullPath: item.fullPath,
+            folderName: item.folderName,
+            relativePath: newRelative,
+            parsedDate,
+            parsedShortName: item.parsedShortName,
+            parsedTitle: item.parsedTitle,
+            contentSignature: item.contentSignature,
+            fileCount: item.fileCount,
+            videoPresent: item.videoPresent,
+            leafDirModifiedAt,
+            yearDirModifiedAt,
+            chanFolderModifiedAt,
+            lastRenamedFrom: item.previousFullPath,
+            lastRenamedAt: now,
+            scannedAt: now,
+          },
+        })
+
+        // Propagate new relative path to linked Set/StagingSet so archivePath stays current
+        if (newRelative) {
+          if (existing.linkedSetId) {
+            await prisma.set.update({
+              where: { id: existing.linkedSetId },
+              data: { archivePath: newRelative, archiveStatus: 'PENDING' },
+            })
+          }
+          if (existing.linkedStagingId) {
+            await prisma.stagingSet.update({
+              where: { id: existing.linkedStagingId },
+              data: { archivePath: newRelative, archiveStatus: 'PENDING' },
+            })
+          }
+        }
+
+        counts.renamed++
+      } else {
+        // Fallback: previous path not found, treat as create
+        await prisma.archiveFolder.upsert({
+          where: { fullPath: item.fullPath },
+          create: {
+            fullPath: item.fullPath,
+            isVideo: item.isVideo,
+            fileCount: item.fileCount,
+            videoPresent: item.videoPresent,
+            folderName: item.folderName,
+            parsedDate,
+            parsedShortName: item.parsedShortName,
+            parsedTitle: item.parsedTitle,
+            contentSignature: item.contentSignature,
+            leafDirModifiedAt,
+            yearDirModifiedAt,
+            chanFolderModifiedAt,
+            scannedAt: now,
+            tenant,
+          },
+          update: {
+            contentSignature: item.contentSignature,
+            leafDirModifiedAt,
+            yearDirModifiedAt,
+            chanFolderModifiedAt,
+            scannedAt: now,
+          },
+        })
+        counts.created++
+      }
+
+    } else if (item.action === 'unchanged') {
+      // Only update parent mtime cache — no content fields, no link fields
+      await prisma.archiveFolder.update({
+        where: { fullPath: item.fullPath },
+        data: {
+          yearDirModifiedAt,
+          chanFolderModifiedAt,
+          scannedAt: now,
+        },
+      })
+      counts.unchanged++
+    }
   }
 
-  return { upserted: items.length }
+  return counts
+}
+
+/**
+ * Strip the configured archive root from a full filesystem path to get the
+ * relative path stored in the DB. Returns null if root is not configured.
+ */
+async function _computeRelativePath(fullPath: string, isVideo: boolean): Promise<string | null> {
+  const rootKey = isVideo ? ARCHIVE_VIDEOSET_ROOT_KEY : ARCHIVE_PHOTOSET_ROOT_KEY
+  const root = await getSetting(rootKey)
+  if (!root) return null
+  const normRoot = root.replace(/[/\\]$/, '')
+  if (!fullPath.toLowerCase().startsWith(normRoot.toLowerCase())) return null
+  return fullPath.slice(normRoot.length).replace(/^[/\\]/, '')
 }
 
 /**
@@ -928,6 +1122,8 @@ export async function getArchiveWorkspace(filters: WorkspaceFilters): Promise<Wo
           suggestedSetId: true,
           suggestedStagingId: true,
           scannedAt: true,
+          lastRenamedAt: true,
+          lastRenamedFrom: true,
         },
       }),
     ])
@@ -996,6 +1192,8 @@ export async function getArchiveWorkspace(filters: WorkspaceFilters): Promise<Wo
           suggestedSetId: true,
           suggestedStagingId: true,
           scannedAt: true,
+          lastRenamedAt: true,
+          lastRenamedFrom: true,
         },
       }),
     ])

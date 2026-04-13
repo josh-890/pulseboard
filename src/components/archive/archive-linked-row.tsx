@@ -1,6 +1,12 @@
+'use client'
+
 import Link from 'next/link'
 import { Camera, Film, ExternalLink, CheckCircle2 } from 'lucide-react'
 import type { ArchiveFolderEntry } from '@/lib/services/archive-service'
+
+// Evaluated once at module load — accurate enough for a 7-day display badge
+const MODULE_LOAD_TIME_MS = Date.now()
+const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000
 
 type Props = {
   item: ArchiveFolderEntry
@@ -10,6 +16,10 @@ export function ArchiveLinkedRow({ item }: Props) {
   const dateStr = item.parsedDate
     ? new Date(item.parsedDate).toISOString().split('T')[0]
     : null
+
+  const isRecentlyRenamed =
+    item.lastRenamedAt != null &&
+    MODULE_LOAD_TIME_MS - new Date(item.lastRenamedAt).getTime() < SEVEN_DAYS_MS
 
   const linkedHref = item.linkedSetId
     ? `/sets/${item.linkedSetId}`
@@ -55,6 +65,16 @@ export function ArchiveLinkedRow({ item }: Props) {
               · video {item.videoPresent ? 'ok' : 'missing'}
             </span>
           )}
+        </span>
+      )}
+
+      {/* Rename badge */}
+      {isRecentlyRenamed && item.lastRenamedFrom && (
+        <span
+          title={`Renamed from: ${item.lastRenamedFrom}`}
+          className="shrink-0 rounded-full bg-amber-500/20 px-2 py-0.5 text-[10px] font-medium text-amber-600 dark:text-amber-400"
+        >
+          renamed
         </span>
       )}
 
