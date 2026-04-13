@@ -131,15 +131,35 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+# ── .env file loader ──────────────────────────────────────────────────────────
+# Looks for a .env file next to the script. Lines: KEY=VALUE (# comments ok).
+# Only fills in params/env-vars that weren't already supplied on the command line.
+
+$dotEnvPath = Join-Path $PSScriptRoot ".env"
+if (Test-Path -LiteralPath $dotEnvPath -PathType Leaf) {
+    $dotEnv = @{}
+    Get-Content $dotEnvPath | ForEach-Object {
+        $line = $_.Trim()
+        if ($line -and -not $line.StartsWith("#") -and $line -match "^([^=]+)=(.*)$") {
+            $dotEnv[$Matches[1].Trim()] = $Matches[2].Trim().Trim('"').Trim("'")
+        }
+    }
+    if (-not $ApiKey       -and $dotEnv["ARCHIVE_API_KEY"])        { $ApiKey       = $dotEnv["ARCHIVE_API_KEY"] }
+    if ($BaseUrl -eq "http://localhost:3000" -and $dotEnv["ARCHIVE_BASE_URL"]) { $BaseUrl = $dotEnv["ARCHIVE_BASE_URL"] }
+    if (-not $Tenant       -and $dotEnv["ARCHIVE_TENANT"])         { $Tenant       = $dotEnv["ARCHIVE_TENANT"] }
+    if (-not $PhotosetRoot -and $dotEnv["ARCHIVE_PHOTOSET_ROOT"])  { $PhotosetRoot = $dotEnv["ARCHIVE_PHOTOSET_ROOT"] }
+    if (-not $VideosetRoot -and $dotEnv["ARCHIVE_VIDEOSET_ROOT"])  { $VideosetRoot = $dotEnv["ARCHIVE_VIDEOSET_ROOT"] }
+}
+
 # ── Validation ────────────────────────────────────────────────────────────────
 
 if (-not $ApiKey) {
-    Write-Error "API key is required. Pass -ApiKey or set ARCHIVE_API_KEY."
+    Write-Error "API key is required. Pass -ApiKey, set ARCHIVE_API_KEY, or add it to a .env file next to the script."
     exit 1
 }
 
 if ($Mode -eq 'Full' -and -not $PhotosetRoot -and -not $VideosetRoot) {
-    Write-Error "Full mode requires at least one of -PhotosetRoot or -VideosetRoot."
+    Write-Error "Full mode requires at least one of -PhotosetRoot or -VideosetRoot (param, env var, or .env file)."
     exit 1
 }
 
