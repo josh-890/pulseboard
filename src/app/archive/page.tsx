@@ -1,3 +1,4 @@
+import { withTenantFromHeaders } from '@/lib/tenant-context'
 import { getArchiveWorkspace } from '@/lib/services/archive-service'
 import { ArchiveWorkspaceClient } from '@/components/archive/archive-workspace-client'
 import type { WorkspaceFilters } from '@/lib/services/archive-service'
@@ -35,14 +36,16 @@ export default async function ArchivePage({ searchParams }: { searchParams: Sear
     pageSize: 50,
   }
 
-  const page = await getArchiveWorkspace(filters)
+  return withTenantFromHeaders(async () => {
+    const page = await getArchiveWorkspace(filters)
 
-  return (
-    <ArchiveWorkspaceClient
-      initialPage={page}
-      initialTab={tab}
-      initialIsVideo={isVideo}
-      initialHasSuggestion={hasSuggestion || undefined}
-    />
-  )
+    return (
+      <ArchiveWorkspaceClient
+        initialPage={page}
+        initialTab={tab}
+        initialIsVideo={isVideo}
+        initialHasSuggestion={hasSuggestion || undefined}
+      />
+    )
+  })
 }
