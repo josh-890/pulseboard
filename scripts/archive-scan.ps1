@@ -179,6 +179,20 @@ function Normalize-Path {
     return $P.TrimEnd("/\").ToLower().Replace("/","\")
 }
 
+# Invoke-RestMethod in PS 5.1 may auto-convert ISO date strings to [DateTime] objects.
+# This helper handles both cases and always returns a UTC DateTime.
+function To-UtcDateTime {
+    param($val)
+    if ($null -eq $val) { return $null }
+    if ($val -is [datetime]) { return $val.ToUniversalTime() }
+    # String — parse with invariant culture, treat Z suffix as UTC
+    return [datetime]::Parse(
+        [string]$val,
+        [System.Globalization.CultureInfo]::InvariantCulture,
+        [System.Globalization.DateTimeStyles]::RoundtripKind
+    ).ToUniversalTime()
+}
+
 # ── TARGETED MODE ─────────────────────────────────────────────────────────────
 
 function Check-ArchivePath {
@@ -434,7 +448,7 @@ function Walk-Root {
             if ($key.StartsWith($normCfPrefix + "\")) {
                 $stored = $ByPath[$key]
                 if ($stored.chanFolderModifiedAt) {
-                    $storedCfMtime = [datetime]::Parse($stored.chanFolderModifiedAt, $null, [System.Globalization.DateTimeStyles]::RoundtripKind).ToUniversalTime()
+                    $storedCfMtime = To-UtcDateTime $stored.chanFolderModifiedAt
                     break
                 }
             }
@@ -460,7 +474,7 @@ function Walk-Root {
                 if ($key.StartsWith($normYrPrefix + "\")) {
                     $stored = $ByPath[$key]
                     if ($stored.yearDirModifiedAt) {
-                        $storedYrMtime = [datetime]::Parse($stored.yearDirModifiedAt, $null, [System.Globalization.DateTimeStyles]::RoundtripKind).ToUniversalTime()
+                        $storedYrMtime = To-UtcDateTime $stored.yearDirModifiedAt
                         break
                     }
                 }
@@ -486,7 +500,7 @@ function Walk-Root {
 
                 # ── Level 3 skip: leaf mtime unchanged ──────────────────────
                 if ($existing -and $existing.leafDirModifiedAt) {
-                    $storedLfMtime = [datetime]::Parse($existing.leafDirModifiedAt, $null, [System.Globalization.DateTimeStyles]::RoundtripKind).ToUniversalTime()
+                    $storedLfMtime = To-UtcDateTime $existing.leafDirModifiedAt
                     if ([Math]::Abs(($lfMtime - $storedLfMtime).TotalSeconds) -lt 2) {
                         # Still need to update parent mtimes if they changed
                         # Send an unchanged record so the server refreshes cf/year mtimes
