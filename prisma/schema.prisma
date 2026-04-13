@@ -1553,13 +1553,13 @@ model StagingSet {
   participantStatuses   Json?
 
   // Provenance
-  importBatchId     String
-  importBatch       ImportBatch       @relation(fields: [importBatchId], references: [id], onDelete: Cascade)
+  importBatchId     String?
+  importBatch       ImportBatch?      @relation(fields: [importBatchId], references: [id], onDelete: Cascade)
   importItemId      String?           @unique
   importItem        ImportItem?       @relation(fields: [importItemId], references: [id])
   subjectPersonId   String?
   subjectPerson     Person?           @relation("StagingSetSubject", fields: [subjectPersonId], references: [id])
-  subjectIcgId      String
+  subjectIcgId      String?
 
   // Matching
   matchedSetId      String?
@@ -1623,4 +1623,32 @@ model PersonResearch {
   updatedAt DateTime @updatedAt
 
   @@index([personId])
+}
+
+// Represents a physical folder discovered on the archive filesystem during a full-walk scan.
+// One row per unique absolute path. Persisted across scans; updated on re-scan.
+model ArchiveFolder {
+  id              String    @id @default(cuid())
+  fullPath        String    @unique  // absolute path as seen on the scanner host
+  relativePath    String?            // {channelFolder}\{year}\{folderName} — populated after matching
+  isVideo         Boolean
+  fileCount       Int?               // files in root (photo) or frames\ subfolder (video)
+  videoPresent    Boolean?           // videosets only: named video file present
+  folderName      String             // last segment of fullPath
+  parsedDate      DateTime?          // date parsed from folder name convention
+  parsedShortName String?            // channel shortName parsed from folder name
+  parsedTitle     String?            // title remainder parsed from folder name
+  linkedSetId     String?            // confirmed link → Set
+  linkedStagingId String?            // confirmed link → StagingSet
+  suggestedSetId  String?            // suggested (unconfirmed) match → Set
+  suggestedStagingId String?         // suggested (unconfirmed) match → StagingSet
+  scannedAt       DateTime
+  tenant          String             // which tenant DB this record belongs to
+
+  @@index([folderName])
+  @@index([parsedDate, parsedShortName])
+  @@index([linkedSetId])
+  @@index([linkedStagingId])
+  @@index([tenant])
+  @@map("archive_folder")
 }

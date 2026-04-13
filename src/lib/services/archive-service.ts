@@ -10,7 +10,7 @@
 
 import { prisma } from '@/lib/db'
 import { getSetting, setSetting } from '@/lib/services/setting-service'
-import type { ArchiveStatus } from '@/generated/prisma/client'
+import type { ArchiveStatus, Prisma } from '@/generated/prisma/client'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -580,4 +580,658 @@ export async function updateSetMediaPriority(id: string, priority: number): Prom
     where: { id },
     data: { mediaPriority: priority },
   })
+}
+
+// ─── Full-Walk Ingest Types ───────────────────────────────────────────────────
+
+export type FullIngestItem = {
+  fullPath: string
+  isVideo: boolean
+  fileCount: number | null
+  videoPresent: boolean | null
+  folderName: string
+  parsedDate: string | null      // "YYYY-MM-DD" or null
+  parsedShortName: string | null
+  parsedTitle: string | null
+}
+
+// ─── Archive Workspace Types ──────────────────────────────────────────────────
+
+export type ArchiveFolderEntry = {
+  id: string
+  fullPath: string
+  relativePath: string | null
+  isVideo: boolean
+  fileCount: number | null
+  videoPresent: boolean | null
+  folderName: string
+  parsedDate: Date | null
+  parsedShortName: string | null
+  parsedTitle: string | null
+  linkedSetId: string | null
+  linkedStagingId: string | null
+  suggestedSetId: string | null
+  suggestedStagingId: string | null
+  /** Title of the suggested match (for display) */
+  suggestedSetTitle: string | null
+  suggestedStagingTitle: string | null
+  scannedAt: Date
+}
+
+export type PhantomEntry = {
+  id: string
+  type: 'set' | 'staging'
+  title: string
+  archivePath: string
+  archiveStatus: ArchiveStatus
+  archiveLastChecked: Date | null
+  channelName: string | null
+  releaseDate: Date | null
+  isVideo: boolean
+}
+
+export type UntrackedEntry = {
+  id: string
+  type: 'set' | 'staging'
+  title: string
+  channelName: string | null
+  releaseDate: Date | null
+  isVideo: boolean
+}
+
+export type WorkspaceCounts = {
+  orphan: number
+  linked: number
+  phantom: number
+  untracked: number
+}
+
+export type WorkspaceFilters = {
+  tab: 'orphan' | 'linked' | 'phantom' | 'untracked'
+  isVideo?: boolean
+  shortName?: string
+  year?: number
+  hasSuggestion?: boolean
+  cursor?: string
+  pageSize?: number
+}
+
+export type WorkspacePage = {
+  items: ArchiveFolderEntry[] | PhantomEntry[] | UntrackedEntry[]
+  total: number
+  counts: WorkspaceCounts
+  nextCursor: string | null
+}
+
+// ─── Full-Walk Ingest ─────────────────────────────────────────────────────────
+
+/**
+ * Upsert a batch of ArchiveFolder records from a full-walk scan.
+ * Existing rows (matched by fullPath) are updated; new rows are created.
+ * Returns the number of rows upserted.
+ */
+export async function upsertArchiveFolders(
+  items: FullIngestItem[],
+  tenant: string,
+): Promise<{ upserted: number }> {
+  const now = new Date()
+
+  for (const item of items) {
+    const parsedDate = item.parsedDate ? new Date(item.parsedDate) : null
+
+    await prisma.archiveFolder.upsert({
+      where: { fullPath: item.fullPath },
+      create: {
+        fullPath: item.fullPath,
+        isVideo: item.isVideo,
+        fileCount: item.fileCount,
+        videoPresent: item.videoPresent,
+        folderName: item.folderName,
+        parsedDate,
+        parsedShortName: item.parsedShortName,
+        parsedTitle: item.parsedTitle,
+        scannedAt: now,
+        tenant,
+      },
+      update: {
+        isVideo: item.isVideo,
+        fileCount: item.fileCount,
+        videoPresent: item.videoPresent,
+        folderName: item.folderName,
+        parsedDate,
+        parsedShortName: item.parsedShortName,
+        parsedTitle: item.parsedTitle,
+        scannedAt: now,
+        // Do NOT reset link fields — preserve confirmed links across re-scans
+      },
+    })
+  }
+
+  return { upserted: items.length }
+}
+
+/**
+ * After upserting ArchiveFolder records, run the matching pass:
+ * 1. Compute relativePath for each folder (strip known roots)
+ * 2. Try exact archivePath match → set linkedSetId / linkedStagingId
+ * 3. Try parsedDate + parsedShortName → set suggestedSetId / suggestedStagingId
+ *
+ * Only processes unlinked folders (linkedSetId IS NULL AND linkedStagingId IS NULL).
+ */
+export async function runMatchingPass(
+  tenant: string,
+): Promise<{ linked: number; suggested: number }> {
+  const [photoRoot, videoRoot] = await Promise.all([
+    getSetting(ARCHIVE_PHOTOSET_ROOT_KEY),
+    getSetting(ARCHIVE_VIDEOSET_ROOT_KEY),
+  ])
+
+  // Load all unlinked folders for this tenant
+  const folders = await prisma.archiveFolder.findMany({
+    where: {
+      tenant,
+      linkedSetId: null,
+      linkedStagingId: null,
+    },
+    select: {
+      id: true,
+      fullPath: true,
+      isVideo: true,
+      folderName: true,
+      parsedDate: true,
+      parsedShortName: true,
+      parsedTitle: true,
+      relativePath: true,
+    },
+  })
+
+  // Build relative path lookup sets from DB records for fast matching
+  const stagingPaths = await prisma.stagingSet.findMany({
+    where: { archivePath: { not: null } },
+    select: { id: true, archivePath: true, isVideo: true },
+  })
+  const setPaths = await prisma.set.findMany({
+    where: { archivePath: { not: null } },
+    select: { id: true, archivePath: true, type: true },
+  })
+
+  // Index by normalised relative path (lowercase, forward slashes, no trailing slash)
+  const stagingByPath = new Map(
+    stagingPaths.map((s) => [_normPath(s.archivePath!), s.id]),
+  )
+  const setByPath = new Map(
+    setPaths.map((s) => [_normPath(s.archivePath!), s.id]),
+  )
+
+  let linked = 0
+  let suggested = 0
+
+  for (const folder of folders) {
+    // Compute relativePath from fullPath by stripping the known root
+    const root = folder.isVideo ? videoRoot : photoRoot
+    let relativePath = folder.relativePath
+    if (!relativePath && root) {
+      const normRoot = root.replace(/[/\\]$/, '')
+      if (folder.fullPath.toLowerCase().startsWith(normRoot.toLowerCase())) {
+        relativePath = folder.fullPath.slice(normRoot.length).replace(/^[/\\]/, '')
+        await prisma.archiveFolder.update({
+          where: { id: folder.id },
+          data: { relativePath },
+        })
+      }
+    }
+
+    // Step 1: exact path match
+    const normRelative = relativePath ? _normPath(relativePath) : null
+    if (normRelative) {
+      const stagingId = stagingByPath.get(normRelative)
+      const setId = setByPath.get(normRelative)
+      if (stagingId) {
+        await prisma.archiveFolder.update({
+          where: { id: folder.id },
+          data: { linkedStagingId: stagingId },
+        })
+        linked++
+        continue
+      }
+      if (setId) {
+        await prisma.archiveFolder.update({
+          where: { id: folder.id },
+          data: { linkedSetId: setId },
+        })
+        linked++
+        continue
+      }
+    }
+
+    // Step 2: parsedDate + parsedShortName → suggestion
+    if (folder.parsedDate && folder.parsedShortName) {
+      const dateStart = new Date(folder.parsedDate)
+      dateStart.setHours(0, 0, 0, 0)
+      const dateEnd = new Date(dateStart)
+      dateEnd.setDate(dateEnd.getDate() + 1)
+
+      // Try staging sets first
+      const stagingSuggestions = await prisma.stagingSet.findMany({
+        where: {
+          releaseDate: { gte: dateStart, lt: dateEnd },
+          channel: { shortName: { equals: folder.parsedShortName, mode: 'insensitive' } },
+          archivePath: null, // only suggest unlinked sets
+        },
+        select: { id: true },
+        take: 1,
+      })
+      if (stagingSuggestions.length > 0) {
+        await prisma.archiveFolder.update({
+          where: { id: folder.id },
+          data: { suggestedStagingId: stagingSuggestions[0].id },
+        })
+        suggested++
+        continue
+      }
+
+      // Try promoted sets
+      const setSuggestions = await prisma.set.findMany({
+        where: {
+          releaseDate: { gte: dateStart, lt: dateEnd },
+          channel: { shortName: { equals: folder.parsedShortName, mode: 'insensitive' } },
+          archivePath: null,
+        },
+        select: { id: true },
+        take: 1,
+      })
+      if (setSuggestions.length > 0) {
+        await prisma.archiveFolder.update({
+          where: { id: folder.id },
+          data: { suggestedSetId: setSuggestions[0].id },
+        })
+        suggested++
+      }
+    }
+  }
+
+  return { linked, suggested }
+}
+
+function _normPath(p: string): string {
+  return p.replace(/[/\\]+/g, '/').replace(/\/$/, '').toLowerCase()
+}
+
+// ─── Archive Workspace Queries ────────────────────────────────────────────────
+
+/**
+ * Returns tab counts + paginated items for the /archive workspace page.
+ */
+export async function getArchiveWorkspace(filters: WorkspaceFilters): Promise<WorkspacePage> {
+  const pageSize = filters.pageSize ?? 50
+
+  // Always compute all tab counts together
+  const [orphanCount, linkedCount, phantomCount, untrackedCount] = await Promise.all([
+    prisma.archiveFolder.count({ where: { linkedSetId: null, linkedStagingId: null } }),
+    prisma.archiveFolder.count({
+      where: { OR: [{ linkedSetId: { not: null } }, { linkedStagingId: { not: null } }] },
+    }),
+    Promise.all([
+      prisma.set.count({ where: { archiveStatus: 'MISSING' } }),
+      prisma.stagingSet.count({ where: { archiveStatus: 'MISSING' } }),
+    ]).then(([a, b]) => a + b),
+    Promise.all([
+      prisma.set.count({ where: { archiveStatus: 'UNKNOWN' } }),
+      prisma.stagingSet.count({ where: { archiveStatus: 'UNKNOWN' } }),
+    ]).then(([a, b]) => a + b),
+  ])
+
+  const counts: WorkspaceCounts = {
+    orphan: orphanCount,
+    linked: linkedCount,
+    phantom: phantomCount,
+    untracked: untrackedCount,
+  }
+
+  if (filters.tab === 'orphan') {
+    const where = {
+      linkedSetId: null,
+      linkedStagingId: null,
+      ...(filters.isVideo !== undefined ? { isVideo: filters.isVideo } : {}),
+      ...(filters.shortName ? { parsedShortName: { equals: filters.shortName, mode: 'insensitive' as const } } : {}),
+      ...(filters.year ? {
+        parsedDate: {
+          gte: new Date(`${filters.year}-01-01`),
+          lt: new Date(`${filters.year + 1}-01-01`),
+        },
+      } : {}),
+      ...(filters.hasSuggestion ? {
+        OR: [{ suggestedSetId: { not: null } }, { suggestedStagingId: { not: null } }],
+      } : {}),
+    }
+
+    const [total, rows] = await Promise.all([
+      prisma.archiveFolder.count({ where }),
+      prisma.archiveFolder.findMany({
+        where,
+        orderBy: [{ parsedDate: 'desc' }, { folderName: 'asc' }],
+        take: pageSize,
+        ...(filters.cursor ? { cursor: { id: filters.cursor }, skip: 1 } : {}),
+        select: {
+          id: true,
+          fullPath: true,
+          relativePath: true,
+          isVideo: true,
+          fileCount: true,
+          videoPresent: true,
+          folderName: true,
+          parsedDate: true,
+          parsedShortName: true,
+          parsedTitle: true,
+          linkedSetId: true,
+          linkedStagingId: true,
+          suggestedSetId: true,
+          suggestedStagingId: true,
+          scannedAt: true,
+        },
+      }),
+    ])
+
+    // Fetch suggested set titles for display
+    const suggestedSetIds = rows.map((r) => r.suggestedSetId).filter(Boolean) as string[]
+    const suggestedStagingIds = rows.map((r) => r.suggestedStagingId).filter(Boolean) as string[]
+    const [suggestedSets, suggestedStagings] = await Promise.all([
+      suggestedSetIds.length > 0
+        ? prisma.set.findMany({ where: { id: { in: suggestedSetIds } }, select: { id: true, title: true } })
+        : [],
+      suggestedStagingIds.length > 0
+        ? prisma.stagingSet.findMany({ where: { id: { in: suggestedStagingIds } }, select: { id: true, title: true } })
+        : [],
+    ])
+    const setTitleMap = new Map(suggestedSets.map((s) => [s.id, s.title]))
+    const stagingTitleMap = new Map(suggestedStagings.map((s) => [s.id, s.title]))
+
+    const items: ArchiveFolderEntry[] = rows.map((r) => ({
+      ...r,
+      suggestedSetTitle: r.suggestedSetId ? (setTitleMap.get(r.suggestedSetId) ?? null) : null,
+      suggestedStagingTitle: r.suggestedStagingId ? (stagingTitleMap.get(r.suggestedStagingId) ?? null) : null,
+    }))
+
+    return {
+      items,
+      total,
+      counts,
+      nextCursor: rows.length === pageSize ? (rows[rows.length - 1]?.id ?? null) : null,
+    }
+  }
+
+  if (filters.tab === 'linked') {
+    const where = {
+      OR: [{ linkedSetId: { not: null } }, { linkedStagingId: { not: null } }],
+      ...(filters.isVideo !== undefined ? { isVideo: filters.isVideo } : {}),
+      ...(filters.shortName ? { parsedShortName: { equals: filters.shortName, mode: 'insensitive' as const } } : {}),
+      ...(filters.year ? {
+        parsedDate: {
+          gte: new Date(`${filters.year}-01-01`),
+          lt: new Date(`${filters.year + 1}-01-01`),
+        },
+      } : {}),
+    }
+
+    const [total, rows] = await Promise.all([
+      prisma.archiveFolder.count({ where }),
+      prisma.archiveFolder.findMany({
+        where,
+        orderBy: [{ parsedDate: 'desc' }, { folderName: 'asc' }],
+        take: pageSize,
+        ...(filters.cursor ? { cursor: { id: filters.cursor }, skip: 1 } : {}),
+        select: {
+          id: true,
+          fullPath: true,
+          relativePath: true,
+          isVideo: true,
+          fileCount: true,
+          videoPresent: true,
+          folderName: true,
+          parsedDate: true,
+          parsedShortName: true,
+          parsedTitle: true,
+          linkedSetId: true,
+          linkedStagingId: true,
+          suggestedSetId: true,
+          suggestedStagingId: true,
+          scannedAt: true,
+        },
+      }),
+    ])
+
+    const items: ArchiveFolderEntry[] = rows.map((r) => ({
+      ...r,
+      suggestedSetTitle: null,
+      suggestedStagingTitle: null,
+    }))
+
+    return {
+      items,
+      total,
+      counts,
+      nextCursor: rows.length === pageSize ? (rows[rows.length - 1]?.id ?? null) : null,
+    }
+  }
+
+  if (filters.tab === 'phantom') {
+    const videoWhere = filters.isVideo !== undefined
+      ? (filters.isVideo ? ({ type: 'video' as const }) : ({ type: { not: 'video' as const } }))
+      : {}
+
+    const [sets, stagings, setTotal, stagingTotal] = await Promise.all([
+      prisma.set.findMany({
+        where: { archiveStatus: 'MISSING', ...videoWhere },
+        select: {
+          id: true, title: true, archivePath: true, archiveStatus: true,
+          archiveLastChecked: true, releaseDate: true, type: true,
+          channel: { select: { name: true } },
+        },
+        orderBy: { archiveLastChecked: 'desc' },
+        take: pageSize,
+        ...(filters.cursor ? { cursor: { id: filters.cursor }, skip: 1 } : {}),
+      }),
+      prisma.stagingSet.findMany({
+        where: { archiveStatus: 'MISSING', ...(filters.isVideo !== undefined ? { isVideo: filters.isVideo } : {}) },
+        select: {
+          id: true, title: true, archivePath: true, archiveStatus: true,
+          archiveLastChecked: true, releaseDate: true, isVideo: true, channelName: true,
+        },
+        orderBy: { archiveLastChecked: 'desc' },
+        take: pageSize,
+        ...(filters.cursor ? { cursor: { id: filters.cursor }, skip: 1 } : {}),
+      }),
+      prisma.set.count({ where: { archiveStatus: 'MISSING', ...videoWhere } }),
+      prisma.stagingSet.count({ where: { archiveStatus: 'MISSING', ...(filters.isVideo !== undefined ? { isVideo: filters.isVideo } : {}) } }),
+    ])
+
+    const items: PhantomEntry[] = [
+      ...sets.map((s) => ({
+        id: s.id,
+        type: 'set' as const,
+        title: s.title,
+        archivePath: s.archivePath!,
+        archiveStatus: s.archiveStatus,
+        archiveLastChecked: s.archiveLastChecked,
+        channelName: s.channel?.name ?? null,
+        releaseDate: s.releaseDate,
+        isVideo: s.type === 'video',
+      })),
+      ...stagings.map((s) => ({
+        id: s.id,
+        type: 'staging' as const,
+        title: s.title,
+        archivePath: s.archivePath!,
+        archiveStatus: s.archiveStatus,
+        archiveLastChecked: s.archiveLastChecked,
+        channelName: s.channelName,
+        releaseDate: s.releaseDate,
+        isVideo: s.isVideo,
+      })),
+    ].sort((a, b) => {
+      const ta = a.archiveLastChecked?.getTime() ?? 0
+      const tb = b.archiveLastChecked?.getTime() ?? 0
+      return tb - ta
+    })
+
+    return {
+      items,
+      total: setTotal + stagingTotal,
+      counts,
+      nextCursor: null, // simple pagination — not cursor-based for phantom/untracked
+    }
+  }
+
+  // tab === 'untracked'
+  const videoWhere = filters.isVideo !== undefined
+    ? (filters.isVideo ? ({ type: 'video' as const }) : ({ type: { not: 'video' as const } }))
+    : {}
+
+  const [sets, stagings, setTotal, stagingTotal] = await Promise.all([
+    prisma.set.findMany({
+      where: { archiveStatus: 'UNKNOWN', ...videoWhere },
+      select: {
+        id: true, title: true, releaseDate: true, type: true,
+        channel: { select: { name: true } },
+      },
+      orderBy: { releaseDate: 'desc' },
+      take: pageSize,
+    }),
+    prisma.stagingSet.findMany({
+      where: { archiveStatus: 'UNKNOWN', ...(filters.isVideo !== undefined ? { isVideo: filters.isVideo } : {}) },
+      select: { id: true, title: true, releaseDate: true, isVideo: true, channelName: true },
+      orderBy: { releaseDate: 'desc' },
+      take: pageSize,
+    }),
+    prisma.set.count({ where: { archiveStatus: 'UNKNOWN', ...videoWhere } }),
+    prisma.stagingSet.count({ where: { archiveStatus: 'UNKNOWN', ...(filters.isVideo !== undefined ? { isVideo: filters.isVideo } : {}) } }),
+  ])
+
+  const items: UntrackedEntry[] = [
+    ...sets.map((s) => ({
+      id: s.id,
+      type: 'set' as const,
+      title: s.title,
+      channelName: s.channel?.name ?? null,
+      releaseDate: s.releaseDate,
+      isVideo: s.type === 'video',
+    })),
+    ...stagings.map((s) => ({
+      id: s.id,
+      type: 'staging' as const,
+      title: s.title,
+      channelName: s.channelName,
+      releaseDate: s.releaseDate,
+      isVideo: s.isVideo,
+    })),
+  ].sort((a, b) => {
+    const ta = a.releaseDate?.getTime() ?? 0
+    const tb = b.releaseDate?.getTime() ?? 0
+    return tb - ta
+  })
+
+  return {
+    items,
+    total: setTotal + stagingTotal,
+    counts,
+    nextCursor: null,
+  }
+}
+
+// ─── Workspace Actions ────────────────────────────────────────────────────────
+
+/**
+ * Confirm a suggested (or manually chosen) link between an ArchiveFolder and a DB set.
+ * Sets the linkedSetId/linkedStagingId and writes the archivePath back to the set.
+ */
+export async function confirmArchiveFolderLink(
+  folderId: string,
+  setId: string,
+  type: 'set' | 'staging',
+): Promise<void> {
+  const folder = await prisma.archiveFolder.findUnique({ where: { id: folderId } })
+  if (!folder) return
+
+  if (type === 'set') {
+    await prisma.archiveFolder.update({
+      where: { id: folderId },
+      data: { linkedSetId: setId, suggestedSetId: null },
+    })
+    if (folder.relativePath) {
+      await prisma.set.update({
+        where: { id: setId },
+        data: { archivePath: folder.relativePath, archiveStatus: 'PENDING' },
+      })
+    }
+  } else {
+    await prisma.archiveFolder.update({
+      where: { id: folderId },
+      data: { linkedStagingId: setId, suggestedStagingId: null },
+    })
+    if (folder.relativePath) {
+      await prisma.stagingSet.update({
+        where: { id: setId },
+        data: { archivePath: folder.relativePath, archiveStatus: 'PENDING' },
+      })
+    }
+  }
+}
+
+/**
+ * Dismiss a suggestion — folder remains as an orphan.
+ */
+export async function rejectArchiveSuggestion(folderId: string): Promise<void> {
+  await prisma.archiveFolder.update({
+    where: { id: folderId },
+    data: { suggestedSetId: null, suggestedStagingId: null },
+  })
+}
+
+/**
+ * Create a minimal StagingSet from an orphan ArchiveFolder.
+ * Pre-populates title (folder name), channelName (parsed short name), releaseDate,
+ * and archivePath from the folder's data.
+ */
+export async function createStagingSetFromOrphan(
+  folderId: string,
+): Promise<{ stagingSetId: string }> {
+  const folder = await prisma.archiveFolder.findUnique({ where: { id: folderId } })
+  if (!folder) throw new Error('Archive folder not found')
+
+  // Try to find the channel by short name to populate channelName properly
+  let channelName = folder.parsedShortName ?? 'Unknown'
+  let channelId: string | null = null
+  if (folder.parsedShortName) {
+    const channel = await prisma.channel.findFirst({
+      where: { shortName: { equals: folder.parsedShortName, mode: 'insensitive' } },
+      select: { id: true, name: true },
+    })
+    if (channel) {
+      channelName = channel.name
+      channelId = channel.id
+    }
+  }
+
+  const createData: Prisma.StagingSetUncheckedCreateInput = {
+    title: folder.parsedTitle ?? folder.folderName,
+    channelName,
+    channelId: channelId ?? null,
+    releaseDate: folder.parsedDate ?? undefined,
+    isVideo: folder.isVideo,
+    archivePath: folder.relativePath ?? undefined,
+    archiveStatus: folder.relativePath ? 'PENDING' : 'UNKNOWN',
+  }
+
+  const stagingSet = await prisma.stagingSet.create({
+    data: createData,
+    select: { id: true },
+  })
+
+  // Link the folder to the new staging set
+  await prisma.archiveFolder.update({
+    where: { id: folderId },
+    data: { linkedStagingId: stagingSet.id },
+  })
+
+  return { stagingSetId: stagingSet.id }
 }

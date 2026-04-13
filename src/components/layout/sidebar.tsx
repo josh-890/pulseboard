@@ -18,6 +18,7 @@ import {
   Upload,
   Palette,
   HardDrive,
+  FolderSearch,
 } from "lucide-react";
 import { NavLink } from "./nav-link";
 import { useSidebar } from "./sidebar-provider";
@@ -39,6 +40,7 @@ const navItems = [
   { href: "/import", icon: <Upload size={20} />, label: "Import" },
   { href: "/staging-sets", icon: <Layers size={20} />, label: "Staging Sets" },
   { href: "/media-queue", icon: <HardDrive size={20} />, label: "Media Queue" },
+  { href: "/archive", icon: <FolderSearch size={20} />, label: "Archive" },
   { href: "/settings", icon: <Settings size={20} />, label: "Settings" },
 ];
 
