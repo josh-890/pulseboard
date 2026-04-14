@@ -69,7 +69,7 @@ export function ArchiveOrphanRow({ item }: Props) {
 
   return (
     <div className={cn(
-      'flex flex-col gap-2 rounded-xl border px-4 py-3 shadow-sm backdrop-blur-sm transition-all',
+      'flex flex-col gap-1.5 rounded-xl border px-4 py-2.5 shadow-sm backdrop-blur-sm transition-all',
       hasMismatch
         ? 'border-red-500/30 bg-red-500/8'
         : hasWarning
@@ -113,7 +113,7 @@ export function ArchiveOrphanRow({ item }: Props) {
           </span>
         )}
 
-        {/* Shortname/channel folder mismatch — highest priority warning */}
+        {/* Shortname/channel folder mismatch */}
         {hasMismatch && (
           <span
             title={`Code mismatch: folder name says "${item.parsedShortName}" but channel folder is "${item.chanFolderName}"`}
@@ -132,6 +132,43 @@ export function ArchiveOrphanRow({ item }: Props) {
           >
             <TriangleAlert size={9} />
             format
+          </span>
+        )}
+
+        {/* Possible match — inline compact chip */}
+        {hasSuggestion && !dismissed && (
+          <span className="shrink-0 flex items-center gap-1 min-w-0 max-w-[220px] rounded-md border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[10px] text-amber-600 dark:text-amber-400">
+            <span className="min-w-0 truncate" title={suggestedTitle ?? suggestedId ?? ''}>
+              {suggestedTitle ?? suggestedId}
+            </span>
+            {suggestedType === 'set' && item.suggestedSetId && (
+              <Link
+                href={`/sets/${item.suggestedSetId}`}
+                target="_blank"
+                title="Open set"
+                className="shrink-0 text-amber-500/60 hover:text-amber-500 transition-colors"
+              >
+                <ExternalLink size={10} />
+              </Link>
+            )}
+            <button
+              type="button"
+              disabled={pending}
+              onClick={handleConfirmSuggestion}
+              title="Confirm link"
+              className="shrink-0 text-green-500 hover:text-green-400 transition-colors"
+            >
+              <Check size={10} />
+            </button>
+            <button
+              type="button"
+              disabled={pending}
+              onClick={handleRejectSuggestion}
+              title="Dismiss suggestion"
+              className="shrink-0 text-muted-foreground/40 hover:text-red-500 transition-colors"
+            >
+              <X size={10} />
+            </button>
           </span>
         )}
 
@@ -163,46 +200,6 @@ export function ArchiveOrphanRow({ item }: Props) {
       <div className="truncate pl-5 text-[11px] text-muted-foreground/50" title={item.fullPath}>
         {item.fullPath}
       </div>
-
-      {/* Suggestion banner */}
-      {hasSuggestion && !dismissed && (
-        <div className="flex items-center gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2">
-          <span className="min-w-0 flex-1 text-xs text-amber-600 dark:text-amber-400">
-            Possible match:{' '}
-            <span className="font-medium">{suggestedTitle ?? suggestedId}</span>
-            {' '}
-            <span className="opacity-60">({suggestedType})</span>
-          </span>
-          {suggestedType === 'set' && item.suggestedSetId && (
-            <Link
-              href={`/sets/${item.suggestedSetId}`}
-              target="_blank"
-              className="shrink-0 text-muted-foreground/50 hover:text-foreground"
-              title="Open set"
-            >
-              <ExternalLink size={12} />
-            </Link>
-          )}
-          <button
-            type="button"
-            disabled={pending}
-            onClick={handleConfirmSuggestion}
-            title="Confirm link"
-            className="shrink-0 flex items-center gap-1 rounded px-2 py-0.5 text-[11px] font-medium bg-green-500/20 text-green-600 dark:text-green-400 hover:bg-green-500/30 transition-colors"
-          >
-            <Check size={11} /> Confirm
-          </button>
-          <button
-            type="button"
-            disabled={pending}
-            onClick={handleRejectSuggestion}
-            title="Dismiss suggestion"
-            className="shrink-0 text-muted-foreground/40 hover:text-red-500 transition-colors"
-          >
-            <X size={12} />
-          </button>
-        </div>
-      )}
     </div>
   )
 }
