@@ -65,9 +65,12 @@ const SORT_LABELS: Record<ArchiveSort, string> = {
 const SESSION_KEY    = 'archive-workspace-filters'
 const COLLAPSE_KEY   = 'archive-workspace-collapse'
 const PAGE_SIZE      = 200
-const ITEM_HEIGHT    = 82
-const CHANNEL_H      = 48
-const YEAR_H         = 32
+const LINKED_H       = 52   // linked row: py-3 + single line + wrapper
+const ORPHAN_H       = 72   // orphan row: py-3 + main + path line + wrapper
+const ORPHAN_SUG_H   = 124  // orphan row when suggestion banner is visible
+const FLAT_ITEM_H    = 56   // phantom / untracked rows
+const CHANNEL_H      = 38   // channel header: py-2.5 + content
+const YEAR_H         = 24   // year subheader: py-1 + content
 const SENTINEL_H     = 48
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
@@ -318,12 +321,21 @@ export function ArchiveWorkspaceClient({
     count: virtualRows.length,
     estimateSize: (i) => {
       const row = virtualRows[i]
-      if (!row) return ITEM_HEIGHT
+      if (!row) return ORPHAN_H
       if (row.kind === 'channel-header') return CHANNEL_H
       if (row.kind === 'year-header') return YEAR_H
       if (row.kind === 'loading-sentinel') return SENTINEL_H
-      return ITEM_HEIGHT
+      if (row.kind === 'flat-item') return FLAT_ITEM_H
+      if (row.kind === 'folder-item') {
+        if (tab === 'linked') return LINKED_H
+        if (tab === 'orphan') {
+          const hasSug = !!(row.item.suggestedSetId || row.item.suggestedStagingId)
+          return hasSug ? ORPHAN_SUG_H : ORPHAN_H
+        }
+      }
+      return ORPHAN_H
     },
+    measureElement: (el) => el.getBoundingClientRect().height,
     overscan: 10,
     scrollMargin: listRef.current?.offsetTop ?? 0,
   })
@@ -611,6 +623,8 @@ export function ArchiveWorkspaceClient({
                 return (
                   <div
                     key={vItem.key}
+                    data-index={vItem.index}
+                    ref={virtualizer.measureElement}
                     style={{
                       position: 'absolute',
                       top: 0,
