@@ -98,7 +98,7 @@ export function EditSetSheet({ set, channels, entityTags = [] }: EditSetSheetPro
     tags: set.tags,
     isCompilation: set.isCompilation,
     isComplete: set.isComplete,
-    imageCount: set.imageCount ?? undefined,
+    imageCount: set.imageCount && set.imageCount > 0 ? set.imageCount : undefined,
     videoLength: set.videoLength ?? "",
     externalId: set.externalId ?? "",
   });
