@@ -827,11 +827,12 @@ export async function upsertArchiveFolders(
             fullPath: item.fullPath,
             folderName: item.folderName,
             relativePath: newRelative,
+            isVideo: item.isVideo,
             parsedDate,
             parsedShortName: item.parsedShortName,
             parsedTitle: item.parsedTitle,
             nameFormatOk: item.nameFormatOk,
-          chanFolderName: item.chanFolderName,
+            chanFolderName: item.chanFolderName,
             contentSignature: item.contentSignature,
             fileCount: item.fileCount,
             videoPresent: item.videoPresent,
@@ -1500,4 +1501,8 @@ export async function reparseFolderNames(tenant: string): Promise<{ updated: num
   }
 
   return { updated }
+}
+
+export async function deleteArchiveFolder(id: string): Promise<void> {
+  await prisma.archiveFolder.delete({ where: { id } })
 }

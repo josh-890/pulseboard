@@ -3,13 +3,14 @@
 import { useState, useTransition } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Camera, Film, Check, X, Plus, ExternalLink, TriangleAlert } from 'lucide-react'
+import { Camera, Film, Check, X, Plus, ExternalLink, TriangleAlert, Trash2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { ArchiveFolderEntry } from '@/lib/services/archive-service'
 import {
   confirmArchiveFolderLinkAction,
   rejectArchiveSuggestionAction,
   createStagingSetFromOrphanAction,
+  deleteArchiveFolderAction,
 } from '@/lib/actions/archive-actions'
 
 type Props = {
@@ -51,6 +52,13 @@ export function ArchiveOrphanRow({ item }: Props) {
       if (result.success && result.stagingSetId) {
         router.push(`/staging-sets?selected=${result.stagingSetId}`)
       }
+    })
+  }
+
+  function handleDelete() {
+    startTransition(async () => {
+      await deleteArchiveFolderAction(item.id)
+      router.refresh()
     })
   }
 
@@ -137,6 +145,17 @@ export function ArchiveOrphanRow({ item }: Props) {
         >
           <Plus size={11} />
           Create
+        </button>
+
+        {/* Delete stale record */}
+        <button
+          type="button"
+          disabled={pending}
+          onClick={handleDelete}
+          title="Delete this scan record (safe — rescan will recreate it)"
+          className="shrink-0 text-muted-foreground/30 transition-colors hover:text-red-500"
+        >
+          <Trash2 size={13} />
         </button>
       </div>
 

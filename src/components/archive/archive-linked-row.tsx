@@ -1,9 +1,12 @@
 'use client'
 
+import { useTransition } from 'react'
 import Link from 'next/link'
-import { Camera, Film, ExternalLink, CheckCircle2, TriangleAlert } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { Camera, Film, ExternalLink, CheckCircle2, TriangleAlert, Trash2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { ArchiveFolderEntry } from '@/lib/services/archive-service'
+import { deleteArchiveFolderAction } from '@/lib/actions/archive-actions'
 
 // Evaluated once at module load — accurate enough for a 7-day display badge
 const MODULE_LOAD_TIME_MS = Date.now()
@@ -14,6 +17,16 @@ type Props = {
 }
 
 export function ArchiveLinkedRow({ item }: Props) {
+  const [pending, startTransition] = useTransition()
+  const router = useRouter()
+
+  function handleDelete() {
+    startTransition(async () => {
+      await deleteArchiveFolderAction(item.id)
+      router.refresh()
+    })
+  }
+
   const dateStr = item.parsedDate
     ? new Date(item.parsedDate).toISOString().split('T')[0]
     : null
@@ -37,12 +50,13 @@ export function ArchiveLinkedRow({ item }: Props) {
 
   return (
     <div className={cn(
-      'flex items-center gap-3 rounded-xl border px-4 py-3 shadow-sm backdrop-blur-sm',
+      'flex items-center gap-3 rounded-xl border px-4 py-3 shadow-sm backdrop-blur-sm transition-all',
       hasMismatch
         ? 'border-red-500/30 bg-red-500/8'
         : hasWarning
         ? 'border-orange-500/25 bg-orange-500/6'
         : 'border-border/40 bg-card/70',
+      pending && 'opacity-60',
     )}>
       {/* Linked indicator */}
       <CheckCircle2 size={14} className="shrink-0 text-green-500" />
@@ -133,6 +147,17 @@ export function ArchiveLinkedRow({ item }: Props) {
           <ExternalLink size={14} />
         </Link>
       )}
+
+      {/* Delete stale record */}
+      <button
+        type="button"
+        disabled={pending}
+        onClick={handleDelete}
+        title="Delete this scan record (safe — rescan will recreate it)"
+        className="shrink-0 text-muted-foreground/30 transition-colors hover:text-red-500"
+      >
+        <Trash2 size={13} />
+      </button>
     </div>
   )
 }

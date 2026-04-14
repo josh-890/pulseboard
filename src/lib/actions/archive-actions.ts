@@ -16,6 +16,7 @@ import {
   createStagingSetFromOrphan,
   getArchiveWorkspace,
   reparseFolderNames,
+  deleteArchiveFolder,
 } from '@/lib/services/archive-service'
 import type { WorkspaceFilters, WorkspacePage } from '@/lib/services/archive-service'
 import type { SimpleActionResult } from '@/lib/types'
@@ -176,6 +177,18 @@ export async function reparseFolderNamesAction(): Promise<{ success: boolean; up
       return { success: true, updated }
     } catch {
       return { success: false, error: 'Failed to re-parse folder names' }
+    }
+  })
+}
+
+export async function deleteArchiveFolderAction(id: string): Promise<SimpleActionResult> {
+  return withTenantFromHeaders(async () => {
+    try {
+      await deleteArchiveFolder(id)
+      revalidatePath('/archive')
+      return { success: true }
+    } catch {
+      return { success: false, error: 'Failed to delete archive folder record' }
     }
   })
 }
