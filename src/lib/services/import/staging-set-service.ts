@@ -338,13 +338,18 @@ export async function markStagingSetPromoted(
   id: string,
   promotedSetId: string,
 ): Promise<StagingSet> {
-  return prisma.stagingSet.update({
-    where: { id },
-    data: {
-      status: 'PROMOTED',
-      promotedSetId,
-    },
-  })
+  const [stagingSet] = await prisma.$transaction([
+    prisma.stagingSet.update({
+      where: { id },
+      data: { status: 'PROMOTED', promotedSetId },
+    }),
+    // Migrate any ArchiveFolder link from the staging set to the promoted Set
+    prisma.archiveFolder.updateMany({
+      where: { linkedStagingId: id },
+      data: { linkedStagingId: null, linkedSetId: promotedSetId },
+    }),
+  ])
+  return stagingSet
 }
 
 export async function resolveStagingSetChannel(
