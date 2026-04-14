@@ -114,6 +114,10 @@
       chanFolderModifiedAt unchanged → skip all year dirs inside (0 reads)
       yearDirModifiedAt unchanged    → skip all leaf dirs inside (0 reads)
       leafDirModifiedAt unchanged    → skip file listing (action = unchanged)
+
+    Note: moving a leaf between channel folders updates the YEAR dir mtime but NOT the
+    chanFolder mtime (NTFS only updates the direct parent). Use -SkipChanCache after
+    moving folders between channel dirs so the scan descends to the year level.
 #>
 
 [CmdletBinding()]
@@ -126,7 +130,8 @@ param(
     [string]$PhotosetRoot  = ($env:ARCHIVE_PHOTOSET_ROOT  ?? ""),
     [string]$VideosetRoot  = ($env:ARCHIVE_VIDEOSET_ROOT  ?? ""),
     [int]$BatchSize        = 200,
-    [switch]$DryRun
+    [switch]$DryRun,
+    [switch]$SkipChanCache   # bypass chanFolder-level mtime skip; use after moving folders between channels
 )
 
 $ErrorActionPreference = "Stop"
@@ -490,7 +495,7 @@ function Walk-Root {
             }
         }
 
-        if ($storedCfMtime -ne $null -and [Math]::Abs(($cfMtime - $storedCfMtime).TotalSeconds) -lt 2) {
+        if (-not $SkipChanCache -and $storedCfMtime -ne $null -and [Math]::Abs(($cfMtime - $storedCfMtime).TotalSeconds) -lt 2) {
             if ($VerbosePreference -ne "SilentlyContinue") {
                 Write-Host "    [SKIP] $($cf.Name) (channelFolder unchanged)"
             }
