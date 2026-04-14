@@ -288,8 +288,17 @@ export function StagingSetFilterBar({ filters, onChange, stats }: StagingSetFilt
             placeholder="Search title, channel, artist, name..."
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
-            className="h-8 w-52 pl-8 text-xs"
+            className="h-8 w-52 pl-8 pr-7 text-xs"
           />
+          {searchInput && (
+            <button
+              type="button"
+              onClick={() => { setSearchInput(''); onChange({ ...filters, search: '' }) }}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground/50 hover:text-foreground transition-colors"
+            >
+              <X size={13} />
+            </button>
+          )}
         </div>
 
         {/* Date range */}
