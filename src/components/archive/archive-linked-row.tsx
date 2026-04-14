@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { Camera, Film, ExternalLink, CheckCircle2 } from 'lucide-react'
+import { Camera, Film, ExternalLink, CheckCircle2, TriangleAlert } from 'lucide-react'
 import type { ArchiveFolderEntry } from '@/lib/services/archive-service'
 
 // Evaluated once at module load — accurate enough for a 7-day display badge
@@ -65,6 +65,17 @@ export function ArchiveLinkedRow({ item }: Props) {
               · video {item.videoPresent ? 'ok' : 'missing'}
             </span>
           )}
+        </span>
+      )}
+
+      {/* Non-standard name format warning */}
+      {!item.nameFormatOk && (
+        <span
+          title="Folder name does not follow the canonical format: YYYY-MM-DD-CODE Name - Title"
+          className="shrink-0 flex items-center gap-1 rounded-full bg-orange-500/15 px-2 py-0.5 text-[10px] font-medium text-orange-600 dark:text-orange-400"
+        >
+          <TriangleAlert size={9} />
+          format
         </span>
       )}
 

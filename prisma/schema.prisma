@@ -1652,6 +1652,7 @@ model ArchiveFolder {
   chanFolderModifiedAt DateTime?     // channelFolder LastWriteTime — skip entire subtree if unchanged
   lastRenamedFrom     String?        // previous fullPath — set when rename was detected
   lastRenamedAt       DateTime?      // timestamp when rename was detected
+  nameFormatOk        Boolean        @default(true)  // false = folder name deviates from canonical format
 
   @@index([folderName])
   @@index([parsedDate, parsedShortName])

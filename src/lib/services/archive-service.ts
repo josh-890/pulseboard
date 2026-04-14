@@ -609,6 +609,7 @@ export type FullIngestItem = {
   parsedDate: string | null           // "YYYY-MM-DD" or null
   parsedShortName: string | null
   parsedTitle: string | null
+  nameFormatOk: boolean               // false = folder name deviates from canonical format
 }
 
 // ─── Archive Workspace Types ──────────────────────────────────────────────────
@@ -634,6 +635,7 @@ export type ArchiveFolderEntry = {
   scannedAt: Date
   lastRenamedAt: Date | null
   lastRenamedFrom: string | null
+  nameFormatOk: boolean
 }
 
 export type PhantomEntry = {
@@ -766,6 +768,7 @@ export async function upsertArchiveFolders(
           parsedDate,
           parsedShortName: item.parsedShortName,
           parsedTitle: item.parsedTitle,
+          nameFormatOk: item.nameFormatOk,
           contentSignature: item.contentSignature,
           leafDirModifiedAt,
           yearDirModifiedAt,
@@ -786,6 +789,7 @@ export async function upsertArchiveFolders(
           parsedDate,
           parsedShortName: item.parsedShortName,
           parsedTitle: item.parsedTitle,
+          nameFormatOk: item.nameFormatOk,
           contentSignature: item.contentSignature,
           leafDirModifiedAt,
           yearDirModifiedAt,
@@ -822,6 +826,7 @@ export async function upsertArchiveFolders(
             parsedDate,
             parsedShortName: item.parsedShortName,
             parsedTitle: item.parsedTitle,
+            nameFormatOk: item.nameFormatOk,
             contentSignature: item.contentSignature,
             fileCount: item.fileCount,
             videoPresent: item.videoPresent,
@@ -864,6 +869,7 @@ export async function upsertArchiveFolders(
             parsedDate,
             parsedShortName: item.parsedShortName,
             parsedTitle: item.parsedTitle,
+            nameFormatOk: item.nameFormatOk,
             contentSignature: item.contentSignature,
             leafDirModifiedAt,
             yearDirModifiedAt,
@@ -883,13 +889,17 @@ export async function upsertArchiveFolders(
       }
 
     } else if (item.action === 'unchanged') {
-      // Only update parent mtime cache — no content fields, no link fields
+      // Update parent mtime cache + parsed fields (backfills if regex improved) + nameFormatOk
       await prisma.archiveFolder.update({
         where: { fullPath: item.fullPath },
         data: {
           yearDirModifiedAt,
           chanFolderModifiedAt,
           scannedAt: now,
+          parsedDate,
+          parsedShortName: item.parsedShortName,
+          parsedTitle: item.parsedTitle,
+          nameFormatOk: item.nameFormatOk,
         },
       })
       counts.unchanged++
@@ -1129,6 +1139,7 @@ export async function getArchiveWorkspace(filters: WorkspaceFilters): Promise<Wo
     scannedAt: true,
     lastRenamedAt: true,
     lastRenamedFrom: true,
+    nameFormatOk: true,
   }
 
   if (filters.tab === 'orphan') {

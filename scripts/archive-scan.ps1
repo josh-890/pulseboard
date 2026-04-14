@@ -357,14 +357,50 @@ function Get-VideoPresent {
 
 function Parse-FolderName {
     param([string]$Name)
-    if ($Name -match '^(\d{4}-\d{2}-\d{2})-([A-Za-z0-9]+)\s+(.+?)\s+-\s+(.+)$') {
+    # Pattern 1 — canonical: "YYYY-MM-DD-CODE Name - Title" (hyphen or en/em-dash, space both sides)
+    # nameFormatOk = true only for this pattern
+    if ($Name -match '^(\d{4}-\d{2}-\d{2})-([A-Za-z0-9]+)\s+(.+?)\s+[-–—]\s+(.+)$') {
         return [PSCustomObject]@{
             parsedDate      = $Matches[1]
             parsedShortName = $Matches[2]
             parsedTitle     = $Matches[4]
+            nameFormatOk    = $true
         }
     }
-    return $null
+    # Pattern 2 — "Name -Title" (space before separator, no space after)
+    if ($Name -match '^(\d{4}-\d{2}-\d{2})-([A-Za-z0-9]+)\s+(.+?)\s+[-–—](\S.*)$') {
+        return [PSCustomObject]@{
+            parsedDate      = $Matches[1]
+            parsedShortName = $Matches[2]
+            parsedTitle     = $Matches[4].TrimStart()
+            nameFormatOk    = $false
+        }
+    }
+    # Pattern 3 — "Name- Title" (no space before separator, space after)
+    if ($Name -match '^(\d{4}-\d{2}-\d{2})-([A-Za-z0-9]+)\s+(.+?)[-–—]\s+(.+)$') {
+        return [PSCustomObject]@{
+            parsedDate      = $Matches[1]
+            parsedShortName = $Matches[2]
+            parsedTitle     = $Matches[4]
+            nameFormatOk    = $false
+        }
+    }
+    # Pattern 4 — no separator at all: everything after the code is the title
+    if ($Name -match '^(\d{4}-\d{2}-\d{2})-([A-Za-z0-9]+)\s+(.+)$') {
+        return [PSCustomObject]@{
+            parsedDate      = $Matches[1]
+            parsedShortName = $Matches[2]
+            parsedTitle     = $Matches[3]
+            nameFormatOk    = $false
+        }
+    }
+    # No pattern matched — cannot extract date or short name
+    return [PSCustomObject]@{
+        parsedDate      = $null
+        parsedShortName = $null
+        parsedTitle     = $null
+        nameFormatOk    = $false
+    }
 }
 
 # ── FULL MODE — Preload ───────────────────────────────────────────────────────
@@ -502,8 +538,8 @@ function Walk-Root {
                 if ($existing -and $existing.leafDirModifiedAt) {
                     $storedLfMtime = To-UtcDateTime $existing.leafDirModifiedAt
                     if ([Math]::Abs(($lfMtime - $storedLfMtime).TotalSeconds) -lt 2) {
-                        # Still need to update parent mtimes if they changed
-                        # Send an unchanged record so the server refreshes cf/year mtimes
+                        # Still need to update parent mtimes if they changed.
+                        # Always re-parse the folder name so improved regex backfills nameFormatOk.
                         $item = [PSCustomObject]@{
                             action             = "unchanged"
                             fullPath           = $lf.FullName
@@ -515,9 +551,10 @@ function Walk-Root {
                             leafDirModifiedAt  = $lfMtime.ToString("o")
                             yearDirModifiedAt  = $yrMtime.ToString("o")
                             chanFolderModifiedAt = $cfMtime.ToString("o")
-                            parsedDate         = $null
-                            parsedShortName    = $null
-                            parsedTitle        = $null
+                            parsedDate         = $parsed.parsedDate
+                            parsedShortName    = $parsed.parsedShortName
+                            parsedTitle        = $parsed.parsedTitle
+                            nameFormatOk       = $parsed.nameFormatOk
                         }
                         [void]$delta.Add($item)
                         $skippedLf++
@@ -567,9 +604,10 @@ function Walk-Root {
                     leafDirModifiedAt  = $lfMtime.ToString("o")
                     yearDirModifiedAt  = $yrMtime.ToString("o")
                     chanFolderModifiedAt = $cfMtime.ToString("o")
-                    parsedDate         = if ($parsed) { $parsed.parsedDate      } else { $null }
-                    parsedShortName    = if ($parsed) { $parsed.parsedShortName } else { $null }
-                    parsedTitle        = if ($parsed) { $parsed.parsedTitle     } else { $null }
+                    parsedDate         = $parsed.parsedDate
+                    parsedShortName    = $parsed.parsedShortName
+                    parsedTitle        = $parsed.parsedTitle
+                    nameFormatOk       = $parsed.nameFormatOk
                 }
 
                 if ($previousFullPath) {
