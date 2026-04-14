@@ -10,6 +10,7 @@
 
 import { prisma } from '@/lib/db'
 import { getSetting, setSetting } from '@/lib/services/setting-service'
+import { onArchiveScanComplete } from '@/lib/services/coherence-service'
 import type { ArchiveStatus, Prisma } from '@/generated/prisma/client'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -789,7 +790,7 @@ export async function upsertArchiveFolders(
       counts.created++
 
     } else if (item.action === 'update') {
-      await prisma.archiveFolder.update({
+      const updated = await prisma.archiveFolder.update({
         where: { fullPath: item.fullPath },
         data: {
           fileCount: item.fileCount,
@@ -807,8 +808,10 @@ export async function upsertArchiveFolders(
           scannedAt: now,
           // Preserve all link fields
         },
+        select: { id: true },
       })
       counts.updated++
+      void onArchiveScanComplete(updated.id, 'CHANGED', item.fileCount ?? 0)
 
     } else if (item.action === 'rename' && item.previousFullPath) {
       // Find existing record by previous path
@@ -867,6 +870,7 @@ export async function upsertArchiveFolders(
           }
         }
 
+        void onArchiveScanComplete(existing.id, 'OK', item.fileCount ?? 0)
         counts.renamed++
       } else {
         // Fallback: previous path not found, treat as create
