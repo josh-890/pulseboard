@@ -555,6 +555,7 @@ function Walk-Root {
                             parsedShortName    = $parsed.parsedShortName
                             parsedTitle        = $parsed.parsedTitle
                             nameFormatOk       = $parsed.nameFormatOk
+                            chanFolderName     = $cf.Name
                         }
                         [void]$delta.Add($item)
                         $skippedLf++
@@ -608,6 +609,7 @@ function Walk-Root {
                     parsedShortName    = $parsed.parsedShortName
                     parsedTitle        = $parsed.parsedTitle
                     nameFormatOk       = $parsed.nameFormatOk
+                    chanFolderName     = $cf.Name
                 }
 
                 if ($previousFullPath) {

@@ -77,10 +77,10 @@ function getYear(item: ArchiveFolderEntry): string {
   return String(new Date(item.parsedDate).getFullYear())
 }
 
-// Extract the channel folder name (e.g. "AB-ArielsBlog") from the fullPath.
-// Archive paths are always root\chanFolder\year\leafFolder — chanFolder is 3rd from end.
-function getChanFolder(fullPath: string): string {
-  const clean = fullPath.replace(/[/\\]$/, '')
+// Resolve the channel folder name from the stored field, falling back to fullPath extraction.
+function getChanFolder(item: ArchiveFolderEntry): string {
+  if (item.chanFolderName) return item.chanFolderName
+  const clean = item.fullPath.replace(/[/\\]+$/, '')
   const parts = clean.split(/[/\\]/)
   return parts[parts.length - 3] ?? '(unknown)'
 }
@@ -121,10 +121,10 @@ function buildVirtualRows(
   } else if (groupBy === 'channel') {
     let curCh = ''
     for (const item of items) {
-      const ch = getChanFolder(item.fullPath)
+      const ch = getChanFolder(item)
       if (ch !== curCh) {
         curCh = ch
-        const count = items.filter((i) => getChanFolder(i.fullPath) === ch).length
+        const count = items.filter((i) => getChanFolder(i) === ch).length
         rows.push({ kind: 'channel-header', channel: ch, count })
       }
       if (!isCollapsed(model, `ch::${ch}`)) {
@@ -136,13 +136,13 @@ function buildVirtualRows(
     let curCh = ''
     let curYr = ''
     for (const item of items) {
-      const ch = getChanFolder(item.fullPath)
+      const ch = getChanFolder(item)
       const yr = getYear(item)
 
       if (ch !== curCh) {
         curCh = ch
         curYr = ''
-        const count = items.filter((i) => getChanFolder(i.fullPath) === ch).length
+        const count = items.filter((i) => getChanFolder(i) === ch).length
         rows.push({ kind: 'channel-header', channel: ch, count })
       }
       if (isCollapsed(model, `ch::${ch}`)) continue
@@ -150,7 +150,7 @@ function buildVirtualRows(
       if (yr !== curYr) {
         curYr = yr
         const count = items.filter(
-          (i) => getChanFolder(i.fullPath) === ch && getYear(i) === yr,
+          (i) => getChanFolder(i) === ch && getYear(i) === yr,
         ).length
         rows.push({ kind: 'year-header', channel: ch, year: yr, count })
       }

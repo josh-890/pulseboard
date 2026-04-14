@@ -68,6 +68,19 @@ export function ArchiveLinkedRow({ item }: Props) {
         </span>
       )}
 
+      {/* Shortname/channel folder mismatch — highest priority warning */}
+      {item.parsedShortName && item.chanFolderName &&
+        !item.chanFolderName.toLowerCase().startsWith(item.parsedShortName.toLowerCase() + '-') &&
+        item.chanFolderName.toLowerCase() !== item.parsedShortName.toLowerCase() && (
+        <span
+          title={`Code mismatch: folder name says "${item.parsedShortName}" but channel folder is "${item.chanFolderName}"`}
+          className="shrink-0 flex items-center gap-1.5 rounded-md border border-red-500/40 bg-red-500/15 px-2 py-0.5 text-[11px] font-semibold text-red-600 dark:text-red-400"
+        >
+          <TriangleAlert size={11} />
+          {item.parsedShortName} ≠ {item.chanFolderName}
+        </span>
+      )}
+
       {/* Non-standard name format warning */}
       {!item.nameFormatOk && (
         <span

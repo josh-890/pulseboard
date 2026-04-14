@@ -610,6 +610,7 @@ export type FullIngestItem = {
   parsedShortName: string | null
   parsedTitle: string | null
   nameFormatOk: boolean               // false = folder name deviates from canonical format
+  chanFolderName: string | null       // channel folder name (e.g. "RA-RylskyArt")
 }
 
 // ─── Archive Workspace Types ──────────────────────────────────────────────────
@@ -636,6 +637,7 @@ export type ArchiveFolderEntry = {
   lastRenamedAt: Date | null
   lastRenamedFrom: string | null
   nameFormatOk: boolean
+  chanFolderName: string | null
 }
 
 export type PhantomEntry = {
@@ -769,6 +771,7 @@ export async function upsertArchiveFolders(
           parsedShortName: item.parsedShortName,
           parsedTitle: item.parsedTitle,
           nameFormatOk: item.nameFormatOk,
+          chanFolderName: item.chanFolderName,
           contentSignature: item.contentSignature,
           leafDirModifiedAt,
           yearDirModifiedAt,
@@ -790,6 +793,7 @@ export async function upsertArchiveFolders(
           parsedShortName: item.parsedShortName,
           parsedTitle: item.parsedTitle,
           nameFormatOk: item.nameFormatOk,
+          chanFolderName: item.chanFolderName,
           contentSignature: item.contentSignature,
           leafDirModifiedAt,
           yearDirModifiedAt,
@@ -827,6 +831,7 @@ export async function upsertArchiveFolders(
             parsedShortName: item.parsedShortName,
             parsedTitle: item.parsedTitle,
             nameFormatOk: item.nameFormatOk,
+          chanFolderName: item.chanFolderName,
             contentSignature: item.contentSignature,
             fileCount: item.fileCount,
             videoPresent: item.videoPresent,
@@ -870,6 +875,7 @@ export async function upsertArchiveFolders(
             parsedShortName: item.parsedShortName,
             parsedTitle: item.parsedTitle,
             nameFormatOk: item.nameFormatOk,
+          chanFolderName: item.chanFolderName,
             contentSignature: item.contentSignature,
             leafDirModifiedAt,
             yearDirModifiedAt,
@@ -900,6 +906,7 @@ export async function upsertArchiveFolders(
           parsedShortName: item.parsedShortName,
           parsedTitle: item.parsedTitle,
           nameFormatOk: item.nameFormatOk,
+          chanFolderName: item.chanFolderName,
         },
       })
       counts.unchanged++
@@ -1105,7 +1112,7 @@ export async function getArchiveWorkspace(filters: WorkspaceFilters): Promise<Wo
   function buildOrderBy(groupBy: GroupBy | undefined, sort: ArchiveSort | undefined, sortDir: SortDir | undefined) {
     const dir = sortDir ?? 'desc'
     const channelFirst = [
-      { parsedShortName: 'asc' as const },
+      { chanFolderName: 'asc' as const },
       { parsedDate: 'desc' as const },
       { folderName: 'asc' as const },
     ]
@@ -1140,6 +1147,7 @@ export async function getArchiveWorkspace(filters: WorkspaceFilters): Promise<Wo
     lastRenamedAt: true,
     lastRenamedFrom: true,
     nameFormatOk: true,
+    chanFolderName: true,
   }
 
   if (filters.tab === 'orphan') {
@@ -1460,13 +1468,19 @@ function parseFolderName(name: string): {
  * updating parsedDate, parsedShortName, parsedTitle, nameFormatOk directly.
  * This is a one-shot backfill that runs entirely in the DB — no scan required.
  */
+function extractChanFolderName(fullPath: string): string | null {
+  const clean = fullPath.replace(/[/\\]+$/, '')
+  const parts = clean.split(/[/\\]/)
+  return parts[parts.length - 3] ?? null
+}
+
 export async function reparseFolderNames(tenant: string): Promise<{ updated: number }> {
   const folders = await prisma.archiveFolder.findMany({
     where: {
       tenant,
-      OR: [{ parsedShortName: null }, { nameFormatOk: false }],
+      OR: [{ parsedShortName: null }, { nameFormatOk: false }, { chanFolderName: null }],
     },
-    select: { id: true, folderName: true },
+    select: { id: true, folderName: true, fullPath: true },
   })
 
   let updated = 0
@@ -1479,6 +1493,7 @@ export async function reparseFolderNames(tenant: string): Promise<{ updated: num
         parsedShortName: parsed.parsedShortName,
         parsedTitle: parsed.parsedTitle,
         nameFormatOk: parsed.nameFormatOk,
+        chanFolderName: extractChanFolderName(folder.fullPath),
       },
     })
     updated++

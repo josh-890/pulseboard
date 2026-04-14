@@ -1653,8 +1653,10 @@ model ArchiveFolder {
   lastRenamedFrom     String?        // previous fullPath — set when rename was detected
   lastRenamedAt       DateTime?      // timestamp when rename was detected
   nameFormatOk        Boolean        @default(true)  // false = folder name deviates from canonical format
+  chanFolderName      String?        // channel folder name (e.g. "RA-RylskyArt") — 3rd-from-last path segment
 
   @@index([folderName])
+  @@index([chanFolderName])
   @@index([parsedDate, parsedShortName])
   @@index([linkedSetId])
   @@index([linkedStagingId])
