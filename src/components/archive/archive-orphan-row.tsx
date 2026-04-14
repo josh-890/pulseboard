@@ -54,9 +54,19 @@ export function ArchiveOrphanRow({ item }: Props) {
     })
   }
 
+  const hasMismatch = !!(item.parsedShortName && item.chanFolderName &&
+    !item.chanFolderName.toLowerCase().startsWith(item.parsedShortName.toLowerCase() + '-') &&
+    item.chanFolderName.toLowerCase() !== item.parsedShortName.toLowerCase())
+  const hasWarning = hasMismatch || !item.nameFormatOk
+
   return (
     <div className={cn(
-      'flex flex-col gap-2 rounded-xl border border-border/40 bg-card/70 px-4 py-3 shadow-sm backdrop-blur-sm transition-all',
+      'flex flex-col gap-2 rounded-xl border px-4 py-3 shadow-sm backdrop-blur-sm transition-all',
+      hasMismatch
+        ? 'border-red-500/30 bg-red-500/8'
+        : hasWarning
+        ? 'border-orange-500/25 bg-orange-500/6'
+        : 'border-border/40 bg-card/70',
       pending && 'opacity-60',
     )}>
       {/* Main row */}
@@ -96,9 +106,7 @@ export function ArchiveOrphanRow({ item }: Props) {
         )}
 
         {/* Shortname/channel folder mismatch — highest priority warning */}
-        {item.parsedShortName && item.chanFolderName &&
-          !item.chanFolderName.toLowerCase().startsWith(item.parsedShortName.toLowerCase() + '-') &&
-          item.chanFolderName.toLowerCase() !== item.parsedShortName.toLowerCase() && (
+        {hasMismatch && (
           <span
             title={`Code mismatch: folder name says "${item.parsedShortName}" but channel folder is "${item.chanFolderName}"`}
             className="shrink-0 flex items-center gap-1.5 rounded-md border border-red-500/40 bg-red-500/15 px-2 py-0.5 text-[11px] font-semibold text-red-600 dark:text-red-400"

@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { Camera, Film, ExternalLink, CheckCircle2, TriangleAlert } from 'lucide-react'
+import { cn } from '@/lib/utils'
 import type { ArchiveFolderEntry } from '@/lib/services/archive-service'
 
 // Evaluated once at module load — accurate enough for a 7-day display badge
@@ -29,8 +30,20 @@ export function ArchiveLinkedRow({ item }: Props) {
 
   const linkedType = item.linkedSetId ? 'set' : 'staging'
 
+  const hasMismatch = !!(item.parsedShortName && item.chanFolderName &&
+    !item.chanFolderName.toLowerCase().startsWith(item.parsedShortName.toLowerCase() + '-') &&
+    item.chanFolderName.toLowerCase() !== item.parsedShortName.toLowerCase())
+  const hasWarning = hasMismatch || !item.nameFormatOk
+
   return (
-    <div className="flex items-center gap-3 rounded-xl border border-border/40 bg-card/70 px-4 py-3 shadow-sm backdrop-blur-sm">
+    <div className={cn(
+      'flex items-center gap-3 rounded-xl border px-4 py-3 shadow-sm backdrop-blur-sm',
+      hasMismatch
+        ? 'border-red-500/30 bg-red-500/8'
+        : hasWarning
+        ? 'border-orange-500/25 bg-orange-500/6'
+        : 'border-border/40 bg-card/70',
+    )}>
       {/* Linked indicator */}
       <CheckCircle2 size={14} className="shrink-0 text-green-500" />
 
@@ -69,9 +82,7 @@ export function ArchiveLinkedRow({ item }: Props) {
       )}
 
       {/* Shortname/channel folder mismatch — highest priority warning */}
-      {item.parsedShortName && item.chanFolderName &&
-        !item.chanFolderName.toLowerCase().startsWith(item.parsedShortName.toLowerCase() + '-') &&
-        item.chanFolderName.toLowerCase() !== item.parsedShortName.toLowerCase() && (
+      {hasMismatch && (
         <span
           title={`Code mismatch: folder name says "${item.parsedShortName}" but channel folder is "${item.chanFolderName}"`}
           className="shrink-0 flex items-center gap-1.5 rounded-md border border-red-500/40 bg-red-500/15 px-2 py-0.5 text-[11px] font-semibold text-red-600 dark:text-red-400"
