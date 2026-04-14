@@ -20,6 +20,7 @@ import {
 } from '@/lib/services/archive-service'
 import type { WorkspaceFilters, WorkspacePage } from '@/lib/services/archive-service'
 import type { SimpleActionResult } from '@/lib/types'
+import { onArchiveFolderLinked } from '@/lib/services/coherence-service'
 
 // ─── Archive Workspace Data ───────────────────────────────────────────────────
 
@@ -126,6 +127,7 @@ export async function confirmArchiveFolderLinkAction(
   return withTenantFromHeaders(async () => {
     try {
       await confirmArchiveFolderLink(folderId, setId, type)
+      void onArchiveFolderLinked(folderId, type === 'set' ? { setId } : { stagingSetId: setId })
       revalidatePath('/archive')
       if (type === 'set') {
         revalidatePath(`/sets/${setId}`)

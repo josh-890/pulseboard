@@ -2,7 +2,7 @@ import { withTenantFromHeaders } from "@/lib/tenant-context";
 import { Suspense } from "react";
 import { ImageIcon } from "lucide-react";
 import { getSetsPaginated, getChannelsWithLabelMaps, getRecentChannels, getLastUsedSetType } from "@/lib/services/set-service";
-import type { SetSort } from "@/lib/services/set-service";
+import type { SetSort, SetFilters } from "@/lib/services/set-service";
 import { getCoverPhotosForSets, getHeadshotsForPersons } from "@/lib/services/media-service";
 import { getAllContributionRoleGroups } from "@/lib/services/contribution-role-service";
 import type { SetType } from "@/lib/types";
@@ -25,6 +25,7 @@ type SetsPageProps = {
     channel?: string;
     label?: string;
     hasMedia?: string;
+    archiveFilter?: string;
   }>;
 };
 
@@ -56,6 +57,7 @@ export default async function SetsPage({ searchParams }: SetsPageProps) {
       q, type, loaded, sort: sortParam,
       channel: channelId, label: labelId,
       hasMedia: hasMediaParam,
+      archiveFilter: archiveFilterParam,
     } = await searchParams;
 
   const limit = Math.min(
@@ -66,13 +68,19 @@ export default async function SetsPage({ searchParams }: SetsPageProps) {
   const resolvedType = type && isSetType(type) ? type : undefined;
   const resolvedSort = sortParam && isSetSort(sortParam) ? sortParam : undefined;
 
-  const filters = {
+  const VALID_ARCHIVE_FILTERS = new Set(['noArchive', 'verified', 'changed', 'missing', 'notImported'])
+  const archiveFilter = archiveFilterParam && VALID_ARCHIVE_FILTERS.has(archiveFilterParam)
+    ? (archiveFilterParam as SetFilters['archiveFilter'])
+    : undefined
+
+  const filters: SetFilters = {
     q: q?.trim() || undefined,
     type: resolvedType ?? ("all" as const),
     labelId: labelId || undefined,
     channelId: channelId || undefined,
     hasMedia: hasMediaParam === "true" ? true : undefined,
     sort: resolvedSort,
+    archiveFilter,
   };
 
   const [paginated, channels, recentChannelIds, lastType, roleGroups] = await Promise.all([
@@ -151,6 +159,19 @@ export default async function SetsPage({ searchParams }: SetsPageProps) {
     type: "toggle",
     param: "hasMedia",
     label: "Has media",
+  });
+
+  filterGroups.push({
+    type: "pill",
+    param: "archiveFilter",
+    label: "Archive",
+    options: [
+      { value: "noArchive",   label: "No archive" },
+      { value: "verified",    label: "Verified" },
+      { value: "changed",     label: "Changed" },
+      { value: "missing",     label: "Missing" },
+      { value: "notImported", label: "Not imported" },
+    ],
   });
 
   const toolbarConfig: BrowserToolbarConfig = {

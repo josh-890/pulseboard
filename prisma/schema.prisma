@@ -872,6 +872,7 @@ model Set {
   setTags           SetTag[]
   stagingMatches    StagingSet[]     @relation("StagingSetMatch")
   stagingPromotions StagingSet[]     @relation("StagingSetPromoted")
+  coherenceSnapshot SetCoherenceSnapshot?
 
   @@index([channelId])
   @@index([type])
@@ -1607,6 +1608,8 @@ model StagingSet {
   @@index([archiveStatus])
   @@index([mediaQueueAt])
   @@index([importBatchId])
+  coherenceSnapshot SetCoherenceSnapshot?
+
   @@index([status])
   @@index([duplicateGroupId])
   @@map("staging_set")
@@ -1638,7 +1641,7 @@ model ArchiveFolder {
   parsedDate      DateTime?          // date parsed from folder name convention
   parsedShortName String?            // channel shortName parsed from folder name
   parsedTitle     String?            // title remainder parsed from folder name
-  linkedSetId     String?            // confirmed link → Set
+  linkedSetId     String? @unique    // confirmed link → Set (unique: one folder per set)
   linkedStagingId String?            // confirmed link → StagingSet
   suggestedSetId  String?            // suggested (unconfirmed) match → Set
   suggestedStagingId String?         // suggested (unconfirmed) match → StagingSet
@@ -1655,12 +1658,41 @@ model ArchiveFolder {
   nameFormatOk        Boolean        @default(true)  // false = folder name deviates from canonical format
   chanFolderName      String?        // channel folder name (e.g. "RA-RylskyArt") — 3rd-from-last path segment
 
+  coherenceSnapshot SetCoherenceSnapshot?
+
   @@index([folderName])
   @@index([chanFolderName])
   @@index([parsedDate, parsedShortName])
-  @@index([linkedSetId])
   @@index([linkedStagingId])
   @@index([tenant])
   @@index([contentSignature])
   @@map("archive_folder")
+}
+
+// ─── Coherence ──────────────────────────────────────────────────────────────
+
+// One row per logical set entry — spans Active Set + Staging Set + Archive Folder.
+// Provides a single-row cross-bucket coherence view updated on every mutation.
+model SetCoherenceSnapshot {
+  id              String    @id @default(cuid())
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  // At least one must be non-null; all three populated on a fully-linked promoted set
+  setId           String?   @unique
+  stagingSetId    String?   @unique
+  archiveFolderId String?   @unique
+
+  // Denormalized status — updated fire-and-forget on every mutation
+  archiveStatus    String   @default("NONE")  // NONE | OK | CHANGED | MISSING | INCOMPLETE
+  hasMediaInApp    Boolean  @default(false)   // any SetMediaItem exists for setId (imported to MinIO)
+  archiveFileCount Int?                       // mirrors ArchiveFolder.fileCount (files on disk)
+
+  lastVerifiedAt   DateTime?  // when archiveStatus was last computed as OK
+
+  set           Set?           @relation(fields: [setId], references: [id], onDelete: SetNull)
+  stagingSet    StagingSet?    @relation(fields: [stagingSetId], references: [id], onDelete: SetNull)
+  archiveFolder ArchiveFolder? @relation(fields: [archiveFolderId], references: [id], onDelete: SetNull)
+
+  @@map("set_coherence_snapshots")
 }

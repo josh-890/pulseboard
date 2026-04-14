@@ -394,6 +394,9 @@ function PanelContent({
           </div>
         )}
 
+        {/* Coherence: linked archive folder from scan */}
+        <CoherenceArchiveSection stagingSet={stagingSet} />
+
         {/* Archive */}
         <ArchiveSection stagingSet={stagingSet} onRefresh={onRefresh} />
 
@@ -458,6 +461,64 @@ function PanelContent({
             <RotateCcw size={14} /> Reactivate
           </Button>
         )}
+      </div>
+    </div>
+  )
+}
+
+// ─── Coherence Archive Section ─────────────────────────────────────────────
+
+const COHERENCE_DOT: Record<string, string> = {
+  OK:         'bg-green-500',
+  LINKED:     'bg-amber-400',
+  CHANGED:    'bg-amber-500',
+  MISSING:    'bg-red-500',
+  INCOMPLETE: 'bg-orange-500',
+}
+
+function CoherenceArchiveSection({ stagingSet }: { stagingSet: StagingSetWithRelations }) {
+  const snap = stagingSet.coherenceSnapshot
+  if (!snap?.archiveFolder) return null
+
+  const dot = COHERENCE_DOT[snap.archiveStatus] ?? 'bg-muted-foreground/40'
+  const statusLabel = snap.archiveStatus === 'OK' ? 'Verified'
+    : snap.archiveStatus === 'LINKED'     ? 'Linked'
+    : snap.archiveStatus === 'CHANGED'    ? 'Changed'
+    : snap.archiveStatus === 'MISSING'    ? 'Missing'
+    : snap.archiveStatus === 'INCOMPLETE' ? 'Incomplete'
+    : snap.archiveStatus
+
+  return (
+    <div className="rounded-lg border border-border/40 bg-muted/20 p-3 text-xs">
+      <div className="flex items-center justify-between mb-1.5">
+        <div className="flex items-center gap-1.5 font-semibold uppercase tracking-wider text-muted-foreground">
+          <span className={cn('h-1.5 w-1.5 shrink-0 rounded-full', dot)} />
+          Archive folder
+        </div>
+        <span className={cn(
+          'rounded-full px-1.5 py-px text-[10px]',
+          snap.archiveStatus === 'OK'      && 'bg-green-500/15 text-green-600 dark:text-green-400',
+          snap.archiveStatus === 'LINKED'  && 'bg-amber-500/15 text-amber-600 dark:text-amber-400',
+          snap.archiveStatus === 'CHANGED' && 'bg-amber-500/15 text-amber-600 dark:text-amber-400',
+          snap.archiveStatus === 'MISSING' && 'bg-red-500/15 text-red-600 dark:text-red-400',
+        )}>
+          {statusLabel}
+        </span>
+      </div>
+      <div className="truncate text-muted-foreground" title={snap.archiveFolder.fullPath}>
+        {snap.archiveFolder.folderName}
+      </div>
+      <div className="mt-1 flex items-center gap-2 text-[10px] text-muted-foreground/60">
+        {snap.archiveFileCount != null && <span>{snap.archiveFileCount} files</span>}
+        {snap.archiveFileCount != null && <span>·</span>}
+        <span>{snap.hasMediaInApp ? 'Imported to app' : 'Not imported'}</span>
+        <Link
+          href={`/archive?highlight=${snap.archiveFolder.id}`}
+          className="ml-auto flex items-center gap-1 text-muted-foreground/50 hover:text-foreground transition-colors"
+          title="Go to archive workspace"
+        >
+          <ExternalLink size={10} /> Archive
+        </Link>
       </div>
     </div>
   )

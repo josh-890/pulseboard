@@ -22,6 +22,7 @@ export type SetFilters = {
   channelId?: string;
   hasMedia?: boolean;
   sort?: SetSort;
+  archiveFilter?: 'noArchive' | 'verified' | 'changed' | 'missing' | 'notImported'
 };
 
 export async function getSets(filters: SetFilters = {}) {
@@ -46,6 +47,14 @@ export async function getSets(filters: SetFilters = {}) {
     include: {
       channel: {
         include: { labelMaps: { include: { label: true } } },
+      },
+      coherenceSnapshot: {
+        select: {
+          archiveStatus: true,
+          archiveFileCount: true,
+          hasMediaInApp: true,
+          archiveFolder: { select: { id: true, folderName: true, fullPath: true } },
+        },
       },
       participants: {
         include: {
@@ -106,7 +115,7 @@ export async function getSetsPaginated(
   cursor?: string,
   limit = 50,
 ): Promise<PaginatedSets> {
-  const { q, type, labelId, channelId, hasMedia, sort } = filters;
+  const { q, type, labelId, channelId, hasMedia, sort, archiveFilter } = filters;
 
   const where: Prisma.SetWhereInput = {};
 
@@ -126,6 +135,18 @@ export async function getSetsPaginated(
     where.channelId = channelId;
   }
 
+  if (archiveFilter === 'noArchive') {
+    where.coherenceSnapshot = { is: null }
+  } else if (archiveFilter === 'verified') {
+    where.coherenceSnapshot = { archiveStatus: 'OK' }
+  } else if (archiveFilter === 'changed') {
+    where.coherenceSnapshot = { archiveStatus: 'CHANGED' }
+  } else if (archiveFilter === 'missing') {
+    where.coherenceSnapshot = { archiveStatus: 'MISSING' }
+  } else if (archiveFilter === 'notImported') {
+    where.coherenceSnapshot = { hasMediaInApp: false, archiveFolderId: { not: null } }
+  }
+
   if (hasMedia === true) {
     where.setMediaItems = { some: {} };
   }
@@ -139,6 +160,14 @@ export async function getSetsPaginated(
       include: {
         channel: {
           include: { labelMaps: { include: { label: true } } },
+        },
+        coherenceSnapshot: {
+          select: {
+            archiveStatus: true,
+            archiveFileCount: true,
+            hasMediaInApp: true,
+            archiveFolder: { select: { id: true, folderName: true, fullPath: true } },
+          },
         },
         participants: {
           include: {

@@ -38,6 +38,7 @@ type Props = {
   initialTab: Tab
   initialIsVideo?: boolean
   initialHasSuggestion?: boolean
+  highlightId?: string
 }
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
@@ -174,6 +175,7 @@ export function ArchiveWorkspaceClient({
   initialTab,
   initialIsVideo,
   initialHasSuggestion,
+  highlightId,
 }: Props) {
   const [tab, setTab] = useState<Tab>(initialTab)
   const [counts, setCounts] = useState<WorkspaceCounts>(initialPage.counts)
@@ -206,6 +208,9 @@ export function ArchiveWorkspaceClient({
     allCollapsed: false,
     exceptions: new Set(),
   })
+
+  // Highlight: transient ring on a specific folder row
+  const [activeHighlight, setActiveHighlight] = useState<string | undefined>(highlightId)
 
   const listRef = useRef<HTMLDivElement>(null)
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -339,6 +344,21 @@ export function ArchiveWorkspaceClient({
     overscan: 10,
     scrollMargin: listRef.current?.offsetTop ?? 0,
   })
+
+  // ── Highlight: scroll to item on first render ──────────────────────────────
+  const highlightScrolled = useRef(false)
+  useEffect(() => {
+    if (!activeHighlight || highlightScrolled.current || loading) return
+    const idx = virtualRows.findIndex(
+      (r) => r.kind === 'folder-item' && r.item.id === activeHighlight,
+    )
+    if (idx === -1) return
+    highlightScrolled.current = true
+    virtualizer.scrollToIndex(idx, { align: 'center' })
+    // Clear ring after 2.5 s
+    const t = setTimeout(() => setActiveHighlight(undefined), 2500)
+    return () => clearTimeout(t)
+  }, [activeHighlight, virtualRows, virtualizer, loading])
 
   // ── Infinite scroll trigger ────────────────────────────────────────────────
   const vItems = virtualizer.getVirtualItems()
@@ -650,12 +670,18 @@ export function ArchiveWorkspaceClient({
                       />
                     )}
                     {row.kind === 'folder-item' && tab === 'orphan' && (
-                      <div className="py-0.5">
+                      <div className={cn(
+                        'py-0.5 rounded-xl transition-all duration-500',
+                        activeHighlight === row.item.id && 'ring-2 ring-amber-400 ring-offset-1',
+                      )}>
                         <ArchiveOrphanRow item={row.item} />
                       </div>
                     )}
                     {row.kind === 'folder-item' && tab === 'linked' && (
-                      <div className="py-0.5">
+                      <div className={cn(
+                        'py-0.5 rounded-xl transition-all duration-500',
+                        activeHighlight === row.item.id && 'ring-2 ring-amber-400 ring-offset-1',
+                      )}>
                         <ArchiveLinkedRow item={row.item} />
                       </div>
                     )}

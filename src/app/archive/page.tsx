@@ -31,6 +31,8 @@ export default async function ArchivePage({ searchParams }: { searchParams: Sear
     offset: 0,
   }
 
+  const highlightId = getString(sp.highlight)
+
   return withTenantFromHeaders(async () => {
     const page = await getArchiveWorkspace(filters)
 
@@ -40,6 +42,7 @@ export default async function ArchivePage({ searchParams }: { searchParams: Sear
         initialTab={tab}
         initialIsVideo={isVideo}
         initialHasSuggestion={hasSuggestion || undefined}
+        highlightId={highlightId}
       />
     )
   })

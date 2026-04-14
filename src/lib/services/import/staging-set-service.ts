@@ -9,12 +9,21 @@
 import { prisma } from '@/lib/db'
 import { normalizeForSearch } from '@/lib/normalize'
 import type { ChannelTier, DatePrecision, Prisma, StagingSet, StagingSetStatus } from '@/generated/prisma/client'
+import { onSetPromoted } from '@/lib/services/coherence-service'
 
 // ─── Types ──────────────────────────────────────────────────────────────────
+
+export type CoherenceSnapshotMini = {
+  archiveStatus: string
+  archiveFileCount: number | null
+  hasMediaInApp: boolean
+  archiveFolder: { id: string; folderName: string; fullPath: string } | null
+} | null
 
 export type StagingSetWithRelations = StagingSet & {
   channel: { id: string; name: string; tier: ChannelTier; shortName: string | null; channelFolder: string | null } | null
   matchedSet: { id: string; title: string; channelId: string | null } | null
+  coherenceSnapshot: CoherenceSnapshotMini
 }
 
 export type ParticipantStatus = {
@@ -60,13 +69,23 @@ export type StagingSetComparison = {
 
 // ─── Queries ────────────────────────────────────────────────────────────────
 
+const STAGING_SET_INCLUDE = {
+  channel: { select: { id: true, name: true, tier: true, shortName: true, channelFolder: true } },
+  matchedSet: { select: { id: true, title: true, channelId: true } },
+  coherenceSnapshot: {
+    select: {
+      archiveStatus: true,
+      archiveFileCount: true,
+      hasMediaInApp: true,
+      archiveFolder: { select: { id: true, folderName: true, fullPath: true } },
+    },
+  },
+} as const
+
 export async function getStagingSetsForBatch(batchId: string): Promise<StagingSetWithRelations[]> {
   return prisma.stagingSet.findMany({
     where: { importBatchId: batchId },
-    include: {
-      channel: { select: { id: true, name: true, tier: true, shortName: true, channelFolder: true } },
-      matchedSet: { select: { id: true, title: true, channelId: true } },
-    },
+    include: STAGING_SET_INCLUDE,
     orderBy: [{ releaseDate: 'asc' }, { title: 'asc' }],
   })
 }
@@ -74,10 +93,7 @@ export async function getStagingSetsForBatch(batchId: string): Promise<StagingSe
 export async function getStagingSetById(id: string): Promise<StagingSetWithRelations | null> {
   return prisma.stagingSet.findUnique({
     where: { id },
-    include: {
-      channel: { select: { id: true, name: true, tier: true, shortName: true, channelFolder: true } },
-      matchedSet: { select: { id: true, title: true, channelId: true } },
-    },
+    include: STAGING_SET_INCLUDE,
   })
 }
 
@@ -92,10 +108,7 @@ export async function getStagingSetsForPerson(
         { participantIcgIds: { has: personIdOrIcgId } },
       ],
     },
-    include: {
-      channel: { select: { id: true, name: true, tier: true, shortName: true, channelFolder: true } },
-      matchedSet: { select: { id: true, title: true, channelId: true } },
-    },
+    include: STAGING_SET_INCLUDE,
     orderBy: [{ releaseDate: 'asc' }, { title: 'asc' }],
   })
 }
@@ -110,10 +123,7 @@ export async function getStagingSetsForChannel(
         { channelName: { equals: channelIdOrName, mode: 'insensitive' } },
       ],
     },
-    include: {
-      channel: { select: { id: true, name: true, tier: true, shortName: true, channelFolder: true } },
-      matchedSet: { select: { id: true, title: true, channelId: true } },
-    },
+    include: STAGING_SET_INCLUDE,
     orderBy: [{ releaseDate: 'asc' }, { title: 'asc' }],
   })
 }
@@ -123,10 +133,7 @@ export async function getStagingSetDuplicateGroup(
 ): Promise<StagingSetWithRelations[]> {
   return prisma.stagingSet.findMany({
     where: { duplicateGroupId: groupId },
-    include: {
-      channel: { select: { id: true, name: true, tier: true, shortName: true, channelFolder: true } },
-      matchedSet: { select: { id: true, title: true, channelId: true } },
-    },
+    include: STAGING_SET_INCLUDE,
     orderBy: [{ createdAt: 'asc' }],
   })
 }
@@ -138,10 +145,7 @@ export async function getStagingSetComparison(
 ): Promise<StagingSetComparison | null> {
   const stagingSet = await prisma.stagingSet.findUnique({
     where: { id: stagingSetId },
-    include: {
-      channel: { select: { id: true, name: true, tier: true, shortName: true, channelFolder: true } },
-      matchedSet: { select: { id: true, title: true, channelId: true } },
-    },
+    include: STAGING_SET_INCLUDE,
   })
   if (!stagingSet) return null
 
@@ -349,6 +353,7 @@ export async function markStagingSetPromoted(
       data: { linkedStagingId: null, linkedSetId: promotedSetId },
     }),
   ])
+  void onSetPromoted(id, promotedSetId)
   return stagingSet
 }
 
@@ -540,6 +545,14 @@ export async function getStagingSetsFiltered(filters: StagingSetFilters): Promis
     include: {
       channel: { select: { id: true, name: true, tier: true, shortName: true, channelFolder: true } },
       matchedSet: { select: { id: true, title: true, channelId: true } },
+      coherenceSnapshot: {
+        select: {
+          archiveStatus: true,
+          archiveFileCount: true,
+          hasMediaInApp: true,
+          archiveFolder: { select: { id: true, folderName: true, fullPath: true } } as const,
+        },
+      },
     } as const,
     orderBy,
     take: limit + 1,

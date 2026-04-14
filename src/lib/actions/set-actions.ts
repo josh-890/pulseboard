@@ -36,6 +36,7 @@ import { getCoverPhotosForSets, getSkillEventMediaConstraints, getHeadshotsForPe
 import { cascadeHardDeleteMediaItems } from "@/lib/services/cascade-helpers";
 import { searchArtists } from "@/lib/services/artist-service";
 import { refreshDashboardStats } from "@/lib/services/view-service";
+import { onMediaImportChanged } from "@/lib/services/coherence-service";
 import { getLabels } from "@/lib/services/label-service";
 import { prisma } from "@/lib/db";
 import { z } from "zod";
@@ -360,6 +361,7 @@ export async function addExistingMediaToSetAction(
   return withTenantFromHeaders(async () => {
     try {
       await addExistingMediaToSet(setId, mediaItemIds);
+      void onMediaImportChanged(setId);
       revalidatePath(`/sets/${setId}`);
       revalidatePath("/sets");
       return { success: true };
@@ -378,6 +380,7 @@ export async function removeMediaFromSetAction(
   return withTenantFromHeaders(async () => {
     try {
       await removeMediaFromSet(setId, mediaItemIds);
+      void onMediaImportChanged(setId);
       revalidatePath(`/sets/${setId}`);
       revalidatePath("/sets");
       return { success: true };

@@ -3,6 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { Camera, Film, AlertTriangle } from "lucide-react";
+import { ArchiveStatusDot } from './archive-status-dot';
 import { cn, focalStyle, formatPartialDateISO, getInitialsFromName, computeProductionAge } from "@/lib/utils";
 import { useDensity } from "@/components/layout/density-provider";
 import {
@@ -204,11 +205,16 @@ export function SetCard({ set, coverPhoto, headshotMap = {}, unresolvedCreditCou
             isCompact ? "p-2" : "p-3",
           )}
         >
-          {/* Line 1: date · channel + type icon (right) */}
+          {/* Line 1: date · channel · archive dot + type icon (right) */}
           <div className={cn("flex items-center gap-1.5 text-muted-foreground", isCompact ? "text-[10px]" : "text-xs")}>
             {dateStr && <span className="shrink-0 tabular-nums">{dateStr}</span>}
             {dateStr && channelDisplay && <span className="text-muted-foreground/40">·</span>}
             {channelDisplay && <span className="truncate">{channelDisplay}</span>}
+            <ArchiveStatusDot
+              status={set.coherenceSnapshot?.archiveStatus}
+              path={set.coherenceSnapshot?.archiveFolder?.fullPath}
+              fileCount={set.coherenceSnapshot?.archiveFileCount}
+            />
             <span className="ml-auto shrink-0 text-muted-foreground/30">
               {isPhoto ? <Camera size={11} /> : <Film size={11} />}
             </span>
