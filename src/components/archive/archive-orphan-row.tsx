@@ -29,7 +29,15 @@ export function ArchiveOrphanRow({ item }: Props) {
   const hasSuggestion = !!(item.suggestedSetId || item.suggestedStagingId)
   const suggestedId = item.suggestedSetId ?? item.suggestedStagingId
   const suggestedType = item.suggestedSetId ? 'set' : 'staging'
-  const suggestedTitle = item.suggestedSetTitle ?? item.suggestedStagingTitle
+  const suggestedTitle    = item.suggestedSetTitle    ?? item.suggestedStagingTitle
+  const suggestedDate     = item.suggestedSetDate     ?? item.suggestedStagingDate
+  const suggestedChannel  = item.suggestedSetChannel  ?? item.suggestedStagingChannel
+  const suggestedPeople   = item.suggestedSetParticipants.length > 0
+    ? item.suggestedSetParticipants
+    : item.suggestedStagingParticipants
+  const suggestedDateStr  = suggestedDate
+    ? new Date(suggestedDate).toISOString().split('T')[0]
+    : null
 
   function handleConfirmSuggestion() {
     if (!suggestedId) return
@@ -135,41 +143,12 @@ export function ArchiveOrphanRow({ item }: Props) {
           </span>
         )}
 
-        {/* Possible match — inline compact chip */}
+        {/* Possible match — small amber dot indicator in main row */}
         {hasSuggestion && !dismissed && (
-          <span className="shrink-0 flex items-center gap-1 min-w-0 max-w-[220px] rounded-md border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[10px] text-amber-600 dark:text-amber-400">
-            <span className="min-w-0 truncate" title={suggestedTitle ?? suggestedId ?? ''}>
-              {suggestedTitle ?? suggestedId}
-            </span>
-            {suggestedType === 'set' && item.suggestedSetId && (
-              <Link
-                href={`/sets/${item.suggestedSetId}`}
-                target="_blank"
-                title="Open set"
-                className="shrink-0 text-amber-500/60 hover:text-amber-500 transition-colors"
-              >
-                <ExternalLink size={10} />
-              </Link>
-            )}
-            <button
-              type="button"
-              disabled={pending}
-              onClick={handleConfirmSuggestion}
-              title="Confirm link"
-              className="shrink-0 text-green-500 hover:text-green-400 transition-colors"
-            >
-              <Check size={10} />
-            </button>
-            <button
-              type="button"
-              disabled={pending}
-              onClick={handleRejectSuggestion}
-              title="Dismiss suggestion"
-              className="shrink-0 text-muted-foreground/40 hover:text-red-500 transition-colors"
-            >
-              <X size={10} />
-            </button>
-          </span>
+          <span
+            title="Possible match found — see below"
+            className="shrink-0 h-1.5 w-1.5 rounded-full bg-amber-500/70"
+          />
         )}
 
         {/* Create staging set */}
@@ -200,6 +179,77 @@ export function ArchiveOrphanRow({ item }: Props) {
       <div className="truncate pl-5 text-[11px] text-muted-foreground/50" title={item.fullPath}>
         {item.fullPath}
       </div>
+
+      {/* Suggestion detail row */}
+      {hasSuggestion && !dismissed && (
+        <div className="flex items-center gap-2 pl-5 min-w-0">
+          {/* Title */}
+          <span className="min-w-0 truncate text-[11px] font-medium text-amber-600 dark:text-amber-400"
+            title={suggestedTitle ?? suggestedId ?? ''}>
+            {suggestedTitle ?? suggestedId}
+          </span>
+
+          {/* Date */}
+          {suggestedDateStr && (
+            <span className="shrink-0 text-[10px] text-muted-foreground/60">{suggestedDateStr}</span>
+          )}
+
+          {/* Channel */}
+          {suggestedChannel && (
+            <span className="shrink-0 rounded-full bg-muted/50 px-1.5 py-px text-[10px] text-muted-foreground">
+              {suggestedChannel}
+            </span>
+          )}
+
+          {/* Participants */}
+          {suggestedPeople.length > 0 && (
+            <span className="shrink-0 text-[10px] text-muted-foreground/70">
+              {suggestedPeople.join(', ')}
+            </span>
+          )}
+
+          <span className="flex-1" />
+
+          {/* Type badge */}
+          <span className="shrink-0 rounded-full bg-amber-500/15 px-1.5 py-px text-[10px] text-amber-600 dark:text-amber-400">
+            {suggestedType}
+          </span>
+
+          {/* Open link */}
+          {suggestedType === 'set' && item.suggestedSetId && (
+            <Link
+              href={`/sets/${item.suggestedSetId}`}
+              target="_blank"
+              title="Open set"
+              className="shrink-0 text-muted-foreground/40 hover:text-foreground transition-colors"
+            >
+              <ExternalLink size={11} />
+            </Link>
+          )}
+
+          {/* Confirm */}
+          <button
+            type="button"
+            disabled={pending}
+            onClick={handleConfirmSuggestion}
+            title="Confirm link"
+            className="shrink-0 flex items-center gap-1 rounded px-2 py-0.5 text-[11px] font-medium bg-green-500/15 text-green-600 dark:text-green-400 hover:bg-green-500/25 transition-colors"
+          >
+            <Check size={11} /> Confirm
+          </button>
+
+          {/* Dismiss */}
+          <button
+            type="button"
+            disabled={pending}
+            onClick={handleRejectSuggestion}
+            title="Dismiss suggestion"
+            className="shrink-0 text-muted-foreground/40 hover:text-red-500 transition-colors"
+          >
+            <X size={11} />
+          </button>
+        </div>
+      )}
     </div>
   )
 }

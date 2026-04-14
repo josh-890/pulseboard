@@ -630,9 +630,15 @@ export type ArchiveFolderEntry = {
   linkedStagingId: string | null
   suggestedSetId: string | null
   suggestedStagingId: string | null
-  /** Title of the suggested match (for display) */
+  /** Display fields for the suggested match */
   suggestedSetTitle: string | null
   suggestedStagingTitle: string | null
+  suggestedSetDate: Date | null
+  suggestedStagingDate: Date | null
+  suggestedSetChannel: string | null
+  suggestedStagingChannel: string | null
+  suggestedSetParticipants: string[]
+  suggestedStagingParticipants: string[]
   scannedAt: Date
   lastRenamedAt: Date | null
   lastRenamedFrom: string | null
@@ -1185,25 +1191,85 @@ export async function getArchiveWorkspace(filters: WorkspaceFilters): Promise<Wo
       }),
     ])
 
-    // Fetch suggested set titles for display
+    // Fetch suggestion detail fields for display
     const suggestedSetIds = rows.map((r) => r.suggestedSetId).filter(Boolean) as string[]
     const suggestedStagingIds = rows.map((r) => r.suggestedStagingId).filter(Boolean) as string[]
+
+    type SuggestedSet = {
+      id: string
+      title: string
+      releaseDate: Date | null
+      channel: { name: string } | null
+      participants: { person: { aliases: { name: string }[] } }[]
+    }
+    type SuggestedStaging = {
+      id: string
+      title: string
+      releaseDate: Date | null
+      channelName: string
+      artist: string | null
+    }
+
     const [suggestedSets, suggestedStagings] = await Promise.all([
       suggestedSetIds.length > 0
-        ? prisma.set.findMany({ where: { id: { in: suggestedSetIds } }, select: { id: true, title: true } })
-        : [],
+        ? prisma.set.findMany({
+            where: { id: { in: suggestedSetIds } },
+            select: {
+              id: true,
+              title: true,
+              releaseDate: true,
+              channel: { select: { name: true } },
+              participants: {
+                take: 4,
+                select: {
+                  person: {
+                    select: {
+                      aliases: {
+                        where: { isCommon: true },
+                        select: { name: true },
+                        take: 1,
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          }) as Promise<SuggestedSet[]>
+        : Promise.resolve([] as SuggestedSet[]),
       suggestedStagingIds.length > 0
-        ? prisma.stagingSet.findMany({ where: { id: { in: suggestedStagingIds } }, select: { id: true, title: true } })
-        : [],
+        ? prisma.stagingSet.findMany({
+            where: { id: { in: suggestedStagingIds } },
+            select: {
+              id: true,
+              title: true,
+              releaseDate: true,
+              channelName: true,
+              artist: true,
+            },
+          }) as Promise<SuggestedStaging[]>
+        : Promise.resolve([] as SuggestedStaging[]),
     ])
-    const setTitleMap = new Map(suggestedSets.map((s) => [s.id, s.title]))
-    const stagingTitleMap = new Map(suggestedStagings.map((s) => [s.id, s.title]))
 
-    const items: ArchiveFolderEntry[] = rows.map((r) => ({
-      ...r,
-      suggestedSetTitle: r.suggestedSetId ? (setTitleMap.get(r.suggestedSetId) ?? null) : null,
-      suggestedStagingTitle: r.suggestedStagingId ? (stagingTitleMap.get(r.suggestedStagingId) ?? null) : null,
-    }))
+    const setMap = new Map<string, SuggestedSet>(suggestedSets.map((s) => [s.id, s]))
+    const stagingMap = new Map<string, SuggestedStaging>(suggestedStagings.map((s) => [s.id, s]))
+
+    const items: ArchiveFolderEntry[] = rows.map((r) => {
+      const ss = r.suggestedSetId ? setMap.get(r.suggestedSetId) : undefined
+      const sg = r.suggestedStagingId ? stagingMap.get(r.suggestedStagingId) : undefined
+      return {
+        ...r,
+        suggestedSetTitle: ss?.title ?? null,
+        suggestedStagingTitle: sg?.title ?? null,
+        suggestedSetDate: ss?.releaseDate ?? null,
+        suggestedStagingDate: sg?.releaseDate ?? null,
+        suggestedSetChannel: ss?.channel?.name ?? null,
+        suggestedStagingChannel: sg?.channelName ?? null,
+        suggestedSetParticipants: ss
+          ? ss.participants.map((p) => p.person.aliases[0]?.name).filter(Boolean) as string[]
+          : [],
+        suggestedStagingParticipants: sg?.artist ? [sg.artist] : [],
+      }
+    })
 
     return { items, total, counts, hasMore: rows.length === pageSize }
   }
@@ -1242,6 +1308,12 @@ export async function getArchiveWorkspace(filters: WorkspaceFilters): Promise<Wo
       ...r,
       suggestedSetTitle: null,
       suggestedStagingTitle: null,
+      suggestedSetDate: null,
+      suggestedStagingDate: null,
+      suggestedSetChannel: null,
+      suggestedStagingChannel: null,
+      suggestedSetParticipants: [],
+      suggestedStagingParticipants: [],
     }))
 
     return { items, total, counts, hasMore: rows.length === pageSize }
