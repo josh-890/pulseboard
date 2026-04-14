@@ -21,19 +21,14 @@ export default async function ArchivePage({ searchParams }: { searchParams: Sear
   const isVideo = rawIsVideo === 'true' ? true : rawIsVideo === 'false' ? false : undefined
 
   const hasSuggestion = getString(sp.hasSuggestion) === 'true'
-  const shortName = getString(sp.shortName)
-  const rawYear = getString(sp.year)
-  const year = rawYear ? Number(rawYear) : undefined
-  const cursor = getString(sp.cursor)
 
   const filters: WorkspaceFilters = {
     tab,
     isVideo,
     hasSuggestion: hasSuggestion || undefined,
-    shortName,
-    year,
-    cursor,
-    pageSize: 50,
+    groupBy: 'channelYear',  // server uses this to determine sort order for initial load
+    pageSize: 200,
+    offset: 0,
   }
 
   return withTenantFromHeaders(async () => {

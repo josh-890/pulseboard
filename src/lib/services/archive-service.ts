@@ -664,13 +664,21 @@ export type WorkspaceCounts = {
   untracked: number
 }
 
+export type GroupBy = 'none' | 'channel' | 'year' | 'channelYear'
+export type ArchiveSort = 'date' | 'name' | 'fileCount'
+export type SortDir = 'asc' | 'desc'
+
 export type WorkspaceFilters = {
   tab: 'orphan' | 'linked' | 'phantom' | 'untracked'
   isVideo?: boolean
   shortName?: string
   year?: number
   hasSuggestion?: boolean
-  cursor?: string
+  search?: string
+  sort?: ArchiveSort
+  sortDir?: SortDir
+  groupBy?: GroupBy
+  offset?: number
   pageSize?: number
 }
 
@@ -678,7 +686,7 @@ export type WorkspacePage = {
   items: ArchiveFolderEntry[] | PhantomEntry[] | UntrackedEntry[]
   total: number
   counts: WorkspaceCounts
-  nextCursor: string | null
+  hasMore: boolean
 }
 
 // ─── Scan Preload ─────────────────────────────────────────────────────────────
@@ -1057,7 +1065,8 @@ function _normPath(p: string): string {
  * Returns tab counts + paginated items for the /archive workspace page.
  */
 export async function getArchiveWorkspace(filters: WorkspaceFilters): Promise<WorkspacePage> {
-  const pageSize = filters.pageSize ?? 50
+  const pageSize = filters.pageSize ?? 200
+  const offset = filters.offset ?? 0
 
   // Always compute all tab counts together
   const [orphanCount, linkedCount, phantomCount, untrackedCount] = await Promise.all([
@@ -1082,6 +1091,46 @@ export async function getArchiveWorkspace(filters: WorkspaceFilters): Promise<Wo
     untracked: untrackedCount,
   }
 
+  // Build orderBy for archive folder tabs based on groupBy + sort preferences
+  function buildOrderBy(groupBy: GroupBy | undefined, sort: ArchiveSort | undefined, sortDir: SortDir | undefined) {
+    const dir = sortDir ?? 'desc'
+    const channelFirst = [
+      { parsedShortName: 'asc' as const },
+      { parsedDate: 'desc' as const },
+      { folderName: 'asc' as const },
+    ]
+    if (groupBy === 'channel' || groupBy === 'channelYear') return channelFirst
+    if (groupBy === 'year') return [
+      { parsedDate: dir },
+      { parsedShortName: 'asc' as const },
+      { folderName: 'asc' as const },
+    ]
+    // groupBy = none: user-selected sort
+    if (sort === 'name') return [{ folderName: dir }, { parsedDate: 'desc' as const }]
+    if (sort === 'fileCount') return [{ fileCount: dir }, { parsedDate: 'desc' as const }]
+    return [{ parsedDate: dir }, { folderName: 'asc' as const }]
+  }
+
+  const folderSelect = {
+    id: true,
+    fullPath: true,
+    relativePath: true,
+    isVideo: true,
+    fileCount: true,
+    videoPresent: true,
+    folderName: true,
+    parsedDate: true,
+    parsedShortName: true,
+    parsedTitle: true,
+    linkedSetId: true,
+    linkedStagingId: true,
+    suggestedSetId: true,
+    suggestedStagingId: true,
+    scannedAt: true,
+    lastRenamedAt: true,
+    lastRenamedFrom: true,
+  }
+
   if (filters.tab === 'orphan') {
     const where = {
       linkedSetId: null,
@@ -1097,34 +1146,22 @@ export async function getArchiveWorkspace(filters: WorkspaceFilters): Promise<Wo
       ...(filters.hasSuggestion ? {
         OR: [{ suggestedSetId: { not: null } }, { suggestedStagingId: { not: null } }],
       } : {}),
+      ...(filters.search ? {
+        OR: [
+          { folderName: { contains: filters.search, mode: 'insensitive' as const } },
+          { parsedTitle: { contains: filters.search, mode: 'insensitive' as const } },
+        ],
+      } : {}),
     }
 
     const [total, rows] = await Promise.all([
       prisma.archiveFolder.count({ where }),
       prisma.archiveFolder.findMany({
         where,
-        orderBy: [{ parsedDate: 'desc' }, { folderName: 'asc' }],
+        orderBy: buildOrderBy(filters.groupBy, filters.sort, filters.sortDir),
         take: pageSize,
-        ...(filters.cursor ? { cursor: { id: filters.cursor }, skip: 1 } : {}),
-        select: {
-          id: true,
-          fullPath: true,
-          relativePath: true,
-          isVideo: true,
-          fileCount: true,
-          videoPresent: true,
-          folderName: true,
-          parsedDate: true,
-          parsedShortName: true,
-          parsedTitle: true,
-          linkedSetId: true,
-          linkedStagingId: true,
-          suggestedSetId: true,
-          suggestedStagingId: true,
-          scannedAt: true,
-          lastRenamedAt: true,
-          lastRenamedFrom: true,
-        },
+        skip: offset,
+        select: folderSelect,
       }),
     ])
 
@@ -1148,12 +1185,7 @@ export async function getArchiveWorkspace(filters: WorkspaceFilters): Promise<Wo
       suggestedStagingTitle: r.suggestedStagingId ? (stagingTitleMap.get(r.suggestedStagingId) ?? null) : null,
     }))
 
-    return {
-      items,
-      total,
-      counts,
-      nextCursor: rows.length === pageSize ? (rows[rows.length - 1]?.id ?? null) : null,
-    }
+    return { items, total, counts, hasMore: rows.length === pageSize }
   }
 
   if (filters.tab === 'linked') {
@@ -1167,34 +1199,22 @@ export async function getArchiveWorkspace(filters: WorkspaceFilters): Promise<Wo
           lt: new Date(`${filters.year + 1}-01-01`),
         },
       } : {}),
+      ...(filters.search ? {
+        OR: [
+          { folderName: { contains: filters.search, mode: 'insensitive' as const } },
+          { parsedTitle: { contains: filters.search, mode: 'insensitive' as const } },
+        ],
+      } : {}),
     }
 
     const [total, rows] = await Promise.all([
       prisma.archiveFolder.count({ where }),
       prisma.archiveFolder.findMany({
         where,
-        orderBy: [{ parsedDate: 'desc' }, { folderName: 'asc' }],
+        orderBy: buildOrderBy(filters.groupBy, filters.sort, filters.sortDir),
         take: pageSize,
-        ...(filters.cursor ? { cursor: { id: filters.cursor }, skip: 1 } : {}),
-        select: {
-          id: true,
-          fullPath: true,
-          relativePath: true,
-          isVideo: true,
-          fileCount: true,
-          videoPresent: true,
-          folderName: true,
-          parsedDate: true,
-          parsedShortName: true,
-          parsedTitle: true,
-          linkedSetId: true,
-          linkedStagingId: true,
-          suggestedSetId: true,
-          suggestedStagingId: true,
-          scannedAt: true,
-          lastRenamedAt: true,
-          lastRenamedFrom: true,
-        },
+        skip: offset,
+        select: folderSelect,
       }),
     ])
 
@@ -1204,12 +1224,7 @@ export async function getArchiveWorkspace(filters: WorkspaceFilters): Promise<Wo
       suggestedStagingTitle: null,
     }))
 
-    return {
-      items,
-      total,
-      counts,
-      nextCursor: rows.length === pageSize ? (rows[rows.length - 1]?.id ?? null) : null,
-    }
+    return { items, total, counts, hasMore: rows.length === pageSize }
   }
 
   if (filters.tab === 'phantom') {
@@ -1227,7 +1242,7 @@ export async function getArchiveWorkspace(filters: WorkspaceFilters): Promise<Wo
         },
         orderBy: { archiveLastChecked: 'desc' },
         take: pageSize,
-        ...(filters.cursor ? { cursor: { id: filters.cursor }, skip: 1 } : {}),
+        skip: offset,
       }),
       prisma.stagingSet.findMany({
         where: { archiveStatus: 'MISSING', ...(filters.isVideo !== undefined ? { isVideo: filters.isVideo } : {}) },
@@ -1237,7 +1252,7 @@ export async function getArchiveWorkspace(filters: WorkspaceFilters): Promise<Wo
         },
         orderBy: { archiveLastChecked: 'desc' },
         take: pageSize,
-        ...(filters.cursor ? { cursor: { id: filters.cursor }, skip: 1 } : {}),
+        skip: offset,
       }),
       prisma.set.count({ where: { archiveStatus: 'MISSING', ...videoWhere } }),
       prisma.stagingSet.count({ where: { archiveStatus: 'MISSING', ...(filters.isVideo !== undefined ? { isVideo: filters.isVideo } : {}) } }),
@@ -1245,39 +1260,20 @@ export async function getArchiveWorkspace(filters: WorkspaceFilters): Promise<Wo
 
     const items: PhantomEntry[] = [
       ...sets.map((s) => ({
-        id: s.id,
-        type: 'set' as const,
-        title: s.title,
-        archivePath: s.archivePath!,
-        archiveStatus: s.archiveStatus,
-        archiveLastChecked: s.archiveLastChecked,
-        channelName: s.channel?.name ?? null,
-        releaseDate: s.releaseDate,
-        isVideo: s.type === 'video',
+        id: s.id, type: 'set' as const, title: s.title,
+        archivePath: s.archivePath!, archiveStatus: s.archiveStatus,
+        archiveLastChecked: s.archiveLastChecked, channelName: s.channel?.name ?? null,
+        releaseDate: s.releaseDate, isVideo: s.type === 'video',
       })),
       ...stagings.map((s) => ({
-        id: s.id,
-        type: 'staging' as const,
-        title: s.title,
-        archivePath: s.archivePath!,
-        archiveStatus: s.archiveStatus,
-        archiveLastChecked: s.archiveLastChecked,
-        channelName: s.channelName,
-        releaseDate: s.releaseDate,
-        isVideo: s.isVideo,
+        id: s.id, type: 'staging' as const, title: s.title,
+        archivePath: s.archivePath!, archiveStatus: s.archiveStatus,
+        archiveLastChecked: s.archiveLastChecked, channelName: s.channelName,
+        releaseDate: s.releaseDate, isVideo: s.isVideo,
       })),
-    ].sort((a, b) => {
-      const ta = a.archiveLastChecked?.getTime() ?? 0
-      const tb = b.archiveLastChecked?.getTime() ?? 0
-      return tb - ta
-    })
+    ].sort((a, b) => (b.archiveLastChecked?.getTime() ?? 0) - (a.archiveLastChecked?.getTime() ?? 0))
 
-    return {
-      items,
-      total: setTotal + stagingTotal,
-      counts,
-      nextCursor: null, // simple pagination — not cursor-based for phantom/untracked
-    }
+    return { items, total: setTotal + stagingTotal, counts, hasMore: false }
   }
 
   // tab === 'untracked'
@@ -1288,18 +1284,17 @@ export async function getArchiveWorkspace(filters: WorkspaceFilters): Promise<Wo
   const [sets, stagings, setTotal, stagingTotal] = await Promise.all([
     prisma.set.findMany({
       where: { archiveStatus: 'UNKNOWN', ...videoWhere },
-      select: {
-        id: true, title: true, releaseDate: true, type: true,
-        channel: { select: { name: true } },
-      },
+      select: { id: true, title: true, releaseDate: true, type: true, channel: { select: { name: true } } },
       orderBy: { releaseDate: 'desc' },
       take: pageSize,
+      skip: offset,
     }),
     prisma.stagingSet.findMany({
       where: { archiveStatus: 'UNKNOWN', ...(filters.isVideo !== undefined ? { isVideo: filters.isVideo } : {}) },
       select: { id: true, title: true, releaseDate: true, isVideo: true, channelName: true },
       orderBy: { releaseDate: 'desc' },
       take: pageSize,
+      skip: offset,
     }),
     prisma.set.count({ where: { archiveStatus: 'UNKNOWN', ...videoWhere } }),
     prisma.stagingSet.count({ where: { archiveStatus: 'UNKNOWN', ...(filters.isVideo !== undefined ? { isVideo: filters.isVideo } : {}) } }),
@@ -1307,33 +1302,16 @@ export async function getArchiveWorkspace(filters: WorkspaceFilters): Promise<Wo
 
   const items: UntrackedEntry[] = [
     ...sets.map((s) => ({
-      id: s.id,
-      type: 'set' as const,
-      title: s.title,
-      channelName: s.channel?.name ?? null,
-      releaseDate: s.releaseDate,
-      isVideo: s.type === 'video',
+      id: s.id, type: 'set' as const, title: s.title,
+      channelName: s.channel?.name ?? null, releaseDate: s.releaseDate, isVideo: s.type === 'video',
     })),
     ...stagings.map((s) => ({
-      id: s.id,
-      type: 'staging' as const,
-      title: s.title,
-      channelName: s.channelName,
-      releaseDate: s.releaseDate,
-      isVideo: s.isVideo,
+      id: s.id, type: 'staging' as const, title: s.title,
+      channelName: s.channelName, releaseDate: s.releaseDate, isVideo: s.isVideo,
     })),
-  ].sort((a, b) => {
-    const ta = a.releaseDate?.getTime() ?? 0
-    const tb = b.releaseDate?.getTime() ?? 0
-    return tb - ta
-  })
+  ].sort((a, b) => (b.releaseDate?.getTime() ?? 0) - (a.releaseDate?.getTime() ?? 0))
 
-  return {
-    items,
-    total: setTotal + stagingTotal,
-    counts,
-    nextCursor: null,
-  }
+  return { items, total: setTotal + stagingTotal, counts, hasMore: false }
 }
 
 // ─── Workspace Actions ────────────────────────────────────────────────────────

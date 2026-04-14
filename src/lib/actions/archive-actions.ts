@@ -14,8 +14,16 @@ import {
   confirmArchiveFolderLink,
   rejectArchiveSuggestion,
   createStagingSetFromOrphan,
+  getArchiveWorkspace,
 } from '@/lib/services/archive-service'
+import type { WorkspaceFilters, WorkspacePage } from '@/lib/services/archive-service'
 import type { SimpleActionResult } from '@/lib/types'
+
+// ─── Archive Workspace Data ───────────────────────────────────────────────────
+
+export async function getArchiveItemsAction(filters: WorkspaceFilters): Promise<WorkspacePage> {
+  return withTenantFromHeaders(() => getArchiveWorkspace(filters))
+}
 
 // ─── Archive Path Actions ─────────────────────────────────────────────────────
 
