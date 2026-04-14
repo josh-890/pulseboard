@@ -101,9 +101,18 @@ const GROUP_OPTIONS = [
 
 export function StagingSetFilterBar({ filters, onChange, stats }: StagingSetFilterBarProps) {
   const [searchInput, setSearchInput] = useState(filters.search)
+  const [prevCommittedSearch, setPrevCommittedSearch] = useState(filters.search)
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined)
 
-  // Debounce search
+  // Sync local input when filters.search changes externally (sessionStorage restore,
+  // clear button, navigation back). React's recommended "derived state during render"
+  // pattern — avoids a separate useEffect that would trigger a cascading render.
+  if (prevCommittedSearch !== filters.search) {
+    setPrevCommittedSearch(filters.search)
+    setSearchInput(filters.search)
+  }
+
+  // Debounce: propagate typed value up after 300 ms
   useEffect(() => {
     clearTimeout(debounceRef.current)
     debounceRef.current = setTimeout(() => {
