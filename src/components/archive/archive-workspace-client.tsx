@@ -2,9 +2,9 @@
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useWindowVirtualizer } from '@tanstack/react-virtual'
-import { FolderSearch, Camera, Film, ChevronDown, Search, ChevronsDownUp, ChevronsUpDown } from 'lucide-react'
+import { FolderSearch, Camera, Film, ChevronDown, Search, ChevronsDownUp, ChevronsUpDown, RefreshCw } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { getArchiveItemsAction } from '@/lib/actions/archive-actions'
+import { getArchiveItemsAction, reparseFolderNamesAction } from '@/lib/actions/archive-actions'
 import { ArchiveOrphanRow } from './archive-orphan-row'
 import { ArchiveLinkedRow } from './archive-linked-row'
 import { ArchivePhantomRow } from './archive-phantom-row'
@@ -380,6 +380,34 @@ export function ArchiveWorkspaceClient({
     persistCollapseModel(next)
   }
 
+  // ── Re-parse folder names ──────────────────────────────────────────────────
+  const [reparsing, setReparsing] = useState(false)
+  const [reparseMsg, setReparseMsg] = useState<string | null>(null)
+
+  async function handleReparse() {
+    setReparsing(true)
+    setReparseMsg(null)
+    const result = await reparseFolderNamesAction()
+    setReparsing(false)
+    if (result.success) {
+      setReparseMsg(`Re-parsed ${result.updated} folders`)
+      // Reload current view
+      getArchiveItemsAction(buildFilters(0)).then((page) => {
+        setCounts(page.counts)
+        setTotal(page.total)
+        setHasMore(page.hasMore)
+        if (isFolderTab) {
+          setFolderItems(page.items as ArchiveFolderEntry[])
+        } else {
+          setFlatItems(page.items as (PhantomEntry | UntrackedEntry)[])
+        }
+      })
+    } else {
+      setReparseMsg('Re-parse failed')
+    }
+    setTimeout(() => setReparseMsg(null), 4000)
+  }
+
   // ── Render ─────────────────────────────────────────────────────────────────
   const isFolderTabBool = tab === 'orphan' || tab === 'linked'
   const showGroupControls = isFolderTabBool
@@ -534,6 +562,24 @@ export function ArchiveWorkspaceClient({
                     >
                       <ChevronsUpDown size={11} />
                       Expand all
+                    </button>
+                  </div>
+                )}
+
+                {/* Re-parse button — fixes Unknown/Undated groups from legacy folder names */}
+                {isFolderTabBool && (
+                  <div className="ml-auto flex items-center gap-2">
+                    {reparseMsg && (
+                      <span className="text-[10px] text-muted-foreground">{reparseMsg}</span>
+                    )}
+                    <button
+                      onClick={handleReparse}
+                      disabled={reparsing}
+                      title="Re-parse all folder names in the DB — fixes Unknown/Undated groups without requiring a rescan"
+                      className="flex items-center gap-1 rounded-full border border-border/50 bg-muted/30 px-2.5 py-0.5 text-xs text-muted-foreground hover:text-foreground transition-colors disabled:opacity-40"
+                    >
+                      <RefreshCw size={11} className={cn(reparsing && 'animate-spin')} />
+                      Re-parse names
                     </button>
                   </div>
                 )}

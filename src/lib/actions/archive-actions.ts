@@ -1,6 +1,6 @@
 'use server'
 
-import { withTenantFromHeaders } from '@/lib/tenant-context'
+import { withTenantFromHeaders, getCurrentTenantId } from '@/lib/tenant-context'
 import { revalidatePath } from 'next/cache'
 import {
   recordStagingSetArchivePath,
@@ -15,6 +15,7 @@ import {
   rejectArchiveSuggestion,
   createStagingSetFromOrphan,
   getArchiveWorkspace,
+  reparseFolderNames,
 } from '@/lib/services/archive-service'
 import type { WorkspaceFilters, WorkspacePage } from '@/lib/services/archive-service'
 import type { SimpleActionResult } from '@/lib/types'
@@ -162,6 +163,19 @@ export async function createStagingSetFromOrphanAction(
       return { success: true, stagingSetId }
     } catch {
       return { success: false, error: 'Failed to create staging set' }
+    }
+  })
+}
+
+export async function reparseFolderNamesAction(): Promise<{ success: boolean; updated?: number; error?: string }> {
+  return withTenantFromHeaders(async () => {
+    try {
+      const tenant = getCurrentTenantId()
+      const { updated } = await reparseFolderNames(tenant)
+      revalidatePath('/archive')
+      return { success: true, updated }
+    } catch {
+      return { success: false, error: 'Failed to re-parse folder names' }
     }
   })
 }

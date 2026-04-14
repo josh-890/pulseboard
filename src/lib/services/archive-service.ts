@@ -1422,3 +1422,67 @@ export async function createStagingSetFromOrphan(
 
   return { stagingSetId: stagingSet.id }
 }
+
+// ─── Folder Name Re-parse ─────────────────────────────────────────────────────
+
+/**
+ * Parse a folder name using the same multi-pattern logic as the scan script.
+ * Returns parsedDate ("YYYY-MM-DD"), parsedShortName, parsedTitle, nameFormatOk.
+ */
+function parseFolderName(name: string): {
+  parsedDate: Date | null
+  parsedShortName: string | null
+  parsedTitle: string | null
+  nameFormatOk: boolean
+} {
+  // Pattern 1 — canonical: space + [-–—] + space (exact format)
+  let m = name.match(/^(\d{4}-\d{2}-\d{2})-([A-Za-z0-9]+)\s+(.+?)\s+[-–—]\s+(.+)$/)
+  if (m) return { parsedDate: new Date(m[1]), parsedShortName: m[2], parsedTitle: m[4], nameFormatOk: true }
+
+  // Pattern 2 — "Name -Title" (space before separator, no space after)
+  m = name.match(/^(\d{4}-\d{2}-\d{2})-([A-Za-z0-9]+)\s+(.+?)\s+[-–—](\S.*)$/)
+  if (m) return { parsedDate: new Date(m[1]), parsedShortName: m[2], parsedTitle: m[4].trimStart(), nameFormatOk: false }
+
+  // Pattern 3 — "Name- Title" (no space before separator, space after)
+  m = name.match(/^(\d{4}-\d{2}-\d{2})-([A-Za-z0-9]+)\s+(.+?)[-–—]\s+(.+)$/)
+  if (m) return { parsedDate: new Date(m[1]), parsedShortName: m[2], parsedTitle: m[4], nameFormatOk: false }
+
+  // Pattern 4 — no separator at all
+  m = name.match(/^(\d{4}-\d{2}-\d{2})-([A-Za-z0-9]+)\s+(.+)$/)
+  if (m) return { parsedDate: new Date(m[1]), parsedShortName: m[2], parsedTitle: m[3], nameFormatOk: false }
+
+  // No pattern matched — cannot extract date or short name
+  return { parsedDate: null, parsedShortName: null, parsedTitle: null, nameFormatOk: false }
+}
+
+/**
+ * Re-parse all ArchiveFolders whose nameFormatOk=false or parsedShortName=null,
+ * updating parsedDate, parsedShortName, parsedTitle, nameFormatOk directly.
+ * This is a one-shot backfill that runs entirely in the DB — no scan required.
+ */
+export async function reparseFolderNames(tenant: string): Promise<{ updated: number }> {
+  const folders = await prisma.archiveFolder.findMany({
+    where: {
+      tenant,
+      OR: [{ parsedShortName: null }, { nameFormatOk: false }],
+    },
+    select: { id: true, folderName: true },
+  })
+
+  let updated = 0
+  for (const folder of folders) {
+    const parsed = parseFolderName(folder.folderName)
+    await prisma.archiveFolder.update({
+      where: { id: folder.id },
+      data: {
+        parsedDate: parsed.parsedDate,
+        parsedShortName: parsed.parsedShortName,
+        parsedTitle: parsed.parsedTitle,
+        nameFormatOk: parsed.nameFormatOk,
+      },
+    })
+    updated++
+  }
+
+  return { updated }
+}
