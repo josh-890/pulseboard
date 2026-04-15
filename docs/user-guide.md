@@ -17,9 +17,11 @@ Pulseboard is a personal information management tool for tracking people in art/
 9. [Networks](#9-networks)
 10. [Media Management](#10-media-management)
 11. [Data Import](#11-data-import)
-12. [Settings](#12-settings)
-13. [Workflows](#13-workflows)
-14. [Date Modifiers & Data Quality](#date-modifiers--data-quality)
+12. [Staging Sets](#12-staging-sets)
+13. [Archive](#13-archive)
+14. [Settings](#14-settings)
+15. [Workflows](#15-workflows)
+16. [Date Modifiers & Data Quality](#date-modifiers--data-quality)
 
 ---
 
@@ -261,12 +263,23 @@ Click **"Add Session"** to create a production session:
 
 ### Sets List
 
-Cards display: cover photo thumbnail, title, type badge (Photo/Video), channel name, primary label, release date, and participant names.
+Cards display: cover photo thumbnail, title, type icon (Photo/Video), channel name, release date, participant avatars, artist names, and media count.
+
+An **archive status dot** appears inline with the channel name:
+- 🟢 Green = verified archive folder linked
+- 🟡 Amber = archive folder suggestion (hover for folder name and confidence)
+- ⬜ Empty outline = no archive folder linked
+
+Hover the dot for a tooltip with folder path and file count.
 
 **Search:** Filter by set title.
 
 **Filters:**
 - **Type** — Photo, Video, or All
+- **Channel** — filter to a specific channel
+- **Label** — filter by associated label
+- **Has media** — toggle to show only sets with uploaded media
+- **Archive** — No archive, Verified, Changed, Missing, Not imported
 
 **Pagination:** 50 sets per page with "Load more."
 
@@ -669,7 +682,129 @@ When uploading a newer file for the same person (same ICG-ID), the system links 
 
 ---
 
-## 12. Settings
+## 12. Staging Sets
+
+**Route:** `/staging-sets`
+
+The Staging Sets workspace is the pre-production review queue. Sets are collected here from the import pipeline (or created from orphan archive folders) and reviewed before promotion to the active Sets database.
+
+### Staging Set List
+
+Each row shows:
+- **Cover thumbnail** (with hover preview)
+- **Date · Channel** metadata line
+- **Title**
+- **Artist · Image count** detail line
+- **Participant avatars** (up to 3, with overflow count)
+- **Status badge** (Pending / Reviewing / Approved / Promoted / Inactive / Skipped)
+- **Priority dot** (colour-coded 1–4)
+- **Match badge** — "Exact" or confidence percentage if a production Set match was found
+- **Archive section** — inline strip below the row (see below)
+
+### Archive Section (per row)
+
+Each staging set row shows its archive status as a compact strip below the main row:
+
+| State | Indicator | Content |
+|-------|-----------|---------|
+| **Confirmed link** | Green dot (right badge) + green strip | Folder name · file count |
+| **HIGH suggestion** | Amber dot + amber strip | `✓ date+code` label · folder name · file count · **Confirm** / **✗** buttons |
+| **MEDIUM suggestion** | Dimmer amber dot + muted strip | `~ title match` label · folder name · **Confirm** / **✗** buttons |
+| **No match** | Grey `○` in strip | Expected relative path · **Link folder** button |
+
+**Confirm** — links the suggested folder immediately, generating a stable `archiveKey` UUID.  
+**✗** — rejects the suggestion (folder remains unlinked, will not be re-suggested unless re-scanned).  
+**Link folder** — opens the **Archive Folder Picker** sheet.
+
+### Archive Folder Picker
+
+A search sheet for manually linking an unlinked archive folder:
+
+1. Click **"Link folder"** on any staging set row
+2. The search field is pre-seeded with the channel short name and year
+3. Type to search unlinked archive folders by name, title, date, or channel
+4. Click a result to confirm the link — the row immediately shows the green confirmed state
+
+Only folders not yet linked to any Set or StagingSet appear in results.
+
+### Filters
+
+- **Status tabs** — Photo Sets / Video Sets (top)
+- **Status buttons** — Pending, Reviewing, Approved, Promoted, Inactive, Skipped (with counts)
+- **Match buttons** — Exact match, Probable, No match, No date
+- **Duplicate button** — shows sets flagged as exact or probable duplicates
+- **Channel tier buttons** — A, B, C, D, E
+- **Archive filter row** — Has path, Verified, Changed, Missing, In queue, Needs media
+- **Search** — free-text on title, channel, artist, person name
+- **Date range** — from/to date filter
+- **Sort** — Date, Title, Priority, Import Date, Undated First
+
+### Promoting a Staging Set
+
+1. Select a staging set to open its slide panel
+2. Review the comparison diff (if a production Set match exists)
+3. Click **"Promote"** — creates or updates a production Set, marks the staging set PROMOTED
+4. The `archiveKey` from the staging set is copied to the promoted Set and linked ArchiveFolder
+
+---
+
+## 13. Archive
+
+**Route:** `/archive`
+
+The Archive workspace shows the filesystem scan results — a record of every folder found in the configured archive root(s) and its link status to DB records.
+
+### Archive Status Dots
+
+Every Set card and Staging Set row shows a small status dot for its archive folder link:
+
+| Dot | Status | Meaning |
+|-----|--------|---------|
+| 🟢 Green | **Verified (OK)** | Folder confirmed, file count matches expectation |
+| 🟡 Amber | **Suggestion** | Matching folder found (not yet confirmed) |
+| 🟠 Orange | **Incomplete** | Folder found but file count below expected |
+| 🔴 Red | **Missing** | Previously linked folder no longer found on disk |
+| 🔵 Blue | **Pending** | Path recorded, not yet scanned |
+| ⬜ Empty outline | **None** | No archive folder linked |
+
+Hover the dot for a tooltip with folder name, path, and file count.
+
+### Suggestion Confidence
+
+The matching system runs two tiers:
+
+| Confidence | Match Criteria |
+|-----------|---------------|
+| **HIGH** | Exact release date **and** exact channel short name match |
+| **MEDIUM** | Same year **and** same channel short name **and** title trigram similarity ≥ 40% |
+
+HIGH suggestions show amber; MEDIUM suggestions show dimmer amber.
+
+### Archive Roots (Multi-Root)
+
+Configure archive roots in **Settings → Archive Roots**. Multiple roots are supported (one path per line, or a JSON array). The system will check all roots when computing expected paths and when scanning for folder moves.
+
+### Sidecar Files (`_pulseboard.json`)
+
+After a folder is linked and confirmed, the external scan script can write a `_pulseboard.json` sidecar file into the archive folder. This file contains:
+
+```json
+{
+  "archiveKey": "stable-uuid",
+  "setId": "...",
+  "title": "...",
+  "releaseDate": "2024-03-15",
+  "channel": "FJ"
+}
+```
+
+The content is served by `GET /api/archive/sidecar/{archiveKey}` (protected by `ARCHIVE_API_KEY` header).
+
+**Why this matters:** if a folder is moved to a different drive or root, the sidecar UUID allows the scan script to report the new path and have it automatically update the DB record — no re-linking required.
+
+---
+
+## 14. Settings
 
 **Route:** `/settings`
 
@@ -740,7 +875,7 @@ These definitions are used in two places:
 
 ---
 
-## 13. Workflows
+## 15. Workflows
 
 ### Documenting a New Person
 
@@ -819,6 +954,24 @@ If you created a set and realize the media actually came from an existing sessio
 **Browse collections:**
 - `/collections` shows all collections with thumbnail, type badge, and item count
 - Click a collection to see its gallery with lightbox
+
+### Linking an Archive Folder to a Staging Set
+
+**Using a suggestion (HIGH/MEDIUM):**
+1. Navigate to `/staging-sets`
+2. Any row with an amber dot has a suggested match — the archive section below the row shows the folder name and confidence label
+3. Click **Confirm** to link immediately, or **✗** to reject the suggestion
+4. After confirming, the row shows a green strip with the folder name and file count
+
+**Manually linking (no suggestion):**
+1. Click **"Link folder"** on any staging set row (shown when no suggestion exists)
+2. The picker sheet opens, pre-seeded with the channel short name and year
+3. Search for the correct folder — only unlinked folders are shown
+4. Click a result to confirm the link
+
+**After any link is confirmed:**
+- A stable `archiveKey` UUID is generated and written to the staging set, production set (after promotion), and archive folder record
+- The external scan script can use `GET /api/archive/sidecar/{archiveKey}` to write a `_pulseboard.json` sidecar into the folder — this makes the link survive drive migrations
 
 ### Finding Duplicate or Similar Media
 
@@ -944,5 +1097,8 @@ These warnings are informational — they do not block saves or edits. They help
 | `/networks/[id]` | Network detail |
 | `/import` | Import batch list |
 | `/import/[id]` | Import workspace |
+| `/staging-sets` | Staging Sets review queue |
+| `/archive` | Archive workspace (filesystem scan results) |
+| `/media-queue` | Media import queue |
 | `/settings` | Settings |
 | `/media/similar` | Find similar images |

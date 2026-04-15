@@ -1,6 +1,6 @@
 # Pulseboard — Architecture Reference
 
-> **Last updated:** 2026-04-02
+> **Last updated:** 2026-04-15
 > This document must be kept in sync with code changes. Update it whenever pages, services, components, API routes, or data flows change.
 
 ---
@@ -47,7 +47,7 @@ Media path:
 |-------|----------------|----------------|
 | `/` | `getDashboardStats()`, `getRecentActivities()` | `KpiGrid`, `DashboardActivity`, `QuickActions` |
 | `/people` | `getPersonsPaginated()`, `getHeadshotsForPersons()`, `getDistinct*()` | `PersonList`, `BrowserToolbar`, `AddPersonSheet` |
-| `/sets` | `getSetsPaginated()`, `getCoverPhotosForSets()`, `getChannelsForSelect()` | `SetList`, `SetCard`, `BrowserToolbar`, `AddSetSheet` |
+| `/sets` | `getSetsPaginated()`, `getCoverPhotosForSets()`, `getHeadshotsForPersons()`, `getSuggestedFoldersForSets()`, `getChannelsWithLabelMaps()` | `SetGrid`, `SetCard`, `BrowserToolbar`, `AddSetSheet` |
 | `/sessions` | `getSessionsPaginated()`, `getCoverPhotosForSessions()` | `SessionList`, `SessionCard`, `AddSessionSheet` |
 | `/projects` | `getProjectsPaginated()` | `ProjectList`, `ProjectCard`, `AddProjectSheet` |
 | `/labels` | `getAllLabels()` | `LabelList`, `LabelCard`, `AddLabelSheet` |
@@ -57,7 +57,7 @@ Media path:
 | `/collections` | `getAllCollections()` | `CollectionList`, `AddCollectionDialog` |
 | `/settings` | `getAllSkillGroups()`, `getAllCategoryGroups()`, `getAllContributionRoleGroups()` | `SkillCatalogManager`, `MediaCategoryManager`, `ContributionRoleManager` |
 | `/import` | `getAllBatches()` | `ImportUploadZone`, `ImportBatchList` |
-| `/staging-sets` | (client-fetched via API) | `StagingSetsWorkspace` → `StagingSetFilterBar`, `StagingSetGrid` → `StagingSetCard`, `StagingSetSlidePanel` → `StagingSetCoverUpload`, `SetComparisonGrid` |
+| `/staging-sets` | (client-fetched via `/api/staging-sets` — augmented with `suggestedArchiveFolder` from `getSuggestedFoldersForStagingSets`) | `StagingSetsWorkspace` → `StagingSetFilterBar`, `StagingSetGrid` → `StagingSetRow` (with inline archive section + `ArchiveFolderPicker`), `StagingSetSlidePanel` |
 
 ### Detail Pages
 
@@ -123,9 +123,31 @@ All import services in `src/lib/services/import/`.
 
 **`staging-service.ts`** — Batch lifecycle: `createBatch` (parse + match + stage), `refreshBatchMatches` (re-run on every page load), `computeDependencies` (block/unblock items), `getAllBatches`, `updateItemStatus`, `markItemImported`. Creates StagingSet records during batch creation with re-import dedup (skips existing by externalId + subjectIcgId).
 
-**`staging-set-service.ts`** — StagingSet CRUD + querying. `getStagingSetsFiltered` (paginated, filterable by status/person/channel/date/priority/search), `getStagingSetStats`, `getStagingSetComparison` (side-by-side diff vs production Set), `updateStagingSetFields`, `bulkUpdateStatus`. Lifecycle statuses: PENDING → REVIEWING → APPROVED → PROMOTED / INACTIVE / SKIPPED. Match info separate in `matchedSetId`/`matchConfidence` fields.
+**`staging-set-service.ts`** — StagingSet CRUD + querying. `getStagingSetsFiltered` (paginated, filterable by status/person/channel/date/priority/search), `getStagingSetStats`, `getStagingSetComparison` (side-by-side diff vs production Set), `updateStagingSetFields`, `bulkUpdateStatus`, `markStagingSetPromoted` (copies `archiveKey` to promoted Set and linked ArchiveFolder). Lifecycle statuses: PENDING → REVIEWING → APPROVED → PROMOTED / INACTIVE / SKIPPED. `StagingSetWithRelations` includes optional `suggestedArchiveFolder?: SuggestedFolderInfo | null` (populated at API layer, not in Prisma include).
 
 **`import-executor.ts`** — Per-entity import: `importItem` dispatches to type-specific functions (`importLabel`, `importChannel`, `importPerson`, `importAlias`, `importDigitalIdentity`, `importSet`, `importCoModel`). Set import routes through `enrichExistingSet` (matched) or `createNewSet` (unresolved), marks StagingSet as PROMOTED.
+
+### Archive Services
+
+**`archive-service.ts`** — Core archive filesystem ↔ DB sync layer.
+- `parseRoots(value)` — parse settings value as `string[]` (supports JSON array and legacy single-string)
+- `buildFolderName(dateStr, shortName, participant, title)` — pure function, builds folder segment `yyyy-mm-dd-{short} {person} - {title}`
+- `buildExpectedPathForStagingSet/Set` — async, computes expected relative path for display
+- `buildFullPaths(relativePath, isVideo)` — returns one absolute path per configured root (multi-root support)
+- `runMatchingPass()` — two-tier matching: **HIGH** (exact date + exact shortName) → **MEDIUM** (same year + shortName + `pg_trgm similarity ≥ 0.4`). Writes `suggestedStagingId/SetId` + `suggestedConfidence` to ArchiveFolder
+- `upsertArchiveFolders(items)` — ingest scan results; detects renames (by path), moves (by `sidecarKey` → `ArchiveFolder.archiveKey` lookup), and new folders; propagates path changes to linked Set/StagingSet
+- `confirmArchiveFolderLink(folderId, setId, type)` — generates/reuses UUID `archiveKey`, writes to Set/StagingSet + ArchiveFolder, clears suggestion; returns `{ archiveKey }`
+- `rejectArchiveSuggestion(folderId)` — clears `suggestedStagingId/SetId` + `suggestedConfidence`
+- `getSuggestedFoldersForStagingSets(ids)` → `Map<stagingSetId, SuggestedFolderInfo>` — batch query keyed by `suggestedStagingId`
+- `getSuggestedFoldersForSets(ids)` → `Map<setId, SuggestedFolderInfo>` — batch query keyed by `suggestedSetId`
+- `SuggestedFolderInfo` type: `{ folderId, folderName, fileCount, parsedDate, fullPath, confidence: 'HIGH'|'MEDIUM' }`
+- `FullIngestItem.sidecarKey?: string` — optional field for scan script to report `_pulseboard.json` archiveKey, enabling cross-drive folder-move detection
+
+**`coherence-service.ts`** — Maintains `SetCoherenceSnapshot` cross-cutting state. Fire-and-forget helpers:
+- `onSetPromoted(stagingSetId, setId)` — creates snapshot for newly promoted Set
+- `onArchiveFolderLinked(folderId, target)` — updates snapshot archive fields after link confirmation
+- `onArchiveScanComplete(folderId, status, fileCount)` — updates snapshot after scan
+- `onMediaImportChanged(setId)` — updates `hasMediaInApp` flag
 
 ### Infrastructure Services
 
@@ -165,6 +187,7 @@ All actions in `src/lib/actions/`. Each validates input with Zod, calls services
 | `setting-actions.ts` | App setting updates |
 | `label-actions.ts`, `network-actions.ts`, `channel-actions.ts`, `project-actions.ts` | Entity CRUD |
 | `import-actions.ts` | `getImportBatchesAction`, `deleteImportBatchAction`, `updateImportItemStatusAction`, `importSingleItemAction`, `refreshBatchMatchesAction` |
+| `archive-actions.ts` | `recordArchivePathAction`, `clearArchivePathAction`, `confirmArchiveFolderLinkAction` (generates archiveKey, revalidates `/archive`+`/import`+`/sets`), `rejectArchiveSuggestionAction` (revalidates same), `getArchiveItemsAction`, `createStagingSetFromOrphanAction`, `reparseFolderNamesAction`, `deleteArchiveFolderAction`, `toggleMediaQueueAction`, `updateMediaPriorityAction` |
 | `database-maintenance-actions.ts` | Orphan/duplicate cleanup, view refresh |
 
 ---
@@ -189,7 +212,7 @@ All actions in `src/lib/actions/`. Each validates input with Zod, calls services
 | `/api/import/[batchId]/refresh` | POST | Force re-run matching for all items |
 | `/api/import/[batchId]/items/[itemId]` | PATCH | Update item status or edited data |
 | `/api/import/[batchId]/items/[itemId]/import` | POST | Execute import for single item |
-| `/api/staging-sets` | GET | Filtered staging set list (status, person, channel, date, search, sort) |
+| `/api/staging-sets` | GET | Filtered staging set list; augments each item with `suggestedArchiveFolder` via batch call to `getSuggestedFoldersForStagingSets` |
 | `/api/staging-sets/stats` | GET | Staging set counts by status + match type |
 | `/api/staging-sets/[id]` | GET, PATCH | Get/update staging set (fields, status, priority, notes) |
 | `/api/staging-sets/[id]/comparison` | GET | Side-by-side diff vs production Set |
@@ -197,6 +220,8 @@ All actions in `src/lib/actions/`. Each validates input with Zod, calls services
 | `/api/staging-sets/bulk-update` | POST | Bulk status change |
 | `/api/staging-sets/bulk-promote` | POST | Bulk promote to production |
 | `/api/staging-sets/[id]/cover` | POST | Upload cover image (FormData → resize → MinIO) |
+| `/api/archive/sidecar/[archiveKey]` | GET | Protected by `ARCHIVE_API_KEY` header. Returns `{ archiveKey, setId?, stagingSetId?, title, releaseDate, channel }` — the content the external scan script writes to `_pulseboard.json` in the archive folder |
+| `/api/archive/folders/search` | GET | Search unlinked archive folders (`linkedSetId=null AND linkedStagingId=null`). Params: `q` (title search), `shortName` (chanFolderName filter), `year`, `limit` (max 50). Used by `ArchiveFolderPicker` |
 | `/api/flags/[code]` | GET | Country flag image |
 
 ---
@@ -219,6 +244,7 @@ components/
 ├── channels/         # ChannelList, ChannelCard, add/edit sheets
 ├── networks/         # NetworkList, NetworkCard, add/edit sheets
 ├── collections/      # CollectionList, CollectionDetailGallery, media picker
+├── staging-sets/     # StagingSetsWorkspace, StagingSetFilterBar, StagingSetGrid, StagingSetRow (inline archive section), ArchiveFolderPicker (sheet for linking unlinked folders)
 ├── import/           # ImportWorkspace, ImportItemDetail, ImportStatusBadge, ImportUploadZone, ImportBatchList
 ├── settings/         # SkillCatalogManager, MediaCategoryManager, ContributionRoleManager
 ├── shared/           # TagInput, TagPicker, TagChips, PartialDateInput (supports modifier+source props), CountryPicker, EntityCombobox, DeleteButton, BrowserToolbar, BodyRegionPicker, FlagImage
@@ -325,6 +351,17 @@ Session ──┬── MediaItem[]
 
 ImportBatch ──── ImportItem[] (staged entities with match data, dependency tracking)
 
+StagingSet ──┬── SetCoherenceSnapshot? (archiveStatus, archiveFileCount, archiveFolder link)
+             └── ArchiveFolder? (via linkedStagingId or suggestedStagingId)
+
+Set ──┬── SetCoherenceSnapshot? (archiveStatus, archiveFileCount, archiveFolder link)
+      └── ArchiveFolder? (via linkedSetId or suggestedSetId)
+
+ArchiveFolder ──┬── Set? (linkedSetId)
+               ├── StagingSet? (linkedStagingId)
+               ├── suggestedSet? (suggestedSetId + suggestedConfidence)
+               └── suggestedStagingSet? (suggestedStagingId + suggestedConfidence)
+
 Set ──┬── SetMediaItem[] ──── MediaItem
       ├── SetParticipant[] (derived from contributions)
       ├── SetCreditRaw[] (unresolved credits)
@@ -339,7 +376,9 @@ MediaItem ──┬── PersonMediaLink[] (usage: PROFILE/HEADSHOT/DETAIL/PORT
 
 ### Key Fields
 
-- **Set**: `externalId` (optional, unique) — external source ID from import files
+- **Set**: `externalId` (optional, unique) — external source ID from import files; `archiveKey` (optional, unique) — stable UUID written at first link-confirm, survives folder moves and drive migrations
+- **StagingSet**: `archiveKey` (optional, unique) — same as Set; copied to promoted Set via `markStagingSetPromoted`
+- **ArchiveFolder**: `archiveKey` (optional, unique) — mirrors linked Set/StagingSet archiveKey; enables sidecar-based lookup for cross-drive folder move detection; `suggestedConfidence` (`'HIGH'` | `'MEDIUM'` | null) — set by `runMatchingPass`
 - **ImportBatch**: `subjectIcgId`, `rawContent`, `status` (PARSING→REVIEW→IMPORTING→COMPLETED), `previousBatchId` (self-relation for versioning)
 - **ImportItem**: `type` (PERSON/PERSON_ALIAS/DIGITAL_IDENTITY/CHANNEL/LABEL/SET/CO_MODEL/CREDIT), `status` (NEW/MATCHED/PROBABLE/BLOCKED/IMPORTED/SKIPPED/FAILED), `data` (JSON), `editedData` (JSON), `dependsOn` (String[]), `matchedEntityId`, `matchConfidence`
 - **Person**: `icgId` (unique, mandatory), `status` (active/inactive/wishlist/archived), `rating`, `pgrade`
@@ -436,6 +475,35 @@ SessionContributionSkills → skill picker
     2. Find/create PersonSkill (progressive level upgrade)
     3. Create DEMONSTRATED PersonSkillEvent tagged with [session:ID]
   → revalidatePath
+```
+
+### Confirming an Archive Folder Link
+
+```
+StagingSetRow — user clicks "Confirm" on HIGH/MEDIUM suggestion
+  → confirmArchiveFolderLinkAction(folderId, stagingSetId, 'staging')
+  → confirmArchiveFolderLink() service:
+    1. Check for existing archiveKey on folder or staging set; generate UUID if none
+    2. prisma.stagingSet.update({ archiveKey: key })
+    3. prisma.archiveFolder.update({ linkedStagingId, archiveKey: key, suggestedStagingId: null, suggestedConfidence: null })
+    4. propagate archivePath to StagingSet
+  → onArchiveFolderLinked() — updates SetCoherenceSnapshot
+  → revalidatePath('/archive', '/import', '/sets')
+  → Row re-renders with green dot + folder name strip
+```
+
+### Archive Folder Move Detection via Sidecar
+
+```
+External scan script visits a folder on a different drive than before:
+  → Reads _pulseboard.json → { archiveKey: "uuid-..." }
+  → Sends FullIngestItem { action: 'create', sidecarKey: 'uuid-...', fullPath: newPath, ... }
+  → upsertArchiveFolders():
+    1. action='create' but sidecarKey present → prisma.archiveFolder.findUnique({ archiveKey: sidecarKey })
+    2. Found → treat as move: update fullPath, recompute relativePath
+    3. Propagate new relativePath to linked Set.archivePath or StagingSet.archivePath
+    4. Call onArchiveScanComplete() for status update
+    5. counts.renamed++ (skip normal create)
 ```
 
 ---

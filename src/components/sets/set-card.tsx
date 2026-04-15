@@ -13,6 +13,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import type { getSets } from "@/lib/services/set-service";
+import type { SuggestedFolderInfo } from "@/lib/services/archive-service";
 
 type SetItem = Awaited<ReturnType<typeof getSets>>[number];
 
@@ -33,6 +34,7 @@ type SetCardProps = {
   coverPhoto?: CoverPhotoData;
   headshotMap?: Record<string, HeadshotData>;
   unresolvedCreditCount?: number;
+  suggestedArchiveFolder?: SuggestedFolderInfo | null;
 };
 
 function getPersonName(
@@ -134,7 +136,7 @@ function ParticipantAvatar({
   );
 }
 
-export function SetCard({ set, coverPhoto, headshotMap = {}, unresolvedCreditCount = 0 }: SetCardProps) {
+export function SetCard({ set, coverPhoto, headshotMap = {}, unresolvedCreditCount = 0, suggestedArchiveFolder }: SetCardProps) {
   const { density } = useDensity();
   const isCompact = density === "compact";
   const isPhoto = set.type === "photo";
@@ -214,6 +216,7 @@ export function SetCard({ set, coverPhoto, headshotMap = {}, unresolvedCreditCou
               status={set.coherenceSnapshot?.archiveStatus}
               path={set.coherenceSnapshot?.archiveFolder?.fullPath}
               fileCount={set.coherenceSnapshot?.archiveFileCount}
+              suggestedFolder={suggestedArchiveFolder}
             />
             <span className="ml-auto shrink-0 text-muted-foreground/30">
               {isPhoto ? <Camera size={11} /> : <Film size={11} />}

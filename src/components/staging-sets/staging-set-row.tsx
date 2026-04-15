@@ -1,23 +1,16 @@
 'use client'
 
-import { memo, useState, useRef, useCallback } from 'react'
+import { memo, useState, useRef, useCallback, useTransition } from 'react'
 import { createPortal } from 'react-dom'
 import Image from 'next/image'
-import { AlertTriangle, Camera, CheckSquare, Copy, Film, Flag } from 'lucide-react'
+import { AlertTriangle, Camera, CheckSquare, Copy, Film, Flag, FolderOpen, FolderSearch, Check, X } from 'lucide-react'
 import { cn, getInitialsFromName } from '@/lib/utils'
 import type { StagingSetWithRelations, ParticipantStatus } from '@/lib/services/import/staging-set-service'
-import type { StagingSetStatus, ArchiveStatus } from '@/generated/prisma/client'
+import type { StagingSetStatus } from '@/generated/prisma/client'
+import { confirmArchiveFolderLinkAction, rejectArchiveSuggestionAction } from '@/lib/actions/archive-actions'
+import { ArchiveFolderPicker } from './archive-folder-picker'
 
 // ─── Constants ─────────────────────────────────────────────────────────────
-
-const ARCHIVE_DOT: Record<ArchiveStatus, { title: string; dot: string }> = {
-  UNKNOWN:    { title: 'No archive path',     dot: 'bg-gray-300 dark:bg-gray-600' },
-  PENDING:    { title: 'Path recorded',       dot: 'bg-blue-400' },
-  OK:         { title: 'Archive verified',    dot: 'bg-green-500' },
-  CHANGED:    { title: 'Archive changed',     dot: 'bg-amber-500' },
-  MISSING:    { title: 'Archive missing',     dot: 'bg-red-500' },
-  INCOMPLETE: { title: 'Archive incomplete',  dot: 'bg-orange-500' },
-}
 
 const STATUS_BADGE: Record<StagingSetStatus, { label: string; className: string }> = {
   PENDING: { label: 'Pending', className: 'bg-blue-500/15 text-blue-500' },
@@ -192,6 +185,19 @@ function ParticipantAvatar({ p }: { p: ParticipantStatus }) {
   )
 }
 
+// ─── Helpers ───────────────────────────────────────────────────────────────
+
+/** Pure helper — mirrors archive-service.buildFolderName without DB imports */
+function buildFolderName(
+  dateStr: string,
+  shortName: string,
+  firstParticipantName: string | null,
+  title: string,
+): string {
+  const participant = firstParticipantName ?? 'Unknown'
+  return `${dateStr}-${shortName} ${participant} - ${title}`
+}
+
 // ─── Component ─────────────────────────────────────────────────────────────
 
 export const StagingSetRow = memo(function StagingSetRow({
@@ -205,6 +211,9 @@ export const StagingSetRow = memo(function StagingSetRow({
   onQueueToggle,
 }: StagingSetRowProps) {
   const [imgError, setImgError] = useState(false)
+  const [pickerOpen, setPickerOpen] = useState(false)
+  const [isConfirming, startConfirm] = useTransition()
+  const [isRejecting, startReject] = useTransition()
   const statuses = (ss.participantStatuses as ParticipantStatus[] | null) ?? []
   const dateStr = ss.releaseDate
     ? new Date(ss.releaseDate).toISOString().split('T')[0]
@@ -221,6 +230,30 @@ export const StagingSetRow = memo(function StagingSetRow({
   const isDupExact = !!ss.duplicateGroupId
   const isDupProbable = ss.isDuplicate && !ss.duplicateGroupId
 
+  // Archive state derivation
+  const confirmedFolder = ss.coherenceSnapshot?.archiveFolder ?? null
+  const suggestion = ss.suggestedArchiveFolder ?? null
+  const hasArchiveLink = !!confirmedFolder
+
+  // Expected path for the "no match" state (relative, no root prefix)
+  const expectedFolderName = ss.releaseDate && ss.channel?.shortName
+    ? buildFolderName(
+        new Date(ss.releaseDate).toISOString().split('T')[0],
+        ss.channel.shortName,
+        statuses[0]?.name ?? null,
+        ss.title,
+      )
+    : null
+  const expectedRelativePath = expectedFolderName && ss.channel?.channelFolder
+    ? `${ss.channel.channelFolder}\\${new Date(ss.releaseDate!).getFullYear()}\\${expectedFolderName}`
+    : expectedFolderName
+
+  // Picker seed: "{shortName} {year}"
+  const pickerInitialQuery = [
+    ss.channel?.shortName,
+    ss.releaseDate ? new Date(ss.releaseDate).getFullYear().toString() : '',
+  ].filter(Boolean).join(' ')
+
   // Build line 3 segments (no participant names — those are in the avatar stack)
   const line3Parts: string[] = []
   if (ss.artist) line3Parts.push(ss.artist)
@@ -232,7 +265,8 @@ export const StagingSetRow = memo(function StagingSetRow({
   const overflowCount = statuses.length - MAX_VISIBLE
 
   return (
-    <div className="relative flex items-center gap-2">
+    <div className="relative flex flex-col gap-0.5">
+      <div className="flex items-center gap-2">
       {/* Checkbox */}
       {isMultiSelectMode && (
         <button
@@ -392,16 +426,22 @@ export const StagingSetRow = memo(function StagingSetRow({
             </span>
           )}
 
-          {/* Archive status dot */}
-          {ss.archiveStatus !== 'UNKNOWN' && (() => {
-            const arc = ARCHIVE_DOT[ss.archiveStatus]
-            return (
-              <span
-                className={cn('h-2 w-2 shrink-0 rounded-full', arc.dot)}
-                title={arc.title}
-              />
-            )
-          })()}
+          {/* Archive status dot — confirmed only; suggestion/no-match handled below the row */}
+          {hasArchiveLink && (
+            <span
+              className="h-2 w-2 shrink-0 rounded-full bg-green-500"
+              title={`Archive: ${confirmedFolder!.folderName}`}
+            />
+          )}
+          {!hasArchiveLink && suggestion && (
+            <span
+              className={cn(
+                'h-2 w-2 shrink-0 rounded-full',
+                suggestion.confidence === 'HIGH' ? 'bg-amber-500' : 'bg-amber-400/60',
+              )}
+              title={`Archive suggestion: ${suggestion.folderName}`}
+            />
+          )}
 
           {/* Status badge */}
           <span className={cn('rounded-full px-2 py-0.5 text-[10px] font-medium', badge.className)}>
@@ -417,6 +457,128 @@ export const StagingSetRow = memo(function StagingSetRow({
           )}
         </div>
       </button>
+      </div>{/* end flex items-center */}
+
+      {/* ── Archive section ──────────────────────────────────────────────── */}
+      {/* Confirmed link */}
+      {hasArchiveLink && (
+        <div className="flex items-center gap-1.5 pl-3 text-xs text-green-600 dark:text-green-400">
+          <FolderOpen size={11} className="shrink-0" />
+          <span className="truncate font-medium">{confirmedFolder!.folderName}</span>
+          {ss.coherenceSnapshot?.archiveFileCount != null && (
+            <span className="shrink-0 text-muted-foreground">
+              · {ss.coherenceSnapshot.archiveFileCount} files
+            </span>
+          )}
+        </div>
+      )}
+
+      {/* Archive suggestion (HIGH or MEDIUM) */}
+      {!hasArchiveLink && suggestion && (
+        <div className="flex items-center gap-1.5 pl-3">
+          <span
+            className={cn(
+              'shrink-0 text-xs font-medium',
+              suggestion.confidence === 'HIGH' ? 'text-amber-600 dark:text-amber-400' : 'text-amber-500/70 dark:text-amber-400/60',
+            )}
+          >
+            {suggestion.confidence === 'HIGH' ? '✓ date+code' : '~ title match'}
+          </span>
+          <FolderSearch
+            size={11}
+            className={cn(
+              'shrink-0',
+              suggestion.confidence === 'HIGH' ? 'text-amber-500' : 'text-amber-400/60',
+            )}
+          />
+          <span
+            className={cn(
+              'min-w-0 truncate text-xs',
+              suggestion.confidence === 'HIGH' ? 'text-amber-700 dark:text-amber-300' : 'text-muted-foreground',
+            )}
+          >
+            {suggestion.folderName}
+          </span>
+          {suggestion.fileCount != null && (
+            <span className="shrink-0 text-xs text-muted-foreground">
+              · {suggestion.fileCount} files
+            </span>
+          )}
+          <span className="flex-1" />
+          <button
+            type="button"
+            disabled={isConfirming || isRejecting}
+            onClick={(e) => {
+              e.stopPropagation()
+              startConfirm(async () => {
+                await confirmArchiveFolderLinkAction(suggestion.folderId, ss.id, 'staging')
+              })
+            }}
+            className={cn(
+              'flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium transition-colors',
+              'bg-green-500/15 text-green-700 hover:bg-green-500/30 dark:text-green-400',
+              'disabled:pointer-events-none disabled:opacity-40',
+            )}
+          >
+            <Check size={10} />
+            Confirm
+          </button>
+          <button
+            type="button"
+            disabled={isConfirming || isRejecting}
+            onClick={(e) => {
+              e.stopPropagation()
+              startReject(async () => {
+                await rejectArchiveSuggestionAction(suggestion.folderId)
+              })
+            }}
+            className={cn(
+              'flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium transition-colors',
+              'bg-red-500/10 text-red-600 hover:bg-red-500/20 dark:text-red-400',
+              'disabled:pointer-events-none disabled:opacity-40',
+            )}
+          >
+            <X size={10} />
+          </button>
+        </div>
+      )}
+
+      {/* No archive link and no suggestion */}
+      {!hasArchiveLink && !suggestion && ss.status !== 'PROMOTED' && expectedFolderName && (
+        <div className="flex items-center gap-1.5 pl-3">
+          <span className="shrink-0 text-xs text-muted-foreground/50">○</span>
+          {expectedRelativePath && (
+            <span className="min-w-0 truncate text-xs text-muted-foreground/60" title={expectedRelativePath}>
+              {expectedRelativePath}
+            </span>
+          )}
+          <span className="flex-1" />
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation()
+              setPickerOpen(true)
+            }}
+            className={cn(
+              'flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium transition-colors',
+              'bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground',
+            )}
+          >
+            <FolderSearch size={10} />
+            Link folder
+          </button>
+        </div>
+      )}
+
+      {/* Archive folder picker sheet */}
+      {pickerOpen && (
+        <ArchiveFolderPicker
+          open={pickerOpen}
+          onOpenChange={setPickerOpen}
+          stagingSetId={ss.id}
+          initialQuery={pickerInitialQuery}
+        />
+      )}
     </div>
   )
 })

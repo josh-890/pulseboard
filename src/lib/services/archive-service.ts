@@ -8,6 +8,7 @@
  * via the /api/archive/ingest API route.
  */
 
+import { randomUUID } from 'crypto'
 import { prisma } from '@/lib/db'
 import { getSetting, setSetting } from '@/lib/services/setting-service'
 import { onArchiveScanComplete } from '@/lib/services/coherence-service'
@@ -54,6 +55,27 @@ export type MediaQueueItem = {
   archiveStatus: ArchiveStatus
   archiveFileCount: number | null
   archiveVideoPresent: boolean | null
+}
+
+// ─── Multi-root helpers ───────────────────────────────────────────────────────
+
+/**
+ * Parse an archive root setting value into a list of root paths.
+ * Supports both legacy single-string format ("D:\\Sites\\") and
+ * new JSON array format (["D:\\Sites\\","E:\\Sites\\"]).
+ */
+export function parseRoots(value: string | null): string[] {
+  if (!value) return []
+  const trimmed = value.trim()
+  if (trimmed.startsWith('[')) {
+    try {
+      const parsed = JSON.parse(trimmed)
+      if (Array.isArray(parsed)) return parsed.filter((v): v is string => typeof v === 'string' && v.length > 0)
+    } catch {
+      // fall through to legacy
+    }
+  }
+  return [trimmed]
 }
 
 // ─── Path Construction ────────────────────────────────────────────────────────
@@ -118,14 +140,30 @@ export async function buildExpectedPathForSet(setId: string): Promise<string | n
 
 /**
  * Reconstruct the full filesystem path from a stored relative path.
- * Returns null if the root is not configured in Settings.
+ * Uses the first configured root. Returns null if no roots are configured.
  */
 export async function buildFullPath(relativePath: string, isVideo: boolean): Promise<string | null> {
   const rootKey = isVideo ? ARCHIVE_VIDEOSET_ROOT_KEY : ARCHIVE_PHOTOSET_ROOT_KEY
-  const root = await getSetting(rootKey)
-  if (!root) return null
+  const rawRoots = await getSetting(rootKey)
+  const roots = parseRoots(rawRoots)
+  if (roots.length === 0) return null
+  const root = roots[0]!
   const sep = root.includes('/') ? '/' : '\\'
   return root.replace(/[/\\]$/, '') + sep + relativePath
+}
+
+/**
+ * Build all full paths from a relative path by trying every configured root.
+ * Returns one entry per configured root.
+ */
+export async function buildFullPaths(relativePath: string, isVideo: boolean): Promise<string[]> {
+  const rootKey = isVideo ? ARCHIVE_VIDEOSET_ROOT_KEY : ARCHIVE_PHOTOSET_ROOT_KEY
+  const rawRoots = await getSetting(rootKey)
+  const roots = parseRoots(rawRoots)
+  return roots.map((root) => {
+    const sep = root.includes('/') ? '/' : '\\'
+    return root.replace(/[/\\]$/, '') + sep + relativePath
+  })
 }
 
 function _buildRelativePath(args: {
@@ -253,7 +291,7 @@ export async function clearSetArchivePath(id: string): Promise<void> {
  */
 export async function getArchivePaths(): Promise<ArchivePathEntry[]> {
   // Load both roots upfront (one DB round-trip each)
-  const [photoRoot, videoRoot, stagingSets, sets] = await Promise.all([
+  const [rawPhotoRoots, rawVideoRoots, stagingSets, sets] = await Promise.all([
     getSetting(ARCHIVE_PHOTOSET_ROOT_KEY),
     getSetting(ARCHIVE_VIDEOSET_ROOT_KEY),
     prisma.stagingSet.findMany({
@@ -285,9 +323,14 @@ export async function getArchivePaths(): Promise<ArchivePathEntry[]> {
     }),
   ])
 
+  const photoRoots = parseRoots(rawPhotoRoots)
+  const videoRoots = parseRoots(rawVideoRoots)
+
+  // Returns the full path using the first configured root for the given type.
   function toFullPath(relativePath: string, isVideo: boolean): string | null {
-    const root = isVideo ? videoRoot : photoRoot
-    if (!root) return null
+    const roots = isVideo ? videoRoots : photoRoots
+    if (roots.length === 0) return null
+    const root = roots[0]!
     const sep = root.includes('/') ? '/' : '\\'
     return root.replace(/[/\\]$/, '') + sep + relativePath
   }
@@ -612,6 +655,7 @@ export type FullIngestItem = {
   parsedTitle: string | null
   nameFormatOk: boolean               // false = folder name deviates from canonical format
   chanFolderName: string | null       // channel folder name (e.g. "RA-RylskyArt")
+  sidecarKey?: string                 // contents of _pulseboard.json archiveKey field, if present
 }
 
 // ─── Archive Workspace Types ──────────────────────────────────────────────────
@@ -767,6 +811,59 @@ export async function upsertArchiveFolders(
     const chanFolderModifiedAt = new Date(item.chanFolderModifiedAt)
 
     if (item.action === 'create') {
+      // Sidecar-key lookup: folder may have moved to a new path (possibly new drive/root).
+      // If a sidecarKey is present, try to find the existing ArchiveFolder by archiveKey
+      // and update its path in-place rather than creating a duplicate record.
+      if (item.sidecarKey) {
+        const existingBySidecar = await prisma.archiveFolder.findUnique({
+          where: { archiveKey: item.sidecarKey },
+          select: { id: true, linkedSetId: true, linkedStagingId: true },
+        })
+        if (existingBySidecar) {
+          const newRelative = await _computeRelativePath(item.fullPath, item.isVideo)
+          await prisma.archiveFolder.update({
+            where: { id: existingBySidecar.id },
+            data: {
+              fullPath: item.fullPath,
+              relativePath: newRelative,
+              folderName: item.folderName,
+              parsedDate,
+              parsedShortName: item.parsedShortName,
+              parsedTitle: item.parsedTitle,
+              nameFormatOk: item.nameFormatOk,
+              chanFolderName: item.chanFolderName,
+              contentSignature: item.contentSignature,
+              fileCount: item.fileCount,
+              videoPresent: item.videoPresent,
+              leafDirModifiedAt,
+              yearDirModifiedAt,
+              chanFolderModifiedAt,
+              lastRenamedFrom: item.fullPath,  // record move origin
+              lastRenamedAt: now,
+              scannedAt: now,
+            },
+          })
+          // Propagate new relativePath to linked Set/StagingSet
+          if (newRelative) {
+            if (existingBySidecar.linkedSetId) {
+              await prisma.set.update({
+                where: { id: existingBySidecar.linkedSetId },
+                data: { archivePath: newRelative, archiveStatus: 'PENDING' },
+              })
+            }
+            if (existingBySidecar.linkedStagingId) {
+              await prisma.stagingSet.update({
+                where: { id: existingBySidecar.linkedStagingId },
+                data: { archivePath: newRelative, archiveStatus: 'PENDING' },
+              })
+            }
+          }
+          void onArchiveScanComplete(existingBySidecar.id, 'OK', item.fileCount ?? 0)
+          counts.renamed++
+          continue
+        }
+      }
+
       await prisma.archiveFolder.create({
         data: {
           fullPath: item.fullPath,
@@ -785,6 +882,8 @@ export async function upsertArchiveFolders(
           chanFolderModifiedAt,
           scannedAt: now,
           tenant,
+          // Backfill archiveKey from sidecar if known but no existing record found
+          ...(item.sidecarKey ? { archiveKey: item.sidecarKey } : {}),
         },
       })
       counts.created++
@@ -806,6 +905,8 @@ export async function upsertArchiveFolders(
           yearDirModifiedAt,
           chanFolderModifiedAt,
           scannedAt: now,
+          // Backfill archiveKey from sidecar if not yet set on this record
+          ...(item.sidecarKey ? { archiveKey: item.sidecarKey } : {}),
           // Preserve all link fields
         },
         select: { id: true },
@@ -918,6 +1019,8 @@ export async function upsertArchiveFolders(
           parsedTitle: item.parsedTitle,
           nameFormatOk: item.nameFormatOk,
           chanFolderName: item.chanFolderName,
+          // Backfill archiveKey from sidecar if not yet set on this record
+          ...(item.sidecarKey ? { archiveKey: item.sidecarKey } : {}),
         },
       })
       counts.unchanged++
@@ -928,16 +1031,21 @@ export async function upsertArchiveFolders(
 }
 
 /**
- * Strip the configured archive root from a full filesystem path to get the
- * relative path stored in the DB. Returns null if root is not configured.
+ * Strip a configured archive root from a full filesystem path to get the
+ * relative path stored in the DB. Tries all configured roots; returns the
+ * first match. Returns null if no root matches.
  */
 async function _computeRelativePath(fullPath: string, isVideo: boolean): Promise<string | null> {
   const rootKey = isVideo ? ARCHIVE_VIDEOSET_ROOT_KEY : ARCHIVE_PHOTOSET_ROOT_KEY
-  const root = await getSetting(rootKey)
-  if (!root) return null
-  const normRoot = root.replace(/[/\\]$/, '')
-  if (!fullPath.toLowerCase().startsWith(normRoot.toLowerCase())) return null
-  return fullPath.slice(normRoot.length).replace(/^[/\\]/, '')
+  const rawRoots = await getSetting(rootKey)
+  const roots = parseRoots(rawRoots)
+  for (const root of roots) {
+    const normRoot = root.replace(/[/\\]$/, '')
+    if (fullPath.toLowerCase().startsWith(normRoot.toLowerCase())) {
+      return fullPath.slice(normRoot.length).replace(/^[/\\]/, '')
+    }
+  }
+  return null
 }
 
 /**
@@ -951,10 +1059,12 @@ async function _computeRelativePath(fullPath: string, isVideo: boolean): Promise
 export async function runMatchingPass(
   tenant: string,
 ): Promise<{ linked: number; suggested: number }> {
-  const [photoRoot, videoRoot] = await Promise.all([
+  const [rawPhotoRoots, rawVideoRoots] = await Promise.all([
     getSetting(ARCHIVE_PHOTOSET_ROOT_KEY),
     getSetting(ARCHIVE_VIDEOSET_ROOT_KEY),
   ])
+  const photoRoots = parseRoots(rawPhotoRoots)
+  const videoRoots = parseRoots(rawVideoRoots)
 
   // Load all unlinked folders for this tenant
   const folders = await prisma.archiveFolder.findMany({
@@ -997,17 +1107,20 @@ export async function runMatchingPass(
   let suggested = 0
 
   for (const folder of folders) {
-    // Compute relativePath from fullPath by stripping the known root
-    const root = folder.isVideo ? videoRoot : photoRoot
+    // Compute relativePath from fullPath by stripping the known root (try all roots)
+    const roots = folder.isVideo ? videoRoots : photoRoots
     let relativePath = folder.relativePath
-    if (!relativePath && root) {
-      const normRoot = root.replace(/[/\\]$/, '')
-      if (folder.fullPath.toLowerCase().startsWith(normRoot.toLowerCase())) {
-        relativePath = folder.fullPath.slice(normRoot.length).replace(/^[/\\]/, '')
-        await prisma.archiveFolder.update({
-          where: { id: folder.id },
-          data: { relativePath },
-        })
+    if (!relativePath) {
+      for (const root of roots) {
+        const normRoot = root.replace(/[/\\]$/, '')
+        if (folder.fullPath.toLowerCase().startsWith(normRoot.toLowerCase())) {
+          relativePath = folder.fullPath.slice(normRoot.length).replace(/^[/\\]/, '')
+          await prisma.archiveFolder.update({
+            where: { id: folder.id },
+            data: { relativePath },
+          })
+          break
+        }
       }
     }
 
@@ -1034,7 +1147,7 @@ export async function runMatchingPass(
       }
     }
 
-    // Step 2: parsedDate + parsedShortName → suggestion
+    // Step 2 (HIGH confidence): exact parsedDate + exact parsedShortName → suggestion
     if (folder.parsedDate && folder.parsedShortName) {
       const dateStart = new Date(folder.parsedDate)
       dateStart.setHours(0, 0, 0, 0)
@@ -1054,7 +1167,7 @@ export async function runMatchingPass(
       if (stagingSuggestions.length > 0) {
         await prisma.archiveFolder.update({
           where: { id: folder.id },
-          data: { suggestedStagingId: stagingSuggestions[0].id },
+          data: { suggestedStagingId: stagingSuggestions[0].id, suggestedConfidence: 'HIGH' },
         })
         suggested++
         continue
@@ -1073,7 +1186,55 @@ export async function runMatchingPass(
       if (setSuggestions.length > 0) {
         await prisma.archiveFolder.update({
           where: { id: folder.id },
-          data: { suggestedSetId: setSuggestions[0].id },
+          data: { suggestedSetId: setSuggestions[0].id, suggestedConfidence: 'HIGH' },
+        })
+        suggested++
+        continue
+      }
+    }
+
+    // Step 3 (MEDIUM confidence): same year + same shortName + title trigram similarity ≥ 0.4
+    // Handles cases with date errors or title typos.
+    if (folder.parsedDate && folder.parsedShortName && folder.parsedTitle) {
+      const year = folder.parsedDate.getFullYear()
+
+      type SimilarityRow = { id: string; sim: number }
+
+      const stagingMedium = await prisma.$queryRaw<SimilarityRow[]>`
+        SELECT ss.id, similarity(${folder.parsedTitle}, ss."titleNorm") AS sim
+        FROM staging_set ss
+        JOIN "Channel" c ON c.id = ss."channelId"
+        WHERE LOWER(c."shortName") = LOWER(${folder.parsedShortName})
+          AND EXTRACT(YEAR FROM ss."releaseDate") = ${year}
+          AND ss."archivePath" IS NULL
+          AND similarity(${folder.parsedTitle}, ss."titleNorm") >= 0.4
+        ORDER BY sim DESC
+        LIMIT 1
+      `
+      if (stagingMedium.length > 0 && stagingMedium[0]) {
+        await prisma.archiveFolder.update({
+          where: { id: folder.id },
+          data: { suggestedStagingId: stagingMedium[0].id, suggestedConfidence: 'MEDIUM' },
+        })
+        suggested++
+        continue
+      }
+
+      const setMedium = await prisma.$queryRaw<SimilarityRow[]>`
+        SELECT s.id, similarity(${folder.parsedTitle}, s."titleNorm") AS sim
+        FROM "Set" s
+        JOIN "Channel" c ON c.id = s."channelId"
+        WHERE LOWER(c."shortName") = LOWER(${folder.parsedShortName})
+          AND EXTRACT(YEAR FROM s."releaseDate") = ${year}
+          AND s."archivePath" IS NULL
+          AND similarity(${folder.parsedTitle}, s."titleNorm") >= 0.4
+        ORDER BY sim DESC
+        LIMIT 1
+      `
+      if (setMedium.length > 0 && setMedium[0]) {
+        await prisma.archiveFolder.update({
+          where: { id: folder.id },
+          data: { suggestedSetId: setMedium[0].id, suggestedConfidence: 'MEDIUM' },
         })
         suggested++
       }
@@ -1085,6 +1246,87 @@ export async function runMatchingPass(
 
 function _normPath(p: string): string {
   return p.replace(/[/\\]+/g, '/').replace(/\/$/, '').toLowerCase()
+}
+
+// ─── Batch Suggestion Queries ─────────────────────────────────────────────────
+
+export type SuggestedFolderInfo = {
+  folderId: string
+  folderName: string
+  fileCount: number | null
+  parsedDate: Date | null
+  fullPath: string
+  confidence: 'HIGH' | 'MEDIUM'
+}
+
+/**
+ * For a batch of staging set IDs, find any ArchiveFolder that has each as its
+ * suggestedStagingId. Returns a Map<stagingSetId, SuggestedFolderInfo>.
+ */
+export async function getSuggestedFoldersForStagingSets(
+  ids: string[],
+): Promise<Map<string, SuggestedFolderInfo>> {
+  if (ids.length === 0) return new Map()
+  const folders = await prisma.archiveFolder.findMany({
+    where: { suggestedStagingId: { in: ids } },
+    select: {
+      id: true,
+      suggestedStagingId: true,
+      folderName: true,
+      fileCount: true,
+      parsedDate: true,
+      fullPath: true,
+      suggestedConfidence: true,
+    },
+  })
+  return new Map(
+    folders.map((f) => [
+      f.suggestedStagingId!,
+      {
+        folderId: f.id,
+        folderName: f.folderName,
+        fileCount: f.fileCount,
+        parsedDate: f.parsedDate,
+        fullPath: f.fullPath,
+        confidence: (f.suggestedConfidence as 'HIGH' | 'MEDIUM') ?? 'HIGH',
+      },
+    ]),
+  )
+}
+
+/**
+ * For a batch of Set IDs, find any ArchiveFolder that has each as its
+ * suggestedSetId. Returns a Map<setId, SuggestedFolderInfo>.
+ */
+export async function getSuggestedFoldersForSets(
+  ids: string[],
+): Promise<Map<string, SuggestedFolderInfo>> {
+  if (ids.length === 0) return new Map()
+  const folders = await prisma.archiveFolder.findMany({
+    where: { suggestedSetId: { in: ids } },
+    select: {
+      id: true,
+      suggestedSetId: true,
+      folderName: true,
+      fileCount: true,
+      parsedDate: true,
+      fullPath: true,
+      suggestedConfidence: true,
+    },
+  })
+  return new Map(
+    folders.map((f) => [
+      f.suggestedSetId!,
+      {
+        folderId: f.id,
+        folderName: f.folderName,
+        fileCount: f.fileCount,
+        parsedDate: f.parsedDate,
+        fullPath: f.fullPath,
+        confidence: (f.suggestedConfidence as 'HIGH' | 'MEDIUM') ?? 'HIGH',
+      },
+    ]),
+  )
 }
 
 // ─── Archive Workspace Queries ────────────────────────────────────────────────
@@ -1414,39 +1656,58 @@ export async function getArchiveWorkspace(filters: WorkspaceFilters): Promise<Wo
 
 /**
  * Confirm a suggested (or manually chosen) link between an ArchiveFolder and a DB set.
- * Sets the linkedSetId/linkedStagingId and writes the archivePath back to the set.
+ * Sets the linkedSetId/linkedStagingId, writes the archivePath back to the set,
+ * and generates a stable archiveKey UUID on both sides for sidecar-based tracking.
  */
 export async function confirmArchiveFolderLink(
   folderId: string,
   setId: string,
   type: 'set' | 'staging',
-): Promise<void> {
+): Promise<{ archiveKey: string }> {
   const folder = await prisma.archiveFolder.findUnique({ where: { id: folderId } })
-  if (!folder) return
+  if (!folder) throw new Error('Archive folder not found')
+
+  // Re-use existing key if already set on folder or on the set/staging record;
+  // otherwise generate a fresh UUID.
+  let archiveKey = folder.archiveKey ?? null
+  if (!archiveKey) {
+    if (type === 'set') {
+      const existing = await prisma.set.findUnique({ where: { id: setId }, select: { archiveKey: true } })
+      archiveKey = existing?.archiveKey ?? null
+    } else {
+      const existing = await prisma.stagingSet.findUnique({ where: { id: setId }, select: { archiveKey: true } })
+      archiveKey = existing?.archiveKey ?? null
+    }
+  }
+  if (!archiveKey) archiveKey = randomUUID()
 
   if (type === 'set') {
     await prisma.archiveFolder.update({
       where: { id: folderId },
-      data: { linkedSetId: setId, suggestedSetId: null },
+      data: { linkedSetId: setId, suggestedSetId: null, suggestedConfidence: null, archiveKey },
     })
-    if (folder.relativePath) {
-      await prisma.set.update({
-        where: { id: setId },
-        data: { archivePath: folder.relativePath, archiveStatus: 'PENDING' },
-      })
-    }
+    await prisma.set.update({
+      where: { id: setId },
+      data: {
+        archiveKey,
+        ...(folder.relativePath ? { archivePath: folder.relativePath, archiveStatus: 'PENDING' } : {}),
+      },
+    })
   } else {
     await prisma.archiveFolder.update({
       where: { id: folderId },
-      data: { linkedStagingId: setId, suggestedStagingId: null },
+      data: { linkedStagingId: setId, suggestedStagingId: null, suggestedConfidence: null, archiveKey },
     })
-    if (folder.relativePath) {
-      await prisma.stagingSet.update({
-        where: { id: setId },
-        data: { archivePath: folder.relativePath, archiveStatus: 'PENDING' },
-      })
-    }
+    await prisma.stagingSet.update({
+      where: { id: setId },
+      data: {
+        archiveKey,
+        ...(folder.relativePath ? { archivePath: folder.relativePath, archiveStatus: 'PENDING' } : {}),
+      },
+    })
   }
+
+  return { archiveKey }
 }
 
 /**

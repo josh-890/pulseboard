@@ -2,6 +2,7 @@ import { withTenantFromHeaders } from "@/lib/tenant-context";
 import { Suspense } from "react";
 import { ImageIcon } from "lucide-react";
 import { getSetsPaginated, getChannelsWithLabelMaps, getRecentChannels, getLastUsedSetType } from "@/lib/services/set-service";
+import { getSuggestedFoldersForSets } from "@/lib/services/archive-service";
 import type { SetSort, SetFilters } from "@/lib/services/set-service";
 import { getCoverPhotosForSets, getHeadshotsForPersons } from "@/lib/services/media-service";
 import { getAllContributionRoleGroups } from "@/lib/services/contribution-role-service";
@@ -91,16 +92,19 @@ export default async function SetsPage({ searchParams }: SetsPageProps) {
     getAllContributionRoleGroups(),
   ]);
 
-  // Batch-load cover thumbnails and participant headshots for initial chunk
+  // Batch-load cover thumbnails, headshots, and archive suggestions for initial chunk
+  const setIds = paginated.items.map((s) => s.id);
   const allPersonIds = [
     ...new Set(paginated.items.flatMap((s) => s.participants.map((p) => p.personId))),
   ];
-  const [coverMapRaw, headshotMapRaw] = await Promise.all([
-    getCoverPhotosForSets(paginated.items.map((s) => s.id)),
+  const [coverMapRaw, headshotMapRaw, suggestionsRaw] = await Promise.all([
+    getCoverPhotosForSets(setIds),
     getHeadshotsForPersons(allPersonIds),
+    getSuggestedFoldersForSets(setIds),
   ]);
   const photoMap = Object.fromEntries(coverMapRaw);
   const headshotMap = Object.fromEntries(headshotMapRaw);
+  const suggestionsMap = Object.fromEntries(suggestionsRaw);
 
   // Build channel and label options from loaded channels
   const channelOptions = channels.map((c) => ({
@@ -220,6 +224,7 @@ export default async function SetsPage({ searchParams }: SetsPageProps) {
         sets={paginated.items}
         photoMap={photoMap}
         headshotMap={headshotMap}
+        suggestionsMap={suggestionsMap}
         nextCursor={paginated.nextCursor}
         totalCount={paginated.totalCount}
         filters={filters}

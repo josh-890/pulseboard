@@ -129,10 +129,10 @@ export async function confirmArchiveFolderLinkAction(
       await confirmArchiveFolderLink(folderId, setId, type)
       void onArchiveFolderLinked(folderId, type === 'set' ? { setId } : { stagingSetId: setId })
       revalidatePath('/archive')
+      revalidatePath('/import')
+      revalidatePath('/sets')
       if (type === 'set') {
         revalidatePath(`/sets/${setId}`)
-      } else {
-        revalidatePath('/import')
       }
       return { success: true }
     } catch {
@@ -148,6 +148,8 @@ export async function rejectArchiveSuggestionAction(
     try {
       await rejectArchiveSuggestion(folderId)
       revalidatePath('/archive')
+      revalidatePath('/import')
+      revalidatePath('/sets')
       return { success: true }
     } catch {
       return { success: false, error: 'Failed to reject suggestion' }

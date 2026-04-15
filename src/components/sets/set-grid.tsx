@@ -11,6 +11,7 @@ import type { getSets } from "@/lib/services/set-service";
 import type { SetFilters } from "@/lib/services/set-service";
 import { useBulkSelection } from "@/hooks/use-bulk-selection";
 import { BulkSelectionBar } from "@/components/shared/bulk-selection-bar";
+import type { SuggestedFolderInfo } from "@/lib/services/archive-service";
 
 type SetItem = Awaited<ReturnType<typeof getSets>>[number];
 
@@ -33,10 +34,13 @@ type SetGridProps = {
   nextCursor: string | null;
   totalCount: number;
   filters: SetFilters;
+  /** Keyed by set ID — only populated for the initial page load */
+  suggestionsMap?: Record<string, SuggestedFolderInfo>;
 };
 
 export function SetGrid({
   sets: initialSets,
+  suggestionsMap = {},
   photoMap: initialPhotoMap,
   headshotMap: initialHeadshotMap,
   nextCursor: initialCursor,
@@ -123,7 +127,7 @@ export function SetGrid({
                 </button>
               )}
               <div className={cn(bulk.isSelecting && isSelected && "ring-2 ring-primary rounded-xl")}>
-                <SetCard set={set} coverPhoto={photoMap[set.id]} headshotMap={headshotMap} unresolvedCreditCount={set._count.creditsRaw} />
+                <SetCard set={set} coverPhoto={photoMap[set.id]} headshotMap={headshotMap} unresolvedCreditCount={set._count.creditsRaw} suggestedArchiveFolder={suggestionsMap[set.id] ?? null} />
               </div>
             </div>
           );

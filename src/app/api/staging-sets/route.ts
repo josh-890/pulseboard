@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { withTenantFromHeaders } from '@/lib/tenant-context'
 import { getStagingSetsFiltered } from '@/lib/services/import/staging-set-service'
+import { getSuggestedFoldersForStagingSets } from '@/lib/services/archive-service'
 import type { ChannelTier, StagingSetStatus } from '@/generated/prisma/client'
 import type { ArchiveFilterValue } from '@/components/staging-sets/staging-set-filter-bar'
 
@@ -57,7 +58,15 @@ export async function GET(request: Request) {
         limit: url.searchParams.get('limit') ? Number(url.searchParams.get('limit')) : undefined,
       })
 
-      return NextResponse.json(result)
+      // Augment with suggested archive folder info (one batch query per page)
+      const stagingIds = result.items.map((i) => i.id)
+      const suggestions = await getSuggestedFoldersForStagingSets(stagingIds)
+      const augmentedItems = result.items.map((item) => ({
+        ...item,
+        suggestedArchiveFolder: suggestions.get(item.id) ?? null,
+      }))
+
+      return NextResponse.json({ ...result, items: augmentedItems })
     } catch (err) {
       console.error('Staging sets list error:', err)
       return NextResponse.json(

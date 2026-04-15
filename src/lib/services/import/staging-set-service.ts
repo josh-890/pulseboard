@@ -10,6 +10,7 @@ import { prisma } from '@/lib/db'
 import { normalizeForSearch } from '@/lib/normalize'
 import type { ChannelTier, DatePrecision, Prisma, StagingSet, StagingSetStatus } from '@/generated/prisma/client'
 import { onSetPromoted } from '@/lib/services/coherence-service'
+import type { SuggestedFolderInfo } from '@/lib/services/archive-service'
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -24,6 +25,8 @@ export type StagingSetWithRelations = StagingSet & {
   channel: { id: string; name: string; tier: ChannelTier; shortName: string | null; channelFolder: string | null } | null
   matchedSet: { id: string; title: string; channelId: string | null } | null
   coherenceSnapshot: CoherenceSnapshotMini
+  /** Populated server-side after main query via getSuggestedFoldersForStagingSets */
+  suggestedArchiveFolder?: SuggestedFolderInfo | null
 }
 
 export type ParticipantStatus = {
@@ -353,6 +356,22 @@ export async function markStagingSetPromoted(
       data: { linkedStagingId: null, linkedSetId: promotedSetId },
     }),
   ])
+
+  // Copy archiveKey from staging set to the promoted Set (only if Set doesn't have one yet).
+  // This ensures the sidecar UUID survives promotion.
+  const ss = await prisma.stagingSet.findUnique({ where: { id }, select: { archiveKey: true } })
+  if (ss?.archiveKey) {
+    await prisma.set.updateMany({
+      where: { id: promotedSetId, archiveKey: null },
+      data: { archiveKey: ss.archiveKey },
+    })
+    // Keep ArchiveFolder.archiveKey in sync (it may have been linked to staging side)
+    await prisma.archiveFolder.updateMany({
+      where: { linkedSetId: promotedSetId, archiveKey: null },
+      data: { archiveKey: ss.archiveKey },
+    })
+  }
+
   void onSetPromoted(id, promotedSetId)
   return stagingSet
 }
