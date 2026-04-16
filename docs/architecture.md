@@ -136,7 +136,7 @@ All import services in `src/lib/services/import/`.
 - `buildFullPaths(relativePath, isVideo)` — returns one absolute path per configured root (multi-root support)
 - `runMatchingPass()` — two-tier matching: **HIGH** (exact date + exact shortName) → **MEDIUM** (same year + shortName + `pg_trgm similarity ≥ 0.4`). Writes `suggestedStagingId/SetId` + `suggestedConfidence` to ArchiveFolder
 - `upsertArchiveFolders(items)` — ingest scan results; detects renames (by path), moves (by `sidecarKey` → `ArchiveFolder.archiveKey` lookup), and new folders; propagates path changes to linked Set/StagingSet
-- `confirmArchiveFolderLink(folderId, setId, type)` — generates/reuses UUID `archiveKey`, writes to Set/StagingSet + ArchiveFolder, clears suggestion; returns `{ archiveKey }`
+- `confirmArchiveFolderLink(folderId, setId, type)` — propagates folder's existing `archiveKey` to Set/StagingSet, clears suggestion; returns `{ archiveKey }`. No UUID generation here — key is always already present on ArchiveFolder.
 - `rejectArchiveSuggestion(folderId)` — clears `suggestedStagingId/SetId` + `suggestedConfidence`
 - `getSuggestedFoldersForStagingSets(ids)` → `Map<stagingSetId, SuggestedFolderInfo>` — batch query keyed by `suggestedStagingId`
 - `getSuggestedFoldersForSets(ids)` → `Map<setId, SuggestedFolderInfo>` — batch query keyed by `suggestedSetId`
@@ -220,7 +220,7 @@ All actions in `src/lib/actions/`. Each validates input with Zod, calls services
 | `/api/staging-sets/bulk-update` | POST | Bulk status change |
 | `/api/staging-sets/bulk-promote` | POST | Bulk promote to production |
 | `/api/staging-sets/[id]/cover` | POST | Upload cover image (FormData → resize → MinIO) |
-| `/api/archive/sidecar/[archiveKey]` | GET | Protected by `ARCHIVE_API_KEY` header. Returns `{ archiveKey, setId?, stagingSetId?, title, releaseDate, channel }` — the content the external scan script writes to `_pulseboard.json` in the archive folder |
+| `/api/archive/sidecar/[archiveKey]` | GET | Protected by `ARCHIVE_API_KEY` header. Looks up ArchiveFolder by archiveKey (always present), returns `{ archiveKey, folderName, setId, stagingSetId, title, releaseDate, channel }`. Works for unlinked folders (setId/stagingSetId null). 404 only if archiveKey unknown. |
 | `/api/archive/folders/search` | GET | Search unlinked archive folders (`linkedSetId=null AND linkedStagingId=null`). Params: `q` (title search), `shortName` (chanFolderName filter), `year`, `limit` (max 50). Used by `ArchiveFolderPicker` |
 | `/api/flags/[code]` | GET | Country flag image |
 
@@ -376,9 +376,9 @@ MediaItem ──┬── PersonMediaLink[] (usage: PROFILE/HEADSHOT/DETAIL/PORT
 
 ### Key Fields
 
-- **Set**: `externalId` (optional, unique) — external source ID from import files; `archiveKey` (optional, unique) — stable UUID written at first link-confirm, survives folder moves and drive migrations
+- **Set**: `externalId` (optional, unique) — external source ID from import files; `archiveKey` (optional, unique) — stable UUID propagated from ArchiveFolder at link-confirm time; survives folder moves and drive migrations
 - **StagingSet**: `archiveKey` (optional, unique) — same as Set; copied to promoted Set via `markStagingSetPromoted`
-- **ArchiveFolder**: `archiveKey` (optional, unique) — mirrors linked Set/StagingSet archiveKey; enables sidecar-based lookup for cross-drive folder move detection; `suggestedConfidence` (`'HIGH'` | `'MEDIUM'` | null) — set by `runMatchingPass`
+- **ArchiveFolder**: `archiveKey` (**required**, unique, `@default(uuid())`) — stable folder identity UUID generated at first scan time; independent of Set/StagingSet link status; enables sidecar-based lookup for cross-drive folder move detection; `suggestedConfidence` (`'HIGH'` | `'MEDIUM'` | null) — set by `runMatchingPass`
 - **ImportBatch**: `subjectIcgId`, `rawContent`, `status` (PARSING→REVIEW→IMPORTING→COMPLETED), `previousBatchId` (self-relation for versioning)
 - **ImportItem**: `type` (PERSON/PERSON_ALIAS/DIGITAL_IDENTITY/CHANNEL/LABEL/SET/CO_MODEL/CREDIT), `status` (NEW/MATCHED/PROBABLE/BLOCKED/IMPORTED/SKIPPED/FAILED), `data` (JSON), `editedData` (JSON), `dependsOn` (String[]), `matchedEntityId`, `matchConfidence`
 - **Person**: `icgId` (unique, mandatory), `status` (active/inactive/wishlist/archived), `rating`, `pgrade`
@@ -483,9 +483,9 @@ SessionContributionSkills → skill picker
 StagingSetRow — user clicks "Confirm" on HIGH/MEDIUM suggestion
   → confirmArchiveFolderLinkAction(folderId, stagingSetId, 'staging')
   → confirmArchiveFolderLink() service:
-    1. Check for existing archiveKey on folder or staging set; generate UUID if none
-    2. prisma.stagingSet.update({ archiveKey: key })
-    3. prisma.archiveFolder.update({ linkedStagingId, archiveKey: key, suggestedStagingId: null, suggestedConfidence: null })
+    1. Read ArchiveFolder.archiveKey (always present — generated at scan time)
+    2. prisma.stagingSet.update({ archiveKey: key })    // propagate folder key to staging set
+    3. prisma.archiveFolder.update({ linkedStagingId, suggestedStagingId: null, suggestedConfidence: null })
     4. propagate archivePath to StagingSet
   → onArchiveFolderLinked() — updates SetCoherenceSnapshot
   → revalidatePath('/archive', '/import', '/sets')

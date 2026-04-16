@@ -636,7 +636,7 @@ export type ScanPreloadRecord = {
   leafDirModifiedAt: string | null    // ISO string or null
   yearDirModifiedAt: string | null
   chanFolderModifiedAt: string | null
-  archiveKey: string | null           // stable UUID; null until a link is confirmed
+  archiveKey: string                   // stable UUID; generated at first scan time (always present)
 }
 
 export type FullIngestItem = {
@@ -885,8 +885,8 @@ export async function upsertArchiveFolders(
           chanFolderModifiedAt,
           scannedAt: now,
           tenant,
-          // Backfill archiveKey from sidecar if known but no existing record found
-          ...(item.sidecarKey ? { archiveKey: item.sidecarKey } : {}),
+          // Prefer sidecarKey if folder was previously known (moved drive); otherwise generate fresh UUID
+          archiveKey: item.sidecarKey ?? randomUUID(),
         },
       })
       counts.created++
@@ -908,8 +908,6 @@ export async function upsertArchiveFolders(
           yearDirModifiedAt,
           chanFolderModifiedAt,
           scannedAt: now,
-          // Backfill archiveKey from sidecar if not yet set on this record
-          ...(item.sidecarKey ? { archiveKey: item.sidecarKey } : {}),
           // Preserve all link fields
         },
         select: { id: true },
@@ -1022,8 +1020,6 @@ export async function upsertArchiveFolders(
           parsedTitle: item.parsedTitle,
           nameFormatOk: item.nameFormatOk,
           chanFolderName: item.chanFolderName,
-          // Backfill archiveKey from sidecar if not yet set on this record
-          ...(item.sidecarKey ? { archiveKey: item.sidecarKey } : {}),
         },
       })
       counts.unchanged++
@@ -1660,7 +1656,10 @@ export async function getArchiveWorkspace(filters: WorkspaceFilters): Promise<Wo
 /**
  * Confirm a suggested (or manually chosen) link between an ArchiveFolder and a DB set.
  * Sets the linkedSetId/linkedStagingId, writes the archivePath back to the set,
- * and generates a stable archiveKey UUID on both sides for sidecar-based tracking.
+ * and propagates the folder's stable archiveKey to the Set/StagingSet record.
+ *
+ * archiveKey is now always present on ArchiveFolder (generated at scan time), so no
+ * UUID generation is needed here — we simply read and propagate it.
  */
 export async function confirmArchiveFolderLink(
   folderId: string,
@@ -1670,24 +1669,13 @@ export async function confirmArchiveFolderLink(
   const folder = await prisma.archiveFolder.findUnique({ where: { id: folderId } })
   if (!folder) throw new Error('Archive folder not found')
 
-  // Re-use existing key if already set on folder or on the set/staging record;
-  // otherwise generate a fresh UUID.
-  let archiveKey = folder.archiveKey ?? null
-  if (!archiveKey) {
-    if (type === 'set') {
-      const existing = await prisma.set.findUnique({ where: { id: setId }, select: { archiveKey: true } })
-      archiveKey = existing?.archiveKey ?? null
-    } else {
-      const existing = await prisma.stagingSet.findUnique({ where: { id: setId }, select: { archiveKey: true } })
-      archiveKey = existing?.archiveKey ?? null
-    }
-  }
-  if (!archiveKey) archiveKey = randomUUID()
+  // archiveKey is always present on ArchiveFolder (generated at scan time)
+  const archiveKey = folder.archiveKey
 
   if (type === 'set') {
     await prisma.archiveFolder.update({
       where: { id: folderId },
-      data: { linkedSetId: setId, suggestedSetId: null, suggestedConfidence: null, archiveKey },
+      data: { linkedSetId: setId, suggestedSetId: null, suggestedConfidence: null },
     })
     await prisma.set.update({
       where: { id: setId },
@@ -1699,7 +1687,7 @@ export async function confirmArchiveFolderLink(
   } else {
     await prisma.archiveFolder.update({
       where: { id: folderId },
-      data: { linkedStagingId: setId, suggestedStagingId: null, suggestedConfidence: null, archiveKey },
+      data: { linkedStagingId: setId, suggestedStagingId: null, suggestedConfidence: null },
     })
     await prisma.stagingSet.update({
       where: { id: setId },

@@ -5,6 +5,10 @@
  * _pulseboard.json for the matched archive folder. This allows the scan script
  * to persist a stable identity file that survives folder moves and drive migrations.
  *
+ * archiveKey is now always present on ArchiveFolder (generated at scan time), so this
+ * endpoint resolves via ArchiveFolder first and returns folder info even for unlinked
+ * folders. setId/stagingSetId are null until a link is confirmed.
+ *
  * Protected by the ARCHIVE_API_KEY environment variable.
  */
 
@@ -39,43 +43,59 @@ export async function GET(
   return runWithTenant(tenantId, async () => {
     const { archiveKey } = await params
 
-    // Look up the Set or StagingSet that owns this archiveKey
-    const [set, stagingSet] = await Promise.all([
-      prisma.set.findUnique({
-        where: { archiveKey },
-        select: {
-          id: true,
-          title: true,
-          releaseDate: true,
-          channel: { select: { name: true, shortName: true } },
-        },
-      }),
-      prisma.stagingSet.findUnique({
-        where: { archiveKey },
-        select: {
-          id: true,
-          title: true,
-          releaseDate: true,
-          channelName: true,
-          channel: { select: { name: true, shortName: true } },
-        },
-      }),
-    ])
+    // Primary lookup: ArchiveFolder (always has archiveKey — generated at scan time)
+    const folder = await prisma.archiveFolder.findUnique({
+      where: { archiveKey },
+      select: {
+        folderName: true,
+        parsedDate: true,
+        scannedAt: true,
+        linkedSetId: true,
+        linkedStagingId: true,
+      },
+    })
 
-    if (!set && !stagingSet) {
+    if (!folder) {
       return NextResponse.json({ error: 'Not found' }, { status: 404 })
     }
 
-    // Return the sidecar content — this is what the scan script writes to _pulseboard.json
-    const sidecar = {
+    // Optionally enrich with linked Set/StagingSet metadata (null for unlinked folders)
+    const [set, stagingSet] = await Promise.all([
+      folder.linkedSetId
+        ? prisma.set.findUnique({
+            where: { id: folder.linkedSetId },
+            select: {
+              id: true,
+              title: true,
+              releaseDate: true,
+              channel: { select: { shortName: true } },
+            },
+          })
+        : null,
+      folder.linkedStagingId
+        ? prisma.stagingSet.findUnique({
+            where: { id: folder.linkedStagingId },
+            select: {
+              id: true,
+              title: true,
+              releaseDate: true,
+              channelName: true,
+              channel: { select: { shortName: true } },
+            },
+          })
+        : null,
+    ])
+
+    // Return the sidecar content — this is what the scan script writes to _pulseboard.json.
+    // folderName is always present. setId/stagingSetId are null for unlinked folders.
+    return NextResponse.json({
       archiveKey,
-      setId: set?.id ?? null,
-      stagingSetId: stagingSet?.id ?? null,
+      folderName: folder.folderName,
+      setId: folder.linkedSetId ?? null,
+      stagingSetId: folder.linkedStagingId ?? null,
       title: set?.title ?? stagingSet?.title ?? null,
       releaseDate: (set?.releaseDate ?? stagingSet?.releaseDate)?.toISOString().split('T')[0] ?? null,
       channel: set?.channel?.shortName ?? stagingSet?.channel?.shortName ?? stagingSet?.channelName ?? null,
-    }
-
-    return NextResponse.json(sidecar)
+    })
   })
 }

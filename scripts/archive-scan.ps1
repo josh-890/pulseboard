@@ -61,14 +61,13 @@
 .PARAMETER BatchSize
     Number of folders to send per POST in Full mode. Default: 200.
 
-.PARAMETER WriteSidecars
-    After the Full scan ingest, write a _pulseboard.json sidecar file into every
-    linked archive folder that does not already have one. The sidecar contains the
-    stable archiveKey UUID so that future scans can detect cross-drive folder moves
-    even when folder names are re-used elsewhere.
+.PARAMETER NoSidecarPrompt
+    Skip the interactive prompt after a Full scan that asks whether to write missing
+    sidecar files. Use this in automated/scheduled runs. When omitted the script
+    prompts with a default of Yes.
 
-    Only folders with a confirmed link (archiveKey set) receive a sidecar.
-    Existing sidecar files are never overwritten.
+    Note: sidecars are written to ALL archive folders (not only linked ones), because
+    every ArchiveFolder now has a stable archiveKey from the moment it is first scanned.
 
 .PARAMETER DryRun
     Print what would be sent without POSTing to the app. Filesystem is still read.
@@ -88,9 +87,9 @@
     Smart full scan with rename detection and skip logic.
 
 .EXAMPLE
-    .\archive-scan.ps1 -Mode Full -PhotosetRoot "X:\Sites\" -WriteSidecars
+    .\archive-scan.ps1 -Mode Full -PhotosetRoot "X:\Sites\" -NoSidecarPrompt
 
-    Full scan + write _pulseboard.json into newly linked folders after ingest.
+    Full scan + write _pulseboard.json into all folders without a sidecar, without prompting.
 
 .EXAMPLE
     .\archive-scan.ps1 -Mode Full -PhotosetRoot "X:\Sites\" -DryRun
@@ -118,10 +117,12 @@
       {root}\{channelFolder}\{year}\{folderName}\
 
     Sidecar files (_pulseboard.json):
-      Written by this script (with -WriteSidecars) after ingest.
+      After each Full scan, the script prompts whether to write missing sidecars
+      (default Yes; use -NoSidecarPrompt for automation).
       Read by this script on every visit to detect cross-drive folder moves.
-      Format: { "archiveKey": "uuid", "setId": ..., "title": ..., ... }
-      Only folders with a confirmed link (archiveKey set in DB) receive a sidecar.
+      Format: { "archiveKey": "uuid", "folderName": ..., "setId": ..., "title": ..., ... }
+      Every ArchiveFolder has a stable archiveKey from first scan (including unlinked).
+      Sidecars are written to ALL on-disk folders — not only linked ones.
       Existing sidecars are never overwritten.
 
     Content signature (rename fingerprint):
@@ -151,7 +152,7 @@ param(
     [string]$PhotosetRoot  = ($env:ARCHIVE_PHOTOSET_ROOT  ?? ""),
     [string]$VideosetRoot  = ($env:ARCHIVE_VIDEOSET_ROOT  ?? ""),
     [int]$BatchSize        = 200,
-    [switch]$WriteSidecars,  # after ingest, write _pulseboard.json into linked folders that lack one
+    [switch]$NoSidecarPrompt,  # skip interactive sidecar-write prompt after Full scan (for automation)
     [switch]$DryRun,
     [switch]$SkipChanCache   # bypass chanFolder-level mtime skip; use after moving folders between channels
 )
@@ -479,7 +480,7 @@ function Load-KnownFolders {
 
     } while ($cursor)
 
-    Write-Host "  Preload complete: $total folder(s) known ($($byArchKey.Count) with archiveKey)"
+    Write-Host "  Preload complete: $total folder(s) known ($($byArchKey.Count) with archiveKey — all folders have one)"
     return $byPath, $bySig, $byArchKey
 }
 
@@ -713,11 +714,11 @@ function Write-Sidecars {
 
     $linked = $ByArchKey.Count
     if ($linked -eq 0) {
-        Write-Host "  No linked folders with archiveKey found — nothing to write."
+        Write-Host "  No archive folders with archiveKey found — nothing to write."
         return
     }
 
-    Write-Host "  Checking $linked linked folder(s) for missing _pulseboard.json..."
+    Write-Host "  Checking $linked folder(s) for missing _pulseboard.json..."
     $written  = 0
     $skipped  = 0
     $errors   = 0
@@ -874,11 +875,39 @@ function Run-FullScan {
     }
     Write-Host "────────────────────────────────────────────────"
 
-    # ── Step 4 (optional): Write sidecar files ───────────────────────────────
-    if ($WriteSidecars) {
+    # ── Step 4: Write sidecar files ─────────────────────────────────────────
+    # Count how many on-disk folders are missing _pulseboard.json.
+    # Sidecars are written to ALL folders (linked or not) — every ArchiveFolder
+    # now has a stable archiveKey from the moment it is first scanned.
+    $needsSidecar = 0
+    foreach ($ak in $byArchKey.Keys) {
+        $folderPath  = [string]$byArchKey[$ak].fullPath
+        $sidecarPath = Join-Path $folderPath "_pulseboard.json"
+        if ((Test-Path -LiteralPath $folderPath -PathType Container) -and
+            -not (Test-Path -LiteralPath $sidecarPath -PathType Leaf)) {
+            $needsSidecar++
+        }
+    }
+
+    if ($needsSidecar -gt 0) {
         Write-Host ""
-        Write-Host "Writing sidecar files (_pulseboard.json)..."
-        Write-Sidecars -ByArchKey $byArchKey
+        if ($NoSidecarPrompt -or $DryRun) {
+            # Non-interactive or dry-run: proceed without asking
+            $doWrite = $true
+        } else {
+            $answer  = Read-Host "Write _pulseboard.json into $needsSidecar folder(s) missing a sidecar? [Y/n]"
+            $doWrite = ($answer -eq "" -or $answer -match "^[Yy]")
+        }
+
+        if ($doWrite) {
+            Write-Host "Writing sidecar files (_pulseboard.json)..."
+            Write-Sidecars -ByArchKey $byArchKey
+        } else {
+            Write-Host "  Sidecar write skipped."
+        }
+    } else {
+        Write-Host ""
+        Write-Host "All on-disk folders already have _pulseboard.json — nothing to write."
     }
 }
 

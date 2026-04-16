@@ -1648,7 +1648,7 @@ model ArchiveFolder {
   suggestedSetId  String?            // suggested (unconfirmed) match → Set
   suggestedStagingId String?         // suggested (unconfirmed) match → StagingSet
   suggestedConfidence String?        // 'HIGH' (exact date+code) | 'MEDIUM' (fuzzy title+year+code)
-  archiveKey      String?  @unique   // echoes linked Set/StagingSet archiveKey; enables sidecar-based lookups
+  archiveKey      String   @unique  @default(uuid())  // stable folder identity UUID; generated at first scan time (independent of Set/StagingSet link)
   scannedAt       DateTime
   tenant          String             // which tenant DB this record belongs to
 
