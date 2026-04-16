@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import {
   FolderOpen, FolderCheck, FolderX,
-  Check, Pencil, X, Save, Loader2, Flag,
+  Check, Pencil, X, Save, Loader2, Flag, Film,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -12,6 +12,7 @@ import {
   clearArchivePathAction,
   toggleMediaQueueAction,
   updateMediaPriorityAction,
+  confirmVideoFileAction,
 } from '@/lib/actions/archive-actions'
 import type { ArchiveStatus } from '@/generated/prisma/client'
 import { cn } from '@/lib/utils'
@@ -28,6 +29,8 @@ type SetArchivePanelProps = {
   archiveFileCount: number | null
   archiveFileCountPrev: number | null
   archiveVideoPresent: boolean | null
+  archiveVideoFiles?: string[] | null
+  archiveVideoFilename?: string | null
   mediaPriority: number | null
   mediaQueueAt: Date | null
   folderName?: string | null
@@ -67,6 +70,8 @@ export function SetArchivePanel(props: SetArchivePanelProps) {
     archiveFileCount: initialFileCount,
     archiveFileCountPrev: initialFileCountPrev,
     archiveVideoPresent: initialVideoPresent,
+    archiveVideoFiles,
+    archiveVideoFilename: initialVideoFilename,
     mediaPriority: initialPriority,
     mediaQueueAt: initialQueueAt,
     folderName,
@@ -78,9 +83,11 @@ export function SetArchivePanel(props: SetArchivePanelProps) {
   const [archiveLastChecked] = useState(initialChecked)
   const [archiveFileCount] = useState(initialFileCount)
   const [archiveFileCountPrev] = useState(initialFileCountPrev)
-  const [archiveVideoPresent] = useState(initialVideoPresent)
+  const [archiveVideoPresent, setArchiveVideoPresent] = useState(initialVideoPresent)
+  const [archiveVideoFilename, setArchiveVideoFilename] = useState(initialVideoFilename ?? null)
   const [mediaPriority, setMediaPriority] = useState(initialPriority)
   const [mediaQueueAt, setMediaQueueAt] = useState(initialQueueAt)
+  const [confirmingVideo, setConfirmingVideo] = useState(false)
 
   const [archiveRoot, setArchiveRoot] = useState<string | null>(null)
   const [suggestedPath, setSuggestedPath] = useState<string | null>(null)
@@ -154,6 +161,18 @@ export function SetArchivePanel(props: SetArchivePanelProps) {
   const handlePriorityChange = useCallback(async (value: number) => {
     setMediaPriority(value)
     await updateMediaPriorityAction(setId, 'set', value)
+  }, [setId])
+
+  const handleConfirmVideo = useCallback(async (filename: string) => {
+    setConfirmingVideo(true)
+    try {
+      await confirmVideoFileAction(setId, 'set', filename)
+      setArchiveVideoPresent(true)
+      setArchiveVideoFilename(filename)
+      setArchiveStatus('OK')
+    } finally {
+      setConfirmingVideo(false)
+    }
   }, [setId])
 
   return (
@@ -292,10 +311,39 @@ export function SetArchivePanel(props: SetArchivePanelProps) {
                   )}
                 </div>
               )}
-              {isVideo && archiveVideoPresent != null && (
-                <div className={archiveVideoPresent ? 'text-green-500' : 'text-red-500'}>
-                  Video file: {archiveVideoPresent ? 'present' : 'missing'}
-                </div>
+              {isVideo && (
+                archiveVideoPresent
+                  ? (
+                    <div className="flex items-center gap-1.5 text-green-500">
+                      <Film size={11} />
+                      {archiveVideoFilename ?? 'Video file present'}
+                    </div>
+                  )
+                  : archiveVideoFiles && archiveVideoFiles.length > 0
+                    ? (
+                      <div className="space-y-1.5">
+                        <p className="text-xs text-amber-500">
+                          {archiveVideoFiles.length} video file{archiveVideoFiles.length !== 1 ? 's' : ''} found — confirm the correct one:
+                        </p>
+                        {archiveVideoFiles.map((f) => (
+                          <div key={f} className="flex items-center justify-between gap-2 rounded bg-muted/40 px-2 py-1.5">
+                            <code className="flex-1 truncate text-xs text-muted-foreground">{f}</code>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-6 shrink-0 px-2 text-xs"
+                              onClick={() => handleConfirmVideo(f)}
+                              disabled={confirmingVideo}
+                            >
+                              <Check size={11} /> Confirm
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    )
+                    : archiveVideoPresent === false
+                      ? <div className="text-xs text-red-500">No video file found</div>
+                      : null
               )}
             </div>
           )}

@@ -234,6 +234,8 @@ export default async function SetDetailPage({ params }: SetDetailPageProps) {
         archiveFileCount={setData.archiveFileCount ?? null}
         archiveFileCountPrev={setData.archiveFileCountPrev ?? null}
         archiveVideoPresent={setData.archiveVideoPresent ?? null}
+        archiveVideoFiles={setData.archiveVideoFiles ? (JSON.parse(setData.archiveVideoFiles) as string[]) : null}
+        archiveVideoFilename={setData.archiveVideoFilename ?? null}
         mediaPriority={setData.mediaPriority ?? null}
         mediaQueueAt={setData.mediaQueueAt ?? null}
       />

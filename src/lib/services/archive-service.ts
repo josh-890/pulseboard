@@ -30,6 +30,8 @@ export type ArchivePathEntry = {
   isVideo: boolean
   /** The expected video file name (without extension) for videosets */
   folderName: string
+  /** Previously confirmed video filename — scan should respect this choice */
+  confirmedVideoFilename: string | null
 }
 
 export type ScanResult = {
@@ -39,6 +41,8 @@ export type ScanResult = {
   exists: boolean
   fileCount: number | null
   videoPresent: boolean | null
+  /** All video files found in the folder root (basenames with extension) */
+  videoFiles: string[] | null
   error: string | null
 }
 
@@ -282,6 +286,38 @@ export async function clearSetArchivePath(id: string): Promise<void> {
   })
 }
 
+/**
+ * Confirm a specific video file as the correct one for a videoset.
+ * Sets archiveVideoPresent=true, archiveVideoFilename=filename, archiveStatus=OK.
+ * The filename is persisted so future scans respect the user's choice (as long
+ * as the file is still on disk at the time of the next scan).
+ */
+export async function confirmVideoFile(
+  id: string,
+  type: 'set' | 'staging',
+  filename: string,
+): Promise<void> {
+  if (type === 'staging') {
+    await prisma.stagingSet.update({
+      where: { id },
+      data: {
+        archiveVideoPresent: true,
+        archiveVideoFilename: filename,
+        archiveStatus: 'OK',
+      },
+    })
+  } else {
+    await prisma.set.update({
+      where: { id },
+      data: {
+        archiveVideoPresent: true,
+        archiveVideoFilename: filename,
+        archiveStatus: 'OK',
+      },
+    })
+  }
+}
+
 // ─── Scan API Support ─────────────────────────────────────────────────────────
 
 /**
@@ -302,6 +338,7 @@ export async function getArchivePaths(): Promise<ArchivePathEntry[]> {
         isVideo: true,
         title: true,
         releaseDate: true,
+        archiveVideoFilename: true,
         channel: { select: { shortName: true } },
         participants: true,
       },
@@ -314,6 +351,7 @@ export async function getArchivePaths(): Promise<ArchivePathEntry[]> {
         type: true,
         title: true,
         releaseDate: true,
+        archiveVideoFilename: true,
         channel: { select: { shortName: true } },
         participants: {
           select: { person: { select: { aliases: { where: { isCommon: true }, select: { name: true }, take: 1 } } } },
@@ -360,6 +398,7 @@ export async function getArchivePaths(): Promise<ArchivePathEntry[]> {
       path: fullPath,
       isVideo: ss.isVideo,
       folderName: folderNameFromPath(ss.archivePath),
+      confirmedVideoFilename: ss.archiveVideoFilename ?? null,
     })
   }
 
@@ -374,6 +413,7 @@ export async function getArchivePaths(): Promise<ArchivePathEntry[]> {
       path: fullPath,
       isVideo,
       folderName: folderNameFromPath(set.archivePath),
+      confirmedVideoFilename: set.archiveVideoFilename ?? null,
     })
   }
 
@@ -399,7 +439,7 @@ export async function ingestScanResults(results: ScanResult[]): Promise<void> {
       // Shift current count → prev before writing new count
       const current = await prisma.stagingSet.findUnique({
         where: { id: r.id },
-        select: { archiveFileCount: true },
+        select: { archiveFileCount: true, archiveVideoFilename: true },
       })
       const prevCount = current?.archiveFileCount ?? null
       const derivedStatus: ArchiveStatus =
@@ -407,6 +447,7 @@ export async function ingestScanResults(results: ScanResult[]): Promise<void> {
           ? 'CHANGED'
           : status
       if (derivedStatus === 'CHANGED') { counts.changed++; counts.ok-- }
+      const { videoPresent, videoFilename } = _resolveVideoPresence(r, current?.archiveVideoFilename ?? null)
       await prisma.stagingSet.update({
         where: { id: r.id },
         data: {
@@ -414,13 +455,15 @@ export async function ingestScanResults(results: ScanResult[]): Promise<void> {
           archiveLastChecked: now,
           archiveFileCount: r.fileCount,
           archiveFileCountPrev: prevCount,
-          archiveVideoPresent: r.videoPresent,
+          archiveVideoPresent: videoPresent,
+          archiveVideoFiles: r.videoFiles != null ? JSON.stringify(r.videoFiles) : undefined,
+          archiveVideoFilename: videoFilename,
         },
       })
     } else {
       const current = await prisma.set.findUnique({
         where: { id: r.id },
-        select: { archiveFileCount: true },
+        select: { archiveFileCount: true, archiveVideoFilename: true },
       })
       const prevCount = current?.archiveFileCount ?? null
       const derivedStatus: ArchiveStatus =
@@ -428,6 +471,7 @@ export async function ingestScanResults(results: ScanResult[]): Promise<void> {
           ? 'CHANGED'
           : status
       if (derivedStatus === 'CHANGED') { counts.changed++; counts.ok-- }
+      const { videoPresent, videoFilename } = _resolveVideoPresence(r, current?.archiveVideoFilename ?? null)
       await prisma.set.update({
         where: { id: r.id },
         data: {
@@ -435,7 +479,9 @@ export async function ingestScanResults(results: ScanResult[]): Promise<void> {
           archiveLastChecked: now,
           archiveFileCount: r.fileCount,
           archiveFileCountPrev: prevCount,
-          archiveVideoPresent: r.videoPresent,
+          archiveVideoPresent: videoPresent,
+          archiveVideoFiles: r.videoFiles != null ? JSON.stringify(r.videoFiles) : undefined,
+          archiveVideoFilename: videoFilename,
         },
       })
     }
@@ -449,9 +495,51 @@ export async function ingestScanResults(results: ScanResult[]): Promise<void> {
 
 function _deriveStatus(r: ScanResult): ArchiveStatus {
   if (r.error || !r.exists) return 'MISSING'
-  if (r.videoPresent === false) return 'INCOMPLETE'
+  // videoPresent=false (no match) OR null (files found but no auto-match and no confirmation) → INCOMPLETE
+  if (r.videoPresent === false || r.videoPresent === null && r.videoFiles != null) return 'INCOMPLETE'
   return 'OK'
   // Note: CHANGED is set separately after comparing prev/current counts in the update
+}
+
+/**
+ * Resolve the effective videoPresent flag and filename for a scan result,
+ * taking into account any previously confirmed filename.
+ *
+ * Rules:
+ * - If scan already found a confirmed exact match (videoPresent=true): keep it, auto-detect filename
+ * - If a confirmedFilename is stored and that file is still in videoFiles: override to present=true
+ * - If a confirmedFilename is stored but the file is gone: reset confirmation (return null filename)
+ * - Otherwise: use raw videoPresent from scan
+ */
+function _resolveVideoPresence(
+  r: ScanResult,
+  storedConfirmed: string | null,
+): { videoPresent: boolean | null; videoFilename: string | null } {
+  if (!r.exists) return { videoPresent: null, videoFilename: null }
+
+  const files = r.videoFiles ?? []
+
+  // If scan detected an exact name match, auto-fill the filename
+  if (r.videoPresent === true) {
+    // Find which file matched (scan computed it, but didn't tell us which — derive from folderName)
+    // The auto-matched filename is already in videoFiles: just return videoPresent=true, filename=stored or auto
+    // If there's a stored confirmed name that's still present, keep it; else keep null (PS1 auto-matched)
+    const confirmedStillPresent = storedConfirmed && files.includes(storedConfirmed)
+    return { videoPresent: true, videoFilename: confirmedStillPresent ? storedConfirmed : (storedConfirmed ?? null) }
+  }
+
+  // No exact auto-match — check if a previously confirmed filename is still on disk
+  if (storedConfirmed) {
+    if (files.includes(storedConfirmed)) {
+      // Confirmed file still present
+      return { videoPresent: true, videoFilename: storedConfirmed }
+    }
+    // Confirmed file disappeared — reset
+    return { videoPresent: false, videoFilename: null }
+  }
+
+  // No confirmation, no auto-match
+  return { videoPresent: r.videoPresent, videoFilename: null }
 }
 
 // ─── Media Queue ──────────────────────────────────────────────────────────────
@@ -646,6 +734,8 @@ export type FullIngestItem = {
   isVideo: boolean
   fileCount: number | null
   videoPresent: boolean | null
+  /** All video files found in the folder root (basenames with extension) */
+  videoFiles: string[] | null
   folderName: string
   contentSignature: string
   leafDirModifiedAt: string           // ISO string
@@ -838,6 +928,7 @@ export async function upsertArchiveFolders(
               contentSignature: item.contentSignature,
               fileCount: item.fileCount,
               videoPresent: item.videoPresent,
+              videoFiles: item.videoFiles != null ? JSON.stringify(item.videoFiles) : undefined,
               leafDirModifiedAt,
               yearDirModifiedAt,
               chanFolderModifiedAt,
@@ -873,6 +964,7 @@ export async function upsertArchiveFolders(
           isVideo: item.isVideo,
           fileCount: item.fileCount,
           videoPresent: item.videoPresent,
+          videoFiles: item.videoFiles != null ? JSON.stringify(item.videoFiles) : null,
           folderName: item.folderName,
           parsedDate,
           parsedShortName: item.parsedShortName,
@@ -897,6 +989,7 @@ export async function upsertArchiveFolders(
         data: {
           fileCount: item.fileCount,
           videoPresent: item.videoPresent,
+          videoFiles: item.videoFiles != null ? JSON.stringify(item.videoFiles) : undefined,
           folderName: item.folderName,
           parsedDate,
           parsedShortName: item.parsedShortName,
@@ -947,6 +1040,7 @@ export async function upsertArchiveFolders(
             contentSignature: item.contentSignature,
             fileCount: item.fileCount,
             videoPresent: item.videoPresent,
+            videoFiles: item.videoFiles != null ? JSON.stringify(item.videoFiles) : undefined,
             leafDirModifiedAt,
             yearDirModifiedAt,
             chanFolderModifiedAt,

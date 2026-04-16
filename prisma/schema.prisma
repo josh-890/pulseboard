@@ -859,6 +859,8 @@ model Set {
   archiveFileCount     Int?
   archiveFileCountPrev Int?
   archiveVideoPresent  Boolean?
+  archiveVideoFiles    String?  // JSON: ["name.mp4","other.mkv"] — all video files found each scan
+  archiveVideoFilename String?  // confirmed video filename (user-selected or auto-matched)
   archiveKey           String?  @unique  // stable sidecar UUID; generated at first link-confirm time
 
   // Media queue
@@ -1590,6 +1592,8 @@ model StagingSet {
   archiveFileCount     Int?
   archiveFileCountPrev Int?
   archiveVideoPresent  Boolean?
+  archiveVideoFiles    String?  // JSON: ["name.mp4","other.mkv"] — all video files found each scan
+  archiveVideoFilename String?  // confirmed video filename (user-selected or auto-matched)
   archiveKey           String?  @unique  // stable sidecar UUID; generated at first link-confirm time
 
   // Media queue
@@ -1639,6 +1643,7 @@ model ArchiveFolder {
   isVideo         Boolean
   fileCount       Int?               // files in root (photo) or frames\ subfolder (video)
   videoPresent    Boolean?           // videosets only: named video file present
+  videoFiles      String?            // JSON: all video files found in folder root (for picker UI)
   folderName      String             // last segment of fullPath
   parsedDate      DateTime?          // date parsed from folder name convention
   parsedShortName String?            // channel shortName parsed from folder name

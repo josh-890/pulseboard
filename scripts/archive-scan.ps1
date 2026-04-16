@@ -194,6 +194,23 @@ if ($Mode -eq 'Full' -and -not $PhotosetRoot -and -not $VideosetRoot) {
     exit 1
 }
 
+# ── Multi-root parser ─────────────────────────────────────────────────────────
+# Mirrors the TypeScript parseRoots() function in archive-service.ts.
+# Accepts a plain string (single root) or JSON array (multiple roots).
+
+function Parse-Roots {
+    param([string]$val)
+    if (-not $val) { return @() }
+    $t = $val.Trim()
+    if ($t.StartsWith('[')) {
+        try {
+            $arr = $t | ConvertFrom-Json
+            return @($arr | Where-Object { $_ -ne $null -and $_ -ne '' })
+        } catch {}
+    }
+    return @($t)
+}
+
 $BaseUrl = $BaseUrl.TrimEnd("/")
 
 # ── Request headers ───────────────────────────────────────────────────────────
@@ -203,7 +220,17 @@ if ($Tenant) { $headers["x-tenant-id"] = $Tenant }
 
 # ── Shared helpers ────────────────────────────────────────────────────────────
 
-$VideoExtensions = @(".mp4", ".wmv", ".mkv", ".avi", ".mov")
+$VideoExtensions = @(".mp4", ".wmv", ".mkv", ".avi", ".mov", ".m4v", ".ts")
+
+# Returns an array of video file basenames (with extension) found in the given folder.
+function Get-VideoFiles {
+    param([string]$FolderPath)
+    return @(
+        Get-ChildItem -LiteralPath $FolderPath -File -ErrorAction SilentlyContinue |
+        Where-Object { $VideoExtensions -contains $_.Extension.ToLower() } |
+        ForEach-Object { $_.Name }
+    )
+}
 
 function Normalize-Path {
     param([string]$P)
@@ -227,9 +254,16 @@ function To-UtcDateTime {
 # ── TARGETED MODE ─────────────────────────────────────────────────────────────
 
 function Check-ArchivePath {
-    param([string]$Id, [string]$Type, [string]$ArchivePath, [bool]$IsVideo, [string]$FolderName)
+    param(
+        [string]$Id,
+        [string]$Type,
+        [string]$ArchivePath,
+        [bool]$IsVideo,
+        [string]$FolderName,
+        [string]$ConfirmedFilename = ""
+    )
 
-    $exists = $false; $fileCount = $null; $videoPresent = $null; $errorMsg = $null
+    $exists = $false; $fileCount = $null; $videoPresent = $null; $videoFiles = $null; $errorMsg = $null
 
     try {
         if (Test-Path -LiteralPath $ArchivePath -PathType Container) {
@@ -237,17 +271,20 @@ function Check-ArchivePath {
             if ($IsVideo) {
                 $framesDir = Join-Path $ArchivePath "frames"
                 $fileCount = if (Test-Path -LiteralPath $framesDir -PathType Container) {
-                    (Get-ChildItem -LiteralPath $framesDir -File).Count
+                    (Get-ChildItem -LiteralPath $framesDir -File -ErrorAction SilentlyContinue).Count
                 } else { 0 }
-                $videoFound = $false
-                foreach ($ext in $VideoExtensions) {
-                    if (Test-Path -LiteralPath (Join-Path $ArchivePath ($FolderName + $ext)) -PathType Leaf) {
-                        $videoFound = $true; break
-                    }
+                $foundFiles = Get-VideoFiles $ArchivePath
+                $videoFiles = $foundFiles
+                # Check confirmed filename first, then fall back to exact folder-name match
+                if ($ConfirmedFilename -and ($foundFiles -contains $ConfirmedFilename)) {
+                    $videoPresent = $true
+                } else {
+                    $videoPresent = ($foundFiles | Where-Object {
+                        [IO.Path]::GetFileNameWithoutExtension($_) -eq $FolderName
+                    }).Count -gt 0
                 }
-                $videoPresent = $videoFound
             } else {
-                $fileCount = (Get-ChildItem -LiteralPath $ArchivePath -File).Count
+                $fileCount = (Get-ChildItem -LiteralPath $ArchivePath -File -ErrorAction SilentlyContinue).Count
             }
         }
     } catch {
@@ -256,7 +293,8 @@ function Check-ArchivePath {
 
     return [PSCustomObject]@{
         id = $Id; type = $Type; path = $ArchivePath
-        exists = $exists; fileCount = $fileCount; videoPresent = $videoPresent; error = $errorMsg
+        exists = $exists; fileCount = $fileCount; videoPresent = $videoPresent
+        videoFiles = $videoFiles; error = $errorMsg
     }
 }
 
@@ -289,10 +327,12 @@ function Run-TargetedScan {
     $counts  = @{ ok = 0; incomplete = 0; missing = 0; error = 0 }
 
     foreach ($entry in $entries) {
+        $confirmedFn = if ($entry.confirmedVideoFilename) { [string]$entry.confirmedVideoFilename } else { "" }
         $result = Check-ArchivePath `
             -Id ([string]$entry.id) -Type ([string]$entry.type) `
             -ArchivePath ([string]$entry.path) -IsVideo ([bool]$entry.isVideo) `
-            -FolderName ([string]$entry.folderName)
+            -FolderName ([string]$entry.folderName) `
+            -ConfirmedFilename $confirmedFn
 
         [void]$results.Add($result)
         $label = Get-TargetedStatusLabel $result
@@ -300,8 +340,15 @@ function Run-TargetedScan {
         if ($VerbosePreference -ne "SilentlyContinue") {
             Write-Host "  [$label] $($entry.path)"
             if ($entry.isVideo) {
-                Write-Host "          video file expected: $($entry.folderName).{$($VideoExtensions -join ', ')}"
+                if ($confirmedFn) {
+                    Write-Host "          confirmed video: $confirmedFn"
+                } else {
+                    Write-Host "          video file expected: $($entry.folderName).{ext}"
+                }
                 Write-Host "          video present: $($result.videoPresent) — frames: $($result.fileCount)"
+                if ($result.videoFiles -and $result.videoFiles.Count -gt 0) {
+                    Write-Host "          video files found: $($result.videoFiles -join ', ')"
+                }
             } else {
                 Write-Host "          files: $($result.fileCount)"
             }
@@ -377,9 +424,15 @@ function Get-FileCount {
 }
 
 function Get-VideoPresent {
-    param([string]$FolderPath, [string]$FolderName)
-    foreach ($ext in $VideoExtensions) {
-        if (Test-Path -LiteralPath (Join-Path $FolderPath ($FolderName + $ext)) -PathType Leaf) {
+    param([string]$FolderPath, [string]$FolderName, [string]$ConfirmedFilename = "")
+    $files = Get-VideoFiles $FolderPath
+    # If a confirmed filename is known, check whether that file is still on disk
+    if ($ConfirmedFilename -and ($files -contains $ConfirmedFilename)) {
+        return $true
+    }
+    # Fall back to exact folder-name match
+    foreach ($f in $files) {
+        if ([IO.Path]::GetFileNameWithoutExtension($f) -eq $FolderName) {
             return $true
         }
     }
@@ -587,7 +640,12 @@ function Walk-Root {
                 $processed++
                 $sig       = Compute-FolderSignature $lf.FullName $IsVideo
                 $fileCount = Get-FileCount $lf.FullName $IsVideo
-                $videoPresent = if ($IsVideo) { Get-VideoPresent $lf.FullName $folderName } else { $null }
+                $videoFiles = if ($IsVideo) { Get-VideoFiles $lf.FullName } else { $null }
+                $videoPresent = if ($IsVideo) {
+                    ($videoFiles | Where-Object {
+                        [IO.Path]::GetFileNameWithoutExtension($_) -eq $folderName
+                    }).Count -gt 0
+                } else { $null }
 
                 $action = "create"
                 $previousFullPath = $null
@@ -623,6 +681,7 @@ function Walk-Root {
                     isVideo            = $IsVideo
                     fileCount          = $fileCount
                     videoPresent       = $videoPresent
+                    videoFiles         = $videoFiles
                     folderName         = $folderName
                     contentSignature   = $sig
                     leafDirModifiedAt  = $lfMtime.ToString("o")
@@ -745,15 +804,20 @@ function Run-FullScan {
     # ── Step 2: Walk roots ───────────────────────────────────────────────────
     $allDelta = [System.Collections.ArrayList]::new()
 
-    if ($PhotosetRoot) {
-        $root = $PhotosetRoot.TrimEnd("/\")
-        $found = Walk-Root -Root $root -IsVideo $false -ByPath $byPath -BySig $bySig
+    $photoRoots = Parse-Roots $PhotosetRoot
+    $videoRoots = Parse-Roots $VideosetRoot
+
+    foreach ($root in $photoRoots) {
+        $r = $root.TrimEnd("/\")
+        Write-Host "  [Photo] Walking: $r"
+        $found = Walk-Root -Root $r -IsVideo $false -ByPath $byPath -BySig $bySig
         foreach ($f in $found) { [void]$allDelta.Add($f) }
     }
 
-    if ($VideosetRoot) {
-        $root = $VideosetRoot.TrimEnd("/\")
-        $found = Walk-Root -Root $root -IsVideo $true -ByPath $byPath -BySig $bySig
+    foreach ($root in $videoRoots) {
+        $r = $root.TrimEnd("/\")
+        Write-Host "  [Video] Walking: $r"
+        $found = Walk-Root -Root $r -IsVideo $true -ByPath $byPath -BySig $bySig
         foreach ($f in $found) { [void]$allDelta.Add($f) }
     }
 

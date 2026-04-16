@@ -16,7 +16,7 @@ import { PhysicalAttributeManager } from "@/components/settings/physical-attribu
 import { TagSettingsSection } from "@/components/settings/tag-settings-section";
 import { DatabaseMaintenance } from "@/components/settings/database-maintenance";
 import { getProfileImageLabels, getSkillLevelConfigs, getHeroBackdropEnabled, getSetting } from "@/lib/services/setting-service";
-import { ARCHIVE_PHOTOSET_ROOT_KEY, ARCHIVE_VIDEOSET_ROOT_KEY, ARCHIVE_LAST_SCAN_KEY, ARCHIVE_LAST_SCAN_SUMMARY_KEY } from "@/lib/services/archive-service";
+import { ARCHIVE_PHOTOSET_ROOT_KEY, ARCHIVE_VIDEOSET_ROOT_KEY, ARCHIVE_LAST_SCAN_KEY, ARCHIVE_LAST_SCAN_SUMMARY_KEY, parseRoots } from "@/lib/services/archive-service";
 import { ArchiveSettings } from "@/components/settings/archive-settings";
 import { getAllCategoryGroups } from "@/lib/services/category-service";
 import { getAllSkillGroups } from "@/lib/services/skill-catalog-service";
@@ -163,8 +163,8 @@ export default async function SettingsPage() {
           These are used to auto-suggest archive paths for sets.
         </p>
         <ArchiveSettings
-          photosetRoot={archivePhotosetRoot ?? ""}
-          videosetRoot={archiveVideosetRoot ?? ""}
+          photosetRoots={parseRoots(archivePhotosetRoot)}
+          videosetRoots={parseRoots(archiveVideosetRoot)}
         />
         {archiveLastScan && (
           <div className="mt-4 border-t border-border pt-4">

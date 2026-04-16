@@ -17,6 +17,7 @@ import {
   getArchiveWorkspace,
   reparseFolderNames,
   deleteArchiveFolder,
+  confirmVideoFile,
 } from '@/lib/services/archive-service'
 import type { WorkspaceFilters, WorkspacePage } from '@/lib/services/archive-service'
 import type { SimpleActionResult } from '@/lib/types'
@@ -195,6 +196,30 @@ export async function deleteArchiveFolderAction(id: string): Promise<SimpleActio
       return { success: true }
     } catch {
       return { success: false, error: 'Failed to delete archive folder record' }
+    }
+  })
+}
+
+// ─── Video File Confirmation ──────────────────────────────────────────────────
+
+export async function confirmVideoFileAction(
+  id: string,
+  type: 'set' | 'staging',
+  filename: string,
+): Promise<SimpleActionResult> {
+  return withTenantFromHeaders(async () => {
+    try {
+      await confirmVideoFile(id, type, filename)
+      if (type === 'set') {
+        revalidatePath('/sets')
+        revalidatePath(`/sets/${id}`)
+      } else {
+        revalidatePath('/staging-sets')
+        revalidatePath('/import')
+      }
+      return { success: true }
+    } catch {
+      return { success: false, error: 'Failed to confirm video file' }
     }
   })
 }
