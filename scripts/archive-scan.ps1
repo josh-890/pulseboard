@@ -17,16 +17,21 @@
 
         - Computes a content signature (SHA256 of sorted filename:size pairs) that is
           stable across renames, moves, and copy+delete operations.
-        - Compares the folder's LastWriteTime against the stored value at all three
-          levels (channelFolder / year / leaf) to decide whether to skip reading the
-          directory entirely.
+        - Compares the leaf folder's LastWriteTime against the stored value to decide
+          whether to skip reading the directory contents.
         - Classifies each folder as: create (new), update (changed), rename (path
           changed but signature matches known folder), or unchanged (nothing changed).
         - Sends only the delta (changed/new/renamed folders) to the server in batches.
-          Unchanged subtrees are skipped without any network traffic.
+          Unchanged leaves are skipped without any network traffic.
 
         The server handles rename propagation: if a renamed folder was linked to a
         Set or StagingSet, the archivePath on that record is automatically updated.
+
+        Note: channel-folder and year-dir level mtime caches have been removed because
+        NTFS only propagates mtime changes to the DIRECT parent (one level up). Adding
+        a new set to 2024\ does not update SiteA\ mtime; adding files to an existing
+        leaf does not update 2024\ mtime. The leaf-level skip remains because a leaf's
+        mtime IS reliably updated when its own contents change.
 
     In both modes the script never modifies files — it only reads the filesystem
     and sends data to the app API.
@@ -133,13 +138,11 @@
       Changes when: files added/removed/renamed inside the folder.
 
     Skip logic (directory LastWriteTime comparison):
-      chanFolderModifiedAt unchanged → skip all year dirs inside (0 reads)
-      yearDirModifiedAt unchanged    → skip all leaf dirs inside (0 reads)
-      leafDirModifiedAt unchanged    → skip file listing (action = unchanged)
+      leafDirModifiedAt unchanged → skip file listing (action = unchanged)
 
-    Note: moving a leaf between channel folders updates the YEAR dir mtime but NOT the
-    chanFolder mtime (NTFS only updates the direct parent). Use -SkipChanCache after
-    moving folders between channel dirs so the scan descends to the year level.
+      Channel-folder and year-dir level caching have been removed: NTFS only
+      propagates mtime one level up, making those caches unreliable for detecting
+      new or changed leaves in deeper subtrees.
 #>
 
 [CmdletBinding()]
@@ -154,7 +157,7 @@ param(
     [int]$BatchSize        = 200,
     [switch]$NoSidecarPrompt,  # skip interactive sidecar-write prompt after Full scan (for automation)
     [switch]$DryRun,
-    [switch]$SkipChanCache   # bypass chanFolder-level mtime skip; use after moving folders between channels
+    [switch]$SkipChanCache   # retained for backward compatibility; no longer has any effect
 )
 
 $ErrorActionPreference = "Stop"
@@ -498,9 +501,7 @@ function Walk-Root {
     }
 
     $delta      = [System.Collections.ArrayList]::new()
-    $skippedCF  = 0  # channelFolders skipped entirely
-    $skippedYr  = 0  # year dirs skipped
-    $skippedLf  = 0  # leaves skipped (unchanged)
+    $skippedLf  = 0  # leaves skipped (leaf mtime unchanged)
     $processed  = 0
 
     $channelFolders = Get-ChildItem -LiteralPath $Root -Directory -ErrorAction SilentlyContinue
@@ -510,53 +511,10 @@ function Walk-Root {
         # LastWriteTime is local time; LastWriteTimeUtc is always UTC regardless of timezone.
         $cfMtime = $cf.LastWriteTimeUtc
 
-        # ── Level 1 skip: channelFolder mtime unchanged ─────────────────────
-        # Look up any known leaf under this channelFolder to get its stored mtime
-        $normCfPrefix = Normalize-Path $cf.FullName
-        $storedCfMtime = $null
-        foreach ($key in $ByPath.Keys) {
-            if ($key.StartsWith($normCfPrefix + "\")) {
-                $stored = $ByPath[$key]
-                if ($stored.chanFolderModifiedAt) {
-                    $storedCfMtime = To-UtcDateTime $stored.chanFolderModifiedAt
-                    break
-                }
-            }
-        }
-
-        if (-not $SkipChanCache -and $storedCfMtime -ne $null -and [Math]::Abs(($cfMtime - $storedCfMtime).TotalSeconds) -lt 2) {
-            if ($VerbosePreference -ne "SilentlyContinue") {
-                Write-Host "    [SKIP] $($cf.Name) (channelFolder unchanged)"
-            }
-            $skippedCF++
-            continue
-        }
-
         $yearDirs = Get-ChildItem -LiteralPath $cf.FullName -Directory -ErrorAction SilentlyContinue
 
         foreach ($yf in $yearDirs) {
             $yrMtime = $yf.LastWriteTimeUtc
-
-            # ── Level 2 skip: year dir mtime unchanged ──────────────────────
-            $normYrPrefix = Normalize-Path $yf.FullName
-            $storedYrMtime = $null
-            foreach ($key in $ByPath.Keys) {
-                if ($key.StartsWith($normYrPrefix + "\")) {
-                    $stored = $ByPath[$key]
-                    if ($stored.yearDirModifiedAt) {
-                        $storedYrMtime = To-UtcDateTime $stored.yearDirModifiedAt
-                        break
-                    }
-                }
-            }
-
-            if ($storedYrMtime -ne $null -and [Math]::Abs(($yrMtime - $storedYrMtime).TotalSeconds) -lt 2) {
-                if ($VerbosePreference -ne "SilentlyContinue") {
-                    Write-Host "      [SKIP] $($cf.Name)\$($yf.Name) (year unchanged)"
-                }
-                $skippedYr++
-                continue
-            }
 
             $leafDirs = Get-ChildItem -LiteralPath $yf.FullName -Directory -ErrorAction SilentlyContinue
 
@@ -689,7 +647,7 @@ function Walk-Root {
         }
     }
 
-    Write-Host "    Processed: $processed folder(s) | Skipped channelFolders: $skippedCF | Skipped years: $skippedYr | Skipped leaves: $skippedLf"
+    Write-Host "    Processed: $processed folder(s) | Unchanged (leaf mtime): $skippedLf"
     return $delta
 }
 
@@ -813,69 +771,80 @@ function Run-FullScan {
     Write-Host ("  Unchanged: $unchanged (mtime-only update)")
     Write-Host ("  Total items to send: " + $totalDelta)
 
-    if ($totalDelta -eq 0) {
-        Write-Host ""
-        Write-Host "Nothing changed since last scan."
-        exit 0
-    }
-
     if ($DryRun) {
         Write-Host ""
-        Write-Host "Dry-run: would send $totalDelta item(s) in batches of $BatchSize"
-        $preview = [System.Collections.ArrayList]::new()
-        for ($i = 0; $i -lt [Math]::Min(3, $totalDelta); $i++) {
-            [void]$preview.Add($allDelta[$i])
+        if ($totalDelta -eq 0) {
+            Write-Host "Dry-run: nothing to send (no folders found)."
+        } else {
+            Write-Host "Dry-run: would send $totalDelta item(s) in batches of $BatchSize"
+            $preview = [System.Collections.ArrayList]::new()
+            for ($i = 0; $i -lt [Math]::Min(3, $totalDelta); $i++) {
+                [void]$preview.Add($allDelta[$i])
+            }
+            Write-Host "First items preview:"
+            ConvertTo-Json -InputObject @($preview) -Depth 6 | Write-Host
         }
-        Write-Host "First items preview:"
-        ConvertTo-Json -InputObject @($preview) -Depth 6 | Write-Host
         return
     }
 
-    # ── Step 3: POST delta in batches ────────────────────────────────────────
-    Write-Host ""
-    Write-Host "Sending delta in batches of $BatchSize..."
+    # ── Step 3: POST delta in batches (skip if nothing to send) ─────────────
+    $totCre = 0; $totUpd = 0; $totRen = 0; $totUnch = 0
 
-    $sent       = 0
-    $totalSent  = 0
-    $batchNum   = 0
-    $totCre     = 0; $totUpd = 0; $totRen = 0; $totUnch = 0
+    if ($totalDelta -eq 0) {
+        Write-Host ""
+        Write-Host "No folders found in walk roots — skipping POST."
+    } else {
+        Write-Host ""
+        Write-Host "Sending delta in batches of $BatchSize..."
 
-    while ($sent -lt $totalDelta) {
-        $batchNum++
-        $end   = [Math]::Min($sent + $BatchSize, $totalDelta)
-        $batch = [System.Collections.ArrayList]::new()
-        for ($i = $sent; $i -lt $end; $i++) {
-            [void]$batch.Add($allDelta[$i])
+        $sent      = 0
+        $batchNum  = 0
+
+        while ($sent -lt $totalDelta) {
+            $batchNum++
+            $end   = [Math]::Min($sent + $BatchSize, $totalDelta)
+            $batch = [System.Collections.ArrayList]::new()
+            for ($i = $sent; $i -lt $end; $i++) {
+                [void]$batch.Add($allDelta[$i])
+            }
+
+            try {
+                $resp = Send-SmartBatch -Batch $batch
+                $totCre  += [int]$resp.created
+                $totUpd  += [int]$resp.updated
+                $totRen  += [int]$resp.renamed
+                $totUnch += [int]$resp.unchanged
+                $pct = [Math]::Round(($end / $totalDelta) * 100)
+                Write-Host "  Batch $batchNum`: sent $($batch.Count) — $pct% complete"
+            } catch {
+                Write-Error "Batch $batchNum failed: $_"; exit 1
+            }
+
+            $sent += $end - $sent
         }
 
-        try {
-            $resp = Send-SmartBatch -Batch $batch
-            $totCre  += [int]$resp.created
-            $totUpd  += [int]$resp.updated
-            $totRen  += [int]$resp.renamed
-            $totUnch += [int]$resp.unchanged
-            $pct = [Math]::Round(($end / $totalDelta) * 100)
-            Write-Host "  Batch $batchNum`: sent $($batch.Count) — $pct% complete"
-        } catch {
-            Write-Error "Batch $batchNum failed: $_"; exit 1
+        Write-Host ""
+        Write-Host "── Summary ────────────────────────────────────"
+        Write-Host ("  New:              " + $totCre)
+        Write-Host ("  Updated:          " + $totUpd)
+        Write-Host ("  Renamed:          " + $totRen)
+        Write-Host ("  Unchanged (mtime):" + $totUnch)
+        if ($totCre -gt 0) {
+            Write-Host "  Matching pass:    running in background on server"
         }
+        Write-Host "────────────────────────────────────────────────"
 
-        $sent += $end - $sent
-        $totalSent += $batch.Count
+        # If new folders were created, refresh byArchKey to include their freshly-
+        # assigned archiveKeys so the sidecar phase can write them in this same run.
+        if ($totCre -gt 0) {
+            Write-Host ""
+            Write-Host "New folders registered — refreshing index to pick up new archiveKeys..."
+            $_rp, $_rs, $byArchKey = Load-KnownFolders
+        }
     }
-
-    Write-Host ""
-    Write-Host "── Summary ────────────────────────────────────"
-    Write-Host ("  New:              " + $totCre)
-    Write-Host ("  Updated:          " + $totUpd)
-    Write-Host ("  Renamed:          " + $totRen)
-    Write-Host ("  Unchanged (mtime):" + $totUnch)
-    if ($creates -gt 0) {
-        Write-Host "  Matching pass:    running in background on server"
-    }
-    Write-Host "────────────────────────────────────────────────"
 
     # ── Step 4: Write sidecar files ─────────────────────────────────────────
+    # Always runs regardless of whether there were changes this scan.
     # Count how many on-disk folders are missing _pulseboard.json.
     # Sidecars are written to ALL folders (linked or not) — every ArchiveFolder
     # now has a stable archiveKey from the moment it is first scanned.
