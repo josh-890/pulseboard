@@ -6,7 +6,6 @@ import {
   X,
   Archive,
   Loader2,
-
   AlertTriangle,
   ExternalLink,
   RotateCcw,
@@ -21,6 +20,8 @@ import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
 import { StagingSetCoverUpload } from './staging-set-cover-upload'
 import { SetComparisonGrid } from '@/components/import/set-comparison-grid'
+import { ArchiveFolderPicker } from './archive-folder-picker'
+import { ArchiveStatusBanner } from '@/components/archive/archive-status-banner'
 import type { StagingSetWithRelations, StagingSetComparison } from '@/lib/services/import/staging-set-service'
 import type { StagingSetStatus, ArchiveStatus } from '@/generated/prisma/client'
 import { recordArchivePathAction, clearArchivePathAction } from '@/lib/actions/archive-actions'
@@ -104,12 +105,31 @@ function PanelContent({
   const [isLoadingComparison, setIsLoadingComparison] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
   const [editFields, setEditFields] = useState<Record<string, string>>({})
+  const [pickerOpen, setPickerOpen] = useState(false)
 
   const hasMatch = !!stagingSet.matchedSetId
   const isExactMatch = hasMatch && stagingSet.matchConfidence === 1.0
   const isActionable = stagingSet.status === 'PENDING' || stagingSet.status === 'REVIEWING' || stagingSet.status === 'APPROVED'
   const badge = STATUS_BADGE[stagingSet.status]
   const participants = (stagingSet.participants as Array<{ name: string; icgId: string }>) ?? []
+
+  // Archive state
+  const snap = stagingSet.coherenceSnapshot
+  const confirmedFolder = snap?.archiveFolder ?? null
+  const suggestion = !confirmedFolder ? (stagingSet.suggestedArchiveFolder ?? null) : null
+  const dateStr = stagingSet.releaseDate
+    ? new Date(stagingSet.releaseDate).toISOString().split('T')[0]
+    : null
+  const expectedFolderName = dateStr && stagingSet.channel?.shortName
+    ? `${dateStr}-${stagingSet.channel.shortName} ${participants[0]?.name ?? 'Unknown'} - ${stagingSet.title}`
+    : null
+  const expectedRelativePath = expectedFolderName && stagingSet.channel?.channelFolder
+    ? `${stagingSet.channel.channelFolder}\\${new Date(stagingSet.releaseDate!).getFullYear()}\\${expectedFolderName}`
+    : expectedFolderName
+  const pickerInitialQuery = [
+    stagingSet.channel?.shortName,
+    dateStr ? dateStr.slice(0, 4) : '',
+  ].filter(Boolean).join(' ')
 
   // Load comparison when matched
   useEffect(() => {
@@ -394,8 +414,18 @@ function PanelContent({
           </div>
         )}
 
-        {/* Coherence: linked archive folder from scan */}
-        <CoherenceArchiveSection stagingSet={stagingSet} />
+        {/* Archive status banner */}
+        <ArchiveStatusBanner
+          archiveStatus={snap?.archiveStatus ?? null}
+          folderName={confirmedFolder?.folderName ?? null}
+          fileCount={snap?.archiveFileCount ?? null}
+          lastChecked={confirmedFolder?.scannedAt ?? null}
+          archiveFolderId={snap?.archiveFolderId ?? null}
+          suggestedFolder={suggestion}
+          stagingSetId={stagingSet.id}
+          expectedPath={!confirmedFolder && !suggestion ? (expectedRelativePath ?? null) : null}
+          onPickerOpen={() => setPickerOpen(true)}
+        />
 
         {/* Archive */}
         <ArchiveSection stagingSet={stagingSet} onRefresh={onRefresh} />
@@ -462,64 +492,19 @@ function PanelContent({
           </Button>
         )}
       </div>
-    </div>
-  )
-}
 
-// ─── Coherence Archive Section ─────────────────────────────────────────────
-
-const COHERENCE_DOT: Record<string, string> = {
-  OK:         'bg-green-500',
-  LINKED:     'bg-amber-400',
-  CHANGED:    'bg-amber-500',
-  MISSING:    'bg-red-500',
-  INCOMPLETE: 'bg-orange-500',
-}
-
-function CoherenceArchiveSection({ stagingSet }: { stagingSet: StagingSetWithRelations }) {
-  const snap = stagingSet.coherenceSnapshot
-  if (!snap?.archiveFolder) return null
-
-  const dot = COHERENCE_DOT[snap.archiveStatus] ?? 'bg-muted-foreground/40'
-  const statusLabel = snap.archiveStatus === 'OK' ? 'Verified'
-    : snap.archiveStatus === 'LINKED'     ? 'Linked'
-    : snap.archiveStatus === 'CHANGED'    ? 'Changed'
-    : snap.archiveStatus === 'MISSING'    ? 'Missing'
-    : snap.archiveStatus === 'INCOMPLETE' ? 'Incomplete'
-    : snap.archiveStatus
-
-  return (
-    <div className="rounded-lg border border-border/40 bg-muted/20 p-3 text-xs">
-      <div className="flex items-center justify-between mb-1.5">
-        <div className="flex items-center gap-1.5 font-semibold uppercase tracking-wider text-muted-foreground">
-          <span className={cn('h-1.5 w-1.5 shrink-0 rounded-full', dot)} />
-          Archive folder
-        </div>
-        <span className={cn(
-          'rounded-full px-1.5 py-px text-[10px]',
-          snap.archiveStatus === 'OK'      && 'bg-green-500/15 text-green-600 dark:text-green-400',
-          snap.archiveStatus === 'LINKED'  && 'bg-amber-500/15 text-amber-600 dark:text-amber-400',
-          snap.archiveStatus === 'CHANGED' && 'bg-amber-500/15 text-amber-600 dark:text-amber-400',
-          snap.archiveStatus === 'MISSING' && 'bg-red-500/15 text-red-600 dark:text-red-400',
-        )}>
-          {statusLabel}
-        </span>
-      </div>
-      <div className="truncate text-muted-foreground" title={snap.archiveFolder.fullPath}>
-        {snap.archiveFolder.folderName}
-      </div>
-      <div className="mt-1 flex items-center gap-2 text-[10px] text-muted-foreground/60">
-        {snap.archiveFileCount != null && <span>{snap.archiveFileCount} files</span>}
-        {snap.archiveFileCount != null && <span>·</span>}
-        <span>{snap.hasMediaInApp ? 'Imported to app' : 'Not imported'}</span>
-        <Link
-          href={`/archive?highlight=${snap.archiveFolder.id}`}
-          className="ml-auto flex items-center gap-1 text-muted-foreground/50 hover:text-foreground transition-colors"
-          title="Go to archive workspace"
-        >
-          <ExternalLink size={10} /> Archive
-        </Link>
-      </div>
+      {/* Archive folder picker sheet */}
+      {pickerOpen && (
+        <ArchiveFolderPicker
+          open={pickerOpen}
+          onOpenChange={(open) => {
+            setPickerOpen(open)
+            if (!open) onRefresh()
+          }}
+          stagingSetId={stagingSet.id}
+          initialQuery={pickerInitialQuery}
+        />
+      )}
     </div>
   )
 }

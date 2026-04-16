@@ -322,6 +322,10 @@ export const StagingSetRow = memo(function StagingSetRow({
                 'hover:border-slate-400 hover:shadow-md dark:hover:border-border/70',
                 hasMatch
                   ? 'border-l-purple-500'
+                  : hasArchiveLink
+                  ? 'border-l-green-500'
+                  : suggestion
+                  ? (suggestion.confidence === 'HIGH' ? 'border-l-amber-500' : 'border-l-amber-400/60')
                   : ss.priority ? PRIORITY_BORDER[ss.priority] ?? 'border-l-transparent' : 'border-l-transparent',
                 STATUS_TINT[ss.status],
                 hasMatch ? 'bg-purple-500/[0.06] hover:bg-purple-500/[0.12]' : STATUS_HOVER_TINT[ss.status],

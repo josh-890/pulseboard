@@ -15,10 +15,11 @@ import type { SuggestedFolderInfo } from '@/lib/services/archive-service'
 // ─── Types ──────────────────────────────────────────────────────────────────
 
 export type CoherenceSnapshotMini = {
+  archiveFolderId: string | null
   archiveStatus: string
   archiveFileCount: number | null
   hasMediaInApp: boolean
-  archiveFolder: { id: string; folderName: string; fullPath: string } | null
+  archiveFolder: { id: string; folderName: string; fullPath: string; scannedAt: Date } | null
 } | null
 
 export type StagingSetWithRelations = StagingSet & {
@@ -77,10 +78,11 @@ const STAGING_SET_INCLUDE = {
   matchedSet: { select: { id: true, title: true, channelId: true } },
   coherenceSnapshot: {
     select: {
+      archiveFolderId: true,
       archiveStatus: true,
       archiveFileCount: true,
       hasMediaInApp: true,
-      archiveFolder: { select: { id: true, folderName: true, fullPath: true } },
+      archiveFolder: { select: { id: true, folderName: true, fullPath: true, scannedAt: true } },
     },
   },
 } as const
@@ -563,10 +565,11 @@ export async function getStagingSetsFiltered(filters: StagingSetFilters): Promis
       matchedSet: { select: { id: true, title: true, channelId: true } },
       coherenceSnapshot: {
         select: {
+          archiveFolderId: true,
           archiveStatus: true,
           archiveFileCount: true,
           hasMediaInApp: true,
-          archiveFolder: { select: { id: true, folderName: true, fullPath: true } } as const,
+          archiveFolder: { select: { id: true, folderName: true, fullPath: true, scannedAt: true } } as const,
         },
       },
     } as const,

@@ -15,6 +15,7 @@ import {
 } from '@/lib/actions/archive-actions'
 import type { ArchiveStatus } from '@/generated/prisma/client'
 import { cn } from '@/lib/utils'
+import { ArchiveStatusBanner } from '@/components/archive/archive-status-banner'
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -29,6 +30,7 @@ type SetArchivePanelProps = {
   archiveVideoPresent: boolean | null
   mediaPriority: number | null
   mediaQueueAt: Date | null
+  folderName?: string | null
 }
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
@@ -67,6 +69,7 @@ export function SetArchivePanel(props: SetArchivePanelProps) {
     archiveVideoPresent: initialVideoPresent,
     mediaPriority: initialPriority,
     mediaQueueAt: initialQueueAt,
+    folderName,
   } = props
 
   // Local state so the panel is immediately reactive without a full page reload
@@ -222,6 +225,14 @@ export function SetArchivePanel(props: SetArchivePanelProps) {
 
       {/* Divider */}
       <div className="border-t border-border/40" />
+
+      {/* Archive status banner */}
+      <ArchiveStatusBanner
+        archiveStatus={archiveStatus}
+        folderName={folderName ?? archivePath?.split(/[\\/]/).pop() ?? null}
+        fileCount={archiveFileCount}
+        lastChecked={archiveLastChecked}
+      />
 
       {/* Root hint */}
       {archiveRoot && (

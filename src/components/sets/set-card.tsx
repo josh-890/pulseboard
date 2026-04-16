@@ -198,6 +198,22 @@ export function SetCard({ set, coverPhoto, headshotMap = {}, unresolvedCreditCou
               {isPhoto ? <Camera size={isCompact ? 20 : 28} /> : <Film size={isCompact ? 20 : 28} />}
             </div>
           )}
+          {/* Archive status strip */}
+          {(() => {
+            const status = set.coherenceSnapshot?.archiveStatus
+            const hasSuggestion = !!suggestedArchiveFolder
+            const stripColor =
+              status === 'OK' || status === 'LINKED'   ? 'bg-green-500' :
+              status === 'CHANGED'                      ? 'bg-amber-500' :
+              status === 'INCOMPLETE'                   ? 'bg-orange-500' :
+              status === 'MISSING'                      ? 'bg-red-500' :
+              hasSuggestion
+                ? (suggestedArchiveFolder!.confidence === 'HIGH' ? 'bg-amber-500' : 'bg-amber-400/60')
+                : null
+            return stripColor
+              ? <div className={cn('absolute bottom-0 left-0 right-0 h-[3px]', stripColor)} />
+              : null
+          })()}
         </div>
 
         {/* Metadata */}
