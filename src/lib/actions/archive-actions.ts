@@ -130,6 +130,7 @@ export async function confirmArchiveFolderLinkAction(
       void onArchiveFolderLinked(folderId, type === 'set' ? { setId } : { stagingSetId: setId })
       revalidatePath('/archive')
       revalidatePath('/import')
+      revalidatePath('/staging-sets')
       revalidatePath('/sets')
       if (type === 'set') {
         revalidatePath(`/sets/${setId}`)
@@ -149,6 +150,7 @@ export async function rejectArchiveSuggestionAction(
       await rejectArchiveSuggestion(folderId)
       revalidatePath('/archive')
       revalidatePath('/import')
+      revalidatePath('/staging-sets')
       revalidatePath('/sets')
       return { success: true }
     } catch {
