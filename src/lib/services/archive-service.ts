@@ -636,6 +636,7 @@ export type ScanPreloadRecord = {
   leafDirModifiedAt: string | null    // ISO string or null
   yearDirModifiedAt: string | null
   chanFolderModifiedAt: string | null
+  archiveKey: string | null           // stable UUID; null until a link is confirmed
 }
 
 export type FullIngestItem = {
@@ -766,6 +767,7 @@ export async function getArchiveFoldersForScan(
       leafDirModifiedAt: true,
       yearDirModifiedAt: true,
       chanFolderModifiedAt: true,
+      archiveKey: true,
     },
   })
 
@@ -776,6 +778,7 @@ export async function getArchiveFoldersForScan(
     leafDirModifiedAt: r.leafDirModifiedAt?.toISOString() ?? null,
     yearDirModifiedAt: r.yearDirModifiedAt?.toISOString() ?? null,
     chanFolderModifiedAt: r.chanFolderModifiedAt?.toISOString() ?? null,
+    archiveKey: r.archiveKey ?? null,
   }))
 
   return {

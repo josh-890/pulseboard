@@ -61,6 +61,15 @@
 .PARAMETER BatchSize
     Number of folders to send per POST in Full mode. Default: 200.
 
+.PARAMETER WriteSidecars
+    After the Full scan ingest, write a _pulseboard.json sidecar file into every
+    linked archive folder that does not already have one. The sidecar contains the
+    stable archiveKey UUID so that future scans can detect cross-drive folder moves
+    even when folder names are re-used elsewhere.
+
+    Only folders with a confirmed link (archiveKey set) receive a sidecar.
+    Existing sidecar files are never overwritten.
+
 .PARAMETER DryRun
     Print what would be sent without POSTing to the app. Filesystem is still read.
 
@@ -77,6 +86,11 @@
         -Mode Full -PhotosetRoot "X:\Sites\" -VideosetRoot "M:\VSites\"
 
     Smart full scan with rename detection and skip logic.
+
+.EXAMPLE
+    .\archive-scan.ps1 -Mode Full -PhotosetRoot "X:\Sites\" -WriteSidecars
+
+    Full scan + write _pulseboard.json into newly linked folders after ingest.
 
 .EXAMPLE
     .\archive-scan.ps1 -Mode Full -PhotosetRoot "X:\Sites\" -DryRun
@@ -102,6 +116,13 @@
 
     Full mode — folder structure expected (3 levels deep):
       {root}\{channelFolder}\{year}\{folderName}\
+
+    Sidecar files (_pulseboard.json):
+      Written by this script (with -WriteSidecars) after ingest.
+      Read by this script on every visit to detect cross-drive folder moves.
+      Format: { "archiveKey": "uuid", "setId": ..., "title": ..., ... }
+      Only folders with a confirmed link (archiveKey set in DB) receive a sidecar.
+      Existing sidecars are never overwritten.
 
     Content signature (rename fingerprint):
       SHA256(sorted "filename:filesize" strings, "|"-delimited), first 16 hex chars.
@@ -130,6 +151,7 @@ param(
     [string]$PhotosetRoot  = ($env:ARCHIVE_PHOTOSET_ROOT  ?? ""),
     [string]$VideosetRoot  = ($env:ARCHIVE_VIDEOSET_ROOT  ?? ""),
     [int]$BatchSize        = 200,
+    [switch]$WriteSidecars,  # after ingest, write _pulseboard.json into linked folders that lack one
     [switch]$DryRun,
     [switch]$SkipChanCache   # bypass chanFolder-level mtime skip; use after moving folders between channels
 )
@@ -413,10 +435,11 @@ function Parse-FolderName {
 function Load-KnownFolders {
     Write-Host "  Preloading known folders from server..."
 
-    $byPath = @{}    # normalised fullPath → record
-    $bySig  = @{}    # contentSignature → record (for rename detection)
-    $cursor = $null
-    $total  = 0
+    $byPath     = @{}    # normalised fullPath → record
+    $bySig      = @{}    # contentSignature → record (for rename detection)
+    $byArchKey  = @{}    # archiveKey → record (for sidecar write phase)
+    $cursor     = $null
+    $total      = 0
 
     do {
         $url = "$BaseUrl/api/archive/folders?pageSize=2000"
@@ -443,6 +466,11 @@ function Load-KnownFolders {
                     $bySig[$sig] = $rec
                 }
             }
+            # Index linked folders by archiveKey for sidecar write phase
+            $ak = [string]$rec.archiveKey
+            if ($ak -and $ak -ne "") {
+                $byArchKey[$ak] = $rec
+            }
         }
 
         $total  += $records.Count
@@ -451,8 +479,8 @@ function Load-KnownFolders {
 
     } while ($cursor)
 
-    Write-Host "  Preload complete: $total folder(s) known"
-    return $byPath, $bySig
+    Write-Host "  Preload complete: $total folder(s) known ($($byArchKey.Count) with archiveKey)"
+    return $byPath, $bySig, $byArchKey
 }
 
 # ── FULL MODE — Walk ──────────────────────────────────────────────────────────
@@ -539,6 +567,24 @@ function Walk-Root {
 
                 $existing  = $ByPath[$normPath]  # exact path match
 
+                # ── Read sidecar (_pulseboard.json) ──────────────────────────
+                # The sidecar contains a stable archiveKey UUID written by a previous
+                # scan pass. Sending it lets the server detect cross-drive folder moves
+                # (action=create with sidecarKey → server finds existing record by key).
+                $sidecarKey = $null
+                $sidecarPath = Join-Path $lf.FullName "_pulseboard.json"
+                if (Test-Path -LiteralPath $sidecarPath -PathType Leaf) {
+                    try {
+                        $sidecarJson = Get-Content -LiteralPath $sidecarPath -Raw -ErrorAction SilentlyContinue
+                        if ($sidecarJson) {
+                            $sidecarObj = $sidecarJson | ConvertFrom-Json -ErrorAction SilentlyContinue
+                            if ($sidecarObj -and $sidecarObj.archiveKey) {
+                                $sidecarKey = [string]$sidecarObj.archiveKey
+                            }
+                        }
+                    } catch { <# silently ignore malformed sidecar #> }
+                }
+
                 # ── Level 3 skip: leaf mtime unchanged ──────────────────────
                 if ($existing -and $existing.leafDirModifiedAt) {
                     $storedLfMtime = To-UtcDateTime $existing.leafDirModifiedAt
@@ -562,11 +608,17 @@ function Walk-Root {
                             nameFormatOk       = $parsed.nameFormatOk
                             chanFolderName     = $cf.Name
                         }
+                        # Include sidecarKey on unchanged items too — server uses it to backfill
+                        # archiveKey on records that gained a sidecar between scans.
+                        if ($sidecarKey) {
+                            $item | Add-Member -NotePropertyName sidecarKey -NotePropertyValue $sidecarKey
+                        }
                         [void]$delta.Add($item)
                         $skippedLf++
 
                         if ($VerbosePreference -ne "SilentlyContinue") {
-                            Write-Host "        [UNCHANGED] $folderName"
+                            $sidecarTag = if ($sidecarKey) { " [sidecar:$($sidecarKey.Substring(0,8))…]" } else { "" }
+                            Write-Host "        [UNCHANGED] $folderName$sidecarTag"
                         }
                         continue
                     }
@@ -584,8 +636,15 @@ function Walk-Root {
                 if ($existing) {
                     # Known path — content changed (mtime differed)
                     $action = "update"
+                } elseif ($sidecarKey) {
+                    # Unknown path but sidecar present → cross-drive MOVE detected.
+                    # Server will find the existing record by archiveKey and update its path.
+                    $action = "create"  # server treats create+sidecarKey as a move
+                    if ($VerbosePreference -ne "SilentlyContinue") {
+                        Write-Host "        [MOVE via sidecar] $folderName — key:$($sidecarKey.Substring(0,8))…"
+                    }
                 } elseif ($sig -ne "empty" -and $BySig.ContainsKey($sig)) {
-                    # Unknown path but known signature → RENAME
+                    # Unknown path but known signature → RENAME (same drive)
                     $action = "rename"
                     $previousFullPath = [string]$BySig[$sig].fullPath
 
@@ -617,6 +676,9 @@ function Walk-Root {
                     chanFolderName     = $cf.Name
                 }
 
+                if ($sidecarKey) {
+                    $item | Add-Member -NotePropertyName sidecarKey -NotePropertyValue $sidecarKey
+                }
                 if ($previousFullPath) {
                     $item | Add-Member -NotePropertyName previousFullPath -NotePropertyValue $previousFullPath
                 }
@@ -644,12 +706,81 @@ function Send-SmartBatch {
     return $response
 }
 
+# ── FULL MODE — Write Sidecars ────────────────────────────────────────────────
+
+function Write-Sidecars {
+    param([hashtable]$ByArchKey)
+
+    $linked = $ByArchKey.Count
+    if ($linked -eq 0) {
+        Write-Host "  No linked folders with archiveKey found — nothing to write."
+        return
+    }
+
+    Write-Host "  Checking $linked linked folder(s) for missing _pulseboard.json..."
+    $written  = 0
+    $skipped  = 0
+    $errors   = 0
+
+    foreach ($ak in $ByArchKey.Keys) {
+        $rec       = $ByArchKey[$ak]
+        $folderPath = [string]$rec.fullPath
+        $sidecarPath = Join-Path $folderPath "_pulseboard.json"
+
+        # Skip if folder doesn't exist on this machine
+        if (-not (Test-Path -LiteralPath $folderPath -PathType Container)) {
+            continue
+        }
+
+        # Skip if sidecar already present
+        if (Test-Path -LiteralPath $sidecarPath -PathType Leaf) {
+            $skipped++
+            continue
+        }
+
+        if ($DryRun) {
+            Write-Host "  [DRY-RUN] Would write sidecar: $sidecarPath"
+            $written++
+            continue
+        }
+
+        # Fetch sidecar content from server
+        try {
+            $content = Invoke-RestMethod `
+                -Uri     "$BaseUrl/api/archive/sidecar/$ak" `
+                -Headers $headers `
+                -Method  Get
+        } catch {
+            if ($VerbosePreference -ne "SilentlyContinue") {
+                Write-Warning "  Failed to fetch sidecar for $ak`: $_"
+            }
+            $errors++
+            continue
+        }
+
+        # Write JSON to _pulseboard.json
+        try {
+            $json = ConvertTo-Json -InputObject $content -Depth 4
+            [System.IO.File]::WriteAllText($sidecarPath, $json, [System.Text.Encoding]::UTF8)
+            $written++
+            if ($VerbosePreference -ne "SilentlyContinue") {
+                Write-Host "  [SIDECAR] $sidecarPath"
+            }
+        } catch {
+            Write-Warning "  Failed to write $sidecarPath`: $_"
+            $errors++
+        }
+    }
+
+    Write-Host ("  Sidecars written: $written | Already present: $skipped" + $(if ($errors -gt 0) { " | Errors: $errors" } else { "" }))
+}
+
 function Run-FullScan {
     Write-Host "Mode: Full (smart — with mtime skip + rename detection)"
     Write-Host ""
 
     # ── Step 1: Preload known folders ────────────────────────────────────────
-    $byPath, $bySig = Load-KnownFolders
+    $byPath, $bySig, $byArchKey = Load-KnownFolders
     Write-Host ""
 
     # ── Step 2: Walk roots ───────────────────────────────────────────────────
@@ -742,6 +873,13 @@ function Run-FullScan {
         Write-Host "  Matching pass:    running in background on server"
     }
     Write-Host "────────────────────────────────────────────────"
+
+    # ── Step 4 (optional): Write sidecar files ───────────────────────────────
+    if ($WriteSidecars) {
+        Write-Host ""
+        Write-Host "Writing sidecar files (_pulseboard.json)..."
+        Write-Sidecars -ByArchKey $byArchKey
+    }
 }
 
 # ── Main ──────────────────────────────────────────────────────────────────────
