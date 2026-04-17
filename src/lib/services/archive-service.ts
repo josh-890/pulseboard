@@ -814,6 +814,12 @@ export type GroupBy = 'none' | 'channel' | 'year' | 'channelYear'
 export type ArchiveSort = 'date' | 'name' | 'fileCount'
 export type SortDir = 'asc' | 'desc'
 
+export type ChannelSummary = {
+  /** Channel folder name. '(unknown)' for folders with null chanFolderName. */
+  chanFolderName: string
+  count: number
+}
+
 export type WorkspaceFilters = {
   tab: 'orphan' | 'linked' | 'phantom' | 'untracked'
   isVideo?: boolean
@@ -826,6 +832,8 @@ export type WorkspaceFilters = {
   groupBy?: GroupBy
   offset?: number
   pageSize?: number
+  /** When set, fetch only leaves for this specific channel folder (tree mode). */
+  chanFolderName?: string
 }
 
 export type WorkspacePage = {
@@ -1517,15 +1525,20 @@ export async function getArchiveWorkspace(filters: WorkspaceFilters): Promise<Wo
           { parsedTitle: { contains: filters.search, mode: 'insensitive' as const } },
         ],
       } : {}),
+      ...(filters.chanFolderName !== undefined
+        ? filters.chanFolderName === '(unknown)'
+          ? { chanFolderName: null }
+          : { chanFolderName: filters.chanFolderName }
+        : {}),
     }
 
+    const paginate = filters.chanFolderName === undefined
     const [total, rows] = await Promise.all([
       prisma.archiveFolder.count({ where }),
       prisma.archiveFolder.findMany({
         where,
         orderBy: buildOrderBy(filters.groupBy, filters.sort, filters.sortDir),
-        take: pageSize,
-        skip: offset,
+        ...(paginate ? { take: pageSize, skip: offset } : {}),
         select: folderSelect,
       }),
     ])
@@ -1610,7 +1623,7 @@ export async function getArchiveWorkspace(filters: WorkspaceFilters): Promise<Wo
       }
     })
 
-    return { items, total, counts, hasMore: rows.length === pageSize }
+    return { items, total, counts, hasMore: paginate && rows.length === pageSize }
   }
 
   if (filters.tab === 'linked') {
@@ -1630,15 +1643,20 @@ export async function getArchiveWorkspace(filters: WorkspaceFilters): Promise<Wo
           { parsedTitle: { contains: filters.search, mode: 'insensitive' as const } },
         ],
       } : {}),
+      ...(filters.chanFolderName !== undefined
+        ? filters.chanFolderName === '(unknown)'
+          ? { chanFolderName: null }
+          : { chanFolderName: filters.chanFolderName }
+        : {}),
     }
 
+    const paginate = filters.chanFolderName === undefined
     const [total, rows] = await Promise.all([
       prisma.archiveFolder.count({ where }),
       prisma.archiveFolder.findMany({
         where,
         orderBy: buildOrderBy(filters.groupBy, filters.sort, filters.sortDir),
-        take: pageSize,
-        skip: offset,
+        ...(paginate ? { take: pageSize, skip: offset } : {}),
         select: folderSelect,
       }),
     ])
@@ -1655,7 +1673,7 @@ export async function getArchiveWorkspace(filters: WorkspaceFilters): Promise<Wo
       suggestedStagingParticipants: [],
     }))
 
-    return { items, total, counts, hasMore: rows.length === pageSize }
+    return { items, total, counts, hasMore: paginate && rows.length === pageSize }
   }
 
   if (filters.tab === 'phantom') {
@@ -1927,4 +1945,75 @@ export async function reparseFolderNames(tenant: string): Promise<{ updated: num
 
 export async function deleteArchiveFolder(id: string): Promise<void> {
   await prisma.archiveFolder.delete({ where: { id } })
+}
+
+// ─── Archive Tree: Channel Summaries ─────────────────────────────────────────
+
+/**
+ * Returns a lightweight list of channel folder names with leaf counts for the
+ * given tab and filters. Used by the archive workspace tree view to populate
+ * channel-header rows without loading all leaf folders upfront.
+ */
+export async function getArchiveChannelSummaries(
+  tab: 'orphan' | 'linked',
+  filters: Pick<WorkspaceFilters, 'isVideo' | 'search' | 'hasSuggestion'>,
+): Promise<{ summaries: ChannelSummary[]; counts: WorkspaceCounts }> {
+  const baseWhere = tab === 'orphan'
+    ? {
+        linkedSetId: null as null,
+        linkedStagingId: null as null,
+        ...(filters.hasSuggestion ? {
+          OR: [{ suggestedSetId: { not: null } }, { suggestedStagingId: { not: null } }],
+        } : {}),
+      }
+    : {
+        OR: [{ linkedSetId: { not: null } }, { linkedStagingId: { not: null } }],
+      }
+
+  const where = {
+    ...baseWhere,
+    ...(filters.isVideo !== undefined ? { isVideo: filters.isVideo } : {}),
+    ...(filters.search ? {
+      OR: [
+        { folderName: { contains: filters.search, mode: 'insensitive' as const } },
+        { parsedTitle: { contains: filters.search, mode: 'insensitive' as const } },
+      ],
+    } : {}),
+  }
+
+  const [grouped, orphanCount, linkedCount, phantomCount, untrackedCount] = await Promise.all([
+    prisma.archiveFolder.groupBy({
+      by: ['chanFolderName'],
+      where,
+      _count: { _all: true },
+      orderBy: { chanFolderName: 'asc' },
+    }),
+    prisma.archiveFolder.count({ where: { linkedSetId: null, linkedStagingId: null } }),
+    prisma.archiveFolder.count({
+      where: { OR: [{ linkedSetId: { not: null } }, { linkedStagingId: { not: null } }] },
+    }),
+    Promise.all([
+      prisma.set.count({ where: { archiveStatus: 'MISSING' } }),
+      prisma.stagingSet.count({ where: { archiveStatus: 'MISSING' } }),
+    ]).then(([a, b]) => a + b),
+    Promise.all([
+      prisma.set.count({ where: { archiveStatus: 'UNKNOWN' } }),
+      prisma.stagingSet.count({ where: { archiveStatus: 'UNKNOWN' } }),
+    ]).then(([a, b]) => a + b),
+  ])
+
+  const summaries: ChannelSummary[] = grouped.map((g) => ({
+    chanFolderName: g.chanFolderName ?? '(unknown)',
+    count: g._count._all,
+  }))
+
+  return {
+    summaries,
+    counts: {
+      orphan: orphanCount,
+      linked: linkedCount,
+      phantom: phantomCount,
+      untracked: untrackedCount,
+    },
+  }
 }

@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useWindowVirtualizer } from '@tanstack/react-virtual'
 import { FolderSearch, Camera, Film, ChevronDown, Search, ChevronsDownUp, ChevronsUpDown, RefreshCw } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { getArchiveItemsAction, reparseFolderNamesAction } from '@/lib/actions/archive-actions'
+import { getArchiveItemsAction, getArchiveChannelSummariesAction, reparseFolderNamesAction } from '@/lib/actions/archive-actions'
 import { ArchiveOrphanRow } from './archive-orphan-row'
 import { ArchiveLinkedRow } from './archive-linked-row'
 import { ArchivePhantomRow } from './archive-phantom-row'
@@ -20,6 +20,7 @@ import type {
   GroupBy,
   ArchiveSort,
   SortDir,
+  ChannelSummary,
 } from '@/lib/services/archive-service'
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
@@ -31,7 +32,12 @@ type VirtualRow =
   | { kind: 'year-header'; channel: string; year: string; count: number }
   | { kind: 'folder-item'; item: ArchiveFolderEntry }
   | { kind: 'flat-item'; item: PhantomEntry | UntrackedEntry; itemType: 'phantom' | 'untracked' }
-  | { kind: 'loading-sentinel' }
+  | { kind: 'loading-sentinel'; channel?: string }
+
+type ChannelLeafState =
+  | { status: 'unloaded' }
+  | { status: 'loading' }
+  | { status: 'loaded'; items: ArchiveFolderEntry[] }
 
 type Props = {
   initialPage: WorkspacePage
@@ -39,6 +45,8 @@ type Props = {
   initialIsVideo?: boolean
   initialHasSuggestion?: boolean
   highlightId?: string
+  /** Pre-fetched channel summaries for the tree view (orphan/linked tabs only). */
+  initialChannelSummaries: ChannelSummary[] | null
 }
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
@@ -99,7 +107,7 @@ function isCollapsed(model: CollapseModel, key: string): boolean {
   return model.allCollapsed ? !model.exceptions.has(key) : model.exceptions.has(key)
 }
 
-function buildVirtualRows(
+function buildVirtualRowsFlat(
   items: ArchiveFolderEntry[],
   groupBy: GroupBy,
   model: CollapseModel,
@@ -136,7 +144,7 @@ function buildVirtualRows(
       }
     }
   } else {
-    // channelYear — two-level
+    // channelYear — two-level (flat mode fallback, not used in tree mode)
     let curCh = ''
     let curYr = ''
     for (const item of items) {
@@ -168,6 +176,48 @@ function buildVirtualRows(
   return rows
 }
 
+function buildVirtualRowsTree(
+  summaries: ChannelSummary[],
+  channelLeaves: Map<string, ChannelLeafState>,
+  model: CollapseModel,
+): VirtualRow[] {
+  const rows: VirtualRow[] = []
+
+  for (const summary of summaries) {
+    const ch = summary.chanFolderName
+    rows.push({ kind: 'channel-header', channel: ch, count: summary.count })
+
+    if (isCollapsed(model, `ch::${ch}`)) continue
+
+    const leafState = channelLeaves.get(ch) ?? { status: 'unloaded' }
+    if (leafState.status === 'loading' || leafState.status === 'unloaded') {
+      rows.push({ kind: 'loading-sentinel', channel: ch })
+      continue
+    }
+
+    // Loaded — generate year groups
+    const items = leafState.items
+    let curYr = ''
+    for (const item of items) {
+      const yr = getYear(item)
+      if (yr !== curYr) {
+        curYr = yr
+        const count = items.filter((i) => getYear(i) === yr).length
+        rows.push({ kind: 'year-header', channel: ch, year: yr, count })
+      }
+      if (!isCollapsed(model, `yr::${ch}::${yr}`)) {
+        rows.push({ kind: 'folder-item', item })
+      }
+    }
+    // Empty channel (all filtered out by search etc.)
+    if (items.length === 0) {
+      // Don't add anything — the header with count=0 is enough context
+    }
+  }
+
+  return rows
+}
+
 // ─── Component ─────────────────────────────────────────────────────────────────
 
 export function ArchiveWorkspaceClient({
@@ -176,10 +226,12 @@ export function ArchiveWorkspaceClient({
   initialIsVideo,
   initialHasSuggestion,
   highlightId,
+  initialChannelSummaries,
 }: Props) {
   const [tab, setTab] = useState<Tab>(initialTab)
   const [counts, setCounts] = useState<WorkspaceCounts>(initialPage.counts)
 
+  // ── Flat-list state (non-tree groupBy modes + phantom/untracked tabs) ────────
   const [folderItems, setFolderItems] = useState<ArchiveFolderEntry[]>(
     (initialTab === 'orphan' || initialTab === 'linked')
       ? (initialPage.items as ArchiveFolderEntry[])
@@ -194,6 +246,13 @@ export function ArchiveWorkspaceClient({
   const [hasMore, setHasMore] = useState(initialPage.hasMore)
   const [loading, setLoading] = useState(false)
 
+  // ── Tree-mode state (channelYear groupBy for orphan/linked) ──────────────────
+  const [channelSummaries, setChannelSummaries] = useState<ChannelSummary[]>(
+    initialChannelSummaries ?? [],
+  )
+  const [channelLeaves, setChannelLeaves] = useState<Map<string, ChannelLeafState>>(new Map())
+  const [summariesLoading, setSummariesLoading] = useState(false)
+
   // Filter state
   const [groupBy, setGroupByState] = useState<GroupBy>('channelYear')
   const [sort, setSortState] = useState<ArchiveSort>('date')
@@ -203,9 +262,9 @@ export function ArchiveWorkspaceClient({
   const [search, setSearch] = useState('')
   const [searchInput, setSearchInput] = useState('')
 
-  // Collapse model — inverted: allCollapsed flag + exceptions set
+  // Collapse model — default collapsed (tree-first UX)
   const [collapseModel, setCollapseModel] = useState<CollapseModel>({
-    allCollapsed: false,
+    allCollapsed: true,
     exceptions: new Set(),
   })
 
@@ -254,8 +313,9 @@ export function ArchiveWorkspaceClient({
     } catch { /* ignore */ }
   }
 
-  // ── Data fetching ──────────────────────────────────────────────────────────
+  // ── Mode flags ─────────────────────────────────────────────────────────────
   const isFolderTab = tab === 'orphan' || tab === 'linked'
+  const isTreeMode = isFolderTab && groupBy === 'channelYear'
 
   const buildFilters = useCallback((offset: number) => ({
     tab,
@@ -269,25 +329,76 @@ export function ArchiveWorkspaceClient({
     pageSize: PAGE_SIZE,
   }), [tab, isVideo, hasSuggestion, search, sort, sortDir, groupBy])
 
-  // Reset + reload when any filter changes
+  // ── Load channel leaves (tree mode) ────────────────────────────────────────
+  const loadChannelLeaves = useCallback((chanFolderName: string) => {
+    setChannelLeaves((prev) => {
+      const existing = prev.get(chanFolderName)
+      if (existing && existing.status !== 'unloaded') return prev  // already loading/loaded
+      const next = new Map(prev)
+      next.set(chanFolderName, { status: 'loading' })
+      return next
+    })
+
+    getArchiveItemsAction({
+      tab: tab as 'orphan' | 'linked',
+      isVideo,
+      hasSuggestion: hasSuggestion || undefined,
+      search: search || undefined,
+      groupBy: 'channelYear',
+      chanFolderName,
+    }).then((page) => {
+      setChannelLeaves((prev) => {
+        const next = new Map(prev)
+        next.set(chanFolderName, { status: 'loaded', items: page.items as ArchiveFolderEntry[] })
+        return next
+      })
+    }).catch(() => {
+      setChannelLeaves((prev) => {
+        const next = new Map(prev)
+        next.set(chanFolderName, { status: 'unloaded' })
+        return next
+      })
+    })
+  }, [tab, isVideo, hasSuggestion, search])
+
+  // ── Data fetching ──────────────────────────────────────────────────────────
   useEffect(() => {
     if (!hydrated) return
     let cancelled = false
-    setLoading(true)
-    getArchiveItemsAction(buildFilters(0)).then((page) => {
-      if (cancelled) return
-      setCounts(page.counts)
-      setTotal(page.total)
-      setHasMore(page.hasMore)
-      if (isFolderTab) {
-        setFolderItems(page.items as ArchiveFolderEntry[])
-        setFlatItems([])
-      } else {
-        setFlatItems(page.items as (PhantomEntry | UntrackedEntry)[])
-        setFolderItems([])
-      }
-      setLoading(false)
-    }).catch(() => setLoading(false))
+
+    if (isTreeMode) {
+      // Tree mode: fetch channel summaries; reset leaves
+      setSummariesLoading(true)
+      setChannelLeaves(new Map())
+      getArchiveChannelSummariesAction(tab as 'orphan' | 'linked', {
+        isVideo,
+        hasSuggestion: hasSuggestion || undefined,
+        search: search || undefined,
+      }).then((data) => {
+        if (cancelled) return
+        setChannelSummaries(data.summaries)
+        setCounts(data.counts)
+        setSummariesLoading(false)
+      }).catch(() => { if (!cancelled) setSummariesLoading(false) })
+    } else {
+      // Flat mode: existing offset-based fetch
+      setLoading(true)
+      getArchiveItemsAction(buildFilters(0)).then((page) => {
+        if (cancelled) return
+        setCounts(page.counts)
+        setTotal(page.total)
+        setHasMore(page.hasMore)
+        if (isFolderTab) {
+          setFolderItems(page.items as ArchiveFolderEntry[])
+          setFlatItems([])
+        } else {
+          setFlatItems(page.items as (PhantomEntry | UntrackedEntry)[])
+          setFolderItems([])
+        }
+        setLoading(false)
+      }).catch(() => { if (!cancelled) setLoading(false) })
+    }
+
     return () => { cancelled = true }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab, isVideo, hasSuggestion, search, sort, sortDir, groupBy, hydrated])
@@ -309,8 +420,11 @@ export function ArchiveWorkspaceClient({
 
   // ── Virtual rows ───────────────────────────────────────────────────────────
   const virtualRows = useMemo<VirtualRow[]>(() => {
+    if (isTreeMode) {
+      return buildVirtualRowsTree(channelSummaries, channelLeaves, collapseModel)
+    }
     if (isFolderTab) {
-      return buildVirtualRows(folderItems, groupBy, collapseModel, hasMore)
+      return buildVirtualRowsFlat(folderItems, groupBy, collapseModel, hasMore)
     }
     const rows: VirtualRow[] = flatItems.map((item) => ({
       kind: 'flat-item' as const,
@@ -319,7 +433,7 @@ export function ArchiveWorkspaceClient({
     }))
     if (hasMore) rows.push({ kind: 'loading-sentinel' })
     return rows
-  }, [isFolderTab, folderItems, flatItems, groupBy, collapseModel, hasMore, tab])
+  }, [isTreeMode, isFolderTab, channelSummaries, channelLeaves, folderItems, flatItems, groupBy, collapseModel, hasMore, tab])
 
   // ── Window virtualizer ─────────────────────────────────────────────────────
   const virtualizer = useWindowVirtualizer({
@@ -355,26 +469,28 @@ export function ArchiveWorkspaceClient({
     if (idx === -1) return
     highlightScrolled.current = true
     virtualizer.scrollToIndex(idx, { align: 'center' })
-    // Clear ring after 2.5 s
     const t = setTimeout(() => setActiveHighlight(undefined), 2500)
     return () => clearTimeout(t)
   }, [activeHighlight, virtualRows, virtualizer, loading])
 
-  // ── Infinite scroll trigger ────────────────────────────────────────────────
+  // ── Infinite scroll trigger (flat mode only) ───────────────────────────────
   const vItems = virtualizer.getVirtualItems()
   useEffect(() => {
+    if (isTreeMode) return  // tree mode: lazy load per channel instead
     if (!vItems.length || !hasMore || loading) return
     const last = vItems[vItems.length - 1]
     if (last && last.index >= virtualRows.length - 6) {
       loadMore()
     }
-  }, [vItems, hasMore, loading, virtualRows.length, loadMore])
+  }, [vItems, hasMore, loading, virtualRows.length, loadMore, isTreeMode])
 
   // ── Tab switch ─────────────────────────────────────────────────────────────
   function switchTab(t: Tab) {
     setTab(t)
     setFolderItems([])
     setFlatItems([])
+    setChannelSummaries([])
+    setChannelLeaves(new Map())
     setHasMore(false)
     setSearch('')
     setSearchInput('')
@@ -400,15 +516,26 @@ export function ArchiveWorkspaceClient({
   function toggleCollapse(key: string) {
     setCollapseModel((prev) => {
       const next = { allCollapsed: prev.allCollapsed, exceptions: new Set(prev.exceptions) }
+      const wasCollapsed = isCollapsed(prev, key)
       if (next.exceptions.has(key)) next.exceptions.delete(key)
       else next.exceptions.add(key)
       persistCollapseModel(next)
+
+      // In tree mode, trigger lazy load when expanding a channel
+      if (isTreeMode && wasCollapsed && key.startsWith('ch::')) {
+        const chanFolderName = key.slice(4)
+        const leafState = channelLeaves.get(chanFolderName)
+        if (!leafState || leafState.status === 'unloaded') {
+          // Trigger load after state update settles
+          setTimeout(() => loadChannelLeaves(chanFolderName), 0)
+        }
+      }
+
       return next
     })
   }
 
   function collapseAll() {
-    // allCollapsed=true, no exceptions → everything collapsed, including future pages
     const next: CollapseModel = { allCollapsed: true, exceptions: new Set() }
     setCollapseModel(next)
     persistCollapseModel(next)
@@ -418,6 +545,15 @@ export function ArchiveWorkspaceClient({
     const next: CollapseModel = { allCollapsed: false, exceptions: new Set() }
     setCollapseModel(next)
     persistCollapseModel(next)
+    // In tree mode, trigger lazy load for all channels not yet loaded
+    if (isTreeMode) {
+      for (const summary of channelSummaries) {
+        const leafState = channelLeaves.get(summary.chanFolderName)
+        if (!leafState || leafState.status === 'unloaded') {
+          loadChannelLeaves(summary.chanFolderName)
+        }
+      }
+    }
   }
 
   // ── Re-parse folder names ──────────────────────────────────────────────────
@@ -431,26 +567,44 @@ export function ArchiveWorkspaceClient({
     setReparsing(false)
     if (result.success) {
       setReparseMsg(`Re-parsed ${result.updated} folders`)
-      // Reload current view
-      getArchiveItemsAction(buildFilters(0)).then((page) => {
-        setCounts(page.counts)
-        setTotal(page.total)
-        setHasMore(page.hasMore)
-        if (isFolderTab) {
-          setFolderItems(page.items as ArchiveFolderEntry[])
-        } else {
-          setFlatItems(page.items as (PhantomEntry | UntrackedEntry)[])
-        }
-      })
+      if (isTreeMode) {
+        // Reload summaries + clear leaves
+        getArchiveChannelSummariesAction(tab as 'orphan' | 'linked', {
+          isVideo, hasSuggestion: hasSuggestion || undefined, search: search || undefined,
+        }).then((data) => {
+          setChannelSummaries(data.summaries)
+          setCounts(data.counts)
+          setChannelLeaves(new Map())
+        })
+      } else {
+        getArchiveItemsAction(buildFilters(0)).then((page) => {
+          setCounts(page.counts)
+          setTotal(page.total)
+          setHasMore(page.hasMore)
+          if (isFolderTab) {
+            setFolderItems(page.items as ArchiveFolderEntry[])
+          } else {
+            setFlatItems(page.items as (PhantomEntry | UntrackedEntry)[])
+          }
+        })
+      }
     } else {
       setReparseMsg('Re-parse failed')
     }
     setTimeout(() => setReparseMsg(null), 4000)
   }
 
+  // ── Summary total for tree mode ────────────────────────────────────────────
+  const treeTotal = useMemo(
+    () => channelSummaries.reduce((sum, s) => sum + s.count, 0),
+    [channelSummaries],
+  )
+
   // ── Render ─────────────────────────────────────────────────────────────────
   const isFolderTabBool = tab === 'orphan' || tab === 'linked'
   const showGroupControls = isFolderTabBool
+  const displayTotal = isTreeMode ? treeTotal : total
+  const isAnyLoading = isTreeMode ? summariesLoading : loading
 
   return (
     <div className="flex flex-col gap-4 p-4">
@@ -459,7 +613,7 @@ export function ArchiveWorkspaceClient({
         <FolderSearch size={20} className="text-muted-foreground" />
         <h1 className="text-2xl font-bold">Archive</h1>
         <span className="rounded-full bg-muted/60 px-2 py-0.5 text-xs text-muted-foreground">
-          {total.toLocaleString()} total
+          {displayTotal.toLocaleString()} total
         </span>
       </div>
 
@@ -630,7 +784,7 @@ export function ArchiveWorkspaceClient({
 
         {/* Virtualized list */}
         <div ref={listRef} className="px-3 py-2">
-          {virtualRows.length === 0 && !loading ? (
+          {virtualRows.length === 0 && !isAnyLoading ? (
             <div className="flex flex-col items-center gap-2 py-12 text-muted-foreground">
               <FolderSearch size={32} className="opacity-20" />
               <p className="text-sm">{TAB_CONFIG[tab].emptyMsg}</p>
@@ -697,7 +851,8 @@ export function ArchiveWorkspaceClient({
                     )}
                     {row.kind === 'loading-sentinel' && (
                       <div className="flex items-center justify-center py-4 text-xs text-muted-foreground">
-                        {loading ? 'Loading…' : ''}
+                        {(isTreeMode ? channelLeaves.get(row.channel ?? '') : loading)
+                          ? 'Loading…' : ''}
                       </div>
                     )}
                   </div>
@@ -709,9 +864,11 @@ export function ArchiveWorkspaceClient({
 
         {/* Status bar */}
         <div className="border-t border-border/30 px-4 py-1.5 text-[10px] text-muted-foreground">
-          {loading && folderItems.length === 0 && flatItems.length === 0
+          {isAnyLoading && (isTreeMode ? channelSummaries.length === 0 : folderItems.length === 0 && flatItems.length === 0)
             ? 'Loading…'
-            : `${(isFolderTab ? folderItems : flatItems).length.toLocaleString()} of ${total.toLocaleString()} loaded`
+            : isTreeMode
+              ? `${channelSummaries.length.toLocaleString()} channel${channelSummaries.length !== 1 ? 's' : ''} · ${treeTotal.toLocaleString()} total`
+              : `${(isFolderTab ? folderItems : flatItems).length.toLocaleString()} of ${total.toLocaleString()} loaded`
           }
         </div>
       </div>

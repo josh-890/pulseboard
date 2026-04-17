@@ -15,11 +15,12 @@ import {
   rejectArchiveSuggestion,
   createStagingSetFromOrphan,
   getArchiveWorkspace,
+  getArchiveChannelSummaries,
   reparseFolderNames,
   deleteArchiveFolder,
   confirmVideoFile,
 } from '@/lib/services/archive-service'
-import type { WorkspaceFilters, WorkspacePage } from '@/lib/services/archive-service'
+import type { WorkspaceFilters, WorkspacePage, ChannelSummary, WorkspaceCounts } from '@/lib/services/archive-service'
 import type { SimpleActionResult } from '@/lib/types'
 import { onArchiveFolderLinked } from '@/lib/services/coherence-service'
 
@@ -27,6 +28,13 @@ import { onArchiveFolderLinked } from '@/lib/services/coherence-service'
 
 export async function getArchiveItemsAction(filters: WorkspaceFilters): Promise<WorkspacePage> {
   return withTenantFromHeaders(() => getArchiveWorkspace(filters))
+}
+
+export async function getArchiveChannelSummariesAction(
+  tab: 'orphan' | 'linked',
+  filters: Pick<WorkspaceFilters, 'isVideo' | 'search' | 'hasSuggestion'>,
+): Promise<{ summaries: ChannelSummary[]; counts: WorkspaceCounts }> {
+  return withTenantFromHeaders(() => getArchiveChannelSummaries(tab, filters))
 }
 
 // ─── Archive Path Actions ─────────────────────────────────────────────────────

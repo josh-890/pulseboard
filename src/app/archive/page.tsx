@@ -1,5 +1,5 @@
 import { withTenantFromHeaders } from '@/lib/tenant-context'
-import { getArchiveWorkspace } from '@/lib/services/archive-service'
+import { getArchiveWorkspace, getArchiveChannelSummaries } from '@/lib/services/archive-service'
 import { ArchiveWorkspaceClient } from '@/components/archive/archive-workspace-client'
 import type { WorkspaceFilters } from '@/lib/services/archive-service'
 
@@ -26,7 +26,7 @@ export default async function ArchivePage({ searchParams }: { searchParams: Sear
     tab,
     isVideo,
     hasSuggestion: hasSuggestion || undefined,
-    groupBy: 'channelYear',  // server uses this to determine sort order for initial load
+    groupBy: 'channelYear',
     pageSize: 200,
     offset: 0,
   }
@@ -34,7 +34,16 @@ export default async function ArchivePage({ searchParams }: { searchParams: Sear
   const highlightId = getString(sp.highlight)
 
   return withTenantFromHeaders(async () => {
-    const page = await getArchiveWorkspace(filters)
+    // For folder tabs (orphan/linked), fetch channel summaries for the tree view.
+    // For phantom/untracked we still use the flat page for the initial render.
+    const isFolderTab = tab === 'orphan' || tab === 'linked'
+
+    const [page, channelData] = await Promise.all([
+      getArchiveWorkspace(filters),
+      isFolderTab
+        ? getArchiveChannelSummaries(tab as 'orphan' | 'linked', { isVideo, hasSuggestion: hasSuggestion || undefined })
+        : null,
+    ])
 
     return (
       <ArchiveWorkspaceClient
@@ -43,6 +52,7 @@ export default async function ArchivePage({ searchParams }: { searchParams: Sear
         initialIsVideo={isVideo}
         initialHasSuggestion={hasSuggestion || undefined}
         highlightId={highlightId}
+        initialChannelSummaries={channelData?.summaries ?? null}
       />
     )
   })
