@@ -804,6 +804,7 @@ export type UntrackedEntry = {
 }
 
 export type WorkspaceCounts = {
+  all: number
   orphan: number
   linked: number
   phantom: number
@@ -821,7 +822,7 @@ export type ChannelSummary = {
 }
 
 export type WorkspaceFilters = {
-  tab: 'orphan' | 'linked' | 'phantom' | 'untracked'
+  tab: 'all' | 'orphan' | 'linked' | 'phantom' | 'untracked'
   isVideo?: boolean
   shortName?: string
   year?: number
@@ -1440,7 +1441,8 @@ export async function getArchiveWorkspace(filters: WorkspaceFilters): Promise<Wo
   const offset = filters.offset ?? 0
 
   // Always compute all tab counts together
-  const [orphanCount, linkedCount, phantomCount, untrackedCount] = await Promise.all([
+  const [allCount, orphanCount, linkedCount, phantomCount, untrackedCount] = await Promise.all([
+    prisma.archiveFolder.count({}),
     prisma.archiveFolder.count({ where: { linkedSetId: null, linkedStagingId: null } }),
     prisma.archiveFolder.count({
       where: { OR: [{ linkedSetId: { not: null } }, { linkedStagingId: { not: null } }] },
@@ -1456,6 +1458,7 @@ export async function getArchiveWorkspace(filters: WorkspaceFilters): Promise<Wo
   ])
 
   const counts: WorkspaceCounts = {
+    all: allCount,
     orphan: orphanCount,
     linked: linkedCount,
     phantom: phantomCount,
@@ -1502,6 +1505,102 @@ export async function getArchiveWorkspace(filters: WorkspaceFilters): Promise<Wo
     lastRenamedFrom: true,
     nameFormatOk: true,
     chanFolderName: true,
+  }
+
+  if (filters.tab === 'all') {
+    const where = {
+      ...(filters.isVideo !== undefined ? { isVideo: filters.isVideo } : {}),
+      ...(filters.shortName ? { parsedShortName: { equals: filters.shortName, mode: 'insensitive' as const } } : {}),
+      ...(filters.year ? {
+        parsedDate: {
+          gte: new Date(`${filters.year}-01-01`),
+          lt: new Date(`${filters.year + 1}-01-01`),
+        },
+      } : {}),
+      ...(filters.hasSuggestion ? {
+        OR: [{ suggestedSetId: { not: null } }, { suggestedStagingId: { not: null } }],
+      } : {}),
+      ...(filters.search ? {
+        OR: [
+          { folderName: { contains: filters.search, mode: 'insensitive' as const } },
+          { parsedTitle: { contains: filters.search, mode: 'insensitive' as const } },
+        ],
+      } : {}),
+      ...(filters.chanFolderName !== undefined
+        ? filters.chanFolderName === '(unknown)'
+          ? { chanFolderName: null }
+          : { chanFolderName: filters.chanFolderName }
+        : {}),
+    }
+
+    const paginate = filters.chanFolderName === undefined
+    const [total, rows] = await Promise.all([
+      prisma.archiveFolder.count({ where }),
+      prisma.archiveFolder.findMany({
+        where,
+        orderBy: buildOrderBy(filters.groupBy, filters.sort, filters.sortDir),
+        ...(paginate ? { take: pageSize, skip: offset } : {}),
+        select: folderSelect,
+      }),
+    ])
+
+    // Enrich suggestion fields for unlinked rows
+    const suggestedSetIds = rows.map((r) => r.suggestedSetId).filter(Boolean) as string[]
+    const suggestedStagingIds = rows.map((r) => r.suggestedStagingId).filter(Boolean) as string[]
+
+    type SuggestedSetAll = {
+      id: string; title: string; releaseDate: Date | null
+      channel: { name: string } | null
+      participants: { person: { aliases: { name: string }[] } }[]
+    }
+    type SuggestedStagingAll = {
+      id: string; title: string; releaseDate: Date | null; channelName: string; artist: string | null
+    }
+
+    const [suggestedSets, suggestedStagings] = await Promise.all([
+      suggestedSetIds.length > 0
+        ? prisma.set.findMany({
+            where: { id: { in: suggestedSetIds } },
+            select: {
+              id: true, title: true, releaseDate: true,
+              channel: { select: { name: true } },
+              participants: {
+                take: 4,
+                select: { person: { select: { aliases: { where: { isCommon: true }, select: { name: true }, take: 1 } } } },
+              },
+            },
+          }) as Promise<SuggestedSetAll[]>
+        : Promise.resolve([] as SuggestedSetAll[]),
+      suggestedStagingIds.length > 0
+        ? prisma.stagingSet.findMany({
+            where: { id: { in: suggestedStagingIds } },
+            select: { id: true, title: true, releaseDate: true, channelName: true, artist: true },
+          }) as Promise<SuggestedStagingAll[]>
+        : Promise.resolve([] as SuggestedStagingAll[]),
+    ])
+
+    const setMapAll = new Map<string, SuggestedSetAll>(suggestedSets.map((s) => [s.id, s]))
+    const stagingMapAll = new Map<string, SuggestedStagingAll>(suggestedStagings.map((s) => [s.id, s]))
+
+    const items: ArchiveFolderEntry[] = rows.map((r) => {
+      const ss = r.suggestedSetId ? setMapAll.get(r.suggestedSetId) : undefined
+      const sg = r.suggestedStagingId ? stagingMapAll.get(r.suggestedStagingId) : undefined
+      return {
+        ...r,
+        suggestedSetTitle: ss?.title ?? null,
+        suggestedStagingTitle: sg?.title ?? null,
+        suggestedSetDate: ss?.releaseDate ?? null,
+        suggestedStagingDate: sg?.releaseDate ?? null,
+        suggestedSetChannel: ss?.channel?.name ?? null,
+        suggestedStagingChannel: sg?.channelName ?? null,
+        suggestedSetParticipants: ss
+          ? ss.participants.map((p) => p.person.aliases[0]?.name).filter(Boolean) as string[]
+          : [],
+        suggestedStagingParticipants: sg?.artist ? [sg.artist] : [],
+      }
+    })
+
+    return { items, total, counts, hasMore: paginate && rows.length === pageSize }
   }
 
   if (filters.tab === 'orphan') {
@@ -1955,20 +2054,21 @@ export async function deleteArchiveFolder(id: string): Promise<void> {
  * channel-header rows without loading all leaf folders upfront.
  */
 export async function getArchiveChannelSummaries(
-  tab: 'orphan' | 'linked',
+  tab: 'all' | 'orphan' | 'linked',
   filters: Pick<WorkspaceFilters, 'isVideo' | 'search' | 'hasSuggestion'>,
 ): Promise<{ summaries: ChannelSummary[]; counts: WorkspaceCounts }> {
-  const baseWhere = tab === 'orphan'
-    ? {
-        linkedSetId: null as null,
-        linkedStagingId: null as null,
-        ...(filters.hasSuggestion ? {
-          OR: [{ suggestedSetId: { not: null } }, { suggestedStagingId: { not: null } }],
-        } : {}),
-      }
-    : {
-        OR: [{ linkedSetId: { not: null } }, { linkedStagingId: { not: null } }],
-      }
+  const baseWhere =
+    tab === 'orphan'
+      ? {
+          linkedSetId: null as null,
+          linkedStagingId: null as null,
+          ...(filters.hasSuggestion ? {
+            OR: [{ suggestedSetId: { not: null } }, { suggestedStagingId: { not: null } }],
+          } : {}),
+        }
+      : tab === 'linked'
+        ? { OR: [{ linkedSetId: { not: null } }, { linkedStagingId: { not: null } }] }
+        : {} // 'all': no linked/unlinked filter
 
   const where = {
     ...baseWhere,
@@ -1981,13 +2081,14 @@ export async function getArchiveChannelSummaries(
     } : {}),
   }
 
-  const [grouped, orphanCount, linkedCount, phantomCount, untrackedCount] = await Promise.all([
+  const [grouped, allCount, orphanCount, linkedCount, phantomCount, untrackedCount] = await Promise.all([
     prisma.archiveFolder.groupBy({
       by: ['chanFolderName'],
       where,
       _count: { _all: true },
       orderBy: { chanFolderName: 'asc' },
     }),
+    prisma.archiveFolder.count({}),
     prisma.archiveFolder.count({ where: { linkedSetId: null, linkedStagingId: null } }),
     prisma.archiveFolder.count({
       where: { OR: [{ linkedSetId: { not: null } }, { linkedStagingId: { not: null } }] },
@@ -2010,6 +2111,7 @@ export async function getArchiveChannelSummaries(
   return {
     summaries,
     counts: {
+      all: allCount,
       orphan: orphanCount,
       linked: linkedCount,
       phantom: phantomCount,

@@ -13,7 +13,7 @@ export default async function ArchivePage({ searchParams }: { searchParams: Sear
   const sp = await searchParams
 
   const rawTab = getString(sp.tab)
-  const tab = (rawTab === 'linked' || rawTab === 'phantom' || rawTab === 'untracked')
+  const tab = (rawTab === 'all' || rawTab === 'linked' || rawTab === 'phantom' || rawTab === 'untracked')
     ? rawTab
     : 'orphan'
 
@@ -34,14 +34,14 @@ export default async function ArchivePage({ searchParams }: { searchParams: Sear
   const highlightId = getString(sp.highlight)
 
   return withTenantFromHeaders(async () => {
-    // For folder tabs (orphan/linked), fetch channel summaries for the tree view.
+    // For folder tabs (all/orphan/linked), fetch channel summaries for the tree view.
     // For phantom/untracked we still use the flat page for the initial render.
-    const isFolderTab = tab === 'orphan' || tab === 'linked'
+    const isFolderTab = tab === 'all' || tab === 'orphan' || tab === 'linked'
 
     const [page, channelData] = await Promise.all([
       getArchiveWorkspace(filters),
       isFolderTab
-        ? getArchiveChannelSummaries(tab as 'orphan' | 'linked', { isVideo, hasSuggestion: hasSuggestion || undefined })
+        ? getArchiveChannelSummaries(tab as 'all' | 'orphan' | 'linked', { isVideo, hasSuggestion: hasSuggestion || undefined })
         : null,
     ])
 

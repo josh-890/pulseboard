@@ -25,7 +25,7 @@ import type {
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
-type Tab = 'orphan' | 'linked' | 'phantom' | 'untracked'
+type Tab = 'all' | 'orphan' | 'linked' | 'phantom' | 'untracked'
 
 type VirtualRow =
   | { kind: 'channel-header'; channel: string; count: number }
@@ -52,6 +52,7 @@ type Props = {
 // ─── Constants ─────────────────────────────────────────────────────────────────
 
 const TAB_CONFIG: Record<Tab, { label: string; emptyMsg: string; badge: string }> = {
+  all:       { label: 'All',       emptyMsg: 'No archive folders found.',         badge: 'bg-blue-500/20 text-blue-600 dark:text-blue-400' },
   orphan:    { label: 'Orphans',   emptyMsg: 'No unmatched folders found.',       badge: 'bg-red-500/20 text-red-600 dark:text-red-400' },
   linked:    { label: 'Linked',    emptyMsg: 'No linked folders yet.',             badge: 'bg-green-500/20 text-green-600 dark:text-green-400' },
   phantom:   { label: 'Phantoms',  emptyMsg: 'No missing archive folders found.', badge: 'bg-amber-500/20 text-amber-600 dark:text-amber-400' },
@@ -233,7 +234,7 @@ export function ArchiveWorkspaceClient({
 
   // ── Flat-list state (non-tree groupBy modes + phantom/untracked tabs) ────────
   const [folderItems, setFolderItems] = useState<ArchiveFolderEntry[]>(
-    (initialTab === 'orphan' || initialTab === 'linked')
+    (initialTab === 'all' || initialTab === 'orphan' || initialTab === 'linked')
       ? (initialPage.items as ArchiveFolderEntry[])
       : [],
   )
@@ -314,7 +315,7 @@ export function ArchiveWorkspaceClient({
   }
 
   // ── Mode flags ─────────────────────────────────────────────────────────────
-  const isFolderTab = tab === 'orphan' || tab === 'linked'
+  const isFolderTab = tab === 'all' || tab === 'orphan' || tab === 'linked'
   const isTreeMode = isFolderTab && groupBy === 'channelYear'
 
   const buildFilters = useCallback((offset: number) => ({
@@ -370,7 +371,7 @@ export function ArchiveWorkspaceClient({
       // Tree mode: fetch channel summaries; reset leaves
       setSummariesLoading(true)
       setChannelLeaves(new Map())
-      getArchiveChannelSummariesAction(tab as 'orphan' | 'linked', {
+      getArchiveChannelSummariesAction(tab as 'all' | 'orphan' | 'linked', {
         isVideo,
         hasSuggestion: hasSuggestion || undefined,
         search: search || undefined,
@@ -446,8 +447,9 @@ export function ArchiveWorkspaceClient({
       if (row.kind === 'loading-sentinel') return SENTINEL_H
       if (row.kind === 'flat-item') return FLAT_ITEM_H
       if (row.kind === 'folder-item') {
-        if (tab === 'linked') return LINKED_H
-        if (tab === 'orphan') {
+        const isLinked = !!(row.item.linkedSetId || row.item.linkedStagingId)
+        if (tab === 'linked' || (tab === 'all' && isLinked)) return LINKED_H
+        if (tab === 'orphan' || (tab === 'all' && !isLinked)) {
           const hasSug = !!(row.item.suggestedSetId || row.item.suggestedStagingId)
           return hasSug ? ORPHAN_SUG_H : ORPHAN_H
         }
@@ -569,7 +571,7 @@ export function ArchiveWorkspaceClient({
       setReparseMsg(`Re-parsed ${result.updated} folders`)
       if (isTreeMode) {
         // Reload summaries + clear leaves
-        getArchiveChannelSummariesAction(tab as 'orphan' | 'linked', {
+        getArchiveChannelSummariesAction(tab as 'all' | 'orphan' | 'linked', {
           isVideo, hasSuggestion: hasSuggestion || undefined, search: search || undefined,
         }).then((data) => {
           setChannelSummaries(data.summaries)
@@ -823,7 +825,7 @@ export function ArchiveWorkspaceClient({
                         onToggle={() => toggleCollapse(`yr::${row.channel}::${row.year}`)}
                       />
                     )}
-                    {row.kind === 'folder-item' && tab === 'orphan' && (
+                    {row.kind === 'folder-item' && (tab === 'orphan' || (tab === 'all' && !(row.item.linkedSetId || row.item.linkedStagingId))) && (
                       <div className={cn(
                         'py-0.5 rounded-xl transition-all duration-500',
                         activeHighlight === row.item.id && 'ring-2 ring-amber-400 ring-offset-1',
@@ -831,7 +833,7 @@ export function ArchiveWorkspaceClient({
                         <ArchiveOrphanRow item={row.item} />
                       </div>
                     )}
-                    {row.kind === 'folder-item' && tab === 'linked' && (
+                    {row.kind === 'folder-item' && (tab === 'linked' || (tab === 'all' && !!(row.item.linkedSetId || row.item.linkedStagingId))) && (
                       <div className={cn(
                         'py-0.5 rounded-xl transition-all duration-500',
                         activeHighlight === row.item.id && 'ring-2 ring-amber-400 ring-offset-1',
