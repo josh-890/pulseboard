@@ -1,4 +1,4 @@
-export default function MediaQueueLoading() {
+export default function ShoppingListLoading() {
   return (
     <div className="flex flex-col gap-4 p-4">
       <div className="h-8 w-48 animate-pulse rounded-lg bg-muted/60" />

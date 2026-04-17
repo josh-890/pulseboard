@@ -287,7 +287,7 @@ export const StagingSetRow = memo(function StagingSetRow({
         <button
           type="button"
           onClick={(e) => { e.stopPropagation(); onQueueToggle(ss.id) }}
-          title={ss.mediaQueueAt ? 'Remove from media queue' : 'Add to media queue'}
+          title={ss.mediaQueueAt ? 'Remove from shopping list' : 'Add to shopping list'}
           className={cn(
             'flex shrink-0 flex-col items-center gap-0.5 transition-colors',
             ss.mediaQueueAt

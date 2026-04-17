@@ -98,7 +98,7 @@ export async function toggleMediaQueueAction(
         await toggleSetMediaQueue(id, priority)
         revalidatePath('/sets')
       }
-      revalidatePath('/media-queue')
+      revalidatePath('/shopping-list')
       return { success: true }
     } catch {
       return { success: false, error: 'Failed to update media queue' }
@@ -118,7 +118,7 @@ export async function updateMediaPriorityAction(
       } else {
         await updateSetMediaPriority(id, priority)
       }
-      revalidatePath('/media-queue')
+      revalidatePath('/shopping-list')
       return { success: true }
     } catch {
       return { success: false, error: 'Failed to update priority' }

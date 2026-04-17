@@ -304,6 +304,8 @@ export async function confirmVideoFile(
         archiveVideoPresent: true,
         archiveVideoFilename: filename,
         archiveStatus: 'OK',
+        mediaQueueAt: null,
+        mediaPriority: null,
       },
     })
   } else {
@@ -313,6 +315,8 @@ export async function confirmVideoFile(
         archiveVideoPresent: true,
         archiveVideoFilename: filename,
         archiveStatus: 'OK',
+        mediaQueueAt: null,
+        mediaPriority: null,
       },
     })
   }
@@ -458,6 +462,7 @@ export async function ingestScanResults(results: ScanResult[]): Promise<void> {
           archiveVideoPresent: videoPresent,
           archiveVideoFiles: r.videoFiles != null ? JSON.stringify(r.videoFiles) : undefined,
           archiveVideoFilename: videoFilename,
+          ...(['OK', 'CHANGED'].includes(derivedStatus) ? { mediaQueueAt: null, mediaPriority: null } : {}),
         },
       })
     } else {
@@ -482,6 +487,7 @@ export async function ingestScanResults(results: ScanResult[]): Promise<void> {
           archiveVideoPresent: videoPresent,
           archiveVideoFiles: r.videoFiles != null ? JSON.stringify(r.videoFiles) : undefined,
           archiveVideoFilename: videoFilename,
+          ...(['OK', 'CHANGED'].includes(derivedStatus) ? { mediaQueueAt: null, mediaPriority: null } : {}),
         },
       })
     }

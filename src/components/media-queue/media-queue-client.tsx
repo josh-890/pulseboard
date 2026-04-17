@@ -156,7 +156,7 @@ function QueueRow({
         type="button"
         disabled={pending}
         onClick={() => startTransition(() => onRemove(item.id, item.type))}
-        title="Remove from queue"
+        title="Remove from shopping list"
         className="shrink-0 text-muted-foreground/40 hover:text-red-500 transition-colors"
       >
         <Flag size={14} className="fill-current" />
@@ -208,7 +208,7 @@ export function MediaQueueClient({ initialItems, total: initialTotal }: MediaQue
     <div className="flex flex-col gap-4 p-4">
       <div className="flex items-center gap-3">
         <HardDrive size={20} className="text-muted-foreground" />
-        <h1 className="text-2xl font-bold">Media Queue</h1>
+        <h1 className="text-2xl font-bold">Shopping List</h1>
         <span className="rounded-full bg-muted/60 px-2 py-0.5 text-xs text-muted-foreground">
           {initialTotal} total
         </span>
@@ -239,7 +239,7 @@ export function MediaQueueClient({ initialItems, total: initialTotal }: MediaQue
         {sorted.length === 0 ? (
           <div className="flex flex-col items-center gap-2 py-12 text-muted-foreground">
             <Flag size={32} className="opacity-20" />
-            <p className="text-sm">No items in the media queue</p>
+            <p className="text-sm">Shopping list is empty</p>
             <p className="text-xs opacity-60">
               Flag staging sets or promoted sets with the{' '}
               <Flag size={10} className="inline" /> icon to add them here.

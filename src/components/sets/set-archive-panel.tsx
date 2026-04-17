@@ -206,10 +206,10 @@ export function SetArchivePanel(props: SetArchivePanelProps) {
               ? 'bg-amber-500/15 text-amber-600 hover:bg-amber-500/25 dark:text-amber-400'
               : 'text-muted-foreground hover:bg-muted hover:text-foreground',
           )}
-          title={inQueue ? 'Remove from media queue' : 'Add to media queue'}
+          title={inQueue ? 'Remove from shopping list' : 'Add to shopping list'}
         >
           <Flag size={13} className={inQueue ? 'fill-current' : ''} />
-          {inQueue ? 'In queue' : 'Add to queue'}
+          {inQueue ? 'On list' : 'Add to list'}
           {inQueue && mediaPriority && (
             <span className={cn('rounded px-1 py-0.5 text-[10px] font-bold', PRIORITY_CLASS[mediaPriority])}>
               P{mediaPriority}
