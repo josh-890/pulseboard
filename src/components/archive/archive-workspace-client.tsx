@@ -59,7 +59,7 @@ const TAB_CONFIG: Record<Tab, { label: string; emptyMsg: string; badge: string }
 }
 
 const GROUP_BY_LABELS: Record<GroupBy, string> = {
-  channelYear: 'Channel + Year',
+  channelYear: 'Tree view',
   channel: 'Channel',
   year: 'Year',
   none: 'None',
@@ -71,8 +71,8 @@ const SORT_LABELS: Record<ArchiveSort, string> = {
   fileCount: 'File count',
 }
 
-const SESSION_KEY    = 'archive-workspace-filters'
-const COLLAPSE_KEY   = 'archive-workspace-collapse'
+const SESSION_KEY    = 'archive-workspace-filters-v2'
+const COLLAPSE_KEY   = 'archive-workspace-collapse-v2'
 const PAGE_SIZE      = 200
 const LINKED_H       = 52   // linked row: py-3 + single line + wrapper
 const ORPHAN_H       = 72   // orphan row: py-3 + main + path line + wrapper
