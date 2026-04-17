@@ -52,11 +52,11 @@ type Props = {
 // ─── Constants ─────────────────────────────────────────────────────────────────
 
 const TAB_CONFIG: Record<Tab, { label: string; emptyMsg: string; badge: string }> = {
-  all:       { label: 'All',       emptyMsg: 'No archive folders found.',         badge: 'bg-blue-500/20 text-blue-600 dark:text-blue-400' },
-  orphan:    { label: 'Orphans',   emptyMsg: 'No unmatched folders found.',       badge: 'bg-red-500/20 text-red-600 dark:text-red-400' },
-  linked:    { label: 'Linked',    emptyMsg: 'No linked folders yet.',             badge: 'bg-green-500/20 text-green-600 dark:text-green-400' },
-  phantom:   { label: 'Phantoms',  emptyMsg: 'No missing archive folders found.', badge: 'bg-amber-500/20 text-amber-600 dark:text-amber-400' },
-  untracked: { label: 'Untracked', emptyMsg: 'All records have archive paths.',   badge: 'bg-gray-400/20 text-gray-500 dark:text-gray-400' },
+  all:       { label: 'All',      emptyMsg: 'No archive folders found.',         badge: 'bg-blue-500/20 text-blue-600 dark:text-blue-400' },
+  orphan:    { label: 'No Set',   emptyMsg: 'No unmatched folders found.',       badge: 'bg-red-500/20 text-red-600 dark:text-red-400' },
+  linked:    { label: 'Linked',   emptyMsg: 'No linked folders yet.',            badge: 'bg-green-500/20 text-green-600 dark:text-green-400' },
+  phantom:   { label: 'Phantoms', emptyMsg: 'No missing archive folders found.', badge: 'bg-amber-500/20 text-amber-600 dark:text-amber-400' },
+  untracked: { label: 'No Media', emptyMsg: 'All sets have archive paths.',      badge: 'bg-gray-400/20 text-gray-500 dark:text-gray-400' },
 }
 
 const GROUP_BY_LABELS: Record<GroupBy, string> = {
