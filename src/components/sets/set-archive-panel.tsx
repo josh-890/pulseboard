@@ -46,7 +46,7 @@ type SetArchivePanelProps = {
   mediaPriority: number | null
   mediaQueueAt: Date | null
   folderName?: string | null
-  archiveSuggestion?: ArchiveSuggestionProp | null
+  archiveSuggestions?: ArchiveSuggestionProp[]
 }
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
@@ -88,12 +88,13 @@ export function SetArchivePanel(props: SetArchivePanelProps) {
     mediaPriority: initialPriority,
     mediaQueueAt: initialQueueAt,
     folderName,
-    archiveSuggestion,
+    archiveSuggestions = [],
   } = props
 
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
-  const [suggestionDismissed, setSuggestionDismissed] = useState(false)
+  const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set())
+  const visibleSuggestions = archiveSuggestions.filter((s) => !dismissedIds.has(s.folderId))
 
   // Local state so the panel is immediately reactive without a full page reload
   const [archivePath, setArchivePath] = useState(initialPath)
@@ -263,57 +264,58 @@ export function SetArchivePanel(props: SetArchivePanelProps) {
       {/* Divider */}
       <div className="border-t border-border/40" />
 
-      {/* Possible archive match banner — shown when no path is set and a suggestion exists */}
-      {archiveSuggestion && archiveStatus === 'UNKNOWN' && !suggestionDismissed && (
+      {/* Possible archive match list — shown when no path is set and suggestions exist */}
+      {visibleSuggestions.length > 0 && archiveStatus === 'UNKNOWN' && (
         <div className="space-y-1.5">
-          <p className="text-xs font-medium text-amber-600 dark:text-amber-400">Possible archive match</p>
-          <div className="rounded-lg border border-amber-500/30 bg-amber-500/8 px-3 py-2.5 flex items-center gap-3">
-            <div className="min-w-0 flex-1">
-              <p className="text-xs font-medium truncate" title={archiveSuggestion.folderName}>
-                {archiveSuggestion.folderName}
-              </p>
-              <p className="mt-0.5 text-[10px] text-muted-foreground/70 truncate" title={archiveSuggestion.fullPath}>
-                {archiveSuggestion.fullPath}
-              </p>
-            </div>
+          <p className="text-xs font-medium text-amber-600 dark:text-amber-400">
+            {visibleSuggestions.length === 1 ? 'Possible archive match' : `Possible archive matches (${visibleSuggestions.length})`}
+          </p>
+          <div className="space-y-1">
+            {visibleSuggestions.map((s) => (
+              <div key={s.folderId} className="rounded-lg border border-amber-500/30 bg-amber-500/8 px-3 py-2 flex items-center gap-3">
+                <p className="min-w-0 flex-1 text-xs font-medium truncate" title={s.folderName}>
+                  {s.folderName}
+                </p>
 
-            {archiveSuggestion.fileCount != null && (
-              <span className="shrink-0 text-[10px] text-muted-foreground">{archiveSuggestion.fileCount} files</span>
-            )}
+                {s.fileCount != null && (
+                  <span className="shrink-0 text-[10px] text-muted-foreground">{s.fileCount} files</span>
+                )}
 
-            <span className={cn(
-              'shrink-0 rounded-full px-1.5 py-px text-[10px] font-medium',
-              archiveSuggestion.confidence === 'HIGH'
-                ? 'bg-green-500/15 text-green-600 dark:text-green-400'
-                : 'bg-amber-500/15 text-amber-600 dark:text-amber-400',
-            )}>
-              {archiveSuggestion.confidence === 'HIGH' ? 'exact' : 'approx'}
-            </span>
+                <span className={cn(
+                  'shrink-0 rounded-full px-1.5 py-px text-[10px] font-medium',
+                  s.confidence === 'HIGH'
+                    ? 'bg-green-500/15 text-green-600 dark:text-green-400'
+                    : 'bg-amber-500/15 text-amber-600 dark:text-amber-400',
+                )}>
+                  {s.confidence === 'HIGH' ? 'exact' : 'approx'}
+                </span>
 
-            <button
-              type="button"
-              disabled={isPending}
-              onClick={() => startTransition(async () => {
-                const res = await confirmArchiveFolderLinkAction(archiveSuggestion.folderId, setId, 'set')
-                if (res.success) router.refresh()
-              })}
-              className="shrink-0 flex items-center gap-1 rounded px-2 py-0.5 text-[11px] font-medium bg-green-500/15 text-green-600 dark:text-green-400 hover:bg-green-500/25 transition-colors disabled:opacity-50"
-            >
-              <Check size={11} /> Confirm
-            </button>
+                <button
+                  type="button"
+                  disabled={isPending}
+                  onClick={() => startTransition(async () => {
+                    const res = await confirmArchiveFolderLinkAction(s.folderId, setId, 'set')
+                    if (res.success) router.refresh()
+                  })}
+                  className="shrink-0 flex items-center gap-1 rounded px-2 py-0.5 text-[11px] font-medium bg-green-500/15 text-green-600 dark:text-green-400 hover:bg-green-500/25 transition-colors disabled:opacity-50"
+                >
+                  <Check size={11} /> Confirm
+                </button>
 
-            <button
-              type="button"
-              disabled={isPending}
-              onClick={() => startTransition(async () => {
-                await rejectArchiveSuggestionAction(archiveSuggestion.folderId)
-                setSuggestionDismissed(true)
-              })}
-              className="shrink-0 text-muted-foreground/40 hover:text-red-500 transition-colors"
-              title="Dismiss suggestion"
-            >
-              <X size={11} />
-            </button>
+                <button
+                  type="button"
+                  disabled={isPending}
+                  onClick={() => startTransition(async () => {
+                    await rejectArchiveSuggestionAction(s.folderId)
+                    setDismissedIds((prev) => new Set([...prev, s.folderId]))
+                  })}
+                  className="shrink-0 text-muted-foreground/40 hover:text-red-500 transition-colors"
+                  title="Dismiss"
+                >
+                  <X size={11} />
+                </button>
+              </div>
+            ))}
           </div>
         </div>
       )}

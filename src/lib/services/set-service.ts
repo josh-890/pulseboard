@@ -23,6 +23,7 @@ export type SetFilters = {
   hasMedia?: boolean;
   sort?: SetSort;
   archiveFilter?: 'noArchive' | 'verified' | 'changed' | 'missing' | 'notImported'
+  noArchiveLink?: boolean
 };
 
 export async function getSets(filters: SetFilters = {}) {
@@ -115,7 +116,7 @@ export async function getSetsPaginated(
   cursor?: string,
   limit = 50,
 ): Promise<PaginatedSets> {
-  const { q, type, labelId, channelId, hasMedia, sort, archiveFilter } = filters;
+  const { q, type, labelId, channelId, hasMedia, sort, archiveFilter, noArchiveLink } = filters;
 
   const where: Prisma.SetWhereInput = {};
 
@@ -145,6 +146,10 @@ export async function getSetsPaginated(
     where.coherenceSnapshot = { archiveStatus: 'MISSING' }
   } else if (archiveFilter === 'notImported') {
     where.coherenceSnapshot = { hasMediaInApp: false, archiveFolderId: { not: null } }
+  }
+
+  if (noArchiveLink === true) {
+    where.coherenceSnapshot = { is: null }
   }
 
   if (hasMedia === true) {

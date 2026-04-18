@@ -27,6 +27,7 @@ type SetsPageProps = {
     label?: string;
     hasMedia?: string;
     archiveFilter?: string;
+    noArchiveLink?: string;
   }>;
 };
 
@@ -59,6 +60,7 @@ export default async function SetsPage({ searchParams }: SetsPageProps) {
       channel: channelId, label: labelId,
       hasMedia: hasMediaParam,
       archiveFilter: archiveFilterParam,
+      noArchiveLink: noArchiveLinkParam,
     } = await searchParams;
 
   const limit = Math.min(
@@ -82,6 +84,7 @@ export default async function SetsPage({ searchParams }: SetsPageProps) {
     hasMedia: hasMediaParam === "true" ? true : undefined,
     sort: resolvedSort,
     archiveFilter,
+    noArchiveLink: noArchiveLinkParam === 'true' ? true : undefined,
   };
 
   const [paginated, channels, recentChannelIds, lastType, roleGroups] = await Promise.all([
@@ -163,6 +166,12 @@ export default async function SetsPage({ searchParams }: SetsPageProps) {
     type: "toggle",
     param: "hasMedia",
     label: "Has media",
+  });
+
+  filterGroups.push({
+    type: "toggle",
+    param: "noArchiveLink",
+    label: "Unlinked only",
   });
 
   filterGroups.push({

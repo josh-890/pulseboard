@@ -18,7 +18,7 @@ import { deleteSet } from "@/lib/actions/set-actions";
 import { SetHero } from "@/components/sets/set-hero";
 import { LabelEvidenceManager } from "@/components/sets/label-evidence-manager";
 import { SetArchivePanel } from "@/components/sets/set-archive-panel";
-import { getArchiveSuggestionForSet } from "@/lib/services/archive-service";
+import { getArchiveSuggestionsForSet } from "@/lib/services/archive-service";
 
 
 export const dynamic = "force-dynamic";
@@ -61,13 +61,13 @@ export default async function SetDetailPage({ params }: SetDetailPageProps) {
   return withTenantFromHeaders(async () => {
     const { id } = await params;
 
-  const [set, channels, roleGroups, setEntityTags, backdropEnabled, archiveSuggestion] = await Promise.all([
+  const [set, channels, roleGroups, setEntityTags, backdropEnabled, archiveSuggestions] = await Promise.all([
     getSetById(id),
     getChannelsForSelect(),
     getAllContributionRoleGroups(),
     getEntityTags("SET", id),
     getHeroBackdropEnabled(),
-    getArchiveSuggestionForSet(id),
+    getArchiveSuggestionsForSet(id),
   ]);
 
   if (!set) notFound();
@@ -240,7 +240,7 @@ export default async function SetDetailPage({ params }: SetDetailPageProps) {
         archiveVideoFilename={setData.archiveVideoFilename ?? null}
         mediaPriority={setData.mediaPriority ?? null}
         mediaQueueAt={setData.mediaQueueAt ?? null}
-        archiveSuggestion={archiveSuggestion}
+        archiveSuggestions={archiveSuggestions}
       />
 
       {/* Tags */}

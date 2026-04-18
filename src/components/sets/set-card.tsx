@@ -3,7 +3,6 @@
 import Image from "next/image";
 import Link from "next/link";
 import { Camera, Film, AlertTriangle } from "lucide-react";
-import { ArchiveStatusDot } from './archive-status-dot';
 import { cn, focalStyle, formatPartialDateISO, getInitialsFromName, computeProductionAge } from "@/lib/utils";
 import { useDensity } from "@/components/layout/density-provider";
 import {
@@ -166,7 +165,7 @@ export function SetCard({ set, coverPhoto, headshotMap = {}, unresolvedCreditCou
     <Link href={`/sets/${set.id}`} prefetch={false} className="group block focus-visible:outline-none">
       <div
         className={cn(
-          "flex overflow-hidden rounded-2xl border border-white/20 border-l-4 border-l-entity-set/40 bg-card/70 shadow-md backdrop-blur-sm",
+          "relative flex overflow-hidden rounded-2xl border border-white/20 border-l-4 border-l-entity-set/40 bg-card/70 shadow-md backdrop-blur-sm",
           "transition-all duration-200",
           "hover:border-white/30 hover:bg-card/90 hover:shadow-lg hover:-translate-y-0.5",
           "active:scale-[0.98] active:shadow-sm active:translate-y-0",
@@ -198,22 +197,6 @@ export function SetCard({ set, coverPhoto, headshotMap = {}, unresolvedCreditCou
               {isPhoto ? <Camera size={isCompact ? 20 : 28} /> : <Film size={isCompact ? 20 : 28} />}
             </div>
           )}
-          {/* Archive status strip */}
-          {(() => {
-            const status = set.coherenceSnapshot?.archiveStatus
-            const hasSuggestion = !!suggestedArchiveFolder
-            const stripColor =
-              status === 'OK' || status === 'LINKED'   ? 'bg-green-500' :
-              status === 'CHANGED'                      ? 'bg-amber-500' :
-              status === 'INCOMPLETE'                   ? 'bg-orange-500' :
-              status === 'MISSING'                      ? 'bg-red-500' :
-              hasSuggestion
-                ? (suggestedArchiveFolder!.confidence === 'HIGH' ? 'bg-amber-500' : 'bg-amber-400/60')
-                : null
-            return stripColor
-              ? <div className={cn('absolute bottom-0 left-0 right-0 h-[3px]', stripColor)} />
-              : null
-          })()}
         </div>
 
         {/* Metadata */}
@@ -223,17 +206,11 @@ export function SetCard({ set, coverPhoto, headshotMap = {}, unresolvedCreditCou
             isCompact ? "p-2" : "p-3",
           )}
         >
-          {/* Line 1: date · channel · archive dot + type icon (right) */}
+          {/* Line 1: date · channel · type icon (right) */}
           <div className={cn("flex items-center gap-1.5 text-muted-foreground", isCompact ? "text-[10px]" : "text-xs")}>
             {dateStr && <span className="shrink-0 tabular-nums">{dateStr}</span>}
             {dateStr && channelDisplay && <span className="text-muted-foreground/40">·</span>}
             {channelDisplay && <span className="truncate">{channelDisplay}</span>}
-            <ArchiveStatusDot
-              status={set.coherenceSnapshot?.archiveStatus}
-              path={set.coherenceSnapshot?.archiveFolder?.fullPath}
-              fileCount={set.coherenceSnapshot?.archiveFileCount}
-              suggestedFolder={suggestedArchiveFolder}
-            />
             <span className="ml-auto shrink-0 text-muted-foreground/30">
               {isPhoto ? <Camera size={11} /> : <Film size={11} />}
             </span>
@@ -304,6 +281,18 @@ export function SetCard({ set, coverPhoto, headshotMap = {}, unresolvedCreditCou
             </TooltipProvider>
           )}
         </div>
+
+        {/* Archive link status — corner triangle, top-right */}
+        {!set.coherenceSnapshot && (
+          <div
+            title={suggestedArchiveFolder ? 'Archive folder suggestion available' : 'No archive folder linked'}
+            className={cn(
+              'absolute top-0 right-0 w-0 h-0 z-10',
+              'border-t-[20px] border-l-[20px] border-l-transparent',
+              suggestedArchiveFolder ? 'border-t-amber-500' : 'border-t-red-500/80',
+            )}
+          />
+        )}
       </div>
     </Link>
   );

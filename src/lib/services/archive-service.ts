@@ -1294,12 +1294,20 @@ export async function runMatchingPass(
         take: 1,
       })
       if (setSuggestions.length > 0) {
-        await prisma.archiveFolder.update({
-          where: { id: folder.id },
-          data: { suggestedSetId: setSuggestions[0].id, suggestedConfidence: 'HIGH' },
+        // Deduplication: only write if this Set isn't already claimed by another folder
+        const alreadyClaimed = await prisma.archiveFolder.findFirst({
+          where: { suggestedSetId: setSuggestions[0].id, id: { not: folder.id } },
+          select: { id: true },
         })
-        suggested++
-        continue
+        if (!alreadyClaimed) {
+          await prisma.archiveFolder.update({
+            where: { id: folder.id },
+            data: { suggestedSetId: setSuggestions[0].id, suggestedConfidence: 'HIGH' },
+          })
+          suggested++
+          continue
+        }
+        // Already claimed — fall through to MEDIUM confidence
       }
     }
 
@@ -1343,11 +1351,18 @@ export async function runMatchingPass(
         LIMIT 1
       `
       if (setMedium.length > 0 && setMedium[0]) {
-        await prisma.archiveFolder.update({
-          where: { id: folder.id },
-          data: { suggestedSetId: setMedium[0].id, suggestedConfidence: 'MEDIUM' },
+        // Deduplication: only write if this Set isn't already claimed by another folder
+        const alreadyClaimed = await prisma.archiveFolder.findFirst({
+          where: { suggestedSetId: setMedium[0].id, id: { not: folder.id } },
+          select: { id: true },
         })
-        suggested++
+        if (!alreadyClaimed) {
+          await prisma.archiveFolder.update({
+            where: { id: folder.id },
+            data: { suggestedSetId: setMedium[0].id, suggestedConfidence: 'MEDIUM' },
+          })
+          suggested++
+        }
       }
     }
   }
@@ -1961,13 +1976,13 @@ export type ArchiveSuggestionForSet = {
 }
 
 /**
- * Returns the pending archive folder suggestion for a given Set, if any.
- * Used by the Set detail page to show an inline confirm/reject banner.
+ * Returns all pending archive folder suggestions for a given Set, ranked HIGH first.
+ * Used by the Set detail page to show an inline confirm/reject list.
  */
-export async function getArchiveSuggestionForSet(
+export async function getArchiveSuggestionsForSet(
   setId: string,
-): Promise<ArchiveSuggestionForSet | null> {
-  const folder = await prisma.archiveFolder.findFirst({
+): Promise<ArchiveSuggestionForSet[]> {
+  const folders = await prisma.archiveFolder.findMany({
     where: { suggestedSetId: setId },
     select: {
       id: true,
@@ -1977,16 +1992,17 @@ export async function getArchiveSuggestionForSet(
       parsedDate: true,
       suggestedConfidence: true,
     },
+    orderBy: { suggestedConfidence: 'asc' }, // 'HIGH' sorts before 'MEDIUM' alphabetically
+    take: 5,
   })
-  if (!folder) return null
-  return {
-    folderId: folder.id,
-    folderName: folder.folderName,
-    fullPath: folder.fullPath,
-    fileCount: folder.fileCount,
-    parsedDate: folder.parsedDate,
-    confidence: folder.suggestedConfidence,
-  }
+  return folders.map((f) => ({
+    folderId: f.id,
+    folderName: f.folderName,
+    fullPath: f.fullPath,
+    fileCount: f.fileCount,
+    parsedDate: f.parsedDate,
+    confidence: f.suggestedConfidence,
+  }))
 }
 
 /**
