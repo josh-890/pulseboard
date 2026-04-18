@@ -137,7 +137,11 @@ export async function getSetsPaginated(
   }
 
   if (archiveFilter === 'noArchive') {
-    where.coherenceSnapshot = { is: null }
+    // No archive link = no snapshot at all OR snapshot exists but has no folder
+    where.OR = [
+      { coherenceSnapshot: { is: null } },
+      { coherenceSnapshot: { archiveFolderId: null } },
+    ]
   } else if (archiveFilter === 'verified') {
     where.coherenceSnapshot = { archiveStatus: 'OK' }
   } else if (archiveFilter === 'changed') {
@@ -149,7 +153,11 @@ export async function getSetsPaginated(
   }
 
   if (noArchiveLink === true) {
-    where.coherenceSnapshot = { is: null }
+    // No archive link = no snapshot at all OR snapshot exists but has no folder
+    where.OR = [
+      { coherenceSnapshot: { is: null } },
+      { coherenceSnapshot: { archiveFolderId: null } },
+    ]
   }
 
   if (hasMedia === true) {
