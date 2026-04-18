@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useTransition } from 'react'
 import {
   FolderOpen, FolderCheck, FolderX,
   Check, Pencil, X, Save, Loader2, Flag, Film,
@@ -13,12 +13,24 @@ import {
   toggleMediaQueueAction,
   updateMediaPriorityAction,
   confirmVideoFileAction,
+  confirmArchiveFolderLinkAction,
+  rejectArchiveSuggestionAction,
 } from '@/lib/actions/archive-actions'
 import type { ArchiveStatus } from '@/generated/prisma/client'
 import { cn } from '@/lib/utils'
 import { ArchiveStatusBanner } from '@/components/archive/archive-status-banner'
+import { useRouter } from 'next/navigation'
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
+
+type ArchiveSuggestionProp = {
+  folderId: string
+  folderName: string
+  fullPath: string
+  fileCount: number | null
+  parsedDate: Date | null
+  confidence: string | null
+}
 
 type SetArchivePanelProps = {
   setId: string
@@ -34,6 +46,7 @@ type SetArchivePanelProps = {
   mediaPriority: number | null
   mediaQueueAt: Date | null
   folderName?: string | null
+  archiveSuggestion?: ArchiveSuggestionProp | null
 }
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
@@ -75,7 +88,12 @@ export function SetArchivePanel(props: SetArchivePanelProps) {
     mediaPriority: initialPriority,
     mediaQueueAt: initialQueueAt,
     folderName,
+    archiveSuggestion,
   } = props
+
+  const router = useRouter()
+  const [isPending, startTransition] = useTransition()
+  const [suggestionDismissed, setSuggestionDismissed] = useState(false)
 
   // Local state so the panel is immediately reactive without a full page reload
   const [archivePath, setArchivePath] = useState(initialPath)
@@ -244,6 +262,61 @@ export function SetArchivePanel(props: SetArchivePanelProps) {
 
       {/* Divider */}
       <div className="border-t border-border/40" />
+
+      {/* Possible archive match banner — shown when no path is set and a suggestion exists */}
+      {archiveSuggestion && archiveStatus === 'UNKNOWN' && !suggestionDismissed && (
+        <div className="space-y-1.5">
+          <p className="text-xs font-medium text-amber-600 dark:text-amber-400">Possible archive match</p>
+          <div className="rounded-lg border border-amber-500/30 bg-amber-500/8 px-3 py-2.5 flex items-center gap-3">
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-medium truncate" title={archiveSuggestion.folderName}>
+                {archiveSuggestion.folderName}
+              </p>
+              <p className="mt-0.5 text-[10px] text-muted-foreground/70 truncate" title={archiveSuggestion.fullPath}>
+                {archiveSuggestion.fullPath}
+              </p>
+            </div>
+
+            {archiveSuggestion.fileCount != null && (
+              <span className="shrink-0 text-[10px] text-muted-foreground">{archiveSuggestion.fileCount} files</span>
+            )}
+
+            <span className={cn(
+              'shrink-0 rounded-full px-1.5 py-px text-[10px] font-medium',
+              archiveSuggestion.confidence === 'HIGH'
+                ? 'bg-green-500/15 text-green-600 dark:text-green-400'
+                : 'bg-amber-500/15 text-amber-600 dark:text-amber-400',
+            )}>
+              {archiveSuggestion.confidence === 'HIGH' ? 'exact' : 'approx'}
+            </span>
+
+            <button
+              type="button"
+              disabled={isPending}
+              onClick={() => startTransition(async () => {
+                const res = await confirmArchiveFolderLinkAction(archiveSuggestion.folderId, setId, 'set')
+                if (res.success) router.refresh()
+              })}
+              className="shrink-0 flex items-center gap-1 rounded px-2 py-0.5 text-[11px] font-medium bg-green-500/15 text-green-600 dark:text-green-400 hover:bg-green-500/25 transition-colors disabled:opacity-50"
+            >
+              <Check size={11} /> Confirm
+            </button>
+
+            <button
+              type="button"
+              disabled={isPending}
+              onClick={() => startTransition(async () => {
+                await rejectArchiveSuggestionAction(archiveSuggestion.folderId)
+                setSuggestionDismissed(true)
+              })}
+              className="shrink-0 text-muted-foreground/40 hover:text-red-500 transition-colors"
+              title="Dismiss suggestion"
+            >
+              <X size={11} />
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Archive status banner */}
       <ArchiveStatusBanner

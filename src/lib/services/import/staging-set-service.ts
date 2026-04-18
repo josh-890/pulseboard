@@ -365,6 +365,11 @@ export async function markStagingSetPromoted(
         data: { linkedSetId: promotedSetId },
       })
     }
+    // Migrate any stale archive folder suggestions pointing at this staging set → point at the promoted Set
+    await tx.archiveFolder.updateMany({
+      where: { suggestedStagingId: id },
+      data: { suggestedStagingId: null, suggestedSetId: promotedSetId },
+    })
     return updated
   })
 

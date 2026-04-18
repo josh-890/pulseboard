@@ -1263,12 +1263,13 @@ export async function runMatchingPass(
       const dateEnd = new Date(dateStart)
       dateEnd.setDate(dateEnd.getDate() + 1)
 
-      // Try staging sets first
+      // Try staging sets first (skip PROMOTED — they have an active Set already)
       const stagingSuggestions = await prisma.stagingSet.findMany({
         where: {
           releaseDate: { gte: dateStart, lt: dateEnd },
           channel: { shortName: { equals: folder.parsedShortName, mode: 'insensitive' } },
           archivePath: null, // only suggest unlinked sets
+          status: { not: 'PROMOTED' },
         },
         select: { id: true },
         take: 1,
@@ -1316,6 +1317,7 @@ export async function runMatchingPass(
         WHERE LOWER(c."shortName") = LOWER(${folder.parsedShortName})
           AND EXTRACT(YEAR FROM ss."releaseDate") = ${year}
           AND ss."archivePath" IS NULL
+          AND ss.status != 'PROMOTED'
           AND similarity(${folder.parsedTitle}, ss."titleNorm") >= 0.4
         ORDER BY sim DESC
         LIMIT 1
@@ -1945,6 +1947,46 @@ export async function confirmArchiveFolderLink(
   }
 
   return { archiveKey }
+}
+
+// ─── Suggestion lookup for Set detail page ──────────────────────────────────
+
+export type ArchiveSuggestionForSet = {
+  folderId: string
+  folderName: string
+  fullPath: string
+  fileCount: number | null
+  parsedDate: Date | null
+  confidence: string | null
+}
+
+/**
+ * Returns the pending archive folder suggestion for a given Set, if any.
+ * Used by the Set detail page to show an inline confirm/reject banner.
+ */
+export async function getArchiveSuggestionForSet(
+  setId: string,
+): Promise<ArchiveSuggestionForSet | null> {
+  const folder = await prisma.archiveFolder.findFirst({
+    where: { suggestedSetId: setId },
+    select: {
+      id: true,
+      folderName: true,
+      fullPath: true,
+      fileCount: true,
+      parsedDate: true,
+      suggestedConfidence: true,
+    },
+  })
+  if (!folder) return null
+  return {
+    folderId: folder.id,
+    folderName: folder.folderName,
+    fullPath: folder.fullPath,
+    fileCount: folder.fileCount,
+    parsedDate: folder.parsedDate,
+    confidence: folder.suggestedConfidence,
+  }
 }
 
 /**
