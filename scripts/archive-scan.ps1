@@ -856,6 +856,7 @@ function Run-FullScan {
 
     # ── Step 3: POST delta in batches (skip if nothing to send) ─────────────
     $totCre = 0; $totUpd = 0; $totRen = 0; $totUnch = 0
+    $allKeyConflicts = [System.Collections.ArrayList]::new()
 
     if ($totalDelta -eq 0) {
         Write-Host ""
@@ -881,6 +882,12 @@ function Run-FullScan {
                 $totUpd  += [int]$resp.updated
                 $totRen  += [int]$resp.renamed
                 $totUnch += [int]$resp.unchanged
+                # Accumulate any sidecar key conflicts reported by the server
+                if ($resp.keyConflicts -and $resp.keyConflicts.Count -gt 0) {
+                    foreach ($kc in $resp.keyConflicts) {
+                        [void]$allKeyConflicts.Add($kc)
+                    }
+                }
                 $pct = [Math]::Round(($end / $totalDelta) * 100)
                 Write-Host "  Batch $batchNum`: sent $($batch.Count) — $pct% complete"
             } catch {
@@ -900,6 +907,23 @@ function Run-FullScan {
             Write-Host "  Matching pass:    running in background on server"
         }
         Write-Host "────────────────────────────────────────────────"
+
+        # ── Key conflict report ──────────────────────────────────────────────
+        if ($allKeyConflicts.Count -gt 0) {
+            Write-Host ""
+            Write-Warning "⚠  SIDECAR KEY CONFLICTS DETECTED ($($allKeyConflicts.Count)):"
+            Write-Warning "   Two on-disk folders share the same archiveKey UUID."
+            Write-Warning "   Duplicate sidecars must be resolved manually:"
+            Write-Warning "   — delete the _pulseboard.json from the COPY folder,"
+            Write-Warning "   — then re-run a Full scan so the copy gets a fresh key."
+            Write-Host ""
+            foreach ($kc in $allKeyConflicts) {
+                Write-Warning "  Key: $($kc.sidecarKey)"
+                Write-Warning "    Existing owner : $($kc.conflictingPath)"
+                Write-Warning "    Also claims key: $($kc.currentPath)"
+                Write-Host ""
+            }
+        }
 
         # If new folders were created, refresh byArchKey to include their freshly-
         # assigned archiveKeys so the sidecar phase can write them in this same run.

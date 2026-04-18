@@ -922,12 +922,18 @@ export async function getArchiveFoldersForScan(
  *
  * Returns counts of each action processed.
  */
+export type KeyConflict = {
+  sidecarKey: string
+  conflictingPath: string   // the other on-disk path that already owns this key in the DB
+  currentPath: string       // the path being scanned now that also claims this key
+}
+
 export async function upsertArchiveFolders(
   items: FullIngestItem[],
   tenant: string,
-): Promise<{ created: number; updated: number; renamed: number; unchanged: number }> {
+): Promise<{ created: number; updated: number; renamed: number; unchanged: number; keyConflicts: KeyConflict[] }> {
   const now = new Date()
-  const counts = { created: 0, updated: 0, renamed: 0, unchanged: 0 }
+  const counts = { created: 0, updated: 0, renamed: 0, unchanged: 0, keyConflicts: [] as KeyConflict[] }
 
   for (const item of items) {
     const parsedDate = item.parsedDate ? new Date(item.parsedDate) : null
@@ -1018,6 +1024,27 @@ export async function upsertArchiveFolders(
       counts.created++
 
     } else if (item.action === 'update') {
+      // If the sidecar key differs from the DB record's key, the sidecar is the truth.
+      // Correct the archiveKey in-place unless another record already owns that key
+      // (which would indicate two physical folders sharing the same sidecar UUID — a conflict
+      // that must be reported, not silently ignored).
+      let correctedArchiveKey: string | undefined
+      if (item.sidecarKey) {
+        const collision = await prisma.archiveFolder.findUnique({
+          where: { archiveKey: item.sidecarKey },
+          select: { id: true, fullPath: true },
+        })
+        if (!collision || collision.fullPath.toLowerCase() === item.fullPath.toLowerCase()) {
+          correctedArchiveKey = item.sidecarKey
+        } else {
+          counts.keyConflicts.push({
+            sidecarKey: item.sidecarKey,
+            conflictingPath: collision.fullPath,
+            currentPath: item.fullPath,
+          })
+        }
+      }
+
       const updated = await prisma.archiveFolder.update({
         where: { fullPath: item.fullPath },
         data: {
@@ -1036,6 +1063,7 @@ export async function upsertArchiveFolders(
           chanFolderModifiedAt,
           scannedAt: now,
           missingOnDisk: false,
+          ...(correctedArchiveKey !== undefined ? { archiveKey: correctedArchiveKey } : {}),
           // Preserve all link fields
         },
         select: { id: true },
@@ -1140,6 +1168,26 @@ export async function upsertArchiveFolders(
       }
 
     } else if (item.action === 'unchanged') {
+      // Sidecar-key correction: if sidecar key differs from DB key, fix it (sidecar is truth),
+      // unless another record already owns that key (collision = two physical folders with the
+      // same sidecar UUID — reported as a conflict, not silently skipped).
+      let correctedArchiveKey: string | undefined
+      if (item.sidecarKey) {
+        const collision = await prisma.archiveFolder.findUnique({
+          where: { archiveKey: item.sidecarKey },
+          select: { id: true, fullPath: true },
+        })
+        if (!collision || collision.fullPath.toLowerCase() === item.fullPath.toLowerCase()) {
+          correctedArchiveKey = item.sidecarKey
+        } else {
+          counts.keyConflicts.push({
+            sidecarKey: item.sidecarKey,
+            conflictingPath: collision.fullPath,
+            currentPath: item.fullPath,
+          })
+        }
+      }
+
       // Update parent mtime cache + parsed fields (backfills if regex improved) + nameFormatOk
       await prisma.archiveFolder.update({
         where: { fullPath: item.fullPath },
@@ -1153,6 +1201,7 @@ export async function upsertArchiveFolders(
           parsedTitle: item.parsedTitle,
           nameFormatOk: item.nameFormatOk,
           chanFolderName: item.chanFolderName,
+          ...(correctedArchiveKey !== undefined ? { archiveKey: correctedArchiveKey } : {}),
         },
       })
       counts.unchanged++
