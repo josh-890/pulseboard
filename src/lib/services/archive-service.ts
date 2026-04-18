@@ -1489,10 +1489,10 @@ export async function getArchiveWorkspace(filters: WorkspaceFilters): Promise<Wo
 
   // Always compute all tab counts together
   const [allCount, orphanCount, linkedCount, phantomCount, untrackedCount, ghostCount] = await Promise.all([
-    prisma.archiveFolder.count({}),
-    prisma.archiveFolder.count({ where: { linkedSetId: null, linkedStagingSet: null } }),
+    prisma.archiveFolder.count({ where: { missingOnDisk: false } }),
+    prisma.archiveFolder.count({ where: { linkedSetId: null, linkedStagingSet: null, missingOnDisk: false } }),
     prisma.archiveFolder.count({
-      where: { OR: [{ linkedSetId: { not: null } }, { linkedStagingSet: { isNot: null } }] },
+      where: { OR: [{ linkedSetId: { not: null } }, { linkedStagingSet: { isNot: null } }], missingOnDisk: false },
     }),
     Promise.all([
       prisma.set.count({ where: { archiveStatus: 'MISSING' } }),
@@ -1559,6 +1559,7 @@ export async function getArchiveWorkspace(filters: WorkspaceFilters): Promise<Wo
 
   if (filters.tab === 'all') {
     const where = {
+      missingOnDisk: false,
       ...(filters.isVideo !== undefined ? { isVideo: filters.isVideo } : {}),
       ...(filters.shortName ? { parsedShortName: { equals: filters.shortName, mode: 'insensitive' as const } } : {}),
       ...(filters.year ? {
@@ -1658,6 +1659,7 @@ export async function getArchiveWorkspace(filters: WorkspaceFilters): Promise<Wo
     const where = {
       linkedSetId: null,
       linkedStagingSet: null,
+      missingOnDisk: false,
       ...(filters.isVideo !== undefined ? { isVideo: filters.isVideo } : {}),
       ...(filters.shortName ? { parsedShortName: { equals: filters.shortName, mode: 'insensitive' as const } } : {}),
       ...(filters.year ? {
@@ -1780,6 +1782,7 @@ export async function getArchiveWorkspace(filters: WorkspaceFilters): Promise<Wo
   if (filters.tab === 'linked') {
     const where = {
       OR: [{ linkedSetId: { not: null } }, { linkedStagingSet: { isNot: null } }],
+      missingOnDisk: false,
       ...(filters.isVideo !== undefined ? { isVideo: filters.isVideo } : {}),
       ...(filters.shortName ? { parsedShortName: { equals: filters.shortName, mode: 'insensitive' as const } } : {}),
       ...(filters.year ? {
@@ -2221,13 +2224,14 @@ export async function getArchiveChannelSummaries(
       ? {
           linkedSetId: null as null,
           linkedStagingSet: null as null,
+          missingOnDisk: false,
           ...(filters.hasSuggestion ? {
             OR: [{ suggestedSetId: { not: null } }, { suggestedStagingId: { not: null } }],
           } : {}),
         }
       : tab === 'linked'
-        ? { OR: [{ linkedSetId: { not: null } }, { linkedStagingSet: { isNot: null } }] }
-        : {} // 'all': no linked/unlinked filter
+        ? { OR: [{ linkedSetId: { not: null } }, { linkedStagingSet: { isNot: null } }], missingOnDisk: false }
+        : { missingOnDisk: false } // 'all': no linked/unlinked filter
 
   const where = {
     ...baseWhere,
@@ -2247,10 +2251,10 @@ export async function getArchiveChannelSummaries(
       _count: { _all: true },
       orderBy: { chanFolderName: 'asc' },
     }),
-    prisma.archiveFolder.count({}),
-    prisma.archiveFolder.count({ where: { linkedSetId: null, linkedStagingSet: null } }),
+    prisma.archiveFolder.count({ where: { missingOnDisk: false } }),
+    prisma.archiveFolder.count({ where: { linkedSetId: null, linkedStagingSet: null, missingOnDisk: false } }),
     prisma.archiveFolder.count({
-      where: { OR: [{ linkedSetId: { not: null } }, { linkedStagingSet: { isNot: null } }] },
+      where: { OR: [{ linkedSetId: { not: null } }, { linkedStagingSet: { isNot: null } }], missingOnDisk: false },
     }),
     Promise.all([
       prisma.set.count({ where: { archiveStatus: 'MISSING' } }),
