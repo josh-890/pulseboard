@@ -2091,13 +2091,13 @@ export async function getArchiveChannelSummaries(
     tab === 'orphan'
       ? {
           linkedSetId: null as null,
-          linkedStagingId: null as null,
+          linkedStagingSet: null as null,
           ...(filters.hasSuggestion ? {
             OR: [{ suggestedSetId: { not: null } }, { suggestedStagingId: { not: null } }],
           } : {}),
         }
       : tab === 'linked'
-        ? { OR: [{ linkedSetId: { not: null } }, { linkedStagingId: { not: null } }] }
+        ? { OR: [{ linkedSetId: { not: null } }, { linkedStagingSet: { isNot: null } }] }
         : {} // 'all': no linked/unlinked filter
 
   const where = {
