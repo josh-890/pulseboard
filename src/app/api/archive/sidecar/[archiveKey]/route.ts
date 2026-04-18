@@ -51,13 +51,15 @@ export async function GET(
         parsedDate: true,
         scannedAt: true,
         linkedSetId: true,
-        linkedStagingId: true,
+        linkedStagingSet: { select: { id: true } },
       },
     })
 
     if (!folder) {
       return NextResponse.json({ error: 'Not found' }, { status: 404 })
     }
+
+    const linkedStagingId = folder.linkedStagingSet?.id ?? null
 
     // Optionally enrich with linked Set/StagingSet metadata (null for unlinked folders)
     const [set, stagingSet] = await Promise.all([
@@ -72,9 +74,9 @@ export async function GET(
             },
           })
         : null,
-      folder.linkedStagingId
+      linkedStagingId
         ? prisma.stagingSet.findUnique({
-            where: { id: folder.linkedStagingId },
+            where: { id: linkedStagingId },
             select: {
               id: true,
               title: true,
@@ -92,7 +94,7 @@ export async function GET(
       archiveKey,
       folderName: folder.folderName,
       setId: folder.linkedSetId ?? null,
-      stagingSetId: folder.linkedStagingId ?? null,
+      stagingSetId: linkedStagingId,
       title: set?.title ?? stagingSet?.title ?? null,
       releaseDate: (set?.releaseDate ?? stagingSet?.releaseDate)?.toISOString().split('T')[0] ?? null,
       channel: set?.channel?.shortName ?? stagingSet?.channel?.shortName ?? stagingSet?.channelName ?? null,

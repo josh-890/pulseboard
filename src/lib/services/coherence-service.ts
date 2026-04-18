@@ -174,17 +174,23 @@ export async function backfillCoherenceSnapshots(): Promise<{ created: number; u
 
   // 1. Archive folders with confirmed links
   const linkedFolders = await prisma.archiveFolder.findMany({
-    where: { OR: [{ linkedSetId: { not: null } }, { linkedStagingId: { not: null } }] },
-    select: { id: true, linkedSetId: true, linkedStagingId: true, fileCount: true },
+    where: { OR: [{ linkedSetId: { not: null } }, { linkedStagingSet: { isNot: null } }] },
+    select: {
+      id: true,
+      linkedSetId: true,
+      linkedStagingSet: { select: { id: true } },
+      fileCount: true,
+    },
   })
 
   for (const folder of linkedFolders) {
+    const linkedStagingId = folder.linkedStagingSet?.id ?? null
     const existing = await prisma.setCoherenceSnapshot.findFirst({
       where: {
         OR: [
           { archiveFolderId: folder.id },
           ...(folder.linkedSetId ? [{ setId: folder.linkedSetId }] : []),
-          ...(folder.linkedStagingId ? [{ stagingSetId: folder.linkedStagingId }] : []),
+          ...(linkedStagingId ? [{ stagingSetId: linkedStagingId }] : []),
         ],
       },
     })
@@ -194,7 +200,7 @@ export async function backfillCoherenceSnapshots(): Promise<{ created: number; u
         data: {
           archiveFolderId: folder.id,
           ...(folder.linkedSetId ? { setId: folder.linkedSetId } : {}),
-          ...(folder.linkedStagingId ? { stagingSetId: folder.linkedStagingId } : {}),
+          ...(linkedStagingId ? { stagingSetId: linkedStagingId } : {}),
           archiveFileCount: folder.fileCount,
         },
       })
@@ -209,7 +215,7 @@ export async function backfillCoherenceSnapshots(): Promise<{ created: number; u
       await prisma.setCoherenceSnapshot.create({
         data: {
           setId: folder.linkedSetId ?? null,
-          stagingSetId: folder.linkedStagingId ?? null,
+          stagingSetId: linkedStagingId,
           archiveFolderId: folder.id,
           archiveStatus: 'LINKED',
           archiveFileCount: folder.fileCount,

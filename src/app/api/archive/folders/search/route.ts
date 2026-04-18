@@ -27,7 +27,7 @@ export async function GET(request: Request) {
       const where: Prisma.ArchiveFolderWhereInput = {
         // Only return unlinked folders — these are candidates for manual linking
         linkedSetId: null,
-        linkedStagingId: null,
+        linkedStagingSet: null,
       }
 
       const andConditions: Prisma.ArchiveFolderWhereInput[] = []

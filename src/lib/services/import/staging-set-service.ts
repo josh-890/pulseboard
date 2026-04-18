@@ -347,17 +347,26 @@ export async function markStagingSetPromoted(
   id: string,
   promotedSetId: string,
 ): Promise<StagingSet> {
-  const [stagingSet] = await prisma.$transaction([
-    prisma.stagingSet.update({
+  // Fetch archiveFolderId before transaction so we can conditionally include the folder update
+  const pre = await prisma.stagingSet.findUnique({
+    where: { id },
+    select: { archiveFolderId: true },
+  })
+
+  const stagingSet = await prisma.$transaction(async (tx) => {
+    const updated = await tx.stagingSet.update({
       where: { id },
       data: { status: 'PROMOTED', promotedSetId },
-    }),
-    // Migrate any ArchiveFolder link from the staging set to the promoted Set
-    prisma.archiveFolder.updateMany({
-      where: { linkedStagingId: id },
-      data: { linkedStagingId: null, linkedSetId: promotedSetId },
-    }),
-  ])
+    })
+    // If a folder is linked, write linkedSetId on the folder (keep archiveFolderId on staging set as history)
+    if (pre?.archiveFolderId) {
+      await tx.archiveFolder.update({
+        where: { id: pre.archiveFolderId },
+        data: { linkedSetId: promotedSetId },
+      })
+    }
+    return updated
+  })
 
   // Copy archive fields from staging set to the promoted Set (only if Set doesn't have them yet).
   const ss = await prisma.stagingSet.findUnique({

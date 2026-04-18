@@ -1596,6 +1596,10 @@ model StagingSet {
   archiveVideoFilename String?  // confirmed video filename (user-selected or auto-matched)
   archiveKey           String?  @unique  // stable sidecar UUID; generated at first link-confirm time
 
+  // Archive folder link (StagingSet claims the folder; flips to ArchiveFolder.linkedSetId on promotion)
+  archiveFolderId      String?  @unique
+  archiveFolder        ArchiveFolder? @relation("StagingSetArchiveFolder", fields: [archiveFolderId], references: [id])
+
   // Media queue
   mediaPriority  Int?
   mediaQueueAt   DateTime?
@@ -1618,6 +1622,7 @@ model StagingSet {
 
   @@index([status])
   @@index([duplicateGroupId])
+  @@index([archiveFolderId])
   @@map("staging_set")
 }
 
@@ -1648,9 +1653,9 @@ model ArchiveFolder {
   parsedDate      DateTime?          // date parsed from folder name convention
   parsedShortName String?            // channel shortName parsed from folder name
   parsedTitle     String?            // title remainder parsed from folder name
-  linkedSetId     String? @unique    // confirmed link → Set (unique: one folder per set)
-  linkedStagingId String?            // confirmed link → StagingSet
-  suggestedSetId  String?            // suggested (unconfirmed) match → Set
+  linkedSetId      String? @unique    // confirmed link → Set (unique: one folder per set)
+  linkedStagingSet StagingSet?       @relation("StagingSetArchiveFolder")  // reverse: StagingSet.archiveFolderId
+  suggestedSetId   String?           // suggested (unconfirmed) match → Set
   suggestedStagingId String?         // suggested (unconfirmed) match → StagingSet
   suggestedConfidence String?        // 'HIGH' (exact date+code) | 'MEDIUM' (fuzzy title+year+code)
   archiveKey      String   @unique  @default(uuid())  // stable folder identity UUID; generated at first scan time (independent of Set/StagingSet link)
@@ -1672,7 +1677,6 @@ model ArchiveFolder {
   @@index([folderName])
   @@index([chanFolderName])
   @@index([parsedDate, parsedShortName])
-  @@index([linkedStagingId])
   @@index([tenant])
   @@index([contentSignature])
   @@map("archive_folder")

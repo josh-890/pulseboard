@@ -926,7 +926,7 @@ export async function upsertArchiveFolders(
       if (item.sidecarKey) {
         const existingBySidecar = await prisma.archiveFolder.findUnique({
           where: { archiveKey: item.sidecarKey },
-          select: { id: true, linkedSetId: true, linkedStagingId: true },
+          select: { id: true, linkedSetId: true, linkedStagingSet: { select: { id: true } } },
         })
         if (existingBySidecar) {
           const newRelative = await _computeRelativePath(item.fullPath, item.isVideo)
@@ -961,9 +961,9 @@ export async function upsertArchiveFolders(
                 data: { archivePath: newRelative, archiveStatus: 'PENDING' },
               })
             }
-            if (existingBySidecar.linkedStagingId) {
+            if (existingBySidecar.linkedStagingSet?.id) {
               await prisma.stagingSet.update({
-                where: { id: existingBySidecar.linkedStagingId },
+                where: { id: existingBySidecar.linkedStagingSet.id },
                 data: { archivePath: newRelative, archiveStatus: 'PENDING' },
               })
             }
@@ -1031,7 +1031,7 @@ export async function upsertArchiveFolders(
         select: {
           id: true,
           linkedSetId: true,
-          linkedStagingId: true,
+          linkedStagingSet: { select: { id: true } },
           isVideo: true,
           relativePath: true,
         },
@@ -1074,9 +1074,9 @@ export async function upsertArchiveFolders(
               data: { archivePath: newRelative, archiveStatus: 'PENDING' },
             })
           }
-          if (existing.linkedStagingId) {
+          if (existing.linkedStagingSet?.id) {
             await prisma.stagingSet.update({
-              where: { id: existing.linkedStagingId },
+              where: { id: existing.linkedStagingSet.id },
               data: { archivePath: newRelative, archiveStatus: 'PENDING' },
             })
           }
@@ -1160,10 +1160,10 @@ async function _computeRelativePath(fullPath: string, isVideo: boolean): Promise
 /**
  * After upserting ArchiveFolder records, run the matching pass:
  * 1. Compute relativePath for each folder (strip known roots)
- * 2. Try exact archivePath match → set linkedSetId / linkedStagingId
+ * 2. Try exact archivePath match → set linkedSetId / StagingSet.archiveFolderId
  * 3. Try parsedDate + parsedShortName → set suggestedSetId / suggestedStagingId
  *
- * Only processes unlinked folders (linkedSetId IS NULL AND linkedStagingId IS NULL).
+ * Only processes unlinked folders (linkedSetId IS NULL AND no StagingSet.archiveFolderId points to them).
  */
 export async function runMatchingPass(
   tenant: string,
@@ -1180,7 +1180,7 @@ export async function runMatchingPass(
     where: {
       tenant,
       linkedSetId: null,
-      linkedStagingId: null,
+      linkedStagingSet: null,
     },
     select: {
       id: true,
@@ -1239,9 +1239,9 @@ export async function runMatchingPass(
       const stagingId = stagingByPath.get(normRelative)
       const setId = setByPath.get(normRelative)
       if (stagingId) {
-        await prisma.archiveFolder.update({
-          where: { id: folder.id },
-          data: { linkedStagingId: stagingId },
+        await prisma.stagingSet.update({
+          where: { id: stagingId },
+          data: { archiveFolderId: folder.id },
         })
         linked++
         continue
@@ -1450,9 +1450,9 @@ export async function getArchiveWorkspace(filters: WorkspaceFilters): Promise<Wo
   // Always compute all tab counts together
   const [allCount, orphanCount, linkedCount, phantomCount, untrackedCount] = await Promise.all([
     prisma.archiveFolder.count({}),
-    prisma.archiveFolder.count({ where: { linkedSetId: null, linkedStagingId: null } }),
+    prisma.archiveFolder.count({ where: { linkedSetId: null, linkedStagingSet: null } }),
     prisma.archiveFolder.count({
-      where: { OR: [{ linkedSetId: { not: null } }, { linkedStagingId: { not: null } }] },
+      where: { OR: [{ linkedSetId: { not: null } }, { linkedStagingSet: { isNot: null } }] },
     }),
     Promise.all([
       prisma.set.count({ where: { archiveStatus: 'MISSING' } }),
@@ -1504,7 +1504,7 @@ export async function getArchiveWorkspace(filters: WorkspaceFilters): Promise<Wo
     parsedShortName: true,
     parsedTitle: true,
     linkedSetId: true,
-    linkedStagingId: true,
+    linkedStagingSet: { select: { id: true } },
     suggestedSetId: true,
     suggestedStagingId: true,
     suggestedConfidence: true,
@@ -1595,6 +1595,7 @@ export async function getArchiveWorkspace(filters: WorkspaceFilters): Promise<Wo
       const sg = r.suggestedStagingId ? stagingMapAll.get(r.suggestedStagingId) : undefined
       return {
         ...r,
+        linkedStagingId: r.linkedStagingSet?.id ?? null,
         suggestedSetTitle: ss?.title ?? null,
         suggestedStagingTitle: sg?.title ?? null,
         suggestedSetDate: ss?.releaseDate ?? null,
@@ -1614,7 +1615,7 @@ export async function getArchiveWorkspace(filters: WorkspaceFilters): Promise<Wo
   if (filters.tab === 'orphan') {
     const where = {
       linkedSetId: null,
-      linkedStagingId: null,
+      linkedStagingSet: null,
       ...(filters.isVideo !== undefined ? { isVideo: filters.isVideo } : {}),
       ...(filters.shortName ? { parsedShortName: { equals: filters.shortName, mode: 'insensitive' as const } } : {}),
       ...(filters.year ? {
@@ -1717,6 +1718,7 @@ export async function getArchiveWorkspace(filters: WorkspaceFilters): Promise<Wo
       const sg = r.suggestedStagingId ? stagingMap.get(r.suggestedStagingId) : undefined
       return {
         ...r,
+        linkedStagingId: r.linkedStagingSet?.id ?? null,
         suggestedSetTitle: ss?.title ?? null,
         suggestedStagingTitle: sg?.title ?? null,
         suggestedSetDate: ss?.releaseDate ?? null,
@@ -1735,7 +1737,7 @@ export async function getArchiveWorkspace(filters: WorkspaceFilters): Promise<Wo
 
   if (filters.tab === 'linked') {
     const where = {
-      OR: [{ linkedSetId: { not: null } }, { linkedStagingId: { not: null } }],
+      OR: [{ linkedSetId: { not: null } }, { linkedStagingSet: { isNot: null } }],
       ...(filters.isVideo !== undefined ? { isVideo: filters.isVideo } : {}),
       ...(filters.shortName ? { parsedShortName: { equals: filters.shortName, mode: 'insensitive' as const } } : {}),
       ...(filters.year ? {
@@ -1770,6 +1772,7 @@ export async function getArchiveWorkspace(filters: WorkspaceFilters): Promise<Wo
 
     const items: ArchiveFolderEntry[] = rows.map((r) => ({
       ...r,
+      linkedStagingId: r.linkedStagingSet?.id ?? null,
       suggestedSetTitle: null,
       suggestedStagingTitle: null,
       suggestedSetDate: null,
@@ -1904,17 +1907,41 @@ export async function confirmArchiveFolderLink(
       },
     })
   } else {
-    await prisma.archiveFolder.update({
-      where: { id: folderId },
-      data: { linkedStagingId: setId, suggestedStagingId: null, suggestedConfidence: null },
-    })
-    await prisma.stagingSet.update({
+    // Guard: if target staging set is already PROMOTED, redirect to its promoted Set instead
+    const ss = await prisma.stagingSet.findUnique({
       where: { id: setId },
-      data: {
-        archiveKey,
-        ...(folder.relativePath ? { archivePath: folder.relativePath, archiveStatus: 'PENDING' } : {}),
-      },
+      select: { status: true, promotedSetId: true },
     })
+    if (!ss) throw new Error('Staging set not found')
+
+    if (ss.status === 'PROMOTED' && ss.promotedSetId) {
+      // Redirect: link folder directly to the promoted Set
+      await prisma.archiveFolder.update({
+        where: { id: folderId },
+        data: { linkedSetId: ss.promotedSetId, suggestedStagingId: null, suggestedConfidence: null },
+      })
+      await prisma.set.update({
+        where: { id: ss.promotedSetId },
+        data: {
+          archiveKey,
+          ...(folder.relativePath ? { archivePath: folder.relativePath, archiveStatus: 'PENDING' } : {}),
+        },
+      })
+    } else {
+      // Normal staging link: StagingSet claims the folder
+      await prisma.stagingSet.update({
+        where: { id: setId },
+        data: {
+          archiveFolderId: folderId,
+          archiveKey,
+          ...(folder.relativePath ? { archivePath: folder.relativePath, archiveStatus: 'PENDING' } : {}),
+        },
+      })
+      await prisma.archiveFolder.update({
+        where: { id: folderId },
+        data: { suggestedStagingId: null, suggestedConfidence: null },
+      })
+    }
   }
 
   return { archiveKey }
@@ -1963,17 +1990,12 @@ export async function createStagingSetFromOrphan(
     isVideo: folder.isVideo,
     archivePath: folder.relativePath ?? undefined,
     archiveStatus: folder.relativePath ? 'PENDING' : 'UNKNOWN',
+    archiveFolderId: folderId,
   }
 
   const stagingSet = await prisma.stagingSet.create({
     data: createData,
     select: { id: true },
-  })
-
-  // Link the folder to the new staging set
-  await prisma.archiveFolder.update({
-    where: { id: folderId },
-    data: { linkedStagingId: stagingSet.id },
   })
 
   return { stagingSetId: stagingSet.id }
@@ -2097,9 +2119,9 @@ export async function getArchiveChannelSummaries(
       orderBy: { chanFolderName: 'asc' },
     }),
     prisma.archiveFolder.count({}),
-    prisma.archiveFolder.count({ where: { linkedSetId: null, linkedStagingId: null } }),
+    prisma.archiveFolder.count({ where: { linkedSetId: null, linkedStagingSet: null } }),
     prisma.archiveFolder.count({
-      where: { OR: [{ linkedSetId: { not: null } }, { linkedStagingId: { not: null } }] },
+      where: { OR: [{ linkedSetId: { not: null } }, { linkedStagingSet: { isNot: null } }] },
     }),
     Promise.all([
       prisma.set.count({ where: { archiveStatus: 'MISSING' } }),
