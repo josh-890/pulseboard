@@ -786,6 +786,7 @@ export type ArchiveFolderEntry = {
   lastRenamedFrom: string | null
   nameFormatOk: boolean
   chanFolderName: string | null
+  suggestedConfidence: string | null   // 'HIGH' | 'MEDIUM' | null
 }
 
 export type PhantomEntry = {
@@ -1506,6 +1507,7 @@ export async function getArchiveWorkspace(filters: WorkspaceFilters): Promise<Wo
     linkedStagingId: true,
     suggestedSetId: true,
     suggestedStagingId: true,
+    suggestedConfidence: true,
     scannedAt: true,
     lastRenamedAt: true,
     lastRenamedFrom: true,

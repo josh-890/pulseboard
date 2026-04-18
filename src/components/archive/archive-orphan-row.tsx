@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Camera, Film, Check, X, Plus, ExternalLink, TriangleAlert, Trash2 } from 'lucide-react'
+import { Camera, Film, Check, X, Plus, ExternalLink, TriangleAlert, Trash2, Link2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { ArchiveFolderEntry } from '@/lib/services/archive-service'
 import {
@@ -12,6 +12,7 @@ import {
   createStagingSetFromOrphanAction,
   deleteArchiveFolderAction,
 } from '@/lib/actions/archive-actions'
+import { ArchiveSetPicker } from './archive-set-picker'
 
 type Props = {
   item: ArchiveFolderEntry
@@ -20,6 +21,7 @@ type Props = {
 export function ArchiveOrphanRow({ item }: Props) {
   const [pending, startTransition] = useTransition()
   const [dismissed, setDismissed] = useState(false)
+  const [pickerOpen, setPickerOpen] = useState(false)
   const router = useRouter()
 
   const dateStr = item.parsedDate
@@ -143,11 +145,14 @@ export function ArchiveOrphanRow({ item }: Props) {
           </span>
         )}
 
-        {/* Possible match — small amber dot indicator in main row */}
+        {/* Possible match — confidence dot indicator in main row */}
         {hasSuggestion && !dismissed && (
           <span
-            title="Possible match found — see below"
-            className="shrink-0 h-1.5 w-1.5 rounded-full bg-amber-500/70"
+            title={item.suggestedConfidence === 'HIGH' ? 'Exact match found — see below' : 'Approximate match found — see below'}
+            className={cn(
+              'shrink-0 h-1.5 w-1.5 rounded-full',
+              item.suggestedConfidence === 'HIGH' ? 'bg-green-500/80' : 'bg-amber-500/70',
+            )}
           />
         )}
 
@@ -161,6 +166,18 @@ export function ArchiveOrphanRow({ item }: Props) {
         >
           <Plus size={11} />
           Create
+        </button>
+
+        {/* Link to existing set / staging set */}
+        <button
+          type="button"
+          disabled={pending}
+          onClick={() => setPickerOpen(true)}
+          title="Link to an existing set or staging set"
+          className="shrink-0 flex items-center gap-1 rounded-md border border-border/50 bg-muted/40 px-2 py-1 text-xs text-muted-foreground transition-colors hover:border-primary/40 hover:bg-primary/10 hover:text-primary"
+        >
+          <Link2 size={11} />
+          Link to…
         </button>
 
         {/* Delete stale record */}
@@ -184,8 +201,15 @@ export function ArchiveOrphanRow({ item }: Props) {
       {hasSuggestion && !dismissed && (
         <div className="flex items-center gap-2 pl-5 min-w-0">
           {/* Title */}
-          <span className="min-w-0 truncate text-[11px] font-medium text-amber-600 dark:text-amber-400"
-            title={suggestedTitle ?? suggestedId ?? ''}>
+          <span
+            className={cn(
+              'min-w-0 truncate text-[11px] font-medium',
+              item.suggestedConfidence === 'HIGH'
+                ? 'text-green-600 dark:text-green-400'
+                : 'text-amber-600 dark:text-amber-400',
+            )}
+            title={suggestedTitle ?? suggestedId ?? ''}
+          >
             {suggestedTitle ?? suggestedId}
           </span>
 
@@ -210,8 +234,18 @@ export function ArchiveOrphanRow({ item }: Props) {
 
           <span className="flex-1" />
 
+          {/* Confidence badge */}
+          <span className={cn(
+            'shrink-0 rounded-full px-1.5 py-px text-[10px] font-medium',
+            item.suggestedConfidence === 'HIGH'
+              ? 'bg-green-500/15 text-green-600 dark:text-green-400'
+              : 'bg-amber-500/15 text-amber-600 dark:text-amber-400',
+          )}>
+            {item.suggestedConfidence === 'HIGH' ? 'exact' : 'approx'}
+          </span>
+
           {/* Type badge */}
-          <span className="shrink-0 rounded-full bg-amber-500/15 px-1.5 py-px text-[10px] text-amber-600 dark:text-amber-400">
+          <span className="shrink-0 rounded-full bg-muted/60 px-1.5 py-px text-[10px] text-muted-foreground">
             {suggestedType}
           </span>
 
@@ -250,6 +284,13 @@ export function ArchiveOrphanRow({ item }: Props) {
           </button>
         </div>
       )}
+
+      <ArchiveSetPicker
+        open={pickerOpen}
+        onOpenChange={setPickerOpen}
+        folderId={item.id}
+        initialQuery={item.parsedTitle ?? item.folderName}
+      />
     </div>
   )
 }
