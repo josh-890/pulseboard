@@ -1459,7 +1459,7 @@ export async function getArchiveWorkspace(filters: WorkspaceFilters): Promise<Wo
     ]).then(([a, b]) => a + b),
     Promise.all([
       prisma.set.count({ where: { archiveStatus: 'UNKNOWN' } }),
-      prisma.stagingSet.count({ where: { archiveStatus: 'UNKNOWN' } }),
+      prisma.stagingSet.count({ where: { archiveStatus: 'UNKNOWN', status: { not: 'PROMOTED' } } }),
     ]).then(([a, b]) => a + b),
   ])
 
@@ -1844,14 +1844,14 @@ export async function getArchiveWorkspace(filters: WorkspaceFilters): Promise<Wo
       skip: offset,
     }),
     prisma.stagingSet.findMany({
-      where: { archiveStatus: 'UNKNOWN', ...(filters.isVideo !== undefined ? { isVideo: filters.isVideo } : {}) },
+      where: { archiveStatus: 'UNKNOWN', status: { not: 'PROMOTED' }, ...(filters.isVideo !== undefined ? { isVideo: filters.isVideo } : {}) },
       select: { id: true, title: true, releaseDate: true, isVideo: true, channelName: true },
       orderBy: { releaseDate: 'desc' },
       take: pageSize,
       skip: offset,
     }),
     prisma.set.count({ where: { archiveStatus: 'UNKNOWN', ...videoWhere } }),
-    prisma.stagingSet.count({ where: { archiveStatus: 'UNKNOWN', ...(filters.isVideo !== undefined ? { isVideo: filters.isVideo } : {}) } }),
+    prisma.stagingSet.count({ where: { archiveStatus: 'UNKNOWN', status: { not: 'PROMOTED' }, ...(filters.isVideo !== undefined ? { isVideo: filters.isVideo } : {}) } }),
   ])
 
   const items: UntrackedEntry[] = [
@@ -2105,7 +2105,7 @@ export async function getArchiveChannelSummaries(
     ]).then(([a, b]) => a + b),
     Promise.all([
       prisma.set.count({ where: { archiveStatus: 'UNKNOWN' } }),
-      prisma.stagingSet.count({ where: { archiveStatus: 'UNKNOWN' } }),
+      prisma.stagingSet.count({ where: { archiveStatus: 'UNKNOWN', status: { not: 'PROMOTED' } } }),
     ]).then(([a, b]) => a + b),
   ])
 

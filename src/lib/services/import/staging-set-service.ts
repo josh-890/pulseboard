@@ -359,15 +359,23 @@ export async function markStagingSetPromoted(
     }),
   ])
 
-  // Copy archiveKey from staging set to the promoted Set (only if Set doesn't have one yet).
-  // This ensures the sidecar UUID survives promotion.
-  const ss = await prisma.stagingSet.findUnique({ where: { id }, select: { archiveKey: true } })
+  // Copy archive fields from staging set to the promoted Set (only if Set doesn't have them yet).
+  const ss = await prisma.stagingSet.findUnique({
+    where: { id },
+    select: { archiveKey: true, archivePath: true, archiveStatus: true },
+  })
   if (ss?.archiveKey) {
-    // Propagate the staging set's archiveKey to the promoted Set (if not already set)
-    // ArchiveFolder.archiveKey is always set at scan time — no sync needed there
+    // Propagate archiveKey (ArchiveFolder.archiveKey is always set at scan time — no sync needed there)
     await prisma.set.updateMany({
       where: { id: promotedSetId, archiveKey: null },
       data: { archiveKey: ss.archiveKey },
+    })
+  }
+  if (ss?.archivePath) {
+    // Propagate archivePath + archiveStatus so the promoted Set inherits its archive link
+    await prisma.set.updateMany({
+      where: { id: promotedSetId, archivePath: null },
+      data: { archivePath: ss.archivePath, archiveStatus: ss.archiveStatus },
     })
   }
 
