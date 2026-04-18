@@ -797,6 +797,9 @@ function Run-FullScan {
     Write-Host "Mode: Full (smart — with mtime skip + rename detection)"
     Write-Host ""
 
+    # Capture scan start time before any filesystem walk so ghost detection is accurate
+    $scanStartedAt = (Get-Date).ToUniversalTime().ToString('o')
+
     # ── Step 1: Preload known folders ────────────────────────────────────────
     $byPath, $bySig, $byArchKey = Load-KnownFolders
     Write-Host ""
@@ -907,7 +910,23 @@ function Run-FullScan {
         }
     }
 
-    # ── Step 4: Write sidecar files ─────────────────────────────────────────
+    # ── Step 4: Mark ghost folders (not seen this scan) ─────────────────────
+    Write-Host ""
+    Write-Host "Marking ghost folders..."
+    try {
+        $ghostBody = ConvertTo-Json @{ scanStartedAt = $scanStartedAt } -Compress
+        $ghostResp = Invoke-RestMethod `
+            -Uri         "$BaseUrl/api/archive/mark-ghosts" `
+            -Method      Post `
+            -Headers     $headers `
+            -Body        $ghostBody `
+            -ContentType 'application/json'
+        Write-Host "  Marked $($ghostResp.marked) ghost folder(s) as missing on disk."
+    } catch {
+        Write-Warning "mark-ghosts call failed: $_"
+    }
+
+    # ── Step 5: Write sidecar files ─────────────────────────────────────────
     # Always runs regardless of whether there were changes this scan.
     # Count how many on-disk folders are missing _pulseboard.json.
     # Sidecars are written to ALL folders (linked or not) — every ArchiveFolder

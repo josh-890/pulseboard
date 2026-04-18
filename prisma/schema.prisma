@@ -876,6 +876,7 @@ model Set {
   stagingMatches    StagingSet[]     @relation("StagingSetMatch")
   stagingPromotions StagingSet[]     @relation("StagingSetPromoted")
   coherenceSnapshot SetCoherenceSnapshot?
+  archiveFolder     ArchiveFolder?   @relation("ArchiveFolderLinkedSet")
 
   @@index([channelId])
   @@index([type])
@@ -1654,12 +1655,14 @@ model ArchiveFolder {
   parsedShortName String?            // channel shortName parsed from folder name
   parsedTitle     String?            // title remainder parsed from folder name
   linkedSetId      String? @unique    // confirmed link → Set (unique: one folder per set)
+  linkedSet        Set?              @relation("ArchiveFolderLinkedSet", fields: [linkedSetId], references: [id])
   linkedStagingSet StagingSet?       @relation("StagingSetArchiveFolder")  // reverse: StagingSet.archiveFolderId
   suggestedSetId   String?           // suggested (unconfirmed) match → Set
   suggestedStagingId String?         // suggested (unconfirmed) match → StagingSet
   suggestedConfidence String?        // 'HIGH' (exact date+code) | 'MEDIUM' (fuzzy title+year+code)
   archiveKey      String   @unique  @default(uuid())  // stable folder identity UUID; generated at first scan time (independent of Set/StagingSet link)
   scannedAt       DateTime
+  missingOnDisk   Boolean  @default(false)  // true = last full scan did not find this path on disk
   tenant          String             // which tenant DB this record belongs to
 
   // Smart scan fields

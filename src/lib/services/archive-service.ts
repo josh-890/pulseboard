@@ -816,6 +816,22 @@ export type WorkspaceCounts = {
   linked: number
   phantom: number
   untracked: number
+  ghost: number
+}
+
+export type GhostEntry = {
+  id: string
+  folderName: string
+  fullPath: string
+  scannedAt: Date
+  isVideo: boolean
+  fileCount: number | null
+  parsedDate: Date | null
+  linkedSetId: string | null
+  linkedSetTitle: string | null
+  linkedStagingId: string | null
+  linkedStagingTitle: string | null
+  chanFolderName: string | null
 }
 
 export type GroupBy = 'none' | 'channel' | 'year' | 'channelYear'
@@ -829,7 +845,7 @@ export type ChannelSummary = {
 }
 
 export type WorkspaceFilters = {
-  tab: 'all' | 'orphan' | 'linked' | 'phantom' | 'untracked'
+  tab: 'all' | 'orphan' | 'linked' | 'phantom' | 'untracked' | 'ghost'
   isVideo?: boolean
   shortName?: string
   year?: number
@@ -845,7 +861,7 @@ export type WorkspaceFilters = {
 }
 
 export type WorkspacePage = {
-  items: ArchiveFolderEntry[] | PhantomEntry[] | UntrackedEntry[]
+  items: ArchiveFolderEntry[] | PhantomEntry[] | UntrackedEntry[] | GhostEntry[]
   total: number
   counts: WorkspaceCounts
   hasMore: boolean
@@ -951,6 +967,7 @@ export async function upsertArchiveFolders(
               lastRenamedFrom: item.fullPath,  // record move origin
               lastRenamedAt: now,
               scannedAt: now,
+              missingOnDisk: false,
             },
           })
           // Propagate new relativePath to linked Set/StagingSet
@@ -992,6 +1009,7 @@ export async function upsertArchiveFolders(
           yearDirModifiedAt,
           chanFolderModifiedAt,
           scannedAt: now,
+          missingOnDisk: false,
           tenant,
           // Prefer sidecarKey if folder was previously known (moved drive); otherwise generate fresh UUID
           archiveKey: item.sidecarKey ?? randomUUID(),
@@ -1017,6 +1035,7 @@ export async function upsertArchiveFolders(
           yearDirModifiedAt,
           chanFolderModifiedAt,
           scannedAt: now,
+          missingOnDisk: false,
           // Preserve all link fields
         },
         select: { id: true },
@@ -1063,6 +1082,7 @@ export async function upsertArchiveFolders(
             lastRenamedFrom: item.previousFullPath,
             lastRenamedAt: now,
             scannedAt: now,
+            missingOnDisk: false,
           },
         })
 
@@ -1104,6 +1124,7 @@ export async function upsertArchiveFolders(
             yearDirModifiedAt,
             chanFolderModifiedAt,
             scannedAt: now,
+            missingOnDisk: false,
             tenant,
           },
           update: {
@@ -1112,6 +1133,7 @@ export async function upsertArchiveFolders(
             yearDirModifiedAt,
             chanFolderModifiedAt,
             scannedAt: now,
+            missingOnDisk: false,
           },
         })
         counts.created++
@@ -1125,6 +1147,7 @@ export async function upsertArchiveFolders(
           yearDirModifiedAt,
           chanFolderModifiedAt,
           scannedAt: now,
+          missingOnDisk: false,
           parsedDate,
           parsedShortName: item.parsedShortName,
           parsedTitle: item.parsedTitle,
@@ -1465,7 +1488,7 @@ export async function getArchiveWorkspace(filters: WorkspaceFilters): Promise<Wo
   const offset = filters.offset ?? 0
 
   // Always compute all tab counts together
-  const [allCount, orphanCount, linkedCount, phantomCount, untrackedCount] = await Promise.all([
+  const [allCount, orphanCount, linkedCount, phantomCount, untrackedCount, ghostCount] = await Promise.all([
     prisma.archiveFolder.count({}),
     prisma.archiveFolder.count({ where: { linkedSetId: null, linkedStagingSet: null } }),
     prisma.archiveFolder.count({
@@ -1479,6 +1502,7 @@ export async function getArchiveWorkspace(filters: WorkspaceFilters): Promise<Wo
       prisma.set.count({ where: { archiveStatus: 'UNKNOWN' } }),
       prisma.stagingSet.count({ where: { archiveStatus: 'UNKNOWN', status: { not: 'PROMOTED' } } }),
     ]).then(([a, b]) => a + b),
+    prisma.archiveFolder.count({ where: { missingOnDisk: true } }),
   ])
 
   const counts: WorkspaceCounts = {
@@ -1487,6 +1511,7 @@ export async function getArchiveWorkspace(filters: WorkspaceFilters): Promise<Wo
     linked: linkedCount,
     phantom: phantomCount,
     untracked: untrackedCount,
+    ghost: ghostCount,
   }
 
   // Build orderBy for archive folder tabs based on groupBy + sort preferences
@@ -1852,6 +1877,36 @@ export async function getArchiveWorkspace(filters: WorkspaceFilters): Promise<Wo
     return { items, total: setTotal + stagingTotal, counts, hasMore: false }
   }
 
+  if (filters.tab === 'ghost') {
+    const paginate = pageSize > 0
+    const rows = await prisma.archiveFolder.findMany({
+      where: { missingOnDisk: true },
+      select: {
+        id: true, folderName: true, fullPath: true, scannedAt: true,
+        isVideo: true, fileCount: true, parsedDate: true,
+        linkedSetId: true, chanFolderName: true,
+        linkedSet: { select: { title: true } },
+        linkedStagingSet: { select: { id: true, title: true } },
+      },
+      orderBy: [
+        { linkedSetId: 'desc' },  // linked ghosts first (more urgent)
+        { scannedAt: 'desc' },
+      ],
+      ...(paginate ? { take: pageSize, skip: offset } : {}),
+    })
+    const total = await prisma.archiveFolder.count({ where: { missingOnDisk: true } })
+    const items: GhostEntry[] = rows.map((r) => ({
+      id: r.id, folderName: r.folderName, fullPath: r.fullPath,
+      scannedAt: r.scannedAt, isVideo: r.isVideo, fileCount: r.fileCount,
+      parsedDate: r.parsedDate, linkedSetId: r.linkedSetId,
+      linkedSetTitle: r.linkedSet?.title ?? null,
+      linkedStagingId: r.linkedStagingSet?.id ?? null,
+      linkedStagingTitle: r.linkedStagingSet?.title ?? null,
+      chanFolderName: r.chanFolderName,
+    }))
+    return { items, total, counts, hasMore: paginate && rows.length === pageSize }
+  }
+
   // tab === 'untracked'
   const videoWhere = filters.isVideo !== undefined
     ? (filters.isVideo ? ({ type: 'video' as const }) : ({ type: { not: 'video' as const } }))
@@ -2134,6 +2189,22 @@ export async function deleteArchiveFolder(id: string): Promise<void> {
   await prisma.archiveFolder.delete({ where: { id } })
 }
 
+/**
+ * Marks all ArchiveFolder records that were not visited in the most recent full scan
+ * as missing on disk. Called by the scan script after all batches complete.
+ * Records visited in this scan already have missingOnDisk=false (set during upsert).
+ */
+export async function markGhostFolders(
+  scanStartedAt: Date,
+  tenant: string,
+): Promise<{ marked: number }> {
+  const result = await prisma.archiveFolder.updateMany({
+    where: { tenant, scannedAt: { lt: scanStartedAt } },
+    data: { missingOnDisk: true },
+  })
+  return { marked: result.count }
+}
+
 // ─── Archive Tree: Channel Summaries ─────────────────────────────────────────
 
 /**
@@ -2169,7 +2240,7 @@ export async function getArchiveChannelSummaries(
     } : {}),
   }
 
-  const [grouped, allCount, orphanCount, linkedCount, phantomCount, untrackedCount] = await Promise.all([
+  const [grouped, allCount, orphanCount, linkedCount, phantomCount, untrackedCount, ghostCount] = await Promise.all([
     prisma.archiveFolder.groupBy({
       by: ['chanFolderName'],
       where,
@@ -2189,6 +2260,7 @@ export async function getArchiveChannelSummaries(
       prisma.set.count({ where: { archiveStatus: 'UNKNOWN' } }),
       prisma.stagingSet.count({ where: { archiveStatus: 'UNKNOWN', status: { not: 'PROMOTED' } } }),
     ]).then(([a, b]) => a + b),
+    prisma.archiveFolder.count({ where: { missingOnDisk: true } }),
   ])
 
   const summaries: ChannelSummary[] = grouped.map((g) => ({
@@ -2204,6 +2276,7 @@ export async function getArchiveChannelSummaries(
       linked: linkedCount,
       phantom: phantomCount,
       untracked: untrackedCount,
+      ghost: ghostCount,
     },
   }
 }

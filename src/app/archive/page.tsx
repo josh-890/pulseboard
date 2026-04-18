@@ -13,7 +13,7 @@ export default async function ArchivePage({ searchParams }: { searchParams: Sear
   const sp = await searchParams
 
   const rawTab = getString(sp.tab)
-  const tab = (rawTab === 'all' || rawTab === 'linked' || rawTab === 'phantom' || rawTab === 'untracked')
+  const tab = (rawTab === 'all' || rawTab === 'linked' || rawTab === 'phantom' || rawTab === 'untracked' || rawTab === 'ghost')
     ? rawTab
     : 'orphan'
 

@@ -9,6 +9,7 @@ import { ArchiveOrphanRow } from './archive-orphan-row'
 import { ArchiveLinkedRow } from './archive-linked-row'
 import { ArchivePhantomRow } from './archive-phantom-row'
 import { ArchiveUntrackedRow } from './archive-untracked-row'
+import { ArchiveGhostRow } from './archive-ghost-row'
 import { ArchiveChannelHeader } from './archive-channel-header'
 import { ArchiveYearSubheader } from './archive-year-subheader'
 import type {
@@ -17,6 +18,7 @@ import type {
   ArchiveFolderEntry,
   PhantomEntry,
   UntrackedEntry,
+  GhostEntry,
   GroupBy,
   ArchiveSort,
   SortDir,
@@ -25,13 +27,13 @@ import type {
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
-type Tab = 'all' | 'orphan' | 'linked' | 'phantom' | 'untracked'
+type Tab = 'all' | 'orphan' | 'linked' | 'phantom' | 'untracked' | 'ghost'
 
 type VirtualRow =
   | { kind: 'channel-header'; channel: string; count: number }
   | { kind: 'year-header'; channel: string; year: string; count: number }
   | { kind: 'folder-item'; item: ArchiveFolderEntry }
-  | { kind: 'flat-item'; item: PhantomEntry | UntrackedEntry; itemType: 'phantom' | 'untracked' }
+  | { kind: 'flat-item'; item: PhantomEntry | UntrackedEntry | GhostEntry; itemType: 'phantom' | 'untracked' | 'ghost' }
   | { kind: 'loading-sentinel'; channel?: string }
 
 type ChannelLeafState =
@@ -52,11 +54,12 @@ type Props = {
 // ─── Constants ─────────────────────────────────────────────────────────────────
 
 const TAB_CONFIG: Record<Tab, { label: string; emptyMsg: string; badge: string }> = {
-  all:       { label: 'All',      emptyMsg: 'No archive folders found.',         badge: 'bg-blue-500/20 text-blue-600 dark:text-blue-400' },
-  orphan:    { label: 'No Set',   emptyMsg: 'No unmatched folders found.',       badge: 'bg-red-500/20 text-red-600 dark:text-red-400' },
-  linked:    { label: 'Linked',   emptyMsg: 'No linked folders yet.',            badge: 'bg-green-500/20 text-green-600 dark:text-green-400' },
-  phantom:   { label: 'Missing',  emptyMsg: 'No missing archive folders found.', badge: 'bg-amber-500/20 text-amber-600 dark:text-amber-400' },
-  untracked: { label: 'No Media', emptyMsg: 'All sets have archive paths.',      badge: 'bg-gray-400/20 text-gray-500 dark:text-gray-400' },
+  all:       { label: 'All',      emptyMsg: 'No archive folders found.',          badge: 'bg-blue-500/20 text-blue-600 dark:text-blue-400' },
+  orphan:    { label: 'No Set',   emptyMsg: 'No unmatched folders found.',        badge: 'bg-red-500/20 text-red-600 dark:text-red-400' },
+  linked:    { label: 'Linked',   emptyMsg: 'No linked folders yet.',             badge: 'bg-green-500/20 text-green-600 dark:text-green-400' },
+  phantom:   { label: 'Missing',  emptyMsg: 'No missing archive folders found.',  badge: 'bg-amber-500/20 text-amber-600 dark:text-amber-400' },
+  untracked: { label: 'No Media', emptyMsg: 'All sets have archive paths.',       badge: 'bg-gray-400/20 text-gray-500 dark:text-gray-400' },
+  ghost:     { label: 'Gone',     emptyMsg: 'No ghost folders — archive is clean.', badge: 'bg-red-500/20 text-red-600 dark:text-red-400' },
 }
 
 const GROUP_BY_LABELS: Record<GroupBy, string> = {
@@ -238,9 +241,9 @@ export function ArchiveWorkspaceClient({
       ? (initialPage.items as ArchiveFolderEntry[])
       : [],
   )
-  const [flatItems, setFlatItems] = useState<(PhantomEntry | UntrackedEntry)[]>(
-    (initialTab === 'phantom' || initialTab === 'untracked')
-      ? (initialPage.items as (PhantomEntry | UntrackedEntry)[])
+  const [flatItems, setFlatItems] = useState<(PhantomEntry | UntrackedEntry | GhostEntry)[]>(
+    (initialTab === 'phantom' || initialTab === 'untracked' || initialTab === 'ghost')
+      ? (initialPage.items as (PhantomEntry | UntrackedEntry | GhostEntry)[])
       : [],
   )
   const [total, setTotal] = useState(initialPage.total)
@@ -316,6 +319,7 @@ export function ArchiveWorkspaceClient({
 
   // ── Mode flags ─────────────────────────────────────────────────────────────
   const isFolderTab = tab === 'all' || tab === 'orphan' || tab === 'linked'
+  const isGhostTab = tab === 'ghost'
   const isTreeMode = isFolderTab && groupBy === 'channelYear'
 
   const buildFilters = useCallback((offset: number) => ({
@@ -393,7 +397,7 @@ export function ArchiveWorkspaceClient({
           setFolderItems(page.items as ArchiveFolderEntry[])
           setFlatItems([])
         } else {
-          setFlatItems(page.items as (PhantomEntry | UntrackedEntry)[])
+          setFlatItems(page.items as (PhantomEntry | UntrackedEntry | GhostEntry)[])
           setFolderItems([])
         }
         setLoading(false)
@@ -413,7 +417,7 @@ export function ArchiveWorkspaceClient({
       if (isFolderTab) {
         setFolderItems((prev) => [...prev, ...(page.items as ArchiveFolderEntry[])])
       } else {
-        setFlatItems((prev) => [...prev, ...(page.items as (PhantomEntry | UntrackedEntry)[])])
+        setFlatItems((prev) => [...prev, ...(page.items as (PhantomEntry | UntrackedEntry | GhostEntry)[])])
       }
       setLoading(false)
     }).catch(() => setLoading(false))
@@ -430,7 +434,7 @@ export function ArchiveWorkspaceClient({
     const rows: VirtualRow[] = flatItems.map((item) => ({
       kind: 'flat-item' as const,
       item,
-      itemType: (tab === 'phantom' ? 'phantom' : 'untracked') as 'phantom' | 'untracked',
+      itemType: (tab === 'phantom' ? 'phantom' : tab === 'ghost' ? 'ghost' : 'untracked') as 'phantom' | 'untracked' | 'ghost',
     }))
     if (hasMore) rows.push({ kind: 'loading-sentinel' })
     return rows
@@ -586,7 +590,7 @@ export function ArchiveWorkspaceClient({
           if (isFolderTab) {
             setFolderItems(page.items as ArchiveFolderEntry[])
           } else {
-            setFlatItems(page.items as (PhantomEntry | UntrackedEntry)[])
+            setFlatItems(page.items as (PhantomEntry | UntrackedEntry | GhostEntry)[])
           }
         })
       }
@@ -849,6 +853,11 @@ export function ArchiveWorkspaceClient({
                     {row.kind === 'flat-item' && row.itemType === 'untracked' && (
                       <div className="py-0.5">
                         <ArchiveUntrackedRow item={row.item as UntrackedEntry} />
+                      </div>
+                    )}
+                    {row.kind === 'flat-item' && row.itemType === 'ghost' && (
+                      <div className="py-0.5">
+                        <ArchiveGhostRow item={row.item as GhostEntry} />
                       </div>
                     )}
                     {row.kind === 'loading-sentinel' && (
