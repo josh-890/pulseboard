@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import Link from 'next/link'
-import { Camera, Film, Layers, ImageIcon, Flag, HardDrive, ExternalLink } from 'lucide-react'
+import { Camera, Film, Layers, ImageIcon, Flag, HardDrive, ExternalLink, CheckCircle2, XCircle, Clock, AlertCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { MediaQueueItem } from '@/lib/services/archive-service'
 import type { ArchiveStatus } from '@/generated/prisma/client'
@@ -10,13 +10,57 @@ import { toggleMediaQueueAction, updateMediaPriorityAction } from '@/lib/actions
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const ARCHIVE_STATUS_CONFIG: Record<ArchiveStatus, { label: string; dot: string; text: string }> = {
-  UNKNOWN:    { label: 'No path',    dot: 'bg-gray-300 dark:bg-gray-600',  text: 'text-muted-foreground/60' },
-  PENDING:    { label: 'Pending',    dot: 'bg-blue-400',                   text: 'text-blue-500' },
-  OK:         { label: 'Verified',   dot: 'bg-green-500',                  text: 'text-green-500' },
-  CHANGED:    { label: 'Changed',    dot: 'bg-amber-500',                  text: 'text-amber-500' },
-  MISSING:    { label: 'Missing',    dot: 'bg-red-500',                    text: 'text-red-500' },
-  INCOMPLETE: { label: 'Incomplete', dot: 'bg-orange-500',                 text: 'text-orange-500' },
+type StatusConfig = {
+  label: string
+  icon: React.ReactNode
+  text: string
+  rowBorder: string
+  rowBg: string
+}
+
+const ARCHIVE_STATUS_CONFIG: Record<ArchiveStatus, StatusConfig> = {
+  UNKNOWN:    {
+    label: 'No archive path',
+    icon: <XCircle size={14} className="shrink-0 text-red-500" />,
+    text: 'text-red-500',
+    rowBorder: 'border-red-500/30',
+    rowBg: 'bg-red-500/5',
+  },
+  PENDING:    {
+    label: 'Path set — not scanned yet',
+    icon: <Clock size={14} className="shrink-0 text-blue-400" />,
+    text: 'text-blue-500',
+    rowBorder: 'border-blue-500/20',
+    rowBg: 'bg-blue-500/5',
+  },
+  OK:         {
+    label: 'In archive',
+    icon: <CheckCircle2 size={14} className="shrink-0 text-green-500" />,
+    text: 'text-green-500',
+    rowBorder: 'border-green-500/30',
+    rowBg: 'bg-green-500/6',
+  },
+  CHANGED:    {
+    label: 'In archive — count changed',
+    icon: <CheckCircle2 size={14} className="shrink-0 text-amber-500" />,
+    text: 'text-amber-500',
+    rowBorder: 'border-amber-500/30',
+    rowBg: 'bg-amber-500/5',
+  },
+  MISSING:    {
+    label: 'Missing from archive',
+    icon: <XCircle size={14} className="shrink-0 text-red-500" />,
+    text: 'text-red-500',
+    rowBorder: 'border-red-500/30',
+    rowBg: 'bg-red-500/5',
+  },
+  INCOMPLETE: {
+    label: 'In archive — video file missing',
+    icon: <AlertCircle size={14} className="shrink-0 text-orange-500" />,
+    text: 'text-orange-500',
+    rowBorder: 'border-orange-500/30',
+    rowBg: 'bg-orange-500/5',
+  },
 }
 
 const PRIORITY_CONFIG: Record<number, { label: string; badge: string; ring: string }> = {
@@ -58,7 +102,9 @@ function QueueRow({
   return (
     <div
       className={cn(
-        'group flex items-center gap-3 rounded-xl border border-border/40 bg-card/70 px-4 py-3 shadow-sm backdrop-blur-sm transition-all',
+        'group flex items-center gap-3 rounded-xl border px-4 py-3 shadow-sm backdrop-blur-sm transition-all',
+        arc.rowBorder,
+        arc.rowBg,
         pending && 'opacity-60',
       )}
     >
@@ -92,34 +138,22 @@ function QueueRow({
       {/* Title */}
       <span className="min-w-0 flex-1 truncate text-sm font-medium">{item.title}</span>
 
-      {/* Archive status — descriptive */}
+      {/* Archive status */}
       <span className="flex min-w-0 shrink-0 flex-col gap-0.5">
-        {/* Folder line */}
         <span className="flex items-center gap-1.5">
-          <span className={cn('h-1.5 w-1.5 shrink-0 rounded-full', arc.dot)} />
-          <span className={cn('text-xs font-medium', arc.text)}>
-            {item.archiveStatus === 'UNKNOWN'
-              ? 'No archive path'
-              : item.archiveStatus === 'PENDING'
-              ? 'Path recorded — not scanned yet'
-              : item.archiveStatus === 'MISSING'
-              ? 'Archive folder missing'
-              : 'Archive folder present'}
-          </span>
+          {arc.icon}
+          <span className={cn('text-xs font-semibold', arc.text)}>{arc.label}</span>
         </span>
-        {/* Detail line — only when folder exists */}
+        {/* Detail line — file count / video presence */}
         {(item.archiveStatus === 'OK' || item.archiveStatus === 'CHANGED' || item.archiveStatus === 'INCOMPLETE') && (
-          <span className="flex items-center gap-2 pl-3 text-[11px] text-muted-foreground">
+          <span className="flex items-center gap-2 pl-5 text-[11px] text-muted-foreground">
             {item.archiveFileCount != null && (
               <span>{item.archiveFileCount} {item.isVideo ? 'frames' : 'pics'}</span>
             )}
             {item.isVideo && (
               <span className={item.archiveVideoPresent ? 'text-green-500' : 'text-red-500'}>
-                · video file {item.archiveVideoPresent ? 'present' : 'missing'}
+                · video {item.archiveVideoPresent ? 'present' : 'missing'}
               </span>
-            )}
-            {item.archiveStatus === 'CHANGED' && (
-              <span className="text-amber-500">· count changed</span>
             )}
           </span>
         )}
