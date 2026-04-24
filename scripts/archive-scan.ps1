@@ -761,13 +761,11 @@ function Write-Sidecars {
             continue
         }
 
-        $needsWrite  = $true
-        $isUpdate    = $false
-
         if (Test-Path -LiteralPath $sidecarPath -PathType Leaf) {
-            # Sidecar already present — only overwrite if folderName is stale
+            # Sidecar present — only touch it if folderName is stale
             $actualFolderName = Split-Path -Leaf $folderPath
-            $stale = $false
+            $stale      = $false
+            $existingObj = $null
             try {
                 $existingJson = Get-Content -LiteralPath $sidecarPath -Raw -ErrorAction SilentlyContinue
                 if ($existingJson) {
@@ -778,24 +776,44 @@ function Write-Sidecars {
                 }
             } catch { $stale = $true }  # unreadable sidecar — rewrite it
 
-            if (-not $stale) {
-                $skipped++
+            if (-not $stale) { $skipped++; continue }
+
+            if ($DryRun) {
+                Write-Host "  [DRY-RUN] Would update stale sidecar: $sidecarPath"
+                $updated++
                 continue
             }
-            $isUpdate = $true
-        }
 
-        if ($DryRun) {
-            if ($isUpdate) {
-                Write-Host "  [DRY-RUN] Would update stale sidecar: $sidecarPath"
-            } else {
-                Write-Host "  [DRY-RUN] Would write sidecar: $sidecarPath"
+            # Update folderName in-place — no server round-trip needed.
+            # The script already knows the correct name from the filesystem walk.
+            try {
+                if ($existingObj) {
+                    $existingObj.folderName = $actualFolderName
+                    $json = ConvertTo-Json -InputObject $existingObj -Depth 4
+                } else {
+                    # Unreadable sidecar — fall back to fetching fresh from server
+                    $content = Invoke-RestMethod -Uri "$BaseUrl/api/archive/sidecar/$ak" -Headers $headers -Method Get
+                    $json = ConvertTo-Json -InputObject $content -Depth 4
+                }
+                [System.IO.File]::WriteAllText($sidecarPath, $json, [System.Text.Encoding]::UTF8)
+                $updated++
+                if ($VerbosePreference -ne "SilentlyContinue") {
+                    Write-Host "  [SIDECAR UPDATE] $sidecarPath"
+                }
+            } catch {
+                Write-Warning "  Failed to update $sidecarPath`: $_"
+                $errors++
             }
-            if ($isUpdate) { $updated++ } else { $written++ }
             continue
         }
 
-        # Fetch sidecar content from server (DB is already updated with new folderName)
+        # Sidecar missing — fetch full content from server and write it
+        if ($DryRun) {
+            Write-Host "  [DRY-RUN] Would write sidecar: $sidecarPath"
+            $written++
+            continue
+        }
+
         try {
             $content = Invoke-RestMethod `
                 -Uri     "$BaseUrl/api/archive/sidecar/$ak" `
@@ -809,20 +827,12 @@ function Write-Sidecars {
             continue
         }
 
-        # Write JSON to _pulseboard.json
         try {
             $json = ConvertTo-Json -InputObject $content -Depth 4
             [System.IO.File]::WriteAllText($sidecarPath, $json, [System.Text.Encoding]::UTF8)
-            if ($isUpdate) {
-                $updated++
-                if ($VerbosePreference -ne "SilentlyContinue") {
-                    Write-Host "  [SIDECAR UPDATE] $sidecarPath"
-                }
-            } else {
-                $written++
-                if ($VerbosePreference -ne "SilentlyContinue") {
-                    Write-Host "  [SIDECAR] $sidecarPath"
-                }
+            $written++
+            if ($VerbosePreference -ne "SilentlyContinue") {
+                Write-Host "  [SIDECAR] $sidecarPath"
             }
         } catch {
             Write-Warning "  Failed to write $sidecarPath`: $_"

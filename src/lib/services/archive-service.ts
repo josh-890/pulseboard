@@ -1251,6 +1251,7 @@ export async function upsertArchiveFolders(
         where: targetId ? { id: targetId } : { fullPath: item.fullPath },
         data: {
           ...(targetId ? { fullPath: item.fullPath } : {}),  // fix case when updating by id
+          folderName: item.folderName,  // keep DB in sync with actual folder name on disk
           yearDirModifiedAt,
           chanFolderModifiedAt,
           scannedAt: now,
