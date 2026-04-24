@@ -799,7 +799,8 @@ export async function bulkUpdateStatus(
  * This fixes sets that were promoted before the markStagingSetPromoted
  * archive transfer was added.
  */
-export async function backfillPromotedSetArchiveLinks(): Promise<{ fixed: number; skipped: number }> {
+export async function backfillPromotedSetArchiveLinks(): Promise<{ fixed: number; snapshotOnly: number; skipped: number }> {
+  // Pass 1: staging sets whose archiveFolderId has not yet been transferred to linkedSetId
   const promoted = await prisma.stagingSet.findMany({
     where: {
       status: 'PROMOTED',
@@ -817,14 +818,35 @@ export async function backfillPromotedSetArchiveLinks(): Promise<{ fixed: number
   })
 
   let fixed = 0
+  let snapshotOnly = 0
   let skipped = 0
 
   for (const ss of promoted) {
     const folder = ss.archiveFolder
     if (!folder || !ss.promotedSetId) { skipped++; continue }
 
-    // Skip if the folder already points at the promoted Set (or any Set)
-    if (folder.linkedSetId) { skipped++; continue }
+    if (folder.linkedSetId) {
+      // Folder already points at some set — ensure the coherence snapshot is wired up
+      // (the onArchiveFolderLinked call was missing before this fix was deployed)
+      const snap = await prisma.setCoherenceSnapshot.findFirst({
+        where: { archiveFolderId: folder.id, setId: ss.promotedSetId },
+        select: { id: true },
+      })
+      if (!snap) {
+        await onArchiveFolderLinked(folder.id, { setId: folder.linkedSetId })
+        snapshotOnly++
+      } else {
+        skipped++
+      }
+      continue
+    }
+
+    // Skip if the promoted Set already has a different archive folder pointing at it
+    const existingLink = await prisma.archiveFolder.findFirst({
+      where: { linkedSetId: ss.promotedSetId },
+      select: { id: true },
+    })
+    if (existingLink) { skipped++; continue }
 
     // Transfer the folder link to the promoted Set
     await prisma.archiveFolder.updateMany({
@@ -849,5 +871,56 @@ export async function backfillPromotedSetArchiveLinks(): Promise<{ fixed: number
     fixed++
   }
 
-  return { fixed, skipped }
+  // Pass 2: archive folders directly linked to a Set (linkedSetId set) but whose
+  // coherence snapshot is missing the archiveFolderId — covers sets confirmed directly
+  // on the Set detail page before the onArchiveFolderLinked fix was deployed.
+  const directLinks = await prisma.archiveFolder.findMany({
+    where: { linkedSetId: { not: null } },
+    select: { id: true, linkedSetId: true },
+  })
+
+  for (const folder of directLinks) {
+    if (!folder.linkedSetId) continue
+    const snap = await prisma.setCoherenceSnapshot.findFirst({
+      where: { archiveFolderId: folder.id, setId: folder.linkedSetId },
+      select: { id: true },
+    })
+    if (!snap) {
+      await onArchiveFolderLinked(folder.id, { setId: folder.linkedSetId })
+      snapshotOnly++
+    }
+  }
+
+  // Pass 3: Sets where ArchiveFolder.linkedSetId points to them but Set.archiveStatus
+  // is still UNKNOWN — the folder link exists but the Set's own fields were never updated.
+  const setsWithLinkedFolderUnknown = await prisma.set.findMany({
+    where: {
+      archiveStatus: 'UNKNOWN',
+      archiveFolder: { isNot: null },
+    },
+    select: {
+      id: true,
+      archiveFolder: {
+        select: { id: true, relativePath: true, fileCount: true, videoPresent: true },
+      },
+    },
+  })
+
+  for (const set of setsWithLinkedFolderUnknown) {
+    const folder = set.archiveFolder
+    if (!folder) continue
+    if (!folder.relativePath) { skipped++; continue }
+    await prisma.set.update({
+      where: { id: set.id },
+      data: {
+        archivePath: folder.relativePath,
+        archiveStatus: 'OK',
+        archiveFileCount: folder.fileCount ?? null,
+        archiveVideoPresent: folder.videoPresent ?? null,
+      },
+    })
+    fixed++
+  }
+
+  return { fixed, snapshotOnly, skipped }
 }
