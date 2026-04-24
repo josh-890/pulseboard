@@ -1059,30 +1059,41 @@ export async function upsertArchiveFolders(
       counts.created++
 
     } else if (item.action === 'update') {
-      // If the sidecar key differs from the DB record's key, the sidecar is the truth.
-      // Correct the archiveKey in-place unless another record already owns that key
-      // (which would indicate two physical folders sharing the same sidecar UUID — a conflict
-      // that must be reported, not silently ignored).
+      // Prefer sidecar-key lookup so that case-only renames are handled correctly.
+      // The PS1 script normalises paths to lowercase when building its lookup map, so a
+      // case-only rename is invisible to it and arrives here as action='update' with the
+      // NEW case as item.fullPath. PostgreSQL is case-sensitive, so WHERE fullPath = newCase
+      // would fail with P2025 if the DB still stores the old case. Looking up by archiveKey
+      // first and updating by id avoids that problem entirely.
+      let targetId: string | undefined
       let correctedArchiveKey: string | undefined
+
       if (item.sidecarKey) {
-        const collision = await prisma.archiveFolder.findUnique({
+        const byKey = await prisma.archiveFolder.findUnique({
           where: { archiveKey: item.sidecarKey },
           select: { id: true, fullPath: true },
         })
-        if (!collision || collision.fullPath.toLowerCase() === item.fullPath.toLowerCase()) {
+        if (byKey && byKey.fullPath.toLowerCase() === item.fullPath.toLowerCase()) {
+          // Same folder (possibly just renamed in case) — update by id
+          targetId = byKey.id
           correctedArchiveKey = item.sidecarKey
-        } else {
+        } else if (byKey) {
+          // Different path owns this key — genuine conflict, fall back to fullPath lookup
           counts.keyConflicts.push({
             sidecarKey: item.sidecarKey,
-            conflictingPath: collision.fullPath,
+            conflictingPath: byKey.fullPath,
             currentPath: item.fullPath,
           })
+        } else {
+          // Key not yet in DB — write as a correction
+          correctedArchiveKey = item.sidecarKey
         }
       }
 
       const updated = await prisma.archiveFolder.update({
-        where: { fullPath: item.fullPath },
+        where: targetId ? { id: targetId } : { fullPath: item.fullPath },
         data: {
+          ...(targetId ? { fullPath: item.fullPath } : {}),  // fix case when updating by id
           fileCount: item.fileCount,
           videoPresent: item.videoPresent,
           videoFiles: item.videoFiles != null ? JSON.stringify(item.videoFiles) : undefined,
@@ -1099,7 +1110,6 @@ export async function upsertArchiveFolders(
           scannedAt: now,
           missingOnDisk: false,
           ...(correctedArchiveKey !== undefined ? { archiveKey: correctedArchiveKey } : {}),
-          // Preserve all link fields
         },
         select: { id: true },
       })
@@ -1210,30 +1220,37 @@ export async function upsertArchiveFolders(
       }
 
     } else if (item.action === 'unchanged') {
-      // Sidecar-key correction: if sidecar key differs from DB key, fix it (sidecar is truth),
-      // unless another record already owns that key (collision = two physical folders with the
-      // same sidecar UUID — reported as a conflict, not silently skipped).
+      // Same sidecar-key-first pattern as 'update': a case-only rename arrives here
+      // when the leaf mtime didn't change (Windows doesn't update a folder's own mtime
+      // on rename). Look up by archiveKey so the case-sensitive WHERE fullPath clause
+      // doesn't fail with P2025.
+      let targetId: string | undefined
       let correctedArchiveKey: string | undefined
+
       if (item.sidecarKey) {
-        const collision = await prisma.archiveFolder.findUnique({
+        const byKey = await prisma.archiveFolder.findUnique({
           where: { archiveKey: item.sidecarKey },
           select: { id: true, fullPath: true },
         })
-        if (!collision || collision.fullPath.toLowerCase() === item.fullPath.toLowerCase()) {
+        if (byKey && byKey.fullPath.toLowerCase() === item.fullPath.toLowerCase()) {
+          targetId = byKey.id
           correctedArchiveKey = item.sidecarKey
-        } else {
+        } else if (byKey) {
           counts.keyConflicts.push({
             sidecarKey: item.sidecarKey,
-            conflictingPath: collision.fullPath,
+            conflictingPath: byKey.fullPath,
             currentPath: item.fullPath,
           })
+        } else {
+          correctedArchiveKey = item.sidecarKey
         }
       }
 
       // Update parent mtime cache + parsed fields (backfills if regex improved) + nameFormatOk
       await prisma.archiveFolder.update({
-        where: { fullPath: item.fullPath },
+        where: targetId ? { id: targetId } : { fullPath: item.fullPath },
         data: {
+          ...(targetId ? { fullPath: item.fullPath } : {}),  // fix case when updating by id
           yearDirModifiedAt,
           chanFolderModifiedAt,
           scannedAt: now,
