@@ -584,6 +584,7 @@ function Walk-Root {
                 # scan pass. Sending it lets the server detect cross-drive folder moves
                 # (action=create with sidecarKey → server finds existing record by key).
                 $sidecarKey = $null
+                $sidecarObj = $null  # reset per folder so stale-check below is clean
                 $sidecarPath = Join-Path $lf.FullName "_pulseboard.json"
                 if (Test-Path -LiteralPath $sidecarPath -PathType Leaf) {
                     try {
@@ -624,6 +625,12 @@ function Walk-Root {
                         # archiveKey on records that gained a sidecar between scans.
                         if ($sidecarKey) {
                             $item | Add-Member -NotePropertyName sidecarKey -NotePropertyValue $sidecarKey
+                        }
+                        # Flag stale sidecar: folderName in the JSON no longer matches the actual
+                        # folder name on disk (e.g. after a case-only rename). The sidecar phase
+                        # will rewrite it even if no other work is needed this scan.
+                        if ($sidecarObj -and [string]$sidecarObj.folderName -ne $folderName) {
+                            $item | Add-Member -NotePropertyName staleSidecar -NotePropertyValue $true
                         }
                         [void]$delta.Add($item)
                         $skippedLf++
@@ -699,6 +706,9 @@ function Walk-Root {
                 }
                 if ($previousFullPath) {
                     $item | Add-Member -NotePropertyName previousFullPath -NotePropertyValue $previousFullPath
+                }
+                if ($sidecarObj -and [string]$sidecarObj.folderName -ne $folderName) {
+                    $item | Add-Member -NotePropertyName staleSidecar -NotePropertyValue $true
                 }
 
                 [void]$delta.Add($item)
@@ -967,20 +977,16 @@ function Run-FullScan {
     }
 
     # ── Sync $byArchKey paths from delta ─────────────────────────────────────
-    # Case-only renames arrive as action='update'/'unchanged'. The server has already
-    # updated the DB to the new path, but $byArchKey still has the OLD path from the
-    # preload. Update it so the sidecar phase finds each folder at its current location.
-    $caseRenamedKeys = [System.Collections.Generic.HashSet[string]]::new()
+    # Case-only renames in the SAME scan run: $byArchKey has the OLD path from
+    # the preload while $item.fullPath is the current disk path. Sync it so the
+    # sidecar phase can find the folder. (Subsequent scans: DB already has the
+    # new path, so $byArchKey and delta agree — this loop is a no-op.)
     foreach ($item in $allDelta) {
         $sk = [string]$item.sidecarKey
         if ($sk -and $byArchKey.ContainsKey($sk)) {
             $oldPath = [string]$byArchKey[$sk].fullPath
             if ($oldPath -ne $item.fullPath) {
                 $byArchKey[$sk].fullPath = $item.fullPath
-                # Case-only rename: same path when lowercased, different actual casing
-                if ($oldPath.ToLower() -eq ([string]$item.fullPath).ToLower()) {
-                    [void]$caseRenamedKeys.Add($sk)
-                }
             }
         }
     }
@@ -1003,7 +1009,8 @@ function Run-FullScan {
 
     # ── Step 5: Write sidecar files ─────────────────────────────────────────
     # Count folders that need a new sidecar (missing) or an updated one (stale).
-    # Stale = folder was case-renamed this scan and the sidecar still has the old name.
+    # Stale sidecars are detected during the walk: any folder where the sidecar's
+    # folderName no longer matches the actual folder name gets staleSidecar=$true.
     $needsSidecar = 0
     foreach ($ak in $byArchKey.Keys) {
         $folderPath  = [string]$byArchKey[$ak].fullPath
@@ -1013,11 +1020,10 @@ function Run-FullScan {
             $needsSidecar++
         }
     }
-    # Stale sidecars from case-only renames (sidecar exists but folderName is wrong)
     $staleSidecar = 0
-    foreach ($ak in $caseRenamedKeys) {
-        $folderPath = [string]$byArchKey[$ak].fullPath
-        if (Test-Path -LiteralPath $folderPath -PathType Container) {
+    foreach ($item in $allDelta) {
+        if ($item.staleSidecar -eq $true -and
+            (Test-Path -LiteralPath ([string]$item.fullPath) -PathType Container)) {
             $staleSidecar++
         }
     }
