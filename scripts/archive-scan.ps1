@@ -966,6 +966,25 @@ function Run-FullScan {
         }
     }
 
+    # ── Sync $byArchKey paths from delta ─────────────────────────────────────
+    # Case-only renames arrive as action='update'/'unchanged'. The server has already
+    # updated the DB to the new path, but $byArchKey still has the OLD path from the
+    # preload. Update it so the sidecar phase finds each folder at its current location.
+    $caseRenamedKeys = [System.Collections.Generic.HashSet[string]]::new()
+    foreach ($item in $allDelta) {
+        $sk = [string]$item.sidecarKey
+        if ($sk -and $byArchKey.ContainsKey($sk)) {
+            $oldPath = [string]$byArchKey[$sk].fullPath
+            if ($oldPath -ne $item.fullPath) {
+                $byArchKey[$sk].fullPath = $item.fullPath
+                # Case-only rename: same path when lowercased, different actual casing
+                if ($oldPath.ToLower() -eq ([string]$item.fullPath).ToLower()) {
+                    [void]$caseRenamedKeys.Add($sk)
+                }
+            }
+        }
+    }
+
     # ── Step 4: Mark ghost folders (not seen this scan) ─────────────────────
     Write-Host ""
     Write-Host "Marking ghost folders..."
@@ -983,10 +1002,8 @@ function Run-FullScan {
     }
 
     # ── Step 5: Write sidecar files ─────────────────────────────────────────
-    # Always runs regardless of whether there were changes this scan.
-    # Count how many on-disk folders are missing _pulseboard.json.
-    # Sidecars are written to ALL folders (linked or not) — every ArchiveFolder
-    # now has a stable archiveKey from the moment it is first scanned.
+    # Count folders that need a new sidecar (missing) or an updated one (stale).
+    # Stale = folder was case-renamed this scan and the sidecar still has the old name.
     $needsSidecar = 0
     foreach ($ak in $byArchKey.Keys) {
         $folderPath  = [string]$byArchKey[$ak].fullPath
@@ -996,14 +1013,30 @@ function Run-FullScan {
             $needsSidecar++
         }
     }
+    # Stale sidecars from case-only renames (sidecar exists but folderName is wrong)
+    $staleSidecar = 0
+    foreach ($ak in $caseRenamedKeys) {
+        $folderPath = [string]$byArchKey[$ak].fullPath
+        if (Test-Path -LiteralPath $folderPath -PathType Container) {
+            $staleSidecar++
+        }
+    }
+    $totalSidecarWork = $needsSidecar + $staleSidecar
 
-    if ($needsSidecar -gt 0) {
+    if ($totalSidecarWork -gt 0) {
         Write-Host ""
+        $promptMsg = if ($needsSidecar -gt 0 -and $staleSidecar -gt 0) {
+            "Write/update sidecars? ($needsSidecar missing, $staleSidecar stale) [Y/n]"
+        } elseif ($needsSidecar -gt 0) {
+            "Write _pulseboard.json into $needsSidecar folder(s) missing a sidecar? [Y/n]"
+        } else {
+            "Update $staleSidecar stale _pulseboard.json file(s) with new folder name? [Y/n]"
+        }
+
         if ($NoSidecarPrompt -or $DryRun) {
-            # Non-interactive or dry-run: proceed without asking
             $doWrite = $true
         } else {
-            $answer  = Read-Host "Write _pulseboard.json into $needsSidecar folder(s) missing a sidecar? [Y/n]"
+            $answer  = Read-Host $promptMsg
             $doWrite = ($answer -eq "" -or $answer -match "^[Yy]")
         }
 
