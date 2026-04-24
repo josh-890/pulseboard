@@ -27,6 +27,7 @@ type ArchiveSuggestionProp = {
   folderId: string
   folderName: string
   fullPath: string
+  relativePath: string | null
   fileCount: number | null
   parsedDate: Date | null
   confidence: string | null
@@ -297,7 +298,13 @@ export function SetArchivePanel(props: SetArchivePanelProps) {
                   disabled={isPending}
                   onClick={() => startTransition(async () => {
                     const res = await confirmArchiveFolderLinkAction(s.folderId, setId, 'set')
-                    if (res.success) router.refresh()
+                    if (res.success) {
+                      // Optimistic update — don't wait for router.refresh() to re-hydrate state
+                      setDismissedIds((prev) => new Set([...prev, s.folderId]))
+                      setArchiveStatus('OK')
+                      if (s.relativePath) setArchivePath(s.relativePath)
+                      router.refresh()
+                    }
                   })}
                   className="shrink-0 flex items-center gap-1 rounded px-2 py-0.5 text-[11px] font-medium bg-green-500/15 text-green-600 dark:text-green-400 hover:bg-green-500/25 transition-colors disabled:opacity-50"
                 >

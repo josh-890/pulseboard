@@ -11,7 +11,7 @@
 import { randomUUID } from 'crypto'
 import { prisma } from '@/lib/db'
 import { getSetting, setSetting } from '@/lib/services/setting-service'
-import { onArchiveScanComplete } from '@/lib/services/coherence-service'
+import { onArchiveScanComplete, onArchiveFolderLinked } from '@/lib/services/coherence-service'
 import type { ArchiveStatus, Prisma } from '@/generated/prisma/client'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -2080,6 +2080,7 @@ export async function confirmArchiveFolderLink(
       where: { id: setId },
       data: { archiveKey, ...archiveFields },
     })
+    await onArchiveFolderLinked(folderId, { setId })
   } else {
     // Guard: if target staging set is already PROMOTED, redirect to its promoted Set instead
     const ss = await prisma.stagingSet.findUnique({
@@ -2098,6 +2099,7 @@ export async function confirmArchiveFolderLink(
         where: { id: ss.promotedSetId },
         data: { archiveKey, ...archiveFields },
       })
+      await onArchiveFolderLinked(folderId, { setId: ss.promotedSetId })
     } else {
       // Normal staging link: StagingSet claims the folder
       await prisma.stagingSet.update({
@@ -2108,6 +2110,7 @@ export async function confirmArchiveFolderLink(
         where: { id: folderId },
         data: { suggestedStagingId: null, suggestedConfidence: null },
       })
+      await onArchiveFolderLinked(folderId, { stagingSetId: setId })
     }
   }
 
@@ -2120,6 +2123,7 @@ export type ArchiveSuggestionForSet = {
   folderId: string
   folderName: string
   fullPath: string
+  relativePath: string | null
   fileCount: number | null
   parsedDate: Date | null
   confidence: string | null
@@ -2138,6 +2142,7 @@ export async function getArchiveSuggestionsForSet(
       id: true,
       folderName: true,
       fullPath: true,
+      relativePath: true,
       fileCount: true,
       parsedDate: true,
       suggestedConfidence: true,
@@ -2149,6 +2154,7 @@ export async function getArchiveSuggestionsForSet(
     folderId: f.id,
     folderName: f.folderName,
     fullPath: f.fullPath,
+    relativePath: f.relativePath,
     fileCount: f.fileCount,
     parsedDate: f.parsedDate,
     confidence: f.suggestedConfidence,
