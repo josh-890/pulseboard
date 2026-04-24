@@ -87,7 +87,11 @@ export async function upsertCoherenceSnapshot(input: CoherenceUpsertInput): Prom
     if (!merged.stagingSetId && extra.stagingSetId)   merged.stagingSetId = extra.stagingSetId
     if (!merged.archiveFolderId && extra.archiveFolderId) merged.archiveFolderId = extra.archiveFolderId
   }
+  // Delete duplicates FIRST so unique constraints don't block the subsequent update.
   await prisma.$transaction([
+    prisma.setCoherenceSnapshot.deleteMany({
+      where: { id: { in: extras.map((e) => e.id) } },
+    }),
     prisma.setCoherenceSnapshot.update({
       where: { id: keep.id },
       data: {
@@ -99,9 +103,6 @@ export async function upsertCoherenceSnapshot(input: CoherenceUpsertInput): Prom
         archiveFileCount: merged.archiveFileCount,
         lastVerifiedAt: merged.lastVerifiedAt,
       },
-    }),
-    prisma.setCoherenceSnapshot.deleteMany({
-      where: { id: { in: extras.map((e) => e.id) } },
     }),
   ])
 }
