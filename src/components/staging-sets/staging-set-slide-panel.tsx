@@ -114,11 +114,14 @@ function PanelContent({
   const badge = STATUS_BADGE[stagingSet.status]
   const participants = (stagingSet.participants as Array<{ name: string; icgId: string }>) ?? []
 
-  // Archive state — PROMOTED sets read from the promoted Set
+  // Archive state — PROMOTED sets prefer the promoted Set's direct folder link,
+  // but fall back to the staging set's own coherence snapshot (covers the common case
+  // where the folder was linked via StagingSet.archiveFolderId before promotion and
+  // ArchiveFolder.linkedSetId was never migrated to the promoted Set).
   const isPromoted = stagingSet.status === 'PROMOTED'
   const snap = stagingSet.coherenceSnapshot
   const confirmedFolder = isPromoted
-    ? (stagingSet.promotedSet?.archiveFolder ?? null)
+    ? (stagingSet.promotedSet?.archiveFolder ?? snap?.archiveFolder ?? null)
     : (snap?.archiveFolder ?? null)
   const suggestion = isPromoted ? null : (!confirmedFolder ? (stagingSet.suggestedArchiveFolder ?? null) : null)
   const dateStr = stagingSet.releaseDate
@@ -420,11 +423,15 @@ function PanelContent({
 
         {/* Archive status banner */}
         <ArchiveStatusBanner
-          archiveStatus={isPromoted ? (stagingSet.promotedSet?.archiveStatus ?? null) : (snap?.archiveStatus ?? null)}
+          archiveStatus={isPromoted
+            ? (stagingSet.promotedSet?.archiveStatus ?? snap?.archiveStatus ?? null)
+            : (snap?.archiveStatus ?? null)}
           folderName={confirmedFolder?.folderName ?? null}
-          fileCount={isPromoted ? (stagingSet.promotedSet?.archiveFileCount ?? null) : (snap?.archiveFileCount ?? null)}
+          fileCount={isPromoted
+            ? (stagingSet.promotedSet?.archiveFileCount ?? snap?.archiveFileCount ?? null)
+            : (snap?.archiveFileCount ?? null)}
           lastChecked={confirmedFolder?.scannedAt ?? null}
-          archiveFolderId={isPromoted ? null : (snap?.archiveFolderId ?? null)}
+          archiveFolderId={isPromoted ? (snap?.archiveFolderId ?? null) : (snap?.archiveFolderId ?? null)}
           suggestedFolder={suggestion}
           stagingSetId={isPromoted ? undefined : stagingSet.id}
           expectedPath={!isPromoted && !confirmedFolder && !suggestion ? (expectedRelativePath ?? null) : null}

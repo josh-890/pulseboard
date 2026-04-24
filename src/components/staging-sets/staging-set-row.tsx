@@ -233,10 +233,12 @@ export const StagingSetRow = memo(function StagingSetRow({
   const isDupExact = !!ss.duplicateGroupId
   const isDupProbable = ss.isDuplicate && !ss.duplicateGroupId
 
-  // Archive state derivation — PROMOTED sets read from the promoted Set
+  // Archive state derivation — PROMOTED sets prefer the promoted Set's direct folder link,
+  // falling back to the staging set's own coherence snapshot for legacy links via
+  // StagingSet.archiveFolderId (where ArchiveFolder.linkedSetId was never migrated).
   const isPromoted = ss.status === 'PROMOTED'
   const confirmedFolder = isPromoted
-    ? (ss.promotedSet?.archiveFolder ?? null)
+    ? (ss.promotedSet?.archiveFolder ?? ss.coherenceSnapshot?.archiveFolder ?? null)
     : (ss.coherenceSnapshot?.archiveFolder ?? null)
   const suggestion = isPromoted ? null : (ss.suggestedArchiveFolder ?? null)
   const hasArchiveLink = !!confirmedFolder
