@@ -22,10 +22,20 @@ export type CoherenceSnapshotMini = {
   archiveFolder: { id: string; folderName: string; fullPath: string; scannedAt: Date } | null
 } | null
 
+export type PromotedSetArchiveMini = {
+  id: string
+  archivePath: string | null
+  archiveStatus: string
+  archiveFileCount: number | null
+  archiveVideoPresent: boolean | null
+  archiveFolder: { id: string; folderName: string; fullPath: string; scannedAt: Date } | null
+} | null
+
 export type StagingSetWithRelations = StagingSet & {
   channel: { id: string; name: string; tier: ChannelTier; shortName: string | null; channelFolder: string | null } | null
   matchedSet: { id: string; title: string; channelId: string | null } | null
   coherenceSnapshot: CoherenceSnapshotMini
+  promotedSet: PromotedSetArchiveMini
   /** Populated server-side after main query via getSuggestedFoldersForStagingSets */
   suggestedArchiveFolder?: SuggestedFolderInfo | null
 }
@@ -82,6 +92,16 @@ const STAGING_SET_INCLUDE = {
       archiveStatus: true,
       archiveFileCount: true,
       hasMediaInApp: true,
+      archiveFolder: { select: { id: true, folderName: true, fullPath: true, scannedAt: true } },
+    },
+  },
+  promotedSet: {
+    select: {
+      id: true,
+      archivePath: true,
+      archiveStatus: true,
+      archiveFileCount: true,
+      archiveVideoPresent: true,
       archiveFolder: { select: { id: true, folderName: true, fullPath: true, scannedAt: true } },
     },
   },
@@ -592,6 +612,16 @@ export async function getStagingSetsFiltered(filters: StagingSetFilters): Promis
           archiveFileCount: true,
           hasMediaInApp: true,
           archiveFolder: { select: { id: true, folderName: true, fullPath: true, scannedAt: true } } as const,
+        },
+      },
+      promotedSet: {
+        select: {
+          id: true,
+          archivePath: true,
+          archiveStatus: true,
+          archiveFileCount: true,
+          archiveVideoPresent: true,
+          archiveFolder: { select: { id: true, folderName: true, fullPath: true, scannedAt: true } },
         },
       },
     } as const,

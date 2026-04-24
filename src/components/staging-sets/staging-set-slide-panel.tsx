@@ -113,10 +113,13 @@ function PanelContent({
   const badge = STATUS_BADGE[stagingSet.status]
   const participants = (stagingSet.participants as Array<{ name: string; icgId: string }>) ?? []
 
-  // Archive state
+  // Archive state — PROMOTED sets read from the promoted Set
+  const isPromoted = stagingSet.status === 'PROMOTED'
   const snap = stagingSet.coherenceSnapshot
-  const confirmedFolder = snap?.archiveFolder ?? null
-  const suggestion = !confirmedFolder ? (stagingSet.suggestedArchiveFolder ?? null) : null
+  const confirmedFolder = isPromoted
+    ? (stagingSet.promotedSet?.archiveFolder ?? null)
+    : (snap?.archiveFolder ?? null)
+  const suggestion = isPromoted ? null : (!confirmedFolder ? (stagingSet.suggestedArchiveFolder ?? null) : null)
   const dateStr = stagingSet.releaseDate
     ? new Date(stagingSet.releaseDate).toISOString().split('T')[0]
     : null
@@ -416,17 +419,29 @@ function PanelContent({
 
         {/* Archive status banner */}
         <ArchiveStatusBanner
-          archiveStatus={snap?.archiveStatus ?? null}
+          archiveStatus={isPromoted ? (stagingSet.promotedSet?.archiveStatus ?? null) : (snap?.archiveStatus ?? null)}
           folderName={confirmedFolder?.folderName ?? null}
-          fileCount={snap?.archiveFileCount ?? null}
+          fileCount={isPromoted ? (stagingSet.promotedSet?.archiveFileCount ?? null) : (snap?.archiveFileCount ?? null)}
           lastChecked={confirmedFolder?.scannedAt ?? null}
-          archiveFolderId={snap?.archiveFolderId ?? null}
+          archiveFolderId={isPromoted ? null : (snap?.archiveFolderId ?? null)}
           suggestedFolder={suggestion}
-          stagingSetId={stagingSet.id}
-          expectedPath={!confirmedFolder && !suggestion ? (expectedRelativePath ?? null) : null}
-          onPickerOpen={() => setPickerOpen(true)}
-          onArchiveChange={onRefresh}
+          stagingSetId={isPromoted ? undefined : stagingSet.id}
+          expectedPath={!isPromoted && !confirmedFolder && !suggestion ? (expectedRelativePath ?? null) : null}
+          onPickerOpen={isPromoted ? undefined : () => setPickerOpen(true)}
+          onArchiveChange={isPromoted ? undefined : onRefresh}
         />
+
+        {/* For PROMOTED staging sets, show a link to the canonical promoted Set */}
+        {isPromoted && stagingSet.promotedSet && (
+          <div className="flex justify-end">
+            <a
+              href={`/sets/${stagingSet.promotedSet.id}`}
+              className="flex items-center gap-1 text-[11px] text-muted-foreground/60 hover:text-foreground transition-colors"
+            >
+              Manage archive on promoted Set →
+            </a>
+          </div>
+        )}
 
         {/* Archive */}
         <ArchiveSection stagingSet={stagingSet} onRefresh={onRefresh} />
@@ -494,8 +509,8 @@ function PanelContent({
         )}
       </div>
 
-      {/* Archive folder picker sheet */}
-      {pickerOpen && (
+      {/* Archive folder picker sheet (non-promoted only) */}
+      {pickerOpen && !isPromoted && (
         <ArchiveFolderPicker
           open={pickerOpen}
           onOpenChange={(open) => {

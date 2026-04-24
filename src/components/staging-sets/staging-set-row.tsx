@@ -3,7 +3,8 @@
 import { memo, useState, useRef, useCallback, useTransition } from 'react'
 import { createPortal } from 'react-dom'
 import Image from 'next/image'
-import { AlertTriangle, Camera, CheckSquare, Copy, Film, Flag, FolderOpen, FolderSearch, FolderX, Check, X } from 'lucide-react'
+import Link from 'next/link'
+import { AlertTriangle, Camera, CheckSquare, Clock, Copy, ExternalLink, Film, Flag, FolderOpen, FolderSearch, FolderX, Check, X } from 'lucide-react'
 import { cn, getInitialsFromName } from '@/lib/utils'
 import type { StagingSetWithRelations, ParticipantStatus } from '@/lib/services/import/staging-set-service'
 import type { StagingSetStatus } from '@/generated/prisma/client'
@@ -232,9 +233,12 @@ export const StagingSetRow = memo(function StagingSetRow({
   const isDupExact = !!ss.duplicateGroupId
   const isDupProbable = ss.isDuplicate && !ss.duplicateGroupId
 
-  // Archive state derivation
-  const confirmedFolder = ss.coherenceSnapshot?.archiveFolder ?? null
-  const suggestion = ss.suggestedArchiveFolder ?? null
+  // Archive state derivation — PROMOTED sets read from the promoted Set
+  const isPromoted = ss.status === 'PROMOTED'
+  const confirmedFolder = isPromoted
+    ? (ss.promotedSet?.archiveFolder ?? null)
+    : (ss.coherenceSnapshot?.archiveFolder ?? null)
+  const suggestion = isPromoted ? null : (ss.suggestedArchiveFolder ?? null)
   const hasArchiveLink = !!confirmedFolder
 
   // Expected path for the "no match" state (relative, no root prefix)
@@ -466,8 +470,50 @@ export const StagingSetRow = memo(function StagingSetRow({
       </div>{/* end flex items-center */}
 
       {/* ── Archive section ──────────────────────────────────────────────── */}
-      {/* Confirmed link */}
-      {hasArchiveLink && (
+
+      {/* PROMOTED: show the promoted Set's archive status + "View set" link */}
+      {isPromoted && ss.promotedSet && (
+        <div className="flex items-center gap-1.5 pl-3">
+          {confirmedFolder ? (
+            <>
+              <FolderOpen size={11} className="shrink-0 text-green-500" />
+              <span className="min-w-0 truncate text-xs font-medium text-green-600 dark:text-green-400">
+                {confirmedFolder.folderName}
+              </span>
+              {ss.promotedSet.archiveFileCount != null && (
+                <span className="shrink-0 text-xs text-muted-foreground">
+                  · {ss.promotedSet.archiveFileCount} files
+                </span>
+              )}
+            </>
+          ) : ss.promotedSet.archivePath ? (
+            <>
+              <Clock size={11} className="shrink-0 text-blue-400" />
+              <span className="text-xs text-blue-500">Path set — not scanned</span>
+            </>
+          ) : (
+            <>
+              <FolderX size={11} className="shrink-0 text-muted-foreground/40" />
+              <span className="text-xs text-muted-foreground/50">Not in archive</span>
+            </>
+          )}
+          <span className="flex-1" />
+          <Link
+            href={`/sets/${ss.promotedSet.id}`}
+            onClick={(e) => e.stopPropagation()}
+            className={cn(
+              'flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium transition-colors',
+              'bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground',
+            )}
+          >
+            <ExternalLink size={10} />
+            View set
+          </Link>
+        </div>
+      )}
+
+      {/* Non-promoted: confirmed link */}
+      {!isPromoted && hasArchiveLink && (
         <div className="flex items-center gap-1.5 pl-3 text-xs text-green-600 dark:text-green-400">
           <FolderOpen size={11} className="shrink-0" />
           <span className="truncate font-medium">{confirmedFolder!.folderName}</span>
@@ -479,8 +525,8 @@ export const StagingSetRow = memo(function StagingSetRow({
         </div>
       )}
 
-      {/* Archive suggestion (HIGH or MEDIUM) */}
-      {!hasArchiveLink && suggestion && (
+      {/* Non-promoted: archive suggestion (HIGH or MEDIUM) */}
+      {!isPromoted && !hasArchiveLink && suggestion && (
         <div className="flex items-center gap-1.5 pl-3">
           <span
             className={cn(
@@ -551,8 +597,8 @@ export const StagingSetRow = memo(function StagingSetRow({
         </div>
       )}
 
-      {/* No archive link and no suggestion */}
-      {!hasArchiveLink && !suggestion && ss.status !== 'PROMOTED' && expectedFolderName && (
+      {/* Non-promoted: no archive link and no suggestion */}
+      {!isPromoted && !hasArchiveLink && !suggestion && expectedFolderName && (
         <div className="flex items-center gap-1.5 pl-3">
           <FolderX size={11} className="shrink-0 text-muted-foreground/40" />
           <span className="shrink-0 text-xs text-muted-foreground/50">Not in archive</span>
@@ -579,8 +625,8 @@ export const StagingSetRow = memo(function StagingSetRow({
         </div>
       )}
 
-      {/* Archive folder picker sheet */}
-      {pickerOpen && (
+      {/* Archive folder picker (non-promoted only) */}
+      {pickerOpen && !isPromoted && (
         <ArchiveFolderPicker
           open={pickerOpen}
           onOpenChange={setPickerOpen}
