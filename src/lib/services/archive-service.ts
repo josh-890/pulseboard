@@ -1003,18 +1003,25 @@ export async function upsertArchiveFolders(
               missingOnDisk: false,
             },
           })
-          // Propagate new relativePath to linked Set/StagingSet
+          // Propagate new relativePath to linked Set/StagingSet.
+          // Use OK + latest file count — the scanner just verified this folder exists.
           if (newRelative) {
+            const renameFields = {
+              archivePath: newRelative,
+              archiveStatus: 'OK' as const,
+              archiveFileCount: item.fileCount ?? null,
+              archiveLastChecked: now,
+            }
             if (existingBySidecar.linkedSetId) {
               await prisma.set.update({
                 where: { id: existingBySidecar.linkedSetId },
-                data: { archivePath: newRelative, archiveStatus: 'PENDING' },
+                data: renameFields,
               })
             }
             if (existingBySidecar.linkedStagingSet?.id) {
               await prisma.stagingSet.update({
                 where: { id: existingBySidecar.linkedStagingSet.id },
-                data: { archivePath: newRelative, archiveStatus: 'PENDING' },
+                data: renameFields,
               })
             }
           }
@@ -1141,18 +1148,25 @@ export async function upsertArchiveFolders(
           },
         })
 
-        // Propagate new relative path to linked Set/StagingSet so archivePath stays current
+        // Propagate new relative path to linked Set/StagingSet so archivePath stays current.
+        // Use OK + latest file count — the scanner just verified this folder exists.
         if (newRelative) {
+          const renameFields = {
+            archivePath: newRelative,
+            archiveStatus: 'OK' as const,
+            archiveFileCount: item.fileCount ?? null,
+            archiveLastChecked: now,
+          }
           if (existing.linkedSetId) {
             await prisma.set.update({
               where: { id: existing.linkedSetId },
-              data: { archivePath: newRelative, archiveStatus: 'PENDING' },
+              data: renameFields,
             })
           }
           if (existing.linkedStagingSet?.id) {
             await prisma.stagingSet.update({
               where: { id: existing.linkedStagingSet.id },
-              data: { archivePath: newRelative, archiveStatus: 'PENDING' },
+              data: renameFields,
             })
           }
         }

@@ -14,6 +14,7 @@ import {
   FolderCheck,
   FolderX,
   Pencil,
+  Copy,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -443,8 +444,8 @@ function PanelContent({
           </div>
         )}
 
-        {/* Archive */}
-        <ArchiveSection stagingSet={stagingSet} onRefresh={onRefresh} />
+        {/* Archive path detail (non-promoted only) */}
+        {!isPromoted && <ArchiveSection stagingSet={stagingSet} onRefresh={onRefresh} />}
 
         {/* Annotations */}
         <div className="rounded-lg border border-border/50 bg-card/50 p-3">
@@ -551,6 +552,7 @@ function ArchiveSection({ stagingSet, onRefresh }: ArchiveSectionProps) {
   const [editPath, setEditPath] = useState(stagingSet.archivePath ?? '')
   const [isSaving, setIsSaving] = useState(false)
   const [archiveRoot, setArchiveRoot] = useState<string | null>(null)
+  const [showManual, setShowManual] = useState(false)
 
   const archiveStatus = stagingSet.archiveStatus
   const statusCfg = ARCHIVE_STATUS_CONFIG[archiveStatus]
@@ -719,40 +721,23 @@ function ArchiveSection({ stagingSet, onRefresh }: ArchiveSectionProps) {
                 </div>
               ) : suggestedPath ? (
                 <div className="space-y-1.5">
-                  <p className="text-[10px] text-muted-foreground">Suggested relative path:</p>
-                  {isEditing ? (
-                    <>
-                      <Input
-                        value={editPath}
-                        onChange={(e) => setEditPath(e.target.value)}
-                        placeholder="e.g. MA-MySite\2012\2012-08-08-MA Jane - Waterworld\"
-                        className="h-7 font-mono text-xs"
-                        autoFocus
-                      />
-                      <div className="flex gap-1.5">
-                        <Button size="sm" className="h-6 text-xs" onClick={() => handleConfirm(editPath)} disabled={isSaving}>
-                          <Save size={11} /> Confirm
-                        </Button>
-                        <Button size="sm" variant="ghost" className="h-6 text-xs" onClick={() => { setIsEditing(false); setEditPath(suggestedPath) }}>
-                          Cancel
-                        </Button>
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      <code className="block break-all rounded bg-muted/50 px-1.5 py-1 text-[10px] leading-tight text-muted-foreground">
-                        {suggestedPath}
-                      </code>
-                      <div className="flex gap-1.5">
-                        <Button size="sm" className="h-6 text-xs" onClick={() => handleConfirm(suggestedPath)} disabled={isSaving}>
-                          <Check size={11} /> Confirm
-                        </Button>
-                        <Button size="sm" variant="outline" className="h-6 text-xs" onClick={() => { setIsEditing(true); setEditPath(suggestedPath) }}>
-                          <Pencil size={11} /> Edit
-                        </Button>
-                      </div>
-                    </>
-                  )}
+                  <p className="text-[10px] text-muted-foreground">Expected location:</p>
+                  <div className="flex items-start gap-1.5">
+                    <code className="flex-1 break-all rounded bg-muted/50 px-1.5 py-1 text-[10px] leading-tight text-muted-foreground">
+                      {suggestedPath}
+                    </code>
+                    <button
+                      type="button"
+                      onClick={() => navigator.clipboard.writeText(suggestedPath)}
+                      className="shrink-0 rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+                      title="Copy path"
+                    >
+                      <Copy size={11} />
+                    </button>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground/60">
+                    Archive scanner will link this folder automatically when found.
+                  </p>
                 </div>
               ) : (
                 <div className="space-y-1.5">
@@ -780,10 +765,18 @@ function ArchiveSection({ stagingSet, onRefresh }: ArchiveSectionProps) {
                         </Button>
                       </div>
                     </>
-                  ) : (
+                  ) : showManual ? (
                     <Button size="sm" variant="outline" className="h-6 text-xs" onClick={() => setIsEditing(true)}>
                       <FolderOpen size={11} /> Enter relative path manually
                     </Button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setShowManual(true)}
+                      className="text-[10px] text-muted-foreground/60 hover:text-muted-foreground transition-colors"
+                    >
+                      Manual override ▸
+                    </button>
                   )}
                 </div>
               )}
