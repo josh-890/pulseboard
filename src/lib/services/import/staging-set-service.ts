@@ -356,7 +356,7 @@ export async function markStagingSetPromoted(
   const stagingSet = await prisma.$transaction(async (tx) => {
     const updated = await tx.stagingSet.update({
       where: { id },
-      data: { status: 'PROMOTED', promotedSetId },
+      data: { status: 'PROMOTED', promotedSetId, mediaQueueAt: null, mediaPriority: null },
     })
     // If a folder is linked, write linkedSetId on the folder (keep archiveFolderId on staging set as history)
     if (pre?.archiveFolderId) {
