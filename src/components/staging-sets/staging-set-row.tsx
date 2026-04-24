@@ -3,7 +3,7 @@
 import { memo, useState, useRef, useCallback, useTransition } from 'react'
 import { createPortal } from 'react-dom'
 import Image from 'next/image'
-import { AlertTriangle, Camera, CheckSquare, Copy, Film, Flag, FolderOpen, FolderSearch, Check, X } from 'lucide-react'
+import { AlertTriangle, Camera, CheckSquare, Copy, Film, Flag, FolderOpen, FolderSearch, FolderX, Check, X } from 'lucide-react'
 import { cn, getInitialsFromName } from '@/lib/utils'
 import type { StagingSetWithRelations, ParticipantStatus } from '@/lib/services/import/staging-set-service'
 import type { StagingSetStatus } from '@/generated/prisma/client'
@@ -83,6 +83,7 @@ type StagingSetRowProps = {
   onSelect: (id: string) => void
   onToggleCheck: (id: string) => void
   onQueueToggle?: (id: string) => void
+  onArchiveChange?: () => void
 }
 
 // ─── Cover Thumbnail with hover preview ───────────────────────────────────
@@ -209,6 +210,7 @@ export const StagingSetRow = memo(function StagingSetRow({
   onSelect,
   onToggleCheck,
   onQueueToggle,
+  onArchiveChange,
 }: StagingSetRowProps) {
   const [imgError, setImgError] = useState(false)
   const [pickerOpen, setPickerOpen] = useState(false)
@@ -516,6 +518,7 @@ export const StagingSetRow = memo(function StagingSetRow({
               e.stopPropagation()
               startConfirm(async () => {
                 await confirmArchiveFolderLinkAction(suggestion.folderId, ss.id, 'staging')
+                onArchiveChange?.()
               })
             }}
             className={cn(
@@ -534,6 +537,7 @@ export const StagingSetRow = memo(function StagingSetRow({
               e.stopPropagation()
               startReject(async () => {
                 await rejectArchiveSuggestionAction(suggestion.folderId)
+                onArchiveChange?.()
               })
             }}
             className={cn(
@@ -550,10 +554,11 @@ export const StagingSetRow = memo(function StagingSetRow({
       {/* No archive link and no suggestion */}
       {!hasArchiveLink && !suggestion && ss.status !== 'PROMOTED' && expectedFolderName && (
         <div className="flex items-center gap-1.5 pl-3">
-          <span className="shrink-0 text-xs text-muted-foreground/50">○</span>
+          <FolderX size={11} className="shrink-0 text-muted-foreground/40" />
+          <span className="shrink-0 text-xs text-muted-foreground/50">Not in archive</span>
           {expectedRelativePath && (
-            <span className="min-w-0 truncate text-xs text-muted-foreground/60" title={expectedRelativePath}>
-              {expectedRelativePath}
+            <span className="min-w-0 truncate text-xs text-muted-foreground/40" title={expectedRelativePath}>
+              · Expected: {expectedRelativePath}
             </span>
           )}
           <span className="flex-1" />
@@ -565,7 +570,7 @@ export const StagingSetRow = memo(function StagingSetRow({
             }}
             className={cn(
               'flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium transition-colors',
-              'bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground',
+              'bg-amber-500/10 text-amber-600 hover:bg-amber-500/20 dark:text-amber-400',
             )}
           >
             <FolderSearch size={10} />
@@ -581,6 +586,7 @@ export const StagingSetRow = memo(function StagingSetRow({
           onOpenChange={setPickerOpen}
           stagingSetId={ss.id}
           initialQuery={pickerInitialQuery}
+          onSuccess={onArchiveChange}
         />
       )}
     </div>

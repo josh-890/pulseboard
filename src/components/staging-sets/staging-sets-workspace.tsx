@@ -568,6 +568,7 @@ export function StagingSetsWorkspace() {
               onSelect={(id) => setSelectedId(id === selectedId ? null : id)}
               onToggleCheck={toggleCheck}
               onQueueToggle={handleQueueToggle}
+              onArchiveChange={() => fetchDataPreservingScroll()}
               onLoadMore={handleLoadMore}
               hasMore={!!data && data.items.length < data.total}
               isLoadingMore={isLoadingMore}

@@ -30,6 +30,8 @@ type ArchiveStatusBannerProps = {
 
   // Picker trigger (for "Link folder…" button)
   onPickerOpen?: () => void
+  /** Called after a confirm/reject action completes — use to refresh parent data */
+  onArchiveChange?: () => void
 }
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
@@ -56,6 +58,7 @@ export function ArchiveStatusBanner({
   stagingSetId,
   expectedPath,
   onPickerOpen,
+  onArchiveChange,
 }: ArchiveStatusBannerProps) {
   const [isConfirming, startConfirm] = useTransition()
   const [isRejecting, startReject] = useTransition()
@@ -187,6 +190,7 @@ export function ArchiveStatusBanner({
             onClick={() => {
               startConfirm(async () => {
                 await confirmArchiveFolderLinkAction(suggestedFolder.folderId, stagingSetId!, 'staging')
+                onArchiveChange?.()
               })
             }}
             className={cn(
@@ -204,6 +208,7 @@ export function ArchiveStatusBanner({
             onClick={() => {
               startReject(async () => {
                 await rejectArchiveSuggestionAction(suggestedFolder.folderId)
+                onArchiveChange?.()
               })
             }}
             className={cn(

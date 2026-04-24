@@ -26,6 +26,8 @@ type ArchiveFolderPickerProps = {
   stagingSetId: string
   /** Pre-seeds the search field — typically "{shortName} {year}" */
   initialQuery?: string
+  /** Called after a folder is successfully linked */
+  onSuccess?: () => void
 }
 
 // ─── Component ──────────────────────────────────────────────────────────────
@@ -35,6 +37,7 @@ export function ArchiveFolderPicker({
   onOpenChange,
   stagingSetId,
   initialQuery = '',
+  onSuccess,
 }: ArchiveFolderPickerProps) {
   const [query, setQuery] = useState(initialQuery)
   const [results, setResults] = useState<FolderResult[]>([])
@@ -85,6 +88,7 @@ export function ArchiveFolderPicker({
       const result = await confirmArchiveFolderLinkAction(folder.id, stagingSetId, 'staging')
       if (result.success) {
         onOpenChange(false)
+        onSuccess?.()
       } else {
         setError(result.error ?? 'Failed to link folder')
       }

@@ -425,6 +425,7 @@ function PanelContent({
           stagingSetId={stagingSet.id}
           expectedPath={!confirmedFolder && !suggestion ? (expectedRelativePath ?? null) : null}
           onPickerOpen={() => setPickerOpen(true)}
+          onArchiveChange={onRefresh}
         />
 
         {/* Archive */}

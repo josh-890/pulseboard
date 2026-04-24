@@ -26,6 +26,7 @@ type StagingSetGridProps = {
   onSelect: (id: string) => void
   onToggleCheck: (id: string) => void
   onQueueToggle?: (id: string) => void
+  onArchiveChange?: () => void
   onLoadMore: () => void
   hasMore: boolean
   isLoadingMore: boolean
@@ -181,6 +182,7 @@ export function StagingSetGrid({
   onSelect,
   onToggleCheck,
   onQueueToggle,
+  onArchiveChange,
   onLoadMore,
   hasMore,
   isLoadingMore,
@@ -519,6 +521,7 @@ export function StagingSetGrid({
                     onSelect={onSelect}
                     onToggleCheck={onToggleCheck}
                     onQueueToggle={onQueueToggle}
+                    onArchiveChange={onArchiveChange}
                   />
                 </div>
               )}
