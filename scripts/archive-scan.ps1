@@ -629,7 +629,7 @@ function Walk-Root {
                         # Flag stale sidecar: folderName in the JSON no longer matches the actual
                         # folder name on disk (e.g. after a case-only rename). The sidecar phase
                         # will rewrite it even if no other work is needed this scan.
-                        if ($sidecarObj -and [string]$sidecarObj.folderName -ne $folderName) {
+                        if ($sidecarObj -and [string]$sidecarObj.folderName -cne $folderName) {
                             $item | Add-Member -NotePropertyName staleSidecar -NotePropertyValue $true
                         }
                         [void]$delta.Add($item)
@@ -707,7 +707,7 @@ function Walk-Root {
                 if ($previousFullPath) {
                     $item | Add-Member -NotePropertyName previousFullPath -NotePropertyValue $previousFullPath
                 }
-                if ($sidecarObj -and [string]$sidecarObj.folderName -ne $folderName) {
+                if ($sidecarObj -and [string]$sidecarObj.folderName -cne $folderName) {
                     $item | Add-Member -NotePropertyName staleSidecar -NotePropertyValue $true
                 }
 
@@ -770,7 +770,7 @@ function Write-Sidecars {
                 $existingJson = Get-Content -LiteralPath $sidecarPath -Raw -ErrorAction SilentlyContinue
                 if ($existingJson) {
                     $existingObj = $existingJson | ConvertFrom-Json -ErrorAction SilentlyContinue
-                    if ($existingObj -and $existingObj.folderName -ne $actualFolderName) {
+                    if ($existingObj -and $existingObj.folderName -cne $actualFolderName) {
                         $stale = $true
                     }
                 }
