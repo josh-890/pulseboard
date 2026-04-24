@@ -958,11 +958,12 @@ export type KeyConflict = {
 export async function upsertArchiveFolders(
   items: FullIngestItem[],
   tenant: string,
-): Promise<{ created: number; updated: number; renamed: number; unchanged: number; keyConflicts: KeyConflict[] }> {
+): Promise<{ created: number; updated: number; renamed: number; unchanged: number; errors: number; keyConflicts: KeyConflict[] }> {
   const now = new Date()
-  const counts = { created: 0, updated: 0, renamed: 0, unchanged: 0, keyConflicts: [] as KeyConflict[] }
+  const counts = { created: 0, updated: 0, renamed: 0, unchanged: 0, errors: 0, keyConflicts: [] as KeyConflict[] }
 
   for (const item of items) {
+    try {
     const parsedDate = item.parsedDate ? new Date(item.parsedDate) : null
     const leafDirModifiedAt = new Date(item.leafDirModifiedAt)
     const yearDirModifiedAt = new Date(item.yearDirModifiedAt)
@@ -1246,6 +1247,10 @@ export async function upsertArchiveFolders(
         },
       })
       counts.unchanged++
+    }
+    } catch (err) {
+      counts.errors++
+      console.error(`[archive/upsertArchiveFolders] failed for item ${item.action} ${item.fullPath}:`, err)
     }
   }
 
