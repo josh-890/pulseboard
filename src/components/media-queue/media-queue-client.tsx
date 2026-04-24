@@ -1,7 +1,8 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useState, useEffect, useTransition } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { Camera, Film, Layers, ImageIcon, Flag, HardDrive, ExternalLink, CheckCircle2, XCircle, Clock, AlertCircle, FolderSearch, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { MediaQueueItem } from '@/lib/services/archive-service'
@@ -98,6 +99,7 @@ function QueueRow({
   onPriorityChange: (id: string, type: MediaQueueItem['type'], priority: number) => void
 }) {
   const [pending, startTransition] = useTransition()
+  const router = useRouter()
   const dateStr = item.releaseDate
     ? new Date(item.releaseDate).toISOString().split('T')[0]
     : '????-??-??'
@@ -122,12 +124,14 @@ function QueueRow({
         item.id,
         item.type,
       )
+      router.refresh()
     })
   }
 
   function handleReject() {
     startTransition(async () => {
       await rejectArchiveSuggestionAction(item.archiveSuggestion!.folderId)
+      router.refresh()
     })
   }
 
@@ -273,6 +277,11 @@ function QueueRow({
 export function MediaQueueClient({ initialItems, total: initialTotal }: MediaQueueClientProps) {
   const [items, setItems] = useState<MediaQueueItem[]>(initialItems)
   const [filterMode, setFilterMode] = useState<FilterMode>('all')
+
+  // Re-sync when the server re-renders after router.refresh()
+  useEffect(() => {
+    setItems(initialItems)
+  }, [initialItems])
 
   const filtered = items.filter((item) => {
     if (filterMode === 'photo') return !item.isVideo

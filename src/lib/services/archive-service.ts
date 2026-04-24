@@ -2045,6 +2045,18 @@ export async function confirmArchiveFolderLink(
   // archiveKey is always present on ArchiveFolder (generated at scan time)
   const archiveKey = folder.archiveKey
 
+  // The folder was found by a scan — it exists on disk with known counts.
+  // Set archiveStatus to OK immediately (not PENDING) and copy the known counts.
+  // PENDING would mean "path set but not yet verified", which is wrong here.
+  const archiveFields = folder.relativePath
+    ? {
+        archivePath: folder.relativePath,
+        archiveStatus: 'OK' as const,
+        archiveFileCount: folder.fileCount ?? null,
+        archiveVideoPresent: folder.videoPresent ?? null,
+      }
+    : {}
+
   if (type === 'set') {
     await prisma.archiveFolder.update({
       where: { id: folderId },
@@ -2052,10 +2064,7 @@ export async function confirmArchiveFolderLink(
     })
     await prisma.set.update({
       where: { id: setId },
-      data: {
-        archiveKey,
-        ...(folder.relativePath ? { archivePath: folder.relativePath, archiveStatus: 'PENDING' } : {}),
-      },
+      data: { archiveKey, ...archiveFields },
     })
   } else {
     // Guard: if target staging set is already PROMOTED, redirect to its promoted Set instead
@@ -2073,20 +2082,13 @@ export async function confirmArchiveFolderLink(
       })
       await prisma.set.update({
         where: { id: ss.promotedSetId },
-        data: {
-          archiveKey,
-          ...(folder.relativePath ? { archivePath: folder.relativePath, archiveStatus: 'PENDING' } : {}),
-        },
+        data: { archiveKey, ...archiveFields },
       })
     } else {
       // Normal staging link: StagingSet claims the folder
       await prisma.stagingSet.update({
         where: { id: setId },
-        data: {
-          archiveFolderId: folderId,
-          archiveKey,
-          ...(folder.relativePath ? { archivePath: folder.relativePath, archiveStatus: 'PENDING' } : {}),
-        },
+        data: { archiveFolderId: folderId, archiveKey, ...archiveFields },
       })
       await prisma.archiveFolder.update({
         where: { id: folderId },
