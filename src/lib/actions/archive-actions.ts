@@ -141,6 +141,7 @@ export async function confirmArchiveFolderLinkAction(
       revalidatePath('/import')
       revalidatePath('/staging-sets')
       revalidatePath('/sets')
+      revalidatePath('/shopping-list')
       if (type === 'set') {
         revalidatePath(`/sets/${setId}`)
       }
@@ -161,6 +162,7 @@ export async function rejectArchiveSuggestionAction(
       revalidatePath('/import')
       revalidatePath('/staging-sets')
       revalidatePath('/sets')
+      revalidatePath('/shopping-list')
       return { success: true }
     } catch {
       return { success: false, error: 'Failed to reject suggestion' }

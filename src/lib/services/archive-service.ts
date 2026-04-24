@@ -46,6 +46,13 @@ export type ScanResult = {
   error: string | null
 }
 
+export type ArchiveSuggestion = {
+  folderId: string
+  folderName: string
+  fileCount: number | null
+  confidence: 'HIGH' | 'MEDIUM'
+}
+
 export type MediaQueueItem = {
   id: string
   type: 'staging' | 'set'
@@ -59,6 +66,8 @@ export type MediaQueueItem = {
   archiveStatus: ArchiveStatus
   archiveFileCount: number | null
   archiveVideoPresent: boolean | null
+  /** Non-null when an ArchiveFolder has been suggested but not yet confirmed */
+  archiveSuggestion: ArchiveSuggestion | null
 }
 
 // ─── Multi-root helpers ───────────────────────────────────────────────────────
@@ -622,35 +631,53 @@ export async function getMediaQueue(filters: {
     }),
   ])
 
-  const stagingItems: MediaQueueItem[] = stagingSets.map((ss) => ({
-    id: ss.id,
-    type: 'staging' as const,
-    title: ss.title,
-    channelName: ss.channelName,
-    releaseDate: ss.releaseDate,
-    isVideo: ss.isVideo,
-    mediaPriority: ss.mediaPriority ?? 3,
-    mediaQueueAt: ss.mediaQueueAt!,
-    archivePath: ss.archivePath,
-    archiveStatus: ss.archiveStatus,
-    archiveFileCount: ss.archiveFileCount,
-    archiveVideoPresent: ss.archiveVideoPresent,
-  }))
+  // Fetch pending archive suggestions for all items in one pass
+  const [stagingSuggestions, setSuggestions] = await Promise.all([
+    getSuggestedFoldersForStagingSets(stagingSets.map((s) => s.id)),
+    getSuggestedFoldersForSets(sets.map((s) => s.id)),
+  ])
 
-  const setItems: MediaQueueItem[] = sets.map((s) => ({
-    id: s.id,
-    type: 'set' as const,
-    title: s.title,
-    channelName: s.channel?.name ?? null,
-    releaseDate: s.releaseDate,
-    isVideo: s.type === 'video',
-    mediaPriority: s.mediaPriority ?? 3,
-    mediaQueueAt: s.mediaQueueAt!,
-    archivePath: s.archivePath,
-    archiveStatus: s.archiveStatus,
-    archiveFileCount: s.archiveFileCount,
-    archiveVideoPresent: s.archiveVideoPresent,
-  }))
+  const stagingItems: MediaQueueItem[] = stagingSets.map((ss) => {
+    const sug = stagingSuggestions.get(ss.id)
+    return {
+      id: ss.id,
+      type: 'staging' as const,
+      title: ss.title,
+      channelName: ss.channelName,
+      releaseDate: ss.releaseDate,
+      isVideo: ss.isVideo,
+      mediaPriority: ss.mediaPriority ?? 3,
+      mediaQueueAt: ss.mediaQueueAt!,
+      archivePath: ss.archivePath,
+      archiveStatus: ss.archiveStatus,
+      archiveFileCount: ss.archiveFileCount,
+      archiveVideoPresent: ss.archiveVideoPresent,
+      archiveSuggestion: sug
+        ? { folderId: sug.folderId, folderName: sug.folderName, fileCount: sug.fileCount, confidence: sug.confidence }
+        : null,
+    }
+  })
+
+  const setItems: MediaQueueItem[] = sets.map((s) => {
+    const sug = setSuggestions.get(s.id)
+    return {
+      id: s.id,
+      type: 'set' as const,
+      title: s.title,
+      channelName: s.channel?.name ?? null,
+      releaseDate: s.releaseDate,
+      isVideo: s.type === 'video',
+      mediaPriority: s.mediaPriority ?? 3,
+      mediaQueueAt: s.mediaQueueAt!,
+      archivePath: s.archivePath,
+      archiveStatus: s.archiveStatus,
+      archiveFileCount: s.archiveFileCount,
+      archiveVideoPresent: s.archiveVideoPresent,
+      archiveSuggestion: sug
+        ? { folderId: sug.folderId, folderName: sug.folderName, fileCount: sug.fileCount, confidence: sug.confidence }
+        : null,
+    }
+  })
 
   // Merge and re-sort by priority then date
   const items = [...stagingItems, ...setItems].sort((a, b) => {

@@ -2,11 +2,11 @@
 
 import { useState, useTransition } from 'react'
 import Link from 'next/link'
-import { Camera, Film, Layers, ImageIcon, Flag, HardDrive, ExternalLink, CheckCircle2, XCircle, Clock, AlertCircle } from 'lucide-react'
+import { Camera, Film, Layers, ImageIcon, Flag, HardDrive, ExternalLink, CheckCircle2, XCircle, Clock, AlertCircle, FolderSearch, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { MediaQueueItem } from '@/lib/services/archive-service'
 import type { ArchiveStatus } from '@/generated/prisma/client'
-import { toggleMediaQueueAction, updateMediaPriorityAction } from '@/lib/actions/archive-actions'
+import { toggleMediaQueueAction, updateMediaPriorityAction, confirmArchiveFolderLinkAction, rejectArchiveSuggestionAction } from '@/lib/actions/archive-actions'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -63,6 +63,14 @@ const ARCHIVE_STATUS_CONFIG: Record<ArchiveStatus, StatusConfig> = {
   },
 }
 
+const SUGGESTION_PENDING_CONFIG: StatusConfig = {
+  label: 'Archive folder found — confirm to link',
+  icon: <FolderSearch size={14} className="shrink-0 text-amber-500" />,
+  text: 'text-amber-500',
+  rowBorder: 'border-amber-500/40',
+  rowBg: 'bg-amber-500/8',
+}
+
 const PRIORITY_CONFIG: Record<number, { label: string; badge: string; ring: string }> = {
   1: { label: 'P1', badge: 'bg-red-500/90 text-white',    ring: 'ring-red-500/40' },
   2: { label: 'P2', badge: 'bg-amber-500/90 text-white',  ring: 'ring-amber-500/40' },
@@ -93,11 +101,35 @@ function QueueRow({
   const dateStr = item.releaseDate
     ? new Date(item.releaseDate).toISOString().split('T')[0]
     : '????-??-??'
-  const arc = ARCHIVE_STATUS_CONFIG[item.archiveStatus]
+
+  const hasPendingSuggestion =
+    item.archiveSuggestion !== null &&
+    (item.archiveStatus === 'UNKNOWN' || item.archiveStatus === 'MISSING')
+
+  const arc = hasPendingSuggestion
+    ? SUGGESTION_PENDING_CONFIG
+    : ARCHIVE_STATUS_CONFIG[item.archiveStatus]
+
   const prio = item.mediaPriority ? PRIORITY_CONFIG[item.mediaPriority] : null
   const href = item.type === 'staging'
     ? `/staging-sets?selected=${item.id}`
     : `/sets/${item.id}`
+
+  function handleConfirm() {
+    startTransition(async () => {
+      await confirmArchiveFolderLinkAction(
+        item.archiveSuggestion!.folderId,
+        item.id,
+        item.type,
+      )
+    })
+  }
+
+  function handleReject() {
+    startTransition(async () => {
+      await rejectArchiveSuggestionAction(item.archiveSuggestion!.folderId)
+    })
+  }
 
   return (
     <div
@@ -144,8 +176,45 @@ function QueueRow({
           {arc.icon}
           <span className={cn('text-xs font-semibold', arc.text)}>{arc.label}</span>
         </span>
-        {/* Detail line — file count / video presence */}
-        {(item.archiveStatus === 'OK' || item.archiveStatus === 'CHANGED' || item.archiveStatus === 'INCOMPLETE') && (
+
+        {/* Suggestion detail: confidence badge, folder name, confirm/reject */}
+        {hasPendingSuggestion && item.archiveSuggestion && (
+          <span className="flex items-center gap-2 pl-5">
+            <span className="shrink-0 text-[10px] font-medium text-amber-500">
+              {item.archiveSuggestion.confidence === 'HIGH' ? '✓ date+code' : '~ title match'}
+            </span>
+            <span className="max-w-[160px] truncate text-[11px] text-muted-foreground" title={item.archiveSuggestion.folderName}>
+              {item.archiveSuggestion.folderName}
+            </span>
+            {item.archiveSuggestion.fileCount != null && (
+              <span className="shrink-0 text-[11px] text-muted-foreground">
+                · {item.archiveSuggestion.fileCount} files
+              </span>
+            )}
+            <button
+              type="button"
+              disabled={pending}
+              onClick={handleConfirm}
+              title="Confirm archive link"
+              className="flex shrink-0 items-center gap-1 rounded bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-medium text-amber-600 transition-colors hover:bg-amber-500/40 dark:text-amber-400 disabled:opacity-50"
+            >
+              <CheckCircle2 size={10} />
+              Confirm
+            </button>
+            <button
+              type="button"
+              disabled={pending}
+              onClick={handleReject}
+              title="Reject suggestion"
+              className="shrink-0 text-muted-foreground/40 transition-colors hover:text-red-500 disabled:opacity-50"
+            >
+              <X size={12} />
+            </button>
+          </span>
+        )}
+
+        {/* Detail line — file count / video presence for confirmed statuses */}
+        {!hasPendingSuggestion && (item.archiveStatus === 'OK' || item.archiveStatus === 'CHANGED' || item.archiveStatus === 'INCOMPLETE') && (
           <span className="flex items-center gap-2 pl-5 text-[11px] text-muted-foreground">
             {item.archiveFileCount != null && (
               <span>{item.archiveFileCount} {item.isVideo ? 'frames' : 'pics'}</span>
