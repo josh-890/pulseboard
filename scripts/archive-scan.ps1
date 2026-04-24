@@ -735,14 +735,15 @@ function Write-Sidecars {
         return
     }
 
-    Write-Host "  Checking $linked folder(s) for missing _pulseboard.json..."
+    Write-Host "  Checking $linked folder(s) for missing or stale _pulseboard.json..."
     $written  = 0
+    $updated  = 0
     $skipped  = 0
     $errors   = 0
 
     foreach ($ak in $ByArchKey.Keys) {
-        $rec       = $ByArchKey[$ak]
-        $folderPath = [string]$rec.fullPath
+        $rec         = $ByArchKey[$ak]
+        $folderPath  = [string]$rec.fullPath
         $sidecarPath = Join-Path $folderPath "_pulseboard.json"
 
         # Skip if folder doesn't exist on this machine
@@ -750,19 +751,41 @@ function Write-Sidecars {
             continue
         }
 
-        # Skip if sidecar already present
+        $needsWrite  = $true
+        $isUpdate    = $false
+
         if (Test-Path -LiteralPath $sidecarPath -PathType Leaf) {
-            $skipped++
-            continue
+            # Sidecar already present — only overwrite if folderName is stale
+            $actualFolderName = Split-Path -Leaf $folderPath
+            $stale = $false
+            try {
+                $existingJson = Get-Content -LiteralPath $sidecarPath -Raw -ErrorAction SilentlyContinue
+                if ($existingJson) {
+                    $existingObj = $existingJson | ConvertFrom-Json -ErrorAction SilentlyContinue
+                    if ($existingObj -and $existingObj.folderName -ne $actualFolderName) {
+                        $stale = $true
+                    }
+                }
+            } catch { $stale = $true }  # unreadable sidecar — rewrite it
+
+            if (-not $stale) {
+                $skipped++
+                continue
+            }
+            $isUpdate = $true
         }
 
         if ($DryRun) {
-            Write-Host "  [DRY-RUN] Would write sidecar: $sidecarPath"
-            $written++
+            if ($isUpdate) {
+                Write-Host "  [DRY-RUN] Would update stale sidecar: $sidecarPath"
+            } else {
+                Write-Host "  [DRY-RUN] Would write sidecar: $sidecarPath"
+            }
+            if ($isUpdate) { $updated++ } else { $written++ }
             continue
         }
 
-        # Fetch sidecar content from server
+        # Fetch sidecar content from server (DB is already updated with new folderName)
         try {
             $content = Invoke-RestMethod `
                 -Uri     "$BaseUrl/api/archive/sidecar/$ak" `
@@ -780,9 +803,16 @@ function Write-Sidecars {
         try {
             $json = ConvertTo-Json -InputObject $content -Depth 4
             [System.IO.File]::WriteAllText($sidecarPath, $json, [System.Text.Encoding]::UTF8)
-            $written++
-            if ($VerbosePreference -ne "SilentlyContinue") {
-                Write-Host "  [SIDECAR] $sidecarPath"
+            if ($isUpdate) {
+                $updated++
+                if ($VerbosePreference -ne "SilentlyContinue") {
+                    Write-Host "  [SIDECAR UPDATE] $sidecarPath"
+                }
+            } else {
+                $written++
+                if ($VerbosePreference -ne "SilentlyContinue") {
+                    Write-Host "  [SIDECAR] $sidecarPath"
+                }
             }
         } catch {
             Write-Warning "  Failed to write $sidecarPath`: $_"
@@ -790,7 +820,9 @@ function Write-Sidecars {
         }
     }
 
-    Write-Host ("  Sidecars written: $written | Already present: $skipped" + $(if ($errors -gt 0) { " | Errors: $errors" } else { "" }))
+    $summary = "  Sidecars written: $written | Updated (stale): $updated | Already current: $skipped"
+    if ($errors -gt 0) { $summary += " | Errors: $errors" }
+    Write-Host $summary
 }
 
 function Run-FullScan {
