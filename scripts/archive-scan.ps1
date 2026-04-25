@@ -255,8 +255,7 @@ function To-UtcDateTime {
 
 function Check-ArchivePath {
     param(
-        [string]$Id,
-        [string]$Type,
+        [string]$ArchiveLinkId,
         [string]$ArchivePath,
         [bool]$IsVideo,
         [string]$FolderName,
@@ -292,7 +291,7 @@ function Check-ArchivePath {
     }
 
     return [PSCustomObject]@{
-        id = $Id; type = $Type; path = $ArchivePath
+        archiveLinkId = $ArchiveLinkId; path = $ArchivePath
         exists = $exists; fileCount = $fileCount; videoPresent = $videoPresent
         videoFiles = $videoFiles; error = $errorMsg
     }

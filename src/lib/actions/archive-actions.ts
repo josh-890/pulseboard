@@ -3,10 +3,6 @@
 import { withTenantFromHeaders, getCurrentTenantId } from '@/lib/tenant-context'
 import { revalidatePath } from 'next/cache'
 import {
-  recordStagingSetArchivePath,
-  clearStagingSetArchivePath,
-  recordSetArchivePath,
-  clearSetArchivePath,
   toggleStagingSetMediaQueue,
   toggleSetMediaQueue,
   updateStagingSetMediaPriority,
@@ -19,10 +15,10 @@ import {
   reparseFolderNames,
   deleteArchiveFolder,
   confirmVideoFile,
+  unlinkArchiveFolder,
 } from '@/lib/services/archive-service'
 import type { WorkspaceFilters, WorkspacePage, ChannelSummary, WorkspaceCounts } from '@/lib/services/archive-service'
 import type { SimpleActionResult } from '@/lib/types'
-import { onArchiveFolderLinked } from '@/lib/services/coherence-service'
 
 // ─── Archive Workspace Data ───────────────────────────────────────────────────
 
@@ -37,47 +33,18 @@ export async function getArchiveChannelSummariesAction(
   return withTenantFromHeaders(() => getArchiveChannelSummaries(tab, filters))
 }
 
-// ─── Archive Path Actions ─────────────────────────────────────────────────────
+// ─── Archive Link Actions ─────────────────────────────────────────────────────
 
-export async function recordArchivePathAction(
-  id: string,
-  type: 'staging' | 'set',
-  path: string,
-): Promise<SimpleActionResult> {
+export async function unlinkArchiveFolderAction(folderId: string): Promise<SimpleActionResult> {
   return withTenantFromHeaders(async () => {
     try {
-      if (type === 'staging') {
-        await recordStagingSetArchivePath(id, path)
-        revalidatePath('/import')
-      } else {
-        await recordSetArchivePath(id, path)
-        revalidatePath('/sets')
-        revalidatePath(`/sets/${id}`)
-      }
+      await unlinkArchiveFolder(folderId)
+      revalidatePath('/archive')
+      revalidatePath('/sets')
+      revalidatePath('/import')
       return { success: true }
     } catch {
-      return { success: false, error: 'Failed to record archive path' }
-    }
-  })
-}
-
-export async function clearArchivePathAction(
-  id: string,
-  type: 'staging' | 'set',
-): Promise<SimpleActionResult> {
-  return withTenantFromHeaders(async () => {
-    try {
-      if (type === 'staging') {
-        await clearStagingSetArchivePath(id)
-        revalidatePath('/import')
-      } else {
-        await clearSetArchivePath(id)
-        revalidatePath('/sets')
-        revalidatePath(`/sets/${id}`)
-      }
-      return { success: true }
-    } catch {
-      return { success: false, error: 'Failed to clear archive path' }
+      return { success: false, error: 'Failed to unlink archive folder' }
     }
   })
 }
@@ -136,7 +103,6 @@ export async function confirmArchiveFolderLinkAction(
   return withTenantFromHeaders(async () => {
     try {
       await confirmArchiveFolderLink(folderId, setId, type)
-      void onArchiveFolderLinked(folderId, type === 'set' ? { setId } : { stagingSetId: setId })
       revalidatePath('/archive')
       revalidatePath('/import')
       revalidatePath('/staging-sets')
@@ -213,20 +179,16 @@ export async function deleteArchiveFolderAction(id: string): Promise<SimpleActio
 // ─── Video File Confirmation ──────────────────────────────────────────────────
 
 export async function confirmVideoFileAction(
-  id: string,
-  type: 'set' | 'staging',
+  archiveLinkId: string,
   filename: string,
 ): Promise<SimpleActionResult> {
   return withTenantFromHeaders(async () => {
     try {
-      await confirmVideoFile(id, type, filename)
-      if (type === 'set') {
-        revalidatePath('/sets')
-        revalidatePath(`/sets/${id}`)
-      } else {
-        revalidatePath('/staging-sets')
-        revalidatePath('/import')
-      }
+      await confirmVideoFile(archiveLinkId, filename)
+      revalidatePath('/archive')
+      revalidatePath('/sets')
+      revalidatePath('/staging-sets')
+      revalidatePath('/import')
       return { success: true }
     } catch {
       return { success: false, error: 'Failed to confirm video file' }

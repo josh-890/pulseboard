@@ -227,21 +227,28 @@ export default async function SetDetailPage({ params }: SetDetailPageProps) {
       </SectionCard>
 
       {/* Archive & Media Queue */}
-      <SetArchivePanel
-        setId={id}
-        isVideo={setData.type === 'video'}
-        archivePath={setData.archivePath ?? null}
-        archiveStatus={setData.archiveStatus}
-        archiveLastChecked={setData.archiveLastChecked ?? null}
-        archiveFileCount={setData.archiveFileCount ?? null}
-        archiveFileCountPrev={setData.archiveFileCountPrev ?? null}
-        archiveVideoPresent={setData.archiveVideoPresent ?? null}
-        archiveVideoFiles={setData.archiveVideoFiles ? (JSON.parse(setData.archiveVideoFiles) as string[]) : null}
-        archiveVideoFilename={setData.archiveVideoFilename ?? null}
-        mediaPriority={setData.mediaPriority ?? null}
-        mediaQueueAt={setData.mediaQueueAt ?? null}
-        archiveSuggestions={archiveSuggestions}
-      />
+      {(() => {
+        const al = setData.archiveLinks[0] ?? null
+        return (
+          <SetArchivePanel
+            setId={id}
+            isVideo={setData.type === 'video'}
+            archiveLinkId={al?.id ?? null}
+            archiveFolderId={al?.archiveFolder?.id ?? null}
+            archivePath={al?.archivePath ?? null}
+            archiveStatus={al?.archiveStatus ?? 'UNKNOWN'}
+            archiveLastChecked={al?.archiveLastChecked ?? null}
+            archiveFileCount={al?.archiveFileCount ?? null}
+            archiveFileCountPrev={al?.archiveFileCountPrev ?? null}
+            archiveVideoPresent={al?.archiveVideoPresent ?? null}
+            archiveVideoFiles={al?.archiveVideoFiles ? (JSON.parse(al.archiveVideoFiles) as string[]) : null}
+            archiveVideoFilename={al?.archiveVideoFilename ?? null}
+            mediaPriority={setData.mediaPriority ?? null}
+            mediaQueueAt={setData.mediaQueueAt ?? null}
+            archiveSuggestions={archiveSuggestions}
+          />
+        )
+      })()}
 
       {/* Tags */}
       {setData.tags.length > 0 && (

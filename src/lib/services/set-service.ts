@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { ArchiveLinkStatus } from "@/generated/prisma/client";
 import type { Prisma, SetType, ResolutionStatus } from "@/generated/prisma/client";
 import { normalizeForSearch } from "@/lib/normalize";
 import { cascadeDeleteSet } from "./cascade-helpers";
@@ -50,12 +51,17 @@ export async function getSets(filters: SetFilters = {}) {
         include: { labelMaps: { include: { label: true } } },
       },
       coherenceSnapshot: {
+        select: { hasMediaInApp: true },
+      },
+      archiveLinks: {
+        where: { status: ArchiveLinkStatus.CONFIRMED },
         select: {
+          id: true,
           archiveStatus: true,
           archiveFileCount: true,
-          hasMediaInApp: true,
           archiveFolder: { select: { id: true, folderName: true, fullPath: true } },
         },
+        take: 1,
       },
       participants: {
         include: {
@@ -136,28 +142,19 @@ export async function getSetsPaginated(
     where.channelId = channelId;
   }
 
-  if (archiveFilter === 'noArchive') {
-    // No archive link = no snapshot at all OR snapshot exists but has no folder
-    where.OR = [
-      { coherenceSnapshot: { is: null } },
-      { coherenceSnapshot: { archiveFolderId: null } },
-    ]
+  const confirmed = ArchiveLinkStatus.CONFIRMED
+  if (archiveFilter === 'noArchive' || noArchiveLink === true) {
+    // No CONFIRMED archive link
+    where.archiveLinks = { none: { status: confirmed } }
   } else if (archiveFilter === 'verified') {
-    where.coherenceSnapshot = { archiveStatus: 'OK' }
+    where.archiveLinks = { some: { status: confirmed, archiveStatus: 'OK' } }
   } else if (archiveFilter === 'changed') {
-    where.coherenceSnapshot = { archiveStatus: 'CHANGED' }
+    where.archiveLinks = { some: { status: confirmed, archiveStatus: 'CHANGED' } }
   } else if (archiveFilter === 'missing') {
-    where.coherenceSnapshot = { archiveStatus: 'MISSING' }
+    where.archiveLinks = { some: { status: confirmed, archiveStatus: 'MISSING' } }
   } else if (archiveFilter === 'notImported') {
-    where.coherenceSnapshot = { hasMediaInApp: false, archiveFolderId: { not: null } }
-  }
-
-  if (noArchiveLink === true) {
-    // No archive link = no snapshot at all OR snapshot exists but has no folder
-    where.OR = [
-      { coherenceSnapshot: { is: null } },
-      { coherenceSnapshot: { archiveFolderId: null } },
-    ]
+    where.archiveLinks = { some: { status: confirmed } }
+    where.coherenceSnapshot = { hasMediaInApp: false }
   }
 
   if (hasMedia === true) {
@@ -175,12 +172,17 @@ export async function getSetsPaginated(
           include: { labelMaps: { include: { label: true } } },
         },
         coherenceSnapshot: {
+          select: { hasMediaInApp: true },
+        },
+        archiveLinks: {
+          where: { status: ArchiveLinkStatus.CONFIRMED },
           select: {
+            id: true,
             archiveStatus: true,
             archiveFileCount: true,
-            hasMediaInApp: true,
             archiveFolder: { select: { id: true, folderName: true, fullPath: true } },
           },
+          take: 1,
         },
         participants: {
           include: {
@@ -261,6 +263,22 @@ export async function getSetById(id: string) {
           },
         },
         orderBy: { isPrimary: "desc" },
+      },
+      archiveLinks: {
+        where: { status: ArchiveLinkStatus.CONFIRMED },
+        select: {
+          id: true,
+          archivePath: true,
+          archiveStatus: true,
+          archiveLastChecked: true,
+          archiveFileCount: true,
+          archiveFileCountPrev: true,
+          archiveVideoPresent: true,
+          archiveVideoFiles: true,
+          archiveVideoFilename: true,
+          archiveFolder: { select: { id: true, folderName: true, fullPath: true } },
+        },
+        take: 1,
       },
     },
   });

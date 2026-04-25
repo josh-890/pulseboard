@@ -13,8 +13,6 @@ import {
   FolderOpen,
   FolderCheck,
   FolderX,
-  Pencil,
-  Copy,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -25,7 +23,7 @@ import { ArchiveFolderPicker } from './archive-folder-picker'
 import { ArchiveStatusBanner } from '@/components/archive/archive-status-banner'
 import type { StagingSetWithRelations, StagingSetComparison } from '@/lib/services/import/staging-set-service'
 import type { StagingSetStatus, ArchiveStatus } from '@/generated/prisma/client'
-import { recordArchivePathAction, clearArchivePathAction } from '@/lib/actions/archive-actions'
+// (recordArchivePathAction / clearArchivePathAction removed — scan-first workflow only)
 import Link from 'next/link'
 
 // ─── Constants ─────────────────────────────────────────────────────────────
@@ -114,15 +112,12 @@ function PanelContent({
   const badge = STATUS_BADGE[stagingSet.status]
   const participants = (stagingSet.participants as Array<{ name: string; icgId: string }>) ?? []
 
-  // Archive state — PROMOTED sets prefer the promoted Set's direct folder link,
-  // but fall back to the staging set's own coherence snapshot (covers the common case
-  // where the folder was linked via StagingSet.archiveFolderId before promotion and
-  // ArchiveFolder.linkedSetId was never migrated to the promoted Set).
+  // Archive state — sourced from ArchiveLink (one per folder, one-to-one).
   const isPromoted = stagingSet.status === 'PROMOTED'
-  const snap = stagingSet.coherenceSnapshot
-  const confirmedFolder = isPromoted
-    ? (stagingSet.promotedSet?.archiveFolder ?? snap?.archiveFolder ?? null)
-    : (snap?.archiveFolder ?? null)
+  const confirmedLink = isPromoted
+    ? (stagingSet.promotedSet?.archiveLinks?.[0] ?? stagingSet.archiveLinks?.[0] ?? null)
+    : (stagingSet.archiveLinks?.[0] ?? null)
+  const confirmedFolder = confirmedLink?.archiveFolder ?? null
   const suggestion = isPromoted ? null : (!confirmedFolder ? (stagingSet.suggestedArchiveFolder ?? null) : null)
   const dateStr = stagingSet.releaseDate
     ? new Date(stagingSet.releaseDate).toISOString().split('T')[0]
@@ -423,15 +418,11 @@ function PanelContent({
 
         {/* Archive status banner */}
         <ArchiveStatusBanner
-          archiveStatus={isPromoted
-            ? (stagingSet.promotedSet?.archiveStatus ?? snap?.archiveStatus ?? null)
-            : (snap?.archiveStatus ?? null)}
+          archiveStatus={confirmedLink?.archiveStatus ?? null}
           folderName={confirmedFolder?.folderName ?? null}
-          fileCount={isPromoted
-            ? (stagingSet.promotedSet?.archiveFileCount ?? snap?.archiveFileCount ?? null)
-            : (snap?.archiveFileCount ?? null)}
+          fileCount={confirmedLink?.archiveFileCount ?? null}
           lastChecked={confirmedFolder?.scannedAt ?? null}
-          archiveFolderId={isPromoted ? (snap?.archiveFolderId ?? null) : (snap?.archiveFolderId ?? null)}
+          archiveFolderId={confirmedFolder?.id ?? null}
           suggestedFolder={suggestion}
           stagingSetId={isPromoted ? undefined : stagingSet.id}
           expectedPath={!isPromoted && !confirmedFolder && !suggestion ? (expectedRelativePath ?? null) : null}
@@ -551,64 +542,12 @@ type ArchiveSectionProps = {
   onRefresh: () => void
 }
 
-function ArchiveSection({ stagingSet, onRefresh }: ArchiveSectionProps) {
+function ArchiveSection({ stagingSet }: ArchiveSectionProps) {
   const [isExpanded, setIsExpanded] = useState(true)
-  const [suggestedPath, setSuggestedPath] = useState<string | null>(null)
-  const [isLoadingSuggestion, setIsLoadingSuggestion] = useState(false)
-  const [isEditing, setIsEditing] = useState(false)
-  const [editPath, setEditPath] = useState(stagingSet.archivePath ?? '')
-  const [isSaving, setIsSaving] = useState(false)
-  const [archiveRoot, setArchiveRoot] = useState<string | null>(null)
-  const [showManual, setShowManual] = useState(false)
-
-  const archiveStatus = stagingSet.archiveStatus
+  const archiveLink = stagingSet.archiveLinks?.[0] ?? null
+  const archiveStatus = (archiveLink?.archiveStatus ?? 'UNKNOWN') as ArchiveStatus
   const statusCfg = ARCHIVE_STATUS_CONFIG[archiveStatus]
-  const hasPath = !!stagingSet.archivePath
-
-  // Fetch archive root so we can show it as context
-  useEffect(() => {
-    const rootKey = stagingSet.isVideo ? 'archive.videosetRoot' : 'archive.photosetRoot'
-    fetch(`/api/settings/value?key=${encodeURIComponent(rootKey)}`)
-      .then((r) => r.json())
-      .then((d: { value: string | null }) => setArchiveRoot(d.value))
-      .catch(() => {})
-  }, [stagingSet.isVideo])
-
-  // Load auto-suggestion (relative path) when panel opens and no path is set
-  useEffect(() => {
-    if (hasPath || !stagingSet.channel?.shortName) return
-    let cancelled = false
-    setIsLoadingSuggestion(true)
-    fetch(`/api/staging-sets/${stagingSet.id}/archive-path-suggestion`)
-      .then((r) => r.json())
-      .then((d: { path: string | null }) => { if (!cancelled) setSuggestedPath(d.path) })
-      .catch(() => {})
-      .finally(() => { if (!cancelled) setIsLoadingSuggestion(false) })
-    return () => { cancelled = true }
-  }, [stagingSet.id, hasPath, stagingSet.channel?.shortName])
-
-  const handleConfirm = useCallback(async (path: string) => {
-    if (!path.trim()) return
-    setIsSaving(true)
-    try {
-      await recordArchivePathAction(stagingSet.id, 'staging', path.trim())
-      onRefresh()
-    } finally {
-      setIsSaving(false)
-      setIsEditing(false)
-    }
-  }, [stagingSet.id, onRefresh])
-
-  const handleClear = useCallback(async () => {
-    setIsSaving(true)
-    try {
-      await clearArchivePathAction(stagingSet.id, 'staging')
-      setSuggestedPath(null)
-      onRefresh()
-    } finally {
-      setIsSaving(false)
-    }
-  }, [stagingSet.id, onRefresh])
+  const hasPath = !!archiveLink?.archivePath
 
   return (
     <div className="rounded-lg border border-border/50 bg-card/50">
@@ -639,155 +578,38 @@ function ArchiveSection({ stagingSet, onRefresh }: ArchiveSectionProps) {
 
       {isExpanded && (
         <div className="border-t border-border/40 px-3 pb-3 pt-2 space-y-2.5">
-          {/* Root prefix hint */}
-          {archiveRoot && (
-            <p className="text-[10px] text-muted-foreground/70">
-              Root: <code className="rounded bg-muted/40 px-1">{archiveRoot}</code>
-            </p>
-          )}
-
           {hasPath ? (
             <>
-              {/* Confirmed relative path display */}
-              {isEditing ? (
-                <div className="space-y-1.5">
-                  <p className="text-[10px] text-muted-foreground">Relative folder path:</p>
-                  <Input
-                    value={editPath}
-                    onChange={(e) => setEditPath(e.target.value)}
-                    placeholder="e.g. MA-MySite\2012\2012-08-08-MA Jane - Waterworld\"
-                    className="h-7 font-mono text-xs"
-                    autoFocus
-                  />
-                  <div className="flex gap-1.5">
-                    <Button size="sm" className="h-6 text-xs" onClick={() => handleConfirm(editPath)} disabled={isSaving}>
-                      <Save size={11} /> Save
-                    </Button>
-                    <Button size="sm" variant="ghost" className="h-6 text-xs" onClick={() => { setIsEditing(false); setEditPath(stagingSet.archivePath ?? '') }}>
-                      Cancel
-                    </Button>
-                  </div>
-                </div>
-              ) : (
-                <div className="flex items-start gap-1.5">
-                  <code className="flex-1 break-all rounded bg-muted/50 px-1.5 py-1 text-[10px] leading-tight text-muted-foreground">
-                    {stagingSet.archivePath}
-                  </code>
-                  <button
-                    type="button"
-                    onClick={() => { setIsEditing(true); setEditPath(stagingSet.archivePath ?? '') }}
-                    className="shrink-0 rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
-                    title="Edit path"
-                  >
-                    <Pencil size={11} />
-                  </button>
-                </div>
-              )}
-
-              {/* Scan details */}
-              {stagingSet.archiveLastChecked && (
+              <div className="flex items-start gap-1.5">
+                <code className="flex-1 break-all rounded bg-muted/50 px-1.5 py-1 text-[10px] leading-tight text-muted-foreground">
+                  {archiveLink!.archivePath}
+                </code>
+              </div>
+              {archiveLink?.archiveLastChecked && (
                 <div className="space-y-0.5 text-[10px] text-muted-foreground">
-                  <div>Last checked: {new Date(stagingSet.archiveLastChecked).toLocaleString()}</div>
-                  {stagingSet.archiveFileCount != null && (
+                  <div>Last checked: {new Date(archiveLink.archiveLastChecked).toLocaleString()}</div>
+                  {archiveLink.archiveFileCount != null && (
                     <div>
-                      {stagingSet.isVideo ? 'Frames' : 'Files'}: {stagingSet.archiveFileCount}
-                      {stagingSet.archiveFileCountPrev != null && stagingSet.archiveFileCountPrev !== stagingSet.archiveFileCount && (
+                      {stagingSet.isVideo ? 'Frames' : 'Files'}: {archiveLink.archiveFileCount}
+                      {archiveLink.archiveFileCountPrev != null && archiveLink.archiveFileCountPrev !== archiveLink.archiveFileCount && (
                         <span className="ml-1 text-amber-500">
-                          (was {stagingSet.archiveFileCountPrev})
+                          (was {archiveLink.archiveFileCountPrev})
                         </span>
                       )}
                     </div>
                   )}
-                  {stagingSet.isVideo && stagingSet.archiveVideoPresent != null && (
-                    <div className={stagingSet.archiveVideoPresent ? 'text-green-500' : 'text-red-500'}>
-                      Video file: {stagingSet.archiveVideoPresent ? 'present' : 'missing'}
+                  {stagingSet.isVideo && archiveLink.archiveVideoPresent != null && (
+                    <div className={archiveLink.archiveVideoPresent ? 'text-green-500' : 'text-red-500'}>
+                      Video file: {archiveLink.archiveVideoPresent ? 'present' : 'missing'}
                     </div>
                   )}
                 </div>
               )}
-
-              {!isEditing && (
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="h-6 text-xs text-muted-foreground hover:text-destructive"
-                  onClick={handleClear}
-                  disabled={isSaving}
-                >
-                  <X size={11} /> Clear path
-                </Button>
-              )}
             </>
           ) : (
-            <>
-              {/* Auto-suggestion */}
-              {isLoadingSuggestion ? (
-                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                  <Loader2 size={11} className="animate-spin" />
-                  Building suggested path…
-                </div>
-              ) : suggestedPath ? (
-                <div className="space-y-1.5">
-                  <p className="text-[10px] text-muted-foreground">Expected location:</p>
-                  <div className="flex items-start gap-1.5">
-                    <code className="flex-1 break-all rounded bg-muted/50 px-1.5 py-1 text-[10px] leading-tight text-muted-foreground">
-                      {suggestedPath}
-                    </code>
-                    <button
-                      type="button"
-                      onClick={() => navigator.clipboard.writeText(suggestedPath)}
-                      className="shrink-0 rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
-                      title="Copy path"
-                    >
-                      <Copy size={11} />
-                    </button>
-                  </div>
-                  <p className="text-[10px] text-muted-foreground/60">
-                    Archive scanner will link this folder automatically when found.
-                  </p>
-                </div>
-              ) : (
-                <div className="space-y-1.5">
-                  {!stagingSet.channel?.shortName && (
-                    <p className="text-[10px] text-amber-500">
-                      Channel needs a short name to auto-suggest a path.
-                    </p>
-                  )}
-                  {isEditing ? (
-                    <>
-                      <p className="text-[10px] text-muted-foreground">Relative folder path (from root above):</p>
-                      <Input
-                        value={editPath}
-                        onChange={(e) => setEditPath(e.target.value)}
-                        placeholder="e.g. MA-MySite\2012\2012-08-08-MA Jane - Waterworld\"
-                        className="h-7 font-mono text-xs"
-                        autoFocus
-                      />
-                      <div className="flex gap-1.5">
-                        <Button size="sm" className="h-6 text-xs" onClick={() => handleConfirm(editPath)} disabled={isSaving || !editPath.trim()}>
-                          <Save size={11} /> Save
-                        </Button>
-                        <Button size="sm" variant="ghost" className="h-6 text-xs" onClick={() => setIsEditing(false)}>
-                          Cancel
-                        </Button>
-                      </div>
-                    </>
-                  ) : showManual ? (
-                    <Button size="sm" variant="outline" className="h-6 text-xs" onClick={() => setIsEditing(true)}>
-                      <FolderOpen size={11} /> Enter relative path manually
-                    </Button>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => setShowManual(true)}
-                      className="text-[10px] text-muted-foreground/60 hover:text-muted-foreground transition-colors"
-                    >
-                      Manual override ▸
-                    </button>
-                  )}
-                </div>
-              )}
-            </>
+            <p className="text-[10px] text-muted-foreground/60">
+              No archive folder linked. Archive scanner will link automatically when found.
+            </p>
           )}
         </div>
       )}

@@ -12,6 +12,7 @@
 import { NextResponse } from 'next/server'
 import { withTenantFromHeaders } from '@/lib/tenant-context'
 import { prisma } from '@/lib/db'
+import { ArchiveLinkStatus } from '@/generated/prisma/client'
 import type { Prisma } from '@/generated/prisma/client'
 
 export async function GET(request: Request) {
@@ -25,9 +26,11 @@ export async function GET(request: Request) {
       const limit = Math.min(parseInt(url.searchParams.get('limit') ?? '20', 10), 50)
 
       const where: Prisma.ArchiveFolderWhereInput = {
-        // Only return unlinked folders — these are candidates for manual linking
-        linkedSetId: null,
-        linkedStagingSet: null,
+        // Only return folders without a CONFIRMED link — candidates for manual linking
+        OR: [
+          { archiveLink: { is: null } },
+          { archiveLink: { status: { not: ArchiveLinkStatus.CONFIRMED } } },
+        ],
       }
 
       const andConditions: Prisma.ArchiveFolderWhereInput[] = []
@@ -67,7 +70,6 @@ export async function GET(request: Request) {
           fileCount: true,
           parsedDate: true,
           fullPath: true,
-          suggestedConfidence: true,
           isVideo: true,
           parsedShortName: true,
           chanFolderName: true,

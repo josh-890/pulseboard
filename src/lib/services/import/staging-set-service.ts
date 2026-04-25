@@ -8,33 +8,39 @@
 
 import { prisma } from '@/lib/db'
 import { normalizeForSearch } from '@/lib/normalize'
+import { ArchiveLinkStatus } from '@/generated/prisma/client'
 import type { ChannelTier, DatePrecision, Prisma, StagingSet, StagingSetStatus } from '@/generated/prisma/client'
-import { onSetPromoted, onArchiveFolderLinked } from '@/lib/services/coherence-service'
+import { onSetPromoted } from '@/lib/services/coherence-service'
 import type { SuggestedFolderInfo } from '@/lib/services/archive-service'
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
 export type CoherenceSnapshotMini = {
-  archiveFolderId: string | null
-  archiveStatus: string
-  archiveFileCount: number | null
   hasMediaInApp: boolean
-  archiveFolder: { id: string; folderName: string; fullPath: string; scannedAt: Date } | null
 } | null
 
-export type PromotedSetArchiveMini = {
+type ArchiveLinkMini = {
   id: string
+  status: string
   archivePath: string | null
   archiveStatus: string
   archiveFileCount: number | null
+  archiveFileCountPrev: number | null
+  archiveLastChecked: Date | null
   archiveVideoPresent: boolean | null
   archiveFolder: { id: string; folderName: string; fullPath: string; scannedAt: Date } | null
+}
+
+export type PromotedSetArchiveMini = {
+  id: string
+  archiveLinks: ArchiveLinkMini[]
 } | null
 
 export type StagingSetWithRelations = StagingSet & {
   channel: { id: string; name: string; tier: ChannelTier; shortName: string | null; channelFolder: string | null } | null
   matchedSet: { id: string; title: string; channelId: string | null } | null
   coherenceSnapshot: CoherenceSnapshotMini
+  archiveLinks: ArchiveLinkMini[]
   promotedSet: PromotedSetArchiveMini
   /** Populated server-side after main query via getSuggestedFoldersForStagingSets */
   suggestedArchiveFolder?: SuggestedFolderInfo | null
@@ -83,26 +89,31 @@ export type StagingSetComparison = {
 
 // ─── Queries ────────────────────────────────────────────────────────────────
 
+const ARCHIVE_LINK_SELECT = {
+  id: true,
+  status: true,
+  archivePath: true,
+  archiveStatus: true,
+  archiveFileCount: true,
+  archiveFileCountPrev: true,
+  archiveLastChecked: true,
+  archiveVideoPresent: true,
+  archiveFolder: { select: { id: true, folderName: true, fullPath: true, scannedAt: true } },
+} as const
+
 const STAGING_SET_INCLUDE = {
   channel: { select: { id: true, name: true, tier: true, shortName: true, channelFolder: true } },
   matchedSet: { select: { id: true, title: true, channelId: true } },
   coherenceSnapshot: {
-    select: {
-      archiveFolderId: true,
-      archiveStatus: true,
-      archiveFileCount: true,
-      hasMediaInApp: true,
-      archiveFolder: { select: { id: true, folderName: true, fullPath: true, scannedAt: true } },
-    },
+    select: { hasMediaInApp: true },
+  },
+  archiveLinks: {
+    select: ARCHIVE_LINK_SELECT,
   },
   promotedSet: {
     select: {
       id: true,
-      archivePath: true,
-      archiveStatus: true,
-      archiveFileCount: true,
-      archiveVideoPresent: true,
-      archiveFolder: { select: { id: true, folderName: true, fullPath: true, scannedAt: true } },
+      archiveLinks: { select: ARCHIVE_LINK_SELECT },
     },
   },
 } as const
@@ -367,78 +378,16 @@ export async function markStagingSetPromoted(
   id: string,
   promotedSetId: string,
 ): Promise<StagingSet> {
-  // Fetch archiveFolderId before transaction so we can conditionally include the folder update
-  const pre = await prisma.stagingSet.findUnique({
+  const stagingSet = await prisma.stagingSet.update({
     where: { id },
-    select: { archiveFolderId: true },
+    data: { status: 'PROMOTED', promotedSetId, mediaQueueAt: null, mediaPriority: null },
   })
 
-  const stagingSet = await prisma.$transaction(async (tx) => {
-    const updated = await tx.stagingSet.update({
-      where: { id },
-      data: { status: 'PROMOTED', promotedSetId, mediaQueueAt: null, mediaPriority: null },
-    })
-    // If a folder is linked, write linkedSetId on the folder (keep archiveFolderId on staging set as history)
-    if (pre?.archiveFolderId) {
-      await tx.archiveFolder.update({
-        where: { id: pre.archiveFolderId },
-        data: { linkedSetId: promotedSetId },
-      })
-    }
-    // Migrate any stale archive folder suggestions pointing at this staging set → point at the promoted Set
-    await tx.archiveFolder.updateMany({
-      where: { suggestedStagingId: id },
-      data: { suggestedStagingId: null, suggestedSetId: promotedSetId },
-    })
-    return updated
+  // Transfer any ArchiveLinks from this staging set to the promoted Set
+  await prisma.archiveLink.updateMany({
+    where: { stagingSetId: id },
+    data: { setId: promotedSetId, stagingSetId: null },
   })
-
-  // Transfer archive link from staging set to the promoted Set.
-  const ss = await prisma.stagingSet.findUnique({
-    where: { id },
-    select: { archiveKey: true, archivePath: true, archiveStatus: true, archiveFolderId: true },
-  })
-
-  if (ss?.archiveFolderId) {
-    // Staging set has a real scanner-confirmed archive folder — transfer the link to the promoted Set
-    const folder = await prisma.archiveFolder.findUnique({
-      where: { id: ss.archiveFolderId },
-      select: { relativePath: true, fileCount: true, videoPresent: true },
-    })
-    // Point ArchiveFolder directly at the promoted Set (not just the staging set)
-    await prisma.archiveFolder.updateMany({
-      where: { id: ss.archiveFolderId, linkedSetId: null },
-      data: { linkedSetId: promotedSetId },
-    })
-    // Update Set's archive fields from the folder (if Set has none yet)
-    await prisma.set.updateMany({
-      where: { id: promotedSetId, archiveStatus: 'UNKNOWN' },
-      data: {
-        archiveKey: ss.archiveKey ?? undefined,
-        ...(folder?.relativePath ? {
-          archivePath: folder.relativePath,
-          archiveStatus: 'OK',
-          archiveFileCount: folder.fileCount ?? null,
-          archiveVideoPresent: folder.videoPresent ?? null,
-        } : {}),
-      },
-    })
-    await onArchiveFolderLinked(ss.archiveFolderId, { setId: promotedSetId })
-  } else {
-    // No real folder link — fall back to copying raw path/status strings from staging set
-    if (ss?.archiveKey) {
-      await prisma.set.updateMany({
-        where: { id: promotedSetId, archiveKey: null },
-        data: { archiveKey: ss.archiveKey },
-      })
-    }
-    if (ss?.archivePath) {
-      await prisma.set.updateMany({
-        where: { id: promotedSetId, archivePath: null },
-        data: { archivePath: ss.archivePath, archiveStatus: ss.archiveStatus },
-      })
-    }
-  }
 
   void onSetPromoted(id, promotedSetId)
   return stagingSet
@@ -557,24 +506,25 @@ export async function getStagingSetsFiltered(filters: StagingSetFilters): Promis
   }
 
   if (filters.archiveFilter) {
+    const confirmed = ArchiveLinkStatus.CONFIRMED
     switch (filters.archiveFilter) {
       case 'hasPath':
-        conditions.push({ archivePath: { not: null } })
+        conditions.push({ archiveLinks: { some: { status: confirmed, archivePath: { not: null } } } })
         break
       case 'ok':
-        conditions.push({ archiveStatus: 'OK' })
+        conditions.push({ archiveLinks: { some: { status: confirmed, archiveStatus: 'OK' } } })
         break
       case 'changed':
-        conditions.push({ archiveStatus: 'CHANGED' })
+        conditions.push({ archiveLinks: { some: { status: confirmed, archiveStatus: 'CHANGED' } } })
         break
       case 'missing':
-        conditions.push({ archiveStatus: 'MISSING' })
+        conditions.push({ archiveLinks: { some: { status: confirmed, archiveStatus: 'MISSING' } } })
         break
       case 'inQueue':
         conditions.push({ mediaQueueAt: { not: null } })
         break
       case 'needsMedia':
-        conditions.push({ archivePath: null, mediaQueueAt: null })
+        conditions.push({ archiveLinks: { none: { status: confirmed } }, mediaQueueAt: null })
         break
     }
   }
@@ -629,29 +579,7 @@ export async function getStagingSetsFiltered(filters: StagingSetFilters): Promis
 
   const findArgs = {
     where,
-    include: {
-      channel: { select: { id: true, name: true, tier: true, shortName: true, channelFolder: true } },
-      matchedSet: { select: { id: true, title: true, channelId: true } },
-      coherenceSnapshot: {
-        select: {
-          archiveFolderId: true,
-          archiveStatus: true,
-          archiveFileCount: true,
-          hasMediaInApp: true,
-          archiveFolder: { select: { id: true, folderName: true, fullPath: true, scannedAt: true } } as const,
-        },
-      },
-      promotedSet: {
-        select: {
-          id: true,
-          archivePath: true,
-          archiveStatus: true,
-          archiveFileCount: true,
-          archiveVideoPresent: true,
-          archiveFolder: { select: { id: true, folderName: true, fullPath: true, scannedAt: true } },
-        },
-      },
-    } as const,
+    include: STAGING_SET_INCLUDE,
     orderBy,
     take: limit + 1,
     skip: 0 as number,
@@ -790,165 +718,4 @@ export async function bulkUpdateStatus(
   return result.count
 }
 
-// ─── Archive Link Backfill ─────────────────────────────────────────────────
-
-/**
- * One-time backfill: for every PROMOTED staging set that has an archiveFolderId
- * but whose promoted Set has no ArchiveFolder.linkedSetId, migrate the link.
- *
- * This fixes sets that were promoted before the markStagingSetPromoted
- * archive transfer was added.
- */
-export async function backfillPromotedSetArchiveLinks(): Promise<{ fixed: number; snapshotOnly: number; skipped: number }> {
-  // Pass 1: staging sets whose archiveFolderId has not yet been transferred to linkedSetId
-  const promoted = await prisma.stagingSet.findMany({
-    where: {
-      status: 'PROMOTED',
-      archiveFolderId: { not: null },
-      promotedSetId: { not: null },
-    },
-    select: {
-      id: true,
-      archiveFolderId: true,
-      promotedSetId: true,
-      archiveFolder: {
-        select: { id: true, linkedSetId: true, relativePath: true, fileCount: true, videoPresent: true },
-      },
-    },
-  })
-
-  let fixed = 0
-  let snapshotOnly = 0
-  let skipped = 0
-
-  for (const ss of promoted) {
-    const folder = ss.archiveFolder
-    if (!folder || !ss.promotedSetId) { skipped++; continue }
-
-    if (folder.linkedSetId) {
-      // Folder already points at some set — ensure the coherence snapshot is wired up
-      // (the onArchiveFolderLinked call was missing before this fix was deployed)
-      const snap = await prisma.setCoherenceSnapshot.findFirst({
-        where: { archiveFolderId: folder.id, setId: ss.promotedSetId },
-        select: { id: true },
-      })
-      if (!snap) {
-        await onArchiveFolderLinked(folder.id, { setId: folder.linkedSetId })
-        snapshotOnly++
-      } else {
-        skipped++
-      }
-      continue
-    }
-
-    // Skip if the promoted Set already has a different archive folder pointing at it
-    const existingLink = await prisma.archiveFolder.findFirst({
-      where: { linkedSetId: ss.promotedSetId },
-      select: { id: true },
-    })
-    if (existingLink) { skipped++; continue }
-
-    // Transfer the folder link to the promoted Set
-    await prisma.archiveFolder.updateMany({
-      where: { id: folder.id, linkedSetId: null },
-      data: { linkedSetId: ss.promotedSetId },
-    })
-
-    // Update Set archive fields from folder data
-    await prisma.set.updateMany({
-      where: { id: ss.promotedSetId, archiveStatus: 'UNKNOWN' },
-      data: {
-        ...(folder.relativePath ? {
-          archivePath: folder.relativePath,
-          archiveStatus: 'OK',
-          archiveFileCount: folder.fileCount ?? null,
-          archiveVideoPresent: folder.videoPresent ?? null,
-        } : {}),
-      },
-    })
-
-    await onArchiveFolderLinked(folder.id, { setId: ss.promotedSetId })
-    fixed++
-  }
-
-  // Pass 2: archive folders directly linked to a Set (linkedSetId set) but whose
-  // coherence snapshot is missing the archiveFolderId — covers sets confirmed directly
-  // on the Set detail page before the onArchiveFolderLinked fix was deployed.
-  const directLinks = await prisma.archiveFolder.findMany({
-    where: { linkedSetId: { not: null } },
-    select: { id: true, linkedSetId: true },
-  })
-
-  for (const folder of directLinks) {
-    if (!folder.linkedSetId) continue
-    const snap = await prisma.setCoherenceSnapshot.findFirst({
-      where: { archiveFolderId: folder.id, setId: folder.linkedSetId },
-      select: { id: true },
-    })
-    if (!snap) {
-      await onArchiveFolderLinked(folder.id, { setId: folder.linkedSetId })
-      snapshotOnly++
-    }
-  }
-
-  // Pass 3: Sets where ArchiveFolder.linkedSetId points to them but Set.archiveStatus
-  // is still UNKNOWN — the folder link exists but the Set's own fields were never updated.
-  const setsWithLinkedFolderUnknown = await prisma.set.findMany({
-    where: {
-      archiveStatus: 'UNKNOWN',
-      archiveFolder: { isNot: null },
-    },
-    select: {
-      id: true,
-      archiveFolder: {
-        select: { id: true, relativePath: true, fileCount: true, videoPresent: true },
-      },
-    },
-  })
-
-  for (const set of setsWithLinkedFolderUnknown) {
-    const folder = set.archiveFolder
-    if (!folder) continue
-    if (!folder.relativePath) { skipped++; continue }
-    await prisma.set.update({
-      where: { id: set.id },
-      data: {
-        archivePath: folder.relativePath,
-        archiveStatus: 'OK',
-        archiveFileCount: folder.fileCount ?? null,
-        archiveVideoPresent: folder.videoPresent ?? null,
-      },
-    })
-    fixed++
-  }
-
-  // Pass 4: ArchiveFolders whose suggestedStagingId still points at a PROMOTED staging
-  // set — the suggestion was never migrated when the staging set was promoted.
-  // Migrate: suggestedStagingId → null, suggestedSetId → promotedSetId.
-  const staleStagingFolders = await prisma.archiveFolder.findMany({
-    where: { suggestedStagingId: { not: null } },
-    select: { id: true, suggestedStagingId: true },
-  })
-
-  if (staleStagingFolders.length > 0) {
-    // Batch-fetch the staging sets referenced by these folders
-    const stagingIds = [...new Set(staleStagingFolders.map((f) => f.suggestedStagingId!))]
-    const stagingSets = await prisma.stagingSet.findMany({
-      where: { id: { in: stagingIds }, status: 'PROMOTED', promotedSetId: { not: null } },
-      select: { id: true, promotedSetId: true },
-    })
-    const promotedByStaging = new Map(stagingSets.map((ss) => [ss.id, ss.promotedSetId!]))
-
-    for (const folder of staleStagingFolders) {
-      const promotedSetId = promotedByStaging.get(folder.suggestedStagingId!)
-      if (!promotedSetId) { skipped++; continue }
-      await prisma.archiveFolder.update({
-        where: { id: folder.id },
-        data: { suggestedStagingId: null, suggestedSetId: promotedSetId },
-      })
-      fixed++
-    }
-  }
-
-  return { fixed, snapshotOnly, skipped }
-}
+// backfillPromotedSetArchiveLinks() deleted — structurally impossible in ArchiveLink model.

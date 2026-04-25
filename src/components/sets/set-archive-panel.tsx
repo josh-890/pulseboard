@@ -1,15 +1,13 @@
 'use client'
 
-import { useState, useEffect, useCallback, useTransition } from 'react'
+import { useState, useCallback, useTransition } from 'react'
 import {
   FolderOpen, FolderCheck, FolderX,
-  Check, Pencil, X, Save, Loader2, Flag, Film, Copy,
+  Check, X, Flag, Film,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import {
-  recordArchivePathAction,
-  clearArchivePathAction,
+  unlinkArchiveFolderAction,
   toggleMediaQueueAction,
   updateMediaPriorityAction,
   confirmVideoFileAction,
@@ -36,6 +34,8 @@ type ArchiveSuggestionProp = {
 type SetArchivePanelProps = {
   setId: string
   isVideo: boolean
+  archiveLinkId: string | null
+  archiveFolderId?: string | null
   archivePath: string | null
   archiveStatus: ArchiveStatus
   archiveLastChecked: Date | null
@@ -78,6 +78,8 @@ const PRIORITY_CLASS: Record<number, string> = {
 export function SetArchivePanel(props: SetArchivePanelProps) {
   const {
     setId, isVideo,
+    archiveLinkId,
+    archiveFolderId,
     archivePath: initialPath,
     archiveStatus: initialStatus,
     archiveLastChecked: initialChecked,
@@ -108,68 +110,25 @@ export function SetArchivePanel(props: SetArchivePanelProps) {
   const [mediaPriority, setMediaPriority] = useState(initialPriority)
   const [mediaQueueAt, setMediaQueueAt] = useState(initialQueueAt)
   const [confirmingVideo, setConfirmingVideo] = useState(false)
-
-  const [archiveRoot, setArchiveRoot] = useState<string | null>(null)
-  const [suggestedPath, setSuggestedPath] = useState<string | null>(null)
-  const [isLoadingSuggestion, setIsLoadingSuggestion] = useState(false)
-  const [isEditing, setIsEditing] = useState(false)
-  const [editPath, setEditPath] = useState(initialPath ?? '')
-  const [isSaving, setIsSaving] = useState(false)
-  const [showManual, setShowManual] = useState(false)
+  const [isUnlinking, setIsUnlinking] = useState(false)
 
   const hasPath = !!archivePath
   const inQueue = !!mediaQueueAt
   const statusCfg = ARCHIVE_STATUS_CONFIG[archiveStatus]
   const hasSuggestions = visibleSuggestions.length > 0
 
-  // Fetch current archive root for display
-  useEffect(() => {
-    const rootKey = isVideo ? 'archive.videosetRoot' : 'archive.photosetRoot'
-    fetch(`/api/settings/value?key=${encodeURIComponent(rootKey)}`)
-      .then((r) => r.json())
-      .then((d: { value: string | null }) => setArchiveRoot(d.value))
-      .catch(() => {})
-  }, [isVideo])
-
-  // Auto-suggest relative path when no path is set
-  useEffect(() => {
-    if (hasPath) return
-    let cancelled = false
-    setIsLoadingSuggestion(true)
-    fetch(`/api/sets/${setId}/archive-path-suggestion`)
-      .then((r) => r.json())
-      .then((d: { path: string | null }) => { if (!cancelled) setSuggestedPath(d.path) })
-      .catch(() => {})
-      .finally(() => { if (!cancelled) setIsLoadingSuggestion(false) })
-    return () => { cancelled = true }
-  }, [setId, hasPath])
-
-  const handleConfirm = useCallback(async (path: string) => {
-    if (!path.trim()) return
-    setIsSaving(true)
+  const handleUnlink = useCallback(async () => {
+    if (!archiveFolderId) return
+    setIsUnlinking(true)
     try {
-      await recordArchivePathAction(setId, 'set', path.trim())
-      setArchivePath(path.trim())
-      setArchiveStatus('PENDING')
-      setEditPath(path.trim())
-      setIsEditing(false)
-    } finally {
-      setIsSaving(false)
-    }
-  }, [setId])
-
-  const handleClear = useCallback(async () => {
-    setIsSaving(true)
-    try {
-      await clearArchivePathAction(setId, 'set')
+      await unlinkArchiveFolderAction(archiveFolderId)
       setArchivePath(null)
       setArchiveStatus('UNKNOWN')
-      setSuggestedPath(null)
-      setEditPath('')
+      router.refresh()
     } finally {
-      setIsSaving(false)
+      setIsUnlinking(false)
     }
-  }, [setId])
+  }, [archiveFolderId, router])
 
   const handleQueueToggle = useCallback(async () => {
     const newInQueue = !inQueue
@@ -186,16 +145,17 @@ export function SetArchivePanel(props: SetArchivePanelProps) {
   }, [setId])
 
   const handleConfirmVideo = useCallback(async (filename: string) => {
+    if (!archiveLinkId) return
     setConfirmingVideo(true)
     try {
-      await confirmVideoFileAction(setId, 'set', filename)
+      await confirmVideoFileAction(archiveLinkId, filename)
       setArchiveVideoPresent(true)
       setArchiveVideoFilename(filename)
       setArchiveStatus('OK')
     } finally {
       setConfirmingVideo(false)
     }
-  }, [setId])
+  }, [archiveLinkId])
 
   return (
     <div className="rounded-2xl border border-white/20 bg-card/70 p-6 shadow-md backdrop-blur-sm space-y-5">
@@ -337,179 +297,75 @@ export function SetArchivePanel(props: SetArchivePanelProps) {
         lastChecked={archiveLastChecked}
       />
 
-      {/* Root hint */}
-      {archiveRoot && (
-        <p className="text-xs text-muted-foreground/70">
-          Root: <code className="rounded bg-muted/40 px-1">{archiveRoot}</code>
-        </p>
-      )}
-
       {/* Path section — hidden when scanner suggestions are visible */}
-      {!hasSuggestions && (
-        hasPath ? (
-          <div className="space-y-2">
-            <p className="text-xs font-medium text-muted-foreground">Relative folder path:</p>
+      {!hasSuggestions && hasPath && (
+        <div className="space-y-2">
+          <p className="text-xs font-medium text-muted-foreground">Relative folder path:</p>
+          <code className="block break-all rounded bg-muted/50 px-2 py-1.5 text-xs leading-snug text-muted-foreground">
+            {archivePath}
+          </code>
 
-            {isEditing ? (
-              <div className="space-y-2">
-                <Input
-                  value={editPath}
-                  onChange={(e) => setEditPath(e.target.value)}
-                  placeholder={`e.g. MA-MySite\\2012\\2012-08-08-MA Jane - Waterworld\\`}
-                  className="font-mono text-xs"
-                  autoFocus
-                />
-                <div className="flex gap-2">
-                  <Button size="sm" onClick={() => handleConfirm(editPath)} disabled={isSaving || !editPath.trim()}>
-                    <Save size={13} /> Save
-                  </Button>
-                  <Button size="sm" variant="ghost" onClick={() => { setIsEditing(false); setEditPath(archivePath ?? '') }}>
-                    Cancel
-                  </Button>
+          {/* Scan details */}
+          {archiveLastChecked && (
+            <div className="space-y-0.5 text-xs text-muted-foreground">
+              <div>Last checked: {new Date(archiveLastChecked).toLocaleString()}</div>
+              {archiveFileCount != null && (
+                <div>
+                  {isVideo ? 'Frames' : 'Files'}: {archiveFileCount}
+                  {archiveFileCountPrev != null && archiveFileCountPrev !== archiveFileCount && (
+                    <span className="ml-1 text-amber-500">(was {archiveFileCountPrev})</span>
+                  )}
                 </div>
-              </div>
-            ) : (
-              <div className="flex items-start gap-2">
-                <code className="flex-1 break-all rounded bg-muted/50 px-2 py-1.5 text-xs leading-snug text-muted-foreground">
-                  {archivePath}
-                </code>
-                <button
-                  type="button"
-                  onClick={() => { setIsEditing(true); setEditPath(archivePath ?? '') }}
-                  className="shrink-0 rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
-                  title="Edit path"
-                >
-                  <Pencil size={13} />
-                </button>
-              </div>
-            )}
-
-            {/* Scan details */}
-            {archiveLastChecked && (
-              <div className="space-y-0.5 text-xs text-muted-foreground">
-                <div>Last checked: {new Date(archiveLastChecked).toLocaleString()}</div>
-                {archiveFileCount != null && (
-                  <div>
-                    {isVideo ? 'Frames' : 'Files'}: {archiveFileCount}
-                    {archiveFileCountPrev != null && archiveFileCountPrev !== archiveFileCount && (
-                      <span className="ml-1 text-amber-500">(was {archiveFileCountPrev})</span>
-                    )}
-                  </div>
-                )}
-                {isVideo && (
-                  archiveVideoPresent
+              )}
+              {isVideo && (
+                archiveVideoPresent
+                  ? (
+                    <div className="flex items-center gap-1.5 text-green-500">
+                      <Film size={11} />
+                      {archiveVideoFilename ?? 'Video file present'}
+                    </div>
+                  )
+                  : archiveVideoFiles && archiveVideoFiles.length > 0
                     ? (
-                      <div className="flex items-center gap-1.5 text-green-500">
-                        <Film size={11} />
-                        {archiveVideoFilename ?? 'Video file present'}
+                      <div className="space-y-1.5">
+                        <p className="text-xs text-amber-500">
+                          {archiveVideoFiles.length} video file{archiveVideoFiles.length !== 1 ? 's' : ''} found — confirm the correct one:
+                        </p>
+                        {archiveVideoFiles.map((f) => (
+                          <div key={f} className="flex items-center justify-between gap-2 rounded bg-muted/40 px-2 py-1.5">
+                            <code className="flex-1 truncate text-xs text-muted-foreground">{f}</code>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-6 shrink-0 px-2 text-xs"
+                              onClick={() => handleConfirmVideo(f)}
+                              disabled={confirmingVideo}
+                            >
+                              <Check size={11} /> Confirm
+                            </Button>
+                          </div>
+                        ))}
                       </div>
                     )
-                    : archiveVideoFiles && archiveVideoFiles.length > 0
-                      ? (
-                        <div className="space-y-1.5">
-                          <p className="text-xs text-amber-500">
-                            {archiveVideoFiles.length} video file{archiveVideoFiles.length !== 1 ? 's' : ''} found — confirm the correct one:
-                          </p>
-                          {archiveVideoFiles.map((f) => (
-                            <div key={f} className="flex items-center justify-between gap-2 rounded bg-muted/40 px-2 py-1.5">
-                              <code className="flex-1 truncate text-xs text-muted-foreground">{f}</code>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="h-6 shrink-0 px-2 text-xs"
-                                onClick={() => handleConfirmVideo(f)}
-                                disabled={confirmingVideo}
-                              >
-                                <Check size={11} /> Confirm
-                              </Button>
-                            </div>
-                          ))}
-                        </div>
-                      )
-                      : archiveVideoPresent === false
-                        ? <div className="text-xs text-red-500">No video file found</div>
-                        : null
-                )}
-              </div>
-            )}
+                    : archiveVideoPresent === false
+                      ? <div className="text-xs text-red-500">No video file found</div>
+                      : null
+              )}
+            </div>
+          )}
 
-            {!isEditing && (
-              <Button
-                size="sm"
-                variant="ghost"
-                className="h-7 text-xs text-muted-foreground hover:text-destructive"
-                onClick={handleClear}
-                disabled={isSaving}
-              >
-                <X size={12} /> Clear path
-              </Button>
-            )}
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {isLoadingSuggestion ? (
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Loader2 size={13} className="animate-spin" />
-                Building suggested path…
-              </div>
-            ) : suggestedPath ? (
-              <div className="space-y-2">
-                <p className="text-xs text-muted-foreground">Expected location:</p>
-                <div className="flex items-start gap-2">
-                  <code className="flex-1 break-all rounded bg-muted/50 px-2 py-1.5 text-xs leading-snug text-muted-foreground">
-                    {suggestedPath}
-                  </code>
-                  <button
-                    type="button"
-                    onClick={() => navigator.clipboard.writeText(suggestedPath)}
-                    className="shrink-0 rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
-                    title="Copy path"
-                  >
-                    <Copy size={13} />
-                  </button>
-                </div>
-                <p className="text-xs text-muted-foreground/60">
-                  Archive scanner will link this folder automatically when found.
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {isEditing ? (
-                  <>
-                    <p className="text-xs text-muted-foreground">Relative folder path (from root above):</p>
-                    <Input
-                      value={editPath}
-                      onChange={(e) => setEditPath(e.target.value)}
-                      placeholder={`e.g. MA-MySite\\2012\\2012-08-08-MA Jane - Waterworld\\`}
-                      className="font-mono text-xs"
-                      autoFocus
-                    />
-                    <div className="flex gap-2">
-                      <Button size="sm" onClick={() => handleConfirm(editPath)} disabled={isSaving || !editPath.trim()}>
-                        <Save size={13} /> Save
-                      </Button>
-                      <Button size="sm" variant="ghost" onClick={() => setIsEditing(false)}>
-                        Cancel
-                      </Button>
-                    </div>
-                  </>
-                ) : showManual ? (
-                  <Button size="sm" variant="outline" onClick={() => setIsEditing(true)}>
-                    <FolderOpen size={13} /> Enter relative path manually
-                  </Button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => setShowManual(true)}
-                    className="text-xs text-muted-foreground/60 hover:text-muted-foreground transition-colors"
-                  >
-                    Manual override ▸
-                  </button>
-                )}
-              </div>
-            )}
-          </div>
-        )
+          {archiveFolderId && (
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-7 text-xs text-muted-foreground hover:text-destructive"
+              onClick={handleUnlink}
+              disabled={isUnlinking}
+            >
+              <X size={12} /> Unlink folder
+            </Button>
+          )}
+        </div>
       )}
     </div>
   )

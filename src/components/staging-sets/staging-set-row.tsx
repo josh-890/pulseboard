@@ -233,13 +233,12 @@ export const StagingSetRow = memo(function StagingSetRow({
   const isDupExact = !!ss.duplicateGroupId
   const isDupProbable = ss.isDuplicate && !ss.duplicateGroupId
 
-  // Archive state derivation — PROMOTED sets prefer the promoted Set's direct folder link,
-  // falling back to the staging set's own coherence snapshot for legacy links via
-  // StagingSet.archiveFolderId (where ArchiveFolder.linkedSetId was never migrated).
+  // Archive state derivation — source from ArchiveLink (one per folder, one-to-one).
   const isPromoted = ss.status === 'PROMOTED'
-  const confirmedFolder = isPromoted
-    ? (ss.promotedSet?.archiveFolder ?? ss.coherenceSnapshot?.archiveFolder ?? null)
-    : (ss.coherenceSnapshot?.archiveFolder ?? null)
+  const confirmedLink = isPromoted
+    ? (ss.promotedSet?.archiveLinks?.[0] ?? ss.archiveLinks?.[0] ?? null)
+    : (ss.archiveLinks?.[0] ?? null)
+  const confirmedFolder = confirmedLink?.archiveFolder ?? null
   const suggestion = isPromoted ? null : (ss.suggestedArchiveFolder ?? null)
   const hasArchiveLink = !!confirmedFolder
 
@@ -482,13 +481,13 @@ export const StagingSetRow = memo(function StagingSetRow({
               <span className="min-w-0 truncate text-xs font-medium text-green-600 dark:text-green-400">
                 {confirmedFolder.folderName}
               </span>
-              {ss.promotedSet.archiveFileCount != null && (
+              {confirmedLink?.archiveFileCount != null && (
                 <span className="shrink-0 text-xs text-muted-foreground">
-                  · {ss.promotedSet.archiveFileCount} files
+                  · {confirmedLink.archiveFileCount} files
                 </span>
               )}
             </>
-          ) : ss.promotedSet.archivePath ? (
+          ) : confirmedLink?.archivePath ? (
             <>
               <Clock size={11} className="shrink-0 text-blue-400" />
               <span className="text-xs text-blue-500">Path set — not scanned</span>
@@ -519,9 +518,9 @@ export const StagingSetRow = memo(function StagingSetRow({
         <div className="flex items-center gap-1.5 pl-3 text-xs text-green-600 dark:text-green-400">
           <FolderOpen size={11} className="shrink-0" />
           <span className="truncate font-medium">{confirmedFolder!.folderName}</span>
-          {ss.coherenceSnapshot?.archiveFileCount != null && (
+          {confirmedLink?.archiveFileCount != null && (
             <span className="shrink-0 text-muted-foreground">
-              · {ss.coherenceSnapshot.archiveFileCount} files
+              · {confirmedLink.archiveFileCount} files
             </span>
           )}
         </div>

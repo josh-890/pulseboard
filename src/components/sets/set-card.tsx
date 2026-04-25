@@ -283,8 +283,8 @@ export function SetCard({ set, coverPhoto, headshotMap = {}, unresolvedCreditCou
         </div>
 
         {/* Archive link status — corner triangle, top-right.
-            Show when no archive folder is linked (snapshot absent OR snapshot has no folder). */}
-        {!set.coherenceSnapshot?.archiveFolder && (
+            Show when no CONFIRMED archive link is present. */}
+        {!set.archiveLinks?.length && (
           <div
             title={suggestedArchiveFolder ? 'Archive folder suggestion available' : 'No archive folder linked'}
             className={cn(

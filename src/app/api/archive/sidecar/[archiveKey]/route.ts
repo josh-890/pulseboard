@@ -16,6 +16,7 @@ import { NextResponse } from 'next/server'
 import { runWithTenant } from '@/lib/tenant-context'
 import { getAllTenants, isSingleTenantMode } from '@/lib/tenants'
 import { prisma } from '@/lib/db'
+import { ArchiveLinkStatus } from '@/generated/prisma/client'
 
 function isAuthorized(request: Request): boolean {
   const apiKey = process.env.ARCHIVE_API_KEY
@@ -50,8 +51,7 @@ export async function GET(
         folderName: true,
         parsedDate: true,
         scannedAt: true,
-        linkedSetId: true,
-        linkedStagingSet: { select: { id: true } },
+        archiveLink: { select: { setId: true, stagingSetId: true, status: true } },
       },
     })
 
@@ -59,13 +59,17 @@ export async function GET(
       return NextResponse.json({ error: 'Not found' }, { status: 404 })
     }
 
-    const linkedStagingId = folder.linkedStagingSet?.id ?? null
+    const confirmedLink = folder.archiveLink?.status === ArchiveLinkStatus.CONFIRMED
+      ? folder.archiveLink
+      : null
+    const linkedSetId = confirmedLink?.setId ?? null
+    const linkedStagingId = confirmedLink?.stagingSetId ?? null
 
     // Optionally enrich with linked Set/StagingSet metadata (null for unlinked folders)
     const [set, stagingSet] = await Promise.all([
-      folder.linkedSetId
+      linkedSetId
         ? prisma.set.findUnique({
-            where: { id: folder.linkedSetId },
+            where: { id: linkedSetId },
             select: {
               id: true,
               title: true,
@@ -93,7 +97,7 @@ export async function GET(
     return NextResponse.json({
       archiveKey,
       folderName: folder.folderName,
-      setId: folder.linkedSetId ?? null,
+      setId: linkedSetId,
       stagingSetId: linkedStagingId,
       title: set?.title ?? stagingSet?.title ?? null,
       releaseDate: (set?.releaseDate ?? stagingSet?.releaseDate)?.toISOString().split('T')[0] ?? null,
