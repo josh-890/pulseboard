@@ -309,7 +309,14 @@ function Run-TargetedScan {
     Write-Host ""
     Write-Host "Fetching known archive paths..."
     try {
-        $entries = @(Invoke-RestMethod -Uri "$BaseUrl/api/archive/paths" -Headers $headers -Method Get)
+        $raw = Invoke-RestMethod -Uri "$BaseUrl/api/archive/paths" -Headers $headers -Method Get
+        # Invoke-RestMethod may return a single Object[] when the API returns a JSON array;
+        # unwrap one level so $entries is always a flat array of path objects.
+        if ($raw -is [System.Object[]] -and $raw.Count -eq 1 -and $raw[0] -is [System.Object[]]) {
+            $entries = @($raw[0])
+        } else {
+            $entries = @($raw)
+        }
     } catch {
         Write-Error "Failed to fetch paths: $_"; exit 1
     }
