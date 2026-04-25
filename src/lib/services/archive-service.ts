@@ -2155,25 +2155,51 @@ export type ArchiveSuggestionForSet = {
 /**
  * Returns all pending archive folder suggestions for a given Set, ranked HIGH first.
  * Used by the Set detail page to show an inline confirm/reject list.
+ *
+ * Also surfaces "stale staging suggestions": folders whose suggestedStagingId still
+ * points at the staging set that was promoted to this Set (the migration from
+ * suggestedStagingId → suggestedSetId was never run for these folders).
  */
 export async function getArchiveSuggestionsForSet(
   setId: string,
 ): Promise<ArchiveSuggestionForSet[]> {
-  const folders = await prisma.archiveFolder.findMany({
+  const folderSelect = {
+    id: true,
+    folderName: true,
+    fullPath: true,
+    relativePath: true,
+    fileCount: true,
+    parsedDate: true,
+    suggestedConfidence: true,
+  } as const
+
+  // Primary: folders directly suggested to this Set
+  const direct = await prisma.archiveFolder.findMany({
     where: { suggestedSetId: setId },
-    select: {
-      id: true,
-      folderName: true,
-      fullPath: true,
-      relativePath: true,
-      fileCount: true,
-      parsedDate: true,
-      suggestedConfidence: true,
-    },
+    select: folderSelect,
     orderBy: { suggestedConfidence: 'asc' }, // 'HIGH' sorts before 'MEDIUM' alphabetically
     take: 5,
   })
-  return folders.map((f) => ({
+
+  // Fallback: folders still pointing at the staging set whose promotedSetId = setId
+  // (stale suggestions that were never migrated when promotion ran)
+  const stagingOrigin = await prisma.stagingSet.findFirst({
+    where: { promotedSetId: setId, status: 'PROMOTED' },
+    select: { id: true },
+  })
+  const viaStagingOrigin = stagingOrigin
+    ? await prisma.archiveFolder.findMany({
+        where: { suggestedStagingId: stagingOrigin.id },
+        select: folderSelect,
+        take: 5,
+      })
+    : []
+
+  // Merge and dedup by id; direct (already-migrated) results take priority
+  const seen = new Set(direct.map((f) => f.id))
+  const merged = [...direct, ...viaStagingOrigin.filter((f) => !seen.has(f.id))]
+
+  return merged.slice(0, 5).map((f) => ({
     folderId: f.id,
     folderName: f.folderName,
     fullPath: f.fullPath,

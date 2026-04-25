@@ -922,5 +922,33 @@ export async function backfillPromotedSetArchiveLinks(): Promise<{ fixed: number
     fixed++
   }
 
+  // Pass 4: ArchiveFolders whose suggestedStagingId still points at a PROMOTED staging
+  // set — the suggestion was never migrated when the staging set was promoted.
+  // Migrate: suggestedStagingId → null, suggestedSetId → promotedSetId.
+  const staleStagingFolders = await prisma.archiveFolder.findMany({
+    where: { suggestedStagingId: { not: null } },
+    select: { id: true, suggestedStagingId: true },
+  })
+
+  if (staleStagingFolders.length > 0) {
+    // Batch-fetch the staging sets referenced by these folders
+    const stagingIds = [...new Set(staleStagingFolders.map((f) => f.suggestedStagingId!))]
+    const stagingSets = await prisma.stagingSet.findMany({
+      where: { id: { in: stagingIds }, status: 'PROMOTED', promotedSetId: { not: null } },
+      select: { id: true, promotedSetId: true },
+    })
+    const promotedByStaging = new Map(stagingSets.map((ss) => [ss.id, ss.promotedSetId!]))
+
+    for (const folder of staleStagingFolders) {
+      const promotedSetId = promotedByStaging.get(folder.suggestedStagingId!)
+      if (!promotedSetId) { skipped++; continue }
+      await prisma.archiveFolder.update({
+        where: { id: folder.id },
+        data: { suggestedStagingId: null, suggestedSetId: promotedSetId },
+      })
+      fixed++
+    }
+  }
+
   return { fixed, snapshotOnly, skipped }
 }
