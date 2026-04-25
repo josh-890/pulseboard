@@ -398,8 +398,8 @@ export async function updateSetRecord(id: string, data: {
     isCompilation: data.isCompilation,
     isComplete: data.isComplete,
     imageCount: data.imageCount,
-    videoLength: data.videoLength,
-    externalId: data.externalId,
+    videoLength: data.videoLength === "" ? null : data.videoLength,
+    externalId: data.externalId === "" ? null : data.externalId,
   };
 
   const releaseDateChanging = data.releaseDate !== undefined;
