@@ -204,8 +204,11 @@ export async function matchLabel(labelName: string): Promise<MatchResult> {
 export async function matchSet(set: ParsedSet): Promise<SetMatchResult> {
   // Tier 1: Exact externalId match
   if (set.externalId) {
-    const exactMatch = await prisma.set.findUnique({
-      where: { externalId: set.externalId },
+    const exactMatch = await prisma.set.findFirst({
+      where: {
+        externalId: set.externalId,
+        archiveLinks: { none: { status: 'CONFIRMED' } },
+      },
       select: { id: true, title: true },
     })
 
@@ -236,6 +239,7 @@ export async function matchSet(set: ParsedSet): Promise<SetMatchResult> {
       WHERE similarity(s."titleNorm", ${titleNorm}) > 0.6
         AND c."nameNorm" = ${channelNorm}
         AND s."releaseDate" BETWEEN ${dateFrom} AND ${dateTo}
+        AND NOT EXISTS (SELECT 1 FROM "ArchiveLink" al WHERE al."setId" = s.id AND al.status = 'CONFIRMED')
       ORDER BY sim DESC
       LIMIT 1
     `
@@ -256,9 +260,10 @@ export async function matchSet(set: ParsedSet): Promise<SetMatchResult> {
     const titleOnly = await prisma.$queryRaw<
       Array<{ id: string; title: string; sim: number }>
     >`
-      SELECT id, title, similarity("titleNorm", ${titleNorm}) AS sim
-      FROM "Set"
-      WHERE similarity("titleNorm", ${titleNorm}) > 0.8
+      SELECT s.id, s.title, similarity(s."titleNorm", ${titleNorm}) AS sim
+      FROM "Set" s
+      WHERE similarity(s."titleNorm", ${titleNorm}) > 0.8
+        AND NOT EXISTS (SELECT 1 FROM "ArchiveLink" al WHERE al."setId" = s.id AND al.status = 'CONFIRMED')
       ORDER BY sim DESC
       LIMIT 1
     `
