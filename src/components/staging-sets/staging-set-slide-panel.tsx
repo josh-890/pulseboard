@@ -544,10 +544,14 @@ type ArchiveSectionProps = {
 
 function ArchiveSection({ stagingSet }: ArchiveSectionProps) {
   const [isExpanded, setIsExpanded] = useState(true)
-  const archiveLink = stagingSet.archiveLinks?.[0] ?? null
+  const isPromoted = stagingSet.status === 'PROMOTED'
+  const archiveLink = isPromoted
+    ? (stagingSet.promotedSet?.archiveLinks?.[0] ?? stagingSet.archiveLinks?.[0] ?? null)
+    : (stagingSet.archiveLinks?.[0] ?? null)
   const archiveStatus = (archiveLink?.archiveStatus ?? 'UNKNOWN') as ArchiveStatus
   const statusCfg = ARCHIVE_STATUS_CONFIG[archiveStatus]
   const hasPath = !!archiveLink?.archivePath
+  const pendingScan = hasPath && !archiveLink?.archiveLastChecked
 
   return (
     <div className="rounded-lg border border-border/50 bg-card/50">
@@ -563,13 +567,14 @@ function ArchiveSection({ stagingSet }: ArchiveSectionProps) {
           {hasPath && (
             <span className={cn(
               'rounded-full px-1.5 py-0.5 text-[10px] font-medium',
-              archiveStatus === 'OK' && 'bg-green-500/15 text-green-600 dark:text-green-400',
-              archiveStatus === 'PENDING' && 'bg-blue-500/15 text-blue-600 dark:text-blue-400',
-              archiveStatus === 'CHANGED' && 'bg-amber-500/15 text-amber-600 dark:text-amber-400',
-              archiveStatus === 'MISSING' && 'bg-red-500/15 text-red-600 dark:text-red-400',
-              archiveStatus === 'INCOMPLETE' && 'bg-orange-500/15 text-orange-600 dark:text-orange-400',
+              pendingScan && 'bg-muted/60 text-muted-foreground',
+              !pendingScan && archiveStatus === 'OK' && 'bg-green-500/15 text-green-600 dark:text-green-400',
+              !pendingScan && archiveStatus === 'PENDING' && 'bg-blue-500/15 text-blue-600 dark:text-blue-400',
+              !pendingScan && archiveStatus === 'CHANGED' && 'bg-amber-500/15 text-amber-600 dark:text-amber-400',
+              !pendingScan && archiveStatus === 'MISSING' && 'bg-red-500/15 text-red-600 dark:text-red-400',
+              !pendingScan && archiveStatus === 'INCOMPLETE' && 'bg-orange-500/15 text-orange-600 dark:text-orange-400',
             )}>
-              {statusCfg.label}
+              {pendingScan ? 'Scan pending' : statusCfg.label}
             </span>
           )}
         </div>
@@ -608,7 +613,9 @@ function ArchiveSection({ stagingSet }: ArchiveSectionProps) {
             </>
           ) : (
             <p className="text-[10px] text-muted-foreground/60">
-              No archive folder linked. Archive scanner will link automatically when found.
+              {isPromoted
+                ? 'No archive folder linked to this set yet. Run the archive scanner to link automatically.'
+                : 'No archive folder linked. Archive scanner will link automatically when found.'}
             </p>
           )}
         </div>

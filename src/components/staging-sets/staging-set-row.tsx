@@ -490,7 +490,7 @@ export const StagingSetRow = memo(function StagingSetRow({
           ) : confirmedLink?.archivePath ? (
             <>
               <Clock size={11} className="shrink-0 text-blue-400" />
-              <span className="text-xs text-blue-500">Path set — not scanned</span>
+              <span className="text-xs text-blue-500">Linked · scan pending</span>
             </>
           ) : (
             <>
