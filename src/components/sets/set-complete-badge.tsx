@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useState } from 'react'
 import { Check, Circle, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { toggleSetComplete } from '@/lib/actions/set-actions'
@@ -12,17 +12,18 @@ type SetCompleteBadgeProps = {
 
 export function SetCompleteBadge({ setId, isComplete }: SetCompleteBadgeProps) {
   const [optimistic, setOptimistic] = useState(isComplete)
-  const [isPending, startTransition] = useTransition()
+  const [isPending, setIsPending] = useState(false)
 
-  const toggle = () => {
+  const toggle = async () => {
+    if (isPending) return
     const next = !optimistic
     setOptimistic(next)
-    startTransition(async () => {
-      const result = await toggleSetComplete(setId, next)
-      if (!result.success) {
-        setOptimistic(!next) // revert on failure
-      }
-    })
+    setIsPending(true)
+    const result = await toggleSetComplete(setId, next)
+    if (!result.success) {
+      setOptimistic(!next) // revert on failure
+    }
+    setIsPending(false)
   }
 
   return (
