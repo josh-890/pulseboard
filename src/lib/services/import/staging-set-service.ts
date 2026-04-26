@@ -536,7 +536,7 @@ export async function getStagingSetsFiltered(filters: StagingSetFilters): Promis
     conditions.push({ archiveLinks: { some: { status: confirmed, archivePath: { not: null } } } })
     // All participants must be 'known' (or no participants listed)
     const knownRows = await prisma.$queryRaw<{ id: string }[]>`
-      SELECT id FROM "StagingSet"
+      SELECT id FROM "staging_set"
       WHERE "participantStatuses" IS NULL
          OR NOT EXISTS (
            SELECT 1 FROM jsonb_array_elements("participantStatuses"::jsonb) AS ps
