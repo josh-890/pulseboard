@@ -251,6 +251,22 @@ export async function deleteSet(id: string): Promise<SimpleActionResult> {
 
 const INLINE_EDITABLE_FIELDS = new Set(["title", "description", "notes"]);
 
+export async function toggleSetComplete(
+  id: string,
+  isComplete: boolean,
+): Promise<SimpleActionResult> {
+  return withTenantFromHeaders(async () => {
+    try {
+      await updateSetRecord(id, { isComplete });
+      revalidatePath(`/sets/${id}`);
+      revalidatePath("/sets");
+      return { success: true };
+    } catch {
+      return { success: false, error: "Failed to update set" };
+    }
+  });
+}
+
 export async function updateSetField(
   id: string,
   field: string,

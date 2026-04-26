@@ -1,8 +1,9 @@
 import Image from "next/image";
 import Link from "next/link";
-import { Camera, Check, Circle, Film } from "lucide-react";
+import { Camera, Film } from "lucide-react";
 import { cn, focalStyle, formatPartialDateISO, getInitialsFromName, computeProductionAge } from "@/lib/utils";
 import { SetInlineTitle } from "@/components/sets/set-detail-header";
+import { SetCompleteBadge } from "@/components/sets/set-complete-badge";
 import type { getSetById } from "@/lib/services/set-service";
 import type { CoverPhotoData, HeadshotData } from "@/lib/services/media-service";
 
@@ -237,17 +238,7 @@ export function SetHero({
             </>
           )}
           <span>·</span>
-          {set.isComplete ? (
-            <span className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
-              <Check size={12} />
-              Complete
-            </span>
-          ) : (
-            <span className="inline-flex items-center gap-1 text-amber-600 dark:text-amber-400">
-              <Circle size={12} />
-              Incomplete
-            </span>
-          )}
+          <SetCompleteBadge setId={set.id} isComplete={set.isComplete} />
           {set.isCompilation && (
             <>
               <span>·</span>
