@@ -305,8 +305,14 @@ function Get-TargetedStatusLabel { param($R)
 }
 
 function Run-TargetedScan {
-    Write-Host "Mode: Targeted"
-    Write-Host ""
+    param([switch]$AsSubPhase)
+
+    if (-not $AsSubPhase) {
+        Write-Host "Mode: Targeted"
+        Write-Host ""
+    } else {
+        Write-Host "── Targeted scan (updating confirmed links) ────────────────────────────────"
+    }
     Write-Host "Fetching known archive paths..."
     try {
         $raw = Invoke-RestMethod -Uri "$BaseUrl/api/archive/paths" -Headers $headers -Method Get
@@ -323,7 +329,7 @@ function Run-TargetedScan {
 
     $total = $entries.Count
     Write-Host "  Found $total path(s) to check"
-    if ($total -eq 0) { Write-Host "Nothing to scan."; exit 0 }
+    if ($total -eq 0) { Write-Host "Nothing to scan."; if (-not $AsSubPhase) { exit 0 } else { return } }
 
     $entries = $entries | ForEach-Object {
         if ($_ -is [System.Collections.Hashtable]) { [PSCustomObject]$_ } else { $_ }
@@ -853,6 +859,10 @@ function Write-Sidecars {
 
 function Run-FullScan {
     Write-Host "Mode: Full (smart — with mtime skip + rename detection)"
+    Write-Host ""
+
+    # ── Phase 0: Targeted scan — keep confirmed link file counts current ──────
+    Run-TargetedScan -AsSubPhase
     Write-Host ""
 
     # Capture scan start time before any filesystem walk so ghost detection is accurate
