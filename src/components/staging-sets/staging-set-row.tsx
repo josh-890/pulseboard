@@ -236,8 +236,8 @@ export const StagingSetRow = memo(function StagingSetRow({
   // Archive state derivation — source from ArchiveLink (one per folder, one-to-one).
   const isPromoted = ss.status === 'PROMOTED'
   const confirmedLink = isPromoted
-    ? (ss.promotedSet?.archiveLinks?.[0] ?? ss.archiveLinks?.[0] ?? null)
-    : (ss.archiveLinks?.[0] ?? null)
+    ? (ss.promotedSet?.archiveLinks?.find((l) => l.status === 'CONFIRMED') ?? ss.archiveLinks?.find((l) => l.status === 'CONFIRMED') ?? null)
+    : (ss.archiveLinks?.find((l) => l.status === 'CONFIRMED') ?? null)
   const confirmedFolder = confirmedLink?.archiveFolder ?? null
   const suggestion = isPromoted ? null : (ss.suggestedArchiveFolder ?? null)
   const hasArchiveLink = !!confirmedFolder

@@ -115,8 +115,8 @@ function PanelContent({
   // Archive state — sourced from ArchiveLink (one per folder, one-to-one).
   const isPromoted = stagingSet.status === 'PROMOTED'
   const confirmedLink = isPromoted
-    ? (stagingSet.promotedSet?.archiveLinks?.[0] ?? stagingSet.archiveLinks?.[0] ?? null)
-    : (stagingSet.archiveLinks?.[0] ?? null)
+    ? (stagingSet.promotedSet?.archiveLinks?.find((l) => l.status === 'CONFIRMED') ?? stagingSet.archiveLinks?.find((l) => l.status === 'CONFIRMED') ?? null)
+    : (stagingSet.archiveLinks?.find((l) => l.status === 'CONFIRMED') ?? null)
   const confirmedFolder = confirmedLink?.archiveFolder ?? null
   const suggestion = isPromoted ? null : (!confirmedFolder ? (stagingSet.suggestedArchiveFolder ?? null) : null)
   const dateStr = stagingSet.releaseDate
@@ -442,8 +442,8 @@ function PanelContent({
           </div>
         )}
 
-        {/* Archive path detail (non-promoted only) */}
-        {!isPromoted && <ArchiveSection stagingSet={stagingSet} onRefresh={onRefresh} />}
+        {/* Archive path detail (non-promoted, confirmed link only) */}
+        {!isPromoted && !!confirmedLink && <ArchiveSection stagingSet={stagingSet} onRefresh={onRefresh} />}
 
         {/* Annotations */}
         <div className="rounded-lg border border-border/50 bg-card/50 p-3">
