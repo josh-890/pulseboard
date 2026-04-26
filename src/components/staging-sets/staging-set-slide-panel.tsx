@@ -551,7 +551,7 @@ function ArchiveSection({ stagingSet }: ArchiveSectionProps) {
   const archiveStatus = (archiveLink?.archiveStatus ?? 'UNKNOWN') as ArchiveStatus
   const statusCfg = ARCHIVE_STATUS_CONFIG[archiveStatus]
   const hasPath = !!archiveLink?.archivePath
-  const pendingScan = hasPath && !archiveLink?.archiveLastChecked
+  const pendingScan = archiveStatus === 'PENDING'
 
   return (
     <div className="rounded-lg border border-border/50 bg-card/50">
