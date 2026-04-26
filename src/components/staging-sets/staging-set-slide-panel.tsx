@@ -569,7 +569,6 @@ function ArchiveSection({ stagingSet }: ArchiveSectionProps) {
               'rounded-full px-1.5 py-0.5 text-[10px] font-medium',
               pendingScan && 'bg-muted/60 text-muted-foreground',
               !pendingScan && archiveStatus === 'OK' && 'bg-green-500/15 text-green-600 dark:text-green-400',
-              !pendingScan && archiveStatus === 'PENDING' && 'bg-blue-500/15 text-blue-600 dark:text-blue-400',
               !pendingScan && archiveStatus === 'CHANGED' && 'bg-amber-500/15 text-amber-600 dark:text-amber-400',
               !pendingScan && archiveStatus === 'MISSING' && 'bg-red-500/15 text-red-600 dark:text-red-400',
               !pendingScan && archiveStatus === 'INCOMPLETE' && 'bg-orange-500/15 text-orange-600 dark:text-orange-400',

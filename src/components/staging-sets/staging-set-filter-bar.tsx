@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { Search, CalendarDays, X, HardDrive } from 'lucide-react'
+import { Search, CalendarDays, X, HardDrive, CheckCheck } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
 import type { ChannelTier, StagingSetStatus } from '@/generated/prisma/client'
@@ -25,6 +25,7 @@ export type StagingSetFilterState = {
   priority: number[]
   batchId: string | undefined
   archiveFilter: ArchiveFilterValue | undefined
+  readyForPromotion: boolean
   sort: 'date' | 'title' | 'priority' | 'importDate' | 'undatedFirst'
   sortDir: 'asc' | 'desc'
   groupBy: 'none' | 'channel' | 'person' | 'year' | 'status' | 'channelYear'
@@ -43,6 +44,7 @@ export const DEFAULT_FILTERS: StagingSetFilterState = {
   priority: [],
   batchId: undefined,
   archiveFilter: undefined,
+  readyForPromotion: false,
   sort: 'date',
   sortDir: 'asc',
   groupBy: 'none',
@@ -256,7 +258,7 @@ export function StagingSetFilterBar({ filters, onChange, stats }: StagingSetFilt
         )}
       </div>
 
-      {/* Row 1b: Archive filter chips */}
+      {/* Row 1b: Archive filter chips + Ready for promotion */}
       <div className="flex flex-wrap items-center gap-1.5">
         <HardDrive size={13} className="shrink-0 text-muted-foreground" />
         {ARCHIVE_FILTERS.map(({ value, label, dot, active }) => {
@@ -277,6 +279,21 @@ export function StagingSetFilterBar({ filters, onChange, stats }: StagingSetFilt
             </button>
           )
         })}
+
+        <span className="mx-1 h-4 w-px bg-border/50" />
+
+        <button
+          onClick={() => onChange({ ...filters, readyForPromotion: !filters.readyForPromotion })}
+          className={cn(
+            'flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors',
+            filters.readyForPromotion
+              ? 'border-emerald-500/60 bg-emerald-500/15 text-emerald-700 dark:text-emerald-400'
+              : 'border-slate-200 bg-slate-50 text-muted-foreground hover:bg-slate-100 hover:text-foreground dark:border-border/50 dark:bg-muted/50 dark:hover:border-border dark:hover:bg-muted',
+          )}
+        >
+          <CheckCheck size={12} />
+          Ready to promote
+        </button>
       </div>
 
       {/* Row 2: Search + date range + sort + group by */}

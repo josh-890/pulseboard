@@ -420,6 +420,7 @@ export type StagingSetFilters = {
   batchId?: string
   priority?: number[]
   archiveFilter?: 'hasPath' | 'ok' | 'changed' | 'missing' | 'inQueue' | 'needsMedia'
+  readyForPromotion?: boolean
   search?: string
   sort?: 'date' | 'title' | 'priority' | 'importDate' | 'undatedFirst'
   sortDir?: 'asc' | 'desc'
@@ -527,6 +528,22 @@ export async function getStagingSetsFiltered(filters: StagingSetFilters): Promis
         conditions.push({ archiveLinks: { none: { status: confirmed } }, mediaQueueAt: null })
         break
     }
+  }
+
+  if (filters.readyForPromotion) {
+    const confirmed = ArchiveLinkStatus.CONFIRMED
+    conditions.push({ status: 'APPROVED' })
+    conditions.push({ archiveLinks: { some: { status: confirmed, archivePath: { not: null } } } })
+    // All participants must be 'known' (or no participants listed)
+    const knownRows = await prisma.$queryRaw<{ id: string }[]>`
+      SELECT id FROM "StagingSet"
+      WHERE "participantStatuses" IS NULL
+         OR NOT EXISTS (
+           SELECT 1 FROM jsonb_array_elements("participantStatuses"::jsonb) AS ps
+           WHERE ps->>'status' != 'known'
+         )
+    `
+    conditions.push({ id: { in: knownRows.map((r) => r.id) } })
   }
 
   if (filters.isVideo !== undefined) {
