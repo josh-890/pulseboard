@@ -34,7 +34,7 @@ import {
 import type { SetFilters } from "@/lib/services/set-service";
 import { getCoverPhotosForSets, getSkillEventMediaConstraints, getHeadshotsForPersons } from "@/lib/services/media-service";
 import { cascadeHardDeleteMediaItems } from "@/lib/services/cascade-helpers";
-import { searchArtists } from "@/lib/services/artist-service";
+import { searchArtists, getSuggestedArtists } from "@/lib/services/artist-service";
 import { refreshDashboardStats } from "@/lib/services/view-service";
 import { onMediaImportChanged } from "@/lib/services/coherence-service";
 import { getLabels } from "@/lib/services/label-service";
@@ -199,6 +199,12 @@ export async function searchArtistsAction(q: string) {
   return withTenantFromHeaders(async () => {
     if (!q.trim()) return [];
     return searchArtists(q.trim());
+  });
+}
+
+export async function getSuggestedArtistsAction(rawName: string) {
+  return withTenantFromHeaders(async () => {
+    return getSuggestedArtists(rawName);
   });
 }
 

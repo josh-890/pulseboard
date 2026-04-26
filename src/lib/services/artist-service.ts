@@ -212,3 +212,17 @@ export async function searchArtists(query: string) {
     orderBy: { name: "asc" },
   });
 }
+
+export async function getSuggestedArtists(rawName: string) {
+  if (!rawName.trim()) return [];
+  const norm = normalizeForSearch(rawName);
+  type Row = { id: string; name: string; nationality: string | null; sim: number };
+  const rows = await prisma.$queryRaw<Row[]>`
+    SELECT id, name, nationality, similarity("nameNorm", ${norm}) AS sim
+    FROM "Artist"
+    WHERE similarity("nameNorm", ${norm}) >= 0.3
+    ORDER BY sim DESC
+    LIMIT 3
+  `;
+  return rows.map((r) => ({ id: r.id, name: r.name, nationality: r.nationality, sim: Number(r.sim) }));
+}

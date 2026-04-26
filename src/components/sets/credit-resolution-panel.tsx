@@ -17,6 +17,7 @@ import {
   searchPersonsAction,
   searchArtistsAction,
   getSuggestionsAction,
+  getSuggestedArtistsAction,
 } from "@/lib/actions/set-actions";
 import { CreatePersonSheet } from "@/components/people/create-person-sheet";
 import { CreateArtistSheet } from "@/components/artists/create-artist-sheet";
@@ -58,6 +59,13 @@ type SuggestionItem = {
   source: "previous" | "channel";
 };
 
+type ArtistSuggestionItem = {
+  id: string;
+  name: string;
+  nationality: string | null;
+  sim: number;
+};
+
 type CreditResolutionPanelProps = {
   setId: string;
   credits: CreditRawItem[];
@@ -77,6 +85,7 @@ export function CreditResolutionPanel({ setId, credits: initialCredits, channelI
   const [resolvingCreditId, setResolvingCreditId] = useState<string | null>(null);
   const [resolveMode, setResolveMode] = useState<"person" | "artist">("person");
   const [suggestions, setSuggestions] = useState<SuggestionItem[]>([]);
+  const [artistSuggestions, setArtistSuggestions] = useState<ArtistSuggestionItem[]>([]);
   const [loadingSuggestions, setLoadingSuggestions] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<PersonResult[]>([]);
@@ -255,16 +264,26 @@ export function CreditResolutionPanel({ setId, credits: initialCredits, channelI
     const defaultMode = credit?.roleDefinitionId ? "person" : "artist";
     setResolveMode(defaultMode);
 
-    // Load suggestions for person mode
+    // Load suggestions based on mode
     if (credit && defaultMode === "person") {
       setLoadingSuggestions(true);
       setSuggestions([]);
+      setArtistSuggestions([]);
       getSuggestionsAction(credit.rawName, channelId ?? null).then((result) => {
         setSuggestions(result);
         setLoadingSuggestions(false);
       });
+    } else if (credit && defaultMode === "artist") {
+      setLoadingSuggestions(true);
+      setArtistSuggestions([]);
+      setSuggestions([]);
+      getSuggestedArtistsAction(credit.rawName).then((result) => {
+        setArtistSuggestions(result);
+        setLoadingSuggestions(false);
+      });
     } else {
       setSuggestions([]);
+      setArtistSuggestions([]);
     }
   }
 
@@ -275,6 +294,7 @@ export function CreditResolutionPanel({ setId, credits: initialCredits, channelI
     setArtistSearchResults([]);
     setShowDropdown(false);
     setSuggestions([]);
+    setArtistSuggestions([]);
   }
 
   // Group by role definition (null roleDefinitionId → "Other" group)
@@ -312,6 +332,7 @@ export function CreditResolutionPanel({ setId, credits: initialCredits, channelI
               isSearching={isSearching}
               showDropdown={showDropdown && resolvingCreditId === credit.id}
               suggestions={resolvingCreditId === credit.id ? suggestions : []}
+              artistSuggestions={resolvingCreditId === credit.id ? artistSuggestions : []}
               loadingSuggestions={resolvingCreditId === credit.id && loadingSuggestions}
               dropdownRef={resolvingCreditId === credit.id ? dropdownRef : undefined}
               onStartResolving={() => startResolving(credit.id)}
@@ -357,6 +378,7 @@ type CreditRowProps = {
   isSearching: boolean;
   showDropdown: boolean;
   suggestions: SuggestionItem[];
+  artistSuggestions: ArtistSuggestionItem[];
   loadingSuggestions: boolean;
   dropdownRef?: React.RefObject<HTMLDivElement | null>;
   onStartResolving: () => void;
@@ -383,6 +405,7 @@ function CreditRow({
   isSearching,
   showDropdown,
   suggestions,
+  artistSuggestions,
   loadingSuggestions,
   dropdownRef,
   onStartResolving,
@@ -553,8 +576,8 @@ function CreditRow({
             </button>
           </div>
 
-          {/* Suggestion pills (person mode only) */}
-          {resolveMode === "person" && loadingSuggestions && (
+          {/* Suggestion pills */}
+          {loadingSuggestions && (
             <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
               <Loader2 size={10} className="animate-spin" />
               Loading suggestions…
@@ -575,6 +598,27 @@ function CreditRow({
                     <span className="opacity-50 text-[10px]">
                       {s.source === "previous" ? "prev" : "ch"}
                     </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+          {resolveMode === "artist" && !loadingSuggestions && artistSuggestions.length > 0 && (
+            <div className="space-y-1">
+              <p className="text-xs text-muted-foreground">Suggested</p>
+              <div className="flex flex-wrap gap-1.5">
+                {artistSuggestions.map((s) => (
+                  <button
+                    key={s.id}
+                    type="button"
+                    onClick={() => onResolveAsArtist(s.id, s.name)}
+                    className="inline-flex items-center gap-1 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2 py-0.5 text-xs font-medium text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 transition-colors"
+                  >
+                    {s.name}
+                    {s.nationality && (
+                      <span className="opacity-50 text-[10px]">{s.nationality}</span>
+                    )}
+                    <span className="opacity-40 text-[10px]">{Math.round(s.sim * 100)}%</span>
                   </button>
                 ))}
               </div>
