@@ -341,7 +341,7 @@ function Run-TargetedScan {
     foreach ($entry in $entries) {
         $confirmedFn = if ($entry.confirmedVideoFilename) { [string]$entry.confirmedVideoFilename } else { "" }
         $result = Check-ArchivePath `
-            -Id ([string]$entry.id) -Type ([string]$entry.type) `
+            -ArchiveLinkId ([string]$entry.archiveLinkId) `
             -ArchivePath ([string]$entry.path) -IsVideo ([bool]$entry.isVideo) `
             -FolderName ([string]$entry.folderName) `
             -ConfirmedFilename $confirmedFn
