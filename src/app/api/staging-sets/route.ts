@@ -28,6 +28,7 @@ export async function GET(request: Request) {
       const isVideoParam = url.searchParams.get('isVideo')
       const isVideo = isVideoParam === 'true' ? true : isVideoParam === 'false' ? false : undefined
       const noDate = url.searchParams.get('noDate') === 'true' || undefined
+      const hasDateSuggestion = url.searchParams.get('hasDateSuggestion') === 'true' || undefined
 
       const showDuplicates = url.searchParams.get('showDuplicates') === 'true' || undefined
 
@@ -42,6 +43,7 @@ export async function GET(request: Request) {
         showDuplicates,
         isVideo,
         noDate,
+        hasDateSuggestion,
         personId: url.searchParams.get('personId') || undefined,
         channelId: url.searchParams.get('channelId') || undefined,
         channelTier,

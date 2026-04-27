@@ -15,6 +15,7 @@ export type ArchiveFilterValue = 'hasPath' | 'ok' | 'changed' | 'missing' | 'inQ
 export type StagingSetFilterState = {
   status: StagingSetStatus[]
   noDate: boolean
+  hasDateSuggestion: boolean
   showDuplicates: boolean
   matchType: 'exact' | 'probable' | 'none' | undefined
   search: string
@@ -34,6 +35,7 @@ export type StagingSetFilterState = {
 export const DEFAULT_FILTERS: StagingSetFilterState = {
   status: ['PENDING', 'REVIEWING', 'APPROVED'],
   noDate: false,
+  hasDateSuggestion: false,
   showDuplicates: false,
   matchType: undefined,
   search: '',
@@ -208,6 +210,21 @@ export function StagingSetFilterBar({ filters, onChange, stats }: StagingSetFilt
           No date
           {(stats?.noDateCount ?? 0) > 0 && (
             <span className="text-[10px] text-muted-foreground">{stats!.noDateCount}</span>
+          )}
+        </button>
+
+        <button
+          onClick={() => onChange({ ...filters, hasDateSuggestion: !filters.hasDateSuggestion })}
+          className={cn(
+            'flex items-center gap-1 rounded-full border px-2 py-1 text-xs transition-colors',
+            filters.hasDateSuggestion
+              ? 'border-amber-500/50 bg-amber-500/15 text-amber-700 dark:text-amber-400'
+              : 'border-slate-200 bg-slate-50 text-muted-foreground hover:bg-slate-100 hover:text-foreground dark:border-border/50 dark:bg-muted/50 dark:hover:border-border dark:hover:bg-muted',
+          )}
+        >
+          Date suggested
+          {(stats?.dateSuggestionCount ?? 0) > 0 && (
+            <span className="text-[10px] text-muted-foreground">{stats!.dateSuggestionCount}</span>
           )}
         </button>
 

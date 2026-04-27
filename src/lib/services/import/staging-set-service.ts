@@ -412,6 +412,7 @@ export type StagingSetFilters = {
   showDuplicates?: boolean
   isVideo?: boolean
   noDate?: boolean
+  hasDateSuggestion?: boolean
   personId?: string
   channelId?: string
   channelTier?: ChannelTier[]
@@ -554,6 +555,10 @@ export async function getStagingSetsFiltered(filters: StagingSetFilters): Promis
     conditions.push({ releaseDate: null, releaseDateSuggestion: null })
   }
 
+  if (filters.hasDateSuggestion) {
+    conditions.push({ releaseDate: null, releaseDateSuggestion: { not: null } })
+  }
+
   if (filters.search) {
     const term = filters.search.toLowerCase()
     conditions.push({
@@ -636,12 +641,13 @@ export type StagingSetStats = {
   byType: { photo: number; video: number }
   duplicateCount: number
   noDateCount: number
+  dateSuggestionCount: number
 }
 
 export async function getStagingSetStats(batchId?: string): Promise<StagingSetStats> {
   const where: Prisma.StagingSetWhereInput = batchId ? { importBatchId: batchId } : {}
 
-  const [total, statusCounts, exactCount, probableCount, videoCount, duplicateCount, noDateCount] = await Promise.all([
+  const [total, statusCounts, exactCount, probableCount, videoCount, duplicateCount, noDateCount, dateSuggestionCount] = await Promise.all([
     prisma.stagingSet.count({ where }),
     prisma.stagingSet.groupBy({
       by: ['status'],
@@ -662,6 +668,9 @@ export async function getStagingSetStats(batchId?: string): Promise<StagingSetSt
     }),
     prisma.stagingSet.count({
       where: { ...where, releaseDate: null, releaseDateSuggestion: null },
+    }),
+    prisma.stagingSet.count({
+      where: { ...where, releaseDate: null, releaseDateSuggestion: { not: null } },
     }),
   ])
 
@@ -684,6 +693,7 @@ export async function getStagingSetStats(batchId?: string): Promise<StagingSetSt
     },
     duplicateCount,
     noDateCount,
+    dateSuggestionCount,
   }
 }
 
