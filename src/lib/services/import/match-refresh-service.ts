@@ -146,6 +146,7 @@ async function recomputeMatchesForSets(
       coverImageAlt: null,
       date: ss.releaseDate?.toISOString().split('T')[0] ?? null,
       description: null,
+      suggestedDate: null,
       imageCount: null,
       isVideo: false,
       modelsCount: 0,

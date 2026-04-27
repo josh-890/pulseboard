@@ -4,11 +4,12 @@ import { memo, useState, useRef, useCallback, useTransition } from 'react'
 import { createPortal } from 'react-dom'
 import Image from 'next/image'
 import Link from 'next/link'
-import { AlertTriangle, Camera, CheckSquare, Clock, Copy, ExternalLink, Film, Flag, FolderOpen, FolderSearch, FolderX, Check, X } from 'lucide-react'
+import { AlertTriangle, CalendarClock, Camera, CheckSquare, Clock, Copy, ExternalLink, Film, Flag, FolderOpen, FolderSearch, FolderX, Check, X } from 'lucide-react'
 import { cn, getInitialsFromName } from '@/lib/utils'
 import type { StagingSetWithRelations, ParticipantStatus } from '@/lib/services/import/staging-set-service'
 import type { StagingSetStatus } from '@/generated/prisma/client'
 import { confirmArchiveFolderLinkAction, rejectArchiveSuggestionAction } from '@/lib/actions/archive-actions'
+import { acceptDateSuggestionAction, dismissDateSuggestionAction } from '@/lib/actions/staging-set-actions'
 import { ArchiveFolderPicker } from './archive-folder-picker'
 
 // ─── Constants ─────────────────────────────────────────────────────────────
@@ -217,10 +218,14 @@ export const StagingSetRow = memo(function StagingSetRow({
   const [pickerOpen, setPickerOpen] = useState(false)
   const [isConfirming, startConfirm] = useTransition()
   const [isRejecting, startReject] = useTransition()
+  const [dateSuggestion, setDateSuggestion] = useState(ss.releaseDateSuggestion ?? null)
+  const [isDateSuggestionPending, setIsDateSuggestionPending] = useState(false)
   const statuses = (ss.participantStatuses as ParticipantStatus[] | null) ?? []
   const dateStr = ss.releaseDate
     ? new Date(ss.releaseDate).toISOString().split('T')[0]
-    : '????-??-??'
+    : dateSuggestion
+      ? null   // show chip instead
+      : '????-??-??'
   const hasMatch = ss.matchedSetId && ss.status !== 'PROMOTED'
   const matchLabel = hasMatch
     ? ss.matchConfidence === 1.0
@@ -232,6 +237,25 @@ export const StagingSetRow = memo(function StagingSetRow({
   // isDuplicate=true (without duplicateGroupId) means probable match by channel+date.
   const isDupExact = !!ss.duplicateGroupId
   const isDupProbable = ss.isDuplicate && !ss.duplicateGroupId
+
+  const acceptDateSuggestion = async (e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (isDateSuggestionPending) return
+    setIsDateSuggestionPending(true)
+    await acceptDateSuggestionAction(ss.id)
+    setDateSuggestion(null)
+    setIsDateSuggestionPending(false)
+    onArchiveChange?.()
+  }
+
+  const dismissDateSuggestion = async (e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (isDateSuggestionPending) return
+    setIsDateSuggestionPending(true)
+    await dismissDateSuggestionAction(ss.id)
+    setDateSuggestion(null)
+    setIsDateSuggestionPending(false)
+  }
 
   // Archive state derivation — source from ArchiveLink (one per folder, one-to-one).
   const isPromoted = ss.status === 'PROMOTED'
@@ -355,7 +379,30 @@ export const StagingSetRow = memo(function StagingSetRow({
         <div className="flex min-w-0 flex-col gap-0.5">
           {/* Line 1: date · channel + dup icon */}
           <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <span className="shrink-0">{dateStr}</span>
+            {dateSuggestion && !ss.releaseDate ? (
+              <span className="flex shrink-0 items-center gap-1 text-amber-500">
+                <CalendarClock size={10} />
+                <span>{dateSuggestion}?</span>
+                <button
+                  onClick={acceptDateSuggestion}
+                  disabled={isDateSuggestionPending}
+                  title="Accept suggested date"
+                  className="rounded px-0.5 hover:text-emerald-400 disabled:opacity-50"
+                >
+                  <Check size={10} />
+                </button>
+                <button
+                  onClick={dismissDateSuggestion}
+                  disabled={isDateSuggestionPending}
+                  title="Dismiss suggestion"
+                  className="rounded px-0.5 hover:text-zinc-300 disabled:opacity-50"
+                >
+                  <X size={10} />
+                </button>
+              </span>
+            ) : (
+              <span className="shrink-0">{dateStr}</span>
+            )}
             <span className="opacity-50">·</span>
             <span
               className={cn(

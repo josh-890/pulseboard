@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import {
+  CalendarClock,
   Check,
   X,
   Archive,
@@ -24,6 +25,7 @@ import { ArchiveStatusBanner } from '@/components/archive/archive-status-banner'
 import type { StagingSetWithRelations, StagingSetComparison } from '@/lib/services/import/staging-set-service'
 import type { StagingSetStatus, ArchiveStatus } from '@/generated/prisma/client'
 // (recordArchivePathAction / clearArchivePathAction removed — scan-first workflow only)
+import { acceptDateSuggestionAction, dismissDateSuggestionAction } from '@/lib/actions/staging-set-actions'
 import Link from 'next/link'
 
 // ─── Constants ─────────────────────────────────────────────────────────────
@@ -105,6 +107,8 @@ function PanelContent({
   const [isEditing, setIsEditing] = useState(false)
   const [editFields, setEditFields] = useState<Record<string, string>>({})
   const [pickerOpen, setPickerOpen] = useState(false)
+  const [dateSuggestion, setDateSuggestion] = useState(stagingSet.releaseDateSuggestion ?? null)
+  const [isDateSuggestionPending, setIsDateSuggestionPending] = useState(false)
 
   const hasMatch = !!stagingSet.matchedSetId
   const isExactMatch = hasMatch && stagingSet.matchConfidence === 1.0
@@ -164,6 +168,23 @@ function PanelContent({
     })
     setIsEditing(true)
   }, [stagingSet])
+
+  const acceptDateSuggestion = useCallback(async () => {
+    if (isDateSuggestionPending) return
+    setIsDateSuggestionPending(true)
+    await acceptDateSuggestionAction(stagingSet.id)
+    setDateSuggestion(null)
+    setIsDateSuggestionPending(false)
+    onRefresh?.()
+  }, [stagingSet.id, isDateSuggestionPending, onRefresh])
+
+  const dismissDateSuggestion = useCallback(async () => {
+    if (isDateSuggestionPending) return
+    setIsDateSuggestionPending(true)
+    await dismissDateSuggestionAction(stagingSet.id)
+    setDateSuggestion(null)
+    setIsDateSuggestionPending(false)
+  }, [stagingSet.id, isDateSuggestionPending])
 
   const saveEdits = useCallback(async () => {
     const updates: Record<string, unknown> = {}
@@ -393,6 +414,30 @@ function PanelContent({
             <FieldRow label="Title" value={stagingSet.title} />
             <FieldRow label="External ID" value={stagingSet.externalId} />
             <FieldRow label="Channel" value={stagingSet.channelName} warn={!stagingSet.channelId} />
+            {dateSuggestion && !stagingSet.releaseDate && (
+              <div className="mb-1 flex items-center justify-between rounded-md border border-amber-500/30 bg-amber-500/10 px-2.5 py-1.5">
+                <span className="flex items-center gap-1.5 text-xs text-amber-500">
+                  <CalendarClock size={12} />
+                  Suggested from title: {dateSuggestion}
+                </span>
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={acceptDateSuggestion}
+                    disabled={isDateSuggestionPending}
+                    className="rounded px-1.5 py-0.5 text-xs text-emerald-400 hover:bg-emerald-500/10 disabled:opacity-50"
+                  >
+                    Accept
+                  </button>
+                  <button
+                    onClick={dismissDateSuggestion}
+                    disabled={isDateSuggestionPending}
+                    className="rounded px-1.5 py-0.5 text-xs text-zinc-400 hover:bg-white/5 disabled:opacity-50"
+                  >
+                    Dismiss
+                  </button>
+                </div>
+              </div>
+            )}
             <FieldRow label="Date" value={stagingSet.releaseDate ? new Date(stagingSet.releaseDate).toISOString().split('T')[0] : null} />
             <FieldRow label="Type" value={stagingSet.isVideo ? 'Video' : 'Photo'} />
             <FieldRow label="Images" value={stagingSet.imageCount?.toString()} />

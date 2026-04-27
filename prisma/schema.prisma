@@ -1575,6 +1575,9 @@ model StagingSet {
   isDuplicate       Boolean           @default(false)
   isReupload        Boolean           @default(false)
 
+  // Date suggestion (extracted from title when Date field is 0000-00-00)
+  releaseDateSuggestion String?
+
   // User annotations
   priority          Int?
   notes             String?

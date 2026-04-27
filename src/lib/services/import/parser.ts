@@ -57,6 +57,7 @@ export type ParsedSet = {
   coverImageUrl: string | null
   coverImageAlt: string | null
   date: string | null
+  suggestedDate: string | null  // YYYY-MM-DD extracted from title when Date=0000-00-00
   description: string | null
   imageCount: number | null
   isVideo: boolean
@@ -403,6 +404,7 @@ export function parseImportFile(content: string): ParsedImportData {
           coverImageUrl: null,
           coverImageAlt: null,
           date: null,
+          suggestedDate: null,
           description: null,
           imageCount: null,
           isVideo: false,
@@ -447,7 +449,8 @@ export function parseImportFile(content: string): ParsedImportData {
             currentSet.coverImageAlt = isEmptyValue(val) ? null : val
           } else if (/^Date\s*:/.test(sTrimmed)) {
             const val = trimValue(sLine, 'Date')
-            currentSet.date = isEmptyValue(val) ? null : val
+            const rawDate = isEmptyValue(val) ? null : val
+            currentSet.date = (rawDate === '0000-00-00' || !rawDate) ? null : rawDate
           } else if (/^Description\s*:/.test(sTrimmed)) {
             const val = trimValue(sLine, 'Description')
             currentSet.description = isEmptyValue(val) ? null : val
@@ -472,6 +475,12 @@ export function parseImportFile(content: string): ParsedImportData {
           // Skip: ModelsShort (buggy), Models (PowerShell artifact)
 
           i++
+        }
+
+        // If no date, try to extract [YYYY-MM-DD] from the title
+        if (!currentSet.date) {
+          const m = currentSet.title.match(/\[(\d{4}-\d{2}-\d{2})\]/)
+          currentSet.suggestedDate = m ? m[1] : null
         }
 
         sets.push(currentSet)

@@ -357,10 +357,12 @@ export async function createBatch(
 
 // ─── Create StagingSet Records ──────────────────────────────────────────────
 
-type StagingIngestSummary = {
+export type StagingIngestSummary = {
   created: number
-  skipped: number      // omitted — exact production match, nothing to review
-  duplicated: number   // added but marked isDuplicate (already in staging for this person)
+  skipped: number       // omitted — exact production match, nothing to review
+  duplicated: number    // added but marked isDuplicate (already in staging for this person)
+  suggestedDate: number // created with releaseDateSuggestion extracted from title
+  noDate: number        // created with neither releaseDate nor suggestion
   byMatchType: { none: number; exact: number; probable: number }
 }
 
@@ -374,6 +376,8 @@ async function createStagingSetsForBatch(
     created: 0,
     skipped: 0,
     duplicated: 0,
+    suggestedDate: 0,
+    noDate: 0,
     byMatchType: { none: 0, exact: 0, probable: 0 },
   }
 
@@ -469,9 +473,13 @@ async function createStagingSetsForBatch(
     const channelMatch = matches.channels.get(channelName)
     const channelId = channelMatch?.matchedEntityId ?? null
 
+    // Parse release date — guard against Invalid Date (e.g. 0000-00-00 slipping through)
+    const parsedDate = set.date ? new Date(set.date) : null
+    const safeDate = parsedDate && !isNaN(parsedDate.getTime()) ? parsedDate : null
+
     // Parse release date precision
     let releaseDatePrecision: 'UNKNOWN' | 'YEAR' | 'MONTH' | 'DAY' = 'UNKNOWN'
-    if (set.date) {
+    if (safeDate && set.date) {
       if (/^\d{4}-\d{2}-\d{2}$/.test(set.date)) releaseDatePrecision = 'DAY'
       else if (/^\d{4}-\d{2}$/.test(set.date)) releaseDatePrecision = 'MONTH'
       else if (/^\d{4}$/.test(set.date)) releaseDatePrecision = 'YEAR'
@@ -497,11 +505,11 @@ async function createStagingSetsForBatch(
     // mark isDuplicate=true so it shows an amber "POSSIBLE DUP" warning.
     // Exception: if the matching entry is already SKIPPED (user resolved it), omit entirely.
     let isProbableDuplicate = false
-    if (channelId && set.date) {
+    if (channelId && safeDate) {
       const probableExisting = await prisma.stagingSet.findFirst({
         where: {
           channelId,
-          releaseDate: new Date(set.date),
+          releaseDate: safeDate,
           ...(set.externalId ? { externalId: { not: set.externalId } } : {}),
         },
         select: { id: true, status: true },
@@ -545,8 +553,9 @@ async function createStagingSetsForBatch(
         externalId: set.externalId || null,
         channelName: set.channelName,
         channelId,
-        releaseDate: set.date ? new Date(set.date) : null,
+        releaseDate: safeDate,
         releaseDatePrecision,
+        releaseDateSuggestion: set.suggestedDate ?? null,
         isVideo: set.isVideo,
         imageCount: set.imageCount,
         artist: set.artist,
@@ -571,6 +580,8 @@ async function createStagingSetsForBatch(
       },
     })
     summary.created++
+    if (set.suggestedDate) summary.suggestedDate++
+    else if (!safeDate) summary.noDate++
   }
 
   // Store summary on the batch for quick display

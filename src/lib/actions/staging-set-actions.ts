@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { withTenantFromHeaders } from '@/lib/tenant-context'
+import { prisma } from '@/lib/db'
 import {
   refreshAllParticipantStatuses,
   refreshIfStale,
@@ -54,5 +55,56 @@ export async function autoRefreshStagingDataAction(): Promise<{ statuses: number
     ])
     if (statuses > 0 || matches > 0) revalidatePath('/staging-sets')
     return { statuses, matches }
+  })
+}
+
+// ─── Date Suggestion Actions ─────────────────────────────────────────────────
+
+export type SimpleActionResult = { success: boolean; error?: string }
+
+/** Accept the suggested date: set it as the confirmed releaseDate and clear the suggestion. */
+export async function acceptDateSuggestionAction(id: string): Promise<SimpleActionResult> {
+  return withTenantFromHeaders(async () => {
+    try {
+      const ss = await prisma.stagingSet.findUnique({
+        where: { id },
+        select: { releaseDateSuggestion: true },
+      })
+      if (!ss?.releaseDateSuggestion) {
+        return { success: false, error: 'No suggestion to accept' }
+      }
+      const date = new Date(ss.releaseDateSuggestion)
+      if (isNaN(date.getTime())) {
+        return { success: false, error: 'Invalid suggested date' }
+      }
+      await prisma.stagingSet.update({
+        where: { id },
+        data: {
+          releaseDate: date,
+          releaseDatePrecision: 'DAY',
+          releaseDateSuggestion: null,
+        },
+      })
+      revalidatePath('/staging-sets')
+      return { success: true }
+    } catch {
+      return { success: false, error: 'Failed to accept date suggestion' }
+    }
+  })
+}
+
+/** Dismiss the suggested date without applying it. */
+export async function dismissDateSuggestionAction(id: string): Promise<SimpleActionResult> {
+  return withTenantFromHeaders(async () => {
+    try {
+      await prisma.stagingSet.update({
+        where: { id },
+        data: { releaseDateSuggestion: null },
+      })
+      revalidatePath('/staging-sets')
+      return { success: true }
+    } catch {
+      return { success: false, error: 'Failed to dismiss date suggestion' }
+    }
   })
 }

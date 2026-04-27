@@ -30,6 +30,7 @@ export async function POST(request: Request) {
         subjectName: batch.subjectName,
         subjectIcgId: batch.subjectIcgId,
         itemCount: batch.items.length,
+        stagingSummary: batch.stagingSummary ?? null,
       })
     } catch (err) {
       console.error('Import upload error:', err)
