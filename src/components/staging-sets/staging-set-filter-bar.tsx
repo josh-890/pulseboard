@@ -199,13 +199,16 @@ export function StagingSetFilterBar({ filters, onChange, stats }: StagingSetFilt
         <button
           onClick={() => onChange({ ...filters, noDate: !filters.noDate })}
           className={cn(
-            'rounded-full border px-2 py-1 text-xs transition-colors',
+            'flex items-center gap-1 rounded-full border px-2 py-1 text-xs transition-colors',
             filters.noDate
               ? 'border-amber-500/50 bg-amber-500/15 text-amber-700 dark:text-amber-400'
               : 'border-slate-200 bg-slate-50 text-muted-foreground hover:bg-slate-100 hover:text-foreground dark:border-border/50 dark:bg-muted/50 dark:hover:border-border dark:hover:bg-muted',
           )}
         >
           No date
+          {(stats?.noDateCount ?? 0) > 0 && (
+            <span className="text-[10px] text-muted-foreground">{stats!.noDateCount}</span>
+          )}
         </button>
 
         <button

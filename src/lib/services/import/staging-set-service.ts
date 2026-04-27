@@ -551,7 +551,7 @@ export async function getStagingSetsFiltered(filters: StagingSetFilters): Promis
   }
 
   if (filters.noDate) {
-    conditions.push({ releaseDate: null })
+    conditions.push({ releaseDate: null, releaseDateSuggestion: null })
   }
 
   if (filters.search) {
@@ -635,12 +635,13 @@ export type StagingSetStats = {
   byMatchType: { none: number; exact: number; probable: number }
   byType: { photo: number; video: number }
   duplicateCount: number
+  noDateCount: number
 }
 
 export async function getStagingSetStats(batchId?: string): Promise<StagingSetStats> {
   const where: Prisma.StagingSetWhereInput = batchId ? { importBatchId: batchId } : {}
 
-  const [total, statusCounts, exactCount, probableCount, videoCount, duplicateCount] = await Promise.all([
+  const [total, statusCounts, exactCount, probableCount, videoCount, duplicateCount, noDateCount] = await Promise.all([
     prisma.stagingSet.count({ where }),
     prisma.stagingSet.groupBy({
       by: ['status'],
@@ -658,6 +659,9 @@ export async function getStagingSetStats(batchId?: string): Promise<StagingSetSt
     }),
     prisma.stagingSet.count({
       where: { ...where, OR: [{ isDuplicate: true }, { duplicateGroupId: { not: null } }] },
+    }),
+    prisma.stagingSet.count({
+      where: { ...where, releaseDate: null, releaseDateSuggestion: null },
     }),
   ])
 
@@ -679,6 +683,7 @@ export async function getStagingSetStats(batchId?: string): Promise<StagingSetSt
       video: videoCount,
     },
     duplicateCount,
+    noDateCount,
   }
 }
 
