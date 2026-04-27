@@ -226,31 +226,33 @@ export async function matchSet(set: ParsedSet): Promise<SetMatchResult> {
   const titleNorm = normalizeForMatch(set.title)
   if (set.date && set.channelName) {
     const setDate = new Date(set.date)
-    const dateFrom = new Date(setDate.getTime() - 30 * 24 * 60 * 60 * 1000)
-    const dateTo = new Date(setDate.getTime() + 30 * 24 * 60 * 60 * 1000)
-    const channelNorm = normalizeForMatch(set.channelName)
+    if (!isNaN(setDate.getTime())) {
+      const dateFrom = new Date(setDate.getTime() - 30 * 24 * 60 * 60 * 1000)
+      const dateTo = new Date(setDate.getTime() + 30 * 24 * 60 * 60 * 1000)
+      const channelNorm = normalizeForMatch(set.channelName)
 
-    const multiSignal = await prisma.$queryRaw<
-      Array<{ id: string; title: string; sim: number }>
-    >`
-      SELECT s.id, s.title, similarity(s."titleNorm", ${titleNorm}) AS sim
-      FROM "Set" s
-      JOIN "Channel" c ON c.id = s."channelId"
-      WHERE similarity(s."titleNorm", ${titleNorm}) > 0.6
-        AND c."nameNorm" = ${channelNorm}
-        AND s."releaseDate" BETWEEN ${dateFrom} AND ${dateTo}
-        AND NOT EXISTS (SELECT 1 FROM "ArchiveLink" al WHERE al."setId" = s.id AND al.status = 'CONFIRMED')
-      ORDER BY sim DESC
-      LIMIT 1
-    `
+      const multiSignal = await prisma.$queryRaw<
+        Array<{ id: string; title: string; sim: number }>
+      >`
+        SELECT s.id, s.title, similarity(s."titleNorm", ${titleNorm}) AS sim
+        FROM "Set" s
+        JOIN "Channel" c ON c.id = s."channelId"
+        WHERE similarity(s."titleNorm", ${titleNorm}) > 0.6
+          AND c."nameNorm" = ${channelNorm}
+          AND s."releaseDate" BETWEEN ${dateFrom} AND ${dateTo}
+          AND NOT EXISTS (SELECT 1 FROM "ArchiveLink" al WHERE al."setId" = s.id AND al.status = 'CONFIRMED')
+        ORDER BY sim DESC
+        LIMIT 1
+      `
 
-    if (multiSignal.length > 0) {
-      const r = multiSignal[0]
-      return {
-        matchedEntityId: r.id,
-        matchConfidence: Math.min(0.95, Number(r.sim)),
-        matchDetails: `Title+Channel+Date match: "${r.title}" (similarity: ${Number(r.sim).toFixed(2)})`,
-        existingTitle: r.title,
+      if (multiSignal.length > 0) {
+        const r = multiSignal[0]
+        return {
+          matchedEntityId: r.id,
+          matchConfidence: Math.min(0.95, Number(r.sim)),
+          matchDetails: `Title+Channel+Date match: "${r.title}" (similarity: ${Number(r.sim).toFixed(2)})`,
+          existingTitle: r.title,
+        }
       }
     }
   }
