@@ -27,7 +27,10 @@ import { EditEventDialog } from "@/components/people/edit-event-dialog";
 import { RecordPhysicalChangeSheet } from "@/components/people/record-physical-change-sheet";
 import { EditPhysicalChangeSheet } from "@/components/people/edit-physical-change-sheet";
 import { DetailMediaPickerSheet } from "@/components/people/detail-media-picker-sheet";
+import { CrossSessionPicker } from "@/components/media/cross-session-picker";
+import { AnnotationEditor } from "@/components/media/annotation-editor";
 import { linkMediaToDetailCategoryAction } from "@/lib/actions/media-actions";
+import type { GalleryItem } from "@/lib/types";
 import {
   deleteBodyMarkAction,
   deleteBodyMarkEventAction,
@@ -135,6 +138,13 @@ export function AppearanceTab({
   const router = useRouter();
   const [openState, setOpenState] = useState<AppearanceOpenState>(null);
   const [isPending, startTransition] = useTransition();
+
+  // Cross-session picker + annotation editor for entity photos
+  type EntityPickerContext = { categoryId: string; entityId: string; mode: 'select' | 'annotate' }
+  type AnnotateEntityState = { item: GalleryItem; categoryId: string; entityId: string }
+  const [entityPicker, setEntityPicker] = useState<EntityPickerContext | null>(null);
+  const [annotateEntityState, setAnnotateEntityState] = useState<AnnotateEntityState | null>(null);
+  const [isSavingAnnotation, setIsSavingAnnotation] = useState(false);
 
   const handleSheetClose = useCallback(() => {
     setOpenState(null);
@@ -395,6 +405,57 @@ export function AppearanceTab({
     typeof openState === "object" && openState?.type === "manageEntityPhotos"
       ? getEntitiesForModel(openState.entityModel)
       : undefined;
+
+  // Cross-session picker: user selected a photo for an entity
+  const handleEntityPickerSelect = useCallback(async (item: GalleryItem) => {
+    if (!entityPicker) return;
+    const { categoryId, entityId, mode } = entityPicker;
+    setEntityPicker(null);
+
+    if (mode === 'select') {
+      await linkMediaToDetailCategoryAction(person.id, [item.id], categoryId);
+      router.refresh();
+    } else {
+      setAnnotateEntityState({ item, categoryId, entityId });
+    }
+  }, [entityPicker, person.id, router]);
+
+  // Annotation editor: user saved blob for an entity
+  const handleEntityAnnotationSave = useCallback(async (blob: Blob) => {
+    if (!referenceSessionId || !annotateEntityState) return;
+    const { categoryId } = annotateEntityState;
+    setIsSavingAnnotation(true);
+    try {
+      const file = new File([blob], `annotation-${Date.now()}.jpg`, { type: 'image/jpeg' });
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('sessionId', referenceSessionId);
+      formData.append('personId', person.id);
+      formData.append('isAnnotation', 'true');
+
+      let res = await fetch('/api/media/upload', { method: 'POST', body: formData });
+      let json = await res.json() as { mediaItem?: { id: string }; duplicateFound?: boolean };
+
+      if (json.duplicateFound && !json.mediaItem) {
+        const retry = new FormData();
+        retry.append('file', file);
+        retry.append('sessionId', referenceSessionId);
+        retry.append('personId', person.id);
+        retry.append('isAnnotation', 'true');
+        retry.append('duplicateAction', 'accept');
+        res = await fetch('/api/media/upload', { method: 'POST', body: retry });
+        json = await res.json();
+      }
+
+      if (json.mediaItem?.id) {
+        await linkMediaToDetailCategoryAction(person.id, [json.mediaItem.id], categoryId);
+        router.refresh();
+      }
+    } finally {
+      setIsSavingAnnotation(false);
+      setAnnotateEntityState(null);
+    }
+  }, [referenceSessionId, person.id, annotateEntityState, router]);
 
   const addButton = (onClick: () => void) => (
     <button
@@ -800,6 +861,43 @@ export function AppearanceTab({
           open
           onOpenChange={(open) => { if (!open) handleSheetClose(); }}
           onLinked={() => { router.refresh(); }}
+          onSelectFromSessions={() => {
+            const cat = pickerCategory;
+            const entityId = openState.entityId;
+            setOpenState(null);
+            setEntityPicker({ categoryId: cat.id, entityId, mode: 'select' });
+          }}
+          onAnnotate={referenceSessionId ? () => {
+            const cat = pickerCategory;
+            const entityId = openState.entityId;
+            setOpenState(null);
+            setEntityPicker({ categoryId: cat.id, entityId, mode: 'annotate' });
+          } : undefined}
+        />
+      )}
+
+      {/* Cross-session picker for entity photos */}
+      {entityPicker && (
+        <CrossSessionPicker
+          personId={person.id}
+          onSelect={handleEntityPickerSelect}
+          onClose={() => setEntityPicker(null)}
+          title={entityPicker.mode === 'annotate' ? 'Choose photo to annotate' : 'Select photo from any session'}
+        />
+      )}
+
+      {/* Annotation editor for entity photos */}
+      {annotateEntityState && (
+        <AnnotationEditor
+          imageUrl={
+            annotateEntityState.item.urls.view_1200 ??
+            annotateEntityState.item.urls.gallery_512 ??
+            annotateEntityState.item.urls.original ??
+            ''
+          }
+          onSave={handleEntityAnnotationSave}
+          onCancel={() => setAnnotateEntityState(null)}
+          isSaving={isSavingAnnotation}
         />
       )}
     </>
