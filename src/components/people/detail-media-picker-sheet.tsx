@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState, useTransition } from "react";
 import Image from "next/image";
 import { useEscToClose } from "@/lib/hooks/use-esc-to-close";
-import { Check, ImageIcon, Loader2, Pencil, ScanSearch, Upload, X } from "lucide-react";
+import { Check, ImageIcon, Loader2, Upload, X } from "lucide-react";
 import { cn, focalStyle } from "@/lib/utils";
 import {
   linkMediaToDetailCategoryAction,
@@ -37,10 +37,6 @@ type DetailMediaPickerSheetProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onLinked?: () => void;
-  /** Open the cross-session picker for this entity */
-  onSelectFromSessions?: () => void;
-  /** Open the annotation editor flow for this entity */
-  onAnnotate?: () => void;
 };
 
 const ENTITY_FIELD_MAP: Record<string, "bodyMarkId" | "bodyModificationId" | "cosmeticProcedureId"> = {
@@ -58,8 +54,6 @@ export function DetailMediaPickerSheet({
   open,
   onOpenChange,
   onLinked,
-  onSelectFromSessions,
-  onAnnotate,
 }: DetailMediaPickerSheetProps) {
   const [items, setItems] = useState<MediaItem[]>([]);
   const [loading, setLoading] = useState(false);
@@ -203,26 +197,6 @@ export function DetailMediaPickerSheet({
             <p className="text-xs text-muted-foreground">{category.groupName}</p>
           </div>
           <div className="flex items-center gap-1">
-            {onSelectFromSessions && (
-              <button
-                type="button"
-                onClick={onSelectFromSessions}
-                title="Select from any session"
-                className="rounded-md p-1.5 text-muted-foreground transition-colors hover:text-indigo-400 hover:bg-indigo-500/10"
-              >
-                <ScanSearch size={16} />
-              </button>
-            )}
-            {onAnnotate && (
-              <button
-                type="button"
-                onClick={onAnnotate}
-                title="Annotate photo"
-                className="rounded-md p-1.5 text-muted-foreground transition-colors hover:text-amber-400 hover:bg-amber-500/10"
-              >
-                <Pencil size={16} />
-              </button>
-            )}
             <button
               type="button"
               onClick={() => onOpenChange(false)}

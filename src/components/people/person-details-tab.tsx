@@ -390,16 +390,18 @@ export function PersonDetailsTab({
                           <Plus size={14} />
                         </button>
                       )}
-                      <button
-                        type="button"
-                        onClick={() => setCrossPicker({ category: cat, mode: 'select' })}
-                        className="rounded-md p-1 text-muted-foreground transition-colors hover:text-indigo-400 hover:bg-indigo-500/10"
-                        title="Select from any session"
-                        aria-label={`Select photo from any session for ${cat.name}`}
-                      >
-                        <ScanSearch size={14} />
-                      </button>
-                      {referenceSessionId && (
+                      {!cat.entityModel && (
+                        <button
+                          type="button"
+                          onClick={() => setCrossPicker({ category: cat, mode: 'select' })}
+                          className="rounded-md p-1 text-muted-foreground transition-colors hover:text-indigo-400 hover:bg-indigo-500/10"
+                          title="Select from any session"
+                          aria-label={`Select photo from any session for ${cat.name}`}
+                        >
+                          <ScanSearch size={14} />
+                        </button>
+                      )}
+                      {!cat.entityModel && referenceSessionId && (
                         <button
                           type="button"
                           onClick={() => setCrossPicker({ category: cat, mode: 'annotate' })}

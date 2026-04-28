@@ -622,6 +622,8 @@ export function AppearanceTab({
                     onManagePhotos={referenceSessionId ? () => setOpenState({ type: "manageEntityPhotos", entityId: mark.id, entityModel: "BodyMark", entityType: mark.type, entityLabel: `${mark.type} — ${mark.bodyRegion}` }) : undefined}
                     onUploadPhoto={referenceSessionId ? () => handleEntityUpload("BodyMark", mark.id, mark.type) : undefined}
                     onDropFiles={referenceSessionId ? handleEntityDrop("BodyMark", mark.id, mark.type) : undefined}
+                    onSelectFromSessions={referenceSessionId ? (() => { const cat = findCategoryForEntity("BodyMark", mark.type); if (cat) setEntityPicker({ categoryId: cat.id, entityId: mark.id, mode: 'select' }); }) : undefined}
+                    onAnnotate={referenceSessionId ? (() => { const cat = findCategoryForEntity("BodyMark", mark.type); if (cat) setEntityPicker({ categoryId: cat.id, entityId: mark.id, mode: 'annotate' }); }) : undefined}
                     onDeleteEvent={handleDeleteBodyMarkEvent}
                     onAddEvent={() => setOpenState({ type: "addBodyMarkEvent", markId: mark.id, markLabel: `${mark.type} — ${mark.bodyRegion}`, computed: mark.computed })}
                     onToggleHeroVisibility={(visible) => handleToggleHeroVisibility("bodyMark", mark.id, visible)}
@@ -658,6 +660,8 @@ export function AppearanceTab({
                     onManagePhotos={referenceSessionId ? () => setOpenState({ type: "manageEntityPhotos", entityId: mod.id, entityModel: "BodyModification", entityType: mod.type, entityLabel: `${mod.type} — ${mod.bodyRegion}` }) : undefined}
                     onUploadPhoto={referenceSessionId ? () => handleEntityUpload("BodyModification", mod.id, mod.type) : undefined}
                     onDropFiles={referenceSessionId ? handleEntityDrop("BodyModification", mod.id, mod.type) : undefined}
+                    onSelectFromSessions={referenceSessionId ? (() => { const cat = findCategoryForEntity("BodyModification", mod.type); if (cat) setEntityPicker({ categoryId: cat.id, entityId: mod.id, mode: 'select' }); }) : undefined}
+                    onAnnotate={referenceSessionId ? (() => { const cat = findCategoryForEntity("BodyModification", mod.type); if (cat) setEntityPicker({ categoryId: cat.id, entityId: mod.id, mode: 'annotate' }); }) : undefined}
                     onDeleteEvent={handleDeleteBodyModEvent}
                     onAddEvent={() => setOpenState({ type: "addBodyModEvent", modId: mod.id, modLabel: `${mod.type} — ${mod.bodyRegion}`, computed: mod.computed })}
                     onToggleHeroVisibility={(visible) => handleToggleHeroVisibility("bodyModification", mod.id, visible)}
@@ -694,6 +698,8 @@ export function AppearanceTab({
                     onManagePhotos={referenceSessionId ? () => setOpenState({ type: "manageEntityPhotos", entityId: proc.id, entityModel: "CosmeticProcedure", entityType: proc.type, entityLabel: `${proc.type} — ${proc.bodyRegion}` }) : undefined}
                     onUploadPhoto={referenceSessionId ? () => handleEntityUpload("CosmeticProcedure", proc.id, proc.type) : undefined}
                     onDropFiles={referenceSessionId ? handleEntityDrop("CosmeticProcedure", proc.id, proc.type) : undefined}
+                    onSelectFromSessions={referenceSessionId ? (() => { const cat = findCategoryForEntity("CosmeticProcedure", proc.type); if (cat) setEntityPicker({ categoryId: cat.id, entityId: proc.id, mode: 'select' }); }) : undefined}
+                    onAnnotate={referenceSessionId ? (() => { const cat = findCategoryForEntity("CosmeticProcedure", proc.type); if (cat) setEntityPicker({ categoryId: cat.id, entityId: proc.id, mode: 'annotate' }); }) : undefined}
                     onDeleteEvent={handleDeleteCosmProcEvent}
                     onAddEvent={() => setOpenState({ type: "addCosmProcEvent", procId: proc.id, procLabel: `${proc.type} — ${proc.bodyRegion}`, computed: proc.computed })}
                     onToggleHeroVisibility={(visible) => handleToggleHeroVisibility("cosmeticProcedure", proc.id, visible)}
@@ -861,18 +867,6 @@ export function AppearanceTab({
           open
           onOpenChange={(open) => { if (!open) handleSheetClose(); }}
           onLinked={() => { router.refresh(); }}
-          onSelectFromSessions={() => {
-            const cat = pickerCategory;
-            const entityId = openState.entityId;
-            setOpenState(null);
-            setEntityPicker({ categoryId: cat.id, entityId, mode: 'select' });
-          }}
-          onAnnotate={referenceSessionId ? () => {
-            const cat = pickerCategory;
-            const entityId = openState.entityId;
-            setOpenState(null);
-            setEntityPicker({ categoryId: cat.id, entityId, mode: 'annotate' });
-          } : undefined}
         />
       )}
 

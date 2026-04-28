@@ -11,7 +11,7 @@ import {
 } from "@/lib/constants/body";
 import { BodyRegionChips } from "@/components/shared/body-region-picker";
 import { EntityEventTimeline } from "@/components/people/entity-event-timeline";
-import { Camera, ChevronRight, ImageIcon, Pencil, Pin, PinOff, Trash2, Upload } from "lucide-react";
+import { Camera, ChevronRight, Highlighter, ImageIcon, Pencil, Pin, PinOff, ScanSearch, Trash2, Upload } from "lucide-react";
 import { useFileDrop } from "@/lib/hooks/use-file-drop";
 
 type EntityMediaThumbnail = {
@@ -44,6 +44,8 @@ type BodyModificationRowProps = {
   onDeleteEvent?: (id: string) => Promise<{ success: boolean; error?: string }>;
   onAddEvent?: () => void;
   onEditEvent?: (event: EventItem) => void;
+  onSelectFromSessions?: () => void;
+  onAnnotate?: () => void;
   onToggleHeroVisibility?: (visible: boolean) => void;
   isPending?: boolean;
 };
@@ -59,6 +61,8 @@ export function BodyModificationRow({
   onDeleteEvent,
   onAddEvent,
   onEditEvent,
+  onSelectFromSessions,
+  onAnnotate,
   onToggleHeroVisibility,
   isPending,
 }: BodyModificationRowProps) {
@@ -157,6 +161,28 @@ export function BodyModificationRow({
             {onManagePhotos && (
               <button type="button" onClick={onManagePhotos} className="rounded p-1 text-xs text-muted-foreground hover:text-amber-400 transition-colors" aria-label="Manage photos">
                 <Camera size={14} />
+              </button>
+            )}
+            {onSelectFromSessions && (
+              <button
+                type="button"
+                onClick={onSelectFromSessions}
+                className="rounded p-1 text-xs text-muted-foreground hover:text-indigo-400 transition-colors"
+                aria-label="Select from any session"
+                title="Select from any session"
+              >
+                <ScanSearch size={14} />
+              </button>
+            )}
+            {onAnnotate && (
+              <button
+                type="button"
+                onClick={onAnnotate}
+                className="rounded p-1 text-xs text-muted-foreground hover:text-amber-400 transition-colors"
+                aria-label="Annotate photo"
+                title="Annotate photo"
+              >
+                <Highlighter size={14} />
               </button>
             )}
             {onUploadPhoto && (
