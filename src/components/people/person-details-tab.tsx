@@ -3,11 +3,13 @@
 import { useCallback, useMemo, useRef, useState, useTransition } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { ChevronDown, ChevronRight, ImageIcon, Layers, Plus, Upload } from "lucide-react";
+import { ChevronDown, ChevronRight, ImageIcon, Layers, Pencil, Plus, ScanSearch, Upload } from "lucide-react";
 import { cn, focalStyle } from "@/lib/utils";
 import type { CategoryWithGroup } from "@/components/gallery/gallery-info-panel";
-import type { PersonCurrentState } from "@/lib/types";
+import type { GalleryItem, PersonCurrentState } from "@/lib/types";
 import { DetailMediaPickerSheet } from "@/components/people/detail-media-picker-sheet";
+import { CrossSessionPicker } from "@/components/media/cross-session-picker";
+import { AnnotationEditor } from "@/components/media/annotation-editor";
 import { linkMediaToDetailCategoryAction } from "@/lib/actions/media-actions";
 
 type CategoryCount = {
@@ -46,6 +48,13 @@ export function PersonDetailsTab({
   const [categoryMedia, setCategoryMedia] = useState<Map<string, CategoryMediaItem[]>>(new Map());
   const [, startLoadingTransition] = useTransition();
   const [pickerCategory, setPickerCategory] = useState<CategoryWithGroup | null>(null);
+
+  // Cross-session picker + annotation editor state
+  type CrossPickerState = { category: CategoryWithGroup; mode: 'select' | 'annotate' }
+  type AnnotateState = { item: GalleryItem; category: CategoryWithGroup }
+  const [crossPicker, setCrossPicker] = useState<CrossPickerState | null>(null);
+  const [annotateState, setAnnotateState] = useState<AnnotateState | null>(null);
+  const [isSavingAnnotation, setIsSavingAnnotation] = useState(false);
 
   const countMap = useMemo(() => {
     const map = new Map<string, number>();
@@ -136,6 +145,67 @@ export function PersonDetailsTab({
     }
     router.refresh();
   }, [pickerCategory, router]);
+
+  const refreshCategory = useCallback((categoryId: string) => {
+    setCategoryMedia((prev) => {
+      const next = new Map(prev);
+      next.delete(categoryId);
+      return next;
+    });
+    router.refresh();
+  }, [router]);
+
+  // Cross-session picker: user selected a photo
+  const handleCrossPickerSelect = useCallback(async (item: GalleryItem) => {
+    if (!crossPicker) return;
+    const { category, mode } = crossPicker;
+    setCrossPicker(null);
+
+    if (mode === 'select') {
+      await linkMediaToDetailCategoryAction(personId, [item.id], category.id);
+      refreshCategory(category.id);
+    } else {
+      // Annotate mode: hand off to editor with category preserved
+      setAnnotateState({ item, category });
+    }
+  }, [crossPicker, personId, refreshCategory]);
+
+  // Annotation editor: user saved blob
+  const handleAnnotationSave = useCallback(async (blob: Blob) => {
+    if (!referenceSessionId || !annotateState) return;
+    const { category } = annotateState;
+    setIsSavingAnnotation(true);
+    try {
+      const file = new File([blob], `annotation-${Date.now()}.jpg`, { type: 'image/jpeg' });
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('sessionId', referenceSessionId);
+      formData.append('personId', personId);
+      formData.append('isAnnotation', 'true');
+
+      let res = await fetch('/api/media/upload', { method: 'POST', body: formData });
+      let json = await res.json() as { mediaItem?: { id: string }; duplicateFound?: boolean };
+
+      if (json.duplicateFound && !json.mediaItem) {
+        const retry = new FormData();
+        retry.append('file', file);
+        retry.append('sessionId', referenceSessionId);
+        retry.append('personId', personId);
+        retry.append('isAnnotation', 'true');
+        retry.append('duplicateAction', 'accept');
+        res = await fetch('/api/media/upload', { method: 'POST', body: retry });
+        json = await res.json();
+      }
+
+      if (json.mediaItem?.id) {
+        await linkMediaToDetailCategoryAction(personId, [json.mediaItem.id], category.id);
+        refreshCategory(category.id);
+      }
+    } finally {
+      setIsSavingAnnotation(false);
+      setAnnotateState(null);
+    }
+  }, [referenceSessionId, personId, annotateState, refreshCategory]);
 
   // ─── Drop-to-upload for non-entity categories ─────────────────────────────
   const [dragOverCategoryId, setDragOverCategoryId] = useState<string | null>(null);
@@ -308,22 +378,39 @@ export function PersonDetailsTab({
                         {cat.count}
                       </span>
                     </button>
-                    {referenceSessionId && !cat.entityModel && (
+                    <div className="shrink-0 mr-3 flex items-center gap-0.5">
+                      {referenceSessionId && !cat.entityModel && (
+                        <button
+                          type="button"
+                          onClick={() => setPickerCategory(cat)}
+                          className="rounded-md p-1 text-muted-foreground transition-colors hover:text-primary hover:bg-primary/10"
+                          title="Add from reference session"
+                          aria-label={`Add photo from reference session for ${cat.name}`}
+                        >
+                          <Plus size={14} />
+                        </button>
+                      )}
                       <button
                         type="button"
-                        onClick={() => setPickerCategory(cat)}
-                        className="shrink-0 mr-3 rounded-md p-1 text-muted-foreground transition-colors hover:text-primary hover:bg-primary/10"
-                        title="Manage photos"
-                        aria-label={`Manage photos for ${cat.name}`}
+                        onClick={() => setCrossPicker({ category: cat, mode: 'select' })}
+                        className="rounded-md p-1 text-muted-foreground transition-colors hover:text-indigo-400 hover:bg-indigo-500/10"
+                        title="Select from any session"
+                        aria-label={`Select photo from any session for ${cat.name}`}
                       >
-                        <Plus size={14} />
+                        <ScanSearch size={14} />
                       </button>
-                    )}
-                    {cat.entityModel && (
-                      <span className="shrink-0 mr-3 text-[10px] text-muted-foreground/50 italic">
-                        via Appearance
-                      </span>
-                    )}
+                      {referenceSessionId && (
+                        <button
+                          type="button"
+                          onClick={() => setCrossPicker({ category: cat, mode: 'annotate' })}
+                          className="rounded-md p-1 text-muted-foreground transition-colors hover:text-amber-400 hover:bg-amber-500/10"
+                          title="Annotate photo"
+                          aria-label={`Annotate a photo for ${cat.name}`}
+                        >
+                          <Pencil size={14} />
+                        </button>
+                      )}
+                    </div>
                   </div>
 
                   {/* Expanded gallery */}
@@ -394,6 +481,31 @@ export function PersonDetailsTab({
           open={!!pickerCategory}
           onOpenChange={(open) => { if (!open) setPickerCategory(null); }}
           onLinked={handlePickerLinked}
+        />
+      )}
+
+      {/* Cross-session picker */}
+      {crossPicker && (
+        <CrossSessionPicker
+          personId={personId}
+          onSelect={handleCrossPickerSelect}
+          onClose={() => setCrossPicker(null)}
+          title={crossPicker.mode === 'annotate' ? 'Choose photo to annotate' : `Select photo — ${crossPicker.category.name}`}
+        />
+      )}
+
+      {/* Annotation editor */}
+      {annotateState && (
+        <AnnotationEditor
+          imageUrl={
+            annotateState.item.urls.view_1200 ??
+            annotateState.item.urls.gallery_512 ??
+            annotateState.item.urls.original ??
+            ''
+          }
+          onSave={handleAnnotationSave}
+          onCancel={() => setAnnotateState(null)}
+          isSaving={isSavingAnnotation}
         />
       )}
     </div>

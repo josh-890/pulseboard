@@ -905,9 +905,10 @@ model MediaItem {
   sourceVideoRef   String?  // free-text clip name; groups frames from same video clip
   sourceTimecodeMs Int?     // timecode offset (ms) at which this frame was extracted
 
-  caption    String?
-  tags       String[]
-  notes      String?
+  caption      String?
+  tags         String[]
+  notes        String?
+  isAnnotation Boolean @default(false)  // Derived/edited photos — hidden from main gallery
 
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt

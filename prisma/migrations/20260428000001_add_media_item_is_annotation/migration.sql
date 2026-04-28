@@ -1,0 +1,1 @@
+ALTER TABLE "MediaItem" ADD COLUMN "isAnnotation" BOOLEAN NOT NULL DEFAULT false;

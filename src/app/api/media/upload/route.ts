@@ -54,6 +54,7 @@ export async function POST(request: Request) {
       };
       const sourceVideoRef = (formData.get("sourceVideoRef") as string | null) || undefined;
       const sourceTimecodeRaw = formData.get("sourceTimecodeMs");
+      const isAnnotation = formData.get("isAnnotation") === "true";
       const sourceTimecodeMs = sourceTimecodeRaw ? Number(sourceTimecodeRaw) : undefined;
 
       const parsed = mediaUploadSchema.safeParse(metadata);
@@ -149,6 +150,7 @@ export async function POST(request: Request) {
         phash,
         sourceVideoRef,
         sourceTimecodeMs,
+        isAnnotation,
       });
 
       return NextResponse.json({ mediaItem }, { status: 201 });

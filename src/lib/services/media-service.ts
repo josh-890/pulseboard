@@ -254,6 +254,7 @@ type CreateMediaItemDirectInput = {
   phash?: string;
   sourceVideoRef?: string;
   sourceTimecodeMs?: number;
+  isAnnotation?: boolean;
 };
 
 export async function createMediaItemDirect(
@@ -280,6 +281,7 @@ export async function createMediaItemDirect(
         phash: input.phash,
         sourceVideoRef: input.sourceVideoRef,
         sourceTimecodeMs: input.sourceTimecodeMs,
+        isAnnotation: input.isAnnotation ?? false,
       },
     });
 
@@ -382,7 +384,7 @@ export async function getPersonMediaGallery(
   sessionId: string,
 ): Promise<GalleryItem[]> {
   const items = await prisma.mediaItem.findMany({
-    where: { sessionId },
+    where: { sessionId, isAnnotation: false },
     include: {
       personMediaLinks: {
         where: { personId },
@@ -416,6 +418,79 @@ export async function getPersonMediaGallery(
   }
   results.sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
   return results;
+}
+
+// ─── Person media across all sessions ───────────────────────────────────────
+
+export type PersonMediaPage = {
+  items: GalleryItem[]
+  nextCursor: string | null
+}
+
+/**
+ * Returns MediaItems from ALL sessions the person participated in:
+ *   - Reference session (session.personId = personId)
+ *   - Production sessions (SessionParticipant.personId = personId)
+ * Excludes annotation-derived items (isAnnotation=true).
+ * Used by the cross-session photo picker for entity/detail documentation.
+ */
+export async function getPersonMediaAcrossSessions(
+  personId: string,
+  options?: { cursor?: string; limit?: number; search?: string },
+): Promise<PersonMediaPage> {
+  const limit = options?.limit ?? 60
+  const rows = await prisma.mediaItem.findMany({
+    where: {
+      isAnnotation: false,
+      session: {
+        OR: [
+          { personId },
+          { contributions: { some: { personId } } },
+        ],
+      },
+      ...(options?.search
+        ? { caption: { contains: options.search, mode: 'insensitive' } }
+        : {}),
+    },
+    include: {
+      personMediaLinks: { where: { personId } },
+      session: { select: { id: true, name: true, date: true, personId: true } },
+    },
+    orderBy: { createdAt: 'desc' },
+    take: limit + 1,
+    ...(options?.cursor ? { skip: 1, cursor: { id: options.cursor } } : {}),
+  })
+
+  const hasMore = rows.length > limit
+  const page = hasMore ? rows.slice(0, limit) : rows
+  const nextCursor = hasMore ? page[page.length - 1].id : null
+
+  const items: GalleryItem[] = []
+  for (const item of page) {
+    const variants = (item.variants ?? {}) as PhotoVariants
+    if (!variants.master_4000 && !variants.original && !item.fileRef) continue
+    const link = item.personMediaLinks[0]
+    items.push({
+      id: item.id,
+      filename: item.filename,
+      mimeType: item.mimeType,
+      originalWidth: item.originalWidth,
+      originalHeight: item.originalHeight,
+      caption: item.caption,
+      createdAt: item.createdAt,
+      urls: buildPhotoUrls(variants, item.fileRef),
+      focalX: item.focalX ?? null,
+      focalY: item.focalY ?? null,
+      tags: item.tags,
+      isFavorite: link?.isFavorite ?? false,
+      sortOrder: link?.sortOrder ?? 0,
+      isCover: false,
+      sessionId: item.sessionId,
+      sessionName: item.session.name ?? undefined,
+    })
+  }
+
+  return { items, nextCursor }
 }
 
 // ─── Set media as GalleryItems ───────────────────────────────────────────────
