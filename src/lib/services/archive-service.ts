@@ -1190,13 +1190,17 @@ export async function runMatchingPass(
       const dateEnd = new Date(dateStart)
       dateEnd.setDate(dateEnd.getDate() + 1)
 
-      // Try staging sets first (skip PROMOTED)
+      // Try staging sets first (skip PROMOTED + SKIPPED; skip sets already suggested to this folder)
       const stagingSuggestions = await prisma.stagingSet.findMany({
         where: {
           releaseDate: { gte: dateStart, lt: dateEnd },
           channel: { shortName: { equals: folder.parsedShortName, mode: 'insensitive' } },
-          status: { not: 'PROMOTED' },
-          archiveLinks: { none: { status: ArchiveLinkStatus.CONFIRMED } },
+          status: { notIn: ['PROMOTED', 'SKIPPED'] },
+          archiveLinks: {
+            none: {
+              status: { in: [ArchiveLinkStatus.CONFIRMED, ArchiveLinkStatus.SUGGESTED] },
+            },
+          },
         },
         select: { id: true },
         take: 1,
@@ -1250,8 +1254,8 @@ export async function runMatchingPass(
         JOIN "Channel" c ON c.id = ss."channelId"
         WHERE LOWER(c."shortName") = LOWER(${folder.parsedShortName})
           AND EXTRACT(YEAR FROM ss."releaseDate") = ${year}
-          AND ss.status != 'PROMOTED'
-          AND NOT EXISTS (SELECT 1 FROM "ArchiveLink" al WHERE al."stagingSetId" = ss.id AND al.status = 'CONFIRMED')
+          AND ss.status NOT IN ('PROMOTED', 'SKIPPED')
+          AND NOT EXISTS (SELECT 1 FROM "ArchiveLink" al WHERE al."stagingSetId" = ss.id AND al.status IN ('CONFIRMED', 'SUGGESTED'))
           AND similarity(${folder.parsedTitle}, ss."titleNorm") >= 0.4
         ORDER BY sim DESC
         LIMIT 1
