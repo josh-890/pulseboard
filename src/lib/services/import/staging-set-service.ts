@@ -294,12 +294,22 @@ export async function updateStagingSetStatus(
   status: StagingSetStatus,
   notes?: string,
 ): Promise<StagingSet> {
-  return prisma.stagingSet.update({
-    where: { id },
-    data: {
-      status,
-      ...(notes !== undefined ? { notes } : {}),
-    },
+  return prisma.$transaction(async (tx) => {
+    const updated = await tx.stagingSet.update({
+      where: { id },
+      data: {
+        status,
+        ...(notes !== undefined ? { notes } : {}),
+      },
+    })
+    // When skipping a set, clear any pending SUGGESTED ArchiveLink so the
+    // matching pass can re-assign the suggestion to a surviving duplicate.
+    if (status === 'SKIPPED') {
+      await tx.archiveLink.deleteMany({
+        where: { stagingSetId: id, status: ArchiveLinkStatus.SUGGESTED },
+      })
+    }
+    return updated
   })
 }
 
@@ -334,6 +344,12 @@ export async function resolveStagingSetDuplicate(id: string): Promise<StagingSet
     const updated = await tx.stagingSet.update({
       where: { id },
       data: { status: 'SKIPPED', duplicateGroupId: null, isDuplicate: false },
+    })
+
+    // Clear any SUGGESTED ArchiveLink so the matching pass can re-assign it
+    // to the surviving duplicate set on the next scan.
+    await tx.archiveLink.deleteMany({
+      where: { stagingSetId: id, status: ArchiveLinkStatus.SUGGESTED },
     })
 
     if (groupId) {
