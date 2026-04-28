@@ -24,8 +24,12 @@ type ArchiveFolderPickerProps = {
   open: boolean
   onOpenChange: (open: boolean) => void
   stagingSetId: string
-  /** Pre-seeds the search field — typically "{shortName} {year}" */
+  /** Pre-seeds the search field with the set title */
   initialQuery?: string
+  /** Channel shortName — passed as a separate filter param for better matching */
+  shortName?: string
+  /** Release year — passed as a separate filter param for better matching */
+  year?: number
   /** Called after a folder is successfully linked */
   onSuccess?: () => void
 }
@@ -37,6 +41,8 @@ export function ArchiveFolderPicker({
   onOpenChange,
   stagingSetId,
   initialQuery = '',
+  shortName,
+  year,
   onSuccess,
 }: ArchiveFolderPickerProps) {
   const [query, setQuery] = useState(initialQuery)
@@ -62,6 +68,8 @@ export function ArchiveFolderPicker({
     try {
       const params = new URLSearchParams({ limit: '20' })
       if (q.trim()) params.set('q', q.trim())
+      if (shortName) params.set('shortName', shortName)
+      if (year) params.set('year', String(year))
       const res = await fetch(`/api/archive/folders/search?${params}`)
       if (!res.ok) throw new Error('Search failed')
       const data = await res.json() as FolderResult[]

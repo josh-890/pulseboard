@@ -600,6 +600,24 @@ export function ArchiveWorkspaceClient({
     setTimeout(() => setReparseMsg(null), 4000)
   }
 
+  // ── Re-run matching pass ───────────────────────────────────────────────────
+  const [rematching, setRematching] = useState(false)
+  const [rematchMsg, setRematchMsg] = useState<string | null>(null)
+
+  async function handleRematch() {
+    setRematching(true)
+    setRematchMsg(null)
+    try {
+      const res = await fetch('/api/archive/rematch', { method: 'POST' })
+      if (!res.ok) throw new Error('Failed')
+      setRematchMsg('Matching pass started…')
+    } catch {
+      setRematchMsg('Failed to start matching pass')
+    }
+    setRematching(false)
+    setTimeout(() => setRematchMsg(null), 5000)
+  }
+
   // ── Summary total for tree mode ────────────────────────────────────────────
   const treeTotal = useMemo(
     () => channelSummaries.reduce((sum, s) => sum + s.count, 0),
@@ -769,9 +787,18 @@ export function ArchiveWorkspaceClient({
                 {/* Re-parse button — fixes Unknown/Undated groups from legacy folder names */}
                 {isFolderTabBool && (
                   <div className="ml-auto flex items-center gap-2">
-                    {reparseMsg && (
-                      <span className="text-[10px] text-muted-foreground">{reparseMsg}</span>
+                    {(reparseMsg || rematchMsg) && (
+                      <span className="text-[10px] text-muted-foreground">{rematchMsg ?? reparseMsg}</span>
                     )}
+                    <button
+                      onClick={handleRematch}
+                      disabled={rematching}
+                      title="Re-run the folder→set matching pass — assigns SUGGESTED links to newly eligible sets"
+                      className="flex items-center gap-1 rounded-full border border-border/50 bg-muted/30 px-2.5 py-0.5 text-xs text-muted-foreground hover:text-foreground transition-colors disabled:opacity-40"
+                    >
+                      <RefreshCw size={11} className={cn(rematching && 'animate-spin')} />
+                      Re-match
+                    </button>
                     <button
                       onClick={handleReparse}
                       disabled={reparsing}

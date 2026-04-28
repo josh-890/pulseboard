@@ -279,11 +279,10 @@ export const StagingSetRow = memo(function StagingSetRow({
     ? `${ss.channel.channelFolder}\\${new Date(ss.releaseDate!).getFullYear()}\\${expectedFolderName}`
     : expectedFolderName
 
-  // Picker seed: "{shortName} {year}"
-  const pickerInitialQuery = [
-    ss.channel?.shortName,
-    ss.releaseDate ? new Date(ss.releaseDate).getFullYear().toString() : '',
-  ].filter(Boolean).join(' ')
+  const pickerShortName = ss.channel?.shortName ?? undefined
+  const pickerYear = ss.releaseDate ? new Date(ss.releaseDate).getFullYear() : undefined
+  // Seed search with the set title — it matches parsedTitle better than "FJ 2014"
+  const pickerInitialQuery = ss.title ?? ''
 
   // Build line 3 segments (no participant names — those are in the avatar stack)
   const line3Parts: string[] = []
@@ -680,6 +679,8 @@ export const StagingSetRow = memo(function StagingSetRow({
           onOpenChange={setPickerOpen}
           stagingSetId={ss.id}
           initialQuery={pickerInitialQuery}
+          shortName={pickerShortName}
+          year={pickerYear}
           onSuccess={onArchiveChange}
         />
       )}

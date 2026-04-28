@@ -132,10 +132,10 @@ function PanelContent({
   const expectedRelativePath = expectedFolderName && stagingSet.channel?.channelFolder
     ? `${stagingSet.channel.channelFolder}\\${new Date(stagingSet.releaseDate!).getFullYear()}\\${expectedFolderName}`
     : expectedFolderName
-  const pickerInitialQuery = [
-    stagingSet.channel?.shortName,
-    dateStr ? dateStr.slice(0, 4) : '',
-  ].filter(Boolean).join(' ')
+  const pickerShortName = stagingSet.channel?.shortName ?? undefined
+  const pickerYear = dateStr ? parseInt(dateStr.slice(0, 4), 10) : undefined
+  // Seed search with the set title — matches parsedTitle better than "shortName year"
+  const pickerInitialQuery = stagingSet.title ?? ''
 
   // Load comparison when matched
   useEffect(() => {
@@ -563,6 +563,8 @@ function PanelContent({
           }}
           stagingSetId={stagingSet.id}
           initialQuery={pickerInitialQuery}
+          shortName={pickerShortName}
+          year={pickerYear}
         />
       )}
     </div>
