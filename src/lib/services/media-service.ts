@@ -427,27 +427,72 @@ export type PersonMediaPage = {
   nextCursor: string | null
 }
 
+export type PersonSessionSummary = {
+  sessionId: string
+  sessionName: string | null
+  isReference: boolean
+  mediaCount: number
+}
+
+function personSessionWhere(personId: string) {
+  return {
+    OR: [
+      { personId },
+      { contributions: { some: { personId } } },
+      { setSessionLinks: { some: { set: { participants: { some: { personId } } } } } },
+    ],
+  }
+}
+
+/**
+ * Returns all sessions the person has media in, with photo counts.
+ * Used to populate the session filter in the cross-session picker.
+ */
+export async function getPersonSessionsWithMedia(personId: string): Promise<PersonSessionSummary[]> {
+  const rows = await prisma.mediaItem.groupBy({
+    by: ['sessionId'],
+    where: {
+      isAnnotation: false,
+      session: personSessionWhere(personId),
+    },
+    _count: { _all: true },
+  })
+  if (rows.length === 0) return []
+
+  const sessions = await prisma.session.findMany({
+    where: { id: { in: rows.map(r => r.sessionId) } },
+    select: { id: true, name: true, personId: true, date: true },
+    orderBy: { date: 'desc' },
+  })
+
+  const countMap = new Map(rows.map(r => [r.sessionId, r._count._all]))
+  return sessions.map(s => ({
+    sessionId: s.id,
+    sessionName: s.name,
+    isReference: s.personId === personId,
+    mediaCount: countMap.get(s.id) ?? 0,
+  }))
+}
+
 /**
  * Returns MediaItems from ALL sessions the person participated in:
  *   - Reference session (session.personId = personId)
- *   - Production sessions (SessionParticipant.personId = personId)
+ *   - Production sessions (SessionContribution.personId = personId)
+ *   - Set sessions (SetParticipant.personId = personId via SetSession)
  * Excludes annotation-derived items (isAnnotation=true).
  * Used by the cross-session photo picker for entity/detail documentation.
  */
 export async function getPersonMediaAcrossSessions(
   personId: string,
-  options?: { cursor?: string; limit?: number; search?: string },
+  options?: { cursor?: string; limit?: number; search?: string; sessionId?: string },
 ): Promise<PersonMediaPage> {
   const limit = options?.limit ?? 60
   const rows = await prisma.mediaItem.findMany({
     where: {
       isAnnotation: false,
-      session: {
-        OR: [
-          { personId },
-          { contributions: { some: { personId } } },
-        ],
-      },
+      ...(options?.sessionId
+        ? { sessionId: options.sessionId }
+        : { session: personSessionWhere(personId) }),
       ...(options?.search
         ? { caption: { contains: options.search, mode: 'insensitive' } }
         : {}),

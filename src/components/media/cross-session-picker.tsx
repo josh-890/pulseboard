@@ -15,6 +15,13 @@ type CrossSessionPickerProps = {
   title?: string
 }
 
+type SessionSummary = {
+  sessionId: string
+  sessionName: string | null
+  isReference: boolean
+  mediaCount: number
+}
+
 type FetchState = {
   items: GalleryItem[]
   nextCursor: string | null
@@ -32,6 +39,8 @@ export function CrossSessionPicker({
 }: CrossSessionPickerProps) {
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
+  const [sessions, setSessions] = useState<SessionSummary[]>([])
+  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null)
   const [state, setState] = useState<FetchState>({
     items: [],
     nextCursor: null,
@@ -41,6 +50,14 @@ export function CrossSessionPicker({
   const loaderRef = useRef<HTMLDivElement>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  // Load session list once on open
+  useEffect(() => {
+    fetch(`/api/media/person/${personId}?sessions=1`)
+      .then((res) => res.json())
+      .then((data: SessionSummary[]) => setSessions(data))
+      .catch(() => {/* non-critical */})
+  }, [personId])
+
   // Debounce search
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current)
@@ -48,13 +65,14 @@ export function CrossSessionPicker({
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current) }
   }, [search])
 
-  // Initial load + search refresh
+  // Load photos (initial + search + session filter refresh)
   const load = useCallback(async (cursor?: string) => {
     setState((prev) => ({ ...prev, loading: true, error: null }))
     try {
       const params = new URLSearchParams({ limit: '60' })
       if (cursor) params.set('cursor', cursor)
       if (debouncedSearch) params.set('search', debouncedSearch)
+      if (selectedSessionId) params.set('sessionId', selectedSessionId)
 
       const res = await fetch(`/api/media/person/${personId}?${params}`)
       if (!res.ok) throw new Error('Failed to load photos')
@@ -69,7 +87,7 @@ export function CrossSessionPicker({
     } catch {
       setState((prev) => ({ ...prev, loading: false, error: 'Failed to load photos' }))
     }
-  }, [personId, debouncedSearch])
+  }, [personId, debouncedSearch, selectedSessionId])
 
   useEffect(() => {
     setState({ items: [], nextCursor: null, loading: true, error: null })
@@ -91,6 +109,12 @@ export function CrossSessionPicker({
     observer.observe(el)
     return () => observer.disconnect()
   }, [state.nextCursor, state.loading, load])
+
+  const handleSessionFilter = useCallback((sessionId: string | null) => {
+    setSelectedSessionId(sessionId)
+    setSearch('')
+    setDebouncedSearch('')
+  }, [])
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-zinc-950">
@@ -115,6 +139,40 @@ export function CrossSessionPicker({
         </div>
       </div>
 
+      {/* Session filter bar */}
+      {sessions.length > 1 && (
+        <div className="flex shrink-0 items-center gap-1.5 overflow-x-auto border-b border-white/10 px-4 py-2 scrollbar-none">
+          <button
+            onClick={() => handleSessionFilter(null)}
+            className={cn(
+              'shrink-0 rounded-full px-3 py-1 text-xs font-medium transition-colors',
+              selectedSessionId === null
+                ? 'bg-white/15 text-white'
+                : 'text-zinc-400 hover:bg-white/10 hover:text-white',
+            )}
+          >
+            All sessions
+          </button>
+          {sessions.map((s) => (
+            <button
+              key={s.sessionId}
+              onClick={() => handleSessionFilter(s.sessionId)}
+              className={cn(
+                'shrink-0 rounded-full px-3 py-1 text-xs font-medium transition-colors',
+                selectedSessionId === s.sessionId
+                  ? s.isReference
+                    ? 'bg-indigo-500/80 text-white'
+                    : 'bg-white/15 text-white'
+                  : 'text-zinc-400 hover:bg-white/10 hover:text-white',
+              )}
+            >
+              {s.isReference ? 'Reference' : (s.sessionName ?? 'Unnamed')}
+              <span className="ml-1.5 text-zinc-500">{s.mediaCount}</span>
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* Grid */}
       <div className="flex-1 overflow-y-auto p-4">
         {state.error ? (
@@ -124,7 +182,7 @@ export function CrossSessionPicker({
         ) : (
           <div className="grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-2">
             {state.items.map((item) => (
-              <PickerThumbnail key={item.id} item={item} onSelect={onSelect} />
+              <PickerThumbnail key={item.id} item={item} isReference={sessions.find(s => s.sessionId === item.sessionId)?.isReference ?? false} onSelect={onSelect} />
             ))}
           </div>
         )}
@@ -142,13 +200,14 @@ export function CrossSessionPicker({
 
 function PickerThumbnail({
   item,
+  isReference,
   onSelect,
 }: {
   item: GalleryItem
+  isReference: boolean
   onSelect: (item: GalleryItem) => void
 }) {
   const thumbUrl = item.urls.gallery_512 ?? item.urls.view_1200 ?? item.urls.original
-  const isRef = !item.sessionName
 
   return (
     <button
@@ -175,12 +234,12 @@ function PickerThumbnail({
         <span
           className={cn(
             'inline-block truncate rounded px-1 py-0.5 text-[10px] font-medium leading-none',
-            isRef
+            isReference
               ? 'bg-indigo-500/80 text-white'
               : 'bg-black/60 text-zinc-300',
           )}
         >
-          {isRef ? 'Reference' : item.sessionName}
+          {isReference ? 'Reference' : (item.sessionName ?? 'Unknown')}
         </span>
       </div>
     </button>
