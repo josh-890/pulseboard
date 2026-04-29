@@ -1421,13 +1421,13 @@ export async function getSuggestedFoldersForSets(
  */
 export async function getConflictingLinkIds(ids: string[]): Promise<Set<string>> {
   if (ids.length === 0) return new Set()
-  const idList = Prisma.join(ids.map((id) => Prisma.sql`${id}::uuid`))
+  const idList = Prisma.join(ids.map((id) => Prisma.sql`${id}`))
   type Row = { id: string }
   const rows = await prisma.$queryRaw<Row[]>`
     SELECT ss.id::text AS id
     FROM   staging_set ss
     JOIN   "Channel" c ON c.id = ss."channelId"
-    WHERE  ss.id IN (${idList})
+    WHERE  ss.id::text IN (${idList})
       AND  ss."releaseDate" IS NOT NULL
       AND  c."shortName" IS NOT NULL
       -- must have no existing link on this staging set
