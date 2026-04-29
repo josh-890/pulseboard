@@ -1,12 +1,16 @@
 /**
  * GET /api/archive/folders/search
  *
- * Search unlinked archive folders for the manual linking picker.
+ * Search archive folders for the manual linking picker.
+ * Returns two lists:
+ *   unlinked — folders with no link or only a SUGGESTED link (available to link)
+ *   linked   — folders already CONFIRMED to another set (available to re-assign)
+ *
  * Query params:
  *   q          — free-text search on folderName/parsedTitle
  *   shortName  — filter by chanFolderName (partial, case-insensitive)
  *   year       — filter by parsedDate year
- *   limit      — max results (default 20)
+ *   limit      — max results per list (default 20, max 50)
  */
 
 import { NextResponse } from 'next/server'
@@ -25,14 +29,7 @@ export async function GET(request: Request) {
       const year = yearParam ? parseInt(yearParam, 10) : null
       const limit = Math.min(parseInt(url.searchParams.get('limit') ?? '20', 10), 50)
 
-      const where: Prisma.ArchiveFolderWhereInput = {
-        // Only return folders without a CONFIRMED link — candidates for manual linking
-        OR: [
-          { archiveLink: { is: null } },
-          { archiveLink: { status: { not: ArchiveLinkStatus.CONFIRMED } } },
-        ],
-      }
-
+      // Shared content filters (shortName, year, free-text)
       const andConditions: Prisma.ArchiveFolderWhereInput[] = []
 
       if (shortName) {
@@ -58,27 +55,67 @@ export async function GET(request: Request) {
         })
       }
 
-      if (andConditions.length > 0) {
-        where.AND = andConditions
-      }
+      const sharedSelect = {
+        id: true,
+        folderName: true,
+        fileCount: true,
+        parsedDate: true,
+        fullPath: true,
+        isVideo: true,
+        parsedShortName: true,
+        chanFolderName: true,
+      } satisfies Prisma.ArchiveFolderSelect
 
-      const folders = await prisma.archiveFolder.findMany({
-        where,
-        select: {
-          id: true,
-          folderName: true,
-          fileCount: true,
-          parsedDate: true,
-          fullPath: true,
-          isVideo: true,
-          parsedShortName: true,
-          chanFolderName: true,
-        },
-        orderBy: [{ parsedDate: 'desc' }, { folderName: 'asc' }],
-        take: limit,
-      })
+      const [unlinkedFolders, linkedFolders] = await Promise.all([
+        // Unlinked: no link at all, or only a SUGGESTED link
+        prisma.archiveFolder.findMany({
+          where: {
+            OR: [
+              { archiveLink: { is: null } },
+              { archiveLink: { status: { not: ArchiveLinkStatus.CONFIRMED } } },
+            ],
+            ...(andConditions.length > 0 ? { AND: andConditions } : {}),
+          },
+          select: sharedSelect,
+          orderBy: [{ parsedDate: 'desc' }, { folderName: 'asc' }],
+          take: limit,
+        }),
 
-      return NextResponse.json(folders)
+        // Linked: CONFIRMED to another entity — shown so user can re-assign
+        prisma.archiveFolder.findMany({
+          where: {
+            archiveLink: { status: ArchiveLinkStatus.CONFIRMED },
+            ...(andConditions.length > 0 ? { AND: andConditions } : {}),
+          },
+          select: {
+            ...sharedSelect,
+            archiveLink: {
+              select: {
+                stagingSet: { select: { title: true, status: true } },
+                set: { select: { title: true } },
+              },
+            },
+          },
+          orderBy: [{ parsedDate: 'desc' }, { folderName: 'asc' }],
+          take: limit,
+        }),
+      ])
+
+      const linked = linkedFolders.map((f) => ({
+        id: f.id,
+        folderName: f.folderName,
+        fileCount: f.fileCount,
+        parsedDate: f.parsedDate,
+        fullPath: f.fullPath,
+        isVideo: f.isVideo,
+        parsedShortName: f.parsedShortName,
+        chanFolderName: f.chanFolderName,
+        currentTargetType: (f.archiveLink?.stagingSet ? 'stagingSet' : 'set') as 'stagingSet' | 'set',
+        currentTargetTitle: f.archiveLink?.stagingSet?.title ?? f.archiveLink?.set?.title ?? null,
+        currentTargetStatus: f.archiveLink?.stagingSet?.status ?? null,
+      }))
+
+      return NextResponse.json({ unlinked: unlinkedFolders, linked })
     } catch (err) {
       console.error('Archive folder search error:', err)
       return NextResponse.json({ error: 'Search failed' }, { status: 500 })
