@@ -33,8 +33,16 @@ export async function GET(request: Request) {
       const andConditions: Prisma.ArchiveFolderWhereInput[] = []
 
       if (shortName) {
+        // Match on chanFolderName (path segment, e.g. "NBL-Nubiles") OR
+        // parsedShortName (extracted from folder name itself, e.g. "NBL").
+        // The conflict detection uses parsedShortName; chanFolderName may be null
+        // if the path is shallow, which would cause confirmed folders to silently
+        // disappear from the "Already linked" re-assign section.
         andConditions.push({
-          chanFolderName: { contains: shortName, mode: 'insensitive' },
+          OR: [
+            { chanFolderName: { contains: shortName, mode: 'insensitive' } },
+            { parsedShortName: { equals: shortName, mode: 'insensitive' } },
+          ],
         })
       }
 
