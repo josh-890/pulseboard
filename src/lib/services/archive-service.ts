@@ -1439,7 +1439,7 @@ export async function getConflictingLinkIds(ids: string[]): Promise<Set<string>>
       -- but a matching folder IS CONFIRMED to something else
       AND  EXISTS (
              SELECT 1
-             FROM   "ArchiveFolder" af
+             FROM   "archive_folder" af
              JOIN   "ArchiveLink" al2 ON al2."archiveFolderId" = af.id
                     AND al2.status = 'CONFIRMED'
              WHERE  af."parsedDate" >= DATE_TRUNC('day', ss."releaseDate")
