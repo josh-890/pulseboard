@@ -8,16 +8,38 @@
  *
  * Query params:
  *   q          — free-text search on folderName/parsedTitle
- *   shortName  — filter by chanFolderName (partial, case-insensitive)
+ *   shortName  — filter by chanFolderName (partial) OR parsedShortName (exact),
+ *                case-insensitive. Handles multiple archive roots where chanFolderName
+ *                may be null for shallow paths.
  *   year       — filter by parsedDate year
  *   limit      — max results per list (default 20, max 50)
+ *
+ * Implementation note: uses $queryRaw instead of findMany() to avoid a Prisma ORM
+ * issue where relation filters on archive_folder return empty results in production.
+ * Raw SQL is consistent with how getConflictingLinkIds() works in archive-service.ts.
  */
 
 import { NextResponse } from 'next/server'
 import { withTenantFromHeaders } from '@/lib/tenant-context'
 import { prisma } from '@/lib/db'
-import { ArchiveLinkStatus } from '@/generated/prisma/client'
-import type { Prisma } from '@/generated/prisma/client'
+import { Prisma } from '@/generated/prisma/client'
+
+type FolderRow = {
+  id: string
+  folderName: string
+  fileCount: number | null
+  parsedDate: Date | null
+  fullPath: string
+  isVideo: boolean
+  parsedShortName: string | null
+  chanFolderName: string | null
+}
+
+type LinkedFolderRow = FolderRow & {
+  stagingSetTitle: string | null
+  stagingSetStatus: string | null
+  setTitle: string | null
+}
 
 export async function GET(request: Request) {
   return withTenantFromHeaders(async () => {
@@ -29,87 +51,79 @@ export async function GET(request: Request) {
       const year = yearParam ? parseInt(yearParam, 10) : null
       const limit = Math.min(parseInt(url.searchParams.get('limit') ?? '20', 10), 50)
 
-      // Shared content filters (shortName, year, free-text)
-      const andConditions: Prisma.ArchiveFolderWhereInput[] = []
+      // Build shared SQL filter fragments (shortName, year, free-text).
+      // Each fragment is injected after a WHERE clause that already has a condition,
+      // so every fragment is prefixed with AND.
+      const filters: Prisma.Sql[] = []
 
       if (shortName) {
-        // Match on chanFolderName (path segment, e.g. "NBL-Nubiles") OR
-        // parsedShortName (extracted from folder name itself, e.g. "NBL").
-        // The conflict detection uses parsedShortName; chanFolderName may be null
-        // if the path is shallow, which would cause confirmed folders to silently
-        // disappear from the "Already linked" re-assign section.
-        andConditions.push({
-          OR: [
-            { chanFolderName: { contains: shortName, mode: 'insensitive' } },
-            { parsedShortName: { equals: shortName, mode: 'insensitive' } },
-          ],
-        })
+        // Match chanFolderName (path segment, e.g. "NBL-Nubiles") OR parsedShortName
+        // (extracted from folder name, e.g. "NBL"). chanFolderName may be null when
+        // multiple archive roots are configured and paths are shallow — falling back to
+        // parsedShortName ensures those folders still appear in the linked section.
+        filters.push(
+          Prisma.sql`AND (af."chanFolderName" ILIKE ${`%${shortName}%`} OR af."parsedShortName" ILIKE ${shortName})`,
+        )
       }
 
       if (year !== null && !isNaN(year)) {
-        const yearStart = new Date(year, 0, 1)
-        const yearEnd = new Date(year + 1, 0, 1)
-        andConditions.push({
-          parsedDate: { gte: yearStart, lt: yearEnd },
-        })
+        filters.push(Prisma.sql`AND EXTRACT(YEAR FROM af."parsedDate") = ${year}`)
       }
 
       if (q) {
-        andConditions.push({
-          OR: [
-            { folderName: { contains: q, mode: 'insensitive' } },
-            { parsedTitle: { contains: q, mode: 'insensitive' } },
-          ],
-        })
+        filters.push(
+          Prisma.sql`AND (af."folderName" ILIKE ${`%${q}%`} OR af."parsedTitle" ILIKE ${`%${q}%`})`,
+        )
       }
 
-      const sharedSelect = {
-        id: true,
-        folderName: true,
-        fileCount: true,
-        parsedDate: true,
-        fullPath: true,
-        isVideo: true,
-        parsedShortName: true,
-        chanFolderName: true,
-      } satisfies Prisma.ArchiveFolderSelect
+      // Combine all filter fragments into one Sql value (or empty if none)
+      const whereFilters =
+        filters.length > 0 ? Prisma.join(filters, ' ') : Prisma.sql``
 
-      const [unlinkedFolders, linkedFolders] = await Promise.all([
-        // Unlinked: no link at all, or only a SUGGESTED link
-        prisma.archiveFolder.findMany({
-          where: {
-            OR: [
-              { archiveLink: { is: null } },
-              { archiveLink: { status: { not: ArchiveLinkStatus.CONFIRMED } } },
-            ],
-            ...(andConditions.length > 0 ? { AND: andConditions } : {}),
-          },
-          select: sharedSelect,
-          orderBy: [{ parsedDate: 'desc' }, { folderName: 'asc' }],
-          take: limit,
-        }),
+      const [unlinkedRows, linkedRows] = await Promise.all([
+        // Unlinked: no ArchiveLink at all, or only a SUGGESTED link
+        prisma.$queryRaw<FolderRow[]>`
+          SELECT af.id,
+                 af."folderName",
+                 af."fileCount",
+                 af."parsedDate",
+                 af."fullPath",
+                 af."isVideo",
+                 af."parsedShortName",
+                 af."chanFolderName"
+          FROM   "archive_folder" af
+          LEFT   JOIN "ArchiveLink" al ON al."archiveFolderId" = af.id
+          WHERE  (al.id IS NULL OR al.status != 'CONFIRMED')
+          ${whereFilters}
+          ORDER  BY af."parsedDate" DESC NULLS LAST, af."folderName" ASC
+          LIMIT  ${limit}
+        `,
 
         // Linked: CONFIRMED to another entity — shown so user can re-assign
-        prisma.archiveFolder.findMany({
-          where: {
-            archiveLink: { status: ArchiveLinkStatus.CONFIRMED },
-            ...(andConditions.length > 0 ? { AND: andConditions } : {}),
-          },
-          select: {
-            ...sharedSelect,
-            archiveLink: {
-              select: {
-                stagingSet: { select: { title: true, status: true } },
-                set: { select: { title: true } },
-              },
-            },
-          },
-          orderBy: [{ parsedDate: 'desc' }, { folderName: 'asc' }],
-          take: limit,
-        }),
+        prisma.$queryRaw<LinkedFolderRow[]>`
+          SELECT af.id,
+                 af."folderName",
+                 af."fileCount",
+                 af."parsedDate",
+                 af."fullPath",
+                 af."isVideo",
+                 af."parsedShortName",
+                 af."chanFolderName",
+                 ss.title     AS "stagingSetTitle",
+                 ss.status    AS "stagingSetStatus",
+                 s.title      AS "setTitle"
+          FROM   "archive_folder" af
+          INNER  JOIN "ArchiveLink" al ON al."archiveFolderId" = af.id AND al.status = 'CONFIRMED'
+          LEFT   JOIN staging_set ss   ON ss.id = al."stagingSetId"
+          LEFT   JOIN "Set"        s   ON s.id  = al."setId"
+          WHERE  TRUE
+          ${whereFilters}
+          ORDER  BY af."parsedDate" DESC NULLS LAST, af."folderName" ASC
+          LIMIT  ${limit}
+        `,
       ])
 
-      const linked = linkedFolders.map((f) => ({
+      const linked = linkedRows.map((f) => ({
         id: f.id,
         folderName: f.folderName,
         fileCount: f.fileCount,
@@ -118,12 +132,12 @@ export async function GET(request: Request) {
         isVideo: f.isVideo,
         parsedShortName: f.parsedShortName,
         chanFolderName: f.chanFolderName,
-        currentTargetType: (f.archiveLink?.stagingSet ? 'stagingSet' : 'set') as 'stagingSet' | 'set',
-        currentTargetTitle: f.archiveLink?.stagingSet?.title ?? f.archiveLink?.set?.title ?? null,
-        currentTargetStatus: f.archiveLink?.stagingSet?.status ?? null,
+        currentTargetType: (f.stagingSetTitle !== null ? 'stagingSet' : 'set') as 'stagingSet' | 'set',
+        currentTargetTitle: f.stagingSetTitle ?? f.setTitle ?? null,
+        currentTargetStatus: f.stagingSetStatus ?? null,
       }))
 
-      return NextResponse.json({ unlinked: unlinkedFolders, linked })
+      return NextResponse.json({ unlinked: unlinkedRows, linked })
     } catch (err) {
       console.error('Archive folder search error:', err)
       return NextResponse.json({ error: 'Search failed' }, { status: 500 })
