@@ -14,8 +14,23 @@ function isPublicPath(pathname: string): boolean {
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // Skip auth for public paths
+  // Skip auth for public paths.
+  // In multi-tenant mode, still try to inject x-tenant-id from the session cookie
+  // if one is present — user-facing public routes (e.g. /api/archive/folders/search)
+  // need the correct tenant even though they don't require authentication.
+  // Sidecar/scanner callers have no session cookie and fall through to the default tenant.
   if (isPublicPath(pathname)) {
+    if (!isSingleTenantMode()) {
+      const sessionToken = request.cookies.get(SESSION_COOKIE_NAME)?.value;
+      if (sessionToken) {
+        const session = await verifySessionToken(sessionToken);
+        if (session) {
+          const requestHeaders = new Headers(request.headers);
+          requestHeaders.set("x-tenant-id", session.tenantId);
+          return NextResponse.next({ request: { headers: requestHeaders } });
+        }
+      }
+    }
     return NextResponse.next();
   }
 
