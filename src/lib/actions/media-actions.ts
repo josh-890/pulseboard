@@ -351,8 +351,13 @@ export async function linkMediaToDetailCategoryAction(
   return withTenantFromHeaders(async () => {
     try {
       for (const mediaItemId of mediaItemIds) {
+        // Search without categoryId: @@unique([personId, mediaItemId, usage]) means
+        // there can only be ONE DETAIL link per person+media regardless of category.
+        // Filtering by categoryId misses existing links with a different category and
+        // causes a silent unique-constraint violation on the subsequent create.
         const existing = await prisma.personMediaLink.findFirst({
-          where: { personId, mediaItemId, usage: "DETAIL", categoryId },
+          where: { personId, mediaItemId, usage: "DETAIL" },
+          select: { id: true },
         });
         if (!existing) {
           await prisma.personMediaLink.create({
@@ -360,6 +365,17 @@ export async function linkMediaToDetailCategoryAction(
               personId,
               mediaItemId,
               usage: "DETAIL",
+              categoryId,
+              ...(entityField && entityId ? { [entityField]: entityId } : {}),
+            },
+          });
+        } else {
+          // Update: set the (possibly new) category and entity FK.
+          // Handles orphaned records created by the old broken flow (bodyMarkId = null)
+          // and photos re-assigned from one entity/category to another.
+          await prisma.personMediaLink.update({
+            where: { id: existing.id },
+            data: {
               categoryId,
               ...(entityField && entityId ? { [entityField]: entityId } : {}),
             },
