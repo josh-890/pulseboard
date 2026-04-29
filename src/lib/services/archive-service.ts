@@ -1190,26 +1190,54 @@ export async function runMatchingPass(
       const dateEnd = new Date(dateStart)
       dateEnd.setDate(dateEnd.getDate() + 1)
 
-      // Try staging sets first (skip PROMOTED + SKIPPED; skip sets already suggested to this folder)
-      const stagingSuggestions = await prisma.stagingSet.findMany({
-        where: {
-          releaseDate: { gte: dateStart, lt: dateEnd },
-          channel: { shortName: { equals: folder.parsedShortName, mode: 'insensitive' } },
-          status: { notIn: ['PROMOTED', 'SKIPPED'] },
-          archiveLinks: {
-            none: {
-              status: { in: [ArchiveLinkStatus.CONFIRMED, ArchiveLinkStatus.SUGGESTED] },
-            },
+      // Try staging sets first (skip PROMOTED + SKIPPED; skip sets already claimed by a different folder)
+      // When parsedTitle is available, pick the best title-similarity match to avoid wrong-person
+      // assignments on channels that publish multiple sets on the same date (e.g. MetArt).
+      type StagingIdRow = { id: string }
+      let stagingCandidateId: string | null = null
+
+      if (folder.parsedTitle) {
+        const rows = await prisma.$queryRaw<StagingIdRow[]>`
+          SELECT ss.id
+          FROM staging_set ss
+          JOIN "Channel" c ON c.id = ss."channelId"
+          WHERE ss."releaseDate" >= ${dateStart} AND ss."releaseDate" < ${dateEnd}
+            AND LOWER(c."shortName") = LOWER(${folder.parsedShortName})
+            AND ss.status NOT IN ('PROMOTED', 'SKIPPED')
+            AND NOT EXISTS (
+              SELECT 1 FROM "ArchiveLink" al
+              WHERE al."stagingSetId" = ss.id
+                AND al.status IN ('CONFIRMED', 'SUGGESTED')
+                AND al."archiveFolderId" <> ${folder.id}
+            )
+          ORDER BY similarity(${folder.parsedTitle}, ss."titleNorm") DESC
+          LIMIT 1
+        `
+        if (rows.length > 0 && rows[0]) stagingCandidateId = rows[0].id
+      } else {
+        const rows = await prisma.stagingSet.findMany({
+          where: {
+            releaseDate: { gte: dateStart, lt: dateEnd },
+            channel: { shortName: { equals: folder.parsedShortName, mode: 'insensitive' } },
+            status: { notIn: ['PROMOTED', 'SKIPPED'] },
+            archiveLinks: { none: { status: { in: [ArchiveLinkStatus.CONFIRMED, ArchiveLinkStatus.SUGGESTED] } } },
           },
-        },
-        select: { id: true },
-        take: 1,
-      })
-      if (stagingSuggestions.length > 0) {
+          select: { id: true },
+          take: 1,
+        })
+        if (rows.length > 0) stagingCandidateId = rows[0].id
+      }
+
+      if (stagingCandidateId) {
         await prisma.archiveLink.upsert({
           where: { archiveFolderId: folder.id },
-          create: { archiveFolderId: folder.id, stagingSetId: stagingSuggestions[0].id, status: 'SUGGESTED', confidence: 'HIGH', tenant },
-          update: { stagingSetId: stagingSuggestions[0].id, setId: null, status: 'SUGGESTED', confidence: 'HIGH' },
+          create: { archiveFolderId: folder.id, stagingSetId: stagingCandidateId, status: 'SUGGESTED', confidence: 'HIGH', tenant },
+          update: { stagingSetId: stagingCandidateId, setId: null, status: 'SUGGESTED', confidence: 'HIGH' },
+        })
+        // Remove any other SUGGESTED links that were previously pointing to the same staging set
+        // from a different folder — prevents accumulation across multiple matching passes.
+        await prisma.archiveLink.deleteMany({
+          where: { stagingSetId: stagingCandidateId, status: ArchiveLinkStatus.SUGGESTED, archiveFolderId: { not: folder.id } },
         })
         suggested++
         continue
@@ -1265,6 +1293,10 @@ export async function runMatchingPass(
           where: { archiveFolderId: folder.id },
           create: { archiveFolderId: folder.id, stagingSetId: stagingMedium[0].id, status: 'SUGGESTED', confidence: 'MEDIUM', tenant },
           update: { stagingSetId: stagingMedium[0].id, setId: null, status: 'SUGGESTED', confidence: 'MEDIUM' },
+        })
+        // Remove any other SUGGESTED links previously pointing to the same staging set from a different folder
+        await prisma.archiveLink.deleteMany({
+          where: { stagingSetId: stagingMedium[0].id, status: ArchiveLinkStatus.SUGGESTED, archiveFolderId: { not: folder.id } },
         })
         suggested++
         continue
