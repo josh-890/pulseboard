@@ -11,8 +11,8 @@
 import { randomUUID } from 'crypto'
 import { prisma } from '@/lib/db'
 import { getSetting, setSetting } from '@/lib/services/setting-service'
-import { ArchiveLinkStatus } from '@/generated/prisma/client'
-import type { ArchiveStatus, Prisma } from '@/generated/prisma/client'
+import { ArchiveLinkStatus, Prisma } from '@/generated/prisma/client'
+import type { ArchiveStatus } from '@/generated/prisma/client'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -1407,6 +1407,47 @@ export async function getSuggestedFoldersForSets(
       },
     ]),
   )
+}
+
+/**
+ * For a batch of staging set IDs, return the subset whose matching archive
+ * folder is CONFIRMED to a *different* entity (blocking a suggestion).
+ *
+ * Conflict criteria: the staging set has no CONFIRMED/SUGGESTED ArchiveLink
+ * AND there exists an ArchiveFolder for the same date + channel shortName
+ * that already has a CONFIRMED link (to any staging set or promoted set).
+ *
+ * Used to show a "🔒 Folder taken" warning badge in the staging sets list.
+ */
+export async function getConflictingLinkIds(ids: string[]): Promise<Set<string>> {
+  if (ids.length === 0) return new Set()
+  const idList = Prisma.join(ids.map((id) => Prisma.sql`${id}::uuid`))
+  type Row = { id: string }
+  const rows = await prisma.$queryRaw<Row[]>`
+    SELECT ss.id::text AS id
+    FROM   staging_set ss
+    JOIN   "Channel" c ON c.id = ss."channelId"
+    WHERE  ss.id IN (${idList})
+      AND  ss."releaseDate" IS NOT NULL
+      AND  c."shortName" IS NOT NULL
+      -- must have no existing link on this staging set
+      AND  NOT EXISTS (
+             SELECT 1 FROM "ArchiveLink" al
+             WHERE  al."stagingSetId" = ss.id
+               AND  al.status IN ('CONFIRMED', 'SUGGESTED')
+           )
+      -- but a matching folder IS CONFIRMED to something else
+      AND  EXISTS (
+             SELECT 1
+             FROM   "ArchiveFolder" af
+             JOIN   "ArchiveLink" al2 ON al2."archiveFolderId" = af.id
+                    AND al2.status = 'CONFIRMED'
+             WHERE  af."parsedDate" >= DATE_TRUNC('day', ss."releaseDate")
+               AND  af."parsedDate" <  DATE_TRUNC('day', ss."releaseDate") + INTERVAL '1 day'
+               AND  LOWER(af."parsedShortName") = LOWER(c."shortName")
+           )
+  `
+  return new Set(rows.map((r) => r.id))
 }
 
 // ─── Archive Workspace Queries ────────────────────────────────────────────────

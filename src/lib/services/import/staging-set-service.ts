@@ -44,6 +44,8 @@ export type StagingSetWithRelations = StagingSet & {
   promotedSet: PromotedSetArchiveMini
   /** Populated server-side after main query via getSuggestedFoldersForStagingSets */
   suggestedArchiveFolder?: SuggestedFolderInfo | null
+  /** True when a matching folder exists but is CONFIRMED to a different entity — indicates a mis-assigned link */
+  hasLinkConflict?: boolean
 }
 
 export type ParticipantStatus = {

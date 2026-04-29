@@ -644,8 +644,32 @@ export const StagingSetRow = memo(function StagingSetRow({
         </div>
       )}
 
-      {/* Non-promoted: no archive link and no suggestion */}
-      {!isPromoted && !hasArchiveLink && !suggestion && expectedFolderName && (
+      {/* Non-promoted: no archive link and no suggestion — folder taken by another set */}
+      {!isPromoted && !hasArchiveLink && !suggestion && ss.hasLinkConflict && (
+        <div className="flex items-center gap-1.5 pl-3">
+          <AlertTriangle size={11} className="shrink-0 text-amber-500" />
+          <span className="shrink-0 text-xs font-medium text-amber-600 dark:text-amber-400">Folder taken</span>
+          <span className="shrink-0 text-xs text-muted-foreground/60">· linked to another set</span>
+          <span className="flex-1" />
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation()
+              setPickerOpen(true)
+            }}
+            className={cn(
+              'flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium transition-colors',
+              'bg-amber-500/15 text-amber-600 hover:bg-amber-500/30 dark:text-amber-400',
+            )}
+          >
+            <FolderSearch size={10} />
+            Re-assign
+          </button>
+        </div>
+      )}
+
+      {/* Non-promoted: no archive link, no suggestion, no conflict */}
+      {!isPromoted && !hasArchiveLink && !suggestion && !ss.hasLinkConflict && expectedFolderName && (
         <div className="flex items-center gap-1.5 pl-3">
           <FolderX size={11} className="shrink-0 text-muted-foreground/40" />
           <span className="shrink-0 text-xs text-muted-foreground/50">Not in archive</span>
