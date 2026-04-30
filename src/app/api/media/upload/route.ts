@@ -6,6 +6,7 @@ import {
   findExactDuplicates,
   replaceMediaItemFile,
 } from "@/lib/services/media-service";
+import { prisma } from "@/lib/db";
 import { computeSha256, computeDHash } from "@/lib/image-hash";
 import { withTenantFromHeaders } from "@/lib/tenant-context";
 
@@ -84,6 +85,20 @@ export async function POST(request: Request) {
 
       // Handle replace action — swap file on existing MediaItem
       if (duplicateAction === "replace" && replaceMediaItemId) {
+        // Safety: only allow replacing MediaItems that live in the target session.
+        // This prevents accidental mutation of production-session originals —
+        // entity photo edits must operate on the reference-session copy only.
+        const target = await prisma.mediaItem.findUnique({
+          where: { id: replaceMediaItemId },
+          select: { sessionId: true },
+        });
+        if (!target || target.sessionId !== sessionId) {
+          return NextResponse.json(
+            { error: "Replace target must belong to the same session. Create a copy first." },
+            { status: 400 },
+          );
+        }
+
         console.log(`[upload] Replace mode: target=${replaceMediaItemId}`);
         const uploadResult = await uploadPhotoToStorage(
           buffer,

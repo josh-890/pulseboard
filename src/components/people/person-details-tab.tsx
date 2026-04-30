@@ -12,7 +12,7 @@ import { CrossSessionPicker } from "@/components/media/cross-session-picker";
 import { AnnotationEditor } from "@/components/media/annotation-editor";
 import { StagePhotoDialog } from "@/components/media/stage-photo-dialog";
 import { GalleryLightbox } from "@/components/gallery/gallery-lightbox";
-import { linkMediaToDetailCategoryAction, copyMediaItemToReferenceAction, deleteMediaItemsAction, swapPersonMediaLinkAction } from "@/lib/actions/media-actions";
+import { linkMediaToDetailCategoryAction, copyMediaItemToReferenceAction, deleteMediaItemsAction } from "@/lib/actions/media-actions";
 
 type CategoryCount = {
   categoryId: string;
@@ -241,29 +241,19 @@ export function PersonDetailsTab({
       const file = new File([blob], `annotation-${Date.now()}.jpg`, { type: 'image/jpeg' });
 
       if (editingMediaItemId) {
-        // Upload as new MediaItem, then swap the PersonMediaLink — old MediaItem stays intact
+        // Replace the reference-session copy in place.
+        // The upload route enforces that replaceMediaItemId must belong to
+        // the same session — this is the server-side guard against accidentally
+        // overwriting a production-session original.
         const formData = new FormData();
         formData.append('file', file);
         formData.append('sessionId', referenceSessionId);
         formData.append('personId', personId);
         formData.append('isAnnotation', 'true');
-        const res = await fetch('/api/media/upload', { method: 'POST', body: formData });
-        const json = await res.json() as { mediaItem?: { id: string }; duplicateFound?: boolean };
-        const newId = json.mediaItem?.id ?? (json.duplicateFound ? await (async () => {
-          const retry = new FormData();
-          retry.append('file', file);
-          retry.append('sessionId', referenceSessionId);
-          retry.append('personId', personId);
-          retry.append('isAnnotation', 'true');
-          retry.append('duplicateAction', 'accept');
-          const r = await fetch('/api/media/upload', { method: 'POST', body: retry });
-          const j = await r.json() as { mediaItem?: { id: string } };
-          return j.mediaItem?.id;
-        })() : undefined);
-        if (newId) {
-          await swapPersonMediaLinkAction(personId, editingMediaItemId, newId);
-          refreshCategory(category.id);
-        }
+        formData.append('duplicateAction', 'replace');
+        formData.append('replaceMediaItemId', editingMediaItemId);
+        await fetch('/api/media/upload', { method: 'POST', body: formData });
+        refreshCategory(category.id);
       } else {
         // New annotation — upload then link
         const formData = new FormData();
