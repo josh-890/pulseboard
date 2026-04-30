@@ -11,7 +11,8 @@ import { DetailMediaPickerSheet } from "@/components/people/detail-media-picker-
 import { CrossSessionPicker } from "@/components/media/cross-session-picker";
 import { AnnotationEditor } from "@/components/media/annotation-editor";
 import { StagePhotoDialog } from "@/components/media/stage-photo-dialog";
-import { linkMediaToDetailCategoryAction, copyMediaItemToReferenceAction } from "@/lib/actions/media-actions";
+import { GalleryLightbox } from "@/components/gallery/gallery-lightbox";
+import { linkMediaToDetailCategoryAction, copyMediaItemToReferenceAction, deleteMediaItemsAction } from "@/lib/actions/media-actions";
 
 type CategoryCount = {
   categoryId: string;
@@ -27,6 +28,38 @@ type CategoryMediaItem = {
   focalX: number | null;
   focalY: number | null;
 };
+
+function categoryItemToGalleryItem(item: CategoryMediaItem): GalleryItem {
+  const original = (item.urls.master_4000 ?? item.urls.original ?? '') as string;
+  return {
+    id: item.id,
+    filename: item.filename,
+    mimeType: 'image/webp',
+    originalWidth: item.originalWidth,
+    originalHeight: item.originalHeight,
+    caption: null,
+    createdAt: new Date(),
+    urls: {
+      original,
+      master_4000: (item.urls.master_4000 as string | null) ?? null,
+      gallery_512: (item.urls.gallery_512 as string | null) ?? null,
+      view_1200: (item.urls.view_1200 as string | null) ?? null,
+      full_2400: null,
+      profile_128: null,
+      profile_512: null,
+      profile_768: null,
+      gallery_1024: null,
+      gallery_1600: null,
+      profile_256: null,
+    },
+    focalX: item.focalX,
+    focalY: item.focalY,
+    tags: [],
+    isFavorite: false,
+    sortOrder: 0,
+    isCover: false,
+  };
+}
 
 type PersonDetailsTabProps = {
   personId: string;
@@ -53,12 +86,17 @@ export function PersonDetailsTab({
   // Cross-session picker + stage dialog + annotation editor state
   type CrossPickerState = { category: CategoryWithGroup }
   type StagedPhoto = { item: GalleryItem; category: CategoryWithGroup }
-  type AnnotateState = { item: GalleryItem; category: CategoryWithGroup; editorMode?: 'arrow' | 'crop' }
+  type AnnotateState = { item: GalleryItem; category: CategoryWithGroup; editorMode?: 'arrow' | 'crop'; editingMediaItemId?: string }
   const [crossPicker, setCrossPicker] = useState<CrossPickerState | null>(null);
   const [stagedPhoto, setStagedPhoto] = useState<StagedPhoto | null>(null);
   const [isStagingCopy, setIsStagingCopy] = useState(false);
   const [annotateState, setAnnotateState] = useState<AnnotateState | null>(null);
   const [isSavingAnnotation, setIsSavingAnnotation] = useState(false);
+  const [detailsLightbox, setDetailsLightbox] = useState<{
+    categoryId: string;
+    items: GalleryItem[];
+    initialIndex: number;
+  } | null>(null);
 
   const countMap = useMemo(() => {
     const map = new Map<string, number>();
@@ -159,6 +197,14 @@ export function PersonDetailsTab({
     router.refresh();
   }, [router]);
 
+  const handleDetailsLightboxDelete = useCallback(async (id: string) => {
+    if (!referenceSessionId || !detailsLightbox) return;
+    const catId = detailsLightbox.categoryId;
+    setDetailsLightbox(null);
+    await deleteMediaItemsAction([id], personId, referenceSessionId);
+    refreshCategory(catId);
+  }, [referenceSessionId, personId, detailsLightbox, refreshCategory]);
+
   // Cross-session picker: user selected a photo → always stage first
   const handleCrossPickerSelect = useCallback((item: GalleryItem) => {
     if (!crossPicker) return;
@@ -189,33 +235,48 @@ export function PersonDetailsTab({
   // Annotation editor: user saved blob
   const handleAnnotationSave = useCallback(async (blob: Blob) => {
     if (!referenceSessionId || !annotateState) return;
-    const { category } = annotateState;
+    const { category, editingMediaItemId } = annotateState;
     setIsSavingAnnotation(true);
     try {
       const file = new File([blob], `annotation-${Date.now()}.jpg`, { type: 'image/jpeg' });
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('sessionId', referenceSessionId);
-      formData.append('personId', personId);
-      formData.append('isAnnotation', 'true');
 
-      let res = await fetch('/api/media/upload', { method: 'POST', body: formData });
-      let json = await res.json() as { mediaItem?: { id: string }; duplicateFound?: boolean };
-
-      if (json.duplicateFound && !json.mediaItem) {
-        const retry = new FormData();
-        retry.append('file', file);
-        retry.append('sessionId', referenceSessionId);
-        retry.append('personId', personId);
-        retry.append('isAnnotation', 'true');
-        retry.append('duplicateAction', 'accept');
-        res = await fetch('/api/media/upload', { method: 'POST', body: retry });
-        json = await res.json();
-      }
-
-      if (json.mediaItem?.id) {
-        await linkMediaToDetailCategoryAction(personId, [json.mediaItem.id], category.id);
+      if (editingMediaItemId) {
+        // Replace in place — PersonMediaLink stays intact
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('sessionId', referenceSessionId);
+        formData.append('personId', personId);
+        formData.append('isAnnotation', 'true');
+        formData.append('duplicateAction', 'replace');
+        formData.append('replaceMediaItemId', editingMediaItemId);
+        await fetch('/api/media/upload', { method: 'POST', body: formData });
         refreshCategory(category.id);
+      } else {
+        // New annotation — upload then link
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('sessionId', referenceSessionId);
+        formData.append('personId', personId);
+        formData.append('isAnnotation', 'true');
+
+        let res = await fetch('/api/media/upload', { method: 'POST', body: formData });
+        let json = await res.json() as { mediaItem?: { id: string }; duplicateFound?: boolean };
+
+        if (json.duplicateFound && !json.mediaItem) {
+          const retry = new FormData();
+          retry.append('file', file);
+          retry.append('sessionId', referenceSessionId);
+          retry.append('personId', personId);
+          retry.append('isAnnotation', 'true');
+          retry.append('duplicateAction', 'accept');
+          res = await fetch('/api/media/upload', { method: 'POST', body: retry });
+          json = await res.json();
+        }
+
+        if (json.mediaItem?.id) {
+          await linkMediaToDetailCategoryAction(personId, [json.mediaItem.id], category.id);
+          refreshCategory(category.id);
+        }
       }
     } finally {
       setIsSavingAnnotation(false);
@@ -432,12 +493,21 @@ export function PersonDetailsTab({
                         <p className="text-xs text-muted-foreground italic">No photos</p>
                       ) : (
                         <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2">
-                          {media.map((item) => {
+                          {media.map((item, idx) => {
                             const thumbUrl = item.urls.gallery_512 ?? item.urls.original;
                             return (
-                              <div
+                              <button
                                 key={item.id}
-                                className="group relative aspect-square overflow-hidden rounded-lg border border-white/10 bg-muted/30"
+                                type="button"
+                                onClick={() => {
+                                  const galleryItems = media.map(categoryItemToGalleryItem);
+                                  setDetailsLightbox({
+                                    categoryId: cat.id,
+                                    items: galleryItems,
+                                    initialIndex: idx,
+                                  });
+                                }}
+                                className="group relative aspect-square overflow-hidden rounded-lg border border-white/10 bg-muted/30 transition-colors hover:border-amber-500/40 cursor-pointer"
                               >
                                 {thumbUrl ? (
                                   <Image
@@ -454,7 +524,7 @@ export function PersonDetailsTab({
                                     <ImageIcon size={20} className="text-muted-foreground/40" />
                                   </div>
                                 )}
-                              </div>
+                              </button>
                             );
                           })}
                         </div>
@@ -533,6 +603,26 @@ export function PersonDetailsTab({
           onCancel={() => setAnnotateState(null)}
           isSaving={isSavingAnnotation}
           initialTool={annotateState.editorMode}
+        />
+      )}
+
+      {/* Details lightbox */}
+      {detailsLightbox && (
+        <GalleryLightbox
+          items={detailsLightbox.items}
+          initialIndex={detailsLightbox.initialIndex}
+          onClose={() => setDetailsLightbox(null)}
+          onEdit={(galleryItem) => {
+            const category = categories.find((c) => c.id === detailsLightbox.categoryId);
+            if (!category) return;
+            setDetailsLightbox(null);
+            setAnnotateState({
+              item: galleryItem,
+              category,
+              editingMediaItemId: galleryItem.id,
+            });
+          }}
+          onDelete={handleDetailsLightboxDelete}
         />
       )}
     </div>

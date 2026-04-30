@@ -150,7 +150,7 @@ export function AppearanceTab({
   // Cross-session picker + stage dialog + annotation editor for entity photos
   type EntityPickerContext = { categoryId: string; entityId: string; entityModel: string; entityLabel: string }
   type StagedEntityPhoto = { item: GalleryItem; categoryId: string; entityId: string; entityModel: string; entityLabel: string }
-  type AnnotateEntityState = { item: GalleryItem; categoryId: string; entityId: string; entityModel: string; editorMode?: 'arrow' | 'crop' }
+  type AnnotateEntityState = { item: GalleryItem; categoryId?: string; entityId?: string; entityModel?: string; editorMode?: 'arrow' | 'crop'; editingMediaItemId?: string }
   const [entityPicker, setEntityPicker] = useState<EntityPickerContext | null>(null);
   const [stagedEntityPhoto, setStagedEntityPhoto] = useState<StagedEntityPhoto | null>(null);
   const [isStagingCopy, setIsStagingCopy] = useState(false);
@@ -456,34 +456,49 @@ export function AppearanceTab({
   // Annotation editor: user saved blob for an entity
   const handleEntityAnnotationSave = useCallback(async (blob: Blob) => {
     if (!referenceSessionId || !annotateEntityState) return;
-    const { categoryId, entityId, entityModel } = annotateEntityState;
+    const { categoryId, entityId, entityModel, editingMediaItemId } = annotateEntityState;
     setIsSavingAnnotation(true);
     try {
       const file = new File([blob], `annotation-${Date.now()}.jpg`, { type: 'image/jpeg' });
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('sessionId', referenceSessionId);
-      formData.append('personId', person.id);
-      formData.append('isAnnotation', 'true');
 
-      let res = await fetch('/api/media/upload', { method: 'POST', body: formData });
-      let json = await res.json() as { mediaItem?: { id: string }; duplicateFound?: boolean };
-
-      if (json.duplicateFound && !json.mediaItem) {
-        const retry = new FormData();
-        retry.append('file', file);
-        retry.append('sessionId', referenceSessionId);
-        retry.append('personId', person.id);
-        retry.append('isAnnotation', 'true');
-        retry.append('duplicateAction', 'accept');
-        res = await fetch('/api/media/upload', { method: 'POST', body: retry });
-        json = await res.json();
-      }
-
-      if (json.mediaItem?.id) {
-        const entityField = ENTITY_FIELD_MAP[entityModel];
-        await linkMediaToDetailCategoryAction(person.id, [json.mediaItem.id], categoryId, entityField, entityId);
+      if (editingMediaItemId) {
+        // Replace in place — existing PersonMediaLink stays intact
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('sessionId', referenceSessionId);
+        formData.append('personId', person.id);
+        formData.append('isAnnotation', 'true');
+        formData.append('duplicateAction', 'replace');
+        formData.append('replaceMediaItemId', editingMediaItemId);
+        await fetch('/api/media/upload', { method: 'POST', body: formData });
         router.refresh();
+      } else if (categoryId && entityId && entityModel) {
+        // New annotation — upload then link
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('sessionId', referenceSessionId);
+        formData.append('personId', person.id);
+        formData.append('isAnnotation', 'true');
+
+        let res = await fetch('/api/media/upload', { method: 'POST', body: formData });
+        let json = await res.json() as { mediaItem?: { id: string }; duplicateFound?: boolean };
+
+        if (json.duplicateFound && !json.mediaItem) {
+          const retry = new FormData();
+          retry.append('file', file);
+          retry.append('sessionId', referenceSessionId);
+          retry.append('personId', person.id);
+          retry.append('isAnnotation', 'true');
+          retry.append('duplicateAction', 'accept');
+          res = await fetch('/api/media/upload', { method: 'POST', body: retry });
+          json = await res.json();
+        }
+
+        if (json.mediaItem?.id) {
+          const entityField = ENTITY_FIELD_MAP[entityModel];
+          await linkMediaToDetailCategoryAction(person.id, [json.mediaItem.id], categoryId, entityField, entityId);
+          router.refresh();
+        }
       }
     } finally {
       setIsSavingAnnotation(false);
@@ -985,6 +1000,13 @@ export function AppearanceTab({
           items={toGalleryItems(entityMedia[entityLightbox.entityId])}
           initialIndex={entityLightbox.initialIndex}
           onClose={() => setEntityLightbox(null)}
+          onEdit={(galleryItem) => {
+            setEntityLightbox(null);
+            setAnnotateEntityState({
+              item: galleryItem,
+              editingMediaItemId: galleryItem.id,
+            });
+          }}
         />
       )}
     </>

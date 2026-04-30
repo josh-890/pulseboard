@@ -9,6 +9,7 @@ import {
   Crosshair,
   PanelRight,
   PanelRightClose,
+  Pencil,
   Rows3,
   Trash2,
   X,
@@ -61,6 +62,8 @@ type GalleryLightboxProps = {
   collectionContext?: CollectionContext;
   // Delete handler — shows inline confirmation, then calls this
   onDelete?: (id: string) => void;
+  // Edit handler — opens annotation editor for the current item
+  onEdit?: (item: GalleryItem) => void;
 };
 
 export function GalleryLightbox(props: GalleryLightboxProps) {
@@ -88,6 +91,7 @@ function SimpleLightbox({
   productionContext,
   collectionContext,
   onDelete,
+  onEdit,
 }: GalleryLightboxProps) {
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
   const [showInfoPanel, setShowInfoPanel] = useState(referenceContext ? true : false);
@@ -380,6 +384,17 @@ function SimpleLightbox({
               <PanelRight size={16} />
             )}
           </button>
+          {onEdit && (
+            <button
+              type="button"
+              onClick={() => onEdit(item)}
+              className="rounded-full bg-white/10 p-2 text-white/70 transition-colors hover:bg-amber-500/30 hover:text-amber-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50"
+              aria-label="Edit this photo"
+              title="Edit"
+            >
+              <Pencil size={16} />
+            </button>
+          )}
           {onDelete && (
             <button
               type="button"
