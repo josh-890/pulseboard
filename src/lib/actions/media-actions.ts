@@ -564,3 +564,50 @@ export async function resetFocalPointAction(
 
   });
 }
+
+/**
+ * Swap a PersonMediaLink to point at a new MediaItem, preserving all entity
+ * bindings (bodyMarkId, categoryId, etc.) on the original link.
+ * The old MediaItem is left untouched — it may be used in production sets or elsewhere.
+ */
+export async function swapPersonMediaLinkAction(
+  personId: string,
+  oldMediaItemId: string,
+  newMediaItemId: string,
+): Promise<SimpleActionResult> {
+  return withTenantFromHeaders(async () => {
+    try {
+      const old = await prisma.personMediaLink.findFirst({
+        where: { personId, mediaItemId: oldMediaItemId },
+      });
+      if (!old) return { success: false, error: "Original link not found" };
+
+      await prisma.$transaction(async (tx) => {
+        await tx.personMediaLink.create({
+          data: {
+            personId: old.personId,
+            mediaItemId: newMediaItemId,
+            usage: old.usage,
+            categoryId: old.categoryId,
+            bodyMarkId: old.bodyMarkId,
+            bodyModificationId: old.bodyModificationId,
+            cosmeticProcedureId: old.cosmeticProcedureId,
+            sortOrder: old.sortOrder,
+            notes: old.notes,
+            personaId: old.personaId,
+            slot: old.slot,
+            bodyRegion: old.bodyRegion,
+            bodyRegions: old.bodyRegions,
+          },
+        });
+        await tx.personMediaLink.delete({ where: { id: old.id } });
+      });
+
+      revalidatePath(`/people/${personId}`);
+      return { success: true };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unexpected error";
+      return { success: false, error: message };
+    }
+  });
+}

@@ -30,7 +30,7 @@ import { DetailMediaPickerSheet } from "@/components/people/detail-media-picker-
 import { CrossSessionPicker } from "@/components/media/cross-session-picker";
 import { AnnotationEditor } from "@/components/media/annotation-editor";
 import { StagePhotoDialog } from "@/components/media/stage-photo-dialog";
-import { linkMediaToDetailCategoryAction, copyMediaItemToReferenceAction } from "@/lib/actions/media-actions";
+import { linkMediaToDetailCategoryAction, copyMediaItemToReferenceAction, swapPersonMediaLinkAction } from "@/lib/actions/media-actions";
 import type { GalleryItem } from "@/lib/types";
 import {
   deleteBodyMarkAction,
@@ -462,16 +462,28 @@ export function AppearanceTab({
       const file = new File([blob], `annotation-${Date.now()}.jpg`, { type: 'image/jpeg' });
 
       if (editingMediaItemId) {
-        // Replace in place — existing PersonMediaLink stays intact
+        // Upload as new MediaItem, then swap the PersonMediaLink — old MediaItem stays intact
         const formData = new FormData();
         formData.append('file', file);
         formData.append('sessionId', referenceSessionId);
         formData.append('personId', person.id);
         formData.append('isAnnotation', 'true');
-        formData.append('duplicateAction', 'replace');
-        formData.append('replaceMediaItemId', editingMediaItemId);
-        await fetch('/api/media/upload', { method: 'POST', body: formData });
-        router.refresh();
+        let res = await fetch('/api/media/upload', { method: 'POST', body: formData });
+        let json = await res.json() as { mediaItem?: { id: string }; duplicateFound?: boolean };
+        if (json.duplicateFound && !json.mediaItem) {
+          const retry = new FormData();
+          retry.append('file', file);
+          retry.append('sessionId', referenceSessionId);
+          retry.append('personId', person.id);
+          retry.append('isAnnotation', 'true');
+          retry.append('duplicateAction', 'accept');
+          res = await fetch('/api/media/upload', { method: 'POST', body: retry });
+          json = await res.json() as { mediaItem?: { id: string }; duplicateFound?: boolean };
+        }
+        if (json.mediaItem?.id) {
+          await swapPersonMediaLinkAction(person.id, editingMediaItemId, json.mediaItem.id);
+          router.refresh();
+        }
       } else if (categoryId && entityId && entityModel) {
         // New annotation — upload then link
         const formData = new FormData();
