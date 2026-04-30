@@ -3,7 +3,10 @@
 import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
-import { GripVertical, PanelRightClose } from "lucide-react";
+import Image from "next/image";
+import { ChevronDown, ChevronRight, GripVertical, Layers, PanelRightClose, Trash2 } from "lucide-react";
+import { focalStyle } from "@/lib/utils";
+import type { EntityPhotoGroup } from "@/lib/services/media-service";
 import { cn } from "@/lib/utils";
 import type { MediaItemWithLinks } from "@/lib/services/media-service";
 import type { ProfileImageLabel } from "@/lib/services/setting-service";
@@ -78,6 +81,37 @@ function toGalleryItemLocal(item: MediaItemWithLinks): GalleryItem {
   };
 }
 
+function toEntityGalleryItem(photo: EntityPhotoGroup["photos"][number]): GalleryItem {
+  return {
+    id: photo.id,
+    filename: photo.filename,
+    mimeType: "image/webp",
+    originalWidth: photo.originalWidth,
+    originalHeight: photo.originalHeight,
+    caption: null,
+    createdAt: new Date(),
+    urls: {
+      original: photo.url,
+      master_4000: null,
+      gallery_512: photo.url,
+      view_1200: photo.url,
+      full_2400: null,
+      profile_128: null,
+      profile_512: null,
+      profile_768: null,
+      gallery_1024: null,
+      gallery_1600: null,
+      profile_256: null,
+    },
+    focalX: photo.focalX,
+    focalY: photo.focalY,
+    tags: [],
+    isFavorite: false,
+    sortOrder: 0,
+    isCover: false,
+  };
+}
+
 export function MediaManager({
   items: initialItems,
   personId,
@@ -110,6 +144,21 @@ export function MediaManager({
   });
   const [, startDeleteTransition] = useTransition();
   const [usageFilter, setUsageFilter] = useState<"all" | "general" | "detail">("all");
+
+  // Entity Photos (reference session only)
+  const [entityPhotoGroups, setEntityPhotoGroups] = useState<EntityPhotoGroup[]>([]);
+  const [entitySectionOpen, setEntitySectionOpen] = useState(true);
+  const [entityLightbox, setEntityLightbox] = useState<{ items: GalleryItem[]; initialIndex: number } | null>(null);
+
+  useEffect(() => {
+    if (anchor !== "reference") return;
+    fetch(`/api/sessions/${sessionId}/entity-photos?personId=${personId}`)
+      .then((r) => r.json())
+      .then((data: unknown) => {
+        if (Array.isArray(data)) setEntityPhotoGroups(data as EntityPhotoGroup[]);
+      })
+      .catch(() => undefined);
+  }, [sessionId, personId, anchor]);
 
   // Filter items by usage type (reference sessions only), then sort
   const filteredItems = useMemo(() => {
@@ -373,6 +422,34 @@ export function MediaManager({
     [],
   );
 
+  const handleEntityPhotoDelete = useCallback(
+    async (photoId: string) => {
+      setEntityPhotoGroups((prev) =>
+        prev
+          .map((g) => ({ ...g, photos: g.photos.filter((p) => p.id !== photoId) }))
+          .filter((g) => g.photos.length > 0),
+      );
+      setItems((prev) => prev.filter((it) => it.id !== photoId));
+      await deleteMediaItemsAction([photoId], personId, sessionId);
+    },
+    [personId, sessionId],
+  );
+
+  const groupedEntityPhotos = useMemo(() => {
+    const sectionMap = new Map<string, { categoryName: string; groups: EntityPhotoGroup[] }[]>();
+    for (const g of entityPhotoGroups) {
+      if (!sectionMap.has(g.groupName)) sectionMap.set(g.groupName, []);
+      const cats = sectionMap.get(g.groupName)!;
+      let catEntry = cats.find((c) => c.categoryName === g.categoryName);
+      if (!catEntry) {
+        catEntry = { categoryName: g.categoryName, groups: [] };
+        cats.push(catEntry);
+      }
+      catEntry.groups.push(g);
+    }
+    return sectionMap;
+  }, [entityPhotoGroups]);
+
   const selectedItems = useMemo(
     () => items.filter((item) => selectedIds.has(item.id)),
     [items, selectedIds],
@@ -531,6 +608,85 @@ export function MediaManager({
         </div>
       </div>
 
+      {/* Entity Photos section — reference session only */}
+      {anchor === "reference" && entityPhotoGroups.length > 0 && (
+        <div className="mt-6 border-t border-white/5 pt-4">
+          <button
+            type="button"
+            onClick={() => setEntitySectionOpen((v) => !v)}
+            className="mb-3 flex items-center gap-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+          >
+            {entitySectionOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+            <Layers size={14} />
+            Entity Photos
+            <span className="text-xs font-normal opacity-60">
+              {entityPhotoGroups.reduce((sum, g) => sum + g.photos.length, 0)}
+            </span>
+          </button>
+          {entitySectionOpen && (
+            <div className="space-y-5">
+              {Array.from(groupedEntityPhotos.entries()).map(([groupName, cats]) => (
+                <div key={groupName}>
+                  {groupName && (
+                    <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground/60">
+                      {groupName}
+                    </p>
+                  )}
+                  <div className="space-y-3">
+                    {cats.map(({ categoryName, groups }) => (
+                      <div key={categoryName}>
+                        <p className="mb-1.5 text-xs font-medium text-muted-foreground">{categoryName}</p>
+                        <div className="space-y-2">
+                          {groups.map((g) => {
+                            const flatPhotos = g.photos.map(toEntityGalleryItem);
+                            return (
+                              <div key={`${g.categoryId}::${g.entityId ?? ""}`}>
+                                {g.entityLabel && (
+                                  <p className="mb-1 text-[11px] italic text-muted-foreground/50">{g.entityLabel}</p>
+                                )}
+                                <div className="flex flex-wrap gap-2">
+                                  {g.photos.map((photo, idx) => (
+                                    <div key={photo.id} className="group/photo relative">
+                                      <button
+                                        type="button"
+                                        onClick={() => setEntityLightbox({ items: flatPhotos, initialIndex: idx })}
+                                        className="block h-16 w-16 overflow-hidden rounded-lg border border-white/10 bg-muted/30 transition-colors hover:border-amber-500/40"
+                                      >
+                                        <Image
+                                          src={photo.url}
+                                          alt={photo.filename}
+                                          width={64}
+                                          height={64}
+                                          unoptimized
+                                          className="h-full w-full object-cover"
+                                          style={focalStyle(photo.focalX, photo.focalY)}
+                                        />
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleEntityPhotoDelete(photo.id)}
+                                        className="absolute -right-1 -top-1 hidden rounded-full border border-white/15 bg-card p-0.5 text-muted-foreground shadow-sm transition-colors hover:text-red-400 group-hover/photo:inline-flex"
+                                        aria-label="Delete entity photo"
+                                      >
+                                        <Trash2 size={10} />
+                                      </button>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Mobile: bottom sheet when selected (portaled to escape backdrop-blur stacking context) */}
       {panelVisible && createPortal(
         <div className="lg:hidden fixed bottom-0 inset-x-0 z-30 max-h-[40vh] overflow-y-auto rounded-t-xl border-t border-white/15 bg-card/95 backdrop-blur-md shadow-lg">
@@ -575,6 +731,17 @@ export function MediaManager({
           profileLabels={slotLabels}
           sessionId={sessionId}
           referenceContext={referenceContext}
+        />
+      )}
+
+      {/* Entity photo lightbox */}
+      {entityLightbox && (
+        <GalleryLightbox
+          items={entityLightbox.items}
+          initialIndex={entityLightbox.initialIndex}
+          onClose={() => setEntityLightbox(null)}
+          profileLabels={slotLabels}
+          sessionId={sessionId}
         />
       )}
 

@@ -341,6 +341,55 @@ export async function deleteMediaItemsAction(
   });
 }
 
+export async function copyMediaItemToReferenceAction(
+  sourceMediaItemId: string,
+  personId: string,
+  referenceSessionId: string,
+): Promise<SimpleActionResult & { newMediaItemId?: string }> {
+  return withTenantFromHeaders(async () => {
+    try {
+      const source = await prisma.mediaItem.findUnique({
+        where: { id: sourceMediaItemId },
+        select: {
+          filename: true,
+          fileRef: true,
+          mimeType: true,
+          size: true,
+          originalWidth: true,
+          originalHeight: true,
+          variants: true,
+        },
+      });
+      if (!source) return { success: false, error: "Source media item not found" };
+
+      const newItem = await prisma.mediaItem.create({
+        data: {
+          sessionId: referenceSessionId,
+          mediaType: "PHOTO",
+          filename: source.filename,
+          fileRef: source.fileRef,
+          mimeType: source.mimeType,
+          size: source.size,
+          originalWidth: source.originalWidth,
+          originalHeight: source.originalHeight,
+          variants: source.variants as Record<string, string>,
+          tags: [],
+          hash: null,
+          phash: null,
+          isAnnotation: false,
+        },
+        select: { id: true },
+      });
+
+      revalidatePath(`/people/${personId}`);
+      return { success: true, newMediaItemId: newItem.id };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unexpected error";
+      return { success: false, error: message };
+    }
+  });
+}
+
 export async function linkMediaToDetailCategoryAction(
   personId: string,
   mediaItemIds: string[],

@@ -1,18 +1,29 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Crop, ArrowUpRight, Square, Undo2, RotateCcw, Save, X, Loader2 } from 'lucide-react'
+import { Crop, ArrowUpRight, Square, Circle, Minus, Undo2, RotateCcw, Save, X, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
-type Tool = 'crop' | 'arrow' | 'rect'
+type Tool = 'crop' | 'arrow' | 'line' | 'rect' | 'circle'
 
 type Point = { x: number; y: number }
 
 type Shape =
-  | { type: 'arrow'; x1: number; y1: number; x2: number; y2: number }
-  | { type: 'rect'; x1: number; y1: number; x2: number; y2: number }
+  | { type: 'arrow'; x1: number; y1: number; x2: number; y2: number; color: string }
+  | { type: 'line'; x1: number; y1: number; x2: number; y2: number; color: string }
+  | { type: 'rect'; x1: number; y1: number; x2: number; y2: number; color: string }
+  | { type: 'circle'; x1: number; y1: number; x2: number; y2: number; color: string }
+
+const COLORS = [
+  { value: '#EF4444', label: 'Red' },
+  { value: '#F97316', label: 'Orange' },
+  { value: '#EAB308', label: 'Yellow' },
+  { value: '#22C55E', label: 'Green' },
+  { value: '#FFFFFF', label: 'White' },
+  { value: '#000000', label: 'Black' },
+]
 
 type AnnotationEditorProps = {
   /** URL of the source image to annotate */
@@ -20,9 +31,10 @@ type AnnotationEditorProps = {
   onSave: (blob: Blob) => void
   onCancel: () => void
   isSaving?: boolean
+  /** Start in a specific tool mode (applied after mount) */
+  initialTool?: 'arrow' | 'crop'
 }
 
-const ANNO_COLOR = '#EF4444'
 const LINE_WIDTH = 3
 const ARROW_HEAD_LEN = 14
 
@@ -34,7 +46,6 @@ function drawArrow(ctx: CanvasRenderingContext2D, x1: number, y1: number, x2: nu
   ctx.moveTo(x1, y1)
   ctx.lineTo(x2, y2)
   ctx.stroke()
-  // Arrowhead
   ctx.beginPath()
   ctx.moveTo(x2, y2)
   ctx.lineTo(
@@ -49,18 +60,37 @@ function drawArrow(ctx: CanvasRenderingContext2D, x1: number, y1: number, x2: nu
   ctx.stroke()
 }
 
+function drawLine(ctx: CanvasRenderingContext2D, x1: number, y1: number, x2: number, y2: number) {
+  ctx.beginPath()
+  ctx.moveTo(x1, y1)
+  ctx.lineTo(x2, y2)
+  ctx.stroke()
+}
+
 function drawRect(ctx: CanvasRenderingContext2D, x1: number, y1: number, x2: number, y2: number) {
   ctx.strokeRect(x1, y1, x2 - x1, y2 - y1)
 }
 
+function drawCircle(ctx: CanvasRenderingContext2D, x1: number, y1: number, x2: number, y2: number) {
+  const cx = (x1 + x2) / 2
+  const cy = (y1 + y2) / 2
+  const rx = Math.abs(x2 - x1) / 2
+  const ry = Math.abs(y2 - y1) / 2
+  ctx.beginPath()
+  ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2)
+  ctx.stroke()
+}
+
 function drawShapes(ctx: CanvasRenderingContext2D, shapes: Shape[]) {
-  ctx.strokeStyle = ANNO_COLOR
   ctx.lineWidth = LINE_WIDTH
   ctx.lineCap = 'round'
   ctx.lineJoin = 'round'
   for (const s of shapes) {
+    ctx.strokeStyle = s.color
     if (s.type === 'arrow') drawArrow(ctx, s.x1, s.y1, s.x2, s.y2)
-    else drawRect(ctx, s.x1, s.y1, s.x2, s.y2)
+    else if (s.type === 'line') drawLine(ctx, s.x1, s.y1, s.x2, s.y2)
+    else if (s.type === 'rect') drawRect(ctx, s.x1, s.y1, s.x2, s.y2)
+    else if (s.type === 'circle') drawCircle(ctx, s.x1, s.y1, s.x2, s.y2)
   }
 }
 
@@ -71,8 +101,10 @@ export function AnnotationEditor({
   onSave,
   onCancel,
   isSaving = false,
+  initialTool,
 }: AnnotationEditorProps) {
-  const [tool, setTool] = useState<Tool>('arrow')
+  const [tool, setTool] = useState<Tool>(initialTool ?? 'arrow')
+  const [color, setColor] = useState(COLORS[0].value)
   const [shapes, setShapes] = useState<Shape[]>([])
   const [, setCropRect] = useState<{ x: number; y: number; w: number; h: number } | null>(null)
   const [pendingCrop, setPendingCrop] = useState<{ x1: number; y1: number; x2: number; y2: number } | null>(null)
@@ -170,13 +202,17 @@ export function AnnotationEditor({
     if (!isDrawing || !dragStart) return
     const pt = toCanvas(e)
     if (tool === 'arrow') {
-      setLiveShape({ type: 'arrow', x1: dragStart.x, y1: dragStart.y, x2: pt.x, y2: pt.y })
+      setLiveShape({ type: 'arrow', x1: dragStart.x, y1: dragStart.y, x2: pt.x, y2: pt.y, color })
+    } else if (tool === 'line') {
+      setLiveShape({ type: 'line', x1: dragStart.x, y1: dragStart.y, x2: pt.x, y2: pt.y, color })
     } else if (tool === 'rect') {
-      setLiveShape({ type: 'rect', x1: dragStart.x, y1: dragStart.y, x2: pt.x, y2: pt.y })
+      setLiveShape({ type: 'rect', x1: dragStart.x, y1: dragStart.y, x2: pt.x, y2: pt.y, color })
+    } else if (tool === 'circle') {
+      setLiveShape({ type: 'circle', x1: dragStart.x, y1: dragStart.y, x2: pt.x, y2: pt.y, color })
     } else if (tool === 'crop') {
       setPendingCrop({ x1: dragStart.x, y1: dragStart.y, x2: pt.x, y2: pt.y })
     }
-  }, [isDrawing, dragStart, tool, toCanvas])
+  }, [isDrawing, dragStart, tool, color, toCanvas])
 
   const onMouseUp = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     if (!isDrawing || !dragStart) return
@@ -185,14 +221,17 @@ export function AnnotationEditor({
     setLiveShape(null)
     setDragStart(null)
     if (tool === 'arrow') {
-      setShapes((prev) => [...prev, { type: 'arrow', x1: dragStart.x, y1: dragStart.y, x2: pt.x, y2: pt.y }])
+      setShapes((prev) => [...prev, { type: 'arrow', x1: dragStart.x, y1: dragStart.y, x2: pt.x, y2: pt.y, color }])
+    } else if (tool === 'line') {
+      setShapes((prev) => [...prev, { type: 'line', x1: dragStart.x, y1: dragStart.y, x2: pt.x, y2: pt.y, color }])
     } else if (tool === 'rect') {
-      setShapes((prev) => [...prev, { type: 'rect', x1: dragStart.x, y1: dragStart.y, x2: pt.x, y2: pt.y }])
+      setShapes((prev) => [...prev, { type: 'rect', x1: dragStart.x, y1: dragStart.y, x2: pt.x, y2: pt.y, color }])
+    } else if (tool === 'circle') {
+      setShapes((prev) => [...prev, { type: 'circle', x1: dragStart.x, y1: dragStart.y, x2: pt.x, y2: pt.y, color }])
     } else if (tool === 'crop') {
-      // Keep pending crop until "Apply" is pressed
       setPendingCrop({ x1: dragStart.x, y1: dragStart.y, x2: pt.x, y2: pt.y })
     }
-  }, [isDrawing, dragStart, tool, toCanvas])
+  }, [isDrawing, dragStart, tool, color, toCanvas])
 
   const applyCrop = useCallback(() => {
     if (!pendingCrop) return
@@ -257,6 +296,23 @@ export function AnnotationEditor({
     const imgCanvas = imageCanvasRef.current!
     const overlay = overlayCanvasRef.current!
 
+    // Auto-apply pending crop before saving (no "Apply crop" click needed)
+    if (tool === 'crop' && pendingCrop) {
+      const ctx = imgCanvas.getContext('2d')!
+      const x = Math.min(pendingCrop.x1, pendingCrop.x2)
+      const y = Math.min(pendingCrop.y1, pendingCrop.y2)
+      const w = Math.abs(pendingCrop.x2 - pendingCrop.x1)
+      const h = Math.abs(pendingCrop.y2 - pendingCrop.y1)
+      if (w >= 10 && h >= 10) {
+        const imageData = ctx.getImageData(x, y, w, h)
+        imgCanvas.width = w
+        imgCanvas.height = h
+        ctx.putImageData(imageData, 0, 0)
+        overlay.width = w
+        overlay.height = h
+      }
+    }
+
     // Merge: draw overlay on top of image canvas
     const merged = document.createElement('canvas')
     merged.width = imgCanvas.width
@@ -270,12 +326,14 @@ export function AnnotationEditor({
       'image/jpeg',
       0.92,
     )
-  }, [onSave])
+  }, [onSave, tool, pendingCrop])
 
   const tools: { id: Tool; icon: React.ReactNode; label: string }[] = [
     { id: 'crop', icon: <Crop size={15} />, label: 'Crop' },
     { id: 'arrow', icon: <ArrowUpRight size={15} />, label: 'Arrow' },
+    { id: 'line', icon: <Minus size={15} />, label: 'Line' },
     { id: 'rect', icon: <Square size={15} />, label: 'Rectangle' },
+    { id: 'circle', icon: <Circle size={15} />, label: 'Circle' },
   ]
 
   return (
@@ -319,6 +377,27 @@ export function AnnotationEditor({
           </button>
         )}
 
+        {tool !== 'crop' && (
+          <>
+            <div className="mx-2 h-4 w-px bg-white/10" />
+            <div className="flex items-center gap-1">
+              {COLORS.map((c) => (
+                <button
+                  key={c.value}
+                  onClick={() => setColor(c.value)}
+                  title={c.label}
+                  className={cn(
+                    'h-5 w-5 rounded-full border-2 transition-transform hover:scale-110',
+                    color === c.value ? 'border-white scale-110' : 'border-transparent',
+                    c.value === '#000000' && 'ring-1 ring-white/20',
+                  )}
+                  style={{ backgroundColor: c.value }}
+                />
+              ))}
+            </div>
+          </>
+        )}
+
         <div className="mx-2 h-4 w-px bg-white/10" />
 
         <button
@@ -343,7 +422,7 @@ export function AnnotationEditor({
           className="ml-auto flex items-center gap-1.5 rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-500 disabled:opacity-50"
         >
           {isSaving ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
-          Save annotation
+          {tool === 'crop' ? 'Save crop' : 'Save annotation'}
         </button>
       </div>
 

@@ -1306,6 +1306,105 @@ export async function replaceMediaItemFile(
   });
 }
 
+// ─── Entity Photos for reference session ─────────────────────────────────────
+
+export type EntityPhotoGroup = {
+  categoryId: string;
+  categoryName: string;
+  groupName: string;
+  entityId: string | null;
+  entityLabel: string | null;
+  photos: {
+    id: string;
+    filename: string;
+    url: string;
+    originalWidth: number;
+    originalHeight: number;
+    focalX: number | null;
+    focalY: number | null;
+  }[];
+};
+
+/**
+ * Returns all DETAIL photos in the given session grouped by category/entity.
+ * Used for the "Entity Photos" section in MediaManager.
+ */
+export async function getEntityPhotosForSession(
+  sessionId: string,
+  personId: string,
+): Promise<EntityPhotoGroup[]> {
+  const links = await prisma.personMediaLink.findMany({
+    where: {
+      personId,
+      usage: "DETAIL",
+      mediaItem: { sessionId },
+    },
+    include: {
+      mediaItem: {
+        select: {
+          id: true,
+          filename: true,
+          variants: true,
+          fileRef: true,
+          originalWidth: true,
+          originalHeight: true,
+          focalX: true,
+          focalY: true,
+        },
+      },
+      category: {
+        select: {
+          id: true,
+          name: true,
+          group: { select: { name: true } },
+        },
+      },
+    },
+    orderBy: [{ categoryId: "asc" }, { createdAt: "asc" }],
+  });
+
+  const groupMap = new Map<string, EntityPhotoGroup>();
+
+  for (const link of links) {
+    const { mediaItem, category, bodyMarkId, bodyModificationId, cosmeticProcedureId } = link;
+    const categoryId = category?.id ?? "uncategorized";
+    const categoryName = category?.name ?? "Uncategorized";
+    const groupName = category?.group?.name ?? "";
+    const entityId = bodyMarkId ?? bodyModificationId ?? cosmeticProcedureId ?? null;
+    const key = `${categoryId}::${entityId ?? ""}`;
+
+    const variants = (mediaItem.variants ?? {}) as PhotoVariants;
+    const url =
+      (variants.gallery_512 ? buildUrl(variants.gallery_512) : null) ??
+      (variants.view_1200 ? buildUrl(variants.view_1200) : null) ??
+      (variants.master_4000 ? buildUrl(variants.master_4000) : null) ??
+      (variants.original ? buildUrl(variants.original) : null) ??
+      (mediaItem.fileRef ? buildUrl(mediaItem.fileRef) : "");
+
+    if (!groupMap.has(key)) {
+      groupMap.set(key, {
+        categoryId,
+        categoryName,
+        groupName,
+        entityId,
+        entityLabel: null,
+        photos: [],
+      });
+    }
+    groupMap.get(key)!.photos.push({
+      id: mediaItem.id,
+      filename: mediaItem.filename,
+      url,
+      originalWidth: mediaItem.originalWidth,
+      originalHeight: mediaItem.originalHeight,
+      focalX: mediaItem.focalX,
+      focalY: mediaItem.focalY,
+    });
+  }
+
+  return Array.from(groupMap.values());
+}
+
 /** Get a single MediaItem's phash for similarity search */
 export async function getMediaItemPhash(
   mediaItemId: string,

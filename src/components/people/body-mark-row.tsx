@@ -7,7 +7,7 @@ import type { BodyMarkWithEvents } from "@/lib/types";
 import { BODY_MARK_TYPE_STYLES, BODY_MARK_STATUS_STYLES, BODY_MARK_EVENT_STYLES } from "@/lib/constants/body";
 import { BodyRegionChips } from "@/components/shared/body-region-picker";
 import { EntityEventTimeline } from "@/components/people/entity-event-timeline";
-import { Camera, ChevronRight, Highlighter, ImageIcon, Pencil, Pin, PinOff, ScanSearch, Trash2, Upload } from "lucide-react";
+import { Camera, ChevronRight, ImageIcon, Pencil, Pin, PinOff, ScanSearch, Trash2, Upload } from "lucide-react";
 import { useFileDrop } from "@/lib/hooks/use-file-drop";
 
 type EntityMediaThumbnail = {
@@ -41,7 +41,7 @@ type BodyMarkRowProps = {
   onAddEvent?: () => void;
   onEditEvent?: (event: EventItem) => void;
   onSelectFromSessions?: () => void;
-  onAnnotate?: () => void;
+  onViewPhotos?: (index: number) => void;
   onToggleHeroVisibility?: (visible: boolean) => void;
   isPending?: boolean;
 };
@@ -58,7 +58,7 @@ export function BodyMarkRow({
   onAddEvent,
   onEditEvent,
   onSelectFromSessions,
-  onAnnotate,
+  onViewPhotos,
   onToggleHeroVisibility,
   isPending,
 }: BodyMarkRowProps) {
@@ -185,17 +185,6 @@ export function BodyMarkRow({
                 <ScanSearch size={14} />
               </button>
             )}
-            {onAnnotate && (
-              <button
-                type="button"
-                onClick={onAnnotate}
-                className="rounded p-1 text-xs text-muted-foreground hover:text-amber-400 transition-colors"
-                aria-label="Annotate photo"
-                title="Annotate photo"
-              >
-                <Highlighter size={14} />
-              </button>
-            )}
             {onUploadPhoto && (
               <button
                 type="button"
@@ -258,16 +247,13 @@ export function BodyMarkRow({
           )}
 
           {photos && photos.length > 0 && (
-            <button
-              type="button"
-              onClick={onManagePhotos}
-              className="mt-2 flex gap-2 overflow-x-auto scroll-smooth snap-x snap-mandatory pb-1 cursor-pointer group/photos"
-              title="Manage photos"
-            >
-              {photos.map((photo) => (
-                <div
+            <div className="mt-2 flex gap-2 overflow-x-auto scroll-smooth snap-x snap-mandatory pb-1">
+              {photos.map((photo, idx) => (
+                <button
                   key={photo.id}
-                  className="shrink-0 h-20 w-20 snap-start overflow-hidden rounded-lg border border-white/10 bg-muted/30 transition-all hover:border-amber-500/40"
+                  type="button"
+                  onClick={() => onViewPhotos ? onViewPhotos(idx) : onManagePhotos?.()}
+                  className="shrink-0 h-20 w-20 snap-start overflow-hidden rounded-lg border border-white/10 bg-muted/30 transition-all hover:border-amber-500/40 cursor-pointer"
                 >
                   <Image
                     src={photo.url}
@@ -278,9 +264,9 @@ export function BodyMarkRow({
                     className="h-full w-full object-cover"
                     style={focalStyle(photo.focalX, photo.focalY)}
                   />
-                </div>
+                </button>
               ))}
-            </button>
+            </div>
           )}
 
           {/* Drop overlay */}

@@ -3,14 +3,15 @@
 import { useCallback, useMemo, useRef, useState, useTransition } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { ChevronDown, ChevronRight, ImageIcon, Layers, Pencil, Plus, ScanSearch, Upload } from "lucide-react";
+import { ChevronDown, ChevronRight, ImageIcon, Layers, Plus, ScanSearch, Upload } from "lucide-react";
 import { cn, focalStyle } from "@/lib/utils";
 import type { CategoryWithGroup } from "@/components/gallery/gallery-info-panel";
 import type { GalleryItem, PersonCurrentState } from "@/lib/types";
 import { DetailMediaPickerSheet } from "@/components/people/detail-media-picker-sheet";
 import { CrossSessionPicker } from "@/components/media/cross-session-picker";
 import { AnnotationEditor } from "@/components/media/annotation-editor";
-import { linkMediaToDetailCategoryAction } from "@/lib/actions/media-actions";
+import { StagePhotoDialog } from "@/components/media/stage-photo-dialog";
+import { linkMediaToDetailCategoryAction, copyMediaItemToReferenceAction } from "@/lib/actions/media-actions";
 
 type CategoryCount = {
   categoryId: string;
@@ -49,10 +50,13 @@ export function PersonDetailsTab({
   const [, startLoadingTransition] = useTransition();
   const [pickerCategory, setPickerCategory] = useState<CategoryWithGroup | null>(null);
 
-  // Cross-session picker + annotation editor state
-  type CrossPickerState = { category: CategoryWithGroup; mode: 'select' | 'annotate' }
-  type AnnotateState = { item: GalleryItem; category: CategoryWithGroup }
+  // Cross-session picker + stage dialog + annotation editor state
+  type CrossPickerState = { category: CategoryWithGroup }
+  type StagedPhoto = { item: GalleryItem; category: CategoryWithGroup }
+  type AnnotateState = { item: GalleryItem; category: CategoryWithGroup; editorMode?: 'arrow' | 'crop' }
   const [crossPicker, setCrossPicker] = useState<CrossPickerState | null>(null);
+  const [stagedPhoto, setStagedPhoto] = useState<StagedPhoto | null>(null);
+  const [isStagingCopy, setIsStagingCopy] = useState(false);
   const [annotateState, setAnnotateState] = useState<AnnotateState | null>(null);
   const [isSavingAnnotation, setIsSavingAnnotation] = useState(false);
 
@@ -155,20 +159,32 @@ export function PersonDetailsTab({
     router.refresh();
   }, [router]);
 
-  // Cross-session picker: user selected a photo
-  const handleCrossPickerSelect = useCallback(async (item: GalleryItem) => {
+  // Cross-session picker: user selected a photo → always stage first
+  const handleCrossPickerSelect = useCallback((item: GalleryItem) => {
     if (!crossPicker) return;
-    const { category, mode } = crossPicker;
+    setStagedPhoto({ item, category: crossPicker.category });
     setCrossPicker(null);
+  }, [crossPicker]);
 
-    if (mode === 'select') {
-      await linkMediaToDetailCategoryAction(personId, [item.id], category.id);
-      refreshCategory(category.id);
-    } else {
-      // Annotate mode: hand off to editor with category preserved
-      setAnnotateState({ item, category });
+  // Stage dialog: "Save as copy"
+  const handleStageSaveCopy = useCallback(async () => {
+    if (!stagedPhoto || !referenceSessionId) return;
+    setIsStagingCopy(true);
+    try {
+      const result = await copyMediaItemToReferenceAction(
+        stagedPhoto.item.id,
+        personId,
+        referenceSessionId,
+      );
+      if (result.success && result.newMediaItemId) {
+        await linkMediaToDetailCategoryAction(personId, [result.newMediaItemId], stagedPhoto.category.id);
+        refreshCategory(stagedPhoto.category.id);
+      }
+    } finally {
+      setStagedPhoto(null);
+      setIsStagingCopy(false);
     }
-  }, [crossPicker, personId, refreshCategory]);
+  }, [stagedPhoto, referenceSessionId, personId, refreshCategory]);
 
   // Annotation editor: user saved blob
   const handleAnnotationSave = useCallback(async (blob: Blob) => {
@@ -393,23 +409,12 @@ export function PersonDetailsTab({
                       {!cat.entityModel && (
                         <button
                           type="button"
-                          onClick={() => setCrossPicker({ category: cat, mode: 'select' })}
+                          onClick={() => setCrossPicker({ category: cat })}
                           className="rounded-md p-1 text-muted-foreground transition-colors hover:text-indigo-400 hover:bg-indigo-500/10"
                           title="Select from any session"
                           aria-label={`Select photo from any session for ${cat.name}`}
                         >
                           <ScanSearch size={14} />
-                        </button>
-                      )}
-                      {!cat.entityModel && referenceSessionId && (
-                        <button
-                          type="button"
-                          onClick={() => setCrossPicker({ category: cat, mode: 'annotate' })}
-                          className="rounded-md p-1 text-muted-foreground transition-colors hover:text-amber-400 hover:bg-amber-500/10"
-                          title="Annotate photo"
-                          aria-label={`Annotate a photo for ${cat.name}`}
-                        >
-                          <Pencil size={14} />
                         </button>
                       )}
                     </div>
@@ -492,7 +497,26 @@ export function PersonDetailsTab({
           personId={personId}
           onSelect={handleCrossPickerSelect}
           onClose={() => setCrossPicker(null)}
-          title={crossPicker.mode === 'annotate' ? 'Choose photo to annotate' : `Select photo — ${crossPicker.category.name}`}
+          title={`Select photo — ${crossPicker.category.name}`}
+        />
+      )}
+
+      {/* Stage dialog */}
+      {stagedPhoto && (
+        <StagePhotoDialog
+          item={stagedPhoto.item}
+          entityLabel={stagedPhoto.category.name}
+          onSaveCopy={handleStageSaveCopy}
+          onCrop={() => {
+            setAnnotateState({ item: stagedPhoto.item, category: stagedPhoto.category, editorMode: 'crop' });
+            setStagedPhoto(null);
+          }}
+          onAnnotate={() => {
+            setAnnotateState({ item: stagedPhoto.item, category: stagedPhoto.category });
+            setStagedPhoto(null);
+          }}
+          onCancel={() => setStagedPhoto(null)}
+          isSaving={isStagingCopy}
         />
       )}
 
@@ -508,6 +532,7 @@ export function PersonDetailsTab({
           onSave={handleAnnotationSave}
           onCancel={() => setAnnotateState(null)}
           isSaving={isSavingAnnotation}
+          initialTool={annotateState.editorMode}
         />
       )}
     </div>
