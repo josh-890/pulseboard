@@ -42,6 +42,10 @@ export type StagingSetWithRelations = StagingSet & {
   coherenceSnapshot: CoherenceSnapshotMini
   archiveLinks: ArchiveLinkMini[]
   promotedSet: PromotedSetArchiveMini
+  /** Present when this is the VIDEO half of a split set — points to the photo anchor */
+  sibling: { id: string; isVideo: boolean } | null
+  /** Present when this is the PHOTO anchor — pointed to by a video sibling */
+  siblingOf: { id: string; isVideo: boolean } | null
   /** Populated server-side after main query via getSuggestedFoldersForStagingSets */
   suggestedArchiveFolder?: SuggestedFolderInfo | null
   /** True when a matching folder exists but is CONFIRMED to a different entity — indicates a mis-assigned link */
@@ -118,6 +122,9 @@ const STAGING_SET_INCLUDE = {
       archiveLinks: { select: ARCHIVE_LINK_SELECT },
     },
   },
+  // Split-set sibling: video set points to photo anchor via siblingId
+  sibling: { select: { id: true, isVideo: true } },
+  siblingOf: { select: { id: true, isVideo: true } },
 } as const
 
 export async function getStagingSetsForBatch(batchId: string): Promise<StagingSetWithRelations[]> {

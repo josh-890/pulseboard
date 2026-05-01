@@ -394,7 +394,7 @@ export async function importDigitalIdentity(item: ImportItem): Promise<ImportRes
 export async function importSet(item: ImportItem): Promise<ImportResult> {
   try {
     // Load the linked StagingSet for richer data
-    const stagingSet = await prisma.stagingSet.findUnique({
+    const stagingSet = await prisma.stagingSet.findFirst({
       where: { importItemId: item.id },
     })
 

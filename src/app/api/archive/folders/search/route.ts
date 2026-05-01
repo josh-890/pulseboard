@@ -50,11 +50,17 @@ export async function GET(request: Request) {
       const yearParam = url.searchParams.get('year')
       const year = yearParam ? parseInt(yearParam, 10) : null
       const limit = Math.min(parseInt(url.searchParams.get('limit') ?? '20', 10), 50)
+      const isVideoParam = url.searchParams.get('isVideo')
+      const isVideoFilter = isVideoParam === 'true' ? true : isVideoParam === 'false' ? false : null
 
-      // Build shared SQL filter fragments (shortName, year, free-text).
+      // Build shared SQL filter fragments (shortName, year, isVideo, free-text).
       // Each fragment is injected after a WHERE clause that already has a condition,
       // so every fragment is prefixed with AND.
       const filters: Prisma.Sql[] = []
+
+      if (isVideoFilter !== null) {
+        filters.push(Prisma.sql`AND af."isVideo" = ${isVideoFilter}`)
+      }
 
       if (shortName) {
         // Match chanFolderName (path segment, e.g. "NBL-Nubiles") OR parsedShortName

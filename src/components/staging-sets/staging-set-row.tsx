@@ -237,6 +237,9 @@ export const StagingSetRow = memo(function StagingSetRow({
   // isDuplicate=true (without duplicateGroupId) means probable match by channel+date.
   const isDupExact = !!ss.duplicateGroupId
   const isDupProbable = ss.isDuplicate && !ss.duplicateGroupId
+  // Sibling split: video set has sibling (photo anchor); photo anchor has siblingOf (video set)
+  const hasSibling = !!(ss.sibling ?? ss.siblingOf)
+  const siblingId = ss.sibling?.id ?? ss.siblingOf?.id ?? null
 
   const acceptDateSuggestion = async (e: React.MouseEvent) => {
     e.stopPropagation()
@@ -476,6 +479,20 @@ export const StagingSetRow = memo(function StagingSetRow({
             </span>
           )}
 
+          {/* Split-set sibling badge */}
+          {hasSibling && siblingId && (
+            <Link
+              href={`/staging-sets?selected=${siblingId}`}
+              onClick={(e) => e.stopPropagation()}
+              title={ss.isVideo ? 'Has photo sibling — click to jump' : 'Has video sibling — click to jump'}
+              className="inline-flex items-center gap-0.5 rounded-md border border-sky-500/40 bg-sky-500/10 px-1.5 py-0.5 text-[10px] font-medium text-sky-500 hover:bg-sky-500/20"
+            >
+              <Camera size={8} />
+              <span>+</span>
+              <Film size={8} />
+            </Link>
+          )}
+
           {/* Match badge */}
           {matchLabel && (
             <span className="rounded-full bg-purple-500/90 px-1.5 py-0.5 text-[10px] font-medium text-white">
@@ -705,6 +722,7 @@ export const StagingSetRow = memo(function StagingSetRow({
           initialQuery={pickerInitialQuery}
           shortName={pickerShortName}
           year={pickerYear}
+          isVideo={ss.isVideo}
           onSuccess={onArchiveChange}
         />
       )}

@@ -1197,12 +1197,14 @@ export async function runMatchingPass(
       let stagingCandidateId: string | null = null
 
       if (folder.parsedTitle) {
+        const folderIsVideo = folder.isVideo
         const rows = await prisma.$queryRaw<StagingIdRow[]>`
           SELECT ss.id
           FROM staging_set ss
           JOIN "Channel" c ON c.id = ss."channelId"
           WHERE ss."releaseDate" >= ${dateStart} AND ss."releaseDate" < ${dateEnd}
             AND LOWER(c."shortName") = LOWER(${folder.parsedShortName})
+            AND ss."isVideo" = ${folderIsVideo}
             AND ss.status NOT IN ('PROMOTED', 'SKIPPED')
             AND NOT EXISTS (
               SELECT 1 FROM "ArchiveLink" al
@@ -1219,6 +1221,7 @@ export async function runMatchingPass(
           where: {
             releaseDate: { gte: dateStart, lt: dateEnd },
             channel: { shortName: { equals: folder.parsedShortName, mode: 'insensitive' } },
+            isVideo: folder.isVideo,
             status: { notIn: ['PROMOTED', 'SKIPPED'] },
             archiveLinks: { none: { status: { in: [ArchiveLinkStatus.CONFIRMED, ArchiveLinkStatus.SUGGESTED] } } },
           },
@@ -1243,11 +1246,12 @@ export async function runMatchingPass(
         continue
       }
 
-      // Try promoted sets
+      // Try promoted sets (type-filtered to match folder type)
       const setSuggestions = await prisma.set.findMany({
         where: {
           releaseDate: { gte: dateStart, lt: dateEnd },
           channel: { shortName: { equals: folder.parsedShortName, mode: 'insensitive' } },
+          type: folder.isVideo ? 'video' : 'photo',
           archiveLinks: { none: { status: ArchiveLinkStatus.CONFIRMED } },
         },
         select: { id: true },
@@ -1276,12 +1280,14 @@ export async function runMatchingPass(
       const year = folder.parsedDate.getFullYear()
       type SimilarityRow = { id: string; sim: number }
 
+      const folderIsVideoMedium = folder.isVideo
       const stagingMedium = await prisma.$queryRaw<SimilarityRow[]>`
         SELECT ss.id, similarity(${folder.parsedTitle}, ss."titleNorm") AS sim
         FROM staging_set ss
         JOIN "Channel" c ON c.id = ss."channelId"
         WHERE LOWER(c."shortName") = LOWER(${folder.parsedShortName})
           AND EXTRACT(YEAR FROM ss."releaseDate") = ${year}
+          AND ss."isVideo" = ${folderIsVideoMedium}
           AND ss.status NOT IN ('PROMOTED', 'SKIPPED')
           AND NOT EXISTS (SELECT 1 FROM "ArchiveLink" al WHERE al."stagingSetId" = ss.id AND al.status IN ('CONFIRMED', 'SUGGESTED'))
           AND similarity(${folder.parsedTitle}, ss."titleNorm") >= 0.4
@@ -1302,12 +1308,14 @@ export async function runMatchingPass(
         continue
       }
 
+      const setTypeFilter = folder.isVideo ? 'video' : 'photo'
       const setMedium = await prisma.$queryRaw<SimilarityRow[]>`
         SELECT s.id, similarity(${folder.parsedTitle}, s."titleNorm") AS sim
         FROM "Set" s
         JOIN "Channel" c ON c.id = s."channelId"
         WHERE LOWER(c."shortName") = LOWER(${folder.parsedShortName})
           AND EXTRACT(YEAR FROM s."releaseDate") = ${year}
+          AND s.type = ${setTypeFilter}::"SetType"
           AND NOT EXISTS (SELECT 1 FROM "ArchiveLink" al WHERE al."setId" = s.id AND al.status = 'CONFIRMED')
           AND similarity(${folder.parsedTitle}, s."titleNorm") >= 0.4
         ORDER BY sim DESC
@@ -1334,6 +1342,7 @@ export async function runMatchingPass(
   return { linked, suggested }
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function _normPath(p: string): string {
   return p.replace(/[/\\]+/g, '/').replace(/\/$/, '').toLowerCase()
 }

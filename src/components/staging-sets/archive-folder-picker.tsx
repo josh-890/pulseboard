@@ -40,6 +40,8 @@ type ArchiveFolderPickerProps = {
   shortName?: string
   /** Release year — passed as a separate filter param for better matching */
   year?: number
+  /** When provided, filters results to only photo or only video folders */
+  isVideo?: boolean
   /** Called after a folder is successfully linked or re-assigned */
   onSuccess?: () => void
 }
@@ -53,6 +55,7 @@ export function ArchiveFolderPicker({
   initialQuery = '',
   shortName,
   year,
+  isVideo,
   onSuccess,
 }: ArchiveFolderPickerProps) {
   const [query, setQuery] = useState(initialQuery)
@@ -83,6 +86,7 @@ export function ArchiveFolderPicker({
       if (q.trim()) params.set('q', q.trim())
       if (shortName) params.set('shortName', shortName)
       if (year) params.set('year', String(year))
+      if (isVideo !== undefined) params.set('isVideo', String(isVideo))
       const res = await fetch(`/api/archive/folders/search?${params}`)
       if (!res.ok) throw new Error('Search failed')
       const data = await res.json() as SearchResponse
@@ -95,7 +99,7 @@ export function ArchiveFolderPicker({
     } finally {
       setLoading(false)
     }
-  }, [shortName, year])
+  }, [shortName, year, isVideo])
 
   useEffect(() => {
     if (!open) return

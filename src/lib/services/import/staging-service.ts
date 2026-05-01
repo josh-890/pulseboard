@@ -546,40 +546,69 @@ async function createStagingSetsForBatch(
       return { name: m.name, icgId: m.icgId, status: 'new' as const }
     })
 
-    await prisma.stagingSet.create({
-      data: {
-        title: set.title,
-        titleNorm: normalizeForSearch(set.title),
-        externalId: set.externalId || null,
-        channelName: set.channelName,
-        channelId,
-        releaseDate: safeDate,
-        releaseDatePrecision,
-        releaseDateSuggestion: set.suggestedDate ?? null,
-        isVideo: set.isVideo,
-        imageCount: set.imageCount,
-        artist: set.artist,
-        artistNorm: set.artist ? normalizeForSearch(set.artist) : null,
-        coverImageUrl: set.coverImageUrl,
-        description: set.description,
-        participants: set.modelsList,
-        participantIcgIds,
-        participantNamesNorm: set.modelsList.length > 0
-          ? set.modelsList.map((m) => normalizeForSearch(m.name)).join(', ')
-          : null,
-        participantStatuses,
-        importBatchId: batchId,
-        importItemId: importItem.id,
-        subjectPersonId: person?.id ?? null,
-        subjectIcgId,
-        matchedSetId: setMatch?.matchedEntityId ?? null,
-        matchConfidence: setMatch?.matchConfidence ?? null,
-        matchDetails: setMatch?.matchDetails ?? null,
-        isDuplicate: isProbableDuplicate,
-        status: 'PENDING',
-      },
-    })
-    summary.created++
+    // Fields shared by both sides of a split (or by the single staging set when no split)
+    const commonData = {
+      title: set.title,
+      titleNorm: normalizeForSearch(set.title),
+      externalId: set.externalId || null,
+      channelName: set.channelName,
+      channelId,
+      releaseDate: safeDate,
+      releaseDatePrecision,
+      releaseDateSuggestion: set.suggestedDate ?? null,
+      artist: set.artist,
+      artistNorm: set.artist ? normalizeForSearch(set.artist) : null,
+      coverImageUrl: set.coverImageUrl,
+      description: set.description,
+      participants: set.modelsList,
+      participantIcgIds,
+      participantNamesNorm: set.modelsList.length > 0
+        ? set.modelsList.map((m) => normalizeForSearch(m.name)).join(', ')
+        : null,
+      participantStatuses,
+      importBatchId: batchId,
+      importItemId: importItem.id,
+      subjectPersonId: person?.id ?? null,
+      subjectIcgId,
+      isDuplicate: isProbableDuplicate,
+      status: 'PENDING' as const,
+    }
+
+    // When the import entry has BOTH Video:True AND Imagenumber>0 the set genuinely has
+    // a photo gallery component AND a video component. Create two staging sets so each
+    // can be matched, archived, and promoted to the correct Set type independently.
+    const needsSplit = set.isVideo && (set.imageCount ?? 0) > 0
+    if (needsSplit) {
+      // Photo staging set — keeps the image count, no sibling yet
+      const photoStaging = await prisma.stagingSet.create({
+        data: { ...commonData, isVideo: false, imageCount: set.imageCount },
+      })
+      // Video staging set — no image count, points to photo sibling; inherits any video match
+      await prisma.stagingSet.create({
+        data: {
+          ...commonData,
+          isVideo: true,
+          imageCount: null,
+          siblingId: photoStaging.id,
+          matchedSetId: setMatch?.matchedEntityId ?? null,
+          matchConfidence: setMatch?.matchConfidence ?? null,
+          matchDetails: setMatch?.matchDetails ?? null,
+        },
+      })
+      summary.created += 2
+    } else {
+      await prisma.stagingSet.create({
+        data: {
+          ...commonData,
+          isVideo: set.isVideo,
+          imageCount: set.imageCount,
+          matchedSetId: setMatch?.matchedEntityId ?? null,
+          matchConfidence: setMatch?.matchConfidence ?? null,
+          matchDetails: setMatch?.matchDetails ?? null,
+        },
+      })
+      summary.created++
+    }
     if (set.suggestedDate) summary.suggestedDate++
     else if (!safeDate) summary.noDate++
   }

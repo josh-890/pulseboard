@@ -565,6 +565,7 @@ function PanelContent({
           initialQuery={pickerInitialQuery}
           shortName={pickerShortName}
           year={pickerYear}
+          isVideo={stagingSet.isVideo}
         />
       )}
     </div>

@@ -1496,7 +1496,7 @@ model ImportItem {
   createdAt         DateTime         @default(now())
   updatedAt         DateTime         @updatedAt
 
-  stagingSet        StagingSet?
+  stagingSets       StagingSet[]
 
   @@index([batchId, type])
   @@index([batchId, status])
@@ -1554,7 +1554,7 @@ model StagingSet {
   // Provenance
   importBatchId     String?
   importBatch       ImportBatch?      @relation(fields: [importBatchId], references: [id], onDelete: Cascade)
-  importItemId      String?           @unique
+  importItemId      String?
   importItem        ImportItem?       @relation(fields: [importItemId], references: [id])
   subjectPersonId   String?
   subjectPerson     Person?           @relation("StagingSetSubject", fields: [subjectPersonId], references: [id])
@@ -1587,9 +1587,15 @@ model StagingSet {
   mediaPriority  Int?
   mediaQueueAt   DateTime?
 
+  // Split-set sibling: video staging set points to its photo counterpart
+  siblingId         String?           @unique
+  sibling           StagingSet?       @relation("StagingSetSibling", fields: [siblingId], references: [id])
+  siblingOf         StagingSet?       @relation("StagingSetSibling")
+
   createdAt         DateTime          @default(now())
   updatedAt         DateTime          @updatedAt
 
+  @@unique([importItemId, isVideo])
   @@index([externalId])
   @@index([channelId])
   @@index([channelName])
