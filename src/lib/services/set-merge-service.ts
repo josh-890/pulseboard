@@ -226,6 +226,10 @@ export async function mergeSetRecords(setIdA: string, setIdB: string): Promise<M
     }
 
     // Fill empty scalar fields on surviving
+    // externalId is @unique — null it on absorbed first to avoid a transient collision
+    if (!surviving.externalId && absorbed.externalId) {
+      await tx.set.update({ where: { id: absorbedId }, data: { externalId: null } })
+    }
     const updates: Record<string, unknown> = {}
     if (!surviving.externalId && absorbed.externalId) updates.externalId = absorbed.externalId
     if (!surviving.isComplete && absorbed.isComplete) updates.isComplete = true
