@@ -26,6 +26,7 @@ import type { StagingSetWithRelations, StagingSetComparison } from '@/lib/servic
 import type { StagingSetStatus, ArchiveStatus } from '@/generated/prisma/client'
 // (recordArchivePathAction / clearArchivePathAction removed — scan-first workflow only)
 import { acceptDateSuggestionAction, dismissDateSuggestionAction } from '@/lib/actions/staging-set-actions'
+import { unlinkArchiveFolderAction } from '@/lib/actions/archive-actions'
 import Link from 'next/link'
 
 // ─── Constants ─────────────────────────────────────────────────────────────
@@ -590,16 +591,29 @@ type ArchiveSectionProps = {
   onRefresh: () => void
 }
 
-function ArchiveSection({ stagingSet }: ArchiveSectionProps) {
+function ArchiveSection({ stagingSet, onRefresh }: ArchiveSectionProps) {
   const [isExpanded, setIsExpanded] = useState(true)
+  const [isUnlinking, setIsUnlinking] = useState(false)
   const isPromoted = stagingSet.status === 'PROMOTED'
   const archiveLink = isPromoted
     ? (stagingSet.promotedSet?.archiveLinks?.[0] ?? stagingSet.archiveLinks?.[0] ?? null)
     : (stagingSet.archiveLinks?.[0] ?? null)
+  const archiveFolder = archiveLink?.archiveFolder ?? null
   const archiveStatus = (archiveLink?.archiveStatus ?? 'UNKNOWN') as ArchiveStatus
   const statusCfg = ARCHIVE_STATUS_CONFIG[archiveStatus]
   const hasPath = !!archiveLink?.archivePath
   const pendingScan = archiveStatus === 'PENDING'
+
+  const handleUnlink = useCallback(async () => {
+    if (!archiveFolder?.id) return
+    setIsUnlinking(true)
+    try {
+      await unlinkArchiveFolderAction(archiveFolder.id)
+      onRefresh()
+    } finally {
+      setIsUnlinking(false)
+    }
+  }, [archiveFolder?.id, onRefresh])
 
   return (
     <div className="rounded-lg border border-border/50 bg-card/50">
@@ -656,6 +670,19 @@ function ArchiveSection({ stagingSet }: ArchiveSectionProps) {
                     </div>
                   )}
                 </div>
+              )}
+              {!isPromoted && (
+                <button
+                  type="button"
+                  onClick={handleUnlink}
+                  disabled={isUnlinking}
+                  className="flex items-center gap-1 text-[10px] text-muted-foreground/60 hover:text-destructive disabled:opacity-50 transition-colors"
+                >
+                  {isUnlinking
+                    ? <Loader2 size={10} className="animate-spin" />
+                    : <X size={10} />}
+                  Unlink folder
+                </button>
               )}
             </>
           ) : (
