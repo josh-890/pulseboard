@@ -448,6 +448,9 @@ export async function mergeSessionsRecord(survivingId: string, absorbedId: strin
     });
     await tx.sessionContribution.deleteMany({ where: { sessionId: absorbedId } });
 
+    // 4b. Delete session tags (no Prisma model — use executeRaw)
+    await tx.$executeRaw`DELETE FROM session_tag WHERE "sessionId" = ${absorbedId}`;
+
     // 5. Delete absorbed session
     await tx.session.delete({
       where: { id: absorbedId },

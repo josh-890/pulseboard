@@ -120,7 +120,7 @@ export async function mergeSetRecords(setIdA: string, setIdB: string): Promise<M
   // Merge sessions first (outside the main transaction since mergeSessionsRecord opens its own)
   const survivingSession = surviving.sessionLinks[0]
   const absorbedSession = absorbed.sessionLinks[0]
-  if (survivingSession && absorbedSession) {
+  if (survivingSession && absorbedSession && survivingSession.sessionId !== absorbedSession.sessionId) {
     await mergeSessionsRecord(survivingSession.sessionId, absorbedSession.sessionId)
     sessionsMerged = 1
   }
