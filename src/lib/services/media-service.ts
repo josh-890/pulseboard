@@ -1055,8 +1055,8 @@ export async function getCoverPhotosForSets(
       const variants = (s.coverMediaItem.variants ?? {}) as PhotoVariants;
       const url = variants.gallery_512
         ? buildUrl(variants.gallery_512)
-        : variants.original
-          ? buildUrl(variants.original)
+        : (variants.master_4000 ?? variants.original)
+          ? buildUrl((variants.master_4000 ?? variants.original)!)
           : s.coverMediaItem.fileRef
             ? buildUrl(s.coverMediaItem.fileRef)
             : null;
