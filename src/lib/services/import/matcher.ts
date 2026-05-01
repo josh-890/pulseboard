@@ -207,7 +207,6 @@ export async function matchSet(set: ParsedSet): Promise<SetMatchResult> {
     const exactMatch = await prisma.set.findFirst({
       where: {
         externalId: set.externalId,
-        archiveLinks: { none: { status: 'CONFIRMED' } },
       },
       select: { id: true, title: true },
     })
@@ -240,7 +239,6 @@ export async function matchSet(set: ParsedSet): Promise<SetMatchResult> {
         WHERE similarity(s."titleNorm", ${titleNorm}) > 0.6
           AND c."nameNorm" = ${channelNorm}
           AND s."releaseDate" BETWEEN ${dateFrom} AND ${dateTo}
-          AND NOT EXISTS (SELECT 1 FROM "ArchiveLink" al WHERE al."setId" = s.id AND al.status = 'CONFIRMED')
         ORDER BY sim DESC
         LIMIT 1
       `
@@ -265,7 +263,6 @@ export async function matchSet(set: ParsedSet): Promise<SetMatchResult> {
       SELECT s.id, s.title, similarity(s."titleNorm", ${titleNorm}) AS sim
       FROM "Set" s
       WHERE similarity(s."titleNorm", ${titleNorm}) > 0.8
-        AND NOT EXISTS (SELECT 1 FROM "ArchiveLink" al WHERE al."setId" = s.id AND al.status = 'CONFIRMED')
       ORDER BY sim DESC
       LIMIT 1
     `

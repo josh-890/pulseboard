@@ -31,6 +31,7 @@ import {
   reassignSetPrimarySession,
   splitMediaToSession,
 } from "@/lib/services/set-service";
+import { mergeSetRecords, getSetMergeCandidates } from "@/lib/services/set-merge-service";
 import type { SetFilters } from "@/lib/services/set-service";
 import { getCoverPhotosForSets, getSkillEventMediaConstraints, getHeadshotsForPersons } from "@/lib/services/media-service";
 import { cascadeHardDeleteMediaItems } from "@/lib/services/cascade-helpers";
@@ -554,5 +555,30 @@ export async function loadMoreSets(
       headshotMap,
     };
 
+  });
+}
+
+export async function getSetMergeCandidatesAction(setId: string) {
+  return withTenantFromHeaders(() => getSetMergeCandidates(setId));
+}
+
+export async function mergeSetAction(
+  setIdA: string,
+  setIdB: string,
+): Promise<{ success: true; survivingId: string; message: string } | { success: false; error: string }> {
+  return withTenantFromHeaders(async () => {
+    try {
+      const stats = await mergeSetRecords(setIdA, setIdB);
+      revalidatePath("/sets");
+      revalidatePath(`/sets/${stats.survivingId}`);
+      revalidatePath(`/sets/${stats.absorbedId}`);
+      return {
+        success: true,
+        survivingId: stats.survivingId,
+        message: `Merged "${stats.absorbedTitle}" into "${stats.survivingTitle}". ${stats.mediaTransferred} media transferred, ${stats.creditsTransferred} credits moved, ${stats.creditsDeduped} credits deduplicated.`,
+      };
+    } catch (err) {
+      return { success: false, error: String(err) };
+    }
   });
 }

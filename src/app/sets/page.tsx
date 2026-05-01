@@ -3,6 +3,7 @@ import { Suspense } from "react";
 import { ImageIcon } from "lucide-react";
 import { getSetsPaginated, getChannelsWithLabelMaps, getRecentChannels, getLastUsedSetType } from "@/lib/services/set-service";
 import { getSuggestedFoldersForSets } from "@/lib/services/archive-service";
+import { getPotentialDuplicatePairs } from "@/lib/services/set-merge-service";
 import type { SetSort, SetFilters } from "@/lib/services/set-service";
 import { getCoverPhotosForSets, getHeadshotsForPersons } from "@/lib/services/media-service";
 import { getAllContributionRoleGroups } from "@/lib/services/contribution-role-service";
@@ -28,6 +29,7 @@ type SetsPageProps = {
     hasMedia?: string;
     archiveFilter?: string;
     noArchiveLink?: string;
+    duplicates?: string;
   }>;
 };
 
@@ -61,6 +63,7 @@ export default async function SetsPage({ searchParams }: SetsPageProps) {
       hasMedia: hasMediaParam,
       archiveFilter: archiveFilterParam,
       noArchiveLink: noArchiveLinkParam,
+      duplicates: duplicatesParam,
     } = await searchParams;
 
   const limit = Math.min(
@@ -76,6 +79,18 @@ export default async function SetsPage({ searchParams }: SetsPageProps) {
     ? (archiveFilterParam as SetFilters['archiveFilter'])
     : undefined
 
+  const duplicatesOnly = duplicatesParam === 'true';
+
+  // When filtering by duplicates, get the pairs first to obtain the set IDs
+  const duplicatePairs = duplicatesOnly ? await getPotentialDuplicatePairs() : [];
+  const duplicateSetIds = duplicatesOnly
+    ? [...new Set(duplicatePairs.flatMap((p) => [p.idA, p.idB]))]
+    : undefined;
+  // Map each set ID to the ID of its pair partner (for badge display)
+  const duplicatePairMap = new Map<string, string>(
+    duplicatePairs.flatMap((p) => [[p.idA, p.idB], [p.idB, p.idA]]),
+  );
+
   const filters: SetFilters = {
     q: q?.trim() || undefined,
     type: resolvedType ?? ("all" as const),
@@ -85,6 +100,7 @@ export default async function SetsPage({ searchParams }: SetsPageProps) {
     sort: resolvedSort,
     archiveFilter,
     noArchiveLink: noArchiveLinkParam === 'true' ? true : undefined,
+    ids: duplicateSetIds,
   };
 
   const [paginated, channels, recentChannelIds, lastType, roleGroups] = await Promise.all([
@@ -174,6 +190,16 @@ export default async function SetsPage({ searchParams }: SetsPageProps) {
     label: "Unlinked only",
   });
 
+  // Potential duplicates filter — load count eagerly only when not already active
+  const dupCount = duplicatesOnly ? duplicatePairs.length : await getPotentialDuplicatePairs().then((p) => p.length);
+  if (dupCount > 0) {
+    filterGroups.push({
+      type: "toggle",
+      param: "duplicates",
+      label: `Duplicates (${dupCount})`,
+    });
+  }
+
   filterGroups.push({
     type: "pill",
     param: "archiveFilter",
@@ -237,6 +263,7 @@ export default async function SetsPage({ searchParams }: SetsPageProps) {
         nextCursor={paginated.nextCursor}
         totalCount={paginated.totalCount}
         filters={filters}
+        duplicatePairMap={duplicatesOnly ? Object.fromEntries(duplicatePairMap) : undefined}
       />
     </div>
     );

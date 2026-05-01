@@ -25,6 +25,7 @@ export type SetFilters = {
   sort?: SetSort;
   archiveFilter?: 'noArchive' | 'verified' | 'changed' | 'missing' | 'notImported'
   noArchiveLink?: boolean
+  ids?: string[]
 };
 
 export async function getSets(filters: SetFilters = {}) {
@@ -122,9 +123,13 @@ export async function getSetsPaginated(
   cursor?: string,
   limit = 50,
 ): Promise<PaginatedSets> {
-  const { q, type, labelId, channelId, hasMedia, sort, archiveFilter, noArchiveLink } = filters;
+  const { q, type, labelId, channelId, hasMedia, sort, archiveFilter, noArchiveLink, ids } = filters;
 
   const where: Prisma.SetWhereInput = {};
+
+  if (ids && ids.length > 0) {
+    where.id = { in: ids };
+  }
 
   if (type && type !== "all") {
     where.type = type;

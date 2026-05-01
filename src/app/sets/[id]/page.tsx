@@ -15,6 +15,7 @@ import { DeleteButton } from "@/components/shared/delete-button";
 import { AddCreditInline } from "@/components/sets/add-credit-inline";
 import { SetInlineDescription, SetInlineNotes } from "@/components/sets/set-detail-header";
 import { deleteSet } from "@/lib/actions/set-actions";
+import { MergeSetButton } from "@/components/sets/merge-set-sheet";
 import { SetHero } from "@/components/sets/set-hero";
 import { LabelEvidenceManager } from "@/components/sets/label-evidence-manager";
 import { SetArchivePanel } from "@/components/sets/set-archive-panel";
@@ -110,6 +111,7 @@ export default async function SetDetailPage({ params }: SetDetailPageProps) {
           Back to Sets
         </Link>
         <div className="flex items-center gap-2">
+          <MergeSetButton setId={id} setTitle={setData.title} setType={setData.type} />
           <EditSetSheet
             set={{
               id: setData.id,

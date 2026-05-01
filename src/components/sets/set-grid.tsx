@@ -36,6 +36,8 @@ type SetGridProps = {
   filters: SetFilters;
   /** Keyed by set ID — only populated for the initial page load */
   suggestionsMap?: Record<string, SuggestedFolderInfo>;
+  /** Keyed by set ID → partner set ID. Present only when duplicate filter is active. */
+  duplicatePairMap?: Record<string, string>;
 };
 
 export function SetGrid({
@@ -46,6 +48,7 @@ export function SetGrid({
   nextCursor: initialCursor,
   totalCount,
   filters,
+  duplicatePairMap,
 }: SetGridProps) {
   const { density } = useDensity();
   const isCompact = density === "compact";
@@ -127,7 +130,14 @@ export function SetGrid({
                 </button>
               )}
               <div className={cn(bulk.isSelecting && isSelected && "ring-2 ring-primary rounded-xl")}>
-                <SetCard set={set} coverPhoto={photoMap[set.id]} headshotMap={headshotMap} unresolvedCreditCount={set._count.creditsRaw} suggestedArchiveFolder={suggestionsMap[set.id] ?? null} />
+                <SetCard
+                  set={set}
+                  coverPhoto={photoMap[set.id]}
+                  headshotMap={headshotMap}
+                  unresolvedCreditCount={set._count.creditsRaw}
+                  suggestedArchiveFolder={suggestionsMap[set.id] ?? null}
+                  isPotentialDuplicate={!!duplicatePairMap?.[set.id]}
+                />
               </div>
             </div>
           );

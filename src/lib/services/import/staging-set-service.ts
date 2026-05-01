@@ -401,11 +401,18 @@ export async function markStagingSetPromoted(
     data: { status: 'PROMOTED', promotedSetId, mediaQueueAt: null, mediaPriority: null },
   })
 
-  // Transfer any ArchiveLinks from this staging set to the promoted Set
-  await prisma.archiveLink.updateMany({
-    where: { stagingSetId: id },
-    data: { setId: promotedSetId, stagingSetId: null },
+  // Transfer any ArchiveLinks from this staging set to the promoted Set,
+  // but only if the target set does not already have a CONFIRMED archive link.
+  const existingConfirmedLink = await prisma.archiveLink.findFirst({
+    where: { setId: promotedSetId, status: 'CONFIRMED' },
+    select: { id: true },
   })
+  if (!existingConfirmedLink) {
+    await prisma.archiveLink.updateMany({
+      where: { stagingSetId: id },
+      data: { setId: promotedSetId, stagingSetId: null },
+    })
+  }
 
   void onSetPromoted(id, promotedSetId)
   return stagingSet

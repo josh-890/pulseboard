@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { Camera, Film, AlertTriangle } from "lucide-react";
+import { Camera, Film, AlertTriangle, Copy } from "lucide-react";
 import { cn, focalStyle, formatPartialDateISO, getInitialsFromName, computeProductionAge } from "@/lib/utils";
 import { useDensity } from "@/components/layout/density-provider";
 import {
@@ -34,6 +34,7 @@ type SetCardProps = {
   headshotMap?: Record<string, HeadshotData>;
   unresolvedCreditCount?: number;
   suggestedArchiveFolder?: SuggestedFolderInfo | null;
+  isPotentialDuplicate?: boolean;
 };
 
 function getPersonName(
@@ -135,7 +136,7 @@ function ParticipantAvatar({
   );
 }
 
-export function SetCard({ set, coverPhoto, headshotMap = {}, unresolvedCreditCount = 0, suggestedArchiveFolder }: SetCardProps) {
+export function SetCard({ set, coverPhoto, headshotMap = {}, unresolvedCreditCount = 0, suggestedArchiveFolder, isPotentialDuplicate }: SetCardProps) {
   const { density } = useDensity();
   const isCompact = density === "compact";
   const isPhoto = set.type === "photo";
@@ -241,7 +242,16 @@ export function SetCard({ set, coverPhoto, headshotMap = {}, unresolvedCreditCou
                 {mediaCount}
               </span>
             )}
-            {unresolvedCreditCount > 0 && (
+            {isPotentialDuplicate && (
+              <span
+                title="Potential duplicate — open set to merge"
+                className="ml-auto shrink-0 inline-flex items-center gap-0.5 text-orange-500"
+              >
+                <Copy size={9} />
+                dup
+              </span>
+            )}
+            {!isPotentialDuplicate && unresolvedCreditCount > 0 && (
               <span className="ml-auto shrink-0 inline-flex items-center gap-0.5 text-amber-500">
                 <AlertTriangle size={9} />
                 {unresolvedCreditCount}
