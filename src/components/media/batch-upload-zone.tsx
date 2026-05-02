@@ -623,8 +623,16 @@ export function BatchUploadZone({
                 )}
 
                 {item.status === "error" && (
-                  <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-black/60">
-                    <AlertCircle size={16} className="text-destructive" />
+                  <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-black/70 px-1">
+                    <AlertCircle size={14} className="shrink-0 text-red-400" />
+                    {item.error && (
+                      <p
+                        className="line-clamp-2 text-center text-[9px] leading-tight text-white/80"
+                        title={item.error}
+                      >
+                        {item.error}
+                      </p>
+                    )}
                     <button
                       type="button"
                       onClick={(e) => {
