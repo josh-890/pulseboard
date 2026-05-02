@@ -69,7 +69,9 @@ export function CrossSessionPicker({
   const load = useCallback(async (cursor?: string) => {
     setState((prev) => ({ ...prev, loading: true, error: null }))
     try {
-      const params = new URLSearchParams({ limit: '60' })
+      // When filtered to a single session, fetch all at once (up to API max)
+      const limit = selectedSessionId ? '500' : '60'
+      const params = new URLSearchParams({ limit })
       if (cursor) params.set('cursor', cursor)
       if (debouncedSearch) params.set('search', debouncedSearch)
       if (selectedSessionId) params.set('sessionId', selectedSessionId)
