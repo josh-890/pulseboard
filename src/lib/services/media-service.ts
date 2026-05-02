@@ -783,6 +783,7 @@ export async function getPersonMediaForEntity(
 export type EntityMediaThumbnail = {
   id: string;
   url: string;
+  urls: ReturnType<typeof buildPhotoUrls>;
   width: number;
   height: number;
   focalX: number | null;
@@ -810,16 +811,14 @@ export async function getPersonEntityMedia(
     const entityId = link.bodyMarkId ?? link.bodyModificationId ?? link.cosmeticProcedureId;
     if (!entityId) continue;
     const variants = (link.mediaItem.variants ?? {}) as PhotoVariants;
-    const url = variants.gallery_512
-      ? buildUrl(variants.gallery_512)
-      : (variants.master_4000 ?? variants.original)
-        ? buildUrl((variants.master_4000 ?? variants.original)!)
-        : null;
+    const urls = buildPhotoUrls(variants, link.mediaItem.fileRef);
+    const url = urls.gallery_512 ?? urls.master_4000 ?? urls.original;
     if (!url) continue;
     if (!result.has(entityId)) result.set(entityId, []);
     result.get(entityId)!.push({
       id: link.mediaItem.id,
       url,
+      urls,
       width: link.mediaItem.originalWidth,
       height: link.mediaItem.originalHeight,
       focalX: link.mediaItem.focalX ?? null,
