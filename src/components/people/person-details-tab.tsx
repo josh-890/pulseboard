@@ -597,6 +597,7 @@ export function PersonDetailsTab({
       {annotateState && (
         <AnnotationEditor
           imageUrl={
+            annotateState.item.urls.master_4000 ??
             annotateState.item.urls.view_1200 ??
             annotateState.item.urls.gallery_512 ??
             annotateState.item.urls.original ??

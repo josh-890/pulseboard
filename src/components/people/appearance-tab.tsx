@@ -985,6 +985,7 @@ export function AppearanceTab({
       {annotateEntityState && (
         <AnnotationEditor
           imageUrl={
+            annotateEntityState.item.urls.master_4000 ??
             annotateEntityState.item.urls.view_1200 ??
             annotateEntityState.item.urls.gallery_512 ??
             annotateEntityState.item.urls.original ??
