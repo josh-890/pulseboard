@@ -57,8 +57,6 @@ export function DetailMediaPickerSheet({
 }: DetailMediaPickerSheetProps) {
   const [items, setItems] = useState<MediaItem[]>([]);
   const [loading, setLoading] = useState(false);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [initialLinked, setInitialLinked] = useState<Set<string>>(new Set());
   const [selectedEntityId, setSelectedEntityId] = useState<string>(preselectedEntityId ?? "");
@@ -67,45 +65,21 @@ export function DetailMediaPickerSheet({
   const handleClose = useCallback(() => onOpenChange(false), [onOpenChange]);
   useEscToClose(handleClose);
 
-  const applyItems = useCallback((data: MediaItem[], append: boolean) => {
-    setItems((prev) => (append ? [...prev, ...data] : data));
-    const linked = new Set(data.filter((d) => d.isLinked).map((d) => d.id));
-    if (append) {
-      setSelected((prev) => new Set([...prev, ...linked]));
-      setInitialLinked((prev) => new Set([...prev, ...linked]));
-    } else {
-      setSelected(new Set(linked));
-      setInitialLinked(new Set(linked));
-    }
-  }, []);
-
-  // Load media when sheet opens
+  // Load reference-session media when sheet opens
   useEffect(() => {
     if (!open) return;
     setLoading(true);
-    setNextCursor(null);
-    fetch(`/api/media/person/${personId}?categoryId=${category.id}&limit=60`)
+    fetch(`/api/sessions/${referenceSessionId}/media?personId=${personId}&categoryId=${category.id}`)
       .then((res) => res.json())
-      .then((data: { items: MediaItem[]; nextCursor: string | null }) => {
-        applyItems(data.items, false);
-        setNextCursor(data.nextCursor);
+      .then((data: MediaItem[]) => {
+        setItems(data);
+        const linked = new Set(data.filter((d) => d.isLinked).map((d) => d.id));
+        setSelected(linked);
+        setInitialLinked(linked);
         setLoading(false);
       })
       .catch(() => setLoading(false));
-  }, [open, personId, category.id, applyItems]);
-
-  const loadMore = useCallback(() => {
-    if (!nextCursor || loadingMore) return;
-    setLoadingMore(true);
-    fetch(`/api/media/person/${personId}?categoryId=${category.id}&limit=60&cursor=${nextCursor}`)
-      .then((res) => res.json())
-      .then((data: { items: MediaItem[]; nextCursor: string | null }) => {
-        applyItems(data.items, true);
-        setNextCursor(data.nextCursor);
-        setLoadingMore(false);
-      })
-      .catch(() => setLoadingMore(false));
-  }, [nextCursor, loadingMore, personId, category.id, applyItems]);
+  }, [open, personId, referenceSessionId, category.id]);
 
   const toggleItem = useCallback((id: string) => {
     setSelected((prev) => {
@@ -285,66 +259,50 @@ export function DetailMediaPickerSheet({
               No photos found. Upload some above.
             </p>
           ) : (
-            <>
-              <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
-                {items.map((item) => {
-                  const isSelected = selected.has(item.id);
-                  const thumbUrl =
-                    item.urls.gallery_512 ?? item.urls.master_4000 ?? item.urls.original ?? null;
+            <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+              {items.map((item) => {
+                const isSelected = selected.has(item.id);
+                const thumbUrl =
+                  item.urls.gallery_512 ?? item.urls.master_4000 ?? item.urls.original ?? null;
 
-                  return (
-                    <button
-                      key={item.id}
-                      type="button"
-                      onClick={() => toggleItem(item.id)}
-                      className={cn(
-                        "group relative aspect-square overflow-hidden rounded-lg border-2 transition-all",
-                        isSelected
-                          ? "border-primary ring-1 ring-primary"
-                          : "border-white/10 hover:border-white/30",
-                      )}
-                    >
-                      {thumbUrl ? (
-                        <Image
-                          src={thumbUrl}
-                          alt={item.filename}
-                          width={item.originalWidth || 512}
-                          height={item.originalHeight || 512}
-                          unoptimized
-                          className="h-full w-full object-cover"
-                          style={focalStyle(item.focalX, item.focalY)}
-                        />
-                      ) : (
-                        <div className="flex h-full w-full items-center justify-center bg-muted/30">
-                          <ImageIcon size={20} className="text-muted-foreground/40" />
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => toggleItem(item.id)}
+                    className={cn(
+                      "group relative aspect-square overflow-hidden rounded-lg border-2 transition-all",
+                      isSelected
+                        ? "border-primary ring-1 ring-primary"
+                        : "border-white/10 hover:border-white/30",
+                    )}
+                  >
+                    {thumbUrl ? (
+                      <Image
+                        src={thumbUrl}
+                        alt={item.filename}
+                        width={item.originalWidth || 512}
+                        height={item.originalHeight || 512}
+                        unoptimized
+                        className="h-full w-full object-cover"
+                        style={focalStyle(item.focalX, item.focalY)}
+                      />
+                    ) : (
+                      <div className="flex h-full w-full items-center justify-center bg-muted/30">
+                        <ImageIcon size={20} className="text-muted-foreground/40" />
+                      </div>
+                    )}
+                    {isSelected && (
+                      <div className="absolute inset-0 bg-primary/20 flex items-center justify-center">
+                        <div className="rounded-full bg-primary p-1">
+                          <Check size={14} className="text-primary-foreground" />
                         </div>
-                      )}
-                      {isSelected && (
-                        <div className="absolute inset-0 bg-primary/20 flex items-center justify-center">
-                          <div className="rounded-full bg-primary p-1">
-                            <Check size={14} className="text-primary-foreground" />
-                          </div>
-                        </div>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-
-              {nextCursor && (
-                <button
-                  type="button"
-                  onClick={loadMore}
-                  disabled={loadingMore}
-                  className="flex w-full items-center justify-center gap-2 rounded-lg border border-white/15 py-2.5 text-sm text-muted-foreground transition-colors hover:border-white/30 hover:text-foreground disabled:opacity-50"
-                >
-                  {loadingMore ? (
-                    <Loader2 size={14} className="animate-spin" />
-                  ) : null}
-                  {loadingMore ? "Loading..." : "Load more"}
-                </button>
-              )}
-            </>
+                      </div>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
           )}
 
           {/* Save button */}

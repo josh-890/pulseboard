@@ -473,7 +473,10 @@ export function AppearanceTab({
         formData.append('isAnnotation', 'true');
         formData.append('duplicateAction', 'replace');
         formData.append('replaceMediaItemId', editingMediaItemId);
-        await fetch('/api/media/upload', { method: 'POST', body: formData });
+        const replaceRes = await fetch('/api/media/upload', { method: 'POST', body: formData });
+        if (!replaceRes.ok) {
+          console.error('[annotation] Replace failed:', await replaceRes.text());
+        }
         router.refresh();
       } else if (categoryId && entityId && entityModel) {
         // New annotation — upload then link

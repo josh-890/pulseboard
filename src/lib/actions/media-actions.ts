@@ -362,17 +362,24 @@ export async function copyMediaItemToReferenceAction(
       });
       if (!source) return { success: false, error: "Source media item not found" };
 
+      const { copyMediaFilesToReference } = await import("@/lib/media-upload");
+      const { variants: newVariants, fileRef: newFileRef } = await copyMediaFilesToReference(
+        (source.variants ?? {}) as import("@/lib/types").PhotoVariants,
+        source.fileRef,
+        referenceSessionId,
+      );
+
       const newItem = await prisma.mediaItem.create({
         data: {
           sessionId: referenceSessionId,
           mediaType: "PHOTO",
           filename: source.filename,
-          fileRef: source.fileRef,
+          fileRef: newFileRef,
           mimeType: source.mimeType,
           size: source.size,
           originalWidth: source.originalWidth,
           originalHeight: source.originalHeight,
-          variants: source.variants as Record<string, string>,
+          variants: newVariants as Record<string, string>,
           tags: [],
           hash: null,
           phash: null,

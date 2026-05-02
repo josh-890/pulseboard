@@ -1,5 +1,5 @@
 import sharp from "sharp";
-import { PutObjectCommand, GetObjectCommand, DeleteObjectsCommand } from "@aws-sdk/client-s3";
+import { PutObjectCommand, GetObjectCommand, DeleteObjectsCommand, CopyObjectCommand } from "@aws-sdk/client-s3";
 import { minioClient, getMinioBucket } from "./minio";
 import type { PhotoVariants } from "@/lib/types";
 
@@ -258,6 +258,48 @@ export async function regenerateProfileVariants(
   }
 
   return updated;
+}
+
+// ─── Reference-session deep copy ─────────────────────────────────────────────
+
+export async function copyMediaFilesToReference(
+  sourceVariants: PhotoVariants,
+  sourceFileRef: string | null,
+  referenceSessionId: string,
+): Promise<{ variants: PhotoVariants; fileRef: string | null }> {
+  const bucket = getMinioBucket();
+  const newId = crypto.randomUUID();
+  const newPrefix = `sessions/${referenceSessionId}/${newId}`;
+  const newVariants: PhotoVariants = {};
+
+  for (const [variantName, sourceKey] of Object.entries(sourceVariants)) {
+    if (!sourceKey || typeof sourceKey !== "string") continue;
+    const ext = sourceKey.includes(".") ? sourceKey.substring(sourceKey.lastIndexOf(".")) : ".webp";
+    const newKey = `${newPrefix}/${variantName}${ext}`;
+    await minioClient.send(
+      new CopyObjectCommand({
+        Bucket: bucket,
+        CopySource: `${bucket}/${sourceKey}`,
+        Key: newKey,
+      }),
+    );
+    newVariants[variantName as keyof PhotoVariants] = newKey;
+  }
+
+  let newFileRef: string | null = null;
+  if (sourceFileRef) {
+    const ext = sourceFileRef.includes(".") ? sourceFileRef.substring(sourceFileRef.lastIndexOf(".")) : "";
+    newFileRef = `${newPrefix}/original${ext}`;
+    await minioClient.send(
+      new CopyObjectCommand({
+        Bucket: bucket,
+        CopySource: `${bucket}/${sourceFileRef}`,
+        Key: newFileRef,
+      }),
+    );
+  }
+
+  return { variants: newVariants, fileRef: newFileRef };
 }
 
 // ─── MinIO file deletion ─────────────────────────────────────────────────────
