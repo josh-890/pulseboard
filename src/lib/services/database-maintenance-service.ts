@@ -1,5 +1,7 @@
 import { prisma } from "@/lib/db";
 import { cascadeHardDeleteMediaItems } from "@/lib/services/cascade-helpers";
+import { minioClient, getMinioBucket } from "@/lib/minio";
+import { ListObjectsV2Command } from "@aws-sdk/client-s3";
 import {
   refreshDashboardStats,
   refreshPersonCurrentState,
@@ -254,6 +256,89 @@ export async function findAndFixDuplicatePersonMediaLinks(): Promise<Maintenance
       details,
     };
   });
+}
+
+// Static asset prefixes to ignore when checking for orphans (not media uploads)
+const STATIC_PREFIXES = ["staging/", "body/", "flags/"];
+
+/**
+ * Cross-check every MediaItem's variant keys against MinIO.
+ * Finds DB rows whose files are entirely missing (victim of the shallow-copy bug
+ * or any other storage loss) and hard-deletes them.
+ * Orphan MinIO objects (no DB row) are reported but not deleted.
+ */
+export async function auditMinioConsistency(): Promise<MaintenanceResult> {
+  const bucket = getMinioBucket();
+
+  // List all MinIO objects — one pass, then do in-memory lookups
+  const minioKeys = new Set<string>();
+  let continuationToken: string | undefined;
+  do {
+    const res = await minioClient.send(
+      new ListObjectsV2Command({ Bucket: bucket, ContinuationToken: continuationToken }),
+    );
+    for (const obj of res.Contents ?? []) {
+      if (obj.Key) minioKeys.add(obj.Key);
+    }
+    continuationToken = res.IsTruncated ? res.NextContinuationToken : undefined;
+  } while (continuationToken);
+
+  // Fetch all MediaItems
+  const rows = await prisma.$queryRaw<Array<{ id: string; filename: string; variants: Record<string, string | undefined | null> | null }>>`
+    SELECT id, filename, variants FROM "MediaItem"
+  `;
+
+  // Find fully broken items (every variant key missing from MinIO)
+  const brokenIds: string[] = [];
+  const details: string[] = [];
+  let orphanCount = 0;
+
+  const refKeys = new Set<string>();
+  for (const row of rows) {
+    if (!row.variants) continue;
+    for (const v of Object.values(row.variants)) {
+      if (typeof v === "string" && v.length > 0) refKeys.add(v);
+    }
+  }
+
+  for (const row of rows) {
+    const variantKeys = row.variants
+      ? Object.values(row.variants).filter((v): v is string => typeof v === "string" && v.length > 0)
+      : [];
+
+    if (variantKeys.length === 0) {
+      brokenIds.push(row.id);
+      details.push(`${row.filename} (no variants)`);
+      continue;
+    }
+
+    const missing = variantKeys.filter((k) => !minioKeys.has(k));
+    if (missing.length === variantKeys.length) {
+      brokenIds.push(row.id);
+      details.push(`${row.filename} (all ${variantKeys.length} variant files missing)`);
+    }
+  }
+
+  // Count orphan MinIO objects (informational — not deleted)
+  for (const key of minioKeys) {
+    if (STATIC_PREFIXES.some((p) => key.startsWith(p))) continue;
+    if (!refKeys.has(key)) orphanCount++;
+  }
+
+  if (orphanCount > 0) {
+    details.push(`${orphanCount} orphaned MinIO object(s) found (use CLI script to clean)`);
+  }
+
+  if (brokenIds.length === 0) {
+    return { found: 0, fixed: 0, details: orphanCount > 0 ? details : [] };
+  }
+
+  // Cascade-delete broken DB rows — no deleteMediaFiles() needed (files already gone)
+  await prisma.$transaction(async (tx) => {
+    await cascadeHardDeleteMediaItems(tx, brokenIds);
+  });
+
+  return { found: brokenIds.length, fixed: brokenIds.length, details };
 }
 
 /**
