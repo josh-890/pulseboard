@@ -116,7 +116,12 @@ function SimpleLightbox({
   const [zoomTy, setZoomTy] = useState(0);
   const [zoomedSrc, setZoomedSrc] = useState<string | null>(null);
   const [isPanning, setIsPanning] = useState(false);
+  const [isPinching, setIsPinching] = useState(false);
+  const [zoomScale, setZoomScale] = useState(1);
   const panStartRef = useRef({ mouseX: 0, mouseY: 0, baseTx: 0, baseTy: 0 });
+  const touchPanRef = useRef({ startX: 0, startY: 0, baseTx: 0, baseTy: 0 });
+  const pinchRef = useRef({ startDist: 0, startScale: 1, startTx: 0, startTy: 0, startMidX: 0, startMidY: 0, containerLeft: 0, containerTop: 0, cw: 0, ch: 0 });
+  const isPinchingRef = useRef(false);
 
   const localItems = useMemo(
     () =>
@@ -272,7 +277,7 @@ function SimpleLightbox({
     setImageRect({ x, y, w, h, cw, ch });
   }, [item]);
 
-  const zoomScale = useMemo(() => {
+  const fillScale = useMemo(() => {
     if (!imageRect) return 2;
     return Math.max(imageRect.cw / imageRect.w, imageRect.ch / imageRect.h);
   }, [imageRect]);
@@ -293,6 +298,9 @@ function SimpleLightbox({
     setZoomTy(0);
     setZoomedSrc(null);
     setIsPanning(false);
+    setIsPinching(false);
+    setZoomScale(1);
+    isPinchingRef.current = false;
   }, [currentIndex]);
 
   function handleMouseDown(e: React.MouseEvent) {
@@ -313,12 +321,18 @@ function SimpleLightbox({
     setIsPanning(false);
   }
 
+  function getTouchDistance(touches: React.TouchList) {
+    const dx = touches[0].clientX - touches[1].clientX;
+    const dy = touches[0].clientY - touches[1].clientY;
+    return Math.sqrt(dx * dx + dy * dy);
+  }
+
   function handleTouchStart(e: React.TouchEvent) {
     touchStartX.current = e.touches[0].clientX;
   }
 
   function handleTouchEnd(e: React.TouchEvent) {
-    if (zoomState === "zoomed") return;
+    if (zoomState === "zoomed" || isPinchingRef.current) return;
     if (touchStartX.current === null) return;
     const diff = touchStartX.current - e.changedTouches[0].clientX;
     if (Math.abs(diff) > 50) {
@@ -326,6 +340,80 @@ function SimpleLightbox({
       else goPrev();
     }
     touchStartX.current = null;
+  }
+
+  function handleTouchStartWrapper(e: React.TouchEvent) {
+    if (e.touches.length === 2) {
+      e.stopPropagation();
+      isPinchingRef.current = true;
+      setIsPinching(true);
+      const dist = getTouchDistance(e.touches);
+      const midX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+      const midY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+      const containerEl = imageContainerRef.current!.getBoundingClientRect();
+      pinchRef.current = {
+        startDist: dist,
+        startScale: zoomScale,
+        startTx: zoomTx,
+        startTy: zoomTy,
+        startMidX: midX,
+        startMidY: midY,
+        containerLeft: containerEl.left,
+        containerTop: containerEl.top,
+        cw: containerEl.width,
+        ch: containerEl.height,
+      };
+      if (zoomState === "fit") setZoomState("zoomed");
+    } else if (e.touches.length === 1 && zoomState === "zoomed") {
+      touchPanRef.current = {
+        startX: e.touches[0].clientX,
+        startY: e.touches[0].clientY,
+        baseTx: zoomTx,
+        baseTy: zoomTy,
+      };
+    }
+  }
+
+  function handleTouchMoveWrapper(e: React.TouchEvent) {
+    if (e.touches.length === 2 && isPinchingRef.current) {
+      e.stopPropagation();
+      const { startDist, startScale, startTx, startTy, startMidX, startMidY, containerLeft, containerTop, cw, ch } = pinchRef.current;
+      const currentDist = getTouchDistance(e.touches);
+      const rawScale = startScale * (currentDist / startDist);
+      const newScale = Math.max(1, Math.min(rawScale, 10));
+      const currentMidX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+      const currentMidY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+      // Keep the pinch midpoint anchored: shift by the scale delta, then add pan
+      const originX = startMidX - containerLeft - cw / 2;
+      const originY = startMidY - containerTop - ch / 2;
+      setZoomTx(startTx + originX * (startScale - newScale) + (currentMidX - startMidX));
+      setZoomTy(startTy + originY * (startScale - newScale) + (currentMidY - startMidY));
+      setZoomScale(newScale);
+      if (newScale <= 1) {
+        setZoomState("fit");
+        setZoomTx(0);
+        setZoomTy(0);
+      } else if (zoomState !== "zoomed") {
+        setZoomState("zoomed");
+      }
+    } else if (e.touches.length === 1 && zoomState === "zoomed" && !isPinchingRef.current) {
+      const { startX, startY, baseTx, baseTy } = touchPanRef.current;
+      setZoomTx(baseTx + (e.touches[0].clientX - startX));
+      setZoomTy(baseTy + (e.touches[0].clientY - startY));
+    }
+  }
+
+  function handleTouchEndWrapper(e: React.TouchEvent) {
+    if (e.touches.length < 2 && isPinchingRef.current) {
+      isPinchingRef.current = false;
+      setIsPinching(false);
+      if (zoomScale <= 1.05) {
+        setZoomState("fit");
+        setZoomTx(0);
+        setZoomTy(0);
+        setZoomScale(1);
+      }
+    }
   }
 
   if (!item) return null;
@@ -341,6 +429,7 @@ function SimpleLightbox({
       setZoomState("fit");
       setZoomTx(0);
       setZoomTy(0);
+      setZoomScale(1);
       setZoomedSrc(null);
       return;
     }
@@ -352,9 +441,10 @@ function SimpleLightbox({
     const imageCenterY = imageRect.y + imageRect.h / 2;
     const relX = clickContainerX - imageCenterX;
     const relY = clickContainerY - imageCenterY;
-    const S = zoomScale;
+    const S = fillScale;
     setZoomTx(relX * (1 - S));
     setZoomTy(relY * (1 - S));
+    setZoomScale(S);
     setZoomState("zoomed");
 
     const maxUrl = item.urls.master_4000;
@@ -531,14 +621,18 @@ function SimpleLightbox({
               onMouseMove={handleMouseMove}
               onMouseUp={handleMouseUp}
               onMouseLeave={handleMouseUp}
+              onTouchStart={handleTouchStartWrapper}
+              onTouchMove={handleTouchMoveWrapper}
+              onTouchEnd={handleTouchEndWrapper}
               style={{
                 transform: zoomState === "zoomed"
                   ? `translate(${zoomTx}px, ${zoomTy}px) scale(${zoomScale})`
                   : "translate(0px, 0px) scale(1)",
                 transformOrigin: "50% 50%",
-                transition: isPanning ? "none" : "transform 0.2s ease",
+                transition: (isPanning || isPinching) ? "none" : "transform 0.2s ease",
                 cursor: zoomState === "zoomed" ? (isPanning ? "grabbing" : "grab") : "zoom-in",
                 userSelect: "none",
+                touchAction: "none",
               }}
             >
               <Image
