@@ -525,6 +525,7 @@ function SimpleLightbox({
             )}
 
             <div
+              className="max-w-full max-h-full flex items-center justify-center"
               onDoubleClick={handleImageDoubleClick}
               onMouseDown={handleMouseDown}
               onMouseMove={handleMouseMove}
