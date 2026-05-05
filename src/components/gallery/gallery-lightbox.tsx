@@ -110,7 +110,13 @@ function SimpleLightbox({
   >(new Map());
   const touchStartX = useRef<number | null>(null);
   const imageContainerRef = useRef<HTMLDivElement>(null);
-  const [imageRect, setImageRect] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
+  const [imageRect, setImageRect] = useState<{ x: number; y: number; w: number; h: number; cw: number; ch: number } | null>(null);
+  const [zoomState, setZoomState] = useState<"fit" | "zoomed">("fit");
+  const [zoomTx, setZoomTx] = useState(0);
+  const [zoomTy, setZoomTy] = useState(0);
+  const [zoomedSrc, setZoomedSrc] = useState<string | null>(null);
+  const [isPanning, setIsPanning] = useState(false);
+  const panStartRef = useRef({ mouseX: 0, mouseY: 0, baseTx: 0, baseTy: 0 });
 
   const localItems = useMemo(
     () =>
@@ -263,8 +269,13 @@ function SimpleLightbox({
     const h = img.naturalHeight * scale;
     const x = (cw - w) / 2;
     const y = (ch - h) / 2;
-    setImageRect({ x, y, w, h });
+    setImageRect({ x, y, w, h, cw, ch });
   }, [item]);
+
+  const zoomScale = useMemo(() => {
+    if (!imageRect) return 2;
+    return Math.max(imageRect.cw / imageRect.w, imageRect.ch / imageRect.h);
+  }, [imageRect]);
 
   useEffect(() => {
     if (!focalOverlay) return;
@@ -275,11 +286,39 @@ function SimpleLightbox({
     return () => observer.disconnect();
   }, [focalOverlay, computeRect, currentIndex]);
 
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setZoomState("fit");
+    setZoomTx(0);
+    setZoomTy(0);
+    setZoomedSrc(null);
+    setIsPanning(false);
+  }, [currentIndex]);
+
+  function handleMouseDown(e: React.MouseEvent) {
+    if (zoomState !== "zoomed") return;
+    e.preventDefault();
+    setIsPanning(true);
+    panStartRef.current = { mouseX: e.clientX, mouseY: e.clientY, baseTx: zoomTx, baseTy: zoomTy };
+  }
+
+  function handleMouseMove(e: React.MouseEvent) {
+    if (!isPanning) return;
+    const { mouseX, mouseY, baseTx, baseTy } = panStartRef.current;
+    setZoomTx(baseTx + (e.clientX - mouseX));
+    setZoomTy(baseTy + (e.clientY - mouseY));
+  }
+
+  function handleMouseUp() {
+    setIsPanning(false);
+  }
+
   function handleTouchStart(e: React.TouchEvent) {
     touchStartX.current = e.touches[0].clientX;
   }
 
   function handleTouchEnd(e: React.TouchEvent) {
+    if (zoomState === "zoomed") return;
     if (touchStartX.current === null) return;
     const diff = touchStartX.current - e.changedTouches[0].clientX;
     if (Math.abs(diff) > 50) {
@@ -293,6 +332,38 @@ function SimpleLightbox({
 
   const displayUrl =
     item.urls.full_2400 ?? item.urls.gallery_1600 ?? item.urls.gallery_1024 ?? item.urls.original;
+
+  function handleImageDoubleClick(e: React.MouseEvent) {
+    e.stopPropagation();
+    if (!imageRect || !imageContainerRef.current) return;
+
+    if (zoomState === "zoomed") {
+      setZoomState("fit");
+      setZoomTx(0);
+      setZoomTy(0);
+      setZoomedSrc(null);
+      return;
+    }
+
+    const containerEl = imageContainerRef.current.getBoundingClientRect();
+    const clickContainerX = e.clientX - containerEl.left;
+    const clickContainerY = e.clientY - containerEl.top;
+    const imageCenterX = imageRect.x + imageRect.w / 2;
+    const imageCenterY = imageRect.y + imageRect.h / 2;
+    const relX = clickContainerX - imageCenterX;
+    const relY = clickContainerY - imageCenterY;
+    const S = zoomScale;
+    setZoomTx(relX * (1 - S));
+    setZoomTy(relY * (1 - S));
+    setZoomState("zoomed");
+
+    const maxUrl = item.urls.master_4000;
+    if (maxUrl && maxUrl !== displayUrl) {
+      const preload = new window.Image();
+      preload.onload = () => setZoomedSrc(maxUrl);
+      preload.src = maxUrl;
+    }
+  }
 
   const infoPanelProps = {
     item,
@@ -421,7 +492,13 @@ function SimpleLightbox({
       <div className="flex flex-1 min-h-0">
         <div className="flex flex-1 flex-col min-w-0">
           {/* Image area with nav */}
-          <div ref={imageContainerRef} className="relative flex flex-1 items-center justify-center p-4 sm:p-6 min-h-0">
+          <div
+            ref={imageContainerRef}
+            className={cn(
+              "relative flex flex-1 items-center justify-center p-4 sm:p-6 min-h-0",
+              zoomState === "zoomed" && "overflow-hidden",
+            )}
+          >
             {localItems.length > 1 && (
               <>
                 {currentIndex > 0 && (
@@ -447,19 +524,36 @@ function SimpleLightbox({
               </>
             )}
 
-            <Image
-              src={displayUrl}
-              alt={item.caption ?? `Photo ${currentIndex + 1}`}
-              width={item.originalWidth}
-              height={item.originalHeight}
-              unoptimized
-              className="max-h-full max-w-full object-contain rounded-lg"
-              priority
-              onLoad={computeRect}
-            />
+            <div
+              onDoubleClick={handleImageDoubleClick}
+              onMouseDown={handleMouseDown}
+              onMouseMove={handleMouseMove}
+              onMouseUp={handleMouseUp}
+              onMouseLeave={handleMouseUp}
+              style={{
+                transform: zoomState === "zoomed"
+                  ? `translate(${zoomTx}px, ${zoomTy}px) scale(${zoomScale})`
+                  : "translate(0px, 0px) scale(1)",
+                transformOrigin: "50% 50%",
+                transition: isPanning ? "none" : "transform 0.2s ease",
+                cursor: zoomState === "zoomed" ? (isPanning ? "grabbing" : "grab") : "zoom-in",
+                userSelect: "none",
+              }}
+            >
+              <Image
+                src={zoomedSrc ?? displayUrl}
+                alt={item.caption ?? `Photo ${currentIndex + 1}`}
+                width={item.originalWidth}
+                height={item.originalHeight}
+                unoptimized
+                className="max-h-full max-w-full object-contain rounded-lg"
+                priority
+                onLoad={computeRect}
+              />
+            </div>
 
             {/* Focal point overlay on main image */}
-            {focalOverlay && imageRect && item.focalX != null && item.focalY != null && (
+            {focalOverlay && zoomState === "fit" && imageRect && item.focalX != null && item.focalY != null && (
               <div className="pointer-events-none absolute inset-0 z-20" aria-hidden="true">
                 {/* Crosshair lines */}
                 <div
