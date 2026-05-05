@@ -342,7 +342,7 @@ export function SetDetailGallery({
     }
 
     return groups;
-  }, [isCompilation, isGroupBySession, sortMode, sessionLinks, items]);
+  }, [isGroupBySession, sortMode, sessionLinks, items]);
 
   const handleSetCover = useCallback(
     (mediaItemId: string | null) => {

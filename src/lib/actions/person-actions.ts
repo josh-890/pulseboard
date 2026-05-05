@@ -90,13 +90,19 @@ export async function deletePerson(id: string): Promise<SimpleActionResult> {
     try {
       const variantsList = await deletePersonRecord(id);
 
-      // Best-effort MinIO cleanup after transaction commits
+      // Best-effort MinIO cleanup after transaction commits; queue orphaned keys on failure
       if (variantsList.length > 0) {
         try {
           const { deleteMediaFiles } = await import("@/lib/media-upload");
           await deleteMediaFiles(variantsList);
         } catch (err) {
           console.error("[deletePerson] MinIO cleanup failed:", err);
+          await prisma.orphanedStorageKey.createMany({
+            data: variantsList.flatMap(v =>
+              Object.values(v).filter((k): k is string => typeof k === "string" && k.length > 0)
+                .map(key => ({ key, reason: "delete_cleanup_failed" }))
+            ),
+          }).catch(() => {});
         }
       }
 

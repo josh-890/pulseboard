@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/db";
 import { cascadeHardDeleteMediaItems } from "@/lib/services/cascade-helpers";
 import { minioClient, getMinioBucket } from "@/lib/minio";
+import type { PhotoVariants } from "@/lib/types";
 import { ListObjectsV2Command } from "@aws-sdk/client-s3";
 import {
   refreshDashboardStats,
@@ -339,6 +340,36 @@ export async function auditMinioConsistency(): Promise<MaintenanceResult> {
   });
 
   return { found: brokenIds.length, fixed: brokenIds.length, details };
+}
+
+/**
+ * Retry deleting MinIO files that failed to clean up at delete-time.
+ * Marks each key as resolved after a successful deletion attempt.
+ */
+export async function processOrphanedStorageKeys(): Promise<MaintenanceResult> {
+  const orphanedKeys = await prisma.orphanedStorageKey.findMany({
+    where: { resolvedAt: null },
+  });
+
+  if (orphanedKeys.length === 0) {
+    return { found: 0, fixed: 0, details: [] };
+  }
+
+  const { deleteMediaFiles } = await import("@/lib/media-upload");
+  // deleteMediaFiles expects PhotoVariants[]; wrap each key in a minimal variants object
+  const variantsList: PhotoVariants[] = orphanedKeys.map(k => ({ original: k.key }));
+  await deleteMediaFiles(variantsList);
+
+  await prisma.orphanedStorageKey.updateMany({
+    where: { id: { in: orphanedKeys.map(k => k.id) } },
+    data: { resolvedAt: new Date() },
+  });
+
+  return {
+    found: orphanedKeys.length,
+    fixed: orphanedKeys.length,
+    details: orphanedKeys.map(k => k.key),
+  };
 }
 
 /**

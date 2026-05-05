@@ -188,83 +188,99 @@ export async function deleteTagDefinition(id: string) {
 
 export async function mergeTagDefinitions(sourceIds: string[], targetId: string) {
   return prisma.$transaction(async (tx) => {
-    for (const sourceId of sourceIds) {
-      // Convert source tag name into an alias of the target
-      const sourceTag = await tx.tagDefinition.findUnique({ where: { id: sourceId } });
-      if (sourceTag) {
-        const aliasSlug = slugify(sourceTag.name);
-        const existing = await tx.tagAlias.findUnique({ where: { slug: aliasSlug } });
-        if (!existing) {
-          await tx.tagAlias.create({
-            data: {
-              tagDefinitionId: targetId,
-              name: sourceTag.name,
-              nameNorm: normalize(sourceTag.name),
-              slug: aliasSlug,
-            },
-          });
-        }
-      }
+    // ── 1. Batch-fetch all source definitions (for alias creation) ──────────
+    const sourceTags = await tx.tagDefinition.findMany({ where: { id: { in: sourceIds } } });
 
-      // PersonTag
-      const personRows = await tx.personTag.findMany({ where: { tagDefinitionId: sourceId } });
-      for (const row of personRows) {
-        await tx.personTag.upsert({
-          where: { personId_tagDefinitionId: { personId: row.personId, tagDefinitionId: targetId } },
-          create: { personId: row.personId, tagDefinitionId: targetId, source: row.source },
-          update: {},
-        });
-      }
-      await tx.personTag.deleteMany({ where: { tagDefinitionId: sourceId } });
+    // ── 2. Batch-fetch all entity rows for ALL sources + existing target rows ─
+    const [
+      sourcePersonRows, targetPersonRows,
+      sourceSessionRows, targetSessionRows,
+      sourceMediaRows, targetMediaRows,
+      sourceSetRows, targetSetRows,
+      sourceProjectRows, targetProjectRows,
+    ] = await Promise.all([
+      tx.personTag.findMany({ where: { tagDefinitionId: { in: sourceIds } } }),
+      tx.personTag.findMany({ where: { tagDefinitionId: targetId } }),
+      tx.sessionTag.findMany({ where: { tagDefinitionId: { in: sourceIds } } }),
+      tx.sessionTag.findMany({ where: { tagDefinitionId: targetId } }),
+      tx.mediaItemTag.findMany({ where: { tagDefinitionId: { in: sourceIds } } }),
+      tx.mediaItemTag.findMany({ where: { tagDefinitionId: targetId } }),
+      tx.setTag.findMany({ where: { tagDefinitionId: { in: sourceIds } } }),
+      tx.setTag.findMany({ where: { tagDefinitionId: targetId } }),
+      tx.projectTag.findMany({ where: { tagDefinitionId: { in: sourceIds } } }),
+      tx.projectTag.findMany({ where: { tagDefinitionId: targetId } }),
+    ]);
 
-      // SessionTag
-      const sessionRows = await tx.sessionTag.findMany({ where: { tagDefinitionId: sourceId } });
-      for (const row of sessionRows) {
-        await tx.sessionTag.upsert({
-          where: { sessionId_tagDefinitionId: { sessionId: row.sessionId, tagDefinitionId: targetId } },
-          create: { sessionId: row.sessionId, tagDefinitionId: targetId, source: row.source },
-          update: {},
-        });
-      }
-      await tx.sessionTag.deleteMany({ where: { tagDefinitionId: sourceId } });
+    // ── 3. Build conflict sets (entity IDs already tagged with target) ───────
+    const existingPersonIds = new Set(targetPersonRows.map(r => r.personId));
+    const existingSessionIds = new Set(targetSessionRows.map(r => r.sessionId));
+    const existingMediaIds = new Set(targetMediaRows.map(r => r.mediaItemId));
+    const existingSetIds = new Set(targetSetRows.map(r => r.setId));
+    const existingProjectIds = new Set(targetProjectRows.map(r => r.projectId));
 
-      // MediaItemTag
-      const mediaRows = await tx.mediaItemTag.findMany({ where: { tagDefinitionId: sourceId } });
-      for (const row of mediaRows) {
-        await tx.mediaItemTag.upsert({
-          where: { mediaItemId_tagDefinitionId: { mediaItemId: row.mediaItemId, tagDefinitionId: targetId } },
-          create: { mediaItemId: row.mediaItemId, tagDefinitionId: targetId, source: row.source },
-          update: {},
-        });
-      }
-      await tx.mediaItemTag.deleteMany({ where: { tagDefinitionId: sourceId } });
+    // ── 4. Move non-conflicting rows to target; delete all source rows ───────
+    await Promise.all([
+      tx.personTag.createMany({
+        data: sourcePersonRows
+          .filter(r => !existingPersonIds.has(r.personId))
+          .map(r => ({ personId: r.personId, tagDefinitionId: targetId, source: r.source })),
+        skipDuplicates: true,
+      }),
+      tx.sessionTag.createMany({
+        data: sourceSessionRows
+          .filter(r => !existingSessionIds.has(r.sessionId))
+          .map(r => ({ sessionId: r.sessionId, tagDefinitionId: targetId, source: r.source })),
+        skipDuplicates: true,
+      }),
+      tx.mediaItemTag.createMany({
+        data: sourceMediaRows
+          .filter(r => !existingMediaIds.has(r.mediaItemId))
+          .map(r => ({ mediaItemId: r.mediaItemId, tagDefinitionId: targetId, source: r.source })),
+        skipDuplicates: true,
+      }),
+      tx.setTag.createMany({
+        data: sourceSetRows
+          .filter(r => !existingSetIds.has(r.setId))
+          .map(r => ({ setId: r.setId, tagDefinitionId: targetId, source: r.source })),
+        skipDuplicates: true,
+      }),
+      tx.projectTag.createMany({
+        data: sourceProjectRows
+          .filter(r => !existingProjectIds.has(r.projectId))
+          .map(r => ({ projectId: r.projectId, tagDefinitionId: targetId, source: r.source })),
+        skipDuplicates: true,
+      }),
+    ]);
 
-      // SetTag
-      const setRows = await tx.setTag.findMany({ where: { tagDefinitionId: sourceId } });
-      for (const row of setRows) {
-        await tx.setTag.upsert({
-          where: { setId_tagDefinitionId: { setId: row.setId, tagDefinitionId: targetId } },
-          create: { setId: row.setId, tagDefinitionId: targetId, source: row.source },
-          update: {},
-        });
-      }
-      await tx.setTag.deleteMany({ where: { tagDefinitionId: sourceId } });
+    await Promise.all([
+      tx.personTag.deleteMany({ where: { tagDefinitionId: { in: sourceIds } } }),
+      tx.sessionTag.deleteMany({ where: { tagDefinitionId: { in: sourceIds } } }),
+      tx.mediaItemTag.deleteMany({ where: { tagDefinitionId: { in: sourceIds } } }),
+      tx.setTag.deleteMany({ where: { tagDefinitionId: { in: sourceIds } } }),
+      tx.projectTag.deleteMany({ where: { tagDefinitionId: { in: sourceIds } } }),
+    ]);
 
-      // ProjectTag
-      const projectRows = await tx.projectTag.findMany({ where: { tagDefinitionId: sourceId } });
-      for (const row of projectRows) {
-        await tx.projectTag.upsert({
-          where: { projectId_tagDefinitionId: { projectId: row.projectId, tagDefinitionId: targetId } },
-          create: { projectId: row.projectId, tagDefinitionId: targetId, source: row.source },
-          update: {},
-        });
-      }
-      await tx.projectTag.deleteMany({ where: { tagDefinitionId: sourceId } });
-
-      // Delete source aliases and tag definition
-      await tx.tagAlias.deleteMany({ where: { tagDefinitionId: sourceId } });
-      await tx.tagDefinition.delete({ where: { id: sourceId } });
+    // ── 5. Convert source tag names into aliases on the target ───────────────
+    const candidateAliases = sourceTags.map(t => ({
+      slug: slugify(t.name),
+      name: t.name,
+      nameNorm: normalize(t.name),
+    }));
+    const candidateSlugs = candidateAliases.map(a => a.slug);
+    const existingAliasSlugs = new Set(
+      (await tx.tagAlias.findMany({ where: { slug: { in: candidateSlugs } } })).map(a => a.slug)
+    );
+    const newAliases = candidateAliases.filter(a => !existingAliasSlugs.has(a.slug));
+    if (newAliases.length > 0) {
+      await tx.tagAlias.createMany({
+        data: newAliases.map(a => ({ tagDefinitionId: targetId, name: a.name, nameNorm: a.nameNorm, slug: a.slug })),
+        skipDuplicates: true,
+      });
     }
+
+    // ── 6. Delete source aliases and source definitions ───────────────────────
+    await tx.tagAlias.deleteMany({ where: { tagDefinitionId: { in: sourceIds } } });
+    await tx.tagDefinition.deleteMany({ where: { id: { in: sourceIds } } });
   });
 }
 

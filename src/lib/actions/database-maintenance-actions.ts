@@ -8,6 +8,7 @@ import {
   findAndFixDuplicatePersonMediaLinks,
   refreshAllMaterializedViews,
   auditMinioConsistency,
+  processOrphanedStorageKeys,
 } from "@/lib/services/database-maintenance-service";
 
 type MaintenanceActionResult = {
@@ -65,6 +66,18 @@ export async function auditMinioConsistencyAction(): Promise<MaintenanceActionRe
     try {
       const result = await auditMinioConsistency();
       if (result.fixed > 0) revalidatePath("/settings");
+      return { success: true, ...result };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unexpected error";
+      return { success: false, error: message };
+    }
+  });
+}
+
+export async function processOrphanedStorageKeysAction(): Promise<MaintenanceActionResult> {
+  return withTenantFromHeaders(async () => {
+    try {
+      const result = await processOrphanedStorageKeys();
       return { success: true, ...result };
     } catch (err) {
       const message = err instanceof Error ? err.message : "Unexpected error";

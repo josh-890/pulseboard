@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Plus } from "lucide-react";
 import { toast } from "sonner";
@@ -68,11 +68,12 @@ export function AddChannelSheet({ labels, defaultLabelId }: AddChannelSheetProps
   });
 
   const { isSubmitting } = form.formState;
-  const shortNameValue = form.watch("shortName");
+  const shortNameValue = useWatch({ control: form.control, name: "shortName" });
 
   // Check availability when shortName changes
   useEffect(() => {
     if (!shortNameValue?.trim()) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setShortNameAvailable(null);
       return;
     }

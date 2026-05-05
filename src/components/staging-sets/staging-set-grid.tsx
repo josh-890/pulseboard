@@ -307,6 +307,7 @@ export function StagingSetGrid({
     return 'sentinel'
   }, [flatList])
 
+  // eslint-disable-next-line react-hooks/incompatible-library
   const virtualizer = useVirtualizer({
     count: flatList.length,
     getScrollElement: () => scrollRef.current,

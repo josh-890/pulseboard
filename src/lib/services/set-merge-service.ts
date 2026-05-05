@@ -1,6 +1,6 @@
 import { prisma } from '@/lib/db'
 import { cascadeDeleteSet } from './cascade-helpers'
-import { mergeSessionsRecord } from './session-service'
+import { mergeSessionsInTx } from './session-service'
 import { normalizeForSearch } from '@/lib/normalize'
 
 export type MergeStats = {
@@ -117,15 +117,25 @@ export async function mergeSetRecords(setIdA: string, setIdB: string): Promise<M
   let creditsDeduped = 0
   let sessionsMerged = 0
 
-  // Merge sessions first (outside the main transaction since mergeSessionsRecord opens its own)
   const survivingSession = surviving.sessionLinks[0]
   const absorbedSession = absorbed.sessionLinks[0]
-  if (survivingSession && absorbedSession && survivingSession.sessionId !== absorbedSession.sessionId) {
-    await mergeSessionsRecord(survivingSession.sessionId, absorbedSession.sessionId)
-    sessionsMerged = 1
-  }
 
   await prisma.$transaction(async (tx) => {
+    // Merge sessions atomically inside the same transaction
+    if (survivingSession && absorbedSession && survivingSession.sessionId !== absorbedSession.sessionId) {
+      await mergeSessionsInTx(tx, survivingSession.sessionId, absorbedSession.sessionId)
+      sessionsMerged = 1
+    }
+
+    // Pre-fetch surviving credits for dedup (avoids N+1 findFirst per absorbed credit)
+    const survivingCredits = await tx.setCreditRaw.findMany({
+      where: { setId: survivingId },
+      select: { id: true, nameNorm: true, roleDefinitionId: true, resolutionStatus: true },
+    })
+    const survivingCreditMap = new Map(
+      survivingCredits.map(c => [`${c.nameNorm ?? ""}__${c.roleDefinitionId ?? ""}`, c])
+    )
+
     // Fetch absorbed credits to merge
     const absorbedCredits = await tx.setCreditRaw.findMany({
       where: { setId: absorbedId },
@@ -133,14 +143,8 @@ export async function mergeSetRecords(setIdA: string, setIdB: string): Promise<M
     })
 
     for (const credit of absorbedCredits) {
-      const existingOnSurviving = await tx.setCreditRaw.findFirst({
-        where: {
-          setId: survivingId,
-          nameNorm: credit.nameNorm ?? normalizeForSearch(credit.rawName),
-          roleDefinitionId: credit.roleDefinitionId,
-        },
-        select: { id: true, resolutionStatus: true },
-      })
+      const key = `${credit.nameNorm ?? normalizeForSearch(credit.rawName)}__${credit.roleDefinitionId ?? ""}`
+      const existingOnSurviving = survivingCreditMap.get(key) ?? null
 
       if (existingOnSurviving) {
         // Keep the RESOLVED one; delete the duplicate
@@ -192,17 +196,19 @@ export async function mergeSetRecords(setIdA: string, setIdB: string): Promise<M
     })
     const baseOrder = (survivingMaxOrder._max.sortOrder ?? 0) + 1
 
+    // Pre-fetch surviving media IDs to avoid N+1 findUnique per absorbed item
+    const survivingMediaIds = new Set(
+      (await tx.setMediaItem.findMany({ where: { setId: survivingId }, select: { mediaItemId: true } }))
+        .map(m => m.mediaItemId)
+    )
+
     const absorbedMedia = await tx.setMediaItem.findMany({
       where: { setId: absorbedId },
       orderBy: { sortOrder: 'asc' },
     })
     for (let i = 0; i < absorbedMedia.length; i++) {
       const item = absorbedMedia[i]!
-      // Check if this mediaItem is already linked to the surviving set
-      const alreadyLinked = await tx.setMediaItem.findUnique({
-        where: { setId_mediaItemId: { setId: survivingId, mediaItemId: item.mediaItemId } },
-      })
-      if (!alreadyLinked) {
+      if (!survivingMediaIds.has(item.mediaItemId)) {
         await tx.setMediaItem.create({
           data: { setId: survivingId, mediaItemId: item.mediaItemId, sortOrder: baseOrder + i },
         })
@@ -215,12 +221,13 @@ export async function mergeSetRecords(setIdA: string, setIdB: string): Promise<M
     mediaTransferred = mediaTransferred || absorbedMediaCount
 
     // Merge SetTag (skip duplicates)
+    const survivingTagIds = new Set(
+      (await tx.setTag.findMany({ where: { setId: survivingId }, select: { tagDefinitionId: true } }))
+        .map(t => t.tagDefinitionId)
+    )
     const absorbedTags = await tx.setTag.findMany({ where: { setId: absorbedId }, select: { tagDefinitionId: true } })
     for (const tag of absorbedTags) {
-      const alreadyTagged = await tx.setTag.findFirst({
-        where: { setId: survivingId, tagDefinitionId: tag.tagDefinitionId },
-      })
-      if (!alreadyTagged) {
+      if (!survivingTagIds.has(tag.tagDefinitionId)) {
         await tx.setTag.create({ data: { setId: survivingId, tagDefinitionId: tag.tagDefinitionId } })
       }
     }
@@ -257,7 +264,7 @@ export async function mergeSetRecords(setIdA: string, setIdB: string): Promise<M
 
     // Cascade delete the absorbed set (remaining child records + set row)
     await cascadeDeleteSet(tx, absorbedId)
-  })
+  }, { timeout: 30_000 })
 
   return {
     survivingId,

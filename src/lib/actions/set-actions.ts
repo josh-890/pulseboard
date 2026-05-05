@@ -449,6 +449,12 @@ export async function deleteSetMediaAction(
         await deleteMediaFiles(variantsList);
       } catch (err) {
         console.error("[deleteSetMediaAction] MinIO cleanup failed:", err);
+        await prisma.orphanedStorageKey.createMany({
+          data: variantsList.flatMap(v =>
+            Object.values(v).filter((k): k is string => typeof k === "string" && k.length > 0)
+              .map(key => ({ key, reason: "delete_cleanup_failed" }))
+          ),
+        }).catch(() => {});
       }
       await refreshDashboardStats();
       revalidatePath(`/sets/${setId}`);

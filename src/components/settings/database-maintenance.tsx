@@ -12,6 +12,7 @@ import {
   Link2Off,
   RefreshCw,
   HardDrive,
+  Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -20,6 +21,7 @@ import {
   fixDuplicateLinksAction,
   refreshViewsAction,
   auditMinioConsistencyAction,
+  processOrphanedStorageKeysAction,
 } from "@/lib/actions/database-maintenance-actions";
 
 type ActionResult = {
@@ -65,6 +67,13 @@ const actions: ActionConfig[] = [
       "Cross-check every media item's variant files against MinIO storage. Finds and removes DB rows whose files are entirely missing (e.g. victims of the shallow-copy bug). Reports orphan MinIO objects.",
     icon: <HardDrive className="h-5 w-5 text-muted-foreground" />,
     action: auditMinioConsistencyAction,
+  },
+  {
+    title: "Orphaned Storage Keys",
+    description:
+      "Retry deleting MinIO files that failed to clean up when media was deleted. Marks retried keys as resolved.",
+    icon: <Trash2 className="h-5 w-5 text-muted-foreground" />,
+    action: processOrphanedStorageKeysAction,
   },
   {
     title: "Refresh Materialized Views",

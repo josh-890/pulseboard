@@ -319,7 +319,6 @@ export function ArchiveWorkspaceClient({
 
   // ── Mode flags ─────────────────────────────────────────────────────────────
   const isFolderTab = tab === 'all' || tab === 'orphan' || tab === 'linked'
-  const isGhostTab = tab === 'ghost'
   const isTreeMode = isFolderTab && groupBy === 'channelYear'
 
   const buildFilters = useCallback((offset: number) => ({

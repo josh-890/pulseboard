@@ -96,9 +96,6 @@ export default async function SetDetailPage({ params }: SetDetailPageProps) {
 
   // Determine if we have credits
   const hasCredits = setData.creditsRaw.length > 0;
-  const unresolvedCount = setData.creditsRaw.filter((c) => c.resolutionStatus === "UNRESOLVED").length;
-  const hasPhotos = galleryItems.length > 0;
-
   return (
     <div className="space-y-6">
       {/* Back link + actions row */}

@@ -7,8 +7,8 @@ export async function GET(request: NextRequest) {
     try {
       const { searchParams } = request.nextUrl;
       const mediaItemId = searchParams.get("mediaItemId");
-      const limit = Number(searchParams.get("limit") ?? "20");
-      const threshold = Number(searchParams.get("threshold") ?? "10");
+      const limit = Math.min(100, Math.max(1, parseInt(searchParams.get("limit") ?? "20", 10) || 20));
+      const threshold = Math.min(64, Math.max(0, parseInt(searchParams.get("threshold") ?? "10", 10) || 10));
 
       if (!mediaItemId) {
         return NextResponse.json(

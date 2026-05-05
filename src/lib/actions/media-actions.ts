@@ -320,12 +320,18 @@ export async function deleteMediaItemsAction(
         return cascadeHardDeleteMediaItems(tx, mediaItemIds);
       });
 
-      // Best-effort file cleanup after commit
+      // Best-effort file cleanup after commit; queue orphaned keys on failure for retry
       try {
         const { deleteMediaFiles } = await import("@/lib/media-upload");
         await deleteMediaFiles(variantsList);
       } catch (err) {
         console.error("[deleteMediaItemsAction] MinIO cleanup failed:", err);
+        await prisma.orphanedStorageKey.createMany({
+          data: variantsList.flatMap(v =>
+            Object.values(v).filter((k): k is string => typeof k === "string" && k.length > 0)
+              .map(key => ({ key, reason: "delete_cleanup_failed" }))
+          ),
+        }).catch(() => {});
       }
 
       await refreshDashboardStats();

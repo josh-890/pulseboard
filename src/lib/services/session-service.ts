@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/db";
 import type { Prisma, SessionStatus, SessionType } from "@/generated/prisma/client";
 import { normalizeForSearch } from "@/lib/normalize";
-import { cascadeDeleteSession } from "./cascade-helpers";
+import { cascadeDeleteSession, type TxClient } from "./cascade-helpers";
 import { rebuildSetParticipantsFromContributions } from "./contribution-service";
 import { CONFIDENCE_RANK } from "@/lib/constants/confidence";
 
@@ -318,183 +318,185 @@ export async function deleteSessionRecord(id: string) {
   });
 }
 
-export async function mergeSessionsRecord(survivingId: string, absorbedId: string) {
-  return prisma.$transaction(async (tx) => {
-    // Guard: reference sessions cannot be merged
-    const [surviving, absorbed] = await Promise.all([
-      tx.session.findFirst({ where: { id: survivingId }, select: { type: true } }),
-      tx.session.findFirst({ where: { id: absorbedId }, select: { type: true } }),
-    ]);
-    if (surviving?.type === "REFERENCE" || absorbed?.type === "REFERENCE") {
-      throw new Error("Reference sessions cannot be merged");
-    }
+export async function mergeSessionsInTx(tx: TxClient, survivingId: string, absorbedId: string) {
+  // Guard: reference sessions cannot be merged
+  const [surviving, absorbed] = await Promise.all([
+    tx.session.findFirst({ where: { id: survivingId }, select: { type: true } }),
+    tx.session.findFirst({ where: { id: absorbedId }, select: { type: true } }),
+  ]);
+  if (surviving?.type === "REFERENCE" || absorbed?.type === "REFERENCE") {
+    throw new Error("Reference sessions cannot be merged");
+  }
 
-    // 1. Reassign MediaItems from absorbed → surviving
-    await tx.mediaItem.updateMany({
-      where: { sessionId: absorbedId },
-      data: { sessionId: survivingId },
-    });
+  // 1. Reassign MediaItems from absorbed → surviving
+  await tx.mediaItem.updateMany({
+    where: { sessionId: absorbedId },
+    data: { sessionId: survivingId },
+  });
 
-    // 2. Merge SessionContributions (upsert to avoid dupes)
-    const absorbedContributions = await tx.sessionContribution.findMany({
-      where: { sessionId: absorbedId },
-      include: { skills: true },
-    });
-    for (const c of absorbedContributions) {
-      const existing = await tx.sessionContribution.findUnique({
-        where: {
-          sessionId_personId_roleDefinitionId: {
-            sessionId: survivingId,
-            personId: c.personId,
-            roleDefinitionId: c.roleDefinitionId,
-          },
+  // 2. Merge SessionContributions (upsert to avoid dupes)
+  const absorbedContributions = await tx.sessionContribution.findMany({
+    where: { sessionId: absorbedId },
+    include: { skills: true },
+  });
+  for (const c of absorbedContributions) {
+    const existing = await tx.sessionContribution.findUnique({
+      where: {
+        sessionId_personId_roleDefinitionId: {
+          sessionId: survivingId,
+          personId: c.personId,
+          roleDefinitionId: c.roleDefinitionId,
         },
-      });
-      if (existing) {
-        // Merge skills into existing contribution
-        for (const skill of c.skills) {
-          await tx.contributionSkill.upsert({
-            where: {
-              contributionId_skillDefinitionId: {
-                contributionId: existing.id,
-                skillDefinitionId: skill.skillDefinitionId,
-              },
-            },
-            create: {
+      },
+    });
+    if (existing) {
+      // Merge skills into existing contribution
+      for (const skill of c.skills) {
+        await tx.contributionSkill.upsert({
+          where: {
+            contributionId_skillDefinitionId: {
               contributionId: existing.id,
               skillDefinitionId: skill.skillDefinitionId,
-              level: skill.level,
-              notes: skill.notes,
             },
-            update: {},
-          });
-        }
-        // Keep higher confidence from absorbed contribution
-        const absorbedRank = CONFIDENCE_RANK[c.confidence];
-        const existingRank = CONFIDENCE_RANK[existing.confidence];
-        if (absorbedRank > existingRank) {
-          await tx.sessionContribution.update({
-            where: { id: existing.id },
-            data: {
-              confidence: c.confidence,
-              confidenceSource: c.confidenceSource,
-              confirmedAt: c.confirmedAt,
-            },
-          });
-        }
-      } else {
-        // Move contribution to surviving session
-        await tx.contributionSkill.deleteMany({
-          where: { contributionId: c.id },
+          },
+          create: {
+            contributionId: existing.id,
+            skillDefinitionId: skill.skillDefinitionId,
+            level: skill.level,
+            notes: skill.notes,
+          },
+          update: {},
         });
-        await tx.sessionContribution.delete({ where: { id: c.id } });
-        const newContrib = await tx.sessionContribution.create({
+      }
+      // Keep higher confidence from absorbed contribution
+      const absorbedRank = CONFIDENCE_RANK[c.confidence];
+      const existingRank = CONFIDENCE_RANK[existing.confidence];
+      if (absorbedRank > existingRank) {
+        await tx.sessionContribution.update({
+          where: { id: existing.id },
           data: {
-            sessionId: survivingId,
-            personId: c.personId,
-            roleDefinitionId: c.roleDefinitionId,
-            creditNameOverride: c.creditNameOverride,
-            notes: c.notes,
             confidence: c.confidence,
             confidenceSource: c.confidenceSource,
             confirmedAt: c.confirmedAt,
           },
         });
-        // Re-create skills on the new contribution
-        for (const skill of c.skills) {
-          await tx.contributionSkill.create({
-            data: {
-              contributionId: newContrib.id,
-              skillDefinitionId: skill.skillDefinitionId,
-              level: skill.level,
-              notes: skill.notes,
-            },
-          });
-        }
       }
-    }
-
-    // 3. Reassign SetSession rows: absorbed → surviving
-    const absorbedSetLinks = await tx.setSession.findMany({
-      where: { sessionId: absorbedId },
-    });
-    for (const link of absorbedSetLinks) {
-      const existing = await tx.setSession.findUnique({
-        where: { setId_sessionId: { setId: link.setId, sessionId: survivingId } },
+    } else {
+      // Move contribution to surviving session
+      await tx.contributionSkill.deleteMany({
+        where: { contributionId: c.id },
       });
-      if (existing) {
-        // Set is already linked to surviving — just delete the absorbed row
-        await tx.setSession.delete({
-          where: { setId_sessionId: { setId: link.setId, sessionId: absorbedId } },
-        });
-      } else {
-        // Move the link: delete old + create new (can't update composite PK)
-        await tx.setSession.delete({
-          where: { setId_sessionId: { setId: link.setId, sessionId: absorbedId } },
-        });
-        await tx.setSession.create({
+      await tx.sessionContribution.delete({ where: { id: c.id } });
+      const newContrib = await tx.sessionContribution.create({
+        data: {
+          sessionId: survivingId,
+          personId: c.personId,
+          roleDefinitionId: c.roleDefinitionId,
+          creditNameOverride: c.creditNameOverride,
+          notes: c.notes,
+          confidence: c.confidence,
+          confidenceSource: c.confidenceSource,
+          confirmedAt: c.confirmedAt,
+        },
+      });
+      // Re-create skills on the new contribution
+      for (const skill of c.skills) {
+        await tx.contributionSkill.create({
           data: {
-            setId: link.setId,
-            sessionId: survivingId,
-            isPrimary: link.isPrimary,
+            contributionId: newContrib.id,
+            skillDefinitionId: skill.skillDefinitionId,
+            level: skill.level,
+            notes: skill.notes,
           },
         });
       }
     }
+  }
 
-    // 4. Hard-delete remaining absorbed contributions (skills already handled)
-    await tx.contributionSkill.deleteMany({
-      where: { contribution: { sessionId: absorbedId } },
+  // 3. Reassign SetSession rows: absorbed → surviving
+  const absorbedSetLinks = await tx.setSession.findMany({
+    where: { sessionId: absorbedId },
+  });
+  for (const link of absorbedSetLinks) {
+    const existing = await tx.setSession.findUnique({
+      where: { setId_sessionId: { setId: link.setId, sessionId: survivingId } },
     });
-    await tx.sessionContribution.deleteMany({ where: { sessionId: absorbedId } });
-
-    // 4b. Delete session tags (no Prisma model — use executeRaw)
-    await tx.$executeRaw`DELETE FROM session_tag WHERE "sessionId" = ${absorbedId}`;
-
-    // 5. Delete absorbed session
-    await tx.session.delete({
-      where: { id: absorbedId },
-    });
-
-    // 6. Rebuild SetParticipant cache + collect all linked set IDs
-    const survivingSetLinks = await tx.setSession.findMany({
-      where: { sessionId: survivingId },
-      select: { setId: true },
-    });
-    for (const link of survivingSetLinks) {
-      await rebuildSetParticipantsFromContributions(tx, link.setId);
-    }
-    const affectedSetIds = survivingSetLinks.map((l) => l.setId);
-
-    // 7. Reconcile session date — production date must not be later than earliest linked set release date
-    const survivingSession = await tx.session.findFirst({
-      where: { id: survivingId },
-      select: { date: true, datePrecision: true, dateIsConfirmed: true },
-    });
-    if (survivingSession && !survivingSession.dateIsConfirmed && affectedSetIds.length > 0) {
-      const linkedSets = await tx.set.findMany({
-        where: { id: { in: affectedSetIds }, releaseDate: { not: null } },
-        select: { releaseDate: true, releaseDatePrecision: true },
-        orderBy: { releaseDate: "asc" },
+    if (existing) {
+      // Set is already linked to surviving — just delete the absorbed row
+      await tx.setSession.delete({
+        where: { setId_sessionId: { setId: link.setId, sessionId: absorbedId } },
       });
-      if (linkedSets.length > 0) {
-        const earliest = linkedSets[0]!;
-        const sessionDate = survivingSession.date;
-        // Update if session has no date, or its date is strictly after the earliest release date
-        if (!sessionDate || sessionDate > earliest.releaseDate!) {
-          await tx.session.update({
-            where: { id: survivingId },
-            data: {
-              date: earliest.releaseDate,
-              datePrecision: (earliest.releaseDatePrecision as "UNKNOWN" | "YEAR" | "MONTH" | "DAY") ?? "UNKNOWN",
-            },
-          });
-        }
+    } else {
+      // Move the link: delete old + create new (can't update composite PK)
+      await tx.setSession.delete({
+        where: { setId_sessionId: { setId: link.setId, sessionId: absorbedId } },
+      });
+      await tx.setSession.create({
+        data: {
+          setId: link.setId,
+          sessionId: survivingId,
+          isPrimary: link.isPrimary,
+        },
+      });
+    }
+  }
+
+  // 4. Hard-delete remaining absorbed contributions (skills already handled)
+  await tx.contributionSkill.deleteMany({
+    where: { contribution: { sessionId: absorbedId } },
+  });
+  await tx.sessionContribution.deleteMany({ where: { sessionId: absorbedId } });
+
+  // 4b. Delete session tags (no Prisma model — use executeRaw)
+  await tx.$executeRaw`DELETE FROM session_tag WHERE "sessionId" = ${absorbedId}`;
+
+  // 5. Delete absorbed session
+  await tx.session.delete({
+    where: { id: absorbedId },
+  });
+
+  // 6. Rebuild SetParticipant cache + collect all linked set IDs
+  const survivingSetLinks = await tx.setSession.findMany({
+    where: { sessionId: survivingId },
+    select: { setId: true },
+  });
+  for (const link of survivingSetLinks) {
+    await rebuildSetParticipantsFromContributions(tx, link.setId);
+  }
+  const affectedSetIds = survivingSetLinks.map((l) => l.setId);
+
+  // 7. Reconcile session date — production date must not be later than earliest linked set release date
+  const survivingSession = await tx.session.findFirst({
+    where: { id: survivingId },
+    select: { date: true, datePrecision: true, dateIsConfirmed: true },
+  });
+  if (survivingSession && !survivingSession.dateIsConfirmed && affectedSetIds.length > 0) {
+    const linkedSets = await tx.set.findMany({
+      where: { id: { in: affectedSetIds }, releaseDate: { not: null } },
+      select: { releaseDate: true, releaseDatePrecision: true },
+      orderBy: { releaseDate: "asc" },
+    });
+    if (linkedSets.length > 0) {
+      const earliest = linkedSets[0]!;
+      const sessionDate = survivingSession.date;
+      // Update if session has no date, or its date is strictly after the earliest release date
+      if (!sessionDate || sessionDate > earliest.releaseDate!) {
+        await tx.session.update({
+          where: { id: survivingId },
+          data: {
+            date: earliest.releaseDate,
+            datePrecision: (earliest.releaseDatePrecision as "UNKNOWN" | "YEAR" | "MONTH" | "DAY") ?? "UNKNOWN",
+          },
+        });
       }
     }
+  }
 
-    return { affectedSetIds };
-  });
+  return { affectedSetIds };
+}
+
+export async function mergeSessionsRecord(survivingId: string, absorbedId: string) {
+  return prisma.$transaction((tx) => mergeSessionsInTx(tx, survivingId, absorbedId));
 }
 
 export async function linkSessionToSet(

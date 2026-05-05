@@ -1731,3 +1731,16 @@ model ArchiveLink {
   @@index([tenant])
   @@map("ArchiveLink")
 }
+
+// ─── Storage Cleanup Queue ───────────────────────────────────────────────────
+
+model OrphanedStorageKey {
+  id         String    @id @default(uuid())
+  key        String
+  reason     String
+  createdAt  DateTime  @default(now())
+  resolvedAt DateTime?
+
+  @@index([resolvedAt])
+  @@map("orphaned_storage_key")
+}
