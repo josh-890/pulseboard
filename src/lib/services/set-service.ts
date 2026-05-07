@@ -109,20 +109,20 @@ export type PaginatedSets = {
 function getSetOrderBy(sort?: SetSort): Prisma.SetOrderByWithRelationInput[] {
   switch (sort) {
     case "date-asc":
-      return [{ releaseDate: { sort: "asc", nulls: "last" } }];
+      return [{ releaseDate: { sort: "asc", nulls: "last" } }, { id: "asc" }];
     case "title-asc":
-      return [{ titleNorm: "asc" }];
+      return [{ titleNorm: "asc" }, { id: "asc" }];
     case "title-desc":
-      return [{ titleNorm: "desc" }];
+      return [{ titleNorm: "desc" }, { id: "asc" }];
     case "newest":
-      return [{ createdAt: "desc" }];
+      return [{ createdAt: "desc" }, { id: "asc" }];
     case "media-desc":
-      return [{ setMediaItems: { _count: "desc" } }];
+      return [{ setMediaItems: { _count: "desc" } }, { id: "asc" }];
     case "updated":
-      return [{ updatedAt: "desc" }];
+      return [{ updatedAt: "desc" }, { id: "asc" }];
     case "date-desc":
     default:
-      return [{ releaseDate: { sort: "desc", nulls: "last" } }];
+      return [{ releaseDate: { sort: "desc", nulls: "last" } }, { id: "asc" }];
   }
 }
 

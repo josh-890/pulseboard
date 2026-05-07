@@ -1421,25 +1421,25 @@ function getPersonOrderBy(sort?: PersonSort): Prisma.PersonOrderByWithRelationIn
     case "name-asc":
     case "name-desc":
       // Name sort handled via raw SQL query path below
-      return [{ createdAt: "asc" }];
+      return [{ createdAt: "asc" }, { id: "asc" }];
     case "newest":
-      return [{ createdAt: "desc" }];
+      return [{ createdAt: "desc" }, { id: "asc" }];
     case "oldest":
-      return [{ createdAt: "asc" }];
+      return [{ createdAt: "asc" }, { id: "asc" }];
     case "age-asc":
-      return [{ birthdate: { sort: "desc", nulls: "last" } }];
+      return [{ birthdate: { sort: "desc", nulls: "last" } }, { id: "asc" }];
     case "age-desc":
-      return [{ birthdate: { sort: "asc", nulls: "last" } }];
+      return [{ birthdate: { sort: "asc", nulls: "last" } }, { id: "asc" }];
     case "rating-desc":
-      return [{ rating: { sort: "desc", nulls: "last" } }];
+      return [{ rating: { sort: "desc", nulls: "last" } }, { id: "asc" }];
     case "updated":
-      return [{ createdAt: "desc" }]; // Person has no updatedAt — use createdAt
+      return [{ createdAt: "desc" }, { id: "asc" }]; // Person has no updatedAt — use createdAt
     case "completeness-asc":
     case "completeness-desc":
       // Completeness sort handled in-memory
-      return [{ createdAt: "asc" }];
+      return [{ createdAt: "asc" }, { id: "asc" }];
     default:
-      return [{ createdAt: "asc" }];
+      return [{ createdAt: "asc" }, { id: "asc" }];
   }
 }
 
