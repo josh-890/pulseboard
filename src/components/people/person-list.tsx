@@ -137,8 +137,10 @@ export function PersonList({
   // Keep ref in sync so the observer always calls the latest version
   useEffect(() => { loadMoreFnRef.current = handleLoadMore; });
 
-  // Infinite scroll — fire when sentinel enters viewport
+  // Infinite scroll — recreate observer when cursor changes so it re-fires
+  // if the sentinel is still in view after a batch loads
   useEffect(() => {
+    if (!cursor) return;
     const el = sentinelRef.current;
     if (!el) return;
     const observer = new IntersectionObserver(
@@ -147,7 +149,7 @@ export function PersonList({
     );
     observer.observe(el);
     return () => observer.disconnect();
-  }, []);
+  }, [cursor]);
 
   if (persons.length === 0) {
     return (
