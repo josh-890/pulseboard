@@ -65,6 +65,10 @@ export function PersonList({
   const [cursor, setCursor] = useState(initialCursor);
   const [isPending, startTransition] = useTransition();
   const hasRestoredScroll = useRef(false);
+  const isInitialMount = useRef(true);
+  const sentinelRef = useRef<HTMLDivElement>(null);
+  // Always-current ref to avoid stale closure in IntersectionObserver
+  const loadMoreFnRef = useRef<() => void>(() => {});
   const bulk = useBulkSelection();
 
   useEffect(() => { setPersons(initialPersons); }, [initialPersons]);
@@ -75,61 +79,38 @@ export function PersonList({
   useEffect(() => {
     if (hasRestoredScroll.current) return;
     hasRestoredScroll.current = true;
-
     const ctx = loadBrowseContext();
     if (!ctx) return;
-
-    const currentFilters = filtersToRecord(filters);
-    if (!filtersMatch(currentFilters, ctx.filters)) {
-      // Filters changed — context is stale
-      return;
-    }
-
+    if (!filtersMatch(filtersToRecord(filters), ctx.filters)) return;
     if (ctx.scrollY > 0) {
-      requestAnimationFrame(() => {
-        window.scrollTo(0, ctx.scrollY);
-      });
+      requestAnimationFrame(() => { window.scrollTo(0, ctx.scrollY); });
     }
   }, [filters]);
 
   // Build and save browse context whenever person list or cursor changes
   const saveBrowseContextFromState = useCallback(
     (currentPersons: PersonWithCommonAlias[], currentCursor: string | null) => {
-      const ids = currentPersons.map((p) => p.id);
-      const names = currentPersons.map((p) =>
-        truncateName(p.commonAlias ?? p.icgId),
-      );
       saveBrowseContext({
-        ids,
-        names,
+        ids: currentPersons.map((p) => p.id),
+        names: currentPersons.map((p) => truncateName(p.commonAlias ?? p.icgId)),
         nextCursor: currentCursor,
         totalCount,
         filters: filtersToRecord(filters),
         slot,
-        scrollY: 0, // will be updated on card click
+        scrollY: 0,
       });
     },
     [totalCount, filters, slot],
   );
 
-  // Save context when persons change — but skip on initial mount if stored context
-  // has matching filters with more items (protects context across off-route navigation)
-  const isInitialMount = useRef(true);
-
   useEffect(() => {
     if (isInitialMount.current) {
       isInitialMount.current = false;
-
       const ctx = loadBrowseContext();
-      const currentFilters = filtersToRecord(filters);
-
-      if (ctx && filtersMatch(currentFilters, ctx.filters) && ctx.ids.length >= persons.length) {
-        // Returning with same filters — stored context has >= items, don't overwrite
+      if (ctx && filtersMatch(filtersToRecord(filters), ctx.filters) && ctx.ids.length >= persons.length) {
         return;
       }
     }
-
-    // Either: load-more happened, or first load with new/no context → save
     saveBrowseContextFromState(persons, cursor);
   }, [persons, cursor, saveBrowseContextFromState, filters]);
 
@@ -137,13 +118,12 @@ export function PersonList({
     updateBrowseScrollY(window.scrollY);
   }
 
-  function handleLoadMore() {
-    if (!cursor) return;
+  const handleLoadMore = useCallback(() => {
+    if (!cursor || isPending) return;
     startTransition(async () => {
       const result = await loadMorePersons(filters, cursor, slot);
       setPersons((prev) => {
         const next = [...prev, ...result.items];
-        // Silently update URL so back-navigation restores the loaded count
         const url = new URL(window.location.href);
         url.searchParams.set("loaded", String(next.length));
         window.history.replaceState(null, "", url.toString());
@@ -152,7 +132,22 @@ export function PersonList({
       setPhotoMap((prev) => ({ ...prev, ...result.photoMap }));
       setCursor(result.nextCursor);
     });
-  }
+  }, [cursor, isPending, filters, slot]);
+
+  // Keep ref in sync so the observer always calls the latest version
+  useEffect(() => { loadMoreFnRef.current = handleLoadMore; });
+
+  // Infinite scroll — fire when sentinel enters viewport
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      (entries) => { if (entries[0].isIntersecting) loadMoreFnRef.current(); },
+      { rootMargin: "400px" },
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
 
   if (persons.length === 0) {
     return (
@@ -222,30 +217,15 @@ export function PersonList({
         })}
       </div>
 
-      {/* Load more footer */}
-      <div className="flex items-center justify-center gap-3 pt-2">
+      {/* Count + infinite scroll sentinel */}
+      <div className="flex flex-col items-center gap-3 pt-2">
         <p className="text-sm text-muted-foreground">
           Showing {persons.length} of {totalCount}{" "}
           {totalCount === 1 ? "person" : "people"}
         </p>
-        {cursor && (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleLoadMore}
-            disabled={isPending}
-          >
-            {isPending ? (
-              <>
-                <Loader2 size={14} className="mr-1.5 animate-spin" />
-                Loading…
-              </>
-            ) : (
-              "Load more (50)"
-            )}
-          </Button>
-        )}
+        {isPending && <Loader2 size={18} className="animate-spin text-muted-foreground/50" />}
       </div>
+      <div ref={sentinelRef} className="h-px" aria-hidden="true" />
 
       {/* Bulk selection bar */}
       {bulk.isSelecting && (

@@ -82,7 +82,14 @@ export function SetGrid({
   const [isPending, startTransition] = useTransition();
   const hasRestoredScroll = useRef(false);
   const isInitialMount = useRef(true);
+  const sentinelRef = useRef<HTMLDivElement>(null);
+  const loadMoreFnRef = useRef<() => void>(() => {});
   const bulk = useBulkSelection();
+
+  useEffect(() => { setSets(initialSets); }, [initialSets]);
+  useEffect(() => { setPhotoMap(initialPhotoMap); }, [initialPhotoMap]);
+  useEffect(() => { setHeadshotMap(initialHeadshotMap); }, [initialHeadshotMap]);
+  useEffect(() => { setCursor(initialCursor); }, [initialCursor]);
 
   // Restore scroll on return from detail page
   useEffect(() => {
@@ -128,13 +135,12 @@ export function SetGrid({
     updateBrowseScrollY(window.scrollY, SET_BROWSE_KEY);
   }
 
-  function handleLoadMore() {
-    if (!cursor) return;
+  const handleLoadMore = useCallback(() => {
+    if (!cursor || isPending) return;
     startTransition(async () => {
       const result = await loadMoreSets(filters, cursor);
       setSets((prev) => {
         const next = [...prev, ...(result.items as SetItem[])];
-        // Silently update URL so back-navigation restores the loaded count
         const url = new URL(window.location.href);
         url.searchParams.set("loaded", String(next.length));
         window.history.replaceState(null, "", url.toString());
@@ -144,7 +150,22 @@ export function SetGrid({
       setHeadshotMap((prev) => ({ ...prev, ...result.headshotMap }));
       setCursor(result.nextCursor);
     });
-  }
+  }, [cursor, isPending, filters]);
+
+  // Keep ref in sync so the observer always calls the latest version
+  useEffect(() => { loadMoreFnRef.current = handleLoadMore; });
+
+  // Infinite scroll
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      (entries) => { if (entries[0].isIntersecting) loadMoreFnRef.current(); },
+      { rootMargin: "400px" },
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
 
   if (sets.length === 0) {
     return (
@@ -216,30 +237,15 @@ export function SetGrid({
         })}
       </div>
 
-      {/* Load more footer */}
-      <div className="flex items-center justify-center gap-3 pt-2">
+      {/* Count + infinite scroll sentinel */}
+      <div className="flex flex-col items-center gap-3 pt-2">
         <p className="text-sm text-muted-foreground">
           Showing {sets.length} of {totalCount}{" "}
           {totalCount === 1 ? "set" : "sets"}
         </p>
-        {cursor && (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleLoadMore}
-            disabled={isPending}
-          >
-            {isPending ? (
-              <>
-                <Loader2 size={14} className="mr-1.5 animate-spin" />
-                Loading…
-              </>
-            ) : (
-              "Load more (50)"
-            )}
-          </Button>
-        )}
+        {isPending && <Loader2 size={18} className="animate-spin text-muted-foreground/50" />}
       </div>
+      <div ref={sentinelRef} className="h-px" aria-hidden="true" />
 
       {/* Bulk selection bar */}
       {bulk.isSelecting && (
