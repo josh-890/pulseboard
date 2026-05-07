@@ -1,7 +1,8 @@
 import { withTenantFromHeaders } from "@/lib/tenant-context";
+import { Suspense } from "react";
 import { notFound } from "next/navigation";
-import Link from "next/link";
 import { Tag, FileText } from "lucide-react";
+import { SetBrowseNavBar, SetBrowseBackLink } from "@/components/sets/set-browse-nav-bar";
 import { getSetById, getChannelsForSelect } from "@/lib/services/set-service";
 import { getSetMediaGallery, getCoverPhotosForSets, getHeadshotsForPersons } from "@/lib/services/media-service";
 import { getHeroBackdropEnabled } from "@/lib/services/setting-service";
@@ -98,16 +99,17 @@ export default async function SetDetailPage({ params }: SetDetailPageProps) {
   const hasCredits = setData.creditsRaw.length > 0;
   return (
     <div className="space-y-6">
-      {/* Back link + actions row */}
-      <div className="flex items-center justify-between gap-4">
-        <Link
-          href="/sets"
-          className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-        >
-          <span aria-hidden="true">←</span>
-          Back to Sets
-        </Link>
-        <div className="flex items-center gap-2">
+      {/* Back link + browse nav + actions row */}
+      <div className="grid grid-cols-3 items-center gap-4">
+        <div className="flex items-center">
+          <SetBrowseBackLink />
+        </div>
+        <div className="flex justify-center">
+          <Suspense fallback={null}>
+            <SetBrowseNavBar setId={id} />
+          </Suspense>
+        </div>
+        <div className="flex items-center justify-end gap-2">
           <MergeSetButton setId={id} setTitle={setData.title} setType={setData.type} />
           <EditSetSheet
             set={{

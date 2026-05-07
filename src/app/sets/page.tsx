@@ -278,6 +278,7 @@ export default async function SetsPage({ searchParams }: SetsPageProps) {
     filterGroups,
     resultCount: paginated.items.length,
     totalCount: paginated.totalCount,
+    browseContextKey: "pulseboard-set-browse-context",
   };
 
   return (

@@ -1,7 +1,9 @@
 import { withTenantFromHeaders } from "@/lib/tenant-context";
+import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { Users, ImageIcon, Camera, Film, User, Sparkles } from "lucide-react";
+import { SessionBrowseNavBar, SessionBrowseBackLink } from "@/components/sessions/session-browse-nav-bar";
 import { getSessionById } from "@/lib/services/session-service";
 import { getLabels } from "@/lib/services/label-service";
 import { getProjects } from "@/lib/services/project-service";
@@ -262,17 +264,18 @@ export default async function SessionDetailPage({ params, searchParams }: Sessio
 
   return (
     <div className="space-y-6">
-      {/* Back link + actions row */}
-      <div className="flex items-center justify-between gap-4">
-        <Link
-          href="/sessions"
-          className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-        >
-          <span aria-hidden="true">&larr;</span>
-          Back to Sessions
-        </Link>
+      {/* Back link + browse nav + actions row */}
+      <div className="grid grid-cols-3 items-center gap-4">
+        <div className="flex items-center">
+          <SessionBrowseBackLink />
+        </div>
+        <div className="flex justify-center">
+          <Suspense fallback={null}>
+            <SessionBrowseNavBar sessionId={id} />
+          </Suspense>
+        </div>
         {!isReference && (
-          <div className="flex items-center gap-2">
+          <div className="flex items-center justify-end gap-2">
             <EditSessionSheet
               session={{
                 id: session.id,

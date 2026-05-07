@@ -83,6 +83,8 @@ type BrowserToolbarConfig = {
   filterGroups: FilterGroup[];
   resultCount: number;
   totalCount: number;
+  /** sessionStorage key for the browse context — used to clear it on filter reset */
+  browseContextKey?: string;
 };
 
 export type {
@@ -110,6 +112,7 @@ export function BrowserToolbar({ config, children }: BrowserToolbarProps) {
     sortOptions,
     defaultSort,
     filterGroups,
+    browseContextKey,
   } = config;
 
   const router = useRouter();
@@ -321,7 +324,7 @@ export function BrowserToolbar({ config, children }: BrowserToolbarProps) {
 
   function handleClearAll() {
     setSearchValue("");
-    clearBrowseContext();
+    clearBrowseContext(browseContextKey);
     router.replace(basePath);
   }
 

@@ -1,13 +1,15 @@
 /**
- * Client-side browse context for prev/next navigation on person detail pages.
+ * Client-side browse context for prev/next navigation on detail pages.
  * Uses sessionStorage to persist ordered ID list, display names, scroll position,
  * and pagination cursor across page navigations.
  */
 
 const STORAGE_KEY = "pulseboard-browse-context";
+export const SESSION_BROWSE_KEY = "pulseboard-session-browse-context";
+export const SET_BROWSE_KEY = "pulseboard-set-browse-context";
 
 export type BrowseContext = {
-  /** Ordered list of person IDs in the current browse subset */
+  /** Ordered list of entity IDs in the current browse subset */
   ids: string[];
   /** Parallel array of display names (truncated) for prev/next preview */
   names: string[];
@@ -17,7 +19,7 @@ export type BrowseContext = {
   totalCount: number;
   /** Filter snapshot — used to detect stale context on browser return */
   filters: Record<string, string>;
-  /** Headshot slot filter value */
+  /** Headshot slot filter value (people only) */
   slot?: number;
   /** Scroll offset (pixels from top of page) */
   scrollY: number;
@@ -38,17 +40,17 @@ export type BrowseNav = {
   isAtEnd: boolean;
 };
 
-export function saveBrowseContext(ctx: BrowseContext): void {
+export function saveBrowseContext(ctx: BrowseContext, key = STORAGE_KEY): void {
   try {
-    sessionStorage.setItem(STORAGE_KEY, JSON.stringify(ctx));
+    sessionStorage.setItem(key, JSON.stringify(ctx));
   } catch {
     // sessionStorage full or unavailable — degrade silently
   }
 }
 
-export function loadBrowseContext(): BrowseContext | null {
+export function loadBrowseContext(key = STORAGE_KEY): BrowseContext | null {
   try {
-    const raw = sessionStorage.getItem(STORAGE_KEY);
+    const raw = sessionStorage.getItem(key);
     if (!raw) return null;
     return JSON.parse(raw) as BrowseContext;
   } catch {
@@ -56,19 +58,19 @@ export function loadBrowseContext(): BrowseContext | null {
   }
 }
 
-export function clearBrowseContext(): void {
+export function clearBrowseContext(key = STORAGE_KEY): void {
   try {
-    sessionStorage.removeItem(STORAGE_KEY);
+    sessionStorage.removeItem(key);
   } catch {
     // ignore
   }
 }
 
-export function getBrowseNav(personId: string): BrowseNav | null {
-  const ctx = loadBrowseContext();
+export function getBrowseNav(entityId: string, key = STORAGE_KEY): BrowseNav | null {
+  const ctx = loadBrowseContext(key);
   if (!ctx) return null;
 
-  const index = ctx.ids.indexOf(personId);
+  const index = ctx.ids.indexOf(entityId);
   if (index === -1) return null;
 
   const isLastLoaded = index === ctx.ids.length - 1;
@@ -90,28 +92,29 @@ export function extendBrowseContext(
   newIds: string[],
   newNames: string[],
   newCursor: string | null,
+  key = STORAGE_KEY,
 ): void {
-  const ctx = loadBrowseContext();
+  const ctx = loadBrowseContext(key);
   if (!ctx) return;
 
   ctx.ids.push(...newIds);
   ctx.names.push(...newNames);
   ctx.nextCursor = newCursor;
-  saveBrowseContext(ctx);
+  saveBrowseContext(ctx, key);
 }
 
-export function updateBrowseScrollY(scrollY: number): void {
-  const ctx = loadBrowseContext();
+export function updateBrowseScrollY(scrollY: number, key = STORAGE_KEY): void {
+  const ctx = loadBrowseContext(key);
   if (!ctx) return;
 
   ctx.scrollY = scrollY;
-  saveBrowseContext(ctx);
+  saveBrowseContext(ctx, key);
 }
 
-/** Build the /people URL that restores the stored browse state (filters + loaded count) */
-export function getBrowseReturnUrl(): string {
-  const ctx = loadBrowseContext();
-  if (!ctx) return "/people";
+/** Build the return URL for a browse list, restoring filters + loaded count */
+export function getBrowseReturnUrl(basePath = "/people", key = STORAGE_KEY): string {
+  const ctx = loadBrowseContext(key);
+  if (!ctx) return basePath;
 
   const params = new URLSearchParams();
   for (const [k, v] of Object.entries(ctx.filters)) {
@@ -125,7 +128,7 @@ export function getBrowseReturnUrl(): string {
   }
 
   const qs = params.toString();
-  return qs ? `/people?${qs}` : "/people";
+  return qs ? `${basePath}?${qs}` : basePath;
 }
 
 /** Truncate a name for storage/display (max 20 chars) */

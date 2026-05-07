@@ -240,6 +240,7 @@ export default async function PeoplePage({ searchParams }: PeoplePageProps) {
     filterGroups,
     resultCount: paginated.items.length,
     totalCount: paginated.totalCount,
+    browseContextKey: "pulseboard-browse-context",
   };
 
   return (

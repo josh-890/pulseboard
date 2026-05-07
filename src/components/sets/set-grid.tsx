@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { ImageIcon, Loader2, CheckSquare } from "lucide-react";
 import { SetCard } from "./set-card";
 import { useDensity } from "@/components/layout/density-provider";
@@ -12,8 +12,31 @@ import type { SetFilters } from "@/lib/services/set-service";
 import { useBulkSelection } from "@/hooks/use-bulk-selection";
 import { BulkSelectionBar } from "@/components/shared/bulk-selection-bar";
 import type { SuggestedFolderInfo } from "@/lib/services/archive-service";
+import {
+  saveBrowseContext,
+  loadBrowseContext,
+  updateBrowseScrollY,
+  truncateName,
+  filtersMatch,
+  SET_BROWSE_KEY,
+} from "@/lib/browse-context";
 
 type SetItem = Awaited<ReturnType<typeof getSets>>[number];
+
+function filtersToRecord(filters: SetFilters): Record<string, string> {
+  const r: Record<string, string> = {};
+  if (filters.q) r.q = filters.q;
+  if (filters.type && filters.type !== "all") r.type = filters.type;
+  if (filters.channelId) r.channel = filters.channelId;
+  if (filters.labelId) r.label = filters.labelId;
+  if (filters.personId) r.personId = filters.personId;
+  if (filters.sort) r.sort = filters.sort;
+  if (filters.releaseDateFrom) r.releaseDateFrom = filters.releaseDateFrom.toISOString().split("T")[0];
+  if (filters.releaseDateTo) r.releaseDateTo = filters.releaseDateTo.toISOString().split("T")[0];
+  if (filters.createdFrom) r.createdFrom = filters.createdFrom.toISOString().split("T")[0];
+  if (filters.createdTo) r.createdTo = filters.createdTo.toISOString().split("T")[0];
+  return r;
+}
 
 type CoverPhotoData = {
   url: string;
@@ -57,7 +80,53 @@ export function SetGrid({
   const [headshotMap, setHeadshotMap] = useState(initialHeadshotMap);
   const [cursor, setCursor] = useState(initialCursor);
   const [isPending, startTransition] = useTransition();
+  const hasRestoredScroll = useRef(false);
+  const isInitialMount = useRef(true);
   const bulk = useBulkSelection();
+
+  // Restore scroll on return from detail page
+  useEffect(() => {
+    if (hasRestoredScroll.current) return;
+    hasRestoredScroll.current = true;
+    const ctx = loadBrowseContext(SET_BROWSE_KEY);
+    if (!ctx) return;
+    if (!filtersMatch(filtersToRecord(filters), ctx.filters)) return;
+    if (ctx.scrollY > 0) {
+      requestAnimationFrame(() => { window.scrollTo(0, ctx.scrollY); });
+    }
+  }, [filters]);
+
+  const saveBrowseContextFromState = useCallback(
+    (current: SetItem[], cur: string | null) => {
+      saveBrowseContext(
+        {
+          ids: current.map((s) => s.id),
+          names: current.map((s) => truncateName(s.title)),
+          nextCursor: cur,
+          totalCount,
+          filters: filtersToRecord(filters),
+          scrollY: 0,
+        },
+        SET_BROWSE_KEY,
+      );
+    },
+    [totalCount, filters],
+  );
+
+  useEffect(() => {
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      const ctx = loadBrowseContext(SET_BROWSE_KEY);
+      if (ctx && filtersMatch(filtersToRecord(filters), ctx.filters) && ctx.ids.length >= sets.length) {
+        return;
+      }
+    }
+    saveBrowseContextFromState(sets, cursor);
+  }, [sets, cursor, saveBrowseContextFromState, filters]);
+
+  function handleCardClick() {
+    updateBrowseScrollY(window.scrollY, SET_BROWSE_KEY);
+  }
 
   function handleLoadMore() {
     if (!cursor) return;
@@ -129,7 +198,10 @@ export function SetGrid({
                   {isSelected && <CheckSquare className="h-3.5 w-3.5" />}
                 </button>
               )}
-              <div className={cn(bulk.isSelecting && isSelected && "ring-2 ring-primary rounded-xl")}>
+              <div
+                className={cn(bulk.isSelecting && isSelected && "ring-2 ring-primary rounded-xl")}
+                onClick={bulk.isSelecting ? undefined : handleCardClick}
+              >
                 <SetCard
                   set={set}
                   coverPhoto={photoMap[set.id]}

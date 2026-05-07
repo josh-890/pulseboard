@@ -190,6 +190,7 @@ export default async function SessionsPage({ searchParams }: SessionsPageProps) 
     filterGroups,
     resultCount: paginated.items.length,
     totalCount: paginated.totalCount,
+    browseContextKey: "pulseboard-session-browse-context",
   };
 
   return (
