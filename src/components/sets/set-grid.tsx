@@ -124,7 +124,7 @@ export function SetGrid({
     if (isInitialMount.current) {
       isInitialMount.current = false;
       const ctx = loadBrowseContext(SET_BROWSE_KEY);
-      if (ctx && filtersMatch(filtersToRecord(filters), ctx.filters) && ctx.ids.length >= sets.length) {
+      if (ctx && filtersMatch(filtersToRecord(filters), ctx.filters) && ctx.ids.length > sets.length) {
         return;
       }
     }

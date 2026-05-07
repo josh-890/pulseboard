@@ -107,7 +107,7 @@ export function PersonList({
     if (isInitialMount.current) {
       isInitialMount.current = false;
       const ctx = loadBrowseContext();
-      if (ctx && filtersMatch(filtersToRecord(filters), ctx.filters) && ctx.ids.length >= persons.length) {
+      if (ctx && filtersMatch(filtersToRecord(filters), ctx.filters) && ctx.ids.length > persons.length) {
         return;
       }
     }

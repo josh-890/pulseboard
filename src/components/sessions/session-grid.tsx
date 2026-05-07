@@ -117,7 +117,7 @@ export function SessionGrid({
     if (isInitialMount.current) {
       isInitialMount.current = false;
       const ctx = loadBrowseContext(SESSION_BROWSE_KEY);
-      if (ctx && filtersMatch(filtersToRecord(filters), ctx.filters) && ctx.ids.length >= sessions.length) {
+      if (ctx && filtersMatch(filtersToRecord(filters), ctx.filters) && ctx.ids.length > sessions.length) {
         return;
       }
     }
