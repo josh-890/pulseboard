@@ -1421,25 +1421,25 @@ function getPersonOrderBy(sort?: PersonSort): Prisma.PersonOrderByWithRelationIn
     case "name-asc":
     case "name-desc":
       // Name sort handled via raw SQL query path below
-      return [{ createdAt: "asc" }, { id: "asc" }];
+      return [{ createdAt: "asc" }];
     case "newest":
-      return [{ createdAt: "desc" }, { id: "asc" }];
+      return [{ createdAt: "desc" }];
     case "oldest":
-      return [{ createdAt: "asc" }, { id: "asc" }];
+      return [{ createdAt: "asc" }];
     case "age-asc":
-      return [{ birthdate: { sort: "desc", nulls: "last" } }, { id: "asc" }];
+      return [{ birthdate: { sort: "desc", nulls: "last" } }];
     case "age-desc":
-      return [{ birthdate: { sort: "asc", nulls: "last" } }, { id: "asc" }];
+      return [{ birthdate: { sort: "asc", nulls: "last" } }];
     case "rating-desc":
-      return [{ rating: { sort: "desc", nulls: "last" } }, { id: "asc" }];
+      return [{ rating: { sort: "desc", nulls: "last" } }];
     case "updated":
-      return [{ createdAt: "desc" }, { id: "asc" }]; // Person has no updatedAt — use createdAt
+      return [{ createdAt: "desc" }]; // Person has no updatedAt — use createdAt
     case "completeness-asc":
     case "completeness-desc":
       // Completeness sort handled in-memory
-      return [{ createdAt: "asc" }, { id: "asc" }];
+      return [{ createdAt: "asc" }];
     default:
-      return [{ createdAt: "asc" }, { id: "asc" }];
+      return [{ createdAt: "asc" }];
   }
 }
 
@@ -1608,15 +1608,11 @@ export async function getPersonsPaginated(
     }
 
     // Paginate
-    let startIdx = 0;
-    if (cursor) {
-      const cursorIdx = filtered.findIndex((p) => p.id === cursor);
-      startIdx = cursorIdx >= 0 ? cursorIdx + 1 : 0;
-    }
+    const startIdx = cursor ? (parseInt(cursor, 10) || 0) : 0;
 
     const pageItems = filtered.slice(startIdx, startIdx + limit);
     const hasMore = startIdx + limit < filtered.length;
-    const nextCursorId = hasMore ? pageItems[pageItems.length - 1]!.id : null;
+    const nextCursorId = hasMore ? String(startIdx + limit) : null;
     const totalCount = completenessFilter ? filtered.length : totalCountRaw;
 
     return {
@@ -1638,13 +1634,14 @@ export async function getPersonsPaginated(
       },
       orderBy,
       take: limit + 1,
-      ...(cursor ? { skip: 1, cursor: { id: cursor } } : {}),
+      skip: cursor ? parseInt(cursor, 10) : 0,
     }),
   ]);
 
+  const offset = cursor ? parseInt(cursor, 10) : 0;
   const hasMore = persons.length > limit;
   const items = hasMore ? persons.slice(0, limit) : persons;
-  const nextCursor = hasMore ? items[items.length - 1]!.id : null;
+  const nextCursor = hasMore ? String(offset + limit) : null;
 
   // Batch compute completeness
   const batchData = items.map((p) => ({

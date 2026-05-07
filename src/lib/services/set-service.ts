@@ -109,20 +109,20 @@ export type PaginatedSets = {
 function getSetOrderBy(sort?: SetSort): Prisma.SetOrderByWithRelationInput[] {
   switch (sort) {
     case "date-asc":
-      return [{ releaseDate: { sort: "asc", nulls: "last" } }, { id: "asc" }];
+      return [{ releaseDate: { sort: "asc", nulls: "last" } }];
     case "title-asc":
-      return [{ titleNorm: "asc" }, { id: "asc" }];
+      return [{ titleNorm: "asc" }];
     case "title-desc":
-      return [{ titleNorm: "desc" }, { id: "asc" }];
+      return [{ titleNorm: "desc" }];
     case "newest":
-      return [{ createdAt: "desc" }, { id: "asc" }];
+      return [{ createdAt: "desc" }];
     case "media-desc":
-      return [{ setMediaItems: { _count: "desc" } }, { id: "asc" }];
+      return [{ setMediaItems: { _count: "desc" } }];
     case "updated":
-      return [{ updatedAt: "desc" }, { id: "asc" }];
+      return [{ updatedAt: "desc" }];
     case "date-desc":
     default:
-      return [{ releaseDate: { sort: "desc", nulls: "last" } }, { id: "asc" }];
+      return [{ releaseDate: { sort: "desc", nulls: "last" } }];
   }
 }
 
@@ -243,13 +243,14 @@ export async function getSetsPaginated(
       },
       orderBy,
       take: limit + 1,
-      ...(cursor ? { skip: 1, cursor: { id: cursor } } : {}),
+      skip: cursor ? parseInt(cursor, 10) : 0,
     }),
   ]);
 
+  const offset = cursor ? parseInt(cursor, 10) : 0;
   const hasMore = sets.length > limit;
   const items = hasMore ? sets.slice(0, limit) : sets;
-  const nextCursor = hasMore ? items[items.length - 1]!.id : null;
+  const nextCursor = hasMore ? String(offset + limit) : null;
 
   return { items, nextCursor, totalCount };
 }

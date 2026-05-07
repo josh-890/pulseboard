@@ -96,24 +96,24 @@ export async function getSessions(filters: SessionFilters = {}) {
 function getSessionOrderBy(sort?: SessionSort): Prisma.SessionOrderByWithRelationInput[] {
   switch (sort) {
     case "date-desc":
-      return [{ date: { sort: "desc", nulls: "last" } }, { id: "asc" }];
+      return [{ date: { sort: "desc", nulls: "last" } }];
     case "date-asc":
-      return [{ date: { sort: "asc", nulls: "last" } }, { id: "asc" }];
+      return [{ date: { sort: "asc", nulls: "last" } }];
     case "name-asc":
-      return [{ name: "asc" }, { id: "asc" }];
+      return [{ name: "asc" }];
     case "name-desc":
-      return [{ name: "desc" }, { id: "asc" }];
+      return [{ name: "desc" }];
     case "media-desc":
-      return [{ mediaItems: { _count: "desc" } }, { id: "asc" }];
+      return [{ mediaItems: { _count: "desc" } }];
     case "updated":
-      return [{ updatedAt: "desc" }, { id: "asc" }];
+      return [{ updatedAt: "desc" }];
     case "contributors-desc":
-      return [{ contributions: { _count: "desc" } }, { id: "asc" }];
+      return [{ contributions: { _count: "desc" } }];
     case "sets-desc":
-      return [{ setSessionLinks: { _count: "desc" } }, { id: "asc" }];
+      return [{ setSessionLinks: { _count: "desc" } }];
     case "newest":
     default:
-      return [{ createdAt: "desc" }, { id: "asc" }];
+      return [{ createdAt: "desc" }];
   }
 }
 
@@ -207,13 +207,14 @@ export async function getSessionsPaginated(
       },
       orderBy,
       take: limit + 1,
-      ...(cursor ? { skip: 1, cursor: { id: cursor } } : {}),
+      skip: cursor ? parseInt(cursor, 10) : 0,
     }),
   ]);
 
+  const offset = cursor ? parseInt(cursor, 10) : 0;
   const hasMore = sessions.length > limit;
   const items = hasMore ? sessions.slice(0, limit) : sessions;
-  const nextCursor = hasMore ? items[items.length - 1]!.id : null;
+  const nextCursor = hasMore ? String(offset + limit) : null;
 
   return { items, nextCursor, totalCount };
 }
