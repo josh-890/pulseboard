@@ -18,7 +18,11 @@ export type SessionSort =
   | "date-desc"
   | "date-asc"
   | "name-asc"
-  | "media-desc";
+  | "name-desc"
+  | "media-desc"
+  | "updated"
+  | "contributors-desc"
+  | "sets-desc";
 
 export type SessionFilters = {
   q?: string;
@@ -26,6 +30,11 @@ export type SessionFilters = {
   type?: SessionType | "all";
   labelId?: string;
   projectId?: string;
+  personId?: string;
+  dateFrom?: Date;
+  dateTo?: Date;
+  createdFrom?: Date;
+  createdTo?: Date;
   sort?: SessionSort;
 };
 
@@ -92,8 +101,16 @@ function getSessionOrderBy(sort?: SessionSort): Prisma.SessionOrderByWithRelatio
       return [{ date: { sort: "asc", nulls: "last" } }];
     case "name-asc":
       return [{ name: "asc" }];
+    case "name-desc":
+      return [{ name: "desc" }];
     case "media-desc":
       return [{ mediaItems: { _count: "desc" } }];
+    case "updated":
+      return [{ updatedAt: "desc" }];
+    case "contributors-desc":
+      return [{ contributions: { _count: "desc" } }];
+    case "sets-desc":
+      return [{ setSessionLinks: { _count: "desc" } }];
     case "newest":
     default:
       return [{ createdAt: "desc" }];
@@ -111,7 +128,7 @@ export async function getSessionsPaginated(
   cursor?: string,
   limit = 50,
 ): Promise<PaginatedSessions> {
-  const { q, status, type, labelId, projectId, sort } = filters;
+  const { q, status, type, labelId, projectId, personId, dateFrom, dateTo, createdFrom, createdTo, sort } = filters;
 
   const where: Prisma.SessionWhereInput = {};
 
@@ -124,7 +141,12 @@ export async function getSessionsPaginated(
   }
 
   if (q) {
-    where.name = { contains: q, mode: "insensitive" };
+    where.OR = [
+      { name: { contains: q, mode: "insensitive" } },
+      { description: { contains: q, mode: "insensitive" } },
+      { location: { contains: q, mode: "insensitive" } },
+      { notes: { contains: q, mode: "insensitive" } },
+    ];
   }
 
   if (labelId) {
@@ -133,6 +155,24 @@ export async function getSessionsPaginated(
 
   if (projectId) {
     where.projectId = projectId;
+  }
+
+  if (personId) {
+    where.contributions = { some: { personId } };
+  }
+
+  if (dateFrom || dateTo) {
+    where.date = {
+      ...(dateFrom ? { gte: dateFrom } : {}),
+      ...(dateTo ? { lte: dateTo } : {}),
+    };
+  }
+
+  if (createdFrom || createdTo) {
+    where.createdAt = {
+      ...(createdFrom ? { gte: createdFrom } : {}),
+      ...(createdTo ? { lte: createdTo } : {}),
+    };
   }
 
   const orderBy = getSessionOrderBy(sort);
@@ -227,6 +267,57 @@ export async function getSessionById(id: string) {
 
 export async function countSessions(): Promise<number> {
   return prisma.session.count();
+}
+
+export type SessionFacetCounts = {
+  status: Record<string, number>;
+  labelId: Record<string, number>;
+  projectId: Record<string, number>;
+};
+
+export async function getSessionFacetCounts(filters: Omit<SessionFilters, "sort">): Promise<SessionFacetCounts> {
+  // Base where: type always PRODUCTION, includes q/person/date filters but NOT the three facets
+  function baseWhere(overrides: Partial<Pick<SessionFilters, "status" | "labelId" | "projectId">> = {}): Prisma.SessionWhereInput {
+    const w: Prisma.SessionWhereInput = { type: "PRODUCTION" };
+    const merged = { ...filters, ...overrides };
+    if (merged.status && merged.status !== "all") w.status = merged.status;
+    if (merged.labelId) w.labelId = merged.labelId;
+    if (merged.projectId) w.projectId = merged.projectId;
+    if (filters.q) {
+      w.OR = [
+        { name: { contains: filters.q, mode: "insensitive" } },
+        { description: { contains: filters.q, mode: "insensitive" } },
+        { location: { contains: filters.q, mode: "insensitive" } },
+        { notes: { contains: filters.q, mode: "insensitive" } },
+      ];
+    }
+    if (filters.personId) w.contributions = { some: { personId: filters.personId } };
+    if (filters.dateFrom || filters.dateTo) {
+      w.date = {
+        ...(filters.dateFrom ? { gte: filters.dateFrom } : {}),
+        ...(filters.dateTo ? { lte: filters.dateTo } : {}),
+      };
+    }
+    if (filters.createdFrom || filters.createdTo) {
+      w.createdAt = {
+        ...(filters.createdFrom ? { gte: filters.createdFrom } : {}),
+        ...(filters.createdTo ? { lte: filters.createdTo } : {}),
+      };
+    }
+    return w;
+  }
+
+  const [statusGroups, labelGroups, projectGroups] = await Promise.all([
+    prisma.session.groupBy({ by: ["status"], where: baseWhere({ status: undefined }), _count: { _all: true } }),
+    prisma.session.groupBy({ by: ["labelId"], where: baseWhere({ labelId: undefined }), _count: { _all: true } }),
+    prisma.session.groupBy({ by: ["projectId"], where: baseWhere({ projectId: undefined }), _count: { _all: true } }),
+  ]);
+
+  return {
+    status: Object.fromEntries(statusGroups.map((r) => [r.status, r._count._all])),
+    labelId: Object.fromEntries(labelGroups.filter((r) => r.labelId).map((r) => [r.labelId!, r._count._all])),
+    projectId: Object.fromEntries(projectGroups.filter((r) => r.projectId).map((r) => [r.projectId!, r._count._all])),
+  };
 }
 
 /** Returns the set IDs of all sets linked to a session (for cache invalidation). */

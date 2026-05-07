@@ -1,7 +1,7 @@
 import { withTenantFromHeaders } from "@/lib/tenant-context";
 import { Suspense } from "react";
 import { ImageIcon } from "lucide-react";
-import { getSetsPaginated, getChannelsWithLabelMaps, getRecentChannels, getLastUsedSetType } from "@/lib/services/set-service";
+import { getSetsPaginated, getChannelsWithLabelMaps, getRecentChannels, getLastUsedSetType, getSetFacetCounts } from "@/lib/services/set-service";
 import { getSuggestedFoldersForSets } from "@/lib/services/archive-service";
 import { getPotentialDuplicatePairs } from "@/lib/services/set-merge-service";
 import type { SetSort, SetFilters } from "@/lib/services/set-service";
@@ -11,6 +11,7 @@ import type { SetType } from "@/lib/types";
 import { SetGrid } from "@/components/sets/set-grid";
 import { BrowserToolbar } from "@/components/shared/browser-toolbar";
 import type { BrowserToolbarConfig, FilterGroup } from "@/components/shared/browser-toolbar";
+import { SavedViewsBar } from "@/components/shared/saved-views-bar";
 import { AddSetSheet } from "@/components/sets/add-set-sheet";
 
 export const dynamic = "force-dynamic";
@@ -26,16 +27,22 @@ type SetsPageProps = {
     sort?: string;
     channel?: string;
     label?: string;
+    personId?: string;
+    personName?: string;
     hasMedia?: string;
     archiveFilter?: string;
     noArchiveLink?: string;
     duplicates?: string;
+    releaseDateFrom?: string;
+    releaseDateTo?: string;
+    createdFrom?: string;
+    createdTo?: string;
   }>;
 };
 
 const VALID_TYPES = new Set<string>(["photo", "video"]);
 const VALID_SORTS = new Set<string>([
-  "date-desc", "date-asc", "title-asc", "title-desc", "newest", "media-desc",
+  "date-desc", "date-asc", "title-asc", "title-desc", "newest", "media-desc", "updated",
 ]);
 
 function isSetType(value: string): value is SetType {
@@ -52,18 +59,30 @@ const SORT_OPTIONS = [
   { value: "title-asc", label: "Title A→Z" },
   { value: "title-desc", label: "Title Z→A" },
   { value: "newest", label: "Recently added" },
+  { value: "updated", label: "Recently updated" },
   { value: "media-desc", label: "Most media" },
 ];
+
+function parseDate(value: string | undefined): Date | undefined {
+  if (!value) return undefined;
+  const d = new Date(value);
+  return isNaN(d.getTime()) ? undefined : d;
+}
 
 export default async function SetsPage({ searchParams }: SetsPageProps) {
   return withTenantFromHeaders(async () => {
     const {
       q, type, loaded, sort: sortParam,
       channel: channelId, label: labelId,
+      personId,
       hasMedia: hasMediaParam,
       archiveFilter: archiveFilterParam,
       noArchiveLink: noArchiveLinkParam,
       duplicates: duplicatesParam,
+      releaseDateFrom: releaseDateFromParam,
+      releaseDateTo: releaseDateToParam,
+      createdFrom: createdFromParam,
+      createdTo: createdToParam,
     } = await searchParams;
 
   const limit = Math.min(
@@ -80,6 +99,10 @@ export default async function SetsPage({ searchParams }: SetsPageProps) {
     : undefined
 
   const duplicatesOnly = duplicatesParam === 'true';
+  const releaseDateFrom = parseDate(releaseDateFromParam);
+  const releaseDateTo = parseDate(releaseDateToParam);
+  const createdFrom = parseDate(createdFromParam);
+  const createdTo = parseDate(createdToParam);
 
   // When filtering by duplicates, get the pairs first to obtain the set IDs
   const duplicatePairs = duplicatesOnly ? await getPotentialDuplicatePairs() : [];
@@ -96,11 +119,16 @@ export default async function SetsPage({ searchParams }: SetsPageProps) {
     type: resolvedType ?? ("all" as const),
     labelId: labelId || undefined,
     channelId: channelId || undefined,
+    personId: personId || undefined,
     hasMedia: hasMediaParam === "true" ? true : undefined,
     sort: resolvedSort,
     archiveFilter,
     noArchiveLink: noArchiveLinkParam === 'true' ? true : undefined,
     ids: duplicateSetIds,
+    releaseDateFrom,
+    releaseDateTo,
+    createdFrom,
+    createdTo,
   };
 
   const [paginated, channels, recentChannelIds, lastType, roleGroups] = await Promise.all([
@@ -145,6 +173,10 @@ export default async function SetsPage({ searchParams }: SetsPageProps) {
     label: name,
   }));
 
+  // Facet counts
+  const labelIds = labelOptions.map((l) => l.value);
+  const facetCounts = await getSetFacetCounts(filters, labelIds);
+
   const filterGroups: FilterGroup[] = [
     {
       type: "pill",
@@ -152,9 +184,28 @@ export default async function SetsPage({ searchParams }: SetsPageProps) {
       label: "Type",
       options: [
         { value: "all", label: "All" },
-        { value: "photo", label: "Photos" },
-        { value: "video", label: "Videos" },
+        { value: "photo", label: "Photos", count: facetCounts.type["photo"] },
+        { value: "video", label: "Videos", count: facetCounts.type["video"] },
       ],
+    },
+    {
+      type: "typeahead",
+      param: "personId",
+      displayParam: "personName",
+      label: "Person",
+      apiPath: "/api/people/search",
+    },
+    {
+      type: "daterange",
+      paramFrom: "releaseDateFrom",
+      paramTo: "releaseDateTo",
+      label: "Release Date",
+    },
+    {
+      type: "daterange",
+      paramFrom: "createdFrom",
+      paramTo: "createdTo",
+      label: "Added",
     },
   ];
 
@@ -163,7 +214,10 @@ export default async function SetsPage({ searchParams }: SetsPageProps) {
       type: "facet",
       param: "channel",
       label: "Channel",
-      options: channelOptions,
+      options: channelOptions.map((c) => ({
+        ...c,
+        count: facetCounts.channelId[c.value],
+      })),
       searchable: true,
     });
   }
@@ -173,7 +227,10 @@ export default async function SetsPage({ searchParams }: SetsPageProps) {
       type: "facet",
       param: "label",
       label: "Label",
-      options: labelOptions,
+      options: labelOptions.map((l) => ({
+        ...l,
+        count: facetCounts.labelId[l.value],
+      })),
       searchable: true,
     });
   }
@@ -215,7 +272,7 @@ export default async function SetsPage({ searchParams }: SetsPageProps) {
 
   const toolbarConfig: BrowserToolbarConfig = {
     basePath: "/sets",
-    searchPlaceholder: "Search sets...",
+    searchPlaceholder: "Search sets…",
     sortOptions: SORT_OPTIONS,
     defaultSort: "date-desc",
     filterGroups,
@@ -247,6 +304,11 @@ export default async function SetsPage({ searchParams }: SetsPageProps) {
           )}
         />
       </div>
+
+      {/* Saved views */}
+      <Suspense>
+        <SavedViewsBar storageKey="pulseboard-views-/sets" basePath="/sets" />
+      </Suspense>
 
       {/* Unified toolbar */}
       <Suspense>

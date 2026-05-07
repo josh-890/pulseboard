@@ -14,18 +14,24 @@ export type SetSort =
   | "title-asc"
   | "title-desc"
   | "newest"
-  | "media-desc";
+  | "media-desc"
+  | "updated";
 
 export type SetFilters = {
   q?: string;
   type?: SetType | "all";
   labelId?: string;
   channelId?: string;
+  personId?: string;
   hasMedia?: boolean;
   sort?: SetSort;
   archiveFilter?: 'noArchive' | 'verified' | 'changed' | 'missing' | 'notImported'
   noArchiveLink?: boolean
   ids?: string[]
+  releaseDateFrom?: Date;
+  releaseDateTo?: Date;
+  createdFrom?: Date;
+  createdTo?: Date;
 };
 
 export async function getSets(filters: SetFilters = {}) {
@@ -112,6 +118,8 @@ function getSetOrderBy(sort?: SetSort): Prisma.SetOrderByWithRelationInput[] {
       return [{ createdAt: "desc" }];
     case "media-desc":
       return [{ setMediaItems: { _count: "desc" } }];
+    case "updated":
+      return [{ updatedAt: "desc" }];
     case "date-desc":
     default:
       return [{ releaseDate: { sort: "desc", nulls: "last" } }];
@@ -123,7 +131,7 @@ export async function getSetsPaginated(
   cursor?: string,
   limit = 50,
 ): Promise<PaginatedSets> {
-  const { q, type, labelId, channelId, hasMedia, sort, archiveFilter, noArchiveLink, ids } = filters;
+  const { q, type, labelId, channelId, personId, hasMedia, sort, archiveFilter, noArchiveLink, ids, releaseDateFrom, releaseDateTo, createdFrom, createdTo } = filters;
 
   const where: Prisma.SetWhereInput = {};
 
@@ -145,6 +153,24 @@ export async function getSetsPaginated(
 
   if (channelId) {
     where.channelId = channelId;
+  }
+
+  if (personId) {
+    where.participants = { some: { personId } };
+  }
+
+  if (releaseDateFrom || releaseDateTo) {
+    where.releaseDate = {
+      ...(releaseDateFrom ? { gte: releaseDateFrom } : {}),
+      ...(releaseDateTo ? { lte: releaseDateTo } : {}),
+    };
+  }
+
+  if (createdFrom || createdTo) {
+    where.createdAt = {
+      ...(createdFrom ? { gte: createdFrom } : {}),
+      ...(createdTo ? { lte: createdTo } : {}),
+    };
   }
 
   const confirmed = ArchiveLinkStatus.CONFIRMED
@@ -291,6 +317,58 @@ export async function getSetById(id: string) {
 
 export async function countSets(): Promise<number> {
   return prisma.set.count();
+}
+
+export type SetFacetCounts = {
+  type: Record<string, number>;
+  channelId: Record<string, number>;
+  labelId: Record<string, number>;
+};
+
+export async function getSetFacetCounts(
+  filters: Omit<SetFilters, "sort">,
+  labelIds: string[] = [],
+): Promise<SetFacetCounts> {
+  function buildBase(overrides: Partial<Pick<SetFilters, "type" | "channelId" | "labelId">> = {}): Prisma.SetWhereInput {
+    const merged = { ...filters, ...overrides };
+    const w: Prisma.SetWhereInput = {};
+    if (filters.ids && filters.ids.length > 0) w.id = { in: filters.ids };
+    if (merged.type && merged.type !== "all") w.type = merged.type;
+    if (filters.q) w.title = { contains: filters.q, mode: "insensitive" };
+    if (merged.channelId) w.channelId = merged.channelId;
+    if (merged.labelId) w.channel = { labelMaps: { some: { labelId: merged.labelId } } };
+    if (filters.personId) w.participants = { some: { personId: filters.personId } };
+    if (filters.hasMedia) w.setMediaItems = { some: {} };
+    if (filters.noArchiveLink) w.archiveLinks = { none: { status: ArchiveLinkStatus.CONFIRMED } };
+    if (filters.releaseDateFrom || filters.releaseDateTo) {
+      w.releaseDate = {
+        ...(filters.releaseDateFrom ? { gte: filters.releaseDateFrom } : {}),
+        ...(filters.releaseDateTo ? { lte: filters.releaseDateTo } : {}),
+      };
+    }
+    if (filters.createdFrom || filters.createdTo) {
+      w.createdAt = {
+        ...(filters.createdFrom ? { gte: filters.createdFrom } : {}),
+        ...(filters.createdTo ? { lte: filters.createdTo } : {}),
+      };
+    }
+    return w;
+  }
+
+  const [typeGroups, channelGroups, ...labelCounts] = await Promise.all([
+    prisma.set.groupBy({ by: ["type"], where: buildBase({ type: undefined }), _count: { _all: true } }),
+    prisma.set.groupBy({ by: ["channelId"], where: buildBase({ channelId: undefined }), _count: { _all: true } }),
+    ...labelIds.map((id) =>
+      prisma.set.count({ where: { ...buildBase({ labelId: undefined }), channel: { labelMaps: { some: { labelId: id } } } } })
+        .then((count) => [id, count] as [string, number]),
+    ),
+  ]);
+
+  return {
+    type: Object.fromEntries(typeGroups.map((r) => [r.type, r._count._all])),
+    channelId: Object.fromEntries(channelGroups.filter((r) => r.channelId).map((r) => [r.channelId!, r._count._all])),
+    labelId: Object.fromEntries((labelCounts as [string, number][]).filter(Boolean)),
+  };
 }
 
 export async function createSetStandaloneRecord(data: {

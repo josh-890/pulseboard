@@ -86,6 +86,10 @@ export type PersonFilters = {
   bodyRegionMatch?: "any" | "all";
   sort?: PersonSort;
   completeness?: "low" | "medium" | "high";
+  birthdateFrom?: Date;
+  birthdateTo?: Date;
+  createdFrom?: Date;
+  createdTo?: Date;
 };
 
 export async function getPersons(filters: PersonFilters = {}): Promise<PersonWithCommonAlias[]> {
@@ -1444,7 +1448,7 @@ export async function getPersonsPaginated(
   cursor?: string,
   limit = 50,
 ): Promise<PaginatedPersons> {
-  const { q, status, naturalHairColor, bodyType, ethnicity, bodyRegions, sort } = filters;
+  const { q, status, naturalHairColor, bodyType, ethnicity, bodyRegions, sort, birthdateFrom, birthdateTo, createdFrom, createdTo } = filters;
 
   const where: Prisma.PersonWhereInput = {};
 
@@ -1478,6 +1482,20 @@ export async function getPersonsPaginated(
       ],
     };
     where.AND = [regionCondition];
+  }
+
+  if (birthdateFrom || birthdateTo) {
+    where.birthdate = {
+      ...(birthdateFrom ? { gte: birthdateFrom } : {}),
+      ...(birthdateTo ? { lte: birthdateTo } : {}),
+    };
+  }
+
+  if (createdFrom || createdTo) {
+    where.createdAt = {
+      ...(createdFrom ? { gte: createdFrom } : {}),
+      ...(createdTo ? { lte: createdTo } : {}),
+    };
   }
 
   if (q) {
@@ -1681,4 +1699,55 @@ export async function getDistinctEthnicities(): Promise<string[]> {
     orderBy: { ethnicity: "asc" },
   });
   return result.map((r) => r.ethnicity!).filter(Boolean);
+}
+
+export type PersonFacetCounts = {
+  status: Record<string, number>;
+  naturalHairColor: Record<string, number>;
+  bodyType: Record<string, number>;
+  ethnicity: Record<string, number>;
+};
+
+export async function getPersonFacetCounts(filters: Omit<PersonFilters, "sort" | "bodyRegions" | "bodyRegionMatch" | "completeness">): Promise<PersonFacetCounts> {
+  function buildBase(overrides: Partial<Pick<PersonFilters, "status" | "naturalHairColor" | "bodyType" | "ethnicity">> = {}): Prisma.PersonWhereInput {
+    const merged = { ...filters, ...overrides };
+    const w: Prisma.PersonWhereInput = {};
+    if (merged.status && merged.status !== "all") w.status = merged.status;
+    if (merged.naturalHairColor) w.naturalHairColor = { equals: merged.naturalHairColor, mode: "insensitive" };
+    if (merged.bodyType) w.bodyType = { equals: merged.bodyType, mode: "insensitive" };
+    if (merged.ethnicity) w.ethnicity = { equals: merged.ethnicity, mode: "insensitive" };
+    if (filters.birthdateFrom || filters.birthdateTo) {
+      w.birthdate = {
+        ...(filters.birthdateFrom ? { gte: filters.birthdateFrom } : {}),
+        ...(filters.birthdateTo ? { lte: filters.birthdateTo } : {}),
+      };
+    }
+    if (filters.createdFrom || filters.createdTo) {
+      w.createdAt = {
+        ...(filters.createdFrom ? { gte: filters.createdFrom } : {}),
+        ...(filters.createdTo ? { lte: filters.createdTo } : {}),
+      };
+    }
+    if (filters.q) {
+      w.OR = [
+        { icgId: { contains: filters.q, mode: "insensitive" } },
+        { aliases: { some: { name: { contains: filters.q, mode: "insensitive" } } } },
+      ];
+    }
+    return w;
+  }
+
+  const [statusGroups, hairGroups, bodyTypeGroups, ethnicityGroups] = await Promise.all([
+    prisma.person.groupBy({ by: ["status"], where: buildBase({ status: undefined }), _count: { _all: true } }),
+    prisma.person.groupBy({ by: ["naturalHairColor"], where: buildBase({ naturalHairColor: undefined }), _count: { _all: true } }),
+    prisma.person.groupBy({ by: ["bodyType"], where: buildBase({ bodyType: undefined }), _count: { _all: true } }),
+    prisma.person.groupBy({ by: ["ethnicity"], where: buildBase({ ethnicity: undefined }), _count: { _all: true } }),
+  ]);
+
+  return {
+    status: Object.fromEntries(statusGroups.map((r) => [r.status, r._count._all])),
+    naturalHairColor: Object.fromEntries(hairGroups.filter((r) => r.naturalHairColor).map((r) => [r.naturalHairColor!, r._count._all])),
+    bodyType: Object.fromEntries(bodyTypeGroups.filter((r) => r.bodyType).map((r) => [r.bodyType!, r._count._all])),
+    ethnicity: Object.fromEntries(ethnicityGroups.filter((r) => r.ethnicity).map((r) => [r.ethnicity!, r._count._all])),
+  };
 }

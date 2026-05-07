@@ -6,6 +6,7 @@ import {
   getDistinctNaturalHairColors,
   getDistinctBodyTypes,
   getDistinctEthnicities,
+  getPersonFacetCounts,
 } from "@/lib/services/person-service";
 import type { PersonSort } from "@/lib/services/person-service";
 import { getHeadshotsForPersons } from "@/lib/services/media-service";
@@ -14,6 +15,7 @@ import type { PersonStatus } from "@/lib/types";
 import { PersonList } from "@/components/people/person-list";
 import { BrowserToolbar } from "@/components/shared/browser-toolbar";
 import type { BrowserToolbarConfig, FilterGroup } from "@/components/shared/browser-toolbar";
+import { SavedViewsBar } from "@/components/shared/saved-views-bar";
 import { HeadshotSlotSelector } from "@/components/people/headshot-slot-selector";
 import { BodyRegionFilterWrapper } from "@/components/people/body-region-filter-wrapper";
 import { AddPersonSheet } from "@/components/people/add-person-sheet";
@@ -36,6 +38,10 @@ type PeoplePageProps = {
     slot?: string;
     sort?: string;
     completeness?: string;
+    birthdateFrom?: string;
+    birthdateTo?: string;
+    createdFrom?: string;
+    createdTo?: string;
   }>;
 };
 
@@ -64,9 +70,15 @@ const SORT_OPTIONS = [
   { value: "age-desc", label: "Oldest people" },
   { value: "rating-desc", label: "Highest rated" },
   { value: "updated", label: "Recently updated" },
-  { value: "completeness-asc", label: "Profile \u2191" },
-  { value: "completeness-desc", label: "Profile \u2193" },
+  { value: "completeness-asc", label: "Profile ↑" },
+  { value: "completeness-desc", label: "Profile ↓" },
 ];
+
+function parseDate(value: string | undefined): Date | undefined {
+  if (!value) return undefined;
+  const d = new Date(value);
+  return isNaN(d.getTime()) ? undefined : d;
+}
 
 export default async function PeoplePage({ searchParams }: PeoplePageProps) {
   return withTenantFromHeaders(async () => {
@@ -74,6 +86,8 @@ export default async function PeoplePage({ searchParams }: PeoplePageProps) {
       q, status, hairColor, bodyType, ethnicity, bodyRegions: bodyRegionsParam,
       bodyRegionMatch: bodyRegionMatchParam, loaded,
       slot: slotParam, sort: sortParam, completeness: completenessParam,
+      birthdateFrom: birthdateFromParam, birthdateTo: birthdateToParam,
+      createdFrom: createdFromParam, createdTo: createdToParam,
     } = await searchParams;
 
   const limit = Math.min(
@@ -92,6 +106,10 @@ export default async function PeoplePage({ searchParams }: PeoplePageProps) {
     completenessParam && VALID_COMPLETENESS.has(completenessParam)
       ? (completenessParam as "low" | "medium" | "high")
       : undefined;
+  const birthdateFrom = parseDate(birthdateFromParam);
+  const birthdateTo = parseDate(birthdateToParam);
+  const createdFrom = parseDate(createdFromParam);
+  const createdTo = parseDate(createdToParam);
 
   const filters = {
     q: q?.trim() || undefined,
@@ -103,17 +121,22 @@ export default async function PeoplePage({ searchParams }: PeoplePageProps) {
     bodyRegionMatch: resolvedBodyRegionMatch,
     sort: resolvedSort,
     completeness: resolvedCompleteness,
+    birthdateFrom,
+    birthdateTo,
+    createdFrom,
+    createdTo,
   };
 
   const parsedSlot = slotParam ? parseInt(slotParam, 10) : undefined;
   const slot = parsedSlot && parsedSlot >= 1 && parsedSlot <= 5 ? parsedSlot : undefined;
 
-  const [paginated, hairColors, bodyTypes, ethnicities, slotLabels] = await Promise.all([
+  const [paginated, hairColors, bodyTypes, ethnicities, slotLabels, facetCounts] = await Promise.all([
     getPersonsPaginated(filters, undefined, limit),
     getDistinctNaturalHairColors(),
     getDistinctBodyTypes(),
     getDistinctEthnicities(),
     getProfileImageLabels(),
+    getPersonFacetCounts(filters),
   ]);
 
   // Batch-load profile photos for visible persons (MediaItem-only)
@@ -136,10 +159,10 @@ export default async function PeoplePage({ searchParams }: PeoplePageProps) {
       label: "Status",
       options: [
         { value: "all", label: "All" },
-        { value: "active", label: "Active" },
-        { value: "inactive", label: "Inactive" },
-        { value: "wishlist", label: "Wishlist" },
-        { value: "archived", label: "Archived" },
+        { value: "active", label: "Active", count: facetCounts.status["active"] },
+        { value: "inactive", label: "Inactive", count: facetCounts.status["inactive"] },
+        { value: "wishlist", label: "Wishlist", count: facetCounts.status["wishlist"] },
+        { value: "archived", label: "Archived", count: facetCounts.status["archived"] },
       ],
     },
   ];
@@ -156,12 +179,30 @@ export default async function PeoplePage({ searchParams }: PeoplePageProps) {
     ],
   });
 
+  filterGroups.push({
+    type: "daterange",
+    paramFrom: "birthdateFrom",
+    paramTo: "birthdateTo",
+    label: "Birthdate",
+  });
+
+  filterGroups.push({
+    type: "daterange",
+    paramFrom: "createdFrom",
+    paramTo: "createdTo",
+    label: "Added",
+  });
+
   if (hairColors.length > 0) {
     filterGroups.push({
       type: "facet",
       param: "hairColor",
       label: "Hair Color",
-      options: hairColors.map((c) => ({ value: c, label: c })),
+      options: hairColors.map((c) => ({
+        value: c,
+        label: c,
+        count: facetCounts.naturalHairColor[c],
+      })),
     });
   }
 
@@ -170,7 +211,11 @@ export default async function PeoplePage({ searchParams }: PeoplePageProps) {
       type: "facet",
       param: "bodyType",
       label: "Body Type",
-      options: bodyTypes.map((t) => ({ value: t, label: t })),
+      options: bodyTypes.map((t) => ({
+        value: t,
+        label: t,
+        count: facetCounts.bodyType[t],
+      })),
     });
   }
 
@@ -179,13 +224,17 @@ export default async function PeoplePage({ searchParams }: PeoplePageProps) {
       type: "facet",
       param: "ethnicity",
       label: "Ethnicity",
-      options: ethnicities.map((e) => ({ value: e, label: e })),
+      options: ethnicities.map((e) => ({
+        value: e,
+        label: e,
+        count: facetCounts.ethnicity[e],
+      })),
     });
   }
 
   const toolbarConfig: BrowserToolbarConfig = {
     basePath: "/people",
-    searchPlaceholder: "Search people...",
+    searchPlaceholder: "Search people…",
     sortOptions: SORT_OPTIONS,
     defaultSort: "name-asc",
     filterGroups,
@@ -210,6 +259,11 @@ export default async function PeoplePage({ searchParams }: PeoplePageProps) {
         </div>
         <AddPersonSheet />
       </div>
+
+      {/* Saved views */}
+      <Suspense>
+        <SavedViewsBar storageKey="pulseboard-views-/people" basePath="/people" />
+      </Suspense>
 
       {/* Unified toolbar */}
       <Suspense>

@@ -1,7 +1,7 @@
 import { withTenantFromHeaders } from "@/lib/tenant-context";
 import { Suspense } from "react";
 import { Clapperboard } from "lucide-react";
-import { getSessionsPaginated } from "@/lib/services/session-service";
+import { getSessionsPaginated, getSessionFacetCounts } from "@/lib/services/session-service";
 import type { SessionSort } from "@/lib/services/session-service";
 import { getCoverPhotosForSessions, getHeadshotsForPersons } from "@/lib/services/media-service";
 import { getLabels } from "@/lib/services/label-service";
@@ -9,6 +9,7 @@ import { getProjects } from "@/lib/services/project-service";
 import { SessionGrid } from "@/components/sessions/session-grid";
 import { BrowserToolbar } from "@/components/shared/browser-toolbar";
 import type { BrowserToolbarConfig, FilterGroup } from "@/components/shared/browser-toolbar";
+import { SavedViewsBar } from "@/components/shared/saved-views-bar";
 import { AddSessionSheet } from "@/components/sessions/add-session-sheet";
 import type { SessionStatus } from "@/lib/types";
 
@@ -24,13 +25,20 @@ type SessionsPageProps = {
     sort?: string;
     label?: string;
     project?: string;
+    personId?: string;
+    personName?: string;
+    dateFrom?: string;
+    dateTo?: string;
+    createdFrom?: string;
+    createdTo?: string;
     loaded?: string;
   }>;
 };
 
 const VALID_STATUSES = new Set<string>(["DRAFT", "CONFIRMED"]);
 const VALID_SORTS = new Set<string>([
-  "newest", "date-desc", "date-asc", "name-asc", "media-desc",
+  "newest", "date-desc", "date-asc", "name-asc", "name-desc",
+  "media-desc", "updated", "contributors-desc", "sets-desc",
 ]);
 
 function isSessionSort(value: string): value is SessionSort {
@@ -42,14 +50,27 @@ const SORT_OPTIONS = [
   { value: "date-desc", label: "Session date (newest)" },
   { value: "date-asc", label: "Session date (oldest)" },
   { value: "name-asc", label: "Name A→Z" },
+  { value: "name-desc", label: "Name Z→A" },
   { value: "media-desc", label: "Most media" },
+  { value: "updated", label: "Recently updated" },
+  { value: "contributors-desc", label: "Most contributors" },
+  { value: "sets-desc", label: "Most sets" },
 ];
+
+function parseDate(value: string | undefined): Date | undefined {
+  if (!value) return undefined;
+  const d = new Date(value);
+  return isNaN(d.getTime()) ? undefined : d;
+}
 
 export default async function SessionsPage({ searchParams }: SessionsPageProps) {
   return withTenantFromHeaders(async () => {
     const {
       q, status, sort: sortParam,
       label: labelId, project: projectId,
+      personId,
+      dateFrom: dateFromParam, dateTo: dateToParam,
+      createdFrom: createdFromParam, createdTo: createdToParam,
       loaded,
     } = await searchParams;
 
@@ -60,6 +81,10 @@ export default async function SessionsPage({ searchParams }: SessionsPageProps) 
 
   const resolvedStatus = status && VALID_STATUSES.has(status) ? (status as SessionStatus) : undefined;
   const resolvedSort = sortParam && isSessionSort(sortParam) ? sortParam : undefined;
+  const dateFrom = parseDate(dateFromParam);
+  const dateTo = parseDate(dateToParam);
+  const createdFrom = parseDate(createdFromParam);
+  const createdTo = parseDate(createdToParam);
 
   const filters = {
     q: q?.trim() || undefined,
@@ -67,13 +92,19 @@ export default async function SessionsPage({ searchParams }: SessionsPageProps) 
     type: "PRODUCTION" as const,
     labelId: labelId || undefined,
     projectId: projectId || undefined,
+    personId: personId || undefined,
+    dateFrom,
+    dateTo,
+    createdFrom,
+    createdTo,
     sort: resolvedSort,
   };
 
-  const [paginated, labels, projects] = await Promise.all([
+  const [paginated, labels, projects, facetCounts] = await Promise.all([
     getSessionsPaginated(filters, undefined, limit),
     getLabels(),
     getProjects(),
+    getSessionFacetCounts(filters),
   ]);
 
   // Batch-load cover photos and contributor headshots
@@ -98,9 +129,28 @@ export default async function SessionsPage({ searchParams }: SessionsPageProps) 
       label: "Status",
       options: [
         { value: "all", label: "All" },
-        { value: "DRAFT", label: "Draft" },
-        { value: "CONFIRMED", label: "Confirmed" },
+        { value: "DRAFT", label: "Draft", count: facetCounts.status["DRAFT"] ?? 0 },
+        { value: "CONFIRMED", label: "Confirmed", count: facetCounts.status["CONFIRMED"] ?? 0 },
       ],
+    },
+    {
+      type: "typeahead",
+      param: "personId",
+      displayParam: "personName",
+      label: "Person",
+      apiPath: "/api/people/search",
+    },
+    {
+      type: "daterange",
+      paramFrom: "dateFrom",
+      paramTo: "dateTo",
+      label: "Session Date",
+    },
+    {
+      type: "daterange",
+      paramFrom: "createdFrom",
+      paramTo: "createdTo",
+      label: "Added",
     },
   ];
 
@@ -109,7 +159,11 @@ export default async function SessionsPage({ searchParams }: SessionsPageProps) 
       type: "facet",
       param: "label",
       label: "Label",
-      options: labelOptions.map((l) => ({ value: l.id, label: l.name })),
+      options: labelOptions.map((l) => ({
+        value: l.id,
+        label: l.name,
+        count: facetCounts.labelId[l.id],
+      })),
       searchable: true,
     });
   }
@@ -119,14 +173,18 @@ export default async function SessionsPage({ searchParams }: SessionsPageProps) 
       type: "facet",
       param: "project",
       label: "Project",
-      options: projectOptions.map((p) => ({ value: p.id, label: p.name })),
+      options: projectOptions.map((p) => ({
+        value: p.id,
+        label: p.name,
+        count: facetCounts.projectId[p.id],
+      })),
       searchable: true,
     });
   }
 
   const toolbarConfig: BrowserToolbarConfig = {
     basePath: "/sessions",
-    searchPlaceholder: "Search sessions...",
+    searchPlaceholder: "Search sessions…",
     sortOptions: SORT_OPTIONS,
     defaultSort: "newest",
     filterGroups,
@@ -151,6 +209,11 @@ export default async function SessionsPage({ searchParams }: SessionsPageProps) 
         </div>
         <AddSessionSheet labels={labelOptions} projects={projectOptions} />
       </div>
+
+      {/* Saved views */}
+      <Suspense>
+        <SavedViewsBar storageKey="pulseboard-views-/sessions" basePath="/sessions" />
+      </Suspense>
 
       {/* Unified toolbar */}
       <Suspense>

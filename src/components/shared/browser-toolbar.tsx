@@ -9,6 +9,8 @@ import {
   Check,
   ChevronDown,
   FilterX,
+  Calendar,
+  User,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -39,14 +41,14 @@ type PillFilter = {
   type: "pill";
   param: string;
   label: string;
-  options: { value: string; label: string }[];
+  options: { value: string; label: string; count?: number }[];
 };
 
 type FacetFilter = {
   type: "facet";
   param: string;
   label: string;
-  options: { value: string; label: string }[];
+  options: { value: string; label: string; count?: number }[];
   searchable?: boolean;
 };
 
@@ -56,7 +58,22 @@ type ToggleFilter = {
   label: string;
 };
 
-type FilterGroup = PillFilter | FacetFilter | ToggleFilter;
+type DateRangeFilter = {
+  type: "daterange";
+  paramFrom: string;
+  paramTo: string;
+  label: string;
+};
+
+type TypeaheadFilter = {
+  type: "typeahead";
+  param: string;
+  label: string;
+  apiPath: string;
+  displayParam?: string;
+};
+
+type FilterGroup = PillFilter | FacetFilter | ToggleFilter | DateRangeFilter | TypeaheadFilter;
 
 type BrowserToolbarConfig = {
   basePath: string;
@@ -68,7 +85,16 @@ type BrowserToolbarConfig = {
   totalCount: number;
 };
 
-export type { BrowserToolbarConfig, FilterGroup, PillFilter, FacetFilter, ToggleFilter, SortOption };
+export type {
+  BrowserToolbarConfig,
+  FilterGroup,
+  PillFilter,
+  FacetFilter,
+  ToggleFilter,
+  DateRangeFilter,
+  TypeaheadFilter,
+  SortOption,
+};
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
@@ -110,6 +136,25 @@ export function BrowserToolbar({ config, children }: BrowserToolbarProps) {
     },
     [searchParams, router, basePath],
   );
+
+  // Sort stickiness: apply saved sort on mount if URL has no sort param
+  useEffect(() => {
+    const currentSortParam = searchParams.get("sort");
+    if (!currentSortParam) {
+      try {
+        const saved = localStorage.getItem(`pulseboard-sort-${basePath}`);
+        if (saved && sortOptions.some((o) => o.value === saved) && saved !== defaultSort) {
+          const params = new URLSearchParams(searchParams.toString());
+          params.set("sort", saved);
+          params.delete("loaded");
+          router.replace(`${basePath}?${params.toString()}`);
+        }
+      } catch {
+        // localStorage unavailable (SSR or restricted context)
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Debounced search
   useEffect(() => {
@@ -164,6 +209,11 @@ export function BrowserToolbar({ config, children }: BrowserToolbarProps) {
   }
 
   function handleSortChange(value: string) {
+    try {
+      localStorage.setItem(`pulseboard-sort-${basePath}`, value);
+    } catch {
+      // localStorage unavailable
+    }
     updateParams((params) => {
       if (value === defaultSort) {
         params.delete("sort");
@@ -204,27 +254,63 @@ export function BrowserToolbar({ config, children }: BrowserToolbarProps) {
     });
   }
 
-  // Collect active filter chips
-  const activeChips: { label: string; param: string; value: string }[] = [];
-  for (const group of filterGroups) {
-    const paramValue = searchParams.get(group.param);
-    if (!paramValue || paramValue === "all") continue;
+  function handleDateRangeChange(paramFrom: string, paramTo: string, from: string, to: string) {
+    updateParams((params) => {
+      if (from) params.set(paramFrom, from); else params.delete(paramFrom);
+      if (to) params.set(paramTo, to); else params.delete(paramTo);
+    });
+  }
 
+  function handleTypeaheadSelect(param: string, displayParam: string | undefined, id: string, displayName: string) {
+    updateParams((params) => {
+      if (id) {
+        params.set(param, id);
+        if (displayParam) params.set(displayParam, displayName);
+      } else {
+        params.delete(param);
+        if (displayParam) params.delete(displayParam);
+      }
+    });
+  }
+
+  // Collect active filter chips — each chip knows which params to remove
+  const activeChips: { label: string; params: string[] }[] = [];
+  for (const group of filterGroups) {
     if (group.type === "pill" || group.type === "facet") {
+      const paramValue = searchParams.get(group.param);
+      if (!paramValue || paramValue === "all") continue;
       const opt = group.options.find((o) => o.value === paramValue);
       if (opt) {
         activeChips.push({
           label: `${group.label}: ${opt.label}`,
-          param: group.param,
-          value: paramValue,
+          params: [group.param],
         });
       }
-    } else if (group.type === "toggle" && paramValue === "true") {
-      activeChips.push({
-        label: group.label,
-        param: group.param,
-        value: "true",
-      });
+    } else if (group.type === "toggle") {
+      if (searchParams.get(group.param) === "true") {
+        activeChips.push({ label: group.label, params: [group.param] });
+      }
+    } else if (group.type === "daterange") {
+      const from = searchParams.get(group.paramFrom);
+      const to = searchParams.get(group.paramTo);
+      if (from || to) {
+        const range = from && to ? `${from} – ${to}` : from ? `from ${from}` : `to ${to}`;
+        activeChips.push({
+          label: `${group.label}: ${range}`,
+          params: [group.paramFrom, group.paramTo],
+        });
+      }
+    } else if (group.type === "typeahead") {
+      const paramValue = searchParams.get(group.param);
+      if (paramValue) {
+        const displayValue = group.displayParam
+          ? (searchParams.get(group.displayParam) ?? paramValue)
+          : paramValue;
+        activeChips.push({
+          label: `${group.label}: ${displayValue}`,
+          params: [group.param, ...(group.displayParam ? [group.displayParam] : [])],
+        });
+      }
     }
   }
 
@@ -239,8 +325,8 @@ export function BrowserToolbar({ config, children }: BrowserToolbarProps) {
     router.replace(basePath);
   }
 
-  function handleRemoveChip(param: string) {
-    updateParams((params) => params.delete(param));
+  function handleRemoveChip(params: string[]) {
+    updateParams((p) => { for (const param of params) p.delete(param); });
   }
 
   const currentSortLabel =
@@ -294,7 +380,7 @@ export function BrowserToolbar({ config, children }: BrowserToolbarProps) {
           onChange={handleSortChange}
         />
 
-        {/* Pill filters */}
+        {/* Filter groups */}
         {filterGroups.map((group) => {
           if (group.type === "pill") {
             const current = searchParams.get(group.param) ?? "all";
@@ -320,6 +406,9 @@ export function BrowserToolbar({ config, children }: BrowserToolbarProps) {
                       )}
                     >
                       {option.label}
+                      {option.count !== undefined && !isActive && (
+                        <span className="ml-1 opacity-60">{option.count}</span>
+                      )}
                     </button>
                   );
                 })}
@@ -360,6 +449,44 @@ export function BrowserToolbar({ config, children }: BrowserToolbarProps) {
             );
           }
 
+          if (group.type === "daterange") {
+            const fromVal = searchParams.get(group.paramFrom) ?? "";
+            const toVal = searchParams.get(group.paramTo) ?? "";
+            const isActive = !!(fromVal || toVal);
+            return (
+              <DateRangeDropdown
+                key={`${group.paramFrom}-${group.paramTo}`}
+                label={group.label}
+                fromValue={fromVal}
+                toValue={toVal}
+                isActive={isActive}
+                onChange={(from, to) => handleDateRangeChange(group.paramFrom, group.paramTo, from, to)}
+              />
+            );
+          }
+
+          if (group.type === "typeahead") {
+            const currentId = searchParams.get(group.param);
+            const currentDisplay = group.displayParam
+              ? (searchParams.get(group.displayParam) ?? undefined)
+              : undefined;
+            return (
+              <TypeaheadDropdown
+                key={group.param}
+                label={group.label}
+                apiPath={group.apiPath}
+                currentId={currentId ?? undefined}
+                currentDisplay={currentDisplay}
+                onSelect={(id, name) =>
+                  handleTypeaheadSelect(group.param, group.displayParam, id, name)
+                }
+                onClear={() =>
+                  handleTypeaheadSelect(group.param, group.displayParam, "", "")
+                }
+              />
+            );
+          }
+
           return null;
         })}
 
@@ -381,9 +508,9 @@ export function BrowserToolbar({ config, children }: BrowserToolbarProps) {
           )}
           {activeChips.map((chip) => (
             <button
-              key={chip.param}
+              key={chip.params.join(",")}
               type="button"
-              onClick={() => handleRemoveChip(chip.param)}
+              onClick={() => handleRemoveChip(chip.params)}
               className="inline-flex items-center gap-1 rounded-full border border-primary/20 bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary transition-colors hover:bg-primary/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               {chip.label}
@@ -518,18 +645,241 @@ function FacetDropdown({
                   <Check
                     size={14}
                     className={cn(
-                      "mr-2",
+                      "mr-2 shrink-0",
                       currentValue === option.value
                         ? "opacity-100"
                         : "opacity-0",
                     )}
                   />
-                  {option.label}
+                  <span className="flex-1">{option.label}</span>
+                  {option.count !== undefined && (
+                    <span className="ml-2 text-[11px] text-muted-foreground tabular-nums">
+                      {option.count}
+                    </span>
+                  )}
                 </CommandItem>
               ))}
             </CommandGroup>
           </CommandList>
         </Command>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+function DateRangeDropdown({
+  label,
+  fromValue,
+  toValue,
+  isActive,
+  onChange,
+}: {
+  label: string;
+  fromValue: string;
+  toValue: string;
+  isActive: boolean;
+  onChange: (from: string, to: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [localFrom, setLocalFrom] = useState(fromValue);
+  const [localTo, setLocalTo] = useState(toValue);
+
+  // Sync local state when external values change (e.g. chip removal)
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setLocalFrom(fromValue);
+    setLocalTo(toValue);
+  }, [fromValue, toValue]);
+
+  function commit(from: string, to: string) {
+    onChange(from, to);
+  }
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          variant="outline"
+          size="sm"
+          className={cn(
+            "h-8 gap-1.5 text-xs",
+            isActive
+              ? "border-primary/30 bg-primary/10 text-primary hover:bg-primary/20"
+              : "border-white/20 bg-card/50 text-muted-foreground hover:border-white/30 hover:bg-card/80 hover:text-foreground",
+          )}
+        >
+          <Calendar size={12} />
+          {label}
+          <ChevronDown size={12} />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-[260px] p-3" align="start">
+        <div className="space-y-3">
+          <p className="text-xs font-medium text-muted-foreground">{label}</p>
+          <div className="grid grid-cols-2 gap-2">
+            <div className="space-y-1">
+              <label className="text-[10px] text-muted-foreground">From</label>
+              <input
+                type="date"
+                value={localFrom}
+                onChange={(e) => setLocalFrom(e.target.value)}
+                onBlur={() => commit(localFrom, localTo)}
+                className="w-full rounded-md border border-input bg-background px-2 py-1 text-xs ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-[10px] text-muted-foreground">To</label>
+              <input
+                type="date"
+                value={localTo}
+                onChange={(e) => setLocalTo(e.target.value)}
+                onBlur={() => commit(localFrom, localTo)}
+                className="w-full rounded-md border border-input bg-background px-2 py-1 text-xs ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              />
+            </div>
+          </div>
+          {isActive && (
+            <button
+              type="button"
+              onClick={() => { setLocalFrom(""); setLocalTo(""); commit("", ""); setOpen(false); }}
+              className="w-full rounded-md border border-white/15 bg-muted/50 px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-muted/80 hover:text-foreground"
+            >
+              Clear range
+            </button>
+          )}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+type TypeaheadResult = { id: string; displayName: string; icgId?: string };
+
+function TypeaheadDropdown({
+  label,
+  apiPath,
+  currentId,
+  currentDisplay,
+  onSelect,
+  onClear,
+}: {
+  label: string;
+  apiPath: string;
+  currentId?: string;
+  currentDisplay?: string;
+  onSelect: (id: string, name: string) => void;
+  onClear: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState<TypeaheadResult[]>([]);
+  const [loading, setLoading] = useState(false);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    if (!query.trim()) {
+      setResults([]);
+      return;
+    }
+    debounceRef.current = setTimeout(async () => {
+      setLoading(true);
+      try {
+        const res = await fetch(`${apiPath}?q=${encodeURIComponent(query.trim())}`);
+        const data = await res.json();
+        setResults(Array.isArray(data) ? data : []);
+      } catch {
+        setResults([]);
+      } finally {
+        setLoading(false);
+      }
+    }, 300);
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+  }, [query, apiPath, open]);
+
+  const isActive = !!currentId;
+
+  return (
+    <Popover
+      open={open}
+      onOpenChange={(v) => {
+        setOpen(v);
+        if (!v) { setQuery(""); setResults([]); }
+      }}
+    >
+      <PopoverTrigger asChild>
+        <Button
+          variant="outline"
+          size="sm"
+          className={cn(
+            "h-8 gap-1.5 text-xs",
+            isActive
+              ? "border-primary/30 bg-primary/10 text-primary hover:bg-primary/20"
+              : "border-white/20 bg-card/50 text-muted-foreground hover:border-white/30 hover:bg-card/80 hover:text-foreground",
+          )}
+        >
+          <User size={12} />
+          {isActive && currentDisplay ? currentDisplay : label}
+          {isActive ? (
+            <span
+              role="button"
+              aria-label={`Clear ${label} filter`}
+              onClick={(e) => { e.stopPropagation(); onClear(); }}
+              className="ml-0.5 rounded p-0.5 hover:text-foreground"
+            >
+              <X size={10} />
+            </span>
+          ) : (
+            <ChevronDown size={12} />
+          )}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-[260px] p-0" align="start">
+        <div className="p-2 border-b">
+          <div className="relative">
+            <Search size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <input
+              autoFocus
+              type="text"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder={`Search ${label.toLowerCase()}...`}
+              className="w-full rounded-md border border-input bg-background py-1.5 pl-7 pr-2 text-xs ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            />
+          </div>
+        </div>
+        <div className="max-h-[200px] overflow-y-auto">
+          {loading && (
+            <p className="px-3 py-2 text-xs text-muted-foreground">Searching…</p>
+          )}
+          {!loading && query && results.length === 0 && (
+            <p className="px-3 py-2 text-xs text-muted-foreground">No results.</p>
+          )}
+          {!loading && !query && (
+            <p className="px-3 py-2 text-xs text-muted-foreground">Type to search…</p>
+          )}
+          {results.map((r) => (
+            <button
+              key={r.id}
+              type="button"
+              onClick={() => { onSelect(r.id, r.displayName); setOpen(false); }}
+              className={cn(
+                "flex w-full items-center gap-2 px-3 py-2 text-left text-xs transition-colors hover:bg-muted/50",
+                currentId === r.id && "bg-primary/10 text-primary",
+              )}
+            >
+              <Check
+                size={12}
+                className={cn("shrink-0", currentId === r.id ? "opacity-100" : "opacity-0")}
+              />
+              <span className="flex-1 truncate">{r.displayName}</span>
+              {r.icgId && (
+                <span className="shrink-0 text-[10px] text-muted-foreground">{r.icgId}</span>
+              )}
+            </button>
+          ))}
+        </div>
       </PopoverContent>
     </Popover>
   );
