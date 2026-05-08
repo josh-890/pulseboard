@@ -42,16 +42,22 @@ function computeMatches(
 ): { matches: MatchResult[]; unmatchedFiles: File[] } {
   const usedFiles = new Set<File>()
 
-  const matches: MatchResult[] = sets.map((set) => {
-    if (!set.externalId) return { set, file: null, confidence: 'none', included: false }
+  // Sort by externalId length descending so longer (more specific) IDs claim
+  // their file before shorter IDs that are substrings of them.
+  const sortedSets = [...sets].sort(
+    (a, b) => (b.externalId?.length ?? 0) - (a.externalId?.length ?? 0),
+  )
 
+  const matchMap = new Map<string, { file: File; confidence: Confidence }>()
+
+  for (const set of sortedSets) {
+    if (!set.externalId) continue
     const extId = set.externalId.toLowerCase()
-    const matched = files.find((f) => f.name.toLowerCase().includes(extId))
-    if (!matched) return { set, file: null, confidence: 'none', included: false }
+    const matched = files.find((f) => !usedFiles.has(f) && f.name.toLowerCase().includes(extId))
+    if (!matched) continue
 
     usedFiles.add(matched)
 
-    // Secondary checks for confidence
     const dateMatch = matched.name.match(/^(\d{4}-\d{2}-\d{2})-/)
     const fileDate = dateMatch?.[1] ?? null
     const setDate = set.releaseDate
@@ -62,8 +68,16 @@ function computeMatches(
     const channelShort = (set.channel?.shortName ?? set.channelName ?? '').toLowerCase()
     const channelOk = !channelShort || matched.name.toLowerCase().includes(channelShort)
 
-    const confidence: Confidence = dateOk && channelOk ? 'high' : 'medium'
-    return { set, file: matched, confidence, included: true }
+    matchMap.set(set.id, {
+      file: matched,
+      confidence: dateOk && channelOk ? 'high' : 'medium',
+    })
+  }
+
+  const matches: MatchResult[] = sets.map((set) => {
+    const m = matchMap.get(set.id)
+    if (!m) return { set, file: null, confidence: 'none', included: false }
+    return { set, file: m.file, confidence: m.confidence, included: true }
   })
 
   const unmatchedFiles = files.filter((f) => !usedFiles.has(f))
