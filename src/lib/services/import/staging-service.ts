@@ -17,6 +17,7 @@ import {
 import type { ParsedSet } from './parser'
 import { matchAllEntities } from './matcher'
 import { normalizeForSearch } from '@/lib/services/alias-service'
+import { runMatchingForPerson } from './cover-basket-service'
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -347,6 +348,12 @@ export async function createBatch(
 
   // ── Create StagingSet records for each SET ImportItem ──────────────
   await createStagingSetsForBatch(batch.id, parsed.sets, parsed.person.icgId, matches)
+
+  // Re-run cover basket matching for any previously-unmatched basket items now
+  // that new staging sets exist for this person (fire-and-forget, non-blocking)
+  prisma.person.findFirst({ where: { icgId: parsed.person.icgId }, select: { id: true } })
+    .then((person) => { if (person) return runMatchingForPerson(person.id) })
+    .catch(() => undefined)
 
   // Re-fetch with updated statuses
   return prisma.importBatch.findUniqueOrThrow({

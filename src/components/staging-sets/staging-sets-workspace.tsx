@@ -15,6 +15,7 @@ import { Button } from '@/components/ui/button'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { StagingSetGrid } from './staging-set-grid'
 import { BatchCoverUploadSheet } from './batch-cover-upload-sheet'
+import { CoverBasketsTab } from './cover-baskets-tab'
 import { StagingSetFilterBar, DEFAULT_FILTERS } from './staging-set-filter-bar'
 import { StagingSetSlidePanel } from './staging-set-slide-panel'
 import { useGridKeyboardNav } from '@/hooks/use-grid-keyboard-nav'
@@ -41,7 +42,7 @@ export function StagingSetsWorkspace() {
   const searchParams = useSearchParams()
 
   // ── Tab state ─────────────────────────────────────────────────────────
-  const [activeTab, setActiveTab] = useState<'photo' | 'video' | 'missing-cover'>(
+  const [activeTab, setActiveTab] = useState<'photo' | 'video' | 'missing-cover' | 'cover-baskets'>(
     searchParams.get('type') === 'video' ? 'video' : 'photo',
   )
 
@@ -166,6 +167,8 @@ export function StagingSetsWorkspace() {
 
   // ── Fetch data ────────────────────────────────────────────────────────
   const fetchData = useCallback(async (append?: boolean, _cursor?: string, offset?: number) => {
+    // Cover baskets tab has its own data fetching — skip the staging sets API
+    if (activeTab === 'cover-baskets') { setIsLoading(false); return }
     if (!append) setIsLoading(true)
     else setIsLoadingMore(true)
 
@@ -473,7 +476,7 @@ export function StagingSetsWorkspace() {
 
   // ── Tab change ────────────────────────────────────────────────────────
   const handleTabChange = useCallback((tab: string) => {
-    setActiveTab(tab as 'photo' | 'video' | 'missing-cover')
+    setActiveTab(tab as 'photo' | 'video' | 'missing-cover' | 'cover-baskets')
     setSelectedId(null)
     setCheckedIds(new Set())
     setUploadedCovers(new Map())
@@ -532,6 +535,9 @@ export function StagingSetsWorkspace() {
                   {missingCoverCount}
                 </span>
               )}
+            </TabsTrigger>
+            <TabsTrigger value="cover-baskets" className="gap-1.5">
+              Cover Baskets
             </TabsTrigger>
           </TabsList>
         </Tabs>
@@ -628,8 +634,13 @@ export function StagingSetsWorkspace() {
 
       {/* Main content: grid + slide panel */}
       <div className="flex min-h-0 flex-1">
-        {/* Grid area */}
-        <div className="flex-1 overflow-y-auto p-4" ref={gridRef}>
+        {/* Cover Baskets tab — own layout, no grid */}
+        {activeTab === 'cover-baskets' && (
+          <CoverBasketsTab personId={filters.personId} importLinkPersonLabel={filters.personLabel ?? filters.personId} />
+        )}
+
+        {/* Grid area (photo / video / missing-cover tabs) */}
+        <div className={`flex-1 overflow-y-auto p-4${activeTab === 'cover-baskets' ? ' hidden' : ''}`} ref={gridRef}>
           {isLoading ? (
             <div className="flex items-center justify-center py-16">
               <Loader2 size={24} className="animate-spin text-muted-foreground" />
@@ -664,8 +675,8 @@ export function StagingSetsWorkspace() {
           )}
         </div>
 
-        {/* Slide-out detail panel */}
-        <StagingSetSlidePanel
+        {/* Slide-out detail panel (hidden on cover-baskets tab) */}
+        {activeTab !== 'cover-baskets' && <StagingSetSlidePanel
           stagingSet={selectedSet}
           isOpen={isPanelOpen}
           onClose={() => setSelectedId(null)}
@@ -674,7 +685,7 @@ export function StagingSetsWorkspace() {
           onFieldUpdate={handleFieldUpdate}
           onRefresh={() => fetchDataPreservingScroll()}
           isProcessing={isProcessing}
-        />
+        />}
       </div>
 
       {/* Bulk action bar */}

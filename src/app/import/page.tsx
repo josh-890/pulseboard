@@ -1,7 +1,9 @@
 export const dynamic = 'force-dynamic'
 
 import { withTenantFromHeaders } from '@/lib/tenant-context'
-import { Upload } from 'lucide-react'
+import { Upload, ImageIcon } from 'lucide-react'
+import Link from 'next/link'
+import { Button } from '@/components/ui/button'
 import { getAllBatches } from '@/lib/services/import/staging-service'
 import { ImportBatchList } from '@/components/import/import-batch-list'
 import { ImportUploadZone } from '@/components/import/import-upload-zone'
@@ -25,6 +27,13 @@ export default async function ImportPage() {
               </p>
             </div>
           </div>
+
+          <Link href="/import/covers">
+            <Button variant="outline" size="sm" className="gap-1.5">
+              <ImageIcon size={14} />
+              Cover Baskets
+            </Button>
+          </Link>
         </div>
 
         {/* Upload zone */}

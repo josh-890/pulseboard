@@ -23,6 +23,7 @@ import { ImportStatusBadge } from './import-status-badge'
 import { ImportItemDetail } from './import-item-detail'
 import { ChannelResolution } from './channel-resolution'
 import { SetBatchSummary } from './set-batch-summary'
+import { BatchCoversCard } from './batch-covers-card'
 import { cn } from '@/lib/utils'
 import Link from 'next/link'
 
@@ -201,6 +202,12 @@ export function ImportWorkspace({ batch }: ImportWorkspaceProps) {
     [currentItems],
   )
 
+  // Resolve the imported person's DB id from the PERSON import item (available once imported)
+  const subjectPersonId = useMemo(() => {
+    const personItem = batch.items.find((i) => i.type === 'PERSON' && i.status === 'IMPORTED')
+    return personItem?.matchedEntityId ?? null
+  }, [batch.items])
+
   // Person tab always has exactly 1 item — auto-select it, hide sidebar
   const isPersonTab = activeTab === 'PERSON' && currentItems.length === 1
   useEffect(() => {
@@ -322,7 +329,10 @@ export function ImportWorkspace({ batch }: ImportWorkspaceProps) {
       {/* Split panel: item list + detail */}
       {/* SET tab shows summary card with link to staging workspace */}
       {activeTab === 'SET' ? (
-        <SetBatchSummary batch={batch} />
+        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+          <SetBatchSummary batch={batch} />
+          <BatchCoversCard personId={subjectPersonId} personName={batch.subjectName} />
+        </div>
       ) : (
       <div className="flex min-h-0 flex-1">
         {/* Left: Item list (hidden for Person tab — always 1 item) */}

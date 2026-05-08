@@ -288,6 +288,7 @@ model Person {
   personTags           PersonTag[]
   stagingSetsAsSubject StagingSet[]         @relation("StagingSetSubject")
   research             PersonResearch[]
+  coverBaskets         CoverBasket[]        @relation("PersonCoverBaskets")
 
   createdAt DateTime  @default(now())
 
@@ -1608,6 +1609,7 @@ model StagingSet {
   @@index([importBatchId])
   coherenceSnapshot SetCoherenceSnapshot?
   archiveLinks      ArchiveLink[]
+  basketItems       CoverBasketItem[]    @relation("BasketItemMatch")
 
   @@index([status])
   @@index([duplicateGroupId])
@@ -1743,4 +1745,46 @@ model OrphanedStorageKey {
 
   @@index([resolvedAt])
   @@map("orphaned_storage_key")
+}
+
+// ─── Cover Baskets ────────────────────────────────────────────────────────────
+
+enum CoverBasketItemStatus {
+  PENDING      // uploaded, no match found yet
+  MATCHED      // match suggested, awaiting user confirmation
+  TRANSFERRED  // cover copied to staging set — done
+  IGNORED      // user dismissed
+}
+
+model CoverBasket {
+  id        String            @id @default(cuid())
+  personId  String
+  person    Person            @relation("PersonCoverBaskets", fields: [personId], references: [id], onDelete: Cascade)
+  isVideo   Boolean
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+  items     CoverBasketItem[]
+
+  @@unique([personId, isVideo])
+  @@map("cover_basket")
+}
+
+model CoverBasketItem {
+  id               String                @id @default(cuid())
+  basketId         String
+  basket           CoverBasket           @relation(fields: [basketId], references: [id], onDelete: Cascade)
+  originalFilename String
+  minioKey         String
+  fileSize         Int?
+  status           CoverBasketItemStatus @default(PENDING)
+  matchedSetId     String?
+  matchedSet       StagingSet?           @relation("BasketItemMatch", fields: [matchedSetId], references: [id], onDelete: SetNull)
+  transferredAt    DateTime?
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime              @updatedAt
+
+  @@index([basketId])
+  @@index([matchedSetId])
+  @@index([status])
+  @@map("cover_basket_item")
 }
