@@ -385,8 +385,13 @@ export const StagingSetRow = memo(function StagingSetRow({
       >
         {/* Cover thumbnail / inline upload zone */}
         {(() => {
-          const effectiveCoverUrl = inlineCoverMode?.overrideCoverUrl ?? ss.coverImageUrl
-          if (inlineCoverMode && !effectiveCoverUrl) {
+          // In inline-cover mode, a "local cover" is either a freshly-uploaded override
+          // or an existing URL stored in MinIO (path contains '/staging/').
+          // External/imported URLs (e.g. thenude.com) are treated as "no cover" here.
+          const hasLocalCover = !!inlineCoverMode?.overrideCoverUrl ||
+            (!!ss.coverImageUrl && ss.coverImageUrl.includes('/staging/'))
+          const effectiveCoverUrl = inlineCoverMode?.overrideCoverUrl ?? (hasLocalCover ? ss.coverImageUrl : null)
+          if (inlineCoverMode && !hasLocalCover) {
             return (
               <div
                 className="h-[80px] w-[56px] shrink-0"

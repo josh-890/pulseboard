@@ -585,7 +585,8 @@ export async function getStagingSetsFiltered(filters: StagingSetFilters): Promis
   }
 
   if (filters.noCover) {
-    conditions.push({ coverImageUrl: null })
+    // "No local cover" = null OR an external/imported URL (local covers always contain '/staging/')
+    conditions.push({ OR: [{ coverImageUrl: null }, { coverImageUrl: { not: { contains: '/staging/' } } }] })
     // When browsing for missing covers, exclude terminal statuses — same logic as missingCoverCount
     if (!filters.status?.length) {
       conditions.push({ status: { notIn: ['PROMOTED', 'INACTIVE'] } })
@@ -715,7 +716,7 @@ export async function getStagingSetStats(batchId?: string): Promise<StagingSetSt
       where: { ...where, releaseDate: null, releaseDateSuggestion: { not: null } },
     }),
     prisma.stagingSet.count({
-      where: { ...where, coverImageUrl: null, status: { notIn: ['PROMOTED', 'INACTIVE'] } },
+      where: { ...where, OR: [{ coverImageUrl: null }, { coverImageUrl: { not: { contains: '/staging/' } } }], status: { notIn: ['PROMOTED', 'INACTIVE'] } },
     }),
   ])
 

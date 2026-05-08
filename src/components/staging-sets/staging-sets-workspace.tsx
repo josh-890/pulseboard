@@ -709,7 +709,7 @@ export function StagingSetsWorkspace() {
       <BatchCoverUploadSheet
         open={batchSheetOpen}
         onClose={() => setBatchSheetOpen(false)}
-        missingSets={data?.items.filter((s) => !s.coverImageUrl && !uploadedCovers.has(s.id)) ?? []}
+        missingSets={data?.items.filter((s) => (!s.coverImageUrl || !s.coverImageUrl.includes('/staging/')) && !uploadedCovers.has(s.id)) ?? []}
         onBatchUploaded={(results) => {
           for (const { id, url } of results) handleCoverUploaded(id, url)
           setBatchSheetOpen(false)
