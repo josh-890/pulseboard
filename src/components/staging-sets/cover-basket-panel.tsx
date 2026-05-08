@@ -132,6 +132,22 @@ export function CoverBasketPanel({ personId, isVideo, basket, onRefresh }: Cover
     if (res.ok) onRefresh()
   }, [basket?.id, onRefresh])
 
+  const handleIgnoreAllPending = useCallback(async () => {
+    const basketId = basket?.id
+    if (!basketId) return
+    const pendingItems = items.filter((i) => i.status === 'PENDING')
+    await Promise.all(
+      pendingItems.map((i) =>
+        fetch(`/api/cover-baskets/${basketId}/items/${i.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: 'IGNORED' }),
+        }),
+      ),
+    )
+    onRefresh()
+  }, [basket?.id, items, onRefresh])
+
   return (
     <div className="flex min-h-0 flex-1 flex-col rounded-xl border border-border/50 bg-card">
       {/* Header */}
@@ -173,6 +189,14 @@ export function CoverBasketPanel({ personId, isVideo, basket, onRefresh }: Cover
           >
             <RefreshCw size={13} />
           </button>
+        )}
+
+        {/* Ignore all unmatched */}
+        {pending > 0 && (
+          <Button size="sm" variant="ghost" onClick={handleIgnoreAllPending}
+            className="text-muted-foreground hover:text-foreground">
+            Ignore unmatched ({pending})
+          </Button>
         )}
 
         {/* Transfer all matched */}
