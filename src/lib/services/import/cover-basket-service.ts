@@ -292,6 +292,15 @@ export async function transferItem(itemId: string): Promise<{ url: string }> {
   const version = Date.now()
   const newKey = `staging/${stagingSetId}/cover-${version}.jpg`
 
+  // Check for a video sibling before writing to MinIO
+  const matchedSet = await prisma.stagingSet.findUnique({
+    where: { id: stagingSetId },
+    select: { siblingOf: { select: { id: true, coverImageUrl: true } } },
+  })
+  const sibling = matchedSet?.siblingOf ?? null
+  const siblingNeedsCover = sibling &&
+    (!sibling.coverImageUrl || !sibling.coverImageUrl.includes('/staging/'))
+
   // Delete any existing cover objects for this staging set
   const listed = await minioClient.send(
     new ListObjectsV2Command({ Bucket: bucket, Prefix: `staging/${stagingSetId}/cover-` }),
@@ -314,6 +323,29 @@ export async function transferItem(itemId: string): Promise<{ url: string }> {
 
   const url = buildUrl(newKey)
 
+  // Auto-copy cover to video sibling if it exists and has no local cover
+  let siblingUrl: string | null = null
+  if (siblingNeedsCover) {
+    const siblingKey = `staging/${sibling.id}/cover-${version}.jpg`
+    const siblingListed = await minioClient.send(
+      new ListObjectsV2Command({ Bucket: bucket, Prefix: `staging/${sibling.id}/cover-` }),
+    )
+    for (const obj of siblingListed.Contents ?? []) {
+      if (obj.Key) {
+        await minioClient.send(new DeleteObjectCommand({ Bucket: bucket, Key: obj.Key }))
+      }
+    }
+    await minioClient.send(
+      new PutObjectCommand({
+        Bucket: bucket,
+        Key: siblingKey,
+        Body: buffer,
+        ContentType: 'image/jpeg',
+      }),
+    )
+    siblingUrl = buildUrl(siblingKey)
+  }
+
   await prisma.$transaction([
     prisma.stagingSet.update({
       where: { id: stagingSetId },
@@ -323,6 +355,9 @@ export async function transferItem(itemId: string): Promise<{ url: string }> {
       where: { id: itemId },
       data: { status: 'TRANSFERRED', transferredAt: new Date() },
     }),
+    ...(siblingNeedsCover && siblingUrl
+      ? [prisma.stagingSet.update({ where: { id: sibling.id }, data: { coverImageUrl: siblingUrl } })]
+      : []),
   ])
 
   return { url }
