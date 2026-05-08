@@ -107,16 +107,21 @@ function CoverThumbnail({
   isVideo,
   imgError,
   onImgError,
+  stagingSetId,
+  onRotated,
 }: {
   coverImageUrl: string | null
   title: string
   isVideo: boolean
   imgError: boolean
   onImgError: () => void
+  stagingSetId?: string
+  onRotated?: (newUrl: string) => void
 }) {
   const thumbRef = useRef<HTMLDivElement>(null)
   const [hover, setHover] = useState(false)
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null)
+  const [isRotating, setIsRotating] = useState(false)
 
   const showPreview = useCallback(() => {
     if (!thumbRef.current || !coverImageUrl) return
@@ -128,6 +133,23 @@ function CoverThumbnail({
   }, [coverImageUrl])
 
   const hidePreview = useCallback(() => setHover(false), [])
+
+  const handleRotate = useCallback(async (e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (!stagingSetId || !onRotated) return
+    setIsRotating(true)
+    try {
+      const res = await fetch(`/api/staging-sets/${stagingSetId}/cover`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ degrees: 90 }),
+      })
+      const data = await res.json() as { url?: string }
+      if (data.url) onRotated(data.url)
+    } finally {
+      setIsRotating(false)
+    }
+  }, [stagingSetId, onRotated])
 
   return (
     <div
@@ -149,8 +171,10 @@ function CoverThumbnail({
           />
           {hover && pos && createPortal(
             <div
-              className="pointer-events-none fixed z-[100] overflow-hidden rounded-lg border border-border bg-background shadow-xl"
+              className="fixed z-[100] overflow-hidden rounded-lg border border-border bg-background shadow-xl"
               style={{ top: pos.top, left: pos.left }}
+              onMouseEnter={() => setHover(true)}
+              onMouseLeave={hidePreview}
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
@@ -158,6 +182,19 @@ function CoverThumbnail({
                 alt={title}
                 className="block max-h-[400px] max-w-[300px]"
               />
+              {stagingSetId && onRotated && (
+                <div className="flex justify-end border-t border-border/50 bg-background px-2 py-1">
+                  <button
+                    onClick={handleRotate}
+                    disabled={isRotating}
+                    title="Rotate 90° CCW"
+                    className="flex items-center gap-1 rounded px-2 py-0.5 text-[11px] text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-40"
+                  >
+                    <RotateCcw size={11} className={isRotating ? 'animate-spin' : ''} />
+                    Rotate
+                  </button>
+                </div>
+              )}
             </div>,
             document.body,
           )}
@@ -227,6 +264,7 @@ export const StagingSetRow = memo(function StagingSetRow({
   inlineCoverMode,
 }: StagingSetRowProps) {
   const [imgError, setImgError] = useState(false)
+  const [rotatedCoverUrl, setRotatedCoverUrl] = useState<string | null>(null)
   const [isRotating, setIsRotating] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const [pickerOpen, setPickerOpen] = useState(false)
@@ -483,11 +521,13 @@ export const StagingSetRow = memo(function StagingSetRow({
           }
           return (
             <CoverThumbnail
-              coverImageUrl={ss.coverImageUrl}
+              coverImageUrl={rotatedCoverUrl ?? ss.coverImageUrl}
               title={ss.title}
               isVideo={ss.isVideo}
               imgError={imgError}
               onImgError={() => setImgError(true)}
+              stagingSetId={ss.id}
+              onRotated={(url) => setRotatedCoverUrl(url)}
             />
           )
         })()}
