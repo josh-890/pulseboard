@@ -586,6 +586,10 @@ export async function getStagingSetsFiltered(filters: StagingSetFilters): Promis
 
   if (filters.noCover) {
     conditions.push({ coverImageUrl: null })
+    // When browsing for missing covers, exclude terminal statuses — same logic as missingCoverCount
+    if (!filters.status?.length) {
+      conditions.push({ status: { notIn: ['PROMOTED', 'INACTIVE'] } })
+    }
   }
 
   if (filters.noDate) {

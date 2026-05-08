@@ -170,7 +170,9 @@ export function StagingSetsWorkspace() {
     else setIsLoadingMore(true)
 
     const params = new URLSearchParams()
-    if (filters.status.length) params.set('status', filters.status.join(','))
+    // Missing-cover tab ignores the status chip filter — it shows all sets that
+    // need a cover regardless of workflow status (service excludes PROMOTED/INACTIVE).
+    if (filters.status.length && activeTab !== 'missing-cover') params.set('status', filters.status.join(','))
     if (filters.search) params.set('search', filters.search)
     if (filters.batchId) params.set('batchId', filters.batchId)
     if (filters.noDate) params.set('noDate', 'true')
