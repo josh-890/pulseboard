@@ -10,12 +10,15 @@ type StagingSetCoverUploadProps = {
   stagingSetId: string
   currentUrl: string | null
   onUploaded: (url: string | null) => void
+  /** Compact mode: fixed 56×80px slot sized to fit inside a row thumbnail */
+  compact?: boolean
 }
 
 export function StagingSetCoverUpload({
   stagingSetId,
   currentUrl,
   onUploaded,
+  compact = false,
 }: StagingSetCoverUploadProps) {
   const [isUploading, setIsUploading] = useState(false)
   // Cache-bust suffix appended after each successful upload so the browser
@@ -88,7 +91,8 @@ export function StagingSetCoverUpload({
         {...dropProps}
         onClick={() => fileInputRef.current?.click()}
         className={cn(
-          'relative aspect-[4/3] w-full cursor-pointer overflow-hidden rounded-lg border-2 border-dashed transition-colors',
+          'relative cursor-pointer overflow-hidden rounded-lg border-2 border-dashed transition-colors',
+          compact ? 'h-[80px] w-[56px]' : 'aspect-[4/3] w-full',
           isDragOver
             ? 'border-primary bg-primary/10'
             : currentUrl
@@ -102,35 +106,39 @@ export function StagingSetCoverUpload({
               src={displayUrl}
               alt="Cover"
               fill
-              className="object-cover"
+              className="object-contain"
               unoptimized
               onError={() => setImgError(true)}
             />
-            <div className="absolute inset-0 flex items-center justify-center bg-black/0 opacity-0 transition-all hover:bg-black/40 hover:opacity-100">
-              <span className="flex items-center gap-1.5 rounded-full bg-black/60 px-3 py-1.5 text-xs text-white backdrop-blur-sm">
-                <Upload size={12} />
-                Replace
-              </span>
-            </div>
+            {!compact && (
+              <div className="absolute inset-0 flex items-center justify-center bg-black/0 opacity-0 transition-all hover:bg-black/40 hover:opacity-100">
+                <span className="flex items-center gap-1.5 rounded-full bg-black/60 px-3 py-1.5 text-xs text-white backdrop-blur-sm">
+                  <Upload size={12} />
+                  Replace
+                </span>
+              </div>
+            )}
           </>
         ) : (
           <div className="flex h-full flex-col items-center justify-center gap-2 text-muted-foreground">
-            <Camera size={24} className="opacity-30" />
-            <span className="text-xs">
-              {isDragOver ? 'Drop image here' : 'Drop cover image or click to browse'}
-            </span>
+            <Camera size={compact ? 14 : 24} className="opacity-30" />
+            {!compact && (
+              <span className="text-xs">
+                {isDragOver ? 'Drop image here' : 'Drop cover image or click to browse'}
+              </span>
+            )}
           </div>
         )}
 
         {isUploading && (
           <div className="absolute inset-0 flex items-center justify-center bg-black/50">
-            <Loader2 size={20} className="animate-spin text-white" />
+            <Loader2 size={compact ? 14 : 20} className="animate-spin text-white" />
           </div>
         )}
       </div>
 
-      {/* Clear button — only visible when a cover exists */}
-      {currentUrl && !isUploading && (
+      {/* Clear button — only visible when a cover exists and not compact */}
+      {!compact && currentUrl && !isUploading && (
         <button
           type="button"
           onClick={handleClear}

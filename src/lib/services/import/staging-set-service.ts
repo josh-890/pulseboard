@@ -454,6 +454,7 @@ export type StagingSetFilters = {
   priority?: number[]
   archiveFilter?: 'hasPath' | 'ok' | 'changed' | 'missing' | 'inQueue' | 'needsMedia'
   readyForPromotion?: boolean
+  noCover?: boolean
   search?: string
   sort?: 'date' | 'title' | 'priority' | 'importDate' | 'undatedFirst'
   sortDir?: 'asc' | 'desc'
@@ -583,6 +584,10 @@ export async function getStagingSetsFiltered(filters: StagingSetFilters): Promis
     conditions.push({ isVideo: filters.isVideo })
   }
 
+  if (filters.noCover) {
+    conditions.push({ coverImageUrl: null })
+  }
+
   if (filters.noDate) {
     conditions.push({ releaseDate: null, releaseDateSuggestion: null })
   }
@@ -674,12 +679,13 @@ export type StagingSetStats = {
   duplicateCount: number
   noDateCount: number
   dateSuggestionCount: number
+  missingCoverCount: number
 }
 
 export async function getStagingSetStats(batchId?: string): Promise<StagingSetStats> {
   const where: Prisma.StagingSetWhereInput = batchId ? { importBatchId: batchId } : {}
 
-  const [total, statusCounts, exactCount, probableCount, videoCount, duplicateCount, noDateCount, dateSuggestionCount] = await Promise.all([
+  const [total, statusCounts, exactCount, probableCount, videoCount, duplicateCount, noDateCount, dateSuggestionCount, missingCoverCount] = await Promise.all([
     prisma.stagingSet.count({ where }),
     prisma.stagingSet.groupBy({
       by: ['status'],
@@ -704,6 +710,9 @@ export async function getStagingSetStats(batchId?: string): Promise<StagingSetSt
     prisma.stagingSet.count({
       where: { ...where, releaseDate: null, releaseDateSuggestion: { not: null } },
     }),
+    prisma.stagingSet.count({
+      where: { ...where, coverImageUrl: null, status: { notIn: ['PROMOTED', 'INACTIVE'] } },
+    }),
   ])
 
   const byStatus: Record<string, number> = {}
@@ -726,6 +735,7 @@ export async function getStagingSetStats(batchId?: string): Promise<StagingSetSt
     duplicateCount,
     noDateCount,
     dateSuggestionCount,
+    missingCoverCount,
   }
 }
 

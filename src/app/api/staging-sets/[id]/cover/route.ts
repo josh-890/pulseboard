@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import sharp from 'sharp'
-import { DeleteObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3'
+import { DeleteObjectCommand, GetObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3'
 import { withTenantFromHeaders } from '@/lib/tenant-context'
 import { minioClient, getMinioBucket } from '@/lib/minio'
 import { buildUrl } from '@/lib/media-url'
@@ -79,6 +79,66 @@ export async function POST(
     } catch (err) {
       console.error('Cover upload error:', err)
       return NextResponse.json({ error: 'Upload failed' }, { status: 500 })
+    }
+  })
+}
+
+export async function PATCH(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  return withTenantFromHeaders(async () => {
+    const { id } = await params
+    try {
+      const body = await request.json() as { degrees?: number }
+      // degrees is CCW; sharp.rotate() is CW → negate
+      const degrees = body.degrees ?? 90
+      const cwDegrees = (360 - (degrees % 360)) % 360
+
+      const { ListObjectsV2Command } = await import('@aws-sdk/client-s3')
+      const bucket = getMinioBucket()
+
+      // Find the current cover object
+      const listed = await minioClient.send(new ListObjectsV2Command({ Bucket: bucket, Prefix: `staging/${id}/cover-` }))
+      const currentKey = listed.Contents?.[0]?.Key
+      if (!currentKey) {
+        return NextResponse.json({ error: 'No cover image found' }, { status: 404 })
+      }
+
+      // Fetch current image bytes from MinIO
+      const getResult = await minioClient.send(new GetObjectCommand({ Bucket: bucket, Key: currentKey }))
+      const chunks: Uint8Array[] = []
+      for await (const chunk of getResult.Body as AsyncIterable<Uint8Array>) {
+        chunks.push(chunk)
+      }
+      const buffer = Buffer.concat(chunks)
+
+      // Rotate and re-encode
+      const rotated = await sharp(buffer)
+        .rotate(cwDegrees)
+        .jpeg({ quality: 80 })
+        .toBuffer()
+
+      // Save under a new versioned key
+      const version = Date.now()
+      const newKey = `staging/${id}/cover-${version}.jpg`
+      await minioClient.send(new PutObjectCommand({
+        Bucket: bucket,
+        Key: newKey,
+        Body: rotated,
+        ContentType: 'image/jpeg',
+      }))
+
+      // Delete old key
+      await minioClient.send(new DeleteObjectCommand({ Bucket: bucket, Key: currentKey }))
+
+      const url = buildUrl(newKey)
+      await prisma.stagingSet.update({ where: { id }, data: { coverImageUrl: url } })
+
+      return NextResponse.json({ url })
+    } catch (err) {
+      console.error('Cover rotate error:', err)
+      return NextResponse.json({ error: 'Rotate failed' }, { status: 500 })
     }
   })
 }

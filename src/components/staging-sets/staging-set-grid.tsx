@@ -34,6 +34,14 @@ type StagingSetGridProps = {
   scrollRef: React.RefObject<HTMLDivElement | null>
   /** Called when virtualizer is ready — passes scrollToIndex for keyboard nav */
   onVirtualizerReady?: (scrollToIndex: (index: number) => void) => void
+  inlineCoverUpload?: {
+    uploadedCovers: Map<string, string>
+    acceptedCovers: Set<string>
+    onUploaded: (id: string, url: string) => void
+    onAccepted: (id: string) => void
+    onDeleted: (id: string) => void
+    onRotated: (id: string, url: string) => void
+  }
 }
 
 // ─── Grouping Logic ────────────────────────────────────────────────────────
@@ -189,6 +197,7 @@ export function StagingSetGrid({
   total,
   scrollRef,
   onVirtualizerReady,
+  inlineCoverUpload,
 }: StagingSetGridProps) {
   // Track collapsed groups + a default mode for newly loaded groups
   // Persist to sessionStorage so state survives tab switches and page revisits
@@ -523,6 +532,14 @@ export function StagingSetGrid({
                     onToggleCheck={onToggleCheck}
                     onQueueToggle={onQueueToggle}
                     onArchiveChange={onArchiveChange}
+                    inlineCoverMode={inlineCoverUpload ? {
+                      overrideCoverUrl: inlineCoverUpload.uploadedCovers.get(entry.data.id),
+                      isAccepted: inlineCoverUpload.acceptedCovers.has(entry.data.id),
+                      onUploaded: (url) => inlineCoverUpload.onUploaded(entry.data.id, url),
+                      onAccepted: () => inlineCoverUpload.onAccepted(entry.data.id),
+                      onDeleted: () => inlineCoverUpload.onDeleted(entry.data.id),
+                      onRotated: (url) => inlineCoverUpload.onRotated(entry.data.id, url),
+                    } : undefined}
                   />
                 </div>
               )}

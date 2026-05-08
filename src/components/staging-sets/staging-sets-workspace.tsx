@@ -9,10 +9,12 @@ import {
   Archive,
   CheckSquare,
   RefreshCw,
+  Upload,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { StagingSetGrid } from './staging-set-grid'
+import { BatchCoverUploadSheet } from './batch-cover-upload-sheet'
 import { StagingSetFilterBar, DEFAULT_FILTERS } from './staging-set-filter-bar'
 import { StagingSetSlidePanel } from './staging-set-slide-panel'
 import { useGridKeyboardNav } from '@/hooks/use-grid-keyboard-nav'
@@ -39,9 +41,15 @@ export function StagingSetsWorkspace() {
   const searchParams = useSearchParams()
 
   // ── Tab state ─────────────────────────────────────────────────────────
-  const [activeTab, setActiveTab] = useState<'photo' | 'video'>(
+  const [activeTab, setActiveTab] = useState<'photo' | 'video' | 'missing-cover'>(
     searchParams.get('type') === 'video' ? 'video' : 'photo',
   )
+
+  // ── Missing cover upload tracking ──────────────────────────────────────
+  const [batchSheetOpen, setBatchSheetOpen] = useState(false)
+  const [uploadedCovers, setUploadedCovers] = useState<Map<string, string>>(new Map())
+  const [acceptedCovers, setAcceptedCovers] = useState<Set<string>>(new Set())
+  const [hideDone, setHideDone] = useState(false)
 
   // ── Filter state (persisted to sessionStorage) ─────────────────────────
   const FILTER_STORAGE_KEY = 'staging-sets-filters'
@@ -178,7 +186,11 @@ export function StagingSetsWorkspace() {
     if (filters.readyForPromotion) params.set('readyForPromotion', 'true')
     if (filters.channelId) params.set('channelId', filters.channelId)
     if (filters.channelTier?.length) params.set('channelTier', filters.channelTier.join(','))
-    params.set('isVideo', activeTab === 'video' ? 'true' : 'false')
+    if (activeTab === 'missing-cover') {
+      params.set('noCover', 'true')
+    } else {
+      params.set('isVideo', activeTab === 'video' ? 'true' : 'false')
+    }
     params.set('sort', filters.sort)
     params.set('limit', '50')
     if (offset != null) params.set('offset', String(offset))
@@ -458,14 +470,43 @@ export function StagingSetsWorkspace() {
 
   // ── Tab change ────────────────────────────────────────────────────────
   const handleTabChange = useCallback((tab: string) => {
-    setActiveTab(tab as 'photo' | 'video')
+    setActiveTab(tab as 'photo' | 'video' | 'missing-cover')
     setSelectedId(null)
     setCheckedIds(new Set())
+    setUploadedCovers(new Map())
+    setAcceptedCovers(new Set())
+    setHideDone(false)
+  }, [])
+
+  // ── Cover action callbacks (missing-cover tab) ────────────────────────
+  const handleCoverUploaded = useCallback((stagingSetId: string, url: string) => {
+    setUploadedCovers((prev) => new Map(prev).set(stagingSetId, url))
+    setStats((prev) => prev ? { ...prev, missingCoverCount: Math.max(0, prev.missingCoverCount - 1) } : prev)
+  }, [])
+
+  const handleCoverAccepted = useCallback((stagingSetId: string) => {
+    setAcceptedCovers((prev) => new Set(prev).add(stagingSetId))
+  }, [])
+
+  const handleCoverDeleted = useCallback((stagingSetId: string) => {
+    setUploadedCovers((prev) => { const m = new Map(prev); m.delete(stagingSetId); return m })
+    setAcceptedCovers((prev) => { const s = new Set(prev); s.delete(stagingSetId); return s })
+    setStats((prev) => prev ? { ...prev, missingCoverCount: prev.missingCoverCount + 1 } : prev)
+  }, [])
+
+  const handleCoverRotated = useCallback((stagingSetId: string, url: string) => {
+    setUploadedCovers((prev) => new Map(prev).set(stagingSetId, url))
   }, [])
 
   // ── Render ────────────────────────────────────────────────────────────
   const photoCount = stats?.byType.photo ?? 0
   const videoCount = stats?.byType.video ?? 0
+  const missingCoverCount = stats?.missingCoverCount ?? 0
+
+  const visibleItems = useMemo(() => {
+    if (activeTab !== 'missing-cover' || !hideDone || !data) return data?.items ?? []
+    return data.items.filter((s) => !acceptedCovers.has(s.id))
+  }, [activeTab, hideDone, acceptedCovers, data])
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -481,8 +522,39 @@ export function StagingSetsWorkspace() {
               Video Sets
               <span className="text-[10px] text-muted-foreground">({videoCount})</span>
             </TabsTrigger>
+            <TabsTrigger value="missing-cover" className="gap-1.5">
+              Missing Cover
+              {missingCoverCount > 0 && (
+                <span className="rounded-full bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-medium text-amber-400">
+                  {missingCoverCount}
+                </span>
+              )}
+            </TabsTrigger>
           </TabsList>
         </Tabs>
+
+        {/* Missing cover tab actions */}
+        {activeTab === 'missing-cover' && (
+          <>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setBatchSheetOpen(true)}
+            >
+              <Upload size={14} />
+              Batch Upload
+            </Button>
+            {acceptedCovers.size > 0 && (
+              <Button
+                variant={hideDone ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setHideDone((v) => !v)}
+              >
+                {hideDone ? 'Show all' : `Hide accepted (${acceptedCovers.size})`}
+              </Button>
+            )}
+          </>
+        )}
 
         <span className="ml-auto" />
 
@@ -561,7 +633,7 @@ export function StagingSetsWorkspace() {
             </div>
           ) : (
             <StagingSetGrid
-              items={data?.items ?? []}
+              items={visibleItems}
               groupBy={filters.groupBy}
               focusedId={keyNav.focusedId}
               selectedId={selectedId}
@@ -577,6 +649,14 @@ export function StagingSetsWorkspace() {
               total={data?.total ?? 0}
               scrollRef={gridRef}
               onVirtualizerReady={(fn) => { scrollToIndexRef.current = fn }}
+              inlineCoverUpload={activeTab === 'missing-cover' ? {
+                uploadedCovers,
+                acceptedCovers,
+                onUploaded: handleCoverUploaded,
+                onAccepted: handleCoverAccepted,
+                onDeleted: handleCoverDeleted,
+                onRotated: handleCoverRotated,
+              } : undefined}
             />
           )}
         </div>
@@ -621,6 +701,17 @@ export function StagingSetsWorkspace() {
           </div>
         </div>
       )}
+
+      {/* Batch cover upload */}
+      <BatchCoverUploadSheet
+        open={batchSheetOpen}
+        onClose={() => setBatchSheetOpen(false)}
+        missingSets={data?.items.filter((s) => !s.coverImageUrl && !uploadedCovers.has(s.id)) ?? []}
+        onBatchUploaded={(results) => {
+          for (const { id, url } of results) handleCoverUploaded(id, url)
+          setBatchSheetOpen(false)
+        }}
+      />
     </div>
   )
 }

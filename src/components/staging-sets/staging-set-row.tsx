@@ -4,13 +4,14 @@ import { memo, useState, useRef, useCallback, useTransition } from 'react'
 import { createPortal } from 'react-dom'
 import Image from 'next/image'
 import Link from 'next/link'
-import { AlertTriangle, CalendarClock, Camera, CheckSquare, Clock, Copy, ExternalLink, Film, Flag, FolderOpen, FolderSearch, FolderX, Check, X } from 'lucide-react'
+import { AlertTriangle, CalendarClock, Camera, CheckSquare, Clock, Copy, ExternalLink, Film, Flag, FolderOpen, FolderSearch, FolderX, Check, Loader2, RotateCcw, X } from 'lucide-react'
 import { cn, getInitialsFromName } from '@/lib/utils'
 import type { StagingSetWithRelations, ParticipantStatus } from '@/lib/services/import/staging-set-service'
 import type { StagingSetStatus } from '@/generated/prisma/client'
 import { confirmArchiveFolderLinkAction, rejectArchiveSuggestionAction } from '@/lib/actions/archive-actions'
 import { acceptDateSuggestionAction, dismissDateSuggestionAction } from '@/lib/actions/staging-set-actions'
 import { ArchiveFolderPicker } from './archive-folder-picker'
+import { StagingSetCoverUpload } from './staging-set-cover-upload'
 
 // ─── Constants ─────────────────────────────────────────────────────────────
 
@@ -76,6 +77,15 @@ const MEDIA_PRIORITY_CLASS: Record<number, string> = {
   3: 'bg-slate-500/70 text-white',
 }
 
+type InlineCoverMode = {
+  overrideCoverUrl: string | undefined
+  isAccepted: boolean
+  onUploaded: (url: string) => void
+  onAccepted: () => void
+  onDeleted: () => void
+  onRotated: (url: string) => void
+}
+
 type StagingSetRowProps = {
   stagingSet: StagingSetWithRelations
   isSelected: boolean
@@ -86,6 +96,7 @@ type StagingSetRowProps = {
   onToggleCheck: (id: string) => void
   onQueueToggle?: (id: string) => void
   onArchiveChange?: () => void
+  inlineCoverMode?: InlineCoverMode
 }
 
 // ─── Cover Thumbnail with hover preview ───────────────────────────────────
@@ -213,8 +224,11 @@ export const StagingSetRow = memo(function StagingSetRow({
   onToggleCheck,
   onQueueToggle,
   onArchiveChange,
+  inlineCoverMode,
 }: StagingSetRowProps) {
   const [imgError, setImgError] = useState(false)
+  const [isRotating, setIsRotating] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
   const [pickerOpen, setPickerOpen] = useState(false)
   const [isConfirming, startConfirm] = useTransition()
   const [isRejecting, startReject] = useTransition()
@@ -366,16 +380,112 @@ export const StagingSetRow = memo(function StagingSetRow({
           isSelected && 'ring-2 ring-primary',
           isFocused && !isSelected && 'ring-2 ring-ring',
           isMultiSelectMode && isChecked && 'ring-2 ring-primary',
+          inlineCoverMode?.overrideCoverUrl && !inlineCoverMode.isAccepted && 'ring-2 ring-green-500',
         )}
       >
-        {/* Cover thumbnail */}
-        <CoverThumbnail
-          coverImageUrl={ss.coverImageUrl}
-          title={ss.title}
-          isVideo={ss.isVideo}
-          imgError={imgError}
-          onImgError={() => setImgError(true)}
-        />
+        {/* Cover thumbnail / inline upload zone */}
+        {(() => {
+          const effectiveCoverUrl = inlineCoverMode?.overrideCoverUrl ?? ss.coverImageUrl
+          if (inlineCoverMode && !effectiveCoverUrl) {
+            return (
+              <div
+                className="h-[80px] w-[56px] shrink-0"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <StagingSetCoverUpload
+                  stagingSetId={ss.id}
+                  currentUrl={null}
+                  onUploaded={(url) => { if (url) inlineCoverMode.onUploaded(url) }}
+                  compact
+                />
+              </div>
+            )
+          }
+          if (inlineCoverMode && effectiveCoverUrl) {
+            return (
+              <div
+                className="relative h-[80px] w-[56px] shrink-0 overflow-hidden rounded-lg bg-muted/30"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <CoverThumbnail
+                  coverImageUrl={effectiveCoverUrl}
+                  title={ss.title}
+                  isVideo={ss.isVideo}
+                  imgError={imgError}
+                  onImgError={() => setImgError(true)}
+                />
+                {/* Action overlay */}
+                <div className="absolute inset-x-0 bottom-0 flex items-center justify-around bg-black/60 py-0.5">
+                  {/* Accept */}
+                  <button
+                    type="button"
+                    title="Accept"
+                    onClick={() => inlineCoverMode.onAccepted()}
+                    className="flex h-5 w-5 items-center justify-center rounded text-green-400 hover:bg-white/20"
+                  >
+                    <Check size={11} />
+                  </button>
+                  {/* Rotate 90° CCW */}
+                  <button
+                    type="button"
+                    title="Rotate 90° CCW"
+                    disabled={isRotating || isDeleting}
+                    onClick={async () => {
+                      setIsRotating(true)
+                      try {
+                        const res = await fetch(`/api/staging-sets/${ss.id}/cover`, {
+                          method: 'PATCH',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ degrees: 90 }),
+                        })
+                        const data = await res.json() as { url?: string }
+                        if (data.url) inlineCoverMode.onRotated(data.url)
+                      } finally {
+                        setIsRotating(false)
+                      }
+                    }}
+                    className="flex h-5 w-5 items-center justify-center rounded text-amber-400 hover:bg-white/20 disabled:opacity-40"
+                  >
+                    {isRotating ? <RotateCcw size={11} className="animate-spin" /> : <RotateCcw size={11} />}
+                  </button>
+                  {/* Delete */}
+                  <button
+                    type="button"
+                    title="Delete cover"
+                    disabled={isRotating || isDeleting}
+                    onClick={async () => {
+                      setIsDeleting(true)
+                      try {
+                        await fetch(`/api/staging-sets/${ss.id}/cover`, { method: 'DELETE' })
+                        inlineCoverMode.onDeleted()
+                      } finally {
+                        setIsDeleting(false)
+                      }
+                    }}
+                    className="flex h-5 w-5 items-center justify-center rounded text-red-400 hover:bg-white/20 disabled:opacity-40"
+                  >
+                    {isDeleting ? <Loader2 size={11} className="animate-spin" /> : <X size={11} />}
+                  </button>
+                </div>
+                {/* Accepted badge */}
+                {inlineCoverMode.isAccepted && (
+                  <div className="absolute left-0.5 top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-green-500/90">
+                    <Check size={9} className="text-white" />
+                  </div>
+                )}
+              </div>
+            )
+          }
+          return (
+            <CoverThumbnail
+              coverImageUrl={ss.coverImageUrl}
+              title={ss.title}
+              isVideo={ss.isVideo}
+              imgError={imgError}
+              onImgError={() => setImgError(true)}
+            />
+          )
+        })()}
 
         {/* Info section */}
         <div className="flex min-w-0 flex-col gap-0.5">
