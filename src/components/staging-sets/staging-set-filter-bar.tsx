@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { Search, CalendarDays, X, HardDrive, CheckCheck } from 'lucide-react'
+import { Search, CalendarDays, X, HardDrive, CheckCheck, User } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
 import type { ChannelTier, StagingSetStatus } from '@/generated/prisma/client'
@@ -27,6 +27,8 @@ export type StagingSetFilterState = {
   batchId: string | undefined
   archiveFilter: ArchiveFilterValue | undefined
   readyForPromotion: boolean
+  personId: string | undefined
+  personLabel: string | undefined
   sort: 'date' | 'title' | 'priority' | 'importDate' | 'undatedFirst'
   sortDir: 'asc' | 'desc'
   groupBy: 'none' | 'channel' | 'person' | 'year' | 'status' | 'channelYear'
@@ -47,6 +49,8 @@ export const DEFAULT_FILTERS: StagingSetFilterState = {
   batchId: undefined,
   archiveFilter: undefined,
   readyForPromotion: false,
+  personId: undefined,
+  personLabel: undefined,
   sort: 'date',
   sortDir: 'asc',
   groupBy: 'none',
@@ -103,10 +107,18 @@ const GROUP_OPTIONS = [
 
 // ─── Component ─────────────────────────────────────────────────────────────
 
+type PersonResult = { id: string; displayName: string; icgId: string }
+
 export function StagingSetFilterBar({ filters, onChange, stats }: StagingSetFilterBarProps) {
   const [searchInput, setSearchInput] = useState(filters.search)
   const [prevCommittedSearch, setPrevCommittedSearch] = useState(filters.search)
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined)
+
+  const [personSearch, setPersonSearch] = useState('')
+  const [personSuggestions, setPersonSuggestions] = useState<PersonResult[]>([])
+  const [personDropdownOpen, setPersonDropdownOpen] = useState(false)
+  const personDebounceRef = useRef<ReturnType<typeof setTimeout>>(undefined)
+  const personContainerRef = useRef<HTMLDivElement>(null)
 
   // Sync local input when filters.search changes externally (sessionStorage restore,
   // clear button, navigation back). React's recommended "derived state during render"
@@ -126,6 +138,40 @@ export function StagingSetFilterBar({ filters, onChange, stats }: StagingSetFilt
     }, 300)
     return () => clearTimeout(debounceRef.current)
   }, [searchInput]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Close person dropdown on outside click
+  useEffect(() => {
+    const handleMouseDown = (e: MouseEvent) => {
+      if (personContainerRef.current && !personContainerRef.current.contains(e.target as Node)) {
+        setPersonDropdownOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleMouseDown)
+    return () => document.removeEventListener('mousedown', handleMouseDown)
+  }, [])
+
+  // Debounce person search — 200 ms
+  useEffect(() => {
+    clearTimeout(personDebounceRef.current)
+    if (!personSearch.trim()) {
+      setPersonSuggestions([])
+      setPersonDropdownOpen(false)
+      return
+    }
+    personDebounceRef.current = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/people/search?q=${encodeURIComponent(personSearch)}`)
+        if (res.ok) {
+          const data = (await res.json()) as PersonResult[]
+          setPersonSuggestions(data)
+          setPersonDropdownOpen(data.length > 0)
+        }
+      } catch {
+        // ignore fetch errors
+      }
+    }, 200)
+    return () => clearTimeout(personDebounceRef.current)
+  }, [personSearch])
 
   const toggleStatus = (value: StagingSetStatus) => {
     const next = filters.status.includes(value)
@@ -151,7 +197,7 @@ export function StagingSetFilterBar({ filters, onChange, stats }: StagingSetFilt
 
   const hasActiveFilters = filters.search || filters.noDate || filters.showDuplicates ||
     filters.matchType || filters.channelId || filters.dateFrom || filters.dateTo ||
-    filters.priority.length > 0 || filters.batchId || tierDiffersFromDefault
+    filters.priority.length > 0 || filters.batchId || tierDiffersFromDefault || !!filters.personId
 
   return (
     <div className="sticky top-0 z-10 flex flex-col gap-2 border-b border-border/50 bg-background/95 px-4 py-2.5 backdrop-blur-sm">
@@ -264,10 +310,24 @@ export function StagingSetFilterBar({ filters, onChange, stats }: StagingSetFilt
           )
         })}
 
+        {filters.personId && (
+          <button
+            onClick={() => onChange({ ...filters, personId: undefined, personLabel: undefined })}
+            className="flex items-center gap-1.5 rounded-full border border-violet-500/50 bg-violet-500/15 px-2.5 py-1 text-xs text-violet-700 transition-colors hover:bg-violet-500/25 dark:text-violet-400"
+          >
+            <User size={10} />
+            {filters.personLabel}
+            <X size={10} />
+          </button>
+        )}
+
         {hasActiveFilters && (
           <button
             onClick={() => {
               setSearchInput('')
+              setPersonSearch('')
+              setPersonSuggestions([])
+              setPersonDropdownOpen(false)
               onChange({ ...DEFAULT_FILTERS, status: filters.status })
             }}
             className="ml-1 flex items-center gap-1 rounded-full border border-border/40 bg-muted/30 px-2 py-1 text-xs text-muted-foreground hover:border-border hover:bg-muted/60 hover:text-foreground"
@@ -335,6 +395,53 @@ export function StagingSetFilterBar({ filters, onChange, stats }: StagingSetFilt
             >
               <X size={13} />
             </button>
+          )}
+        </div>
+
+        {/* Person filter */}
+        <div ref={personContainerRef} className="relative">
+          <User size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            placeholder="Filter by person..."
+            value={filters.personId ? (filters.personLabel ?? '') : personSearch}
+            readOnly={!!filters.personId}
+            onChange={(e) => { if (!filters.personId) setPersonSearch(e.target.value) }}
+            onFocus={() => { if (!filters.personId && personSuggestions.length > 0) setPersonDropdownOpen(true) }}
+            className="h-8 w-44 pl-8 pr-7 text-xs"
+          />
+          {(personSearch || filters.personId) && (
+            <button
+              type="button"
+              onClick={() => {
+                setPersonSearch('')
+                setPersonSuggestions([])
+                setPersonDropdownOpen(false)
+                if (filters.personId) onChange({ ...filters, personId: undefined, personLabel: undefined })
+              }}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground/50 transition-colors hover:text-foreground"
+            >
+              <X size={13} />
+            </button>
+          )}
+          {personDropdownOpen && personSuggestions.length > 0 && (
+            <div className="absolute left-0 top-full z-50 mt-1 w-64 overflow-hidden rounded-md border border-border bg-popover shadow-md">
+              {personSuggestions.map((person) => (
+                <button
+                  key={person.id}
+                  onMouseDown={(e) => {
+                    e.preventDefault()
+                    onChange({ ...filters, personId: person.id, personLabel: person.displayName })
+                    setPersonSearch('')
+                    setPersonSuggestions([])
+                    setPersonDropdownOpen(false)
+                  }}
+                  className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs hover:bg-muted"
+                >
+                  <span className="font-medium">{person.displayName}</span>
+                  <span className="text-muted-foreground">#{person.icgId}</span>
+                </button>
+              ))}
+            </div>
           )}
         </div>
 

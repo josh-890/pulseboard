@@ -185,6 +185,7 @@ export function StagingSetsWorkspace() {
     if (filters.archiveFilter) params.set('archiveFilter', filters.archiveFilter)
     if (filters.readyForPromotion) params.set('readyForPromotion', 'true')
     if (filters.channelId) params.set('channelId', filters.channelId)
+    if (filters.personId) params.set('personId', filters.personId)
     if (filters.channelTier?.length) params.set('channelTier', filters.channelTier.join(','))
     if (activeTab === 'missing-cover') {
       params.set('noCover', 'true')

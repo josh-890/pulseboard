@@ -119,6 +119,7 @@ export function BatchCoverUploadSheet({
   missingSets,
   onBatchUploaded,
 }: BatchCoverUploadSheetProps) {
+  const [setType, setSetType] = useState<'photo' | 'video'>('photo')
   const [files, setFiles] = useState<File[]>([])
   const [included, setIncluded] = useState<Set<string>>(new Set())
   const [uploadStates, setUploadStates] = useState<Map<string, UploadStatus>>(new Map())
@@ -126,9 +127,22 @@ export function BatchCoverUploadSheet({
   const [isDone, setIsDone] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
+  // Filter to the selected type
+  const setsForType = useMemo(
+    () => missingSets.filter((s) => s.isVideo === (setType === 'video')),
+    [missingSets, setType],
+  )
+
+  // Reset files and upload state when type is switched
+  useEffect(() => {
+    setFiles([])
+    setUploadStates(new Map())
+    setIsDone(false)
+  }, [setType])
+
   const { matches, unmatchedFiles } = useMemo(
-    () => computeMatches(missingSets, files),
-    [missingSets, files],
+    () => computeMatches(setsForType, files),
+    [setsForType, files],
   )
 
   // Sync included set when matches change (auto-include matched files)
@@ -218,6 +232,32 @@ export function BatchCoverUploadSheet({
 
         <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-6">
 
+          {/* Cover type toggle */}
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-muted-foreground">Cover type:</span>
+            <div className="flex overflow-hidden rounded-md border border-border">
+              {(['photo', 'video'] as const).map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  disabled={isUploading}
+                  onClick={() => setSetType(t)}
+                  className={cn(
+                    'px-4 py-1.5 text-sm font-medium transition-colors',
+                    setType === t
+                      ? 'bg-primary text-primary-foreground'
+                      : 'bg-background text-muted-foreground hover:bg-muted',
+                  )}
+                >
+                  {t === 'photo' ? 'Photo' : 'Video'}
+                </button>
+              ))}
+            </div>
+            <span className="text-xs text-muted-foreground">
+              {setsForType.length} set{setsForType.length !== 1 ? 's' : ''} missing covers
+            </span>
+          </div>
+
           {/* Drop zone */}
           <div
             {...dropProps}
@@ -241,9 +281,11 @@ export function BatchCoverUploadSheet({
             <Upload size={24} className="text-muted-foreground/40" />
             {files.length === 0 ? (
               <>
-                <p className="text-sm font-medium">Drop cover images here or click to browse</p>
+                <p className="text-sm font-medium">
+                  Drop {setType} covers here or click to browse
+                </p>
                 <p className="text-xs text-muted-foreground">
-                  Files are matched to sets by ExternalID in the filename
+                  Files are matched to {setType} sets by ExternalID in the filename
                 </p>
               </>
             ) : (
@@ -261,7 +303,7 @@ export function BatchCoverUploadSheet({
             <div className="flex flex-col gap-3">
               <div className="flex items-center justify-between">
                 <h3 className="text-sm font-medium">
-                  Sets ({missingSets.length}) matched against {files.length} file{files.length !== 1 ? 's' : ''}
+                  {setType === 'photo' ? 'Photo' : 'Video'} sets ({setsForType.length}) matched against {files.length} file{files.length !== 1 ? 's' : ''}
                 </h3>
                 <span className="text-xs text-muted-foreground">
                   {includedMatches.length} selected for upload
