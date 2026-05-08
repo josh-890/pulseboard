@@ -171,10 +171,8 @@ function CoverThumbnail({
           />
           {hover && pos && createPortal(
             <div
-              className="fixed z-[100] overflow-hidden rounded-lg border border-border bg-background shadow-xl"
+              className="pointer-events-none fixed z-[100] overflow-hidden rounded-lg border border-border bg-background shadow-xl"
               style={{ top: pos.top, left: pos.left }}
-              onMouseEnter={() => setHover(true)}
-              onMouseLeave={hidePreview}
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
@@ -182,21 +180,22 @@ function CoverThumbnail({
                 alt={title}
                 className="block max-h-[400px] max-w-[300px]"
               />
-              {stagingSetId && onRotated && (
-                <div className="flex justify-end border-t border-border/50 bg-background px-2 py-1">
-                  <button
-                    onClick={handleRotate}
-                    disabled={isRotating}
-                    title="Rotate 90° CCW"
-                    className="flex items-center gap-1 rounded px-2 py-0.5 text-[11px] text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-40"
-                  >
-                    <RotateCcw size={11} className={isRotating ? 'animate-spin' : ''} />
-                    Rotate
-                  </button>
-                </div>
-              )}
             </div>,
             document.body,
+          )}
+          {/* Rotate overlay — lives on the thumbnail itself so mouse never leaves */}
+          {hover && stagingSetId && onRotated && (
+            <div className="absolute inset-x-0 bottom-0 flex justify-center bg-black/50 py-1">
+              <button
+                onClick={handleRotate}
+                disabled={isRotating}
+                title="Rotate 90° CCW"
+                className="flex items-center gap-1 text-[11px] text-white hover:text-amber-300 disabled:opacity-40"
+              >
+                <RotateCcw size={11} className={isRotating ? 'animate-spin' : ''} />
+                Rotate
+              </button>
+            </div>
           )}
         </>
       ) : (
