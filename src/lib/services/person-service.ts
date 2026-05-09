@@ -1286,6 +1286,24 @@ export async function updatePersonRecord(id: string, data: UpdatePersonInput) {
         where: { subjectIcgId: existing.icgId },
         data: { subjectIcgId: data.icgId },
       });
+
+      // Fix participantIcgIds array — Prisma has no array-element replace, use raw SQL
+      await tx.$queryRaw`
+        UPDATE "StagingSet"
+        SET "participantIcgIds" = array_replace("participantIcgIds", ${existing.icgId}::text, ${data.icgId}::text)
+        WHERE ${existing.icgId}::text = ANY("participantIcgIds")
+      `;
+
+      // Fix participants JSON (source for status recomputation) — fetch and update in TypeScript
+      const participantSets = await tx.stagingSet.findMany({
+        where: { participantIcgIds: { has: existing.icgId }, participants: { not: "DbNull" as const } },
+        select: { id: true, participants: true },
+      });
+      for (const s of participantSets) {
+        const updated = (s.participants as { name: string; icgId: string; url?: string }[])
+          .map(p => p.icgId === existing.icgId ? { ...p, icgId: data.icgId } : p);
+        await tx.stagingSet.update({ where: { id: s.id }, data: { participants: updated } });
+      }
     }
 
     return { icgIdChanged, oldIcgId: existing.icgId };

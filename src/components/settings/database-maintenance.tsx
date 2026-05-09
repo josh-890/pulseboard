@@ -13,6 +13,7 @@ import {
   RefreshCw,
   HardDrive,
   Trash2,
+  Users,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -22,6 +23,7 @@ import {
   refreshViewsAction,
   auditMinioConsistencyAction,
   processOrphanedStorageKeysAction,
+  reconcileStagingSetParticipantsAction,
 } from "@/lib/actions/database-maintenance-actions";
 
 type ActionResult = {
@@ -81,6 +83,13 @@ const actions: ActionConfig[] = [
       "Refresh all materialized views (dashboard stats, person state, affiliations). Safe to run anytime.",
     icon: <RefreshCw className="h-5 w-5 text-muted-foreground" />,
     action: refreshViewsAction,
+  },
+  {
+    title: "Staging Set Participant ICG-IDs",
+    description:
+      "Verify all staging set participant ICG-IDs are consistent. Fixes stale subjectIcgId references, re-syncs participantIcgIds with the participants list, and resolves unmatched participants that can be identified by exact name. Runs a full participant status refresh at the end.",
+    icon: <Users className="h-5 w-5 text-muted-foreground" />,
+    action: reconcileStagingSetParticipantsAction,
   },
 ];
 

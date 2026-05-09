@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { Prisma } from "@/generated/prisma/client";
 import { cascadeHardDeleteMediaItems } from "@/lib/services/cascade-helpers";
 import { minioClient, getMinioBucket } from "@/lib/minio";
 import type { PhotoVariants } from "@/lib/types";
@@ -8,6 +9,8 @@ import {
   refreshPersonCurrentState,
   refreshPersonAffiliations,
 } from "@/lib/services/view-service";
+import { normalizeForSearch } from "@/lib/normalize";
+import { refreshAllParticipantStatuses } from "@/lib/services/import/participant-status-service";
 
 export type MaintenanceResult = {
   found: number;
@@ -401,4 +404,173 @@ export async function refreshAllMaterializedViews(): Promise<MaintenanceResult> 
     fixed: successCount,
     details,
   };
+}
+
+type ParticipantEntry = { name: string; icgId: string; url?: string };
+type ParticipantStatus = { name: string; icgId: string; status: string };
+
+/**
+ * Audit and repair StagingSet ICG-ID consistency across three passes:
+ *
+ * 1. subjectIcgId drift — where subjectPersonId is set but subjectIcgId
+ *    no longer matches the linked person's current icgId.
+ * 2. participantIcgIds/participants sync — ensures the query-index array
+ *    matches the icgIds stored in the participants JSON.
+ * 3. Name-based resolution — 'new' participants whose stored icgId matches
+ *    no person, but whose name exactly matches a PersonAlias; updates both
+ *    participants JSON and participantIcgIds to the correct icgId.
+ *    Only applies when there is exactly one unambiguous name match.
+ *
+ * Ends with a full participantStatuses refresh.
+ */
+export async function reconcileStagingSetParticipants(): Promise<MaintenanceResult> {
+  const details: string[] = [];
+  let found = 0;
+  let fixed = 0;
+
+  // ── Pass 1: subjectIcgId drift ──────────────────────────────────────────
+  const linkedSets = await prisma.stagingSet.findMany({
+    where: { subjectPersonId: { not: null }, status: { notIn: ["SKIPPED"] } },
+    select: { id: true, subjectIcgId: true, subjectPersonId: true, subjectPerson: { select: { icgId: true } } },
+  });
+
+  for (const s of linkedSets) {
+    const correctIcgId = s.subjectPerson?.icgId;
+    if (correctIcgId && s.subjectIcgId !== correctIcgId) {
+      found++;
+      await prisma.stagingSet.update({
+        where: { id: s.id },
+        data: { subjectIcgId: correctIcgId },
+      });
+      details.push(`${s.id}: subjectIcgId corrected ${s.subjectIcgId} → ${correctIcgId}`);
+      fixed++;
+    }
+  }
+
+  // ── Pass 2: participantIcgIds / participants JSON sync ──────────────────
+  const allSets = await prisma.stagingSet.findMany({
+    where: { participants: { not: Prisma.JsonNullValueFilter.DbNull }, status: { notIn: ["SKIPPED"] } },
+    select: { id: true, participants: true, participantIcgIds: true },
+  });
+
+  for (const s of allSets) {
+    const entries = s.participants as ParticipantEntry[];
+    if (!Array.isArray(entries)) continue;
+
+    const idsFromJson = entries.map(p => p.icgId);
+    const stored = [...s.participantIcgIds].sort();
+    const expected = [...idsFromJson].sort();
+
+    if (JSON.stringify(stored) !== JSON.stringify(expected)) {
+      found++;
+      await prisma.stagingSet.update({
+        where: { id: s.id },
+        data: { participantIcgIds: idsFromJson },
+      });
+      details.push(`${s.id}: participantIcgIds re-synced from participants JSON`);
+      fixed++;
+    }
+  }
+
+  // ── Pass 3: name-based resolution for 'new' participants ───────────────
+  const setsWithNew = await prisma.stagingSet.findMany({
+    where: { participantStatuses: { not: Prisma.JsonNullValueFilter.DbNull }, status: { notIn: ["SKIPPED"] } },
+    select: { id: true, participants: true, participantIcgIds: true, participantStatuses: true },
+  });
+
+  // Collect all unique icgIds in 'new' status entries
+  const unknownIcgIds = new Set<string>();
+  for (const s of setsWithNew) {
+    const statuses = s.participantStatuses as ParticipantStatus[];
+    if (!Array.isArray(statuses)) continue;
+    for (const st of statuses) {
+      if (st.status === "new") unknownIcgIds.add(st.icgId);
+    }
+  }
+
+  if (unknownIcgIds.size > 0) {
+    // For each unknown icgId, find its name from any set's participants JSON
+    const icgIdToName = new Map<string, string>();
+    for (const s of setsWithNew) {
+      const entries = s.participants as ParticipantEntry[];
+      if (!Array.isArray(entries)) continue;
+      for (const p of entries) {
+        if (unknownIcgIds.has(p.icgId) && !icgIdToName.has(p.icgId)) {
+          icgIdToName.set(p.icgId, p.name);
+        }
+      }
+    }
+
+    // Batch-lookup all candidate name norms
+    const nameNorms = Array.from(icgIdToName.values()).map(n => normalizeForSearch(n));
+    const aliases = await prisma.personAlias.findMany({
+      where: { nameNorm: { in: nameNorms, not: null } },
+      select: { nameNorm: true, person: { select: { icgId: true } } },
+    });
+    // Only work with rows that have both fields non-null
+    const validAliases = aliases.filter(
+      (a): a is { nameNorm: string; person: { icgId: string } } =>
+        a.nameNorm !== null && a.person !== null,
+    );
+
+    // Build: nameNorm → icgId (only keep unambiguous single matches)
+    const nameNormToCorrectIcgId = new Map<string, string>();
+    const nameNormCount = new Map<string, number>();
+    for (const a of validAliases) {
+      nameNormCount.set(a.nameNorm, (nameNormCount.get(a.nameNorm) ?? 0) + 1);
+    }
+    for (const a of validAliases) {
+      if (nameNormCount.get(a.nameNorm) === 1) {
+        nameNormToCorrectIcgId.set(a.nameNorm, a.person.icgId);
+      }
+    }
+
+    // Build: wrong icgId → correct icgId
+    const icgIdCorrections = new Map<string, string>();
+    for (const [wrongIcgId, name] of icgIdToName) {
+      const norm = normalizeForSearch(name);
+      const correctIcgId = nameNormToCorrectIcgId.get(norm);
+      if (correctIcgId && correctIcgId !== wrongIcgId) {
+        icgIdCorrections.set(wrongIcgId, correctIcgId);
+      }
+    }
+
+    // Apply corrections to affected staging sets
+    for (const s of setsWithNew) {
+      const entries = s.participants as ParticipantEntry[];
+      if (!Array.isArray(entries)) continue;
+
+      const corrections: Array<{ name: string; oldId: string; newId: string }> = [];
+      for (const p of entries) {
+        const correctIcgId = icgIdCorrections.get(p.icgId);
+        if (correctIcgId) corrections.push({ name: p.name, oldId: p.icgId, newId: correctIcgId });
+      }
+      if (corrections.length === 0) continue;
+
+      found += corrections.length;
+      const updatedEntries = entries.map(p => {
+        const c = icgIdCorrections.get(p.icgId);
+        return c ? { ...p, icgId: c } : p;
+      });
+      const updatedIcgIds = s.participantIcgIds.map(id => icgIdCorrections.get(id) ?? id);
+
+      await prisma.stagingSet.update({
+        where: { id: s.id },
+        data: { participants: updatedEntries, participantIcgIds: updatedIcgIds },
+      });
+
+      for (const c of corrections) {
+        details.push(`${s.id}: participant "${c.name}" icgId corrected ${c.oldId} → ${c.newId}`);
+        fixed++;
+      }
+    }
+  }
+
+  // ── Pass 4: full participant status refresh ─────────────────────────────
+  const refreshed = await refreshAllParticipantStatuses();
+  if (refreshed > 0) {
+    details.push(`${refreshed} staging set(s) had participant statuses refreshed`);
+  }
+
+  return { found, fixed, details };
 }
