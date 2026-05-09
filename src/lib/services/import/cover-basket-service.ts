@@ -208,12 +208,21 @@ async function _runMatchingForBasketInternal(basket: {
   })
   if (pendingItems.length === 0) return { matched: 0, pending: 0 }
 
+  // Look up the person's ICG-ID so the subjectIcgId fallback works correctly.
+  // subjectPersonId may be null when a batch was refreshed after an ICG-ID correction;
+  // in that case subjectIcgId is still correct and must be used as the fallback.
+  const person = await prisma.person.findUnique({
+    where: { id: basket.personId },
+    select: { icgId: true },
+  })
+  const personIcgId = person?.icgId ?? ''
+
   // Load staging sets for this person that don't yet have a local cover
   const candidateSets = await prisma.stagingSet.findMany({
     where: {
       status: { notIn: ['PROMOTED', 'INACTIVE'] },
       isVideo: basket.isVideo,
-      OR: [{ subjectPersonId: basket.personId }, { subjectIcgId: basket.personId }],
+      OR: [{ subjectPersonId: basket.personId }, { subjectIcgId: personIcgId }],
       AND: [
         {
           OR: [
