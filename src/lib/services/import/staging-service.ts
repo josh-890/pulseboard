@@ -641,6 +641,25 @@ export async function refreshBatchMatches(batchId: string): Promise<ImportBatchW
   const parsed = parseImportFile(batch.rawContent)
   const matches = await matchAllEntities(parsed)
 
+  // If the person's icgId was corrected after import, rawContent still has the old wrong ID
+  // and matchAllEntities will fail to find the person by exact icgId.
+  // Fall back to batch.subjectIcgId (which is kept in sync with Person.icgId) so the
+  // PERSON item resolves correctly and SET dependency checks don't break.
+  if (!matches.person.matchedEntityId && batch.subjectIcgId !== parsed.person.icgId) {
+    const correctedPerson = await prisma.person.findUnique({
+      where: { icgId: batch.subjectIcgId },
+      select: { id: true, aliases: { where: { isCommon: true }, select: { name: true }, take: 1 } },
+    })
+    if (correctedPerson) {
+      matches.person = {
+        matchedEntityId: correctedPerson.id,
+        matchConfidence: 1.0,
+        matchDetails: `ICG-ID corrected: batch.subjectIcgId=${batch.subjectIcgId}`,
+        existingName: correctedPerson.aliases[0]?.name,
+      }
+    }
+  }
+
   // Update each non-imported, non-skipped item with fresh match data
   for (const item of batch.items) {
     if (item.status === 'IMPORTED' || item.status === 'SKIPPED') continue
@@ -715,7 +734,7 @@ export async function refreshBatchMatches(batchId: string): Promise<ImportBatchW
   await computeDependencies(batchId)
 
   // Refresh StagingSet records: update match data, resolve channelId/subjectPersonId
-  await refreshStagingSets(batchId, parsed, matches)
+  await refreshStagingSets(batchId, parsed, matches, batch.subjectIcgId)
 
   return prisma.importBatch.findUniqueOrThrow({
     where: { id: batchId },
@@ -727,15 +746,18 @@ async function refreshStagingSets(
   batchId: string,
   parsed: ReturnType<typeof parseImportFile>,
   matches: Awaited<ReturnType<typeof matchAllEntities>>,
+  subjectIcgId?: string,
 ): Promise<void> {
   const stagingSets = await prisma.stagingSet.findMany({
     where: { importBatchId: batchId },
     select: { id: true, externalId: true, status: true },
   })
 
-  // Resolve person
+  // Use the batch's subjectIcgId (kept in sync with Person.icgId on correction) in preference
+  // to parsed.person.icgId (from immutable rawContent, may still hold the old wrong ID).
+  const resolvedIcgId = subjectIcgId ?? parsed.person.icgId
   const person = await prisma.person.findUnique({
-    where: { icgId: parsed.person.icgId },
+    where: { icgId: resolvedIcgId },
     select: { id: true },
   })
 
