@@ -14,6 +14,7 @@ import {
   HardDrive,
   Trash2,
   Users,
+  Flag,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -24,6 +25,7 @@ import {
   auditMinioConsistencyAction,
   processOrphanedStorageKeysAction,
   reconcileStagingSetParticipantsAction,
+  fixImportedNationalityCodesAction,
 } from "@/lib/actions/database-maintenance-actions";
 
 type ActionResult = {
@@ -83,6 +85,13 @@ const actions: ActionConfig[] = [
       "Refresh all materialized views (dashboard stats, person state, affiliations). Safe to run anytime.",
     icon: <RefreshCw className="h-5 w-5 text-muted-foreground" />,
     action: refreshViewsAction,
+  },
+  {
+    title: "Imported Nationality Codes",
+    description:
+      "Find persons whose nationality was stored as a 3-letter IOC code (e.g. 'RUS') by a bug in the import executor. Converts them to ISO alpha-2 (e.g. 'RU') so the nationality picker works correctly.",
+    icon: <Flag className="h-5 w-5 text-muted-foreground" />,
+    action: fixImportedNationalityCodesAction,
   },
   {
     title: "Staging Set Participant ICG-IDs",

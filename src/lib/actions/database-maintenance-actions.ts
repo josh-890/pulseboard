@@ -10,6 +10,7 @@ import {
   auditMinioConsistency,
   processOrphanedStorageKeys,
   reconcileStagingSetParticipants,
+  fixImportedNationalityCodes,
 } from "@/lib/services/database-maintenance-service";
 
 type MaintenanceActionResult = {
@@ -106,6 +107,20 @@ export async function reconcileStagingSetParticipantsAction(): Promise<Maintenan
     try {
       const result = await reconcileStagingSetParticipants();
       revalidatePath("/staging-sets");
+      revalidatePath("/settings");
+      return { success: true, ...result };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unexpected error";
+      return { success: false, error: message };
+    }
+  });
+}
+
+export async function fixImportedNationalityCodesAction(): Promise<MaintenanceActionResult> {
+  return withTenantFromHeaders(async () => {
+    try {
+      const result = await fixImportedNationalityCodes();
+      revalidatePath("/people");
       revalidatePath("/settings");
       return { success: true, ...result };
     } catch (err) {

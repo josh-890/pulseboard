@@ -11,6 +11,7 @@ import {
 } from "@/lib/services/view-service";
 import { normalizeForSearch } from "@/lib/normalize";
 import { refreshAllParticipantStatuses } from "@/lib/services/import/participant-status-service";
+import { resolveNationalityToCode } from "@/lib/constants/countries";
 
 export type MaintenanceResult = {
   found: number;
@@ -547,4 +548,41 @@ export async function reconcileStagingSetParticipants(): Promise<MaintenanceResu
   }
 
   return { found, fixed, details };
+}
+
+/**
+ * Find Person records with a 3-letter IOC nationality code (stored by a bug in the
+ * import executor that called resolveNationalityToIoc instead of resolveNationalityToCode)
+ * and convert them to the canonical ISO alpha-2 format expected by the edit form.
+ */
+export async function fixImportedNationalityCodes(): Promise<MaintenanceResult> {
+  const persons = await prisma.person.findMany({
+    where: {
+      nationality: { not: null },
+    },
+    select: { id: true, nationality: true },
+  });
+
+  const toFix = persons.filter(
+    (p) => p.nationality && p.nationality.length === 3,
+  );
+
+  const details: string[] = [];
+  let fixed = 0;
+
+  for (const p of toFix) {
+    const alpha2 = resolveNationalityToCode(p.nationality!);
+    if (alpha2 && alpha2 !== p.nationality) {
+      await prisma.person.update({
+        where: { id: p.id },
+        data: { nationality: alpha2 },
+      });
+      details.push(`Person ${p.id}: nationality ${p.nationality} → ${alpha2}`);
+      fixed++;
+    } else {
+      details.push(`Person ${p.id}: nationality ${p.nationality} — no alpha-2 mapping found, skipped`);
+    }
+  }
+
+  return { found: toFix.length, fixed, details };
 }
