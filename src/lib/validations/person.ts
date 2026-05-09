@@ -48,13 +48,6 @@ export type CreatePersonInput = z.output<typeof createPersonSchema>;
 
 export const updatePersonSchema = z.object({
   id: z.string().min(1),
-  icgId: z
-    .string()
-    .min(1, "ICG-ID is required")
-    .regex(
-      /^[A-Z]{2}-[0-9]{2}[A-Z0-9@][A-Z0-9]+$/,
-      'Format: XX-00XXX  e.g. JD-96ABF',
-    ),
   commonName: z.string().min(1, "Display name is required"),
   status: z.enum(["active", "inactive", "wishlist", "archived"]).default("active"),
   birthName: z.string().optional(),
@@ -66,10 +59,6 @@ export const updatePersonSchema = z.object({
   birthPlace: z.string().optional(),
   nationality: z.string().length(2).regex(/^[A-Z]{2}$/, "Must be a valid ISO alpha-2 country code").optional().or(z.literal("")),
   ethnicity: z.string().optional(),
-  eyeColor: z.string().optional(),
-  naturalHairColor: z.string().optional(),
-  naturalBreastSize: z.string().optional(),
-  height: z.coerce.number().int().positive().optional(),
   location: z.string().optional(),
   notes: z.string().optional(),
   activeFrom: z.string().optional(),
@@ -83,10 +72,29 @@ export const updatePersonSchema = z.object({
   specialization: z.string().optional(),
   rating: z.coerce.number().int().min(1).max(5).optional(),
   pgrade: z.coerce.number().int().min(1).max(10).optional(),
-  weight: z.coerce.number().positive().optional(),
-  build: z.string().optional(),
-  currentHairColor: z.string().optional(),
 });
 
 export type UpdatePersonFormValues = z.input<typeof updatePersonSchema>;
 export type UpdatePersonInput = z.output<typeof updatePersonSchema>;
+
+export const icgIdChangeSchema = z.object({
+  id: z.string().min(1),
+  icgId: z
+    .string()
+    .min(1, "ICG-ID is required")
+    .regex(/^[A-Z]{2}-[0-9]{2}[A-Z0-9@][A-Z0-9]+$/, 'Format: XX-00XXX  e.g. JD-96ABF'),
+});
+export type IcgIdChangeInput = z.infer<typeof icgIdChangeSchema>;
+
+export const updateAppearanceSchema = z.object({
+  id: z.string().min(1),
+  eyeColor: z.string().optional(),
+  naturalHairColor: z.string().optional(),
+  naturalBreastSize: z.string().optional(),
+  height: z.coerce.number().int().positive().optional(),
+  weight: z.coerce.number().positive().optional(),
+  build: z.string().optional(),
+  currentHairColor: z.string().optional(),
+});
+export type UpdateAppearanceFormValues = z.input<typeof updateAppearanceSchema>;
+export type UpdateAppearanceInput = z.output<typeof updateAppearanceSchema>;

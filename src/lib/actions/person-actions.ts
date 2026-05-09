@@ -2,10 +2,12 @@
 
 import { withTenantFromHeaders } from "@/lib/tenant-context";
 import { revalidatePath } from "next/cache";
-import { createPersonSchema, updatePersonSchema } from "@/lib/validations/person";
+import { createPersonSchema, updatePersonSchema, icgIdChangeSchema, updateAppearanceSchema } from "@/lib/validations/person";
 import {
   createPersonRecord,
   updatePersonRecord,
+  updatePersonIcgId,
+  updatePersonAppearance,
   deletePersonRecord,
   getPersonsPaginated,
 } from "@/lib/services/person-service";
@@ -212,5 +214,57 @@ export async function loadMorePersons(
       photoMap,
     };
 
+  });
+}
+
+export async function updatePersonIcgIdAction(raw: unknown): Promise<CrudActionResult> {
+  return withTenantFromHeaders(async () => {
+    const parsed = icgIdChangeSchema.safeParse(raw);
+    if (!parsed.success) {
+      return { success: false, error: parsed.error.flatten() };
+    }
+    try {
+      await updatePersonIcgId(parsed.data.id, parsed.data.icgId);
+      revalidatePath("/people");
+      revalidatePath(`/people/${parsed.data.id}`);
+      revalidatePath("/staging-sets");
+      return { success: true, id: parsed.data.id };
+    } catch (err) {
+      if (err instanceof Error && err.message.includes("P2002")) {
+        return { success: false, error: { fieldErrors: { icgId: ["ICG-ID already exists"] } } };
+      }
+      return { success: false, error: "Unexpected error" };
+    }
+  });
+}
+
+export async function updatePersonAppearanceAction(raw: unknown): Promise<CrudActionResult> {
+  return withTenantFromHeaders(async () => {
+    const parsed = updateAppearanceSchema.safeParse(raw);
+    if (!parsed.success) {
+      return { success: false, error: parsed.error.flatten() };
+    }
+    try {
+      await updatePersonAppearance(parsed.data.id, parsed.data);
+      revalidatePath(`/people/${parsed.data.id}`);
+      return { success: true, id: parsed.data.id };
+    } catch {
+      return { success: false, error: "Unexpected error" };
+    }
+  });
+}
+
+export async function getIcgIdImpactAction(icgId: string): Promise<{
+  stagingSetsSubject: number;
+  stagingSetsParticipant: number;
+  importBatches: number;
+}> {
+  return withTenantFromHeaders(async () => {
+    const [stagingSetsSubject, stagingSetsParticipant, importBatches] = await Promise.all([
+      prisma.stagingSet.count({ where: { subjectIcgId: icgId } }),
+      prisma.stagingSet.count({ where: { participantIcgIds: { has: icgId } } }),
+      prisma.importBatch.count({ where: { subjectIcgId: icgId } }),
+    ]);
+    return { stagingSetsSubject, stagingSetsParticipant, importBatches };
   });
 }

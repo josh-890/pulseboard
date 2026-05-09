@@ -9,6 +9,7 @@ import { Pencil } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Sheet,
   SheetContent,
@@ -41,14 +42,7 @@ import { ETHNICITY_OPTIONS } from "@/lib/constants/ethnicity";
 import { CountryPicker } from "@/components/shared/country-picker";
 import { updatePerson } from "@/lib/actions/person-actions";
 import { PartialDateInput } from "@/components/shared/partial-date-input";
-import { SelectWithOther } from "@/components/shared/select-with-other";
-import {
-  EYE_COLOR_OPTIONS,
-  NATURAL_HAIR_COLOR_OPTIONS,
-  CURRENT_HAIR_COLOR_OPTIONS,
-  BUILD_OPTIONS,
-  BREAST_SIZE_OPTIONS,
-} from "@/lib/constants/appearance";
+import { ChangeIcgIdDialog } from "@/components/people/change-icg-id-dialog";
 import type { getPersonWithDetails } from "@/lib/services/person-service";
 
 type PersonDetail = NonNullable<Awaited<ReturnType<typeof getPersonWithDetails>>>;
@@ -71,12 +65,9 @@ export function EditPersonSheet({ person }: EditPersonSheetProps) {
   const [open, setOpen] = useState(false);
 
   const commonAlias = person.aliases.find((a) => a.isCommon);
-  const baselinePersona = person.personas.find((p) => p.isBaseline);
-  const physical = baselinePersona?.physicalChange;
 
   const getDefaults = (): UpdatePersonFormValues => ({
     id: person.id,
-    icgId: person.icgId,
     commonName: commonAlias?.name ?? "",
     status: person.status,
     sexAtBirth: (person.sexAtBirth as "male" | "female" | undefined) ?? undefined,
@@ -89,10 +80,6 @@ export function EditPersonSheet({ person }: EditPersonSheetProps) {
     birthPlace: person.birthPlace ?? "",
     nationality: person.nationality ?? "",
     ethnicity: person.ethnicity ?? undefined,
-    eyeColor: person.eyeColor ?? "",
-    naturalHairColor: person.naturalHairColor ?? "",
-    naturalBreastSize: person.naturalBreastSize ?? "",
-    height: person.height ?? undefined,
     location: person.location ?? "",
     notes: person.notes ?? "",
     activeFrom: person.activeFrom
@@ -110,9 +97,6 @@ export function EditPersonSheet({ person }: EditPersonSheetProps) {
     specialization: person.specialization ?? "",
     rating: person.rating ?? undefined,
     pgrade: person.pgrade ?? undefined,
-    weight: physical?.weight ?? undefined,
-    build: physical?.build ?? undefined,
-    currentHairColor: physical?.currentHairColor ?? "",
   });
 
   const form = useForm<UpdatePersonFormValues, unknown, UpdatePersonInput>({
@@ -156,7 +140,7 @@ export function EditPersonSheet({ person }: EditPersonSheetProps) {
         <SheetHeader className="border-b pb-4 px-4">
           <SheetTitle className="text-lg font-semibold">Edit Person</SheetTitle>
           <SheetDescription className="text-xs text-muted-foreground">
-            Changes are saved immediately to the database.
+            Changes apply when you click Save.
           </SheetDescription>
         </SheetHeader>
 
@@ -172,29 +156,22 @@ export function EditPersonSheet({ person }: EditPersonSheetProps) {
                 <section className="rounded-xl border bg-muted/30 dark:bg-muted/20 p-4 space-y-4">
                   <SectionHeader>Identity</SectionHeader>
                   <div className="grid grid-cols-2 gap-3">
-                    <FormField
-                      control={form.control}
-                      name="icgId"
-                      render={({ field }) => (
-                        <FormItem className="col-span-2">
-                          <FormLabel className="flex items-center gap-1.5">
-                            ICG-ID
-                            <span className="text-destructive">*</span>
-                            <span className="ml-1 rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-medium text-amber-600 dark:text-amber-400">
-                              unique — change with care
-                            </span>
-                          </FormLabel>
-                          <FormControl>
-                            <Input
-                              placeholder="e.g. JD-96ABF"
-                              className="font-mono"
-                              {...field}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
+                    <FormItem className="col-span-2">
+                      <FormLabel className="flex items-center gap-1.5">
+                        ICG-ID
+                        <span className="ml-1 rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-medium text-amber-600 dark:text-amber-400">
+                          unique — change with care
+                        </span>
+                      </FormLabel>
+                      <div className="flex items-center gap-2 rounded-md border bg-muted/50 px-3 py-2 font-mono text-sm">
+                        {person.icgId}
+                        <ChangeIcgIdDialog
+                          personId={person.id}
+                          currentIcgId={person.icgId}
+                          onSuccess={() => setOpen(false)}
+                        />
+                      </div>
+                    </FormItem>
 
                     <FormField
                       control={form.control}
@@ -242,6 +219,34 @@ export function EditPersonSheet({ person }: EditPersonSheetProps) {
                           <FormLabel>Specialization</FormLabel>
                           <FormControl>
                             <Input placeholder="e.g. Glamour" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="location"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Location</FormLabel>
+                          <FormControl>
+                            <Input placeholder="e.g. Los Angeles" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="notes"
+                      render={({ field }) => (
+                        <FormItem className="col-span-2">
+                          <FormLabel>Notes</FormLabel>
+                          <FormControl>
+                            <Textarea rows={3} placeholder="Internal notes…" {...field} />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -441,153 +446,6 @@ export function EditPersonSheet({ person }: EditPersonSheetProps) {
                         </FormItem>
                       )}
                     />
-                  </div>
-                </section>
-
-                {/* Section 4 — Appearance */}
-                <section className="rounded-xl border bg-muted/30 dark:bg-muted/20 p-4 space-y-4">
-                  <SectionHeader>Appearance</SectionHeader>
-                  <div className="grid grid-cols-2 gap-3">
-                    <FormField
-                      control={form.control}
-                      name="eyeColor"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Eye Color</FormLabel>
-                          <FormControl>
-                            <SelectWithOther
-                              options={EYE_COLOR_OPTIONS}
-                              value={field.value || undefined}
-                              onChange={(v) => field.onChange(v ?? "")}
-                              placeholder="Select eye color…"
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={form.control}
-                      name="naturalHairColor"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Natural Hair Color</FormLabel>
-                          <FormControl>
-                            <SelectWithOther
-                              options={NATURAL_HAIR_COLOR_OPTIONS}
-                              value={field.value || undefined}
-                              onChange={(v) => field.onChange(v ?? "")}
-                              placeholder="Select hair color…"
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={form.control}
-                      name="naturalBreastSize"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Natural Breast Size</FormLabel>
-                          <FormControl>
-                            <SelectWithOther
-                              options={BREAST_SIZE_OPTIONS}
-                              value={field.value || undefined}
-                              onChange={(v) => field.onChange(v ?? "")}
-                              placeholder="Select cup size…"
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={form.control}
-                      name="height"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Height (cm)</FormLabel>
-                          <FormControl>
-                            <Input
-                              type="number"
-                              placeholder="e.g. 170"
-                              {...field}
-                              value={(field.value as number | undefined) ?? ""}
-                              onChange={(e) =>
-                                field.onChange(e.target.value === "" ? undefined : e.target.value)
-                              }
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={form.control}
-                      name="weight"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Weight (kg)</FormLabel>
-                          <FormControl>
-                            <Input
-                              type="number"
-                              step="0.1"
-                              placeholder="e.g. 65"
-                              {...field}
-                              value={(field.value as number | undefined) ?? ""}
-                              onChange={(e) =>
-                                field.onChange(e.target.value === "" ? undefined : e.target.value)
-                              }
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={form.control}
-                      name="build"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Build</FormLabel>
-                          <FormControl>
-                            <SelectWithOther
-                              options={BUILD_OPTIONS}
-                              value={field.value || undefined}
-                              onChange={(v) => field.onChange(v ?? "")}
-                              placeholder="Select build…"
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={form.control}
-                      name="currentHairColor"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Current Hair Color</FormLabel>
-                          <FormControl>
-                            <SelectWithOther
-                              options={CURRENT_HAIR_COLOR_OPTIONS}
-                              value={field.value || undefined}
-                              onChange={(v) => field.onChange(v ?? "")}
-                              placeholder="Select hair color…"
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
                   </div>
                 </section>
 

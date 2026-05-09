@@ -1176,13 +1176,11 @@ export async function createPersonRecord(data: CreatePersonInput) {
   return person;
 }
 
-export async function updatePersonRecord(id: string, data: UpdatePersonInput) {
-  const result = await prisma.$transaction(async (tx) => {
-    const existing = await tx.person.findUniqueOrThrow({ where: { id }, select: { icgId: true } });
+export async function updatePersonRecord(id: string, data: UpdatePersonInput): Promise<void> {
+  await prisma.$transaction(async (tx) => {
     await tx.person.update({
       where: { id },
       data: {
-        icgId: data.icgId,
         status: data.status,
         sexAtBirth: data.sexAtBirth,
         birthdate: data.birthdate ? new Date(data.birthdate) : null,
@@ -1192,10 +1190,6 @@ export async function updatePersonRecord(id: string, data: UpdatePersonInput) {
         birthPlace: data.birthPlace,
         nationality: data.nationality,
         ethnicity: data.ethnicity,
-        eyeColor: data.eyeColor,
-        naturalHairColor: data.naturalHairColor,
-        naturalBreastSize: data.naturalBreastSize,
-        height: data.height,
         location: data.location,
         notes: data.notes,
         activeFrom: data.activeFrom ? new Date(data.activeFrom) : null,
@@ -1225,7 +1219,94 @@ export async function updatePersonRecord(id: string, data: UpdatePersonInput) {
       }
     }
 
-    // Upsert PersonaPhysical on baseline persona
+    // Re-anchor baseline persona date when birthdate changes
+    if (data.birthdate !== undefined) {
+      const birthDate = data.birthdate ? new Date(data.birthdate) : null;
+      if (birthDate) {
+        const baselinePersona = await tx.persona.findFirst({
+          where: { personId: id, isBaseline: true },
+        });
+        if (baselinePersona) {
+          let anchorDate = new Date(Date.UTC(birthDate.getUTCFullYear() + 18, 0, 1));
+          const activeFromDate = data.activeFrom ? new Date(data.activeFrom) : null;
+          if (activeFromDate && activeFromDate < anchorDate) {
+            anchorDate = activeFromDate;
+          }
+          await tx.persona.update({
+            where: { id: baselinePersona.id },
+            data: { date: anchorDate, datePrecision: "YEAR" },
+          });
+        }
+      }
+    }
+
+  });
+}
+
+export async function updatePersonIcgId(id: string, newIcgId: string): Promise<void> {
+  const result = await prisma.$transaction(async (tx) => {
+    const existing = await tx.person.findUniqueOrThrow({ where: { id }, select: { icgId: true } });
+    if (existing.icgId === newIcgId) return { changed: false, oldIcgId: existing.icgId };
+
+    await tx.person.update({ where: { id }, data: { icgId: newIcgId } });
+
+    await tx.importBatch.updateMany({
+      where: { subjectIcgId: existing.icgId },
+      data: { subjectIcgId: newIcgId },
+    });
+    await tx.stagingSet.updateMany({
+      where: { subjectIcgId: existing.icgId },
+      data: { subjectIcgId: newIcgId },
+    });
+
+    await tx.$queryRaw`
+      UPDATE "StagingSet"
+      SET "participantIcgIds" = array_replace("participantIcgIds", ${existing.icgId}::text, ${newIcgId}::text)
+      WHERE ${existing.icgId}::text = ANY("participantIcgIds")
+    `;
+
+    const participantSets = await tx.stagingSet.findMany({
+      where: { participantIcgIds: { has: existing.icgId }, participants: { not: "DbNull" as const } },
+      select: { id: true, participants: true },
+    });
+    for (const s of participantSets) {
+      const updated = (s.participants as { name: string; icgId: string; url?: string }[])
+        .map(p => p.icgId === existing.icgId ? { ...p, icgId: newIcgId } : p);
+      await tx.stagingSet.update({ where: { id: s.id }, data: { participants: updated } });
+    }
+
+    return { changed: true, oldIcgId: existing.icgId };
+  });
+
+  if (result.changed) {
+    refreshStatusesForIcgId(result.oldIcgId).catch(() => {});
+    refreshStatusesForIcgId(newIcgId).catch(() => {});
+  }
+}
+
+export async function updatePersonAppearance(
+  id: string,
+  data: {
+    eyeColor?: string;
+    naturalHairColor?: string;
+    naturalBreastSize?: string;
+    height?: number;
+    weight?: number;
+    build?: string;
+    currentHairColor?: string;
+  },
+): Promise<void> {
+  await prisma.$transaction(async (tx) => {
+    await tx.person.update({
+      where: { id },
+      data: {
+        eyeColor: data.eyeColor ?? null,
+        naturalHairColor: data.naturalHairColor ?? null,
+        naturalBreastSize: data.naturalBreastSize ?? null,
+        height: data.height ?? null,
+      },
+    });
+
     const hasPhysical =
       data.weight !== undefined ||
       data.build !== undefined ||
@@ -1252,70 +1333,7 @@ export async function updatePersonRecord(id: string, data: UpdatePersonInput) {
         });
       }
     }
-
-    // Re-anchor baseline persona date when birthdate changes
-    if (data.birthdate !== undefined) {
-      const birthDate = data.birthdate ? new Date(data.birthdate) : null;
-      if (birthDate) {
-        const baselinePersona = await tx.persona.findFirst({
-          where: { personId: id, isBaseline: true },
-        });
-        if (baselinePersona) {
-          let anchorDate = new Date(Date.UTC(birthDate.getUTCFullYear() + 18, 0, 1));
-          const activeFromDate = data.activeFrom ? new Date(data.activeFrom) : null;
-          if (activeFromDate && activeFromDate < anchorDate) {
-            anchorDate = activeFromDate;
-          }
-          await tx.persona.update({
-            where: { id: baselinePersona.id },
-            data: { date: anchorDate, datePrecision: "YEAR" },
-          });
-        }
-      }
-    }
-
-    const icgIdChanged = data.icgId !== existing.icgId;
-
-    if (icgIdChanged) {
-      // Propagate the corrected icgId to all denormalized string references
-      await tx.importBatch.updateMany({
-        where: { subjectIcgId: existing.icgId },
-        data: { subjectIcgId: data.icgId },
-      });
-      await tx.stagingSet.updateMany({
-        where: { subjectIcgId: existing.icgId },
-        data: { subjectIcgId: data.icgId },
-      });
-
-      // Fix participantIcgIds array — Prisma has no array-element replace, use raw SQL
-      await tx.$queryRaw`
-        UPDATE "StagingSet"
-        SET "participantIcgIds" = array_replace("participantIcgIds", ${existing.icgId}::text, ${data.icgId}::text)
-        WHERE ${existing.icgId}::text = ANY("participantIcgIds")
-      `;
-
-      // Fix participants JSON (source for status recomputation) — fetch and update in TypeScript
-      const participantSets = await tx.stagingSet.findMany({
-        where: { participantIcgIds: { has: existing.icgId }, participants: { not: "DbNull" as const } },
-        select: { id: true, participants: true },
-      });
-      for (const s of participantSets) {
-        const updated = (s.participants as { name: string; icgId: string; url?: string }[])
-          .map(p => p.icgId === existing.icgId ? { ...p, icgId: data.icgId } : p);
-        await tx.stagingSet.update({ where: { id: s.id }, data: { participants: updated } });
-      }
-    }
-
-    return { icgIdChanged, oldIcgId: existing.icgId };
   });
-
-  if (result.icgIdChanged) {
-    // Refresh participant statuses for both old and new icgId:
-    // - OLD: staging sets that had this person as "known" must be re-evaluated (they'll drop to "new")
-    // - NEW: staging sets that reference the correct id can now resolve to this person
-    refreshStatusesForIcgId(result.oldIcgId).catch(() => {});
-    refreshStatusesForIcgId(data.icgId).catch(() => {});
-  }
 }
 
 export async function deletePersonRecord(id: string): Promise<PhotoVariants[]> {
