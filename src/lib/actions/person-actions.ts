@@ -52,6 +52,8 @@ export async function updatePerson(raw: unknown): Promise<CrudActionResult> {
       await updatePersonRecord(parsed.data.id, parsed.data);
       revalidatePath("/people");
       revalidatePath(`/people/${parsed.data.id}`);
+      revalidatePath("/sessions");
+      revalidatePath("/sets");
 
       // Birthdate changes affect computed ages on all linked sessions and sets
       if (birthdateChanged) {
@@ -78,7 +80,13 @@ export async function updatePerson(raw: unknown): Promise<CrudActionResult> {
       }
 
       return { success: true, id: parsed.data.id };
-    } catch {
+    } catch (err) {
+      if (err instanceof Error && err.message.includes("P2002")) {
+        return {
+          success: false,
+          error: { fieldErrors: { icgId: ["ICG-ID already exists"] } },
+        };
+      }
       return { success: false, error: "Unexpected error" };
     }
 

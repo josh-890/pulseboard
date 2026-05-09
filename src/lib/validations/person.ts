@@ -48,6 +48,13 @@ export type CreatePersonInput = z.output<typeof createPersonSchema>;
 
 export const updatePersonSchema = z.object({
   id: z.string().min(1),
+  icgId: z
+    .string()
+    .min(1, "ICG-ID is required")
+    .regex(
+      /^[A-Z]{2}-[0-9]{2}[A-Z0-9@][A-Z0-9]+$/,
+      'Format: XX-00XXX  e.g. JD-96ABF',
+    ),
   commonName: z.string().min(1, "Display name is required"),
   status: z.enum(["active", "inactive", "wishlist", "archived"]).default("active"),
   birthName: z.string().optional(),

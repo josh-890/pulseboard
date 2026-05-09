@@ -76,6 +76,7 @@ export function EditPersonSheet({ person }: EditPersonSheetProps) {
 
   const getDefaults = (): UpdatePersonFormValues => ({
     id: person.id,
+    icgId: person.icgId,
     commonName: commonAlias?.name ?? "",
     status: person.status,
     sexAtBirth: (person.sexAtBirth as "male" | "female" | undefined) ?? undefined,
@@ -131,6 +132,14 @@ export function EditPersonSheet({ person }: EditPersonSheetProps) {
       return;
     }
 
+    if (typeof result.error === "object" && "fieldErrors" in result.error) {
+      const fieldErrors = result.error.fieldErrors as Record<string, string[]>;
+      for (const [field, messages] of Object.entries(fieldErrors)) {
+        form.setError(field as keyof UpdatePersonInput, { message: messages[0] });
+      }
+      return;
+    }
+
     toast.error(typeof result.error === "string" ? result.error : "Failed to update person");
   }
 
@@ -147,7 +156,7 @@ export function EditPersonSheet({ person }: EditPersonSheetProps) {
         <SheetHeader className="border-b pb-4 px-4">
           <SheetTitle className="text-lg font-semibold">Edit Person</SheetTitle>
           <SheetDescription className="text-xs text-muted-foreground">
-            ICG-ID: <span className="font-mono font-medium">{person.icgId}</span> — cannot be changed.
+            Changes are saved immediately to the database.
           </SheetDescription>
         </SheetHeader>
 
@@ -163,6 +172,30 @@ export function EditPersonSheet({ person }: EditPersonSheetProps) {
                 <section className="rounded-xl border bg-muted/30 dark:bg-muted/20 p-4 space-y-4">
                   <SectionHeader>Identity</SectionHeader>
                   <div className="grid grid-cols-2 gap-3">
+                    <FormField
+                      control={form.control}
+                      name="icgId"
+                      render={({ field }) => (
+                        <FormItem className="col-span-2">
+                          <FormLabel className="flex items-center gap-1.5">
+                            ICG-ID
+                            <span className="text-destructive">*</span>
+                            <span className="ml-1 rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-medium text-amber-600 dark:text-amber-400">
+                              unique — change with care
+                            </span>
+                          </FormLabel>
+                          <FormControl>
+                            <Input
+                              placeholder="e.g. JD-96ABF"
+                              className="font-mono"
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
                     <FormField
                       control={form.control}
                       name="commonName"

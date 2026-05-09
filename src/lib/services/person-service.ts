@@ -1177,10 +1177,12 @@ export async function createPersonRecord(data: CreatePersonInput) {
 }
 
 export async function updatePersonRecord(id: string, data: UpdatePersonInput) {
-  return prisma.$transaction(async (tx) => {
+  const result = await prisma.$transaction(async (tx) => {
+    const existing = await tx.person.findUniqueOrThrow({ where: { id }, select: { icgId: true } });
     await tx.person.update({
       where: { id },
       data: {
+        icgId: data.icgId,
         status: data.status,
         sexAtBirth: data.sexAtBirth,
         birthdate: data.birthdate ? new Date(data.birthdate) : null,
@@ -1271,7 +1273,31 @@ export async function updatePersonRecord(id: string, data: UpdatePersonInput) {
         }
       }
     }
+
+    const icgIdChanged = data.icgId !== existing.icgId;
+
+    if (icgIdChanged) {
+      // Propagate the corrected icgId to all denormalized string references
+      await tx.importBatch.updateMany({
+        where: { subjectIcgId: existing.icgId },
+        data: { subjectIcgId: data.icgId },
+      });
+      await tx.stagingSet.updateMany({
+        where: { subjectIcgId: existing.icgId },
+        data: { subjectIcgId: data.icgId },
+      });
+    }
+
+    return { icgIdChanged, oldIcgId: existing.icgId };
   });
+
+  if (result.icgIdChanged) {
+    // Refresh participant statuses for both old and new icgId:
+    // - OLD: staging sets that had this person as "known" must be re-evaluated (they'll drop to "new")
+    // - NEW: staging sets that reference the correct id can now resolve to this person
+    refreshStatusesForIcgId(result.oldIcgId).catch(() => {});
+    refreshStatusesForIcgId(data.icgId).catch(() => {});
+  }
 }
 
 export async function deletePersonRecord(id: string): Promise<PhotoVariants[]> {
