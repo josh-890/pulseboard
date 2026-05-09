@@ -416,10 +416,11 @@ type ParticipantStatus = { name: string; icgId: string; status: string };
  *    no longer matches the linked person's current icgId.
  * 2. participantIcgIds/participants sync — ensures the query-index array
  *    matches the icgIds stored in the participants JSON.
- * 3. Name-based resolution — 'new' participants whose stored icgId matches
- *    no person, but whose name exactly matches a PersonAlias; updates both
- *    participants JSON and participantIcgIds to the correct icgId.
- *    Only applies when there is exactly one unambiguous name match.
+ * 3. Name-based audit — 'new' participants whose stored icgId matches no
+ *    person, but whose name exactly matches a single PersonAlias. Reports
+ *    candidates only — never auto-applies. Name matches are inherently
+ *    ambiguous (a unique match today may not be unique tomorrow). Correct
+ *    these manually via the person edit sheet.
  *
  * Ends with a full participantStatuses refresh.
  */
@@ -525,43 +526,16 @@ export async function reconcileStagingSetParticipants(): Promise<MaintenanceResu
       }
     }
 
-    // Build: wrong icgId → correct icgId
-    const icgIdCorrections = new Map<string, string>();
+    // Report candidates — do NOT auto-apply. Name matches are ambiguous:
+    // a unique match today can become ambiguous tomorrow when a second person
+    // with the same name is imported. Corrections must be made manually via
+    // the person edit sheet (correct the wrong icgId) or the import flow.
     for (const [wrongIcgId, name] of icgIdToName) {
       const norm = normalizeForSearch(name);
       const correctIcgId = nameNormToCorrectIcgId.get(norm);
       if (correctIcgId && correctIcgId !== wrongIcgId) {
-        icgIdCorrections.set(wrongIcgId, correctIcgId);
-      }
-    }
-
-    // Apply corrections to affected staging sets
-    for (const s of setsWithNew) {
-      const entries = s.participants as ParticipantEntry[];
-      if (!Array.isArray(entries)) continue;
-
-      const corrections: Array<{ name: string; oldId: string; newId: string }> = [];
-      for (const p of entries) {
-        const correctIcgId = icgIdCorrections.get(p.icgId);
-        if (correctIcgId) corrections.push({ name: p.name, oldId: p.icgId, newId: correctIcgId });
-      }
-      if (corrections.length === 0) continue;
-
-      found += corrections.length;
-      const updatedEntries = entries.map(p => {
-        const c = icgIdCorrections.get(p.icgId);
-        return c ? { ...p, icgId: c } : p;
-      });
-      const updatedIcgIds = s.participantIcgIds.map(id => icgIdCorrections.get(id) ?? id);
-
-      await prisma.stagingSet.update({
-        where: { id: s.id },
-        data: { participants: updatedEntries, participantIcgIds: updatedIcgIds },
-      });
-
-      for (const c of corrections) {
-        details.push(`${s.id}: participant "${c.name}" icgId corrected ${c.oldId} → ${c.newId}`);
-        fixed++;
+        found++;
+        details.push(`CANDIDATE (not auto-fixed): participant "${name}" stored as ${wrongIcgId} — person found with icgId ${correctIcgId}. Correct via person edit sheet.`);
       }
     }
   }

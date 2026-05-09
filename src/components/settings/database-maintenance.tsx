@@ -87,7 +87,7 @@ const actions: ActionConfig[] = [
   {
     title: "Staging Set Participant ICG-IDs",
     description:
-      "Verify all staging set participant ICG-IDs are consistent. Fixes stale subjectIcgId references, re-syncs participantIcgIds with the participants list, and resolves unmatched participants that can be identified by exact name. Runs a full participant status refresh at the end.",
+      "Verify all staging set participant ICG-IDs are consistent. Auto-fixes stale subjectIcgId references and re-syncs participantIcgIds with the participants list. Unmatched participants with a name match are reported as candidates only — never auto-applied. Runs a full participant status refresh at the end.",
     icon: <Users className="h-5 w-5 text-muted-foreground" />,
     action: reconcileStagingSetParticipantsAction,
   },
