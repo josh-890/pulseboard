@@ -292,6 +292,7 @@ export async function getSkillEventMediaAsGalleryItems(
       focalY: item.focalY,
       tags: item.tags,
       isFavorite: false,
+      isAvatar: false,
       sortOrder: row.sortOrder,
       isCover: false,
     };

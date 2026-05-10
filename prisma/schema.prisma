@@ -1024,6 +1024,7 @@ model PersonMediaLink {
   mediaItem   MediaItem        @relation(fields: [mediaItemId], references: [id])
   usage       PersonMediaUsage
   isFavorite  Boolean          @default(false)
+  isAvatar    Boolean          @default(false)
   sortOrder   Int              @default(0)
   notes       String?
 

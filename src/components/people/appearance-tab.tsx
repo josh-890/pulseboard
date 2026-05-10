@@ -526,6 +526,7 @@ export function AppearanceTab({
       focalY: p.focalY,
       tags: [] as string[],
       isFavorite: false,
+      isAvatar: false,
       sortOrder: 0,
       isCover: false,
     })), []);

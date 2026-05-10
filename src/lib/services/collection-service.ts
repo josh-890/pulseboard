@@ -163,6 +163,7 @@ export async function getCollectionGalleryItems(collectionId: string): Promise<G
         focalY: m.focalY,
         tags: m.tags,
         isFavorite: false,
+        isAvatar: false,
         sortOrder: ci.sortOrder,
         isCover: false,
         collectionIds: m.collectionItems.map((ci2) => ci2.collectionId),

@@ -73,6 +73,7 @@ function toGalleryItemLocal(item: MediaItemWithLinks): GalleryItem {
     focalY: item.focalY,
     tags: item.tags,
     isFavorite: firstLink?.isFavorite ?? false,
+    isAvatar: firstLink?.isAvatar ?? false,
     sortOrder: firstLink?.sortOrder ?? 0,
     isCover: false,
     links: item.links,
@@ -107,6 +108,7 @@ function toEntityGalleryItem(photo: EntityPhotoGroup["photos"][number]): Gallery
     focalY: photo.focalY,
     tags: [],
     isFavorite: false,
+    isAvatar: false,
     sortOrder: 0,
     isCover: false,
   };
@@ -328,6 +330,7 @@ export function MediaManager({
                   categoryId: null,
                   personaId: null,
                   isFavorite: false,
+                  isAvatar: false,
                   sortOrder: 0,
                   notes: null,
                 },

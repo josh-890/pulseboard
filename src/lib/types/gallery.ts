@@ -13,6 +13,7 @@ export type PersonMediaLinkSummary = {
   categoryId: string | null;
   personaId: string | null;
   isFavorite: boolean;
+  isAvatar: boolean;
   sortOrder: number;
   notes: string | null;
 };
@@ -30,6 +31,7 @@ export type GalleryItem = {
   focalY: number | null;
   tags: string[];
   isFavorite: boolean;
+  isAvatar: boolean;
   sortOrder: number;
   isCover: boolean;
   /** Present only in MediaManager contexts */

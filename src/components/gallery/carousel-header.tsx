@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import Image from "next/image";
-import { ChevronLeft, ChevronRight, ImageIcon } from "lucide-react";
+import { ChevronLeft, ChevronRight, ImageIcon, User, Star } from "lucide-react";
+import { cn } from "@/lib/utils";
 import type { GalleryItem } from "@/lib/types";
 import type { ProfileImageLabel } from "@/lib/services/setting-service";
 import { GalleryLightbox } from "./gallery-lightbox";
@@ -25,6 +26,8 @@ type CarouselHeaderProps = {
   profileLabels?: ProfileImageLabel[];
   headshotSlotMap?: Map<string, number>;
   onFindSimilar?: (mediaItemId: string) => void;
+  onSetAvatar?: (mediaItemId: string) => void;
+  avatarMediaItemId?: string | null;
 };
 
 export function CarouselHeader({
@@ -44,6 +47,8 @@ export function CarouselHeader({
   profileLabels,
   headshotSlotMap,
   onFindSimilar,
+  onSetAvatar,
+  avatarMediaItemId,
 }: CarouselHeaderProps) {
   // Sort: favorite first, then by sortOrder
   const sorted = [...items].sort((a, b) => {
@@ -133,6 +138,43 @@ export function CarouselHeader({
           <span className="absolute bottom-2 left-2 rounded-full bg-black/50 px-2 py-0.5 text-[10px] font-medium text-white">
             {activeIndex + 1}/{sorted.length}
           </span>
+        )}
+
+        {(onSetAvatar || onFavoriteToggle) && (
+          <div className="absolute right-1.5 top-1.5 flex gap-1 opacity-0 transition-opacity duration-150 group-hover:opacity-100">
+            {onSetAvatar && (
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); onSetAvatar(current.id); }}
+                aria-label="Set as avatar"
+                title="Set as avatar"
+                className={cn(
+                  "rounded-full p-1 transition-colors",
+                  avatarMediaItemId === current.id
+                    ? "bg-indigo-500/80 text-white"
+                    : "bg-black/40 text-white/70 hover:bg-black/60 hover:text-white",
+                )}
+              >
+                <User size={14} />
+              </button>
+            )}
+            {onFavoriteToggle && (
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); onFavoriteToggle(current.id); }}
+                aria-label="Set as hero cover"
+                title="Set as hero cover"
+                className={cn(
+                  "rounded-full p-1 transition-colors",
+                  current.isFavorite
+                    ? "bg-amber-500/80 text-white"
+                    : "bg-black/40 text-white/70 hover:bg-black/60 hover:text-white",
+                )}
+              >
+                <Star size={14} />
+              </button>
+            )}
+          </div>
         )}
       </div>
 

@@ -624,3 +624,29 @@ export async function swapPersonMediaLinkAction(
     }
   });
 }
+
+export async function setPersonAvatarAction(
+  personId: string,
+  mediaItemId: string,
+): Promise<SimpleActionResult> {
+  return withTenantFromHeaders(async () => {
+    try {
+      await prisma.$transaction(async (tx) => {
+        await tx.personMediaLink.updateMany({
+          where: { personId, isAvatar: true },
+          data: { isAvatar: false },
+        });
+        await tx.personMediaLink.updateMany({
+          where: { personId, mediaItemId },
+          data: { isAvatar: true },
+        });
+      });
+      revalidatePath("/people");
+      revalidatePath(`/people/${personId}`);
+      return { success: true };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unexpected error";
+      return { success: false, error: message };
+    }
+  });
+}

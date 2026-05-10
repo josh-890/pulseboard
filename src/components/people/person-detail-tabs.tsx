@@ -74,6 +74,7 @@ import {
   assignHeadshotSlot as assignHeadshotSlotAction,
   removeHeadshotSlot as removeHeadshotSlotAction,
   setPersonMediaFavoriteAction,
+  setPersonAvatarAction,
 } from "@/lib/actions/media-actions";
 import { updatePersonBio, updatePersonPgrade, updatePersonRating } from "@/lib/actions/person-actions";
 import { setEntityTagsAction } from "@/lib/actions/tag-actions";
@@ -664,6 +665,8 @@ type HeroSharedProps = {
   onAliasesBadgeClick?: () => void;
   onAppearanceClick?: () => void;
   onFavoriteToggle?: (itemId: string) => void;
+  onSetAvatar?: (mediaItemId: string) => void;
+  avatarMediaItemId?: string | null;
   plausibilityCount?: number;
 };
 
@@ -847,7 +850,7 @@ function IdentityBlock({ person, displayName, age, heroAliases, onAliasesBadgeCl
 function HeroDensityLayout(props: HeroSharedProps) {
   const { layout } = useHeroLayout();
   const cfg = DENSITY_CONFIGS[layout];
-  const { person, currentState, photos, profileLabels, kpiCounts, calculatedPgrade, meanWcp, displayName, initials, age, heroAliases, referenceSessionId, headshotSlotMap, plausibilityCount, onFavoriteToggle } = props;
+  const { person, currentState, photos, profileLabels, kpiCounts, calculatedPgrade, meanWcp, displayName, initials, age, heroAliases, referenceSessionId, headshotSlotMap, plausibilityCount, onFavoriteToggle, onSetAvatar, avatarMediaItemId } = props;
 
   const handleAssignHeadshot = useCallback(
     async (mediaItemId: string, slot: number) => {
@@ -883,6 +886,8 @@ function HeroDensityLayout(props: HeroSharedProps) {
           headshotSlotMap={headshotSlotMap}
           onFindSimilar={handleFindSimilar}
           onFavoriteToggle={onFavoriteToggle}
+          onSetAvatar={onSetAvatar}
+          avatarMediaItemId={avatarMediaItemId}
         />
 
         {/* Zones 2+3: Identity | Physical — 2-col grid, no hairline */}
@@ -990,6 +995,8 @@ function HeroCard({
   onAliasesBadgeClick,
   onAppearanceClick,
   onFavoriteToggle,
+  onSetAvatar,
+  avatarMediaItemId,
   aliasesWithChannels,
   plausibilityCount = 0,
 }: {
@@ -1007,6 +1014,8 @@ function HeroCard({
   onAliasesBadgeClick?: () => void;
   onAppearanceClick?: () => void;
   onFavoriteToggle?: (itemId: string) => void;
+  onSetAvatar?: (mediaItemId: string) => void;
+  avatarMediaItemId?: string | null;
   aliasesWithChannels?: PersonAliasWithChannels[];
   plausibilityCount?: number;
 }) {
@@ -1068,6 +1077,8 @@ function HeroCard({
     onAliasesBadgeClick,
     onAppearanceClick,
     onFavoriteToggle,
+    onSetAvatar,
+    avatarMediaItemId,
     plausibilityCount,
   };
 
@@ -1841,6 +1852,18 @@ export function PersonDetailTabs({
     });
   }, [localPhotos, person.id]);
 
+  const handleSetAvatar = useCallback((mediaItemId: string) => {
+    setLocalPhotos((prev) => prev.map((p) => ({ ...p, isAvatar: p.id === mediaItemId })));
+    startPhotoTransition(async () => {
+      await setPersonAvatarAction(person.id, mediaItemId);
+    });
+  }, [person.id]);
+
+  const avatarMediaItemId = useMemo(
+    () => localPhotos.find((p) => p.isAvatar)?.id ?? null,
+    [localPhotos],
+  );
+
   // Sync active tab to URL search param (for BrowseNavBar tab preservation)
   const setActiveTab = useCallback((tab: TabId) => {
     setActiveTabRaw(tab);
@@ -1920,6 +1943,8 @@ export function PersonDetailTabs({
         onAliasesBadgeClick={handleAliasesBadgeClick}
         onAppearanceClick={handleAppearanceClick}
         onFavoriteToggle={handleFavoriteToggle}
+        onSetAvatar={handleSetAvatar}
+        avatarMediaItemId={avatarMediaItemId}
         aliasesWithChannels={aliasesWithChannels}
         plausibilityCount={plausibilityIssues.length}
       />

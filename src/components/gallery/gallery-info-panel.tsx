@@ -282,6 +282,7 @@ export function GalleryInfoPanel({
             categoryId: null,
             personaId: null,
             isFavorite: false,
+            isAvatar: false,
             sortOrder: 0,
             notes: null,
           };
@@ -442,6 +443,7 @@ export function GalleryInfoPanel({
             categoryId: null,
             personaId: null,
             isFavorite: false,
+            isAvatar: false,
             sortOrder: 0,
             notes: null,
           };
@@ -540,6 +542,7 @@ export function GalleryInfoPanel({
             categoryId,
             personaId: null,
             isFavorite: false,
+            isAvatar: false,
             sortOrder: 0,
             notes: null,
           };

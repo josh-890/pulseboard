@@ -65,6 +65,7 @@ export function toGalleryItem(
     focalY: item.focalY,
     tags: item.tags,
     isFavorite: firstLink?.isFavorite ?? false,
+    isAvatar: firstLink?.isAvatar ?? false,
     sortOrder: firstLink?.sortOrder ?? 0,
     isCover: opts?.coverMediaItemId === item.id,
     links: item.links,
@@ -106,6 +107,7 @@ export async function getSessionMediaGallery(sessionId: string): Promise<Gallery
       focalY: item.focalY ?? null,
       tags: item.tags,
       isFavorite: false,
+      isAvatar: false,
       sortOrder: 0,
       isCover: false,
       setCount: item.setMediaItems.length,
@@ -412,6 +414,7 @@ export async function getPersonMediaGallery(
       focalY: item.focalY ?? null,
       tags: item.tags,
       isFavorite: link?.isFavorite ?? false,
+      isAvatar: link?.isAvatar ?? false,
       sortOrder: link?.sortOrder ?? 0,
       isCover: false,
     });
@@ -528,6 +531,7 @@ export async function getPersonMediaAcrossSessions(
       focalY: item.focalY ?? null,
       tags: item.tags,
       isFavorite: link?.isFavorite ?? false,
+      isAvatar: link?.isAvatar ?? false,
       sortOrder: link?.sortOrder ?? 0,
       isCover: false,
       sessionId: item.sessionId,
@@ -575,6 +579,7 @@ export async function getSetMediaGallery(
       focalY: item.focalY ?? null,
       tags: item.tags,
       isFavorite: false,
+      isAvatar: false,
       sortOrder: link.sortOrder,
       isCover: coverMediaItemId === item.id,
       collectionIds: item.collectionItems.map((ci) => ci.collectionId),
@@ -633,6 +638,7 @@ export type PersonMediaLinkWithItem = {
   categoryId: string | null;
   personaId: string | null;
   isFavorite: boolean;
+  isAvatar: boolean;
   sortOrder: number;
   notes: string | null;
   mediaItem: MediaItemWithUrls;
@@ -651,6 +657,7 @@ function toPersonMediaLinkWithItem(
     categoryId: string | null;
     personaId?: string | null;
     isFavorite: boolean;
+    isAvatar: boolean;
     sortOrder: number;
     notes: string | null;
     mediaItem: MediaItemRow & { fileRef: string | null };
@@ -670,6 +677,7 @@ function toPersonMediaLinkWithItem(
     categoryId: link.categoryId,
     personaId: link.personaId ?? null,
     isFavorite: link.isFavorite,
+    isAvatar: link.isAvatar,
     sortOrder: link.sortOrder,
     notes: link.notes,
     mediaItem,
@@ -716,42 +724,74 @@ export type HeadshotData = {
   focalY: number | null;
 };
 
+function headshotDataFromLink(link: {
+  personId: string;
+  mediaItem: { variants: unknown; focalX: number | null; focalY: number | null; fileRef: string | null };
+}): HeadshotData | null {
+  const variants = (link.mediaItem.variants ?? {}) as PhotoVariants;
+  const url = variants.profile_128
+    ? buildUrl(variants.profile_128)
+    : variants.original
+      ? buildUrl(variants.original)
+      : link.mediaItem.fileRef
+        ? buildUrl(link.mediaItem.fileRef)
+        : null;
+  if (!url) return null;
+  return { url, focalX: link.mediaItem.focalX ?? null, focalY: link.mediaItem.focalY ?? null };
+}
+
 export async function getHeadshotsForPersons(
   personIds: string[],
   slot?: number,
 ): Promise<Map<string, HeadshotData>> {
   if (personIds.length === 0) return new Map();
 
-  const links = await prisma.personMediaLink.findMany({
-    where: {
-      personId: { in: personIds },
-      usage: "HEADSHOT",
-      ...(slot !== undefined ? { slot } : {}),
-    },
-    include: { mediaItem: true },
-    orderBy: [{ slot: "asc" }, { sortOrder: "asc" }],
-  });
+  // Category-filter mode (slot filter active) — unchanged behaviour
+  if (slot !== undefined) {
+    const links = await prisma.personMediaLink.findMany({
+      where: { personId: { in: personIds }, usage: "HEADSHOT", slot },
+      include: { mediaItem: true },
+      orderBy: [{ slot: "asc" }, { sortOrder: "asc" }],
+    });
+    const result = new Map<string, HeadshotData>();
+    for (const link of links) {
+      if (!result.has(link.personId)) {
+        const data = headshotDataFromLink(link);
+        if (data) result.set(link.personId, data);
+      }
+    }
+    return result;
+  }
 
+  // Avatar mode — Pass 1: explicit isAvatar=true (any usage)
+  const avatarLinks = await prisma.personMediaLink.findMany({
+    where: { personId: { in: personIds }, isAvatar: true },
+    include: { mediaItem: true },
+  });
   const result = new Map<string, HeadshotData>();
-  for (const link of links) {
+  for (const link of avatarLinks) {
     if (!result.has(link.personId)) {
-      const variants = (link.mediaItem.variants ?? {}) as PhotoVariants;
-      const url = variants.profile_128
-        ? buildUrl(variants.profile_128)
-        : variants.original
-          ? buildUrl(variants.original)
-          : link.mediaItem.fileRef
-            ? buildUrl(link.mediaItem.fileRef)
-            : null;
-      if (url) {
-        result.set(link.personId, {
-          url,
-          focalX: link.mediaItem.focalX ?? null,
-          focalY: link.mediaItem.focalY ?? null,
-        });
+      const data = headshotDataFromLink(link);
+      if (data) result.set(link.personId, data);
+    }
+  }
+
+  // Pass 2: fallback for persons with no isAvatar set — old slot+sortOrder logic
+  const missing = personIds.filter((id) => !result.has(id));
+  if (missing.length > 0) {
+    const fallbackLinks = await prisma.personMediaLink.findMany({
+      where: { personId: { in: missing }, usage: "HEADSHOT" },
+      include: { mediaItem: true },
+      orderBy: [{ slot: "asc" }, { sortOrder: "asc" }],
+    });
+    for (const link of fallbackLinks) {
+      if (!result.has(link.personId)) {
+        const data = headshotDataFromLink(link);
+        if (data) result.set(link.personId, data);
       }
     }
   }
+
   return result;
 }
 
@@ -857,6 +897,7 @@ export type MediaItemWithLinks = {
     categoryId: string | null;
     personaId: string | null;
     isFavorite: boolean;
+    isAvatar: boolean;
     sortOrder: number;
     notes: string | null;
   }[];
@@ -922,6 +963,7 @@ export async function getMediaItemsWithLinks(
           categoryId: link.categoryId,
           personaId: link.personaId ?? null,
           isFavorite: link.isFavorite,
+          isAvatar: link.isAvatar,
           sortOrder: link.sortOrder,
           notes: link.notes,
         })),

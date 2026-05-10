@@ -56,6 +56,7 @@ function categoryItemToGalleryItem(item: CategoryMediaItem): GalleryItem {
     focalY: item.focalY,
     tags: [],
     isFavorite: false,
+    isAvatar: false,
     sortOrder: 0,
     isCover: false,
   };

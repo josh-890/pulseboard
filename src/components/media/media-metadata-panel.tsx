@@ -172,6 +172,7 @@ export function MediaMetadataPanel({
               categoryId: null,
               personaId: null,
               isFavorite: false,
+              isAvatar: false,
               sortOrder: 0,
               notes: null,
             };
@@ -228,6 +229,7 @@ export function MediaMetadataPanel({
               categoryId,
               personaId: null,
               isFavorite: false,
+              isAvatar: false,
               sortOrder: 0,
               notes: null,
             };
@@ -301,6 +303,7 @@ export function MediaMetadataPanel({
                   categoryId: null,
                   personaId: null,
                   isFavorite: false,
+                  isAvatar: false,
                   sortOrder: 0,
                   notes: null,
                 },
