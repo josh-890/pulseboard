@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import {
   Clapperboard,
   Film,
@@ -122,6 +123,7 @@ export function SetDetailGallery({
   isCompilation = false,
   sessionLinks,
 }: SetDetailGalleryProps) {
+  const router = useRouter();
   const [coverId, setCoverId] = useState(initialCoverId ?? null);
   const [localItems, setLocalItems] = useState(initialItems);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
@@ -378,10 +380,14 @@ export function SetDetailGallery({
       setLocalItems((prev) => prev.filter((it) => it.id !== id));
       setLightboxIndex(null);
       startTransition(async () => {
-        await deleteSetMediaAction(entityId, primarySessionId ?? "", [id]);
+        const result = await deleteSetMediaAction(entityId, primarySessionId ?? "", [id]);
+        if (!result.success) {
+          toast.error(result.error ?? "Failed to delete item");
+          router.refresh();
+        }
       });
     },
-    [entityId, primarySessionId],
+    [entityId, primarySessionId, router],
   );
 
   const handleRemoveFromSet = useCallback(() => {

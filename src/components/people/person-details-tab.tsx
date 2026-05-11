@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useMemo, useRef, useState, useTransition } from "react";
+import { toast } from "sonner";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { ChevronDown, ChevronRight, ImageIcon, Layers, Plus, ScanSearch, Upload } from "lucide-react";
@@ -202,7 +203,10 @@ export function PersonDetailsTab({
     if (!referenceSessionId || !detailsLightbox) return;
     const catId = detailsLightbox.categoryId;
     setDetailsLightbox(null);
-    await deleteMediaItemsAction([id], personId, referenceSessionId);
+    const result = await deleteMediaItemsAction([id], personId, referenceSessionId);
+    if (!result.success) {
+      toast.error(result.error ?? "Failed to delete item");
+    }
     refreshCategory(catId);
   }, [referenceSessionId, personId, detailsLightbox, refreshCategory]);
 
