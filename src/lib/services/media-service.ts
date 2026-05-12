@@ -729,13 +729,17 @@ function headshotDataFromLink(link: {
   mediaItem: { variants: unknown; focalX: number | null; focalY: number | null; fileRef: string | null };
 }): HeadshotData | null {
   const variants = (link.mediaItem.variants ?? {}) as PhotoVariants;
-  const url = variants.profile_128
-    ? buildUrl(variants.profile_128)
-    : variants.original
-      ? buildUrl(variants.original)
-      : link.mediaItem.fileRef
-        ? buildUrl(link.mediaItem.fileRef)
-        : null;
+  const url = variants.profile_512
+    ? buildUrl(variants.profile_512)
+    : variants.profile_256
+      ? buildUrl(variants.profile_256)
+      : variants.profile_128
+        ? buildUrl(variants.profile_128)
+        : variants.original
+          ? buildUrl(variants.original)
+          : link.mediaItem.fileRef
+            ? buildUrl(link.mediaItem.fileRef)
+            : null;
   if (!url) return null;
   return { url, focalX: link.mediaItem.focalX ?? null, focalY: link.mediaItem.focalY ?? null };
 }
