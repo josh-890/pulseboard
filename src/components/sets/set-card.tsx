@@ -2,9 +2,10 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { Camera, Film, AlertTriangle, Copy } from "lucide-react";
+import { Camera, Film, AlertTriangle, Copy, Star, Link2Off } from "lucide-react";
 import { cn, focalStyle, formatPartialDateISO, getInitialsFromName, computeProductionAge } from "@/lib/utils";
 import { useDensity } from "@/components/layout/density-provider";
+import { useBrowserLayout } from "@/components/layout/browser-layout-provider";
 import {
   Tooltip,
   TooltipContent,
@@ -35,6 +36,8 @@ type SetCardProps = {
   unresolvedCreditCount?: number;
   suggestedArchiveFolder?: SuggestedFolderInfo | null;
   isPotentialDuplicate?: boolean;
+  isStarred?: boolean;
+  onToggleStar?: (id: string) => void;
 };
 
 function getPersonName(
@@ -43,7 +46,6 @@ function getPersonName(
   const common = person.aliases.find((a) => a.isCommon);
   return common?.name ?? person.icgId;
 }
-
 
 const HOVER_SIZE = 64;
 
@@ -67,7 +69,6 @@ function ParticipantAvatar({
           className="flex cursor-default flex-col items-center gap-0.5"
           style={{ width: size + 8 }}
         >
-          {/* Small avatar */}
           <div
             className="relative shrink-0 overflow-hidden rounded-full border border-white/20 bg-muted/60"
             style={{ width: size, height: size }}
@@ -88,8 +89,6 @@ function ParticipantAvatar({
               </span>
             )}
           </div>
-
-          {/* First-name label */}
           <span
             className="w-full truncate text-center text-[8px] leading-tight text-muted-foreground"
             title={name}
@@ -136,16 +135,26 @@ function ParticipantAvatar({
   );
 }
 
-export function SetCard({ set, coverPhoto, headshotMap = {}, unresolvedCreditCount = 0, suggestedArchiveFolder, isPotentialDuplicate }: SetCardProps) {
+export function SetCard({
+  set,
+  coverPhoto,
+  headshotMap = {},
+  unresolvedCreditCount = 0,
+  suggestedArchiveFolder,
+  isPotentialDuplicate,
+  isStarred = false,
+  onToggleStar,
+}: SetCardProps) {
   const { density } = useDensity();
+  const { setsLayout } = useBrowserLayout();
   const isCompact = density === "compact";
+  const isPoster = setsLayout === "poster";
   const isPhoto = set.type === "photo";
 
   const dateStr = formatPartialDateISO(set.releaseDate, set.releaseDatePrecision);
   const channelDisplay = set.channel?.name ?? "";
   const mediaCount = set._count.setMediaItems;
 
-  // Unique resolved artists from credits
   const artistNames = [
     ...new Map(
       set.creditsRaw
@@ -156,12 +165,168 @@ export function SetCard({ set, coverPhoto, headshotMap = {}, unresolvedCreditCou
   const artistLine = artistNames.slice(0, 2).join(" · ");
   const extraArtists = artistNames.length > 2 ? artistNames.length - 2 : 0;
 
-  // Up to 4 participants for the avatar row
   const avatarParticipants = set.participants.slice(0, 4);
-
-  // Primary session for production age
   const primarySession = set.sessionLinks[0]?.session ?? null;
 
+  const noArchive = !set.archiveLinks?.length;
+
+  function handleStarClick(e: React.MouseEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    onToggleStar?.(set.id);
+  }
+
+  // Shared badge overlay for the cover image
+  function CoverBadges() {
+    return (
+      <div className="absolute top-1 right-1 flex flex-col gap-0.5 items-end">
+        {isPotentialDuplicate && (
+          <div
+            className="flex items-center rounded bg-orange-500/80 px-0.5 py-px"
+            title="Potential duplicate — open set to merge"
+          >
+            <Copy size={8} className="text-white" />
+          </div>
+        )}
+        {!isPotentialDuplicate && unresolvedCreditCount > 0 && (
+          <div
+            className="flex items-center rounded bg-amber-500/80 px-0.5 py-px"
+            title={`${unresolvedCreditCount} unresolved credits`}
+          >
+            <AlertTriangle size={8} className="text-white" />
+          </div>
+        )}
+        {noArchive && (
+          <div
+            className={cn(
+              "flex items-center rounded px-0.5 py-px",
+              suggestedArchiveFolder ? "bg-amber-500/80" : "bg-red-500/70",
+            )}
+            title={suggestedArchiveFolder ? "Archive folder suggestion available" : "No archive folder linked"}
+          >
+            <Link2Off size={8} className="text-white" />
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // Shared avatar row
+  function AvatarRow({ avatarSize }: { avatarSize: number }) {
+    if (avatarParticipants.length === 0) return null;
+    return (
+      <TooltipProvider delayDuration={200}>
+        <div className="mt-2 flex items-start gap-1">
+          {avatarParticipants.map((p) => (
+            <ParticipantAvatar
+              key={`${p.setId}-${p.personId}`}
+              name={getPersonName(p.person)}
+              headshot={headshotMap[p.personId]}
+              size={avatarSize}
+              age={computeProductionAge(
+                p.person.birthdate,
+                p.person.birthdatePrecision,
+                primarySession?.date ?? null,
+                primarySession?.datePrecision ?? "UNKNOWN",
+                primarySession?.dateIsConfirmed ?? false,
+                set.releaseDate,
+                set.releaseDatePrecision,
+              )}
+            />
+          ))}
+          {set.participants.length > 4 && (
+            <div className="flex flex-col items-center gap-0.5" style={{ width: avatarSize + 8 }}>
+              <div
+                className="flex items-center justify-center rounded-full border border-white/20 bg-muted/60 text-[9px] text-muted-foreground"
+                style={{ width: avatarSize, height: avatarSize }}
+              >
+                +{set.participants.length - 4}
+              </div>
+            </div>
+          )}
+        </div>
+      </TooltipProvider>
+    );
+  }
+
+  // ── Poster layout ──────────────────────────────────────────────────────────
+  if (isPoster) {
+    return (
+      <Link href={`/sets/${set.id}`} prefetch={false} className="group block focus-visible:outline-none">
+        <div
+          className={cn(
+            "relative overflow-hidden rounded-xl border border-white/15 bg-card/70 shadow-md backdrop-blur-sm",
+            "transition-all duration-200",
+            "hover:border-white/30 hover:bg-card/90 hover:shadow-lg hover:-translate-y-0.5",
+            "active:scale-[0.98] active:shadow-sm active:translate-y-0",
+            "group-focus-visible:ring-2 group-focus-visible:ring-ring group-focus-visible:ring-offset-2",
+          )}
+        >
+          {/* Cover — landscape aspect */}
+          <div className="relative aspect-[4/3] overflow-hidden bg-muted/30">
+            {coverPhoto ? (
+              <Image
+                src={coverPhoto.url}
+                alt={set.title}
+                fill
+                className="object-cover"
+                style={focalStyle(coverPhoto.focalX, coverPhoto.focalY)}
+                unoptimized
+                sizes={isCompact ? "160px" : "220px"}
+              />
+            ) : (
+              <div className="flex h-full w-full items-center justify-center text-muted-foreground/30">
+                {isPhoto ? <Camera size={28} /> : <Film size={28} />}
+              </div>
+            )}
+
+            <CoverBadges />
+
+            {onToggleStar && (
+              <button
+                type="button"
+                onClick={handleStarClick}
+                className={cn(
+                  "absolute bottom-1.5 right-1.5 size-5 flex items-center justify-center rounded-full bg-black/40 transition-all duration-150",
+                  isStarred ? "opacity-100" : "opacity-0 group-hover:opacity-100 hover:bg-black/60",
+                )}
+                aria-label={isStarred ? "Unstar" : "Star"}
+              >
+                <Star
+                  size={10}
+                  className={isStarred ? "fill-amber-400 text-amber-400" : "text-white/70"}
+                />
+              </button>
+            )}
+          </div>
+
+          {/* Text + avatars */}
+          <div className="px-2.5 pt-2 pb-2.5">
+            <h3 className="text-sm font-semibold line-clamp-2 leading-snug mb-0.5">{set.title}</h3>
+            <div className="flex items-center gap-1 text-[11px] text-muted-foreground/70">
+              {channelDisplay && <span className="truncate">{channelDisplay}</span>}
+              {channelDisplay && dateStr && <span className="shrink-0 text-muted-foreground/30">·</span>}
+              {dateStr && <span className="shrink-0 tabular-nums">{dateStr}</span>}
+              {mediaCount > 0 && (
+                <>
+                  <span className="ml-auto shrink-0 text-muted-foreground/30">·</span>
+                  <span className="shrink-0 inline-flex items-center gap-0.5 tabular-nums">
+                    {isPhoto ? <Camera size={9} /> : <Film size={9} />}
+                    {mediaCount}
+                  </span>
+                </>
+              )}
+            </div>
+
+            {/* Avatars — comfortable only */}
+            {!isCompact && <AvatarRow avatarSize={24} />}
+          </div>
+        </div>
+      </Link>
+    );
+  }
+
+  // ── Refined strip layout ───────────────────────────────────────────────────
   return (
     <Link href={`/sets/${set.id}`} prefetch={false} className="group block focus-visible:outline-none">
       <div
@@ -198,6 +363,25 @@ export function SetCard({ set, coverPhoto, headshotMap = {}, unresolvedCreditCou
               {isPhoto ? <Camera size={isCompact ? 20 : 28} /> : <Film size={isCompact ? 20 : 28} />}
             </div>
           )}
+
+          <CoverBadges />
+
+          {onToggleStar && (
+            <button
+              type="button"
+              onClick={handleStarClick}
+              className={cn(
+                "absolute bottom-1 right-1 size-5 flex items-center justify-center rounded-full bg-black/40 transition-all duration-150",
+                isStarred ? "opacity-100" : "opacity-0 group-hover:opacity-100 hover:bg-black/60",
+              )}
+              aria-label={isStarred ? "Unstar" : "Star"}
+            >
+              <Star
+                size={10}
+                className={isStarred ? "fill-amber-400 text-amber-400" : "text-white/70"}
+              />
+            </button>
+          )}
         </div>
 
         {/* Metadata */}
@@ -207,8 +391,8 @@ export function SetCard({ set, coverPhoto, headshotMap = {}, unresolvedCreditCou
             isCompact ? "p-2" : "p-3",
           )}
         >
-          {/* Line 1: date · channel · type icon (right) */}
-          <div className={cn("flex items-center gap-1.5 text-muted-foreground", isCompact ? "text-[10px]" : "text-xs")}>
+          {/* Line 1: date · channel · type icon */}
+          <div className={cn("flex items-center gap-1.5 text-muted-foreground/70", isCompact ? "text-[10px]" : "text-xs")}>
             {dateStr && <span className="shrink-0 tabular-nums">{dateStr}</span>}
             {dateStr && channelDisplay && <span className="text-muted-foreground/40">·</span>}
             {channelDisplay && <span className="truncate">{channelDisplay}</span>}
@@ -217,7 +401,7 @@ export function SetCard({ set, coverPhoto, headshotMap = {}, unresolvedCreditCou
             </span>
           </div>
 
-          {/* Line 2: title */}
+          {/* Line 2: title — dominant */}
           <h3
             className={cn(
               "mt-0.5 line-clamp-1 font-semibold leading-snug",
@@ -227,12 +411,12 @@ export function SetCard({ set, coverPhoto, headshotMap = {}, unresolvedCreditCou
             {set.title}
           </h3>
 
-          {/* Line 3: artist names · media count */}
-          <div className={cn("mt-0.5 flex items-center gap-1.5 text-muted-foreground", isCompact ? "text-[10px]" : "text-xs")}>
+          {/* Line 3: artists · media count */}
+          <div className={cn("mt-0.5 flex items-center gap-1.5 text-muted-foreground/70", isCompact ? "text-[10px]" : "text-xs")}>
             {artistLine && (
               <span className="truncate">
                 {artistLine}
-                {extraArtists > 0 && <span className="text-muted-foreground/60"> +{extraArtists}</span>}
+                {extraArtists > 0 && <span className="text-muted-foreground/50"> +{extraArtists}</span>}
               </span>
             )}
             {artistLine && mediaCount > 0 && <span className="shrink-0 text-muted-foreground/40">·</span>}
@@ -242,68 +426,11 @@ export function SetCard({ set, coverPhoto, headshotMap = {}, unresolvedCreditCou
                 {mediaCount}
               </span>
             )}
-            {isPotentialDuplicate && (
-              <span
-                title="Potential duplicate — open set to merge"
-                className="ml-auto shrink-0 inline-flex items-center gap-0.5 text-orange-500"
-              >
-                <Copy size={9} />
-                dup
-              </span>
-            )}
-            {!isPotentialDuplicate && unresolvedCreditCount > 0 && (
-              <span className="ml-auto shrink-0 inline-flex items-center gap-0.5 text-amber-500">
-                <AlertTriangle size={9} />
-                {unresolvedCreditCount}
-              </span>
-            )}
           </div>
 
-          {/* Avatar row — comfortable mode only */}
-          {!isCompact && avatarParticipants.length > 0 && (
-            <TooltipProvider delayDuration={200}>
-              <div className="mt-2 flex items-start gap-1">
-                {avatarParticipants.map((p) => (
-                  <ParticipantAvatar
-                    key={`${p.setId}-${p.personId}`}
-                    name={getPersonName(p.person)}
-                    headshot={headshotMap[p.personId]}
-                    size={28}
-                    age={computeProductionAge(
-                      p.person.birthdate,
-                      p.person.birthdatePrecision,
-                      primarySession?.date ?? null,
-                      primarySession?.datePrecision ?? "UNKNOWN",
-                      primarySession?.dateIsConfirmed ?? false,
-                      set.releaseDate,
-                      set.releaseDatePrecision,
-                    )}
-                  />
-                ))}
-                {set.participants.length > 4 && (
-                  <div className="flex flex-col items-center gap-0.5" style={{ width: 36 }}>
-                    <div className="flex h-7 w-7 items-center justify-center rounded-full border border-white/20 bg-muted/60 text-[9px] text-muted-foreground">
-                      +{set.participants.length - 4}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </TooltipProvider>
-          )}
+          {/* Avatar row — comfortable only */}
+          {!isCompact && <AvatarRow avatarSize={24} />}
         </div>
-
-        {/* Archive link status — corner triangle, top-right.
-            Show when no CONFIRMED archive link is present. */}
-        {!set.archiveLinks?.length && (
-          <div
-            title={suggestedArchiveFolder ? 'Archive folder suggestion available' : 'No archive folder linked'}
-            className={cn(
-              'absolute top-0 right-0 w-0 h-0 z-10',
-              'border-t-[20px] border-l-[20px] border-l-transparent',
-              suggestedArchiveFolder ? 'border-t-amber-500' : 'border-t-red-500/80',
-            )}
-          />
-        )}
       </div>
     </Link>
   );

@@ -1,9 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { Users, Loader2, CheckSquare } from "lucide-react";
 import { PersonCard } from "./person-card";
 import { useDensity } from "@/components/layout/density-provider";
+import { useBrowserLayout } from "@/components/layout/browser-layout-provider";
+import { getStarred, toggleStar } from "@/lib/browser-stars";
+import { StarredItemsStrip } from "@/components/shared/starred-items-strip";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { loadMorePersons } from "@/lib/actions/person-actions";
@@ -35,7 +38,6 @@ type PersonListProps = {
   slot?: number;
 };
 
-/** Extract serializable filter params (string values only) for browse context comparison */
 function filtersToRecord(filters: PersonFilters): Record<string, string> {
   const result: Record<string, string> = {};
   if (filters.q) result.q = filters.q;
@@ -50,6 +52,22 @@ function filtersToRecord(filters: PersonFilters): Record<string, string> {
   return result;
 }
 
+function hasActiveFilters(filters: PersonFilters): boolean {
+  return !!(
+    filters.q ||
+    (filters.status && filters.status !== "all") ||
+    filters.naturalHairColor ||
+    filters.bodyType ||
+    filters.ethnicity ||
+    filters.completeness ||
+    filters.bodyRegions?.length ||
+    filters.birthdateFrom ||
+    filters.birthdateTo ||
+    filters.createdFrom ||
+    filters.createdTo
+  );
+}
+
 export function PersonList({
   persons: initialPersons,
   photoMap: initialPhotoMap,
@@ -59,23 +77,26 @@ export function PersonList({
   slot,
 }: PersonListProps) {
   const { density } = useDensity();
+  const { peopleLayout } = useBrowserLayout();
   const isCompact = density === "compact";
+  const isPoster = peopleLayout === "poster";
+
   const [persons, setPersons] = useState(initialPersons);
   const [photoMap, setPhotoMap] = useState(initialPhotoMap);
   const [cursor, setCursor] = useState(initialCursor);
   const [isPending, startTransition] = useTransition();
+  const [starredIds, setStarredIds] = useState<string[]>([]);
   const hasRestoredScroll = useRef(false);
   const isInitialMount = useRef(true);
   const sentinelRef = useRef<HTMLDivElement>(null);
-  // Always-current ref to avoid stale closure in IntersectionObserver
   const loadMoreFnRef = useRef<() => void>(() => {});
   const bulk = useBulkSelection();
 
   useEffect(() => { setPersons(initialPersons); }, [initialPersons]);
   useEffect(() => { setPhotoMap(initialPhotoMap); }, [initialPhotoMap]);
   useEffect(() => { setCursor(initialCursor); }, [initialCursor]);
+  useEffect(() => { setStarredIds(getStarred("people")); }, []);
 
-  // On mount: restore scroll position if returning from detail page with matching filters
   useEffect(() => {
     if (hasRestoredScroll.current) return;
     hasRestoredScroll.current = true;
@@ -87,7 +108,6 @@ export function PersonList({
     }
   }, [filters]);
 
-  // Build and save browse context whenever person list or cursor changes
   const saveBrowseContextFromState = useCallback(
     (currentPersons: PersonWithCommonAlias[], currentCursor: string | null) => {
       saveBrowseContext({
@@ -118,6 +138,11 @@ export function PersonList({
     updateBrowseScrollY(window.scrollY);
   }
 
+  function handleToggleStar(id: string) {
+    toggleStar("people", id);
+    setStarredIds(getStarred("people"));
+  }
+
   const handleLoadMore = useCallback(() => {
     if (!cursor || isPending) return;
     startTransition(async () => {
@@ -134,11 +159,8 @@ export function PersonList({
     });
   }, [cursor, isPending, filters, slot]);
 
-  // Keep ref in sync so the observer always calls the latest version
   useEffect(() => { loadMoreFnRef.current = handleLoadMore; });
 
-  // Infinite scroll — recreate observer when cursor changes so it re-fires
-  // if the sentinel is still in view after a batch loads
   useEffect(() => {
     if (!cursor) return;
     const el = sentinelRef.current;
@@ -150,6 +172,38 @@ export function PersonList({
     observer.observe(el);
     return () => observer.disconnect();
   }, [cursor]);
+
+  const filtersActive = hasActiveFilters(filters);
+
+  const starredItems = useMemo(
+    () =>
+      persons
+        .filter((p) => starredIds.includes(p.id))
+        .sort((a, b) => starredIds.indexOf(a.id) - starredIds.indexOf(b.id))
+        .map((p) => ({
+          id: p.id,
+          href: `/people/${p.id}`,
+          photo: photoMap[p.id]
+            ? { thumbUrl: photoMap[p.id].url, focalX: photoMap[p.id].focalX, focalY: photoMap[p.id].focalY }
+            : undefined,
+          label: p.commonAlias ?? p.icgId,
+        })),
+    [persons, starredIds, photoMap],
+  );
+
+  const gridClass = cn(
+    "grid",
+    isPoster
+      ? isCompact
+        ? "gap-2 grid-cols-4 sm:grid-cols-5 md:grid-cols-7 lg:grid-cols-8 xl:grid-cols-10"
+        : "gap-3 grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7"
+      : cn(
+          "gap-4",
+          isCompact
+            ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6"
+            : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4",
+        ),
+  );
 
   if (persons.length === 0) {
     return (
@@ -165,8 +219,20 @@ export function PersonList({
 
   return (
     <div className="space-y-4">
-      {/* Select mode toggle */}
-      <div className="flex justify-end">
+      {/* Starred strip */}
+      {!filtersActive && (
+        <StarredItemsStrip
+          items={starredItems}
+          onUnstar={(id) => handleToggleStar(id)}
+          aspectRatio="2/3"
+        />
+      )}
+
+      {/* Section label + select toggle */}
+      <div className="flex items-center justify-between">
+        <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground/50">
+          {filtersActive ? `Filtered (${totalCount})` : `All People (${totalCount})`}
+        </p>
         <Button
           variant={bulk.isSelecting ? "default" : "outline"}
           size="sm"
@@ -177,14 +243,7 @@ export function PersonList({
         </Button>
       </div>
 
-      <div
-        className={cn(
-          "grid gap-4",
-          isCompact
-            ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6"
-            : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4",
-        )}
-      >
+      <div className={gridClass}>
         {persons.map((person) => {
           const photo = photoMap[person.id];
           const isSelected = bulk.selectedIds.has(person.id);
@@ -211,6 +270,8 @@ export function PersonList({
                   focalX={photo?.focalX}
                   focalY={photo?.focalY}
                   plausibilityCount={getQuickPlausibilityCount(person)}
+                  isStarred={starredIds.includes(person.id)}
+                  onToggleStar={handleToggleStar}
                   onClick={bulk.isSelecting ? () => bulk.toggle(person.id) : handleCardClick}
                 />
               </div>

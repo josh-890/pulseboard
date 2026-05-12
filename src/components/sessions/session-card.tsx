@@ -2,9 +2,10 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { Clapperboard, ImageIcon, Camera, Film } from "lucide-react";
+import { Clapperboard, ImageIcon, Camera, Film, Star } from "lucide-react";
 import { cn, focalStyle, formatPartialDateISO, getInitialsFromName, computeProductionAge } from "@/lib/utils";
 import { useDensity } from "@/components/layout/density-provider";
+import { useBrowserLayout } from "@/components/layout/browser-layout-provider";
 import { SessionStatusBadge } from "./session-status-badge";
 import {
   Tooltip,
@@ -32,6 +33,8 @@ type SessionCardProps = {
   session: SessionItem;
   coverPhoto?: CoverPhotoData;
   headshotMap?: Record<string, HeadshotData>;
+  isStarred?: boolean;
+  onToggleStar?: (id: string) => void;
 };
 
 function getContributorName(
@@ -129,9 +132,17 @@ function ContributorAvatar({
   );
 }
 
-export function SessionCard({ session, coverPhoto, headshotMap = {} }: SessionCardProps) {
+export function SessionCard({
+  session,
+  coverPhoto,
+  headshotMap = {},
+  isStarred = false,
+  onToggleStar,
+}: SessionCardProps) {
   const { density } = useDensity();
+  const { sessionsLayout } = useBrowserLayout();
   const isCompact = density === "compact";
+  const isPoster = sessionsLayout === "poster";
 
   const mediaCount = session._count.mediaItems;
   const photoSetCount = session.setSessionLinks.filter((l) => l.set.type === "photo").length;
@@ -143,6 +154,130 @@ export function SessionCard({ session, coverPhoto, headshotMap = {} }: SessionCa
 
   const avatarContributors = session.contributions.slice(0, 4);
 
+  function handleStarClick(e: React.MouseEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    onToggleStar?.(session.id);
+  }
+
+  function AvatarRow({ avatarSize }: { avatarSize: number }) {
+    if (avatarContributors.length === 0) return null;
+    return (
+      <TooltipProvider delayDuration={200}>
+        <div className="mt-2 flex items-start gap-1">
+          {avatarContributors.map((c) => (
+            <ContributorAvatar
+              key={`${session.id}-${c.person.id}`}
+              name={getContributorName(c.person)}
+              headshot={headshotMap[c.person.id]}
+              size={avatarSize}
+              age={computeProductionAge(
+                c.person.birthdate,
+                c.person.birthdatePrecision,
+                session.date,
+                session.datePrecision,
+                session.dateIsConfirmed,
+              )}
+            />
+          ))}
+          {session.contributions.length > 4 && (
+            <div className="flex flex-col items-center gap-0.5" style={{ width: avatarSize + 8 }}>
+              <div
+                className="flex items-center justify-center rounded-full border border-white/20 bg-muted/60 text-[9px] text-muted-foreground"
+                style={{ width: avatarSize, height: avatarSize }}
+              >
+                +{session.contributions.length - 4}
+              </div>
+            </div>
+          )}
+        </div>
+      </TooltipProvider>
+    );
+  }
+
+  // ── Poster layout ──────────────────────────────────────────────────────────
+  if (isPoster) {
+    return (
+      <Link href={`/sessions/${session.id}`} prefetch={false} className="group block focus-visible:outline-none">
+        <div
+          className={cn(
+            "relative overflow-hidden rounded-xl border border-white/15 bg-card/70 shadow-md backdrop-blur-sm",
+            "transition-all duration-200",
+            "hover:border-white/30 hover:bg-card/90 hover:shadow-lg hover:-translate-y-0.5",
+            "active:scale-[0.98] active:shadow-sm active:translate-y-0",
+            "group-focus-visible:ring-2 group-focus-visible:ring-ring group-focus-visible:ring-offset-2",
+          )}
+        >
+          {/* Cover — landscape aspect */}
+          <div className="relative aspect-[4/3] overflow-hidden bg-muted/30">
+            {coverPhoto ? (
+              <Image
+                src={coverPhoto.url}
+                alt={session.name}
+                fill
+                className="object-cover"
+                style={focalStyle(coverPhoto.focalX, coverPhoto.focalY)}
+                unoptimized
+                sizes={isCompact ? "160px" : "220px"}
+              />
+            ) : (
+              <div className="flex h-full w-full items-center justify-center text-muted-foreground/30">
+                <Clapperboard size={28} />
+              </div>
+            )}
+
+            {/* Draft badge on cover corner */}
+            {session.status === "DRAFT" && (
+              <div className="absolute top-1 right-1">
+                <SessionStatusBadge status="DRAFT" className="px-1 py-px text-[9px]" />
+              </div>
+            )}
+
+            {onToggleStar && (
+              <button
+                type="button"
+                onClick={handleStarClick}
+                className={cn(
+                  "absolute bottom-1.5 right-1.5 size-5 flex items-center justify-center rounded-full bg-black/40 transition-all duration-150",
+                  isStarred ? "opacity-100" : "opacity-0 group-hover:opacity-100 hover:bg-black/60",
+                )}
+                aria-label={isStarred ? "Unstar" : "Star"}
+              >
+                <Star
+                  size={10}
+                  className={isStarred ? "fill-amber-400 text-amber-400" : "text-white/70"}
+                />
+              </button>
+            )}
+          </div>
+
+          {/* Text + avatars */}
+          <div className="px-2.5 pt-2 pb-2.5">
+            <h3 className="text-sm font-semibold line-clamp-2 leading-snug mb-0.5">{session.name}</h3>
+            <div className="flex items-center gap-1 text-[11px] text-muted-foreground/70">
+              {session.label && <span className="truncate">{session.label.name}</span>}
+              {session.label && dateStr && <span className="shrink-0 text-muted-foreground/30">·</span>}
+              {dateStr && <span className="shrink-0 tabular-nums">{dateStr}</span>}
+              {mediaCount > 0 && (
+                <>
+                  <span className="ml-auto shrink-0 text-muted-foreground/30">·</span>
+                  <span className="shrink-0 inline-flex items-center gap-0.5 tabular-nums">
+                    <ImageIcon size={9} />
+                    {mediaCount}
+                  </span>
+                </>
+              )}
+            </div>
+
+            {/* Avatars — comfortable only */}
+            {!isCompact && <AvatarRow avatarSize={24} />}
+          </div>
+        </div>
+      </Link>
+    );
+  }
+
+  // ── Refined strip layout ───────────────────────────────────────────────────
   return (
     <Link href={`/sessions/${session.id}`} prefetch={false} className="group block focus-visible:outline-none">
       <div
@@ -179,6 +314,30 @@ export function SessionCard({ session, coverPhoto, headshotMap = {} }: SessionCa
               <Clapperboard size={isCompact ? 20 : 28} />
             </div>
           )}
+
+          {/* Draft badge on cover corner */}
+          {session.status === "DRAFT" && (
+            <div className="absolute top-1 right-1">
+              <SessionStatusBadge status="DRAFT" className="px-1 py-px text-[9px]" />
+            </div>
+          )}
+
+          {onToggleStar && (
+            <button
+              type="button"
+              onClick={handleStarClick}
+              className={cn(
+                "absolute bottom-1 right-1 size-5 flex items-center justify-center rounded-full bg-black/40 transition-all duration-150",
+                isStarred ? "opacity-100" : "opacity-0 group-hover:opacity-100 hover:bg-black/60",
+              )}
+              aria-label={isStarred ? "Unstar" : "Star"}
+            >
+              <Star
+                size={10}
+                className={isStarred ? "fill-amber-400 text-amber-400" : "text-white/70"}
+              />
+            </button>
+          )}
         </div>
 
         {/* Metadata */}
@@ -188,19 +347,14 @@ export function SessionCard({ session, coverPhoto, headshotMap = {} }: SessionCa
             isCompact ? "p-2" : "p-3",
           )}
         >
-          {/* Line 1: date · label + DRAFT badge (right) */}
-          <div className={cn("flex items-center gap-1.5 text-muted-foreground", isCompact ? "text-[10px]" : "text-xs")}>
+          {/* Line 1: date · label */}
+          <div className={cn("flex items-center gap-1.5 text-muted-foreground/70", isCompact ? "text-[10px]" : "text-xs")}>
             {dateStr && <span className="shrink-0 tabular-nums">{dateStr}</span>}
             {dateStr && session.label && <span className="text-muted-foreground/40">·</span>}
             {session.label && <span className="truncate">{session.label.name}</span>}
-            {session.status === "DRAFT" && (
-              <span className="ml-auto shrink-0">
-                <SessionStatusBadge status="DRAFT" className="px-1.5 py-0 text-[10px]" />
-              </span>
-            )}
           </div>
 
-          {/* Line 2: title */}
+          {/* Line 2: title — dominant */}
           <h3
             className={cn(
               "mt-0.5 line-clamp-1 font-semibold leading-snug",
@@ -210,8 +364,8 @@ export function SessionCard({ session, coverPhoto, headshotMap = {} }: SessionCa
             {session.name}
           </h3>
 
-          {/* Line 3: media count · set count (with photo/video split) */}
-          <div className={cn("mt-0.5 flex items-center gap-1.5 text-muted-foreground", isCompact ? "text-[10px]" : "text-xs")}>
+          {/* Line 3: media count · set count */}
+          <div className={cn("mt-0.5 flex items-center gap-1.5 text-muted-foreground/70", isCompact ? "text-[10px]" : "text-xs")}>
             {mediaCount > 0 && (
               <span className="shrink-0 inline-flex items-center gap-0.5 tabular-nums">
                 <ImageIcon size={9} className="text-muted-foreground/50" />
@@ -238,35 +392,8 @@ export function SessionCard({ session, coverPhoto, headshotMap = {} }: SessionCa
             )}
           </div>
 
-          {/* Avatar row — comfortable mode only */}
-          {!isCompact && avatarContributors.length > 0 && (
-            <TooltipProvider delayDuration={200}>
-              <div className="mt-2 flex items-start gap-1">
-                {avatarContributors.map((c) => (
-                  <ContributorAvatar
-                    key={`${session.id}-${c.person.id}`}
-                    name={getContributorName(c.person)}
-                    headshot={headshotMap[c.person.id]}
-                    size={28}
-                    age={computeProductionAge(
-                      c.person.birthdate,
-                      c.person.birthdatePrecision,
-                      session.date,
-                      session.datePrecision,
-                      session.dateIsConfirmed,
-                    )}
-                  />
-                ))}
-                {session.contributions.length > 4 && (
-                  <div className="flex flex-col items-center gap-0.5" style={{ width: 36 }}>
-                    <div className="flex h-7 w-7 items-center justify-center rounded-full border border-white/20 bg-muted/60 text-[9px] text-muted-foreground">
-                      +{session.contributions.length - 4}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </TooltipProvider>
-          )}
+          {/* Avatar row — comfortable only */}
+          {!isCompact && <AvatarRow avatarSize={24} />}
         </div>
       </div>
     </Link>

@@ -31,33 +31,37 @@ export default function PeopleLoading() {
         </div>
       </div>
 
-      {/* Card grid */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-        {Array.from({ length: 6 }).map((_, i) => (
-          <div
-            key={i}
-            className="flex overflow-hidden rounded-2xl border border-white/20 bg-card/70 shadow-md backdrop-blur-sm sm:h-[160px]"
-          >
-            <Skeleton className="hidden h-full w-[160px] shrink-0 rounded-none sm:block" />
-            <div className="flex min-w-0 flex-1 flex-col justify-center p-3">
-              <div className="flex items-start justify-between gap-2">
-                <Skeleton className="h-5 w-32" />
-                <Skeleton className="h-5 w-14 shrink-0 rounded-full" />
-              </div>
-              <Skeleton className="mt-1 h-3 w-24" />
-              <div className="mt-1.5 flex gap-3">
-                <Skeleton className="h-4 w-14" />
-                <Skeleton className="h-4 w-10" />
-                <Skeleton className="h-4 w-16" />
-                <Skeleton className="h-4 w-16" />
-              </div>
-              <div className="mt-2 flex gap-1">
-                <Skeleton className="h-4 w-12 rounded-full" />
-                <Skeleton className="h-4 w-14 rounded-full" />
-                <Skeleton className="h-4 w-10 rounded-full" />
-              </div>
+      {/* Starred strip skeleton */}
+      <div className="space-y-2">
+        <Skeleton className="h-4 w-24" />
+        <div className="flex gap-2 overflow-hidden">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <div key={i} className="shrink-0 w-[72px]">
+              <Skeleton className="w-full rounded-xl" style={{ aspectRatio: "2/3" }} />
+              <Skeleton className="mt-1 h-3 w-full" />
             </div>
-            <Skeleton className="h-[3px] w-3/4 shrink-0" />
+          ))}
+        </div>
+      </div>
+
+      {/* Section label + select */}
+      <div className="flex items-center justify-between">
+        <Skeleton className="h-3.5 w-28" />
+        <Skeleton className="h-8 w-20 rounded-md" />
+      </div>
+
+      {/* Poster grid */}
+      <div className="grid gap-3 grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7">
+        {Array.from({ length: 14 }).map((_, i) => (
+          <div key={i} className="overflow-hidden rounded-xl border border-white/15 bg-card/70 shadow-md">
+            <Skeleton className="w-full rounded-none" style={{ aspectRatio: "2/3" }} />
+            <div className="px-2 pt-1.5 pb-3 space-y-1">
+              <div className="flex items-center justify-between gap-1">
+                <Skeleton className="h-3 w-14" />
+                <Skeleton className="h-3 w-10 rounded-full" />
+              </div>
+              <Skeleton className="h-2.5 w-10" />
+            </div>
           </div>
         ))}
       </div>

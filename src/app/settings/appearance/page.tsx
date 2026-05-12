@@ -7,6 +7,7 @@ import { PaletteSelector } from "@/components/settings/palette-selector";
 import { DensitySelector } from "@/components/settings/density-selector";
 import { HeroLayoutSelector } from "@/components/settings/hero-layout-selector";
 import { HeroBackdropToggle } from "@/components/settings/hero-backdrop-toggle";
+import { BrowserLayoutSelector } from "@/components/settings/browser-layout-selector";
 import { getHeroBackdropEnabled } from "@/lib/services/setting-service";
 
 export default async function AppearancePage() {
@@ -52,6 +53,14 @@ export default async function AppearancePage() {
               Choose the information density for the person detail hero card.
             </p>
             <HeroLayoutSelector />
+          </div>
+
+          <div className="border-t border-border pt-6">
+            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Browser Card Style</h2>
+            <p className="mb-4 text-sm text-muted-foreground">
+              Choose how cards appear in each browser. The density setting applies within each style.
+            </p>
+            <BrowserLayoutSelector />
           </div>
 
           <div className="border-t border-border pt-6">

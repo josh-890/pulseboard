@@ -1,9 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { ImageIcon, Loader2, CheckSquare } from "lucide-react";
 import { SetCard } from "./set-card";
 import { useDensity } from "@/components/layout/density-provider";
+import { useBrowserLayout } from "@/components/layout/browser-layout-provider";
+import { getStarred, toggleStar } from "@/lib/browser-stars";
+import { StarredItemsStrip } from "@/components/shared/starred-items-strip";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { loadMoreSets } from "@/lib/actions/set-actions";
@@ -63,6 +66,20 @@ type SetGridProps = {
   duplicatePairMap?: Record<string, string>;
 };
 
+function hasActiveFilters(filters: SetFilters): boolean {
+  return !!(
+    filters.q ||
+    (filters.type && filters.type !== "all") ||
+    filters.channelId ||
+    filters.labelId ||
+    filters.personId ||
+    filters.releaseDateFrom ||
+    filters.releaseDateTo ||
+    filters.createdFrom ||
+    filters.createdTo
+  );
+}
+
 export function SetGrid({
   sets: initialSets,
   suggestionsMap = {},
@@ -74,8 +91,11 @@ export function SetGrid({
   duplicatePairMap,
 }: SetGridProps) {
   const { density } = useDensity();
+  const { setsLayout } = useBrowserLayout();
   const isCompact = density === "compact";
+  const isPoster = setsLayout === "poster";
   const [sets, setSets] = useState(initialSets);
+  const [starredIds, setStarredIds] = useState<string[]>([]);
   const [photoMap, setPhotoMap] = useState(initialPhotoMap);
   const [headshotMap, setHeadshotMap] = useState(initialHeadshotMap);
   const [cursor, setCursor] = useState(initialCursor);
@@ -90,6 +110,7 @@ export function SetGrid({
   useEffect(() => { setPhotoMap(initialPhotoMap); }, [initialPhotoMap]);
   useEffect(() => { setHeadshotMap(initialHeadshotMap); }, [initialHeadshotMap]);
   useEffect(() => { setCursor(initialCursor); }, [initialCursor]);
+  useEffect(() => { setStarredIds(getStarred("sets")); }, []);
 
   // Restore scroll on return from detail page
   useEffect(() => {
@@ -134,6 +155,30 @@ export function SetGrid({
   function handleCardClick() {
     updateBrowseScrollY(window.scrollY, SET_BROWSE_KEY);
   }
+
+  function handleToggleStar(id: string) {
+    toggleStar("sets", id);
+    setStarredIds(getStarred("sets"));
+  }
+
+  const filtersActive = hasActiveFilters(filters);
+
+  const starredItems = useMemo(
+    () =>
+      sets
+        .filter((s) => starredIds.includes(s.id))
+        .sort((a, b) => starredIds.indexOf(a.id) - starredIds.indexOf(b.id))
+        .map((s) => ({
+          id: s.id,
+          href: `/sets/${s.id}`,
+          photo: photoMap[s.id]
+            ? { thumbUrl: photoMap[s.id].url, focalX: photoMap[s.id].focalX, focalY: photoMap[s.id].focalY }
+            : undefined,
+          label: s.title,
+          sublabel: s.channel?.name,
+        })),
+    [sets, starredIds, photoMap],
+  );
 
   const handleLoadMore = useCallback(() => {
     if (!cursor || isPending) return;
@@ -181,10 +226,36 @@ export function SetGrid({
     );
   }
 
+  const gridClass = cn(
+    "grid",
+    isPoster
+      ? isCompact
+        ? "gap-2 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6"
+        : "gap-3 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6"
+      : cn(
+          "gap-4",
+          isCompact
+            ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6"
+            : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4",
+        ),
+  );
+
   return (
     <div className="space-y-4">
-      {/* Select mode toggle */}
-      <div className="flex justify-end">
+      {/* Starred strip */}
+      {!filtersActive && (
+        <StarredItemsStrip
+          items={starredItems}
+          onUnstar={handleToggleStar}
+          aspectRatio="4/3"
+        />
+      )}
+
+      {/* Section label + select toggle */}
+      <div className="flex items-center justify-between">
+        <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground/50">
+          {filtersActive ? `Filtered (${totalCount})` : `All Sets (${totalCount})`}
+        </p>
         <Button
           variant={bulk.isSelecting ? "default" : "outline"}
           size="sm"
@@ -195,14 +266,7 @@ export function SetGrid({
         </Button>
       </div>
 
-      <div
-        className={cn(
-          "grid gap-4",
-          isCompact
-            ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6"
-            : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4",
-        )}
-      >
+      <div className={gridClass}>
         {sets.map((set) => {
           const isSelected = bulk.selectedIds.has(set.id);
           return (
@@ -232,6 +296,8 @@ export function SetGrid({
                   unresolvedCreditCount={set._count.creditsRaw}
                   suggestedArchiveFolder={suggestionsMap[set.id] ?? null}
                   isPotentialDuplicate={!!duplicatePairMap?.[set.id]}
+                  isStarred={starredIds.includes(set.id)}
+                  onToggleStar={handleToggleStar}
                 />
               </div>
             </div>

@@ -1,9 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { Clapperboard, Loader2, CheckSquare } from "lucide-react";
 import { SessionCard } from "./session-card";
 import { useDensity } from "@/components/layout/density-provider";
+import { useBrowserLayout } from "@/components/layout/browser-layout-provider";
+import { getStarred, toggleStar } from "@/lib/browser-stars";
+import { StarredItemsStrip } from "@/components/shared/starred-items-strip";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { loadMoreSessions } from "@/lib/actions/session-actions";
@@ -58,6 +61,20 @@ type SessionGridProps = {
   filters: SessionFilters;
 };
 
+function hasActiveFilters(filters: SessionFilters): boolean {
+  return !!(
+    filters.q ||
+    (filters.status && filters.status !== "all") ||
+    filters.labelId ||
+    filters.projectId ||
+    filters.personId ||
+    filters.dateFrom ||
+    filters.dateTo ||
+    filters.createdFrom ||
+    filters.createdTo
+  );
+}
+
 export function SessionGrid({
   sessions: initialSessions,
   photoMap: initialPhotoMap,
@@ -67,8 +84,11 @@ export function SessionGrid({
   filters,
 }: SessionGridProps) {
   const { density } = useDensity();
+  const { sessionsLayout } = useBrowserLayout();
   const isCompact = density === "compact";
+  const isPoster = sessionsLayout === "poster";
   const [sessions, setSessions] = useState(initialSessions);
+  const [starredIds, setStarredIds] = useState<string[]>([]);
   const [photoMap, setPhotoMap] = useState(initialPhotoMap);
   const [headshotMap, setHeadshotMap] = useState(initialHeadshotMap);
   const [cursor, setCursor] = useState(initialCursor);
@@ -83,6 +103,7 @@ export function SessionGrid({
   useEffect(() => { setPhotoMap(initialPhotoMap); }, [initialPhotoMap]);
   useEffect(() => { setHeadshotMap(initialHeadshotMap); }, [initialHeadshotMap]);
   useEffect(() => { setCursor(initialCursor); }, [initialCursor]);
+  useEffect(() => { setStarredIds(getStarred("sessions")); }, []);
 
   // Restore scroll on return from detail page
   useEffect(() => {
@@ -127,6 +148,30 @@ export function SessionGrid({
   function handleCardClick() {
     updateBrowseScrollY(window.scrollY, SESSION_BROWSE_KEY);
   }
+
+  function handleToggleStar(id: string) {
+    toggleStar("sessions", id);
+    setStarredIds(getStarred("sessions"));
+  }
+
+  const filtersActive = hasActiveFilters(filters);
+
+  const starredItems = useMemo(
+    () =>
+      sessions
+        .filter((s) => starredIds.includes(s.id))
+        .sort((a, b) => starredIds.indexOf(a.id) - starredIds.indexOf(b.id))
+        .map((s) => ({
+          id: s.id,
+          href: `/sessions/${s.id}`,
+          photo: photoMap[s.id]
+            ? { thumbUrl: photoMap[s.id].url, focalX: photoMap[s.id].focalX, focalY: photoMap[s.id].focalY }
+            : undefined,
+          label: s.name,
+          sublabel: s.label?.name,
+        })),
+    [sessions, starredIds, photoMap],
+  );
 
   const handleLoadMore = useCallback(() => {
     if (!cursor || isPending) return;
@@ -174,10 +219,36 @@ export function SessionGrid({
     );
   }
 
+  const gridClass = cn(
+    "grid",
+    isPoster
+      ? isCompact
+        ? "gap-2 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6"
+        : "gap-3 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6"
+      : cn(
+          "gap-4",
+          isCompact
+            ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6"
+            : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4",
+        ),
+  );
+
   return (
     <div className="space-y-4">
-      {/* Select mode toggle */}
-      <div className="flex justify-end">
+      {/* Starred strip */}
+      {!filtersActive && (
+        <StarredItemsStrip
+          items={starredItems}
+          onUnstar={handleToggleStar}
+          aspectRatio="4/3"
+        />
+      )}
+
+      {/* Section label + select toggle */}
+      <div className="flex items-center justify-between">
+        <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground/50">
+          {filtersActive ? `Filtered (${totalCount})` : `All Sessions (${totalCount})`}
+        </p>
         <Button
           variant={bulk.isSelecting ? "default" : "outline"}
           size="sm"
@@ -188,14 +259,7 @@ export function SessionGrid({
         </Button>
       </div>
 
-      <div
-        className={cn(
-          "grid gap-4",
-          isCompact
-            ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6"
-            : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4",
-        )}
-      >
+      <div className={gridClass}>
         {sessions.map((session) => {
           const isSelected = bulk.selectedIds.has(session.id);
           return (
@@ -218,7 +282,13 @@ export function SessionGrid({
                 className={cn(bulk.isSelecting && isSelected && "ring-2 ring-primary rounded-xl")}
                 onClick={bulk.isSelecting ? undefined : handleCardClick}
               >
-                <SessionCard session={session} coverPhoto={photoMap[session.id]} headshotMap={headshotMap} />
+                <SessionCard
+                  session={session}
+                  coverPhoto={photoMap[session.id]}
+                  headshotMap={headshotMap}
+                  isStarred={starredIds.includes(session.id)}
+                  onToggleStar={handleToggleStar}
+                />
               </div>
             </div>
           );
