@@ -146,9 +146,10 @@ export function SetCard({
   onToggleStar,
 }: SetCardProps) {
   const { density } = useDensity();
-  const { setsLayout } = useBrowserLayout();
+  const { setsLayout, setsCoverAspect } = useBrowserLayout();
   const isCompact = density === "compact";
   const isPoster = setsLayout === "poster";
+  const isPortrait = isPoster && setsCoverAspect === "portrait";
   const isPhoto = set.type === "photo";
 
   const dateStr = formatPartialDateISO(set.releaseDate, set.releaseDatePrecision);
@@ -262,8 +263,8 @@ export function SetCard({
             "group-focus-visible:ring-2 group-focus-visible:ring-ring group-focus-visible:ring-offset-2",
           )}
         >
-          {/* Cover — landscape aspect */}
-          <div className="relative aspect-[4/3] overflow-hidden bg-muted/30">
+          {/* Cover — aspect depends on user preference */}
+          <div className={cn("relative overflow-hidden bg-muted/30", isPortrait ? "aspect-[2/3]" : "aspect-[4/3]")}>
             {coverPhoto ? (
               <Image
                 src={coverPhoto.url}

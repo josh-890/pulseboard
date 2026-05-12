@@ -16,7 +16,7 @@ type StarredItem = {
 type StarredItemsStripProps = {
   items: StarredItem[];
   onUnstar: (id: string) => void;
-  aspectRatio?: "2/3" | "4/3";
+  aspectRatio?: "2/3" | "4/3" | "1/1";
   className?: string;
 };
 
@@ -28,7 +28,8 @@ export function StarredItemsStrip({
 }: StarredItemsStripProps) {
   if (items.length === 0) return null;
 
-  const cardWidth = aspectRatio === "2/3" ? 72 : 112;
+  const cardWidth = aspectRatio === "2/3" ? 72 : aspectRatio === "4/3" ? 112 : 90;
+  const aspectClass = aspectRatio === "2/3" ? "aspect-[2/3]" : aspectRatio === "4/3" ? "aspect-[4/3]" : "aspect-square";
 
   return (
     <div className={cn("mb-5", className)}>
@@ -45,7 +46,7 @@ export function StarredItemsStrip({
               <div
                 className={cn(
                   "overflow-hidden rounded-lg bg-muted/50 mb-1 relative",
-                  aspectRatio === "2/3" ? "aspect-[2/3]" : "aspect-[4/3]",
+                  aspectClass,
                 )}
               >
                 {item.photo ? (

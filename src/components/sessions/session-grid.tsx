@@ -84,7 +84,7 @@ export function SessionGrid({
   filters,
 }: SessionGridProps) {
   const { density } = useDensity();
-  const { sessionsLayout } = useBrowserLayout();
+  const { sessionsLayout, sessionsCoverAspect } = useBrowserLayout();
   const isCompact = density === "compact";
   const isPoster = sessionsLayout === "poster";
   const [sessions, setSessions] = useState(initialSessions);
@@ -240,7 +240,7 @@ export function SessionGrid({
         <StarredItemsStrip
           items={starredItems}
           onUnstar={handleToggleStar}
-          aspectRatio="4/3"
+          aspectRatio={sessionsCoverAspect === "portrait" ? "2/3" : "4/3"}
         />
       )}
 

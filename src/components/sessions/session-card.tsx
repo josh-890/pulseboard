@@ -140,9 +140,10 @@ export function SessionCard({
   onToggleStar,
 }: SessionCardProps) {
   const { density } = useDensity();
-  const { sessionsLayout } = useBrowserLayout();
+  const { sessionsLayout, sessionsCoverAspect } = useBrowserLayout();
   const isCompact = density === "compact";
   const isPoster = sessionsLayout === "poster";
+  const isPortrait = isPoster && sessionsCoverAspect === "portrait";
 
   const mediaCount = session._count.mediaItems;
   const photoSetCount = session.setSessionLinks.filter((l) => l.set.type === "photo").length;
@@ -208,8 +209,8 @@ export function SessionCard({
             "group-focus-visible:ring-2 group-focus-visible:ring-ring group-focus-visible:ring-offset-2",
           )}
         >
-          {/* Cover — landscape aspect */}
-          <div className="relative aspect-[4/3] overflow-hidden bg-muted/30">
+          {/* Cover — aspect depends on user preference */}
+          <div className={cn("relative overflow-hidden bg-muted/30", isPortrait ? "aspect-[2/3]" : "aspect-[4/3]")}>
             {coverPhoto ? (
               <Image
                 src={coverPhoto.url}

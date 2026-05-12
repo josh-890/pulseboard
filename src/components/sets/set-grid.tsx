@@ -91,7 +91,7 @@ export function SetGrid({
   duplicatePairMap,
 }: SetGridProps) {
   const { density } = useDensity();
-  const { setsLayout } = useBrowserLayout();
+  const { setsLayout, setsCoverAspect } = useBrowserLayout();
   const isCompact = density === "compact";
   const isPoster = setsLayout === "poster";
   const [sets, setSets] = useState(initialSets);
@@ -247,7 +247,7 @@ export function SetGrid({
         <StarredItemsStrip
           items={starredItems}
           onUnstar={handleToggleStar}
-          aspectRatio="4/3"
+          aspectRatio={setsCoverAspect === "portrait" ? "2/3" : "4/3"}
         />
       )}
 
