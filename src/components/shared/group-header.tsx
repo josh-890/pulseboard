@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -9,6 +10,7 @@ type GroupHeaderProps = {
   level?: 1 | 2;
   collapsed: boolean;
   onToggle: () => void;
+  icon?: ReactNode;
   className?: string;
 };
 
@@ -18,6 +20,7 @@ export function GroupHeader({
   level = 1,
   collapsed,
   onToggle,
+  icon,
   className,
 }: GroupHeaderProps) {
   if (level === 2) {
@@ -36,6 +39,7 @@ export function GroupHeader({
         ) : (
           <ChevronDown size={11} className="shrink-0" />
         )}
+        {icon}
         <span className="font-medium">{label}</span>
         <span className="text-[10px] tabular-nums opacity-50">{count}</span>
         <div className="ml-2 flex-1 border-t border-dashed border-white/10" />
@@ -59,6 +63,7 @@ export function GroupHeader({
       ) : (
         <ChevronDown size={14} className="shrink-0 text-muted-foreground" />
       )}
+      {icon}
       <span className="text-sm font-semibold">{label}</span>
       <span className="rounded-full bg-muted/60 px-2 py-0.5 text-[11px] font-medium text-muted-foreground tabular-nums">
         {count}

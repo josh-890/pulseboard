@@ -8,6 +8,7 @@ import { useBrowserLayout } from "@/components/layout/browser-layout-provider";
 import { getStarred, toggleStar } from "@/lib/browser-stars";
 import { StarredItemsStrip } from "@/components/shared/starred-items-strip";
 import { GroupHeader } from "@/components/shared/group-header";
+import { FlagImage } from "@/components/shared/flag-image";
 import { cn } from "@/lib/utils";
 import { computeAgeFromPartialDate, computeAgeAtEvent } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -111,7 +112,7 @@ function getSortMode(groupBy: PeopleGroupBy) {
   return "alpha" as const;
 }
 
-function filtersToRecord(filters: PersonFilters): Record<string, string> {
+function filtersToRecord(filters: PersonFilters, groupBy = "none"): Record<string, string> {
   const result: Record<string, string> = {};
   if (filters.q) result.q = filters.q;
   if (filters.status) result.status = filters.status;
@@ -122,6 +123,7 @@ function filtersToRecord(filters: PersonFilters): Record<string, string> {
   if (filters.completeness) result.completeness = filters.completeness;
   if (filters.bodyRegions?.length) result.bodyRegions = filters.bodyRegions.join(",");
   if (filters.bodyRegionMatch) result.bodyRegionMatch = filters.bodyRegionMatch;
+  if (groupBy !== "none") result.groupBy = groupBy;
   return result;
 }
 
@@ -174,9 +176,22 @@ export function PersonList({
   const groups = useMemo(() => {
     if (groupBy === "none") return null;
     const raw = computeGroups(persons, (p) => getPersonGroupKey(p, groupBy));
+    if (groupBy === "nationality") {
+      return raw.sort((a, b) => {
+        if (a.key === "Unknown") return 1;
+        if (b.key === "Unknown") return -1;
+        return b.items.length - a.items.length;
+      });
+    }
     const sortedKeys = sortGroupKeys(raw.map((g) => g.key), getSortMode(groupBy));
     return sortedKeys.map((key) => raw.find((g) => g.key === key)!).filter(Boolean);
   }, [persons, groupBy]);
+
+  // In grouped mode, flatten groups in visual order for correct browse context sequencing
+  const orderedPersons = useMemo(() => {
+    if (!groups || groupBy === "none") return persons;
+    return groups.flatMap((g) => g.items);
+  }, [groups, groupBy, persons]);
 
   useEffect(() => { setPersons(initialPersons); }, [initialPersons]);
   useEffect(() => { setPhotoMap(initialPhotoMap); }, [initialPhotoMap]);
@@ -188,11 +203,11 @@ export function PersonList({
     hasRestoredScroll.current = true;
     const ctx = loadBrowseContext();
     if (!ctx) return;
-    if (!filtersMatch(filtersToRecord(filters), ctx.filters)) return;
+    if (!filtersMatch(filtersToRecord(filters, groupBy), ctx.filters)) return;
     if (ctx.scrollY > 0) {
       requestAnimationFrame(() => { window.scrollTo(0, ctx.scrollY); });
     }
-  }, [filters]);
+  }, [filters, groupBy]);
 
   const saveBrowseContextFromState = useCallback(
     (currentPersons: PersonWithCommonAlias[], currentCursor: string | null) => {
@@ -201,24 +216,24 @@ export function PersonList({
         names: currentPersons.map((p) => truncateName(p.commonAlias ?? p.icgId)),
         nextCursor: currentCursor,
         totalCount,
-        filters: filtersToRecord(filters),
+        filters: filtersToRecord(filters, groupBy),
         slot,
         scrollY: 0,
       });
     },
-    [totalCount, filters, slot],
+    [totalCount, filters, slot, groupBy],
   );
 
   useEffect(() => {
     if (isInitialMount.current) {
       isInitialMount.current = false;
       const ctx = loadBrowseContext();
-      if (ctx && filtersMatch(filtersToRecord(filters), ctx.filters) && ctx.ids.length > persons.length) {
+      if (ctx && filtersMatch(filtersToRecord(filters, groupBy), ctx.filters) && ctx.ids.length > orderedPersons.length) {
         return;
       }
     }
-    saveBrowseContextFromState(persons, cursor);
-  }, [persons, cursor, saveBrowseContextFromState, filters]);
+    saveBrowseContextFromState(orderedPersons, cursor);
+  }, [orderedPersons, cursor, saveBrowseContextFromState, filters, groupBy]);
 
   function handleCardClick() {
     updateBrowseScrollY(window.scrollY);
@@ -339,6 +354,11 @@ export function PersonList({
                   level={1}
                   collapsed={collapsed}
                   onToggle={() => toggle(group.key)}
+                  icon={
+                    groupBy === "nationality" && group.key !== "Unknown"
+                      ? <FlagImage code={group.key} size={18} className="shrink-0" />
+                      : undefined
+                  }
                 />
                 {!collapsed && (
                   <div className={gridClass}>
