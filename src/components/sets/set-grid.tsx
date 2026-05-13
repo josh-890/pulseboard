@@ -1,13 +1,15 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
-import { ImageIcon, Loader2, CheckSquare } from "lucide-react";
+import { ImageIcon, Loader2, CheckSquare, ChevronsDownUp, ChevronsUpDown } from "lucide-react";
 import { SetCard } from "./set-card";
 import { useDensity } from "@/components/layout/density-provider";
 import { useBrowserLayout } from "@/components/layout/browser-layout-provider";
 import { getStarred, toggleStar } from "@/lib/browser-stars";
 import { StarredItemsStrip } from "@/components/shared/starred-items-strip";
+import { GroupHeader } from "@/components/shared/group-header";
 import { cn } from "@/lib/utils";
+import { computeAgeAtEvent } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { loadMoreSets } from "@/lib/actions/set-actions";
 import type { getSets } from "@/lib/services/set-service";
@@ -23,6 +25,8 @@ import {
   filtersMatch,
   SET_BROWSE_KEY,
 } from "@/lib/browse-context";
+import { computeGroups, buildNestedGroups, sortGroupKeys } from "@/lib/grouping";
+import { useCollapseState } from "@/hooks/use-collapse-state";
 
 type SetItem = Awaited<ReturnType<typeof getSets>>[number];
 
@@ -53,6 +57,14 @@ type HeadshotData = {
   focalY: number | null;
 };
 
+type SetsGroupBy =
+  | "none"
+  | "year"
+  | "channel"
+  | "channel_year"
+  | "label"
+  | "youngest_age";
+
 type SetGridProps = {
   sets: SetItem[];
   photoMap: Record<string, CoverPhotoData>;
@@ -60,11 +72,76 @@ type SetGridProps = {
   nextCursor: string | null;
   totalCount: number;
   filters: SetFilters;
+  groupBy?: string;
   /** Keyed by set ID — only populated for the initial page load */
   suggestionsMap?: Record<string, SuggestedFolderInfo>;
   /** Keyed by set ID → partner set ID. Present only when duplicate filter is active. */
   duplicatePairMap?: Record<string, string>;
 };
+
+function getSetGroupKey(set: SetItem, groupBy: SetsGroupBy): string {
+  switch (groupBy) {
+    case "year":
+      return set.releaseDate ? String(new Date(set.releaseDate).getUTCFullYear()) : "Undated";
+
+    case "channel":
+      return set.channel?.name ?? "No Channel";
+
+    case "label": {
+      const labelName = set.channel?.labelMaps[0]?.label?.name;
+      return labelName ?? "No Label";
+    }
+
+    case "youngest_age": {
+      const ages: number[] = [];
+      for (const p of set.participants) {
+        if (!p.person.birthdate || !set.releaseDate) continue;
+        const ageStr = computeAgeAtEvent(
+          p.person.birthdate,
+          p.person.birthdatePrecision ?? "DAY",
+          set.releaseDate,
+          set.releaseDatePrecision ?? "DAY",
+        );
+        const age = parseInt(ageStr.replace("~", ""));
+        if (!isNaN(age)) ages.push(age);
+      }
+      if (ages.length === 0) return "Unknown";
+      const min = Math.min(...ages);
+      if (min < 20) return "Under 20";
+      if (min < 25) return "20–25";
+      if (min < 30) return "25–30";
+      if (min < 35) return "30–35";
+      return "35+";
+    }
+
+    default:
+      return "";
+  }
+}
+
+const YOUNGEST_AGE_ORDER = ["Under 20", "20–25", "25–30", "30–35", "35+", "Unknown"];
+
+function getSortMode(groupBy: SetsGroupBy) {
+  if (groupBy === "year") return "year" as const;
+  if (groupBy === "youngest_age") return "alpha" as const;
+  return "alpha" as const;
+}
+
+function sortYearKeys(keys: string[]): string[] {
+  return [...keys].sort((a, b) => {
+    if (a === "Undated") return 1;
+    if (b === "Undated") return -1;
+    return parseInt(b) - parseInt(a);
+  });
+}
+
+function sortYoungestAgeKeys(keys: string[]): string[] {
+  return [...keys].sort((a, b) => {
+    const ai = YOUNGEST_AGE_ORDER.indexOf(a);
+    const bi = YOUNGEST_AGE_ORDER.indexOf(b);
+    return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
+  });
+}
 
 function hasActiveFilters(filters: SetFilters): boolean {
   return !!(
@@ -88,8 +165,10 @@ export function SetGrid({
   nextCursor: initialCursor,
   totalCount,
   filters,
+  groupBy: groupByProp = "none",
   duplicatePairMap,
 }: SetGridProps) {
+  const groupBy = groupByProp as SetsGroupBy;
   const { density } = useDensity();
   const { setsLayout, setsCoverAspect } = useBrowserLayout();
   const isCompact = density === "compact";
@@ -105,6 +184,38 @@ export function SetGrid({
   const sentinelRef = useRef<HTMLDivElement>(null);
   const loadMoreFnRef = useRef<() => void>(() => {});
   const bulk = useBulkSelection();
+  const { isCollapsed, toggle, collapseAll, expandAll, defaultCollapsed } = useCollapseState(
+    "pulseboard-sets-groups",
+    groupBy,
+  );
+
+  const groups = useMemo(() => {
+    if (groupBy === "none") return null;
+    if (groupBy === "channel_year") {
+      const nested = buildNestedGroups(
+        sets,
+        (s) => s.channel?.name ?? "No Channel",
+        (s) => s.releaseDate ? String(new Date(s.releaseDate).getUTCFullYear()) : "Undated",
+      );
+      const sortedChannels = sortGroupKeys(nested.map((g) => g.key), "alpha");
+      return sortedChannels.map((key) => {
+        const outer = nested.find((g) => g.key === key)!;
+        const sortedYears = sortYearKeys(outer.subGroups?.map((sg) => sg.label) ?? []);
+        const sortedSubGroups = sortedYears
+          .map((y) => (outer.subGroups ?? []).find((sg) => sg.label === y))
+          .filter((sg): sg is NonNullable<typeof sg> => sg !== undefined);
+        return { ...outer, subGroups: sortedSubGroups };
+      }).filter(Boolean);
+    }
+    const raw = computeGroups(sets, (s) => getSetGroupKey(s, groupBy));
+    const keys = raw.map((g) => g.key);
+    const sortedKeys = groupBy === "year"
+      ? sortYearKeys(keys)
+      : groupBy === "youngest_age"
+        ? sortYoungestAgeKeys(keys)
+        : sortGroupKeys(keys, getSortMode(groupBy));
+    return sortedKeys.map((key) => raw.find((g) => g.key === key)!).filter(Boolean);
+  }, [sets, groupBy]);
 
   useEffect(() => { setSets(initialSets); }, [initialSets]);
   useEffect(() => { setPhotoMap(initialPhotoMap); }, [initialPhotoMap]);
@@ -240,6 +351,119 @@ export function SetGrid({
         ),
   );
 
+  // ── Grouped render mode ──────────────────────────────────────────────────────
+  if (groupBy !== "none" && groups) {
+    return (
+      <div className="space-y-4">
+        {/* Collapse / expand all */}
+        <div className="flex items-center justify-between">
+          <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground/50">
+            {groups.length} {groups.length === 1 ? "group" : "groups"} · {totalCount}{" "}
+            {totalCount === 1 ? "set" : "sets"}
+          </p>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={defaultCollapsed ? expandAll : collapseAll}
+            className="h-7 gap-1.5 border-white/20 bg-card/50 text-xs text-muted-foreground hover:text-foreground"
+          >
+            {defaultCollapsed ? (
+              <><ChevronsUpDown size={12} /> Expand all</>
+            ) : (
+              <><ChevronsDownUp size={12} /> Collapse all</>
+            )}
+          </Button>
+        </div>
+
+        {/* Grouped sections */}
+        <div className="space-y-2">
+          {groups.map((group) => {
+            const collapsed = isCollapsed(group.key);
+            // Channel → Year: nested groups
+            if (groupBy === "channel_year" && group.subGroups) {
+              return (
+                <div key={group.key} className="space-y-2">
+                  <GroupHeader
+                    label={group.label}
+                    count={group.items.length}
+                    level={1}
+                    collapsed={collapsed}
+                    onToggle={() => toggle(group.key)}
+                  />
+                  {!collapsed && (
+                    <div className="space-y-2 pl-4">
+                      {group.subGroups.map((sub) => {
+                        const subCollapsed = isCollapsed(sub.key);
+                        return (
+                          <div key={sub.key} className="space-y-2">
+                            <GroupHeader
+                              label={sub.label}
+                              count={sub.items.length}
+                              level={2}
+                              collapsed={subCollapsed}
+                              onToggle={() => toggle(sub.key)}
+                            />
+                            {!subCollapsed && (
+                              <div className={gridClass}>
+                                {sub.items.map((set) => (
+                                  <SetCard
+                                    key={set.id}
+                                    set={set}
+                                    coverPhoto={photoMap[set.id]}
+                                    headshotMap={headshotMap}
+                                    unresolvedCreditCount={set._count.creditsRaw}
+                                    suggestedArchiveFolder={suggestionsMap[set.id] ?? null}
+                                    isPotentialDuplicate={!!duplicatePairMap?.[set.id]}
+                                    isStarred={starredIds.includes(set.id)}
+                                    onToggleStar={handleToggleStar}
+                                  />
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            }
+            // Flat groups
+            return (
+              <div key={group.key} className="space-y-2">
+                <GroupHeader
+                  label={group.label}
+                  count={group.items.length}
+                  level={1}
+                  collapsed={collapsed}
+                  onToggle={() => toggle(group.key)}
+                />
+                {!collapsed && (
+                  <div className={gridClass}>
+                    {group.items.map((set) => (
+                      <SetCard
+                        key={set.id}
+                        set={set}
+                        coverPhoto={photoMap[set.id]}
+                        headshotMap={headshotMap}
+                        unresolvedCreditCount={set._count.creditsRaw}
+                        suggestedArchiveFolder={suggestionsMap[set.id] ?? null}
+                        isPotentialDuplicate={!!duplicatePairMap?.[set.id]}
+                        isStarred={starredIds.includes(set.id)}
+                        onToggleStar={handleToggleStar}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
+  // ── Flat (ungrouped) render mode — existing behavior ─────────────────────────
   return (
     <div className="space-y-4">
       {/* Starred strip */}

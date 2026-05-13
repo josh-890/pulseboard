@@ -42,6 +42,7 @@ type PeoplePageProps = {
     birthdateTo?: string;
     createdFrom?: string;
     createdTo?: string;
+    groupBy?: string;
   }>;
 };
 
@@ -52,6 +53,18 @@ const VALID_SORTS = new Set<string>([
   "completeness-asc", "completeness-desc",
 ]);
 const VALID_COMPLETENESS = new Set<string>(["low", "medium", "high"]);
+const VALID_GROUP_BYS = new Set<string>([
+  "none", "nationality", "career_decade", "name_az", "age_current", "age_career_start",
+]);
+
+const PEOPLE_GROUP_OPTIONS = [
+  { value: "none", label: "No grouping" },
+  { value: "nationality", label: "Nationality" },
+  { value: "career_decade", label: "Career decade" },
+  { value: "name_az", label: "Name A–Z" },
+  { value: "age_current", label: "Current age" },
+  { value: "age_career_start", label: "Age at career start" },
+];
 
 function isPersonStatus(value: string): value is PersonStatus {
   return VALID_STATUSES.has(value);
@@ -88,12 +101,14 @@ export default async function PeoplePage({ searchParams }: PeoplePageProps) {
       slot: slotParam, sort: sortParam, completeness: completenessParam,
       birthdateFrom: birthdateFromParam, birthdateTo: birthdateToParam,
       createdFrom: createdFromParam, createdTo: createdToParam,
+      groupBy: groupByParam,
     } = await searchParams;
 
-  const limit = Math.min(
-    Math.max(PAGE_SIZE, parseInt(loaded ?? "", 10) || PAGE_SIZE),
-    MAX_LOADED,
-  );
+  const groupBy = groupByParam && VALID_GROUP_BYS.has(groupByParam) ? groupByParam : "none";
+
+  const limit = groupBy !== "none"
+    ? MAX_LOADED
+    : Math.min(Math.max(PAGE_SIZE, parseInt(loaded ?? "", 10) || PAGE_SIZE), MAX_LOADED);
 
   const resolvedStatus =
     status && isPersonStatus(status) ? status : undefined;
@@ -241,6 +256,8 @@ export default async function PeoplePage({ searchParams }: PeoplePageProps) {
     resultCount: paginated.items.length,
     totalCount: paginated.totalCount,
     browseContextKey: "pulseboard-browse-context",
+    groupByOptions: PEOPLE_GROUP_OPTIONS,
+    defaultGroupBy: "none",
   };
 
   return (
@@ -276,13 +293,14 @@ export default async function PeoplePage({ searchParams }: PeoplePageProps) {
 
       {/* People grid */}
       <PersonList
-        key={JSON.stringify(filters)}
+        key={JSON.stringify(filters) + groupBy}
         persons={paginated.items}
         photoMap={photoMap}
         nextCursor={paginated.nextCursor}
         totalCount={paginated.totalCount}
         filters={filters}
         slot={slot}
+        groupBy={groupBy}
       />
     </div>
     );

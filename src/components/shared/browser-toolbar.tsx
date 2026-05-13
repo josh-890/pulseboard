@@ -11,6 +11,7 @@ import {
   FilterX,
   Calendar,
   User,
+  Layers,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -75,6 +76,11 @@ type TypeaheadFilter = {
 
 type FilterGroup = PillFilter | FacetFilter | ToggleFilter | DateRangeFilter | TypeaheadFilter;
 
+type GroupByOption = {
+  value: string;
+  label: string;
+};
+
 type BrowserToolbarConfig = {
   basePath: string;
   searchPlaceholder: string;
@@ -85,6 +91,9 @@ type BrowserToolbarConfig = {
   totalCount: number;
   /** sessionStorage key for the browse context — used to clear it on filter reset */
   browseContextKey?: string;
+  /** When provided, renders a "Group by" dropdown next to the sort control. */
+  groupByOptions?: GroupByOption[];
+  defaultGroupBy?: string;
 };
 
 export type {
@@ -96,6 +105,7 @@ export type {
   DateRangeFilter,
   TypeaheadFilter,
   SortOption,
+  GroupByOption,
 };
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -127,6 +137,10 @@ export function BrowserToolbar({ config, children }: BrowserToolbarProps) {
 
   // Current sort
   const currentSort = searchParams.get("sort") ?? defaultSort;
+
+  // Current groupBy
+  const defaultGroupBy = config.defaultGroupBy ?? "none";
+  const currentGroupBy = searchParams.get("groupBy") ?? defaultGroupBy;
 
   // Helper to update URL params
   const updateParams = useCallback(
@@ -209,6 +223,16 @@ export function BrowserToolbar({ config, children }: BrowserToolbarProps) {
       handleSearchClear();
       searchInputRef.current?.blur();
     }
+  }
+
+  function handleGroupByChange(value: string) {
+    updateParams((params) => {
+      if (!value || value === defaultGroupBy) {
+        params.delete("groupBy");
+      } else {
+        params.set("groupBy", value);
+      }
+    });
   }
 
   function handleSortChange(value: string) {
@@ -320,6 +344,7 @@ export function BrowserToolbar({ config, children }: BrowserToolbarProps) {
   const hasActiveFilters =
     activeChips.length > 0 ||
     currentSort !== defaultSort ||
+    currentGroupBy !== defaultGroupBy ||
     searchParams.has("q");
 
   function handleClearAll() {
@@ -382,6 +407,15 @@ export function BrowserToolbar({ config, children }: BrowserToolbarProps) {
           currentLabel={currentSortLabel}
           onChange={handleSortChange}
         />
+
+        {/* Group by dropdown (optional) */}
+        {config.groupByOptions && config.groupByOptions.length > 0 && (
+          <GroupByDropdown
+            options={config.groupByOptions}
+            currentValue={currentGroupBy}
+            onChange={handleGroupByChange}
+          />
+        )}
 
         {/* Filter groups */}
         {filterGroups.map((group) => {
@@ -507,6 +541,12 @@ export function BrowserToolbar({ config, children }: BrowserToolbarProps) {
             <span className="inline-flex items-center gap-1 rounded-full border border-white/15 bg-muted/50 px-2.5 py-1 text-xs font-medium text-muted-foreground">
               <ArrowUpDown size={10} />
               {currentSortLabel}
+            </span>
+          )}
+          {currentGroupBy !== defaultGroupBy && (
+            <span className="inline-flex items-center gap-1 rounded-full border border-white/15 bg-muted/50 px-2.5 py-1 text-xs font-medium text-muted-foreground">
+              <Layers size={10} />
+              {config.groupByOptions?.find((o) => o.value === currentGroupBy)?.label ?? currentGroupBy}
             </span>
           )}
           {activeChips.map((chip) => (
@@ -751,6 +791,68 @@ function DateRangeDropdown({
             </button>
           )}
         </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+function GroupByDropdown({
+  options,
+  currentValue,
+  onChange,
+}: {
+  options: GroupByOption[];
+  currentValue: string;
+  onChange: (value: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const activeOption = options.find((o) => o.value === currentValue);
+  const isGrouped = currentValue !== "none" && !!currentValue;
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          variant="outline"
+          size="sm"
+          className={cn(
+            "h-8 gap-1.5 text-xs",
+            isGrouped
+              ? "border-primary/30 bg-primary/10 text-primary hover:bg-primary/20"
+              : "border-white/20 bg-card/50 text-muted-foreground hover:border-white/30 hover:bg-card/80 hover:text-foreground",
+          )}
+        >
+          <Layers size={12} />
+          {isGrouped ? activeOption?.label : "Group by"}
+          <ChevronDown size={12} />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-[200px] p-0" align="start">
+        <Command>
+          <CommandList>
+            <CommandGroup>
+              {options.map((option) => (
+                <CommandItem
+                  key={option.value}
+                  value={option.value}
+                  onSelect={() => {
+                    onChange(option.value);
+                    setOpen(false);
+                  }}
+                >
+                  <Check
+                    size={14}
+                    className={cn(
+                      "mr-2",
+                      currentValue === option.value ? "opacity-100" : "opacity-0",
+                    )}
+                  />
+                  {option.label}
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </CommandList>
+        </Command>
       </PopoverContent>
     </Popover>
   );

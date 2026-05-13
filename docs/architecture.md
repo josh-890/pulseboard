@@ -247,7 +247,7 @@ components/
 ├── staging-sets/     # StagingSetsWorkspace, StagingSetFilterBar, StagingSetGrid, StagingSetRow (inline archive section), ArchiveFolderPicker (sheet for linking unlinked folders)
 ├── import/           # ImportWorkspace, ImportItemDetail, ImportStatusBadge, ImportUploadZone, ImportBatchList
 ├── settings/         # SkillCatalogManager, MediaCategoryManager, ContributionRoleManager
-├── shared/           # TagInput, TagPicker, TagChips, PartialDateInput (supports modifier+source props), CountryPicker, EntityCombobox, DeleteButton, BrowserToolbar, BodyRegionPicker, FlagImage
+├── shared/           # TagInput, TagPicker, TagChips, PartialDateInput (supports modifier+source props), CountryPicker, EntityCombobox, DeleteButton, BrowserToolbar (+ GroupBy dropdown), BodyRegionPicker, FlagImage, GroupHeader (collapsible section header, level 1 + 2)
 └── ui/               # shadcn/ui primitives (auto-generated, do not edit)
 ```
 
@@ -316,13 +316,24 @@ page.tsx (Server Component — calls refreshBatchMatches)
 
 | Pattern | Where Used | Mechanism |
 |---------|-----------|-----------|
-| URL searchParams | `/people`, `/sets`, `/sessions`, `/projects` filters | `useSearchParams()` + `router.push()` |
+| URL searchParams | `/people`, `/sets`, `/sessions`, `/projects` filters, sort, groupBy | `useSearchParams()` + `router.push()` |
 | React `useState` | Modals, selections, form inputs, lightbox index | Local component state |
 | React Context | Theme, palette, density, hero layout, sidebar | Provider components in `layout/` |
 | Server revalidation | After all mutations | `revalidatePath()` in server actions |
 | Optimistic UI | Focal point setting, tag edits | Local state updated before server confirms |
+| sessionStorage | Group collapse state (people/sets browsers) | `useCollapseState(storageKey, groupBy)` — dual-mode (defaultCollapsed + exceptions Set); keyed by `${storageKey}:${groupBy}` |
 
 No external state library (Redux, Zustand, etc.).
+
+### Grouping Architecture
+
+Browser pages (`/people`, `/sets`) support a `groupBy` URL param. When active:
+- Server loads up to 500 items (instead of the default 50-per-page cursor)
+- Client groups the flat array using `computeGroups` / `buildNestedGroups` from `src/lib/grouping.ts`
+- `sortGroupKeys` orders sections (alpha, year/newest-first, age-bracket order)
+- `GroupHeader` renders collapsible section headers (level 1 = primary, level 2 = nested sub-sections)
+- `useCollapseState` manages expand/collapse per section, persisted to sessionStorage
+- Infinite scroll is disabled when groupBy is active (all items loaded at once)
 
 ---
 

@@ -37,6 +37,7 @@ type SetsPageProps = {
     releaseDateTo?: string;
     createdFrom?: string;
     createdTo?: string;
+    groupBy?: string;
   }>;
 };
 
@@ -44,6 +45,19 @@ const VALID_TYPES = new Set<string>(["photo", "video"]);
 const VALID_SORTS = new Set<string>([
   "date-desc", "date-asc", "title-asc", "title-desc", "newest", "media-desc", "updated",
 ]);
+
+const VALID_GROUP_BYS = new Set<string>([
+  "none", "year", "channel", "channel_year", "label", "youngest_age",
+]);
+
+const SETS_GROUP_OPTIONS = [
+  { value: "none", label: "No grouping" },
+  { value: "year", label: "Year" },
+  { value: "channel", label: "Channel" },
+  { value: "channel_year", label: "Channel → Year" },
+  { value: "label", label: "Label" },
+  { value: "youngest_age", label: "Youngest participant" },
+];
 
 function isSetType(value: string): value is SetType {
   return VALID_TYPES.has(value);
@@ -83,12 +97,14 @@ export default async function SetsPage({ searchParams }: SetsPageProps) {
       releaseDateTo: releaseDateToParam,
       createdFrom: createdFromParam,
       createdTo: createdToParam,
+      groupBy: groupByParam,
     } = await searchParams;
 
-  const limit = Math.min(
-    Math.max(PAGE_SIZE, parseInt(loaded ?? "", 10) || PAGE_SIZE),
-    MAX_LOADED,
-  );
+  const groupBy = groupByParam && VALID_GROUP_BYS.has(groupByParam) ? groupByParam : "none";
+
+  const limit = groupBy !== "none"
+    ? MAX_LOADED
+    : Math.min(Math.max(PAGE_SIZE, parseInt(loaded ?? "", 10) || PAGE_SIZE), MAX_LOADED);
 
   const resolvedType = type && isSetType(type) ? type : undefined;
   const resolvedSort = sortParam && isSetSort(sortParam) ? sortParam : undefined;
@@ -279,6 +295,8 @@ export default async function SetsPage({ searchParams }: SetsPageProps) {
     resultCount: paginated.items.length,
     totalCount: paginated.totalCount,
     browseContextKey: "pulseboard-set-browse-context",
+    groupByOptions: SETS_GROUP_OPTIONS,
+    defaultGroupBy: "none",
   };
 
   return (
@@ -318,7 +336,7 @@ export default async function SetsPage({ searchParams }: SetsPageProps) {
 
       {/* Grid */}
       <SetGrid
-        key={JSON.stringify(filters)}
+        key={JSON.stringify(filters) + groupBy}
         sets={paginated.items}
         photoMap={photoMap}
         headshotMap={headshotMap}
@@ -326,6 +344,7 @@ export default async function SetsPage({ searchParams }: SetsPageProps) {
         nextCursor={paginated.nextCursor}
         totalCount={paginated.totalCount}
         filters={filters}
+        groupBy={groupBy}
         duplicatePairMap={duplicatesOnly ? Object.fromEntries(duplicatePairMap) : undefined}
       />
     </div>

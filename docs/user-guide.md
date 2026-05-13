@@ -69,9 +69,26 @@ The list page shows all persons as cards with headshot thumbnails, names, ICG-ID
 
 **Filters:**
 - **Status** — Active, Inactive, Wishlist, Archived
+- **Profile completeness** — Incomplete / Partial / Complete
+- **Hair Color, Ethnicity, Body Region** — attribute filters
+- **Birthdate / Added** — date range filters
 - **Headshot Slot** — Select which profile image slot (1–5) to display on cards
 
-**Pagination:** 50 persons per page. Click "Load more" to fetch additional results (up to 500).
+**Sorting:** Name A→Z, Name Z→A, Newest/Oldest, Age, Rating, Profile completeness, Recently updated.
+
+**Grouping:** Click the **"Group by"** button to organize people into sections:
+| Option | Description |
+|--------|-------------|
+| No grouping | Default flat list with infinite scroll |
+| Nationality | Grouped by ISO country code |
+| Career decade | Grouped by the decade their career began (2010s, 2020s, …) |
+| Name A–Z | Alphabetical sections (A, B, … Z, #) |
+| Current age | Age brackets: Under 25 / 25–30 / 30–35 / 35–40 / 40+ |
+| Age at career start | Age when career started: Under 18 / 18–20 / 20–25 / 25–30 / 30+ |
+
+When grouping is active, up to 500 persons are loaded at once. Each section header shows the count and can be collapsed/expanded. Use **"Collapse all / Expand all"** to toggle all sections. Collapse state is preserved across page refreshes (sessionStorage).
+
+**Pagination:** 50 persons per page in ungrouped mode. Click "Load more" to fetch additional results (up to 500).
 
 ### Create Person
 
@@ -278,10 +295,26 @@ Hover the dot for a tooltip with folder path and file count.
 - **Type** — Photo, Video, or All
 - **Channel** — filter to a specific channel
 - **Label** — filter by associated label
+- **Person** — filter to sets with a specific participant
+- **Release Date / Added** — date range filters
 - **Has media** — toggle to show only sets with uploaded media
 - **Archive** — No archive, Verified, Changed, Missing, Not imported
 
-**Pagination:** 50 sets per page with "Load more."
+**Sorting:** Newest/Oldest release, Title A→Z/Z→A, Recently added, Recently updated, Most media.
+
+**Grouping:** Click the **"Group by"** button to organize sets into sections:
+| Option | Description |
+|--------|-------------|
+| No grouping | Default flat list with infinite scroll |
+| Year | Release year (newest first, undated last) |
+| Channel | Channel name (alphabetical) |
+| Channel → Year | Two-level: channel sections with year sub-sections |
+| Label | Label name (from channel's primary label mapping) |
+| Youngest participant | Age bracket of youngest participant at time of release |
+
+Channel → Year uses nested section headers (level 1 = channel, level 2 = year) that collapse independently. Youngest participant brackets: Under 20 / 20–25 / 25–30 / 30–35 / 35+. When grouping is active, up to 500 sets are loaded at once.
+
+**Pagination:** 50 sets per page with "Load more" in ungrouped mode.
 
 ### Create Set
 

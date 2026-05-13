@@ -1,13 +1,15 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
-import { Users, Loader2, CheckSquare } from "lucide-react";
+import { Users, Loader2, CheckSquare, ChevronsDownUp, ChevronsUpDown } from "lucide-react";
 import { PersonCard } from "./person-card";
 import { useDensity } from "@/components/layout/density-provider";
 import { useBrowserLayout } from "@/components/layout/browser-layout-provider";
 import { getStarred, toggleStar } from "@/lib/browser-stars";
 import { StarredItemsStrip } from "@/components/shared/starred-items-strip";
+import { GroupHeader } from "@/components/shared/group-header";
 import { cn } from "@/lib/utils";
+import { computeAgeFromPartialDate, computeAgeAtEvent } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { loadMorePersons } from "@/lib/actions/person-actions";
 import type { PersonWithCommonAlias } from "@/lib/types";
@@ -22,12 +24,22 @@ import {
 } from "@/lib/browse-context";
 import { useBulkSelection } from "@/hooks/use-bulk-selection";
 import { BulkSelectionBar } from "@/components/shared/bulk-selection-bar";
+import { computeGroups, sortGroupKeys } from "@/lib/grouping";
+import { useCollapseState } from "@/hooks/use-collapse-state";
 
 type PhotoData = {
   url: string;
   focalX: number | null;
   focalY: number | null;
 };
+
+type PeopleGroupBy =
+  | "none"
+  | "nationality"
+  | "career_decade"
+  | "name_az"
+  | "age_current"
+  | "age_career_start";
 
 type PersonListProps = {
   persons: PersonWithCommonAlias[];
@@ -36,7 +48,68 @@ type PersonListProps = {
   totalCount: number;
   filters: PersonFilters;
   slot?: number;
+  groupBy?: string;
 };
+
+function getPersonGroupKey(person: PersonWithCommonAlias, groupBy: PeopleGroupBy): string {
+  switch (groupBy) {
+    case "nationality":
+      return person.nationality || "Unknown";
+
+    case "career_decade": {
+      if (!person.activeFrom) return "Unknown";
+      const year = new Date(person.activeFrom).getUTCFullYear();
+      const decade = Math.floor(year / 10) * 10;
+      return `${decade}s`;
+    }
+
+    case "name_az": {
+      const name = person.commonAlias ?? person.icgId ?? "";
+      const first = name[0]?.toUpperCase() ?? "";
+      return /^[A-Z]$/.test(first) ? first : "#";
+    }
+
+    case "age_current": {
+      const ageStr = computeAgeFromPartialDate(person.birthdate, person.birthdatePrecision);
+      if (ageStr === "Unknown") return "Unknown";
+      const age = parseInt(ageStr.replace("~", ""));
+      if (isNaN(age)) return "Unknown";
+      if (age < 25) return "Under 25";
+      if (age < 30) return "25–30";
+      if (age < 35) return "30–35";
+      if (age < 40) return "35–40";
+      return "40+";
+    }
+
+    case "age_career_start": {
+      if (!person.birthdate || !person.activeFrom) return "Unknown";
+      const ageStr = computeAgeAtEvent(
+        person.birthdate,
+        person.birthdatePrecision,
+        person.activeFrom,
+        person.activeFromPrecision || "DAY",
+      );
+      if (ageStr === "Unknown") return "Unknown";
+      const age = parseInt(ageStr.replace("~", ""));
+      if (isNaN(age)) return "Unknown";
+      if (age < 18) return "Under 18";
+      if (age < 20) return "18–20";
+      if (age < 25) return "20–25";
+      if (age < 30) return "25–30";
+      return "30+";
+    }
+
+    default:
+      return "";
+  }
+}
+
+function getSortMode(groupBy: PeopleGroupBy) {
+  if (groupBy === "career_decade") return "decade" as const;
+  if (groupBy === "age_current") return "age_bracket" as const;
+  if (groupBy === "age_career_start") return "age_career" as const;
+  return "alpha" as const;
+}
 
 function filtersToRecord(filters: PersonFilters): Record<string, string> {
   const result: Record<string, string> = {};
@@ -75,7 +148,9 @@ export function PersonList({
   totalCount,
   filters,
   slot,
+  groupBy: groupByProp = "none",
 }: PersonListProps) {
+  const groupBy = groupByProp as PeopleGroupBy;
   const { density } = useDensity();
   const { peopleLayout } = useBrowserLayout();
   const isCompact = density === "compact";
@@ -91,6 +166,17 @@ export function PersonList({
   const sentinelRef = useRef<HTMLDivElement>(null);
   const loadMoreFnRef = useRef<() => void>(() => {});
   const bulk = useBulkSelection();
+  const { isCollapsed, toggle, collapseAll, expandAll, defaultCollapsed } = useCollapseState(
+    "pulseboard-people-groups",
+    groupBy,
+  );
+
+  const groups = useMemo(() => {
+    if (groupBy === "none") return null;
+    const raw = computeGroups(persons, (p) => getPersonGroupKey(p, groupBy));
+    const sortedKeys = sortGroupKeys(raw.map((g) => g.key), getSortMode(groupBy));
+    return sortedKeys.map((key) => raw.find((g) => g.key === key)!).filter(Boolean);
+  }, [persons, groupBy]);
 
   useEffect(() => { setPersons(initialPersons); }, [initialPersons]);
   useEffect(() => { setPhotoMap(initialPhotoMap); }, [initialPhotoMap]);
@@ -217,6 +303,72 @@ export function PersonList({
     );
   }
 
+  // ── Grouped render mode ──────────────────────────────────────────────────────
+  if (groupBy !== "none" && groups) {
+    return (
+      <div className="space-y-4">
+        {/* Collapse / expand all */}
+        <div className="flex items-center justify-between">
+          <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground/50">
+            {groups.length} {groups.length === 1 ? "group" : "groups"} · {totalCount}{" "}
+            {totalCount === 1 ? "person" : "people"}
+          </p>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={defaultCollapsed ? expandAll : collapseAll}
+            className="h-7 gap-1.5 border-white/20 bg-card/50 text-xs text-muted-foreground hover:text-foreground"
+          >
+            {defaultCollapsed ? (
+              <><ChevronsUpDown size={12} /> Expand all</>
+            ) : (
+              <><ChevronsDownUp size={12} /> Collapse all</>
+            )}
+          </Button>
+        </div>
+
+        {/* Grouped sections */}
+        <div className="space-y-2">
+          {groups.map((group) => {
+            const collapsed = isCollapsed(group.key);
+            return (
+              <div key={group.key} className="space-y-2">
+                <GroupHeader
+                  label={group.label}
+                  count={group.items.length}
+                  level={1}
+                  collapsed={collapsed}
+                  onToggle={() => toggle(group.key)}
+                />
+                {!collapsed && (
+                  <div className={gridClass}>
+                    {group.items.map((person) => {
+                      const photo = photoMap[person.id];
+                      return (
+                        <PersonCard
+                          key={person.id}
+                          person={person}
+                          photoUrl={photo?.url}
+                          focalX={photo?.focalX}
+                          focalY={photo?.focalY}
+                          plausibilityCount={getQuickPlausibilityCount(person)}
+                          isStarred={starredIds.includes(person.id)}
+                          onToggleStar={handleToggleStar}
+                          onClick={handleCardClick}
+                        />
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
+  // ── Flat (ungrouped) render mode — existing behavior ─────────────────────────
   return (
     <div className="space-y-4">
       {/* Starred strip */}
