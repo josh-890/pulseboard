@@ -55,11 +55,43 @@ const ALLOWED_TYPES = new Set([
 ]);
 const MAX_SIZE = 25 * 1024 * 1024;
 const MAX_CONCURRENT = 4;
+const PRE_SCALE_MAX_SIDE = 3000;
 
 function validateFile(file: File): string | null {
   if (file.size > MAX_SIZE) return `${file.name}: File size must be 25MB or less`;
   if (!ALLOWED_TYPES.has(file.type)) return `${file.name}: Must be JPEG, PNG, WebP, or GIF`;
   return null;
+}
+
+async function prescaleIfNeeded(file: File): Promise<File> {
+  if (file.type === "image/gif") return file; // GIF: don't touch (animation would break)
+  try {
+    const bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
+    const longSide = Math.max(bitmap.width, bitmap.height);
+    if (longSide <= PRE_SCALE_MAX_SIDE) {
+      bitmap.close();
+      return file;
+    }
+    const scale = PRE_SCALE_MAX_SIDE / longSide;
+    const w = Math.round(bitmap.width * scale);
+    const h = Math.round(bitmap.height * scale);
+    const canvas = document.createElement("canvas");
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) { bitmap.close(); return file; }
+    ctx.drawImage(bitmap, 0, 0, w, h);
+    bitmap.close();
+    return await new Promise<File>((resolve) => {
+      canvas.toBlob(
+        (blob) => resolve(blob ? new File([blob], file.name, { type: "image/jpeg" }) : file),
+        "image/jpeg",
+        0.92,
+      );
+    });
+  } catch {
+    return file; // Fall back to original on any canvas/decode error
+  }
 }
 
 function computeMetadata(
@@ -338,7 +370,7 @@ export function BatchUploadZone({
   );
 
   const addFiles = useCallback(
-    (fileList: FileList | File[]) => {
+    async (fileList: FileList | File[]) => {
       const files = Array.from(fileList);
       const errors: string[] = [];
       const validFiles: File[] = [];
@@ -355,15 +387,18 @@ export function BatchUploadZone({
       setValidationErrors(errors);
       if (validFiles.length === 0) return;
 
+      // Resize oversized images client-side before upload (server still re-encodes to WebP)
+      const scaledFiles = await Promise.all(validFiles.map(prescaleIfNeeded));
+
       const metadata = computeMetadata(
-        validFiles,
+        scaledFiles,
         personId,
         setId,
         filledHeadshotSlots,
         totalHeadshotSlots,
       );
 
-      const newItems: UploadFile[] = validFiles.map((file, i) => ({
+      const newItems: UploadFile[] = scaledFiles.map((file, i) => ({
         id: globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`,
         file,
         preview: URL.createObjectURL(file),
@@ -376,7 +411,6 @@ export function BatchUploadZone({
 
       setQueue((prev) => {
         const next = [...prev, ...newItems];
-        // Start processing
         setTimeout(() => processQueue(next), 0);
         return next;
       });
@@ -520,7 +554,7 @@ export function BatchUploadZone({
             Drop photos here or click to browse
           </p>
           <p className="text-xs text-muted-foreground/70">
-            JPEG, PNG, WebP, or GIF up to 25MB &middot; Multiple files supported
+            JPEG, PNG, WebP, or GIF up to 25MB &middot; Large images auto-resized
           </p>
         </div>
       )}

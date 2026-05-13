@@ -16,7 +16,7 @@ function createMinioClient() {
     },
     forcePathStyle: true,
     requestHandler: new NodeHttpHandler({
-      requestTimeout: 30_000,      // 30s per request
+      requestTimeout: 120_000,     // 2min per request (large variant uploads)
       connectionTimeout: 5_000,    // 5s to establish connection
     }),
   });
