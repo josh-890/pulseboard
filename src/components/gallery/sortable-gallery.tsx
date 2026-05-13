@@ -51,8 +51,12 @@ function SortableItem({ item, isActiveDrag, onOpen }: SortableItemProps) {
     <div
       ref={setNodeRef}
       style={style}
+      {...attributes}
+      {...listeners}
+      onClick={() => onOpen(item.id)}
       className={cn(
         "group relative aspect-square w-full overflow-hidden rounded-lg bg-muted/30 ring-1 ring-white/5",
+        "cursor-grab active:cursor-grabbing",
         isActiveDrag && "opacity-30",
       )}
     >
@@ -61,16 +65,14 @@ function SortableItem({ item, isActiveDrag, onOpen }: SortableItemProps) {
         <img
           src={thumbUrl}
           alt={item.caption ?? item.filename}
-          className="h-full w-full object-cover cursor-pointer"
-          onClick={() => onOpen(item.id)}
+          draggable={false}
+          className="h-full w-full object-cover pointer-events-none select-none"
         />
       )}
-      {/* Drag handle */}
+      {/* Visual drag handle indicator */}
       <div
-        {...attributes}
-        {...listeners}
-        className="absolute left-1 top-1 z-10 flex h-6 w-6 cursor-grab items-center justify-center rounded bg-black/60 text-white/70 opacity-0 transition-opacity group-hover:opacity-100 active:cursor-grabbing focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50"
-        aria-label="Drag to reorder"
+        className="absolute left-1 top-1 z-10 flex h-6 w-6 items-center justify-center rounded bg-black/60 text-white/70 opacity-0 transition-opacity group-hover:opacity-100"
+        aria-hidden
       >
         <GripVertical size={12} />
       </div>

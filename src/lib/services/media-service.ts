@@ -978,7 +978,8 @@ export async function getMediaItemsWithLinks(
         sourceTimecodeMs: item.sourceTimecodeMs,
       };
     })
-    .filter((item): item is MediaItemWithLinks => item !== null);
+    .filter((item): item is MediaItemWithLinks => item !== null)
+    .sort((a, b) => (a.links[0]?.sortOrder ?? 0) - (b.links[0]?.sortOrder ?? 0));
 }
 
 export type PersonMediaLinkUpdate = {
