@@ -51,6 +51,7 @@ export type PersonWithCommonAlias = {
   nationality: string | null;
   birthAlias: string | null;
   completeness: number;
+  matchedAlias?: string | null;
 };
 
 export type PersonWorkHistoryItem = {

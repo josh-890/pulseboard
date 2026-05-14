@@ -183,6 +183,11 @@ export function PersonCard({
                 {STATUS_LABELS[person.status]}
               </span>
             </div>
+            {person.matchedAlias && (
+              <p className="truncate text-[9px] text-muted-foreground/70 leading-tight -mt-px">
+                a.k.a. {person.matchedAlias}
+              </p>
+            )}
             <div className="mt-0.5 flex items-center gap-1.5 text-[10px] text-muted-foreground">
               {age !== null && <span>{age} yrs</span>}
               {person.nationality && <FlagImage code={person.nationality} size={12} />}
@@ -320,6 +325,13 @@ export function PersonCard({
           {showBirthAlias && !isCompact && (
             <p className="mt-0.5 truncate text-xs text-muted-foreground/70">
               AKA: {person.birthAlias}
+            </p>
+          )}
+
+          {/* Matched search alias */}
+          {person.matchedAlias && (
+            <p className={cn("mt-0.5 truncate text-muted-foreground/70", isCompact ? "text-[10px]" : "text-xs")}>
+              a.k.a. {person.matchedAlias}
             </p>
           )}
 

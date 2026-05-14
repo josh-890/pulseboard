@@ -1584,7 +1584,13 @@ export async function getPersonsPaginated(
     aliases: { isCommon: boolean; isBirth: boolean; name: string; nameNorm: string | null }[];
   };
 
-  function mapPerson(p: RawPerson, score: number): PersonWithCommonAlias {
+  function mapPerson(p: RawPerson, score: number, q?: string): PersonWithCommonAlias {
+    const commonAlias = p.aliases.find((a) => a.isCommon)?.name ?? null;
+    const matchedAlias = q
+      ? (p.aliases.find(
+          (a) => !a.isCommon && !a.isBirth && a.name.toLowerCase().includes(q.toLowerCase()),
+        )?.name ?? null)
+      : null;
     return {
       id: p.id,
       icgId: p.icgId,
@@ -1601,13 +1607,14 @@ export async function getPersonsPaginated(
       retiredAtPrecision: p.retiredAtPrecision,
       specialization: p.specialization,
       createdAt: p.createdAt,
-      commonAlias: p.aliases.find((a) => a.isCommon)?.name ?? null,
+      commonAlias,
       birthdate: p.birthdate,
       birthdatePrecision: p.birthdatePrecision,
       birthdateModifier: p.birthdateModifier ?? "EXACT",
       nationality: p.nationality,
       birthAlias: p.aliases.find((a) => a.isBirth)?.name ?? null,
       completeness: score,
+      matchedAlias,
     };
   }
 
@@ -1618,7 +1625,11 @@ export async function getPersonsPaginated(
       prisma.person.findMany({
         where,
         include: {
-          aliases: { where: { OR: [{ isCommon: true }, { isBirth: true }] } },
+          aliases: {
+            where: q
+              ? { OR: [{ isCommon: true }, { isBirth: true }, { name: { contains: q, mode: "insensitive" } }] }
+              : { OR: [{ isCommon: true }, { isBirth: true }] },
+          },
         },
       }),
     ]);
@@ -1678,7 +1689,7 @@ export async function getPersonsPaginated(
     const totalCount = completenessFilter ? filtered.length : totalCountRaw;
 
     return {
-      items: pageItems.map((p) => mapPerson(p, completenessMap.get(p.id) ?? 0)),
+      items: pageItems.map((p) => mapPerson(p, completenessMap.get(p.id) ?? 0, q)),
       nextCursor: nextCursorId,
       totalCount,
     };
@@ -1691,7 +1702,9 @@ export async function getPersonsPaginated(
       where,
       include: {
         aliases: {
-          where: { OR: [{ isCommon: true }, { isBirth: true }] },
+          where: q
+            ? { OR: [{ isCommon: true }, { isBirth: true }, { name: { contains: q, mode: "insensitive" } }] }
+            : { OR: [{ isCommon: true }, { isBirth: true }] },
         },
       },
       orderBy,
@@ -1724,7 +1737,7 @@ export async function getPersonsPaginated(
   );
 
   return {
-    items: items.map((p) => mapPerson(p, completenessMap.get(p.id) ?? 0)),
+    items: items.map((p) => mapPerson(p, completenessMap.get(p.id) ?? 0, q)),
     nextCursor,
     totalCount,
   };
