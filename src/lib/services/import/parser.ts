@@ -366,8 +366,10 @@ export function parseImportFile(content: string): ParsedImportData {
         let j = i + 1
         while (j < lines.length && !lines[j].trim()) j++
         if (j < lines.length && /^Name\s*:/.test(lines[j].trim())) {
-          const aliasOnChannel = trimValue(lines[j], 'Name')
-          channelAppearances.push({ channelName, aliasOnChannel })
+          const rawAlias = trimValue(lines[j], 'Name')
+          for (const aliasOnChannel of rawAlias.split(/\s*&\s*/).map(s => s.trim()).filter(Boolean)) {
+            channelAppearances.push({ channelName, aliasOnChannel })
+          }
           i = j + 1
           continue
         }

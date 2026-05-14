@@ -332,7 +332,7 @@ export async function importAlias(item: ImportItem): Promise<ImportResult> {
     const existingAlias = await prisma.personAlias.findFirst({
       where: {
         personId,
-        nameNorm: name.toLowerCase(),
+        nameNorm: normalizeForSearch(name),
       },
       select: { id: true },
     })
