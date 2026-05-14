@@ -858,7 +858,7 @@ function GroupByDropdown({
   );
 }
 
-type TypeaheadResult = { id: string; displayName: string; icgId?: string };
+type TypeaheadResult = { id: string; displayName: string; icgId?: string; matchedAlias?: string | null };
 
 function TypeaheadDropdown({
   label,
@@ -978,7 +978,12 @@ function TypeaheadDropdown({
                 size={12}
                 className={cn("shrink-0", currentId === r.id ? "opacity-100" : "opacity-0")}
               />
-              <span className="flex-1 truncate">{r.displayName}</span>
+              <span className="flex-1 truncate min-w-0">
+                {r.displayName}
+                {r.matchedAlias && (
+                  <span className="font-normal text-muted-foreground"> (a.k.a. {r.matchedAlias})</span>
+                )}
+              </span>
               {r.icgId && (
                 <span className="shrink-0 text-[10px] text-muted-foreground">{r.icgId}</span>
               )}
