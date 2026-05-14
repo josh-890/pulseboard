@@ -5,7 +5,7 @@ import { User, X } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { CoverBasketsTab } from '@/components/staging-sets/cover-baskets-tab'
 
-type PersonResult = { id: string; displayName: string; icgId: string }
+type PersonResult = { id: string; displayName: string; icgId: string; matchedAlias?: string | null }
 
 type CoverBasketsSectionProps = {
   initialPersonId?: string
@@ -101,7 +101,12 @@ export function CoverBasketsSection({ initialPersonId, initialPersonLabel }: Cov
                 onMouseDown={(e) => { e.preventDefault(); handleSelect(person) }}
                 className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs hover:bg-muted"
               >
-                <span className="font-medium">{person.displayName}</span>
+                <span className="font-medium">
+                  {person.displayName}
+                  {person.matchedAlias && (
+                    <span className="font-normal text-muted-foreground"> (a.k.a.: {person.matchedAlias})</span>
+                  )}
+                </span>
                 <span className="text-muted-foreground">#{person.icgId}</span>
               </button>
             ))}

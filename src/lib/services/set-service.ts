@@ -712,7 +712,10 @@ export async function createSetLabelEvidence(
   });
 }
 
-export async function resolveCreditRaw(creditId: string, personId: string) {
+export async function resolveCreditRaw(
+  creditId: string,
+  personId: string,
+): Promise<{ suggestNewAlias: boolean; rawName: string }> {
   return prisma.$transaction(async (tx) => {
     const credit = await tx.setCreditRaw.update({
       where: { id: creditId },
@@ -721,6 +724,23 @@ export async function resolveCreditRaw(creditId: string, personId: string) {
         resolvedPersonId: personId,
       },
     });
+
+    // Auto-match rawName against the person's known aliases
+    const rawNameNorm = normalizeForSearch(credit.rawName);
+    const matchingAlias = await tx.personAlias.findFirst({
+      where: { personId, nameNorm: rawNameNorm },
+      select: { id: true },
+    });
+
+    let suggestNewAlias = false;
+    if (matchingAlias) {
+      await tx.setCreditRaw.update({
+        where: { id: creditId },
+        data: { resolvedAliasId: matchingAlias.id },
+      });
+    } else {
+      suggestNewAlias = true;
+    }
 
     // Create SessionContribution on all linked sessions
     if (credit.roleDefinitionId) {
@@ -741,9 +761,11 @@ export async function resolveCreditRaw(creditId: string, personId: string) {
             sessionId: link.sessionId,
             personId,
             roleDefinitionId: credit.roleDefinitionId,
+            creditNameOverride: credit.rawName,
             confidence: "CONFIRMED",
             confidenceSource: "CREDIT_MATCH",
             confirmedAt: new Date(),
+            resolvedAliasId: matchingAlias?.id ?? null,
           },
           update: {},
         });
@@ -753,7 +775,7 @@ export async function resolveCreditRaw(creditId: string, personId: string) {
     // Rebuild SetParticipant cache
     await rebuildSetParticipantsFromContributions(tx, credit.setId);
 
-    return credit;
+    return { suggestNewAlias, rawName: credit.rawName };
   });
 }
 
@@ -937,49 +959,90 @@ export async function getLastUsedSetType(): Promise<"photo" | "video" | null> {
 // ── Smart suggestions for credit resolution ──────────────────────────────────
 
 export async function getSuggestedResolutions(rawName: string, channelId: string | null) {
-  // Normalize the name for comparison
   const normalizedName = rawName.toLowerCase().trim();
-
-  // 1. Find previously resolved credits with the same raw name
-  const previouslyResolved = await prisma.setCreditRaw.findMany({
-    where: {
-      rawName: { equals: rawName, mode: "insensitive" },
-      resolutionStatus: "RESOLVED",
-      resolvedPersonId: { not: null },
-    },
-    select: {
-      resolvedPersonId: true,
-      resolvedPerson: {
-        select: {
-          id: true,
-          icgId: true,
-          aliases: { where: { isCommon: true }, take: 1 },
-        },
-      },
-    },
-    distinct: ["resolvedPersonId"],
-    take: 5,
-  });
 
   type SuggestionResult = {
     id: string;
     icgId: string;
     commonAlias: string | null;
-    source: "previous" | "channel";
+    source: "alias_channel" | "previous" | "channel";
   };
 
-  const suggestions: SuggestionResult[] = previouslyResolved
-    .filter((c): c is typeof c & { resolvedPerson: NonNullable<typeof c.resolvedPerson> } => c.resolvedPerson !== null)
-    .map((c) => ({
-      id: c.resolvedPerson.id,
-      icgId: c.resolvedPerson.icgId,
-      commonAlias: c.resolvedPerson.aliases[0]?.name ?? null,
-      source: "previous" as const,
-    }));
+  const suggestions: SuggestionResult[] = [];
+  const suggestedIds = new Set<string>();
 
-  const suggestedIds = new Set(suggestions.map((s) => s.id));
+  // 1. Highest priority: persons who have a known alias matching rawName on this channel
+  if (channelId) {
+    const aliasChannelMatches = await prisma.personAliasChannel.findMany({
+      where: {
+        channelId,
+        alias: { name: { contains: rawName, mode: "insensitive" } },
+      },
+      select: {
+        alias: {
+          select: {
+            name: true,
+            person: {
+              select: {
+                id: true,
+                icgId: true,
+                aliases: { where: { isCommon: true }, take: 1 },
+              },
+            },
+          },
+        },
+      },
+      take: 5,
+    });
 
-  // 2. Find persons frequently appearing in same channel (if channel known)
+    for (const m of aliasChannelMatches) {
+      if (suggestedIds.has(m.alias.person.id)) continue;
+      suggestions.push({
+        id: m.alias.person.id,
+        icgId: m.alias.person.icgId,
+        commonAlias: m.alias.person.aliases[0]?.name ?? null,
+        source: "alias_channel",
+      });
+      suggestedIds.add(m.alias.person.id);
+    }
+  }
+
+  // 2. Previously resolved credits with the same raw name
+  if (suggestions.length < 5) {
+    const previouslyResolved = await prisma.setCreditRaw.findMany({
+      where: {
+        rawName: { equals: rawName, mode: "insensitive" },
+        resolutionStatus: "RESOLVED",
+        resolvedPersonId: { not: null },
+      },
+      select: {
+        resolvedPersonId: true,
+        resolvedPerson: {
+          select: {
+            id: true,
+            icgId: true,
+            aliases: { where: { isCommon: true }, take: 1 },
+          },
+        },
+      },
+      distinct: ["resolvedPersonId"],
+      take: 5,
+    });
+
+    for (const c of previouslyResolved) {
+      if (!c.resolvedPerson || suggestedIds.has(c.resolvedPerson.id)) continue;
+      if (suggestions.length >= 5) break;
+      suggestions.push({
+        id: c.resolvedPerson.id,
+        icgId: c.resolvedPerson.icgId,
+        commonAlias: c.resolvedPerson.aliases[0]?.name ?? null,
+        source: "previous",
+      });
+      suggestedIds.add(c.resolvedPerson.id);
+    }
+  }
+
+  // 3. Persons frequently appearing in same channel with similar name
   if (channelId && suggestions.length < 5) {
     const channelPersons = await prisma.sessionContribution.findMany({
       where: {
@@ -1005,14 +1068,13 @@ export async function getSuggestedResolutions(rawName: string, channelId: string
       if (suggestedIds.has(cp.personId)) continue;
       if (suggestions.length >= 5) break;
 
-      // Boost if name is similar
       const alias = cp.person.aliases[0]?.name?.toLowerCase() ?? "";
       if (alias.includes(normalizedName) || normalizedName.includes(alias)) {
         suggestions.push({
           id: cp.person.id,
           icgId: cp.person.icgId,
           commonAlias: cp.person.aliases[0]?.name ?? null,
-          source: "channel" as const,
+          source: "channel",
         });
         suggestedIds.add(cp.personId);
       }

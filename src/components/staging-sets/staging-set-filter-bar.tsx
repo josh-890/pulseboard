@@ -107,7 +107,7 @@ const GROUP_OPTIONS = [
 
 // ─── Component ─────────────────────────────────────────────────────────────
 
-type PersonResult = { id: string; displayName: string; icgId: string }
+type PersonResult = { id: string; displayName: string; icgId: string; matchedAlias?: string | null }
 
 export function StagingSetFilterBar({ filters, onChange, stats }: StagingSetFilterBarProps) {
   const [searchInput, setSearchInput] = useState(filters.search)
@@ -437,7 +437,12 @@ export function StagingSetFilterBar({ filters, onChange, stats }: StagingSetFilt
                   }}
                   className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs hover:bg-muted"
                 >
-                  <span className="font-medium">{person.displayName}</span>
+                  <span className="font-medium">
+                    {person.displayName}
+                    {person.matchedAlias && (
+                      <span className="font-normal text-muted-foreground"> (a.k.a.: {person.matchedAlias})</span>
+                    )}
+                  </span>
                   <span className="text-muted-foreground">#{person.icgId}</span>
                 </button>
               ))}

@@ -309,7 +309,9 @@ model PersonAlias {
   source       AliasSource          @default(MANUAL)
   nameNorm     String?
   notes        String?
-  channelLinks PersonAliasChannel[]
+  channelLinks  PersonAliasChannel[]
+  creditUsages  SetCreditRaw[]        @relation("CreditAlias")
+  sessionUsages SessionContribution[] @relation("ContributionAlias")
 
   @@index([personId])
   @@index([name])
@@ -956,10 +958,13 @@ model SessionContribution {
   confidenceSource   ConfidenceSource            @default(MANUAL)
   confirmedAt        DateTime?
   createdAt          DateTime                   @default(now())
+  resolvedAliasId    String?
+  resolvedAlias      PersonAlias?               @relation("ContributionAlias", fields: [resolvedAliasId], references: [id], onDelete: SetNull)
 
   skills             ContributionSkill[]
 
   @@unique([sessionId, personId, roleDefinitionId])
+  @@index([resolvedAliasId])
   @@index([sessionId])
   @@index([personId])
   @@index([roleDefinitionId])
@@ -1007,12 +1012,15 @@ model SetCreditRaw {
 
   resolvedArtistId String?
   resolvedArtist   Artist?          @relation(fields: [resolvedArtistId], references: [id])
+  resolvedAliasId  String?
+  resolvedAlias    PersonAlias?     @relation("CreditAlias", fields: [resolvedAliasId], references: [id], onDelete: SetNull)
 
   @@index([setId])
   @@index([resolutionStatus])
   @@index([nameNorm])
   @@index([resolvedPersonId])
   @@index([resolvedArtistId])
+  @@index([resolvedAliasId])
   @@index([roleDefinitionId])
 }
 

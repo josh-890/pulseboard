@@ -18,6 +18,7 @@ import {
   searchArtistsAction,
   getSuggestionsAction,
   getSuggestedArtistsAction,
+  createAliasFromCreditAction,
 } from "@/lib/actions/set-actions";
 import { CreatePersonSheet } from "@/components/people/create-person-sheet";
 import { CreateArtistSheet } from "@/components/artists/create-artist-sheet";
@@ -56,7 +57,7 @@ type SuggestionItem = {
   id: string;
   icgId: string;
   commonAlias: string | null;
-  source: "previous" | "channel";
+  source: "alias_channel" | "previous" | "channel";
 };
 
 type ArtistSuggestionItem = {
@@ -97,6 +98,14 @@ export function CreditResolutionPanel({ setId, credits: initialCredits, channelI
   // Create sheets
   const [showCreatePersonSheet, setShowCreatePersonSheet] = useState(false);
   const [showCreateArtistSheet, setShowCreateArtistSheet] = useState(false);
+
+  // Pending alias creation prompt (shown after a resolve when rawName is novel)
+  const [pendingAliasSuggestion, setPendingAliasSuggestion] = useState<{
+    creditId: string;
+    rawName: string;
+    personId: string;
+    personName: string;
+  } | null>(null);
 
   const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -160,6 +169,9 @@ export function CreditResolutionPanel({ setId, credits: initialCredits, channelI
       setSearchQuery("");
       setSearchResults([]);
       setShowDropdown(false);
+      if (result.suggestNewAlias && result.rawName) {
+        setPendingAliasSuggestion({ creditId, rawName: result.rawName, personId, personName });
+      }
       router.refresh();
     } else {
       toast.error(result.error ?? "Failed to resolve");
@@ -224,6 +236,16 @@ export function CreditResolutionPanel({ setId, credits: initialCredits, channelI
       toast.error(result.error ?? "Failed to undo");
     }
     setActionLoading(null);
+  }
+
+  async function handleAddAlias(creditId: string, rawName: string, personId: string, channelId: string | null | undefined) {
+    const result = await createAliasFromCreditAction(creditId, personId, rawName, channelId ?? null, setId);
+    if (result.success) {
+      setPendingAliasSuggestion(null);
+      router.refresh();
+    } else {
+      toast.error(result.error ?? "Failed to create alias");
+    }
   }
 
   async function handleDelete(creditId: string) {
@@ -335,6 +357,10 @@ export function CreditResolutionPanel({ setId, credits: initialCredits, channelI
               artistSuggestions={resolvingCreditId === credit.id ? artistSuggestions : []}
               loadingSuggestions={resolvingCreditId === credit.id && loadingSuggestions}
               dropdownRef={resolvingCreditId === credit.id ? dropdownRef : undefined}
+              pendingAliasSuggestion={
+                pendingAliasSuggestion?.creditId === credit.id ? pendingAliasSuggestion : null
+              }
+              channelId={channelId}
               onStartResolving={() => startResolving(credit.id)}
               onCancelResolving={cancelResolving}
               onSearchChange={handleSearchChange}
@@ -345,6 +371,8 @@ export function CreditResolutionPanel({ setId, credits: initialCredits, channelI
               onDelete={() => handleDelete(credit.id)}
               onShowCreatePersonSheet={() => setShowCreatePersonSheet(true)}
               onShowCreateArtistSheet={() => setShowCreateArtistSheet(true)}
+              onAddAlias={(rawName, personId) => handleAddAlias(credit.id, rawName, personId, channelId)}
+              onSkipAlias={() => setPendingAliasSuggestion(null)}
             />
           ))}
         </div>
@@ -381,6 +409,8 @@ type CreditRowProps = {
   artistSuggestions: ArtistSuggestionItem[];
   loadingSuggestions: boolean;
   dropdownRef?: React.RefObject<HTMLDivElement | null>;
+  pendingAliasSuggestion: { creditId: string; rawName: string; personId: string; personName: string } | null;
+  channelId?: string | null;
   onStartResolving: () => void;
   onCancelResolving: () => void;
   onSearchChange: (q: string) => void;
@@ -391,6 +421,8 @@ type CreditRowProps = {
   onDelete: () => void;
   onShowCreatePersonSheet: () => void;
   onShowCreateArtistSheet: () => void;
+  onAddAlias: (rawName: string, personId: string) => void;
+  onSkipAlias: () => void;
 };
 
 function CreditRow({
@@ -408,6 +440,8 @@ function CreditRow({
   artistSuggestions,
   loadingSuggestions,
   dropdownRef,
+  pendingAliasSuggestion,
+  channelId,
   onStartResolving,
   onCancelResolving,
   onSearchChange,
@@ -418,6 +452,8 @@ function CreditRow({
   onDelete,
   onShowCreatePersonSheet,
   onShowCreateArtistSheet,
+  onAddAlias,
+  onSkipAlias,
 }: CreditRowProps) {
   const isLoading = actionLoading === credit.id;
   const resolvedName =
@@ -547,6 +583,39 @@ function CreditRow({
         </div>
       )}
 
+      {/* Alias creation prompt — shown when rawName is not yet a known alias for the resolved person */}
+      {pendingAliasSuggestion && (
+        <div className="rounded-md border border-violet-500/20 bg-violet-500/8 px-3 py-2 flex items-start gap-2">
+          <span className="text-violet-500 mt-0.5 shrink-0" aria-hidden="true">◆</span>
+          <div className="flex-1 min-w-0">
+            <p className="text-xs text-violet-700 dark:text-violet-300">
+              <span className="font-semibold">&ldquo;{pendingAliasSuggestion.rawName}&rdquo;</span>
+              {" "}is not yet an alias for{" "}
+              <span className="font-semibold">{pendingAliasSuggestion.personName}</span>.
+              {channelId ? " Add it as an alias on this channel?" : " Add it as an alias?"}
+            </p>
+          </div>
+          <div className="flex items-center gap-1.5 shrink-0">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-6 text-xs text-violet-600 dark:text-violet-400 hover:text-violet-700 dark:hover:text-violet-300 hover:bg-violet-500/10 px-2"
+              onClick={() => onAddAlias(pendingAliasSuggestion.rawName, pendingAliasSuggestion.personId)}
+            >
+              Add Alias
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-6 text-xs text-muted-foreground hover:text-foreground px-2"
+              onClick={onSkipAlias}
+            >
+              Skip
+            </Button>
+          </div>
+        </div>
+      )}
+
       {/* Inline resolve search */}
       {isResolving && (
         <div className="space-y-2 pt-1">
@@ -592,11 +661,15 @@ function CreditRow({
                     key={s.id}
                     type="button"
                     onClick={() => onResolve(s.id, s.commonAlias ?? s.icgId, s.icgId)}
-                    className="inline-flex items-center gap-1 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2 py-0.5 text-xs font-medium text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 transition-colors"
+                    className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium transition-colors ${
+                      s.source === "alias_channel"
+                        ? "border-violet-500/30 bg-violet-500/10 text-violet-600 dark:text-violet-400 hover:bg-violet-500/20"
+                        : "border-emerald-500/20 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20"
+                    }`}
                   >
                     {s.commonAlias ?? s.icgId}
-                    <span className="opacity-50 text-[10px]">
-                      {s.source === "previous" ? "prev" : "ch"}
+                    <span className="opacity-60 text-[10px]">
+                      {s.source === "alias_channel" ? "known alias" : s.source === "previous" ? "prev" : "ch"}
                     </span>
                   </button>
                 ))}

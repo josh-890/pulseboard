@@ -86,15 +86,15 @@ All services in `src/lib/services/`. All functions are async, return Promises. S
 
 **`media-service.ts`** (~1,130 lines) — MediaItem CRUD, gallery item construction (`toGalleryItem`), person/session/set gallery queries, headshot management, usage/link management, batch operations, duplicate detection, similar image search
 
-**`set-service.ts`** (~820 lines) — Set CRUD, credit resolution, participant rebuilding, session link management, media bridging (`addExistingMediaToSet`, `syncSetSessionLinks`)
+**`set-service.ts`** (~820 lines) — Set CRUD, credit resolution, participant rebuilding, session link management, media bridging (`addExistingMediaToSet`, `syncSetSessionLinks`). `getSuggestedResolutions(rawName, channelId)` uses a three-tier priority: (1) alias+channel exact match ("Known alias on this channel"), (2) previously-resolved same rawName, (3) frequent in channel. `resolveCreditRaw()` auto-matches `rawName` to `PersonAlias.nameNorm`, sets `resolvedAliasId`, populates `creditNameOverride` on `SessionContribution`, and returns `suggestNewAlias: true` when no alias exists.
 
 **`session-service.ts`** (~450 lines) — Session CRUD, merging, reference session management (auto-created per-person, type=REFERENCE)
 
-**`contribution-service.ts`** (~500 lines) — Session contributions (person+role), contribution skills with auto PersonSkill/DEMONSTRATED event creation, skill media mapping, SetParticipant rebuild
+**`contribution-service.ts`** (~500 lines) — Session contributions (person+role), contribution skills with auto PersonSkill/DEMONSTRATED event creation, skill media mapping, SetParticipant rebuild. `addSessionContribution()` auto-matches `creditNameOverride` to `PersonAlias.nameNorm` and sets `resolvedAliasId`.
 
 ### Domain Services
 
-**`alias-service.ts`** — Alias CRUD, channel linking, bulk import, merge
+**`alias-service.ts`** — Alias CRUD, channel linking, bulk import, merge. `getPersonAliases()` returns `creditCount` (combined `SetCreditRaw` + `SessionContribution` usages via `resolvedAliasId`). `createAlias()` also accepts `channelIds` to link at creation time and triggers participant-status refresh.
 **`skill-service.ts`** — PersonSkill/SkillEvent CRUD, timeline, event media
 **`skill-catalog-service.ts`** — SkillGroup/SkillDefinition catalog CRUD
 **`physical-attribute-catalog-service.ts`** — PhysicalAttributeGroup/PhysicalAttributeDefinition catalog CRUD
@@ -204,6 +204,7 @@ All actions in `src/lib/actions/`. Each validates input with Zod, calls services
 | `/api/sessions/[id]/gallery` | GET | Session gallery as `GalleryItem[]` |
 | `/api/categories/[id]/media` | GET | Category-linked media for a person |
 | `/api/tags/search` | GET | Tag autocomplete search (q, scope) → TagDefinitionWithGroup[] |
+| `/api/people/search` | GET | Person search across all aliases (not just common); returns `matchedAlias` when a non-common alias matched |
 | `/api/channels/search` | GET | All channels for client-side search |
 | `/api/collections/list` | GET | Collections filtered by personId |
 | `/api/skill-events/[id]/media` | GET/POST | Skill event media management |

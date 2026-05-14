@@ -13,6 +13,7 @@ import { getCollectionsForPerson } from "@/lib/services/collection-service";
 import { getAllCategoryGroups } from "@/lib/services/category-service";
 import { getSessionContributions, getContributionSkillMediaMap, getContributorsWithEntities } from "@/lib/services/contribution-service";
 import { getAllSkillGroups } from "@/lib/services/skill-catalog-service";
+import { getAllContributionRoleGroups } from "@/lib/services/contribution-role-service";
 import { getEntityTags } from "@/lib/services/entity-tag-service";
 import { prisma } from "@/lib/db";
 import { cn, formatPartialDateISO } from "@/lib/utils";
@@ -31,6 +32,7 @@ import { SessionProductionGallery, SessionUploadButton } from "@/components/sess
 import type { ProductionContext } from "@/components/gallery/gallery-lightbox";
 import { SessionContributionSkills } from "@/components/sessions/session-contribution-skills";
 import { ReferenceSessionPage } from "@/components/sessions/reference-session-page";
+import { AddContributorSheet } from "@/components/sessions/add-contributor-sheet";
 
 export const dynamic = "force-dynamic";
 
@@ -238,10 +240,14 @@ export default async function SessionDetailPage({ params, searchParams }: Sessio
     );
   }
 
-  // Load contributions + skill groups + skill media + entity data for production sessions
-  const [sessionContributions, skillGroups, contributionSkillMedia, contributorsWithEntities, prodCategoryGroups] = !isReference
-    ? await Promise.all([getSessionContributions(id), getAllSkillGroups(), getContributionSkillMediaMap(id), getContributorsWithEntities(id), getAllCategoryGroups()])
-    : [[], [], new Map<string, { id: string; thumbUrl: string }[]>(), [], []];
+  // Load contributions + skill groups + skill media + entity data + role groups for production sessions
+  const [sessionContributions, skillGroups, contributionSkillMedia, contributorsWithEntities, prodCategoryGroups, contributionRoleGroups] = !isReference
+    ? await Promise.all([getSessionContributions(id), getAllSkillGroups(), getContributionSkillMediaMap(id), getContributorsWithEntities(id), getAllCategoryGroups(), getAllContributionRoleGroups()])
+    : [[], [], new Map<string, { id: string; thumbUrl: string }[]>(), [], [], []];
+
+  const roleDefinitions = (contributionRoleGroups as Awaited<ReturnType<typeof getAllContributionRoleGroups>>).flatMap((g) =>
+    g.definitions.map((d) => ({ id: d.id, name: d.name, groupName: g.name })),
+  );
 
   // Build production context for entity linking in lightbox
   const productionContext: ProductionContext | undefined =
@@ -363,6 +369,7 @@ export default async function SessionDetailPage({ params, searchParams }: Sessio
         <SectionCard
           title={`Contributors (${contributionCount})`}
           icon={<Users size={18} />}
+          action={<AddContributorSheet sessionId={id} roleDefinitions={roleDefinitions} />}
         >
           {session.contributions.length === 0 ? (
             <EmptyState message="No contributors in this session." />
@@ -371,6 +378,9 @@ export default async function SessionDetailPage({ params, searchParams }: Sessio
               {session.contributions.map((contribution) => {
                 const commonAlias = contribution.person.aliases[0]?.name;
                 const displayName = commonAlias ?? contribution.person.icgId;
+                const creditedAs = contribution.creditNameOverride && contribution.creditNameOverride !== commonAlias
+                  ? contribution.creditNameOverride
+                  : null;
                 return (
                   <li key={contribution.id}>
                     <Link
@@ -382,6 +392,11 @@ export default async function SessionDetailPage({ params, searchParams }: Sessio
                       </span>
                       <span className="text-sm font-medium text-foreground/90 group-hover:text-primary transition-colors">
                         {displayName}
+                        {creditedAs && (
+                          <span className="ml-1.5 text-xs font-normal text-muted-foreground/70 italic">
+                            as: {creditedAs}
+                          </span>
+                        )}
                       </span>
                     </Link>
                   </li>

@@ -39,6 +39,7 @@ import { searchArtists, getSuggestedArtists } from "@/lib/services/artist-servic
 import { refreshDashboardStats } from "@/lib/services/view-service";
 import { onMediaImportChanged } from "@/lib/services/coherence-service";
 import { getLabels } from "@/lib/services/label-service";
+import { createAlias } from "@/lib/services/alias-service";
 import { prisma } from "@/lib/db";
 import { z } from "zod";
 import type { CrudActionResult, SimpleActionResult } from "@/lib/types";
@@ -123,13 +124,13 @@ export async function resolveCredit(
   creditId: string,
   personId: string,
   setId: string,
-): Promise<SimpleActionResult> {
+): Promise<SimpleActionResult & { suggestNewAlias?: boolean; rawName?: string }> {
   return withTenantFromHeaders(async () => {
     try {
-      await resolveCreditRaw(creditId, personId);
+      const { suggestNewAlias, rawName } = await resolveCreditRaw(creditId, personId);
       revalidatePath("/sets");
       revalidatePath(`/sets/${setId}`);
-      return { success: true };
+      return { success: true, suggestNewAlias, rawName };
     } catch {
       return { success: false, error: "Failed to resolve credit" };
     }
@@ -298,6 +299,38 @@ export async function getSuggestionsAction(rawName: string, channelId: string | 
   return withTenantFromHeaders(async () => {
     return getSuggestedResolutions(rawName, channelId);
 
+  });
+}
+
+// Create an alias from a credit's rawName and link it back to the credit record
+export async function createAliasFromCreditAction(
+  creditId: string,
+  personId: string,
+  name: string,
+  channelId: string | null,
+  setId: string,
+): Promise<SimpleActionResult> {
+  return withTenantFromHeaders(async () => {
+    try {
+      const alias = await createAlias(
+        personId,
+        name,
+        false,
+        false,
+        "MANUAL",
+        null,
+        channelId ? [channelId] : [],
+      );
+      await prisma.setCreditRaw.update({
+        where: { id: creditId },
+        data: { resolvedAliasId: alias.id },
+      });
+      revalidatePath(`/people/${personId}`);
+      revalidatePath(`/sets/${setId}`);
+      return { success: true };
+    } catch (err) {
+      return { success: false, error: err instanceof Error ? err.message : "Unexpected error" };
+    }
   });
 }
 

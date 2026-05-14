@@ -4,7 +4,9 @@ import { prisma } from "@/lib/db";
 
 /**
  * GET /api/people/search?q=<query>
- * Returns: { id, displayName, icgId }[]  (max 20)
+ * Returns: { id, displayName, icgId, matchedAlias }[]  (max 20)
+ * Searches all aliases (not just common name) + icgId.
+ * matchedAlias is set when the match came from a non-common alias.
  */
 export async function GET(request: Request) {
   return withTenantFromHeaders(async () => {
@@ -15,24 +17,41 @@ export async function GET(request: Request) {
       return NextResponse.json([]);
     }
 
-    const aliases = await prisma.personAlias.findMany({
+    const qLower = q.toLowerCase();
+
+    const persons = await prisma.person.findMany({
       where: {
-        isCommon: true,
-        name: { contains: q, mode: "insensitive" },
+        OR: [
+          { icgId: { contains: q, mode: "insensitive" } },
+          { aliases: { some: { name: { contains: q, mode: "insensitive" } } } },
+        ],
       },
       select: {
-        name: true,
-        person: { select: { id: true, icgId: true } },
+        id: true,
+        icgId: true,
+        aliases: {
+          where: {
+            OR: [{ isCommon: true }, { name: { contains: q, mode: "insensitive" } }],
+          },
+          select: { name: true, isCommon: true },
+        },
       },
       take: 20,
-      orderBy: { name: "asc" },
+      orderBy: { createdAt: "asc" },
     });
 
-    const results = aliases.map((a) => ({
-      id: a.person.id,
-      displayName: a.name,
-      icgId: a.person.icgId,
-    }));
+    const results = persons.map((p) => {
+      const commonAlias = p.aliases.find((a) => a.isCommon);
+      const matchedNonCommon = p.aliases.find(
+        (a) => !a.isCommon && a.name.toLowerCase().includes(qLower),
+      );
+      return {
+        id: p.id,
+        displayName: commonAlias?.name ?? p.icgId,
+        icgId: p.icgId,
+        matchedAlias: matchedNonCommon?.name ?? null,
+      };
+    });
 
     return NextResponse.json(results);
   });

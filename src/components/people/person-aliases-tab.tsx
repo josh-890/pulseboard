@@ -544,6 +544,16 @@ function ByAliasView({
                 {SOURCE_LABELS[alias.source]}
               </span>
 
+              {/* Credit usage count */}
+              {alias.creditCount > 0 && (
+                <span
+                  className="shrink-0 rounded-full border border-sky-500/20 bg-sky-500/10 px-2 py-0.5 text-[10px] text-sky-600 dark:text-sky-400"
+                  title={`Used in ${alias.creditCount} credit${alias.creditCount !== 1 ? "s" : ""}`}
+                >
+                  {alias.creditCount} {alias.creditCount === 1 ? "credit" : "credits"}
+                </span>
+              )}
+
               {/* Actions */}
               <div className="flex shrink-0 items-center gap-1">
                 <button

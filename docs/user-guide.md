@@ -265,7 +265,7 @@ Click **"Add Session"** to create a production session:
 - Header with status badge, project/label links, participant/set counts
 - **Inline editable** fields: name, description, location, notes
 - **Gallery** — media grid with batch upload zone and lightbox
-- **Participants** — list of persons with role badges (Model, Photographer). Click to navigate to person detail.
+- **Contributors** — list of persons with role badges (Model, Photographer). Shows "as: [name]" when the credited name differs from the person's common alias. Click to navigate to person detail. Use **"+ Add"** to add a contributor (alias-aware search, role selector, optional "credited as" override). The **+ Add** button is only available on production sessions — reference sessions are 1:1 with their person and cannot have additional contributors.
 - **Linked Sets** — sets connected via SetSession. Shows primary badge and release date. Click to navigate to set detail.
 - **Actions:**
   - **Edit** — modify session fields
@@ -375,7 +375,8 @@ Tracks who participated in the set (models, photographers).
 
 - **Add Credit** — inline form with role selector and person search
 - **Bulk add** — type comma-separated names
-- **Smart suggestions** — system suggests matches from previous credits in the same channel and channel participants
+- **Smart suggestions** — three-tier priority: (1) known alias on this channel (violet "known alias" badge), (2) previously resolved same name, (3) frequent in channel
+- **Alias creation prompt** — after resolution, if the credited name is novel, an inline "Add as alias?" prompt appears so the alias can be persisted immediately
 - **Resolution states:**
   - **Unresolved** (amber) — raw name, no person linked yet
   - **Resolved** (green) — linked to a specific person
@@ -1092,12 +1093,18 @@ If you created a set and realize the media actually came from an existing sessio
 
 1. Open a set with unresolved credits
 2. In the Credits section, unresolved credits show an amber badge
-3. Click a credit to see suggestions from:
+3. Click a credit to see suggestions from (highest to lowest confidence):
+   - **Known alias on this channel** (violet badge) — person has this exact alias linked to the channel
    - Previous credits with the same name in other sets
    - Frequent participants in the same channel
 4. Select the correct person or search for a different one
-5. To skip a credit, click **"Ignore"**
-6. To undo, click **"Unresolve"** on a resolved credit
+5. After resolution, if the credited name is not yet an alias for the person, an inline prompt appears: **"Add as alias?"** — click **Add Alias** to create it (linked to the channel), or **Skip** to dismiss
+6. To skip a credit, click **"Ignore"**
+7. To undo, click **"Unresolve"** on a resolved credit
+
+**Alias-aware search:** Searching for a person by a non-common alias shows the matched alias in the dropdown as `(a.k.a.: [alias])`. The person's common name remains the display identity.
+
+**"Credited as" display:** Set participants and session contributors show a secondary "as: [name]" hint when the credited name differs from their common alias.
 
 ### Organizing Media with Collections
 

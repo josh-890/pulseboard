@@ -43,6 +43,7 @@ function ContributorAvatars({
         const firstName = name.split(" ")[0];
         const initials = getInitialsFromName(name);
         const photoUrl = headshotMap.get(c.personId)?.url ?? null;
+        const creditedAs = c.creditNameOverride && c.creditNameOverride !== name ? c.creditNameOverride : null;
         const age = computeProductionAge(
           c.person.birthdate,
           c.person.birthdatePrecision,
@@ -50,12 +51,14 @@ function ContributorAvatars({
           sessionDatePrecision,
           sessionDateIsConfirmed,
         );
+        const title = creditedAs ? `${name} (credited as: ${creditedAs})` : name;
         return (
           <Link
             key={c.personId}
             href={`/people/${c.personId}`}
             className="flex flex-col items-center gap-0.5 transition-transform hover:scale-105"
             style={{ width: 56 }}
+            title={title}
           >
             {photoUrl ? (
               <Image
@@ -71,9 +74,14 @@ function ContributorAvatars({
                 {initials}
               </div>
             )}
-            <span className="w-full truncate text-center text-[9px] leading-tight text-muted-foreground" title={name}>
+            <span className="w-full truncate text-center text-[9px] leading-tight text-muted-foreground">
               {firstName}
             </span>
+            {creditedAs && (
+              <span className="w-full truncate text-center text-[8px] leading-none text-muted-foreground/50 italic">
+                as: {creditedAs.split(" ")[0]}
+              </span>
+            )}
             {age && (
               <span className="text-[9px] leading-none text-muted-foreground/60">
                 {age}

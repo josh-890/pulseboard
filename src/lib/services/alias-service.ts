@@ -9,6 +9,7 @@ export type PersonAliasWithChannels = {
   isBirth: boolean;
   source: "MANUAL" | "IMPORT";
   notes: string | null;
+  creditCount: number;
   channelLinks: {
     channelId: string;
     channelName: string;
@@ -52,6 +53,12 @@ export async function getPersonAliases(
           },
         },
       },
+      _count: {
+        select: {
+          creditUsages: true,
+          sessionUsages: true,
+        },
+      },
     },
     orderBy: [{ isCommon: "desc" }, { isBirth: "desc" }, { name: "asc" }],
   });
@@ -63,6 +70,7 @@ export async function getPersonAliases(
     isBirth: a.isBirth,
     source: a.source,
     notes: a.notes,
+    creditCount: a._count.creditUsages + a._count.sessionUsages,
     channelLinks: a.channelLinks.map((cl) => ({
       channelId: cl.channelId,
       channelName: cl.channel.name,
@@ -106,6 +114,7 @@ export async function getChannelAliases(
     isBirth: l.alias.isBirth,
     source: l.alias.source,
     notes: l.alias.notes,
+    creditCount: 0,
     channelLinks: l.alias.channelLinks.map((cl) => ({
       channelId: cl.channelId,
       channelName: cl.channel.name,

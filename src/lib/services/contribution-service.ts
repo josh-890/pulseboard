@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import type { SkillLevel, ParticipationConfidence, ConfidenceSource } from "@/generated/prisma/client";
+import { normalizeForSearch } from "@/lib/normalize";
 import { SKILL_LEVEL_VALUE } from "@/lib/constants/skill";
 import { CONFIDENCE_RANK } from "@/lib/constants/confidence";
 import { buildUrl } from "@/lib/media-url";
@@ -46,8 +47,20 @@ export async function addSessionContribution(
     confidence?: ParticipationConfidence;
     confidenceSource?: ConfidenceSource;
     confirmedAt?: Date | null;
+    resolvedAliasId?: string | null;
   },
 ) {
+  // Auto-match creditNameOverride to a known alias if resolvedAliasId not provided
+  let resolvedAliasId = opts?.resolvedAliasId ?? null;
+  if (!resolvedAliasId && opts?.creditNameOverride) {
+    const nameNorm = normalizeForSearch(opts.creditNameOverride);
+    const match = await prisma.personAlias.findFirst({
+      where: { personId, nameNorm },
+      select: { id: true },
+    });
+    resolvedAliasId = match?.id ?? null;
+  }
+
   return prisma.sessionContribution.create({
     data: {
       sessionId,
@@ -58,6 +71,7 @@ export async function addSessionContribution(
       confidence: opts?.confidence ?? "CONFIRMED",
       confidenceSource: opts?.confidenceSource ?? "MANUAL",
       confirmedAt: opts?.confirmedAt ?? null,
+      resolvedAliasId,
     },
   });
 }

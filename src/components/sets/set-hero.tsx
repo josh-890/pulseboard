@@ -41,12 +41,14 @@ function ParticipantAvatars({
   productionDate,
   fallbackDate,
   fallbackPrecision,
+  creditedAsMap,
 }: {
   participants: Participant[];
   headshotMap: Map<string, HeadshotData>;
   productionDate: ProductionDateInfo | null;
   fallbackDate: Date | null;
   fallbackPrecision: string;
+  creditedAsMap: Map<string, string>;
 }) {
   if (participants.length === 0) return null;
 
@@ -61,6 +63,7 @@ function ParticipantAvatars({
         const firstName = name.split(" ")[0];
         const initials = getInitialsFromName(name);
         const photoUrl = headshotMap.get(p.personId)?.url ?? null;
+        const creditedAs = creditedAsMap.get(p.personId) ?? null;
         const age = computeProductionAge(
           p.person.birthdate,
           p.person.birthdatePrecision,
@@ -70,12 +73,14 @@ function ParticipantAvatars({
           fallbackDate,
           fallbackPrecision,
         );
+        const title = creditedAs ? `${name} (credited as: ${creditedAs})` : name;
         return (
           <Link
             key={p.personId}
             href={`/people/${p.personId}`}
             className="flex flex-col items-center gap-0.5 transition-transform hover:scale-105"
             style={{ width: 56 }}
+            title={title}
           >
             {photoUrl ? (
               <Image
@@ -91,9 +96,14 @@ function ParticipantAvatars({
                 {initials}
               </div>
             )}
-            <span className="w-full truncate text-center text-[9px] leading-tight text-muted-foreground" title={name}>
+            <span className="w-full truncate text-center text-[9px] leading-tight text-muted-foreground">
               {firstName}
             </span>
+            {creditedAs && (
+              <span className="w-full truncate text-center text-[8px] leading-none text-muted-foreground/50 italic">
+                as: {creditedAs.split(" ")[0]}
+              </span>
+            )}
             {age && (
               <span className="text-[9px] leading-none text-muted-foreground/60">
                 {age}
@@ -132,6 +142,18 @@ export function SetHero({
   const participantCount = set.participants.length;
   const primaryLabel = set.channel?.labelMaps[0]?.label;
   const primarySession = set.sessionLinks.find((l) => l.isPrimary)?.session ?? set.sessionLinks[0]?.session ?? null;
+
+  // Build map: personId → rawName (only when rawName differs from common alias)
+  const creditedAsMap = new Map<string, string>();
+  for (const credit of set.creditsRaw) {
+    if (!credit.resolvedPersonId || credit.resolutionStatus !== "RESOLVED") continue;
+    const participant = set.participants.find((p) => p.personId === credit.resolvedPersonId);
+    if (!participant) continue;
+    const commonName = participant.person.aliases[0]?.name ?? null;
+    if (credit.rawName && credit.rawName !== commonName) {
+      creditedAsMap.set(credit.resolvedPersonId, credit.rawName);
+    }
+  }
 
   const coverPanel = coverPhoto ? (
     <div className="relative h-[250px] w-[180px] shrink-0 overflow-hidden rounded-xl">
@@ -203,6 +225,7 @@ export function SetHero({
           } : null}
           fallbackDate={set.releaseDate}
           fallbackPrecision={set.releaseDatePrecision}
+          creditedAsMap={creditedAsMap}
         />
         {participantCount === 0 && (
           <p className="text-xs text-muted-foreground/50 italic">No participants</p>

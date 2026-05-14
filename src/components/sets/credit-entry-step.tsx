@@ -15,6 +15,7 @@ type PersonResult = {
   id: string;
   icgId: string;
   commonAlias: string | null;
+  matchedAlias: string | null;
 };
 
 type RoleDefinitionOption = {
@@ -288,6 +289,9 @@ export function CreditEntryStep({ setId, roleDefinitions, onClose }: CreditEntry
                         >
                           <span className="font-medium">
                             {person.commonAlias ?? person.icgId}
+                            {person.matchedAlias && (
+                              <span className="font-normal text-muted-foreground"> (a.k.a.: {person.matchedAlias})</span>
+                            )}
                           </span>
                           <span className="text-xs text-muted-foreground shrink-0">
                             {person.icgId}
