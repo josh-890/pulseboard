@@ -91,6 +91,7 @@ export const updateAppearanceSchema = z.object({
   eyeColor: z.string().optional(),
   naturalHairColor: z.string().optional(),
   naturalBreastSize: z.string().optional(),
+  measurements: z.string().optional(),
   height: z.coerce.number().int().positive().optional(),
   weight: z.coerce.number().positive().optional(),
   build: z.string().optional(),

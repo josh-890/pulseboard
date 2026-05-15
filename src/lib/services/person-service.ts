@@ -1290,6 +1290,7 @@ export async function updatePersonAppearance(
     eyeColor?: string;
     naturalHairColor?: string;
     naturalBreastSize?: string;
+    measurements?: string;
     height?: number;
     weight?: number;
     build?: string;
@@ -1303,6 +1304,7 @@ export async function updatePersonAppearance(
         eyeColor: data.eyeColor ?? null,
         naturalHairColor: data.naturalHairColor ?? null,
         naturalBreastSize: data.naturalBreastSize ?? null,
+        measurements: data.measurements ?? null,
         height: data.height ?? null,
       },
     });

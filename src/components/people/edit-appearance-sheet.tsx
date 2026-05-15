@@ -75,6 +75,7 @@ export function EditAppearanceSheet({ person, open: controlledOpen, onOpenChange
     eyeColor: person.eyeColor ?? "",
     naturalHairColor: person.naturalHairColor ?? "",
     naturalBreastSize: person.naturalBreastSize ?? "",
+    measurements: person.measurements ?? "",
     height: person.height ?? undefined,
     weight: physical?.weight ?? undefined,
     build: physical?.build ?? undefined,
@@ -182,6 +183,24 @@ export function EditAppearanceSheet({ person, open: controlledOpen, onOpenChange
                             value={field.value || undefined}
                             onChange={(v) => field.onChange(v ?? "")}
                             placeholder="Select cup size…"
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="measurements"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Measurements (cm)</FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder="e.g. 90-60-90"
+                            {...field}
+                            value={field.value ?? ""}
                           />
                         </FormControl>
                         <FormMessage />
