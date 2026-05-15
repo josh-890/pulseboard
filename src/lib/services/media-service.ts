@@ -84,7 +84,7 @@ export async function getSessionMediaGallery(sessionId: string): Promise<Gallery
   const items = await prisma.mediaItem.findMany({
     where: { sessionId },
     include: {
-      setMediaItems: { select: { setId: true } },
+      setMediaItems: { select: { setId: true, set: { select: { id: true, title: true } } } },
     },
     orderBy: { createdAt: "asc" },
   });
@@ -111,6 +111,7 @@ export async function getSessionMediaGallery(sessionId: string): Promise<Gallery
       sortOrder: 0,
       isCover: false,
       setCount: item.setMediaItems.length,
+      setLinks: item.setMediaItems.map((smi) => ({ setId: smi.set.id, setTitle: smi.set.title })),
     });
   }
   return results;

@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
-import { Plus, Trash2, Upload, X } from "lucide-react";
+import Link from "next/link";
+import { Layers, Plus, Trash2, Upload, X } from "lucide-react";
 import type { GalleryItem } from "@/lib/types";
 import { JustifiedGrid } from "@/components/gallery/justified-grid";
 import { GalleryLightbox } from "@/components/gallery/gallery-lightbox";
@@ -49,6 +50,10 @@ export function SessionProductionGallery({ items: initialItems, sessionId, cover
     return (localStorage.getItem("gallery_sort_session") as GallerySortMode) ?? "newest";
   });
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [groupBySet, setGroupBySet] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return localStorage.getItem("gallery_group_session") === "true";
+  });
   const [, startTransition] = useTransition();
   const dragCounterRef = useRef(0);
   const addFilesRef = useRef<((files: FileList | File[]) => void) | null>(null);
@@ -118,6 +123,27 @@ export function SessionProductionGallery({ items: initialItems, sessionId, cover
     return map;
   }, [displayItems]);
 
+  // Group items by their first set link (for "Group by Set" mode)
+  const grouped = useMemo(() => {
+    if (!groupBySet) return null;
+    const setMap = new Map<string, { setId: string; setTitle: string; items: GalleryItem[] }>();
+    const sessionOnly: GalleryItem[] = [];
+    for (const item of displayItems) {
+      if (item.setLinks && item.setLinks.length > 0) {
+        const link = item.setLinks[0];
+        if (!setMap.has(link.setId)) {
+          setMap.set(link.setId, { setId: link.setId, setTitle: link.setTitle, items: [] });
+        }
+        setMap.get(link.setId)!.items.push(item);
+      } else {
+        sessionOnly.push(item);
+      }
+    }
+    return { groups: Array.from(setMap.values()), sessionOnly };
+  }, [groupBySet, displayItems]);
+
+  const hasSetLinks = displayItems.some((item) => item.setLinks && item.setLinks.length > 0);
+
   const handleSetCover = useCallback((mediaItemId: string | null) => {
     setCoverId(mediaItemId);
     if (sessionId) setSessionCover(sessionId, mediaItemId);
@@ -172,24 +198,90 @@ export function SessionProductionGallery({ items: initialItems, sessionId, cover
               </Button>
             </>
           ) : (
-            <Select value={sortMode} onValueChange={(v) => { const m = v as GallerySortMode; setSortMode(m); localStorage.setItem("gallery_sort_session", m); }}>
-              <SelectTrigger className="h-7 w-[130px] text-xs gap-1 ml-auto">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {GALLERY_SORT_OPTIONS.filter((o) => o.value !== "user").map((opt) => (
-                  <SelectItem key={opt.value} value={opt.value} className="text-xs">
-                    {opt.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="flex items-center gap-2 ml-auto">
+              {hasSetLinks && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const next = !groupBySet;
+                    setGroupBySet(next);
+                    localStorage.setItem("gallery_group_session", String(next));
+                  }}
+                  title={groupBySet ? "Show flat" : "Group by Set"}
+                  className={`flex h-7 w-7 items-center justify-center rounded-md border transition-colors ${
+                    groupBySet
+                      ? "border-entity-session/40 bg-entity-session/15 text-entity-session"
+                      : "border-white/15 bg-card/60 text-muted-foreground hover:border-entity-session/30 hover:bg-entity-session/10 hover:text-entity-session"
+                  }`}
+                >
+                  <Layers size={14} />
+                </button>
+              )}
+              <Select value={sortMode} onValueChange={(v) => { const m = v as GallerySortMode; setSortMode(m); localStorage.setItem("gallery_sort_session", m); }}>
+                <SelectTrigger className="h-7 w-[130px] text-xs gap-1">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {GALLERY_SORT_OPTIONS.filter((o) => o.value !== "user").map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value} className="text-xs">
+                      {opt.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           )}
         </div>
       )}
 
       {displayItems.length === 0 ? (
         <p className="text-sm italic text-muted-foreground/70">No media items in this session.</p>
+      ) : grouped ? (
+        <div className="space-y-6">
+          {grouped.groups.map((group) => (
+            <div key={group.setId}>
+              <div className="mb-2 flex items-center gap-2 border-b border-white/10 pb-1.5">
+                <Layers size={12} className="text-entity-session/60 shrink-0" />
+                <Link
+                  href={`/sets/${group.setId}`}
+                  className="text-sm font-medium text-foreground/80 hover:text-entity-set transition-colors"
+                >
+                  {group.setTitle}
+                </Link>
+                <span className="text-xs text-muted-foreground">{group.items.length}</span>
+              </div>
+              <JustifiedGrid
+                items={group.items}
+                selectable
+                selectedIds={selectedIds}
+                onToggleSelect={handleToggleSelect}
+                onOpen={(id) => {
+                  const idx = indexMap.get(id);
+                  if (idx !== undefined) setLightboxIndex(idx);
+                }}
+              />
+            </div>
+          ))}
+          {grouped.sessionOnly.length > 0 && (
+            <div>
+              <div className="mb-2 flex items-center gap-2 border-b border-white/10 pb-1.5">
+                <Layers size={12} className="text-muted-foreground/50 shrink-0" />
+                <span className="text-sm font-medium text-muted-foreground">Session only</span>
+                <span className="text-xs text-muted-foreground">{grouped.sessionOnly.length}</span>
+              </div>
+              <JustifiedGrid
+                items={grouped.sessionOnly}
+                selectable
+                selectedIds={selectedIds}
+                onToggleSelect={handleToggleSelect}
+                onOpen={(id) => {
+                  const idx = indexMap.get(id);
+                  if (idx !== undefined) setLightboxIndex(idx);
+                }}
+              />
+            </div>
+          )}
+        </div>
       ) : (
         <JustifiedGrid
           items={displayItems}

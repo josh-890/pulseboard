@@ -50,4 +50,6 @@ export type GalleryItem = {
   sessionId?: string;
   /** Source session name — only populated in set gallery context */
   sessionName?: string;
+  /** Sets this item belongs to — populated in session gallery context */
+  setLinks?: { setId: string; setTitle: string }[];
 };
