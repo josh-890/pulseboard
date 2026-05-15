@@ -17,8 +17,10 @@ import {
   deleteArchiveFolder,
   confirmVideoFile,
   unlinkArchiveFolder,
+  runMatchingPassForItem,
+  searchArchiveFolders,
 } from '@/lib/services/archive-service'
-import type { WorkspaceFilters, WorkspacePage, ChannelSummary, WorkspaceCounts } from '@/lib/services/archive-service'
+import type { WorkspaceFilters, WorkspacePage, ChannelSummary, WorkspaceCounts, SearchFolderResult } from '@/lib/services/archive-service'
 import type { SimpleActionResult } from '@/lib/types'
 
 // ─── Archive Workspace Data ───────────────────────────────────────────────────
@@ -193,6 +195,34 @@ export async function deleteArchiveFolderAction(id: string): Promise<SimpleActio
       return { success: true }
     } catch {
       return { success: false, error: 'Failed to delete archive folder record' }
+    }
+  })
+}
+
+// ─── Per-Item Archive Search & Re-Match ──────────────────────────────────────
+
+export async function searchArchiveFoldersAction(
+  query: string,
+  isVideo: boolean,
+): Promise<SearchFolderResult[]> {
+  return withTenantFromHeaders(() => {
+    const tenant = getCurrentTenantId()
+    return searchArchiveFolders(query, isVideo, tenant)
+  })
+}
+
+export async function rematchItemAction(
+  id: string,
+  type: 'staging' | 'set',
+): Promise<{ matched: boolean; confidence?: 'HIGH' | 'MEDIUM'; error?: string }> {
+  return withTenantFromHeaders(async () => {
+    try {
+      const tenant = getCurrentTenantId()
+      const result = await runMatchingPassForItem(id, type, tenant)
+      revalidatePath('/shopping-list')
+      return result
+    } catch {
+      return { matched: false, error: 'Failed to run matching pass' }
     }
   })
 }

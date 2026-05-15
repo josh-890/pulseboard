@@ -1382,6 +1382,222 @@ function _normPath(p: string): string {
   return p.replace(/[/\\]+/g, '/').replace(/\/$/, '').toLowerCase()
 }
 
+// ─── Per-Item Re-Match ────────────────────────────────────────────────────────
+
+/**
+ * Run the archive matching pass for a single StagingSet or Set.
+ * Inverse of runMatchingPass: given an item, find matching ArchiveFolders.
+ *
+ * Step 1 (HIGH): exact parsedDate + exact parsedShortName, ordered by title similarity.
+ * Step 2 (MEDIUM): same year + same shortName + trigram similarity ≥ 0.4.
+ *
+ * Clears any existing SUGGESTED link before matching. No-ops if item already has a
+ * CONFIRMED link.
+ */
+export async function runMatchingPassForItem(
+  id: string,
+  type: 'staging' | 'set',
+  tenant: string,
+): Promise<{ matched: boolean; confidence?: 'HIGH' | 'MEDIUM' }> {
+  let releaseDate: Date | null = null
+  let isVideo = false
+  let shortName: string | null = null
+  let titleNorm: string | null = null
+  let alreadyConfirmed = false
+
+  if (type === 'staging') {
+    const ss = await prisma.stagingSet.findUnique({
+      where: { id },
+      select: {
+        releaseDate: true,
+        isVideo: true,
+        titleNorm: true,
+        channel: { select: { shortName: true } },
+        archiveLinks: { where: { status: 'CONFIRMED' }, select: { id: true }, take: 1 },
+      },
+    })
+    if (!ss) return { matched: false }
+    alreadyConfirmed = ss.archiveLinks.length > 0
+    releaseDate = ss.releaseDate
+    isVideo = ss.isVideo
+    shortName = ss.channel?.shortName ?? null
+    titleNorm = ss.titleNorm ?? null
+  } else {
+    const set = await prisma.set.findUnique({
+      where: { id },
+      select: {
+        releaseDate: true,
+        type: true,
+        titleNorm: true,
+        channel: { select: { shortName: true } },
+        archiveLinks: { where: { status: 'CONFIRMED' }, select: { id: true }, take: 1 },
+      },
+    })
+    if (!set) return { matched: false }
+    alreadyConfirmed = set.archiveLinks.length > 0
+    releaseDate = set.releaseDate
+    isVideo = set.type === 'video'
+    shortName = set.channel?.shortName ?? null
+    titleNorm = set.titleNorm ?? null
+  }
+
+  if (alreadyConfirmed || !releaseDate || !shortName) return { matched: false }
+
+  // Clear existing SUGGESTED link for this item
+  if (type === 'staging') {
+    await prisma.archiveLink.deleteMany({ where: { stagingSetId: id, status: 'SUGGESTED' } })
+  } else {
+    await prisma.archiveLink.deleteMany({ where: { setId: id, status: 'SUGGESTED' } })
+  }
+
+  const dateStart = new Date(releaseDate)
+  dateStart.setHours(0, 0, 0, 0)
+  const dateEnd = new Date(dateStart)
+  dateEnd.setDate(dateEnd.getDate() + 1)
+
+  type FolderRow = { id: string }
+
+  // Step 1: HIGH confidence — exact date + exact shortName, best title similarity
+  let folderMatch: FolderRow | null = null
+  if (titleNorm) {
+    const rows = await prisma.$queryRaw<FolderRow[]>`
+      SELECT af.id
+      FROM archive_folder af
+      WHERE af.tenant = ${tenant}
+        AND af."parsedDate" >= ${dateStart} AND af."parsedDate" < ${dateEnd}
+        AND LOWER(af."parsedShortName") = LOWER(${shortName})
+        AND af."isVideo" = ${isVideo}
+        AND af."missingOnDisk" = false
+        AND NOT EXISTS (
+          SELECT 1 FROM "ArchiveLink" al
+          WHERE al."archiveFolderId" = af.id AND al.status = 'CONFIRMED'
+        )
+      ORDER BY similarity(${titleNorm}, COALESCE(af."parsedTitle", '')) DESC
+      LIMIT 1
+    `
+    folderMatch = rows[0] ?? null
+  } else {
+    const rows = await prisma.archiveFolder.findMany({
+      where: {
+        tenant,
+        parsedDate: { gte: dateStart, lt: dateEnd },
+        parsedShortName: { equals: shortName, mode: 'insensitive' },
+        isVideo,
+        missingOnDisk: false,
+        OR: [{ archiveLink: null }, { archiveLink: { status: 'SUGGESTED' } }],
+      },
+      select: { id: true },
+      take: 1,
+    })
+    folderMatch = rows[0] ?? null
+  }
+
+  if (folderMatch) {
+    const fid = folderMatch.id
+    if (type === 'staging') {
+      await prisma.archiveLink.upsert({
+        where: { archiveFolderId: fid },
+        create: { archiveFolderId: fid, stagingSetId: id, status: 'SUGGESTED', confidence: 'HIGH', tenant },
+        update: { stagingSetId: id, setId: null, status: 'SUGGESTED', confidence: 'HIGH' },
+      })
+    } else {
+      await prisma.archiveLink.upsert({
+        where: { archiveFolderId: fid },
+        create: { archiveFolderId: fid, setId: id, status: 'SUGGESTED', confidence: 'HIGH', tenant },
+        update: { setId: id, stagingSetId: null, status: 'SUGGESTED', confidence: 'HIGH' },
+      })
+    }
+    return { matched: true, confidence: 'HIGH' }
+  }
+
+  // Step 2: MEDIUM confidence — same year + same shortName + trigram ≥ 0.4
+  if (titleNorm) {
+    const year = releaseDate.getFullYear()
+    type SimilarityRow = { id: string; sim: number }
+    const rows = await prisma.$queryRaw<SimilarityRow[]>`
+      SELECT af.id, similarity(${titleNorm}, COALESCE(af."parsedTitle", '')) AS sim
+      FROM archive_folder af
+      WHERE af.tenant = ${tenant}
+        AND LOWER(af."parsedShortName") = LOWER(${shortName})
+        AND EXTRACT(YEAR FROM af."parsedDate") = ${year}
+        AND af."isVideo" = ${isVideo}
+        AND af."missingOnDisk" = false
+        AND NOT EXISTS (
+          SELECT 1 FROM "ArchiveLink" al
+          WHERE al."archiveFolderId" = af.id AND al.status = 'CONFIRMED'
+        )
+        AND similarity(${titleNorm}, COALESCE(af."parsedTitle", '')) >= 0.4
+      ORDER BY sim DESC
+      LIMIT 1
+    `
+    const med = rows[0]
+    if (med) {
+      const fid = med.id
+      if (type === 'staging') {
+        await prisma.archiveLink.upsert({
+          where: { archiveFolderId: fid },
+          create: { archiveFolderId: fid, stagingSetId: id, status: 'SUGGESTED', confidence: 'MEDIUM', tenant },
+          update: { stagingSetId: id, setId: null, status: 'SUGGESTED', confidence: 'MEDIUM' },
+        })
+      } else {
+        await prisma.archiveLink.upsert({
+          where: { archiveFolderId: fid },
+          create: { archiveFolderId: fid, setId: id, status: 'SUGGESTED', confidence: 'MEDIUM', tenant },
+          update: { setId: id, stagingSetId: null, status: 'SUGGESTED', confidence: 'MEDIUM' },
+        })
+      }
+      return { matched: true, confidence: 'MEDIUM' }
+    }
+  }
+
+  return { matched: false }
+}
+
+// ─── Archive Folder Search ────────────────────────────────────────────────────
+
+export type SearchFolderResult = {
+  id: string
+  folderName: string
+  fullPath: string
+  fileCount: number | null
+  parsedDate: Date | null
+  parsedShortName: string | null
+}
+
+/**
+ * Search ArchiveFolder records by query string (folderName / fullPath / parsedTitle).
+ * Returns up to 20 results that are not CONFIRMED to any item, for manual linking.
+ */
+export async function searchArchiveFolders(
+  query: string,
+  isVideo: boolean,
+  tenant: string,
+): Promise<SearchFolderResult[]> {
+  if (!query.trim()) return []
+  return prisma.archiveFolder.findMany({
+    where: {
+      tenant,
+      isVideo,
+      missingOnDisk: false,
+      OR: [
+        { folderName: { contains: query, mode: 'insensitive' } },
+        { fullPath: { contains: query, mode: 'insensitive' } },
+        { parsedTitle: { contains: query, mode: 'insensitive' } },
+      ],
+    },
+    select: {
+      id: true,
+      folderName: true,
+      fullPath: true,
+      fileCount: true,
+      parsedDate: true,
+      parsedShortName: true,
+    },
+    orderBy: { parsedDate: 'desc' },
+    take: 20,
+  })
+}
+
 // ─── Batch Suggestion Queries ─────────────────────────────────────────────────
 
 export type SuggestedFolderInfo = {

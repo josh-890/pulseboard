@@ -1,15 +1,15 @@
 'use client'
 
-import { useState, useEffect, useTransition, useRef } from 'react'
+import { useState, useEffect, useTransition, useRef, useCallback } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import {
   Camera, Film, Layers, ImageIcon, StickyNote, ExternalLink,
   CheckCircle2, XCircle, Clock, AlertCircle, FolderSearch, X,
-  ChevronDown, ChevronRight, ShoppingCart,
+  ChevronDown, ChevronRight, ShoppingCart, Search, RefreshCw,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import type { MediaQueueItem } from '@/lib/services/archive-service'
+import type { MediaQueueItem, SearchFolderResult } from '@/lib/services/archive-service'
 import type { ArchiveStatus } from '@/generated/prisma/client'
 import {
   toggleMediaQueueAction,
@@ -17,6 +17,8 @@ import {
   confirmArchiveFolderLinkAction,
   rejectArchiveSuggestionAction,
   updateQueueNoteAction,
+  searchArchiveFoldersAction,
+  rematchItemAction,
 } from '@/lib/actions/archive-actions'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -93,6 +95,138 @@ function NoteEditor({
   )
 }
 
+// ─── Folder Search Panel ──────────────────────────────────────────────────────
+
+function FolderSearchPanel({
+  item,
+  onLinked,
+}: {
+  item: MediaQueueItem
+  onLinked: () => void
+}) {
+  const [query, setQuery] = useState('')
+  const [results, setResults] = useState<SearchFolderResult[]>([])
+  const [searching, setSearching] = useState(false)
+  const [rematching, setRematching] = useState(false)
+  const [rematchResult, setRematchResult] = useState<string | null>(null)
+  const [linking, setLinking] = useState<string | null>(null)
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => { inputRef.current?.focus() }, [])
+
+  const runSearch = useCallback(async (q: string) => {
+    if (!q.trim()) { setResults([]); return }
+    setSearching(true)
+    const res = await searchArchiveFoldersAction(q, item.isVideo)
+    setResults(res)
+    setSearching(false)
+  }, [item.isVideo])
+
+  function handleQueryChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const q = e.target.value
+    setQuery(q)
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+    debounceRef.current = setTimeout(() => runSearch(q), 350)
+  }
+
+  async function handleRematch() {
+    setRematching(true)
+    setRematchResult(null)
+    const res = await rematchItemAction(item.id, item.type)
+    if (res.matched) {
+      setRematchResult(`Match found (${res.confidence === 'HIGH' ? 'date+code' : 'title similarity'})`)
+      onLinked()
+    } else {
+      setRematchResult('No match found')
+    }
+    setRematching(false)
+  }
+
+  async function handleLink(folderId: string) {
+    setLinking(folderId)
+    await confirmArchiveFolderLinkAction(folderId, item.id, item.type)
+    onLinked()
+    setLinking(null)
+  }
+
+  return (
+    <div className="border-t border-white/8 px-3 pb-3 pt-2 space-y-2">
+      {/* Search input + Re-match button */}
+      <div className="flex items-center gap-2">
+        <div className="relative flex-1">
+          <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground/40 pointer-events-none" />
+          <input
+            ref={inputRef}
+            type="text"
+            value={query}
+            onChange={handleQueryChange}
+            placeholder="Search archive folders…"
+            className={cn(
+              'w-full rounded-lg border border-input bg-background/60 py-1.5 pl-7 pr-2.5 text-xs text-foreground',
+              'placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-primary/50',
+            )}
+          />
+        </div>
+        <button
+          type="button"
+          onClick={handleRematch}
+          disabled={rematching}
+          title="Re-run automatic matching for this item"
+          className="flex shrink-0 items-center gap-1.5 rounded-lg border border-white/10 bg-muted/40 px-2.5 py-1.5 text-[10px] font-medium text-muted-foreground transition-colors hover:bg-muted/70 hover:text-foreground disabled:opacity-50"
+        >
+          <RefreshCw size={11} className={cn(rematching && 'animate-spin')} />
+          Re-match
+        </button>
+      </div>
+
+      {/* Re-match result */}
+      {rematchResult && (
+        <p className={cn(
+          'text-[11px]',
+          rematchResult.startsWith('Match') ? 'text-green-500' : 'text-muted-foreground/60',
+        )}>
+          {rematchResult}
+        </p>
+      )}
+
+      {/* Search results */}
+      {searching && <p className="text-[11px] text-muted-foreground/50">Searching…</p>}
+      {!searching && results.length === 0 && query.trim() && (
+        <p className="text-[11px] text-muted-foreground/50">No folders found</p>
+      )}
+      {results.length > 0 && (
+        <div className="flex flex-col gap-1 max-h-48 overflow-y-auto">
+          {results.map((folder) => (
+            <div
+              key={folder.id}
+              className="flex items-center gap-2 rounded-lg border border-white/8 bg-muted/20 px-2.5 py-1.5"
+            >
+              <div className="min-w-0 flex-1">
+                <p className="truncate font-mono text-[11px] text-foreground/80" title={folder.fullPath}>
+                  {folder.fullPath}
+                </p>
+                {folder.fileCount != null && (
+                  <p className="text-[10px] text-muted-foreground/60">{folder.fileCount} files</p>
+                )}
+              </div>
+              <button
+                type="button"
+                disabled={linking === folder.id}
+                onClick={() => handleLink(folder.id)}
+                className="shrink-0 flex items-center gap-1 rounded bg-green-500/15 px-2 py-0.5 text-[10px] font-semibold text-green-600 transition-colors hover:bg-green-500/30 dark:text-green-400 disabled:opacity-50"
+              >
+                <CheckCircle2 size={10} />
+                Link
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ─── Queue Row ────────────────────────────────────────────────────────────────
 
 function QueueRow({
@@ -108,6 +242,7 @@ function QueueRow({
 }) {
   const [pending, startTransition] = useTransition()
   const [noteOpen, setNoteOpen] = useState(false)
+  const [searchOpen, setSearchOpen] = useState(false)
   const router = useRouter()
 
   const dateStr = item.releaseDate
@@ -201,6 +336,21 @@ function QueueRow({
 
         {/* Right actions */}
         <div className="flex shrink-0 items-center gap-1.5">
+          {/* Search/link toggle */}
+          <button
+            type="button"
+            onClick={() => setSearchOpen((o) => !o)}
+            title="Search archive folders or re-run matching"
+            className={cn(
+              'flex h-6 w-6 items-center justify-center rounded transition-colors',
+              searchOpen
+                ? 'text-primary bg-primary/10'
+                : 'text-muted-foreground/30 hover:text-muted-foreground',
+            )}
+          >
+            <Search size={13} />
+          </button>
+
           {/* Note toggle */}
           <button
             type="button"
@@ -332,6 +482,17 @@ function QueueRow({
             }}
           />
         </div>
+      )}
+
+      {/* ── Line 4: folder search panel (only when open) ── */}
+      {searchOpen && (
+        <FolderSearchPanel
+          item={item}
+          onLinked={() => {
+            setSearchOpen(false)
+            router.refresh()
+          }}
+        />
       )}
     </div>
   )
