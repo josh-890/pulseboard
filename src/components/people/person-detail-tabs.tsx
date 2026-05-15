@@ -523,7 +523,7 @@ const DENSITY_CONFIGS: Record<HeroLayout, HeroDensityConfig> = {
     photoHeight: 250,
     labelWidth: "w-36",
     fieldGap: "gap-2.5",
-    kpiWidth: "sm:w-56",
+    kpiWidth: "lg:w-56",
     nameSize: "text-2xl",
   },
   standard: {
@@ -533,7 +533,7 @@ const DENSITY_CONFIGS: Record<HeroLayout, HeroDensityConfig> = {
     photoHeight: 220,
     labelWidth: "w-32",
     fieldGap: "gap-2",
-    kpiWidth: "sm:w-52",
+    kpiWidth: "lg:w-52",
     nameSize: "text-xl",
   },
   compact: {
@@ -543,7 +543,7 @@ const DENSITY_CONFIGS: Record<HeroLayout, HeroDensityConfig> = {
     photoHeight: 200,
     labelWidth: "w-28",
     fieldGap: "gap-1.5",
-    kpiWidth: "sm:w-48",
+    kpiWidth: "lg:w-48",
     nameSize: "text-lg",
   },
 };
@@ -845,6 +845,28 @@ function IdentityBlock({ person, displayName, age, heroAliases, onAliasesBadgeCl
   );
 }
 
+// ── KPI Stats Strip (tablet md: layout) ────────────────────────────────────
+
+function KpiStatsStrip({ kpiCounts }: { kpiCounts: KpiCounts }) {
+  const items = [
+    { icon: <Film size={13} />, count: kpiCounts.sets, label: "Sets" },
+    { icon: <Building2 size={13} />, count: kpiCounts.labels, label: "Labels" },
+    { icon: <ImageIcon size={13} />, count: kpiCounts.photos, label: "Photos" },
+    { icon: <Link2 size={13} />, count: kpiCounts.connections, label: "Connections" },
+  ];
+  return (
+    <>
+      {items.map((item) => (
+        <div key={item.label} className="flex items-center gap-1.5 text-sm">
+          <span className="text-muted-foreground" aria-hidden="true">{item.icon}</span>
+          <span className="font-semibold tabular-nums">{item.count}</span>
+          <span className="text-xs text-muted-foreground">{item.label}</span>
+        </div>
+      ))}
+    </>
+  );
+}
+
 // ── Hero Density Layout ─────────────────────────────────────────────────────
 
 function HeroDensityLayout(props: HeroSharedProps) {
@@ -872,7 +894,7 @@ function HeroDensityLayout(props: HeroSharedProps) {
 
   return (
     <div className={cn("rounded-2xl border border-white/20 bg-card/70 shadow-md backdrop-blur-sm", cfg.cardPadding)}>
-      <div className={cn("flex flex-col items-center text-center sm:flex-row sm:items-start sm:text-left", cfg.cardGap)}>
+      <div className={cn("flex flex-col items-center text-center md:flex-row md:items-start md:text-left", cfg.cardGap)}>
         {/* Zone 1: Photo */}
         <CarouselHeader
           items={photos}
@@ -891,7 +913,7 @@ function HeroDensityLayout(props: HeroSharedProps) {
         />
 
         {/* Zones 2+3: Identity | Physical — 2-col grid, no hairline */}
-        <div className="hidden sm:grid flex-1 min-w-0 grid-cols-[auto_1fr] grid-rows-[auto_1fr] items-stretch">
+        <div className="hidden md:grid flex-1 min-w-0 grid-cols-[auto_1fr] grid-rows-[auto_1fr] items-stretch">
           {/* Row 1, Col 1: Name + ICG ID */}
           <div className="flex items-end pb-1.5">
             <IdentityBlock
@@ -944,7 +966,7 @@ function HeroDensityLayout(props: HeroSharedProps) {
         </div>
 
         {/* Mobile fallback: stacked layout */}
-        <div className="sm:hidden w-full space-y-3">
+        <div className="md:hidden w-full space-y-3">
           <IdentityBlock
             person={person}
             displayName={displayName}
@@ -966,13 +988,18 @@ function HeroDensityLayout(props: HeroSharedProps) {
           </div>
         </div>
 
-        {/* Divider 3|4 */}
-        <div className="hidden sm:block w-px self-stretch bg-white/10 [mask-image:linear-gradient(to_bottom,transparent,white_20%,white_80%,transparent)]" />
+        {/* Divider 3|4 — only at lg: when KPI panel is visible */}
+        <div className="hidden lg:block w-px self-stretch bg-white/10 [mask-image:linear-gradient(to_bottom,transparent,white_20%,white_80%,transparent)]" />
 
-        {/* Zone 4: KPI Panel */}
-        <div className={cn("w-full sm:shrink-0 px-2", cfg.kpiWidth)}>
+        {/* Zone 4: KPI Panel — full version at lg:+ only */}
+        <div className={cn("hidden lg:flex lg:shrink-0 flex-col px-2", cfg.kpiWidth)}>
           <KpiStatsPanel person={person} kpiCounts={kpiCounts} calculatedPgrade={calculatedPgrade} meanWcp={meanWcp} />
         </div>
+      </div>
+
+      {/* KPI strip — tablet only (md: to lg:) */}
+      <div className="hidden md:flex lg:hidden mt-3 pt-3 border-t border-white/10 gap-x-5 gap-y-1.5 flex-wrap">
+        <KpiStatsStrip kpiCounts={kpiCounts} />
       </div>
     </div>
   );
