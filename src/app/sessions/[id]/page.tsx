@@ -394,7 +394,7 @@ export default async function SessionDetailPage({ params, searchParams }: Sessio
               {session.contributions.length === 0 ? (
                 <EmptyState message="No contributors in this session." />
               ) : (
-                <ul className="space-y-1.5">
+                <ul className="space-y-0.5">
                   {session.contributions.map((contribution) => {
                     const commonAlias = contribution.person.aliases[0]?.name;
                     const displayName = commonAlias ?? contribution.person.icgId;
@@ -405,7 +405,7 @@ export default async function SessionDetailPage({ params, searchParams }: Sessio
                       <li key={contribution.id}>
                         <Link
                           href={`/people/${contribution.personId}`}
-                          className="group flex items-center gap-2.5 rounded-lg border border-transparent px-3 py-2 transition-all hover:border-white/15 hover:bg-card/60 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                          className="group flex items-center gap-2.5 rounded-lg border border-transparent px-3 py-1 transition-all hover:border-white/15 hover:bg-card/60 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                         >
                           <span className="inline-flex items-center rounded-full border border-white/15 bg-muted/50 px-2 py-0.5 text-xs font-medium shrink-0 text-muted-foreground">
                             {contribution.roleDefinition.name}

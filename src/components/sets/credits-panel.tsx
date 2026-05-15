@@ -1,10 +1,12 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { FileText, ChevronDown, ChevronUp } from "lucide-react";
 import { AddCreditInline } from "@/components/sets/add-credit-inline";
 import { LabelEvidenceManager } from "@/components/sets/label-evidence-manager";
 import { CreditResolutionPanel } from "@/components/sets/credit-resolution-panel";
+import { cn } from "@/lib/utils";
 
 type CreditItem = {
   id: string;
@@ -41,6 +43,51 @@ type CreditsPanelProps = {
   roleDefinitions: RoleDefinitionOption[];
 };
 
+function CreditRow({ credit }: { credit: CreditItem }) {
+  const isUnresolved = credit.resolutionStatus === "UNRESOLVED";
+  const personId = credit.resolvedPerson?.id;
+  const displayName = credit.resolvedPerson
+    ? (credit.resolvedPerson.aliases.find((a) => a.isCommon)?.name ?? credit.resolvedPerson.icgId)
+    : credit.resolvedArtist?.name ?? credit.rawName;
+
+  const inner = (
+    <>
+      {credit.roleName && (
+        <span className="inline-flex shrink-0 items-center rounded-full border border-white/15 bg-muted/50 px-2 py-0.5 text-xs font-medium text-muted-foreground">
+          {credit.roleName}
+        </span>
+      )}
+      <span
+        className={cn(
+          "text-sm font-medium truncate",
+          isUnresolved
+            ? "text-muted-foreground/60 italic"
+            : "text-foreground/90",
+        )}
+      >
+        {displayName}
+      </span>
+    </>
+  );
+
+  if (personId) {
+    return (
+      <Link
+        href={`/people/${personId}`}
+        className="group flex items-center gap-2.5 rounded-lg border border-transparent px-3 py-1 transition-all hover:border-white/15 hover:bg-card/60 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+      >
+        {inner}
+      </Link>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-2.5 px-3 py-1">
+      {inner}
+    </div>
+  );
+}
+
 export function CreditsPanel({
   setId,
   channelId,
@@ -49,6 +96,7 @@ export function CreditsPanel({
   roleDefinitions,
 }: CreditsPanelProps) {
   const [expanded, setExpanded] = useState(false);
+  const visibleCredits = credits.filter((c) => c.resolutionStatus !== "IGNORED");
   const unresolvedCount = credits.filter((c) => c.resolutionStatus === "UNRESOLVED").length;
   const hasCredits = credits.length > 0;
 
@@ -74,34 +122,39 @@ export function CreditsPanel({
             className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
           >
             {expanded ? (
-              <>
-                Collapse <ChevronUp size={12} />
-              </>
+              <>Collapse <ChevronUp size={12} /></>
             ) : (
-              <>
-                Manage <ChevronDown size={12} />
-              </>
+              <>Manage <ChevronDown size={12} /></>
             )}
           </button>
         )}
       </div>
 
-      {/* Always visible: label evidence + add credit */}
-      <div className="p-4 space-y-4">
+      {/* Flat credits list — always visible */}
+      {visibleCredits.length > 0 && (
+        <div className="pt-2 pb-1">
+          {visibleCredits.map((credit) => (
+            <CreditRow key={credit.id} credit={credit} />
+          ))}
+        </div>
+      )}
+
+      {/* Management tools */}
+      <div className={cn("px-4 pb-4 space-y-4", visibleCredits.length > 0 ? "pt-3 border-t border-white/10" : "pt-4")}>
         <LabelEvidenceManager setId={setId} evidence={labelEvidence} />
         <AddCreditInline setId={setId} roleDefinitions={roleDefinitions} />
+
+        {!hasCredits && (
+          <p className="text-sm text-muted-foreground/60 italic">
+            No credits yet. Add credits to track contributors.
+          </p>
+        )}
 
         {/* Collapsible resolution panel */}
         {expanded && hasCredits && (
           <div className="border-t border-white/10 pt-4">
             <CreditResolutionPanel setId={setId} channelId={channelId} credits={credits} />
           </div>
-        )}
-
-        {!hasCredits && (
-          <p className="text-sm text-muted-foreground/60 italic">
-            No credits yet. Add credits to track contributors.
-          </p>
         )}
       </div>
     </div>
