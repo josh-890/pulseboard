@@ -937,17 +937,21 @@ function HeroDensityLayout(props: HeroSharedProps) {
             />
           </div>
           {/* Rows 1-2, Col 2: Physical stats (single continuous panel) */}
-          <div className={cn("row-span-2 rounded-lg bg-white/[0.02] px-4 py-2 ml-4 border-l border-white/8 flex flex-col relative group", cfg.fieldGap)}>
-            {props.onEditAppearanceClick && (
-              <button
-                type="button"
-                onClick={props.onEditAppearanceClick}
-                title="Edit appearance"
-                className="absolute top-1.5 right-1.5 p-1 rounded-md opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-foreground hover:bg-white/10"
-              >
-                <Pencil size={11} />
-              </button>
-            )}
+          <div className={cn("row-span-2 rounded-lg bg-white/[0.02] px-4 py-2 ml-4 border-l border-white/8 flex flex-col", cfg.fieldGap)}>
+            {/* Section header */}
+            <div className="flex items-center justify-between mb-0.5">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/50">Physique</span>
+              {props.onEditAppearanceClick && (
+                <button
+                  type="button"
+                  onClick={props.onEditAppearanceClick}
+                  title="Edit appearance"
+                  className="p-0.5 rounded opacity-0 hover:opacity-100 transition-opacity text-muted-foreground hover:text-foreground hover:bg-white/10 -mr-1"
+                >
+                  <Pencil size={10} />
+                </button>
+              )}
+            </div>
             <PhysicalMetrics
               person={person}
               currentState={currentState}
@@ -995,17 +999,20 @@ function HeroDensityLayout(props: HeroSharedProps) {
             plausibilityCount={plausibilityCount}
             section="all"
           />
-          <div className="relative group rounded-lg bg-white/[0.02] px-4 py-1">
-            {props.onEditAppearanceClick && (
-              <button
-                type="button"
-                onClick={props.onEditAppearanceClick}
-                title="Edit appearance"
-                className="absolute top-1.5 right-1.5 p-1 rounded-md opacity-40 hover:opacity-100 transition-opacity text-muted-foreground hover:text-foreground hover:bg-white/10"
-              >
-                <Pencil size={11} />
-              </button>
-            )}
+          <div className="rounded-lg bg-white/[0.02] px-4 py-1">
+            <div className="flex items-center justify-between mb-0.5 mt-0.5">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/50">Physique</span>
+              {props.onEditAppearanceClick && (
+                <button
+                  type="button"
+                  onClick={props.onEditAppearanceClick}
+                  title="Edit appearance"
+                  className="p-0.5 rounded opacity-40 hover:opacity-100 transition-opacity text-muted-foreground hover:text-foreground hover:bg-white/10 -mr-1"
+                >
+                  <Pencil size={10} />
+                </button>
+              )}
+            </div>
             <PhysicalMetrics person={person} currentState={currentState} labelWidth={cfg.labelWidth} fieldGap={cfg.fieldGap} />
             <div className="border-t border-white/10 my-1.5" />
             <PhysicalDescriptive person={person} currentState={currentState} labelWidth={cfg.labelWidth} fieldGap={cfg.fieldGap} />
