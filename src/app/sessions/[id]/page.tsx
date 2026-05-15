@@ -18,9 +18,8 @@ import { getEntityTags } from "@/lib/services/entity-tag-service";
 import { prisma } from "@/lib/db";
 import { cn, formatPartialDateISO } from "@/lib/utils";
 import { EditSessionSheet } from "@/components/sessions/edit-session-sheet";
-import { DeleteButton } from "@/components/shared/delete-button";
 import { deleteSession } from "@/lib/actions/session-actions";
-import { SessionMergeDialog } from "@/components/sessions/session-merge-dialog";
+import { SessionActionsMenu } from "@/components/sessions/session-actions-menu";
 import { SessionHero } from "@/components/sessions/session-hero";
 import { SessionTagSection } from "@/components/sessions/session-tag-section";
 import { SessionProductionGallery, SessionUploadButton } from "@/components/sessions/session-production-gallery";
@@ -295,13 +294,9 @@ export default async function SessionDetailPage({ params, searchParams }: Sessio
               labels={labelOptions}
               projects={projectOptions}
             />
-            <SessionMergeDialog
-              survivingSessionId={id}
-              survivingSessionName={session.name}
-            />
-            <DeleteButton
-              title="Delete session?"
-              description="This will remove the session, its participants, media items, and set links. This action cannot be undone."
+            <SessionActionsMenu
+              sessionId={id}
+              sessionName={session.name}
               onDelete={deleteSession.bind(null, id)}
               redirectTo="/sessions"
             />

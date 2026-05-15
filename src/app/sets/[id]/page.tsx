@@ -10,9 +10,8 @@ import { getAllContributionRoleGroups } from "@/lib/services/contribution-role-s
 import { SetDetailGallery } from "@/components/sets/set-detail-gallery";
 import { getEntityTags } from "@/lib/services/entity-tag-service";
 import { EditSetSheet } from "@/components/sets/edit-set-sheet";
-import { DeleteButton } from "@/components/shared/delete-button";
 import { deleteSet } from "@/lib/actions/set-actions";
-import { MergeSetButton } from "@/components/sets/merge-set-sheet";
+import { SetActionsMenu } from "@/components/sets/set-actions-menu";
 import { SetHero } from "@/components/sets/set-hero";
 import { SetArchivePanel } from "@/components/sets/set-archive-panel";
 import { SetAboutCard } from "@/components/sets/set-about-card";
@@ -111,7 +110,6 @@ export default async function SetDetailPage({ params }: SetDetailPageProps) {
             </Suspense>
           </div>
           <div className="flex items-center justify-end gap-2">
-            <MergeSetButton setId={id} setTitle={setData.title} setType={setData.type} />
             <EditSetSheet
               set={{
                 id: setData.id,
@@ -134,9 +132,10 @@ export default async function SetDetailPage({ params }: SetDetailPageProps) {
               channels={channels}
               entityTags={setTags}
             />
-            <DeleteButton
-              title="Delete set?"
-              description="This will permanently remove the set and all credits. This action cannot be undone."
+            <SetActionsMenu
+              setId={id}
+              setTitle={setData.title}
+              setType={setData.type}
               onDelete={deleteSet.bind(null, id)}
               redirectTo="/sets"
             />

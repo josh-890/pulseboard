@@ -34,11 +34,20 @@ type SearchResult = {
 type SessionMergeDialogProps = {
   survivingSessionId: string;
   survivingSessionName: string;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 };
 
-export function SessionMergeDialog({ survivingSessionId, survivingSessionName }: SessionMergeDialogProps) {
+export function SessionMergeDialog({
+  survivingSessionId,
+  survivingSessionName,
+  open: controlledOpen,
+  onOpenChange: onControlledOpenChange,
+}: SessionMergeDialogProps) {
   const router = useRouter();
-  const [open, setOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
+  const isControlled = controlledOpen !== undefined;
+  const open = isControlled ? (controlledOpen ?? false) : internalOpen;
   const [step, setStep] = useState<"search" | "confirm">("search");
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
@@ -80,10 +89,7 @@ export function SessionMergeDialog({ survivingSessionId, survivingSessionName }:
 
     if (result.success) {
       toast.success(`Merged "${selected.name}" into "${survivingSessionName}"`);
-      setOpen(false);
-      setStep("search");
-      setQuery("");
-      setSelected(null);
+      handleClose();
       router.refresh();
     } else {
       toast.error(result.error ?? "Failed to merge sessions");
@@ -91,19 +97,27 @@ export function SessionMergeDialog({ survivingSessionId, survivingSessionName }:
   }
 
   function handleClose() {
-    setOpen(false);
+    if (isControlled) onControlledOpenChange?.(false);
+    else setInternalOpen(false);
     setStep("search");
     setQuery("");
     setSelected(null);
     setResults([]);
   }
 
+  function handleOpen() {
+    if (isControlled) onControlledOpenChange?.(true);
+    else setInternalOpen(true);
+  }
+
   return (
-    <Dialog open={open} onOpenChange={(v) => { if (!v) handleClose(); else setOpen(true); }}>
-      <Button variant="outline" size="sm" onClick={() => setOpen(true)}>
-        <Merge size={14} />
-        Merge
-      </Button>
+    <Dialog open={open} onOpenChange={(v) => { if (!v) handleClose(); else handleOpen(); }}>
+      {!isControlled && (
+        <Button variant="outline" size="sm" onClick={handleOpen}>
+          <Merge size={14} />
+          Merge
+        </Button>
+      )}
       <DialogContent className="sm:max-w-lg">
         {step === "search" && (
           <>
