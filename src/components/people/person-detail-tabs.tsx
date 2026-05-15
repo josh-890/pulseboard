@@ -219,7 +219,6 @@ function PhysicalDescriptive({
       <InfoRow label="Current hair" value={currentState.currentHairColor ? <span className="capitalize">{currentState.currentHairColor}</span> : "—"} labelWidth={labelWidth} />
       {currentState.breastSize && <InfoRow label="Current breasts" value={currentState.breastSize} labelWidth={labelWidth} />}
       {currentState.breastStatus && <InfoRow label="Breast status" value={<span className="capitalize">{currentState.breastStatus}</span>} labelWidth={labelWidth} />}
-      <InfoRow label="Body type" value={person.bodyType ? <span className="capitalize">{person.bodyType}</span> : "—"} labelWidth={labelWidth} />
       <InfoRow label="Build" value={currentState.build ? <span className="capitalize">{currentState.build}</span> : "—"} labelWidth={labelWidth} />
     </dl>
   );
