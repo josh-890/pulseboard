@@ -946,7 +946,7 @@ function HeroDensityLayout(props: HeroSharedProps) {
                   type="button"
                   onClick={props.onEditAppearanceClick}
                   title="Edit appearance"
-                  className="p-0.5 rounded opacity-0 hover:opacity-100 transition-opacity text-muted-foreground hover:text-foreground hover:bg-white/10 -mr-1"
+                  className="p-0.5 rounded opacity-40 hover:opacity-100 transition-opacity text-muted-foreground hover:text-foreground hover:bg-white/10 -mr-1"
                 >
                   <Pencil size={10} />
                 </button>
