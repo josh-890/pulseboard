@@ -2,6 +2,7 @@
 
 import { withTenantFromHeaders, getCurrentTenantId } from '@/lib/tenant-context'
 import { revalidatePath } from 'next/cache'
+import { prisma } from '@/lib/db'
 import {
   toggleStagingSetMediaQueue,
   toggleSetMediaQueue,
@@ -89,6 +90,26 @@ export async function updateMediaPriorityAction(
       return { success: true }
     } catch {
       return { success: false, error: 'Failed to update priority' }
+    }
+  })
+}
+
+export async function updateQueueNoteAction(
+  id: string,
+  type: 'staging' | 'set',
+  notes: string | null,
+): Promise<SimpleActionResult> {
+  return withTenantFromHeaders(async () => {
+    try {
+      if (type === 'staging') {
+        await prisma.stagingSet.update({ where: { id }, data: { notes } })
+      } else {
+        await prisma.set.update({ where: { id }, data: { notes } })
+      }
+      revalidatePath('/shopping-list')
+      return { success: true }
+    } catch {
+      return { success: false, error: 'Failed to save note' }
     }
   })
 }

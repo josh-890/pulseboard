@@ -47,6 +47,7 @@ export type ScanResult = {
 export type ArchiveSuggestion = {
   folderId: string
   folderName: string
+  fullPath: string
   fileCount: number | null
   confidence: 'HIGH' | 'MEDIUM'
 }
@@ -56,6 +57,8 @@ export type MediaQueueItem = {
   type: 'staging' | 'set'
   title: string
   channelName: string | null
+  channelShortName: string | null
+  notes: string | null
   releaseDate: Date | null
   isVideo: boolean
   mediaPriority: number
@@ -441,10 +444,12 @@ export async function getMediaQueue(filters: {
         id: true,
         title: true,
         channelName: true,
+        channel: { select: { shortName: true } },
         releaseDate: true,
         isVideo: true,
         mediaPriority: true,
         mediaQueueAt: true,
+        notes: true,
       },
       orderBy: [{ mediaPriority: 'asc' }, { releaseDate: 'asc' }],
       skip,
@@ -458,11 +463,12 @@ export async function getMediaQueue(filters: {
       select: {
         id: true,
         title: true,
-        channel: { select: { name: true } },
+        channel: { select: { name: true, shortName: true } },
         releaseDate: true,
         type: true,
         mediaPriority: true,
         mediaQueueAt: true,
+        notes: true,
       },
       orderBy: [{ mediaPriority: 'asc' }, { releaseDate: 'asc' }],
       skip,
@@ -510,6 +516,8 @@ export async function getMediaQueue(filters: {
       type: 'staging' as const,
       title: ss.title,
       channelName: ss.channelName,
+      channelShortName: ss.channel?.shortName ?? null,
+      notes: ss.notes ?? null,
       releaseDate: ss.releaseDate,
       isVideo: ss.isVideo,
       mediaPriority: ss.mediaPriority ?? 3,
@@ -519,7 +527,7 @@ export async function getMediaQueue(filters: {
       archiveFileCount: link?.archiveFileCount ?? null,
       archiveVideoPresent: link?.archiveVideoPresent ?? null,
       archiveSuggestion: sug
-        ? { folderId: sug.folderId, folderName: sug.folderName, fileCount: sug.fileCount, confidence: sug.confidence }
+        ? { folderId: sug.folderId, folderName: sug.folderName, fullPath: sug.fullPath, fileCount: sug.fileCount, confidence: sug.confidence }
         : null,
     }
   })
@@ -532,6 +540,8 @@ export async function getMediaQueue(filters: {
       type: 'set' as const,
       title: s.title,
       channelName: s.channel?.name ?? null,
+      channelShortName: s.channel?.shortName ?? null,
+      notes: s.notes ?? null,
       releaseDate: s.releaseDate,
       isVideo: s.type === 'video',
       mediaPriority: s.mediaPriority ?? 3,
@@ -541,7 +551,7 @@ export async function getMediaQueue(filters: {
       archiveFileCount: link?.archiveFileCount ?? null,
       archiveVideoPresent: link?.archiveVideoPresent ?? null,
       archiveSuggestion: sug
-        ? { folderId: sug.folderId, folderName: sug.folderName, fileCount: sug.fileCount, confidence: sug.confidence }
+        ? { folderId: sug.folderId, folderName: sug.folderName, fullPath: sug.fullPath, fileCount: sug.fileCount, confidence: sug.confidence }
         : null,
     }
   })
