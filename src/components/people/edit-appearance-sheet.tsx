@@ -4,7 +4,6 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Ruler } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -44,6 +43,8 @@ type PersonDetail = NonNullable<Awaited<ReturnType<typeof getPersonWithDetails>>
 
 type EditAppearanceSheetProps = {
   person: PersonDetail;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 };
 
 function SectionHeader({ children }: { children: React.ReactNode }) {
@@ -55,9 +56,16 @@ function SectionHeader({ children }: { children: React.ReactNode }) {
   );
 }
 
-export function EditAppearanceSheet({ person }: EditAppearanceSheetProps) {
+export function EditAppearanceSheet({ person, open: controlledOpen, onOpenChange }: EditAppearanceSheetProps) {
   const router = useRouter();
-  const [open, setOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
+  const isControlled = controlledOpen !== undefined;
+  const open = isControlled ? (controlledOpen ?? false) : internalOpen;
+
+  function handleClose() {
+    if (isControlled) onOpenChange?.(false);
+    else setInternalOpen(false);
+  }
 
   const baselinePersona = person.personas.find((p) => p.isBaseline);
   const physical = baselinePersona?.physicalChange;
@@ -85,7 +93,7 @@ export function EditAppearanceSheet({ person }: EditAppearanceSheetProps) {
 
     if (result.success) {
       toast.success("Appearance updated");
-      setOpen(false);
+      handleClose();
       router.refresh();
       return;
     }
@@ -103,13 +111,10 @@ export function EditAppearanceSheet({ person }: EditAppearanceSheetProps) {
 
   return (
     <Sheet open={open} onOpenChange={(v) => {
-      setOpen(v);
+      if (isControlled) onOpenChange?.(v);
+      else setInternalOpen(v);
       if (v) form.reset(getDefaults());
     }}>
-      <Button size="sm" variant="outline" onClick={() => setOpen(true)}>
-        <Ruler size={16} />
-        Appearance
-      </Button>
       <SheetContent side="right" className="flex w-full flex-col sm:max-w-md">
         <SheetHeader className="border-b pb-4 px-4">
           <SheetTitle className="text-lg font-semibold">Edit Appearance</SheetTitle>
@@ -274,7 +279,7 @@ export function EditAppearanceSheet({ person }: EditAppearanceSheetProps) {
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => setOpen(false)}
+                onClick={handleClose}
                 disabled={isSubmitting}
               >
                 Cancel

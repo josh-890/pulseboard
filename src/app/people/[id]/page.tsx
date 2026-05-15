@@ -25,8 +25,7 @@ import { getEntityTags } from "@/lib/services/entity-tag-service";
 import { PersonDetailTabs } from "@/components/people/person-detail-tabs";
 import { computePlausibilityIssues } from "@/lib/services/plausibility-service";
 import { EditPersonSheet } from "@/components/people/edit-person-sheet";
-import { EditAppearanceSheet } from "@/components/people/edit-appearance-sheet";
-import { DeleteButton } from "@/components/shared/delete-button";
+import { PersonActionsMenu } from "@/components/people/person-actions-menu";
 import { deletePerson } from "@/lib/actions/person-actions";
 
 export const dynamic = "force-dynamic";
@@ -153,14 +152,8 @@ export default async function PersonDetailPage({ params, searchParams }: PersonD
           </Suspense>
         </div>
         <div className="flex items-center justify-end gap-2">
-          <EditAppearanceSheet person={person} />
           <EditPersonSheet person={person} />
-          <DeleteButton
-            title="Delete person?"
-            description="This will permanently remove the person and all their data. This action cannot be undone."
-            onDelete={deletePerson.bind(null, id)}
-            redirectTo="/people"
-          />
+          <PersonActionsMenu personId={id} onDelete={deletePerson.bind(null, id)} redirectTo="/people" />
         </div>
       </div>
 

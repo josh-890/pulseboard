@@ -80,6 +80,7 @@ import { updatePersonBio, updatePersonPgrade, updatePersonRating } from "@/lib/a
 import { setEntityTagsAction } from "@/lib/actions/tag-actions";
 import { TagPicker } from "@/components/shared/tag-picker";
 import ReactMarkdown from "react-markdown";
+import { EditAppearanceSheet } from "@/components/people/edit-appearance-sheet";
 
 type PersonData = NonNullable<Awaited<ReturnType<typeof getPersonWithDetails>>>;
 
@@ -663,6 +664,7 @@ type HeroSharedProps = {
   earliestSessionYear?: number | null;
   onAliasesBadgeClick?: () => void;
   onAppearanceClick?: () => void;
+  onEditAppearanceClick?: () => void;
   onFavoriteToggle?: (itemId: string) => void;
   onSetAvatar?: (mediaItemId: string) => void;
   avatarMediaItemId?: string | null;
@@ -935,7 +937,17 @@ function HeroDensityLayout(props: HeroSharedProps) {
             />
           </div>
           {/* Rows 1-2, Col 2: Physical stats (single continuous panel) */}
-          <div className={cn("row-span-2 rounded-lg bg-white/[0.02] px-4 py-2 ml-4 border-l border-white/8 flex flex-col", cfg.fieldGap)}>
+          <div className={cn("row-span-2 rounded-lg bg-white/[0.02] px-4 py-2 ml-4 border-l border-white/8 flex flex-col relative group", cfg.fieldGap)}>
+            {props.onEditAppearanceClick && (
+              <button
+                type="button"
+                onClick={props.onEditAppearanceClick}
+                title="Edit appearance"
+                className="absolute top-1.5 right-1.5 p-1 rounded-md opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-foreground hover:bg-white/10"
+              >
+                <Pencil size={11} />
+              </button>
+            )}
             <PhysicalMetrics
               person={person}
               currentState={currentState}
@@ -983,7 +995,17 @@ function HeroDensityLayout(props: HeroSharedProps) {
             plausibilityCount={plausibilityCount}
             section="all"
           />
-          <div className="rounded-lg bg-white/[0.02] px-4 py-1">
+          <div className="relative group rounded-lg bg-white/[0.02] px-4 py-1">
+            {props.onEditAppearanceClick && (
+              <button
+                type="button"
+                onClick={props.onEditAppearanceClick}
+                title="Edit appearance"
+                className="absolute top-1.5 right-1.5 p-1 rounded-md opacity-40 hover:opacity-100 transition-opacity text-muted-foreground hover:text-foreground hover:bg-white/10"
+              >
+                <Pencil size={11} />
+              </button>
+            )}
             <PhysicalMetrics person={person} currentState={currentState} labelWidth={cfg.labelWidth} fieldGap={cfg.fieldGap} />
             <div className="border-t border-white/10 my-1.5" />
             <PhysicalDescriptive person={person} currentState={currentState} labelWidth={cfg.labelWidth} fieldGap={cfg.fieldGap} />
@@ -1030,6 +1052,7 @@ function HeroCard({
   earliestSessionYear,
   onAliasesBadgeClick,
   onAppearanceClick,
+  onEditAppearanceClick,
   onFavoriteToggle,
   onSetAvatar,
   avatarMediaItemId,
@@ -1049,6 +1072,7 @@ function HeroCard({
   earliestSessionYear?: number | null;
   onAliasesBadgeClick?: () => void;
   onAppearanceClick?: () => void;
+  onEditAppearanceClick?: () => void;
   onFavoriteToggle?: (itemId: string) => void;
   onSetAvatar?: (mediaItemId: string) => void;
   avatarMediaItemId?: string | null;
@@ -1112,6 +1136,7 @@ function HeroCard({
     heroAliases,
     onAliasesBadgeClick,
     onAppearanceClick,
+    onEditAppearanceClick,
     onFavoriteToggle,
     onSetAvatar,
     avatarMediaItemId,
@@ -1869,6 +1894,7 @@ export function PersonDetailTabs({
     : "overview";
   const [activeTab, setActiveTabRaw] = useState<TabId>(resolvedInitialTab);
   const [localPhotos, setLocalPhotos] = useState<GalleryItem[]>(photos);
+  const [editAppearanceOpen, setEditAppearanceOpen] = useState(false);
   const [, startPhotoTransition] = useTransition();
 
   // Sync local photos when server re-renders with new data
@@ -1930,6 +1956,10 @@ export function PersonDetailTabs({
     setActiveTab("appearance");
   }, [setActiveTab]);
 
+  const handleEditAppearanceClick = useCallback(() => {
+    setEditAppearanceOpen(true);
+  }, []);
+
   const earliestSessionYear = useMemo(() => {
     const entries = sessionWorkHistory ?? [];
     let min: number | null = null;
@@ -1978,6 +2008,7 @@ export function PersonDetailTabs({
         earliestSessionYear={earliestSessionYear}
         onAliasesBadgeClick={handleAliasesBadgeClick}
         onAppearanceClick={handleAppearanceClick}
+        onEditAppearanceClick={handleEditAppearanceClick}
         onFavoriteToggle={handleFavoriteToggle}
         onSetAvatar={handleSetAvatar}
         avatarMediaItemId={avatarMediaItemId}
@@ -2164,6 +2195,13 @@ export function PersonDetailTabs({
           />
         )}
       </div>
+
+      {/* Appearance edit sheet — controlled from hero pencil icon */}
+      <EditAppearanceSheet
+        person={person}
+        open={editAppearanceOpen}
+        onOpenChange={setEditAppearanceOpen}
+      />
     </div>
   );
 }
