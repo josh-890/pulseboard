@@ -1256,28 +1256,53 @@ export async function runMatchingPass(
         continue
       }
 
-      // Try promoted sets (type-filtered to match folder type)
-      const setSuggestions = await prisma.set.findMany({
-        where: {
-          releaseDate: { gte: dateStart, lt: dateEnd },
-          channel: { shortName: { equals: folder.parsedShortName, mode: 'insensitive' } },
-          type: folder.isVideo ? 'video' : 'photo',
-          archiveLinks: { none: { status: ArchiveLinkStatus.CONFIRMED } },
-        },
-        select: { id: true },
-        take: 1,
-      })
-      if (setSuggestions.length > 0) {
+      // Try promoted sets — order by title similarity when parsedTitle is available
+      type SetIdRow = { id: string }
+      const folderIsVideo = folder.isVideo
+      const setTypeStr = folderIsVideo ? 'video' : 'photo'
+      let setMatch: SetIdRow | null = null
+
+      if (folder.parsedTitle) {
+        const rows = await prisma.$queryRaw<SetIdRow[]>`
+          SELECT s.id
+          FROM "Set" s
+          JOIN "Channel" c ON c.id = s."channelId"
+          WHERE s."releaseDate" >= ${dateStart} AND s."releaseDate" < ${dateEnd}
+            AND LOWER(c."shortName") = LOWER(${folder.parsedShortName})
+            AND s.type = ${setTypeStr}::"SetType"
+            AND NOT EXISTS (
+              SELECT 1 FROM "ArchiveLink" al
+              WHERE al."setId" = s.id AND al.status = 'CONFIRMED'
+            )
+          ORDER BY similarity(${folder.parsedTitle}, s."titleNorm") DESC
+          LIMIT 1
+        `
+        setMatch = rows[0] ?? null
+      } else {
+        const rows = await prisma.set.findMany({
+          where: {
+            releaseDate: { gte: dateStart, lt: dateEnd },
+            channel: { shortName: { equals: folder.parsedShortName, mode: 'insensitive' } },
+            type: folder.isVideo ? 'video' : 'photo',
+            archiveLinks: { none: { status: ArchiveLinkStatus.CONFIRMED } },
+          },
+          select: { id: true },
+          take: 1,
+        })
+        setMatch = rows[0] ?? null
+      }
+
+      if (setMatch) {
         // Dedup: skip if this set already has a SUGGESTED ArchiveLink from another folder
         const alreadyClaimed = await prisma.archiveLink.findFirst({
-          where: { setId: setSuggestions[0].id, status: 'SUGGESTED', archiveFolderId: { not: folder.id } },
+          where: { setId: setMatch.id, status: 'SUGGESTED', archiveFolderId: { not: folder.id } },
           select: { id: true },
         })
         if (!alreadyClaimed) {
           await prisma.archiveLink.upsert({
             where: { archiveFolderId: folder.id },
-            create: { archiveFolderId: folder.id, setId: setSuggestions[0].id, status: 'SUGGESTED', confidence: 'HIGH', tenant },
-            update: { setId: setSuggestions[0].id, stagingSetId: null, status: 'SUGGESTED', confidence: 'HIGH' },
+            create: { archiveFolderId: folder.id, setId: setMatch.id, status: 'SUGGESTED', confidence: 'HIGH', tenant },
+            update: { setId: setMatch.id, stagingSetId: null, status: 'SUGGESTED', confidence: 'HIGH' },
           })
           suggested++
           continue
