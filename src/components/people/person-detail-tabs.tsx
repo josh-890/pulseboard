@@ -939,14 +939,14 @@ function HeroDensityLayout(props: HeroSharedProps) {
           {/* Rows 1-2, Col 2: Physical stats (single continuous panel) */}
           <div className={cn("row-span-2 rounded-lg bg-white/[0.02] px-4 py-2 ml-4 border-l border-white/8 flex flex-col", cfg.fieldGap)}>
             {/* Section header */}
-            <div className="flex items-center justify-between mb-0.5">
+            <div className="flex items-center gap-1 mb-0.5">
               <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/50">Physique</span>
               {props.onEditAppearanceClick && (
                 <button
                   type="button"
                   onClick={props.onEditAppearanceClick}
                   title="Edit appearance"
-                  className="p-0.5 rounded opacity-40 hover:opacity-100 transition-opacity text-muted-foreground hover:text-foreground hover:bg-white/10 -mr-1"
+                  className="p-0.5 rounded opacity-40 hover:opacity-100 transition-opacity text-muted-foreground hover:text-foreground hover:bg-white/10"
                 >
                   <Pencil size={10} />
                 </button>
@@ -1000,14 +1000,14 @@ function HeroDensityLayout(props: HeroSharedProps) {
             section="all"
           />
           <div className="rounded-lg bg-white/[0.02] px-4 py-1">
-            <div className="flex items-center justify-between mb-0.5 mt-0.5">
+            <div className="flex items-center gap-1 mb-0.5 mt-0.5">
               <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/50">Physique</span>
               {props.onEditAppearanceClick && (
                 <button
                   type="button"
                   onClick={props.onEditAppearanceClick}
                   title="Edit appearance"
-                  className="p-0.5 rounded opacity-40 hover:opacity-100 transition-opacity text-muted-foreground hover:text-foreground hover:bg-white/10 -mr-1"
+                  className="p-0.5 rounded opacity-40 hover:opacity-100 transition-opacity text-muted-foreground hover:text-foreground hover:bg-white/10"
                 >
                   <Pencil size={10} />
                 </button>
