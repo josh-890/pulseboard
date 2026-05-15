@@ -1579,10 +1579,16 @@ export async function searchArchiveFolders(
       tenant,
       isVideo,
       missingOnDisk: false,
-      OR: [
-        { folderName: { contains: query, mode: 'insensitive' } },
-        { fullPath: { contains: query, mode: 'insensitive' } },
-        { parsedTitle: { contains: query, mode: 'insensitive' } },
+      // Exclude folders already CONFIRMED to another item — they aren't available for linking
+      OR: [{ archiveLink: null }, { archiveLink: { status: 'SUGGESTED' } }],
+      AND: [
+        {
+          OR: [
+            { folderName: { contains: query, mode: 'insensitive' } },
+            { fullPath: { contains: query, mode: 'insensitive' } },
+            { parsedTitle: { contains: query, mode: 'insensitive' } },
+          ],
+        },
       ],
     },
     select: {
