@@ -1,25 +1,22 @@
 import { withTenantFromHeaders } from "@/lib/tenant-context";
 import { Suspense } from "react";
 import { notFound } from "next/navigation";
-import { Tag, FileText } from "lucide-react";
+import { Tag } from "lucide-react";
 import { SetBrowseNavBar, SetBrowseBackLink } from "@/components/sets/set-browse-nav-bar";
 import { getSetById, getChannelsForSelect } from "@/lib/services/set-service";
 import { getSetMediaGallery, getCoverPhotosForSets, getHeadshotsForPersons } from "@/lib/services/media-service";
 import { getHeroBackdropEnabled } from "@/lib/services/setting-service";
 import { getAllContributionRoleGroups } from "@/lib/services/contribution-role-service";
 import { SetDetailGallery } from "@/components/sets/set-detail-gallery";
-import { CreditResolutionPanel } from "@/components/sets/credit-resolution-panel";
-import { cn } from "@/lib/utils";
 import { getEntityTags } from "@/lib/services/entity-tag-service";
 import { EditSetSheet } from "@/components/sets/edit-set-sheet";
 import { DeleteButton } from "@/components/shared/delete-button";
-import { AddCreditInline } from "@/components/sets/add-credit-inline";
-import { SetInlineDescription, SetInlineNotes } from "@/components/sets/set-detail-header";
 import { deleteSet } from "@/lib/actions/set-actions";
 import { MergeSetButton } from "@/components/sets/merge-set-sheet";
 import { SetHero } from "@/components/sets/set-hero";
-import { LabelEvidenceManager } from "@/components/sets/label-evidence-manager";
 import { SetArchivePanel } from "@/components/sets/set-archive-panel";
+import { SetAboutCard } from "@/components/sets/set-about-card";
+import { CreditsPanel } from "@/components/sets/credits-panel";
 import { getArchiveSuggestionsForSet } from "@/lib/services/archive-service";
 
 
@@ -29,248 +26,207 @@ type SetDetailPageProps = {
   params: Promise<{ id: string }>;
 };
 
-// ── Sub-components ──────────────────────────────────────────────────────────
-
-type SectionCardProps = {
-  title: string;
-  icon: React.ReactNode;
-  children: React.ReactNode;
-  className?: string;
-};
-
-function SectionCard({ title, icon, children, className }: SectionCardProps) {
-  return (
-    <div
-      className={cn(
-        "rounded-2xl border border-white/20 bg-card/70 p-6 shadow-md backdrop-blur-sm",
-        className,
-      )}
-    >
-      <div className="mb-4 flex items-center gap-2">
-        <span className="text-muted-foreground" aria-hidden="true">
-          {icon}
-        </span>
-        <h2 className="text-lg font-semibold">{title}</h2>
-      </div>
-      {children}
-    </div>
-  );
-}
-
-// ── Main page ───────────────────────────────────────────────────────────────
-
 export default async function SetDetailPage({ params }: SetDetailPageProps) {
   return withTenantFromHeaders(async () => {
     const { id } = await params;
 
-  const [set, channels, roleGroups, setEntityTags, backdropEnabled, archiveSuggestions] = await Promise.all([
-    getSetById(id),
-    getChannelsForSelect(),
-    getAllContributionRoleGroups(),
-    getEntityTags("SET", id),
-    getHeroBackdropEnabled(),
-    getArchiveSuggestionsForSet(id),
-  ]);
+    const [set, channels, roleGroups, setEntityTags, backdropEnabled, archiveSuggestions] = await Promise.all([
+      getSetById(id),
+      getChannelsForSelect(),
+      getAllContributionRoleGroups(),
+      getEntityTags("SET", id),
+      getHeroBackdropEnabled(),
+      getArchiveSuggestionsForSet(id),
+    ]);
 
-  if (!set) notFound();
+    if (!set) notFound();
 
-  const setTags = setEntityTags.map((t) => ({
-    id: t.id,
-    name: t.name,
-    group: t.group,
-  }));
+    const setTags = setEntityTags.map((t) => ({
+      id: t.id,
+      name: t.name,
+      group: t.group,
+    }));
 
-  // Strip participants from setData for RSC safety (client components receive slim props)
-  // but keep participants for the SetHero (server component)
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const { participants: _participants, ...setData } = set;
-  const participants = set.participants;
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { participants: _participants, ...setData } = set;
+    const participants = set.participants;
 
-  // Load gallery items + hero data in parallel
-  const participantIds = participants.map((p) => p.personId);
-  const [galleryItems, coverPhotoMap, headshotMap] = await Promise.all([
-    getSetMediaGallery(id, setData.coverMediaItemId),
-    getCoverPhotosForSets([id]),
-    getHeadshotsForPersons(participantIds),
-  ]);
-  const coverPhoto = coverPhotoMap.get(id) ?? null;
+    const participantIds = participants.map((p) => p.personId);
+    const [galleryItems, coverPhotoMap, headshotMap] = await Promise.all([
+      getSetMediaGallery(id, setData.coverMediaItemId),
+      getCoverPhotosForSets([id]),
+      getHeadshotsForPersons(participantIds),
+    ]);
+    const coverPhoto = coverPhotoMap.get(id) ?? null;
 
-  // Determine if we have credits
-  const hasCredits = setData.creditsRaw.length > 0;
-  return (
-    <div className="space-y-6">
-      {/* Back link + browse nav + actions row */}
-      <div className="grid grid-cols-3 items-center gap-4">
-        <div className="flex items-center">
-          <SetBrowseBackLink />
+    // Derive archive state
+    const al = setData.archiveLinks[0] ?? null;
+    const archiveStatus = al?.archiveStatus ?? "UNKNOWN";
+    const archiveFileCount = al?.archiveFileCount ?? null;
+    const hasSuggestion = archiveSuggestions.length > 0;
+    const showArchivePanel = archiveStatus !== "OK" || hasSuggestion;
+
+    const roleDefinitions = roleGroups.flatMap((g) =>
+      g.definitions.map((d) => ({ id: d.id, name: d.name, groupName: g.name })),
+    );
+
+    const credits = setData.creditsRaw.map((c) => ({
+      id: c.id,
+      roleDefinitionId: c.roleDefinitionId ?? null,
+      roleName: c.roleDefinition?.name ?? null,
+      rawName: c.rawName,
+      resolutionStatus: c.resolutionStatus,
+      resolvedPerson: c.resolvedPerson
+        ? {
+            id: c.resolvedPerson.id,
+            icgId: c.resolvedPerson.icgId,
+            aliases: c.resolvedPerson.aliases.map((a) => ({
+              name: a.name,
+              isCommon: a.isCommon,
+            })),
+          }
+        : null,
+      resolvedArtist: c.resolvedArtist
+        ? { id: c.resolvedArtist.id, name: c.resolvedArtist.name }
+        : null,
+    }));
+
+    const labelEvidence = set.labelEvidence.map((ev) => ({
+      setId: ev.setId,
+      labelId: ev.labelId,
+      evidenceType: ev.evidenceType,
+      label: { id: ev.label.id, name: ev.label.name },
+    }));
+
+    return (
+      <div className="space-y-6">
+        {/* Back link + browse nav + actions row */}
+        <div className="grid grid-cols-3 items-center gap-4">
+          <div className="flex items-center">
+            <SetBrowseBackLink />
+          </div>
+          <div className="flex justify-center">
+            <Suspense fallback={null}>
+              <SetBrowseNavBar setId={id} />
+            </Suspense>
+          </div>
+          <div className="flex items-center justify-end gap-2">
+            <MergeSetButton setId={id} setTitle={setData.title} setType={setData.type} />
+            <EditSetSheet
+              set={{
+                id: setData.id,
+                type: setData.type,
+                title: setData.title,
+                channelId: setData.channelId,
+                description: setData.description,
+                notes: setData.notes,
+                releaseDate: setData.releaseDate,
+                releaseDatePrecision: setData.releaseDatePrecision,
+                category: setData.category,
+                genre: setData.genre,
+                tags: setData.tags,
+                isCompilation: setData.isCompilation,
+                isComplete: setData.isComplete,
+                imageCount: setData.imageCount,
+                videoLength: setData.videoLength,
+                externalId: setData.externalId,
+              }}
+              channels={channels}
+              entityTags={setTags}
+            />
+            <DeleteButton
+              title="Delete set?"
+              description="This will permanently remove the set and all credits. This action cannot be undone."
+              onDelete={deleteSet.bind(null, id)}
+              redirectTo="/sets"
+            />
+          </div>
         </div>
-        <div className="flex justify-center">
-          <Suspense fallback={null}>
-            <SetBrowseNavBar setId={id} />
-          </Suspense>
-        </div>
-        <div className="flex items-center justify-end gap-2">
-          <MergeSetButton setId={id} setTitle={setData.title} setType={setData.type} />
-          <EditSetSheet
-            set={{
-              id: setData.id,
-              type: setData.type,
-              title: setData.title,
-              channelId: setData.channelId,
-              description: setData.description,
-              notes: setData.notes,
-              releaseDate: setData.releaseDate,
-              releaseDatePrecision: setData.releaseDatePrecision,
-              category: setData.category,
-              genre: setData.genre,
-              tags: setData.tags,
-              isCompilation: setData.isCompilation,
-              isComplete: setData.isComplete,
-              imageCount: setData.imageCount,
-              videoLength: setData.videoLength,
-              externalId: setData.externalId,
-            }}
-            channels={channels}
-            entityTags={setTags}
-          />
-          <DeleteButton
-            title="Delete set?"
-            description="This will permanently remove the set and all credits. This action cannot be undone."
-            onDelete={deleteSet.bind(null, id)}
-            redirectTo="/sets"
-          />
-        </div>
-      </div>
 
-      {/* Hero card */}
-      <SetHero
-        set={set}
-        coverPhoto={coverPhoto}
-        headshotMap={headshotMap}
-        backdropEnabled={backdropEnabled}
-        mediaCount={galleryItems.length}
-      />
+        {/* Hero card */}
+        <SetHero
+          set={set}
+          coverPhoto={coverPhoto}
+          headshotMap={headshotMap}
+          backdropEnabled={backdropEnabled}
+          mediaCount={galleryItems.length}
+          archiveStatus={archiveStatus}
+          archiveFileCount={archiveFileCount}
+          hasSuggestion={hasSuggestion}
+        />
 
-      {/* Description + notes (inline editable) */}
-      <div className="rounded-2xl border border-white/20 bg-card/70 p-6 shadow-md backdrop-blur-sm space-y-3">
-        <SetInlineDescription setId={id} description={setData.description} />
-        <SetInlineNotes setId={id} notes={setData.notes} />
-      </div>
+        {/* About card — hidden when description + notes both empty */}
+        <SetAboutCard setId={id} description={setData.description} notes={setData.notes} />
 
-      {/* Photo gallery */}
-      <SetDetailGallery
-        items={galleryItems}
-        entityId={id}
-        primarySessionId={setData.sessionLinks?.find((l) => l.isPrimary)?.sessionId}
-        coverMediaItemId={setData.coverMediaItemId}
-        setType={setData.type as "photo" | "video"}
-        isCompilation={setData.isCompilation}
-        sessionLinks={setData.sessionLinks?.map((l) => ({
-          sessionId: l.sessionId,
-          sessionName: l.session.name,
-          sessionDate: l.session.date,
-          isPrimary: l.isPrimary,
-        }))}
-      />
-
-      {/* Credits & Participants */}
-      <SectionCard
-        title={hasCredits ? `Credits (${setData.creditsRaw.length})` : "Credits"}
-        icon={<FileText size={18} />}
-      >
-        <div className="space-y-4">
-          <LabelEvidenceManager
-            setId={id}
-            evidence={set.labelEvidence.map((ev) => ({
-              setId: ev.setId,
-              labelId: ev.labelId,
-              evidenceType: ev.evidenceType,
-              label: { id: ev.label.id, name: ev.label.name },
+        {/* 2-column layout: gallery left, metadata sidebar right */}
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_340px] items-start">
+          {/* Left column: gallery */}
+          <SetDetailGallery
+            items={galleryItems}
+            entityId={id}
+            primarySessionId={setData.sessionLinks?.find((l) => l.isPrimary)?.sessionId}
+            coverMediaItemId={setData.coverMediaItemId}
+            setType={setData.type as "photo" | "video"}
+            isCompilation={setData.isCompilation}
+            sessionLinks={setData.sessionLinks?.map((l) => ({
+              sessionId: l.sessionId,
+              sessionName: l.session.name,
+              sessionDate: l.session.date,
+              isPrimary: l.isPrimary,
             }))}
           />
-          <AddCreditInline
-            setId={id}
-            roleDefinitions={roleGroups.flatMap((g) =>
-              g.definitions.map((d) => ({ id: d.id, name: d.name, groupName: g.name })),
-            )}
-          />
-          {hasCredits ? (
-            <CreditResolutionPanel
+
+          {/* Right sidebar: credits + tags + archive (when needed) */}
+          <div className="space-y-6">
+            <CreditsPanel
               setId={id}
               channelId={setData.channelId}
-              credits={setData.creditsRaw.map((c) => ({
-                id: c.id,
-                roleDefinitionId: c.roleDefinitionId ?? null,
-                roleName: c.roleDefinition?.name ?? null,
-                rawName: c.rawName,
-                resolutionStatus: c.resolutionStatus,
-                resolvedPerson: c.resolvedPerson
-                  ? {
-                      id: c.resolvedPerson.id,
-                      icgId: c.resolvedPerson.icgId,
-                      aliases: c.resolvedPerson.aliases.map((a) => ({
-                        name: a.name,
-                        isCommon: a.isCommon,
-                      })),
-                    }
-                  : null,
-                resolvedArtist: c.resolvedArtist
-                  ? { id: c.resolvedArtist.id, name: c.resolvedArtist.name }
-                  : null,
-              }))}
+              credits={credits}
+              labelEvidence={labelEvidence}
+              roleDefinitions={roleDefinitions}
             />
-          ) : (
-            <p className="text-sm text-muted-foreground">
-              No credits yet. Add credits to track contributors.
-            </p>
-          )}
-        </div>
-      </SectionCard>
 
-      {/* Archive & Media Queue */}
-      {(() => {
-        const al = setData.archiveLinks[0] ?? null
-        return (
-          <SetArchivePanel
-            setId={id}
-            isVideo={setData.type === 'video'}
-            archiveLinkId={al?.id ?? null}
-            archiveFolderId={al?.archiveFolder?.id ?? null}
-            archivePath={al?.archivePath ?? null}
-            archiveStatus={al?.archiveStatus ?? 'UNKNOWN'}
-            archiveLastChecked={al?.archiveLastChecked ?? null}
-            archiveFileCount={al?.archiveFileCount ?? null}
-            archiveFileCountPrev={al?.archiveFileCountPrev ?? null}
-            archiveVideoPresent={al?.archiveVideoPresent ?? null}
-            archiveVideoFiles={al?.archiveVideoFiles ? (JSON.parse(al.archiveVideoFiles) as string[]) : null}
-            archiveVideoFilename={al?.archiveVideoFilename ?? null}
-            mediaPriority={setData.mediaPriority ?? null}
-            mediaQueueAt={setData.mediaQueueAt ?? null}
-            archiveSuggestions={archiveSuggestions}
-          />
-        )
-      })()}
+            {setData.tags.length > 0 && (
+              <div className="rounded-2xl border border-white/20 bg-card/70 p-4 shadow-md backdrop-blur-sm">
+                <div className="mb-3 flex items-center gap-2">
+                  <Tag size={14} className="text-muted-foreground" aria-hidden="true" />
+                  <h2 className="text-sm font-semibold">Tags</h2>
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {setData.tags.map((tag) => (
+                    <span
+                      key={tag}
+                      className="inline-flex items-center rounded-full border border-white/10 bg-muted/60 px-2.5 py-0.5 text-xs font-medium text-foreground"
+                    >
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
 
-      {/* Tags */}
-      {setData.tags.length > 0 && (
-        <div className="rounded-2xl border border-white/20 bg-card/70 p-6 shadow-md backdrop-blur-sm">
-          <div className="mb-3 flex items-center gap-2">
-            <Tag size={16} className="text-muted-foreground" aria-hidden="true" />
-            <h2 className="text-lg font-semibold">Tags</h2>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {setData.tags.map((tag) => (
-              <span
-                key={tag}
-                className="inline-flex items-center rounded-full border border-white/10 bg-muted/60 px-2.5 py-0.5 text-xs font-medium text-foreground"
-              >
-                {tag}
-              </span>
-            ))}
+            {showArchivePanel && (
+              <SetArchivePanel
+                setId={id}
+                isVideo={setData.type === "video"}
+                archiveLinkId={al?.id ?? null}
+                archiveFolderId={al?.archiveFolder?.id ?? null}
+                archivePath={al?.archivePath ?? null}
+                archiveStatus={archiveStatus}
+                archiveLastChecked={al?.archiveLastChecked ?? null}
+                archiveFileCount={al?.archiveFileCount ?? null}
+                archiveFileCountPrev={al?.archiveFileCountPrev ?? null}
+                archiveVideoPresent={al?.archiveVideoPresent ?? null}
+                archiveVideoFiles={al?.archiveVideoFiles ? (JSON.parse(al.archiveVideoFiles) as string[]) : null}
+                archiveVideoFilename={al?.archiveVideoFilename ?? null}
+                mediaPriority={setData.mediaPriority ?? null}
+                mediaQueueAt={setData.mediaQueueAt ?? null}
+                archiveSuggestions={archiveSuggestions}
+              />
+            )}
           </div>
         </div>
-      )}
-    </div>
+      </div>
     );
   });
 }

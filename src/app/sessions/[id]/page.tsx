@@ -20,11 +20,6 @@ import { cn, formatPartialDateISO } from "@/lib/utils";
 import { EditSessionSheet } from "@/components/sessions/edit-session-sheet";
 import { DeleteButton } from "@/components/shared/delete-button";
 import { deleteSession } from "@/lib/actions/session-actions";
-import {
-  SessionInlineDescription,
-  SessionInlineNotes,
-  SessionInlineLocation,
-} from "@/components/sessions/session-detail-header";
 import { SessionMergeDialog } from "@/components/sessions/session-merge-dialog";
 import { SessionHero } from "@/components/sessions/session-hero";
 import { SessionTagSection } from "@/components/sessions/session-tag-section";
@@ -33,6 +28,7 @@ import type { ProductionContext } from "@/components/gallery/gallery-lightbox";
 import { SessionContributionSkills } from "@/components/sessions/session-contribution-skills";
 import { ReferenceSessionPage } from "@/components/sessions/reference-session-page";
 import { AddContributorSheet } from "@/components/sessions/add-contributor-sheet";
+import { SessionAboutCard } from "@/components/sessions/session-about-card";
 
 export const dynamic = "force-dynamic";
 
@@ -209,7 +205,6 @@ export default async function SessionDetailPage({ params, searchParams }: Sessio
   // Reference sessions → dedicated page component
   if (isReference && mediaManagerData && session.personId) {
     const personName = session.person?.aliases[0]?.name ?? session.person?.icgId ?? session.name;
-    // Extract first headshot thumbnail as person avatar
     const firstHeadshot = mediaManagerData.items.find(
       (item) => item.links.some((l) => l.usage === "HEADSHOT"),
     );
@@ -249,7 +244,6 @@ export default async function SessionDetailPage({ params, searchParams }: Sessio
     g.definitions.map((d) => ({ id: d.id, name: d.name, groupName: g.name })),
   );
 
-  // Build production context for entity linking in lightbox
   const productionContext: ProductionContext | undefined =
     !isReference && contributorsWithEntities.length > 0
       ? {
@@ -267,6 +261,8 @@ export default async function SessionDetailPage({ params, searchParams }: Sessio
           ),
         }
       : undefined;
+
+  const skillCount = sessionContributions.reduce((acc, c) => acc + c.skills.length, 0);
 
   return (
     <div className="space-y-6">
@@ -333,160 +329,159 @@ export default async function SessionDetailPage({ params, searchParams }: Sessio
         </div>
       )}
 
-      {/* Description, Notes, Location (inline editable — not for reference sessions) */}
+      {/* About card: location + description + notes (hidden when all empty) */}
       {!isReference && (
-        <div className="rounded-2xl border border-white/20 bg-card/70 p-6 shadow-md backdrop-blur-sm space-y-3">
-          <SessionInlineLocation sessionId={id} location={session.location} />
-          <SessionInlineDescription sessionId={id} description={session.description} />
-          <SessionInlineNotes sessionId={id} notes={session.notes} />
-        </div>
-      )}
-
-      {/* Tags */}
-      {!isReference && (
-        <SessionTagSection sessionId={id} initialTags={sessionTags} />
-      )}
-
-      {/* Media */}
-      <SectionCard
-        title={`Media (${mediaCount})`}
-        icon={<ImageIcon size={18} />}
-        action={<SessionUploadButton />}
-      >
-        <SessionProductionGallery
-          items={mediaItems.map((item) => ({
-            ...item,
-            createdAt: item.createdAt.toISOString() as unknown as Date,
-          }))}
+        <SessionAboutCard
           sessionId={id}
-          coverMediaItemId={session.coverMediaItemId ?? null}
-          productionContext={productionContext}
+          location={session.location}
+          description={session.description}
+          notes={session.notes}
         />
-      </SectionCard>
-
-      {/* Contributors */}
-      {!isReference && (
-        <SectionCard
-          title={`Contributors (${contributionCount})`}
-          icon={<Users size={18} />}
-          action={<AddContributorSheet sessionId={id} roleDefinitions={roleDefinitions} />}
-        >
-          {session.contributions.length === 0 ? (
-            <EmptyState message="No contributors in this session." />
-          ) : (
-            <ul className="space-y-1.5">
-              {session.contributions.map((contribution) => {
-                const commonAlias = contribution.person.aliases[0]?.name;
-                const displayName = commonAlias ?? contribution.person.icgId;
-                const creditedAs = contribution.creditNameOverride && contribution.creditNameOverride !== commonAlias
-                  ? contribution.creditNameOverride
-                  : null;
-                return (
-                  <li key={contribution.id}>
-                    <Link
-                      href={`/people/${contribution.personId}`}
-                      className="group flex items-center gap-2.5 rounded-lg border border-transparent px-3 py-2 transition-all hover:border-white/15 hover:bg-card/60 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                    >
-                      <span className="inline-flex items-center rounded-full border border-white/15 bg-muted/50 px-2 py-0.5 text-xs font-medium shrink-0 text-muted-foreground">
-                        {contribution.roleDefinition.name}
-                      </span>
-                      <span className="text-sm font-medium text-foreground/90 group-hover:text-primary transition-colors">
-                        {displayName}
-                        {creditedAs && (
-                          <span className="ml-1.5 text-xs font-normal text-muted-foreground/70 italic">
-                            as: {creditedAs}
-                          </span>
-                        )}
-                      </span>
-                    </Link>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-        </SectionCard>
       )}
 
-      {/* Contribution Skills */}
+      {/* 2-column layout for production sessions */}
       {!isReference && (
-        <SectionCard
-          title={`Contribution Skills (${sessionContributions.reduce((acc, c) => acc + c.skills.length, 0)})`}
-          icon={<Sparkles size={18} />}
-        >
-          <SessionContributionSkills
-            sessionId={id}
-            contributions={sessionContributions}
-            skillGroups={skillGroups.map((g) => ({
-              id: g.id,
-              name: g.name,
-              definitions: g.definitions.map((d) => ({
-                id: d.id,
-                name: d.name,
-                slug: d.slug,
-                description: d.description,
-                pgrade: d.pgrade,
-                defaultLevel: d.defaultLevel,
-              })),
-            }))}
-            skillMedia={Object.fromEntries(contributionSkillMedia)}
-          />
-        </SectionCard>
-      )}
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_340px] items-start">
+          {/* Left column: gallery + contribution skills */}
+          <div className="space-y-6">
+            <SectionCard
+              title={`Media (${mediaCount})`}
+              icon={<ImageIcon size={18} />}
+              action={<SessionUploadButton />}
+            >
+              <SessionProductionGallery
+                items={mediaItems.map((item) => ({
+                  ...item,
+                  createdAt: item.createdAt.toISOString() as unknown as Date,
+                }))}
+                sessionId={id}
+                coverMediaItemId={session.coverMediaItemId ?? null}
+                productionContext={productionContext}
+              />
+            </SectionCard>
 
-      {/* Linked Sets */}
-      {!isReference && (
-        <SectionCard
-          title={`Linked Sets (${setCount})`}
-          icon={<ImageIcon size={18} />}
-        >
-          {session.setSessionLinks.length === 0 ? (
-            <EmptyState message="No sets linked to this session." />
-          ) : (
-            <div className="space-y-2">
-              {session.setSessionLinks.map((link) => {
-                const setTypeIcon = link.set.type === "photo"
-                  ? <Camera size={14} className="text-entity-set" />
-                  : <Film size={14} className="text-entity-set" />;
+            <SectionCard
+              title={`Contribution Skills (${skillCount})`}
+              icon={<Sparkles size={18} />}
+            >
+              <SessionContributionSkills
+                sessionId={id}
+                contributions={sessionContributions}
+                skillGroups={skillGroups.map((g) => ({
+                  id: g.id,
+                  name: g.name,
+                  definitions: g.definitions.map((d) => ({
+                    id: d.id,
+                    name: d.name,
+                    slug: d.slug,
+                    description: d.description,
+                    pgrade: d.pgrade,
+                    defaultLevel: d.defaultLevel,
+                  })),
+                }))}
+                skillMedia={Object.fromEntries(contributionSkillMedia)}
+              />
+            </SectionCard>
+          </div>
 
-                return (
-                  <Link
-                    key={link.set.id}
-                    href={`/sets/${link.set.id}`}
-                    className="group flex items-center justify-between rounded-xl border border-white/15 bg-card/40 px-4 py-3 transition-all hover:border-white/25 hover:bg-card/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  >
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-entity-set/10">
-                        {setTypeIcon}
-                      </div>
-                      <div className="min-w-0">
-                        <span className="block truncate text-sm font-medium group-hover:text-entity-set transition-colors">
-                          {link.set.title}
-                        </span>
-                        {link.set.channel && (
-                          <span className="block truncate text-xs text-muted-foreground">
-                            {link.set.channel.name}
+          {/* Right sidebar: contributors + linked sets + tags */}
+          <div className="space-y-6">
+            <SectionCard
+              title={`Contributors (${contributionCount})`}
+              icon={<Users size={18} />}
+              action={<AddContributorSheet sessionId={id} roleDefinitions={roleDefinitions} />}
+            >
+              {session.contributions.length === 0 ? (
+                <EmptyState message="No contributors in this session." />
+              ) : (
+                <ul className="space-y-1.5">
+                  {session.contributions.map((contribution) => {
+                    const commonAlias = contribution.person.aliases[0]?.name;
+                    const displayName = commonAlias ?? contribution.person.icgId;
+                    const creditedAs = contribution.creditNameOverride && contribution.creditNameOverride !== commonAlias
+                      ? contribution.creditNameOverride
+                      : null;
+                    return (
+                      <li key={contribution.id}>
+                        <Link
+                          href={`/people/${contribution.personId}`}
+                          className="group flex items-center gap-2.5 rounded-lg border border-transparent px-3 py-2 transition-all hover:border-white/15 hover:bg-card/60 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                        >
+                          <span className="inline-flex items-center rounded-full border border-white/15 bg-muted/50 px-2 py-0.5 text-xs font-medium shrink-0 text-muted-foreground">
+                            {contribution.roleDefinition.name}
                           </span>
-                        )}
-                      </div>
-                    </div>
-                    <div className="ml-3 flex shrink-0 items-center gap-2">
-                      {link.isPrimary && (
-                        <span className="rounded-full border border-entity-set/20 bg-entity-set/10 px-2 py-0.5 text-xs font-medium text-entity-set">
-                          Primary
-                        </span>
-                      )}
-                      {link.set.releaseDate && (
-                        <span className="text-xs text-muted-foreground">
-                          {formatPartialDateISO(link.set.releaseDate, link.set.releaseDatePrecision)}
-                        </span>
-                      )}
-                    </div>
-                  </Link>
-                );
-              })}
-            </div>
-          )}
-        </SectionCard>
+                          <span className="text-sm font-medium text-foreground/90 group-hover:text-primary transition-colors">
+                            {displayName}
+                            {creditedAs && (
+                              <span className="ml-1.5 text-xs font-normal text-muted-foreground/70 italic">
+                                as: {creditedAs}
+                              </span>
+                            )}
+                          </span>
+                        </Link>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </SectionCard>
+
+            <SectionCard
+              title={`Linked Sets (${setCount})`}
+              icon={<ImageIcon size={18} />}
+            >
+              {session.setSessionLinks.length === 0 ? (
+                <EmptyState message="No sets linked to this session." />
+              ) : (
+                <div className="space-y-2">
+                  {session.setSessionLinks.map((link) => {
+                    const setTypeIcon = link.set.type === "photo"
+                      ? <Camera size={14} className="text-entity-set" />
+                      : <Film size={14} className="text-entity-set" />;
+
+                    return (
+                      <Link
+                        key={link.set.id}
+                        href={`/sets/${link.set.id}`}
+                        className="group flex items-center justify-between rounded-xl border border-white/15 bg-card/40 px-4 py-3 transition-all hover:border-white/25 hover:bg-card/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-entity-set/10">
+                            {setTypeIcon}
+                          </div>
+                          <div className="min-w-0">
+                            <span className="block truncate text-sm font-medium group-hover:text-entity-set transition-colors">
+                              {link.set.title}
+                            </span>
+                            {link.set.channel && (
+                              <span className="block truncate text-xs text-muted-foreground">
+                                {link.set.channel.name}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="ml-3 flex shrink-0 items-center gap-2">
+                          {link.isPrimary && (
+                            <span className="rounded-full border border-entity-set/20 bg-entity-set/10 px-2 py-0.5 text-xs font-medium text-entity-set">
+                              Primary
+                            </span>
+                          )}
+                          {link.set.releaseDate && (
+                            <span className="text-xs text-muted-foreground">
+                              {formatPartialDateISO(link.set.releaseDate, link.set.releaseDatePrecision)}
+                            </span>
+                          )}
+                        </div>
+                      </Link>
+                    );
+                  })}
+                </div>
+              )}
+            </SectionCard>
+
+            <SessionTagSection sessionId={id} initialTags={sessionTags} />
+          </div>
+        </div>
       )}
     </div>
     );

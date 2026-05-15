@@ -1,11 +1,12 @@
 import Image from "next/image";
 import Link from "next/link";
-import { Camera, Film } from "lucide-react";
+import { Camera, Film, FolderCheck, FolderOpen, FolderX } from "lucide-react";
 import { cn, focalStyle, formatPartialDateISO, getInitialsFromName, computeProductionAge } from "@/lib/utils";
 import { SetInlineTitle } from "@/components/sets/set-detail-header";
 import { SetCompleteBadge } from "@/components/sets/set-complete-badge";
 import type { getSetById } from "@/lib/services/set-service";
 import type { CoverPhotoData, HeadshotData } from "@/lib/services/media-service";
+import type { ArchiveStatus } from "@/generated/prisma/client";
 
 type SetData = NonNullable<Awaited<ReturnType<typeof getSetById>>>;
 type Participant = SetData["participants"][number];
@@ -129,6 +130,9 @@ type SetHeroProps = {
   headshotMap: Map<string, HeadshotData>;
   backdropEnabled: boolean;
   mediaCount: number;
+  archiveStatus?: ArchiveStatus | "UNKNOWN";
+  archiveFileCount?: number | null;
+  hasSuggestion?: boolean;
 };
 
 export function SetHero({
@@ -137,6 +141,9 @@ export function SetHero({
   headshotMap,
   backdropEnabled,
   mediaCount,
+  archiveStatus,
+  archiveFileCount,
+  hasSuggestion = false,
 }: SetHeroProps) {
   const typeConfig = SET_TYPE_CONFIG[set.type] ?? SET_TYPE_CONFIG.photo;
   const participantCount = set.participants.length;
@@ -262,6 +269,36 @@ export function SetHero({
           )}
           <span>·</span>
           <SetCompleteBadge setId={set.id} isComplete={set.isComplete} />
+          {archiveStatus === "OK" && (
+            <span className="inline-flex items-center gap-1 rounded-full border border-green-500/20 bg-green-500/10 px-2 py-0.5 text-[11px] text-green-600 dark:text-green-400">
+              <FolderCheck size={11} />
+              In archive{archiveFileCount != null ? ` · ${archiveFileCount} files` : ""}
+            </span>
+          )}
+          {hasSuggestion && archiveStatus !== "OK" && (
+            <span className="inline-flex items-center gap-1 rounded-full border border-amber-500/20 bg-amber-500/10 px-2 py-0.5 text-[11px] text-amber-600 dark:text-amber-400">
+              <FolderOpen size={11} />
+              Match suggested
+            </span>
+          )}
+          {archiveStatus === "MISSING" && !hasSuggestion && (
+            <span className="inline-flex items-center gap-1 rounded-full border border-red-500/20 bg-red-500/10 px-2 py-0.5 text-[11px] text-red-600 dark:text-red-400">
+              <FolderX size={11} />
+              Missing from archive
+            </span>
+          )}
+          {archiveStatus === "CHANGED" && !hasSuggestion && (
+            <span className="inline-flex items-center gap-1 rounded-full border border-amber-500/20 bg-amber-500/10 px-2 py-0.5 text-[11px] text-amber-600 dark:text-amber-400">
+              <FolderCheck size={11} />
+              Archive changed
+            </span>
+          )}
+          {archiveStatus === "INCOMPLETE" && !hasSuggestion && (
+            <span className="inline-flex items-center gap-1 rounded-full border border-orange-500/20 bg-orange-500/10 px-2 py-0.5 text-[11px] text-orange-600 dark:text-orange-400">
+              <FolderX size={11} />
+              Archive incomplete
+            </span>
+          )}
           {set.isCompilation && (
             <>
               <span>·</span>
