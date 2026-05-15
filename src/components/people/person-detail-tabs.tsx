@@ -691,7 +691,7 @@ function EntityPills({ currentState, onAppearanceClick }: { currentState: Person
   return (
     <Wrapper
       {...(onAppearanceClick ? { type: "button" as const, onClick: onAppearanceClick } : {})}
-      className="mt-3 flex flex-wrap items-center gap-1.5"
+      className="flex flex-wrap items-center gap-1.5"
     >
       {visiblePills.map((e) => (
         <span key={`${e.kind}-${e.id}`} className={cn("rounded-full border px-2 py-0.5 text-[11px] font-medium capitalize", pillStyles[e.kind])}>
@@ -873,6 +873,11 @@ function HeroDensityLayout(props: HeroSharedProps) {
   const cfg = DENSITY_CONFIGS[layout];
   const { person, currentState, photos, profileLabels, kpiCounts, calculatedPgrade, meanWcp, displayName, initials, age, heroAliases, referenceSessionId, headshotSlotMap, plausibilityCount, onFavoriteToggle, onSetAvatar, avatarMediaItemId } = props;
 
+  const hasHeroEntities =
+    currentState.activeBodyMarks.some((m) => m.heroVisible) ||
+    currentState.activeBodyModifications.some((m) => m.heroVisible) ||
+    currentState.activeCosmeticProcedures.some((p) => p.heroVisible);
+
   const handleAssignHeadshot = useCallback(
     async (mediaItemId: string, slot: number) => {
       await assignHeadshotSlotAction(person.id, mediaItemId, slot);
@@ -943,7 +948,6 @@ function HeroDensityLayout(props: HeroSharedProps) {
               labelWidth={cfg.labelWidth}
               fieldGap={cfg.fieldGap}
             />
-            <EntityPills currentState={currentState} onAppearanceClick={props.onAppearanceClick} />
           </div>
 
           {/* Row 2, Col 1: Aliases + demographics + career */}
@@ -983,7 +987,6 @@ function HeroDensityLayout(props: HeroSharedProps) {
             <PhysicalMetrics person={person} currentState={currentState} labelWidth={cfg.labelWidth} fieldGap={cfg.fieldGap} />
             <div className="border-t border-white/10 my-1.5" />
             <PhysicalDescriptive person={person} currentState={currentState} labelWidth={cfg.labelWidth} fieldGap={cfg.fieldGap} />
-            <EntityPills currentState={currentState} onAppearanceClick={props.onAppearanceClick} />
           </div>
         </div>
 
@@ -1000,6 +1003,13 @@ function HeroDensityLayout(props: HeroSharedProps) {
       <div className="hidden md:flex lg:hidden mt-3 pt-3 border-t border-white/10 gap-x-5 gap-y-1.5 flex-wrap">
         <KpiStatsStrip kpiCounts={kpiCounts} />
       </div>
+
+      {/* Entity pills — bottom strip, all breakpoints */}
+      {hasHeroEntities && (
+        <div className="mt-3 pt-3 border-t border-white/10">
+          <EntityPills currentState={currentState} onAppearanceClick={props.onAppearanceClick} />
+        </div>
+      )}
     </div>
   );
 }
