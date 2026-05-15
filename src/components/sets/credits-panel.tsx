@@ -50,11 +50,13 @@ function CreditRow({ credit }: { credit: CreditItem }) {
     ? (credit.resolvedPerson.aliases.find((a) => a.isCommon)?.name ?? credit.resolvedPerson.icgId)
     : credit.resolvedArtist?.name ?? credit.rawName;
 
+  const roleLabel = credit.roleName ?? (credit.resolvedArtist ? "Artist" : null);
+
   const inner = (
     <>
-      {credit.roleName && (
+      {roleLabel && (
         <span className="inline-flex shrink-0 items-center rounded-full border border-white/15 bg-muted/50 px-2 py-0.5 text-xs font-medium text-muted-foreground">
-          {credit.roleName}
+          {roleLabel}
         </span>
       )}
       <span
