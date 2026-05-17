@@ -628,7 +628,6 @@ export function PeopleSearchSidebar({
       <TimeScopeToggle
         scope={spec.timeScope}
         onChange={(next) => apply({ ...spec, timeScope: next })}
-        disabled
       />
 
       <SavedSearchMenu saved={savedSearches} currentSpec={spec} scope="people" />

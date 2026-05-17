@@ -69,18 +69,31 @@ const REGION_COLUMN: Record<PresenceField, Prisma.Sql> = {
 
 // ─── Where-clause builders ───────────────────────────────────────────────────
 
-function buildCategoricalClauses(filters: CategoricalFilter[]): Prisma.Sql[] {
+function buildCategoricalClauses(filters: CategoricalFilter[], timeScope: "current" | "ever"): Prisma.Sql[] {
   const out: Prisma.Sql[] = [];
   for (const f of filters) {
     if (f.values.length === 0) continue;
     const def = CATEGORICAL_FIELDS[f.field];
     if (!def) continue;
 
+    // "Ever" mode for hairColor: include any persona, not just latest
+    if (timeScope === "ever" && f.field === "hairColor") {
+      const values =
+        f.mode === "family"
+          ? f.values.flatMap((fam) => expandFamilyToValues("hair", fam)).map((v) => v.toLowerCase())
+          : f.values.map((v) => v.toLowerCase());
+      out.push(Prisma.sql`EXISTS (
+        SELECT 1 FROM "Persona" per
+        JOIN "PersonaPhysical" pp ON pp."personaId" = per.id
+        WHERE per."personId" = p.id
+          AND lower(pp."currentHairColor") = ANY(${values})
+      )`);
+      continue;
+    }
+
     if (f.mode === "family" && def.familyColumn) {
-      // Match against the precomputed family column
       out.push(Prisma.sql`${def.familyColumn} = ANY(${f.values})`);
     } else if (f.mode === "family" && def.colorCategory) {
-      // Family column missing — expand families into all member values
       const expanded = f.values.flatMap((fam) => expandFamilyToValues(def.colorCategory!, fam));
       if (expanded.length > 0) {
         if (def.caseInsensitive) {
@@ -90,7 +103,6 @@ function buildCategoricalClauses(filters: CategoricalFilter[]): Prisma.Sql[] {
         }
       }
     } else {
-      // Exact match
       if (def.caseInsensitive) {
         out.push(Prisma.sql`lower(${def.column}) = ANY(${f.values.map((v) => v.toLowerCase())})`);
       } else {
@@ -101,7 +113,7 @@ function buildCategoricalClauses(filters: CategoricalFilter[]): Prisma.Sql[] {
   return out;
 }
 
-function buildRangeClauses(filters: RangeFilter[]): Prisma.Sql[] {
+function buildRangeClauses(filters: RangeFilter[], timeScope: "current" | "ever"): Prisma.Sql[] {
   const out: Prisma.Sql[] = [];
   for (const f of filters) {
     const def = RANGE_FIELDS[f.field];
@@ -118,6 +130,21 @@ function buildRangeClauses(filters: RangeFilter[]): Prisma.Sql[] {
       if (f.min != null) {
         out.push(Prisma.sql`${def.column} <= (CURRENT_DATE - (${f.min} * INTERVAL '1 year'))`);
       }
+    } else if (timeScope === "ever" && f.field === "weight") {
+      // Any persona's weight within range
+      const min = f.min != null && f.tolerance != null ? f.min - f.tolerance : f.min;
+      const max = f.max != null && f.tolerance != null ? f.max + f.tolerance : f.max;
+      const bounds: Prisma.Sql[] = [];
+      if (min != null) bounds.push(Prisma.sql`pp.weight >= ${min}`);
+      if (max != null) bounds.push(Prisma.sql`pp.weight <= ${max}`);
+      const inner = bounds.length > 0
+        ? bounds.reduce((a, b, i) => (i === 0 ? b : Prisma.sql`${a} AND ${b}`))
+        : Prisma.sql`pp.weight IS NOT NULL`;
+      out.push(Prisma.sql`EXISTS (
+        SELECT 1 FROM "Persona" per
+        JOIN "PersonaPhysical" pp ON pp."personaId" = per.id
+        WHERE per."personId" = p.id AND ${inner}
+      )`);
     } else {
       const min = f.min != null && f.tolerance != null ? f.min - f.tolerance : f.min;
       const max = f.max != null && f.tolerance != null ? f.max + f.tolerance : f.max;
@@ -183,14 +210,30 @@ function buildTextClauses(filters: TextFilter[]): Prisma.Sql[] {
   return out;
 }
 
-function buildAttributeClauses(filters: AttributeFilter[], slugById: Map<string, string>): Prisma.Sql[] {
+function buildAttributeClauses(
+  filters: AttributeFilter[],
+  slugById: Map<string, string>,
+  timeScope: "current" | "ever",
+): Prisma.Sql[] {
   const out: Prisma.Sql[] = [];
   for (const f of filters) {
     if (f.values.length === 0) continue;
     const slug = slugById.get(f.definitionId);
     if (!slug) continue;
-    // mv."currentAttributes" ->> '<slug>' IN (<values>)
-    out.push(Prisma.sql`mv."currentAttributes" ->> ${slug} = ANY(${f.values})`);
+
+    if (timeScope === "ever") {
+      out.push(Prisma.sql`EXISTS (
+        SELECT 1 FROM "Persona" per
+        JOIN "PersonaPhysical" pp ON pp."personaId" = per.id
+        JOIN "PersonaPhysicalAttribute" ppa ON ppa."personaPhysicalId" = pp.id
+        JOIN "PhysicalAttributeDefinition" pad ON pad.id = ppa."attributeDefinitionId"
+        WHERE per."personId" = p.id
+          AND pad.id = ${f.definitionId}
+          AND ppa.value = ANY(${f.values})
+      )`);
+    } else {
+      out.push(Prisma.sql`mv."currentAttributes" ->> ${slug} = ANY(${f.values})`);
+    }
   }
   return out;
 }
@@ -267,12 +310,12 @@ type RawPersonRow = {
 async function buildWhereForSpec(spec: FilterSpec): Promise<Prisma.Sql> {
   const slugById = await loadAttributeSlugs(spec.attribute);
   const clauses: Prisma.Sql[] = [
-    ...buildCategoricalClauses(spec.categorical),
-    ...buildRangeClauses(spec.range),
+    ...buildCategoricalClauses(spec.categorical, spec.timeScope),
+    ...buildRangeClauses(spec.range, spec.timeScope),
     ...buildPresenceClauses(spec.presence),
     ...buildRegionClauses(spec.region),
     ...buildTextClauses(spec.text),
-    ...buildAttributeClauses(spec.attribute, slugById),
+    ...buildAttributeClauses(spec.attribute, slugById, spec.timeScope),
   ];
   return combineWhere(clauses);
 }
