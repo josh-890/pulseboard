@@ -166,9 +166,7 @@ export async function getStagingWorkHistoryForPerson(personId: string): Promise<
       externalId: true,
       coverImageUrl: true,
       archiveLinks: {
-        where: { status: 'CONFIRMED' },
-        select: { archiveStatus: true, status: true },
-        take: 1,
+        select: { archiveStatus: true, status: true, archiveFileCount: true },
       },
     },
     orderBy: [{ releaseDate: 'desc' }, { title: 'asc' }],
@@ -184,8 +182,15 @@ export async function getStagingWorkHistoryForPerson(personId: string): Promise<
     isVideo: s.isVideo,
     externalId: s.externalId,
     coverImageUrl: s.coverImageUrl,
-    archiveStatus: s.archiveLinks[0]?.archiveStatus ?? null,
-    archiveLinkStatus: s.archiveLinks[0]?.status ?? null,
+    ...(() => {
+      const confirmed = s.archiveLinks.find((l) => l.status === 'CONFIRMED')
+      const hasSuggestion = !confirmed && s.archiveLinks.some((l) => l.status === 'SUGGESTED')
+      return {
+        archiveStatus: confirmed?.archiveStatus ?? null,
+        archiveFileCount: confirmed?.archiveFileCount ?? null,
+        hasSuggestion,
+      }
+    })(),
   }))
 }
 

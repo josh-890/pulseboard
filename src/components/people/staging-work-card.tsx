@@ -2,16 +2,61 @@
 
 import Link from "next/link";
 import NextImage from "next/image";
-import { Film, Image as ImageIcon } from "lucide-react";
-import { cn, formatPartialDate } from "@/lib/utils";
+import { Film, FolderCheck, FolderOpen, FolderX, Image as ImageIcon } from "lucide-react";
+import { formatPartialDate } from "@/lib/utils";
 import type { StagingWorkHistoryItem } from "@/lib/types";
 import type { ArchiveStatus } from "@/generated/prisma/client";
 
-function archiveDotClass(status: ArchiveStatus | null): string {
-  if (!status || status === "UNKNOWN") return "bg-slate-400";
-  if (status === "OK") return "bg-emerald-500";
-  if (status === "MISSING") return "bg-red-500";
-  return "bg-amber-500"; // PENDING, CHANGED, INCOMPLETE
+function ArchivePill({
+  archiveStatus,
+  archiveFileCount,
+  hasSuggestion,
+}: {
+  archiveStatus: ArchiveStatus | null;
+  archiveFileCount: number | null;
+  hasSuggestion: boolean;
+}) {
+  if (archiveStatus === "OK") {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full border border-green-500/20 bg-green-500/10 px-2 py-0.5 text-[11px] text-green-600 dark:text-green-400">
+        <FolderCheck size={11} />
+        In archive{archiveFileCount != null ? ` · ${archiveFileCount} files` : ""}
+      </span>
+    );
+  }
+  if (hasSuggestion) {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full border border-amber-500/20 bg-amber-500/10 px-2 py-0.5 text-[11px] text-amber-600 dark:text-amber-400">
+        <FolderOpen size={11} />
+        Match suggested
+      </span>
+    );
+  }
+  if (archiveStatus === "MISSING") {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full border border-red-500/20 bg-red-500/10 px-2 py-0.5 text-[11px] text-red-600 dark:text-red-400">
+        <FolderX size={11} />
+        Missing from archive
+      </span>
+    );
+  }
+  if (archiveStatus === "CHANGED") {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full border border-amber-500/20 bg-amber-500/10 px-2 py-0.5 text-[11px] text-amber-600 dark:text-amber-400">
+        <FolderCheck size={11} />
+        Archive changed
+      </span>
+    );
+  }
+  if (archiveStatus === "INCOMPLETE") {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full border border-orange-500/20 bg-orange-500/10 px-2 py-0.5 text-[11px] text-orange-600 dark:text-orange-400">
+        <FolderX size={11} />
+        Archive incomplete
+      </span>
+    );
+  }
+  return null;
 }
 
 type StagingWorkCardProps = {
@@ -19,10 +64,6 @@ type StagingWorkCardProps = {
 };
 
 export function StagingWorkCard({ entry }: StagingWorkCardProps) {
-  const year = entry.releaseDate
-    ? new Date(entry.releaseDate).getFullYear()
-    : null;
-
   const dateLabel = entry.releaseDate
     ? formatPartialDate(entry.releaseDate, entry.releaseDatePrecision)
     : "Date unknown";
@@ -57,31 +98,34 @@ export function StagingWorkCard({ entry }: StagingWorkCardProps) {
               <p className="truncate text-sm font-medium leading-snug">{entry.title}</p>
               <p className="mt-0.5 text-xs text-muted-foreground">
                 {entry.channelName}
-                {year && <span className="ml-1.5 text-muted-foreground/70">· {dateLabel}</span>}
+                {entry.releaseDate && (
+                  <span className="ml-1.5 text-muted-foreground/70">· {dateLabel}</span>
+                )}
               </p>
             </div>
-
-            <div className="flex shrink-0 items-center gap-1.5">
-              {/* Archive status dot */}
-              <span
-                className={cn("h-2 w-2 rounded-full", archiveDotClass(entry.archiveStatus))}
-                title={entry.archiveStatus ?? "Archive status unknown"}
-                aria-label={`Archive status: ${entry.archiveStatus ?? "unknown"}`}
-              />
-              {/* STAGED badge */}
-              <span className="rounded-md border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-amber-600 dark:text-amber-400">
-                Staged
-              </span>
-            </div>
+            {/* STAGED badge */}
+            <span className="shrink-0 rounded-md border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-amber-600 dark:text-amber-400">
+              Staged
+            </span>
           </div>
 
-          {entry.externalId && (
-            <p className="mt-1 text-xs text-muted-foreground/60">ID: {entry.externalId}</p>
-          )}
+          {/* Archive status pill — same style as set hero */}
+          <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+            <ArchivePill
+              archiveStatus={entry.archiveStatus}
+              archiveFileCount={entry.archiveFileCount}
+              hasSuggestion={entry.hasSuggestion}
+            />
+            {entry.externalId && (
+              <span className="text-[11px] text-muted-foreground/60 font-mono">
+                ID: {entry.externalId}
+              </span>
+            )}
+          </div>
 
           <Link
             href="/staging-sets"
-            className="mt-2 inline text-xs text-primary/70 underline-offset-2 hover:text-primary hover:underline"
+            className="mt-1.5 inline text-xs text-primary/70 underline-offset-2 hover:text-primary hover:underline"
           >
             View in staging workspace →
           </Link>

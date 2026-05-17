@@ -79,7 +79,8 @@ export type StagingWorkHistoryItem = {
   externalId: string | null;
   coverImageUrl: string | null;
   archiveStatus: import("@/generated/prisma/client").ArchiveStatus | null;
-  archiveLinkStatus: import("@/generated/prisma/client").ArchiveLinkStatus | null;
+  archiveFileCount: number | null;
+  hasSuggestion: boolean;
 };
 
 export type PersonAffiliation = {
