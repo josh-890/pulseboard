@@ -442,3 +442,38 @@ export async function getFacetCounts(spec: FilterSpec): Promise<FacetCounts> {
 
   return out;
 }
+
+/**
+ * Fetch facet counts for a specific list of attribute definitions — used by the
+ * sidebar to populate dropdowns even when the user hasn't filtered on them yet.
+ */
+export async function getAttributeFacetsForDefinitions(
+  spec: FilterSpec,
+  definitionIds: string[],
+): Promise<Record<string, { value: string; count: number }[]>> {
+  if (definitionIds.length === 0) return {};
+  const defs = await prisma.physicalAttributeDefinition.findMany({
+    where: { id: { in: definitionIds } },
+    select: { id: true, slug: true },
+  });
+
+  const out: Record<string, { value: string; count: number }[]> = {};
+  for (const d of defs) {
+    const where = await buildWhereForSpec({
+      ...spec,
+      attribute: spec.attribute.filter((a) => a.definitionId !== d.id),
+    });
+    const rows = await prisma.$queryRaw<{ value: string | null; count: bigint }[]>(Prisma.sql`
+      SELECT mv."currentAttributes" ->> ${d.slug} AS value, count(*)::bigint AS count
+      FROM "Person" p
+      LEFT JOIN mv_person_current_state mv ON mv."personId" = p.id
+      WHERE ${where} AND mv."currentAttributes" ? ${d.slug}
+      GROUP BY value
+      ORDER BY count DESC, value ASC
+    `);
+    out[d.id] = rows
+      .filter((r) => r.value != null && r.value !== "")
+      .map((r) => ({ value: String(r.value), count: Number(r.count) }));
+  }
+  return out;
+}

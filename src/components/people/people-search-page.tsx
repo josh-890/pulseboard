@@ -1,10 +1,18 @@
 import { Users } from "lucide-react";
 import Link from "next/link";
-import { PeopleSearchSidebar } from "@/components/people/people-search-sidebar";
+import {
+  PeopleSearchSidebar,
+  type AttributeGroupForFilter,
+} from "@/components/people/people-search-sidebar";
 import { PersonList } from "@/components/people/person-list";
 import { AddPersonSheet } from "@/components/people/add-person-sheet";
 import { getHeadshotsForPersons } from "@/lib/services/media-service";
-import { searchPeople, getFacetCounts } from "@/lib/services/person-search-service";
+import {
+  searchPeople,
+  getFacetCounts,
+  getAttributeFacetsForDefinitions,
+} from "@/lib/services/person-search-service";
+import { getAllPhysicalAttributeGroups } from "@/lib/services/physical-attribute-catalog-service";
 import { specFromUrlParams } from "@/lib/types/filter-spec";
 
 type PeopleSearchPageProps = {
@@ -20,10 +28,26 @@ export async function PeopleSearchPage({ searchParams }: PeopleSearchPageProps) 
   const spec = specFromUrlParams(params);
 
   const limit = 100;
-  const [result, facets] = await Promise.all([
+  const [result, facets, attrGroupsRaw] = await Promise.all([
     searchPeople(spec, { limit }),
     getFacetCounts(spec),
+    getAllPhysicalAttributeGroups(),
   ]);
+
+  const allDefinitionIds = attrGroupsRaw.flatMap((g) => g.definitions.map((d) => d.id));
+  const attributeFacets = await getAttributeFacetsForDefinitions(spec, allDefinitionIds);
+
+  const attributeGroups: AttributeGroupForFilter[] = attrGroupsRaw
+    .map((g) => ({
+      groupName: g.name,
+      options: g.definitions.map((d) => ({
+        definitionId: d.id,
+        slug: d.slug,
+        name: d.name,
+        groupName: g.name,
+      })),
+    }))
+    .filter((g) => g.options.length > 0);
 
   const personIds = result.items.map((p) => p.id);
   const headshotMap = await getHeadshotsForPersons(personIds);
@@ -60,7 +84,9 @@ export async function PeopleSearchPage({ searchParams }: PeopleSearchPageProps) 
           facets={{
             categorical: facets.categorical,
             presence: facets.presence,
+            attribute: attributeFacets,
           }}
+          attributeGroups={attributeGroups}
         />
         <div className="min-w-0 flex-1">
           <PersonList

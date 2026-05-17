@@ -151,6 +151,142 @@ function CategoricalControl({
   );
 }
 
+// ─── Range filter (min/max numeric inputs) ──────────────────────────────────
+
+function RangeControl({
+  field,
+  unit,
+  bounds,
+  spec,
+  onChange,
+}: {
+  field: string;
+  unit?: string;
+  bounds?: { min: number; max: number };
+  spec: FilterSpec;
+  onChange: (next: FilterSpec) => void;
+}) {
+  const current = spec.range.find((r) => r.field === field);
+  const [minStr, setMinStr] = useState(current?.min != null ? String(current.min) : "");
+  const [maxStr, setMaxStr] = useState(current?.max != null ? String(current.max) : "");
+
+  useEffect(() => {
+    setMinStr(current?.min != null ? String(current.min) : "");
+    setMaxStr(current?.max != null ? String(current.max) : "");
+  }, [current?.min, current?.max]);
+
+  const commit = useCallback((nextMin: string, nextMax: string) => {
+    const min = nextMin === "" ? undefined : Number(nextMin);
+    const max = nextMax === "" ? undefined : Number(nextMax);
+    const others = spec.range.filter((r) => r.field !== field);
+    if (min == null && max == null) {
+      onChange({ ...spec, range: others });
+    } else {
+      onChange({ ...spec, range: [...others, { field, min, max }] });
+    }
+  }, [field, spec, onChange]);
+
+  useEffect(() => {
+    const handle = setTimeout(() => {
+      const a = current?.min != null ? String(current.min) : "";
+      const b = current?.max != null ? String(current.max) : "";
+      if (minStr === a && maxStr === b) return;
+      if (minStr !== "" && Number.isNaN(Number(minStr))) return;
+      if (maxStr !== "" && Number.isNaN(Number(maxStr))) return;
+      commit(minStr, maxStr);
+    }, 350);
+    return () => clearTimeout(handle);
+  }, [minStr, maxStr, current?.min, current?.max, commit]);
+
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-center gap-1.5">
+        <Input
+          value={minStr}
+          onChange={(e) => setMinStr(e.target.value)}
+          placeholder={bounds ? String(bounds.min) : "min"}
+          className="h-7 w-16 px-1.5 text-center text-xs"
+          inputMode="numeric"
+        />
+        <span className="text-xs text-muted-foreground">to</span>
+        <Input
+          value={maxStr}
+          onChange={(e) => setMaxStr(e.target.value)}
+          placeholder={bounds ? String(bounds.max) : "max"}
+          className="h-7 w-16 px-1.5 text-center text-xs"
+          inputMode="numeric"
+        />
+        {unit && <span className="text-xs text-muted-foreground">{unit}</span>}
+      </div>
+    </div>
+  );
+}
+
+// ─── Attribute filter (catalog-driven, exact value match) ────────────────────
+
+export type AttributeOption = {
+  definitionId: string;
+  slug: string;
+  name: string;
+  groupName: string;
+};
+
+function AttributeControl({
+  option,
+  facets,
+  spec,
+  onChange,
+}: {
+  option: AttributeOption;
+  facets?: { value: string; count: number }[];
+  spec: FilterSpec;
+  onChange: (next: FilterSpec) => void;
+}) {
+  const current = spec.attribute.find((a) => a.definitionId === option.definitionId);
+  const selected = new Set(current?.values ?? []);
+
+  const update = (nextValues: string[]) => {
+    const others = spec.attribute.filter((a) => a.definitionId !== option.definitionId);
+    if (nextValues.length === 0) {
+      onChange({ ...spec, attribute: others });
+    } else {
+      onChange({ ...spec, attribute: [...others, { definitionId: option.definitionId, values: nextValues }] });
+    }
+  };
+
+  const toggle = (val: string) => {
+    if (selected.has(val)) update([...selected].filter((v) => v !== val));
+    else update([...selected, val]);
+  };
+
+  const opts = facets ?? [];
+
+  return (
+    <div className="space-y-1">
+      <div className="text-[11px] text-muted-foreground">{option.name}</div>
+      {opts.length === 0 ? (
+        <p className="text-[11px] text-muted-foreground/60">No recorded values yet</p>
+      ) : (
+        <div className="max-h-32 space-y-1 overflow-y-auto pr-1">
+          {opts.map((opt) => (
+            <label
+              key={opt.value}
+              className="flex items-center gap-2 rounded px-1 py-0.5 text-xs hover:bg-white/5"
+            >
+              <Checkbox
+                checked={selected.has(opt.value)}
+                onCheckedChange={() => toggle(opt.value)}
+              />
+              <span className="flex-1 truncate">{opt.value}</span>
+              <span className="text-[10px] text-muted-foreground/60">{opt.count}</span>
+            </label>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Presence filter (tri-state) ─────────────────────────────────────────────
 
 function PresenceControl({
@@ -336,14 +472,21 @@ function TimeScopeToggle({
 
 // ─── Main sidebar ────────────────────────────────────────────────────────────
 
+export type AttributeGroupForFilter = {
+  groupName: string;
+  options: AttributeOption[];
+};
+
 export type PeopleSearchSidebarProps = {
   facets: {
     categorical: Record<string, FacetOption[]>;
     presence: Record<string, { has: number; hasnt: number }>;
+    attribute?: Record<string, FacetOption[]>;
   };
+  attributeGroups?: AttributeGroupForFilter[];
 };
 
-export function PeopleSearchSidebar({ facets }: PeopleSearchSidebarProps) {
+export function PeopleSearchSidebar({ facets, attributeGroups = [] }: PeopleSearchSidebarProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [, startTransition] = useTransition();
@@ -481,6 +624,45 @@ export function PeopleSearchSidebar({ facets }: PeopleSearchSidebarProps) {
       </Section>
 
       <Section
+        title="Height"
+        badge={spec.range.some((r) => r.field === "height") ? 1 : 0}
+      >
+        <RangeControl
+          field="height"
+          unit="cm"
+          bounds={{ min: 140, max: 220 }}
+          spec={spec}
+          onChange={apply}
+        />
+      </Section>
+
+      <Section
+        title="Weight"
+        badge={spec.range.some((r) => r.field === "weight") ? 1 : 0}
+      >
+        <RangeControl
+          field="weight"
+          unit="kg"
+          bounds={{ min: 40, max: 150 }}
+          spec={spec}
+          onChange={apply}
+        />
+      </Section>
+
+      <Section
+        title="Age"
+        badge={spec.range.some((r) => r.field === "age") ? 1 : 0}
+      >
+        <RangeControl
+          field="age"
+          unit="yrs"
+          bounds={{ min: 18, max: 80 }}
+          spec={spec}
+          onChange={apply}
+        />
+      </Section>
+
+      <Section
         title="Body marks"
         badge={
           countPresence("tattoo") +
@@ -529,6 +711,26 @@ export function PeopleSearchSidebar({ facets }: PeopleSearchSidebarProps) {
           />
         </div>
       </Section>
+
+      {attributeGroups.map((g) => (
+        <Section
+          key={g.groupName}
+          title={g.groupName}
+          badge={g.options.filter((o) => spec.attribute.some((a) => a.definitionId === o.definitionId)).length}
+        >
+          <div className="space-y-3">
+            {g.options.map((opt) => (
+              <AttributeControl
+                key={opt.definitionId}
+                option={opt}
+                facets={facets.attribute?.[opt.definitionId]}
+                spec={spec}
+                onChange={apply}
+              />
+            ))}
+          </div>
+        </Section>
+      ))}
 
       {!isEmptySpec(spec) && (
         <Button
