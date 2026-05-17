@@ -13,6 +13,7 @@ import {
   getAttributeFacetsForDefinitions,
 } from "@/lib/services/person-search-service";
 import { getAllPhysicalAttributeGroups } from "@/lib/services/physical-attribute-catalog-service";
+import { listSavedSearches } from "@/lib/services/saved-search-service";
 import { specFromUrlParams } from "@/lib/types/filter-spec";
 
 type PeopleSearchPageProps = {
@@ -28,10 +29,11 @@ export async function PeopleSearchPage({ searchParams }: PeopleSearchPageProps) 
   const spec = specFromUrlParams(params);
 
   const limit = 100;
-  const [result, facets, attrGroupsRaw] = await Promise.all([
+  const [result, facets, attrGroupsRaw, savedSearches] = await Promise.all([
     searchPeople(spec, { limit }),
     getFacetCounts(spec),
     getAllPhysicalAttributeGroups(),
+    listSavedSearches("people"),
   ]);
 
   const allDefinitionIds = attrGroupsRaw.flatMap((g) => g.definitions.map((d) => d.id));
@@ -87,6 +89,7 @@ export async function PeopleSearchPage({ searchParams }: PeopleSearchPageProps) 
             attribute: attributeFacets,
           }}
           attributeGroups={attributeGroups}
+          savedSearches={savedSearches}
         />
         <div className="min-w-0 flex-1">
           <PersonList

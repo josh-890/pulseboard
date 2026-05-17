@@ -14,6 +14,8 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { BodyRegionFilter } from "@/components/shared/body-region-picker/body-region-filter";
+import { SavedSearchMenu } from "@/components/people/saved-search-menu";
+import type { SavedSearchSummary } from "@/lib/services/saved-search-service";
 import { cn } from "@/lib/utils";
 import {
   EMPTY_SPEC,
@@ -548,9 +550,14 @@ export type PeopleSearchSidebarProps = {
     attribute?: Record<string, FacetOption[]>;
   };
   attributeGroups?: AttributeGroupForFilter[];
+  savedSearches?: SavedSearchSummary[];
 };
 
-export function PeopleSearchSidebar({ facets, attributeGroups = [] }: PeopleSearchSidebarProps) {
+export function PeopleSearchSidebar({
+  facets,
+  attributeGroups = [],
+  savedSearches = [],
+}: PeopleSearchSidebarProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [, startTransition] = useTransition();
@@ -623,6 +630,8 @@ export function PeopleSearchSidebar({ facets, attributeGroups = [] }: PeopleSear
         onChange={(next) => apply({ ...spec, timeScope: next })}
         disabled
       />
+
+      <SavedSearchMenu saved={savedSearches} currentSpec={spec} scope="people" />
 
       <div className="relative">
         <Search size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
