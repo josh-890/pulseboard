@@ -161,7 +161,7 @@ export function StagingWorkCard({ entry }: StagingWorkCardProps) {
           </div>
 
           <Link
-            href="/staging-sets"
+            href={`/staging-sets?select=${entry.stagingSetId}&status=APPROVED&groupBy=none`}
             className="mt-1.5 inline text-xs text-primary/70 underline-offset-2 hover:text-primary hover:underline"
           >
             View in staging workspace →

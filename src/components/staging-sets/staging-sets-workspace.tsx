@@ -89,10 +89,10 @@ export function StagingSetsWorkspace() {
   useEffect(() => {
     if (filtersRestoredRef.current) return
     filtersRestoredRef.current = true
-    // Skip if URL params were used
+    // Skip if URL params were used, or if this is a deep-link (select param)
     const statusParam = searchParams.get('status')
     const batchId = searchParams.get('batchId')
-    if (statusParam || batchId) return
+    if (statusParam || batchId || searchParams.get('select')) return
     try {
       const saved = sessionStorage.getItem(FILTER_STORAGE_KEY)
       if (saved) {
@@ -117,7 +117,8 @@ export function StagingSetsWorkspace() {
   const [isRefreshing, setIsRefreshing] = useState(false)
 
   // ── Selection state ───────────────────────────────────────────────────
-  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const selectParam = searchParams.get('select')
+  const [selectedId, setSelectedId] = useState<string | null>(selectParam)
   const [isMultiSelectMode, setIsMultiSelectMode] = useState(false)
   const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set())
   const [isProcessing, setIsProcessing] = useState(false)
@@ -177,6 +178,20 @@ export function StagingSetsWorkspace() {
       }
     } catch {}
   }, [isLoading, data])
+
+  // Deep-link scroll: when arriving via ?select=<id>, scroll to and open that item
+  const deepLinkScrolledRef = useRef(false)
+  useEffect(() => {
+    if (!selectParam || deepLinkScrolledRef.current || isLoading || !data) return
+    const item = data.items.find((s) => s.id === selectParam)
+    if (!item) return
+    deepLinkScrolledRef.current = true
+    scrollRestoredRef.current = true  // prevent sessionStorage scroll from firing
+    requestAnimationFrame(() => {
+      const el = gridRef.current?.querySelector<HTMLElement>(`[data-staging-id="${selectParam}"]`)
+      el?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+    })
+  }, [selectParam, isLoading, data])
 
   // ── Fetch data ────────────────────────────────────────────────────────
   const fetchData = useCallback(async (append?: boolean, _cursor?: string, offset?: number, limitOverride?: number) => {
