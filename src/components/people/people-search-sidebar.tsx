@@ -12,7 +12,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Label } from "@/components/ui/label";
 import { BodyRegionFilter } from "@/components/shared/body-region-picker/body-region-filter";
 import { SavedSearchMenu } from "@/components/people/saved-search-menu";
 import type { SavedSearchSummary } from "@/lib/services/saved-search-service";
@@ -170,13 +169,14 @@ function RangeControl({
   onChange: (next: FilterSpec) => void;
 }) {
   const current = spec.range.find((r) => r.field === field);
-  const [minStr, setMinStr] = useState(current?.min != null ? String(current.min) : "");
-  const [maxStr, setMaxStr] = useState(current?.max != null ? String(current.max) : "");
+  const specMinStr = current?.min != null ? String(current.min) : "";
+  const specMaxStr = current?.max != null ? String(current.max) : "";
 
-  useEffect(() => {
-    setMinStr(current?.min != null ? String(current.min) : "");
-    setMaxStr(current?.max != null ? String(current.max) : "");
-  }, [current?.min, current?.max]);
+  // Local "dirty" buffer for in-progress typing; null = follow URL spec exactly
+  const [localMin, setLocalMin] = useState<string | null>(null);
+  const [localMax, setLocalMax] = useState<string | null>(null);
+  const minStr = localMin ?? specMinStr;
+  const maxStr = localMax ?? specMaxStr;
 
   const commit = useCallback((nextMin: string, nextMax: string) => {
     const min = nextMin === "" ? undefined : Number(nextMin);
@@ -190,23 +190,28 @@ function RangeControl({
   }, [field, spec, onChange]);
 
   useEffect(() => {
+    if (localMin == null && localMax == null) return;
     const handle = setTimeout(() => {
-      const a = current?.min != null ? String(current.min) : "";
-      const b = current?.max != null ? String(current.max) : "";
-      if (minStr === a && maxStr === b) return;
       if (minStr !== "" && Number.isNaN(Number(minStr))) return;
       if (maxStr !== "" && Number.isNaN(Number(maxStr))) return;
+      if (minStr === specMinStr && maxStr === specMaxStr) {
+        setLocalMin(null);
+        setLocalMax(null);
+        return;
+      }
       commit(minStr, maxStr);
+      setLocalMin(null);
+      setLocalMax(null);
     }, 350);
     return () => clearTimeout(handle);
-  }, [minStr, maxStr, current?.min, current?.max, commit]);
+  }, [localMin, localMax, minStr, maxStr, specMinStr, specMaxStr, commit]);
 
   return (
     <div className="space-y-1.5">
       <div className="flex items-center gap-1.5">
         <Input
           value={minStr}
-          onChange={(e) => setMinStr(e.target.value)}
+          onChange={(e) => setLocalMin(e.target.value)}
           placeholder={bounds ? String(bounds.min) : "min"}
           className="h-7 w-16 px-1.5 text-center text-xs"
           inputMode="numeric"
@@ -214,7 +219,7 @@ function RangeControl({
         <span className="text-xs text-muted-foreground">to</span>
         <Input
           value={maxStr}
-          onChange={(e) => setMaxStr(e.target.value)}
+          onChange={(e) => setLocalMax(e.target.value)}
           placeholder={bounds ? String(bounds.max) : "max"}
           className="h-7 w-16 px-1.5 text-center text-xs"
           inputMode="numeric"
@@ -292,6 +297,29 @@ function AttributeControl({
 
 // ─── Presence + Region combined control ──────────────────────────────────────
 
+function MarkPill({
+  active,
+  text,
+  onClick,
+}: {
+  active: boolean;
+  text: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "flex-1 rounded px-2 py-1 text-[11px]",
+        active ? "bg-amber-500/20 text-amber-300" : "bg-white/5 hover:bg-white/10",
+      )}
+    >
+      {text}
+    </button>
+  );
+}
+
 function MarkControl({
   field,
   label,
@@ -334,19 +362,6 @@ function MarkControl({
     onChange({ ...spec, region: [...others, { entity: field, regions, mode: next }] });
   };
 
-  const Pill = ({ value, text }: { value: PresenceFilter["state"]; text: string }) => (
-    <button
-      type="button"
-      onClick={() => updateState(value)}
-      className={cn(
-        "flex-1 rounded px-2 py-1 text-[11px]",
-        state === value ? "bg-amber-500/20 text-amber-300" : "bg-white/5 hover:bg-white/10",
-      )}
-    >
-      {text}
-    </button>
-  );
-
   return (
     <div className="space-y-1.5">
       <div className="flex items-center justify-between text-xs">
@@ -358,9 +373,9 @@ function MarkControl({
         )}
       </div>
       <div className="flex gap-1">
-        <Pill value="has" text="has" />
-        <Pill value="any" text="any" />
-        <Pill value="hasnt" text="hasn't" />
+        <MarkPill active={state === "has"}   text="has"    onClick={() => updateState("has")} />
+        <MarkPill active={state === "any"}   text="any"    onClick={() => updateState("any")} />
+        <MarkPill active={state === "hasnt"} text="hasn't" onClick={() => updateState("hasnt")} />
       </div>
       {state === "has" && (
         <div className="pt-1">
