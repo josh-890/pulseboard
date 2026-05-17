@@ -521,7 +521,7 @@ export function StagingSetGrid({
               )}
 
               {entry.type === 'item' && (
-                <div className="pb-2">
+                <div className="pb-2" data-staging-id={entry.data.id}>
                   <StagingSetRow
                     stagingSet={entry.data}
                     isSelected={selectedId === entry.data.id}

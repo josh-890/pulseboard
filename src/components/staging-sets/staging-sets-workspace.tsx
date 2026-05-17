@@ -123,10 +123,18 @@ export function StagingSetsWorkspace() {
   const [isProcessing, setIsProcessing] = useState(false)
 
   const isPanelOpen = selectedId !== null
-  const selectedSet = useMemo(
-    () => data?.items.find((s) => s.id === selectedId) ?? null,
-    [data, selectedId],
-  )
+  // Cache keeps the panel open (with last-known data) while a refresh is in-flight
+  // and prevents it closing if the selected item temporarily falls off the loaded page.
+  const selectedSetCacheRef = useRef<StagingSetWithRelations | null>(null)
+  useEffect(() => {
+    if (!selectedId) { selectedSetCacheRef.current = null; return }
+    const found = data?.items.find((s) => s.id === selectedId)
+    if (found) selectedSetCacheRef.current = found
+  }, [selectedId, data])
+  const selectedSet = useMemo(() => {
+    if (!selectedId) return null
+    return data?.items.find((s) => s.id === selectedId) ?? selectedSetCacheRef.current
+  }, [selectedId, data])
 
   // ── Grid ref for keyboard nav ─────────────────────────────────────────
   const gridRef = useRef<HTMLDivElement | null>(null)
@@ -171,7 +179,7 @@ export function StagingSetsWorkspace() {
   }, [isLoading, data])
 
   // ── Fetch data ────────────────────────────────────────────────────────
-  const fetchData = useCallback(async (append?: boolean, _cursor?: string, offset?: number) => {
+  const fetchData = useCallback(async (append?: boolean, _cursor?: string, offset?: number, limitOverride?: number) => {
     // Cover baskets tab has its own data fetching — skip the staging sets API
     if (activeTab === 'cover-baskets') { setIsLoading(false); return }
     if (!append) setIsLoading(true)
@@ -203,7 +211,7 @@ export function StagingSetsWorkspace() {
       params.set('isVideo', activeTab === 'video' ? 'true' : 'false')
     }
     params.set('sort', filters.sort)
-    params.set('limit', '50')
+    params.set('limit', String(limitOverride ?? 50))
     if (offset != null) params.set('offset', String(offset))
 
     try {
@@ -257,13 +265,35 @@ export function StagingSetsWorkspace() {
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Scroll-preserving fetch (for operations that must refetch) ──────
-  const fetchDataPreservingScroll = useCallback(async (...args: Parameters<typeof fetchData>) => {
-    const scrollTop = gridRef.current?.scrollTop ?? 0
-    await fetchData(...args)
+  const fetchDataPreservingScroll = useCallback(async (_append = false) => {
+    const grid = gridRef.current
+    const limitOverride = Math.max(50, data?.items.length ?? 0)
+
+    // Anchor by item ID — more robust than raw pixel offset when DOM size changes
+    let anchorId: string | null = null
+    if (grid) {
+      const scrollTop = grid.scrollTop
+      const rows = grid.querySelectorAll<HTMLElement>('[data-staging-id]')
+      for (const row of rows) {
+        if (row.offsetTop >= scrollTop - 8) {
+          anchorId = row.dataset.stagingId ?? null
+          break
+        }
+      }
+    }
+    const pixelFallback = grid?.scrollTop ?? 0
+
+    await fetchData(false, undefined, undefined, limitOverride)
+
     requestAnimationFrame(() => {
-      gridRef.current?.scrollTo({ top: scrollTop })
+      if (!grid) return
+      if (anchorId) {
+        const el = grid.querySelector<HTMLElement>(`[data-staging-id="${anchorId}"]`)
+        if (el) { el.scrollIntoView({ block: 'start', behavior: 'instant' }); return }
+      }
+      grid.scrollTo({ top: pixelFallback })
     })
-  }, [fetchData])
+  }, [fetchData, data])
 
   // ── Actions ───────────────────────────────────────────────────────────
   const handleStatusChange = useCallback(async (id: string, status: StagingSetStatus) => {
