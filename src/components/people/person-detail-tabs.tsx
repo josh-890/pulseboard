@@ -1598,7 +1598,12 @@ function CareerTab({
         >
           <div className="space-y-3">
             {stagingWorkHistory.map((entry) => (
-              <StagingWorkCard key={entry.stagingSetId} entry={entry} />
+              <StagingWorkCard
+                key={entry.stagingSetId}
+                entry={entry}
+                personId={person.id}
+                personLabel={person.aliases.find((a) => a.isCommon)?.name}
+              />
             ))}
           </div>
         </SectionCard>

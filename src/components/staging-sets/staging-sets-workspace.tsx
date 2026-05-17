@@ -61,10 +61,11 @@ export function StagingSetsWorkspace() {
   const FILTER_STORAGE_KEY = 'staging-sets-filters'
   // Initialize with defaults to avoid hydration mismatch (sessionStorage only on client)
   const [filters, setFilters] = useState<StagingSetFilterState>(() => {
-    // URL params take priority (e.g. deep link with ?status=PROMOTED)
+    // URL params take priority (e.g. deep link with ?status=PROMOTED or ?select=<id>)
     const statusParam = searchParams.get('status')
     const batchId = searchParams.get('batchId') || undefined
-    if (statusParam || batchId) {
+    const selectParamInit = searchParams.get('select')
+    if (statusParam || batchId || selectParamInit) {
       return {
         ...DEFAULT_FILTERS,
         status: statusParam
@@ -74,6 +75,11 @@ export function StagingSetsWorkspace() {
         search: searchParams.get('search') || '',
         sort: (searchParams.get('sort') as StagingSetFilterState['sort']) || 'date',
         groupBy: (searchParams.get('groupBy') as StagingSetFilterState['groupBy']) || 'none',
+        personId: searchParams.get('personId') || undefined,
+        personLabel: searchParams.get('personLabel') || undefined,
+        channelId: searchParams.get('channelId') || undefined,
+        dateFrom: searchParams.get('dateFrom') || undefined,
+        dateTo: searchParams.get('dateTo') || undefined,
       }
     }
     return {

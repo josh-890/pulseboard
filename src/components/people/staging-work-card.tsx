@@ -63,9 +63,11 @@ function ArchivePill({
 
 type StagingWorkCardProps = {
   entry: StagingWorkHistoryItem;
+  personId?: string;
+  personLabel?: string;
 };
 
-export function StagingWorkCard({ entry }: StagingWorkCardProps) {
+export function StagingWorkCard({ entry, personId, personLabel }: StagingWorkCardProps) {
   const thumbRef = useRef<HTMLDivElement>(null);
   const [hover, setHover] = useState(false);
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
@@ -83,6 +85,22 @@ export function StagingWorkCard({ entry }: StagingWorkCardProps) {
   const dateLabel = entry.releaseDate
     ? formatPartialDate(entry.releaseDate, entry.releaseDatePrecision)
     : "Date unknown";
+
+  const year = entry.releaseDate ? new Date(entry.releaseDate).getFullYear() : null;
+  const deepLinkParams = new URLSearchParams({
+    select: entry.stagingSetId,
+    status: "APPROVED",
+    groupBy: "none",
+  });
+  if (personId) {
+    deepLinkParams.set("personId", personId);
+    if (personLabel) deepLinkParams.set("personLabel", personLabel);
+  }
+  if (entry.channelId) deepLinkParams.set("channelId", entry.channelId);
+  if (year) {
+    deepLinkParams.set("dateFrom", `${year}-01-01`);
+    deepLinkParams.set("dateTo", `${year}-12-31`);
+  }
 
   return (
     <div className="rounded-2xl border border-white/15 bg-card/40 p-4 shadow-sm backdrop-blur-sm opacity-80">
@@ -161,7 +179,7 @@ export function StagingWorkCard({ entry }: StagingWorkCardProps) {
           </div>
 
           <Link
-            href={`/staging-sets?select=${entry.stagingSetId}&status=APPROVED&groupBy=none`}
+            href={`/staging-sets?${deepLinkParams.toString()}`}
             className="mt-1.5 inline text-xs text-primary/70 underline-offset-2 hover:text-primary hover:underline"
           >
             View in staging workspace →
