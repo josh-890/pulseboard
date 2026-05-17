@@ -1797,3 +1797,18 @@ model CoverBasketItem {
   @@index([status])
   @@map("cover_basket_item")
 }
+
+// ─── Saved Searches ──────────────────────────────────────────────────────────
+
+model SavedSearch {
+  id         String   @id @default(cuid())
+  name       String
+  scope      String   // "people" (future: "sets", "media")
+  filterSpec Json
+  pinned     Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([scope, pinned])
+  @@map("saved_search")
+}
