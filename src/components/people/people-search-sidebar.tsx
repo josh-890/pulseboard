@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
+import { BodyRegionFilter } from "@/components/shared/body-region-picker/body-region-filter";
 import { cn } from "@/lib/utils";
 import {
   EMPTY_SPEC,
@@ -287,9 +288,9 @@ function AttributeControl({
   );
 }
 
-// ─── Presence filter (tri-state) ─────────────────────────────────────────────
+// ─── Presence + Region combined control ──────────────────────────────────────
 
-function PresenceControl({
+function MarkControl({
   field,
   label,
   counts,
@@ -302,22 +303,39 @@ function PresenceControl({
   spec: FilterSpec;
   onChange: (next: FilterSpec) => void;
 }) {
-  const current = spec.presence.find((p) => p.field === field);
-  const state = current?.state ?? "any";
+  const presence = spec.presence.find((p) => p.field === field);
+  const state = presence?.state ?? "any";
+  const region = spec.region.find((r) => r.entity === field);
+  const regions = region?.regions ?? [];
+  const matchMode = region?.mode ?? "any";
 
-  const update = (next: PresenceFilter["state"]) => {
+  const updateState = (next: PresenceFilter["state"]) => {
     const others = spec.presence.filter((p) => p.field !== field);
-    if (next === "any") {
-      onChange({ ...spec, presence: others });
+    const nextPresence = next === "any" ? others : [...others, { field, state: next }];
+    // If user turned the filter off / set to hasn't, also clear regions for this entity
+    const nextRegion = next === "has" ? spec.region : spec.region.filter((r) => r.entity !== field);
+    onChange({ ...spec, presence: nextPresence, region: nextRegion });
+  };
+
+  const updateRegions = (next: string[]) => {
+    const others = spec.region.filter((r) => r.entity !== field);
+    if (next.length === 0) {
+      onChange({ ...spec, region: others });
     } else {
-      onChange({ ...spec, presence: [...others, { field, state: next }] });
+      onChange({ ...spec, region: [...others, { entity: field, regions: next, mode: matchMode }] });
     }
+  };
+
+  const updateMatchMode = (next: "any" | "all") => {
+    const others = spec.region.filter((r) => r.entity !== field);
+    if (regions.length === 0) return;
+    onChange({ ...spec, region: [...others, { entity: field, regions, mode: next }] });
   };
 
   const Pill = ({ value, text }: { value: PresenceFilter["state"]; text: string }) => (
     <button
       type="button"
-      onClick={() => update(value)}
+      onClick={() => updateState(value)}
       className={cn(
         "flex-1 rounded px-2 py-1 text-[11px]",
         state === value ? "bg-amber-500/20 text-amber-300" : "bg-white/5 hover:bg-white/10",
@@ -328,7 +346,7 @@ function PresenceControl({
   );
 
   return (
-    <div className="space-y-1">
+    <div className="space-y-1.5">
       <div className="flex items-center justify-between text-xs">
         <span>{label}</span>
         {counts && state === "any" && (
@@ -342,6 +360,16 @@ function PresenceControl({
         <Pill value="any" text="any" />
         <Pill value="hasnt" text="hasn't" />
       </div>
+      {state === "has" && (
+        <div className="pt-1">
+          <BodyRegionFilter
+            selected={regions}
+            onChange={updateRegions}
+            matchMode={matchMode}
+            onMatchModeChange={updateMatchMode}
+          />
+        </div>
+      )}
     </div>
   );
 }
@@ -368,6 +396,15 @@ function ActiveChips({
   const removePresence = (field: PresenceField) => {
     onChange({ ...spec, presence: spec.presence.filter((p) => p.field !== field) });
   };
+  const removeRegion = (entity: PresenceField) => {
+    onChange({ ...spec, region: spec.region.filter((r) => r.entity !== entity) });
+  };
+  const removeRange = (field: string) => {
+    onChange({ ...spec, range: spec.range.filter((r) => r.field !== field) });
+  };
+  const removeAttribute = (definitionId: string) => {
+    onChange({ ...spec, attribute: spec.attribute.filter((a) => a.definitionId !== definitionId) });
+  };
   const removeText = (field: string) => {
     onChange({ ...spec, text: spec.text.filter((t) => t.field !== field) });
   };
@@ -388,6 +425,33 @@ function ActiveChips({
       key: `presence-${p.field}`,
       label: `${p.field}: ${p.state}`,
       onRemove: () => removePresence(p.field),
+    });
+  }
+  for (const r of spec.region) {
+    if (r.regions.length === 0) continue;
+    chips.push({
+      key: `region-${r.entity}`,
+      label: `${r.entity} @ ${r.regions.length} region${r.regions.length === 1 ? "" : "s"}${r.mode === "all" ? " (all)" : ""}`,
+      onRemove: () => removeRegion(r.entity),
+    });
+  }
+  for (const r of spec.range) {
+    const bits: string[] = [];
+    if (r.min != null) bits.push(`≥${r.min}`);
+    if (r.max != null) bits.push(`≤${r.max}`);
+    if (bits.length === 0) continue;
+    chips.push({
+      key: `range-${r.field}`,
+      label: `${r.field}: ${bits.join(" ")}`,
+      onRemove: () => removeRange(r.field),
+    });
+  }
+  for (const a of spec.attribute) {
+    if (a.values.length === 0) continue;
+    chips.push({
+      key: `attr-${a.definitionId}`,
+      label: `${a.definitionId.slice(0, 6)}…: ${a.values.join(", ")}`,
+      onRemove: () => removeAttribute(a.definitionId),
     });
   }
   for (const t of spec.text) {
@@ -674,35 +738,35 @@ export function PeopleSearchSidebar({ facets, attributeGroups = [] }: PeopleSear
         defaultOpen
       >
         <div className="space-y-2">
-          <PresenceControl
+          <MarkControl
             field="tattoo"
             label="Tattoos"
             counts={facets.presence.tattoo}
             spec={spec}
             onChange={apply}
           />
-          <PresenceControl
+          <MarkControl
             field="scar"
             label="Scars"
             counts={facets.presence.scar}
             spec={spec}
             onChange={apply}
           />
-          <PresenceControl
+          <MarkControl
             field="piercing"
             label="Piercings"
             counts={facets.presence.piercing}
             spec={spec}
             onChange={apply}
           />
-          <PresenceControl
+          <MarkControl
             field="modification"
             label="Body modifications"
             counts={facets.presence.modification}
             spec={spec}
             onChange={apply}
           />
-          <PresenceControl
+          <MarkControl
             field="procedure"
             label="Cosmetic procedures"
             counts={facets.presence.procedure}
