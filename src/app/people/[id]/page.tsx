@@ -21,6 +21,7 @@ import { getAllPhysicalAttributeGroups } from "@/lib/services/physical-attribute
 import { getPersonAliases } from "@/lib/services/alias-service";
 import { getPersonDigitalIdentities } from "@/lib/services/digital-identity-service";
 import { getPersonResearch } from "@/lib/services/research-service";
+import { getStagingWorkHistoryForPerson } from "@/lib/services/import/staging-set-service";
 import { getEntityTags } from "@/lib/services/entity-tag-service";
 import { PersonDetailTabs } from "@/components/people/person-detail-tabs";
 import { computePlausibilityIssues } from "@/lib/services/plausibility-service";
@@ -43,7 +44,7 @@ export default async function PersonDetailPage({ params, searchParams }: PersonD
   // Ensure system entity categories exist before loading category data
   await ensureEntityCategories();
 
-  const [person, workHistory, connections, profileLabels, refSession, headshots, filledSlots, categoryGroups, populatedCounts, skillGroups, skillLevelConfigs, aliasesWithChannels, sessionWorkHistory, productionSessions, entityMediaMap, physicalAttributeGroups, personEntityTags, digitalIdentities, researchEntries] =
+  const [person, workHistory, connections, profileLabels, refSession, headshots, filledSlots, categoryGroups, populatedCounts, skillGroups, skillLevelConfigs, aliasesWithChannels, sessionWorkHistory, productionSessions, entityMediaMap, physicalAttributeGroups, personEntityTags, digitalIdentities, researchEntries, stagingWorkHistory] =
     await Promise.all([
       getPersonWithDetails(id),
       getPersonWorkHistory(id),
@@ -64,6 +65,7 @@ export default async function PersonDetailPage({ params, searchParams }: PersonD
       getEntityTags("PERSON", id),
       getPersonDigitalIdentities(id),
       getPersonResearch(id),
+      getStagingWorkHistoryForPerson(id),
     ]);
 
   if (!person) notFound();
@@ -183,6 +185,7 @@ export default async function PersonDetailPage({ params, searchParams }: PersonD
         plausibilityIssues={plausibilityIssues}
         digitalIdentities={digitalIdentities}
         researchEntries={researchEntries}
+        stagingWorkHistory={stagingWorkHistory}
         entityTags={personEntityTags.map((t) => ({
           id: t.id,
           name: t.name,

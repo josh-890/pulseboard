@@ -10,6 +10,7 @@ import { prisma } from '@/lib/db'
 import { normalizeForSearch } from '@/lib/normalize'
 import { ArchiveLinkStatus } from '@/generated/prisma/client'
 import type { ChannelTier, DatePrecision, Prisma, StagingSet, StagingSetStatus } from '@/generated/prisma/client'
+import type { StagingWorkHistoryItem } from '@/lib/types'
 import { onSetPromoted } from '@/lib/services/coherence-service'
 import type { SuggestedFolderInfo } from '@/lib/services/archive-service'
 
@@ -140,6 +141,50 @@ export async function getStagingSetById(id: string): Promise<StagingSetWithRelat
     where: { id },
     include: STAGING_SET_INCLUDE,
   })
+}
+
+export async function getStagingWorkHistoryForPerson(personId: string): Promise<StagingWorkHistoryItem[]> {
+  const person = await prisma.person.findUnique({
+    where: { id: personId },
+    select: { icgId: true },
+  })
+  if (!person) return []
+
+  const stagingSets = await prisma.stagingSet.findMany({
+    where: {
+      participantIcgIds: { has: person.icgId },
+      status: 'APPROVED',
+    },
+    select: {
+      id: true,
+      title: true,
+      channelName: true,
+      channelId: true,
+      releaseDate: true,
+      releaseDatePrecision: true,
+      isVideo: true,
+      externalId: true,
+      archiveLinks: {
+        where: { status: 'CONFIRMED' },
+        select: { archiveStatus: true, status: true },
+        take: 1,
+      },
+    },
+    orderBy: [{ releaseDate: 'desc' }, { title: 'asc' }],
+  })
+
+  return stagingSets.map((s) => ({
+    stagingSetId: s.id,
+    title: s.title,
+    channelName: s.channelName,
+    channelId: s.channelId,
+    releaseDate: s.releaseDate,
+    releaseDatePrecision: s.releaseDatePrecision,
+    isVideo: s.isVideo,
+    externalId: s.externalId,
+    archiveStatus: s.archiveLinks[0]?.archiveStatus ?? null,
+    archiveLinkStatus: s.archiveLinks[0]?.status ?? null,
+  }))
 }
 
 export async function getStagingSetsForPerson(

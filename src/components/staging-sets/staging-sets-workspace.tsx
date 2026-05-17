@@ -10,11 +10,13 @@ import {
   CheckSquare,
   RefreshCw,
   Upload,
+  Plus,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { StagingSetGrid } from './staging-set-grid'
 import { BatchCoverUploadSheet } from './batch-cover-upload-sheet'
+import { CreateKnownSetSheet } from './create-known-set-sheet'
 import { CoverBasketsTab } from './cover-baskets-tab'
 import { StagingSetFilterBar, DEFAULT_FILTERS } from './staging-set-filter-bar'
 import { StagingSetSlidePanel } from './staging-set-slide-panel'
@@ -45,6 +47,9 @@ export function StagingSetsWorkspace() {
   const [activeTab, setActiveTab] = useState<'photo' | 'video' | 'missing-cover' | 'cover-baskets'>(
     searchParams.get('type') === 'video' ? 'video' : 'photo',
   )
+
+  // ── Known set creation ────────────────────────────────────────────────
+  const [createKnownSetOpen, setCreateKnownSetOpen] = useState(false)
 
   // ── Missing cover upload tracking ──────────────────────────────────────
   const [batchSheetOpen, setBatchSheetOpen] = useState(false)
@@ -567,6 +572,12 @@ export function StagingSetsWorkspace() {
 
         <span className="ml-auto" />
 
+        {/* Add manually-known staging set */}
+        <Button variant="outline" size="sm" onClick={() => setCreateKnownSetOpen(true)} className="gap-1.5">
+          <Plus size={14} />
+          Known set
+        </Button>
+
         {/* Refresh statuses + matches */}
         <Button
           variant="ghost"
@@ -725,6 +736,12 @@ export function StagingSetsWorkspace() {
           for (const { id, url } of results) handleCoverUploaded(id, url)
           setBatchSheetOpen(false)
         }}
+      />
+
+      <CreateKnownSetSheet
+        open={createKnownSetOpen}
+        onOpenChange={setCreateKnownSetOpen}
+        onCreated={() => fetchDataPreservingScroll(false)}
       />
     </div>
   )

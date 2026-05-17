@@ -20,6 +20,7 @@ export type {
   RelationshipEventType,
   PersonWithCommonAlias,
   PersonWorkHistoryItem,
+  StagingWorkHistoryItem,
   PersonAffiliation,
   PersonConnection,
   SessionThumbnail,

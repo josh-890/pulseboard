@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { cn, computeAge, formatPartialDate } from "@/lib/utils";
 import type { getPersonWithDetails } from "@/lib/services/person-service";
 import type {
@@ -13,6 +14,7 @@ import type {
   PersonDigitalIdentityItem,
   PersonStatus,
   RelationshipSource,
+  StagingWorkHistoryItem,
 } from "@/lib/types";
 import { useHeroLayout, type HeroLayout } from "@/components/layout/hero-layout-provider";
 import { FlagImage } from "@/components/shared/flag-image";
@@ -47,6 +49,7 @@ import {
   ArrowUpDown,
   Upload,
   ScrollText,
+  Archive,
 } from "lucide-react";
 import NextImage from "next/image";
 import Link from "next/link";
@@ -55,12 +58,15 @@ import { JustifiedGrid } from "@/components/gallery/justified-grid";
 import { GalleryLightbox } from "@/components/gallery/gallery-lightbox";
 import { BatchUploadZone } from "@/components/media/batch-upload-zone";
 import { PersonDetailsTab } from "@/components/people/person-details-tab";
+import { Button } from "@/components/ui/button";
 import { SectionCard, EmptyState, InfoRow } from "@/components/people/person-detail-helpers";
 import { PersonSkillsTab } from "@/components/people/person-skills-tab";
 import { PersonAliasesTab } from "@/components/people/person-aliases-tab";
 import { PersonResearchTab } from "@/components/people/person-research-tab";
 import type { PersonResearchItem } from "@/lib/services/research-service";
 import { CareerSessionList } from "@/components/people/career-session-list";
+import { StagingWorkCard } from "@/components/people/staging-work-card";
+import { CreateKnownSetSheet } from "@/components/staging-sets/create-known-set-sheet";
 import { ProductionPhotoList } from "@/components/people/production-photo-list";
 import type { SkillGroupWithDefinitions } from "@/lib/services/skill-catalog-service";
 import type { PersonAliasWithChannels } from "@/lib/services/alias-service";
@@ -115,6 +121,7 @@ type PersonDetailTabsProps = {
   initialTab?: string;
   entityTags?: { id: string; name: string; group: { name: string; color: string } }[];
   researchEntries?: PersonResearchItem[];
+  stagingWorkHistory?: StagingWorkHistoryItem[];
 };
 
 // ── Style maps ──────────────────────────────────────────────────────────────
@@ -1520,11 +1527,16 @@ function CareerTab({
   person,
   sessionWorkHistory,
   affiliations,
+  stagingWorkHistory,
 }: {
   person: PersonData;
   sessionWorkHistory: PersonSessionWorkEntry[];
   affiliations: PersonAffiliation[];
+  stagingWorkHistory: StagingWorkHistoryItem[];
 }) {
+  const router = useRouter();
+  const [createKnownSetOpen, setCreateKnownSetOpen] = useState(false);
+
   // Derive affiliations from session work history
   const derivedAffiliations = useMemo(() => {
     if (affiliations.length > 0) return affiliations;
@@ -1576,6 +1588,41 @@ function CareerTab({
           <CareerSessionList entries={sessionWorkHistory} />
         )}
       </SectionCard>
+
+      {/* Staged Sets */}
+      {stagingWorkHistory.length > 0 && (
+        <SectionCard
+          title="Staged Sets"
+          icon={<Archive size={18} />}
+          badge={stagingWorkHistory.length}
+        >
+          <div className="space-y-3">
+            {stagingWorkHistory.map((entry) => (
+              <StagingWorkCard key={entry.stagingSetId} entry={entry} />
+            ))}
+          </div>
+        </SectionCard>
+      )}
+
+      {/* Add known set button */}
+      <div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setCreateKnownSetOpen(true)}
+          className="gap-1.5"
+        >
+          <Plus size={13} />
+          Add known set
+        </Button>
+      </div>
+
+      <CreateKnownSetSheet
+        open={createKnownSetOpen}
+        onOpenChange={setCreateKnownSetOpen}
+        initialPersonId={person.id}
+        onCreated={() => router.refresh()}
+      />
 
       {/* Label Affiliations */}
       <SectionCard
@@ -1891,6 +1938,7 @@ export function PersonDetailTabs({
   initialTab,
   entityTags = [],
   researchEntries = [],
+  stagingWorkHistory = [],
 }: PersonDetailTabsProps) {
   const VALID_TABS: Set<string> = useMemo(
     () => new Set<string>(["overview", "aliases", "appearance", "details", "skills", "career", "network", "photos", "research"]),
@@ -1987,7 +2035,7 @@ export function PersonDetailTabs({
       ? [{ id: "details" as TabId, label: "Details", badge: (categoryCounts?.filter((c) => c.count > 0).length) || undefined, icon: <FileImage size={14} /> }]
       : []),
     { id: "skills" as TabId, label: "Skills", badge: currentState.activeSkills.length || undefined, icon: <Zap size={14} /> },
-    { id: "career", label: "Career", badge: (sessionWorkHistory?.length ?? workHistory.length) || undefined, icon: <Briefcase size={14} /> },
+    { id: "career", label: "Career", badge: ((sessionWorkHistory?.length ?? workHistory.length) + stagingWorkHistory.length) || undefined, icon: <Briefcase size={14} /> },
     { id: "network", label: "Network", badge: connections.length || undefined, icon: <Users size={14} /> },
     { id: "photos", label: "Photos", badge: (photos.length + (productionSessions?.reduce((sum, s) => sum + s.mediaCount, 0) ?? 0)) || undefined, icon: <ImageIcon size={14} /> },
     { id: "research" as TabId, label: "Research", badge: researchEntries.length || undefined, icon: <ScrollText size={14} /> },
@@ -2160,6 +2208,7 @@ export function PersonDetailTabs({
             person={person}
             sessionWorkHistory={sessionWorkHistory ?? []}
             affiliations={affiliations}
+            stagingWorkHistory={stagingWorkHistory}
           />
         )}
       </div>

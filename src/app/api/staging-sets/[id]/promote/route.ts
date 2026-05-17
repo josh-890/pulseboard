@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { withTenantFromHeaders } from '@/lib/tenant-context'
 import { prisma } from '@/lib/db'
-import { importSet } from '@/lib/services/import/import-executor'
+import { importSet, promoteManualStagingSet } from '@/lib/services/import/import-executor'
 
 export async function POST(
   _request: Request,
@@ -16,11 +16,17 @@ export async function POST(
         where: { id },
         select: { importItemId: true },
       })
-      if (!stagingSet?.importItemId) {
+      if (!stagingSet) {
         return NextResponse.json(
-          { error: 'Staging set or linked import item not found' },
+          { error: 'Staging set not found' },
           { status: 404 },
         )
+      }
+
+      // Manual staging sets (no ImportItem) use a separate promotion path
+      if (!stagingSet.importItemId) {
+        const result = await promoteManualStagingSet(id)
+        return NextResponse.json(result)
       }
 
       const importItem = await prisma.importItem.findUnique({

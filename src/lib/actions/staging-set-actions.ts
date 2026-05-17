@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { withTenantFromHeaders } from '@/lib/tenant-context'
 import { prisma } from '@/lib/db'
+import { normalizeForSearch } from '@/lib/normalize'
 import {
   refreshAllParticipantStatuses,
   refreshIfStale,
@@ -11,6 +12,7 @@ import {
   refreshAllMatches,
   refreshMatchesIfStale,
 } from '@/lib/services/import/match-refresh-service'
+import type { DatePrecision } from '@/generated/prisma/client'
 
 export async function refreshParticipantStatusesAction(): Promise<{ updated: number }> {
   return withTenantFromHeaders(async () => {
@@ -90,6 +92,74 @@ export async function acceptDateSuggestionAction(id: string): Promise<SimpleActi
     } catch {
       return { success: false, error: 'Failed to accept date suggestion' }
     }
+  })
+}
+
+// ─── Manual Staging Set Creation ─────────────────────────────────────────────
+
+type ManualParticipantInput = {
+  name: string
+  icgId?: string
+  personId?: string
+}
+
+type CreateManualStagingSetInput = {
+  title: string
+  channelId: string
+  releaseDate?: string
+  releaseDatePrecision?: DatePrecision
+  isVideo?: boolean
+  externalId?: string
+  notes?: string
+  participants: ManualParticipantInput[]
+}
+
+export async function createManualStagingSetAction(
+  input: CreateManualStagingSetInput,
+): Promise<{ success: true; id: string } | { success: false; error: string }> {
+  return withTenantFromHeaders(async () => {
+    const channel = await prisma.channel.findUnique({
+      where: { id: input.channelId },
+      select: { name: true },
+    })
+    if (!channel) return { success: false, error: 'Channel not found' }
+
+    const knownPersonIds = input.participants.filter((p) => p.personId).map((p) => p.personId!)
+    const knownPersonIcgIds = input.participants.filter((p) => p.icgId).map((p) => p.icgId!)
+
+    const participantStatuses = input.participants.map((p) => ({
+      name: p.name,
+      icgId: p.icgId ?? '',
+      status: p.personId ? ('known' as const) : ('candidate' as const),
+      ...(p.personId ? { personId: p.personId } : {}),
+    }))
+
+    const stagingSet = await prisma.stagingSet.create({
+      data: {
+        title: input.title,
+        titleNorm: normalizeForSearch(input.title),
+        channelId: input.channelId,
+        channelName: channel.name,
+        releaseDate: input.releaseDate ? new Date(input.releaseDate) : null,
+        releaseDatePrecision: input.releaseDatePrecision ?? 'UNKNOWN',
+        isVideo: input.isVideo ?? false,
+        externalId: input.externalId ?? null,
+        notes: input.notes ?? null,
+        status: 'APPROVED',
+        participants: input.participants.map((p) => ({ name: p.name, icgId: p.icgId ?? '' })),
+        participantStatuses,
+        participantIcgIds: knownPersonIcgIds,
+        participantNamesNorm: input.participants.map((p) => normalizeForSearch(p.name)).join(' '),
+      },
+      select: { id: true },
+    })
+
+    revalidatePath('/staging-sets')
+    for (const personId of knownPersonIds) {
+      revalidatePath(`/people/${personId}`)
+    }
+
+    return { success: true, id: stagingSet.id }
   })
 }
 

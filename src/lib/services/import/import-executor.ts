@@ -16,6 +16,7 @@ import { createDigitalIdentity } from '@/lib/services/digital-identity-service'
 import { rebuildSetParticipantsFromContributions } from '@/lib/services/contribution-service'
 import { markItemImported, computeDependencies } from './staging-service'
 import { markStagingSetPromoted } from './staging-set-service'
+import type { ParticipantStatus } from './staging-set-service'
 import { parseBreastDescription, extractCupFromMeasurements } from './import-utils'
 import { transferStagingCoverToSet } from './cover-transfer'
 
@@ -804,6 +805,222 @@ async function getSubjectIcgId(batchId: string): Promise<string | null> {
     select: { subjectIcgId: true },
   })
   return batch?.subjectIcgId ?? null
+}
+
+// ─── Manual Staging Set Promotion ───────────────────────────────────────────
+
+/**
+ * Promotes a manually-created staging set (importItemId = null).
+ * Reads participant data from participantStatuses (which has resolved personIds)
+ * and creates the same Set + Session + contributions as the import path.
+ */
+export async function promoteManualStagingSet(stagingSetId: string): Promise<ImportResult> {
+  const stagingSet = await prisma.stagingSet.findUnique({
+    where: { id: stagingSetId },
+    select: {
+      title: true,
+      channelId: true,
+      channelName: true,
+      releaseDate: true,
+      releaseDatePrecision: true,
+      isVideo: true,
+      description: true,
+      imageCount: true,
+      externalId: true,
+      artist: true,
+      participantStatuses: true,
+      matchedSetId: true,
+      coverImageUrl: true,
+      mediaPriority: true,
+      mediaQueueAt: true,
+    },
+  })
+  if (!stagingSet) return { success: false, entityId: null, error: 'Staging set not found' }
+
+  const participantStatuses = (stagingSet.participantStatuses ?? []) as ParticipantStatus[]
+  const knownParticipants = participantStatuses.filter((p) => p.status === 'known' && p.personId)
+  const unknownParticipants = participantStatuses.filter((p) => p.status !== 'known')
+
+  try {
+    // Path A: Enrich existing matched Set
+    if (stagingSet.matchedSetId) {
+      const setId = stagingSet.matchedSetId
+      await prisma.$transaction(async (tx) => {
+        const setSession = await tx.setSession.findFirst({
+          where: { setId, isPrimary: true },
+          select: { sessionId: true },
+        })
+        if (!setSession) return
+        const sessionId = setSession.sessionId
+
+        const modelRole = await tx.contributionRoleDefinition.findFirst({
+          where: { slug: 'model' },
+          select: { id: true },
+        })
+        if (!modelRole) return
+
+        for (const p of knownParticipants) {
+          await tx.sessionContribution.upsert({
+            where: {
+              sessionId_personId_roleDefinitionId: {
+                sessionId,
+                personId: p.personId!,
+                roleDefinitionId: modelRole.id,
+              },
+            },
+            update: {},
+            create: {
+              sessionId,
+              personId: p.personId!,
+              roleDefinitionId: modelRole.id,
+              confidence: 'CONFIRMED',
+              confidenceSource: 'MANUAL',
+            },
+          })
+          const existingCredit = await tx.setCreditRaw.findFirst({
+            where: { setId, resolvedPersonId: p.personId! },
+            select: { id: true },
+          })
+          if (!existingCredit) {
+            await tx.setCreditRaw.create({
+              data: {
+                setId,
+                rawName: p.name,
+                nameNorm: normalizeForSearch(p.name),
+                roleDefinitionId: modelRole.id,
+                resolutionStatus: 'RESOLVED',
+                resolvedPersonId: p.personId!,
+              },
+            })
+          }
+        }
+        await rebuildSetParticipantsFromContributions(tx, setId)
+      })
+      await markStagingSetPromoted(stagingSetId, setId)
+      return { success: true, entityId: setId, error: null }
+    }
+
+    // Path B: Create new Set
+    if (!stagingSet.channelId) {
+      return {
+        success: false,
+        entityId: null,
+        error: 'Channel must be resolved before promoting a manual staging set',
+      }
+    }
+
+    const result = await prisma.$transaction(async (tx) => {
+      const channelLabel = await tx.channelLabelMap.findFirst({
+        where: { channelId: stagingSet.channelId! },
+        orderBy: { confidence: 'desc' },
+        select: { labelId: true },
+      })
+
+      const title = stagingSet.title
+      const session = await tx.session.create({
+        data: {
+          name: title,
+          nameNorm: normalizeForSearch(title),
+          status: 'DRAFT',
+          date: stagingSet.releaseDate ?? undefined,
+          datePrecision: stagingSet.releaseDatePrecision,
+          labelId: channelLabel?.labelId ?? undefined,
+        },
+      })
+
+      const set = await tx.set.create({
+        data: {
+          type: stagingSet.isVideo ? 'video' : 'photo',
+          title,
+          titleNorm: normalizeForSearch(title),
+          channelId: stagingSet.channelId!,
+          description: stagingSet.description ?? undefined,
+          releaseDate: stagingSet.releaseDate ?? undefined,
+          releaseDatePrecision: stagingSet.releaseDatePrecision,
+          imageCount: stagingSet.imageCount,
+          externalId: stagingSet.externalId ?? undefined,
+        },
+      })
+
+      await tx.setSession.create({
+        data: { setId: set.id, sessionId: session.id, isPrimary: true },
+      })
+
+      const modelRole = await tx.contributionRoleDefinition.findFirst({
+        where: { slug: 'model' },
+        select: { id: true },
+      })
+
+      if (modelRole) {
+        for (const p of knownParticipants) {
+          await tx.sessionContribution.create({
+            data: {
+              sessionId: session.id,
+              personId: p.personId!,
+              roleDefinitionId: modelRole.id,
+              confidence: 'CONFIRMED',
+              confidenceSource: 'MANUAL',
+            },
+          })
+          await tx.setCreditRaw.create({
+            data: {
+              setId: set.id,
+              rawName: p.name,
+              nameNorm: normalizeForSearch(p.name),
+              roleDefinitionId: modelRole.id,
+              resolutionStatus: 'RESOLVED',
+              resolvedPersonId: p.personId!,
+            },
+          })
+        }
+      }
+
+      for (const p of unknownParticipants) {
+        await tx.setCreditRaw.create({
+          data: {
+            setId: set.id,
+            rawName: p.name,
+            nameNorm: normalizeForSearch(p.name),
+            resolutionStatus: 'UNRESOLVED',
+          },
+        })
+      }
+
+      if (stagingSet.artist) {
+        await tx.setCreditRaw.create({
+          data: {
+            setId: set.id,
+            rawName: stagingSet.artist,
+            nameNorm: normalizeForSearch(stagingSet.artist),
+            resolutionStatus: 'UNRESOLVED',
+          },
+        })
+      }
+
+      await rebuildSetParticipantsFromContributions(tx, set.id)
+      return { setId: set.id }
+    })
+
+    await markStagingSetPromoted(stagingSetId, result.setId)
+
+    if (stagingSet.mediaPriority || stagingSet.mediaQueueAt) {
+      await prisma.set.update({
+        where: { id: result.setId },
+        data: {
+          mediaPriority: stagingSet.mediaPriority,
+          mediaQueueAt: stagingSet.mediaQueueAt,
+        },
+      })
+    }
+
+    if (stagingSet.coverImageUrl) {
+      transferStagingCoverToSet(stagingSet.coverImageUrl, result.setId).catch(console.error)
+    }
+
+    return { success: true, entityId: result.setId, error: null }
+  } catch (err) {
+    return { success: false, entityId: null, error: String(err) }
+  }
 }
 
 // ─── Import dispatcher ──────────────────────────────────────────────────────

@@ -68,6 +68,19 @@ export type PersonWorkHistoryItem = {
   confidenceSource: import("@/generated/prisma/client").ConfidenceSource;
 };
 
+export type StagingWorkHistoryItem = {
+  stagingSetId: string;
+  title: string;
+  channelName: string;
+  channelId: string | null;
+  releaseDate: Date | null;
+  releaseDatePrecision: string;
+  isVideo: boolean;
+  externalId: string | null;
+  archiveStatus: import("@/generated/prisma/client").ArchiveStatus | null;
+  archiveLinkStatus: import("@/generated/prisma/client").ArchiveLinkStatus | null;
+};
+
 export type PersonAffiliation = {
   labelId: string;
   labelName: string;
