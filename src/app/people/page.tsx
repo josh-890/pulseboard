@@ -1,6 +1,7 @@
 import { withTenantFromHeaders } from "@/lib/tenant-context";
 import { Suspense } from "react";
-import { Users } from "lucide-react";
+import Link from "next/link";
+import { Sparkles, Users } from "lucide-react";
 import {
   getPersonsPaginated,
   getDistinctNaturalHairColors,
@@ -19,6 +20,14 @@ import { SavedViewsBar } from "@/components/shared/saved-views-bar";
 import { HeadshotSlotSelector } from "@/components/people/headshot-slot-selector";
 import { BodyRegionFilterWrapper } from "@/components/people/body-region-filter-wrapper";
 import { AddPersonSheet } from "@/components/people/add-person-sheet";
+import { PeopleSearchPage } from "@/components/people/people-search-page";
+
+const ADVANCED_PREFIXES = ["cat.", "range.", "presence.", "region.", "text.", "attr."];
+function hasAdvancedParams(params: Record<string, unknown>): boolean {
+  if (params.mode === "advanced") return true;
+  if (params.time === "ever" || params.time === "current") return true;
+  return Object.keys(params).some((k) => ADVANCED_PREFIXES.some((p) => k.startsWith(p)));
+}
 
 export const dynamic = "force-dynamic";
 
@@ -95,6 +104,10 @@ function parseDate(value: string | undefined): Date | undefined {
 
 export default async function PeoplePage({ searchParams }: PeoplePageProps) {
   return withTenantFromHeaders(async () => {
+    const raw = await searchParams;
+    if (hasAdvancedParams(raw as Record<string, unknown>)) {
+      return <PeopleSearchPage searchParams={raw as Record<string, string>} />;
+    }
     const {
       q, status, hairColor, bodyType, ethnicity, bodyRegions: bodyRegionsParam,
       bodyRegionMatch: bodyRegionMatchParam, loaded,
@@ -102,7 +115,7 @@ export default async function PeoplePage({ searchParams }: PeoplePageProps) {
       birthdateFrom: birthdateFromParam, birthdateTo: birthdateToParam,
       createdFrom: createdFromParam, createdTo: createdToParam,
       groupBy: groupByParam,
-    } = await searchParams;
+    } = raw;
 
   const groupBy = groupByParam && VALID_GROUP_BYS.has(groupByParam) ? groupByParam : "none";
 
@@ -275,7 +288,16 @@ export default async function PeoplePage({ searchParams }: PeoplePageProps) {
             </p>
           </div>
         </div>
-        <AddPersonSheet />
+        <div className="flex items-center gap-2">
+          <Link
+            href="/people?mode=advanced"
+            className="inline-flex items-center gap-1 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-xs text-amber-300 hover:bg-amber-500/20"
+          >
+            <Sparkles size={12} />
+            Advanced filters
+          </Link>
+          <AddPersonSheet />
+        </div>
       </div>
 
       {/* Saved views */}
