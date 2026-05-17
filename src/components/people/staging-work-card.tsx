@@ -78,8 +78,8 @@ export function StagingWorkCard({ entry }: StagingWorkCardProps) {
               src={entry.coverImageUrl}
               alt={entry.title}
               fill
+              unoptimized
               className="object-cover"
-              sizes="56px"
             />
           ) : (
             <div className="flex h-full w-full items-center justify-center">
