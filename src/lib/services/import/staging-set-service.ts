@@ -542,11 +542,17 @@ export async function getStagingSetsFiltered(filters: StagingSetFilters): Promis
   }
 
   if (filters.personId) {
+    const personForFilter = await prisma.person.findUnique({
+      where: { id: filters.personId },
+      select: { icgId: true },
+    })
+    const icgId = personForFilter?.icgId
     conditions.push({
       OR: [
         { subjectPersonId: filters.personId },
         { subjectIcgId: filters.personId },
-        { participantIcgIds: { has: filters.personId } },
+        ...(icgId ? [{ participantIcgIds: { has: icgId } }] : []),
+        { participantIcgIds: { has: filters.personId } }, // fallback: filter value is already an ICG ID
       ],
     })
   }
