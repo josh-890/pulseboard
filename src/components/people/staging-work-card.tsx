@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import NextImage from "next/image";
+import { useCallback, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Film, FolderCheck, FolderOpen, FolderX, Image as ImageIcon } from "lucide-react";
 import { formatPartialDate } from "@/lib/utils";
 import type { StagingWorkHistoryItem } from "@/lib/types";
@@ -64,6 +66,20 @@ type StagingWorkCardProps = {
 };
 
 export function StagingWorkCard({ entry }: StagingWorkCardProps) {
+  const thumbRef = useRef<HTMLDivElement>(null);
+  const [hover, setHover] = useState(false);
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+
+  const showPreview = useCallback(() => {
+    if (!thumbRef.current || !entry.coverImageUrl) return;
+    const rect = thumbRef.current.getBoundingClientRect();
+    const maxTop = window.innerHeight - 420;
+    setPos({ top: Math.min(rect.top, Math.max(8, maxTop)), left: rect.right + 8 });
+    setHover(true);
+  }, [entry.coverImageUrl]);
+
+  const hidePreview = useCallback(() => setHover(false), []);
+
   const dateLabel = entry.releaseDate
     ? formatPartialDate(entry.releaseDate, entry.releaseDatePrecision)
     : "Date unknown";
@@ -72,15 +88,36 @@ export function StagingWorkCard({ entry }: StagingWorkCardProps) {
     <div className="rounded-2xl border border-white/15 bg-card/40 p-4 shadow-sm backdrop-blur-sm opacity-80">
       <div className="flex items-start gap-3">
         {/* Cover image or type icon */}
-        <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-xl border border-white/10 bg-muted/30">
+        <div
+          ref={thumbRef}
+          className="relative h-14 w-14 shrink-0 overflow-hidden rounded-xl border border-white/10 bg-muted/30"
+          onMouseEnter={showPreview}
+          onMouseLeave={hidePreview}
+        >
           {entry.coverImageUrl ? (
-            <NextImage
-              src={entry.coverImageUrl}
-              alt={entry.title}
-              fill
-              unoptimized
-              className="object-cover"
-            />
+            <>
+              <NextImage
+                src={entry.coverImageUrl}
+                alt={entry.title}
+                fill
+                unoptimized
+                className="object-cover"
+              />
+              {hover && pos && createPortal(
+                <div
+                  className="pointer-events-none fixed z-[100] overflow-hidden rounded-lg border border-border bg-background shadow-xl"
+                  style={{ top: pos.top, left: pos.left }}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={entry.coverImageUrl}
+                    alt={entry.title}
+                    className="block max-h-[400px] max-w-[300px]"
+                  />
+                </div>,
+                document.body,
+              )}
+            </>
           ) : (
             <div className="flex h-full w-full items-center justify-center">
               {entry.isVideo ? (
