@@ -15,12 +15,22 @@ import {
 import { getAllPhysicalAttributeGroups } from "@/lib/services/physical-attribute-catalog-service";
 import { listSavedSearches } from "@/lib/services/saved-search-service";
 import { specFromUrlParams } from "@/lib/types/filter-spec";
+import { withTenantFromHeaders } from "@/lib/tenant-context";
 
 type PeopleSearchPageProps = {
   searchParams: Record<string, string>;
 };
 
 export async function PeopleSearchPage({ searchParams }: PeopleSearchPageProps) {
+  // Tenant context is per-request and lives in AsyncLocalStorage. When a parent
+  // server component returns this element from inside withTenantFromHeaders, the
+  // ALS context does NOT propagate into our subsequent data fetches — React
+  // renders this function in a fresh microtask. We must re-establish the tenant
+  // context here, or every query falls back to the first registered tenant.
+  return withTenantFromHeaders(() => renderPage(searchParams));
+}
+
+async function renderPage(searchParams: Record<string, string>) {
   // Build URLSearchParams from the resolved search params dict
   const params = new URLSearchParams();
   for (const [k, v] of Object.entries(searchParams)) {
