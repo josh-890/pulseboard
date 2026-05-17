@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import NextImage from "next/image";
 import { Film, Image as ImageIcon } from "lucide-react";
 import { cn, formatPartialDate } from "@/lib/utils";
 import type { StagingWorkHistoryItem } from "@/lib/types";
@@ -29,12 +30,24 @@ export function StagingWorkCard({ entry }: StagingWorkCardProps) {
   return (
     <div className="rounded-2xl border border-white/15 bg-card/40 p-4 shadow-sm backdrop-blur-sm opacity-80">
       <div className="flex items-start gap-3">
-        {/* Type icon placeholder */}
-        <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-muted/30">
-          {entry.isVideo ? (
-            <Film size={20} className="text-muted-foreground/60" aria-hidden="true" />
+        {/* Cover image or type icon */}
+        <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-xl border border-white/10 bg-muted/30">
+          {entry.coverImageUrl ? (
+            <NextImage
+              src={entry.coverImageUrl}
+              alt={entry.title}
+              fill
+              className="object-cover"
+              sizes="56px"
+            />
           ) : (
-            <ImageIcon size={20} className="text-muted-foreground/60" aria-hidden="true" />
+            <div className="flex h-full w-full items-center justify-center">
+              {entry.isVideo ? (
+                <Film size={20} className="text-muted-foreground/60" aria-hidden="true" />
+              ) : (
+                <ImageIcon size={20} className="text-muted-foreground/60" aria-hidden="true" />
+              )}
+            </div>
           )}
         </div>
 

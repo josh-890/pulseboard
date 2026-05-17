@@ -164,6 +164,7 @@ export async function getStagingWorkHistoryForPerson(personId: string): Promise<
       releaseDatePrecision: true,
       isVideo: true,
       externalId: true,
+      coverImageUrl: true,
       archiveLinks: {
         where: { status: 'CONFIRMED' },
         select: { archiveStatus: true, status: true },
@@ -182,6 +183,7 @@ export async function getStagingWorkHistoryForPerson(personId: string): Promise<
     releaseDatePrecision: s.releaseDatePrecision,
     isVideo: s.isVideo,
     externalId: s.externalId,
+    coverImageUrl: s.coverImageUrl,
     archiveStatus: s.archiveLinks[0]?.archiveStatus ?? null,
     archiveLinkStatus: s.archiveLinks[0]?.status ?? null,
   }))
