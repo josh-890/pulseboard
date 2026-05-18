@@ -9,6 +9,7 @@ const CATALOG_ITEMS = [
   { href: "/settings/catalogs/roles", label: "Contribution Roles" },
   { href: "/settings/catalogs/profile-slots", label: "Profile Slots" },
   { href: "/settings/catalogs/attributes", label: "Attributes" },
+  { href: "/settings/catalogs/colors", label: "Colors" },
   { href: "/settings/catalogs/skills", label: "Skills" },
   { href: "/settings/catalogs/tags", label: "Tags" },
 ];

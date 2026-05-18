@@ -1798,6 +1798,26 @@ model CoverBasketItem {
   @@map("cover_basket_item")
 }
 
+// ─── Color Catalog (hair / eye / skin classification) ───────────────────────
+
+model ColorCatalog {
+  category     String
+  valueNorm    String   @map("value_norm")
+  display      String
+  hue          String
+  shade        String?
+  shadeRank    Int?     @map("shade_rank")
+  sortOrder    Int      @default(0) @map("sort_order")
+  needsReview  Boolean  @default(false) @map("needs_review")
+  source       String   @default("manual")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@id([category, valueNorm])
+  @@index([category, hue])
+  @@index([category, needsReview])
+  @@map("color_catalog")
+}
+
 // ─── Saved Searches ──────────────────────────────────────────────────────────
 
 model SavedSearch {
