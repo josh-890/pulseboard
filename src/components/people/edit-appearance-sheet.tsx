@@ -32,7 +32,6 @@ import { updatePersonAppearanceAction } from "@/lib/actions/person-actions";
 import { SelectWithOther } from "@/components/shared/select-with-other";
 import { ColorValueCombobox } from "@/components/people/color-value-combobox";
 import {
-  CURRENT_HAIR_COLOR_OPTIONS,
   BUILD_OPTIONS,
   BREAST_SIZE_OPTIONS,
 } from "@/lib/constants/appearance";
@@ -278,8 +277,8 @@ export function EditAppearanceSheet({ person, open: controlledOpen, onOpenChange
                       <FormItem>
                         <FormLabel>Current Hair Color</FormLabel>
                         <FormControl>
-                          <SelectWithOther
-                            options={CURRENT_HAIR_COLOR_OPTIONS}
+                          <ColorValueCombobox
+                            category="hair"
                             value={field.value || undefined}
                             onChange={(v) => field.onChange(v ?? "")}
                             placeholder="Select hair color…"

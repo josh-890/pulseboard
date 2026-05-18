@@ -9,7 +9,8 @@ import { recordPhysicalChangeAction } from "@/lib/actions/appearance-actions";
 import type { PhysicalAttributeGroupWithDefinitions } from "@/lib/services/physical-attribute-catalog-service";
 import type { PersonCurrentState } from "@/lib/types";
 import { SelectWithOther } from "@/components/shared/select-with-other";
-import { CURRENT_HAIR_COLOR_OPTIONS, BUILD_OPTIONS, BREAST_SIZE_OPTIONS, BREAST_STATUS_OPTIONS } from "@/lib/constants/appearance";
+import { ColorValueCombobox } from "@/components/people/color-value-combobox";
+import { BUILD_OPTIONS, BREAST_SIZE_OPTIONS, BREAST_STATUS_OPTIONS } from "@/lib/constants/appearance";
 
 type RecordPhysicalChangeSheetProps = {
   personId: string;
@@ -122,8 +123,8 @@ export function RecordPhysicalChangeSheet({ personId, currentState, attributeGro
 
           <div>
             <label className="mb-1.5 block text-sm font-medium">Current Hair Color</label>
-            <SelectWithOther
-              options={CURRENT_HAIR_COLOR_OPTIONS}
+            <ColorValueCombobox
+              category="hair"
               value={currentHairColor || undefined}
               onChange={(v) => setCurrentHairColor(v ?? "")}
               placeholder="Select hair color…"

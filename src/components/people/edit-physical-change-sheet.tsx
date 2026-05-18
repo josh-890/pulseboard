@@ -8,6 +8,7 @@ import { PartialDateInput } from "@/components/shared/partial-date-input";
 import { updatePhysicalChangeAction } from "@/lib/actions/appearance-actions";
 import type { PhysicalAttributeGroupWithDefinitions } from "@/lib/services/physical-attribute-catalog-service";
 import { SelectWithOther } from "@/components/shared/select-with-other";
+import { ColorValueCombobox } from "@/components/people/color-value-combobox";
 import { BREAST_SIZE_OPTIONS, BREAST_STATUS_OPTIONS } from "@/lib/constants/appearance";
 
 type PhysicalAttributeItem = {
@@ -145,12 +146,11 @@ export function EditPhysicalChangeSheet({ personId, item, attributeGroups, onClo
 
           <div>
             <label className="mb-1.5 block text-sm font-medium">Current Hair Color</label>
-            <input
-              type="text"
-              value={currentHairColor}
-              onChange={(e) => setCurrentHairColor(e.target.value)}
-              placeholder="e.g. blonde, brunette, red..."
-              className="w-full rounded-lg border border-white/15 bg-muted/30 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+            <ColorValueCombobox
+              category="hair"
+              value={currentHairColor || undefined}
+              onChange={(v) => setCurrentHairColor(v ?? "")}
+              placeholder="Select hair color…"
             />
           </div>
 

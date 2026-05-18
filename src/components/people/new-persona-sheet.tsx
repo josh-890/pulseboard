@@ -9,6 +9,7 @@ import type { BodyMarkWithEvents, BodyModificationWithEvents, CosmeticProcedureW
 import type { BodyMarkType, BodyModificationType, BodyMarkEventType, BodyModificationEventType, CosmeticProcedureEventType } from "@/generated/prisma/client";
 import { BODY_MARK_TYPES, BODY_MARK_TYPE_STYLES, BODY_MARK_EVENT_TYPES, BODY_MARK_EVENT_STYLES, BODY_MODIFICATION_TYPES, BODY_MODIFICATION_TYPE_STYLES, BODY_MODIFICATION_EVENT_TYPES, BODY_MODIFICATION_EVENT_STYLES, COSMETIC_PROCEDURE_EVENT_TYPES, COSMETIC_PROCEDURE_EVENT_STYLES } from "@/lib/constants/body";
 import { createPersonaBatchAction } from "@/lib/actions/appearance-actions";
+import { ColorValueCombobox } from "@/components/people/color-value-combobox";
 
 type NewBodyMark = {
   type: BodyMarkType;
@@ -254,8 +255,12 @@ export function NewPersonaSheet({
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="mb-1 block text-xs font-medium">Hair Color</label>
-                <input type="text" value={currentHairColor} onChange={(e) => setCurrentHairColor(e.target.value)}
-                  className="w-full rounded-lg border border-white/15 bg-muted/30 px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-ring" />
+                <ColorValueCombobox
+                  category="hair"
+                  value={currentHairColor || undefined}
+                  onChange={(v) => setCurrentHairColor(v ?? "")}
+                  placeholder="Select hair color…"
+                />
               </div>
               <div>
                 <label className="mb-1 block text-xs font-medium">Weight (kg)</label>

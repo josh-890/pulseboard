@@ -28,7 +28,6 @@ import {
   type CreatePersonInput,
 } from "@/lib/validations/person";
 import {
-  CURRENT_HAIR_COLOR_OPTIONS,
   HAIR_LENGTH_OPTIONS,
   BUILD_OPTIONS,
   BREAST_SIZE_OPTIONS,
@@ -421,8 +420,8 @@ export function PersonForm({ onSubmit, submitLabel = "Create Person", onCancel }
                         <FormItem>
                           <FormLabel>Current Hair Color</FormLabel>
                           <FormControl>
-                            <SelectWithOther
-                              options={CURRENT_HAIR_COLOR_OPTIONS}
+                            <ColorValueCombobox
+                              category="hair"
                               value={field.value || undefined}
                               onChange={(v) => field.onChange(v ?? "")}
                               placeholder="Select hair color..."
