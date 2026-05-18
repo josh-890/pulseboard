@@ -291,7 +291,7 @@ export default async function PeoplePage({ searchParams }: PeoplePageProps) {
         <div className="flex items-center gap-2">
           <Link
             href="/people?mode=advanced"
-            className="inline-flex items-center gap-1 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-xs text-amber-300 hover:bg-amber-500/20"
+            className="inline-flex items-center gap-1 rounded-md border border-blue-500/30 bg-blue-500/10 px-3 py-1.5 text-xs text-blue-700 dark:text-blue-300 hover:bg-blue-500/20"
           >
             <Sparkles size={12} />
             Advanced filters

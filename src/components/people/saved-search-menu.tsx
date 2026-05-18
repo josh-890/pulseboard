@@ -65,7 +65,7 @@ export function SavedSearchMenu({ saved, currentSpec, scope }: SavedSearchMenuPr
         className="flex w-full items-center justify-between rounded-md border border-white/10 bg-white/5 px-2 py-1.5 text-xs hover:bg-white/10"
       >
         <span className="flex items-center gap-1.5">
-          <Star size={12} className="text-amber-400" />
+          <Star size={12} className="text-blue-600 dark:text-blue-400" />
           Saved searches{saved.length > 0 ? ` (${saved.length})` : ""}
         </span>
         <span className="text-muted-foreground">{open ? "▾" : "▸"}</span>
@@ -88,7 +88,7 @@ export function SavedSearchMenu({ saved, currentSpec, scope }: SavedSearchMenuPr
                 onClick={() => togglePin(s)}
                 className={cn(
                   "shrink-0",
-                  s.pinned ? "text-amber-400" : "text-muted-foreground/40 hover:text-muted-foreground",
+                  s.pinned ? "text-blue-600 dark:text-blue-400" : "text-muted-foreground/40 hover:text-muted-foreground",
                 )}
                 title={s.pinned ? "Unpin" : "Pin"}
               >
@@ -97,7 +97,7 @@ export function SavedSearchMenu({ saved, currentSpec, scope }: SavedSearchMenuPr
               <button
                 type="button"
                 onClick={() => load(s)}
-                className="flex-1 truncate text-left hover:text-amber-300"
+                className="flex-1 truncate text-left hover:text-blue-700 dark:hover:text-blue-300"
               >
                 {s.name}
               </button>

@@ -55,7 +55,7 @@ function Section({
           {title}
         </span>
         {badge != null && badge > 0 && (
-          <span className="rounded-full bg-amber-500/20 px-1.5 py-0.5 text-[10px] text-amber-300">
+          <span className="rounded-full bg-blue-500/20 px-1.5 py-0.5 text-[10px] text-blue-700 dark:text-blue-300">
             {badge}
           </span>
         )}
@@ -116,14 +116,14 @@ function CategoricalControl({
           <button
             type="button"
             onClick={() => update([...selected], "exact")}
-            className={cn("rounded px-1.5 py-0.5", mode === "exact" ? "bg-amber-500/20 text-amber-300" : "hover:bg-white/5")}
+            className={cn("rounded px-1.5 py-0.5", mode === "exact" ? "bg-blue-500/20 text-blue-700 dark:text-blue-300" : "hover:bg-white/5")}
           >
             exact
           </button>
           <button
             type="button"
             onClick={() => update([...selected], "family")}
-            className={cn("rounded px-1.5 py-0.5", mode === "family" ? "bg-amber-500/20 text-amber-300" : "hover:bg-white/5")}
+            className={cn("rounded px-1.5 py-0.5", mode === "family" ? "bg-blue-500/20 text-blue-700 dark:text-blue-300" : "hover:bg-white/5")}
           >
             family
           </button>
@@ -312,7 +312,7 @@ function MarkPill({
       onClick={onClick}
       className={cn(
         "flex-1 rounded px-2 py-1 text-[11px]",
-        active ? "bg-amber-500/20 text-amber-300" : "bg-white/5 hover:bg-white/10",
+        active ? "bg-blue-500/20 text-blue-700 dark:text-blue-300" : "bg-white/5 hover:bg-white/10",
       )}
     >
       {text}
@@ -489,7 +489,7 @@ function ActiveChips({
           key={chip.key}
           type="button"
           onClick={chip.onRemove}
-          className="group inline-flex items-center gap-1 rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[11px] text-amber-300 hover:bg-amber-500/20"
+          className="group inline-flex items-center gap-1 rounded-full border border-blue-500/30 bg-blue-500/10 px-2 py-0.5 text-[11px] text-blue-700 dark:text-blue-300 hover:bg-blue-500/20"
         >
           {chip.label}
           <X size={10} className="opacity-60 group-hover:opacity-100" />
@@ -531,7 +531,7 @@ function TimeScopeToggle({
         disabled={disabled}
         className={cn(
           "flex-1 rounded-full px-2 py-0.5",
-          scope === "current" ? "bg-amber-500/20 text-amber-300" : "text-muted-foreground hover:text-foreground",
+          scope === "current" ? "bg-blue-500/20 text-blue-700 dark:text-blue-300" : "text-muted-foreground hover:text-foreground",
         )}
       >
         Current
@@ -542,7 +542,7 @@ function TimeScopeToggle({
         disabled={disabled}
         className={cn(
           "flex-1 rounded-full px-2 py-0.5",
-          scope === "ever" ? "bg-amber-500/20 text-amber-300" : "text-muted-foreground hover:text-foreground",
+          scope === "ever" ? "bg-blue-500/20 text-blue-700 dark:text-blue-300" : "text-muted-foreground hover:text-foreground",
         )}
       >
         Ever
@@ -637,7 +637,7 @@ export function PeopleSearchSidebar({
     <aside className="sticky top-0 flex h-[calc(100vh-6rem)] w-72 flex-col gap-2 overflow-y-auto rounded-2xl border border-white/10 bg-card/40 p-3 backdrop-blur-sm">
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-medium">Filters</h3>
-        <Sparkles size={14} className="text-amber-400" />
+        <Sparkles size={14} className="text-blue-600 dark:text-blue-400" />
       </div>
 
       <TimeScopeToggle
