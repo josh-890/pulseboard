@@ -27,7 +27,12 @@ import {
   type PresenceFilter,
   type TimeScope,
 } from "@/lib/types/filter-spec";
-import { getAllFamilies, type ColorCategory } from "@/lib/constants/color-families";
+import {
+  HAIR_SHADE_ORDER,
+  EYE_SHADE_ORDER,
+  SKIN_TONE_ORDER,
+  SKIN_UNDERTONE_ORDER,
+} from "@/lib/constants/color-catalog";
 
 // ─── Section shell ───────────────────────────────────────────────────────────
 
@@ -72,31 +77,32 @@ type FacetOption = { value: string; count: number };
 function CategoricalControl({
   field,
   facets,
-  colorCategory,
+  order,
   spec,
   onChange,
 }: {
   field: string;
   facets: FacetOption[];
-  colorCategory?: ColorCategory;
+  // optional canonical ordering for the options (e.g. shade dark→light)
+  order?: readonly string[];
   spec: FilterSpec;
   onChange: (next: FilterSpec) => void;
 }) {
   const current = spec.categorical.find((c) => c.field === field);
   const selected = new Set(current?.values ?? []);
-  const mode = current?.mode ?? "exact";
 
-  const families = colorCategory ? getAllFamilies(colorCategory) : [];
-  const options = mode === "family" && colorCategory
-    ? families.map((f) => ({ value: f, count: 0 }))
+  // Use canonical ordering when supplied; ensure every ordered value appears
+  // (with count 0 if absent from facets) so the UI stays stable.
+  const options: FacetOption[] = order
+    ? order.map((v) => facets.find((f) => f.value === v) ?? { value: v, count: 0 })
     : facets;
 
-  const update = (nextValues: string[], nextMode: "exact" | "family" = mode) => {
+  const update = (nextValues: string[]) => {
     const others = spec.categorical.filter((c) => c.field !== field);
     if (nextValues.length === 0) {
       onChange({ ...spec, categorical: others });
     } else {
-      const next: CategoricalFilter = { field, values: nextValues, mode: nextMode };
+      const next: CategoricalFilter = { field, values: nextValues, mode: "exact" };
       onChange({ ...spec, categorical: [...others, next] });
     }
   };
@@ -111,24 +117,6 @@ function CategoricalControl({
 
   return (
     <div className="space-y-1.5">
-      {colorCategory && (
-        <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
-          <button
-            type="button"
-            onClick={() => update([...selected], "exact")}
-            className={cn("rounded px-1.5 py-0.5", mode === "exact" ? "bg-blue-500/20 text-blue-700 dark:text-blue-300" : "hover:bg-white/5")}
-          >
-            exact
-          </button>
-          <button
-            type="button"
-            onClick={() => update([...selected], "family")}
-            className={cn("rounded px-1.5 py-0.5", mode === "family" ? "bg-blue-500/20 text-blue-700 dark:text-blue-300" : "hover:bg-white/5")}
-          >
-            family
-          </button>
-        </div>
-      )}
       <div className="max-h-48 space-y-1 overflow-y-auto pr-1">
         {options.length === 0 && (
           <p className="text-xs text-muted-foreground/60">No options</p>
@@ -143,9 +131,7 @@ function CategoricalControl({
               onCheckedChange={() => toggle(opt.value)}
             />
             <span className="flex-1 truncate">{opt.value}</span>
-            {opt.count > 0 && (
-              <span className="text-[10px] text-muted-foreground/60">{opt.count}</span>
-            )}
+            <span className="text-[10px] text-muted-foreground/60">{opt.count}</span>
           </label>
         ))}
       </div>
@@ -660,24 +646,65 @@ export function PeopleSearchSidebar({
       <ActiveChips spec={spec} onChange={apply} />
 
       <Section
-        title="Hair color"
-        badge={countCategorical("hairColor") + countCategorical("naturalHairColor")}
+        title="Hair · Hue"
+        badge={countCategorical("hairHue")}
         defaultOpen
       >
         <CategoricalControl
-          field="hairColor"
-          facets={facets.categorical.hairColor ?? []}
-          colorCategory="hair"
+          field="hairHue"
+          facets={facets.categorical.hairHue ?? []}
           spec={spec}
           onChange={apply}
         />
       </Section>
 
-      <Section title="Eye color" badge={countCategorical("eyeColor")}>
+      <Section
+        title="Hair · Shade"
+        badge={countCategorical("hairShade")}
+      >
         <CategoricalControl
-          field="eyeColor"
-          facets={facets.categorical.eyeColor ?? []}
-          colorCategory="eye"
+          field="hairShade"
+          facets={facets.categorical.hairShade ?? []}
+          order={HAIR_SHADE_ORDER}
+          spec={spec}
+          onChange={apply}
+        />
+      </Section>
+
+      <Section title="Eye · Hue" badge={countCategorical("eyeHue")}>
+        <CategoricalControl
+          field="eyeHue"
+          facets={facets.categorical.eyeHue ?? []}
+          spec={spec}
+          onChange={apply}
+        />
+      </Section>
+
+      <Section title="Eye · Shade" badge={countCategorical("eyeShade")}>
+        <CategoricalControl
+          field="eyeShade"
+          facets={facets.categorical.eyeShade ?? []}
+          order={EYE_SHADE_ORDER}
+          spec={spec}
+          onChange={apply}
+        />
+      </Section>
+
+      <Section title="Skin · Tone" badge={countCategorical("skinTone")}>
+        <CategoricalControl
+          field="skinTone"
+          facets={facets.categorical.skinTone ?? []}
+          order={SKIN_TONE_ORDER}
+          spec={spec}
+          onChange={apply}
+        />
+      </Section>
+
+      <Section title="Skin · Undertone" badge={countCategorical("skinUndertone")}>
+        <CategoricalControl
+          field="skinUndertone"
+          facets={facets.categorical.skinUndertone ?? []}
+          order={SKIN_UNDERTONE_ORDER}
           spec={spec}
           onChange={apply}
         />

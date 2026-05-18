@@ -11,7 +11,6 @@ import type {
   RegionFilter,
   TextFilter,
 } from "@/lib/types/filter-spec";
-import { expandFamilyToValues, type ColorCategory } from "@/lib/constants/color-families";
 import { expandRegionFilter } from "@/lib/constants/body-regions";
 
 // ─── Field maps ──────────────────────────────────────────────────────────────
@@ -19,9 +18,6 @@ import { expandRegionFilter } from "@/lib/constants/body-regions";
 type CategoricalFieldDef = {
   // raw SQL fragment referencing the underlying column (use Prisma.sql)
   column: Prisma.Sql;
-  // optional family column when the filter supports mode='family'
-  familyColumn?: Prisma.Sql;
-  colorCategory?: ColorCategory;
   caseInsensitive?: boolean;
 };
 
@@ -30,8 +26,13 @@ const CATEGORICAL_FIELDS: Record<string, CategoricalFieldDef> = {
   ethnicity:        { column: Prisma.sql`p.ethnicity`,            caseInsensitive: true },
   bodyType:         { column: Prisma.sql`p."bodyType"`,           caseInsensitive: true },
   naturalHairColor: { column: Prisma.sql`p."naturalHairColor"`,   caseInsensitive: true },
-  hairColor:        { column: Prisma.sql`mv."currentHairColor"`,  familyColumn: Prisma.sql`mv."hairColorFamily"`, colorCategory: "hair", caseInsensitive: true },
-  eyeColor:         { column: Prisma.sql`mv."eyeColor"`,          familyColumn: Prisma.sql`mv."eyeColorFamily"`,  colorCategory: "eye",  caseInsensitive: true },
+  // Hair / eye / skin classified via color_catalog into hue + shade columns on the MV
+  hairHue:          { column: Prisma.sql`mv."hairHue"` },
+  hairShade:        { column: Prisma.sql`mv."hairShade"` },
+  eyeHue:           { column: Prisma.sql`mv."eyeHue"` },
+  eyeShade:         { column: Prisma.sql`mv."eyeShade"` },
+  skinTone:         { column: Prisma.sql`mv."skinTone"` },
+  skinUndertone:    { column: Prisma.sql`mv."skinUndertone"` },
   nationality:      { column: Prisma.sql`p.nationality`,          caseInsensitive: true },
   sexAtBirth:       { column: Prisma.sql`p."sexAtBirth"` },
   specialization:   { column: Prisma.sql`p.specialization`,       caseInsensitive: true },
@@ -76,38 +77,27 @@ function buildCategoricalClauses(filters: CategoricalFilter[], timeScope: "curre
     const def = CATEGORICAL_FIELDS[f.field];
     if (!def) continue;
 
-    // "Ever" mode for hairColor: include any persona, not just latest
-    if (timeScope === "ever" && f.field === "hairColor") {
-      const values =
-        f.mode === "family"
-          ? f.values.flatMap((fam) => expandFamilyToValues("hair", fam)).map((v) => v.toLowerCase())
-          : f.values.map((v) => v.toLowerCase());
+    // "Ever" mode for hairHue / hairShade: search across all personas, not just
+    // the folded latest one. Joins through PersonaPhysical and looks up each
+    // persona's hair color in color_catalog.
+    if (timeScope === "ever" && (f.field === "hairHue" || f.field === "hairShade")) {
+      const lookupColumn = f.field === "hairHue" ? "hue" : "shade";
       out.push(Prisma.sql`EXISTS (
         SELECT 1 FROM "Persona" per
         JOIN "PersonaPhysical" pp ON pp."personaId" = per.id
+        JOIN color_catalog cc
+          ON cc.category = 'hair'
+         AND cc.value_norm = unaccent(lower(trim(coalesce(pp."currentHairColor", ''))))
         WHERE per."personId" = p.id
-          AND lower(pp."currentHairColor") = ANY(${values})
+          AND cc.${Prisma.raw(lookupColumn)} = ANY(${f.values})
       )`);
       continue;
     }
 
-    if (f.mode === "family" && def.familyColumn) {
-      out.push(Prisma.sql`${def.familyColumn} = ANY(${f.values})`);
-    } else if (f.mode === "family" && def.colorCategory) {
-      const expanded = f.values.flatMap((fam) => expandFamilyToValues(def.colorCategory!, fam));
-      if (expanded.length > 0) {
-        if (def.caseInsensitive) {
-          out.push(Prisma.sql`lower(${def.column}) = ANY(${expanded.map((v) => v.toLowerCase())})`);
-        } else {
-          out.push(Prisma.sql`${def.column} = ANY(${expanded})`);
-        }
-      }
+    if (def.caseInsensitive) {
+      out.push(Prisma.sql`lower(${def.column}) = ANY(${f.values.map((v) => v.toLowerCase())})`);
     } else {
-      if (def.caseInsensitive) {
-        out.push(Prisma.sql`lower(${def.column}) = ANY(${f.values.map((v) => v.toLowerCase())})`);
-      } else {
-        out.push(Prisma.sql`${def.column} = ANY(${f.values})`);
-      }
+      out.push(Prisma.sql`${def.column} = ANY(${f.values})`);
     }
   }
   return out;
@@ -416,7 +406,8 @@ export async function getFacetCounts(spec: FilterSpec): Promise<FacetCounts> {
   // Categorical facets — for each field, drop its own filter from the spec
   const requestedCategoricalFields = new Set([
     "status", "ethnicity", "bodyType", "naturalHairColor",
-    "hairColor", "eyeColor", "nationality",
+    "hairHue", "hairShade", "eyeHue", "eyeShade",
+    "skinTone", "skinUndertone", "nationality",
   ]);
   for (const field of requestedCategoricalFields) {
     const def = CATEGORICAL_FIELDS[field];
