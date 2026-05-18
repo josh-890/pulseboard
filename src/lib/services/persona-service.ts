@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/db";
 import type { DateModifier, DatePrecision, Prisma } from "@/generated/prisma/client";
 import type { CreatePersonaBatchInput, UpdatePersonaInput } from "@/lib/validations/persona";
+import { ensureCatalogEntry } from "@/lib/services/color-catalog-service";
 
 type TxClient = Prisma.TransactionClient;
 
@@ -78,6 +79,7 @@ export async function getPersonPersonas(
  * Create a persona with all associated data in a single transaction.
  */
 export async function createPersonaBatch(personId: string, data: CreatePersonaBatchInput) {
+  await ensureCatalogEntry("hair", data.currentHairColor);
   return prisma.$transaction(async (tx) => {
     const persona = await tx.persona.create({
       data: {

@@ -11,7 +11,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { cn } from "@/lib/utils";
 import {
   type ColorCategory,
   HAIR_SHADE_ORDER,
@@ -42,19 +41,17 @@ type Props = {
 
 export function ColorValueCombobox({ category, value, onChange, placeholder }: Props) {
   const [entries, setEntries] = useState<CatalogEntry[] | null>(null);
-  const [loading, setLoading] = useState(true);
+  const loading = entries === null;
 
   // Lazy-fetch catalog on mount so we always show the live admin-managed list
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
     fetch(`/api/color-catalog/${category}`)
       .then((r) => r.json())
       .then((d: { entries: CatalogEntry[] }) => {
         if (!cancelled) setEntries(d.entries);
       })
-      .catch(() => { if (!cancelled) setEntries([]); })
-      .finally(() => { if (!cancelled) setLoading(false); });
+      .catch(() => { if (!cancelled) setEntries([]); });
     return () => { cancelled = true; };
   }, [category]);
 

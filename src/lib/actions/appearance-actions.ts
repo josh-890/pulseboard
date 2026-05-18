@@ -3,6 +3,7 @@
 import { withTenantFromHeaders } from "@/lib/tenant-context";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
+import { ensureCatalogEntry } from "@/lib/services/color-catalog-service";
 import type {
   DatePrecision,
   BodyMarkType,
@@ -976,6 +977,8 @@ export async function recordPhysicalChangeAction(
       const date = data.date ? new Date(data.date) : null;
       const precision = (data.datePrecision ?? "UNKNOWN") as DatePrecision;
 
+      await ensureCatalogEntry("hair", data.currentHairColor);
+
       await prisma.$transaction(async (tx) => {
         const personaId = await findOrCreatePersonaForDate(tx, personId, date, precision);
         const physical = await tx.personaPhysical.upsert({
@@ -1053,6 +1056,8 @@ export async function updatePhysicalChangeAction(
     try {
       const parsedDate = data.date ? new Date(data.date) : null;
       const precision = (data.datePrecision ?? "UNKNOWN") as DatePrecision;
+
+      await ensureCatalogEntry("hair", data.currentHairColor);
 
       await prisma.$transaction(async (tx) => {
         const existing = await tx.personaPhysical.findUniqueOrThrow({

@@ -22,6 +22,7 @@ import { expandRegionFilter } from "@/lib/constants/body-regions";
 import type { CreatePersonInput, UpdatePersonInput } from "@/lib/validations/person";
 import { batchComputeCompleteness } from "@/lib/services/completeness-service";
 import { refreshStatusesForIcgId } from "@/lib/services/import/participant-status-service";
+import { ensureCatalogEntry } from "@/lib/services/color-catalog-service";
 import {
   cascadeDeleteSession,
   cascadeDeleteBodyModifications,
@@ -1067,6 +1068,14 @@ export async function countPersons(): Promise<number> {
 }
 
 export async function createPersonRecord(data: CreatePersonInput) {
+  // Ensure any color values arriving via free-text input land in the catalog
+  // (idempotent — existing entries are untouched; new ones get heuristic
+  // defaults + needs_review flag so the admin can refine later)
+  await Promise.all([
+    ensureCatalogEntry("hair", data.naturalHairColor),
+    ensureCatalogEntry("hair", data.currentHairColor),
+    ensureCatalogEntry("eye",  data.eyeColor),
+  ]);
   const person = await prisma.$transaction(async (tx) => {
     const person = await tx.person.create({
       data: {
@@ -1297,6 +1306,11 @@ export async function updatePersonAppearance(
     currentHairColor?: string;
   },
 ): Promise<void> {
+  await Promise.all([
+    ensureCatalogEntry("hair", data.naturalHairColor),
+    ensureCatalogEntry("hair", data.currentHairColor),
+    ensureCatalogEntry("eye",  data.eyeColor),
+  ]);
   await prisma.$transaction(async (tx) => {
     await tx.person.update({
       where: { id },
