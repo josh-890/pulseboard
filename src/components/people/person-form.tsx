@@ -28,8 +28,6 @@ import {
   type CreatePersonInput,
 } from "@/lib/validations/person";
 import {
-  EYE_COLOR_OPTIONS,
-  NATURAL_HAIR_COLOR_OPTIONS,
   CURRENT_HAIR_COLOR_OPTIONS,
   HAIR_LENGTH_OPTIONS,
   BUILD_OPTIONS,
@@ -39,6 +37,7 @@ import {
 import { ETHNICITY_OPTIONS } from "@/lib/constants/ethnicity";
 import { CountryPicker } from "@/components/shared/country-picker";
 import { SelectWithOther } from "@/components/shared/select-with-other";
+import { ColorValueCombobox } from "@/components/people/color-value-combobox";
 import { PartialDateInput } from "@/components/shared/partial-date-input";
 import { generateIcgId, cn } from "@/lib/utils";
 
@@ -343,8 +342,8 @@ export function PersonForm({ onSubmit, submitLabel = "Create Person", onCancel }
                         <FormItem>
                           <FormLabel>Eye Color</FormLabel>
                           <FormControl>
-                            <SelectWithOther
-                              options={EYE_COLOR_OPTIONS}
+                            <ColorValueCombobox
+                              category="eye"
                               value={field.value || undefined}
                               onChange={(v) => field.onChange(v ?? "")}
                               placeholder="Select eye color..."
@@ -362,8 +361,8 @@ export function PersonForm({ onSubmit, submitLabel = "Create Person", onCancel }
                         <FormItem>
                           <FormLabel>Natural Hair Color</FormLabel>
                           <FormControl>
-                            <SelectWithOther
-                              options={NATURAL_HAIR_COLOR_OPTIONS}
+                            <ColorValueCombobox
+                              category="hair"
                               value={field.value || undefined}
                               onChange={(v) => field.onChange(v ?? "")}
                               placeholder="Select hair color..."
