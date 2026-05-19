@@ -39,20 +39,22 @@ export const HAIR_COLORS: ColorCatalogEntry[] = [
   { value: "honey brown",   display: "Honey Brown",   hue: "Brown",  shade: "Medium",     shadeRank: 3 },
   { value: "golden brown",  display: "Golden Brown",  hue: "Brown",  shade: "Medium",     shadeRank: 3 },
 
-  // Blonde — absolute Lightness tiers (Level 6+ on the professional scale).
-  // Dark Blonde / Blonde / Honey Blonde all sit ABOVE Light Brown on the
-  // universal lightness axis, so they classify as Light not Dark.
-  { value: "dark blonde",      display: "Dark Blonde",      hue: "Blonde", shade: "Light",     shadeRank: 4 },
-  { value: "dirty blonde",     display: "Dirty Blonde",     hue: "Blonde", shade: "Light",     shadeRank: 4 },
-  { value: "dishwater blonde", display: "Dishwater Blonde", hue: "Blonde", shade: "Light",     shadeRank: 4 },
+  // Blonde — absolute Lightness via 2-level bands on the professional scale.
+  // Dark Blonde (Level 6) joins Light Brown (Level 5) at Medium because they're
+  // adjacent on the universal lightness axis and visually near-identical.
+  // Blonde (Level 7) and Light Blonde (Level 8) sit at Light. Platinum (Level
+  // 10) range stays at Very Light.
+  { value: "dark blonde",      display: "Dark Blonde",      hue: "Blonde", shade: "Medium",    shadeRank: 3 },
+  { value: "dirty blonde",     display: "Dirty Blonde",     hue: "Blonde", shade: "Medium",    shadeRank: 3 },
+  { value: "dishwater blonde", display: "Dishwater Blonde", hue: "Blonde", shade: "Medium",    shadeRank: 3 },
   { value: "blonde",           display: "Blonde",           hue: "Blonde", shade: "Light",     shadeRank: 4 },
   { value: "golden",           display: "Golden",           hue: "Blonde", shade: "Light",     shadeRank: 4 },
   { value: "honey blonde",     display: "Honey Blonde",     hue: "Blonde", shade: "Light",     shadeRank: 4 },
   { value: "strawberry blonde",display: "Strawberry Blonde",hue: "Blonde", shade: "Light",     shadeRank: 4 },
   { value: "wheat",            display: "Wheat",            hue: "Blonde", shade: "Light",     shadeRank: 4 },
   { value: "sandy blonde",     display: "Sandy Blonde",     hue: "Blonde", shade: "Light",     shadeRank: 4 },
-  { value: "light blonde",     display: "Light Blonde",     hue: "Blonde", shade: "Very Light",shadeRank: 5 },
-  { value: "ash blonde",       display: "Ash Blonde",       hue: "Blonde", shade: "Very Light",shadeRank: 5 },
+  { value: "light blonde",     display: "Light Blonde",     hue: "Blonde", shade: "Light",     shadeRank: 4 },
+  { value: "ash blonde",       display: "Ash Blonde",       hue: "Blonde", shade: "Light",     shadeRank: 4 },
   { value: "platinum",         display: "Platinum",         hue: "Blonde", shade: "Very Light",shadeRank: 5 },
   { value: "platinum blonde",  display: "Platinum Blonde",  hue: "Blonde", shade: "Very Light",shadeRank: 5 },
   { value: "ice blonde",       display: "Ice Blonde",       hue: "Blonde", shade: "Very Light",shadeRank: 5 },
