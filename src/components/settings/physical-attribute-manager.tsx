@@ -20,6 +20,20 @@ import {
   updatePhysicalAttributeDefinitionAction,
   deletePhysicalAttributeDefinitionAction,
 } from "@/lib/actions/physical-attribute-catalog-actions";
+import {
+  PhysicalAttributeDefinitionForm,
+  type DefinitionFormValue,
+} from "./physical-attribute-definition-form";
+import type { PhysicalAttributeValueType } from "@/generated/prisma/client";
+
+const TYPE_BADGE_LABEL: Record<PhysicalAttributeValueType, string> = {
+  BOOLEAN: "bool",
+  SINGLE_SELECT: "select",
+  MULTI_SELECT: "multi",
+  ORDINAL: "ordinal",
+  NUMERIC: "numeric",
+  TEXT: "text",
+};
 
 type PhysicalAttributeManagerProps = {
   groups: PhysicalAttributeGroupWithDefinitions[];
@@ -44,13 +58,9 @@ export function PhysicalAttributeManager({
 
   // ── Add definition ──
   const [addingDefGroupId, setAddingDefGroupId] = useState<string | null>(null);
-  const [newDefName, setNewDefName] = useState("");
-  const [newDefUnit, setNewDefUnit] = useState("");
 
   // ── Edit definition ──
   const [editingDefId, setEditingDefId] = useState<string | null>(null);
-  const [editDefName, setEditDefName] = useState("");
-  const [editDefUnit, setEditDefUnit] = useState("");
 
   const toggleGroup = useCallback((id: string) => {
     setExpandedGroups((prev) => {
@@ -106,35 +116,43 @@ export function PhysicalAttributeManager({
   // ── Definition actions ──
 
   const handleAddDefinition = useCallback(
-    (groupId: string) => {
-      if (!newDefName.trim()) return;
-      const name = newDefName.trim();
-      const unit = newDefUnit.trim() || null;
+    (groupId: string, value: DefinitionFormValue) => {
       startTransition(async () => {
-        const result = await createPhysicalAttributeDefinitionAction(
+        const result = await createPhysicalAttributeDefinitionAction({
           groupId,
-          name,
-          unit,
-        );
+          name: value.name,
+          unit: value.unit,
+          valueType: value.valueType,
+          allowedValues: value.allowedValues,
+          ordinalMin: value.ordinalMin,
+          ordinalMax: value.ordinalMax,
+        });
         if (result.success) {
-          setNewDefName("");
-          setNewDefUnit("");
           setAddingDefGroupId(null);
           window.location.reload();
+        } else {
+          alert(result.error ?? "Failed to add attribute");
         }
       });
     },
-    [newDefName, newDefUnit],
+    [],
   );
 
   const handleUpdateDefinition = useCallback(
-    (id: string) => {
-      if (!editDefName.trim()) return;
+    (id: string, value: DefinitionFormValue) => {
       startTransition(async () => {
-        await updatePhysicalAttributeDefinitionAction(id, {
-          name: editDefName.trim(),
-          unit: editDefUnit.trim() || null,
+        const result = await updatePhysicalAttributeDefinitionAction(id, {
+          name: value.name,
+          unit: value.unit,
+          valueType: value.valueType,
+          allowedValues: value.allowedValues,
+          ordinalMin: value.ordinalMin,
+          ordinalMax: value.ordinalMax,
         });
+        if (!result.success) {
+          alert(result.error ?? "Failed to update attribute");
+          return;
+        }
         setGroups((prev) =>
           prev.map((g) => ({
             ...g,
@@ -142,8 +160,12 @@ export function PhysicalAttributeManager({
               d.id === id
                 ? {
                     ...d,
-                    name: editDefName.trim(),
-                    unit: editDefUnit.trim() || null,
+                    name: value.name,
+                    unit: value.unit,
+                    valueType: value.valueType,
+                    allowedValues: value.allowedValues,
+                    ordinalMin: value.ordinalMin,
+                    ordinalMax: value.ordinalMax,
                   }
                 : d,
             ),
@@ -152,7 +174,7 @@ export function PhysicalAttributeManager({
         setEditingDefId(null);
       });
     },
-    [editDefName, editDefUnit],
+    [],
   );
 
   const handleDeleteDefinition = useCallback((id: string) => {
@@ -287,53 +309,21 @@ export function PhysicalAttributeManager({
 
                   if (isEditingDef) {
                     return (
-                      <div
-                        key={def.id}
-                        className="rounded-lg bg-muted/30 px-3 py-2 space-y-2"
-                      >
-                        <div className="flex items-center gap-2">
-                          <div className="flex flex-1 gap-1.5">
-                            <input
-                              type="text"
-                              value={editDefName}
-                              onChange={(e) => setEditDefName(e.target.value)}
-                              onKeyDown={(e) => {
-                                if (e.key === "Enter")
-                                  handleUpdateDefinition(def.id);
-                                if (e.key === "Escape") setEditingDefId(null);
-                              }}
-                              placeholder="Attribute name"
-                              className="flex-1 rounded-md border border-white/15 bg-background/50 px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
-                              autoFocus
-                            />
-                            <input
-                              type="text"
-                              value={editDefUnit}
-                              onChange={(e) => setEditDefUnit(e.target.value)}
-                              onKeyDown={(e) => {
-                                if (e.key === "Enter")
-                                  handleUpdateDefinition(def.id);
-                                if (e.key === "Escape") setEditingDefId(null);
-                              }}
-                              placeholder="Unit (optional)"
-                              className="w-24 rounded-md border border-white/15 bg-background/50 px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
-                            />
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => handleUpdateDefinition(def.id)}
-                            className="rounded-md bg-primary/20 px-2 py-1 text-xs font-medium text-primary hover:bg-primary/30"
-                          >
-                            Save
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setEditingDefId(null)}
-                            className="rounded-md p-1 text-muted-foreground hover:text-foreground"
-                          >
-                            <X size={12} />
-                          </button>
-                        </div>
+                      <div key={def.id} className="px-1 py-1">
+                        <PhysicalAttributeDefinitionForm
+                          initial={{
+                            name: def.name,
+                            unit: def.unit,
+                            valueType: def.valueType,
+                            allowedValues: def.allowedValues,
+                            ordinalMin: def.ordinalMin,
+                            ordinalMax: def.ordinalMax,
+                          }}
+                          onCancel={() => setEditingDefId(null)}
+                          onSubmit={(v) => handleUpdateDefinition(def.id, v)}
+                          submitLabel="Save"
+                          busy={isPending}
+                        />
                       </div>
                     );
                   }
@@ -350,20 +340,21 @@ export function PhysicalAttributeManager({
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-1.5">
                           <span className="text-sm">{def.name}</span>
-                          {def.unit && (
-                            <span className="text-[10px] rounded px-1.5 py-0.5 font-medium shrink-0 bg-muted/60 text-muted-foreground">
-                              ({def.unit})
-                            </span>
-                          )}
+                          <span className="text-[10px] rounded px-1.5 py-0.5 font-medium shrink-0 bg-muted/60 text-muted-foreground">
+                            {TYPE_BADGE_LABEL[def.valueType]}
+                            {def.valueType === "SINGLE_SELECT" || def.valueType === "MULTI_SELECT"
+                              ? ` · ${def.allowedValues.length}`
+                              : def.valueType === "NUMERIC" && def.unit
+                              ? ` · ${def.unit}`
+                              : def.valueType === "ORDINAL" && def.ordinalMin != null && def.ordinalMax != null
+                              ? ` · ${def.ordinalMin}–${def.ordinalMax}`
+                              : ""}
+                          </span>
                         </div>
                       </div>
                       <button
                         type="button"
-                        onClick={() => {
-                          setEditingDefId(def.id);
-                          setEditDefName(def.name);
-                          setEditDefUnit(def.unit ?? "");
-                        }}
+                        onClick={() => setEditingDefId(def.id)}
                         className="invisible rounded-md p-1 text-muted-foreground transition-colors hover:text-foreground group-hover:visible"
                         aria-label="Edit attribute"
                       >
@@ -383,54 +374,13 @@ export function PhysicalAttributeManager({
 
                 {/* Add definition form */}
                 {addingDefGroupId === group.id ? (
-                  <div className="rounded-lg bg-muted/30 px-3 py-2 mt-1 space-y-2">
-                    <div className="flex items-center gap-2">
-                      <div className="flex flex-1 gap-1.5">
-                        <input
-                          type="text"
-                          value={newDefName}
-                          onChange={(e) => setNewDefName(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter")
-                              handleAddDefinition(group.id);
-                            if (e.key === "Escape") setAddingDefGroupId(null);
-                          }}
-                          placeholder="Attribute name"
-                          className="flex-1 rounded-md border border-white/15 bg-background/50 px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
-                          autoFocus
-                        />
-                        <input
-                          type="text"
-                          value={newDefUnit}
-                          onChange={(e) => setNewDefUnit(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter")
-                              handleAddDefinition(group.id);
-                            if (e.key === "Escape") setAddingDefGroupId(null);
-                          }}
-                          placeholder="Unit (optional)"
-                          className="w-24 rounded-md border border-white/15 bg-background/50 px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
-                        />
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => handleAddDefinition(group.id)}
-                        className="rounded-md bg-primary/20 px-2 py-1 text-xs font-medium text-primary hover:bg-primary/30"
-                      >
-                        Add
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setAddingDefGroupId(null);
-                          setNewDefName("");
-                          setNewDefUnit("");
-                        }}
-                        className="rounded-md p-1 text-muted-foreground hover:text-foreground"
-                      >
-                        <X size={12} />
-                      </button>
-                    </div>
+                  <div className="mt-1 px-1 py-1">
+                    <PhysicalAttributeDefinitionForm
+                      onCancel={() => setAddingDefGroupId(null)}
+                      onSubmit={(v) => handleAddDefinition(group.id, v)}
+                      submitLabel="Add"
+                      busy={isPending}
+                    />
                   </div>
                 ) : (
                   <button

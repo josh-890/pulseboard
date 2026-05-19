@@ -52,12 +52,21 @@ async function renderPage(searchParams: Record<string, string>) {
   const attributeGroups: AttributeGroupForFilter[] = attrGroupsRaw
     .map((g) => ({
       groupName: g.name,
-      options: g.definitions.map((d) => ({
-        definitionId: d.id,
-        slug: d.slug,
-        name: d.name,
-        groupName: g.name,
-      })),
+      // TEXT-typed attributes don't appear as sidebar facets — too many
+      // distinct values to be useful. They're still editable per person.
+      options: g.definitions
+        .filter((d) => d.valueType !== "TEXT")
+        .map((d) => ({
+          definitionId: d.id,
+          slug: d.slug,
+          name: d.name,
+          groupName: g.name,
+          valueType: d.valueType,
+          allowedValues: d.allowedValues,
+          ordinalMin: d.ordinalMin,
+          ordinalMax: d.ordinalMax,
+          unit: d.unit,
+        })),
     }))
     .filter((g) => g.options.length > 0);
 

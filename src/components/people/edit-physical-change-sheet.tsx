@@ -9,6 +9,7 @@ import { updatePhysicalChangeAction } from "@/lib/actions/appearance-actions";
 import type { PhysicalAttributeGroupWithDefinitions } from "@/lib/services/physical-attribute-catalog-service";
 import { SelectWithOther } from "@/components/shared/select-with-other";
 import { ColorValueCombobox } from "@/components/people/color-value-combobox";
+import { TypedAttributeInput } from "@/components/people/typed-attribute-input";
 import { BREAST_SIZE_OPTIONS, BREAST_STATUS_OPTIONS } from "@/lib/constants/appearance";
 
 type PhysicalAttributeItem = {
@@ -235,15 +236,15 @@ export function EditPhysicalChangeSheet({ personId, item, attributeGroups, onClo
                       <div className="border-t border-white/5 px-3 pb-3 pt-2 space-y-3">
                         {group.definitions.map((def) => (
                           <div key={def.id}>
-                            <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
-                              {def.name}{def.unit ? ` (${def.unit})` : ""}
-                            </label>
-                            <input
-                              type="text"
+                            {def.valueType !== "BOOLEAN" && (
+                              <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
+                                {def.name}{def.unit ? ` (${def.unit})` : ""}
+                              </label>
+                            )}
+                            <TypedAttributeInput
+                              definition={def}
                               value={attrValues[def.id] ?? ""}
-                              onChange={(e) => setAttrValues((prev) => ({ ...prev, [def.id]: e.target.value }))}
-                              placeholder={def.unit ? `e.g. value in ${def.unit}` : "Value..."}
-                              className="w-full rounded-lg border border-white/15 bg-muted/30 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                              onChange={(v) => setAttrValues((prev) => ({ ...prev, [def.id]: v }))}
                             />
                           </div>
                         ))}

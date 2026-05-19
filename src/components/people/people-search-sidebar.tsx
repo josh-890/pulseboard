@@ -223,6 +223,11 @@ export type AttributeOption = {
   slug: string;
   name: string;
   groupName: string;
+  valueType: "BOOLEAN" | "SINGLE_SELECT" | "MULTI_SELECT" | "ORDINAL" | "NUMERIC" | "TEXT";
+  allowedValues: string[];
+  ordinalMin: number | null;
+  ordinalMax: number | null;
+  unit: string | null;
 };
 
 function AttributeControl({
@@ -237,29 +242,90 @@ function AttributeControl({
   onChange: (next: FilterSpec) => void;
 }) {
   const current = spec.attribute.find((a) => a.definitionId === option.definitionId);
-  const selected = new Set(current?.values ?? []);
 
-  const update = (nextValues: string[]) => {
+  const replaceEntry = (patch: Partial<{ values: string[]; min: number | undefined; max: number | undefined }>) => {
     const others = spec.attribute.filter((a) => a.definitionId !== option.definitionId);
-    if (nextValues.length === 0) {
-      onChange({ ...spec, attribute: others });
+    const merged = {
+      definitionId: option.definitionId,
+      values: patch.values ?? current?.values ?? [],
+      min:    patch.min    !== undefined ? patch.min    : current?.min,
+      max:    patch.max    !== undefined ? patch.max    : current?.max,
+    };
+    const empty = merged.values.length === 0 && merged.min == null && merged.max == null;
+    onChange({ ...spec, attribute: empty ? others : [...others, merged] });
+  };
+
+  // BOOLEAN — single checkbox
+  if (option.valueType === "BOOLEAN") {
+    const selected = current?.values.includes("yes") ?? false;
+    return (
+      <label className="flex items-center gap-2 rounded px-1 py-0.5 text-xs hover:bg-white/5">
+        <Checkbox
+          checked={selected}
+          onCheckedChange={(c) => replaceEntry({ values: c ? ["yes"] : [] })}
+        />
+        <span className="flex-1">{option.name}</span>
+      </label>
+    );
+  }
+
+  // ORDINAL / NUMERIC — range inputs (similar to RangeControl pattern)
+  if (option.valueType === "ORDINAL" || option.valueType === "NUMERIC") {
+    return (
+      <div className="space-y-1">
+        <div className="text-[11px] text-muted-foreground">
+          {option.name}{option.unit ? ` (${option.unit})` : ""}
+        </div>
+        <div className="flex items-center gap-1.5">
+          <Input
+            type="number"
+            value={current?.min != null ? String(current.min) : ""}
+            onChange={(e) => {
+              const v = e.target.value;
+              replaceEntry({ min: v === "" ? undefined : Number(v) });
+            }}
+            placeholder={option.ordinalMin != null ? String(option.ordinalMin) : "min"}
+            className="h-7 w-16 px-1.5 text-center text-xs"
+            inputMode="numeric"
+          />
+          <span className="text-xs text-muted-foreground">to</span>
+          <Input
+            type="number"
+            value={current?.max != null ? String(current.max) : ""}
+            onChange={(e) => {
+              const v = e.target.value;
+              replaceEntry({ max: v === "" ? undefined : Number(v) });
+            }}
+            placeholder={option.ordinalMax != null ? String(option.ordinalMax) : "max"}
+            className="h-7 w-16 px-1.5 text-center text-xs"
+            inputMode="numeric"
+          />
+        </div>
+      </div>
+    );
+  }
+
+  // SINGLE_SELECT / MULTI_SELECT — checkbox list of allowed values + facet counts
+  const selected = new Set(current?.values ?? []);
+  const toggle = (val: string) => {
+    if (selected.has(val)) {
+      replaceEntry({ values: [...selected].filter((v) => v !== val) });
     } else {
-      onChange({ ...spec, attribute: [...others, { definitionId: option.definitionId, values: nextValues }] });
+      replaceEntry({ values: [...selected, val] });
     }
   };
 
-  const toggle = (val: string) => {
-    if (selected.has(val)) update([...selected].filter((v) => v !== val));
-    else update([...selected, val]);
-  };
-
-  const opts = facets ?? [];
+  // Prefer facets (with counts); fall back to allowedValues list when no data exists yet.
+  const opts =
+    facets && facets.length > 0
+      ? facets
+      : option.allowedValues.map((v) => ({ value: v, count: 0 }));
 
   return (
     <div className="space-y-1">
       <div className="text-[11px] text-muted-foreground">{option.name}</div>
       {opts.length === 0 ? (
-        <p className="text-[11px] text-muted-foreground/60">No recorded values yet</p>
+        <p className="text-[11px] text-muted-foreground/60">No values configured</p>
       ) : (
         <div className="max-h-32 space-y-1 overflow-y-auto pr-1">
           {opts.map((opt) => (
@@ -272,7 +338,9 @@ function AttributeControl({
                 onCheckedChange={() => toggle(opt.value)}
               />
               <span className="flex-1 truncate">{opt.value}</span>
-              <span className="text-[10px] text-muted-foreground/60">{opt.count}</span>
+              {opt.count > 0 && (
+                <span className="text-[10px] text-muted-foreground/60">{opt.count}</span>
+              )}
             </label>
           ))}
         </div>

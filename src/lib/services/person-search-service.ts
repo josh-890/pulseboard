@@ -207,42 +207,88 @@ function buildTextClauses(filters: TextFilter[]): Prisma.Sql[] {
   return out;
 }
 
+type AttributeMeta = {
+  slug: string;
+  valueType: "BOOLEAN" | "SINGLE_SELECT" | "MULTI_SELECT" | "ORDINAL" | "NUMERIC" | "TEXT";
+};
+
 function buildAttributeClauses(
   filters: AttributeFilter[],
-  slugById: Map<string, string>,
+  metaById: Map<string, AttributeMeta>,
   timeScope: "current" | "ever",
 ): Prisma.Sql[] {
   const out: Prisma.Sql[] = [];
   for (const f of filters) {
-    if (f.values.length === 0) continue;
-    const slug = slugById.get(f.definitionId);
-    if (!slug) continue;
+    const meta = metaById.get(f.definitionId);
+    if (!meta) continue;
+    const { slug, valueType } = meta;
+    const hasValues = f.values.length > 0;
+    const hasRange = f.min != null || f.max != null;
+    if (!hasValues && !hasRange) continue;
 
+    // "Ever" mode: route through PersonaPhysicalAttribute history rather than
+    // the folded currentAttributes JSONB. Skip range types in ever mode for
+    // now (rare query, can extend later if needed).
     if (timeScope === "ever") {
-      out.push(Prisma.sql`EXISTS (
-        SELECT 1 FROM "Persona" per
-        JOIN "PersonaPhysical" pp ON pp."personaId" = per.id
-        JOIN "PersonaPhysicalAttribute" ppa ON ppa."personaPhysicalId" = pp.id
-        JOIN "PhysicalAttributeDefinition" pad ON pad.id = ppa."attributeDefinitionId"
-        WHERE per."personId" = p.id
-          AND pad.id = ${f.definitionId}
-          AND ppa.value = ANY(${f.values})
-      )`);
-    } else {
-      out.push(Prisma.sql`mv."currentAttributes" ->> ${slug} = ANY(${f.values})`);
+      if (hasValues) {
+        out.push(Prisma.sql`EXISTS (
+          SELECT 1 FROM "Persona" per
+          JOIN "PersonaPhysical" pp ON pp."personaId" = per.id
+          JOIN "PersonaPhysicalAttribute" ppa ON ppa."personaPhysicalId" = pp.id
+          WHERE per."personId" = p.id
+            AND ppa."attributeDefinitionId" = ${f.definitionId}
+            AND ppa.value = ANY(${f.values})
+        )`);
+      }
+      continue;
+    }
+
+    // Current mode: query the folded JSONB column
+    switch (valueType) {
+      case "MULTI_SELECT":
+        // Stored as pipe-joined list; ARRAY-overlap check returns true if any
+        // selected value appears in the stored list.
+        out.push(Prisma.sql`
+          string_to_array(mv."currentAttributes" ->> ${slug}, '|') && ${f.values}
+        `);
+        break;
+
+      case "ORDINAL":
+      case "NUMERIC": {
+        // Range check on numeric value stored as string in the JSONB
+        const bounds: Prisma.Sql[] = [];
+        if (f.min != null) {
+          bounds.push(Prisma.sql`(mv."currentAttributes" ->> ${slug})::numeric >= ${f.min}`);
+        }
+        if (f.max != null) {
+          bounds.push(Prisma.sql`(mv."currentAttributes" ->> ${slug})::numeric <= ${f.max}`);
+        }
+        if (bounds.length > 0) {
+          const combined = bounds.reduce((a, b, i) => (i === 0 ? b : Prisma.sql`${a} AND ${b}`));
+          out.push(Prisma.sql`(${combined})`);
+        }
+        break;
+      }
+
+      case "BOOLEAN":
+      case "SINGLE_SELECT":
+      case "TEXT":
+      default:
+        out.push(Prisma.sql`mv."currentAttributes" ->> ${slug} = ANY(${f.values})`);
+        break;
     }
   }
   return out;
 }
 
-async function loadAttributeSlugs(filters: AttributeFilter[]): Promise<Map<string, string>> {
+async function loadAttributeMeta(filters: AttributeFilter[]): Promise<Map<string, AttributeMeta>> {
   if (filters.length === 0) return new Map();
   const ids = filters.map((f) => f.definitionId);
   const defs = await prisma.physicalAttributeDefinition.findMany({
     where: { id: { in: ids } },
-    select: { id: true, slug: true },
+    select: { id: true, slug: true, valueType: true },
   });
-  return new Map(defs.map((d) => [d.id, d.slug]));
+  return new Map(defs.map((d) => [d.id, { slug: d.slug, valueType: d.valueType }]));
 }
 
 function combineWhere(clauses: Prisma.Sql[]): Prisma.Sql {
@@ -305,14 +351,14 @@ type RawPersonRow = {
 };
 
 async function buildWhereForSpec(spec: FilterSpec): Promise<Prisma.Sql> {
-  const slugById = await loadAttributeSlugs(spec.attribute);
+  const metaById = await loadAttributeMeta(spec.attribute);
   const clauses: Prisma.Sql[] = [
     ...buildCategoricalClauses(spec.categorical, spec.timeScope),
     ...buildRangeClauses(spec.range, spec.timeScope),
     ...buildPresenceClauses(spec.presence),
     ...buildRegionClauses(spec.region),
     ...buildTextClauses(spec.text),
-    ...buildAttributeClauses(spec.attribute, slugById, spec.timeScope),
+    ...buildAttributeClauses(spec.attribute, metaById, spec.timeScope),
   ];
   return combineWhere(clauses);
 }
@@ -402,7 +448,7 @@ export type FacetCounts = {
  * applied (so users see how toggling a value would affect results).
  */
 export async function getFacetCounts(spec: FilterSpec): Promise<FacetCounts> {
-  const slugById = await loadAttributeSlugs(spec.attribute);
+  const metaById = await loadAttributeMeta(spec.attribute);
 
   const out: FacetCounts = {
     categorical: {},
@@ -459,17 +505,25 @@ export async function getFacetCounts(spec: FilterSpec): Promise<FacetCounts> {
     out.presence[field] = { has, hasnt };
   }
 
-  // Attribute facets — one query per requested attribute (its filter dropped from base spec)
+  // Attribute facets — one query per requested attribute (its filter dropped from base spec).
+  // MULTI_SELECT facets need to unnest the pipe-joined value into individual entries.
   for (const f of spec.attribute) {
-    const slug = slugById.get(f.definitionId);
-    if (!slug) continue;
+    const meta = metaById.get(f.definitionId);
+    if (!meta) continue;
+    const { slug, valueType } = meta;
     const baseSpec: FilterSpec = {
       ...spec,
       attribute: spec.attribute.filter((a) => a.definitionId !== f.definitionId),
     };
     const where = await buildWhereForSpec(baseSpec);
+
+    const valueExpr =
+      valueType === "MULTI_SELECT"
+        ? Prisma.sql`unnest(string_to_array(mv."currentAttributes" ->> ${slug}, '|'))`
+        : Prisma.sql`mv."currentAttributes" ->> ${slug}`;
+
     const rows = await prisma.$queryRaw<{ value: string | null; count: bigint }[]>(Prisma.sql`
-      SELECT mv."currentAttributes" ->> ${slug} AS value, count(*)::bigint AS count
+      SELECT ${valueExpr} AS value, count(*)::bigint AS count
       FROM "Person" p
       LEFT JOIN mv_person_current_state mv ON mv."personId" = p.id
       WHERE ${where} AND mv."currentAttributes" ? ${slug}
@@ -495,17 +549,30 @@ export async function getAttributeFacetsForDefinitions(
   if (definitionIds.length === 0) return {};
   const defs = await prisma.physicalAttributeDefinition.findMany({
     where: { id: { in: definitionIds } },
-    select: { id: true, slug: true },
+    select: { id: true, slug: true, valueType: true },
   });
 
   const out: Record<string, { value: string; count: number }[]> = {};
   for (const d of defs) {
+    // TEXT, ORDINAL, NUMERIC don't surface as multi-value facets (text has too
+    // many distinct values; ordinal/numeric want a range slider). Sidebar
+    // doesn't render facets for these types.
+    if (d.valueType === "TEXT" || d.valueType === "ORDINAL" || d.valueType === "NUMERIC") {
+      out[d.id] = [];
+      continue;
+    }
     const where = await buildWhereForSpec({
       ...spec,
       attribute: spec.attribute.filter((a) => a.definitionId !== d.id),
     });
+
+    const valueExpr =
+      d.valueType === "MULTI_SELECT"
+        ? Prisma.sql`unnest(string_to_array(mv."currentAttributes" ->> ${d.slug}, '|'))`
+        : Prisma.sql`mv."currentAttributes" ->> ${d.slug}`;
+
     const rows = await prisma.$queryRaw<{ value: string | null; count: bigint }[]>(Prisma.sql`
-      SELECT mv."currentAttributes" ->> ${d.slug} AS value, count(*)::bigint AS count
+      SELECT ${valueExpr} AS value, count(*)::bigint AS count
       FROM "Person" p
       LEFT JOIN mv_person_current_state mv ON mv."personId" = p.id
       WHERE ${where} AND mv."currentAttributes" ? ${d.slug}

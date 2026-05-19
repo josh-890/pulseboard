@@ -1,10 +1,64 @@
 import { prisma } from "@/lib/db";
+import type { PhysicalAttributeValueType } from "@/generated/prisma/client";
 
 function slugify(name: string): string {
   return name
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-|-$/g, "");
+}
+
+// ─── Type validation ─────────────────────────────────────────────────────────
+
+export type DefinitionTypedInput = {
+  valueType: PhysicalAttributeValueType;
+  allowedValues?: string[];
+  ordinalMin?: number | null;
+  ordinalMax?: number | null;
+  unit?: string | null;
+};
+
+function validateTypedFields(input: DefinitionTypedInput): void {
+  const { valueType, allowedValues = [], ordinalMin, ordinalMax } = input;
+  switch (valueType) {
+    case "BOOLEAN":
+    case "TEXT":
+      // No allowed values; ordinal min/max irrelevant
+      if (allowedValues.length > 0) {
+        throw new Error(`${valueType} attributes must not have allowed values`);
+      }
+      break;
+    case "SINGLE_SELECT":
+    case "MULTI_SELECT":
+      if (allowedValues.length === 0) {
+        throw new Error(`${valueType} attributes need at least one allowed value`);
+      }
+      // De-dupe + trim
+      {
+        const cleaned = Array.from(
+          new Set(allowedValues.map((v) => v.trim()).filter(Boolean)),
+        );
+        if (cleaned.length === 0) {
+          throw new Error(`${valueType} attributes need at least one non-empty value`);
+        }
+        input.allowedValues = cleaned;
+      }
+      break;
+    case "ORDINAL":
+      if (ordinalMin == null || ordinalMax == null) {
+        throw new Error("ORDINAL attributes need ordinalMin and ordinalMax");
+      }
+      if (ordinalMin >= ordinalMax) {
+        throw new Error("ORDINAL ordinalMin must be less than ordinalMax");
+      }
+      break;
+    case "NUMERIC":
+      // No allowed values; unit is optional but recommended
+      if (allowedValues.length > 0) {
+        throw new Error("NUMERIC attributes must not have allowed values");
+      }
+      break;
+  }
 }
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -68,7 +122,21 @@ export async function createPhysicalAttributeDefinition(data: {
   name: string;
   unit?: string | null;
   sortOrder?: number;
+  valueType?: PhysicalAttributeValueType;
+  allowedValues?: string[];
+  ordinalMin?: number | null;
+  ordinalMax?: number | null;
 }) {
+  const valueType: PhysicalAttributeValueType = data.valueType ?? "TEXT";
+  const typedInput: DefinitionTypedInput = {
+    valueType,
+    allowedValues: data.allowedValues ?? [],
+    ordinalMin: data.ordinalMin ?? null,
+    ordinalMax: data.ordinalMax ?? null,
+    unit: data.unit ?? null,
+  };
+  validateTypedFields(typedInput);
+
   const maxOrder = await prisma.physicalAttributeDefinition.aggregate({
     _max: { sortOrder: true },
     where: { groupId: data.groupId },
@@ -79,6 +147,10 @@ export async function createPhysicalAttributeDefinition(data: {
       name: data.name,
       slug: slugify(data.name),
       unit: data.unit ?? null,
+      valueType,
+      allowedValues: typedInput.allowedValues ?? [],
+      ordinalMin: data.ordinalMin ?? null,
+      ordinalMax: data.ordinalMax ?? null,
       sortOrder: data.sortOrder ?? (maxOrder._max.sortOrder ?? 0) + 1,
     },
   });
@@ -86,8 +158,41 @@ export async function createPhysicalAttributeDefinition(data: {
 
 export async function updatePhysicalAttributeDefinition(
   id: string,
-  data: { name?: string; unit?: string | null; sortOrder?: number },
+  data: {
+    name?: string;
+    unit?: string | null;
+    sortOrder?: number;
+    valueType?: PhysicalAttributeValueType;
+    allowedValues?: string[];
+    ordinalMin?: number | null;
+    ordinalMax?: number | null;
+  },
 ) {
+  // When changing typed fields, validate against the resulting state. We need
+  // the current row to fill in any fields not present in the patch.
+  if (
+    data.valueType !== undefined ||
+    data.allowedValues !== undefined ||
+    data.ordinalMin !== undefined ||
+    data.ordinalMax !== undefined
+  ) {
+    const current = await prisma.physicalAttributeDefinition.findUniqueOrThrow({
+      where: { id },
+    });
+    const typedInput: DefinitionTypedInput = {
+      valueType: data.valueType ?? current.valueType,
+      allowedValues: data.allowedValues ?? current.allowedValues,
+      ordinalMin: data.ordinalMin !== undefined ? data.ordinalMin : current.ordinalMin,
+      ordinalMax: data.ordinalMax !== undefined ? data.ordinalMax : current.ordinalMax,
+      unit: data.unit !== undefined ? data.unit : current.unit,
+    };
+    validateTypedFields(typedInput);
+    // Reflect any normalization (de-duping / trimming) the validator applied
+    if (typedInput.allowedValues !== undefined) {
+      data.allowedValues = typedInput.allowedValues;
+    }
+  }
+
   const updateData: Record<string, unknown> = {};
   if (data.name !== undefined) {
     updateData.name = data.name;
@@ -95,6 +200,11 @@ export async function updatePhysicalAttributeDefinition(
   }
   if (data.unit !== undefined) updateData.unit = data.unit;
   if (data.sortOrder !== undefined) updateData.sortOrder = data.sortOrder;
+  if (data.valueType !== undefined) updateData.valueType = data.valueType;
+  if (data.allowedValues !== undefined) updateData.allowedValues = data.allowedValues;
+  if (data.ordinalMin !== undefined) updateData.ordinalMin = data.ordinalMin;
+  if (data.ordinalMax !== undefined) updateData.ordinalMax = data.ordinalMax;
+
   return prisma.physicalAttributeDefinition.update({
     where: { id },
     data: updateData,

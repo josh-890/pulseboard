@@ -11,6 +11,27 @@ import {
   deletePhysicalAttributeDefinition,
 } from "@/lib/services/physical-attribute-catalog-service";
 import type { SimpleActionResult } from "@/lib/types";
+import type { PhysicalAttributeValueType } from "@/generated/prisma/client";
+
+export type CreateDefinitionInput = {
+  groupId: string;
+  name: string;
+  unit?: string | null;
+  valueType?: PhysicalAttributeValueType;
+  allowedValues?: string[];
+  ordinalMin?: number | null;
+  ordinalMax?: number | null;
+};
+
+export type UpdateDefinitionInput = {
+  name?: string;
+  unit?: string | null;
+  sortOrder?: number;
+  valueType?: PhysicalAttributeValueType;
+  allowedValues?: string[];
+  ordinalMin?: number | null;
+  ordinalMax?: number | null;
+};
 
 // ─── Group actions ───────────────────────────────────────────────────────────
 
@@ -66,13 +87,11 @@ export async function deletePhysicalAttributeGroupAction(
 // ─── Definition actions ──────────────────────────────────────────────────────
 
 export async function createPhysicalAttributeDefinitionAction(
-  groupId: string,
-  name: string,
-  unit?: string | null,
+  input: CreateDefinitionInput,
 ): Promise<SimpleActionResult> {
   return withTenantFromHeaders(async () => {
     try {
-      await createPhysicalAttributeDefinition({ groupId, name, unit });
+      await createPhysicalAttributeDefinition(input);
       revalidatePath("/settings");
       return { success: true };
     } catch (err) {
@@ -85,7 +104,7 @@ export async function createPhysicalAttributeDefinitionAction(
 
 export async function updatePhysicalAttributeDefinitionAction(
   id: string,
-  data: { name?: string; unit?: string | null; sortOrder?: number },
+  data: UpdateDefinitionInput,
 ): Promise<SimpleActionResult> {
   return withTenantFromHeaders(async () => {
     try {

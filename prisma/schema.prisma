@@ -1134,15 +1134,28 @@ model PhysicalAttributeGroup {
   @@index([sortOrder])
 }
 
+enum PhysicalAttributeValueType {
+  BOOLEAN
+  SINGLE_SELECT
+  MULTI_SELECT
+  ORDINAL
+  NUMERIC
+  TEXT
+}
+
 model PhysicalAttributeDefinition {
-  id        String                  @id @default(cuid())
-  groupId   String
-  group     PhysicalAttributeGroup  @relation(fields: [groupId], references: [id])
-  name      String
-  slug      String                  @unique
-  unit      String?
-  sortOrder Int                     @default(0)
-  createdAt DateTime                @default(now())
+  id            String                       @id @default(cuid())
+  groupId       String
+  group         PhysicalAttributeGroup       @relation(fields: [groupId], references: [id])
+  name          String
+  slug          String                       @unique
+  unit          String?
+  valueType     PhysicalAttributeValueType   @default(TEXT)
+  allowedValues String[]                     @default([])
+  ordinalMin    Int?
+  ordinalMax    Int?
+  sortOrder     Int                          @default(0)
+  createdAt     DateTime                     @default(now())
 
   attributes          PersonaPhysicalAttribute[]
   cosmeticProcedures  CosmeticProcedure[]

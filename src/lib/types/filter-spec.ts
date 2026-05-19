@@ -37,7 +37,9 @@ export type TextFilter = {
 
 export type AttributeFilter = {
   definitionId: string;
-  values: string[];
+  values: string[];         // for BOOLEAN / SINGLE_SELECT / MULTI_SELECT
+  min?: number;             // for ORDINAL / NUMERIC
+  max?: number;             // for ORDINAL / NUMERIC
 };
 
 export type TimeScope = "current" | "ever";
@@ -141,8 +143,12 @@ export function specToUrlParams(spec: FilterSpec): URLSearchParams {
     if (t.fuzzy) p.set(`text.${t.field}.fuzzy`, "1");
   }
   for (const a of spec.attribute) {
-    if (a.values.length === 0) continue;
-    p.set(`attr.${a.definitionId}`, a.values.join(","));
+    const hasValues = a.values.length > 0;
+    const hasRange = a.min != null || a.max != null;
+    if (!hasValues && !hasRange) continue;
+    if (hasValues) p.set(`attr.${a.definitionId}`, a.values.join(","));
+    if (a.min != null) p.set(`attr.${a.definitionId}.min`, String(a.min));
+    if (a.max != null) p.set(`attr.${a.definitionId}.max`, String(a.max));
   }
   if (spec.timeScope === "ever") p.set("time", "ever");
 
@@ -274,11 +280,33 @@ export function specFromUrlParams(params: ReadableParams): FilterSpec {
     }
 
     if (key.startsWith("attr.")) {
-      const definitionId = key.slice(5);
-      spec.attribute.push({
-        definitionId,
-        values: value.split(",").filter(Boolean),
-      });
+      const rest = key.slice(5);
+      let definitionId: string;
+      let kind: "values" | "min" | "max" = "values";
+      if (rest.endsWith(".min")) {
+        definitionId = rest.slice(0, -4);
+        kind = "min";
+      } else if (rest.endsWith(".max")) {
+        definitionId = rest.slice(0, -4);
+        kind = "max";
+      } else {
+        definitionId = rest;
+      }
+      // Merge into a single entry per definitionId
+      let entry = spec.attribute.find((a) => a.definitionId === definitionId);
+      if (!entry) {
+        entry = { definitionId, values: [] };
+        spec.attribute.push(entry);
+      }
+      if (kind === "values") {
+        entry.values = value.split(",").filter(Boolean);
+      } else if (kind === "min") {
+        const n = Number(value);
+        if (Number.isFinite(n)) entry.min = n;
+      } else {
+        const n = Number(value);
+        if (Number.isFinite(n)) entry.max = n;
+      }
       continue;
     }
   }
@@ -289,6 +317,9 @@ export function specFromUrlParams(params: ReadableParams): FilterSpec {
   );
   spec.region = Array.from(regionFields.values()).filter((r) => r.regions.length > 0);
   spec.text = Array.from(textFields.values()).filter((t) => t.query);
+  spec.attribute = spec.attribute.filter(
+    (a) => a.values.length > 0 || a.min != null || a.max != null,
+  );
 
   return spec;
 }
