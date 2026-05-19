@@ -26,7 +26,6 @@ type PhysicalChangeItem = {
   date: Date | null;
   datePrecision: string;
   currentHairColor: string | null;
-  currentSecondaryHairColor: string | null;
   weight: number | null;
   build: string | null;
   breastSize: string | null;
@@ -58,7 +57,6 @@ export function EditPhysicalChangeSheet({ personId, item, attributeGroups, onClo
   const [date, setDate] = useState(initDate);
   const [datePrecision, setDatePrecision] = useState(initPrec);
   const [currentHairColor, setCurrentHairColor] = useState(item.currentHairColor ?? "");
-  const [currentSecondaryHairColor, setCurrentSecondaryHairColor] = useState(item.currentSecondaryHairColor ?? "");
   const [weight, setWeight] = useState(item.weight !== null ? String(item.weight) : "");
   const [build, setBuild] = useState(item.build ?? "");
   const [breastSize, setBreastSize] = useState(item.breastSize ?? "");
@@ -90,7 +88,7 @@ export function EditPhysicalChangeSheet({ personId, item, attributeGroups, onClo
   const [error, setError] = useState<string | null>(null);
 
   const hasAnyAttr = Object.values(attrValues).some((v) => v.trim());
-  const hasAnyField = currentHairColor.trim() || currentSecondaryHairColor.trim() || weight.trim() || build.trim() || breastSize.trim() || breastStatus.trim() || breastDescription.trim() || hasAnyAttr;
+  const hasAnyField = currentHairColor.trim() || weight.trim() || build.trim() || breastSize.trim() || breastStatus.trim() || breastDescription.trim() || hasAnyAttr;
 
   const handleSubmit = useCallback(() => {
     if (!hasAnyField) {
@@ -107,7 +105,6 @@ export function EditPhysicalChangeSheet({ personId, item, attributeGroups, onClo
         date: date || null,
         datePrecision,
         currentHairColor: currentHairColor.trim() || undefined,
-        currentSecondaryHairColor: currentSecondaryHairColor.trim() || undefined,
         weight: weight.trim() ? parseFloat(weight) : undefined,
         build: build.trim() || undefined,
         breastSize: breastSize.trim() || undefined,
@@ -121,7 +118,7 @@ export function EditPhysicalChangeSheet({ personId, item, attributeGroups, onClo
       }
       onClose();
     });
-  }, [item.physicalId, personId, date, datePrecision, currentHairColor, currentSecondaryHairColor, weight, build, breastSize, breastStatus, breastDescription, attrValues, hasAnyField, onClose]);
+  }, [item.physicalId, personId, date, datePrecision, currentHairColor, weight, build, breastSize, breastStatus, breastDescription, attrValues, hasAnyField, onClose]);
 
   return (
     <div role="dialog" aria-modal="true" className="fixed inset-0 z-50 flex justify-end">
@@ -154,16 +151,6 @@ export function EditPhysicalChangeSheet({ personId, item, attributeGroups, onClo
               value={currentHairColor || undefined}
               onChange={(v) => setCurrentHairColor(v ?? "")}
               placeholder="Select hair color…"
-            />
-          </div>
-
-          <div>
-            <label className="mb-1.5 block text-sm font-medium">Highlight / 2nd Hair Color</label>
-            <ColorValueCombobox
-              category="hair"
-              value={currentSecondaryHairColor || undefined}
-              onChange={(v) => setCurrentSecondaryHairColor(v ?? "")}
-              placeholder="Highlights, ombré, two-tone…"
             />
           </div>
 

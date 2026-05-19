@@ -1074,7 +1074,6 @@ export async function createPersonRecord(data: CreatePersonInput) {
   await Promise.all([
     ensureCatalogEntry("hair", data.naturalHairColor),
     ensureCatalogEntry("hair", data.currentHairColor),
-    ensureCatalogEntry("hair", data.currentSecondaryHairColor),
     ensureCatalogEntry("eye",  data.eyeColor),
     ensureCatalogEntry("eye",  data.secondaryEyeColor),
   ]);
@@ -1132,7 +1131,6 @@ export async function createPersonRecord(data: CreatePersonInput) {
       data.weight !== undefined ||
       data.build !== undefined ||
       data.currentHairColor !== undefined ||
-      data.currentSecondaryHairColor !== undefined ||
       data.breastSize !== undefined ||
       data.breastStatus !== undefined ||
       data.breastDescription !== undefined ||
@@ -1145,7 +1143,6 @@ export async function createPersonRecord(data: CreatePersonInput) {
           weight: data.weight,
           build: data.build,
           currentHairColor: data.currentHairColor,
-          currentSecondaryHairColor: data.currentSecondaryHairColor,
           breastSize: data.breastSize,
           breastStatus: data.breastStatus,
           breastDescription: data.breastDescription,
@@ -1310,13 +1307,11 @@ export async function updatePersonAppearance(
     weight?: number;
     build?: string;
     currentHairColor?: string;
-    currentSecondaryHairColor?: string;
   },
 ): Promise<void> {
   await Promise.all([
     ensureCatalogEntry("hair", data.naturalHairColor),
     ensureCatalogEntry("hair", data.currentHairColor),
-    ensureCatalogEntry("hair", data.currentSecondaryHairColor),
     ensureCatalogEntry("eye",  data.eyeColor),
     ensureCatalogEntry("eye",  data.secondaryEyeColor),
   ]);
@@ -1336,8 +1331,7 @@ export async function updatePersonAppearance(
     const hasPhysical =
       data.weight !== undefined ||
       data.build !== undefined ||
-      data.currentHairColor !== undefined ||
-      data.currentSecondaryHairColor !== undefined;
+      data.currentHairColor !== undefined;
 
     if (hasPhysical) {
       const baselinePersona = await tx.persona.findFirst({
@@ -1351,13 +1345,11 @@ export async function updatePersonAppearance(
             weight: data.weight,
             build: data.build,
             currentHairColor: data.currentHairColor,
-            currentSecondaryHairColor: data.currentSecondaryHairColor,
           },
           update: {
             weight: data.weight ?? null,
             build: data.build ?? null,
             currentHairColor: data.currentHairColor ?? null,
-            currentSecondaryHairColor: data.currentSecondaryHairColor ?? null,
           },
         });
       }

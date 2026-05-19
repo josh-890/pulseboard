@@ -36,7 +36,6 @@ export const createPersonSchema = z.object({
   weight: z.coerce.number().positive().optional(),
   build: z.string().optional(),
   currentHairColor: z.string().optional(),
-  currentSecondaryHairColor: z.string().optional(),
   breastSize: z.string().optional(),
   breastStatus: z.string().optional(),
   breastDescription: z.string().optional(),
@@ -99,7 +98,6 @@ export const updateAppearanceSchema = z.object({
   weight: z.coerce.number().positive().optional(),
   build: z.string().optional(),
   currentHairColor: z.string().optional(),
-  currentSecondaryHairColor: z.string().optional(),
 });
 export type UpdateAppearanceFormValues = z.input<typeof updateAppearanceSchema>;
 export type UpdateAppearanceInput = z.output<typeof updateAppearanceSchema>;

@@ -964,7 +964,6 @@ export async function recordPhysicalChangeAction(
     date?: string | null;
     datePrecision?: string;
     currentHairColor?: string;
-    currentSecondaryHairColor?: string;
     weight?: number;
     build?: string;
     breastSize?: string;
@@ -978,10 +977,7 @@ export async function recordPhysicalChangeAction(
       const date = data.date ? new Date(data.date) : null;
       const precision = (data.datePrecision ?? "UNKNOWN") as DatePrecision;
 
-      await Promise.all([
-        ensureCatalogEntry("hair", data.currentHairColor),
-        ensureCatalogEntry("hair", data.currentSecondaryHairColor),
-      ]);
+      await ensureCatalogEntry("hair", data.currentHairColor);
 
       await prisma.$transaction(async (tx) => {
         const personaId = await findOrCreatePersonaForDate(tx, personId, date, precision);
@@ -990,7 +986,6 @@ export async function recordPhysicalChangeAction(
           create: {
             personaId,
             currentHairColor: data.currentHairColor ?? null,
-            currentSecondaryHairColor: data.currentSecondaryHairColor ?? null,
             weight: data.weight ?? null,
             build: data.build ?? null,
             breastSize: data.breastSize ?? null,
@@ -1001,7 +996,6 @@ export async function recordPhysicalChangeAction(
           },
           update: {
             ...(data.currentHairColor !== undefined && { currentHairColor: data.currentHairColor || null }),
-            ...(data.currentSecondaryHairColor !== undefined && { currentSecondaryHairColor: data.currentSecondaryHairColor || null }),
             ...(data.weight !== undefined && { weight: data.weight || null }),
             ...(data.build !== undefined && { build: data.build || null }),
             ...(data.breastSize !== undefined && { breastSize: data.breastSize || null }),
@@ -1048,7 +1042,6 @@ export async function updatePhysicalChangeAction(
   personId: string,
   data: {
     currentHairColor?: string;
-    currentSecondaryHairColor?: string;
     weight?: number;
     build?: string;
     breastSize?: string;
@@ -1064,10 +1057,7 @@ export async function updatePhysicalChangeAction(
       const parsedDate = data.date ? new Date(data.date) : null;
       const precision = (data.datePrecision ?? "UNKNOWN") as DatePrecision;
 
-      await Promise.all([
-        ensureCatalogEntry("hair", data.currentHairColor),
-        ensureCatalogEntry("hair", data.currentSecondaryHairColor),
-      ]);
+      await ensureCatalogEntry("hair", data.currentHairColor);
 
       await prisma.$transaction(async (tx) => {
         const existing = await tx.personaPhysical.findUniqueOrThrow({
@@ -1085,7 +1075,6 @@ export async function updatePhysicalChangeAction(
 
         const fieldData = {
           currentHairColor: data.currentHairColor !== undefined ? (data.currentHairColor || null) : existing.currentHairColor,
-          currentSecondaryHairColor: data.currentSecondaryHairColor !== undefined ? (data.currentSecondaryHairColor || null) : existing.currentSecondaryHairColor,
           weight: data.weight !== undefined ? (data.weight || null) : existing.weight,
           build: data.build !== undefined ? (data.build || null) : existing.build,
           breastSize: data.breastSize !== undefined ? (data.breastSize || null) : existing.breastSize,

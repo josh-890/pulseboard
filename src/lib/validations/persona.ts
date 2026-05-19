@@ -61,7 +61,6 @@ export const createPersonaBatchSchema = z.object({
 
   // Physical changes (optional)
   currentHairColor: z.string().optional(),
-  currentSecondaryHairColor: z.string().optional(),
   weight: z.coerce.number().positive().optional(),
   build: z.string().optional(),
 

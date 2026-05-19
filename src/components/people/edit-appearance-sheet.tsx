@@ -79,7 +79,6 @@ export function EditAppearanceSheet({ person, open: controlledOpen, onOpenChange
     weight: physical?.weight ?? undefined,
     build: physical?.build ?? undefined,
     currentHairColor: physical?.currentHairColor ?? "",
-    currentSecondaryHairColor: physical?.currentSecondaryHairColor ?? "",
   });
 
   const form = useForm<UpdateAppearanceFormValues, unknown, UpdateAppearanceInput>({
@@ -310,24 +309,6 @@ export function EditAppearanceSheet({ person, open: controlledOpen, onOpenChange
                     )}
                   />
 
-                  <FormField
-                    control={form.control}
-                    name="currentSecondaryHairColor"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Highlight / 2nd Color</FormLabel>
-                        <FormControl>
-                          <ColorValueCombobox
-                            category="hair"
-                            value={field.value || undefined}
-                            onChange={(v) => field.onChange(v ?? "")}
-                            placeholder="For highlights, ombré, two-tone"
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
                 </div>
               </section>
             </div>

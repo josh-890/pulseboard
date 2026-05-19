@@ -79,10 +79,7 @@ export async function getPersonPersonas(
  * Create a persona with all associated data in a single transaction.
  */
 export async function createPersonaBatch(personId: string, data: CreatePersonaBatchInput) {
-  await Promise.all([
-    ensureCatalogEntry("hair", data.currentHairColor),
-    ensureCatalogEntry("hair", data.currentSecondaryHairColor),
-  ]);
+  await ensureCatalogEntry("hair", data.currentHairColor);
   return prisma.$transaction(async (tx) => {
     const persona = await tx.persona.create({
       data: {
@@ -101,13 +98,12 @@ export async function createPersonaBatch(personId: string, data: CreatePersonaBa
     const eventDateModifier = "EXACT" as DateModifier;
 
     // Physical changes
-    const hasPhysical = data.currentHairColor || data.currentSecondaryHairColor || data.weight || data.build;
+    const hasPhysical = data.currentHairColor || data.weight || data.build;
     if (hasPhysical) {
       await tx.personaPhysical.create({
         data: {
           personaId: persona.id,
           currentHairColor: data.currentHairColor ?? null,
-          currentSecondaryHairColor: data.currentSecondaryHairColor ?? null,
           weight: data.weight ?? null,
           build: data.build ?? null,
           date: eventDate,

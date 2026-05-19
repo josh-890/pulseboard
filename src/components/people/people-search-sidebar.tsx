@@ -671,31 +671,6 @@ export function PeopleSearchSidebar({
         />
       </Section>
 
-      <Section
-        title="Hair · Highlight Hue"
-        badge={countCategorical("secondaryHairHue")}
-      >
-        <CategoricalControl
-          field="secondaryHairHue"
-          facets={facets.categorical.secondaryHairHue ?? []}
-          spec={spec}
-          onChange={apply}
-        />
-      </Section>
-
-      <Section
-        title="Hair · Highlight Lightness"
-        badge={countCategorical("secondaryHairLightness")}
-      >
-        <CategoricalControl
-          field="secondaryHairLightness"
-          facets={facets.categorical.secondaryHairLightness ?? []}
-          order={HAIR_LIGHTNESS_ORDER}
-          spec={spec}
-          onChange={apply}
-        />
-      </Section>
-
       <Section title="Eye · Hue" badge={countCategorical("eyeHue")}>
         <CategoricalControl
           field="eyeHue"

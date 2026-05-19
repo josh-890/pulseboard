@@ -33,10 +33,9 @@ const CATEGORICAL_FIELDS: Record<string, CategoricalFieldDef> = {
   hairLightness:    { column: Prisma.sql`mv."hairLightness"` },
   eyeHue:           { column: Prisma.sql`mv."eyeHue"` },
   eyeLightness:     { column: Prisma.sql`mv."eyeLightness"` },
-  // Secondary colors — highlights/balayage/ombre/two-tone for hair, complete
-  // heterochromia for eye. Same color_catalog classification as primary.
-  secondaryHairHue:       { column: Prisma.sql`mv."secondaryHairHue"` },
-  secondaryHairLightness: { column: Prisma.sql`mv."secondaryHairLightness"` },
+  // Secondary eye — for complete heterochromia. (Hair secondary was removed:
+  // highlights/balayage are pattern info, not color info, and the existing
+  // "Hair Pattern" attribute covers the realistic filter intent.)
   secondaryEyeHue:        { column: Prisma.sql`mv."secondaryEyeHue"` },
   secondaryEyeLightness:  { column: Prisma.sql`mv."secondaryEyeLightness"` },
   skinTone:         { column: Prisma.sql`mv."skinTone"` },
@@ -417,8 +416,7 @@ export async function getFacetCounts(spec: FilterSpec): Promise<FacetCounts> {
   const requestedCategoricalFields = new Set([
     "status", "ethnicity", "bodyType", "naturalHairColor",
     "hairHue", "hairLightness", "eyeHue", "eyeLightness",
-    "secondaryHairHue", "secondaryHairLightness",
-    "secondaryEyeHue",  "secondaryEyeLightness",
+    "secondaryEyeHue", "secondaryEyeLightness",
     "skinTone", "skinUndertone", "nationality",
   ]);
   for (const field of requestedCategoricalFields) {
