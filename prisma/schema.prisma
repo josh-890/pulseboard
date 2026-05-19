@@ -248,7 +248,6 @@ model Person {
   naturalHairColor  String?
   naturalBreastSize String?    // Cup letter (A/B/C/D/DD/E/F/G+)
   eyeColor       String?
-  secondaryEyeColor String?   // For heterochromia — looked up via color_catalog 'eye'
   bodyType       String?
   measurements   String?
   activeFrom     DateTime?

@@ -28,7 +28,6 @@ export const createPersonSchema = z.object({
   ethnicity: z.string().optional(),
   // Physical (static)
   eyeColor: z.string().optional(),
-  secondaryEyeColor: z.string().optional(),
   naturalHairColor: z.string().optional(),
   naturalBreastSize: z.string().optional(),
   height: z.coerce.number().int().positive().optional(),
@@ -90,7 +89,6 @@ export type IcgIdChangeInput = z.infer<typeof icgIdChangeSchema>;
 export const updateAppearanceSchema = z.object({
   id: z.string().min(1),
   eyeColor: z.string().optional(),
-  secondaryEyeColor: z.string().optional(),
   naturalHairColor: z.string().optional(),
   naturalBreastSize: z.string().optional(),
   measurements: z.string().optional(),

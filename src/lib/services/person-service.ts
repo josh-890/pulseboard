@@ -1075,7 +1075,6 @@ export async function createPersonRecord(data: CreatePersonInput) {
     ensureCatalogEntry("hair", data.naturalHairColor),
     ensureCatalogEntry("hair", data.currentHairColor),
     ensureCatalogEntry("eye",  data.eyeColor),
-    ensureCatalogEntry("eye",  data.secondaryEyeColor),
   ]);
   const person = await prisma.$transaction(async (tx) => {
     const person = await tx.person.create({
@@ -1091,7 +1090,6 @@ export async function createPersonRecord(data: CreatePersonInput) {
         nationality: data.nationality,
         ethnicity: data.ethnicity,
         eyeColor: data.eyeColor,
-        secondaryEyeColor: data.secondaryEyeColor,
         naturalHairColor: data.naturalHairColor,
         naturalBreastSize: data.naturalBreastSize,
         height: data.height,
@@ -1299,7 +1297,6 @@ export async function updatePersonAppearance(
   id: string,
   data: {
     eyeColor?: string;
-    secondaryEyeColor?: string;
     naturalHairColor?: string;
     naturalBreastSize?: string;
     measurements?: string;
@@ -1313,14 +1310,12 @@ export async function updatePersonAppearance(
     ensureCatalogEntry("hair", data.naturalHairColor),
     ensureCatalogEntry("hair", data.currentHairColor),
     ensureCatalogEntry("eye",  data.eyeColor),
-    ensureCatalogEntry("eye",  data.secondaryEyeColor),
   ]);
   await prisma.$transaction(async (tx) => {
     await tx.person.update({
       where: { id },
       data: {
         eyeColor: data.eyeColor ?? null,
-        secondaryEyeColor: data.secondaryEyeColor ?? null,
         naturalHairColor: data.naturalHairColor ?? null,
         naturalBreastSize: data.naturalBreastSize ?? null,
         measurements: data.measurements ?? null,

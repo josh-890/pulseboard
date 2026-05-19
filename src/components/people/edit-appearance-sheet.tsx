@@ -71,7 +71,6 @@ export function EditAppearanceSheet({ person, open: controlledOpen, onOpenChange
   const getDefaults = (): UpdateAppearanceFormValues => ({
     id: person.id,
     eyeColor: person.eyeColor ?? "",
-    secondaryEyeColor: person.secondaryEyeColor ?? "",
     naturalHairColor: person.naturalHairColor ?? "",
     naturalBreastSize: person.naturalBreastSize ?? "",
     measurements: person.measurements ?? "",
@@ -144,25 +143,6 @@ export function EditAppearanceSheet({ person, open: controlledOpen, onOpenChange
                             value={field.value || undefined}
                             onChange={(v) => field.onChange(v ?? "")}
                             placeholder="Select eye color…"
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="secondaryEyeColor"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>2nd Eye Color (heterochromia)</FormLabel>
-                        <FormControl>
-                          <ColorValueCombobox
-                            category="eye"
-                            value={field.value || undefined}
-                            onChange={(v) => field.onChange(v ?? "")}
-                            placeholder="Only set for heterochromia"
                           />
                         </FormControl>
                         <FormMessage />

@@ -355,25 +355,6 @@ export function PersonForm({ onSubmit, submitLabel = "Create Person", onCancel }
 
                     <FormField
                       control={form.control}
-                      name="secondaryEyeColor"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>2nd Eye Color</FormLabel>
-                          <FormControl>
-                            <ColorValueCombobox
-                              category="eye"
-                              value={field.value || undefined}
-                              onChange={(v) => field.onChange(v ?? "")}
-                              placeholder="Only for heterochromia"
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={form.control}
                       name="naturalHairColor"
                       render={({ field }) => (
                         <FormItem>

@@ -690,31 +690,6 @@ export function PeopleSearchSidebar({
         />
       </Section>
 
-      <Section
-        title="Eye · 2nd Hue (heterochromia)"
-        badge={countCategorical("secondaryEyeHue")}
-      >
-        <CategoricalControl
-          field="secondaryEyeHue"
-          facets={facets.categorical.secondaryEyeHue ?? []}
-          spec={spec}
-          onChange={apply}
-        />
-      </Section>
-
-      <Section
-        title="Eye · 2nd Lightness"
-        badge={countCategorical("secondaryEyeLightness")}
-      >
-        <CategoricalControl
-          field="secondaryEyeLightness"
-          facets={facets.categorical.secondaryEyeLightness ?? []}
-          order={EYE_LIGHTNESS_ORDER}
-          spec={spec}
-          onChange={apply}
-        />
-      </Section>
-
       <Section title="Skin · Tone" badge={countCategorical("skinTone")}>
         <CategoricalControl
           field="skinTone"
