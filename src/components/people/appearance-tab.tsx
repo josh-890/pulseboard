@@ -84,6 +84,7 @@ type PhysicalChangeItem = {
   date: Date | null;
   datePrecision: string;
   currentHairColor: string | null;
+  currentSecondaryHairColor: string | null;
   weight: number | null;
   build: string | null;
   breastSize: string | null;
@@ -189,6 +190,7 @@ export function AppearanceTab({
         date: p.date,
         datePrecision: p.datePrecision,
         currentHairColor: p.physicalChange!.currentHairColor,
+        currentSecondaryHairColor: p.physicalChange!.currentSecondaryHairColor ?? null,
         weight: p.physicalChange!.weight,
         build: p.physicalChange!.build,
         breastSize: p.physicalChange!.breastSize,

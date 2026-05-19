@@ -28,6 +28,7 @@ export const createPersonSchema = z.object({
   ethnicity: z.string().optional(),
   // Physical (static)
   eyeColor: z.string().optional(),
+  secondaryEyeColor: z.string().optional(),
   naturalHairColor: z.string().optional(),
   naturalBreastSize: z.string().optional(),
   height: z.coerce.number().int().positive().optional(),
@@ -35,6 +36,7 @@ export const createPersonSchema = z.object({
   weight: z.coerce.number().positive().optional(),
   build: z.string().optional(),
   currentHairColor: z.string().optional(),
+  currentSecondaryHairColor: z.string().optional(),
   breastSize: z.string().optional(),
   breastStatus: z.string().optional(),
   breastDescription: z.string().optional(),
@@ -89,6 +91,7 @@ export type IcgIdChangeInput = z.infer<typeof icgIdChangeSchema>;
 export const updateAppearanceSchema = z.object({
   id: z.string().min(1),
   eyeColor: z.string().optional(),
+  secondaryEyeColor: z.string().optional(),
   naturalHairColor: z.string().optional(),
   naturalBreastSize: z.string().optional(),
   measurements: z.string().optional(),
@@ -96,6 +99,7 @@ export const updateAppearanceSchema = z.object({
   weight: z.coerce.number().positive().optional(),
   build: z.string().optional(),
   currentHairColor: z.string().optional(),
+  currentSecondaryHairColor: z.string().optional(),
 });
 export type UpdateAppearanceFormValues = z.input<typeof updateAppearanceSchema>;
 export type UpdateAppearanceInput = z.output<typeof updateAppearanceSchema>;

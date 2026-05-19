@@ -173,6 +173,7 @@ export function NewPersonaSheet({
 
   // Physical changes
   const [currentHairColor, setCurrentHairColor] = useState("");
+  const [currentSecondaryHairColor, setCurrentSecondaryHairColor] = useState("");
   const [weight, setWeight] = useState("");
   const [build, setBuild] = useState("");
 
@@ -190,7 +191,7 @@ export function NewPersonaSheet({
 
   const totalChanges = markEvents.length + modEvents.length + procEvents.length +
     newMarks.length + newMods.length + newProcs.length +
-    (currentHairColor || weight || build ? 1 : 0);
+    (currentHairColor || currentSecondaryHairColor || weight || build ? 1 : 0);
 
   const handleSubmit = useCallback(() => {
     if (!label.trim()) { setError("Label is required."); return; }
@@ -202,6 +203,7 @@ export function NewPersonaSheet({
         datePrecision: datePrecision as "UNKNOWN" | "YEAR" | "MONTH" | "DAY",
         notes: notes.trim() || undefined,
         currentHairColor: currentHairColor.trim() || undefined,
+        currentSecondaryHairColor: currentSecondaryHairColor.trim() || undefined,
         weight: weight.trim() ? parseFloat(weight) : undefined,
         build: build.trim() || undefined,
         bodyMarkEvents: markEvents,
@@ -214,7 +216,7 @@ export function NewPersonaSheet({
       if (!result.success) { setError(result.error ?? "Failed to create persona."); return; }
       onClose();
     });
-  }, [personId, label, date, datePrecision, notes, currentHairColor, weight, build, markEvents, modEvents, procEvents, newMarks, newMods, newProcs, onClose]);
+  }, [personId, label, date, datePrecision, notes, currentHairColor, currentSecondaryHairColor, weight, build, markEvents, modEvents, procEvents, newMarks, newMods, newProcs, onClose]);
 
   return (
     <div role="dialog" aria-modal="true" className="fixed inset-0 z-50 flex justify-end">
@@ -250,7 +252,7 @@ export function NewPersonaSheet({
           </div>
 
           {/* Physical Changes */}
-          <CollapsibleSection title="Physical Changes" count={currentHairColor || weight || build ? 1 : 0}>
+          <CollapsibleSection title="Physical Changes" count={currentHairColor || currentSecondaryHairColor || weight || build ? 1 : 0}>
             <p className="text-xs text-muted-foreground/60 mb-2">Only fill in what changed.</p>
             <div className="grid grid-cols-2 gap-3">
               <div>
@@ -260,6 +262,15 @@ export function NewPersonaSheet({
                   value={currentHairColor || undefined}
                   onChange={(v) => setCurrentHairColor(v ?? "")}
                   placeholder="Select hair color…"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium">Highlight / 2nd</label>
+                <ColorValueCombobox
+                  category="hair"
+                  value={currentSecondaryHairColor || undefined}
+                  onChange={(v) => setCurrentSecondaryHairColor(v ?? "")}
+                  placeholder="Highlights, ombré, two-tone…"
                 />
               </div>
               <div>

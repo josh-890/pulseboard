@@ -248,6 +248,7 @@ model Person {
   naturalHairColor  String?
   naturalBreastSize String?    // Cup letter (A/B/C/D/DD/E/F/G+)
   eyeColor       String?
+  secondaryEyeColor String?   // For heterochromia — looked up via color_catalog 'eye'
   bodyType       String?
   measurements   String?
   activeFrom     DateTime?
@@ -362,6 +363,7 @@ model PersonaPhysical {
   persona         Persona       @relation(fields: [personaId], references: [id])
   weight          Float?
   currentHairColor  String?
+  currentSecondaryHairColor String?  // Highlights / ombre / two-tone secondary, color_catalog 'hair'
   breastSize        String?    // Current cup letter (A/B/C/D/DD/E/F/G+)
   breastStatus      String?    // "natural" | "enhanced"
   breastDescription String?    // Free text, e.g. "Large (Real)"

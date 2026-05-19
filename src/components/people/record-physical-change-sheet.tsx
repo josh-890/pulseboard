@@ -27,6 +27,8 @@ export function RecordPhysicalChangeSheet({ personId, currentState, attributeGro
 
   // Pre-fill with current state values
   const initialHairColor = currentState?.currentHairColor ?? "";
+  const initialSecondaryHairColor =
+    (currentState as { currentSecondaryHairColor?: string | null } | undefined)?.currentSecondaryHairColor ?? "";
   const initialWeight = currentState?.weight != null ? String(currentState.weight) : "";
   const initialBuild = currentState?.build ?? "";
   const initialBreastSize = currentState?.breastSize ?? "";
@@ -43,6 +45,7 @@ export function RecordPhysicalChangeSheet({ personId, currentState, attributeGro
   }, [extensibleAttributes]);
 
   const [currentHairColor, setCurrentHairColor] = useState(initialHairColor);
+  const [currentSecondaryHairColor, setCurrentSecondaryHairColor] = useState(initialSecondaryHairColor);
   const [weight, setWeight] = useState(initialWeight);
   const [build, setBuild] = useState(initialBuild);
   const [breastSize, setBreastSize] = useState(initialBreastSize);
@@ -54,6 +57,7 @@ export function RecordPhysicalChangeSheet({ personId, currentState, attributeGro
 
   // Check if any field was actually changed from its initial value
   const hairChanged = currentHairColor.trim() !== initialHairColor;
+  const secondaryHairChanged = currentSecondaryHairColor.trim() !== initialSecondaryHairColor;
   const weightChanged = weight.trim() !== initialWeight;
   const buildChanged = build.trim() !== initialBuild;
   const breastSizeChanged = breastSize.trim() !== initialBreastSize;
@@ -62,7 +66,7 @@ export function RecordPhysicalChangeSheet({ personId, currentState, attributeGro
   const attrChanged = Object.entries(attrValues).some(
     ([id, v]) => v.trim() !== (initialAttrValues[id] ?? ""),
   );
-  const hasAnyChange = hairChanged || weightChanged || buildChanged || breastSizeChanged || breastStatusChanged || breastDescChanged || attrChanged;
+  const hasAnyChange = hairChanged || secondaryHairChanged || weightChanged || buildChanged || breastSizeChanged || breastStatusChanged || breastDescChanged || attrChanged;
 
   const handleSubmit = useCallback(() => {
     if (!hasAnyChange) {
@@ -81,6 +85,7 @@ export function RecordPhysicalChangeSheet({ personId, currentState, attributeGro
         date: date || null,
         datePrecision,
         currentHairColor: hairChanged && currentHairColor.trim() ? currentHairColor.trim() : undefined,
+        currentSecondaryHairColor: secondaryHairChanged && currentSecondaryHairColor.trim() ? currentSecondaryHairColor.trim() : undefined,
         weight: weightChanged && weight.trim() ? parseFloat(weight) : undefined,
         build: buildChanged && build.trim() ? build.trim() : undefined,
         breastSize: breastSizeChanged && breastSize.trim() ? breastSize.trim() : undefined,
@@ -94,7 +99,7 @@ export function RecordPhysicalChangeSheet({ personId, currentState, attributeGro
       }
       onClose();
     });
-  }, [personId, date, datePrecision, currentHairColor, weight, build, breastSize, breastStatus, breastDescription, attrValues, hasAnyChange, hairChanged, weightChanged, buildChanged, breastSizeChanged, breastStatusChanged, breastDescChanged, initialAttrValues, onClose]);
+  }, [personId, date, datePrecision, currentHairColor, currentSecondaryHairColor, weight, build, breastSize, breastStatus, breastDescription, attrValues, hasAnyChange, hairChanged, secondaryHairChanged, weightChanged, buildChanged, breastSizeChanged, breastStatusChanged, breastDescChanged, initialAttrValues, onClose]);
 
   return (
     <div role="dialog" aria-modal="true" className="fixed inset-0 z-50 flex justify-end">
@@ -128,6 +133,16 @@ export function RecordPhysicalChangeSheet({ personId, currentState, attributeGro
               value={currentHairColor || undefined}
               onChange={(v) => setCurrentHairColor(v ?? "")}
               placeholder="Select hair color…"
+            />
+          </div>
+
+          <div>
+            <label className="mb-1.5 block text-sm font-medium">Highlight / 2nd Hair Color</label>
+            <ColorValueCombobox
+              category="hair"
+              value={currentSecondaryHairColor || undefined}
+              onChange={(v) => setCurrentSecondaryHairColor(v ?? "")}
+              placeholder="Highlights, ombré, two-tone…"
             />
           </div>
 

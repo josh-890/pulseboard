@@ -355,6 +355,25 @@ export function PersonForm({ onSubmit, submitLabel = "Create Person", onCancel }
 
                     <FormField
                       control={form.control}
+                      name="secondaryEyeColor"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>2nd Eye Color</FormLabel>
+                          <FormControl>
+                            <ColorValueCombobox
+                              category="eye"
+                              value={field.value || undefined}
+                              onChange={(v) => field.onChange(v ?? "")}
+                              placeholder="Only for heterochromia"
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
                       name="naturalHairColor"
                       render={({ field }) => (
                         <FormItem>
@@ -425,6 +444,25 @@ export function PersonForm({ onSubmit, submitLabel = "Create Person", onCancel }
                               value={field.value || undefined}
                               onChange={(v) => field.onChange(v ?? "")}
                               placeholder="Select hair color..."
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="currentSecondaryHairColor"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Highlight / 2nd Color</FormLabel>
+                          <FormControl>
+                            <ColorValueCombobox
+                              category="hair"
+                              value={field.value || undefined}
+                              onChange={(v) => field.onChange(v ?? "")}
+                              placeholder="For highlights / ombré"
                             />
                           </FormControl>
                           <FormMessage />

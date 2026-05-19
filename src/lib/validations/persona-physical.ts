@@ -6,6 +6,7 @@ export const recordPhysicalChangeSchema = z
     date: z.string().optional(),
     datePrecision: z.enum(["UNKNOWN", "YEAR", "MONTH", "DAY"]).default("UNKNOWN"),
     currentHairColor: z.string().optional(),
+    currentSecondaryHairColor: z.string().optional(),
     weight: z.coerce.number().positive().optional(),
     build: z.string().optional(),
     breastSize: z.string().optional(),
@@ -15,6 +16,7 @@ export const recordPhysicalChangeSchema = z
   .refine(
     (data) =>
       data.currentHairColor ||
+      data.currentSecondaryHairColor ||
       data.weight !== undefined ||
       data.build ||
       data.breastSize ||
