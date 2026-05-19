@@ -26,11 +26,13 @@ const CATEGORICAL_FIELDS: Record<string, CategoricalFieldDef> = {
   ethnicity:        { column: Prisma.sql`p.ethnicity`,            caseInsensitive: true },
   bodyType:         { column: Prisma.sql`p."bodyType"`,           caseInsensitive: true },
   naturalHairColor: { column: Prisma.sql`p."naturalHairColor"`,   caseInsensitive: true },
-  // Hair / eye / skin classified via color_catalog into hue + shade columns on the MV
+  // Hair / eye classified via color_catalog. Lightness is ABSOLUTE — Dark on
+  // hairLightness means objectively dark, not "dark for the hue". Skin's
+  // secondary axis stays Undertone (Cool/Warm/Neutral, orthogonal to tone).
   hairHue:          { column: Prisma.sql`mv."hairHue"` },
-  hairShade:        { column: Prisma.sql`mv."hairShade"` },
+  hairLightness:    { column: Prisma.sql`mv."hairLightness"` },
   eyeHue:           { column: Prisma.sql`mv."eyeHue"` },
-  eyeShade:         { column: Prisma.sql`mv."eyeShade"` },
+  eyeLightness:     { column: Prisma.sql`mv."eyeLightness"` },
   skinTone:         { column: Prisma.sql`mv."skinTone"` },
   skinUndertone:    { column: Prisma.sql`mv."skinUndertone"` },
   nationality:      { column: Prisma.sql`p.nationality`,          caseInsensitive: true },
@@ -77,10 +79,12 @@ function buildCategoricalClauses(filters: CategoricalFilter[], timeScope: "curre
     const def = CATEGORICAL_FIELDS[f.field];
     if (!def) continue;
 
-    // "Ever" mode for hairHue / hairShade: search across all personas, not just
-    // the folded latest one. Joins through PersonaPhysical and looks up each
-    // persona's hair color in color_catalog.
-    if (timeScope === "ever" && (f.field === "hairHue" || f.field === "hairShade")) {
+    // "Ever" mode for hairHue / hairLightness: search across all personas, not
+    // just the folded latest one. Joins through PersonaPhysical and looks up
+    // each persona's hair color in color_catalog. Lightness lookup uses the
+    // catalog's `shade` column (renamed to Lightness in the MV; the underlying
+    // catalog column name was kept generic since skin reuses it for undertone).
+    if (timeScope === "ever" && (f.field === "hairHue" || f.field === "hairLightness")) {
       const lookupColumn = f.field === "hairHue" ? "hue" : "shade";
       out.push(Prisma.sql`EXISTS (
         SELECT 1 FROM "Persona" per
@@ -406,7 +410,7 @@ export async function getFacetCounts(spec: FilterSpec): Promise<FacetCounts> {
   // Categorical facets — for each field, drop its own filter from the spec
   const requestedCategoricalFields = new Set([
     "status", "ethnicity", "bodyType", "naturalHairColor",
-    "hairHue", "hairShade", "eyeHue", "eyeShade",
+    "hairHue", "hairLightness", "eyeHue", "eyeLightness",
     "skinTone", "skinUndertone", "nationality",
   ]);
   for (const field of requestedCategoricalFields) {

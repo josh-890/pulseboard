@@ -14,8 +14,8 @@ import {
 import type { ColorCatalogEntryRecord } from "@/lib/services/color-catalog-service";
 import {
   type ColorCategory,
-  HAIR_SHADE_ORDER,
-  EYE_SHADE_ORDER,
+  HAIR_LIGHTNESS_ORDER,
+  EYE_LIGHTNESS_ORDER,
   SKIN_TONE_ORDER,
   SKIN_UNDERTONE_ORDER,
   getAllHues,
@@ -28,8 +28,10 @@ type Props = {
 };
 
 const SECONDARY_AXIS_LABEL: Record<ColorCategory, string> = {
-  hair: "Shade",
-  eye: "Shade",
+  // Hair/eye lightness is ABSOLUTE — same scale across hues. Skin's secondary
+  // axis is undertone (Cool/Warm/Neutral), orthogonal to tone.
+  hair: "Lightness",
+  eye: "Lightness",
   skin: "Undertone",
 };
 
@@ -42,8 +44,8 @@ const PRIMARY_AXIS_LABEL: Record<ColorCategory, string> = {
 function axisOptions(category: ColorCategory, axis: "primary" | "secondary"): readonly string[] {
   if (axis === "primary") return getAllHues(category);
   switch (category) {
-    case "hair": return HAIR_SHADE_ORDER;
-    case "eye":  return EYE_SHADE_ORDER;
+    case "hair": return HAIR_LIGHTNESS_ORDER;
+    case "eye":  return EYE_LIGHTNESS_ORDER;
     case "skin": return SKIN_UNDERTONE_ORDER;
   }
 }
@@ -240,8 +242,8 @@ function EntryForm({
 
   const shadeRankFor = (cat: ColorCategory, s: string): number | null => {
     switch (cat) {
-      case "hair": return HAIR_SHADE_ORDER.indexOf(s as typeof HAIR_SHADE_ORDER[number]) + 1 || null;
-      case "eye":  return EYE_SHADE_ORDER.indexOf(s as typeof EYE_SHADE_ORDER[number]) + 1 || null;
+      case "hair": return HAIR_LIGHTNESS_ORDER.indexOf(s as typeof HAIR_LIGHTNESS_ORDER[number]) + 1 || null;
+      case "eye":  return EYE_LIGHTNESS_ORDER.indexOf(s as typeof EYE_LIGHTNESS_ORDER[number]) + 1 || null;
       case "skin": return SKIN_TONE_ORDER.indexOf(hue as typeof SKIN_TONE_ORDER[number]) + 1 || null;
     }
   };

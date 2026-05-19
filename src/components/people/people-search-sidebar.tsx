@@ -28,8 +28,8 @@ import {
   type TimeScope,
 } from "@/lib/types/filter-spec";
 import {
-  HAIR_SHADE_ORDER,
-  EYE_SHADE_ORDER,
+  HAIR_LIGHTNESS_ORDER,
+  EYE_LIGHTNESS_ORDER,
   SKIN_TONE_ORDER,
   SKIN_UNDERTONE_ORDER,
 } from "@/lib/constants/color-catalog";
@@ -659,13 +659,13 @@ export function PeopleSearchSidebar({
       </Section>
 
       <Section
-        title="Hair · Shade"
-        badge={countCategorical("hairShade")}
+        title="Hair · Lightness"
+        badge={countCategorical("hairLightness")}
       >
         <CategoricalControl
-          field="hairShade"
-          facets={facets.categorical.hairShade ?? []}
-          order={HAIR_SHADE_ORDER}
+          field="hairLightness"
+          facets={facets.categorical.hairLightness ?? []}
+          order={HAIR_LIGHTNESS_ORDER}
           spec={spec}
           onChange={apply}
         />
@@ -680,11 +680,11 @@ export function PeopleSearchSidebar({
         />
       </Section>
 
-      <Section title="Eye · Shade" badge={countCategorical("eyeShade")}>
+      <Section title="Eye · Lightness" badge={countCategorical("eyeLightness")}>
         <CategoricalControl
-          field="eyeShade"
-          facets={facets.categorical.eyeShade ?? []}
-          order={EYE_SHADE_ORDER}
+          field="eyeLightness"
+          facets={facets.categorical.eyeLightness ?? []}
+          order={EYE_LIGHTNESS_ORDER}
           spec={spec}
           onChange={apply}
         />

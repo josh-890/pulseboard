@@ -13,8 +13,8 @@ import {
 } from "@/components/ui/select";
 import {
   type ColorCategory,
-  HAIR_SHADE_ORDER,
-  EYE_SHADE_ORDER,
+  HAIR_LIGHTNESS_ORDER,
+  EYE_LIGHTNESS_ORDER,
   SKIN_TONE_ORDER,
   SKIN_UNDERTONE_ORDER,
   getAllHues,
@@ -167,8 +167,8 @@ function AddToCatalogForm({
 }) {
   const primaryOptions = category === "skin" ? SKIN_TONE_ORDER : getAllHues(category);
   const secondaryOptions =
-    category === "hair" ? HAIR_SHADE_ORDER :
-    category === "eye"  ? EYE_SHADE_ORDER :
+    category === "hair" ? HAIR_LIGHTNESS_ORDER :
+    category === "eye"  ? EYE_LIGHTNESS_ORDER :
                           SKIN_UNDERTONE_ORDER;
 
   const [hue, setHue] = useState(primaryOptions[0]);
@@ -178,8 +178,8 @@ function AddToCatalogForm({
 
   const shadeRankFor = (s: string): number | null => {
     switch (category) {
-      case "hair": return HAIR_SHADE_ORDER.indexOf(s as typeof HAIR_SHADE_ORDER[number]) + 1 || null;
-      case "eye":  return EYE_SHADE_ORDER.indexOf(s as typeof EYE_SHADE_ORDER[number]) + 1 || null;
+      case "hair": return HAIR_LIGHTNESS_ORDER.indexOf(s as typeof HAIR_LIGHTNESS_ORDER[number]) + 1 || null;
+      case "eye":  return EYE_LIGHTNESS_ORDER.indexOf(s as typeof EYE_LIGHTNESS_ORDER[number]) + 1 || null;
       case "skin": return SKIN_TONE_ORDER.indexOf(hue as typeof SKIN_TONE_ORDER[number]) + 1 || null;
     }
   };
@@ -203,7 +203,7 @@ function AddToCatalogForm({
   };
 
   const primaryLabel = category === "skin" ? "Tone" : "Hue";
-  const secondaryLabel = category === "skin" ? "Undertone" : "Shade";
+  const secondaryLabel = category === "skin" ? "Undertone" : "Lightness";
 
   return (
     <div className="space-y-2 rounded-md border border-blue-500/20 bg-blue-500/[0.04] p-2">

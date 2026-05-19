@@ -33,23 +33,26 @@ export const HAIR_COLORS: ColorCatalogEntry[] = [
   { value: "chestnut",      display: "Chestnut",      hue: "Brown",  shade: "Medium",     shadeRank: 3 },
   { value: "hazelnut",      display: "Hazelnut",      hue: "Brown",  shade: "Medium",     shadeRank: 3 },
   { value: "walnut",        display: "Walnut",        hue: "Brown",  shade: "Medium",     shadeRank: 3 },
-  { value: "light brown",   display: "Light Brown",   hue: "Brown",  shade: "Light",      shadeRank: 4 },
-  { value: "caramel",       display: "Caramel",       hue: "Brown",  shade: "Light",      shadeRank: 4 },
-  { value: "honey brown",   display: "Honey Brown",   hue: "Brown",  shade: "Light",      shadeRank: 4 },
-  { value: "golden brown",  display: "Golden Brown",  hue: "Brown",  shade: "Light",      shadeRank: 4 },
+  // Light Brown sits at absolute Level ~5 — same lightness tier as Brown.
+  { value: "light brown",   display: "Light Brown",   hue: "Brown",  shade: "Medium",     shadeRank: 3 },
+  { value: "caramel",       display: "Caramel",       hue: "Brown",  shade: "Medium",     shadeRank: 3 },
+  { value: "honey brown",   display: "Honey Brown",   hue: "Brown",  shade: "Medium",     shadeRank: 3 },
+  { value: "golden brown",  display: "Golden Brown",  hue: "Brown",  shade: "Medium",     shadeRank: 3 },
 
-  // Blonde
-  { value: "dark blonde",      display: "Dark Blonde",      hue: "Blonde", shade: "Dark",      shadeRank: 2 },
-  { value: "dirty blonde",     display: "Dirty Blonde",     hue: "Blonde", shade: "Dark",      shadeRank: 2 },
-  { value: "dishwater blonde", display: "Dishwater Blonde", hue: "Blonde", shade: "Dark",      shadeRank: 2 },
-  { value: "blonde",           display: "Blonde",           hue: "Blonde", shade: "Medium",    shadeRank: 3 },
-  { value: "golden",           display: "Golden",           hue: "Blonde", shade: "Medium",    shadeRank: 3 },
-  { value: "honey blonde",     display: "Honey Blonde",     hue: "Blonde", shade: "Medium",    shadeRank: 3 },
-  { value: "strawberry blonde",display: "Strawberry Blonde",hue: "Blonde", shade: "Medium",    shadeRank: 3 },
-  { value: "wheat",            display: "Wheat",            hue: "Blonde", shade: "Medium",    shadeRank: 3 },
-  { value: "light blonde",     display: "Light Blonde",     hue: "Blonde", shade: "Light",     shadeRank: 4 },
-  { value: "ash blonde",       display: "Ash Blonde",       hue: "Blonde", shade: "Light",     shadeRank: 4 },
+  // Blonde — absolute Lightness tiers (Level 6+ on the professional scale).
+  // Dark Blonde / Blonde / Honey Blonde all sit ABOVE Light Brown on the
+  // universal lightness axis, so they classify as Light not Dark.
+  { value: "dark blonde",      display: "Dark Blonde",      hue: "Blonde", shade: "Light",     shadeRank: 4 },
+  { value: "dirty blonde",     display: "Dirty Blonde",     hue: "Blonde", shade: "Light",     shadeRank: 4 },
+  { value: "dishwater blonde", display: "Dishwater Blonde", hue: "Blonde", shade: "Light",     shadeRank: 4 },
+  { value: "blonde",           display: "Blonde",           hue: "Blonde", shade: "Light",     shadeRank: 4 },
+  { value: "golden",           display: "Golden",           hue: "Blonde", shade: "Light",     shadeRank: 4 },
+  { value: "honey blonde",     display: "Honey Blonde",     hue: "Blonde", shade: "Light",     shadeRank: 4 },
+  { value: "strawberry blonde",display: "Strawberry Blonde",hue: "Blonde", shade: "Light",     shadeRank: 4 },
+  { value: "wheat",            display: "Wheat",            hue: "Blonde", shade: "Light",     shadeRank: 4 },
   { value: "sandy blonde",     display: "Sandy Blonde",     hue: "Blonde", shade: "Light",     shadeRank: 4 },
+  { value: "light blonde",     display: "Light Blonde",     hue: "Blonde", shade: "Very Light",shadeRank: 5 },
+  { value: "ash blonde",       display: "Ash Blonde",       hue: "Blonde", shade: "Very Light",shadeRank: 5 },
   { value: "platinum",         display: "Platinum",         hue: "Blonde", shade: "Very Light",shadeRank: 5 },
   { value: "platinum blonde",  display: "Platinum Blonde",  hue: "Blonde", shade: "Very Light",shadeRank: 5 },
   { value: "ice blonde",       display: "Ice Blonde",       hue: "Blonde", shade: "Very Light",shadeRank: 5 },
@@ -71,12 +74,12 @@ export const HAIR_COLORS: ColorCatalogEntry[] = [
   { value: "strawberry",    display: "Strawberry",    hue: "Red",   shade: "Light",  shadeRank: 4 },
   { value: "light red",     display: "Light Red",     hue: "Red",   shade: "Light",  shadeRank: 4 },
 
-  // Gray
-  { value: "salt and pepper", display: "Salt & Pepper", hue: "Gray",  shade: "Dark",   shadeRank: 2 },
-  { value: "charcoal",        display: "Charcoal",      hue: "Gray",  shade: "Dark",   shadeRank: 2 },
+  // Gray — absolute lightness; charcoal/salt-and-pepper sit mid, silver is light
+  { value: "salt and pepper", display: "Salt & Pepper", hue: "Gray",  shade: "Medium", shadeRank: 3 },
+  { value: "charcoal",        display: "Charcoal",      hue: "Gray",  shade: "Medium", shadeRank: 3 },
   { value: "gray",            display: "Gray",          hue: "Gray",  shade: "Medium", shadeRank: 3 },
   { value: "grey",            display: "Grey",          hue: "Gray",  shade: "Medium", shadeRank: 3 },
-  { value: "silver",          display: "Silver",        hue: "Gray",  shade: "Medium", shadeRank: 3 },
+  { value: "silver",          display: "Silver",        hue: "Gray",  shade: "Light",  shadeRank: 4 },
   { value: "light gray",      display: "Light Gray",    hue: "Gray",  shade: "Light",  shadeRank: 4 },
 
   // White — always Very Light
@@ -106,7 +109,8 @@ export const EYE_COLORS: ColorCatalogEntry[] = [
   { value: "brown",        display: "Brown",        hue: "Brown", shade: "Medium", shadeRank: 2 },
   { value: "chestnut",     display: "Chestnut",     hue: "Brown", shade: "Medium", shadeRank: 2 },
   { value: "mocha",        display: "Mocha",        hue: "Brown", shade: "Medium", shadeRank: 2 },
-  { value: "light brown",  display: "Light Brown",  hue: "Brown", shade: "Light",  shadeRank: 3 },
+  // Light Brown eyes still sit at mid-lightness on the absolute scale.
+  { value: "light brown",  display: "Light Brown",  hue: "Brown", shade: "Medium", shadeRank: 2 },
 
   // Blue
   { value: "deep blue",     display: "Deep Blue",     hue: "Blue", shade: "Dark",   shadeRank: 1 },
@@ -234,10 +238,12 @@ export function getAllShades(category: ColorCategory): string[] {
   return Array.from(seen);
 }
 
-// Ordered shade lists for the sidebar UI (preserves dark→light ordering)
-export const HAIR_SHADE_ORDER = ["Very Dark", "Dark", "Medium", "Light", "Very Light"] as const;
-export const EYE_SHADE_ORDER  = ["Dark", "Medium", "Light"] as const;
-export const SKIN_TONE_ORDER  = ["Fair", "Light", "Medium", "Tan", "Deep", "Ebony"] as const;
+// Ordered axis labels for the sidebar UI (preserves dark→light ordering for
+// hair/eye; tone is ordinal Fair→Ebony for skin). Hair/eye Lightness is
+// ABSOLUTE — Dark means objectively dark, not "dark for the hue".
+export const HAIR_LIGHTNESS_ORDER = ["Very Dark", "Dark", "Medium", "Light", "Very Light"] as const;
+export const EYE_LIGHTNESS_ORDER  = ["Dark", "Medium", "Light"] as const;
+export const SKIN_TONE_ORDER      = ["Fair", "Light", "Medium", "Tan", "Deep", "Ebony"] as const;
 export const SKIN_UNDERTONE_ORDER = ["Cool", "Warm", "Neutral"] as const;
 
 // ─── Heuristic auto-classification (for import / API paths) ─────────────────

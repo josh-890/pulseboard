@@ -164,6 +164,20 @@ function entriesOf(params: ReadableParams): [string, string][] {
   return out;
 }
 
+// Compat: hairShade/eyeShade were renamed to hairLightness/eyeLightness when
+// the shade dimension switched from relative to absolute. Any saved search
+// stored before the rename still references the old keys; remap on hydration.
+const LEGACY_KEY_RENAMES: Record<string, string> = {
+  "cat.hairShade": "cat.hairLightness",
+  "cat.hairShade.mode": "cat.hairLightness.mode",
+  "cat.eyeShade": "cat.eyeLightness",
+  "cat.eyeShade.mode": "cat.eyeLightness.mode",
+};
+
+function renameLegacyKey(key: string): string {
+  return LEGACY_KEY_RENAMES[key] ?? key;
+}
+
 export function specFromUrlParams(params: ReadableParams): FilterSpec {
   const spec: FilterSpec = {
     categorical: [],
@@ -180,7 +194,8 @@ export function specFromUrlParams(params: ReadableParams): FilterSpec {
   const regionFields = new Map<PresenceField, RegionFilter>();
   const textFields = new Map<string, TextFilter>();
 
-  for (const [key, value] of entriesOf(params)) {
+  for (const [rawKey, value] of entriesOf(params)) {
+    const key = renameLegacyKey(rawKey);
     if (key === "time") {
       if (value === "ever") spec.timeScope = "ever";
       continue;
