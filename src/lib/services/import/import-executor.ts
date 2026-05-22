@@ -260,40 +260,57 @@ export async function importPerson(item: ImportItem): Promise<ImportResult> {
       })
     }
 
-    // Update baseline era physical with breast data + hair color
-    if (breastParsed || hairColor) {
+    // Baseline breast data → a ScalarDelta. (hair colour was set as a delta by
+    // createPersonRecord via currentHairColor.) Enhanced status → a procedure.
+    if (naturalCup || breastParsed) {
       const baselineEra = await prisma.era.findFirst({
         where: { personId: person.id, isBaseline: true },
         select: { id: true },
       })
 
-      if (baselineEra) {
-        // createPersonRecord may have already created a PersonaPhysical if currentHairColor was set
-        const existing = await prisma.personaPhysical.findUnique({
-          where: { eraId: baselineEra.id },
+      if (baselineEra && naturalCup) {
+        await prisma.scalarDelta.deleteMany({
+          where: { eraId: baselineEra.id, attributeDefinitionId: 'cattr-breast-size' },
         })
+        await prisma.scalarDelta.create({
+          data: {
+            eraId: baselineEra.id,
+            attributeDefinitionId: 'cattr-breast-size',
+            value: naturalCup,
+            notes: breastParsed?.raw ?? null,
+          },
+        })
+      }
 
-        const physicalData: Record<string, unknown> = {}
-        if (hairColor) physicalData.currentHairColor = hairColor
-        if (naturalCup) physicalData.breastSize = naturalCup
-        if (breastParsed) {
-          physicalData.breastStatus = breastParsed.status
-          physicalData.breastDescription = breastParsed.raw
-        }
-
-        if (existing) {
-          await prisma.personaPhysical.update({
-            where: { id: existing.id },
-            data: physicalData,
-          })
-        } else {
-          await prisma.personaPhysical.create({
-            data: {
-              eraId: baselineEra.id,
-              ...physicalData,
-            },
-          })
-        }
+      // "Enhanced" is the derived Attribute status — model it as a procedure.
+      if (breastParsed?.status === 'enhanced') {
+        let draftEra = await prisma.era.findFirst({
+          where: { personId: person.id, label: 'Imported — undated changes', isDraft: true },
+        })
+        draftEra ??= await prisma.era.create({
+          data: { personId: person.id, label: 'Imported — undated changes', isDraft: true },
+        })
+        const procedure = await prisma.cosmeticProcedure.create({
+          data: {
+            personId: person.id,
+            type: 'breast augmentation',
+            bodyRegion: 'chest',
+            bodyRegions: ['chest'],
+            description: breastParsed.raw,
+            status: 'completed',
+            attributeDefinitionId: 'cattr-breast-size',
+          },
+        })
+        await prisma.cosmeticProcedureEvent.create({
+          data: {
+            cosmeticProcedureId: procedure.id,
+            eraId: draftEra.id,
+            eventType: 'performed',
+            datePrecision: 'UNKNOWN',
+            valueAfter: naturalCup,
+            notes: `import: "${breastParsed.raw}"`,
+          },
+        })
       }
     }
 

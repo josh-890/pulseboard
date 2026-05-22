@@ -162,7 +162,7 @@ async function cleanupTestData() {
             await tx.$executeRaw`DELETE FROM "BodyMarkEvent" WHERE "personaId" = ${pId}`;
             await tx.$executeRaw`DELETE FROM "BodyModificationEvent" WHERE "personaId" = ${pId}`;
             await tx.$executeRaw`DELETE FROM "CosmeticProcedureEvent" WHERE "personaId" = ${pId}`;
-            await tx.$executeRaw`DELETE FROM "PersonaPhysical" WHERE "personaId" = ${pId}`;
+            await tx.$executeRaw`DELETE FROM "ScalarDelta" WHERE "eraId" = ${pId}`;
             await tx.$executeRaw`DELETE FROM "PersonDigitalIdentity" WHERE "personaId" = ${pId}`;
             await tx.$executeRaw`DELETE FROM "PersonSkillEvent" WHERE "personaId" = ${pId}`;
           }
@@ -278,7 +278,7 @@ async function cleanupTestData() {
       await tx.$executeRaw`DELETE FROM "BodyMarkEvent" WHERE "personaId" = ${pId}`;
       await tx.$executeRaw`DELETE FROM "BodyModificationEvent" WHERE "personaId" = ${pId}`;
       await tx.$executeRaw`DELETE FROM "CosmeticProcedureEvent" WHERE "personaId" = ${pId}`;
-      await tx.$executeRaw`DELETE FROM "PersonaPhysical" WHERE "personaId" = ${pId}`;
+      await tx.$executeRaw`DELETE FROM "ScalarDelta" WHERE "eraId" = ${pId}`;
       await tx.$executeRaw`DELETE FROM "PersonDigitalIdentity" WHERE "personaId" = ${pId}`;
       await tx.$executeRaw`DELETE FROM "PersonSkillEvent" WHERE "personaId" = ${pId}`;
     }

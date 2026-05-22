@@ -213,7 +213,7 @@ export async function updatePhysicalAttributeDefinition(
 
 export async function deletePhysicalAttributeDefinition(id: string) {
   const [attrCount, procCount] = await Promise.all([
-    prisma.personaPhysicalAttribute.count({
+    prisma.scalarDelta.count({
       where: { attributeDefinitionId: id },
     }),
     prisma.cosmeticProcedure.count({

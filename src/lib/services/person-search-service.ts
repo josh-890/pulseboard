@@ -91,10 +91,12 @@ function buildCategoricalClauses(filters: CategoricalFilter[], timeScope: "curre
       const lookupColumn = f.field === "hairHue" ? "hue" : "shade";
       out.push(Prisma.sql`EXISTS (
         SELECT 1 FROM "Persona" per
-        JOIN "PersonaPhysical" pp ON pp."personaId" = per.id
+        JOIN "ScalarDelta" sd ON sd."eraId" = per.id
+        JOIN "PhysicalAttributeDefinition" pad
+          ON pad.id = sd."attributeDefinitionId" AND pad.slug = 'hair_color'
         JOIN color_catalog cc
           ON cc.category = 'hair'
-         AND cc.value_norm = unaccent(lower(trim(coalesce(pp."currentHairColor", ''))))
+         AND cc.value_norm = unaccent(lower(trim(coalesce(sd.value, ''))))
         WHERE per."personId" = p.id
           AND cc.${Prisma.raw(lookupColumn)} = ANY(${f.values})
       )`);
@@ -128,19 +130,21 @@ function buildRangeClauses(filters: RangeFilter[], timeScope: "current" | "ever"
         out.push(Prisma.sql`${def.column} <= (CURRENT_DATE - (${f.min} * INTERVAL '1 year'))`);
       }
     } else if (timeScope === "ever" && f.field === "weight") {
-      // Any persona's weight within range
+      // Any era's weight delta within range
       const min = f.min != null && f.tolerance != null ? f.min - f.tolerance : f.min;
       const max = f.max != null && f.tolerance != null ? f.max + f.tolerance : f.max;
       const bounds: Prisma.Sql[] = [];
-      if (min != null) bounds.push(Prisma.sql`pp.weight >= ${min}`);
-      if (max != null) bounds.push(Prisma.sql`pp.weight <= ${max}`);
+      if (min != null) bounds.push(Prisma.sql`sd.value::double precision >= ${min}`);
+      if (max != null) bounds.push(Prisma.sql`sd.value::double precision <= ${max}`);
       const inner = bounds.length > 0
         ? bounds.reduce((a, b, i) => (i === 0 ? b : Prisma.sql`${a} AND ${b}`))
-        : Prisma.sql`pp.weight IS NOT NULL`;
+        : Prisma.sql`true`;
       out.push(Prisma.sql`EXISTS (
         SELECT 1 FROM "Persona" per
-        JOIN "PersonaPhysical" pp ON pp."personaId" = per.id
-        WHERE per."personId" = p.id AND ${inner}
+        JOIN "ScalarDelta" sd ON sd."eraId" = per.id
+        JOIN "PhysicalAttributeDefinition" pad
+          ON pad.id = sd."attributeDefinitionId" AND pad.slug = 'weight'
+        WHERE per."personId" = p.id AND sd.value ~ '^[0-9.]+$' AND ${inner}
       )`);
     } else {
       const min = f.min != null && f.tolerance != null ? f.min - f.tolerance : f.min;
@@ -233,11 +237,10 @@ function buildAttributeClauses(
       if (hasValues) {
         out.push(Prisma.sql`EXISTS (
           SELECT 1 FROM "Persona" per
-          JOIN "PersonaPhysical" pp ON pp."personaId" = per.id
-          JOIN "PersonaPhysicalAttribute" ppa ON ppa."personaPhysicalId" = pp.id
+          JOIN "ScalarDelta" sd ON sd."eraId" = per.id
           WHERE per."personId" = p.id
-            AND ppa."attributeDefinitionId" = ${f.definitionId}
-            AND ppa.value = ANY(${f.values})
+            AND sd."attributeDefinitionId" = ${f.definitionId}
+            AND sd.value = ANY(${f.values})
         )`);
       }
       continue;

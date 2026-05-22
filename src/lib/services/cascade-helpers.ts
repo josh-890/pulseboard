@@ -272,19 +272,8 @@ export async function cascadeDeleteEra(
   tx: TxClient,
   eraId: string,
 ) {
-  // PersonaPhysical + PersonaPhysicalAttribute
-  const personaPhysicals = await tx.personaPhysical.findMany({
-    where: { eraId },
-    select: { id: true },
-  });
-  if (personaPhysicals.length > 0) {
-    await tx.personaPhysicalAttribute.deleteMany({
-      where: { personaPhysicalId: { in: personaPhysicals.map((p) => p.id) } },
-    });
-  }
-  await tx.personaPhysical.deleteMany({
-    where: { eraId },
-  });
+  // ScalarDelta
+  await tx.scalarDelta.deleteMany({ where: { eraId } });
   await tx.bodyMarkEvent.deleteMany({
     where: { eraId },
   });

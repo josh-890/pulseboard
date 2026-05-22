@@ -17,8 +17,14 @@ export async function GET(
         aliases: { where: { isCommon: true }, take: 1 },
         eras: {
           where: { isBaseline: true },
-          include: { physicalChange: true },
+          include: {
+            scalarDeltas: { include: { attributeDefinition: { select: { slug: true } } } },
+          },
           take: 1,
+        },
+        cosmeticProcedures: {
+          where: { attributeDefinitionId: "cattr-breast-size" },
+          select: { id: true },
         },
       },
     })
@@ -27,7 +33,24 @@ export async function GET(
       return NextResponse.json({ person: null }, { status: 404 })
     }
 
-    const baseline = person.eras[0]?.physicalChange ?? null
+    const baselineDeltas = person.eras[0]?.scalarDeltas ?? []
+    const deltaFor = (slug: string) =>
+      baselineDeltas.find((d) => d.attributeDefinition.slug === slug) ?? null
+    const hairDelta = deltaFor("hair_color")
+    const breastDelta = deltaFor("breast_size")
+    const baseline =
+      hairDelta || breastDelta
+        ? {
+            currentHairColor: hairDelta?.value ?? null,
+            breastSize: breastDelta?.value ?? null,
+            breastStatus: person.cosmeticProcedures.length > 0
+              ? "enhanced"
+              : breastDelta
+                ? "natural"
+                : null,
+            breastDescription: breastDelta?.notes ?? null,
+          }
+        : null
 
     return NextResponse.json({
       person: {

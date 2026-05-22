@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { ensureCatalogEntry } from "@/lib/services/color-catalog-service";
 import type {
+  Prisma,
   DatePrecision,
   BodyMarkType,
   BodyMarkStatus,
@@ -980,19 +981,66 @@ export async function deleteCosmeticProcedureEventAction(
 
 // ─── Physical Change Action ─────────────────────────────────────────────────
 
+type PhysicalChangeData = {
+  date?: string | null;
+  datePrecision?: string;
+  currentHairColor?: string;
+  weight?: number;
+  build?: string;
+  breastSize?: string;
+  breastStatus?: string; // accepted for compatibility — status is derived, not stored
+  breastDescription?: string;
+  attributes?: { definitionId: string; value: string }[];
+};
+
+type ScalarDeltaItem = { attributeDefinitionId: string; value: string; notes?: string | null };
+
+// Map a physical-change form payload to ScalarDelta items.
+function buildPhysicalDeltaItems(data: PhysicalChangeData): ScalarDeltaItem[] {
+  const items: ScalarDeltaItem[] = [];
+  if (data.currentHairColor !== undefined)
+    items.push({ attributeDefinitionId: "cattr-hair-color", value: data.currentHairColor });
+  if (data.weight !== undefined)
+    items.push({ attributeDefinitionId: "cattr-weight", value: data.weight != null ? String(data.weight) : "" });
+  if (data.build !== undefined)
+    items.push({ attributeDefinitionId: "cattr-build", value: data.build });
+  if (data.breastSize !== undefined)
+    items.push({ attributeDefinitionId: "cattr-breast-size", value: data.breastSize, notes: data.breastDescription ?? null });
+  for (const a of data.attributes ?? [])
+    items.push({ attributeDefinitionId: a.definitionId, value: a.value });
+  return items;
+}
+
+// Replace an era's deltas for each provided attribute (delete-then-create).
+async function replaceEraScalarDeltas(
+  tx: Prisma.TransactionClient,
+  eraId: string,
+  items: ScalarDeltaItem[],
+  date: Date | null,
+  datePrecision: DatePrecision,
+) {
+  for (const item of items) {
+    await tx.scalarDelta.deleteMany({
+      where: { eraId, attributeDefinitionId: item.attributeDefinitionId },
+    });
+    if (item.value.trim() !== "") {
+      await tx.scalarDelta.create({
+        data: {
+          eraId,
+          attributeDefinitionId: item.attributeDefinitionId,
+          value: item.value,
+          notes: item.notes ?? null,
+          date,
+          datePrecision,
+        },
+      });
+    }
+  }
+}
+
 export async function recordPhysicalChangeAction(
   personId: string,
-  data: {
-    date?: string | null;
-    datePrecision?: string;
-    currentHairColor?: string;
-    weight?: number;
-    build?: string;
-    breastSize?: string;
-    breastStatus?: string;
-    breastDescription?: string;
-    attributes?: { definitionId: string; value: string }[];
-  },
+  data: PhysicalChangeData,
 ): Promise<ActionResultWithId> {
   return withTenantFromHeaders(async () => {
     try {
@@ -1003,50 +1051,7 @@ export async function recordPhysicalChangeAction(
 
       await prisma.$transaction(async (tx) => {
         const eraId = await findOrCreateEraForDate(tx, personId, date, precision);
-        const physical = await tx.personaPhysical.upsert({
-          where: { eraId },
-          create: {
-            eraId,
-            currentHairColor: data.currentHairColor ?? null,
-            weight: data.weight ?? null,
-            build: data.build ?? null,
-            breastSize: data.breastSize ?? null,
-            breastStatus: data.breastStatus ?? null,
-            breastDescription: data.breastDescription ?? null,
-            date,
-            datePrecision: precision,
-          },
-          update: {
-            ...(data.currentHairColor !== undefined && { currentHairColor: data.currentHairColor || null }),
-            ...(data.weight !== undefined && { weight: data.weight || null }),
-            ...(data.build !== undefined && { build: data.build || null }),
-            ...(data.breastSize !== undefined && { breastSize: data.breastSize || null }),
-            ...(data.breastStatus !== undefined && { breastStatus: data.breastStatus || null }),
-            ...(data.breastDescription !== undefined && { breastDescription: data.breastDescription || null }),
-            date,
-            datePrecision: precision,
-          },
-        });
-
-        // Upsert extensible attributes
-        if (data.attributes && data.attributes.length > 0) {
-          for (const attr of data.attributes) {
-            await tx.personaPhysicalAttribute.upsert({
-              where: {
-                personaPhysicalId_attributeDefinitionId: {
-                  personaPhysicalId: physical.id,
-                  attributeDefinitionId: attr.definitionId,
-                },
-              },
-              create: {
-                personaPhysicalId: physical.id,
-                attributeDefinitionId: attr.definitionId,
-                value: attr.value,
-              },
-              update: { value: attr.value },
-            });
-          }
-        }
+        await replaceEraScalarDeltas(tx, eraId, buildPhysicalDeltaItems(data), date, precision);
         await recomputePersonCurrentState(tx, personId);
       });
 
@@ -1060,89 +1065,21 @@ export async function recordPhysicalChangeAction(
   });
 }
 
+// `eraId` identifies the physical change being edited (its era's scalar deltas).
 export async function updatePhysicalChangeAction(
-  physicalId: string,
+  eraId: string,
   personId: string,
-  data: {
-    currentHairColor?: string;
-    weight?: number;
-    build?: string;
-    breastSize?: string;
-    breastStatus?: string;
-    breastDescription?: string;
-    date?: string | null;
-    datePrecision?: string;
-    attributes?: { definitionId: string; value: string }[];
-  },
+  data: PhysicalChangeData,
 ): Promise<ActionResultWithId> {
   return withTenantFromHeaders(async () => {
     try {
-      const parsedDate = data.date ? new Date(data.date) : null;
+      const date = data.date ? new Date(data.date) : null;
       const precision = (data.datePrecision ?? "UNKNOWN") as DatePrecision;
 
       await ensureCatalogEntry("hair", data.currentHairColor);
 
       await prisma.$transaction(async (tx) => {
-        const existing = await tx.personaPhysical.findUniqueOrThrow({
-          where: { id: physicalId },
-          include: { era: true },
-        });
-
-        const oldEraId = existing.eraId;
-        const hasDateChange = data.date !== undefined || data.datePrecision !== undefined;
-        let targetEraId = oldEraId;
-
-        if (hasDateChange) {
-          targetEraId = await findOrCreateEraForDate(tx, personId, parsedDate, precision);
-        }
-
-        const fieldData = {
-          currentHairColor: data.currentHairColor !== undefined ? (data.currentHairColor || null) : existing.currentHairColor,
-          weight: data.weight !== undefined ? (data.weight || null) : existing.weight,
-          build: data.build !== undefined ? (data.build || null) : existing.build,
-          breastSize: data.breastSize !== undefined ? (data.breastSize || null) : existing.breastSize,
-          breastStatus: data.breastStatus !== undefined ? (data.breastStatus || null) : existing.breastStatus,
-          breastDescription: data.breastDescription !== undefined ? (data.breastDescription || null) : existing.breastDescription,
-          date: parsedDate,
-          datePrecision: precision,
-        };
-
-        let newPhysicalId: string;
-        if (targetEraId !== oldEraId) {
-          await tx.personaPhysical.delete({ where: { id: physicalId } });
-          const created = await tx.personaPhysical.upsert({
-            where: { eraId: targetEraId },
-            create: { eraId: targetEraId, ...fieldData },
-            update: fieldData,
-          });
-          newPhysicalId = created.id;
-        } else {
-          await tx.personaPhysical.update({
-            where: { id: physicalId },
-            data: fieldData,
-          });
-          newPhysicalId = physicalId;
-        }
-
-        // Upsert extensible attributes
-        if (data.attributes && data.attributes.length > 0) {
-          for (const attr of data.attributes) {
-            await tx.personaPhysicalAttribute.upsert({
-              where: {
-                personaPhysicalId_attributeDefinitionId: {
-                  personaPhysicalId: newPhysicalId,
-                  attributeDefinitionId: attr.definitionId,
-                },
-              },
-              create: {
-                personaPhysicalId: newPhysicalId,
-                attributeDefinitionId: attr.definitionId,
-                value: attr.value,
-              },
-              update: { value: attr.value },
-            });
-          }
-        }
+        await replaceEraScalarDeltas(tx, eraId, buildPhysicalDeltaItems(data), date, precision);
         await recomputePersonCurrentState(tx, personId);
       });
 

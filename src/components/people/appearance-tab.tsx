@@ -77,7 +77,6 @@ type PhysicalAttributeItem = {
 };
 
 type PhysicalChangeItem = {
-  physicalId: string;
   eraId: string;
   eraLabel: string;
   isBaseline: boolean;
@@ -129,6 +128,11 @@ export type AppearanceTabProps = {
   attributeGroups?: PhysicalAttributeGroupWithDefinitions[];
 };
 
+// Core scalars get dedicated display rows; everything else is an extensible attribute.
+const CORE_PHYSICAL_ATTR_IDS = new Set([
+  "cattr-hair-color", "cattr-weight", "cattr-build", "cattr-breast-size", "cattr-measurements",
+]);
+
 const ENTITY_FIELD_MAP: Record<string, 'bodyMarkId' | 'bodyModificationId' | 'cosmeticProcedureId'> = {
   BodyMark: 'bodyMarkId',
   BodyModification: 'bodyModificationId',
@@ -177,30 +181,37 @@ export function AppearanceTab({
     return groups;
   }, [currentState.extensibleAttributes]);
 
-  // Build physical change history from eras
+  // Build physical-change history from each era's scalar deltas.
   const physicalChanges = useMemo<PhysicalChangeItem[]>(() => {
     return person.eras
-      .filter((p) => p.physicalChange)
-      .map((p) => ({
-        physicalId: p.physicalChange!.id,
-        eraId: p.id,
-        eraLabel: p.label,
-        isBaseline: p.isBaseline,
-        date: p.date,
-        datePrecision: p.datePrecision,
-        currentHairColor: p.physicalChange!.currentHairColor,
-        weight: p.physicalChange!.weight,
-        build: p.physicalChange!.build,
-        breastSize: p.physicalChange!.breastSize,
-        breastStatus: p.physicalChange!.breastStatus,
-        breastDescription: p.physicalChange!.breastDescription,
-        attributes: (p.physicalChange!.attributes ?? []).map((a: { attributeDefinitionId: string; value: string; attributeDefinition: { name: string; unit: string | null } }) => ({
-          definitionId: a.attributeDefinitionId,
-          name: a.attributeDefinition.name,
-          unit: a.attributeDefinition.unit,
-          value: a.value,
-        })),
-      }));
+      .filter((p) => p.scalarDeltas.length > 0)
+      .map((p) => {
+        const deltaFor = (defId: string) =>
+          p.scalarDeltas.find((d) => d.attributeDefinitionId === defId && d.value.trim() !== "");
+        const weightVal = deltaFor("cattr-weight")?.value;
+        const breastDelta = deltaFor("cattr-breast-size");
+        return {
+          eraId: p.id,
+          eraLabel: p.label,
+          isBaseline: p.isBaseline,
+          date: p.date,
+          datePrecision: p.datePrecision,
+          currentHairColor: deltaFor("cattr-hair-color")?.value ?? null,
+          weight: weightVal ? Number(weightVal) : null,
+          build: deltaFor("cattr-build")?.value ?? null,
+          breastSize: breastDelta?.value ?? null,
+          breastStatus: null,
+          breastDescription: breastDelta?.notes ?? null,
+          attributes: p.scalarDeltas
+            .filter((d) => !CORE_PHYSICAL_ATTR_IDS.has(d.attributeDefinitionId) && d.value.trim() !== "")
+            .map((d) => ({
+              definitionId: d.attributeDefinitionId,
+              name: d.attributeDefinition.name,
+              unit: d.attributeDefinition.unit,
+              value: d.value,
+            })),
+        };
+      });
   }, [person.eras]);
 
   const handleDeleteBodyMark = useCallback((markId: string) => {
@@ -635,7 +646,7 @@ export function AppearanceTab({
 
                         return (
                           <div
-                            key={item.physicalId}
+                            key={item.eraId}
                             className="group/change flex items-start gap-3 rounded-lg border border-white/10 bg-muted/20 px-3 py-2"
                           >
                             <div className="min-w-0 flex-1">

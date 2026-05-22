@@ -39,7 +39,7 @@ export async function computeProfileCompleteness(
     }),
     prisma.era.findFirst({
       where: { personId, isBaseline: true },
-      include: { physicalChange: true },
+      include: { scalarDeltas: { select: { attributeDefinitionId: true, value: true } } },
     }),
   ]);
 
@@ -47,7 +47,9 @@ export async function computeProfileCompleteness(
     return { score: 0, fields: {} };
   }
 
-  const physical = baselinePhysical?.physicalChange;
+  const baselineDeltas = baselinePhysical?.scalarDeltas ?? [];
+  const hasDelta = (defId: string) =>
+    baselineDeltas.some((d) => d.attributeDefinitionId === defId && d.value.trim() !== "");
 
   const fields: CompletenessBreakdown["fields"] = {
     birthdate: { filled: person.birthdate !== null, weight: WEIGHTS.birthdate, label: "Birthdate" },
@@ -58,8 +60,8 @@ export async function computeProfileCompleteness(
     eyeColor: { filled: !!person.eyeColor, weight: WEIGHTS.eyeColor, label: "Eye Color" },
     naturalHairColor: { filled: !!person.naturalHairColor, weight: WEIGHTS.naturalHairColor, label: "Natural Hair Color" },
     height: { filled: person.height !== null, weight: WEIGHTS.height, label: "Height" },
-    currentHairColor: { filled: !!physical?.currentHairColor, weight: WEIGHTS.currentHairColor, label: "Current Hair Color" },
-    build: { filled: !!physical?.build, weight: WEIGHTS.build, label: "Build" },
+    currentHairColor: { filled: hasDelta("cattr-hair-color"), weight: WEIGHTS.currentHairColor, label: "Current Hair Color" },
+    build: { filled: hasDelta("cattr-build"), weight: WEIGHTS.build, label: "Build" },
     birthPlace: { filled: !!person.birthPlace, weight: WEIGHTS.birthPlace, label: "Birth Place" },
     birthAlias: { filled: person.aliases.length > 0, weight: WEIGHTS.birthAlias, label: "Birth Name" },
     setParticipation: { filled: setParticipant !== null, weight: WEIGHTS.setParticipation, label: "Set Participation" },
@@ -105,20 +107,23 @@ export async function batchComputeCompleteness(
     }),
     prisma.era.findMany({
       where: { personId: { in: personIds }, isBaseline: true },
-      include: { physicalChange: true },
+      include: { scalarDeltas: { select: { attributeDefinitionId: true, value: true } } },
     }),
   ]);
 
   const hasHeadshot = new Set(headshotLinks.map((h) => h.personId));
   const hasSet = new Set(setParticipants.map((s) => s.personId));
-  const physicalMap = new Map(
-    baselinePhysicals.map((p) => [p.personId, p.physicalChange]),
+  const deltaMap = new Map(
+    baselinePhysicals.map((p) => [p.personId, p.scalarDeltas]),
   );
+  const hasDelta = (
+    deltas: { attributeDefinitionId: string; value: string }[] | undefined,
+    defId: string,
+  ) => (deltas ?? []).some((d) => d.attributeDefinitionId === defId && d.value.trim() !== "");
 
   const result = new Map<string, number>();
 
   for (const person of persons) {
-    const physical = physicalMap.get(person.id);
     let score = 0;
 
     if (person.birthdate !== null) score += WEIGHTS.birthdate;
@@ -129,8 +134,8 @@ export async function batchComputeCompleteness(
     if (person.eyeColor) score += WEIGHTS.eyeColor;
     if (person.naturalHairColor) score += WEIGHTS.naturalHairColor;
     if (person.height !== null) score += WEIGHTS.height;
-    if (physical?.currentHairColor) score += WEIGHTS.currentHairColor;
-    if (physical?.build) score += WEIGHTS.build;
+    if (hasDelta(deltaMap.get(person.id), "cattr-hair-color")) score += WEIGHTS.currentHairColor;
+    if (hasDelta(deltaMap.get(person.id), "cattr-build")) score += WEIGHTS.build;
     if (person.birthPlace) score += WEIGHTS.birthPlace;
     if (person.birthAlias) score += WEIGHTS.birthAlias;
     if (hasSet.has(person.id)) score += WEIGHTS.setParticipation;

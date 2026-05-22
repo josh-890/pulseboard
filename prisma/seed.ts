@@ -172,17 +172,18 @@ async function main() {
     },
   });
 
-  await prisma.personaPhysical.upsert({
-    where: { id: "seed-era-physical-1" },
-    update: {},
-    create: {
-      id: "seed-era-physical-1",
-      eraId: eventEra.id,
-      currentHairColor: "blonde",
-      weight: 57.0,
-      build: "athletic",
-    },
-  });
+  // Physical changes are ScalarDeltas against the Core Physical catalog (Phase C).
+  for (const d of [
+    { id: "seed-delta-hair", attributeDefinitionId: "cattr-hair-color", value: "blonde" },
+    { id: "seed-delta-weight", attributeDefinitionId: "cattr-weight", value: "57" },
+    { id: "seed-delta-build", attributeDefinitionId: "cattr-build", value: "athletic" },
+  ]) {
+    await prisma.scalarDelta.upsert({
+      where: { id: d.id },
+      update: {},
+      create: { id: d.id, eraId: eventEra.id, attributeDefinitionId: d.attributeDefinitionId, value: d.value },
+    });
+  }
 
   // ─── Body Mark ──────────────────────────────────────────────────────────────
 

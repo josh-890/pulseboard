@@ -26,14 +26,13 @@ export function EraTimelineEntry({ era, personId, connectAbove, connectBelow }: 
   const [draftLabel, setDraftLabel] = useState(era.label);
   const [draftNotes, setDraftNotes] = useState(era.notes ?? "");
 
-  const hasPhysical = !!era.physicalChange;
-  const physicalFields = hasPhysical
-    ? [
-        era.physicalChange?.currentHairColor ? `Hair: ${era.physicalChange.currentHairColor}` : null,
-        era.physicalChange?.weight ? `Weight: ${era.physicalChange.weight} kg` : null,
-        era.physicalChange?.build ? `Build: ${era.physicalChange.build}` : null,
-      ].filter(Boolean)
-    : [];
+  // One pill per scalar delta in this era — "Attribute: value".
+  const physicalFields = era.scalarDeltas
+    .filter((d) => d.value.trim() !== "")
+    .map((d) => {
+      const unit = d.attributeDefinition.unit ? ` ${d.attributeDefinition.unit}` : "";
+      return `${d.attributeDefinition.name}: ${d.value}${unit}`;
+    });
 
   const startEditing = useCallback((field: "label" | "notes") => {
     setDraftLabel(savedLabel);

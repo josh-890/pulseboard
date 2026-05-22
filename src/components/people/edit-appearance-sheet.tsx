@@ -66,7 +66,11 @@ export function EditAppearanceSheet({ person, open: controlledOpen, onOpenChange
   }
 
   const baselineEra = person.eras.find((p) => p.isBaseline);
-  const physical = baselineEra?.physicalChange;
+  const baselineDeltaValue = (defId: string) =>
+    baselineEra?.scalarDeltas.find(
+      (d) => d.attributeDefinitionId === defId && d.value.trim() !== "",
+    )?.value ?? null;
+  const weightValue = baselineDeltaValue("cattr-weight");
 
   const getDefaults = (): UpdateAppearanceFormValues => ({
     id: person.id,
@@ -75,9 +79,9 @@ export function EditAppearanceSheet({ person, open: controlledOpen, onOpenChange
     naturalBreastSize: person.naturalBreastSize ?? "",
     measurements: person.measurements ?? "",
     height: person.height ?? undefined,
-    weight: physical?.weight ?? undefined,
-    build: physical?.build ?? undefined,
-    currentHairColor: physical?.currentHairColor ?? "",
+    weight: weightValue ? Number(weightValue) : undefined,
+    build: baselineDeltaValue("cattr-build") ?? undefined,
+    currentHairColor: baselineDeltaValue("cattr-hair-color") ?? "",
   });
 
   const form = useForm<UpdateAppearanceFormValues, unknown, UpdateAppearanceInput>({

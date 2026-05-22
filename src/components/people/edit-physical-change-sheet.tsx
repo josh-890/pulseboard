@@ -20,7 +20,6 @@ type PhysicalAttributeItem = {
 };
 
 type PhysicalChangeItem = {
-  physicalId: string;
   eraId: string;
   eraLabel: string;
   isBaseline: boolean;
@@ -102,7 +101,7 @@ export function EditPhysicalChangeSheet({ personId, item, attributeGroups, onClo
         .filter(([, v]) => v.trim())
         .map(([definitionId, value]) => ({ definitionId, value: value.trim() }));
 
-      const result = await updatePhysicalChangeAction(item.physicalId, personId, {
+      const result = await updatePhysicalChangeAction(item.eraId, personId, {
         date: date || null,
         datePrecision,
         currentHairColor: currentHairColor.trim() || undefined,
@@ -119,7 +118,7 @@ export function EditPhysicalChangeSheet({ personId, item, attributeGroups, onClo
       }
       onClose();
     });
-  }, [item.physicalId, personId, date, datePrecision, currentHairColor, weight, build, breastSize, breastStatus, breastDescription, attrValues, hasAnyField, onClose]);
+  }, [item.eraId, personId, date, datePrecision, currentHairColor, weight, build, breastSize, breastStatus, breastDescription, attrValues, hasAnyField, onClose]);
 
   return (
     <div role="dialog" aria-modal="true" className="fixed inset-0 z-50 flex justify-end">

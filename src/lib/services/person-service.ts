@@ -178,16 +178,11 @@ export async function getPersonWithDetails(id: string) {
       eras: {
         orderBy: [{ isBaseline: "desc" }, { date: "asc" }],
         include: {
-          physicalChange: {
+          scalarDeltas: {
             include: {
-              attributes: {
-                include: {
-                  attributeDefinition: {
-                    include: { group: true },
-                  },
-                },
-              },
+              attributeDefinition: { include: { group: true } },
             },
+            orderBy: { date: "asc" },
           },
           bodyMarkEvents: {
             include: { bodyMark: true },
@@ -347,71 +342,6 @@ export async function getPersonSkills(personId: string): Promise<PersonSkillItem
       media: mapSkillEventMedia(e.media),
     })),
   }));
-}
-
-export async function computePersonCurrentState(personId: string): Promise<PersonCurrentState> {
-  const [allEras, bodyMarks, digitalIdentities, skills] = await Promise.all([
-    prisma.era.findMany({
-      where: { personId },
-      orderBy: [{ isBaseline: "desc" }, { date: "asc" }],
-      include: { physicalChange: true },
-    }),
-    getPersonBodyMarks(personId),
-    getPersonDigitalIdentities(personId),
-    getPersonSkills(personId),
-  ]);
-
-  // Fold physical changes: later eras win
-  let currentHairColor: string | null = null;
-  let weight: number | null = null;
-  let build: string | null = null;
-  let breastSize: string | null = null;
-  let breastStatus: string | null = null;
-  let breastDescription: string | null = null;
-
-  for (const era of allEras) {
-    if (era.physicalChange) {
-      const p = era.physicalChange;
-      if (p.currentHairColor !== null) currentHairColor = p.currentHairColor;
-      if (p.weight !== null) weight = p.weight;
-      if (p.build !== null) build = p.build;
-      if (p.breastSize !== null) breastSize = p.breastSize;
-      if (p.breastStatus !== null) breastStatus = p.breastStatus;
-      if (p.breastDescription !== null) breastDescription = p.breastDescription;
-    }
-  }
-
-  const now = new Date();
-
-  const activeBodyMarks = bodyMarks;
-
-  // Active digital identities: status = active, no validTo or validTo in future
-  const activeDigitalIdentities = digitalIdentities.filter((i) => {
-    if (i.status !== "active") return false;
-    if (i.validTo && i.validTo <= now) return false;
-    return true;
-  });
-
-  // Active skills: no validTo or validTo in future
-  const activeSkills = skills.filter((s) => {
-    if (s.validTo && s.validTo <= now) return false;
-    return true;
-  });
-
-  return {
-    currentHairColor,
-    weight,
-    build,
-    breastSize,
-    breastStatus,
-    breastDescription,
-    extensibleAttributes: {},
-    activeBodyMarks,
-    activeBodyModifications: [],
-    activeCosmeticProcedures: [],
-    activeDigitalIdentities,
-    activeSkills,
-  };
 }
 
 export async function getPersonWorkHistory(personId: string): Promise<PersonWorkHistoryItem[]> {
@@ -676,52 +606,81 @@ function foldCosmeticProcedureState(
   return result;
 }
 
+// The five legacy scalars now live in the attribute catalog as ScalarDeltas.
+export const CORE_ATTR = {
+  hairColor: "cattr-hair-color",
+  weight: "cattr-weight",
+  build: "cattr-build",
+  breastSize: "cattr-breast-size",
+  measurements: "cattr-measurements",
+} as const;
+const CORE_ATTR_IDS = new Set<string>(Object.values(CORE_ATTR));
+
+type FoldableEra = {
+  isBaseline: boolean;
+  date: Date | null;
+  scalarDeltas: Array<{
+    value: string;
+    date: Date | null;
+    notes: string | null;
+    createdAt: Date;
+    attributeDefinitionId: string;
+    attributeDefinition: { unit: string | null; name: string; group: { name: string } };
+  }>;
+};
+
+/**
+ * Fold a person's scalar deltas → the latest value per attribute definition.
+ * Order: baseline era first, then by each delta's effective date
+ * (delta date, falling back to era date); later wins (ADR-0001).
+ */
+export function foldScalarDeltas<E extends FoldableEra>(eras: E[]) {
+  const all = eras.flatMap((e) =>
+    e.scalarDeltas
+      .filter((d) => d.value.trim() !== "")
+      .map((d) => ({ d, baseline: e.isBaseline, eraDate: e.date })),
+  );
+  all.sort((a, b) => {
+    if (a.baseline !== b.baseline) return a.baseline ? -1 : 1;
+    const ad = a.d.date ?? a.eraDate;
+    const bd = b.d.date ?? b.eraDate;
+    if (ad && bd && ad.getTime() !== bd.getTime()) return ad.getTime() - bd.getTime();
+    if (!ad && bd) return -1;
+    if (ad && !bd) return 1;
+    return a.d.createdAt.getTime() - b.d.createdAt.getTime();
+  });
+  const folded: Record<string, E["scalarDeltas"][number]> = {};
+  for (const { d } of all) folded[d.attributeDefinitionId] = d;
+  return folded;
+}
+
 /**
  * Derives current physical state from an already-loaded person with details.
- * Pure sync function — no DB access. Replaces the async `computePersonCurrentState`.
+ * Pure sync function — no DB access.
  */
 export function deriveCurrentState(
   person: NonNullable<Awaited<ReturnType<typeof getPersonWithDetails>>>,
 ): PersonCurrentState {
-  let currentHairColor: string | null = null;
-  let weight: number | null = null;
-  let build: string | null = null;
-  let breastSize: string | null = null;
-  let breastStatus: string | null = null;
-  let breastDescription: string | null = null;
+  const folded = foldScalarDeltas(person.eras);
+  const currentHairColor = folded[CORE_ATTR.hairColor]?.value ?? null;
+  const weightRaw = folded[CORE_ATTR.weight]?.value;
+  const weight = weightRaw && !Number.isNaN(Number(weightRaw)) ? Number(weightRaw) : null;
+  const build = folded[CORE_ATTR.build]?.value ?? null;
+  const breastSize = folded[CORE_ATTR.breastSize]?.value ?? null;
+  const breastDescription = folded[CORE_ATTR.breastSize]?.notes ?? null;
+  let breastStatus: string | null = null; // derived from cosmetic procedures below
 
+  // Every non-core scalar delta becomes an extensible attribute.
   const extensibleAttributes: Record<string, ExtensibleAttributeValue> = {};
-
-  // Collect all PersonaPhysical records, sort by their own date (nulls first = baseline)
-  const allPhysicals = person.eras
-    .filter((p) => p.physicalChange)
-    .map((p) => p.physicalChange!)
-    .sort((a, b) => {
-      if (!a.date && !b.date) return 0;
-      if (!a.date) return -1;
-      if (!b.date) return 1;
-      return a.date.getTime() - b.date.getTime();
-    });
-
-  for (const p of allPhysicals) {
-    if (p.currentHairColor !== null) currentHairColor = p.currentHairColor;
-    if (p.weight !== null) weight = p.weight;
-    if (p.build !== null) build = p.build;
-    if (p.breastSize !== null) breastSize = p.breastSize;
-    if (p.breastStatus !== null) breastStatus = p.breastStatus;
-    if (p.breastDescription !== null) breastDescription = p.breastDescription;
-    // Fold extensible attributes — later records override earlier ones per-key
-    if (p.attributes) {
-      for (const attr of p.attributes) {
-        extensibleAttributes[attr.attributeDefinitionId] = {
-          value: attr.value,
-          unit: attr.attributeDefinition.unit,
-          name: attr.attributeDefinition.name,
-          groupName: attr.attributeDefinition.group.name,
-          status: "NATURAL" as import("@/lib/types").AttributeStatus,
-        };
-      }
-    }
+  for (const [defId, d] of Object.entries(folded)) {
+    if (CORE_ATTR_IDS.has(defId)) continue;
+    extensibleAttributes[defId] = {
+      value: d.value,
+      unit: d.attributeDefinition.unit,
+      name: d.attributeDefinition.name,
+      groupName: d.attributeDefinition.group.name,
+      status: "NATURAL" as import("@/lib/types").AttributeStatus,
+    };
   }
 
   const now = new Date();
@@ -931,7 +890,7 @@ export function deriveCurrentState(
     });
   }
 
-  // Derive attribute status from cosmetic procedures targeting extensible attributes
+  // Derive attribute status from cosmetic procedures targeting attributes.
   for (const proc of activeCosmeticProcedures) {
     if (!proc.attributeDefinitionId) continue;
     const defId = proc.attributeDefinitionId;
@@ -940,6 +899,13 @@ export function deriveCurrentState(
       : null;
     const isReversed = lastEventType === "reversed";
     const derivedStatus: import("@/lib/types").AttributeStatus = isReversed ? "RESTORED" : "ENHANCED";
+
+    // breast_size is a core scalar — its status surfaces as breastStatus.
+    if (defId === CORE_ATTR.breastSize) {
+      breastStatus = isReversed ? "natural" : "enhanced";
+      continue;
+    }
+    if (CORE_ATTR_IDS.has(defId)) continue; // other core scalars carry no status
 
     if (extensibleAttributes[defId]) {
       extensibleAttributes[defId].status = derivedStatus;
@@ -958,6 +924,9 @@ export function deriveCurrentState(
       }
     }
   }
+
+  // A known breast size with no procedure folds to "natural".
+  if (breastStatus === null && breastSize !== null) breastStatus = "natural";
 
   return {
     currentHairColor,
@@ -1117,43 +1086,28 @@ export async function createPersonRecord(data: CreatePersonInput) {
       },
     });
 
-    const hasPhysical =
-      data.weight !== undefined ||
-      data.build !== undefined ||
-      data.currentHairColor !== undefined ||
-      data.breastSize !== undefined ||
-      data.breastStatus !== undefined ||
-      data.breastDescription !== undefined ||
-      data.hairLength !== undefined;
-
-    if (hasPhysical) {
-      const physical = await tx.personaPhysical.create({
-        data: {
-          eraId: era.id,
-          weight: data.weight,
-          build: data.build,
-          currentHairColor: data.currentHairColor,
-          breastSize: data.breastSize,
-          breastStatus: data.breastStatus,
-          breastDescription: data.breastDescription,
-        },
+    // Baseline physical attributes become dateless ScalarDeltas on the baseline era.
+    const baselineDeltas: { attributeDefinitionId: string; value: string; notes: string | null }[] = [];
+    if (data.currentHairColor)
+      baselineDeltas.push({ attributeDefinitionId: CORE_ATTR.hairColor, value: data.currentHairColor, notes: null });
+    if (data.weight !== undefined && data.weight !== null)
+      baselineDeltas.push({ attributeDefinitionId: CORE_ATTR.weight, value: String(data.weight), notes: null });
+    if (data.build)
+      baselineDeltas.push({ attributeDefinitionId: CORE_ATTR.build, value: data.build, notes: null });
+    if (data.breastSize)
+      baselineDeltas.push({ attributeDefinitionId: CORE_ATTR.breastSize, value: data.breastSize, notes: data.breastDescription ?? null });
+    if (data.hairLength) {
+      const hairLengthDef = await tx.physicalAttributeDefinition.findFirst({
+        where: { slug: "hair-length" },
+        select: { id: true },
       });
-
-      // Create hair-length attribute if provided
-      if (data.hairLength) {
-        const hairLengthDef = await tx.physicalAttributeDefinition.findFirst({
-          where: { slug: "hair-length" },
-        });
-        if (hairLengthDef) {
-          await tx.personaPhysicalAttribute.create({
-            data: {
-              personaPhysicalId: physical.id,
-              attributeDefinitionId: hairLengthDef.id,
-              value: data.hairLength,
-            },
-          });
-        }
-      }
+      if (hairLengthDef)
+        baselineDeltas.push({ attributeDefinitionId: hairLengthDef.id, value: data.hairLength, notes: null });
+    }
+    if (baselineDeltas.length > 0) {
+      await tx.scalarDelta.createMany({
+        data: baselineDeltas.map((d) => ({ eraId: era.id, ...d })),
+      });
     }
 
     // Auto-create REFERENCE session for this person
@@ -1294,31 +1248,27 @@ export async function updatePersonAppearance(
       },
     });
 
-    const hasPhysical =
-      data.weight !== undefined ||
-      data.build !== undefined ||
-      data.currentHairColor !== undefined;
-
-    if (hasPhysical) {
-      const baselineEra = await tx.era.findFirst({
-        where: { personId: id, isBaseline: true },
-      });
-      if (baselineEra) {
-        await tx.personaPhysical.upsert({
-          where: { eraId: baselineEra.id },
-          create: {
-            eraId: baselineEra.id,
-            weight: data.weight,
-            build: data.build,
-            currentHairColor: data.currentHairColor,
-          },
-          update: {
-            weight: data.weight ?? null,
-            build: data.build ?? null,
-            currentHairColor: data.currentHairColor ?? null,
-          },
+    // Weight / build / hair colour are baseline ScalarDeltas. Editing appearance
+    // replaces the baseline era's delta for each provided attribute.
+    const baselineEra = await tx.era.findFirst({
+      where: { personId: id, isBaseline: true },
+      select: { id: true },
+    });
+    if (baselineEra) {
+      const setBaselineDelta = async (attrId: string, value: string | undefined) => {
+        if (value === undefined) return; // not in the patch — leave as-is
+        await tx.scalarDelta.deleteMany({
+          where: { eraId: baselineEra.id, attributeDefinitionId: attrId },
         });
-      }
+        if (value.trim() !== "") {
+          await tx.scalarDelta.create({
+            data: { eraId: baselineEra.id, attributeDefinitionId: attrId, value },
+          });
+        }
+      };
+      await setBaselineDelta(CORE_ATTR.hairColor, data.currentHairColor);
+      await setBaselineDelta(CORE_ATTR.weight, data.weight !== undefined ? String(data.weight) : undefined);
+      await setBaselineDelta(CORE_ATTR.build, data.build);
     }
 
     await recomputePersonCurrentState(tx, id);
@@ -1355,8 +1305,8 @@ export async function deletePersonRecord(id: string): Promise<PhotoVariants[]> {
     const eraIds = eras.map((p) => p.id);
 
     if (eraIds.length > 0) {
-      // Delete PersonaPhysical
-      await tx.personaPhysical.deleteMany({
+      // Delete scalar deltas
+      await tx.scalarDelta.deleteMany({
         where: { eraId: { in: eraIds } },
       });
 

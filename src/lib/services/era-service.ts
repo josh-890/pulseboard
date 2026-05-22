@@ -98,19 +98,24 @@ export async function createEraBatch(personId: string, data: CreateEraBatchInput
     const eventDatePrecision = (data.datePrecision ?? "UNKNOWN") as DatePrecision;
     const eventDateModifier = "EXACT" as DateModifier;
 
-    // Physical changes
-    const hasPhysical = data.currentHairColor || data.weight || data.build;
-    if (hasPhysical) {
-      await tx.personaPhysical.create({
-        data: {
+    // Physical changes — one ScalarDelta per provided attribute.
+    const physicalDeltas: { attributeDefinitionId: string; value: string }[] = [];
+    if (data.currentHairColor)
+      physicalDeltas.push({ attributeDefinitionId: "cattr-hair-color", value: data.currentHairColor });
+    if (data.weight !== undefined && data.weight !== null)
+      physicalDeltas.push({ attributeDefinitionId: "cattr-weight", value: String(data.weight) });
+    if (data.build)
+      physicalDeltas.push({ attributeDefinitionId: "cattr-build", value: data.build });
+    if (physicalDeltas.length > 0) {
+      await tx.scalarDelta.createMany({
+        data: physicalDeltas.map((d) => ({
           eraId: era.id,
-          currentHairColor: data.currentHairColor ?? null,
-          weight: data.weight ?? null,
-          build: data.build ?? null,
+          attributeDefinitionId: d.attributeDefinitionId,
+          value: d.value,
           date: eventDate,
           datePrecision: eventDatePrecision,
           dateModifier: eventDateModifier,
-        },
+        })),
       });
     }
 
@@ -292,17 +297,8 @@ export async function deleteEra(id: string) {
       });
     }
     await tx.personSkillEvent.deleteMany({ where: { eraId: id } });
-    // Delete PersonaPhysical + PersonaPhysicalAttribute
-    const personaPhysicals = await tx.personaPhysical.findMany({
-      where: { eraId: id },
-      select: { id: true },
-    });
-    if (personaPhysicals.length > 0) {
-      await tx.personaPhysicalAttribute.deleteMany({
-        where: { personaPhysicalId: { in: personaPhysicals.map((p) => p.id) } },
-      });
-    }
-    await tx.personaPhysical.deleteMany({ where: { eraId: id } });
+    // Delete this era's scalar deltas
+    await tx.scalarDelta.deleteMany({ where: { eraId: id } });
     // Delete digital identities linked to this era
     await tx.personDigitalIdentity.deleteMany({ where: { eraId: id } });
 

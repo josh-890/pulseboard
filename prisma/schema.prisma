@@ -345,7 +345,6 @@ model Era {
   dateSource    String?
   createdAt     DateTime      @default(now())
 
-  physicalChange          PersonaPhysical?
   scalarDeltas            ScalarDelta[]
   bodyMarkEvents          BodyMarkEvent[]
   digitalIdentities       PersonDigitalIdentity[]
@@ -357,25 +356,6 @@ model Era {
 
   @@index([personId])
   @@map("Persona")
-}
-
-model PersonaPhysical {
-  id                String        @id @default(cuid())
-  eraId             String        @unique @map("personaId")
-  era               Era           @relation(fields: [eraId], references: [id])
-  weight            Float?
-  currentHairColor  String?
-  breastSize        String? // Current cup letter (A/B/C/D/DD/E/F/G+)
-  breastStatus      String? // "natural" | "enhanced"
-  breastDescription String? // Free text, e.g. "Large (Real)"
-  build             String?
-  date              DateTime?
-  datePrecision     DatePrecision @default(UNKNOWN)
-  dateModifier      DateModifier  @default(EXACT)
-
-  attributes PersonaPhysicalAttribute[]
-
-  @@index([date])
 }
 
 model BodyMark {
@@ -1160,7 +1140,6 @@ model PhysicalAttributeDefinition {
   sortOrder     Int                        @default(0)
   createdAt     DateTime                   @default(now())
 
-  attributes         PersonaPhysicalAttribute[]
   cosmeticProcedures CosmeticProcedure[]
   scalarDeltas       ScalarDelta[]
 
@@ -1190,19 +1169,6 @@ model ScalarDelta {
   @@index([eraId])
   @@index([attributeDefinitionId])
   @@index([date])
-}
-
-model PersonaPhysicalAttribute {
-  id                    String                      @id @default(cuid())
-  personaPhysicalId     String
-  personaPhysical       PersonaPhysical             @relation(fields: [personaPhysicalId], references: [id])
-  attributeDefinitionId String
-  attributeDefinition   PhysicalAttributeDefinition @relation(fields: [attributeDefinitionId], references: [id])
-  value                 String
-
-  @@unique([personaPhysicalId, attributeDefinitionId])
-  @@index([personaPhysicalId])
-  @@index([attributeDefinitionId])
 }
 
 // ─── Derived-State Cache ─────────────────────────────────────────────────────
