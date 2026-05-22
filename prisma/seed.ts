@@ -160,6 +160,18 @@ async function main() {
     },
   });
 
+  // Every person needs a baseline era (time zero).
+  await prisma.era.upsert({
+    where: { id: "seed-era-mr-baseline" },
+    update: {},
+    create: {
+      id: "seed-era-mr-baseline",
+      personId: person2.id,
+      label: "Marcus Reed — initial",
+      isBaseline: true,
+    },
+  });
+
   await prisma.personaPhysical.upsert({
     where: { id: "seed-era-physical-1" },
     update: {},

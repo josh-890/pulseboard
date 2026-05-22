@@ -346,6 +346,7 @@ model Era {
   createdAt     DateTime      @default(now())
 
   physicalChange          PersonaPhysical?
+  scalarDeltas            ScalarDelta[]
   bodyMarkEvents          BodyMarkEvent[]
   digitalIdentities       PersonDigitalIdentity[]
   skills                  PersonSkill[]
@@ -1161,10 +1162,34 @@ model PhysicalAttributeDefinition {
 
   attributes         PersonaPhysicalAttribute[]
   cosmeticProcedures CosmeticProcedure[]
+  scalarDeltas       ScalarDelta[]
 
   @@unique([groupId, name])
   @@index([groupId])
   @@index([sortOrder])
+}
+
+// One dated change to an identity-less scalar attribute (weight, hair colour,
+// build, …) within an Era. Replaces PersonaPhysical + PersonaPhysicalAttribute:
+// the folded current value is the latest delta per attribute (ADR-0001). An
+// attribute may change more than once in one Era — no eraId+definition unique.
+model ScalarDelta {
+  id                    String                      @id @default(cuid())
+  eraId                 String
+  era                   Era                         @relation(fields: [eraId], references: [id])
+  attributeDefinitionId String
+  attributeDefinition   PhysicalAttributeDefinition @relation(fields: [attributeDefinitionId], references: [id])
+  value                 String
+  date                  DateTime?
+  datePrecision         DatePrecision               @default(UNKNOWN)
+  dateModifier          DateModifier                @default(EXACT)
+  dateSource            String?
+  notes                 String? // raw import provenance, e.g. "import: 'enlarged or fake'"
+  createdAt             DateTime                    @default(now())
+
+  @@index([eraId])
+  @@index([attributeDefinitionId])
+  @@index([date])
 }
 
 model PersonaPhysicalAttribute {
