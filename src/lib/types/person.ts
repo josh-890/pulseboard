@@ -314,14 +314,15 @@ export type ExtensibleAttributeValue = {
 };
 
 export type PersonCurrentState = {
-  // Latest physical attributes (from PersonaPhysical fold)
+  // Folded current physical scalars (latest ScalarDelta per attribute)
   currentHairColor: string | null;
   weight: number | null;
   build: string | null;
   breastSize: string | null;
   breastStatus: string | null;
   breastDescription: string | null;
-  // Extensible physical attributes (from PersonaPhysicalAttribute fold)
+  measurements: string | null;
+  // Extensible (non-core) physical attributes, folded from ScalarDelta
   extensibleAttributes: Record<string, ExtensibleAttributeValue>;
   // Active body marks (status = present)
   activeBodyMarks: BodyMarkWithEvents[];

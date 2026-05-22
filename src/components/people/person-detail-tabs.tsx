@@ -205,7 +205,7 @@ function PhysicalMetrics({
     <dl className={cn("grid grid-cols-1 text-sm", fieldGap)}>
       <InfoRow label="Height" value={person.height ? `${person.height} cm` : "\u2014"} labelWidth={labelWidth} />
       <InfoRow label="Weight" value={currentState.weight !== null && currentState.weight !== undefined ? `${currentState.weight} kg` : "\u2014"} labelWidth={labelWidth} />
-      <InfoRow label="Measurements" value={person.measurements ?? "—"} labelWidth={labelWidth} />
+      <InfoRow label="Measurements" value={currentState.measurements ?? "—"} labelWidth={labelWidth} />
     </dl>
   );
 }

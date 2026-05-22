@@ -244,11 +244,7 @@ model Person {
   ethnicity           String?
   location            String?
   height              Int?
-  naturalHairColor    String?
-  naturalBreastSize   String? // Cup letter (A/B/C/D/DD/E/F/G+)
   eyeColor            String?
-  bodyType            String?
-  measurements        String?
   activeFrom          DateTime?
   activeFromPrecision DatePrecision @default(UNKNOWN)
   activeFromModifier  DateModifier  @default(EXACT)

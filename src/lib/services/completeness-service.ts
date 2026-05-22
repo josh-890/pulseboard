@@ -12,7 +12,6 @@ const WEIGHTS = {
   ethnicity: 10,
   headshot: 15,
   eyeColor: 5,
-  naturalHairColor: 5,
   height: 5,
   currentHairColor: 5,
   build: 5,
@@ -58,9 +57,8 @@ export async function computeProfileCompleteness(
     ethnicity: { filled: !!person.ethnicity, weight: WEIGHTS.ethnicity, label: "Ethnicity" },
     headshot: { filled: headshot !== null, weight: WEIGHTS.headshot, label: "Headshot" },
     eyeColor: { filled: !!person.eyeColor, weight: WEIGHTS.eyeColor, label: "Eye Color" },
-    naturalHairColor: { filled: !!person.naturalHairColor, weight: WEIGHTS.naturalHairColor, label: "Natural Hair Color" },
     height: { filled: person.height !== null, weight: WEIGHTS.height, label: "Height" },
-    currentHairColor: { filled: hasDelta("cattr-hair-color"), weight: WEIGHTS.currentHairColor, label: "Current Hair Color" },
+    currentHairColor: { filled: hasDelta("cattr-hair-color"), weight: WEIGHTS.currentHairColor, label: "Hair Color" },
     build: { filled: hasDelta("cattr-build"), weight: WEIGHTS.build, label: "Build" },
     birthPlace: { filled: !!person.birthPlace, weight: WEIGHTS.birthPlace, label: "Birth Place" },
     birthAlias: { filled: person.aliases.length > 0, weight: WEIGHTS.birthAlias, label: "Birth Name" },
@@ -82,7 +80,6 @@ type BatchPersonData = {
   sexAtBirth: string | null;
   ethnicity: string | null;
   eyeColor: string | null;
-  naturalHairColor: string | null;
   height: number | null;
   birthPlace: string | null;
   birthAlias: string | null;
@@ -132,7 +129,6 @@ export async function batchComputeCompleteness(
     if (person.ethnicity) score += WEIGHTS.ethnicity;
     if (hasHeadshot.has(person.id)) score += WEIGHTS.headshot;
     if (person.eyeColor) score += WEIGHTS.eyeColor;
-    if (person.naturalHairColor) score += WEIGHTS.naturalHairColor;
     if (person.height !== null) score += WEIGHTS.height;
     if (hasDelta(deltaMap.get(person.id), "cattr-hair-color")) score += WEIGHTS.currentHairColor;
     if (hasDelta(deltaMap.get(person.id), "cattr-build")) score += WEIGHTS.build;

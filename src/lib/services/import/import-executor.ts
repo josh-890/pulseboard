@@ -213,8 +213,7 @@ export async function importPerson(item: ImportItem): Promise<ImportResult> {
       birthdatePrecision,
       birthdateModifier: 'EXACT',
       nationality,
-      naturalHairColor: hairColor,
-      currentHairColor: hairColor, // same as natural at baseline
+      currentHairColor: hairColor, // baseline hair colour ScalarDelta
       height: data.heightCm as number | undefined,
       sexAtBirth: 'female' as const,
     })

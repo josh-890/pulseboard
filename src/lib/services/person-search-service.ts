@@ -24,8 +24,8 @@ type CategoricalFieldDef = {
 const CATEGORICAL_FIELDS: Record<string, CategoricalFieldDef> = {
   status:           { column: Prisma.sql`p.status::text` },
   ethnicity:        { column: Prisma.sql`p.ethnicity`,            caseInsensitive: true },
-  bodyType:         { column: Prisma.sql`p."bodyType"`,           caseInsensitive: true },
-  naturalHairColor: { column: Prisma.sql`p."naturalHairColor"`,   caseInsensitive: true },
+  bodyType:         { column: Prisma.sql`mv."currentBuild"`,      caseInsensitive: true },
+  naturalHairColor: { column: Prisma.sql`mv."currentHairColor"`,  caseInsensitive: true },
   // Hair / eye classified via color_catalog. Lightness is ABSOLUTE — Dark on
   // hairLightness means objectively dark, not "dark for the hue". Skin's
   // secondary axis stays Undertone (Cool/Warm/Neutral, orthogonal to tone).
@@ -384,8 +384,8 @@ export async function searchPeople(
       p.status,
       p.rating,
       p.tags,
-      p."naturalHairColor",
-      p."bodyType",
+      mv."currentHairColor" AS "naturalHairColor",
+      mv."currentBuild" AS "bodyType",
       p.ethnicity,
       p.location,
       p."activeFrom",

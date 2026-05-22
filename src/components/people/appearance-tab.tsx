@@ -167,8 +167,8 @@ export function AppearanceTab({
     router.refresh();
   }, [router]);
 
-  const hasStatic = person.ethnicity || person.height || person.eyeColor || person.naturalHairColor || person.naturalBreastSize || person.bodyType || person.measurements;
-  const hasComputed = currentState.currentHairColor || currentState.weight !== null || currentState.build || currentState.breastSize || currentState.breastStatus || currentState.breastDescription;
+  const hasStatic = person.ethnicity || person.height || person.eyeColor;
+  const hasComputed = currentState.currentHairColor || currentState.weight !== null || currentState.build || currentState.breastSize || currentState.breastStatus || currentState.breastDescription || currentState.measurements;
   const hasExtensible = Object.keys(currentState.extensibleAttributes).length > 0;
 
   // Group extensible attributes by group name for display
@@ -582,16 +582,13 @@ export function AppearanceTab({
                   {person.ethnicity && <InfoRow label="Ethnicity" value={person.ethnicity} labelWidth="w-28" />}
                   {person.height && <InfoRow label="Height" value={`${person.height} cm`} labelWidth="w-28" />}
                   {person.eyeColor && <InfoRow label="Eye color" value={<span className="capitalize">{person.eyeColor}</span>} labelWidth="w-28" />}
-                  {person.naturalHairColor && <InfoRow label="Natural hair" value={<span className="capitalize">{person.naturalHairColor}</span>} labelWidth="w-28" />}
-                  {currentState.currentHairColor && <InfoRow label="Current hair" value={<span className="capitalize">{currentState.currentHairColor}</span>} labelWidth="w-28" />}
-                  {person.naturalBreastSize && <InfoRow label="Natural breasts" value={person.naturalBreastSize} labelWidth="w-28" />}
-                  {currentState.breastSize && <InfoRow label="Current breasts" value={currentState.breastSize} labelWidth="w-28" />}
+                  {currentState.currentHairColor && <InfoRow label="Hair color" value={<span className="capitalize">{currentState.currentHairColor}</span>} labelWidth="w-28" />}
+                  {currentState.breastSize && <InfoRow label="Breast size" value={currentState.breastSize} labelWidth="w-28" />}
                   {currentState.breastStatus && <InfoRow label="Breast status" value={<span className="capitalize">{currentState.breastStatus}</span>} labelWidth="w-28" />}
                   {currentState.breastDescription && <InfoRow label="Breast desc." value={currentState.breastDescription} labelWidth="w-28" />}
                   {currentState.weight !== null && currentState.weight !== undefined && <InfoRow label="Weight" value={`${currentState.weight} kg`} labelWidth="w-28" />}
-                  {person.bodyType && <InfoRow label="Body type" value={<span className="capitalize">{person.bodyType}</span>} labelWidth="w-28" />}
                   {currentState.build && <InfoRow label="Build" value={<span className="capitalize">{currentState.build}</span>} labelWidth="w-28" />}
-                  {person.measurements && <InfoRow label="Measurements" value={person.measurements} labelWidth="w-28" />}
+                  {currentState.measurements && <InfoRow label="Measurements" value={currentState.measurements} labelWidth="w-28" />}
                 </dl>
 
                 {/* Extensible Physical Attributes */}

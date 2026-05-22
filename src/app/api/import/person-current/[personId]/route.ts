@@ -62,9 +62,9 @@ export async function GET(
           ? (person.nationality.length === 2 ? toIocCode(person.nationality) : person.nationality)
           : null,
         height: person.height,
-        naturalHairColor: person.naturalHairColor,
-        naturalBreastSize: person.naturalBreastSize,
-        measurements: person.measurements,
+        naturalHairColor: hairDelta?.value ?? null,
+        naturalBreastSize: breastDelta?.value ?? null,
+        measurements: deltaFor("measurements")?.value ?? null,
         activeFrom: person.activeFrom
           ? formatPartialDate(person.activeFrom, person.activeFromPrecision)
           : null,

@@ -26,17 +26,14 @@ export const createPersonSchema = z.object({
   birthPlace: z.string().optional(),
   nationality: z.string().length(2).regex(/^[A-Z]{2}$/, "Must be a valid ISO alpha-2 country code").optional().or(z.literal("")),
   ethnicity: z.string().optional(),
-  // Physical (static)
+  // Static physical
   eyeColor: z.string().optional(),
-  naturalHairColor: z.string().optional(),
-  naturalBreastSize: z.string().optional(),
   height: z.coerce.number().int().positive().optional(),
-  // Baseline era physical
+  // Baseline era physical (ScalarDeltas)
   weight: z.coerce.number().positive().optional(),
   build: z.string().optional(),
   currentHairColor: z.string().optional(),
   breastSize: z.string().optional(),
-  breastStatus: z.string().optional(),
   breastDescription: z.string().optional(),
   hairLength: z.string().optional(),
 });
@@ -89,13 +86,12 @@ export type IcgIdChangeInput = z.infer<typeof icgIdChangeSchema>;
 export const updateAppearanceSchema = z.object({
   id: z.string().min(1),
   eyeColor: z.string().optional(),
-  naturalHairColor: z.string().optional(),
-  naturalBreastSize: z.string().optional(),
   measurements: z.string().optional(),
   height: z.coerce.number().int().positive().optional(),
   weight: z.coerce.number().positive().optional(),
   build: z.string().optional(),
   currentHairColor: z.string().optional(),
+  breastSize: z.string().optional(),
 });
 export type UpdateAppearanceFormValues = z.input<typeof updateAppearanceSchema>;
 export type UpdateAppearanceInput = z.output<typeof updateAppearanceSchema>;

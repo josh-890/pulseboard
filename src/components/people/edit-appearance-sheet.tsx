@@ -75,13 +75,12 @@ export function EditAppearanceSheet({ person, open: controlledOpen, onOpenChange
   const getDefaults = (): UpdateAppearanceFormValues => ({
     id: person.id,
     eyeColor: person.eyeColor ?? "",
-    naturalHairColor: person.naturalHairColor ?? "",
-    naturalBreastSize: person.naturalBreastSize ?? "",
-    measurements: person.measurements ?? "",
+    measurements: baselineDeltaValue("cattr-measurements") ?? "",
     height: person.height ?? undefined,
     weight: weightValue ? Number(weightValue) : undefined,
     build: baselineDeltaValue("cattr-build") ?? undefined,
     currentHairColor: baselineDeltaValue("cattr-hair-color") ?? "",
+    breastSize: baselineDeltaValue("cattr-breast-size") ?? "",
   });
 
   const form = useForm<UpdateAppearanceFormValues, unknown, UpdateAppearanceInput>({
@@ -156,29 +155,10 @@ export function EditAppearanceSheet({ person, open: controlledOpen, onOpenChange
 
                   <FormField
                     control={form.control}
-                    name="naturalHairColor"
+                    name="breastSize"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Natural Hair Color</FormLabel>
-                        <FormControl>
-                          <ColorValueCombobox
-                            category="hair"
-                            value={field.value || undefined}
-                            onChange={(v) => field.onChange(v ?? "")}
-                            placeholder="Select hair color…"
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="naturalBreastSize"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Natural Breast Size</FormLabel>
+                        <FormLabel>Breast Size</FormLabel>
                         <FormControl>
                           <SelectWithOther
                             options={BREAST_SIZE_OPTIONS}
@@ -277,9 +257,10 @@ export function EditAppearanceSheet({ person, open: controlledOpen, onOpenChange
                   <FormField
                     control={form.control}
                     name="currentHairColor"
+                    /* the single, folded hair colour */
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Current Hair Color</FormLabel>
+                        <FormLabel>Hair Color</FormLabel>
                         <FormControl>
                           <ColorValueCombobox
                             category="hair"

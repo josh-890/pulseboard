@@ -103,12 +103,15 @@ export async function getPersons(filters: PersonFilters = {}): Promise<PersonWit
     where.status = status;
   }
 
+  const currentStateWhere: Prisma.PersonCurrentStateWhereInput = {};
   if (naturalHairColor) {
-    where.naturalHairColor = { equals: naturalHairColor, mode: "insensitive" };
+    currentStateWhere.currentHairColor = { equals: naturalHairColor, mode: "insensitive" };
   }
-
   if (bodyType) {
-    where.bodyType = { equals: bodyType, mode: "insensitive" };
+    currentStateWhere.currentBuild = { equals: bodyType, mode: "insensitive" };
+  }
+  if (Object.keys(currentStateWhere).length > 0) {
+    where.currentState = currentStateWhere;
   }
 
   if (ethnicity) {
@@ -134,6 +137,7 @@ export async function getPersons(filters: PersonFilters = {}): Promise<PersonWit
       aliases: {
         where: { OR: [{ isCommon: true }, { isBirth: true }] },
       },
+      currentState: true,
     },
     orderBy: { createdAt: "asc" },
   });
@@ -144,8 +148,8 @@ export async function getPersons(filters: PersonFilters = {}): Promise<PersonWit
     status: p.status,
     rating: p.rating,
     tags: p.tags,
-    naturalHairColor: p.naturalHairColor,
-    bodyType: p.bodyType,
+    naturalHairColor: p.currentState?.currentHairColor ?? null,
+    bodyType: p.currentState?.currentBuild ?? null,
     ethnicity: p.ethnicity,
     location: p.location,
     activeFrom: p.activeFrom,
@@ -668,6 +672,7 @@ export function deriveCurrentState(
   const build = folded[CORE_ATTR.build]?.value ?? null;
   const breastSize = folded[CORE_ATTR.breastSize]?.value ?? null;
   const breastDescription = folded[CORE_ATTR.breastSize]?.notes ?? null;
+  const measurements = folded[CORE_ATTR.measurements]?.value ?? null;
   let breastStatus: string | null = null; // derived from cosmetic procedures below
 
   // Every non-core scalar delta becomes an extensible attribute.
@@ -935,6 +940,7 @@ export function deriveCurrentState(
     breastSize,
     breastStatus,
     breastDescription,
+    measurements,
     extensibleAttributes,
     activeBodyMarks,
     activeBodyModifications,
@@ -1042,7 +1048,6 @@ export async function createPersonRecord(data: CreatePersonInput) {
   // (idempotent — existing entries are untouched; new ones get heuristic
   // defaults + needs_review flag so the admin can refine later)
   await Promise.all([
-    ensureCatalogEntry("hair", data.naturalHairColor),
     ensureCatalogEntry("hair", data.currentHairColor),
     ensureCatalogEntry("eye",  data.eyeColor),
   ]);
@@ -1060,8 +1065,6 @@ export async function createPersonRecord(data: CreatePersonInput) {
         nationality: data.nationality,
         ethnicity: data.ethnicity,
         eyeColor: data.eyeColor,
-        naturalHairColor: data.naturalHairColor,
-        naturalBreastSize: data.naturalBreastSize,
         height: data.height,
       },
     });
@@ -1222,17 +1225,15 @@ export async function updatePersonAppearance(
   id: string,
   data: {
     eyeColor?: string;
-    naturalHairColor?: string;
-    naturalBreastSize?: string;
     measurements?: string;
     height?: number;
     weight?: number;
     build?: string;
     currentHairColor?: string;
+    breastSize?: string;
   },
 ): Promise<void> {
   await Promise.all([
-    ensureCatalogEntry("hair", data.naturalHairColor),
     ensureCatalogEntry("hair", data.currentHairColor),
     ensureCatalogEntry("eye",  data.eyeColor),
   ]);
@@ -1241,9 +1242,6 @@ export async function updatePersonAppearance(
       where: { id },
       data: {
         eyeColor: data.eyeColor ?? null,
-        naturalHairColor: data.naturalHairColor ?? null,
-        naturalBreastSize: data.naturalBreastSize ?? null,
-        measurements: data.measurements ?? null,
         height: data.height ?? null,
       },
     });
@@ -1269,6 +1267,8 @@ export async function updatePersonAppearance(
       await setBaselineDelta(CORE_ATTR.hairColor, data.currentHairColor);
       await setBaselineDelta(CORE_ATTR.weight, data.weight !== undefined ? String(data.weight) : undefined);
       await setBaselineDelta(CORE_ATTR.build, data.build);
+      await setBaselineDelta(CORE_ATTR.breastSize, data.breastSize);
+      await setBaselineDelta(CORE_ATTR.measurements, data.measurements);
     }
 
     await recomputePersonCurrentState(tx, id);
@@ -1457,12 +1457,15 @@ export async function getPersonsPaginated(
     where.status = status;
   }
 
+  const currentStateWhere: Prisma.PersonCurrentStateWhereInput = {};
   if (naturalHairColor) {
-    where.naturalHairColor = { equals: naturalHairColor, mode: "insensitive" };
+    currentStateWhere.currentHairColor = { equals: naturalHairColor, mode: "insensitive" };
   }
-
   if (bodyType) {
-    where.bodyType = { equals: bodyType, mode: "insensitive" };
+    currentStateWhere.currentBuild = { equals: bodyType, mode: "insensitive" };
+  }
+  if (Object.keys(currentStateWhere).length > 0) {
+    where.currentState = currentStateWhere;
   }
 
   if (ethnicity) {
@@ -1521,6 +1524,7 @@ export async function getPersonsPaginated(
   // Helper to map a raw person to PersonWithCommonAlias (sans completeness)
   type RawPerson = Awaited<ReturnType<typeof prisma.person.findMany>>[number] & {
     aliases: { isCommon: boolean; isBirth: boolean; name: string; nameNorm: string | null }[];
+    currentState: { currentHairColor: string | null; currentBuild: string | null } | null;
   };
 
   function mapPerson(p: RawPerson, score: number, q?: string): PersonWithCommonAlias {
@@ -1536,8 +1540,8 @@ export async function getPersonsPaginated(
       status: p.status,
       rating: p.rating,
       tags: p.tags,
-      naturalHairColor: p.naturalHairColor,
-      bodyType: p.bodyType,
+      naturalHairColor: p.currentState?.currentHairColor ?? null,
+      bodyType: p.currentState?.currentBuild ?? null,
       ethnicity: p.ethnicity,
       location: p.location,
       activeFrom: p.activeFrom,
@@ -1569,6 +1573,7 @@ export async function getPersonsPaginated(
               ? { OR: [{ isCommon: true }, { isBirth: true }, { name: { contains: q, mode: "insensitive" } }] }
               : { OR: [{ isCommon: true }, { isBirth: true }] },
           },
+          currentState: { select: { currentHairColor: true, currentBuild: true } },
         },
       }),
     ]);
@@ -1581,7 +1586,6 @@ export async function getPersonsPaginated(
       sexAtBirth: p.sexAtBirth,
       ethnicity: p.ethnicity,
       eyeColor: p.eyeColor,
-      naturalHairColor: p.naturalHairColor,
       height: p.height,
       birthPlace: p.birthPlace,
       birthAlias: p.aliases.find((a) => a.isBirth)?.name ?? null,
@@ -1645,6 +1649,7 @@ export async function getPersonsPaginated(
             ? { OR: [{ isCommon: true }, { isBirth: true }, { name: { contains: q, mode: "insensitive" } }] }
             : { OR: [{ isCommon: true }, { isBirth: true }] },
         },
+          currentState: { select: { currentHairColor: true, currentBuild: true } },
       },
       orderBy,
       take: limit + 1,
@@ -1665,7 +1670,6 @@ export async function getPersonsPaginated(
     sexAtBirth: p.sexAtBirth,
     ethnicity: p.ethnicity,
     eyeColor: p.eyeColor,
-    naturalHairColor: p.naturalHairColor,
     height: p.height,
     birthPlace: p.birthPlace,
     birthAlias: p.aliases.find((a) => a.isBirth)?.name ?? null,
@@ -1683,23 +1687,23 @@ export async function getPersonsPaginated(
 }
 
 export async function getDistinctNaturalHairColors(): Promise<string[]> {
-  const result = await prisma.person.findMany({
-    where: { naturalHairColor: { not: null } },
-    select: { naturalHairColor: true },
-    distinct: ["naturalHairColor"],
-    orderBy: { naturalHairColor: "asc" },
+  const result = await prisma.personCurrentState.findMany({
+    where: { currentHairColor: { not: null } },
+    select: { currentHairColor: true },
+    distinct: ["currentHairColor"],
+    orderBy: { currentHairColor: "asc" },
   });
-  return result.map((r) => r.naturalHairColor!).filter(Boolean);
+  return result.map((r) => r.currentHairColor!).filter(Boolean);
 }
 
 export async function getDistinctBodyTypes(): Promise<string[]> {
-  const result = await prisma.person.findMany({
-    where: { bodyType: { not: null } },
-    select: { bodyType: true },
-    distinct: ["bodyType"],
-    orderBy: { bodyType: "asc" },
+  const result = await prisma.personCurrentState.findMany({
+    where: { currentBuild: { not: null } },
+    select: { currentBuild: true },
+    distinct: ["currentBuild"],
+    orderBy: { currentBuild: "asc" },
   });
-  return result.map((r) => r.bodyType!).filter(Boolean);
+  return result.map((r) => r.currentBuild!).filter(Boolean);
 }
 
 export async function getDistinctEthnicities(): Promise<string[]> {
@@ -1724,8 +1728,10 @@ export async function getPersonFacetCounts(filters: Omit<PersonFilters, "sort" |
     const merged = { ...filters, ...overrides };
     const w: Prisma.PersonWhereInput = {};
     if (merged.status && merged.status !== "all") w.status = merged.status;
-    if (merged.naturalHairColor) w.naturalHairColor = { equals: merged.naturalHairColor, mode: "insensitive" };
-    if (merged.bodyType) w.bodyType = { equals: merged.bodyType, mode: "insensitive" };
+    const cs: Prisma.PersonCurrentStateWhereInput = {};
+    if (merged.naturalHairColor) cs.currentHairColor = { equals: merged.naturalHairColor, mode: "insensitive" };
+    if (merged.bodyType) cs.currentBuild = { equals: merged.bodyType, mode: "insensitive" };
+    if (Object.keys(cs).length > 0) w.currentState = cs;
     if (merged.ethnicity) w.ethnicity = { equals: merged.ethnicity, mode: "insensitive" };
     if (filters.birthdateFrom || filters.birthdateTo) {
       w.birthdate = {
@@ -1750,15 +1756,15 @@ export async function getPersonFacetCounts(filters: Omit<PersonFilters, "sort" |
 
   const [statusGroups, hairGroups, bodyTypeGroups, ethnicityGroups] = await Promise.all([
     prisma.person.groupBy({ by: ["status"], where: buildBase({ status: undefined }), _count: { _all: true } }),
-    prisma.person.groupBy({ by: ["naturalHairColor"], where: buildBase({ naturalHairColor: undefined }), _count: { _all: true } }),
-    prisma.person.groupBy({ by: ["bodyType"], where: buildBase({ bodyType: undefined }), _count: { _all: true } }),
+    prisma.personCurrentState.groupBy({ by: ["currentHairColor"], where: { person: buildBase({ naturalHairColor: undefined }) }, _count: { _all: true } }),
+    prisma.personCurrentState.groupBy({ by: ["currentBuild"], where: { person: buildBase({ bodyType: undefined }) }, _count: { _all: true } }),
     prisma.person.groupBy({ by: ["ethnicity"], where: buildBase({ ethnicity: undefined }), _count: { _all: true } }),
   ]);
 
   return {
     status: Object.fromEntries(statusGroups.map((r) => [r.status, r._count._all])),
-    naturalHairColor: Object.fromEntries(hairGroups.filter((r) => r.naturalHairColor).map((r) => [r.naturalHairColor!, r._count._all])),
-    bodyType: Object.fromEntries(bodyTypeGroups.filter((r) => r.bodyType).map((r) => [r.bodyType!, r._count._all])),
+    naturalHairColor: Object.fromEntries(hairGroups.filter((r) => r.currentHairColor).map((r) => [r.currentHairColor!, r._count._all])),
+    bodyType: Object.fromEntries(bodyTypeGroups.filter((r) => r.currentBuild).map((r) => [r.currentBuild!, r._count._all])),
     ethnicity: Object.fromEntries(ethnicityGroups.filter((r) => r.ethnicity).map((r) => [r.ethnicity!, r._count._all])),
   };
 }
