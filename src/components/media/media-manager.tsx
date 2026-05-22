@@ -40,7 +40,7 @@ import { MediaGrid } from "./media-grid";
 import { MediaMetadataPanel } from "./media-metadata-panel";
 
 type EntityOption = { id: string; name: string };
-type PersonaOption = { id: string; label: string; date: string | null };
+type EraOption = { id: string; label: string; date: string | null };
 type SkillEventOption = { id: string; skillName: string; eventType: string; date: string | null };
 
 type MediaManagerProps = {
@@ -53,7 +53,7 @@ type MediaManagerProps = {
   bodyMarks: EntityOption[];
   bodyModifications: EntityOption[];
   cosmeticProcedures: EntityOption[];
-  personas: PersonaOption[];
+  eras: EraOption[];
   skillEvents: SkillEventOption[];
   anchor?: "reference" | "production";
 };
@@ -124,7 +124,7 @@ export function MediaManager({
   bodyMarks,
   bodyModifications,
   cosmeticProcedures,
-  personas,
+  eras,
   skillEvents,
   anchor,
 }: MediaManagerProps) {
@@ -328,7 +328,7 @@ export function MediaManager({
                   bodyModificationId: null,
                   cosmeticProcedureId: null,
                   categoryId: null,
-                  personaId: null,
+                  eraId: null,
                   isFavorite: false,
                   isAvatar: false,
                   sortOrder: 0,
@@ -468,14 +468,14 @@ export function MediaManager({
       bodyMarks,
       bodyModifications,
       cosmeticProcedures,
-      personas,
+      eras,
       skillEvents,
       allSlotThumbnails,
       onLinksChange: handleLightboxLinksChange,
       onCollectionIdsChange: handleLightboxCollectionIdsChange,
       onSkillEventIdsChange: handleLightboxSkillEventIdsChange,
     }),
-    [personId, sessionId, collections, categories, bodyMarks, bodyModifications, cosmeticProcedures, personas, skillEvents, allSlotThumbnails, handleLightboxLinksChange, handleLightboxCollectionIdsChange, handleLightboxSkillEventIdsChange],
+    [personId, sessionId, collections, categories, bodyMarks, bodyModifications, cosmeticProcedures, eras, skillEvents, allSlotThumbnails, handleLightboxLinksChange, handleLightboxCollectionIdsChange, handleLightboxSkillEventIdsChange],
   );
 
   if (items.length === 0) {

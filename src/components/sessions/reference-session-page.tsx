@@ -13,7 +13,7 @@ import type { CollectionSummary } from "@/lib/services/collection-service";
 import type { CategoryWithGroup } from "@/components/gallery/gallery-info-panel";
 
 type EntityOption = { id: string; name: string };
-type PersonaOption = { id: string; label: string; date: string | null };
+type EraOption = { id: string; label: string; date: string | null };
 type SkillEventOption = { id: string; skillName: string; eventType: string; date: string | null };
 
 type TabId = "media" | "biographies";
@@ -31,7 +31,7 @@ type ReferenceSessionPageProps = {
   bodyMarks: EntityOption[];
   bodyModifications: EntityOption[];
   cosmeticProcedures: EntityOption[];
-  personas: PersonaOption[];
+  eras: EraOption[];
   skillEvents: SkillEventOption[];
   filledHeadshotSlots: number[];
   initialTab?: string;
@@ -50,7 +50,7 @@ export function ReferenceSessionPage({
   bodyMarks,
   bodyModifications,
   cosmeticProcedures,
-  personas,
+  eras,
   skillEvents,
   filledHeadshotSlots,
   initialTab,
@@ -258,7 +258,7 @@ export function ReferenceSessionPage({
               bodyMarks={bodyMarks}
               bodyModifications={bodyModifications}
               cosmeticProcedures={cosmeticProcedures}
-              personas={personas}
+              eras={eras}
               skillEvents={skillEvents}
               anchor="reference"
             />

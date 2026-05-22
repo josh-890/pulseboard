@@ -118,14 +118,14 @@ export default async function SessionDetailPage({ params, searchParams }: Sessio
     bodyMarks: { id: string; name: string }[];
     bodyModifications: { id: string; name: string }[];
     cosmeticProcedures: { id: string; name: string }[];
-    personas: { id: string; label: string; date: string | null }[];
+    eras: { id: string; label: string; date: string | null }[];
     skillEvents: { id: string; skillName: string; eventType: string; date: string | null }[];
     filledHeadshotSlots: number[];
   } | null = null;
 
   if (isReference && session.personId) {
     const personId = session.personId;
-    const [itemsWithLinks, slotLabels, collections, categoryGroups, bodyMarks, bodyMods, cosmetics, personas, skillEventsRaw, filledSlots] =
+    const [itemsWithLinks, slotLabels, collections, categoryGroups, bodyMarks, bodyMods, cosmetics, eras, skillEventsRaw, filledSlots] =
       await Promise.all([
         getMediaItemsWithLinks(id, personId),
         getProfileImageLabels(),
@@ -146,7 +146,7 @@ export default async function SessionDetailPage({ params, searchParams }: Sessio
           select: { id: true, type: true, bodyRegion: true },
           orderBy: { bodyRegion: "asc" },
         }),
-        prisma.persona.findMany({
+        prisma.era.findMany({
           where: { personId },
           select: { id: true, label: true, date: true },
           orderBy: { date: "asc" },
@@ -182,7 +182,7 @@ export default async function SessionDetailPage({ params, searchParams }: Sessio
       bodyMarks: bodyMarks.map((m) => ({ id: m.id, name: `${m.type} — ${m.bodyRegion}` })),
       bodyModifications: bodyMods.map((m) => ({ id: m.id, name: `${m.type} — ${m.bodyRegion}` })),
       cosmeticProcedures: cosmetics.map((m) => ({ id: m.id, name: `${m.type} — ${m.bodyRegion}` })),
-      personas: personas.map((p) => ({
+      eras: eras.map((p) => ({
         id: p.id,
         label: p.label,
         date: p.date ? p.date.toISOString().split("T")[0] : null,
@@ -226,7 +226,7 @@ export default async function SessionDetailPage({ params, searchParams }: Sessio
         bodyMarks={mediaManagerData.bodyMarks}
         bodyModifications={mediaManagerData.bodyModifications}
         cosmeticProcedures={mediaManagerData.cosmeticProcedures}
-        personas={mediaManagerData.personas}
+        eras={mediaManagerData.eras}
         skillEvents={mediaManagerData.skillEvents}
         filledHeadshotSlots={mediaManagerData.filledHeadshotSlots}
         initialTab={resolvedSearchParams.tab}

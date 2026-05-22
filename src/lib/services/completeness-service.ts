@@ -37,7 +37,7 @@ export async function computeProfileCompleteness(
     prisma.setParticipant.findFirst({
       where: { personId },
     }),
-    prisma.persona.findFirst({
+    prisma.era.findFirst({
       where: { personId, isBaseline: true },
       include: { physicalChange: true },
     }),
@@ -103,7 +103,7 @@ export async function batchComputeCompleteness(
       select: { personId: true },
       distinct: ["personId"],
     }),
-    prisma.persona.findMany({
+    prisma.era.findMany({
       where: { personId: { in: personIds }, isBaseline: true },
       include: { physicalChange: true },
     }),

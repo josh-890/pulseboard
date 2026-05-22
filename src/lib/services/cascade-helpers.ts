@@ -59,11 +59,11 @@ export async function cascadeDeleteSet(
 export async function cascadeDeleteBodyModifications(
   tx: TxClient,
   personId: string,
-  personaIds: string[],
+  eraIds: string[],
 ) {
-  if (personaIds.length > 0) {
+  if (eraIds.length > 0) {
     await tx.bodyModificationEvent.deleteMany({
-      where: { personaId: { in: personaIds } },
+      where: { eraId: { in: eraIds } },
     });
   }
   // Clear PersonMediaLink refs before deleting modifications (no schema cascade)
@@ -81,11 +81,11 @@ export async function cascadeDeleteBodyModifications(
 export async function cascadeDeleteCosmeticProcedures(
   tx: TxClient,
   personId: string,
-  personaIds: string[],
+  eraIds: string[],
 ) {
-  if (personaIds.length > 0) {
+  if (eraIds.length > 0) {
     await tx.cosmeticProcedureEvent.deleteMany({
-      where: { personaId: { in: personaIds } },
+      where: { eraId: { in: eraIds } },
     });
   }
   // Clear PersonMediaLink refs before deleting procedures (no schema cascade)
@@ -262,19 +262,19 @@ export async function cascadeDeletePersonAliases(
 }
 
 /**
- * Cascade hard-delete a single persona: physical + attributes, body mark events,
+ * Cascade hard-delete a single era: physical + attributes, body mark events,
  * body modification events, cosmetic procedure events, digital identities,
- * skill event media + skill events, then the persona itself.
+ * skill event media + skill events, then the era itself.
  * NOTE: Does NOT clean up orphaned parent entities — that's handled by
- * cascadeDeletePersonPersonas or the caller should do it separately.
+ * cascadeDeletePersonEras or the caller should do it separately.
  */
-export async function cascadeDeletePersona(
+export async function cascadeDeleteEra(
   tx: TxClient,
-  personaId: string,
+  eraId: string,
 ) {
   // PersonaPhysical + PersonaPhysicalAttribute
   const personaPhysicals = await tx.personaPhysical.findMany({
-    where: { personaId },
+    where: { eraId },
     select: { id: true },
   });
   if (personaPhysicals.length > 0) {
@@ -283,23 +283,23 @@ export async function cascadeDeletePersona(
     });
   }
   await tx.personaPhysical.deleteMany({
-    where: { personaId },
+    where: { eraId },
   });
   await tx.bodyMarkEvent.deleteMany({
-    where: { personaId },
+    where: { eraId },
   });
   await tx.bodyModificationEvent.deleteMany({
-    where: { personaId },
+    where: { eraId },
   });
   await tx.cosmeticProcedureEvent.deleteMany({
-    where: { personaId },
+    where: { eraId },
   });
   await tx.personDigitalIdentity.deleteMany({
-    where: { personaId },
+    where: { eraId },
   });
   // Skill event media, then skill events
   const skillEvents = await tx.personSkillEvent.findMany({
-    where: { personaId },
+    where: { eraId },
     select: { id: true },
   });
   if (skillEvents.length > 0) {
@@ -308,26 +308,26 @@ export async function cascadeDeletePersona(
     });
   }
   await tx.personSkillEvent.deleteMany({
-    where: { personaId },
+    where: { eraId },
   });
-  await tx.persona.delete({
-    where: { id: personaId },
+  await tx.era.delete({
+    where: { id: eraId },
   });
 }
 
 /**
- * Cascade hard-delete all personas for a person.
+ * Cascade hard-delete all eras for a person.
  */
-export async function cascadeDeletePersonPersonas(
+export async function cascadeDeletePersonEras(
   tx: TxClient,
   personId: string,
 ) {
-  const personas = await tx.persona.findMany({
+  const eras = await tx.era.findMany({
     where: { personId },
     select: { id: true },
   });
-  for (const p of personas) {
-    await cascadeDeletePersona(tx, p.id);
+  for (const p of eras) {
+    await cascadeDeleteEra(tx, p.id);
   }
 }
 

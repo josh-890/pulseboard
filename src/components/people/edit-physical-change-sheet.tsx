@@ -21,8 +21,8 @@ type PhysicalAttributeItem = {
 
 type PhysicalChangeItem = {
   physicalId: string;
-  personaId: string;
-  personaLabel: string;
+  eraId: string;
+  eraLabel: string;
   isBaseline: boolean;
   date: Date | null;
   datePrecision: string;
@@ -134,7 +134,7 @@ export function EditPhysicalChangeSheet({ personId, item, attributeGroups, onClo
 
         <div className="space-y-5 p-6">
           <p className="text-sm text-muted-foreground">
-            Editing physical change from <span className="font-medium text-foreground">{item.personaLabel}</span>.
+            Editing physical change from <span className="font-medium text-foreground">{item.eraLabel}</span>.
           </p>
 
           <PartialDateInput

@@ -65,8 +65,8 @@ export function EditAppearanceSheet({ person, open: controlledOpen, onOpenChange
     else setInternalOpen(false);
   }
 
-  const baselinePersona = person.personas.find((p) => p.isBaseline);
-  const physical = baselinePersona?.physicalChange;
+  const baselineEra = person.eras.find((p) => p.isBaseline);
+  const physical = baselineEra?.physicalChange;
 
   const getDefaults = (): UpdateAppearanceFormValues => ({
     id: person.id,

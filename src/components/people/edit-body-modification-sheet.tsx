@@ -51,8 +51,8 @@ export function EditBodyModificationSheet({ personId, modification, referenceSes
   // Single-event convenience
   const isSingleEvent = modification.events.length === 1;
   const initialEvent = modification.events[0];
-  const initDate = isSingleEvent ? formatDateForInput(initialEvent?.persona.date ?? null, initialEvent?.persona.isBaseline) : "";
-  const initPrec = isSingleEvent ? (initialEvent?.persona.isBaseline ? "UNKNOWN" : (initialEvent?.persona.datePrecision ?? "UNKNOWN")) : "UNKNOWN";
+  const initDate = isSingleEvent ? formatDateForInput(initialEvent?.era.date ?? null, initialEvent?.era.isBaseline) : "";
+  const initPrec = isSingleEvent ? (initialEvent?.era.isBaseline ? "UNKNOWN" : (initialEvent?.era.datePrecision ?? "UNKNOWN")) : "UNKNOWN";
   const [date, setDate] = useState(initDate);
   const [datePrecision, setDatePrecision] = useState(initPrec);
 

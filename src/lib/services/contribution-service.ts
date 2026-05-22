@@ -144,11 +144,11 @@ export async function addContributionSkill(
       select: { personId: true, sessionId: true },
     });
 
-    // 3. Find baseline persona
-    const baselinePersona = await tx.persona.findFirst({
+    // 3. Find baseline era
+    const baselineEra = await tx.era.findFirst({
       where: { personId: contribution.personId, isBaseline: true },
     });
-    if (!baselinePersona) return { cs, demonstratedEventId: null };
+    if (!baselineEra) return { cs, demonstratedEventId: null };
 
     // 4. Find or create PersonSkill
     let personSkill = await tx.personSkill.findFirst({
@@ -163,7 +163,7 @@ export async function addContributionSkill(
       personSkill = await tx.personSkill.create({
         data: {
           personId: contribution.personId,
-          personaId: baselinePersona.id,
+          eraId: baselineEra.id,
           skillDefinitionId,
           name: def?.name ?? "",
           category: def?.group.name ?? null,
@@ -171,10 +171,10 @@ export async function addContributionSkill(
         },
       });
     } else {
-      if (!personSkill.personaId) {
+      if (!personSkill.eraId) {
         personSkill = await tx.personSkill.update({
           where: { id: personSkill.id },
-          data: { personaId: baselinePersona.id },
+          data: { eraId: baselineEra.id },
         });
       }
       // Progressive level upgrade
@@ -202,7 +202,7 @@ export async function addContributionSkill(
     const event = await tx.personSkillEvent.create({
       data: {
         personSkillId: personSkill.id,
-        personaId: baselinePersona.id,
+        eraId: baselineEra.id,
         eventType: "DEMONSTRATED",
         level: level ?? null,
         date: session?.date ?? null,

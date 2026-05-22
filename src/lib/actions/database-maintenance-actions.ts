@@ -11,6 +11,8 @@ import {
   processOrphanedStorageKeys,
   reconcileStagingSetParticipants,
   fixImportedNationalityCodes,
+  rebuildCurrentStateCache,
+  checkCurrentStateIntegrity,
 } from "@/lib/services/database-maintenance-service";
 
 type MaintenanceActionResult = {
@@ -99,6 +101,32 @@ export async function refreshViewsAction(): Promise<MaintenanceActionResult> {
       return { success: false, error: message };
     }
 
+  });
+}
+
+export async function rebuildCurrentStateCacheAction(): Promise<MaintenanceActionResult> {
+  return withTenantFromHeaders(async () => {
+    try {
+      const result = await rebuildCurrentStateCache();
+      revalidatePath("/people");
+      return { success: true, ...result };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unexpected error";
+      return { success: false, error: message };
+    }
+  });
+}
+
+export async function checkCurrentStateIntegrityAction(): Promise<MaintenanceActionResult> {
+  return withTenantFromHeaders(async () => {
+    try {
+      const result = await checkCurrentStateIntegrity();
+      revalidatePath("/people");
+      return { success: true, ...result };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unexpected error";
+      return { success: false, error: message };
+    }
   });
 }
 

@@ -399,7 +399,7 @@ export async function searchPeople(
       (SELECT name FROM "PersonAlias" WHERE "personId" = p.id AND "isBirth"  = true LIMIT 1) AS "birthAlias",
       count(*) OVER () AS total_count
     FROM "Person" p
-    LEFT JOIN mv_person_current_state mv ON mv."personId" = p.id
+    LEFT JOIN "PersonCurrentState" mv ON mv."personId" = p.id
     WHERE ${where}
     ORDER BY ${orderBy}
     LIMIT ${limit} OFFSET ${offset}
@@ -473,7 +473,7 @@ export async function getFacetCounts(spec: FilterSpec): Promise<FacetCounts> {
     const rows = await prisma.$queryRaw<{ value: string | null; count: bigint }[]>(Prisma.sql`
       SELECT ${def.column} AS value, count(*)::bigint AS count
       FROM "Person" p
-      LEFT JOIN mv_person_current_state mv ON mv."personId" = p.id
+      LEFT JOIN "PersonCurrentState" mv ON mv."personId" = p.id
       WHERE ${where}
       GROUP BY ${def.column}
       ORDER BY count DESC, value ASC
@@ -494,7 +494,7 @@ export async function getFacetCounts(spec: FilterSpec): Promise<FacetCounts> {
     const rows = await prisma.$queryRaw<{ has: boolean; count: bigint }[]>(Prisma.sql`
       SELECT COALESCE(${col}, false) AS has, count(*)::bigint AS count
       FROM "Person" p
-      LEFT JOIN mv_person_current_state mv ON mv."personId" = p.id
+      LEFT JOIN "PersonCurrentState" mv ON mv."personId" = p.id
       WHERE ${where}
       GROUP BY COALESCE(${col}, false)
     `);
@@ -525,7 +525,7 @@ export async function getFacetCounts(spec: FilterSpec): Promise<FacetCounts> {
     const rows = await prisma.$queryRaw<{ value: string | null; count: bigint }[]>(Prisma.sql`
       SELECT ${valueExpr} AS value, count(*)::bigint AS count
       FROM "Person" p
-      LEFT JOIN mv_person_current_state mv ON mv."personId" = p.id
+      LEFT JOIN "PersonCurrentState" mv ON mv."personId" = p.id
       WHERE ${where} AND mv."currentAttributes" ? ${slug}
       GROUP BY value
       ORDER BY count DESC, value ASC
@@ -574,7 +574,7 @@ export async function getAttributeFacetsForDefinitions(
     const rows = await prisma.$queryRaw<{ value: string | null; count: bigint }[]>(Prisma.sql`
       SELECT ${valueExpr} AS value, count(*)::bigint AS count
       FROM "Person" p
-      LEFT JOIN mv_person_current_state mv ON mv."personId" = p.id
+      LEFT JOIN "PersonCurrentState" mv ON mv."personId" = p.id
       WHERE ${where} AND mv."currentAttributes" ? ${d.slug}
       GROUP BY value
       ORDER BY count DESC, value ASC

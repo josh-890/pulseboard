@@ -78,8 +78,8 @@ type PhysicalAttributeItem = {
 
 type PhysicalChangeItem = {
   physicalId: string;
-  personaId: string;
-  personaLabel: string;
+  eraId: string;
+  eraLabel: string;
   isBaseline: boolean;
   date: Date | null;
   datePrecision: string;
@@ -99,7 +99,7 @@ type EventItem = {
   date?: Date | null;
   datePrecision?: string;
   dateModifier?: string;
-  persona: { id: string; label: string; date: Date | null; datePrecision?: string; isBaseline?: boolean };
+  era: { id: string; label: string; date: Date | null; datePrecision?: string; isBaseline?: boolean };
 };
 
 type AppearanceOpenState =
@@ -177,14 +177,14 @@ export function AppearanceTab({
     return groups;
   }, [currentState.extensibleAttributes]);
 
-  // Build physical change history from personas
+  // Build physical change history from eras
   const physicalChanges = useMemo<PhysicalChangeItem[]>(() => {
-    return person.personas
+    return person.eras
       .filter((p) => p.physicalChange)
       .map((p) => ({
         physicalId: p.physicalChange!.id,
-        personaId: p.id,
-        personaLabel: p.label,
+        eraId: p.id,
+        eraLabel: p.label,
         isBaseline: p.isBaseline,
         date: p.date,
         datePrecision: p.datePrecision,
@@ -201,7 +201,7 @@ export function AppearanceTab({
           value: a.value,
         })),
       }));
-  }, [person.personas]);
+  }, [person.eras]);
 
   const handleDeleteBodyMark = useCallback((markId: string) => {
     startTransition(async () => {
@@ -643,7 +643,7 @@ export function AppearanceTab({
                                 <span className="rounded bg-muted/50 px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground">
                                   {formatPartialDate(item.date, item.datePrecision)}
                                 </span>
-                                <span className="text-xs text-muted-foreground">{item.personaLabel}</span>
+                                <span className="text-xs text-muted-foreground">{item.eraLabel}</span>
                               </div>
                               <div className="flex flex-wrap gap-1.5">
                                 {fields.map((f) => (

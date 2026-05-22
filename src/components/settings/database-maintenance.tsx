@@ -15,6 +15,8 @@ import {
   Trash2,
   Users,
   Flag,
+  Database,
+  ShieldCheck,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -26,6 +28,8 @@ import {
   processOrphanedStorageKeysAction,
   reconcileStagingSetParticipantsAction,
   fixImportedNationalityCodesAction,
+  rebuildCurrentStateCacheAction,
+  checkCurrentStateIntegrityAction,
 } from "@/lib/actions/database-maintenance-actions";
 
 type ActionResult = {
@@ -82,9 +86,23 @@ const actions: ActionConfig[] = [
   {
     title: "Refresh Materialized Views",
     description:
-      "Refresh all materialized views (dashboard stats, person state, affiliations). Safe to run anytime.",
+      "Refresh all materialized views (dashboard stats, affiliations). Safe to run anytime.",
     icon: <RefreshCw className="h-5 w-5 text-muted-foreground" />,
     action: refreshViewsAction,
+  },
+  {
+    title: "Rebuild Current-State Cache",
+    description:
+      "Rebuild the PersonCurrentState cache for every person from scratch. Run after bulk operations or a colour-catalog change. Safe to run anytime.",
+    icon: <Database className="h-5 w-5 text-muted-foreground" />,
+    action: rebuildCurrentStateCacheAction,
+  },
+  {
+    title: "Current-State Cache Integrity",
+    description:
+      "Recompute every PersonCurrentState row and report any that had drifted from their correct value. A drift means a write path skipped the recompute — a bug. Self-healing.",
+    icon: <ShieldCheck className="h-5 w-5 text-muted-foreground" />,
+    action: checkCurrentStateIntegrityAction,
   },
   {
     title: "Imported Nationality Codes",

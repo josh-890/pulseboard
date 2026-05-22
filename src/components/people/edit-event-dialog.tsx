@@ -14,7 +14,7 @@ type EventItem = {
   date?: Date | null;
   datePrecision?: string;
   dateModifier?: string;
-  persona: { id: string; label: string; date: Date | null; datePrecision?: string; isBaseline?: boolean };
+  era: { id: string; label: string; date: Date | null; datePrecision?: string; isBaseline?: boolean };
 };
 
 type EventStyle = { color: string; label: string };
@@ -83,9 +83,9 @@ export function EditEventDialog(props: EditEventDialogProps) {
   const [isPending, startTransition] = useTransition();
   useEscToClose(onClose);
   const [eventType, setEventType] = useState(event.eventType);
-  const effectiveDate = event.date ?? event.persona.date;
-  const effectivePrec = event.datePrecision ?? event.persona.datePrecision ?? "UNKNOWN";
-  const isBaseline = !event.date && event.persona.isBaseline;
+  const effectiveDate = event.date ?? event.era.date;
+  const effectivePrec = event.datePrecision ?? event.era.datePrecision ?? "UNKNOWN";
+  const isBaseline = !event.date && event.era.isBaseline;
   const initDate = formatDateForInput(effectiveDate ?? null, isBaseline);
   const initPrec = isBaseline ? "UNKNOWN" : effectivePrec;
   const [date, setDate] = useState(initDate);

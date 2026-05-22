@@ -5,33 +5,33 @@ import { toast } from "sonner";
 import { cn, formatPartialDate } from "@/lib/utils";
 import { DeleteButton } from "@/components/shared/delete-button";
 import type { getPersonWithDetails } from "@/lib/services/person-service";
-import { deletePersonaAction, updatePersonaAction } from "@/lib/actions/appearance-actions";
+import { deleteEraAction, updateEraAction } from "@/lib/actions/appearance-actions";
 
-type PersonaItem = NonNullable<Awaited<ReturnType<typeof getPersonWithDetails>>>["personas"][number];
+type EraItem = NonNullable<Awaited<ReturnType<typeof getPersonWithDetails>>>["eras"][number];
 
-type PersonaTimelineEntryProps = {
-  persona: PersonaItem;
+type EraTimelineEntryProps = {
+  era: EraItem;
   personId: string;
   connectAbove?: boolean;
   connectBelow?: boolean;
 };
 
-export function PersonaTimelineEntry({ persona, personId, connectAbove, connectBelow }: PersonaTimelineEntryProps) {
+export function EraTimelineEntry({ era, personId, connectAbove, connectBelow }: EraTimelineEntryProps) {
   const [editing, setEditing] = useState<"label" | "notes" | false>(false);
   const [isPending, startTransition] = useTransition();
 
   // Inline edit state
-  const [savedLabel, setSavedLabel] = useState(persona.label);
-  const [savedNotes, setSavedNotes] = useState(persona.notes ?? "");
-  const [draftLabel, setDraftLabel] = useState(persona.label);
-  const [draftNotes, setDraftNotes] = useState(persona.notes ?? "");
+  const [savedLabel, setSavedLabel] = useState(era.label);
+  const [savedNotes, setSavedNotes] = useState(era.notes ?? "");
+  const [draftLabel, setDraftLabel] = useState(era.label);
+  const [draftNotes, setDraftNotes] = useState(era.notes ?? "");
 
-  const hasPhysical = !!persona.physicalChange;
+  const hasPhysical = !!era.physicalChange;
   const physicalFields = hasPhysical
     ? [
-        persona.physicalChange?.currentHairColor ? `Hair: ${persona.physicalChange.currentHairColor}` : null,
-        persona.physicalChange?.weight ? `Weight: ${persona.physicalChange.weight} kg` : null,
-        persona.physicalChange?.build ? `Build: ${persona.physicalChange.build}` : null,
+        era.physicalChange?.currentHairColor ? `Hair: ${era.physicalChange.currentHairColor}` : null,
+        era.physicalChange?.weight ? `Weight: ${era.physicalChange.weight} kg` : null,
+        era.physicalChange?.build ? `Build: ${era.physicalChange.build}` : null,
       ].filter(Boolean)
     : [];
 
@@ -51,20 +51,20 @@ export function PersonaTimelineEntry({ persona, personId, connectAbove, connectB
       return;
     }
     startTransition(async () => {
-      const result = await updatePersonaAction(persona.id, personId, {
+      const result = await updateEraAction(era.id, personId, {
         label: draftLabel.trim(),
         notes: draftNotes.trim() || undefined,
       });
       if (!result.success) {
-        toast.error(result.error ?? "Failed to update persona.");
+        toast.error(result.error ?? "Failed to update era.");
         return;
       }
       setSavedLabel(draftLabel.trim());
       setSavedNotes(draftNotes.trim());
-      toast.success("Persona updated.");
+      toast.success("Era updated.");
       setEditing(false);
     });
-  }, [persona.id, personId, draftLabel, draftNotes]);
+  }, [era.id, personId, draftLabel, draftNotes]);
 
   return (
     <div className="group relative pl-6">
@@ -86,7 +86,7 @@ export function PersonaTimelineEntry({ persona, personId, connectAbove, connectB
       <div
         className={cn(
           "absolute left-0 top-2 h-3 w-3 rounded-full border-2",
-          persona.isBaseline
+          era.isBaseline
             ? "border-primary bg-primary"
             : "border-muted-foreground/40 bg-muted-foreground/20",
         )}
@@ -123,24 +123,24 @@ export function PersonaTimelineEntry({ persona, personId, connectAbove, connectB
               {savedLabel}
             </span>
           )}
-          {persona.isBaseline && (
+          {era.isBaseline && (
             <span className="inline-flex items-center rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-xs font-medium text-emerald-600 dark:text-emerald-400">
               Baseline
             </span>
           )}
-          {persona.date && (
+          {era.date && (
             <span className="inline-flex items-center rounded-full border border-white/15 bg-muted/40 px-2 py-0.5 text-xs text-muted-foreground">
-              {formatPartialDate(persona.date, persona.datePrecision)}
+              {formatPartialDate(era.date, era.datePrecision)}
             </span>
           )}
 
           {/* Delete button — hover-visible (no pencil needed, click label/notes to edit) */}
-          {!editing && !persona.isBaseline && (
+          {!editing && !era.isBaseline && (
             <div className="ml-auto flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
               <DeleteButton
                 title={`Delete "${savedLabel}"?`}
-                description="This will delete the persona and all linked events. The entities themselves (body marks, modifications, procedures) will not be deleted."
-                onDelete={() => deletePersonaAction(persona.id, personId)}
+                description="This will delete the era and all linked events. The entities themselves (body marks, modifications, procedures) will not be deleted."
+                onDelete={() => deleteEraAction(era.id, personId)}
               />
             </div>
           )}
@@ -152,7 +152,7 @@ export function PersonaTimelineEntry({ persona, personId, connectAbove, connectB
             <textarea
               value={draftNotes}
               onChange={(e) => setDraftNotes(e.target.value)}
-              placeholder="Context about this persona..."
+              placeholder="Context about this era..."
               rows={2}
               className="w-full rounded-lg border border-white/15 bg-muted/30 px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-ring resize-none"
               autoFocus={editing === "notes"}
@@ -219,14 +219,14 @@ export function PersonaTimelineEntry({ persona, personId, connectAbove, connectB
         )}
 
         {/* Body mark events */}
-        {persona.bodyMarkEvents.length > 0 && (
+        {era.bodyMarkEvents.length > 0 && (
           <div className="mb-2">
             <p className="mb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground/70">
               Body marks
             </p>
             <div className="space-y-0.5">
-              {persona.bodyMarkEvents.map((event) => {
-                const eventDateStr = event.date && event.date.getTime() !== persona.date?.getTime()
+              {era.bodyMarkEvents.map((event) => {
+                const eventDateStr = event.date && event.date.getTime() !== era.date?.getTime()
                   ? formatPartialDate(event.date, event.datePrecision)
                   : null;
                 return (
@@ -245,14 +245,14 @@ export function PersonaTimelineEntry({ persona, personId, connectAbove, connectB
         )}
 
         {/* Body modification events */}
-        {persona.bodyModificationEvents.length > 0 && (
+        {era.bodyModificationEvents.length > 0 && (
           <div className="mb-2">
             <p className="mb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground/70">
               Body modifications
             </p>
             <div className="space-y-0.5">
-              {persona.bodyModificationEvents.map((event) => {
-                const eventDateStr = event.date && event.date.getTime() !== persona.date?.getTime()
+              {era.bodyModificationEvents.map((event) => {
+                const eventDateStr = event.date && event.date.getTime() !== era.date?.getTime()
                   ? formatPartialDate(event.date, event.datePrecision)
                   : null;
                 return (
@@ -270,14 +270,14 @@ export function PersonaTimelineEntry({ persona, personId, connectAbove, connectB
         )}
 
         {/* Cosmetic procedure events */}
-        {persona.cosmeticProcedureEvents.length > 0 && (
+        {era.cosmeticProcedureEvents.length > 0 && (
           <div className="mb-2">
             <p className="mb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground/70">
               Cosmetic procedures
             </p>
             <div className="space-y-0.5">
-              {persona.cosmeticProcedureEvents.map((event) => {
-                const eventDateStr = event.date && event.date.getTime() !== persona.date?.getTime()
+              {era.cosmeticProcedureEvents.map((event) => {
+                const eventDateStr = event.date && event.date.getTime() !== era.date?.getTime()
                   ? formatPartialDate(event.date, event.datePrecision)
                   : null;
                 return (
@@ -295,13 +295,13 @@ export function PersonaTimelineEntry({ persona, personId, connectAbove, connectB
         )}
 
         {/* Digital identity changes */}
-        {persona.digitalIdentities.length > 0 && (
+        {era.digitalIdentities.length > 0 && (
           <div className="mb-2">
             <p className="mb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground/70">
               Digital identities
             </p>
             <div className="space-y-0.5">
-              {persona.digitalIdentities.map((di) => (
+              {era.digitalIdentities.map((di) => (
                 <p key={di.id} className="text-sm text-foreground/80">
                   <span className="font-medium">{di.platform}</span>
                   {di.handle ? ` — ${di.handle}` : ""}

@@ -14,7 +14,7 @@ export default async function AttributesPage() {
           <h1 className="text-2xl font-bold">Physical Attributes</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             Define physical attribute groups and measurements. These are used to track
-            extensible physical attributes over time via persona snapshots.
+            extensible physical attributes over time via era snapshots.
           </p>
         </div>
         <PhysicalAttributeManager groups={physicalAttributeGroups} />

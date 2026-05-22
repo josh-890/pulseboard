@@ -15,12 +15,12 @@ import type {
   CosmeticProcedureEventType,
 } from "@/generated/prisma/client";
 import {
-  findOrCreatePersonaForDate,
-  createPersonaBatch,
-  updatePersona,
-  deletePersona,
-} from "@/lib/services/persona-service";
-import type { CreatePersonaBatchInput } from "@/lib/validations/persona";
+  findOrCreateEraForDate,
+  createEraBatch,
+  updateEra,
+  deleteEra,
+} from "@/lib/services/era-service";
+import type { CreateEraBatchInput } from "@/lib/validations/era";
 import {
   deleteBodyMarkRecord,
   deleteBodyMarkEventRecord,
@@ -33,6 +33,10 @@ import {
   deleteCosmeticProcedureRecord,
   deleteCosmeticProcedureEventRecord,
 } from "@/lib/services/cosmetic-procedure-service";
+import {
+  recomputePersonCurrentState,
+  recomputePersonCurrentStateStandalone,
+} from "@/lib/services/current-state-service";
 import type { SimpleActionResult } from "@/lib/types";
 
 type ActionResultWithId = SimpleActionResult & { id?: string };
@@ -100,7 +104,7 @@ export async function createBodyMarkAction(
 
       let markId = "";
       await prisma.$transaction(async (tx) => {
-        const personaId = await findOrCreatePersonaForDate(tx, personId, date, precision);
+        const eraId = await findOrCreateEraForDate(tx, personId, date, precision);
         const mark = await tx.bodyMark.create({
           data: {
             personId,
@@ -120,12 +124,13 @@ export async function createBodyMarkAction(
         await tx.bodyMarkEvent.create({
           data: {
             bodyMarkId: mark.id,
-            personaId,
+            eraId,
             eventType: "added",
             date,
             datePrecision: precision,
           },
         });
+        await recomputePersonCurrentState(tx, personId);
       });
 
       revalidatePath(`/people/${personId}`);
@@ -184,17 +189,18 @@ export async function updateBodyMarkAction(
           if (events.length === 1) {
             const parsedDate = data.singleEventDate ? new Date(data.singleEventDate) : null;
             const precision = (data.singleEventDatePrecision ?? "UNKNOWN") as DatePrecision;
-            const targetPersonaId = await findOrCreatePersonaForDate(tx, personId, parsedDate, precision);
+            const targetEraId = await findOrCreateEraForDate(tx, personId, parsedDate, precision);
             await tx.bodyMarkEvent.update({
               where: { id: events[0].id },
               data: {
-                personaId: targetPersonaId,
+                eraId: targetEraId,
                 date: parsedDate,
                 datePrecision: precision,
               },
             });
           }
         }
+        await recomputePersonCurrentState(tx, personId);
       });
 
       revalidatePath(`/people/${personId}`);
@@ -214,6 +220,7 @@ export async function deleteBodyMarkAction(
   return withTenantFromHeaders(async () => {
     try {
       await deleteBodyMarkRecord(id);
+      await recomputePersonCurrentStateStandalone(personId);
       revalidatePath(`/people/${personId}`);
       return { success: true };
     } catch (err) {
@@ -244,12 +251,12 @@ export async function createBodyMarkEventAction(
       await prisma.$transaction(async (tx) => {
         const parsedDate = data.date ? new Date(data.date) : null;
         const precision = (data.datePrecision ?? "UNKNOWN") as DatePrecision;
-        const personaId = await findOrCreatePersonaForDate(tx, personId, parsedDate, precision);
+        const eraId = await findOrCreateEraForDate(tx, personId, parsedDate, precision);
 
         await tx.bodyMarkEvent.create({
           data: {
             bodyMarkId: data.bodyMarkId,
-            personaId,
+            eraId,
             eventType: data.eventType as BodyMarkEventType,
             notes: data.notes,
             date: parsedDate,
@@ -272,6 +279,7 @@ export async function createBodyMarkEventAction(
           where: { id: data.bodyMarkId },
           data: { status: deriveBodyMarkStatus(allEvents) },
         });
+        await recomputePersonCurrentState(tx, personId);
       });
 
       revalidatePath(`/people/${personId}`);
@@ -305,12 +313,12 @@ export async function updateBodyMarkEventAction(
       await prisma.$transaction(async (tx) => {
         const parsedDate = data.date ? new Date(data.date) : null;
         const precision = (data.datePrecision ?? "UNKNOWN") as DatePrecision;
-        const targetPersonaId = await findOrCreatePersonaForDate(tx, personId, parsedDate, precision);
+        const targetEraId = await findOrCreateEraForDate(tx, personId, parsedDate, precision);
 
         await tx.bodyMarkEvent.update({
           where: { id: eventId },
           data: {
-            personaId: targetPersonaId,
+            eraId: targetEraId,
             eventType: data.eventType as BodyMarkEventType,
             notes: data.notes ?? null,
             date: parsedDate,
@@ -333,6 +341,7 @@ export async function updateBodyMarkEventAction(
           where: { id: data.bodyMarkId },
           data: { status: deriveBodyMarkStatus(allEvents) },
         });
+        await recomputePersonCurrentState(tx, personId);
       });
 
       revalidatePath(`/people/${personId}`);
@@ -367,6 +376,7 @@ export async function deleteBodyMarkEventAction(
         where: { id: resolvedBodyMarkId },
         data: { status: deriveBodyMarkStatus(remainingEvents) },
       });
+      await recomputePersonCurrentStateStandalone(personId);
 
       revalidatePath(`/people/${personId}`);
       return { success: true };
@@ -402,7 +412,7 @@ export async function createBodyModificationAction(
 
       let modId = "";
       await prisma.$transaction(async (tx) => {
-        const personaId = await findOrCreatePersonaForDate(tx, personId, date, precision);
+        const eraId = await findOrCreateEraForDate(tx, personId, date, precision);
         const mod = await tx.bodyModification.create({
           data: {
             personId,
@@ -421,12 +431,13 @@ export async function createBodyModificationAction(
         await tx.bodyModificationEvent.create({
           data: {
             bodyModificationId: mod.id,
-            personaId,
+            eraId,
             eventType: "added",
             date,
             datePrecision: precision,
           },
         });
+        await recomputePersonCurrentState(tx, personId);
       });
 
       revalidatePath(`/people/${personId}`);
@@ -481,17 +492,18 @@ export async function updateBodyModificationAction(
           if (events.length === 1) {
             const parsedDate = data.singleEventDate ? new Date(data.singleEventDate) : null;
             const precision = (data.singleEventDatePrecision ?? "UNKNOWN") as DatePrecision;
-            const targetPersonaId = await findOrCreatePersonaForDate(tx, personId, parsedDate, precision);
+            const targetEraId = await findOrCreateEraForDate(tx, personId, parsedDate, precision);
             await tx.bodyModificationEvent.update({
               where: { id: events[0].id },
               data: {
-                personaId: targetPersonaId,
+                eraId: targetEraId,
                 date: parsedDate,
                 datePrecision: precision,
               },
             });
           }
         }
+        await recomputePersonCurrentState(tx, personId);
       });
 
       revalidatePath(`/people/${personId}`);
@@ -511,6 +523,7 @@ export async function deleteBodyModificationAction(
   return withTenantFromHeaders(async () => {
     try {
       await deleteBodyModificationRecord(id);
+      await recomputePersonCurrentStateStandalone(personId);
       revalidatePath(`/people/${personId}`);
       return { success: true };
     } catch (err) {
@@ -540,12 +553,12 @@ export async function createBodyModificationEventAction(
       await prisma.$transaction(async (tx) => {
         const parsedDate = data.date ? new Date(data.date) : null;
         const precision = (data.datePrecision ?? "UNKNOWN") as DatePrecision;
-        const personaId = await findOrCreatePersonaForDate(tx, personId, parsedDate, precision);
+        const eraId = await findOrCreateEraForDate(tx, personId, parsedDate, precision);
 
         await tx.bodyModificationEvent.create({
           data: {
             bodyModificationId: data.bodyModificationId,
-            personaId,
+            eraId,
             eventType: data.eventType as BodyModificationEventType,
             notes: data.notes,
             date: parsedDate,
@@ -566,6 +579,7 @@ export async function createBodyModificationEventAction(
           where: { id: data.bodyModificationId },
           data: { status: deriveBodyModificationStatus(allEvents) },
         });
+        await recomputePersonCurrentState(tx, personId);
       });
 
       revalidatePath(`/people/${personId}`);
@@ -598,12 +612,12 @@ export async function updateBodyModificationEventAction(
       await prisma.$transaction(async (tx) => {
         const parsedDate = data.date ? new Date(data.date) : null;
         const precision = (data.datePrecision ?? "UNKNOWN") as DatePrecision;
-        const targetPersonaId = await findOrCreatePersonaForDate(tx, personId, parsedDate, precision);
+        const targetEraId = await findOrCreateEraForDate(tx, personId, parsedDate, precision);
 
         await tx.bodyModificationEvent.update({
           where: { id: eventId },
           data: {
-            personaId: targetPersonaId,
+            eraId: targetEraId,
             eventType: data.eventType as BodyModificationEventType,
             notes: data.notes ?? null,
             date: parsedDate,
@@ -624,6 +638,7 @@ export async function updateBodyModificationEventAction(
           where: { id: data.bodyModificationId },
           data: { status: deriveBodyModificationStatus(allEvents) },
         });
+        await recomputePersonCurrentState(tx, personId);
       });
 
       revalidatePath(`/people/${personId}`);
@@ -656,6 +671,7 @@ export async function deleteBodyModificationEventAction(
         where: { id: resolvedId },
         data: { status: deriveBodyModificationStatus(remainingEvents) },
       });
+      await recomputePersonCurrentStateStandalone(personId);
 
       revalidatePath(`/people/${personId}`);
       return { success: true };
@@ -689,7 +705,7 @@ export async function createCosmeticProcedureAction(
 
       let procId = "";
       await prisma.$transaction(async (tx) => {
-        const personaId = await findOrCreatePersonaForDate(tx, personId, date, precision);
+        const eraId = await findOrCreateEraForDate(tx, personId, date, precision);
         const proc = await tx.cosmeticProcedure.create({
           data: {
             personId,
@@ -706,12 +722,13 @@ export async function createCosmeticProcedureAction(
         await tx.cosmeticProcedureEvent.create({
           data: {
             cosmeticProcedureId: proc.id,
-            personaId,
+            eraId,
             eventType: "performed",
             date,
             datePrecision: precision,
           },
         });
+        await recomputePersonCurrentState(tx, personId);
       });
 
       revalidatePath(`/people/${personId}`);
@@ -762,17 +779,18 @@ export async function updateCosmeticProcedureAction(
           if (events.length === 1) {
             const parsedDate = data.singleEventDate ? new Date(data.singleEventDate) : null;
             const precision = (data.singleEventDatePrecision ?? "UNKNOWN") as DatePrecision;
-            const targetPersonaId = await findOrCreatePersonaForDate(tx, personId, parsedDate, precision);
+            const targetEraId = await findOrCreateEraForDate(tx, personId, parsedDate, precision);
             await tx.cosmeticProcedureEvent.update({
               where: { id: events[0].id },
               data: {
-                personaId: targetPersonaId,
+                eraId: targetEraId,
                 date: parsedDate,
                 datePrecision: precision,
               },
             });
           }
         }
+        await recomputePersonCurrentState(tx, personId);
       });
 
       revalidatePath(`/people/${personId}`);
@@ -792,6 +810,7 @@ export async function deleteCosmeticProcedureAction(
   return withTenantFromHeaders(async () => {
     try {
       await deleteCosmeticProcedureRecord(id);
+      await recomputePersonCurrentStateStandalone(personId);
       revalidatePath(`/people/${personId}`);
       return { success: true };
     } catch (err) {
@@ -823,12 +842,12 @@ export async function createCosmeticProcedureEventAction(
       await prisma.$transaction(async (tx) => {
         const parsedDate = data.date ? new Date(data.date) : null;
         const precision = (data.datePrecision ?? "UNKNOWN") as DatePrecision;
-        const personaId = await findOrCreatePersonaForDate(tx, personId, parsedDate, precision);
+        const eraId = await findOrCreateEraForDate(tx, personId, parsedDate, precision);
 
         await tx.cosmeticProcedureEvent.create({
           data: {
             cosmeticProcedureId: data.cosmeticProcedureId,
-            personaId,
+            eraId,
             eventType: data.eventType as CosmeticProcedureEventType,
             notes: data.notes,
             date: parsedDate,
@@ -851,6 +870,7 @@ export async function createCosmeticProcedureEventAction(
           where: { id: data.cosmeticProcedureId },
           data: { status: deriveCosmeticProcedureStatus(allEvents) },
         });
+        await recomputePersonCurrentState(tx, personId);
       });
 
       revalidatePath(`/people/${personId}`);
@@ -885,12 +905,12 @@ export async function updateCosmeticProcedureEventAction(
       await prisma.$transaction(async (tx) => {
         const parsedDate = data.date ? new Date(data.date) : null;
         const precision = (data.datePrecision ?? "UNKNOWN") as DatePrecision;
-        const targetPersonaId = await findOrCreatePersonaForDate(tx, personId, parsedDate, precision);
+        const targetEraId = await findOrCreateEraForDate(tx, personId, parsedDate, precision);
 
         await tx.cosmeticProcedureEvent.update({
           where: { id: eventId },
           data: {
-            personaId: targetPersonaId,
+            eraId: targetEraId,
             eventType: data.eventType as CosmeticProcedureEventType,
             notes: data.notes ?? null,
             date: parsedDate,
@@ -913,6 +933,7 @@ export async function updateCosmeticProcedureEventAction(
           where: { id: data.cosmeticProcedureId },
           data: { status: deriveCosmeticProcedureStatus(allEvents) },
         });
+        await recomputePersonCurrentState(tx, personId);
       });
 
       revalidatePath(`/people/${personId}`);
@@ -945,6 +966,7 @@ export async function deleteCosmeticProcedureEventAction(
         where: { id: resolvedId },
         data: { status: deriveCosmeticProcedureStatus(remainingEvents) },
       });
+      await recomputePersonCurrentStateStandalone(personId);
 
       revalidatePath(`/people/${personId}`);
       return { success: true };
@@ -980,11 +1002,11 @@ export async function recordPhysicalChangeAction(
       await ensureCatalogEntry("hair", data.currentHairColor);
 
       await prisma.$transaction(async (tx) => {
-        const personaId = await findOrCreatePersonaForDate(tx, personId, date, precision);
+        const eraId = await findOrCreateEraForDate(tx, personId, date, precision);
         const physical = await tx.personaPhysical.upsert({
-          where: { personaId },
+          where: { eraId },
           create: {
-            personaId,
+            eraId,
             currentHairColor: data.currentHairColor ?? null,
             weight: data.weight ?? null,
             build: data.build ?? null,
@@ -1025,6 +1047,7 @@ export async function recordPhysicalChangeAction(
             });
           }
         }
+        await recomputePersonCurrentState(tx, personId);
       });
 
       revalidatePath(`/people/${personId}`);
@@ -1062,15 +1085,15 @@ export async function updatePhysicalChangeAction(
       await prisma.$transaction(async (tx) => {
         const existing = await tx.personaPhysical.findUniqueOrThrow({
           where: { id: physicalId },
-          include: { persona: true },
+          include: { era: true },
         });
 
-        const oldPersonaId = existing.personaId;
+        const oldEraId = existing.eraId;
         const hasDateChange = data.date !== undefined || data.datePrecision !== undefined;
-        let targetPersonaId = oldPersonaId;
+        let targetEraId = oldEraId;
 
         if (hasDateChange) {
-          targetPersonaId = await findOrCreatePersonaForDate(tx, personId, parsedDate, precision);
+          targetEraId = await findOrCreateEraForDate(tx, personId, parsedDate, precision);
         }
 
         const fieldData = {
@@ -1085,11 +1108,11 @@ export async function updatePhysicalChangeAction(
         };
 
         let newPhysicalId: string;
-        if (targetPersonaId !== oldPersonaId) {
+        if (targetEraId !== oldEraId) {
           await tx.personaPhysical.delete({ where: { id: physicalId } });
           const created = await tx.personaPhysical.upsert({
-            where: { personaId: targetPersonaId },
-            create: { personaId: targetPersonaId, ...fieldData },
+            where: { eraId: targetEraId },
+            create: { eraId: targetEraId, ...fieldData },
             update: fieldData,
           });
           newPhysicalId = created.id;
@@ -1120,6 +1143,7 @@ export async function updatePhysicalChangeAction(
             });
           }
         }
+        await recomputePersonCurrentState(tx, personId);
       });
 
       revalidatePath(`/people/${personId}`);
@@ -1132,15 +1156,15 @@ export async function updatePhysicalChangeAction(
   });
 }
 
-// ─── Persona Batch/Edit/Delete Actions ──────────────────────────────────────
+// ─── Era Batch/Edit/Delete Actions ──────────────────────────────────────
 
-export async function createPersonaBatchAction(
+export async function createEraBatchAction(
   personId: string,
-  data: CreatePersonaBatchInput,
+  data: CreateEraBatchInput,
 ): Promise<ActionResultWithId> {
   return withTenantFromHeaders(async () => {
     try {
-      await createPersonaBatch(personId, data);
+      await createEraBatch(personId, data);
       revalidatePath(`/people/${personId}`);
       return { success: true };
     } catch (err) {
@@ -1151,7 +1175,7 @@ export async function createPersonaBatchAction(
   });
 }
 
-export async function updatePersonaAction(
+export async function updateEraAction(
   id: string,
   personId: string,
   data: {
@@ -1163,7 +1187,7 @@ export async function updatePersonaAction(
 ): Promise<ActionResultWithId> {
   return withTenantFromHeaders(async () => {
     try {
-      await updatePersona(id, {
+      await updateEra(id, {
         ...data,
         datePrecision: data.datePrecision as "UNKNOWN" | "YEAR" | "MONTH" | "DAY" | undefined,
       });
@@ -1177,13 +1201,13 @@ export async function updatePersonaAction(
   });
 }
 
-export async function deletePersonaAction(
+export async function deleteEraAction(
   id: string,
   personId: string,
 ): Promise<ActionResultWithId> {
   return withTenantFromHeaders(async () => {
     try {
-      await deletePersona(id);
+      await deleteEra(id);
       revalidatePath(`/people/${personId}`);
       return { success: true };
     } catch (err) {

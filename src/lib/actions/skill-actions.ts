@@ -24,7 +24,7 @@ export async function createPersonSkillAction(
     category?: string | null;
     level?: SkillLevel | null;
     evidence?: string | null;
-    personaId?: string | null;
+    eraId?: string | null;
     validFrom?: string | null;
     validTo?: string | null;
   },
@@ -38,7 +38,7 @@ export async function createPersonSkillAction(
         category: data.category,
         level: data.level,
         evidence: data.evidence,
-        personaId: data.personaId,
+        eraId: data.eraId,
         validFrom: data.validFrom ? new Date(data.validFrom) : null,
         validTo: data.validTo ? new Date(data.validTo) : null,
       });
@@ -58,7 +58,7 @@ export async function updatePersonSkillAction(
   data: {
     level?: SkillLevel | null;
     evidence?: string | null;
-    personaId?: string | null;
+    eraId?: string | null;
     validFrom?: string | null;
     validTo?: string | null;
   },
@@ -68,7 +68,7 @@ export async function updatePersonSkillAction(
       await updatePersonSkill(id, {
         level: data.level,
         evidence: data.evidence,
-        personaId: data.personaId,
+        eraId: data.eraId,
         validFrom: data.validFrom ? new Date(data.validFrom) : null,
         validTo: data.validTo ? new Date(data.validTo) : null,
       });
@@ -105,7 +105,7 @@ export async function createSkillEventAction(
   personId: string,
   data: {
     personSkillId: string;
-    personaId?: string | null;
+    eraId?: string | null;
     eventType: SkillEventType;
     level?: SkillLevel | null;
     notes?: string | null;

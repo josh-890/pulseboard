@@ -100,7 +100,7 @@ export type CollectionContext = {
   onCollectionIdsChange?: (itemId: string, collectionIds: string[]) => void;
 };
 
-export type PersonaOption = { id: string; label: string; date: string | null };
+export type EraOption = { id: string; label: string; date: string | null };
 
 export type SkillEventOption = {
   id: string;
@@ -117,7 +117,7 @@ export type ReferenceContext = {
   bodyModifications: EntityOption[];
   cosmeticProcedures: EntityOption[];
   categories: CategoryWithGroup[];
-  personas: PersonaOption[];
+  eras: EraOption[];
   skillEvents: SkillEventOption[];
   allSlotThumbnails?: Map<number, string>;
   onLinksChange?: (itemId: string, links: PersonMediaLinkSummary[]) => void;
@@ -280,7 +280,7 @@ export function GalleryInfoPanel({
             bodyModificationId: null,
             cosmeticProcedureId: null,
             categoryId: null,
-            personaId: null,
+            eraId: null,
             isFavorite: false,
             isAvatar: false,
             sortOrder: 0,
@@ -354,25 +354,25 @@ export function GalleryInfoPanel({
     [referenceContext, links, item.id],
   );
 
-  // Persona tagging — updates personaId on the first link
-  const handlePersonaChange = useCallback(
-    (personaId: string) => {
+  // Era tagging — updates eraId on the first link
+  const handleEraChange = useCallback(
+    (eraId: string) => {
       if (!referenceContext) return;
       const link = links[0];
       if (!link) return;
 
-      const value = personaId || null;
+      const value = eraId || null;
 
       // Optimistic
       referenceContext.onLinksChange?.(
         item.id,
-        links.map((l, i) => (i === 0 ? { ...l, personaId: value } : l)),
+        links.map((l, i) => (i === 0 ? { ...l, eraId: value } : l)),
       );
 
       startTransition(async () => {
         await updatePersonMediaLinkAction(
           link.id,
-          { personaId: value },
+          { eraId: value },
           referenceContext.personId,
           referenceContext.sessionId,
         );
@@ -441,7 +441,7 @@ export function GalleryInfoPanel({
             bodyModificationId: null,
             cosmeticProcedureId: null,
             categoryId: null,
-            personaId: null,
+            eraId: null,
             isFavorite: false,
             isAvatar: false,
             sortOrder: 0,
@@ -540,7 +540,7 @@ export function GalleryInfoPanel({
             bodyModificationId: null,
             cosmeticProcedureId: null,
             categoryId,
-            personaId: null,
+            eraId: null,
             isFavorite: false,
             isAvatar: false,
             sortOrder: 0,
@@ -1040,28 +1040,28 @@ export function GalleryInfoPanel({
         </>
       )}
 
-      {/* Persona (reference context only, when links exist) */}
-      {referenceContext && links.length > 0 && referenceContext.personas.length > 0 && (
+      {/* Era (reference context only, when links exist) */}
+      {referenceContext && links.length > 0 && referenceContext.eras.length > 0 && (
         <>
           <SectionHeader
-            title="Persona"
+            title="Era"
             icon={<User size={14} />}
-            section="persona"
-            expanded={expandedSections.has("persona")}
+            section="era"
+            expanded={expandedSections.has("era")}
             onToggle={toggleSection}
           />
-          {expandedSections.has("persona") && (
+          {expandedSections.has("era") && (
             <div className="pb-2">
               <EntityCombobox
-                entities={referenceContext.personas.map((p) => ({
+                entities={referenceContext.eras.map((p) => ({
                   id: p.id,
                   label: p.label,
                   description: p.date ?? undefined,
                 }))}
-                value={links[0].personaId ?? ""}
-                onChange={handlePersonaChange}
-                placeholder="No persona"
-                emptyLabel="No persona"
+                value={links[0].eraId ?? ""}
+                onChange={handleEraChange}
+                placeholder="No era"
+                emptyLabel="No era"
                 disabled={isPending}
               />
             </div>

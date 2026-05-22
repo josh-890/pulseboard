@@ -30,7 +30,7 @@ type EventItem = {
   date?: Date | null;
   datePrecision?: string;
   dateModifier?: string;
-  persona: { id: string; label: string; date: Date | null; datePrecision?: string; isBaseline?: boolean };
+  era: { id: string; label: string; date: Date | null; datePrecision?: string; isBaseline?: boolean };
 };
 
 type BodyModificationRowProps = {
@@ -75,11 +75,11 @@ export function BodyModificationRow({
     : [modification.bodyRegion, modification.side, modification.position].filter(Boolean);
   const photoCount = photos?.length ?? 0;
   const firstEvent = modification.events.find((e) => e.eventType === "added");
-  const firstEventDate = firstEvent?.date ?? firstEvent?.persona.date;
+  const firstEventDate = firstEvent?.date ?? firstEvent?.era.date;
   const year = firstEventDate
     ? new Date(firstEventDate).getUTCFullYear()
     : null;
-  const isBaselineDate = !firstEvent?.date && (firstEvent?.persona.isBaseline ?? false);
+  const isBaselineDate = !firstEvent?.date && (firstEvent?.era.isBaseline ?? false);
 
   return (
     <div className="group rounded-lg border border-white/10 bg-card/30 transition-colors hover:border-white/15">
@@ -130,7 +130,7 @@ export function BodyModificationRow({
           isBaselineDate ? (
             <span
               className="shrink-0 rounded-full border border-white/10 bg-muted/40 px-1.5 py-0.5 text-[10px] text-muted-foreground"
-              title="Year derived from baseline persona"
+              title="Year derived from baseline era"
             >
               baseline
             </span>

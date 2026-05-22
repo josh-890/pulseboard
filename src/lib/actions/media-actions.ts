@@ -607,7 +607,7 @@ export async function swapPersonMediaLinkAction(
             cosmeticProcedureId: old.cosmeticProcedureId,
             sortOrder: old.sortOrder,
             notes: old.notes,
-            personaId: old.personaId,
+            eraId: old.eraId,
             slot: old.slot,
             bodyRegion: old.bodyRegion,
             bodyRegions: old.bodyRegions,

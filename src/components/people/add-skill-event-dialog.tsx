@@ -15,13 +15,13 @@ import {
 } from "@/lib/constants/skill";
 import { createSkillEventAction } from "@/lib/actions/skill-actions";
 
-type PersonaOption = { id: string; label: string };
+type EraOption = { id: string; label: string };
 
 type AddSkillEventDialogProps = {
   personId: string;
   personSkillId: string;
   skillName: string;
-  personas: PersonaOption[];
+  eras: EraOption[];
   onClose: () => void;
 };
 
@@ -29,14 +29,14 @@ export function AddSkillEventDialog({
   personId,
   personSkillId,
   skillName,
-  personas,
+  eras,
   onClose,
 }: AddSkillEventDialogProps) {
   const [isPending, startTransition] = useTransition();
   useEscToClose(onClose);
   const [eventType, setEventType] = useState<SkillEventType>("DEMONSTRATED");
   const [level, setLevel] = useState<SkillLevel | "">("");
-  const [personaId, setPersonaId] = useState(personas[0]?.id ?? "");
+  const [eraId, setEraId] = useState(eras[0]?.id ?? "");
   const [date, setDate] = useState("");
   const [datePrecision, setDatePrecision] = useState("UNKNOWN");
   const [notes, setNotes] = useState("");
@@ -45,7 +45,7 @@ export function AddSkillEventDialog({
     startTransition(async () => {
       await createSkillEventAction(personId, {
         personSkillId,
-        personaId: personaId || null,
+        eraId: eraId || null,
         eventType,
         level: (level as SkillLevel) || null,
         notes: notes || null,
@@ -54,7 +54,7 @@ export function AddSkillEventDialog({
       });
       onClose();
     });
-  }, [personId, personSkillId, eventType, level, personaId, date, datePrecision, notes, onClose]);
+  }, [personId, personSkillId, eventType, level, eraId, date, datePrecision, notes, onClose]);
 
   return (
     <div role="dialog" aria-modal="true" className="fixed inset-0 z-50 flex items-center justify-center">
@@ -142,18 +142,18 @@ export function AddSkillEventDialog({
             label="Date (optional)"
           />
 
-          {/* Persona (optional) */}
+          {/* Era (optional) */}
           <div>
             <label className="mb-1.5 block text-sm font-medium">
-              Persona (optional)
+              Era (optional)
             </label>
             <select
-              value={personaId}
-              onChange={(e) => setPersonaId(e.target.value)}
+              value={eraId}
+              onChange={(e) => setEraId(e.target.value)}
               className="w-full rounded-lg border border-white/15 bg-muted/30 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
             >
-              <option value="">No persona</option>
-              {personas.map((p) => (
+              <option value="">No era</option>
+              {eras.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.label}
                 </option>

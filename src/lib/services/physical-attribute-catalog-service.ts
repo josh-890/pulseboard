@@ -222,7 +222,7 @@ export async function deletePhysicalAttributeDefinition(id: string) {
   ]);
   if (attrCount > 0) {
     throw new Error(
-      "Cannot delete definition that is in use by persona physical attributes",
+      "Cannot delete definition that is in use by era physical attributes",
     );
   }
   if (procCount > 0) {

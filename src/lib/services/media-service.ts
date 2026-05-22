@@ -637,7 +637,7 @@ export type PersonMediaLinkWithItem = {
   bodyModificationId: string | null;
   cosmeticProcedureId: string | null;
   categoryId: string | null;
-  personaId: string | null;
+  eraId: string | null;
   isFavorite: boolean;
   isAvatar: boolean;
   sortOrder: number;
@@ -656,7 +656,7 @@ function toPersonMediaLinkWithItem(
     bodyModificationId: string | null;
     cosmeticProcedureId: string | null;
     categoryId: string | null;
-    personaId?: string | null;
+    eraId?: string | null;
     isFavorite: boolean;
     isAvatar: boolean;
     sortOrder: number;
@@ -676,7 +676,7 @@ function toPersonMediaLinkWithItem(
     bodyModificationId: link.bodyModificationId,
     cosmeticProcedureId: link.cosmeticProcedureId,
     categoryId: link.categoryId,
-    personaId: link.personaId ?? null,
+    eraId: link.eraId ?? null,
     isFavorite: link.isFavorite,
     isAvatar: link.isAvatar,
     sortOrder: link.sortOrder,
@@ -900,7 +900,7 @@ export type MediaItemWithLinks = {
     bodyModificationId: string | null;
     cosmeticProcedureId: string | null;
     categoryId: string | null;
-    personaId: string | null;
+    eraId: string | null;
     isFavorite: boolean;
     isAvatar: boolean;
     sortOrder: number;
@@ -966,7 +966,7 @@ export async function getMediaItemsWithLinks(
           bodyModificationId: link.bodyModificationId,
           cosmeticProcedureId: link.cosmeticProcedureId,
           categoryId: link.categoryId,
-          personaId: link.personaId ?? null,
+          eraId: link.eraId ?? null,
           isFavorite: link.isFavorite,
           isAvatar: link.isAvatar,
           sortOrder: link.sortOrder,
@@ -992,7 +992,7 @@ export type PersonMediaLinkUpdate = {
   bodyModificationId?: string | null;
   cosmeticProcedureId?: string | null;
   categoryId?: string | null;
-  personaId?: string | null;
+  eraId?: string | null;
   isFavorite?: boolean;
   notes?: string | null;
 };

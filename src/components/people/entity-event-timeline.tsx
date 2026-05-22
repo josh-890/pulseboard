@@ -16,7 +16,7 @@ type EventItem = {
   date?: Date | null;
   datePrecision?: string;
   dateModifier?: string;
-  persona: { id: string; label: string; date: Date | null; datePrecision?: string; isBaseline?: boolean };
+  era: { id: string; label: string; date: Date | null; datePrecision?: string; isBaseline?: boolean };
 };
 
 type EventStyle = { color: string; label: string };
@@ -76,7 +76,7 @@ function getDotColors(index: number, total: number, isTerminal: boolean): DotCol
 }
 
 function getYear(event: EventItem): string {
-  const date = event.date ?? event.persona.date;
+  const date = event.date ?? event.era.date;
   if (!date) return "";
   return new Date(date).getUTCFullYear().toString();
 }
@@ -135,8 +135,8 @@ function TimelineDot({
           </div>
           <div className="text-xs text-muted-foreground">
             {year && <span>{year}</span>}
-            {year && event.persona.label && <span> · </span>}
-            {event.persona.label && <span>{event.persona.label}</span>}
+            {year && event.era.label && <span> · </span>}
+            {event.era.label && <span>{event.era.label}</span>}
           </div>
           {event.notes && (
             <p className="text-xs text-muted-foreground/70">{event.notes}</p>

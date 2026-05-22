@@ -50,8 +50,8 @@ export function EditBodyMarkSheet({ personId, mark, referenceSessionId, category
   // Single-event convenience: show date inline only when entity has exactly 1 event
   const isSingleEvent = mark.events.length === 1;
   const initialEvent = mark.events[0];
-  const initDate = isSingleEvent ? formatDateForInput(initialEvent?.persona.date ?? null, initialEvent?.persona.isBaseline) : "";
-  const initPrec = isSingleEvent ? (initialEvent?.persona.isBaseline ? "UNKNOWN" : (initialEvent?.persona.datePrecision ?? "UNKNOWN")) : "UNKNOWN";
+  const initDate = isSingleEvent ? formatDateForInput(initialEvent?.era.date ?? null, initialEvent?.era.isBaseline) : "";
+  const initPrec = isSingleEvent ? (initialEvent?.era.isBaseline ? "UNKNOWN" : (initialEvent?.era.datePrecision ?? "UNKNOWN")) : "UNKNOWN";
   const [date, setDate] = useState(initDate);
   const [datePrecision, setDatePrecision] = useState(initPrec);
 

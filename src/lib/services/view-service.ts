@@ -8,15 +8,8 @@ export async function refreshDashboardStats(): Promise<void> {
   await prisma.$queryRawUnsafe("REFRESH MATERIALIZED VIEW mv_dashboard_stats");
 }
 
-/**
- * Refresh the mv_person_current_state materialized view.
- * Call after persona mutations (create/update/delete persona or physical).
- */
-export async function refreshPersonCurrentState(): Promise<void> {
-  await prisma.$queryRawUnsafe(
-    "REFRESH MATERIALIZED VIEW CONCURRENTLY mv_person_current_state",
-  );
-}
+// mv_person_current_state was dropped in Phase B — replaced by the
+// PersonCurrentState cache table (see current-state-service.ts).
 
 /**
  * Refresh the mv_person_affiliations materialized view.

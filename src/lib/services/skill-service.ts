@@ -31,13 +31,13 @@ export async function getPersonSkillsEnriched(
   const skills = await prisma.personSkill.findMany({
     where: { personId },
     include: {
-      persona: { select: { label: true } },
+      era: { select: { label: true } },
       skillDefinition: {
         include: { group: { select: { name: true } } },
       },
       events: {
         include: {
-          persona: { select: { label: true, date: true } },
+          era: { select: { label: true, date: true } },
           media: {
             include: { mediaItem: { select: { id: true, variants: true, fileRef: true, originalWidth: true, originalHeight: true } } },
             orderBy: { sortOrder: "asc" },
@@ -57,7 +57,7 @@ export async function getPersonSkillsEnriched(
     evidence: s.evidence,
     validFrom: s.validFrom,
     validTo: s.validTo,
-    personaLabel: s.persona?.label ?? null,
+    eraLabel: s.era?.label ?? null,
     skillDefinitionId: s.skillDefinitionId,
     groupName: s.skillDefinition?.group.name ?? null,
     definitionName: s.skillDefinition?.name ?? null,
@@ -70,8 +70,8 @@ export async function getPersonSkillsEnriched(
       notes: e.notes,
       date: e.date,
       datePrecision: e.datePrecision,
-      personaLabel: e.persona?.label ?? null,
-      personaDate: e.persona?.date ?? null,
+      eraLabel: e.era?.label ?? null,
+      eraDate: e.era?.date ?? null,
       media: mapEventMedia(e.media),
     })),
   }));
@@ -81,7 +81,7 @@ export async function getPersonSkillsEnriched(
 
 export async function createPersonSkill(data: {
   personId: string;
-  personaId?: string | null;
+  eraId?: string | null;
   skillDefinitionId?: string | null;
   name?: string;
   category?: string | null;
@@ -108,7 +108,7 @@ export async function createPersonSkill(data: {
   return prisma.personSkill.create({
     data: {
       personId: data.personId,
-      personaId: data.personaId ?? null,
+      eraId: data.eraId ?? null,
       skillDefinitionId: data.skillDefinitionId ?? null,
       name,
       category,
@@ -127,7 +127,7 @@ export async function updatePersonSkill(
     evidence?: string | null;
     validFrom?: Date | null;
     validTo?: Date | null;
-    personaId?: string | null;
+    eraId?: string | null;
   },
 ) {
   return prisma.personSkill.update({
@@ -164,7 +164,7 @@ export async function deletePersonSkill(id: string) {
 
 export async function createSkillEvent(data: {
   personSkillId: string;
-  personaId?: string | null;
+  eraId?: string | null;
   eventType: SkillEventType;
   level?: SkillLevel | null;
   notes?: string | null;
@@ -174,7 +174,7 @@ export async function createSkillEvent(data: {
   return prisma.personSkillEvent.create({
     data: {
       personSkillId: data.personSkillId,
-      personaId: data.personaId ?? null,
+      eraId: data.eraId ?? null,
       eventType: data.eventType,
       level: data.level ?? null,
       notes: data.notes ?? null,
@@ -205,7 +205,7 @@ export async function getSkillTimeline(
       personSkill: { personId },
     },
     include: {
-      persona: { select: { label: true, date: true } },
+      era: { select: { label: true, date: true } },
       personSkill: { select: { id: true, name: true } },
       media: {
         include: { mediaItem: { select: { id: true, variants: true, fileRef: true, originalWidth: true, originalHeight: true } } },
@@ -215,10 +215,10 @@ export async function getSkillTimeline(
     orderBy: { createdAt: "asc" },
   });
 
-  // Sort by event date, then persona date, then createdAt
+  // Sort by event date, then era date, then createdAt
   const sorted = [...events].sort((a, b) => {
-    const aDate = a.date ?? a.persona?.date ?? a.createdAt;
-    const bDate = b.date ?? b.persona?.date ?? b.createdAt;
+    const aDate = a.date ?? a.era?.date ?? a.createdAt;
+    const bDate = b.date ?? b.era?.date ?? b.createdAt;
     return aDate.getTime() - bDate.getTime();
   });
 
@@ -229,8 +229,8 @@ export async function getSkillTimeline(
     notes: e.notes,
     date: e.date,
     datePrecision: e.datePrecision,
-    personaLabel: e.persona?.label ?? null,
-    personaDate: e.persona?.date ?? null,
+    eraLabel: e.era?.label ?? null,
+    eraDate: e.era?.date ?? null,
     media: mapEventMedia(e.media),
     skillName: e.personSkill.name,
     skillId: e.personSkill.id,

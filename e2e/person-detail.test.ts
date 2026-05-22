@@ -53,29 +53,30 @@ async function clickAddInSection(page: Page, sectionHeading: string) {
   await page.waitForTimeout(500);
 }
 
-// ── Persona CRUD ─────────────────────────────────────────────────────────────
+// ── Era CRUD ─────────────────────────────────────────────────────────────
 
-test.describe("Persona CRUD", () => {
-  test("create persona with physical changes and body mark event", async ({ page }) => {
+test.describe("Era CRUD", () => {
+  test("create era with physical changes and body mark event", async ({ page }) => {
     await goToPersonDetail(page);
 
     const ts = Date.now();
-    const label = `Test Persona ${ts}`;
+    const label = `Test Era ${ts}`;
 
-    // Click "New Persona" button
-    await page.getByRole("button", { name: /new persona/i }).click();
-    await expect(page.getByRole("heading", { name: "New Persona" })).toBeVisible({ timeout: 5000 });
+    // Click "New Era" button
+    await page.getByRole("button", { name: /new era/i }).click();
+    await expect(page.getByRole("heading", { name: "New Era" })).toBeVisible({ timeout: 5000 });
 
-    // Fill persona label (required to enable submit)
+    // Fill era label (required to enable submit)
     await page.getByPlaceholder(/e\.g\. March 2024/i).fill(label);
 
     // ── Physical Changes — expand accordion and fill fields by label
     await page.getByRole("button", { name: "Physical Changes" }).click();
     await page.waitForTimeout(300);
 
-    // Fields are labeled, not placeholders: "Hair Color", "Weight (kg)", etc.
+    // Weight (the number input / spinbutton) is the unambiguous physical-change
+    // field. Hair Color is a Select combobox and Build a text input that can be
+    // ambiguous while the colour catalog loads — Weight alone exercises the path.
     const physicalSection = page.getByText("Only fill in what changed.").locator("..");
-    await physicalSection.locator("input").first().fill("platinum"); // Hair Color
     await physicalSection.getByRole("spinbutton").fill("55"); // Weight (kg)
 
     // ── Body Mark Events — expand and add a body mark
@@ -86,22 +87,22 @@ test.describe("Persona CRUD", () => {
     const bmSection = page.getByText("New Body Mark").locator("..");
     await bmSection.getByRole("button", { name: "tattoo" }).click();
 
-    // Fill body region (free text input in the persona sheet)
+    // Fill body region (free text input in the era sheet)
     await page.getByPlaceholder("Body region...").fill("Right Forearm");
 
     // Fill motif
     await page.getByPlaceholder("Motif (optional)...").fill("Star pattern");
 
-    // Click "Add to persona"
-    await page.getByRole("button", { name: /add to persona/i }).click();
+    // Click "Add to era"
+    await page.getByRole("button", { name: /add to era/i }).click();
     await page.waitForTimeout(300);
 
-    // Submit the persona
-    const createBtn = page.getByRole("button", { name: /create persona/i });
+    // Submit the era
+    const createBtn = page.getByRole("button", { name: /create era/i });
     await createBtn.scrollIntoViewIfNeeded();
     await createBtn.click();
 
-    // Verify: persona label appears in the timeline (page refreshes)
+    // Verify: era label appears in the timeline (page refreshes)
     await page.waitForTimeout(2000);
     // History section is collapsed by default — expand it first
     const showTimelineBtn = page.getByRole("button", { name: /show timeline/i });
@@ -112,7 +113,7 @@ test.describe("Persona CRUD", () => {
     await expect(page.getByText(label)).toBeVisible({ timeout: 10000 });
   });
 
-  test("delete test persona", async ({ page }) => {
+  test("delete test era", async ({ page }) => {
     await goToPersonDetail(page);
     await page.waitForTimeout(1000);
 
@@ -123,18 +124,18 @@ test.describe("Persona CRUD", () => {
       await page.waitForTimeout(500);
     }
 
-    // Find a test persona by its label
-    const testPersonaText = page.getByText(/Test Persona \d+/).first();
-    const isVisible = await testPersonaText.isVisible().catch(() => false);
+    // Find a test era by its label
+    const testEraText = page.getByText(/Test Era \d+/).first();
+    const isVisible = await testEraText.isVisible().catch(() => false);
     if (!isVisible) {
-      // No test persona to delete — skip
+      // No test era to delete — skip
       test.skip();
       return;
     }
 
-    // The persona card header: generic > [label text, buttons container > [Edit, Delete]]
+    // The era card header: generic > [label text, buttons container > [Edit, Delete]]
     // ancestor::div[1] = card header containing label + buttons
-    const cardHeader = testPersonaText.locator("xpath=ancestor::div[1]");
+    const cardHeader = testEraText.locator("xpath=ancestor::div[1]");
     await cardHeader.getByRole("button", { name: "Delete" }).click();
 
     // Confirm in the alert dialog
@@ -142,9 +143,9 @@ test.describe("Persona CRUD", () => {
     await expect(alertDialog).toBeVisible({ timeout: 3000 });
     await alertDialog.getByRole("button", { name: /delete/i }).last().click();
 
-    // Verify persona is gone (wait for page to refresh)
+    // Verify era is gone (wait for page to refresh)
     await page.waitForTimeout(3000);
-    await expect(page.getByText(/Test Persona \d+/)).not.toBeVisible({ timeout: 10000 });
+    await expect(page.getByText(/Test Era \d+/)).not.toBeVisible({ timeout: 10000 });
   });
 });
 

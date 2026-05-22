@@ -1,12 +1,12 @@
 /**
- * Post-deploy cleanup: merge monthly personas into year-level buckets.
+ * Post-deploy cleanup: merge monthly eras into year-level buckets.
  *
- * 1. Find non-baseline personas with MONTH or DAY precision
- * 2. Find/create the YEAR persona for the same year + person
- * 3. Reassign all events from monthly → yearly persona
- * 4. Delete empty monthly personas
+ * 1. Find non-baseline eras with MONTH or DAY precision
+ * 2. Find/create the YEAR era for the same year + person
+ * 3. Reassign all events from monthly → yearly era
+ * 4. Delete empty monthly eras
  *
- * Usage: npx tsx scripts/consolidate-monthly-personas.ts [--dry-run]
+ * Usage: npx tsx scripts/consolidate-monthly-eras.ts [--dry-run]
  */
 
 import "dotenv/config";
@@ -20,8 +20,8 @@ const dryRun = process.argv.includes("--dry-run");
 async function main() {
   console.log(dryRun ? "[DRY RUN] No changes will be made.\n" : "");
 
-  // Find non-baseline personas with MONTH or DAY precision
-  const monthlyPersonas = await prisma.persona.findMany({
+  // Find non-baseline eras with MONTH or DAY precision
+  const monthlyEras = await prisma.era.findMany({
     where: {
       isBaseline: false,
       datePrecision: { in: ["MONTH", "DAY"] },
@@ -30,78 +30,78 @@ async function main() {
     orderBy: [{ personId: "asc" }, { date: "asc" }],
   });
 
-  console.log(`Found ${monthlyPersonas.length} monthly/daily personas to consolidate.\n`);
-  if (monthlyPersonas.length === 0) return;
+  console.log(`Found ${monthlyEras.length} monthly/daily eras to consolidate.\n`);
+  if (monthlyEras.length === 0) return;
 
   let merged = 0;
   let deleted = 0;
 
-  for (const persona of monthlyPersonas) {
-    const year = persona.date!.getUTCFullYear();
+  for (const era of monthlyEras) {
+    const year = era.date!.getUTCFullYear();
     const startOfYear = new Date(Date.UTC(year, 0, 1));
     const startOfNextYear = new Date(Date.UTC(year + 1, 0, 1));
 
-    // Find existing YEAR persona for same person+year
-    let yearPersona = await prisma.persona.findFirst({
+    // Find existing YEAR era for same person+year
+    let yearEra = await prisma.era.findFirst({
       where: {
-        personId: persona.personId,
+        personId: era.personId,
         isBaseline: false,
-        id: { not: persona.id },
+        id: { not: era.id },
         datePrecision: "YEAR",
         date: { gte: startOfYear, lt: startOfNextYear },
       },
     });
 
     // Create if not found
-    if (!yearPersona && !dryRun) {
-      yearPersona = await prisma.persona.create({
+    if (!yearEra && !dryRun) {
+      yearEra = await prisma.era.create({
         data: {
-          personId: persona.personId,
+          personId: era.personId,
           label: `${year}`,
           date: startOfYear,
           datePrecision: "YEAR",
           isBaseline: false,
         },
       });
-      console.log(`  Created year persona "${year}" for person ${persona.personId}`);
+      console.log(`  Created year era "${year}" for person ${era.personId}`);
     }
 
-    const targetId = yearPersona?.id ?? `[would-create-${year}]`;
-    console.log(`  ${persona.label} (${persona.id}) → ${year} (${targetId})`);
+    const targetId = yearEra?.id ?? `[would-create-${year}]`;
+    console.log(`  ${era.label} (${era.id}) → ${year} (${targetId})`);
 
-    if (!dryRun && yearPersona) {
-      // Move all events to the year persona
+    if (!dryRun && yearEra) {
+      // Move all events to the year era
       await prisma.$transaction([
         prisma.bodyMarkEvent.updateMany({
-          where: { personaId: persona.id },
-          data: { personaId: yearPersona.id },
+          where: { eraId: era.id },
+          data: { eraId: yearEra.id },
         }),
         prisma.bodyModificationEvent.updateMany({
-          where: { personaId: persona.id },
-          data: { personaId: yearPersona.id },
+          where: { eraId: era.id },
+          data: { eraId: yearEra.id },
         }),
         prisma.cosmeticProcedureEvent.updateMany({
-          where: { personaId: persona.id },
-          data: { personaId: yearPersona.id },
+          where: { eraId: era.id },
+          data: { eraId: yearEra.id },
         }),
         prisma.personSkillEvent.updateMany({
-          where: { personaId: persona.id },
-          data: { personaId: yearPersona.id },
+          where: { eraId: era.id },
+          data: { eraId: yearEra.id },
         }),
       ]);
 
-      // Move PersonaPhysical if exists (merge into year persona)
+      // Move PersonaPhysical if exists (merge into year era)
       const physical = await prisma.personaPhysical.findUnique({
-        where: { personaId: persona.id },
+        where: { eraId: era.id },
         include: { attributes: true },
       });
       if (physical) {
-        // Check if year persona already has a physical record
+        // Check if year era already has a physical record
         const yearPhysical = await prisma.personaPhysical.findUnique({
-          where: { personaId: yearPersona.id },
+          where: { eraId: yearEra.id },
         });
         if (yearPhysical) {
-          // Merge: later date wins (the monthly persona is more precise)
+          // Merge: later date wins (the monthly era is more precise)
           await prisma.personaPhysicalAttribute.deleteMany({
             where: { personaPhysicalId: physical.id },
           });
@@ -109,32 +109,32 @@ async function main() {
         } else {
           await prisma.personaPhysical.update({
             where: { id: physical.id },
-            data: { personaId: yearPersona.id },
+            data: { eraId: yearEra.id },
           });
         }
       }
 
       // Move digital identities
       await prisma.personDigitalIdentity.updateMany({
-        where: { personaId: persona.id },
-        data: { personaId: yearPersona.id },
+        where: { eraId: era.id },
+        data: { eraId: yearEra.id },
       });
 
       // Move media links
       await prisma.personMediaLink.updateMany({
-        where: { personaId: persona.id },
-        data: { personaId: yearPersona.id },
+        where: { eraId: era.id },
+        data: { eraId: yearEra.id },
       });
 
-      // Delete the now-empty monthly persona
-      await prisma.persona.delete({ where: { id: persona.id } });
+      // Delete the now-empty monthly era
+      await prisma.era.delete({ where: { id: era.id } });
       deleted++;
     }
 
     merged++;
   }
 
-  console.log(`\nDone. Merged ${merged} personas, deleted ${deleted} empty ones.`);
+  console.log(`\nDone. Merged ${merged} eras, deleted ${deleted} empty ones.`);
 }
 
 main()

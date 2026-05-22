@@ -14,6 +14,7 @@ import { createPersonRecord } from '@/lib/services/person-service'
 import { createAlias, linkAliasToChannels } from '@/lib/services/alias-service'
 import { createDigitalIdentity } from '@/lib/services/digital-identity-service'
 import { rebuildSetParticipantsFromContributions } from '@/lib/services/contribution-service'
+import { recomputePersonCurrentStateStandalone } from '@/lib/services/current-state-service'
 import { markItemImported, computeDependencies } from './staging-service'
 import { markStagingSetPromoted } from './staging-set-service'
 import type { ParticipantStatus } from './staging-set-service'
@@ -259,17 +260,17 @@ export async function importPerson(item: ImportItem): Promise<ImportResult> {
       })
     }
 
-    // Update baseline persona physical with breast data + hair color
+    // Update baseline era physical with breast data + hair color
     if (breastParsed || hairColor) {
-      const baselinePersona = await prisma.persona.findFirst({
+      const baselineEra = await prisma.era.findFirst({
         where: { personId: person.id, isBaseline: true },
         select: { id: true },
       })
 
-      if (baselinePersona) {
+      if (baselineEra) {
         // createPersonRecord may have already created a PersonaPhysical if currentHairColor was set
         const existing = await prisma.personaPhysical.findUnique({
-          where: { personaId: baselinePersona.id },
+          where: { eraId: baselineEra.id },
         })
 
         const physicalData: Record<string, unknown> = {}
@@ -288,7 +289,7 @@ export async function importPerson(item: ImportItem): Promise<ImportResult> {
         } else {
           await prisma.personaPhysical.create({
             data: {
-              personaId: baselinePersona.id,
+              eraId: baselineEra.id,
               ...physicalData,
             },
           })
@@ -296,6 +297,7 @@ export async function importPerson(item: ImportItem): Promise<ImportResult> {
       }
     }
 
+    await recomputePersonCurrentStateStandalone(person.id)
     await markItemImported(item.id, person.id)
     await computeDependencies(item.batchId)
 

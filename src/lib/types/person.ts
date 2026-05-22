@@ -1,7 +1,7 @@
 export type {
   Person,
   PersonAlias,
-  Persona,
+  Era,
   PersonRelationship,
   PersonStatus,
   RelationshipSource,
@@ -105,7 +105,7 @@ export type BodyMarkEventItem = {
   date: Date | null;
   datePrecision: string;
   dateModifier: string;
-  persona: { id: string; label: string; date: Date | null; datePrecision: string; isBaseline: boolean };
+  era: { id: string; label: string; date: Date | null; datePrecision: string; isBaseline: boolean };
   bodyRegions: string[];
   motif: string | null;
   colors: string[];
@@ -144,7 +144,7 @@ export type BodyModificationEventItem = {
   date: Date | null;
   datePrecision: string;
   dateModifier: string;
-  persona: { id: string; label: string; date: Date | null; datePrecision: string; isBaseline: boolean };
+  era: { id: string; label: string; date: Date | null; datePrecision: string; isBaseline: boolean };
   bodyRegions: string[];
   description: string | null;
   material: string | null;
@@ -180,7 +180,7 @@ export type CosmeticProcedureEventItem = {
   date: Date | null;
   datePrecision: string;
   dateModifier: string;
-  persona: { id: string; label: string; date: Date | null; datePrecision: string; isBaseline: boolean };
+  era: { id: string; label: string; date: Date | null; datePrecision: string; isBaseline: boolean };
   bodyRegions: string[];
   description: string | null;
   provider: string | null;
@@ -220,7 +220,7 @@ export type PersonDigitalIdentityItem = {
   status: DigitalIdentityStatus;
   validFrom: Date | null;
   validTo: Date | null;
-  personaLabel: string | null;
+  eraLabel: string | null;
 };
 
 export type SkillEventMediaThumb = {
@@ -237,8 +237,8 @@ export type PersonSkillEventItem = {
   notes: string | null;
   date: Date | null;
   datePrecision: string;
-  personaLabel: string | null;
-  personaDate: Date | null;
+  eraLabel: string | null;
+  eraDate: Date | null;
   media: SkillEventMediaThumb[];
 };
 
@@ -250,7 +250,7 @@ export type PersonSkillItem = {
   evidence: string | null;
   validFrom: Date | null;
   validTo: Date | null;
-  personaLabel: string | null;
+  eraLabel: string | null;
   skillDefinitionId: string | null;
   groupName: string | null;
   definitionName: string | null;

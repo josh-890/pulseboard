@@ -23,6 +23,7 @@ import type { CreatePersonInput, UpdatePersonInput } from "@/lib/validations/per
 import { batchComputeCompleteness } from "@/lib/services/completeness-service";
 import { refreshStatusesForIcgId } from "@/lib/services/import/participant-status-service";
 import { ensureCatalogEntry } from "@/lib/services/color-catalog-service";
+import { recomputePersonCurrentState } from "@/lib/services/current-state-service";
 import {
   cascadeDeleteSession,
   cascadeDeleteBodyModifications,
@@ -58,7 +59,7 @@ function mapSkillEventMedia(
 
 /** Shared Prisma include fragment for skill events with media */
 const skillEventInclude = {
-  persona: { select: { label: true, date: true } },
+  era: { select: { label: true, date: true } },
   media: {
     include: { mediaItem: { select: { id: true, variants: true, fileRef: true, originalWidth: true, originalHeight: true } } },
     orderBy: { sortOrder: "asc" as const },
@@ -174,7 +175,7 @@ export async function getPersonWithDetails(id: string) {
       aliases: {
         orderBy: [{ isCommon: "desc" }, { isBirth: "desc" }, { name: "asc" }],
       },
-      personas: {
+      eras: {
         orderBy: [{ isBaseline: "desc" }, { date: "asc" }],
         include: {
           physicalChange: {
@@ -212,7 +213,7 @@ export async function getPersonWithDetails(id: string) {
       },
       skills: {
         include: {
-          persona: { select: { label: true } },
+          era: { select: { label: true } },
           skillDefinition: {
             include: { group: { select: { name: true } } },
           },
@@ -232,7 +233,7 @@ export async function getPersonBodyMarks(personId: string): Promise<BodyMarkWith
     include: {
       events: {
         include: {
-          persona: { select: { id: true, label: true, date: true, datePrecision: true, isBaseline: true } },
+          era: { select: { id: true, label: true, date: true, datePrecision: true, isBaseline: true } },
         },
         orderBy: { date: "asc" },
       },
@@ -248,7 +249,7 @@ export async function getPersonBodyMarks(personId: string): Promise<BodyMarkWith
       date: e.date,
       datePrecision: e.datePrecision,
       dateModifier: e.dateModifier,
-      persona: { id: e.persona.id, label: e.persona.label, date: e.persona.date, datePrecision: e.persona.datePrecision, isBaseline: e.persona.isBaseline },
+      era: { id: e.era.id, label: e.era.label, date: e.era.date, datePrecision: e.era.datePrecision, isBaseline: e.era.isBaseline },
       bodyRegions: e.bodyRegions ?? [],
       motif: e.motif ?? null,
       colors: e.colors ?? [],
@@ -308,7 +309,7 @@ export async function getPersonSkills(personId: string): Promise<PersonSkillItem
   const skills = await prisma.personSkill.findMany({
     where: { personId },
     include: {
-      persona: { select: { label: true } },
+      era: { select: { label: true } },
       skillDefinition: {
         include: { group: { select: { name: true } } },
       },
@@ -328,7 +329,7 @@ export async function getPersonSkills(personId: string): Promise<PersonSkillItem
     evidence: s.evidence,
     validFrom: s.validFrom,
     validTo: s.validTo,
-    personaLabel: s.persona?.label ?? null,
+    eraLabel: s.era?.label ?? null,
     skillDefinitionId: s.skillDefinitionId,
     groupName: s.skillDefinition?.group.name ?? null,
     definitionName: s.skillDefinition?.name ?? null,
@@ -341,16 +342,16 @@ export async function getPersonSkills(personId: string): Promise<PersonSkillItem
       notes: e.notes,
       date: e.date,
       datePrecision: e.datePrecision,
-      personaLabel: e.persona?.label ?? null,
-      personaDate: e.persona?.date ?? null,
+      eraLabel: e.era?.label ?? null,
+      eraDate: e.era?.date ?? null,
       media: mapSkillEventMedia(e.media),
     })),
   }));
 }
 
 export async function computePersonCurrentState(personId: string): Promise<PersonCurrentState> {
-  const [allPersonas, bodyMarks, digitalIdentities, skills] = await Promise.all([
-    prisma.persona.findMany({
+  const [allEras, bodyMarks, digitalIdentities, skills] = await Promise.all([
+    prisma.era.findMany({
       where: { personId },
       orderBy: [{ isBaseline: "desc" }, { date: "asc" }],
       include: { physicalChange: true },
@@ -360,7 +361,7 @@ export async function computePersonCurrentState(personId: string): Promise<Perso
     getPersonSkills(personId),
   ]);
 
-  // Fold physical changes: later personas win
+  // Fold physical changes: later eras win
   let currentHairColor: string | null = null;
   let weight: number | null = null;
   let build: string | null = null;
@@ -368,9 +369,9 @@ export async function computePersonCurrentState(personId: string): Promise<Perso
   let breastStatus: string | null = null;
   let breastDescription: string | null = null;
 
-  for (const persona of allPersonas) {
-    if (persona.physicalChange) {
-      const p = persona.physicalChange;
+  for (const era of allEras) {
+    if (era.physicalChange) {
+      const p = era.physicalChange;
       if (p.currentHairColor !== null) currentHairColor = p.currentHairColor;
       if (p.weight !== null) weight = p.weight;
       if (p.build !== null) build = p.build;
@@ -692,7 +693,7 @@ export function deriveCurrentState(
   const extensibleAttributes: Record<string, ExtensibleAttributeValue> = {};
 
   // Collect all PersonaPhysical records, sort by their own date (nulls first = baseline)
-  const allPhysicals = person.personas
+  const allPhysicals = person.eras
     .filter((p) => p.physicalChange)
     .map((p) => p.physicalChange!)
     .sort((a, b) => {
@@ -728,12 +729,12 @@ export function deriveCurrentState(
   // ── Body Marks ──
   const activeBodyMarks: BodyMarkWithEvents[] = [];
   const seenMarkIds = new Set<string>();
-  for (const persona of person.personas) {
-    for (const event of persona.bodyMarkEvents) {
+  for (const era of person.eras) {
+    for (const event of era.bodyMarkEvents) {
       if (seenMarkIds.has(event.bodyMark.id)) continue;
       seenMarkIds.add(event.bodyMark.id);
       const mark = event.bodyMark;
-      const allEvents: import("@/lib/types").BodyMarkEventItem[] = person.personas.flatMap((p) =>
+      const allEvents: import("@/lib/types").BodyMarkEventItem[] = person.eras.flatMap((p) =>
         p.bodyMarkEvents
           .filter((e) => e.bodyMark.id === mark.id)
           .map((e) => ({
@@ -743,7 +744,7 @@ export function deriveCurrentState(
             date: e.date,
             datePrecision: e.datePrecision,
             dateModifier: e.dateModifier,
-            persona: { id: p.id, label: p.label, date: p.date, datePrecision: p.datePrecision, isBaseline: p.isBaseline },
+            era: { id: p.id, label: p.label, date: p.date, datePrecision: p.datePrecision, isBaseline: p.isBaseline },
             bodyRegions: e.bodyRegions ?? [],
             motif: e.motif ?? null,
             colors: e.colors ?? [],
@@ -751,8 +752,8 @@ export function deriveCurrentState(
             description: e.description ?? null,
           })),
       ).sort((a, b) => {
-        const aTime = (a.date ?? a.persona.date)?.getTime() ?? 0;
-        const bTime = (b.date ?? b.persona.date)?.getTime() ?? 0;
+        const aTime = (a.date ?? a.era.date)?.getTime() ?? 0;
+        const bTime = (b.date ?? b.era.date)?.getTime() ?? 0;
         return aTime - bTime;
       });
       activeBodyMarks.push({
@@ -780,12 +781,12 @@ export function deriveCurrentState(
   // ── Body Modifications ──
   const activeBodyModifications: import("@/lib/types").BodyModificationWithEvents[] = [];
   const seenModIds = new Set<string>();
-  for (const persona of person.personas) {
-    for (const event of persona.bodyModificationEvents) {
+  for (const era of person.eras) {
+    for (const event of era.bodyModificationEvents) {
       if (seenModIds.has(event.bodyModification.id)) continue;
       seenModIds.add(event.bodyModification.id);
       const mod = event.bodyModification;
-      const allEvents: import("@/lib/types").BodyModificationEventItem[] = person.personas.flatMap((p) =>
+      const allEvents: import("@/lib/types").BodyModificationEventItem[] = person.eras.flatMap((p) =>
         p.bodyModificationEvents
           .filter((e) => e.bodyModification.id === mod.id)
           .map((e) => ({
@@ -795,15 +796,15 @@ export function deriveCurrentState(
             date: e.date,
             datePrecision: e.datePrecision,
             dateModifier: e.dateModifier,
-            persona: { id: p.id, label: p.label, date: p.date, datePrecision: p.datePrecision, isBaseline: p.isBaseline },
+            era: { id: p.id, label: p.label, date: p.date, datePrecision: p.datePrecision, isBaseline: p.isBaseline },
             bodyRegions: e.bodyRegions ?? [],
             description: e.description ?? null,
             material: e.material ?? null,
             gauge: e.gauge ?? null,
           })),
       ).sort((a, b) => {
-        const aTime = (a.date ?? a.persona.date)?.getTime() ?? 0;
-        const bTime = (b.date ?? b.persona.date)?.getTime() ?? 0;
+        const aTime = (a.date ?? a.era.date)?.getTime() ?? 0;
+        const bTime = (b.date ?? b.era.date)?.getTime() ?? 0;
         return aTime - bTime;
       });
       activeBodyModifications.push({
@@ -831,12 +832,12 @@ export function deriveCurrentState(
   // ── Cosmetic Procedures ──
   const activeCosmeticProcedures: import("@/lib/types").CosmeticProcedureWithEvents[] = [];
   const seenProcIds = new Set<string>();
-  for (const persona of person.personas) {
-    for (const event of persona.cosmeticProcedureEvents) {
+  for (const era of person.eras) {
+    for (const event of era.cosmeticProcedureEvents) {
       if (seenProcIds.has(event.cosmeticProcedure.id)) continue;
       seenProcIds.add(event.cosmeticProcedure.id);
       const proc = event.cosmeticProcedure;
-      const allEvents: import("@/lib/types").CosmeticProcedureEventItem[] = person.personas.flatMap((p) =>
+      const allEvents: import("@/lib/types").CosmeticProcedureEventItem[] = person.eras.flatMap((p) =>
         p.cosmeticProcedureEvents
           .filter((e) => e.cosmeticProcedure.id === proc.id)
           .map((e) => ({
@@ -846,7 +847,7 @@ export function deriveCurrentState(
             date: e.date,
             datePrecision: e.datePrecision,
             dateModifier: e.dateModifier,
-            persona: { id: p.id, label: p.label, date: p.date, datePrecision: p.datePrecision, isBaseline: p.isBaseline },
+            era: { id: p.id, label: p.label, date: p.date, datePrecision: p.datePrecision, isBaseline: p.isBaseline },
             bodyRegions: e.bodyRegions ?? [],
             description: e.description ?? null,
             provider: e.provider ?? null,
@@ -855,8 +856,8 @@ export function deriveCurrentState(
             unit: e.unit ?? null,
           })),
       ).sort((a, b) => {
-        const aTime = (a.date ?? a.persona.date)?.getTime() ?? 0;
-        const bTime = (b.date ?? b.persona.date)?.getTime() ?? 0;
+        const aTime = (a.date ?? a.era.date)?.getTime() ?? 0;
+        const bTime = (b.date ?? b.era.date)?.getTime() ?? 0;
         return aTime - bTime;
       });
       activeCosmeticProcedures.push({
@@ -882,8 +883,8 @@ export function deriveCurrentState(
   }
 
   const activeDigitalIdentities: PersonDigitalIdentityItem[] = [];
-  for (const persona of person.personas) {
-    for (const i of persona.digitalIdentities) {
+  for (const era of person.eras) {
+    for (const i of era.digitalIdentities) {
       if (i.status !== "active") continue;
       if (i.validTo && i.validTo <= now) continue;
       activeDigitalIdentities.push({
@@ -894,7 +895,7 @@ export function deriveCurrentState(
         status: i.status,
         validFrom: i.validFrom,
         validTo: i.validTo,
-        personaLabel: persona.label,
+        eraLabel: era.label,
       });
     }
   }
@@ -910,7 +911,7 @@ export function deriveCurrentState(
       evidence: s.evidence,
       validFrom: s.validFrom,
       validTo: s.validTo,
-      personaLabel: s.persona?.label ?? null,
+      eraLabel: s.era?.label ?? null,
       skillDefinitionId: s.skillDefinitionId,
       groupName: s.skillDefinition?.group.name ?? null,
       definitionName: s.skillDefinition?.name ?? null,
@@ -923,8 +924,8 @@ export function deriveCurrentState(
         notes: e.notes,
         date: e.date,
         datePrecision: e.datePrecision,
-        personaLabel: e.persona?.label ?? null,
-        personaDate: e.persona?.date ?? null,
+        eraLabel: e.era?.label ?? null,
+        eraDate: e.era?.date ?? null,
         media: "media" in e ? mapSkillEventMedia(e.media as Parameters<typeof mapSkillEventMedia>[0]) : [],
       })),
     });
@@ -1106,22 +1107,13 @@ export async function createPersonRecord(data: CreatePersonInput) {
       });
     }
 
-    // Anchor baseline persona date: birthdate+18, or activeFrom if earlier
-    const birthDate = data.birthdate ? new Date(data.birthdate) : null;
-    let baselineDate: Date = new Date();
-    let baselinePrecision: "UNKNOWN" | "YEAR" | "MONTH" | "DAY" = "DAY";
-    if (birthDate) {
-      baselineDate = new Date(Date.UTC(birthDate.getUTCFullYear() + 18, 0, 1));
-      baselinePrecision = "YEAR";
-    }
-
-    const persona = await tx.persona.create({
+    // The baseline Era is dateless — "time zero". It is always folded first by
+    // virtue of isBaseline; no synthetic date is anchored (see ADR-0001).
+    const era = await tx.era.create({
       data: {
         personId: person.id,
-        label: buildBaselineLabel(data.commonName, birthDate, baselineDate),
+        label: buildBaselineLabel(data.commonName),
         isBaseline: true,
-        date: baselineDate,
-        datePrecision: baselinePrecision,
       },
     });
 
@@ -1137,7 +1129,7 @@ export async function createPersonRecord(data: CreatePersonInput) {
     if (hasPhysical) {
       const physical = await tx.personaPhysical.create({
         data: {
-          personaId: persona.id,
+          eraId: era.id,
           weight: data.weight,
           build: data.build,
           currentHairColor: data.currentHairColor,
@@ -1176,6 +1168,7 @@ export async function createPersonRecord(data: CreatePersonInput) {
       },
     });
 
+    await recomputePersonCurrentState(tx, person.id);
     return person;
   });
 
@@ -1227,28 +1220,6 @@ export async function updatePersonRecord(id: string, data: UpdatePersonInput): P
         });
       }
     }
-
-    // Re-anchor baseline persona date when birthdate changes
-    if (data.birthdate !== undefined) {
-      const birthDate = data.birthdate ? new Date(data.birthdate) : null;
-      if (birthDate) {
-        const baselinePersona = await tx.persona.findFirst({
-          where: { personId: id, isBaseline: true },
-        });
-        if (baselinePersona) {
-          let anchorDate = new Date(Date.UTC(birthDate.getUTCFullYear() + 18, 0, 1));
-          const activeFromDate = data.activeFrom ? new Date(data.activeFrom) : null;
-          if (activeFromDate && activeFromDate < anchorDate) {
-            anchorDate = activeFromDate;
-          }
-          await tx.persona.update({
-            where: { id: baselinePersona.id },
-            data: { date: anchorDate, datePrecision: "YEAR" },
-          });
-        }
-      }
-    }
-
   });
 }
 
@@ -1329,14 +1300,14 @@ export async function updatePersonAppearance(
       data.currentHairColor !== undefined;
 
     if (hasPhysical) {
-      const baselinePersona = await tx.persona.findFirst({
+      const baselineEra = await tx.era.findFirst({
         where: { personId: id, isBaseline: true },
       });
-      if (baselinePersona) {
+      if (baselineEra) {
         await tx.personaPhysical.upsert({
-          where: { personaId: baselinePersona.id },
+          where: { eraId: baselineEra.id },
           create: {
-            personaId: baselinePersona.id,
+            eraId: baselineEra.id,
             weight: data.weight,
             build: data.build,
             currentHairColor: data.currentHairColor,
@@ -1349,6 +1320,8 @@ export async function updatePersonAppearance(
         });
       }
     }
+
+    await recomputePersonCurrentState(tx, id);
   });
 }
 
@@ -1374,27 +1347,27 @@ export async function deletePersonRecord(id: string): Promise<PhotoVariants[]> {
       where: { personId: id },
     });
 
-    // Fetch persona IDs for cascading
-    const personas = await tx.persona.findMany({
+    // Fetch era IDs for cascading
+    const eras = await tx.era.findMany({
       where: { personId: id },
       select: { id: true },
     });
-    const personaIds = personas.map((p) => p.id);
+    const eraIds = eras.map((p) => p.id);
 
-    if (personaIds.length > 0) {
+    if (eraIds.length > 0) {
       // Delete PersonaPhysical
       await tx.personaPhysical.deleteMany({
-        where: { personaId: { in: personaIds } },
+        where: { eraId: { in: eraIds } },
       });
 
-      // Delete body mark events via personaId
+      // Delete body mark events via eraId
       await tx.bodyMarkEvent.deleteMany({
-        where: { personaId: { in: personaIds } },
+        where: { eraId: { in: eraIds } },
       });
 
-      // Delete personas
-      await tx.persona.deleteMany({
-        where: { id: { in: personaIds } },
+      // Delete eras
+      await tx.era.deleteMany({
+        where: { id: { in: eraIds } },
       });
     }
 
@@ -1407,10 +1380,10 @@ export async function deletePersonRecord(id: string): Promise<PhotoVariants[]> {
     });
 
     // Delete body modifications + events + media links
-    await cascadeDeleteBodyModifications(tx, id, personaIds);
+    await cascadeDeleteBodyModifications(tx, id, eraIds);
 
     // Delete cosmetic procedures + events + media links
-    await cascadeDeleteCosmeticProcedures(tx, id, personaIds);
+    await cascadeDeleteCosmeticProcedures(tx, id, eraIds);
 
     // Delete education, awards, interests
     await cascadeDeletePersonExtras(tx, id);
@@ -1474,7 +1447,7 @@ export async function deletePersonRecord(id: string): Promise<PhotoVariants[]> {
       });
     }
 
-    // Delete remaining PersonMediaLinks (personaId ones already NULLed by schema SetNull)
+    // Delete remaining PersonMediaLinks (eraId ones already NULLed by schema SetNull)
     await tx.personMediaLink.deleteMany({
       where: { personId: id },
     });

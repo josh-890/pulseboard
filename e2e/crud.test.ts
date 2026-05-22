@@ -44,8 +44,9 @@ test.describe("People CRUD", () => {
     // Scope to the header actions grid row (back link and actions are in separate grid cells)
     const headerRow = page.getByRole("link", { name: "Back to People" }).locator("../..");
     await expect(headerRow.getByRole("button", { name: /^edit$/i })).toBeVisible();
-    // Use .first() because persona timeline entries also have Delete buttons
-    await expect(page.getByRole("button", { name: /delete/i }).first()).toBeVisible();
+    // Delete lives in the "More actions" dropdown menu
+    await headerRow.getByRole("button", { name: "More actions" }).click();
+    await expect(page.getByRole("menuitem", { name: /delete person/i })).toBeVisible();
   });
 
   test("edit person sheet opens and pre-populates", async ({ page }) => {
@@ -327,7 +328,9 @@ test.describe("Sets CRUD", () => {
   test("detail page shows Edit + Delete buttons", async ({ page }) => {
     await page.goto("/sets/seed-set-1");
     await expect(page.getByRole("button", { name: /^edit$/i })).toBeVisible();
-    await expect(page.getByRole("button", { name: /delete/i })).toBeVisible();
+    // Delete lives in the "More actions" dropdown menu
+    await page.getByRole("button", { name: "More actions" }).click();
+    await expect(page.getByRole("menuitem", { name: /delete set/i })).toBeVisible();
   });
 
   test("edit set sheet opens and pre-populates", async ({ page }) => {
@@ -385,8 +388,10 @@ test.describe("Sessions CRUD", () => {
   test("detail page has Edit + Delete + Merge buttons", async ({ page }) => {
     await page.goto("/sessions/seed-session-1");
     await expect(page.getByRole("button", { name: /^edit$/i })).toBeVisible();
-    await expect(page.getByRole("button", { name: /delete/i })).toBeVisible();
-    await expect(page.getByRole("button", { name: /merge/i })).toBeVisible();
+    // Delete + Merge live in the "More actions" dropdown menu
+    await page.getByRole("button", { name: "More actions" }).click();
+    await expect(page.getByRole("menuitem", { name: /merge with/i })).toBeVisible();
+    await expect(page.getByRole("menuitem", { name: /delete session/i })).toBeVisible();
   });
 
   test("reference session hides edit/delete/merge and shows person link", async ({ page }) => {

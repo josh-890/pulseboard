@@ -133,26 +133,25 @@ async function main() {
     },
   });
 
-  // ─── Personas ───────────────────────────────────────────────────────────────
+  // ─── Eras ───────────────────────────────────────────────────────────────
 
-  const baselinePersona = await prisma.persona.upsert({
-    where: { id: "seed-persona-1" },
+  const baselineEra = await prisma.era.upsert({
+    where: { id: "seed-era-1" },
     update: {},
     create: {
-      id: "seed-persona-1",
+      id: "seed-era-1",
       personId: person.id,
-      label: "Jane at 23",
+      label: "Jane — initial",
       isBaseline: true,
-      date: new Date("2020-01-01"),
       notes: "Starting profile data",
     },
   });
 
-  const eventPersona = await prisma.persona.upsert({
-    where: { id: "seed-persona-2" },
+  const eventEra = await prisma.era.upsert({
+    where: { id: "seed-era-2" },
     update: {},
     create: {
-      id: "seed-persona-2",
+      id: "seed-era-2",
       personId: person.id,
       label: "2024 Update",
       isBaseline: false,
@@ -162,11 +161,11 @@ async function main() {
   });
 
   await prisma.personaPhysical.upsert({
-    where: { id: "seed-persona-physical-1" },
+    where: { id: "seed-era-physical-1" },
     update: {},
     create: {
-      id: "seed-persona-physical-1",
-      personaId: eventPersona.id,
+      id: "seed-era-physical-1",
+      eraId: eventEra.id,
       currentHairColor: "blonde",
       weight: 57.0,
       build: "athletic",
@@ -199,7 +198,7 @@ async function main() {
     create: {
       id: "seed-bodymark-event-1",
       bodyMarkId: bodyMark.id,
-      personaId: baselinePersona.id,
+      eraId: baselineEra.id,
       eventType: "added",
       notes: "Present at initial record",
     },
@@ -213,7 +212,7 @@ async function main() {
     create: {
       id: "seed-digital-id-1",
       personId: person.id,
-      personaId: baselinePersona.id,
+      eraId: baselineEra.id,
       platform: "Instagram",
       handle: "@janestar",
       url: "https://instagram.com/janestar",
@@ -227,7 +226,7 @@ async function main() {
     create: {
       id: "seed-skill-1",
       personId: person.id,
-      personaId: baselinePersona.id,
+      eraId: baselineEra.id,
       name: "Photography",
       category: "creative",
       level: "PROFESSIONAL",

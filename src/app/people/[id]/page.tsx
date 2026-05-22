@@ -83,7 +83,7 @@ export default async function PersonDetailPage({ params, searchParams }: PersonD
     retiredAt: person.retiredAt,
     retiredAtPrecision: person.retiredAtPrecision,
     aliases: person.aliases,
-    personas: person.personas,
+    eras: person.eras,
     contributions: sessionWorkHistory.map((s) => ({
       confidence: s.confidence,
       sessionDate: s.sessionDate,

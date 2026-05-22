@@ -6,9 +6,9 @@ import type { PhotoVariants } from "@/lib/types";
 import { ListObjectsV2Command } from "@aws-sdk/client-s3";
 import {
   refreshDashboardStats,
-  refreshPersonCurrentState,
   refreshPersonAffiliations,
 } from "@/lib/services/view-service";
+import { rebuildAllCurrentState, verifyCurrentStateIntegrity } from "@/lib/services/current-state-service";
 import { normalizeForSearch } from "@/lib/normalize";
 import { refreshAllParticipantStatuses } from "@/lib/services/import/participant-status-service";
 import { resolveNationalityToCode } from "@/lib/constants/countries";
@@ -382,7 +382,6 @@ export async function processOrphanedStorageKeys(): Promise<MaintenanceResult> {
 export async function refreshAllMaterializedViews(): Promise<MaintenanceResult> {
   const views = [
     { name: "mv_dashboard_stats", fn: refreshDashboardStats },
-    { name: "mv_person_current_state", fn: refreshPersonCurrentState },
     { name: "mv_person_affiliations", fn: refreshPersonAffiliations },
   ];
 
@@ -404,6 +403,40 @@ export async function refreshAllMaterializedViews(): Promise<MaintenanceResult> 
     found: views.length,
     fixed: successCount,
     details,
+  };
+}
+
+/**
+ * Rebuild the entire PersonCurrentState cache from scratch (ADR-0003).
+ * Use after bulk operations or a change to the fold logic.
+ */
+export async function rebuildCurrentStateCache(): Promise<MaintenanceResult> {
+  const count = await rebuildAllCurrentState();
+  return {
+    found: count,
+    fixed: count,
+    details: [`Rebuilt PersonCurrentState for ${count} person(s).`],
+  };
+}
+
+/**
+ * Integrity check for the PersonCurrentState cache: recompute every row and
+ * report which had drifted from their correct value. A drift means a write
+ * path mutated a fold input without recomputing — a bug. Self-healing.
+ */
+export async function checkCurrentStateIntegrity(): Promise<MaintenanceResult> {
+  const { checked, mismatches } = await verifyCurrentStateIntegrity();
+  return {
+    found: mismatches.length,
+    fixed: mismatches.length,
+    details:
+      mismatches.length === 0
+        ? [`Checked ${checked} person(s) — cache consistent, no drift.`]
+        : [
+            `Checked ${checked} person(s) — ${mismatches.length} had drifted and were corrected.`,
+            "A drift means a write path skipped recomputePersonCurrentState — investigate.",
+            ...mismatches.slice(0, 20).map((id) => `drifted: ${id}`),
+          ],
   };
 }
 

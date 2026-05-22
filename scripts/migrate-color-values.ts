@@ -2,7 +2,7 @@ import "dotenv/config";
 import { PrismaClient } from "../src/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { ensureCatalogEntry } from "../src/lib/services/color-catalog-service";
-import { refreshPersonCurrentState } from "../src/lib/services/view-service";
+import { rebuildAllCurrentState } from "../src/lib/services/current-state-service";
 
 const connectionString = process.env.DATABASE_URL!;
 const adapter = new PrismaPg({ connectionString });
@@ -91,8 +91,8 @@ async function main() {
     }
   }
 
-  console.log("\nRefreshing mv_person_current_state…");
-  await refreshPersonCurrentState();
+  console.log("\nRebuilding PersonCurrentState cache…");
+  await rebuildAllCurrentState();
   console.log("Done. Review auto-added entries in Settings → Catalogs → Colors → Needs review.");
 }
 

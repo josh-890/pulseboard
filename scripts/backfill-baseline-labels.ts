@@ -13,7 +13,7 @@ function buildLabel(name: string, birthdate: Date | null, baselineDate: Date | n
 }
 
 async function main() {
-  const baselines = await prisma.persona.findMany({
+  const baselines = await prisma.era.findMany({
     where: { isBaseline: true },
     include: {
       person: {
@@ -24,7 +24,7 @@ async function main() {
     },
   });
 
-  console.log(`Found ${baselines.length} baseline persona(s).`);
+  console.log(`Found ${baselines.length} baseline era(s).`);
 
   let updated = 0;
   for (const bp of baselines) {
@@ -32,7 +32,7 @@ async function main() {
     const newLabel = buildLabel(name, bp.person.birthdate, bp.date);
 
     if (bp.label !== newLabel) {
-      await prisma.persona.update({
+      await prisma.era.update({
         where: { id: bp.id },
         data: { label: newLabel },
       });

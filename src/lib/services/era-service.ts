@@ -1,35 +1,36 @@
 import { prisma } from "@/lib/db";
 import type { DateModifier, DatePrecision, Prisma } from "@/generated/prisma/client";
-import type { CreatePersonaBatchInput, UpdatePersonaInput } from "@/lib/validations/persona";
+import type { CreateEraBatchInput, UpdateEraInput } from "@/lib/validations/era";
 import { ensureCatalogEntry } from "@/lib/services/color-catalog-service";
+import { recomputePersonCurrentState } from "@/lib/services/current-state-service";
 
 type TxClient = Prisma.TransactionClient;
 
 /**
- * Get the baseline persona ID for a person. Throws if not found.
+ * Get the baseline era ID for a person. Throws if not found.
  */
-export async function getBaselinePersonaId(tx: TxClient, personId: string): Promise<string> {
-  const baseline = await tx.persona.findFirst({
+export async function getBaselineEraId(tx: TxClient, personId: string): Promise<string> {
+  const baseline = await tx.era.findFirst({
     where: { personId, isBaseline: true },
     select: { id: true },
   });
-  if (!baseline) throw new Error(`Baseline persona not found for person ${personId}`);
+  if (!baseline) throw new Error(`Baseline era not found for person ${personId}`);
   return baseline.id;
 }
 
 /**
- * Find an existing persona for the given date (same calendar month for DAY/MONTH,
+ * Find an existing era for the given date (same calendar month for DAY/MONTH,
  * same year for YEAR), or create a new one. Works inside a transaction for atomicity.
- * Undated entities attach to the baseline persona.
+ * Undated entities attach to the baseline era.
  */
-export async function findOrCreatePersonaForDate(
+export async function findOrCreateEraForDate(
   tx: TxClient,
   personId: string,
   date: Date | null,
   datePrecision: DatePrecision,
 ): Promise<string> {
   if (!date || datePrecision === "UNKNOWN") {
-    return getBaselinePersonaId(tx, personId);
+    return getBaselineEraId(tx, personId);
   }
 
   const year = date.getUTCFullYear();
@@ -39,7 +40,7 @@ export async function findOrCreatePersonaForDate(
   const startOfYear = new Date(Date.UTC(year, 0, 1));
   const startOfNextYear = new Date(Date.UTC(year + 1, 0, 1));
 
-  const existing = await tx.persona.findFirst({
+  const existing = await tx.era.findFirst({
     where: {
       personId,
       isBaseline: false,
@@ -50,7 +51,7 @@ export async function findOrCreatePersonaForDate(
 
   if (existing) return existing.id;
 
-  const persona = await tx.persona.create({
+  const era = await tx.era.create({
     data: {
       personId,
       label: `${year}`,
@@ -59,16 +60,16 @@ export async function findOrCreatePersonaForDate(
       isBaseline: false,
     },
   });
-  return persona.id;
+  return era.id;
 }
 
 /**
- * Get all personas for a person (for pickers in event dialogs).
+ * Get all eras for a person (for pickers in event dialogs).
  */
-export async function getPersonPersonas(
+export async function getPersonEras(
   personId: string,
 ): Promise<{ id: string; label: string; date: Date | null }[]> {
-  return prisma.persona.findMany({
+  return prisma.era.findMany({
     where: { personId },
     select: { id: true, label: true, date: true },
     orderBy: [{ isBaseline: "desc" }, { date: "asc" }],
@@ -76,12 +77,12 @@ export async function getPersonPersonas(
 }
 
 /**
- * Create a persona with all associated data in a single transaction.
+ * Create a era with all associated data in a single transaction.
  */
-export async function createPersonaBatch(personId: string, data: CreatePersonaBatchInput) {
+export async function createEraBatch(personId: string, data: CreateEraBatchInput) {
   await ensureCatalogEntry("hair", data.currentHairColor);
   return prisma.$transaction(async (tx) => {
-    const persona = await tx.persona.create({
+    const era = await tx.era.create({
       data: {
         personId,
         label: data.label,
@@ -92,7 +93,7 @@ export async function createPersonaBatch(personId: string, data: CreatePersonaBa
       },
     });
 
-    // Event date fields — inherit from persona date
+    // Event date fields — inherit from era date
     const eventDate = data.date ? new Date(data.date) : null;
     const eventDatePrecision = (data.datePrecision ?? "UNKNOWN") as DatePrecision;
     const eventDateModifier = "EXACT" as DateModifier;
@@ -102,7 +103,7 @@ export async function createPersonaBatch(personId: string, data: CreatePersonaBa
     if (hasPhysical) {
       await tx.personaPhysical.create({
         data: {
-          personaId: persona.id,
+          eraId: era.id,
           currentHairColor: data.currentHairColor ?? null,
           weight: data.weight ?? null,
           build: data.build ?? null,
@@ -118,7 +119,7 @@ export async function createPersonaBatch(personId: string, data: CreatePersonaBa
       await tx.bodyMarkEvent.create({
         data: {
           bodyMarkId: event.bodyMarkId,
-          personaId: persona.id,
+          eraId: era.id,
           eventType: event.eventType,
           notes: event.notes ?? null,
           date: eventDate,
@@ -147,7 +148,7 @@ export async function createPersonaBatch(personId: string, data: CreatePersonaBa
       await tx.bodyMarkEvent.create({
         data: {
           bodyMarkId: created.id,
-          personaId: persona.id,
+          eraId: era.id,
           eventType: "added",
           date: eventDate,
           datePrecision: eventDatePrecision,
@@ -161,7 +162,7 @@ export async function createPersonaBatch(personId: string, data: CreatePersonaBa
       await tx.bodyModificationEvent.create({
         data: {
           bodyModificationId: event.bodyModificationId,
-          personaId: persona.id,
+          eraId: era.id,
           eventType: event.eventType,
           notes: event.notes ?? null,
           date: eventDate,
@@ -189,7 +190,7 @@ export async function createPersonaBatch(personId: string, data: CreatePersonaBa
       await tx.bodyModificationEvent.create({
         data: {
           bodyModificationId: created.id,
-          personaId: persona.id,
+          eraId: era.id,
           eventType: "added",
           date: eventDate,
           datePrecision: eventDatePrecision,
@@ -203,7 +204,7 @@ export async function createPersonaBatch(personId: string, data: CreatePersonaBa
       await tx.cosmeticProcedureEvent.create({
         data: {
           cosmeticProcedureId: event.cosmeticProcedureId,
-          personaId: persona.id,
+          eraId: era.id,
           eventType: event.eventType,
           notes: event.notes ?? null,
           date: eventDate,
@@ -228,7 +229,7 @@ export async function createPersonaBatch(personId: string, data: CreatePersonaBa
       await tx.cosmeticProcedureEvent.create({
         data: {
           cosmeticProcedureId: created.id,
-          personaId: persona.id,
+          eraId: era.id,
           eventType: "performed",
           date: eventDate,
           datePrecision: eventDatePrecision,
@@ -237,46 +238,52 @@ export async function createPersonaBatch(personId: string, data: CreatePersonaBa
       });
     }
 
-    return persona;
+    await recomputePersonCurrentState(tx, personId);
+    return era;
   });
 }
 
 /**
- * Update persona metadata (label, date, notes).
+ * Update era metadata (label, date, notes). A date change can re-order the fold,
+ * so the person's current-state cache is recomputed in the same transaction.
  */
-export async function updatePersona(id: string, data: UpdatePersonaInput) {
-  return prisma.persona.update({
-    where: { id },
-    data: {
-      ...(data.label !== undefined && { label: data.label }),
-      ...(data.date !== undefined && { date: data.date ? new Date(data.date) : null }),
-      ...(data.datePrecision !== undefined && { datePrecision: data.datePrecision as DatePrecision }),
-      ...(data.notes !== undefined && { notes: data.notes || null }),
-    },
-  });
-}
-
-/**
- * Delete a persona and all linked events. After deleting events, auto-deletes
- * any parent entities (BodyMark, BodyModification, CosmeticProcedure, PersonSkill)
- * that are left with zero remaining events. Prevents deleting baseline personas.
- */
-export async function deletePersona(id: string) {
+export async function updateEra(id: string, data: UpdateEraInput) {
   return prisma.$transaction(async (tx) => {
-    // Guard: prevent deleting baseline persona (inside tx to avoid TOCTOU)
-    const persona = await tx.persona.findUniqueOrThrow({ where: { id } });
-    if (persona.isBaseline) {
-      throw new Error("Cannot delete baseline persona.");
+    const era = await tx.era.update({
+      where: { id },
+      data: {
+        ...(data.label !== undefined && { label: data.label }),
+        ...(data.date !== undefined && { date: data.date ? new Date(data.date) : null }),
+        ...(data.datePrecision !== undefined && { datePrecision: data.datePrecision as DatePrecision }),
+        ...(data.notes !== undefined && { notes: data.notes || null }),
+      },
+    });
+    await recomputePersonCurrentState(tx, era.personId);
+    return era;
+  });
+}
+
+/**
+ * Delete a era and all linked events. After deleting events, auto-deletes
+ * any parent entities (BodyMark, BodyModification, CosmeticProcedure, PersonSkill)
+ * that are left with zero remaining events. Prevents deleting baseline eras.
+ */
+export async function deleteEra(id: string) {
+  return prisma.$transaction(async (tx) => {
+    // Guard: prevent deleting baseline era (inside tx to avoid TOCTOU)
+    const era = await tx.era.findUniqueOrThrow({ where: { id } });
+    if (era.isBaseline) {
+      throw new Error("Cannot delete baseline era.");
     }
 
-    const personId = persona.personId;
+    const personId = era.personId;
 
     // Delete linked events (skill event media first, then events)
-    await tx.bodyMarkEvent.deleteMany({ where: { personaId: id } });
-    await tx.bodyModificationEvent.deleteMany({ where: { personaId: id } });
-    await tx.cosmeticProcedureEvent.deleteMany({ where: { personaId: id } });
+    await tx.bodyMarkEvent.deleteMany({ where: { eraId: id } });
+    await tx.bodyModificationEvent.deleteMany({ where: { eraId: id } });
+    await tx.cosmeticProcedureEvent.deleteMany({ where: { eraId: id } });
     const skillEvents = await tx.personSkillEvent.findMany({
-      where: { personaId: id },
+      where: { eraId: id },
       select: { id: true },
     });
     if (skillEvents.length > 0) {
@@ -284,10 +291,10 @@ export async function deletePersona(id: string) {
         where: { skillEventId: { in: skillEvents.map((e) => e.id) } },
       });
     }
-    await tx.personSkillEvent.deleteMany({ where: { personaId: id } });
+    await tx.personSkillEvent.deleteMany({ where: { eraId: id } });
     // Delete PersonaPhysical + PersonaPhysicalAttribute
     const personaPhysicals = await tx.personaPhysical.findMany({
-      where: { personaId: id },
+      where: { eraId: id },
       select: { id: true },
     });
     if (personaPhysicals.length > 0) {
@@ -295,20 +302,22 @@ export async function deletePersona(id: string) {
         where: { personaPhysicalId: { in: personaPhysicals.map((p) => p.id) } },
       });
     }
-    await tx.personaPhysical.deleteMany({ where: { personaId: id } });
-    // Delete digital identities linked to this persona
-    await tx.personDigitalIdentity.deleteMany({ where: { personaId: id } });
+    await tx.personaPhysical.deleteMany({ where: { eraId: id } });
+    // Delete digital identities linked to this era
+    await tx.personDigitalIdentity.deleteMany({ where: { eraId: id } });
 
     // Clean up orphaned parent entities (those with zero remaining events)
     await cleanupOrphanedEntities(tx, personId);
 
-    // Delete the persona
-    return tx.persona.delete({ where: { id } });
+    // Delete the era
+    const deleted = await tx.era.delete({ where: { id } });
+    await recomputePersonCurrentState(tx, personId);
+    return deleted;
   });
 }
 
 /**
- * After deleting events for a persona, find and remove parent entities
+ * After deleting events for a era, find and remove parent entities
  * (BodyMark, BodyModification, CosmeticProcedure, PersonSkill) that have
  * zero remaining events. Also cleans up PersonMediaLink references.
  */

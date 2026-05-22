@@ -19,9 +19,9 @@ import type {
 import { useHeroLayout, type HeroLayout } from "@/components/layout/hero-layout-provider";
 import { FlagImage } from "@/components/shared/flag-image";
 import { findCountryByCode } from "@/lib/constants/countries";
-import { PersonaTimelineEntry } from "@/components/people/persona-timeline-entry";
+import { EraTimelineEntry } from "@/components/people/era-timeline-entry";
 import { AppearanceTab } from "@/components/people/appearance-tab";
-import { NewPersonaSheet } from "@/components/people/new-persona-sheet";
+import { NewEraSheet } from "@/components/people/new-era-sheet";
 import {
   Star,
   StarOff,
@@ -235,44 +235,44 @@ function PhysicalDescriptive({
 // ── History Panel ────────────────────────────────────────────────────────────
 
 function HistoryPanel({
-  personas,
+  eras,
   personId,
   currentState,
   defaultOpen = false,
 }: {
-  personas: PersonData["personas"];
+  eras: PersonData["eras"];
   personId: string;
   currentState: PersonCurrentState;
   defaultOpen?: boolean;
 }) {
   const [timelineOpen, setTimelineOpen] = useState(defaultOpen);
-  const [showNewPersona, setShowNewPersona] = useState(false);
+  const [showNewEra, setShowNewEra] = useState(false);
   const [newestFirst, setNewestFirst] = useState(true);
-  const visiblePersonas = useMemo(() => {
+  const visibleEras = useMemo(() => {
     if (newestFirst) {
-      return [...personas].reverse();
+      return [...eras].reverse();
     }
-    return personas;
-  }, [personas, newestFirst]);
+    return eras;
+  }, [eras, newestFirst]);
 
-  if (visiblePersonas.length === 0 && !showNewPersona) {
+  if (visibleEras.length === 0 && !showNewEra) {
     return (
       <div className="space-y-3">
-        <EmptyState message="No persona history recorded." />
+        <EmptyState message="No era history recorded." />
         <button
           type="button"
-          onClick={() => setShowNewPersona(true)}
+          onClick={() => setShowNewEra(true)}
           className="flex items-center gap-1 text-xs font-medium text-primary hover:text-primary/80 transition-colors"
         >
-          <Plus size={12} /> New Persona
+          <Plus size={12} /> New Era
         </button>
-        {showNewPersona && (
-          <NewPersonaSheet
+        {showNewEra && (
+          <NewEraSheet
             personId={personId}
             existingMarks={currentState.activeBodyMarks}
             existingMods={currentState.activeBodyModifications}
             existingProcs={currentState.activeCosmeticProcedures}
-            onClose={() => setShowNewPersona(false)}
+            onClose={() => setShowNewEra(false)}
           />
         )}
       </div>
@@ -293,7 +293,7 @@ function HistoryPanel({
             </>
           ) : (
             <>
-              <ChevronDown size={14} /> Show timeline ({visiblePersonas.length})
+              <ChevronDown size={14} /> Show timeline ({visibleEras.length})
             </>
           )}
         </button>
@@ -309,25 +309,25 @@ function HistoryPanel({
         )}
         <button
           type="button"
-          onClick={() => setShowNewPersona(true)}
+          onClick={() => setShowNewEra(true)}
           className="flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
         >
-          <Plus size={12} /> New Persona
+          <Plus size={12} /> New Era
         </button>
       </div>
       {timelineOpen && (
         <div className="relative space-y-4">
-          {visiblePersonas.map((persona, i) => {
+          {visibleEras.map((era, i) => {
             const isFirst = i === 0;
-            const isLast = i === visiblePersonas.length - 1;
+            const isLast = i === visibleEras.length - 1;
             // In newest-first: open future extends above first entry, line stops at baseline (last)
             // In oldest-first: line starts at baseline (first), open future extends below last entry
             const connectAbove = newestFirst ? true : !isFirst;
             const connectBelow = newestFirst ? !isLast : true;
             return (
-              <PersonaTimelineEntry
-                key={persona.id}
-                persona={persona}
+              <EraTimelineEntry
+                key={era.id}
+                era={era}
                 personId={personId}
                 connectAbove={connectAbove}
                 connectBelow={connectBelow}
@@ -336,13 +336,13 @@ function HistoryPanel({
           })}
         </div>
       )}
-      {showNewPersona && (
-        <NewPersonaSheet
+      {showNewEra && (
+        <NewEraSheet
           personId={personId}
           existingMarks={currentState.activeBodyMarks}
           existingMods={currentState.activeBodyModifications}
           existingProcs={currentState.activeCosmeticProcedures}
-          onClose={() => setShowNewPersona(false)}
+          onClose={() => setShowNewEra(false)}
         />
       )}
     </div>
@@ -1412,7 +1412,7 @@ function OverviewTab({
 }) {
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [tagIds, setTagIds] = useState(entityTags.map((t) => t.id));
-  const hasHistory = person.personas.length > 0;
+  const hasHistory = person.eras.length > 0;
   const recentWork = (sessionWorkHistory ?? []).slice(0, 3);
   const recentPhotos = (referencePhotos ?? []).slice(0, 8);
 
@@ -1489,10 +1489,10 @@ function OverviewTab({
         <SectionCard
           title="History"
           icon={<Users size={18} />}
-          badge={person.personas.length}
+          badge={person.eras.length}
           className="md:col-span-2"
         >
-          <HistoryPanel personas={person.personas} personId={person.id} currentState={currentState} />
+          <HistoryPanel eras={person.eras} personId={person.id} currentState={currentState} />
         </SectionCard>
       )}
 
@@ -2195,7 +2195,7 @@ export function PersonDetailTabs({
             personId={person.id}
             skills={currentState.activeSkills}
             skillGroups={skillGroups ?? []}
-            personas={person.personas.map((p) => ({
+            eras={person.eras.map((p) => ({
               id: p.id,
               label: p.label,
             }))}

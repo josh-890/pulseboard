@@ -26,7 +26,7 @@ type PersonData = {
   retiredAt: Date | null;
   retiredAtPrecision: string;
   aliases: { isCommon: boolean }[];
-  personas: { isBaseline: boolean; date: Date | null; datePrecision: string }[];
+  eras: { isBaseline: boolean; date: Date | null; datePrecision: string }[];
   contributions?: ContributionData[];
 };
 
@@ -179,35 +179,35 @@ export function computePlausibilityIssues(person: PersonData): PlausibilityIssue
       }
     }
 
-    // Persona dates before birth
-    const personaBeforeBirth = person.personas.some(
+    // Era dates before birth
+    const eraBeforeBirth = person.eras.some(
       (p) => !p.isBaseline && p.date && p.date < person.birthdate!,
     );
-    if (personaBeforeBirth) {
+    if (eraBeforeBirth) {
       issues.push({
-        id: "persona-before-birth",
+        id: "era-before-birth",
         severity: "warning",
         category: "timeline",
-        message: "A persona has a date before birthdate",
-        fixHint: "Check persona dates in Appearance tab",
+        message: "A era has a date before birthdate",
+        fixHint: "Check era dates in Appearance tab",
         fixTab: "appearance",
       });
     }
   }
 
-  // Persona dates before baseline
-  const baseline = person.personas.find((p) => p.isBaseline);
+  // Era dates before baseline
+  const baseline = person.eras.find((p) => p.isBaseline);
   if (baseline?.date && baseline.datePrecision !== "UNKNOWN") {
-    const preBaselinePersonas = person.personas.filter(
+    const preBaselineEras = person.eras.filter(
       (p) => !p.isBaseline && p.date && p.datePrecision !== "UNKNOWN" && p.date < baseline.date!,
     );
-    if (preBaselinePersonas.length > 0) {
+    if (preBaselineEras.length > 0) {
       issues.push({
-        id: "persona-before-baseline",
+        id: "era-before-baseline",
         severity: "warning",
         category: "timeline",
-        message: `${preBaselinePersonas.length} persona(s) dated before baseline (${baseline.date.getUTCFullYear()})`,
-        fixHint: "Check persona dates in Appearance tab",
+        message: `${preBaselineEras.length} era(s) dated before baseline (${baseline.date.getUTCFullYear()})`,
+        fixHint: "Check era dates in Appearance tab",
         fixTab: "appearance",
       });
     }
@@ -225,17 +225,17 @@ export function computePlausibilityIssues(person: PersonData): PlausibilityIssue
     });
   }
 
-  // Undated non-baseline personas
-  const undatedPersonas = person.personas.filter(
+  // Undated non-baseline eras
+  const undatedEras = person.eras.filter(
     (p) => !p.isBaseline && !p.date,
   );
-  if (undatedPersonas.length > 0) {
+  if (undatedEras.length > 0) {
     issues.push({
-      id: "undated-personas",
+      id: "undated-eras",
       severity: "info",
       category: "timeline",
-      message: `${undatedPersonas.length} persona(s) with no date`,
-      fixHint: "Add dates to personas in Appearance tab",
+      message: `${undatedEras.length} era(s) with no date`,
+      fixHint: "Add dates to eras in Appearance tab",
       fixTab: "appearance",
     });
   }
@@ -255,7 +255,7 @@ export function computePlausibilityIssues(person: PersonData): PlausibilityIssue
         severity: "warning",
         category: "timeline",
         message: `${confirmedOrProbableBefore.length} confirmed/probable participation(s) before baseline date`,
-        fixHint: "Verify session dates or adjust baseline persona date",
+        fixHint: "Verify session dates or adjust baseline era date",
         fixTab: "career",
       });
     }
@@ -284,7 +284,7 @@ export function computePlausibilityIssues(person: PersonData): PlausibilityIssue
 
 /**
  * Quick plausibility count for list view. Delegates to computePlausibilityIssues
- * with available list-view data. Persona-related checks are skipped (empty array).
+ * with available list-view data. Era-related checks are skipped (empty array).
  * Returns 0 for clean persons.
  */
 export function getQuickPlausibilityCount(person: PersonWithCommonAlias): number {
@@ -301,6 +301,6 @@ export function getQuickPlausibilityCount(person: PersonWithCommonAlias): number
     retiredAt: person.retiredAt,
     retiredAtPrecision: person.retiredAtPrecision,
     aliases,
-    personas: [],
+    eras: [],
   }).length;
 }

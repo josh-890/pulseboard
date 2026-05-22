@@ -11,7 +11,7 @@ export async function getPersonBodyModifications(personId: string) {
     include: {
       events: {
         include: {
-          persona: { select: { id: true, label: true, date: true, datePrecision: true, isBaseline: true } },
+          era: { select: { id: true, label: true, date: true, datePrecision: true, isBaseline: true } },
         },
         orderBy: { date: "asc" },
       },
@@ -26,7 +26,7 @@ export async function getBodyModificationById(id: string) {
     include: {
       events: {
         include: {
-          persona: { select: { id: true, label: true, date: true, datePrecision: true, isBaseline: true } },
+          era: { select: { id: true, label: true, date: true, datePrecision: true, isBaseline: true } },
         },
       },
     },

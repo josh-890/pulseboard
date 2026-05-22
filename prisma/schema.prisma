@@ -16,7 +16,6 @@ enum PersonStatus {
   archived
 }
 
-
 enum AliasSource {
   MANUAL
   IMPORT
@@ -233,47 +232,47 @@ enum ChannelTier {
 // ─── Person & Aliases ─────────────────────────────────────────────────────────
 
 model Person {
-  id             String  @id @default(cuid())
-  icgId          String  @unique
-  birthdate      DateTime?
-  birthdatePrecision DatePrecision @default(UNKNOWN)
-  birthdateModifier  DateModifier  @default(EXACT)
-  birthdateSource    String?
-  sexAtBirth     String?
-  birthPlace     String?
-  nationality    String?
-  ethnicity      String?
-  location       String?
-  height         Int?
-  naturalHairColor  String?
-  naturalBreastSize String?    // Cup letter (A/B/C/D/DD/E/F/G+)
-  eyeColor       String?
-  bodyType       String?
-  measurements   String?
-  activeFrom     DateTime?
+  id                  String        @id @default(cuid())
+  icgId               String        @unique
+  birthdate           DateTime?
+  birthdatePrecision  DatePrecision @default(UNKNOWN)
+  birthdateModifier   DateModifier  @default(EXACT)
+  birthdateSource     String?
+  sexAtBirth          String?
+  birthPlace          String?
+  nationality         String?
+  ethnicity           String?
+  location            String?
+  height              Int?
+  naturalHairColor    String?
+  naturalBreastSize   String? // Cup letter (A/B/C/D/DD/E/F/G+)
+  eyeColor            String?
+  bodyType            String?
+  measurements        String?
+  activeFrom          DateTime?
   activeFromPrecision DatePrecision @default(UNKNOWN)
   activeFromModifier  DateModifier  @default(EXACT)
   activeFromSource    String?
-  retiredAt      DateTime?
+  retiredAt           DateTime?
   retiredAtPrecision  DatePrecision @default(UNKNOWN)
   retiredAtModifier   DateModifier  @default(EXACT)
   retiredAtSource     String?
-  birthMarks     String?
-  specialization String?
-  status         PersonStatus @default(active)
-  rating         Int?
-  pgrade         Int?
-  notes          String?
-  bio            String?
-  tags           String[]
+  birthMarks          String?
+  specialization      String?
+  status              PersonStatus  @default(active)
+  rating              Int?
+  pgrade              Int?
+  notes               String?
+  bio                 String?
+  tags                String[]
 
-  aliases          PersonAlias[]
-  personas         Persona[]
-  relationships    PersonRelationship[] @relation("PersonA")
-  relatedTo        PersonRelationship[] @relation("PersonB")
-  bodyMarks        BodyMark[]
-  digitalIdentities PersonDigitalIdentity[]
-  skills           PersonSkill[]
+  aliases              PersonAlias[]
+  eras                 Era[]
+  relationships        PersonRelationship[]    @relation("PersonA")
+  relatedTo            PersonRelationship[]    @relation("PersonB")
+  bodyMarks            BodyMark[]
+  digitalIdentities    PersonDigitalIdentity[]
+  skills               PersonSkill[]
   bodyModifications    BodyModification[]
   cosmeticProcedures   CosmeticProcedure[]
   education            PersonEducation[]
@@ -283,32 +282,33 @@ model Person {
   setParticipants      SetParticipant[]
   resolvedCredits      SetCreditRaw[]
   personMediaLinks     PersonMediaLink[]
-  referenceSession     Session?             @relation("ReferenceSession")
+  referenceSession     Session?                @relation("ReferenceSession")
   mediaCollections     MediaCollection[]
   personTags           PersonTag[]
-  stagingSetsAsSubject StagingSet[]         @relation("StagingSetSubject")
+  stagingSetsAsSubject StagingSet[]            @relation("StagingSetSubject")
   research             PersonResearch[]
-  coverBaskets         CoverBasket[]        @relation("PersonCoverBaskets")
+  coverBaskets         CoverBasket[]           @relation("PersonCoverBaskets")
+  currentState         PersonCurrentState?
 
-  createdAt DateTime  @default(now())
+  createdAt DateTime @default(now())
 
   @@index([status])
 }
 
 model PersonAlias {
-  id           String               @id @default(cuid())
-  personId     String
-  person       Person               @relation(fields: [personId], references: [id])
-  name         String
+  id            String                @id @default(cuid())
+  personId      String
+  person        Person                @relation(fields: [personId], references: [id])
+  name          String
   // isCommon: the name this person is listed under (exactly one per person)
   // isBirth:  the name given at birth (at most one per person)
   // Both flags can be true simultaneously. Neither implies the other.
   // Uniqueness enforced by partial indexes in the DB (not expressible in Prisma SDL).
-  isCommon     Boolean              @default(false)
-  isBirth      Boolean              @default(false)
-  source       AliasSource          @default(MANUAL)
-  nameNorm     String?
-  notes        String?
+  isCommon      Boolean               @default(false)
+  isBirth       Boolean               @default(false)
+  source        AliasSource           @default(MANUAL)
+  nameNorm      String?
+  notes         String?
   channelLinks  PersonAliasChannel[]
   creditUsages  SetCreditRaw[]        @relation("CreditAlias")
   sessionUsages SessionContribution[] @relation("ContributionAlias")
@@ -331,46 +331,48 @@ model PersonAliasChannel {
   @@index([channelId])
 }
 
-model Persona {
-  id         String    @id @default(cuid())
-  personId   String
-  person     Person    @relation(fields: [personId], references: [id])
-  label      String
-  notes      String?
-  isBaseline Boolean   @default(false)
-  date       DateTime?
+model Era {
+  id            String        @id @default(cuid())
+  personId      String
+  person        Person        @relation(fields: [personId], references: [id])
+  label         String
+  notes         String?
+  isBaseline    Boolean       @default(false)
+  isDraft       Boolean       @default(false)
+  date          DateTime?
   datePrecision DatePrecision @default(UNKNOWN)
   dateModifier  DateModifier  @default(EXACT)
   dateSource    String?
-  createdAt  DateTime  @default(now())
+  createdAt     DateTime      @default(now())
 
-  physicalChange    PersonaPhysical?
-  bodyMarkEvents    BodyMarkEvent[]
-  digitalIdentities PersonDigitalIdentity[]
-  skills            PersonSkill[]
-  bodyModificationEvents    BodyModificationEvent[]
-  cosmeticProcedureEvents   CosmeticProcedureEvent[]
-  skillEvents               PersonSkillEvent[]
-  mediaLinks                PersonMediaLink[]
+  physicalChange          PersonaPhysical?
+  bodyMarkEvents          BodyMarkEvent[]
+  digitalIdentities       PersonDigitalIdentity[]
+  skills                  PersonSkill[]
+  bodyModificationEvents  BodyModificationEvent[]
+  cosmeticProcedureEvents CosmeticProcedureEvent[]
+  skillEvents             PersonSkillEvent[]
+  mediaLinks              PersonMediaLink[]
 
   @@index([personId])
+  @@map("Persona")
 }
 
 model PersonaPhysical {
-  id              String        @id @default(cuid())
-  personaId       String        @unique
-  persona         Persona       @relation(fields: [personaId], references: [id])
-  weight          Float?
+  id                String        @id @default(cuid())
+  eraId             String        @unique @map("personaId")
+  era               Era           @relation(fields: [eraId], references: [id])
+  weight            Float?
   currentHairColor  String?
-  breastSize        String?    // Current cup letter (A/B/C/D/DD/E/F/G+)
-  breastStatus      String?    // "natural" | "enhanced"
-  breastDescription String?    // Free text, e.g. "Large (Real)"
+  breastSize        String? // Current cup letter (A/B/C/D/DD/E/F/G+)
+  breastStatus      String? // "natural" | "enhanced"
+  breastDescription String? // Free text, e.g. "Large (Real)"
   build             String?
   date              DateTime?
-  datePrecision   DatePrecision @default(UNKNOWN)
-  dateModifier    DateModifier  @default(EXACT)
+  datePrecision     DatePrecision @default(UNKNOWN)
+  dateModifier      DateModifier  @default(EXACT)
 
-  attributes      PersonaPhysicalAttribute[]
+  attributes PersonaPhysicalAttribute[]
 
   @@index([date])
 }
@@ -393,7 +395,7 @@ model BodyMark {
   heroOrder   Int?
   createdAt   DateTime       @default(now())
 
-  events          BodyMarkEvent[]
+  events           BodyMarkEvent[]
   personMediaLinks PersonMediaLink[]
 
   @@index([personId])
@@ -405,83 +407,83 @@ model BodyMarkEvent {
   id            String            @id @default(cuid())
   bodyMarkId    String
   bodyMark      BodyMark          @relation(fields: [bodyMarkId], references: [id])
-  personaId     String
-  persona       Persona           @relation(fields: [personaId], references: [id])
+  eraId         String            @map("personaId")
+  era           Era               @relation(fields: [eraId], references: [id])
   eventType     BodyMarkEventType
   notes         String?
   date          DateTime?
   datePrecision DatePrecision     @default(UNKNOWN)
   dateModifier  DateModifier      @default(EXACT)
   // Property overrides (empty array / null = no change)
-  bodyRegions String[]
-  motif       String?
-  colors      String[]
-  size        String?
-  description String?
+  bodyRegions   String[]
+  motif         String?
+  colors        String[]
+  size          String?
+  description   String?
 
   @@index([bodyMarkId])
-  @@index([personaId])
+  @@index([eraId])
   @@index([date])
 }
 
 model PersonDigitalIdentity {
-  id        String    @id @default(cuid())
-  personId  String
-  person    Person    @relation(fields: [personId], references: [id])
-  personaId String?
-  persona   Persona?  @relation(fields: [personaId], references: [id])
-  platform  String
-  handle    String?
-  url       String?
-  status    DigitalIdentityStatus @default(active)
-  validFrom DateTime?
-  validFromPrecision DatePrecision @default(UNKNOWN)
-  validTo   DateTime?
-  validToPrecision   DatePrecision @default(UNKNOWN)
+  id                 String                @id @default(cuid())
+  personId           String
+  person             Person                @relation(fields: [personId], references: [id])
+  eraId              String?               @map("personaId")
+  era                Era?                  @relation(fields: [eraId], references: [id])
+  platform           String
+  handle             String?
+  url                String?
+  status             DigitalIdentityStatus @default(active)
+  validFrom          DateTime?
+  validFromPrecision DatePrecision         @default(UNKNOWN)
+  validTo            DateTime?
+  validToPrecision   DatePrecision         @default(UNKNOWN)
 
   @@index([personId])
-  @@index([personaId])
+  @@index([eraId])
 }
 
 model PersonSkill {
-  id                String           @id @default(cuid())
-  personId          String
-  person            Person           @relation(fields: [personId], references: [id])
-  personaId         String?
-  persona           Persona?         @relation(fields: [personaId], references: [id])
-  skillDefinitionId String?
-  skillDefinition   SkillDefinition? @relation(fields: [skillDefinitionId], references: [id])
-  name              String
-  category          String?
-  level             SkillLevel?
-  evidence          String?
-  validFrom         DateTime?
-  validFromPrecision DatePrecision   @default(UNKNOWN)
-  validTo           DateTime?
-  validToPrecision   DatePrecision   @default(UNKNOWN)
+  id                 String           @id @default(cuid())
+  personId           String
+  person             Person           @relation(fields: [personId], references: [id])
+  eraId              String?          @map("personaId")
+  era                Era?             @relation(fields: [eraId], references: [id])
+  skillDefinitionId  String?
+  skillDefinition    SkillDefinition? @relation(fields: [skillDefinitionId], references: [id])
+  name               String
+  category           String?
+  level              SkillLevel?
+  evidence           String?
+  validFrom          DateTime?
+  validFromPrecision DatePrecision    @default(UNKNOWN)
+  validTo            DateTime?
+  validToPrecision   DatePrecision    @default(UNKNOWN)
 
   events PersonSkillEvent[]
 
   @@index([personId])
-  @@index([personaId])
+  @@index([eraId])
   @@index([skillDefinitionId])
 }
 
 model PersonRelationship {
-  id            String             @id @default(cuid())
-  personAId     String
-  personA       Person             @relation("PersonA", fields: [personAId], references: [id])
-  personBId     String
-  personB       Person             @relation("PersonB", fields: [personBId], references: [id])
-  source        RelationshipSource @default(derived)
-  type          RelationshipType?
-  label         String?
-  sharedSetCount Int               @default(0)
-  validFrom     DateTime?
-  validFromPrecision DatePrecision @default(UNKNOWN)
-  validTo       DateTime?
-  validToPrecision   DatePrecision @default(UNKNOWN)
-  context       String?
+  id                 String             @id @default(cuid())
+  personAId          String
+  personA            Person             @relation("PersonA", fields: [personAId], references: [id])
+  personBId          String
+  personB            Person             @relation("PersonB", fields: [personBId], references: [id])
+  source             RelationshipSource @default(derived)
+  type               RelationshipType?
+  label              String?
+  sharedSetCount     Int                @default(0)
+  validFrom          DateTime?
+  validFromPrecision DatePrecision      @default(UNKNOWN)
+  validTo            DateTime?
+  validToPrecision   DatePrecision      @default(UNKNOWN)
+  context            String?
 
   events RelationshipEvent[]
 
@@ -493,9 +495,9 @@ model PersonRelationship {
 // ─── Body Modifications ──────────────────────────────────────────────────────
 
 model BodyModification {
-  id          String  @id @default(cuid())
+  id          String                 @id @default(cuid())
   personId    String
-  person      Person  @relation(fields: [personId], references: [id])
+  person      Person                 @relation(fields: [personId], references: [id])
   type        BodyModificationType
   bodyRegion  String
   bodyRegions String[]
@@ -505,11 +507,11 @@ model BodyModification {
   material    String?
   gauge       String?
   status      BodyModificationStatus @default(present)
-  heroVisible Boolean               @default(true)
+  heroVisible Boolean                @default(true)
   heroOrder   Int?
-  createdAt   DateTime  @default(now())
+  createdAt   DateTime               @default(now())
 
-  events          BodyModificationEvent[]
+  events           BodyModificationEvent[]
   personMediaLinks PersonMediaLink[]
 
   @@index([personId])
@@ -519,16 +521,16 @@ model BodyModification {
 }
 
 model BodyModificationEvent {
-  id                 String               @id @default(cuid())
+  id                 String                    @id @default(cuid())
   bodyModificationId String
-  bodyModification   BodyModification     @relation(fields: [bodyModificationId], references: [id])
-  personaId          String
-  persona            Persona              @relation(fields: [personaId], references: [id])
+  bodyModification   BodyModification          @relation(fields: [bodyModificationId], references: [id])
+  eraId              String                    @map("personaId")
+  era                Era                       @relation(fields: [eraId], references: [id])
   eventType          BodyModificationEventType
   notes              String?
   date               DateTime?
-  datePrecision      DatePrecision        @default(UNKNOWN)
-  dateModifier       DateModifier         @default(EXACT)
+  datePrecision      DatePrecision             @default(UNKNOWN)
+  dateModifier       DateModifier              @default(EXACT)
   // Property overrides (empty array / null = no change)
   bodyRegions        String[]
   description        String?
@@ -536,30 +538,30 @@ model BodyModificationEvent {
   gauge              String?
 
   @@index([bodyModificationId])
-  @@index([personaId])
+  @@index([eraId])
   @@index([date])
 }
 
 // ─── Cosmetic Procedures ─────────────────────────────────────────────────────
 
 model CosmeticProcedure {
-  id          String  @id @default(cuid())
+  id          String   @id @default(cuid())
   personId    String
-  person      Person  @relation(fields: [personId], references: [id])
+  person      Person   @relation(fields: [personId], references: [id])
   type        String
   bodyRegion  String
   bodyRegions String[]
   description String?
   provider    String?
-  status      String  @default("completed")
-  heroVisible Boolean @default(true)
+  status      String   @default("completed")
+  heroVisible Boolean  @default(true)
   heroOrder   Int?
-  createdAt   DateTime  @default(now())
+  createdAt   DateTime @default(now())
 
   attributeDefinitionId String?
   attributeDefinition   PhysicalAttributeDefinition? @relation(fields: [attributeDefinitionId], references: [id])
 
-  events          CosmeticProcedureEvent[]
+  events           CosmeticProcedureEvent[]
   personMediaLinks PersonMediaLink[]
 
   @@index([personId])
@@ -571,8 +573,8 @@ model CosmeticProcedureEvent {
   id                  String                     @id @default(cuid())
   cosmeticProcedureId String
   cosmeticProcedure   CosmeticProcedure          @relation(fields: [cosmeticProcedureId], references: [id])
-  personaId           String
-  persona             Persona                    @relation(fields: [personaId], references: [id])
+  eraId               String                     @map("personaId")
+  era                 Era                        @relation(fields: [eraId], references: [id])
   eventType           CosmeticProcedureEventType
   notes               String?
   date                DateTime?
@@ -588,34 +590,34 @@ model CosmeticProcedureEvent {
   unit                String?
 
   @@index([cosmeticProcedureId])
-  @@index([personaId])
+  @@index([eraId])
   @@index([date])
 }
 
 // ─── Education & Awards ──────────────────────────────────────────────────────
 
 model PersonEducation {
-  id            String  @id @default(cuid())
-  personId      String
-  person        Person  @relation(fields: [personId], references: [id])
-  type          EducationType
-  institution   String
-  field         String?
-  degree        String?
-  startDate     DateTime?
+  id                 String        @id @default(cuid())
+  personId           String
+  person             Person        @relation(fields: [personId], references: [id])
+  type               EducationType
+  institution        String
+  field              String?
+  degree             String?
+  startDate          DateTime?
   startDatePrecision DatePrecision @default(UNKNOWN)
-  endDate       DateTime?
+  endDate            DateTime?
   endDatePrecision   DatePrecision @default(UNKNOWN)
-  notes         String?
-  createdAt     DateTime @default(now())
+  notes              String?
+  createdAt          DateTime      @default(now())
 
   @@index([personId])
 }
 
 model PersonAward {
-  id            String  @id @default(cuid())
+  id            String        @id @default(cuid())
   personId      String
-  person        Person  @relation(fields: [personId], references: [id])
+  person        Person        @relation(fields: [personId], references: [id])
   type          AwardType
   name          String
   issuer        String?
@@ -623,7 +625,7 @@ model PersonAward {
   datePrecision DatePrecision @default(UNKNOWN)
   context       String?
   url           String?
-  createdAt     DateTime @default(now())
+  createdAt     DateTime      @default(now())
 
   @@index([personId])
 }
@@ -631,18 +633,18 @@ model PersonAward {
 // ─── Interests ───────────────────────────────────────────────────────────────
 
 model PersonInterest {
-  id            String  @id @default(cuid())
-  personId      String
-  person        Person  @relation(fields: [personId], references: [id])
-  name          String
-  category      String?
-  level         String?
-  validFrom     DateTime?
+  id                 String        @id @default(cuid())
+  personId           String
+  person             Person        @relation(fields: [personId], references: [id])
+  name               String
+  category           String?
+  level              String?
+  validFrom          DateTime?
   validFromPrecision DatePrecision @default(UNKNOWN)
-  validTo       DateTime?
+  validTo            DateTime?
   validToPrecision   DatePrecision @default(UNKNOWN)
-  notes         String?
-  createdAt     DateTime @default(now())
+  notes              String?
+  createdAt          DateTime      @default(now())
 
   @@index([personId])
 }
@@ -650,14 +652,14 @@ model PersonInterest {
 // ─── Relationship Events ─────────────────────────────────────────────────────
 
 model RelationshipEvent {
-  id              String  @id @default(cuid())
-  relationshipId  String
-  relationship    PersonRelationship @relation(fields: [relationshipId], references: [id])
-  eventType       RelationshipEventType
-  date            DateTime?
-  datePrecision   DatePrecision @default(UNKNOWN)
-  notes           String?
-  createdAt       DateTime @default(now())
+  id             String                @id @default(cuid())
+  relationshipId String
+  relationship   PersonRelationship    @relation(fields: [relationshipId], references: [id])
+  eventType      RelationshipEventType
+  date           DateTime?
+  datePrecision  DatePrecision         @default(UNKNOWN)
+  notes          String?
+  createdAt      DateTime              @default(now())
 
   @@index([relationshipId])
 }
@@ -707,14 +709,14 @@ model LabelNetworkLink {
 }
 
 model Channel {
-  id            String   @id @default(cuid())
+  id            String      @id @default(cuid())
   name          String
   nameNorm      String?
-  shortName     String?  @unique
+  shortName     String?     @unique
   url           String?
   platform      String?
   notes         String?
-  importAliases String[] @default([])
+  importAliases String[]    @default([])
   tier          ChannelTier @default(NORMAL)
   channelFolder String?
 
@@ -730,10 +732,10 @@ model Channel {
 
 model ChannelLabelMap {
   channelId  String
-  channel    Channel @relation(fields: [channelId], references: [id])
+  channel    Channel  @relation(fields: [channelId], references: [id])
   labelId    String
-  label      Label   @relation(fields: [labelId], references: [id])
-  confidence Float   @default(1.0)
+  label      Label    @relation(fields: [labelId], references: [id])
+  confidence Float    @default(1.0)
   notes      String?
   createdAt  DateTime @default(now())
 
@@ -787,32 +789,32 @@ model ProjectLabel {
 }
 
 model Session {
-  id          String        @id @default(cuid())
-  projectId   String?
-  project     Project?      @relation(fields: [projectId], references: [id])
-  labelId     String?
-  label       Label?        @relation(fields: [labelId], references: [id])
-  personId    String?       @unique
-  person      Person?       @relation("ReferenceSession", fields: [personId], references: [id])
-  name        String
-  nameNorm    String?
-  description String?
-  location    String?
-  type        SessionType   @default(PRODUCTION)
-  status      SessionStatus @default(DRAFT)
-  notes       String?
-  date              DateTime?
-  datePrecision     DatePrecision @default(UNKNOWN)
-  dateModifier      DateModifier  @default(EXACT)
-  dateSource        String?
-  dateIsConfirmed   Boolean       @default(false)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  id              String        @id @default(cuid())
+  projectId       String?
+  project         Project?      @relation(fields: [projectId], references: [id])
+  labelId         String?
+  label           Label?        @relation(fields: [labelId], references: [id])
+  personId        String?       @unique
+  person          Person?       @relation("ReferenceSession", fields: [personId], references: [id])
+  name            String
+  nameNorm        String?
+  description     String?
+  location        String?
+  type            SessionType   @default(PRODUCTION)
+  status          SessionStatus @default(DRAFT)
+  notes           String?
+  date            DateTime?
+  datePrecision   DatePrecision @default(UNKNOWN)
+  dateModifier    DateModifier  @default(EXACT)
+  dateSource      String?
+  dateIsConfirmed Boolean       @default(false)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
 
   coverMediaItemId String?
   coverMediaItem   MediaItem? @relation("SessionCoverMedia", fields: [coverMediaItemId], references: [id])
 
-  tags            String[]     @default([])
+  tags            String[]              @default([])
   mediaItems      MediaItem[]
   contributions   SessionContribution[]
   setSessionLinks SetSession[]
@@ -830,34 +832,34 @@ model Session {
 }
 
 model Set {
-  id          String    @id @default(cuid())
-  channelId   String?
-  channel     Channel?  @relation(fields: [channelId], references: [id])
-  type        SetType
-  title       String
-  titleNorm   String?
-  description String?
-  notes       String?
-  releaseDate DateTime?
+  id                   String        @id @default(cuid())
+  channelId            String?
+  channel              Channel?      @relation(fields: [channelId], references: [id])
+  type                 SetType
+  title                String
+  titleNorm            String?
+  description          String?
+  notes                String?
+  releaseDate          DateTime?
   releaseDatePrecision DatePrecision @default(UNKNOWN)
   releaseDateModifier  DateModifier  @default(EXACT)
   releaseDateSource    String?
-  coverMediaItemId String?
-  coverMediaItem   MediaItem? @relation("SetCoverMedia", fields: [coverMediaItemId], references: [id])
-  category      String?
-  genre         String?
-  tags          String[]
-  isCompilation Boolean   @default(false)
-  isComplete    Boolean   @default(false)
-  imageCount    Int?
-  videoLength   String?
-  externalId    String?   @unique  // External source ID (e.g., CoverId from import files)
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  coverMediaItemId     String?
+  coverMediaItem       MediaItem?    @relation("SetCoverMedia", fields: [coverMediaItemId], references: [id])
+  category             String?
+  genre                String?
+  tags                 String[]
+  isCompilation        Boolean       @default(false)
+  isComplete           Boolean       @default(false)
+  imageCount           Int?
+  videoLength          String?
+  externalId           String?       @unique // External source ID (e.g., CoverId from import files)
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
 
   // Media queue
-  mediaPriority  Int?
-  mediaQueueAt   DateTime?
+  mediaPriority Int?
+  mediaQueueAt  DateTime?
 
   setMediaItems     SetMediaItem[]
   creditsRaw        SetCreditRaw[]
@@ -865,8 +867,8 @@ model Set {
   labelEvidence     SetLabelEvidence[]
   sessionLinks      SetSession[]
   setTags           SetTag[]
-  stagingMatches    StagingSet[]     @relation("StagingSetMatch")
-  stagingPromotions StagingSet[]     @relation("StagingSetPromoted")
+  stagingMatches    StagingSet[]          @relation("StagingSetMatch")
+  stagingPromotions StagingSet[]          @relation("StagingSetPromoted")
   coherenceSnapshot SetCoherenceSnapshot?
   archiveLinks      ArchiveLink[]
 
@@ -881,11 +883,11 @@ model Set {
 // ─── Media ───────────────────────────────────────────────────────────────────
 
 model MediaItem {
-  id          String    @id @default(cuid())
-  sessionId   String
-  session     Session   @relation(fields: [sessionId], references: [id])
-  mediaType   MediaType
-  capturedAt  DateTime?
+  id                  String        @id @default(cuid())
+  sessionId           String
+  session             Session       @relation(fields: [sessionId], references: [id])
+  mediaType           MediaType
+  capturedAt          DateTime?
   capturedAtPrecision DatePrecision @default(UNKNOWN)
 
   filename       String
@@ -899,27 +901,27 @@ model MediaItem {
   durationMs     Int?
   variants       Json?
 
-  focalX        Float?
-  focalY        Float?
-  focalSource   String?
-  focalStatus   String?
-  modelVersion  String?
+  focalX       Float?
+  focalY       Float?
+  focalSource  String?
+  focalStatus  String?
+  modelVersion String?
 
-  sourceVideoRef   String?  // free-text clip name; groups frames from same video clip
-  sourceTimecodeMs Int?     // timecode offset (ms) at which this frame was extracted
+  sourceVideoRef   String? // free-text clip name; groups frames from same video clip
+  sourceTimecodeMs Int? // timecode offset (ms) at which this frame was extracted
 
   caption      String?
   tags         String[]
   notes        String?
-  isAnnotation Boolean @default(false)  // Derived/edited photos — hidden from main gallery
+  isAnnotation Boolean  @default(false) // Derived/edited photos — hidden from main gallery
 
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   setMediaItems    SetMediaItem[]
   personMediaLinks PersonMediaLink[]
-  coverForSets     Set[]             @relation("SetCoverMedia")
-  coverForSessions Session[]         @relation("SessionCoverMedia")
+  coverForSets     Set[]                 @relation("SetCoverMedia")
+  coverForSessions Session[]             @relation("SessionCoverMedia")
   collectionItems  MediaCollectionItem[]
   skillEventMedia  SkillEventMedia[]
   mediaItemTags    MediaItemTag[]
@@ -954,14 +956,14 @@ model SessionContribution {
   roleDefinition     ContributionRoleDefinition @relation(fields: [roleDefinitionId], references: [id])
   creditNameOverride String?
   notes              String?
-  confidence         ParticipationConfidence     @default(CONFIRMED)
-  confidenceSource   ConfidenceSource            @default(MANUAL)
+  confidence         ParticipationConfidence    @default(CONFIRMED)
+  confidenceSource   ConfidenceSource           @default(MANUAL)
   confirmedAt        DateTime?
   createdAt          DateTime                   @default(now())
   resolvedAliasId    String?
   resolvedAlias      PersonAlias?               @relation("ContributionAlias", fields: [resolvedAliasId], references: [id], onDelete: SetNull)
 
-  skills             ContributionSkill[]
+  skills ContributionSkill[]
 
   @@unique([sessionId, personId, roleDefinitionId])
   @@index([resolvedAliasId])
@@ -977,8 +979,8 @@ model SetParticipant {
   person           Person                     @relation(fields: [personId], references: [id])
   roleDefinitionId String
   roleDefinition   ContributionRoleDefinition @relation(fields: [roleDefinitionId], references: [id])
-  confidence       ParticipationConfidence     @default(CONFIRMED)
-  confidenceSource ConfidenceSource            @default(MANUAL)
+  confidence       ParticipationConfidence    @default(CONFIRMED)
+  confidenceSource ConfidenceSource           @default(MANUAL)
   confirmedAt      DateTime?
 
   @@id([setId, personId, roleDefinitionId])
@@ -987,10 +989,10 @@ model SetParticipant {
 
 model SetSession {
   setId     String
-  set       Set     @relation(fields: [setId], references: [id])
+  set       Set      @relation(fields: [setId], references: [id])
   sessionId String
-  session   Session @relation(fields: [sessionId], references: [id])
-  isPrimary Boolean @default(false)
+  session   Session  @relation(fields: [sessionId], references: [id])
+  isPrimary Boolean  @default(false)
   createdAt DateTime @default(now())
 
   @@id([setId, sessionId])
@@ -999,21 +1001,21 @@ model SetSession {
 model SetCreditRaw {
   id               String                      @id @default(cuid())
   setId            String
-  set              Set                          @relation(fields: [setId], references: [id])
+  set              Set                         @relation(fields: [setId], references: [id])
   roleDefinitionId String?
-  roleDefinition   ContributionRoleDefinition?  @relation(fields: [roleDefinitionId], references: [id])
+  roleDefinition   ContributionRoleDefinition? @relation(fields: [roleDefinitionId], references: [id])
   rawName          String
-  nameNorm         String?   @map("rawNameNorm")
-  resolutionStatus ResolutionStatus @default(UNRESOLVED)
+  nameNorm         String?                     @map("rawNameNorm")
+  resolutionStatus ResolutionStatus            @default(UNRESOLVED)
   resolvedPersonId String?
-  resolvedPerson   Person?          @relation(fields: [resolvedPersonId], references: [id])
-  createdAt        DateTime         @default(now())
-  updatedAt        DateTime         @updatedAt
+  resolvedPerson   Person?                     @relation(fields: [resolvedPersonId], references: [id])
+  createdAt        DateTime                    @default(now())
+  updatedAt        DateTime                    @updatedAt
 
   resolvedArtistId String?
-  resolvedArtist   Artist?          @relation(fields: [resolvedArtistId], references: [id])
+  resolvedArtist   Artist?      @relation(fields: [resolvedArtistId], references: [id])
   resolvedAliasId  String?
-  resolvedAlias    PersonAlias?     @relation("CreditAlias", fields: [resolvedAliasId], references: [id], onDelete: SetNull)
+  resolvedAlias    PersonAlias? @relation("CreditAlias", fields: [resolvedAliasId], references: [id], onDelete: SetNull)
 
   @@index([setId])
   @@index([resolutionStatus])
@@ -1036,21 +1038,21 @@ model PersonMediaLink {
   sortOrder   Int              @default(0)
   notes       String?
 
-  slot                 Int?
-  bodyRegion           String?
-  bodyRegions          String[]
-  bodyMarkId           String?
-  bodyMark             BodyMark?           @relation(fields: [bodyMarkId], references: [id])
-  bodyModificationId   String?
-  bodyModification     BodyModification?   @relation(fields: [bodyModificationId], references: [id])
-  cosmeticProcedureId  String?
-  cosmeticProcedure    CosmeticProcedure?  @relation(fields: [cosmeticProcedureId], references: [id])
-  categoryId           String?
-  category             MediaCategory?      @relation(fields: [categoryId], references: [id])
-  personaId            String?
-  persona              Persona?            @relation(fields: [personaId], references: [id], onDelete: SetNull)
+  slot                Int?
+  bodyRegion          String?
+  bodyRegions         String[]
+  bodyMarkId          String?
+  bodyMark            BodyMark?          @relation(fields: [bodyMarkId], references: [id])
+  bodyModificationId  String?
+  bodyModification    BodyModification?  @relation(fields: [bodyModificationId], references: [id])
+  cosmeticProcedureId String?
+  cosmeticProcedure   CosmeticProcedure? @relation(fields: [cosmeticProcedureId], references: [id])
+  categoryId          String?
+  category            MediaCategory?     @relation(fields: [categoryId], references: [id])
+  eraId               String?            @map("personaId")
+  era                 Era?               @relation(fields: [eraId], references: [id], onDelete: SetNull)
 
-  createdAt   DateTime         @default(now())
+  createdAt DateTime @default(now())
 
   @@unique([personId, mediaItemId, usage])
   @@index([personId])
@@ -1058,7 +1060,7 @@ model PersonMediaLink {
   @@index([bodyMarkId])
   @@index([bodyModificationId])
   @@index([cosmeticProcedureId])
-  @@index([personaId])
+  @@index([eraId])
   @@index([categoryId])
 }
 
@@ -1081,10 +1083,10 @@ model MediaCollection {
 model MediaCollectionItem {
   collectionId String
   mediaItemId  String
-  sortOrder    Int              @default(0)
-  collection   MediaCollection  @relation(fields: [collectionId], references: [id])
-  mediaItem    MediaItem        @relation(fields: [mediaItemId], references: [id])
-  createdAt    DateTime         @default(now())
+  sortOrder    Int             @default(0)
+  collection   MediaCollection @relation(fields: [collectionId], references: [id])
+  mediaItem    MediaItem       @relation(fields: [mediaItemId], references: [id])
+  createdAt    DateTime        @default(now())
 
   @@id([collectionId, mediaItemId])
   @@index([mediaItemId])
@@ -1105,14 +1107,14 @@ model MediaCategoryGroup {
 }
 
 model MediaCategory {
-  id          String   @id @default(cuid())
+  id          String             @id @default(cuid())
   groupId     String
   group       MediaCategoryGroup @relation(fields: [groupId], references: [id])
   name        String
-  slug        String   @unique
+  slug        String             @unique
   entityModel String?
-  sortOrder   Int      @default(0)
-  createdAt   DateTime @default(now())
+  sortOrder   Int                @default(0)
+  createdAt   DateTime           @default(now())
 
   personMediaLinks PersonMediaLink[]
 
@@ -1124,10 +1126,10 @@ model MediaCategory {
 // ─── Physical Attribute Catalog ──────────────────────────────────────────────
 
 model PhysicalAttributeGroup {
-  id          String                       @id @default(cuid())
-  name        String                       @unique
-  sortOrder   Int                          @default(0)
-  createdAt   DateTime                     @default(now())
+  id        String   @id @default(cuid())
+  name      String   @unique
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
 
   definitions PhysicalAttributeDefinition[]
 
@@ -1144,21 +1146,21 @@ enum PhysicalAttributeValueType {
 }
 
 model PhysicalAttributeDefinition {
-  id            String                       @id @default(cuid())
+  id            String                     @id @default(cuid())
   groupId       String
-  group         PhysicalAttributeGroup       @relation(fields: [groupId], references: [id])
+  group         PhysicalAttributeGroup     @relation(fields: [groupId], references: [id])
   name          String
-  slug          String                       @unique
+  slug          String                     @unique
   unit          String?
-  valueType     PhysicalAttributeValueType   @default(TEXT)
-  allowedValues String[]                     @default([])
+  valueType     PhysicalAttributeValueType @default(TEXT)
+  allowedValues String[]                   @default([])
   ordinalMin    Int?
   ordinalMax    Int?
-  sortOrder     Int                          @default(0)
-  createdAt     DateTime                     @default(now())
+  sortOrder     Int                        @default(0)
+  createdAt     DateTime                   @default(now())
 
-  attributes          PersonaPhysicalAttribute[]
-  cosmeticProcedures  CosmeticProcedure[]
+  attributes         PersonaPhysicalAttribute[]
+  cosmeticProcedures CosmeticProcedure[]
 
   @@unique([groupId, name])
   @@index([groupId])
@@ -1166,16 +1168,76 @@ model PhysicalAttributeDefinition {
 }
 
 model PersonaPhysicalAttribute {
-  id                    String                       @id @default(cuid())
+  id                    String                      @id @default(cuid())
   personaPhysicalId     String
-  personaPhysical       PersonaPhysical              @relation(fields: [personaPhysicalId], references: [id])
+  personaPhysical       PersonaPhysical             @relation(fields: [personaPhysicalId], references: [id])
   attributeDefinitionId String
-  attributeDefinition   PhysicalAttributeDefinition  @relation(fields: [attributeDefinitionId], references: [id])
+  attributeDefinition   PhysicalAttributeDefinition @relation(fields: [attributeDefinitionId], references: [id])
   value                 String
 
   @@unique([personaPhysicalId, attributeDefinitionId])
   @@index([personaPhysicalId])
   @@index([attributeDefinitionId])
+}
+
+// ─── Derived-State Cache ─────────────────────────────────────────────────────
+
+// Per-person folded current state. Replaces the mv_person_current_state
+// materialized view (ADR-0003). One row per person, kept correct in the same
+// transaction as every delta mutation via app_recompute_person_current_state().
+// Query-shaped: carries every column the search service + facets read.
+model PersonCurrentState {
+  personId String @id
+  person   Person @relation(fields: [personId], references: [id], onDelete: Cascade)
+
+  eyeColor         String?
+  currentHairColor String?
+  currentWeight    Float?
+  currentBuild     String?
+
+  // hair / eye / skin classification (catalog-driven via lookup_* functions)
+  hairHue           String?
+  hairLightness     String?
+  hairLightnessRank Int?
+  eyeHue            String?
+  eyeLightness      String?
+  eyeLightnessRank  Int?
+  skinTone          String?
+  skinToneRank      Int?
+  skinUndertone     String?
+
+  currentAttributes Json @default("{}")
+  attributeStatuses Json @default("{}") // folded NATURAL/ENHANCED/RESTORED — populated in Phase C
+
+  hasTattoo       Boolean @default(false)
+  hasScar         Boolean @default(false)
+  hasPiercing     Boolean @default(false)
+  hasModification Boolean @default(false)
+  hasProcedure    Boolean @default(false)
+
+  tattooRegions       String[] @default([])
+  scarRegions         String[] @default([])
+  piercingRegions     String[] @default([])
+  modificationRegions String[] @default([])
+  procedureRegions    String[] @default([])
+
+  updatedAt DateTime @default(now())
+
+  @@index([currentAttributes], type: Gin)
+  @@index([tattooRegions], type: Gin)
+  @@index([scarRegions], type: Gin)
+  @@index([piercingRegions], type: Gin)
+  @@index([modificationRegions], type: Gin)
+  @@index([procedureRegions], type: Gin)
+  @@index([hairHue])
+  @@index([hairLightnessRank])
+  @@index([eyeHue])
+  @@index([eyeLightnessRank])
+  @@index([skinToneRank])
+  @@index([skinUndertone])
+  @@index([hasTattoo])
+  @@index([hasScar])
+  @@index([hasPiercing])
 }
 
 // ─── System ───────────────────────────────────────────────────────────────────
@@ -1192,7 +1254,7 @@ model Activity {
   time  DateTime
   type  ActivityType
 
-  createdAt DateTime  @default(now())
+  createdAt DateTime @default(now())
 
   @@index([time])
   @@index([type])
@@ -1211,19 +1273,19 @@ model SkillGroup {
 }
 
 model SkillDefinition {
-  id          String     @id @default(cuid())
-  groupId     String
-  group       SkillGroup @relation(fields: [groupId], references: [id])
-  name        String
-  slug        String     @unique
+  id           String      @id @default(cuid())
+  groupId      String
+  group        SkillGroup  @relation(fields: [groupId], references: [id])
+  name         String
+  slug         String      @unique
   description  String?
-  pgrade       Int        @default(0)
+  pgrade       Int         @default(0)
   defaultLevel SkillLevel?
-  sortOrder    Int        @default(0)
-  createdAt   DateTime   @default(now())
+  sortOrder    Int         @default(0)
+  createdAt    DateTime    @default(now())
 
-  personSkills             PersonSkill[]
-  contributionSkills       ContributionSkill[]
+  personSkills       PersonSkill[]
+  contributionSkills ContributionSkill[]
 
   @@unique([groupId, name])
   @@index([groupId])
@@ -1234,8 +1296,8 @@ model PersonSkillEvent {
   id            String         @id @default(cuid())
   personSkillId String
   personSkill   PersonSkill    @relation(fields: [personSkillId], references: [id])
-  personaId     String?
-  persona       Persona?       @relation(fields: [personaId], references: [id])
+  eraId         String?        @map("personaId")
+  era           Era?           @relation(fields: [eraId], references: [id])
   eventType     SkillEventType
   level         SkillLevel?
   date          DateTime?
@@ -1243,10 +1305,10 @@ model PersonSkillEvent {
   notes         String?
   createdAt     DateTime       @default(now())
 
-  media         SkillEventMedia[]
+  media SkillEventMedia[]
 
   @@index([personSkillId])
-  @@index([personaId])
+  @@index([eraId])
 }
 
 model SkillEventMedia {
@@ -1264,10 +1326,10 @@ model SkillEventMedia {
 // ─── Contribution Role Catalog ───────────────────────────────────────────────
 
 model ContributionRoleGroup {
-  id          String   @id @default(cuid())
-  name        String   @unique
-  sortOrder   Int      @default(0)
-  createdAt   DateTime @default(now())
+  id        String   @id @default(cuid())
+  name      String   @unique
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
 
   definitions ContributionRoleDefinition[]
 
@@ -1275,14 +1337,14 @@ model ContributionRoleGroup {
 }
 
 model ContributionRoleDefinition {
-  id            String                @id @default(cuid())
-  groupId       String
-  group         ContributionRoleGroup @relation(fields: [groupId], references: [id])
-  name          String
-  slug          String                @unique
-  description   String?
-  sortOrder     Int                   @default(0)
-  createdAt     DateTime              @default(now())
+  id          String                @id @default(cuid())
+  groupId     String
+  group       ContributionRoleGroup @relation(fields: [groupId], references: [id])
+  name        String
+  slug        String                @unique
+  description String?
+  sortOrder   Int                   @default(0)
+  createdAt   DateTime              @default(now())
 
   contributions   SessionContribution[]
   setCreditRaws   SetCreditRaw[]
@@ -1326,17 +1388,17 @@ model TagGroup {
 }
 
 model TagDefinition {
-  id            String          @id @default(cuid())
+  id            String         @id @default(cuid())
   groupId       String
-  group         TagGroup        @relation(fields: [groupId], references: [id])
+  group         TagGroup       @relation(fields: [groupId], references: [id])
   name          String
-  slug          String          @unique
+  slug          String         @unique
   nameNorm      String?
-  status        String          @default("active")
+  status        String         @default("active")
   description   String?
-  scope         String[]        @default(["PERSON", "SESSION", "MEDIA_ITEM", "SET", "PROJECT"])
-  sortOrder     Int             @default(0)
-  createdAt     DateTime        @default(now())
+  scope         String[]       @default(["PERSON", "SESSION", "MEDIA_ITEM", "SET", "PROJECT"])
+  sortOrder     Int            @default(0)
+  createdAt     DateTime       @default(now())
   personTags    PersonTag[]
   sessionTags   SessionTag[]
   mediaItemTags MediaItemTag[]
@@ -1369,9 +1431,9 @@ model TagAlias {
 model PersonTag {
   personId        String
   tagDefinitionId String
-  source          TagSource @default(MANUAL)
-  createdAt       DateTime  @default(now())
-  person          Person    @relation(fields: [personId], references: [id])
+  source          TagSource     @default(MANUAL)
+  createdAt       DateTime      @default(now())
+  person          Person        @relation(fields: [personId], references: [id])
   tagDefinition   TagDefinition @relation(fields: [tagDefinitionId], references: [id])
 
   @@id([personId, tagDefinitionId])
@@ -1382,9 +1444,9 @@ model PersonTag {
 model SessionTag {
   sessionId       String
   tagDefinitionId String
-  source          TagSource @default(MANUAL)
-  createdAt       DateTime  @default(now())
-  session         Session   @relation(fields: [sessionId], references: [id])
+  source          TagSource     @default(MANUAL)
+  createdAt       DateTime      @default(now())
+  session         Session       @relation(fields: [sessionId], references: [id])
   tagDefinition   TagDefinition @relation(fields: [tagDefinitionId], references: [id])
 
   @@id([sessionId, tagDefinitionId])
@@ -1395,9 +1457,9 @@ model SessionTag {
 model MediaItemTag {
   mediaItemId     String
   tagDefinitionId String
-  source          TagSource @default(MANUAL)
-  createdAt       DateTime  @default(now())
-  mediaItem       MediaItem @relation(fields: [mediaItemId], references: [id])
+  source          TagSource     @default(MANUAL)
+  createdAt       DateTime      @default(now())
+  mediaItem       MediaItem     @relation(fields: [mediaItemId], references: [id])
   tagDefinition   TagDefinition @relation(fields: [tagDefinitionId], references: [id])
 
   @@id([mediaItemId, tagDefinitionId])
@@ -1408,9 +1470,9 @@ model MediaItemTag {
 model SetTag {
   setId           String
   tagDefinitionId String
-  source          TagSource @default(MANUAL)
-  createdAt       DateTime  @default(now())
-  set             Set       @relation(fields: [setId], references: [id])
+  source          TagSource     @default(MANUAL)
+  createdAt       DateTime      @default(now())
+  set             Set           @relation(fields: [setId], references: [id])
   tagDefinition   TagDefinition @relation(fields: [tagDefinitionId], references: [id])
 
   @@id([setId, tagDefinitionId])
@@ -1421,9 +1483,9 @@ model SetTag {
 model ProjectTag {
   projectId       String
   tagDefinitionId String
-  source          TagSource @default(MANUAL)
-  createdAt       DateTime  @default(now())
-  project         Project   @relation(fields: [projectId], references: [id])
+  source          TagSource     @default(MANUAL)
+  createdAt       DateTime      @default(now())
+  project         Project       @relation(fields: [projectId], references: [id])
   tagDefinition   TagDefinition @relation(fields: [tagDefinitionId], references: [id])
 
   @@id([projectId, tagDefinitionId])
@@ -1473,7 +1535,7 @@ model Artist {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  creditsRaw  SetCreditRaw[]
+  creditsRaw SetCreditRaw[]
 
   @@index([nameNorm])
 }
@@ -1502,24 +1564,24 @@ model ImportBatch {
 }
 
 model ImportItem {
-  id                String           @id @default(cuid())
-  batchId           String
-  batch             ImportBatch      @relation(fields: [batchId], references: [id], onDelete: Cascade)
-  type              ImportItemType
-  status            ImportItemStatus @default(NEW)
-  sortOrder         Int              @default(0)
-  data              Json
-  rawText           String?
-  matchedEntityId   String?
-  matchConfidence   Float?
-  matchDetails      String?
-  dependsOn         String[]
-  blockedReason     String?
-  editedData        Json?
-  createdAt         DateTime         @default(now())
-  updatedAt         DateTime         @updatedAt
+  id              String           @id @default(cuid())
+  batchId         String
+  batch           ImportBatch      @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  type            ImportItemType
+  status          ImportItemStatus @default(NEW)
+  sortOrder       Int              @default(0)
+  data            Json
+  rawText         String?
+  matchedEntityId String?
+  matchConfidence Float?
+  matchDetails    String?
+  dependsOn       String[]
+  blockedReason   String?
+  editedData      Json?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
 
-  stagingSets       StagingSet[]
+  stagingSets StagingSet[]
 
   @@index([batchId, type])
   @@index([batchId, status])
@@ -1552,71 +1614,74 @@ enum ArchiveLinkStatus {
 }
 
 model StagingSet {
-  id                String            @id @default(cuid())
+  id String @id @default(cuid())
 
   // Raw import data
-  title             String
-  titleNorm         String?
-  externalId        String?
-  channelName       String
-  channelId         String?
-  channel           Channel?          @relation(fields: [channelId], references: [id])
-  releaseDate       DateTime?
-  releaseDatePrecision DatePrecision  @default(UNKNOWN)
-  isVideo           Boolean           @default(false)
-  imageCount        Int?
-  artist            String?
-  artistNorm        String?
-  coverImageUrl     String?
-  description       String?
-  participants          Json?
-  participantIcgIds     String[]
-  participantNamesNorm  String?
-  participantStatuses   Json?
+  title                String
+  titleNorm            String?
+  externalId           String?
+  channelName          String
+  channelId            String?
+  channel              Channel?      @relation(fields: [channelId], references: [id])
+  releaseDate          DateTime?
+  releaseDatePrecision DatePrecision @default(UNKNOWN)
+  isVideo              Boolean       @default(false)
+  imageCount           Int?
+  artist               String?
+  artistNorm           String?
+  coverImageUrl        String?
+  description          String?
+  participants         Json?
+  participantIcgIds    String[]
+  participantNamesNorm String?
+  participantStatuses  Json?
 
   // Provenance
-  importBatchId     String?
-  importBatch       ImportBatch?      @relation(fields: [importBatchId], references: [id], onDelete: Cascade)
-  importItemId      String?
-  importItem        ImportItem?       @relation(fields: [importItemId], references: [id])
-  subjectPersonId   String?
-  subjectPerson     Person?           @relation("StagingSetSubject", fields: [subjectPersonId], references: [id])
-  subjectIcgId      String?
+  importBatchId   String?
+  importBatch     ImportBatch? @relation(fields: [importBatchId], references: [id], onDelete: Cascade)
+  importItemId    String?
+  importItem      ImportItem?  @relation(fields: [importItemId], references: [id])
+  subjectPersonId String?
+  subjectPerson   Person?      @relation("StagingSetSubject", fields: [subjectPersonId], references: [id])
+  subjectIcgId    String?
 
   // Matching
-  matchedSetId      String?
-  matchedSet        Set?              @relation("StagingSetMatch", fields: [matchedSetId], references: [id])
-  matchConfidence   Float?
-  matchDetails      String?
+  matchedSetId    String?
+  matchedSet      Set?    @relation("StagingSetMatch", fields: [matchedSetId], references: [id])
+  matchConfidence Float?
+  matchDetails    String?
 
   // Resolution
-  status            StagingSetStatus  @default(PENDING)
-  promotedSetId     String?
-  promotedSet       Set?              @relation("StagingSetPromoted", fields: [promotedSetId], references: [id])
+  status        StagingSetStatus @default(PENDING)
+  promotedSetId String?
+  promotedSet   Set?             @relation("StagingSetPromoted", fields: [promotedSetId], references: [id])
 
   // Duplicate/reupload tracking
-  duplicateGroupId  String?
-  isDuplicate       Boolean           @default(false)
-  isReupload        Boolean           @default(false)
+  duplicateGroupId String?
+  isDuplicate      Boolean @default(false)
+  isReupload       Boolean @default(false)
 
   // Date suggestion (extracted from title when Date field is 0000-00-00)
   releaseDateSuggestion String?
 
   // User annotations
-  priority          Int?
-  notes             String?
+  priority Int?
+  notes    String?
 
   // Media queue
-  mediaPriority  Int?
-  mediaQueueAt   DateTime?
+  mediaPriority Int?
+  mediaQueueAt  DateTime?
 
   // Split-set sibling: video staging set points to its photo counterpart
-  siblingId         String?           @unique
-  sibling           StagingSet?       @relation("StagingSetSibling", fields: [siblingId], references: [id])
-  siblingOf         StagingSet?       @relation("StagingSetSibling")
+  siblingId String?     @unique
+  sibling   StagingSet? @relation("StagingSetSibling", fields: [siblingId], references: [id])
+  siblingOf StagingSet? @relation("StagingSetSibling")
 
-  createdAt         DateTime          @default(now())
-  updatedAt         DateTime          @updatedAt
+  createdAt         DateTime              @default(now())
+  updatedAt         DateTime              @updatedAt
+  coherenceSnapshot SetCoherenceSnapshot?
+  archiveLinks      ArchiveLink[]
+  basketItems       CoverBasketItem[]     @relation("BasketItemMatch")
 
   @@unique([importItemId, isVideo])
   @@index([externalId])
@@ -1629,10 +1694,6 @@ model StagingSet {
   @@index([participantNamesNorm])
   @@index([mediaQueueAt])
   @@index([importBatchId])
-  coherenceSnapshot SetCoherenceSnapshot?
-  archiveLinks      ArchiveLink[]
-  basketItems       CoverBasketItem[]    @relation("BasketItemMatch")
-
   @@index([status])
   @@index([duplicateGroupId])
   @@map("staging_set")
@@ -1654,32 +1715,32 @@ model PersonResearch {
 // Represents a physical folder discovered on the archive filesystem during a full-walk scan.
 // One row per unique absolute path. Persisted across scans; updated on re-scan.
 model ArchiveFolder {
-  id              String    @id @default(cuid())
-  fullPath        String    @unique  // absolute path as seen on the scanner host
-  relativePath    String?            // {channelFolder}\{year}\{folderName} — populated after matching
+  id              String       @id @default(cuid())
+  fullPath        String       @unique // absolute path as seen on the scanner host
+  relativePath    String? // {channelFolder}\{year}\{folderName} — populated after matching
   isVideo         Boolean
-  fileCount       Int?               // files in root (photo) or frames\ subfolder (video)
-  videoPresent    Boolean?           // videosets only: named video file present
-  videoFiles      String?            // JSON: all video files found in folder root (for picker UI)
-  folderName      String             // last segment of fullPath
-  parsedDate      DateTime?          // date parsed from folder name convention
-  parsedShortName String?            // channel shortName parsed from folder name
-  parsedTitle     String?            // title remainder parsed from folder name
-  archiveLink      ArchiveLink?       // one-to-one via ArchiveLink.archiveFolderId @unique
-  archiveKey      String   @unique  @default(uuid())  // stable folder identity UUID; generated at first scan time (independent of Set/StagingSet link)
+  fileCount       Int? // files in root (photo) or frames\ subfolder (video)
+  videoPresent    Boolean? // videosets only: named video file present
+  videoFiles      String? // JSON: all video files found in folder root (for picker UI)
+  folderName      String // last segment of fullPath
+  parsedDate      DateTime? // date parsed from folder name convention
+  parsedShortName String? // channel shortName parsed from folder name
+  parsedTitle     String? // title remainder parsed from folder name
+  archiveLink     ArchiveLink? // one-to-one via ArchiveLink.archiveFolderId @unique
+  archiveKey      String       @unique @default(uuid()) // stable folder identity UUID; generated at first scan time (independent of Set/StagingSet link)
   scannedAt       DateTime
-  missingOnDisk   Boolean  @default(false)  // true = last full scan did not find this path on disk
-  tenant          String             // which tenant DB this record belongs to
+  missingOnDisk   Boolean      @default(false) // true = last full scan did not find this path on disk
+  tenant          String // which tenant DB this record belongs to
 
   // Smart scan fields
-  contentSignature    String?        // SHA256(sorted filename:size) first 16 hex chars — rename fingerprint
-  leafDirModifiedAt   DateTime?      // leaf folder LastWriteTime — skip file listing if unchanged
-  yearDirModifiedAt   DateTime?      // year folder LastWriteTime — skip all leaves if unchanged
-  chanFolderModifiedAt DateTime?     // channelFolder LastWriteTime — skip entire subtree if unchanged
-  lastRenamedFrom     String?        // previous fullPath — set when rename was detected
-  lastRenamedAt       DateTime?      // timestamp when rename was detected
-  nameFormatOk        Boolean        @default(true)  // false = folder name deviates from canonical format
-  chanFolderName      String?        // channel folder name (e.g. "RA-RylskyArt") — 3rd-from-last path segment
+  contentSignature     String? // SHA256(sorted filename:size) first 16 hex chars — rename fingerprint
+  leafDirModifiedAt    DateTime? // leaf folder LastWriteTime — skip file listing if unchanged
+  yearDirModifiedAt    DateTime? // year folder LastWriteTime — skip all leaves if unchanged
+  chanFolderModifiedAt DateTime? // channelFolder LastWriteTime — skip entire subtree if unchanged
+  lastRenamedFrom      String? // previous fullPath — set when rename was detected
+  lastRenamedAt        DateTime? // timestamp when rename was detected
+  nameFormatOk         Boolean   @default(true) // false = folder name deviates from canonical format
+  chanFolderName       String? // channel folder name (e.g. "RA-RylskyArt") — 3rd-from-last path segment
 
   @@index([folderName])
   @@index([chanFolderName])
@@ -1694,19 +1755,19 @@ model ArchiveFolder {
 // One row per logical set entry — spans Active Set + Staging Set.
 // Tracks app-side media presence only; archive state now lives in ArchiveLink.
 model SetCoherenceSnapshot {
-  id              String    @id @default(cuid())
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   // At least one must be non-null
-  setId           String?   @unique
-  stagingSetId    String?   @unique
+  setId        String? @unique
+  stagingSetId String? @unique
 
   // App-side state
-  hasMediaInApp    Boolean  @default(false)   // any SetMediaItem exists for setId (imported to MinIO)
+  hasMediaInApp Boolean @default(false) // any SetMediaItem exists for setId (imported to MinIO)
 
-  set           Set?           @relation(fields: [setId], references: [id], onDelete: SetNull)
-  stagingSet    StagingSet?    @relation(fields: [stagingSetId], references: [id], onDelete: SetNull)
+  set        Set?        @relation(fields: [setId], references: [id], onDelete: SetNull)
+  stagingSet StagingSet? @relation(fields: [stagingSetId], references: [id], onDelete: SetNull)
 
   @@map("set_coherence_snapshots")
 }
@@ -1718,37 +1779,37 @@ model SetCoherenceSnapshot {
 // ArchiveFolder.suggestedSetId/suggestedStagingId, Set/StagingSet archive fields,
 // and SetCoherenceSnapshot archive fields.
 model ArchiveLink {
-  id                   String            @id @default(cuid())
+  id String @id @default(cuid())
 
   // Physical folder — always required (one link per folder)
-  archiveFolderId      String            @unique
-  archiveFolder        ArchiveFolder     @relation(fields: [archiveFolderId], references: [id], onDelete: Cascade)
+  archiveFolderId String        @unique
+  archiveFolder   ArchiveFolder @relation(fields: [archiveFolderId], references: [id], onDelete: Cascade)
 
   // Target entity (exactly one CONFIRMED at a time enforced via partial unique indexes)
-  setId                String?
-  set                  Set?              @relation(fields: [setId], references: [id])
-  stagingSetId         String?
-  stagingSet           StagingSet?       @relation(fields: [stagingSetId], references: [id])
+  setId        String?
+  set          Set?        @relation(fields: [setId], references: [id])
+  stagingSetId String?
+  stagingSet   StagingSet? @relation(fields: [stagingSetId], references: [id])
 
   // State
-  status               ArchiveLinkStatus
-  confidence           String?           // 'HIGH' | 'MEDIUM' (SUGGESTED only)
-  confirmedAt          DateTime?
+  status      ArchiveLinkStatus
+  confidence  String? // 'HIGH' | 'MEDIUM' (SUGGESTED only)
+  confirmedAt DateTime?
 
   // Scan-verified folder state (mirrors what was previously on Set/StagingSet)
   archivePath          String?
-  archiveStatus        ArchiveStatus     @default(UNKNOWN)
+  archiveStatus        ArchiveStatus @default(UNKNOWN)
   archiveFileCount     Int?
   archiveFileCountPrev Int?
   archiveVideoPresent  Boolean?
-  archiveVideoFiles    String?           // JSON: ["file.mp4", ...]
-  archiveVideoFilename String?           // user-confirmed video file
+  archiveVideoFiles    String? // JSON: ["file.mp4", ...]
+  archiveVideoFilename String? // user-confirmed video file
   archiveLastChecked   DateTime?
   lastVerifiedAt       DateTime?
 
-  tenant               String
-  createdAt            DateTime          @default(now())
-  updatedAt            DateTime          @updatedAt
+  tenant    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([setId])
   @@index([stagingSetId])
@@ -1772,10 +1833,10 @@ model OrphanedStorageKey {
 // ─── Cover Baskets ────────────────────────────────────────────────────────────
 
 enum CoverBasketItemStatus {
-  PENDING      // uploaded, no match found yet
-  MATCHED      // match suggested, awaiting user confirmation
-  TRANSFERRED  // cover copied to staging set — done
-  IGNORED      // user dismissed
+  PENDING // uploaded, no match found yet
+  MATCHED // match suggested, awaiting user confirmation
+  TRANSFERRED // cover copied to staging set — done
+  IGNORED // user dismissed
 }
 
 model CoverBasket {
@@ -1814,16 +1875,16 @@ model CoverBasketItem {
 // ─── Color Catalog (hair / eye / skin classification) ───────────────────────
 
 model ColorCatalog {
-  category     String
-  valueNorm    String   @map("value_norm")
-  display      String
-  hue          String
-  shade        String?
-  shadeRank    Int?     @map("shade_rank")
-  sortOrder    Int      @default(0) @map("sort_order")
-  needsReview  Boolean  @default(false) @map("needs_review")
-  source       String   @default("manual")
-  createdAt    DateTime @default(now()) @map("created_at")
+  category    String
+  valueNorm   String   @map("value_norm")
+  display     String
+  hue         String
+  shade       String?
+  shadeRank   Int?     @map("shade_rank")
+  sortOrder   Int      @default(0) @map("sort_order")
+  needsReview Boolean  @default(false) @map("needs_review")
+  source      String   @default("manual")
+  createdAt   DateTime @default(now()) @map("created_at")
 
   @@id([category, valueNorm])
   @@index([category, hue])
@@ -1836,7 +1897,7 @@ model ColorCatalog {
 model SavedSearch {
   id         String   @id @default(cuid())
   name       String
-  scope      String   // "people" (future: "sets", "media")
+  scope      String // "people" (future: "sets", "media")
   filterSpec Json
   pinned     Boolean  @default(false)
   createdAt  DateTime @default(now())

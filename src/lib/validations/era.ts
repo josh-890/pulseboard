@@ -51,9 +51,9 @@ const newCosmProcEntry = z.object({
   status: z.string().default("completed"),
 });
 
-// ── Batch persona schema ─────────────────────────────────────────────────────
+// ── Batch era schema ─────────────────────────────────────────────────────
 
-export const createPersonaBatchSchema = z.object({
+export const createEraBatchSchema = z.object({
   label: z.string().min(1, "Label is required"),
   date: z.string().optional(),
   datePrecision: z.enum(["UNKNOWN", "YEAR", "MONTH", "DAY"]).default("UNKNOWN"),
@@ -75,15 +75,15 @@ export const createPersonaBatchSchema = z.object({
   newCosmeticProcedures: z.array(newCosmProcEntry).default([]),
 });
 
-export type CreatePersonaBatchInput = z.output<typeof createPersonaBatchSchema>;
+export type CreateEraBatchInput = z.output<typeof createEraBatchSchema>;
 
-// ── Update persona schema ────────────────────────────────────────────────────
+// ── Update era schema ────────────────────────────────────────────────────
 
-export const updatePersonaSchema = z.object({
+export const updateEraSchema = z.object({
   label: z.string().min(1).optional(),
   date: z.string().optional(),
   datePrecision: z.enum(["UNKNOWN", "YEAR", "MONTH", "DAY"]).optional(),
   notes: z.string().optional(),
 });
 
-export type UpdatePersonaInput = z.output<typeof updatePersonaSchema>;
+export type UpdateEraInput = z.output<typeof updateEraSchema>;

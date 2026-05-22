@@ -152,10 +152,10 @@ async function cleanupTestData() {
       const ids = testPersonIds.map((r) => r.personId);
 
       for (const id of ids) {
-        // Get persona IDs for cascading
-        const personaIds = await tx.$queryRaw<{ id: string }[]>`
+        // Get era IDs for cascading
+        const eraIds = await tx.$queryRaw<{ id: string }[]>`
           SELECT id FROM "Persona" WHERE "personId" = ${id}`;
-        const pIds = personaIds.map((p) => p.id);
+        const pIds = eraIds.map((p) => p.id);
 
         if (pIds.length > 0) {
           for (const pId of pIds) {
@@ -169,7 +169,7 @@ async function cleanupTestData() {
           await tx.$executeRaw`DELETE FROM "Persona" WHERE "personId" = ${id}`;
         }
 
-        // Body marks (events already deleted via persona cascade above)
+        // Body marks (events already deleted via era cascade above)
         await tx.$executeRaw`DELETE FROM "BodyMark" WHERE "personId" = ${id}`;
         await tx.$executeRaw`DELETE FROM "BodyModification" WHERE "personId" = ${id}`;
         await tx.$executeRaw`DELETE FROM "CosmeticProcedure" WHERE "personId" = ${id}`;
@@ -186,7 +186,7 @@ async function cleanupTestData() {
         await tx.$executeRaw`DELETE FROM "PersonAward" WHERE "personId" = ${id}`;
         await tx.$executeRaw`DELETE FROM "PersonInterest" WHERE "personId" = ${id}`;
 
-        // Digital identities & skills (person-level, not persona-level)
+        // Digital identities & skills (person-level, not era-level)
         await tx.$executeRaw`DELETE FROM "PersonDigitalIdentity" WHERE "personId" = ${id}`;
         await tx.$executeRaw`
           DELETE FROM "SkillEventMedia" WHERE "skillEventId" IN (
@@ -235,7 +235,7 @@ async function cleanupTestData() {
       console.log(`  Person (full cascade): ${ids.length}`);
     }
 
-    // --- Test artifacts on seed person (body marks, personas, aliases, etc.) ---
+    // --- Test artifacts on seed person (body marks, eras, aliases, etc.) ---
     // These are created by person-detail tests on seed-person-1
 
     // Body marks with non-seed IDs on seed person
@@ -271,10 +271,10 @@ async function cleanupTestData() {
       DELETE FROM "CosmeticProcedure" WHERE "personId" = 'seed-person-1' AND id NOT LIKE 'seed-%'`;
     if (r) console.log(`  CosmeticProcedure (test): ${r}`);
 
-    // Personas with non-seed IDs on seed person (cascade physical/events)
-    const testPersonaIds = await tx.$queryRaw<{ id: string }[]>`
+    // Eras with non-seed IDs on seed person (cascade physical/events)
+    const testEraIds = await tx.$queryRaw<{ id: string }[]>`
       SELECT id FROM "Persona" WHERE "personId" = 'seed-person-1' AND id NOT LIKE 'seed-%'`;
-    for (const { id: pId } of testPersonaIds) {
+    for (const { id: pId } of testEraIds) {
       await tx.$executeRaw`DELETE FROM "BodyMarkEvent" WHERE "personaId" = ${pId}`;
       await tx.$executeRaw`DELETE FROM "BodyModificationEvent" WHERE "personaId" = ${pId}`;
       await tx.$executeRaw`DELETE FROM "CosmeticProcedureEvent" WHERE "personaId" = ${pId}`;
@@ -284,7 +284,7 @@ async function cleanupTestData() {
     }
     r = await tx.$executeRaw`
       DELETE FROM "Persona" WHERE "personId" = 'seed-person-1' AND id NOT LIKE 'seed-%'`;
-    if (r) console.log(`  Persona (test): ${r}`);
+    if (r) console.log(`  Era (test): ${r}`);
 
     // Aliases with non-seed IDs on seed person
     r = await tx.$executeRaw`
@@ -312,10 +312,10 @@ async function cleanupTestData() {
     if (r) console.log(`  Session (orphan drafts): ${r}`);
   });
 
-  // Refresh materialized views
+  // Refresh materialized views + rebuild the PersonCurrentState cache
   await prisma.$executeRaw`REFRESH MATERIALIZED VIEW mv_dashboard_stats`;
-  await prisma.$executeRaw`REFRESH MATERIALIZED VIEW mv_person_current_state`;
   await prisma.$executeRaw`REFRESH MATERIALIZED VIEW mv_person_affiliations`;
+  await prisma.$executeRaw`SELECT app_recompute_person_current_state()`;
 
   console.log("\nTest data cleanup complete.");
 }

@@ -577,7 +577,7 @@ function TimeScopeToggle({
         "flex items-center gap-1 rounded-full border border-white/10 bg-white/5 p-0.5 text-[11px]",
         disabled && "opacity-50",
       )}
-      title={disabled ? "Coming soon — historical persona search" : ""}
+      title={disabled ? "Coming soon — historical era search" : ""}
     >
       <button
         type="button"

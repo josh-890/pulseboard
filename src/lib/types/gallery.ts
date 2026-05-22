@@ -11,7 +11,7 @@ export type PersonMediaLinkSummary = {
   bodyModificationId: string | null;
   cosmeticProcedureId: string | null;
   categoryId: string | null;
-  personaId: string | null;
+  eraId: string | null;
   isFavorite: boolean;
   isAvatar: boolean;
   sortOrder: number;

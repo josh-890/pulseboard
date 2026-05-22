@@ -9,7 +9,7 @@ import {
   type ColorCatalogInput,
   type ColorCatalogUpdate,
 } from "@/lib/services/color-catalog-service";
-import { refreshPersonCurrentState } from "@/lib/services/view-service";
+import { rebuildAllCurrentState } from "@/lib/services/current-state-service";
 import type { ColorCategory } from "@/lib/constants/color-catalog";
 import type { SimpleActionResult } from "@/lib/types";
 
@@ -22,9 +22,9 @@ export async function createColorCatalogEntryAction(
   return withTenantFromHeaders(async () => {
     try {
       const row = await createColorCatalogEntry(category, input);
-      // New value may affect lookups for newly-imported persons; refresh the MV
-      // so anyone using this value via free-text data picks up correct hue/shade
-      await refreshPersonCurrentState();
+      // A new catalog value shifts hue/lightness classification; rebuild the
+      // PersonCurrentState cache so anyone using this value picks it up.
+      await rebuildAllCurrentState();
       revalidatePath("/people");
       revalidatePath("/settings/catalogs/colors");
       return { success: true, valueNorm: row.valueNorm };
@@ -42,7 +42,7 @@ export async function updateColorCatalogEntryAction(
   return withTenantFromHeaders(async () => {
     try {
       await updateColorCatalogEntry(category, valueNorm, patch);
-      await refreshPersonCurrentState();
+      await rebuildAllCurrentState();
       revalidatePath("/people");
       revalidatePath("/settings/catalogs/colors");
       return { success: true };
@@ -59,7 +59,7 @@ export async function deleteColorCatalogEntryAction(
   return withTenantFromHeaders(async () => {
     try {
       await deleteColorCatalogEntry(category, valueNorm);
-      await refreshPersonCurrentState();
+      await rebuildAllCurrentState();
       revalidatePath("/people");
       revalidatePath("/settings/catalogs/colors");
       return { success: true };

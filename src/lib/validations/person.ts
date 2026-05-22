@@ -31,7 +31,7 @@ export const createPersonSchema = z.object({
   naturalHairColor: z.string().optional(),
   naturalBreastSize: z.string().optional(),
   height: z.coerce.number().int().positive().optional(),
-  // Baseline persona physical
+  // Baseline era physical
   weight: z.coerce.number().positive().optional(),
   build: z.string().optional(),
   currentHairColor: z.string().optional(),

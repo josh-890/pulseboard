@@ -13,18 +13,18 @@ import {
 import { updatePersonSkillAction } from "@/lib/actions/skill-actions";
 import type { PersonSkillItem } from "@/lib/types";
 
-type PersonaOption = { id: string; label: string };
+type EraOption = { id: string; label: string };
 
 type EditSkillSheetProps = {
   personId: string;
-  personas: PersonaOption[];
+  eras: EraOption[];
   editingSkill: PersonSkillItem;
   onClose: () => void;
 };
 
 export function EditSkillSheet({
   personId,
-  personas,
+  eras,
   editingSkill,
   onClose,
 }: EditSkillSheetProps) {
@@ -34,9 +34,9 @@ export function EditSkillSheet({
     editingSkill.level ?? "",
   );
   const [evidence, setEvidence] = useState(editingSkill.evidence ?? "");
-  const [personaId, setPersonaId] = useState(
-    editingSkill.personaLabel
-      ? personas.find((p) => p.label === editingSkill.personaLabel)?.id ?? ""
+  const [eraId, setEraId] = useState(
+    editingSkill.eraLabel
+      ? eras.find((p) => p.label === editingSkill.eraLabel)?.id ?? ""
       : "",
   );
 
@@ -45,11 +45,11 @@ export function EditSkillSheet({
       await updatePersonSkillAction(editingSkill.id, personId, {
         level: (level as SkillLevel) || null,
         evidence: evidence || null,
-        personaId: personaId || null,
+        eraId: eraId || null,
       });
       onClose();
     });
-  }, [editingSkill.id, level, evidence, personaId, personId, onClose]);
+  }, [editingSkill.id, level, evidence, eraId, personId, onClose]);
 
   return (
     <div role="dialog" aria-modal="true" className="fixed inset-0 z-50 flex justify-end">
@@ -101,19 +101,19 @@ export function EditSkillSheet({
             </div>
           </div>
 
-          {/* Persona */}
-          {personas.length > 0 && (
+          {/* Era */}
+          {eras.length > 0 && (
             <div>
               <label className="mb-1.5 block text-sm font-medium">
-                Persona (optional)
+                Era (optional)
               </label>
               <select
-                value={personaId}
-                onChange={(e) => setPersonaId(e.target.value)}
+                value={eraId}
+                onChange={(e) => setEraId(e.target.value)}
                 className="w-full rounded-lg border border-white/15 bg-muted/30 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
               >
                 <option value="">None</option>
-                {personas.map((p) => (
+                {eras.map((p) => (
                   <option key={p.id} value={p.id}>
                     {p.label}
                   </option>

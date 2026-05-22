@@ -5,7 +5,7 @@ import type { CreateDigitalIdentityInput, UpdateDigitalIdentityInput } from "@/l
 export async function getPersonDigitalIdentities(personId: string): Promise<PersonDigitalIdentityItem[]> {
   const identities = await prisma.personDigitalIdentity.findMany({
     where: { personId },
-    include: { persona: { select: { label: true } } },
+    include: { era: { select: { label: true } } },
     orderBy: { validFrom: "asc" },
   });
 
@@ -17,7 +17,7 @@ export async function getPersonDigitalIdentities(personId: string): Promise<Pers
     status: i.status,
     validFrom: i.validFrom,
     validTo: i.validTo,
-    personaLabel: i.persona?.label ?? null,
+    eraLabel: i.era?.label ?? null,
   }));
 }
 

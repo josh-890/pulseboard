@@ -29,13 +29,13 @@ import { GalleryLightbox } from "@/components/gallery/gallery-lightbox";
 import { SkillCombobox } from "@/components/skills/skill-combobox";
 import type { SkillDefOption } from "@/components/skills/skill-combobox";
 
-type PersonaOption = { id: string; label: string };
+type EraOption = { id: string; label: string };
 
 type PersonSkillsTabProps = {
   personId: string;
   skills: PersonSkillItem[];
   skillGroups: SkillGroupWithDefinitions[];
-  personas: PersonaOption[];
+  eras: EraOption[];
 };
 
 type SkillsByGroup = {
@@ -82,7 +82,7 @@ export function PersonSkillsTab({
   personId,
   skills,
   skillGroups,
-  personas,
+  eras,
 }: PersonSkillsTabProps) {
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(
     new Set(groupSkills(skills).map((g) => g.groupName)),
@@ -154,8 +154,8 @@ export function PersonSkillsTab({
       });
     }
   }
-  // Sort by event date (primary), persona date (fallback), nulls last
-  const eventDate = (e: PersonSkillEventItem) => e.date ?? e.personaDate;
+  // Sort by event date (primary), era date (fallback), nulls last
+  const eventDate = (e: PersonSkillEventItem) => e.date ?? e.eraDate;
   allEvents.sort((a, b) => {
     const aDate = eventDate(a);
     const bDate = eventDate(b);
@@ -304,9 +304,9 @@ export function PersonSkillsTab({
                       )}
                     </div>
                     <div className="mt-0.5 flex items-center gap-2 text-xs text-muted-foreground">
-                      {/* Show persona label only for non-session events */}
-                      {event.personaLabel && !sessionRef && (
-                        <span>{event.personaLabel}</span>
+                      {/* Show era label only for non-session events */}
+                      {event.eraLabel && !sessionRef && (
+                        <span>{event.eraLabel}</span>
                       )}
                       {/* Session link for DEMONSTRATED events */}
                       {sessionRef && (
@@ -321,9 +321,9 @@ export function PersonSkillsTab({
                         <span className="text-muted-foreground/60">
                           {formatPartialDate(event.date, event.datePrecision)}
                         </span>
-                      ) : event.personaDate ? (
+                      ) : event.eraDate ? (
                         <span className="text-muted-foreground/60">
-                          {formatPartialDate(event.personaDate, "DAY")}
+                          {formatPartialDate(event.eraDate, "DAY")}
                         </span>
                       ) : null}
                     </div>
@@ -409,7 +409,7 @@ export function PersonSkillsTab({
       {editingSkill && (
         <EditSkillSheet
           personId={personId}
-          personas={personas}
+          eras={eras}
           editingSkill={editingSkill}
           onClose={() => setEditingSkill(null)}
         />
@@ -421,7 +421,7 @@ export function PersonSkillsTab({
           personId={personId}
           personSkillId={addingEventForSkill.id}
           skillName={addingEventForSkill.name}
-          personas={personas}
+          eras={eras}
           onClose={() => setAddingEventForSkill(null)}
         />
       )}

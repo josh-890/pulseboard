@@ -48,8 +48,8 @@ export function EditCosmeticProcedureSheet({ personId, procedure, referenceSessi
   // Single-event convenience
   const isSingleEvent = procedure.events.length === 1;
   const initialEvent = procedure.events[0];
-  const initDate = isSingleEvent ? formatDateForInput(initialEvent?.persona.date ?? null, initialEvent?.persona.isBaseline) : "";
-  const initPrec = isSingleEvent ? (initialEvent?.persona.isBaseline ? "UNKNOWN" : (initialEvent?.persona.datePrecision ?? "UNKNOWN")) : "UNKNOWN";
+  const initDate = isSingleEvent ? formatDateForInput(initialEvent?.era.date ?? null, initialEvent?.era.isBaseline) : "";
+  const initPrec = isSingleEvent ? (initialEvent?.era.isBaseline ? "UNKNOWN" : (initialEvent?.era.datePrecision ?? "UNKNOWN")) : "UNKNOWN";
   const [date, setDate] = useState(initDate);
   const [datePrecision, setDatePrecision] = useState(initPrec);
 

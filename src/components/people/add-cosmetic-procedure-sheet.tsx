@@ -142,9 +142,9 @@ export function AddCosmeticProcedureSheet({ personId, referenceSessionId, catego
               precisionValue={datePrecision}
               onDateChange={setDate}
               onPrecisionChange={setDatePrecision}
-              label="When (for auto-persona)"
+              label="When (for auto-era)"
             />
-            <p className="mt-1 text-xs text-muted-foreground/60">A persona will be auto-created or matched by date.</p>
+            <p className="mt-1 text-xs text-muted-foreground/60">A era will be auto-created or matched by date.</p>
           </div>
 
           {/* Inline photo upload */}

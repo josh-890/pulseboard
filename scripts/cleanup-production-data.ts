@@ -160,8 +160,8 @@ async function executeCleanup() {
   console.log("\n4. Refreshing materialized views...");
   await prisma.$executeRaw`REFRESH MATERIALIZED VIEW mv_dashboard_stats`;
   console.log("   mv_dashboard_stats refreshed");
-  await prisma.$executeRaw`REFRESH MATERIALIZED VIEW mv_person_current_state`;
-  console.log("   mv_person_current_state refreshed");
+  await prisma.$executeRaw`SELECT app_recompute_person_current_state()`;
+  console.log("   PersonCurrentState cache rebuilt");
   await prisma.$executeRaw`REFRESH MATERIALIZED VIEW mv_person_affiliations`;
   console.log("   mv_person_affiliations refreshed");
 

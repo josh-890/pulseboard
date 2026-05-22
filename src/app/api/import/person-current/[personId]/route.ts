@@ -15,7 +15,7 @@ export async function GET(
       where: { id: personId },
       include: {
         aliases: { where: { isCommon: true }, take: 1 },
-        personas: {
+        eras: {
           where: { isBaseline: true },
           include: { physicalChange: true },
           take: 1,
@@ -27,7 +27,7 @@ export async function GET(
       return NextResponse.json({ person: null }, { status: 404 })
     }
 
-    const baseline = person.personas[0]?.physicalChange ?? null
+    const baseline = person.eras[0]?.physicalChange ?? null
 
     return NextResponse.json({
       person: {

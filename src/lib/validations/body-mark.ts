@@ -34,7 +34,7 @@ export type UpdateBodyMarkInput = z.output<typeof updateBodyMarkSchema>;
 
 export const createBodyMarkEventSchema = z.object({
   bodyMarkId: z.string().min(1),
-  personaId: z.string().min(1),
+  eraId: z.string().min(1),
   eventType: z.enum(["added", "modified", "removed"]),
   notes: z.string().optional(),
 });

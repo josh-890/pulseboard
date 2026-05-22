@@ -149,15 +149,9 @@ export function computeProductionAge(
   return base;
 }
 
-/** Builds the default label for a baseline persona: "Name at 18", or "Name, initially". */
-export function buildBaselineLabel(
-  name: string,
-  birthdate: Date | null,
-  baselineDate: Date | null,
-): string {
-  if (!birthdate || !baselineDate) return `${name}, initially`;
-  const age = baselineDate.getUTCFullYear() - birthdate.getUTCFullYear();
-  return `${name} at ${age}`;
+/** Builds the default label for a baseline era. The baseline is dateless ("time zero"). */
+export function buildBaselineLabel(name: string): string {
+  return `${name} — initial`;
 }
 
 /** Returns the display prefix for a date modifier. */

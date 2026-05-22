@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
 import type { BodyMarkWithEvents, BodyModificationWithEvents, CosmeticProcedureWithEvents } from "@/lib/types";
 import type { BodyMarkType, BodyModificationType, BodyMarkEventType, BodyModificationEventType, CosmeticProcedureEventType } from "@/generated/prisma/client";
 import { BODY_MARK_TYPES, BODY_MARK_TYPE_STYLES, BODY_MARK_EVENT_TYPES, BODY_MARK_EVENT_STYLES, BODY_MODIFICATION_TYPES, BODY_MODIFICATION_TYPE_STYLES, BODY_MODIFICATION_EVENT_TYPES, BODY_MODIFICATION_EVENT_STYLES, COSMETIC_PROCEDURE_EVENT_TYPES, COSMETIC_PROCEDURE_EVENT_STYLES } from "@/lib/constants/body";
-import { createPersonaBatchAction } from "@/lib/actions/appearance-actions";
+import { createEraBatchAction } from "@/lib/actions/appearance-actions";
 import { ColorValueCombobox } from "@/components/people/color-value-combobox";
 
 type NewBodyMark = {
@@ -46,7 +46,7 @@ type ExistingMarkEvent = { bodyMarkId: string; eventType: BodyMarkEventType; not
 type ExistingModEvent = { bodyModificationId: string; eventType: BodyModificationEventType; notes?: string };
 type ExistingProcEvent = { cosmeticProcedureId: string; eventType: CosmeticProcedureEventType; notes?: string };
 
-type NewPersonaSheetProps = {
+type NewEraSheetProps = {
   personId: string;
   existingMarks: BodyMarkWithEvents[];
   existingMods: BodyModificationWithEvents[];
@@ -96,7 +96,7 @@ function InlineBodyMarkForm({ onAdd }: { onAdd: (mark: NewBodyMark) => void }) {
       <button type="button" disabled={!bodyRegion.trim()}
         onClick={() => { onAdd({ type, bodyRegion: bodyRegion.trim(), motif: motif.trim() || undefined, colors: [], status: "present" }); setBodyRegion(""); setMotif(""); }}
         className="flex items-center gap-1 text-xs font-medium text-primary hover:text-primary/80 disabled:opacity-50">
-        <Plus size={12} /> Add to persona
+        <Plus size={12} /> Add to era
       </button>
     </div>
   );
@@ -125,7 +125,7 @@ function InlineBodyModForm({ onAdd }: { onAdd: (mod: NewBodyMod) => void }) {
       <button type="button" disabled={!bodyRegion.trim()}
         onClick={() => { onAdd({ type, bodyRegion: bodyRegion.trim(), status: "present" }); setBodyRegion(""); }}
         className="flex items-center gap-1 text-xs font-medium text-primary hover:text-primary/80 disabled:opacity-50">
-        <Plus size={12} /> Add to persona
+        <Plus size={12} /> Add to era
       </button>
     </div>
   );
@@ -147,7 +147,7 @@ function InlineCosmProcForm({ onAdd }: { onAdd: (proc: NewCosmProc) => void }) {
       <button type="button" disabled={!type.trim() || !bodyRegion.trim()}
         onClick={() => { onAdd({ type: type.trim(), bodyRegion: bodyRegion.trim(), status: "completed" }); setType(""); setBodyRegion(""); }}
         className="flex items-center gap-1 text-xs font-medium text-primary hover:text-primary/80 disabled:opacity-50">
-        <Plus size={12} /> Add to persona
+        <Plus size={12} /> Add to era
       </button>
     </div>
   );
@@ -155,17 +155,17 @@ function InlineCosmProcForm({ onAdd }: { onAdd: (proc: NewCosmProc) => void }) {
 
 // ── Main sheet ───────────────────────────────────────────────────────────────
 
-export function NewPersonaSheet({
+export function NewEraSheet({
   personId,
   existingMarks,
   existingMods,
   existingProcs,
   onClose,
-}: NewPersonaSheetProps) {
+}: NewEraSheetProps) {
   const [isPending, startTransition] = useTransition();
   useEscToClose(onClose);
 
-  // Persona metadata
+  // Era metadata
   const [label, setLabel] = useState("");
   const [date, setDate] = useState("");
   const [datePrecision, setDatePrecision] = useState("UNKNOWN");
@@ -196,7 +196,7 @@ export function NewPersonaSheet({
     if (!label.trim()) { setError("Label is required."); return; }
     startTransition(async () => {
       setError(null);
-      const result = await createPersonaBatchAction(personId, {
+      const result = await createEraBatchAction(personId, {
         label: label.trim(),
         date: date || undefined,
         datePrecision: datePrecision as "UNKNOWN" | "YEAR" | "MONTH" | "DAY",
@@ -211,7 +211,7 @@ export function NewPersonaSheet({
         newBodyModifications: newMods,
         newCosmeticProcedures: newProcs,
       });
-      if (!result.success) { setError(result.error ?? "Failed to create persona."); return; }
+      if (!result.success) { setError(result.error ?? "Failed to create era."); return; }
       onClose();
     });
   }, [personId, label, date, datePrecision, notes, currentHairColor, weight, build, markEvents, modEvents, procEvents, newMarks, newMods, newProcs, onClose]);
@@ -221,14 +221,14 @@ export function NewPersonaSheet({
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
       <div className="relative w-full max-w-3xl bg-background border-l border-white/15 shadow-2xl overflow-y-auto">
         <div className="sticky top-0 z-10 flex items-center justify-between border-b border-white/15 bg-background px-6 py-4">
-          <h2 className="text-lg font-semibold">New Persona</h2>
+          <h2 className="text-lg font-semibold">New Era</h2>
           <button type="button" onClick={onClose} className="rounded-md p-1 text-muted-foreground hover:text-foreground">
             <X size={18} />
           </button>
         </div>
 
         <div className="space-y-5 p-6">
-          {/* Persona metadata */}
+          {/* Era metadata */}
           <div>
             <label className="mb-1.5 block text-sm font-medium">Label</label>
             <input type="text" value={label} onChange={(e) => setLabel(e.target.value)} placeholder="e.g. March 2024, Post-surgery..."
@@ -245,7 +245,7 @@ export function NewPersonaSheet({
 
           <div>
             <label className="mb-1.5 block text-sm font-medium">Notes</label>
-            <textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Context about this persona..." rows={2}
+            <textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Context about this era..." rows={2}
               className="w-full rounded-lg border border-white/15 bg-muted/30 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring resize-none" />
           </div>
 
@@ -453,7 +453,7 @@ export function NewPersonaSheet({
 
           <button type="button" onClick={handleSubmit} disabled={isPending || !label.trim()}
             className="w-full rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50">
-            {isPending ? "Creating..." : `Create Persona${totalChanges > 0 ? ` (${totalChanges} change${totalChanges > 1 ? "s" : ""})` : ""}`}
+            {isPending ? "Creating..." : `Create Era${totalChanges > 0 ? ` (${totalChanges} change${totalChanges > 1 ? "s" : ""})` : ""}`}
           </button>
         </div>
       </div>

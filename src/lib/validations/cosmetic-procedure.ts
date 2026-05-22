@@ -26,7 +26,7 @@ export type UpdateCosmeticProcedureInput = z.output<typeof updateCosmeticProcedu
 
 export const createCosmeticProcedureEventSchema = z.object({
   cosmeticProcedureId: z.string().min(1),
-  personaId: z.string().min(1),
+  eraId: z.string().min(1),
   eventType: z.enum(["performed", "revised", "reversed"]),
   notes: z.string().optional(),
 });
