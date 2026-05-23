@@ -98,8 +98,9 @@ All services in `src/lib/services/`. All functions are async, return Promises. S
 **`skill-service.ts`** — PersonSkill/SkillEvent CRUD, timeline, event media
 **`skill-catalog-service.ts`** — SkillGroup/SkillDefinition catalog CRUD
 **`physical-attribute-catalog-service.ts`** — PhysicalAttributeGroup/PhysicalAttributeDefinition catalog CRUD
-**`era-service.ts`** — Era CRUD, `findOrCreateEraForDate` (auto-creates drafts), batch create with deltas + body mark/modification/procedure events
-**`current-state-service.ts`** — `recomputePersonCurrentState(tx, personId)` (in-tx, the canonical fold trigger) + standalone variant + `rebuildAllCurrentState` + `verifyCurrentStateIntegrity`
+**`era-service.ts`** — Era CRUD: `getBaselineEraId`, `findOrCreateEraForDate` (auto-creates year-bucket draft eras and marks `isDraft: true`), `getPersonEras` (picker list), `createEraBatch` (one-shot create with deltas + body mark/mod/procedure events), `updateEra` (clears `isDraft` on any edit), `deleteEra` (cascades + orphan cleanup), `getPersonEraContributions` (ADR-0004 reverse-nav — sessions filed into each era).
+**`current-state-service.ts`** — `recomputePersonCurrentState(tx, personId)` (in-tx, the canonical fold trigger) + `recomputePersonCurrentStateStandalone` + `rebuildAllCurrentState` + `verifyCurrentStateIntegrity`. Wraps the SQL function `app_recompute_person_current_state(p_id?)` which mirrors `foldScalarDeltas` (TS, in `person-service.ts`). Both folds documented in ADR-0001 § fold sort order.
+**`person-service.ts`** — `getPersonWithDetails`, `deriveCurrentState` (full fold incl. body marks/mods/procedures/skills/identities), `foldScalarDeltas` (canonical TS scalar fold with `{ asOf }` cutoff option), `deriveAppearanceAtShoot(eras, asOf)` (lightweight scalar snapshot for participant cards), `defaultEraForSessionDate(eras, sessionDate)` (era-picker default), `getPersonSessionWorkHistory` (work timeline, includes `eraId` per session).
 **`category-service.ts`** — MediaCategoryGroup/MediaCategory CRUD, person category population counts
 **`collection-service.ts`** — MediaCollection CRUD, item management
 **`tag-service.ts`** — TagGroup/TagDefinition registry CRUD, search, merge, usage counts
@@ -176,7 +177,7 @@ All actions in `src/lib/actions/`. Each validates input with Zod, calls services
 | `session-actions.ts` | `createSession`, `updateSession`, `deleteSession`, `mergeSessionsAction` |
 | `media-actions.ts` | `assignHeadshotSlot`, `updatePersonMediaLinkAction`, `batchSetUsageAction`, `deleteMediaItemsAction`, `setFocalPointAction`, `resetFocalPointAction` |
 | `appearance-actions.ts` | Body mark/modification/procedure CRUD + event CRUD (~15 actions), `toggleEntityHeroVisibility` |
-| `contribution-actions.ts` | `addContribution`, `removeContribution`, `addContributionSkill`, `removeContributionSkill` |
+| `contribution-actions.ts` | `addSessionContributionAction` (accepts `eraId` — propagated across all the person's contribution rows in the session), `updateSessionContributionAction` (same), `removeSessionContributionAction`, `updateContributionConfidenceAction`, `addContributionSkill`, `removeContributionSkill`, `getPersonErasForPickerAction` |
 | `skill-actions.ts` | PersonSkill/SkillEvent CRUD, skill event media management |
 | `alias-actions.ts` | Alias CRUD, channel linking, bulk import, merge |
 | `collection-actions.ts` | Collection CRUD, add/remove items |
@@ -447,6 +448,18 @@ All searchable entities have `nameNorm`/`titleNorm` fields with `pg_trgm` trigra
 9. **SetParticipant is derived** — Rebuilt from SessionContribution via `rebuildSetParticipantsFromContributions()`. Never edited directly.
 
 10. **Server action serialization** — Cannot pass arrow functions from Server → Client components. Use `.bind()` for callbacks (e.g., `onDelete={deleteAction.bind(null, id)}`).
+
+11. **Era fold canon (ADR-0001)** — The mapping `(eras + scalar deltas + events) → current state` lives in two places: `foldScalarDeltas` (TS, `person-service.ts`) and `app_recompute_person_current_state` (SQL function). They must produce identical winners; opposite literal sort directions but same semantics. When changing one, audit the other.
+
+12. **In-tx cache recompute (ADR-0003)** — Every mutation that writes a fold input (ScalarDelta, BodyMarkEvent, etc.) MUST end its `$transaction` with `recomputePersonCurrentState(tx, personId)`. The `PersonCurrentState` cache is the only thing the read path queries — it cannot drift because the mutation path can't commit without writing it.
+
+13. **Event-derived status projections (ADR-0002)** — `BodyMark.status` / `BodyModification.status` / `CosmeticProcedure.status` are projections of their event logs. Every event mutation calls the matching `recompute*Status(tx, id)` helper from `cascade-helpers.ts` in the same transaction.
+
+14. **Era-linked participation lives on SessionContribution, not SetParticipant (ADR-0004)** — A Session is one shoot = one Era. A Set may be a compilation spanning multiple Eras for the same person. The `eraId` is therefore authored on `SessionContribution` (source of truth); `SetParticipant` is derived. `addSessionContribution` / `updateSessionContribution` propagate `eraId` across every contribution row for the same `(sessionId, personId)` in one tx.
+
+15. **Baseline Era is dateless** — Every Person has exactly one baseline Era (`isBaseline: true`, `date: null`). It is folded first by virtue of its flag, not its date. The only hard temporal floor for sanity checks is the Person's birthdate.
+
+16. **Draft Eras are nudges, not gates** — `findOrCreateEraForDate` sets `isDraft: true` when it spawns an Era to host a quick-edit. Drafts behave identically to curated Eras; the flag is cleared on any user edit (`updateEra`). The History panel surfaces drafts with an amber dashed dot + pill.
 
 ---
 

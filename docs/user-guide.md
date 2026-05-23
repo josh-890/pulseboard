@@ -1202,6 +1202,26 @@ MediaCollection (global or per-person album)
 - **Partial dates** — dates can have precision: Unknown (null), Year (YYYY-01-01), Month (YYYY-MM-01), or Day (exact).
 - **Date modifiers** — dates can carry a confidence modifier (see below).
 
+### Eras — how a person develops over time
+
+An **Era** is a curated phase of a person's development — a meaningful, user-named span like "2019 — went blonde, added sleeve tattoo". Eras form the spine of the History panel on the person Overview tab.
+
+**Baseline.** Every person has exactly one **baseline Era**, auto-created. It carries no date of its own — it is "time zero" and holds the initial value of every changing attribute (the values formerly called "natural" hair color, breast size, etc.). It cannot be deleted; non-baseline Eras can be deleted (the events filed into them are cascaded).
+
+**Filing changes.** A "change" is anything that develops — a body mark added, a hair color shift, a piercing modified, a digital identity gained. Every change carries its own date and is **filed into** an Era by the user. Membership is **sticky**: re-dating a change does not move it out of its Era. The fold that derives current state sorts changes by their own date and ignores Era boundaries — Eras are folders, not gates.
+
+**Draft eras.** When you make a quick edit (e.g. add a tattoo with a specific date) and there's no Era covering that year yet, the app auto-creates a year-bucket Era flagged as **Draft** — shown with a dashed amber dot + amber "Draft" pill in the History panel. The Era still works correctly; the pill is just a nudge to give it a meaningful name. Editing the label, date, or notes clears the draft flag.
+
+**Era-linked participation.** When you add a contributor to a session, the **Add Contributor** sheet shows an Era picker for the person and defaults to the Era whose date best covers the session. After creation, each participant row on `/sessions/[id]` shows a clickable amber Era pill — clicking it opens a small dialog to change the linked Era. The pill also surfaces an `at-shoot:` summary line (hair color · weight · build at the time, computed by point-in-time fold).
+
+On `/sets/[id]`, each participant avatar shows a tiny amber Era label below the age. A compilation Set that spans multiple Eras for the same person shows "N eras" instead — there's no single shoot moment to anchor a single Era.
+
+**Plausibility flags** (soft, never block saves):
+- *Era is dated before birthdate* — likely a typo.
+- *Change is dated before birthdate* — same, for individual deltas.
+- *Era ranges overlap* — Eras may overlap (the design permits it), but the warning nudges manual tidy-up.
+- *Participation is pinned to an Era that doesn't cover the session date* — either the pin or the session date is wrong.
+
 ---
 
 ## Date Modifiers & Data Quality

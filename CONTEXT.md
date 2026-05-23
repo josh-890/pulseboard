@@ -10,9 +10,9 @@ Pulseboard tracks people in art/creative production — their profiles, work his
 The real human being. Owns the **static attributes** — values that never change, or change so rarely they are treated as fixed (date of birth, height, eye color).
 _Avoid_: model, talent, subject (when the Person entity is meant).
 
-**Era** (code model: `Persona`):
+**Era** (code model & DB table: `Era`):
 A curated **phase** of a Person's development — a meaningful, user-named span ("2019 — went blonde, added sleeve tattoo"). The user creates one deliberately. Delta records (physical changes, body-mark events, etc.) are **filed into** an Era by the user; membership is **sticky** — it does not change when a delta's date is edited. An Era's temporal extent is the auto-derived range of its members' dates, so Eras *can overlap*; overlap is allowed but flagged for manual tidy-up. Eras form the sequence shown on the Person's development timeline.
-_Avoid_: "Persona" in user-facing language (it is the legacy code model name and collides with stage-identity — see flagged ambiguity); "change-point" (an Era is a span, not a single instant).
+_Avoid_: "Persona" (the legacy code-model name — fully replaced in May 2026); "change-point" (an Era is a span, not a single instant).
 _Synonym_: Phase.
 
 **Draft era**:
@@ -52,7 +52,7 @@ A person's participation in a shoot (`SessionContribution`) optionally reference
 
 ## Flagged ambiguities
 
-- **"Persona"** — In the wider domain a "persona" usually means a stage identity / working name. In Pulseboard it does **not**: stage names are **Aliases** (`PersonAlias`). The concept is an **Era** — a phase on the Person's development timeline. The Prisma model `Persona` is **to be renamed `Era`** (decided 2026-05-21, pending the temporal-model migration); until then, code may still say `Persona`. The stale `docs/data-model.md` still describes Persona the old way ("an independent working identity") — that document is outdated.
+- **"Persona"** — In the wider domain a "persona" usually means a stage identity / working name. In Pulseboard it does **not**: stage names are **Aliases** (`PersonAlias`). The concept is an **Era** — a phase on the Person's development timeline. The legacy `Persona` Prisma model + DB table were renamed to `Era` in May 2026 — no Persona references remain in current code or docs. If you find one, it's either inside `prisma/migrations/` (historical) or it's drift worth fixing.
 - **"natural" vs "current"** — Older fields (`naturalHairColor`, `naturalBreastSize`, `currentHairColor`) implied a fixed-vs-live split. There is no such split: a changing attribute has exactly one timeline, whose first value is on the **Baseline** Era. "Natural" is simply the Baseline value.
 
 ## Example dialogue

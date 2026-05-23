@@ -1,5 +1,13 @@
 # Temporal Model Migration — Implementation Plan
 
+> **Status: COMPLETE (2026-05-23).** All six phases A–F + all Phase-F
+> follow-ups landed in prod across both tenants. This document is kept as a
+> historical record of how the redesign happened. For the *current* model,
+> read **`CONTEXT.md`** (glossary), **`docs/adr/0001`–`0004`** (design
+> decisions), and **`docs/data-model.md`** (concept reference). For the
+> active live state of routes, services, and components, read
+> **`docs/architecture.md`**.
+
 Implements the design agreed in the 2026-05-21 design review (rounds 1–2). Read
 first: `CONTEXT.md` (glossary) and `docs/adr/0001`–`0004`.
 
