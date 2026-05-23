@@ -16,6 +16,13 @@ type ContributionData = {
   sessionDatePrecision: string;
 };
 
+type EraData = {
+  isBaseline: boolean;
+  date: Date | null;
+  datePrecision: string;
+  scalarDeltas?: { date: Date | null; datePrecision: string }[];
+};
+
 type PersonData = {
   birthdate: Date | null;
   birthdatePrecision: string;
@@ -26,7 +33,7 @@ type PersonData = {
   retiredAt: Date | null;
   retiredAtPrecision: string;
   aliases: { isCommon: boolean }[];
-  eras: { isBaseline: boolean; date: Date | null; datePrecision: string }[];
+  eras: EraData[];
   contributions?: ContributionData[];
 };
 
@@ -179,35 +186,37 @@ export function computePlausibilityIssues(person: PersonData): PlausibilityIssue
       }
     }
 
-    // Era dates before birth
+    // Era anchor date before birth
     const eraBeforeBirth = person.eras.some(
-      (p) => !p.isBaseline && p.date && p.date < person.birthdate!,
+      (e) => !e.isBaseline && e.date && e.date < person.birthdate!,
     );
     if (eraBeforeBirth) {
       issues.push({
         id: "era-before-birth",
         severity: "warning",
         category: "timeline",
-        message: "A era has a date before birthdate",
+        message: "An era is dated before birthdate",
         fixHint: "Check era dates in Appearance tab",
         fixTab: "appearance",
       });
     }
-  }
 
-  // Era dates before baseline
-  const baseline = person.eras.find((p) => p.isBaseline);
-  if (baseline?.date && baseline.datePrecision !== "UNKNOWN") {
-    const preBaselineEras = person.eras.filter(
-      (p) => !p.isBaseline && p.date && p.datePrecision !== "UNKNOWN" && p.date < baseline.date!,
-    );
-    if (preBaselineEras.length > 0) {
+    // Scalar delta dated before birth (hard — birth is the absolute origin)
+    const deltasBeforeBirth = person.eras
+      .flatMap((e) => e.scalarDeltas ?? [])
+      .filter(
+        (d) =>
+          d.date &&
+          d.datePrecision !== "UNKNOWN" &&
+          d.date < person.birthdate!,
+      );
+    if (deltasBeforeBirth.length > 0) {
       issues.push({
-        id: "era-before-baseline",
+        id: "delta-before-birth",
         severity: "warning",
         category: "timeline",
-        message: `${preBaselineEras.length} era(s) dated before baseline (${baseline.date.getUTCFullYear()})`,
-        fixHint: "Check era dates in Appearance tab",
+        message: `${deltasBeforeBirth.length} change(s) dated before birthdate`,
+        fixHint: "Check change dates in Appearance tab",
         fixTab: "appearance",
       });
     }
@@ -240,44 +249,53 @@ export function computePlausibilityIssues(person: PersonData): PlausibilityIssue
     });
   }
 
-  // ── Participation vs baseline ─────────────────────────────────────────
-  if (baseline?.date && baseline.datePrecision !== "UNKNOWN" && person.contributions) {
-    const confirmedOrProbableBefore = person.contributions.filter(
+  // ── Participation vs birth & career start ──────────────────────────────
+  // Birth is the absolute origin — any participation before it is a hard bug,
+  // regardless of confidence.
+  if (person.birthdate && person.contributions) {
+    const partsBeforeBirth = person.contributions.filter(
       (c) =>
-        (c.confidence === "CONFIRMED" || c.confidence === "PROBABLE") &&
         c.sessionDate &&
         c.sessionDatePrecision !== "UNKNOWN" &&
-        c.sessionDate < baseline.date!,
+        c.sessionDate < person.birthdate!,
     );
-    if (confirmedOrProbableBefore.length > 0) {
+    if (partsBeforeBirth.length > 0) {
       issues.push({
-        id: "participation-before-baseline",
+        id: "participation-before-birth",
         severity: "warning",
         category: "timeline",
-        message: `${confirmedOrProbableBefore.length} confirmed/probable participation(s) before baseline date`,
-        fixHint: "Verify session dates or adjust baseline era date",
-        fixTab: "career",
-      });
-    }
-
-    const possibleBefore = person.contributions.filter(
-      (c) =>
-        c.confidence === "POSSIBLE" &&
-        c.sessionDate &&
-        c.sessionDatePrecision !== "UNKNOWN" &&
-        c.sessionDate < baseline.date!,
-    );
-    if (possibleBefore.length > 0) {
-      issues.push({
-        id: "possible-participation-before-baseline",
-        severity: "info",
-        category: "timeline",
-        message: `${possibleBefore.length} possible participation(s) before baseline date`,
-        fixHint: "Review uncertain participations or adjust baseline date",
+        message: `${partsBeforeBirth.length} participation(s) dated before birthdate`,
+        fixHint: "Verify session dates or birthdate",
         fixTab: "career",
       });
     }
   }
+
+  // Career start is a soft boundary — confirmed/probable participation before
+  // activeFrom is suspicious but may just mean activeFrom needs widening.
+  if (person.activeFrom && person.activeFromPrecision !== "UNKNOWN" && person.contributions) {
+    const partsBeforeActive = person.contributions.filter(
+      (c) =>
+        (c.confidence === "CONFIRMED" || c.confidence === "PROBABLE") &&
+        c.sessionDate &&
+        c.sessionDatePrecision !== "UNKNOWN" &&
+        c.sessionDate < person.activeFrom!,
+    );
+    if (partsBeforeActive.length > 0) {
+      issues.push({
+        id: "participation-before-active",
+        severity: "info",
+        category: "timeline",
+        message: `${partsBeforeActive.length} confirmed/probable participation(s) before career start`,
+        fixHint: "Adjust Active From or verify session dates",
+        fixTab: "career",
+      });
+    }
+  }
+
+  // TODO(E2 follow-up): overlapping-eras — flag when two non-baseline Eras'
+  // member-date ranges intersect. Deferred until Era exposes an explicit range
+  // (derived from members per ADR-0001) rather than just an anchor date.
 
   return issues;
 }

@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/db";
 import type { PhotoVariants } from "@/lib/types";
 import { parsePhotoVariants } from "@/lib/types";
+import type { BodyMarkStatus, BodyModificationStatus } from "@/generated/prisma/client";
 
 /**
  * Transaction client type — same shape as prisma but scoped to a transaction.
@@ -360,4 +361,58 @@ export async function cascadeDeleteSession(
   await tx.session.delete({
     where: { id: sessionId },
   });
+}
+
+// ─── Status projection helpers (ADR-0002) ────────────────────────────────────
+// Each entity's `status` column is a projection of its event log. These helpers
+// re-derive and persist that status; call them inside the same transaction as
+// every event mutation so the projection is always fresh.
+
+const BODY_MARK_STATUS_MAP: Record<string, BodyMarkStatus> = {
+  added: "present",
+  modified: "modified",
+  removed: "removed",
+};
+const BODY_MODIFICATION_STATUS_MAP: Record<string, BodyModificationStatus> = {
+  added: "present",
+  modified: "modified",
+  removed: "removed",
+};
+const COSMETIC_PROCEDURE_STATUS_MAP: Record<string, string> = {
+  performed: "completed",
+  revised: "revised",
+  reversed: "reversed",
+};
+
+export async function recomputeBodyMarkStatus(tx: TxClient, bodyMarkId: string): Promise<void> {
+  const events = await tx.bodyMarkEvent.findMany({
+    where: { bodyMarkId },
+    orderBy: { date: "asc" },
+    select: { eventType: true },
+  });
+  const last = events[events.length - 1];
+  const status: BodyMarkStatus = last ? (BODY_MARK_STATUS_MAP[last.eventType] ?? "present") : "present";
+  await tx.bodyMark.update({ where: { id: bodyMarkId }, data: { status } });
+}
+
+export async function recomputeBodyModificationStatus(tx: TxClient, bodyModificationId: string): Promise<void> {
+  const events = await tx.bodyModificationEvent.findMany({
+    where: { bodyModificationId },
+    orderBy: { date: "asc" },
+    select: { eventType: true },
+  });
+  const last = events[events.length - 1];
+  const status: BodyModificationStatus = last ? (BODY_MODIFICATION_STATUS_MAP[last.eventType] ?? "present") : "present";
+  await tx.bodyModification.update({ where: { id: bodyModificationId }, data: { status } });
+}
+
+export async function recomputeCosmeticProcedureStatus(tx: TxClient, cosmeticProcedureId: string): Promise<void> {
+  const events = await tx.cosmeticProcedureEvent.findMany({
+    where: { cosmeticProcedureId },
+    orderBy: { date: "asc" },
+    select: { eventType: true },
+  });
+  const last = events[events.length - 1];
+  const status: string = last ? (COSMETIC_PROCEDURE_STATUS_MAP[last.eventType] ?? "completed") : "completed";
+  await tx.cosmeticProcedure.update({ where: { id: cosmeticProcedureId }, data: { status } });
 }

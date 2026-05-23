@@ -38,47 +38,14 @@ import {
   recomputePersonCurrentState,
   recomputePersonCurrentStateStandalone,
 } from "@/lib/services/current-state-service";
+import {
+  recomputeBodyMarkStatus,
+  recomputeBodyModificationStatus,
+  recomputeCosmeticProcedureStatus,
+} from "@/lib/services/cascade-helpers";
 import type { SimpleActionResult } from "@/lib/types";
 
 type ActionResultWithId = SimpleActionResult & { id?: string };
-
-// ─── Status Derivation ──────────────────────────────────────────────────────
-
-const BODY_MARK_STATUS_MAP: Record<string, BodyMarkStatus> = {
-  added: "present",
-  modified: "modified",
-  removed: "removed",
-};
-
-const BODY_MODIFICATION_STATUS_MAP: Record<string, BodyModificationStatus> = {
-  added: "present",
-  modified: "modified",
-  removed: "removed",
-};
-
-const COSMETIC_PROCEDURE_STATUS_MAP: Record<string, string> = {
-  performed: "completed",
-  revised: "revised",
-  reversed: "reversed",
-};
-
-function deriveBodyMarkStatus(events: { eventType: string }[]): BodyMarkStatus {
-  if (events.length === 0) return "present";
-  const last = events[events.length - 1];
-  return BODY_MARK_STATUS_MAP[last.eventType] ?? "present";
-}
-
-function deriveBodyModificationStatus(events: { eventType: string }[]): BodyModificationStatus {
-  if (events.length === 0) return "present";
-  const last = events[events.length - 1];
-  return BODY_MODIFICATION_STATUS_MAP[last.eventType] ?? "present";
-}
-
-function deriveCosmeticProcedureStatus(events: { eventType: string }[]): string {
-  if (events.length === 0) return "completed";
-  const last = events[events.length - 1];
-  return COSMETIC_PROCEDURE_STATUS_MAP[last.eventType] ?? "completed";
-}
 
 // ─── Body Mark Actions ───────────────────────────────────────────────────────
 
@@ -271,15 +238,7 @@ export async function createBodyMarkEventAction(
         });
 
         // Auto-update entity status from all events
-        const allEvents = await tx.bodyMarkEvent.findMany({
-          where: { bodyMarkId: data.bodyMarkId },
-          orderBy: { date: "asc" },
-          select: { eventType: true },
-        });
-        await tx.bodyMark.update({
-          where: { id: data.bodyMarkId },
-          data: { status: deriveBodyMarkStatus(allEvents) },
-        });
+        await recomputeBodyMarkStatus(tx, data.bodyMarkId);
         await recomputePersonCurrentState(tx, personId);
       });
 
@@ -333,15 +292,7 @@ export async function updateBodyMarkEventAction(
         });
 
         // Auto-update entity status from all events
-        const allEvents = await tx.bodyMarkEvent.findMany({
-          where: { bodyMarkId: data.bodyMarkId },
-          orderBy: { date: "asc" },
-          select: { eventType: true },
-        });
-        await tx.bodyMark.update({
-          where: { id: data.bodyMarkId },
-          data: { status: deriveBodyMarkStatus(allEvents) },
-        });
+        await recomputeBodyMarkStatus(tx, data.bodyMarkId);
         await recomputePersonCurrentState(tx, personId);
       });
 
@@ -368,15 +319,7 @@ export async function deleteBodyMarkEventAction(
       await deleteBodyMarkEventRecord(id);
 
       // Auto-update entity status from remaining events
-      const remainingEvents = await prisma.bodyMarkEvent.findMany({
-        where: { bodyMarkId: resolvedBodyMarkId },
-        orderBy: { date: "asc" },
-        select: { eventType: true },
-      });
-      await prisma.bodyMark.update({
-        where: { id: resolvedBodyMarkId },
-        data: { status: deriveBodyMarkStatus(remainingEvents) },
-      });
+      await recomputeBodyMarkStatus(prisma, resolvedBodyMarkId);
       await recomputePersonCurrentStateStandalone(personId);
 
       revalidatePath(`/people/${personId}`);
@@ -571,15 +514,7 @@ export async function createBodyModificationEventAction(
           },
         });
 
-        const allEvents = await tx.bodyModificationEvent.findMany({
-          where: { bodyModificationId: data.bodyModificationId },
-          orderBy: { date: "asc" },
-          select: { eventType: true },
-        });
-        await tx.bodyModification.update({
-          where: { id: data.bodyModificationId },
-          data: { status: deriveBodyModificationStatus(allEvents) },
-        });
+        await recomputeBodyModificationStatus(tx, data.bodyModificationId);
         await recomputePersonCurrentState(tx, personId);
       });
 
@@ -630,15 +565,7 @@ export async function updateBodyModificationEventAction(
           },
         });
 
-        const allEvents = await tx.bodyModificationEvent.findMany({
-          where: { bodyModificationId: data.bodyModificationId },
-          orderBy: { date: "asc" },
-          select: { eventType: true },
-        });
-        await tx.bodyModification.update({
-          where: { id: data.bodyModificationId },
-          data: { status: deriveBodyModificationStatus(allEvents) },
-        });
+        await recomputeBodyModificationStatus(tx, data.bodyModificationId);
         await recomputePersonCurrentState(tx, personId);
       });
 
@@ -663,15 +590,7 @@ export async function deleteBodyModificationEventAction(
 
       await deleteBodyModificationEventRecord(id);
 
-      const remainingEvents = await prisma.bodyModificationEvent.findMany({
-        where: { bodyModificationId: resolvedId },
-        orderBy: { date: "asc" },
-        select: { eventType: true },
-      });
-      await prisma.bodyModification.update({
-        where: { id: resolvedId },
-        data: { status: deriveBodyModificationStatus(remainingEvents) },
-      });
+      await recomputeBodyModificationStatus(prisma, resolvedId);
       await recomputePersonCurrentStateStandalone(personId);
 
       revalidatePath(`/people/${personId}`);
@@ -862,15 +781,7 @@ export async function createCosmeticProcedureEventAction(
           },
         });
 
-        const allEvents = await tx.cosmeticProcedureEvent.findMany({
-          where: { cosmeticProcedureId: data.cosmeticProcedureId },
-          orderBy: { date: "asc" },
-          select: { eventType: true },
-        });
-        await tx.cosmeticProcedure.update({
-          where: { id: data.cosmeticProcedureId },
-          data: { status: deriveCosmeticProcedureStatus(allEvents) },
-        });
+        await recomputeCosmeticProcedureStatus(tx, data.cosmeticProcedureId);
         await recomputePersonCurrentState(tx, personId);
       });
 
@@ -925,15 +836,7 @@ export async function updateCosmeticProcedureEventAction(
           },
         });
 
-        const allEvents = await tx.cosmeticProcedureEvent.findMany({
-          where: { cosmeticProcedureId: data.cosmeticProcedureId },
-          orderBy: { date: "asc" },
-          select: { eventType: true },
-        });
-        await tx.cosmeticProcedure.update({
-          where: { id: data.cosmeticProcedureId },
-          data: { status: deriveCosmeticProcedureStatus(allEvents) },
-        });
+        await recomputeCosmeticProcedureStatus(tx, data.cosmeticProcedureId);
         await recomputePersonCurrentState(tx, personId);
       });
 
@@ -958,15 +861,7 @@ export async function deleteCosmeticProcedureEventAction(
 
       await deleteCosmeticProcedureEventRecord(id);
 
-      const remainingEvents = await prisma.cosmeticProcedureEvent.findMany({
-        where: { cosmeticProcedureId: resolvedId },
-        orderBy: { date: "asc" },
-        select: { eventType: true },
-      });
-      await prisma.cosmeticProcedure.update({
-        where: { id: resolvedId },
-        data: { status: deriveCosmeticProcedureStatus(remainingEvents) },
-      });
+      await recomputeCosmeticProcedureStatus(prisma, resolvedId);
       await recomputePersonCurrentStateStandalone(personId);
 
       revalidatePath(`/people/${personId}`);
