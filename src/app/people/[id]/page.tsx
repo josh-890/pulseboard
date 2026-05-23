@@ -23,6 +23,7 @@ import { getPersonDigitalIdentities } from "@/lib/services/digital-identity-serv
 import { getPersonResearch } from "@/lib/services/research-service";
 import { getStagingWorkHistoryForPerson } from "@/lib/services/import/staging-set-service";
 import { getEntityTags } from "@/lib/services/entity-tag-service";
+import { getPersonEraContributions } from "@/lib/services/era-service";
 import { PersonDetailTabs } from "@/components/people/person-detail-tabs";
 import { computePlausibilityIssues } from "@/lib/services/plausibility-service";
 import { EditPersonSheet } from "@/components/people/edit-person-sheet";
@@ -44,7 +45,7 @@ export default async function PersonDetailPage({ params, searchParams }: PersonD
   // Ensure system entity categories exist before loading category data
   await ensureEntityCategories();
 
-  const [person, workHistory, connections, profileLabels, refSession, headshots, filledSlots, categoryGroups, populatedCounts, skillGroups, skillLevelConfigs, aliasesWithChannels, sessionWorkHistory, productionSessions, entityMediaMap, physicalAttributeGroups, personEntityTags, digitalIdentities, researchEntries, stagingWorkHistory] =
+  const [person, workHistory, connections, profileLabels, refSession, headshots, filledSlots, categoryGroups, populatedCounts, skillGroups, skillLevelConfigs, aliasesWithChannels, sessionWorkHistory, productionSessions, entityMediaMap, physicalAttributeGroups, personEntityTags, digitalIdentities, researchEntries, stagingWorkHistory, eraContributionsMap] =
     await Promise.all([
       getPersonWithDetails(id),
       getPersonWorkHistory(id),
@@ -66,7 +67,11 @@ export default async function PersonDetailPage({ params, searchParams }: PersonD
       getPersonDigitalIdentities(id),
       getPersonResearch(id),
       getStagingWorkHistoryForPerson(id),
+      getPersonEraContributions(id),
     ]);
+
+  // Flatten Map → Record for client-component serialization.
+  const eraContributions = Object.fromEntries(eraContributionsMap);
 
   if (!person) notFound();
 
@@ -83,11 +88,18 @@ export default async function PersonDetailPage({ params, searchParams }: PersonD
     retiredAt: person.retiredAt,
     retiredAtPrecision: person.retiredAtPrecision,
     aliases: person.aliases,
-    eras: person.eras,
+    eras: person.eras.map((e) => ({
+      id: e.id,
+      isBaseline: e.isBaseline,
+      date: e.date,
+      datePrecision: e.datePrecision,
+      scalarDeltas: e.scalarDeltas,
+    })),
     contributions: sessionWorkHistory.map((s) => ({
       confidence: s.confidence,
       sessionDate: s.sessionDate,
       sessionDatePrecision: s.sessionDatePrecision,
+      eraId: s.eraId,
     })),
   });
 
@@ -186,6 +198,7 @@ export default async function PersonDetailPage({ params, searchParams }: PersonD
         digitalIdentities={digitalIdentities}
         researchEntries={researchEntries}
         stagingWorkHistory={stagingWorkHistory}
+        eraContributions={eraContributions}
         entityTags={personEntityTags.map((t) => ({
           id: t.id,
           name: t.name,

@@ -20,6 +20,7 @@ import { cn, formatPartialDateISO } from "@/lib/utils";
 import { EditSessionSheet } from "@/components/sessions/edit-session-sheet";
 import { deleteSession } from "@/lib/actions/session-actions";
 import { SessionActionsMenu } from "@/components/sessions/session-actions-menu";
+import { ContributionParticipantRow } from "@/components/sessions/contribution-participant-row";
 import { SessionHero } from "@/components/sessions/session-hero";
 import { SessionTagSection } from "@/components/sessions/session-tag-section";
 import { SessionProductionGallery, SessionUploadButton } from "@/components/sessions/session-production-gallery";
@@ -384,39 +385,23 @@ export default async function SessionDetailPage({ params, searchParams }: Sessio
             <SectionCard
               title={`Contributors (${contributionCount})`}
               icon={<Users size={18} />}
-              action={<AddContributorSheet sessionId={id} roleDefinitions={roleDefinitions} />}
+              action={<AddContributorSheet sessionId={id} sessionDate={session.date} roleDefinitions={roleDefinitions} />}
             >
               {session.contributions.length === 0 ? (
                 <EmptyState message="No contributors in this session." />
               ) : (
                 <ul className="space-y-0.5">
-                  {session.contributions.map((contribution) => {
-                    const commonAlias = contribution.person.aliases[0]?.name;
-                    const displayName = commonAlias ?? contribution.person.icgId;
-                    const creditedAs = contribution.creditNameOverride && contribution.creditNameOverride !== commonAlias
-                      ? contribution.creditNameOverride
-                      : null;
-                    return (
-                      <li key={contribution.id}>
-                        <Link
-                          href={`/people/${contribution.personId}`}
-                          className="group flex items-center gap-2.5 rounded-lg border border-transparent px-3 py-1 transition-all hover:border-white/15 hover:bg-card/60 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                        >
-                          <span className="inline-flex items-center rounded-full border border-white/15 bg-muted/50 px-2 py-0.5 text-xs font-medium shrink-0 text-muted-foreground">
-                            {contribution.roleDefinition.name}
-                          </span>
-                          <span className="text-sm font-medium text-foreground/90 group-hover:text-primary transition-colors">
-                            {displayName}
-                            {creditedAs && (
-                              <span className="ml-1.5 text-xs font-normal text-muted-foreground/70 italic">
-                                as: {creditedAs}
-                              </span>
-                            )}
-                          </span>
-                        </Link>
-                      </li>
-                    );
-                  })}
+                  {session.contributions.map((contribution) => (
+                    <ContributionParticipantRow
+                      key={contribution.id}
+                      contributionId={contribution.id}
+                      roleName={contribution.roleDefinition.name}
+                      creditNameOverride={contribution.creditNameOverride}
+                      era={contribution.era}
+                      person={contribution.person}
+                      sessionDate={session.date}
+                    />
+                  ))}
                 </ul>
               )}
             </SectionCard>

@@ -499,6 +499,7 @@ export async function getPersonSessionWorkHistory(personId: string): Promise<Per
         ageAtProduction,
         confidence: c.confidence,
         confidenceSource: c.confidenceSource,
+        eraId: c.eraId,
       });
     }
   }
@@ -654,13 +655,27 @@ type FoldableEra = {
  * (migration 20260522000002), which sorts the opposite way and picks
  * `row_number() = 1`. Same outcome — when changing one, audit the other.
  */
-export function foldScalarDeltas<E extends FoldableEra>(eras: E[]) {
+export function foldScalarDeltas<E extends FoldableEra>(
+  eras: E[],
+  opts?: { asOf?: Date | null },
+) {
+  const asOf = opts?.asOf ?? null;
   const all = eras.flatMap((e) =>
     e.scalarDeltas
       .filter((d) => d.value.trim() !== "")
       .map((d) => ({ d, baseline: e.isBaseline, eraDate: e.date })),
   );
-  all.sort((a, b) => {
+  // Point-in-time mode: drop any delta whose effective date is strictly after
+  // asOf. Baseline + undated deltas are always kept (they have no commitment
+  // to a future date). This is ADR-0004's "appearance-at-shoot" snapshot.
+  const filtered = asOf
+    ? all.filter(({ d, baseline, eraDate }) => {
+        if (baseline) return true;
+        const eff = d.date ?? eraDate;
+        return !eff || eff <= asOf;
+      })
+    : all;
+  filtered.sort((a, b) => {
     if (a.baseline !== b.baseline) return a.baseline ? -1 : 1;
     const ad = a.d.date ?? a.eraDate;
     const bd = b.d.date ?? b.eraDate;
@@ -670,8 +685,75 @@ export function foldScalarDeltas<E extends FoldableEra>(eras: E[]) {
     return a.d.createdAt.getTime() - b.d.createdAt.getTime();
   });
   const folded: Record<string, E["scalarDeltas"][number]> = {};
-  for (const { d } of all) folded[d.attributeDefinitionId] = d;
+  for (const { d } of filtered) folded[d.attributeDefinitionId] = d;
   return folded;
+}
+
+/**
+ * Appearance-at-shoot snapshot — the scalar fold up to a point in time.
+ * Used by participant cards on session/set detail pages to show "this is what
+ * the person looked like at the shoot" without paging the whole person.
+ *
+ * `asOf` is typically derived from the linked Era's latest member-delta date
+ * (or the session date as a fallback). Body marks / modifications / cosmetic
+ * procedures are not folded here — their point-in-time status is a separate
+ * concern best handled by replaying events against their projection.
+ *
+ * ADR-0004 (era-linked participation) + ADR-0001 (date-ordered fold).
+ */
+export type AppearanceSnapshot = {
+  hairColor: string | null;
+  weight: number | null;
+  build: string | null;
+  breastSize: string | null;
+  measurements: string | null;
+  extensibleAttributes: Record<string, ExtensibleAttributeValue>;
+};
+
+export function deriveAppearanceAtShoot<E extends FoldableEra>(
+  eras: E[],
+  asOf: Date | null,
+): AppearanceSnapshot {
+  const folded = foldScalarDeltas(eras, { asOf });
+  const weightRaw = folded[CORE_ATTR.weight]?.value;
+  const extensibleAttributes: Record<string, ExtensibleAttributeValue> = {};
+  for (const [defId, d] of Object.entries(folded)) {
+    if (CORE_ATTR_IDS.has(defId)) continue;
+    extensibleAttributes[defId] = {
+      value: d.value,
+      unit: d.attributeDefinition.unit,
+      name: d.attributeDefinition.name,
+      groupName: d.attributeDefinition.group.name,
+      status: "NATURAL" as import("@/lib/types").AttributeStatus,
+    };
+  }
+  return {
+    hairColor: folded[CORE_ATTR.hairColor]?.value ?? null,
+    weight: weightRaw && !Number.isNaN(Number(weightRaw)) ? Number(weightRaw) : null,
+    build: folded[CORE_ATTR.build]?.value ?? null,
+    breastSize: folded[CORE_ATTR.breastSize]?.value ?? null,
+    measurements: folded[CORE_ATTR.measurements]?.value ?? null,
+    extensibleAttributes,
+  };
+}
+
+/**
+ * Pick the Era whose member-date range best contains the given session date.
+ * Conservative heuristic: the latest non-baseline Era whose anchor date is
+ * ≤ `sessionDate`. Falls back to the baseline (dateless) Era. Used to default
+ * the Era picker in the contribution UI (ADR-0004).
+ */
+export function defaultEraForSessionDate<E extends FoldableEra & { id: string }>(
+  eras: E[],
+  sessionDate: Date | null,
+): E | null {
+  if (eras.length === 0) return null;
+  const baseline = eras.find((e) => e.isBaseline) ?? null;
+  if (!sessionDate) return baseline;
+  const candidates = eras
+    .filter((e) => !e.isBaseline && e.date && e.date <= sessionDate)
+    .sort((a, b) => (b.date!.getTime() - a.date!.getTime()));
+  return candidates[0] ?? baseline;
 }
 
 /**

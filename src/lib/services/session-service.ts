@@ -231,9 +231,20 @@ export async function getSessionById(id: string) {
           person: {
             include: {
               aliases: { where: { isCommon: true }, take: 1 },
+              // Eras + scalar deltas for the appearance-at-shoot snapshot
+              // (ADR-0004). Loaded per-contribution-person; the participant
+              // card folds them with `asOf` derived from the linked Era.
+              eras: {
+                include: {
+                  scalarDeltas: {
+                    include: { attributeDefinition: { include: { group: true } } },
+                  },
+                },
+              },
             },
           },
           roleDefinition: { include: { group: true } },
+          era: { select: { id: true, label: true, date: true, isBaseline: true } },
         },
       },
       setSessionLinks: {

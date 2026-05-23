@@ -48,6 +48,7 @@ export async function addSessionContribution(
     confidenceSource?: ConfidenceSource;
     confirmedAt?: Date | null;
     resolvedAliasId?: string | null;
+    eraId?: string | null;
   },
 ) {
   // Auto-match creditNameOverride to a known alias if resolvedAliasId not provided
@@ -61,18 +62,32 @@ export async function addSessionContribution(
     resolvedAliasId = match?.id ?? null;
   }
 
-  return prisma.sessionContribution.create({
-    data: {
-      sessionId,
-      personId,
-      roleDefinitionId,
-      creditNameOverride: opts?.creditNameOverride ?? null,
-      notes: opts?.notes ?? null,
-      confidence: opts?.confidence ?? "CONFIRMED",
-      confidenceSource: opts?.confidenceSource ?? "MANUAL",
-      confirmedAt: opts?.confirmedAt ?? null,
-      resolvedAliasId,
-    },
+  // ADR-0004: a Session is one shoot = one point in time = one Era. If the
+  // caller passed an explicit eraId, propagate it across every existing
+  // contribution row for this person in this session so multi-role
+  // participants stay consistent.
+  return prisma.$transaction(async (tx) => {
+    const created = await tx.sessionContribution.create({
+      data: {
+        sessionId,
+        personId,
+        roleDefinitionId,
+        creditNameOverride: opts?.creditNameOverride ?? null,
+        notes: opts?.notes ?? null,
+        confidence: opts?.confidence ?? "CONFIRMED",
+        confidenceSource: opts?.confidenceSource ?? "MANUAL",
+        confirmedAt: opts?.confirmedAt ?? null,
+        resolvedAliasId,
+        eraId: opts?.eraId ?? null,
+      },
+    });
+    if (opts?.eraId !== undefined) {
+      await tx.sessionContribution.updateMany({
+        where: { sessionId, personId, id: { not: created.id } },
+        data: { eraId: opts.eraId },
+      });
+    }
+    return created;
   });
 }
 
@@ -111,8 +126,27 @@ export async function removeSessionContribution(contributionId: string) {
 
 export async function updateSessionContribution(
   contributionId: string,
-  data: { creditNameOverride?: string | null; notes?: string | null },
+  data: { creditNameOverride?: string | null; notes?: string | null; eraId?: string | null },
 ) {
+  // ADR-0004: keep the eraId consistent across every contribution row for
+  // this person in this session.
+  if (data.eraId !== undefined) {
+    return prisma.$transaction(async (tx) => {
+      const updated = await tx.sessionContribution.update({
+        where: { id: contributionId },
+        data,
+      });
+      await tx.sessionContribution.updateMany({
+        where: {
+          sessionId: updated.sessionId,
+          personId: updated.personId,
+          id: { not: updated.id },
+        },
+        data: { eraId: data.eraId },
+      });
+      return updated;
+    });
+  }
   return prisma.sessionContribution.update({
     where: { id: contributionId },
     data,

@@ -80,6 +80,11 @@ Network ──< LabelNetwork >── Label
   `confidenceSource ConfidenceSource` (MANUAL / CREDIT_MATCH / IMPORT).
   Resolving a credit promotes confidence to CONFIRMED + CREDIT_MATCH.
   SetParticipant mirrors the highest confidence of its linked contributions.
+- **SessionContribution.eraId** (nullable) — ADR-0004: optionally links the
+  contribution to the Era the person was in at the shoot. Drives the
+  appearance-at-shoot snapshot via point-in-time fold. Authored here (not on
+  SetParticipant) because a session is one shoot = one point in time = one
+  Era, whereas a compilation Set can span several Eras within it.
 
 ---
 

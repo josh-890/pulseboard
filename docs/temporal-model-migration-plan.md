@@ -402,30 +402,48 @@ from/to UI is preserved.
 
 ---
 
-## 6.1 Phase F — Era-linked participation (independent feature)
+## 6.1 Phase F — Era-linked participation (independent feature) — DONE 2026-05-23
 
-Delivers ADR-0004. Depends only on Phase A (Era exists); sequenced last so it
-builds on the finished fold (the appearance-at-shoot snapshot uses `asOf`).
+Delivers ADR-0004. Landed in commits and migration `20260523000003_contribution_era_link`.
 
-1. Schema: `SessionContribution.eraId String?` + FK + index; `Era.contributions`
-   back-relation (§1.1 / §1.5).
-2. Data entry: `add-contributor-sheet.tsx` and the contribution-edit UI gain an
-   **Era picker** — lists the person's Eras, **defaults** to the Era whose
-   member-date range covers the session's date. `contribution-actions.ts` sets
-   `eraId` consistently across all of one person's contribution rows in the
-   session. Import leaves `eraId` null.
-3. Read side:
-   - Session detail (`/sessions/[id]`) + Set detail (`/sets/[id]`): each
-     participant shows its linked Era label **and** an **appearance-at-shoot**
-     snapshot — `deriveCurrentState(person, { asOf })` where `asOf` = the latest
-     member-delta date within the linked Era (the fold stays date-ordered —
-     ADR-0001; the Era only supplies the cutoff date).
-   - Era timeline (Appearance tab) + Career tab: an Era lists the sessions/sets
-     that happened during it (reverse navigation).
-4. Plausibility: the `contribution-era-mismatch` rule (added in Phase E).
+1. **Schema** ✅ — `SessionContribution.eraId String?` + FK + index + `Era.contributions`
+   back-relation. Migration `20260523000003_contribution_era_link` (additive).
+2. **Data entry** ✅ — `add-contributor-sheet.tsx` gains an Era picker. Loads
+   eras via the new `getPersonErasForPickerAction` when a person is selected.
+   Defaults to the latest non-baseline Era with anchor date ≤ session date
+   (falls back to baseline). `addSessionContribution` / `updateSessionContribution`
+   accept `eraId` and propagate it across every contribution row for the same
+   person in the session (multi-role consistency). Import leaves `eraId` null.
+   No standalone contribution-edit UI exists yet; the action signature is ready.
+3. **Read side** ✅ —
+   - Session detail (`/sessions/[id]`): participant rows show an amber "Era"
+     pill and an `at-shoot:` line with hair / weight / build from the
+     `deriveAppearanceAtShoot(eras, asOf)` fold. `asOf` is computed inline per
+     contribution: max(member-delta dates) within the linked Era, falling back
+     to the session date for a baseline Era. New component
+     `contribution-participant-row.tsx`.
+   - Era timeline (History panel, Overview tab): each Era now lists the
+     sessions filed into it via a chip row at the bottom of the card. Data
+     comes from the new `getPersonEraContributions(personId)` service
+     (separate query — nesting under `Era.contributions` blew Prisma's type
+     recursion budget).
+   - Set detail / Career tab reverse nav: **deferred** — value-density on
+     session detail + History panel covers the common case; compilation Sets
+     spanning multiple eras need a different UI shape.
+4. **Plausibility** ✅ — new `contribution-era-mismatch` rule (info severity):
+   flags contributions whose linked Era's member-date range doesn't cover the
+   session date. PersonData.contributions gains optional `eraId`; PersonData.eras
+   gains optional `id` for the range lookup. Baseline Eras always pass (they
+   "contain" every date).
 
 **Nothing breaks:** purely additive; `eraId` is optional and read-side only — a
 contribution is not a delta and does not affect the fold.
+
+**Follow-up TODOs:**
+- Set-detail participant snapshot (handle compilation sets spanning eras).
+- Contribution-edit UI to expose the picker after creation (action already
+  accepts `eraId`).
+- `overlapping-eras` plausibility rule — still deferred from E2.
 
 ---
 

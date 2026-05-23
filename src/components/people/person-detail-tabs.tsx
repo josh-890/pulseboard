@@ -20,6 +20,7 @@ import { useHeroLayout, type HeroLayout } from "@/components/layout/hero-layout-
 import { FlagImage } from "@/components/shared/flag-image";
 import { findCountryByCode } from "@/lib/constants/countries";
 import { EraTimelineEntry } from "@/components/people/era-timeline-entry";
+import type { EraContributionInfo } from "@/lib/services/era-service";
 import { AppearanceTab } from "@/components/people/appearance-tab";
 import { NewEraSheet } from "@/components/people/new-era-sheet";
 import {
@@ -122,6 +123,9 @@ type PersonDetailTabsProps = {
   entityTags?: { id: string; name: string; group: { name: string; color: string } }[];
   researchEntries?: PersonResearchItem[];
   stagingWorkHistory?: StagingWorkHistoryItem[];
+  // ADR-0004 — eraContributions: per-era list of sessions filed into it.
+  // Keyed by era id. Loaded by the page via `getPersonEraContributions`.
+  eraContributions?: Record<string, EraContributionInfo>;
 };
 
 // ── Style maps ──────────────────────────────────────────────────────────────
@@ -239,11 +243,13 @@ function HistoryPanel({
   personId,
   currentState,
   defaultOpen = false,
+  eraContributions,
 }: {
   eras: PersonData["eras"];
   personId: string;
   currentState: PersonCurrentState;
   defaultOpen?: boolean;
+  eraContributions?: Record<string, EraContributionInfo>;
 }) {
   const [timelineOpen, setTimelineOpen] = useState(defaultOpen);
   const [showNewEra, setShowNewEra] = useState(false);
@@ -331,6 +337,7 @@ function HistoryPanel({
                 personId={personId}
                 connectAbove={connectAbove}
                 connectBelow={connectBelow}
+                contributions={eraContributions?.[era.id]}
               />
             );
           })}
@@ -1401,6 +1408,7 @@ function OverviewTab({
   plausibilityIssues = [],
   onTabSwitch,
   entityTags = [],
+  eraContributions,
 }: {
   person: PersonData;
   currentState: PersonCurrentState;
@@ -1409,6 +1417,7 @@ function OverviewTab({
   plausibilityIssues?: PlausibilityIssue[];
   onTabSwitch?: (tab: string) => void;
   entityTags?: { id: string; name: string; group: { name: string; color: string } }[];
+  eraContributions?: Record<string, EraContributionInfo>;
 }) {
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [tagIds, setTagIds] = useState(entityTags.map((t) => t.id));
@@ -1492,7 +1501,7 @@ function OverviewTab({
           badge={person.eras.length}
           className="md:col-span-2"
         >
-          <HistoryPanel eras={person.eras} personId={person.id} currentState={currentState} />
+          <HistoryPanel eras={person.eras} personId={person.id} currentState={currentState} eraContributions={eraContributions} />
         </SectionCard>
       )}
 
@@ -1944,6 +1953,7 @@ export function PersonDetailTabs({
   entityTags = [],
   researchEntries = [],
   stagingWorkHistory = [],
+  eraContributions,
 }: PersonDetailTabsProps) {
   const VALID_TABS: Set<string> = useMemo(
     () => new Set<string>(["overview", "aliases", "appearance", "details", "skills", "career", "network", "photos", "research"]),
@@ -2132,6 +2142,7 @@ export function PersonDetailTabs({
             plausibilityIssues={plausibilityIssues}
             onTabSwitch={(tab) => setActiveTab(tab as TabId)}
             entityTags={entityTags}
+            eraContributions={eraContributions}
           />
         )}
       </div>

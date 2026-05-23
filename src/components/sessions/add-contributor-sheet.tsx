@@ -23,7 +23,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { addSessionContributionAction } from "@/lib/actions/contribution-actions";
+import {
+  addSessionContributionAction,
+  getPersonErasForPickerAction,
+} from "@/lib/actions/contribution-actions";
 import { searchPersonsAction } from "@/lib/actions/set-actions";
 
 type PersonResult = {
@@ -39,12 +42,15 @@ type RoleDefinitionOption = {
   groupName: string;
 };
 
+type EraOption = { id: string; label: string; date: Date | null; isBaseline: boolean };
+
 type AddContributorSheetProps = {
   sessionId: string;
+  sessionDate: Date | null;
   roleDefinitions: RoleDefinitionOption[];
 };
 
-export function AddContributorSheet({ sessionId, roleDefinitions }: AddContributorSheetProps) {
+export function AddContributorSheet({ sessionId, sessionDate, roleDefinitions }: AddContributorSheetProps) {
   const [open, setOpen] = useState(false);
 
   const [searchQuery, setSearchQuery] = useState("");
@@ -56,6 +62,13 @@ export function AddContributorSheet({ sessionId, roleDefinitions }: AddContribut
   const [roleDefinitionId, setRoleDefinitionId] = useState<string>(roleDefinitions[0]?.id ?? "");
   const [creditNameOverride, setCreditNameOverride] = useState("");
   const [isSaving, setIsSaving] = useState(false);
+
+  // Era picker (ADR-0004). Eras are loaded when a person is selected; the
+  // default selection is the latest non-baseline Era whose anchor date is
+  // ≤ the session date (or the baseline if none qualifies).
+  const [eras, setEras] = useState<EraOption[]>([]);
+  const [eraId, setEraId] = useState<string>("");
+  const [erasLoading, setErasLoading] = useState(false);
 
   const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -88,11 +101,30 @@ export function AddContributorSheet({ sessionId, roleDefinitions }: AddContribut
     }, 300);
   }
 
-  function selectPerson(person: PersonResult) {
+  async function selectPerson(person: PersonResult) {
     setSelectedPerson(person);
     setSearchQuery(person.commonAlias ?? person.icgId);
     setSearchResults([]);
     setShowDropdown(false);
+    setErasLoading(true);
+    try {
+      const list = await getPersonErasForPickerAction(person.id);
+      setEras(list);
+      // Default to the latest non-baseline era with anchor date ≤ session date.
+      // Falls back to baseline when nothing qualifies.
+      const baseline = list.find((e) => e.isBaseline) ?? null;
+      let chosen: EraOption | null = baseline;
+      if (sessionDate) {
+        const sd = new Date(sessionDate);
+        const candidates = list
+          .filter((e) => !e.isBaseline && e.date && new Date(e.date) <= sd)
+          .sort((a, b) => new Date(b.date!).getTime() - new Date(a.date!).getTime());
+        chosen = candidates[0] ?? baseline;
+      }
+      setEraId(chosen?.id ?? "");
+    } finally {
+      setErasLoading(false);
+    }
   }
 
   function clearSelection() {
@@ -100,6 +132,8 @@ export function AddContributorSheet({ sessionId, roleDefinitions }: AddContribut
     setSearchQuery("");
     setSearchResults([]);
     setShowDropdown(false);
+    setEras([]);
+    setEraId("");
   }
 
   function resetForm() {
@@ -109,6 +143,8 @@ export function AddContributorSheet({ sessionId, roleDefinitions }: AddContribut
     setShowDropdown(false);
     setRoleDefinitionId(roleDefinitions[0]?.id ?? "");
     setCreditNameOverride("");
+    setEras([]);
+    setEraId("");
   }
 
   async function handleSave() {
@@ -118,7 +154,10 @@ export function AddContributorSheet({ sessionId, roleDefinitions }: AddContribut
       sessionId,
       selectedPerson.id,
       roleDefinitionId,
-      { creditNameOverride: creditNameOverride.trim() || undefined },
+      {
+        creditNameOverride: creditNameOverride.trim() || undefined,
+        eraId: eraId || null,
+      },
     );
     if (result.success) {
       toast.success("Contributor added");
@@ -250,6 +289,36 @@ export function AddContributorSheet({ sessionId, roleDefinitions }: AddContribut
               </SelectContent>
             </Select>
           </div>
+
+          {/* Era picker — ADR-0004 */}
+          {selectedPerson && (
+            <div className="space-y-1.5">
+              <Label>
+                Era <span className="text-muted-foreground font-normal">(appearance at this shoot)</span>
+              </Label>
+              {erasLoading ? (
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <Loader2 size={12} className="animate-spin" /> loading eras…
+                </div>
+              ) : eras.length === 0 ? (
+                <p className="text-xs text-muted-foreground">No eras for this person yet.</p>
+              ) : (
+                <Select value={eraId} onValueChange={setEraId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select an era…" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {eras.map((e) => (
+                      <SelectItem key={e.id} value={e.id}>
+                        {e.label}
+                        {e.isBaseline ? " · baseline" : e.date ? ` · ${new Date(e.date).getUTCFullYear()}` : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
+          )}
 
           {/* Credit name override */}
           <div className="space-y-1.5">

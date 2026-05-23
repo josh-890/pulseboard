@@ -363,6 +363,7 @@ model Era {
   cosmeticProcedureEvents CosmeticProcedureEvent[]
   skillEvents             PersonSkillEvent[]
   mediaLinks              PersonMediaLink[]
+  contributions           SessionContribution[]
 
   @@index([personId])
 }
@@ -986,6 +987,12 @@ model SessionContribution {
   createdAt          DateTime                   @default(now())
   resolvedAliasId    String?
   resolvedAlias      PersonAlias?               @relation("ContributionAlias", fields: [resolvedAliasId], references: [id], onDelete: SetNull)
+  // Phase F — optional link to the Era this person was in at the time of the
+  // shoot. Authored on the source-of-truth contribution (not on SetParticipant,
+  // a derived cache). Drives the appearance-at-shoot snapshot via the
+  // point-in-time fold. Nullable: imports + legacy rows leave it null.
+  eraId              String?
+  era                Era?                       @relation(fields: [eraId], references: [id], onDelete: SetNull)
 
   skills ContributionSkill[]
 
@@ -994,6 +1001,7 @@ model SessionContribution {
   @@index([sessionId])
   @@index([personId])
   @@index([roleDefinitionId])
+  @@index([eraId])
 }
 
 model SetParticipant {

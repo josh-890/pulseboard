@@ -14,7 +14,21 @@ import {
   addMediaToContributionSkill,
   removeMediaFromContributionSkill,
 } from "@/lib/services/contribution-service";
+import { getPersonEras } from "@/lib/services/era-service";
 import type { SimpleActionResult } from "@/lib/types";
+
+/**
+ * Era list for the contribution Era picker (ADR-0004). Returns the person's
+ * eras shaped for the dropdown: baseline first, then chronologically.
+ */
+export async function getPersonErasForPickerAction(
+  personId: string,
+): Promise<{ id: string; label: string; date: Date | null; isBaseline: boolean }[]> {
+  return withTenantFromHeaders(async () => {
+    const eras = await getPersonEras(personId);
+    return eras;
+  });
+}
 
 export async function addSessionContributionAction(
   sessionId: string,
@@ -25,6 +39,7 @@ export async function addSessionContributionAction(
     notes?: string;
     confidence?: ParticipationConfidence;
     confidenceSource?: "MANUAL" | "CREDIT_MATCH" | "IMPORT";
+    eraId?: string | null;
   },
 ): Promise<SimpleActionResult> {
   return withTenantFromHeaders(async () => {
@@ -60,7 +75,7 @@ export async function removeSessionContributionAction(
 export async function updateSessionContributionAction(
   contributionId: string,
   sessionId: string,
-  data: { creditNameOverride?: string | null; notes?: string | null },
+  data: { creditNameOverride?: string | null; notes?: string | null; eraId?: string | null },
 ): Promise<SimpleActionResult> {
   return withTenantFromHeaders(async () => {
     try {

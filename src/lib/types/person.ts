@@ -290,6 +290,9 @@ export type PersonSessionWorkEntry = {
   ageAtProduction: string;
   confidence: import("@/generated/prisma/client").ParticipationConfidence;
   confidenceSource: import("@/generated/prisma/client").ConfidenceSource;
+  // ADR-0004: linked Era. All of one person's contribution rows within a
+  // session share the same eraId (enforced on write), so per-session is safe.
+  eraId: string | null;
 };
 
 export type PersonProductionSession = {

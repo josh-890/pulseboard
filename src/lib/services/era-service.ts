@@ -68,14 +68,66 @@ export async function findOrCreateEraForDate(
 }
 
 /**
+ * Reverse navigation (ADR-0004): for each Era of a person, return the
+ * contributions filed into it. Returns a Map keyed by eraId. Fetched
+ * separately from `getPersonWithDetails` because nesting it under
+ * `Era.contributions` blew Prisma's type-inference recursion budget.
+ */
+export type EraContributionRow = {
+  id: string;
+  eraId: string | null;
+  roleDefinition: { name: string };
+  session: {
+    id: string;
+    name: string;
+    date: Date | null;
+    datePrecision: string;
+    type: string;
+  };
+};
+
+export async function getPersonEraContributions(
+  personId: string,
+): Promise<Map<string, EraContributionRow[]>> {
+  const rows = await prisma.sessionContribution.findMany({
+    where: { personId, eraId: { not: null } },
+    select: {
+      id: true,
+      eraId: true,
+      roleDefinition: { select: { name: true } },
+      session: {
+        select: {
+          id: true,
+          name: true,
+          date: true,
+          datePrecision: true,
+          type: true,
+        },
+      },
+    },
+    orderBy: { session: { date: "asc" } },
+  });
+  const byEra = new Map<string, EraContributionRow[]>();
+  for (const row of rows) {
+    if (!row.eraId) continue;
+    const list = byEra.get(row.eraId) ?? [];
+    list.push(row as EraContributionRow);
+    byEra.set(row.eraId, list);
+  }
+  return byEra;
+}
+
+export type EraContributionInfo = EraContributionRow[];
+
+/**
  * Get all eras for a person (for pickers in event dialogs).
  */
 export async function getPersonEras(
   personId: string,
-): Promise<{ id: string; label: string; date: Date | null }[]> {
+): Promise<{ id: string; label: string; date: Date | null; isBaseline: boolean }[]> {
   return prisma.era.findMany({
     where: { personId },
-    select: { id: true, label: true, date: true },
+    select: { id: true, label: true, date: true, isBaseline: true },
     orderBy: [{ isBaseline: "desc" }, { date: "asc" }],
   });
 }

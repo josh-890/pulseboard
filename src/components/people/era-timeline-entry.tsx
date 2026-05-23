@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { cn, formatPartialDate } from "@/lib/utils";
 import { DeleteButton } from "@/components/shared/delete-button";
 import type { getPersonWithDetails } from "@/lib/services/person-service";
+import type { EraContributionInfo } from "@/lib/services/era-service";
 import { deleteEraAction, updateEraAction } from "@/lib/actions/appearance-actions";
 
 type EraItem = NonNullable<Awaited<ReturnType<typeof getPersonWithDetails>>>["eras"][number];
@@ -14,9 +15,13 @@ type EraTimelineEntryProps = {
   personId: string;
   connectAbove?: boolean;
   connectBelow?: boolean;
+  // ADR-0004 reverse-nav: contributions filed into this Era. Loaded by the
+  // parent via `getPersonEraContributions` (separate from getPersonWithDetails
+  // to keep Prisma type inference within budget).
+  contributions?: EraContributionInfo;
 };
 
-export function EraTimelineEntry({ era, personId, connectAbove, connectBelow }: EraTimelineEntryProps) {
+export function EraTimelineEntry({ era, personId, connectAbove, connectBelow, contributions }: EraTimelineEntryProps) {
   const [editing, setEditing] = useState<"label" | "notes" | false>(false);
   const [isPending, startTransition] = useTransition();
 
@@ -315,6 +320,32 @@ export function EraTimelineEntry({ era, personId, connectAbove, connectBelow }: 
                   <span className="font-medium">{di.platform}</span>
                   {di.handle ? ` — ${di.handle}` : ""}
                 </p>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Sessions filed into this era — ADR-0004 reverse navigation */}
+        {contributions && contributions.length > 0 && (
+          <div className="mb-2">
+            <p className="mb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground/70">
+              Sessions ({contributions.length})
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              {contributions.map((c) => (
+                <a
+                  key={c.id}
+                  href={`/sessions/${c.session.id}`}
+                  className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-muted/40 px-2 py-0.5 text-xs text-foreground/80 hover:border-white/25 hover:bg-card/60 transition-colors"
+                  title={`${c.roleDefinition.name} — ${c.session.type}`}
+                >
+                  <span className="font-medium">{c.session.name}</span>
+                  {c.session.date && (
+                    <span className="text-muted-foreground">
+                      ({new Date(c.session.date).getUTCFullYear()})
+                    </span>
+                  )}
+                </a>
               ))}
             </div>
           </div>

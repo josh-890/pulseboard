@@ -14,9 +14,14 @@ type ContributionData = {
   confidence: ParticipationConfidence;
   sessionDate: Date | null;
   sessionDatePrecision: string;
+  // ADR-0004 / Phase F: optional link to the Era the person was in at the
+  // shoot. When set, plausibility cross-checks the session date against the
+  // Era's member-date range.
+  eraId?: string | null;
 };
 
 type EraData = {
+  id?: string;
   isBaseline: boolean;
   date: Date | null;
   datePrecision: string;
@@ -288,6 +293,40 @@ export function computePlausibilityIssues(person: PersonData): PlausibilityIssue
         category: "timeline",
         message: `${partsBeforeActive.length} confirmed/probable participation(s) before career start`,
         fixHint: "Adjust Active From or verify session dates",
+        fixTab: "career",
+      });
+    }
+  }
+
+  // ── Contribution ↔ Era mismatch (ADR-0004 / Phase F) ───────────────────
+  // The user pinned a contribution to an Era. If the session date falls
+  // outside that Era's member-date range, either the pin or the session date
+  // is wrong — flag it for review.
+  if (person.contributions?.some((c) => c.eraId)) {
+    // Build a Map of eraId → {anchor + max(member dates)} for range checks.
+    const eraRanges = new Map<string, { min: Date | null; max: Date | null; isBaseline: boolean }>();
+    for (const era of person.eras) {
+      if (!era.id) continue;
+      const dates = (era.scalarDeltas ?? []).map((d) => d.date).filter((d): d is Date => d !== null);
+      if (era.date) dates.push(era.date);
+      const min = dates.length ? dates.reduce((a, b) => (a < b ? a : b)) : null;
+      const max = dates.length ? dates.reduce((a, b) => (a > b ? a : b)) : null;
+      eraRanges.set(era.id, { min, max, isBaseline: era.isBaseline });
+    }
+    const mismatches = person.contributions.filter((c) => {
+      if (!c.eraId || !c.sessionDate || c.sessionDatePrecision === "UNKNOWN") return false;
+      const range = eraRanges.get(c.eraId);
+      if (!range || range.isBaseline) return false; // baseline always "contains" any date
+      if (!range.min || !range.max) return false;
+      return c.sessionDate < range.min || c.sessionDate > range.max;
+    });
+    if (mismatches.length > 0) {
+      issues.push({
+        id: "contribution-era-mismatch",
+        severity: "info",
+        category: "timeline",
+        message: `${mismatches.length} participation(s) pinned to an era that doesn't cover the session date`,
+        fixHint: "Re-pick the era on the contribution or verify the session date",
         fixTab: "career",
       });
     }
