@@ -353,32 +353,41 @@ from/to UI is preserved.
 
 ## 6. Phase E — Projection hardening, plausibility, cleanup
 
-1. `status` projections: ensure `BodyMark`/`BodyModification`/`CosmeticProcedure`/
-   `PersonDigitalIdentity` `status` is recomputed in-transaction on every event
-   mutation (cascade-helper `recomputeEntityStatus(tx, …)`). The integrity job
-   from §7 covers it.
-2. Plausibility rework (`plausibility-service.ts`):
-   - **Drop** `persona-before-baseline` and `participation-before-baseline` —
-     there is no baseline date any more. **Replace** with `delta-before-birth`
-     (any delta dated before `birthdate` — hard error) and
-     `participation-before-active` (a confirmed/probable participation dated
-     before `activeFrom` — soft warning; keep a before-birth hard variant).
-   - New rule **overlapping-eras** — flag when two Eras' member-date ranges
-     intersect (design-review request).
-   - New rule **contribution-era-mismatch** — a `SessionContribution.eraId` whose
-     Era's member-date range doesn't contain the session date (Phase F).
-   - Rename remaining `persona-*` rule ids to `era-*`. Surface all on the
-     Overview "Data Quality" card.
-3. Draft-era UX: surface `isDraft` eras on the timeline with a "name this era" /
-   "review" nudge (covers both auto-created eras and the import-flagged baseline).
-   `findOrCreateEraForDate` sets `isDraft: true`.
-4. Undated deltas: fold sort key is `delta.date ?? era.date`; document that an
-   undated delta sorts at its era's anchor (and the baseline, dateless, first).
-5. Delete dead `computePersonCurrentState`.
-6. Physical table rename `Persona`→`Era`: `ALTER TABLE "Persona" RENAME TO "Era"`,
-   rename the `personaId` columns to `eraId`, drop the `@@map`/`@map`. Recreate
-   any view/FK referencing the old names.
-7. Rewrite `docs/data-model.md` (currently badly stale) and update
+1. **[E1 — done 2026-05-23]** `status` projections: `BodyMark`/`BodyModification`/
+   `CosmeticProcedure` `status` is recomputed in-transaction on every event
+   mutation via the cascade-helper `recomputeBodyMarkStatus` /
+   `recomputeBodyModificationStatus` / `recomputeCosmeticProcedureStatus`
+   (`src/lib/services/cascade-helpers.ts`). `appearance-actions.ts` calls them
+   at all 9 mutation sites. The integrity job from §7 covers it.
+2. **[E2 — done 2026-05-23]** Plausibility rework (`plausibility-service.ts`):
+   - **Dropped** `era-before-baseline`, `participation-before-baseline`,
+     `possible-participation-before-baseline` — there is no baseline date any
+     more.
+   - **Added** `delta-before-birth` (any ScalarDelta dated before `birthdate`
+     — hard warning).
+   - **Added** `participation-before-birth` (hard warning, regardless of
+     confidence) and `participation-before-active` (soft, confirmed/probable
+     only).
+   - Kept `era-before-birth`; grammar fixed.
+   - **Deferred — TODO comment in service:** `overlapping-eras` (needs the
+     explicit Era member-date range model from ADR-0001) and
+     `contribution-era-mismatch` (Phase F).
+3. **[E3 — done 2026-05-23]** Draft-era UX: `findOrCreateEraForDate` sets
+   `isDraft: true` on auto-create. `updateEra` clears the flag on any edit.
+   `era-timeline-entry.tsx` shows a dashed amber dot + amber "Draft" pill with
+   tooltip for non-baseline draft eras.
+4. **[E4 — done 2026-05-23]** Undated deltas: fold sort key documented in
+   ADR-0001 § fold sort order. TS fold doc comment in `foldScalarDeltas`
+   points to the ADR; SQL fold in
+   `app_recompute_person_current_state` mirrors it (opposite literal sort
+   direction, same outcome).
+5. **[E5 — N/A]** Delete dead `computePersonCurrentState`. No such symbol
+   remains — the only current-state entrypoints are
+   `recomputePersonCurrentState` (in-tx) and `recomputePersonCurrentStateStandalone`.
+6. **[E6]** Physical table rename `Persona`→`Era`: `ALTER TABLE "Persona"
+   RENAME TO "Era"`, rename the `personaId` columns to `eraId`, drop the
+   `@@map`/`@map`. Recreate any view/FK referencing the old names.
+7. **[E7]** Rewrite `docs/data-model.md` (currently badly stale) and update
    `docs/architecture.md` + `docs/user-guide.md`.
 
 ---

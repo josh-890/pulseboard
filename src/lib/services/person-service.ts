@@ -641,8 +641,18 @@ type FoldableEra = {
 
 /**
  * Fold a person's scalar deltas → the latest value per attribute definition.
- * Order: baseline era first, then by each delta's effective date
- * (delta date, falling back to era date); later wins (ADR-0001).
+ *
+ * Implements the canonical fold from `docs/adr/0001-eras-and-delta-fold.md`
+ * (§ fold sort order). Winner-take-all across all deltas of the same attribute:
+ *   1. Baseline is the floor — any non-baseline delta beats baseline.
+ *   2. Later effective date wins (effective date = `delta.date ?? era.date`).
+ *   3. Within non-baseline, undated loses to any dated delta.
+ *   4. Tiebreaker: later `createdAt` wins.
+ *
+ * Strategy: sort baseline/oldest first, then iterate with last-write-wins
+ * overwrite. Mirrors the SQL fold in `app_recompute_person_current_state()`
+ * (migration 20260522000002), which sorts the opposite way and picks
+ * `row_number() = 1`. Same outcome — when changing one, audit the other.
  */
 export function foldScalarDeltas<E extends FoldableEra>(eras: E[]) {
   const all = eras.flatMap((e) =>

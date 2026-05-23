@@ -51,6 +51,9 @@ export async function findOrCreateEraForDate(
 
   if (existing) return existing.id;
 
+  // Auto-created eras start as drafts — they exist purely to host the incoming
+  // event/delta and haven't been curated by the user yet. Curating (editing
+  // label/date/notes via updateEra) clears the flag.
   const era = await tx.era.create({
     data: {
       personId,
@@ -58,6 +61,7 @@ export async function findOrCreateEraForDate(
       date: new Date(Date.UTC(year, 0, 1)),
       datePrecision: "YEAR",
       isBaseline: false,
+      isDraft: true,
     },
   });
   return era.id;
@@ -261,6 +265,8 @@ export async function updateEra(id: string, data: UpdateEraInput) {
         ...(data.date !== undefined && { date: data.date ? new Date(data.date) : null }),
         ...(data.datePrecision !== undefined && { datePrecision: data.datePrecision as DatePrecision }),
         ...(data.notes !== undefined && { notes: data.notes || null }),
+        // Any user-visible edit promotes a draft era to curated.
+        isDraft: false,
       },
     });
     await recomputePersonCurrentState(tx, era.personId);

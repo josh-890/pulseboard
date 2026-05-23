@@ -81,13 +81,15 @@ export function EraTimelineEntry({ era, personId, connectAbove, connectBelow }: 
           aria-hidden="true"
         />
       )}
-      {/* Timeline dot */}
+      {/* Timeline dot — dashed border for draft (auto-created, uncurated) eras */}
       <div
         className={cn(
           "absolute left-0 top-2 h-3 w-3 rounded-full border-2",
           era.isBaseline
             ? "border-primary bg-primary"
-            : "border-muted-foreground/40 bg-muted-foreground/20",
+            : era.isDraft
+              ? "border-amber-500/60 border-dashed bg-amber-500/10"
+              : "border-muted-foreground/40 bg-muted-foreground/20",
         )}
         aria-hidden="true"
       />
@@ -125,6 +127,14 @@ export function EraTimelineEntry({ era, personId, connectAbove, connectBelow }: 
           {era.isBaseline && (
             <span className="inline-flex items-center rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-xs font-medium text-emerald-600 dark:text-emerald-400">
               Baseline
+            </span>
+          )}
+          {!era.isBaseline && era.isDraft && (
+            <span
+              className="inline-flex items-center rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-xs font-medium text-amber-600 dark:text-amber-400"
+              title="Auto-created to host an event. Edit the label or notes to curate it."
+            >
+              Draft
             </span>
           )}
           {era.date && (
