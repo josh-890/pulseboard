@@ -119,6 +119,18 @@ enum DigitalIdentityStatus {
   deleted
 }
 
+enum DigitalIdentityEventType {
+  added
+  modified
+  removed
+}
+
+enum InterestEventType {
+  added
+  modified
+  removed
+}
+
 enum EducationType {
   primary
   secondary
@@ -344,6 +356,8 @@ model Era {
   scalarDeltas            ScalarDelta[]
   bodyMarkEvents          BodyMarkEvent[]
   digitalIdentities       PersonDigitalIdentity[]
+  digitalIdentityEvents   DigitalIdentityEvent[]
+  interestEvents          InterestEvent[]
   skills                  PersonSkill[]
   bodyModificationEvents  BodyModificationEvent[]
   cosmeticProcedureEvents CosmeticProcedureEvent[]
@@ -418,8 +432,33 @@ model PersonDigitalIdentity {
   validTo            DateTime?
   validToPrecision   DatePrecision         @default(UNKNOWN)
 
+  events DigitalIdentityEvent[]
+
   @@index([personId])
   @@index([eraId])
+}
+
+// Event log for digital-identity lifecycle changes (ADR-0002). Replaces the
+// validFrom/validTo interval columns on PersonDigitalIdentity (Phase D).
+model DigitalIdentityEvent {
+  id                String                   @id @default(cuid())
+  digitalIdentityId String
+  digitalIdentity   PersonDigitalIdentity    @relation(fields: [digitalIdentityId], references: [id])
+  eraId             String                   @map("personaId")
+  era               Era                      @relation(fields: [eraId], references: [id])
+  eventType         DigitalIdentityEventType
+  notes             String?
+  date              DateTime?
+  datePrecision     DatePrecision            @default(UNKNOWN)
+  dateModifier      DateModifier             @default(EXACT)
+  // Property overrides (null = no change)
+  platform          String?
+  handle            String?
+  url               String?
+
+  @@index([digitalIdentityId])
+  @@index([eraId])
+  @@index([date])
 }
 
 model PersonSkill {
@@ -623,7 +662,32 @@ model PersonInterest {
   notes              String?
   createdAt          DateTime      @default(now())
 
+  events InterestEvent[]
+
   @@index([personId])
+}
+
+// Event log for interest lifecycle changes (ADR-0002). Replaces the
+// validFrom/validTo interval columns on PersonInterest (Phase D).
+model InterestEvent {
+  id            String            @id @default(cuid())
+  interestId    String
+  interest      PersonInterest    @relation(fields: [interestId], references: [id])
+  eraId         String            @map("personaId")
+  era           Era               @relation(fields: [eraId], references: [id])
+  eventType     InterestEventType
+  notes         String?
+  date          DateTime?
+  datePrecision DatePrecision     @default(UNKNOWN)
+  dateModifier  DateModifier      @default(EXACT)
+  // Property overrides (null = no change)
+  name          String?
+  category      String?
+  level         String?
+
+  @@index([interestId])
+  @@index([eraId])
+  @@index([date])
 }
 
 // ─── Relationship Events ─────────────────────────────────────────────────────
