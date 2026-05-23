@@ -1,5 +1,7 @@
 import Link from "next/link";
+import { Pencil } from "lucide-react";
 import { deriveAppearanceAtShoot } from "@/lib/services/person-service";
+import { EditContributionEraDialog } from "@/components/sessions/edit-contribution-era-dialog";
 
 type EraInfo = {
   id: string;
@@ -17,6 +19,7 @@ type ContributionPerson = {
 
 type ContributionParticipantRowProps = {
   contributionId: string;
+  sessionId: string;
   roleName: string;
   creditNameOverride: string | null;
   era: EraInfo | null;
@@ -31,6 +34,7 @@ type ContributionParticipantRowProps = {
  */
 export function ContributionParticipantRow({
   contributionId,
+  sessionId,
   roleName,
   creditNameOverride,
   era,
@@ -67,43 +71,69 @@ export function ContributionParticipantRow({
   if (snapshot?.weight) snapshotParts.push(`${snapshot.weight} kg`);
   if (snapshot?.build) snapshotParts.push(snapshot.build);
 
+  // Era pill / "Set era" CTA — clickable, opens EditContributionEraDialog.
+  // Hover affords the action with a pencil icon; pressed state ties to the
+  // dialog. We render the trigger button styled as the existing pill so the
+  // layout stays identical when the dialog is closed.
+  const eraPillTrigger = era ? (
+    <button
+      type="button"
+      className="ml-auto inline-flex items-center gap-1 rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[11px] font-medium text-amber-600 dark:text-amber-400 transition-colors hover:border-amber-500/60 hover:bg-amber-500/20 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-amber-500"
+      title={
+        era.isBaseline
+          ? "Click to change era — currently baseline"
+          : `Click to change era — currently ${era.label}${era.date ? ` (${new Date(era.date).getUTCFullYear()})` : ""}`
+      }
+    >
+      <span>{era.isBaseline ? "Baseline" : era.label}</span>
+      <Pencil size={10} className="opacity-60" aria-hidden="true" />
+    </button>
+  ) : (
+    <button
+      type="button"
+      className="ml-auto inline-flex items-center gap-1 rounded-full border border-dashed border-white/15 bg-transparent px-2 py-0.5 text-[11px] font-medium text-muted-foreground/70 transition-colors hover:border-amber-500/40 hover:text-amber-600 dark:hover:text-amber-400 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-amber-500"
+      title="Pin this contribution to an Era for appearance-at-shoot"
+    >
+      <Pencil size={10} aria-hidden="true" />
+      <span>Set era</span>
+    </button>
+  );
+
   return (
     <li key={contributionId}>
-      <Link
-        href={`/people/${person.id}`}
-        className="group flex flex-col gap-1 rounded-lg border border-transparent px-3 py-1.5 transition-all hover:border-white/15 hover:bg-card/60 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-      >
+      <div className="group flex flex-col gap-1 rounded-lg border border-transparent px-3 py-1.5 transition-all hover:border-white/15 hover:bg-card/60">
         <div className="flex flex-wrap items-center gap-2.5">
           <span className="inline-flex items-center rounded-full border border-white/15 bg-muted/50 px-2 py-0.5 text-xs font-medium shrink-0 text-muted-foreground">
             {roleName}
           </span>
-          <span className="text-sm font-medium text-foreground/90 group-hover:text-primary transition-colors">
+          <Link
+            href={`/people/${person.id}`}
+            className="text-sm font-medium text-foreground/90 hover:text-primary transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring rounded"
+          >
             {displayName}
             {creditedAs && (
               <span className="ml-1.5 text-xs font-normal text-muted-foreground/70 italic">
                 as: {creditedAs}
               </span>
             )}
-          </span>
-          {era && (
-            <span
-              className="ml-auto inline-flex items-center rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[11px] font-medium text-amber-600 dark:text-amber-400"
-              title={
-                era.isBaseline
-                  ? "Person was in their baseline phase at this shoot"
-                  : `Linked Era: ${era.label}${era.date ? ` (${new Date(era.date).getUTCFullYear()})` : ""}`
-              }
-            >
-              {era.isBaseline ? "Baseline" : era.label}
-            </span>
-          )}
+          </Link>
+          <EditContributionEraDialog
+            contributionId={contributionId}
+            sessionId={sessionId}
+            personId={person.id}
+            personDisplayName={displayName}
+            currentEraId={era?.id ?? null}
+            currentEraLabel={era?.label ?? null}
+            sessionDate={sessionDate}
+            trigger={eraPillTrigger}
+          />
         </div>
         {snapshotParts.length > 0 && (
           <p className="pl-1 text-[11px] text-muted-foreground/70">
             at-shoot: {snapshotParts.join(" · ")}
           </p>
         )}
-      </Link>
+      </div>
     </li>
   );
 }

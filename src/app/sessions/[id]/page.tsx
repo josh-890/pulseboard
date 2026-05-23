@@ -395,6 +395,7 @@ export default async function SessionDetailPage({ params, searchParams }: Sessio
                     <ContributionParticipantRow
                       key={contribution.id}
                       contributionId={contribution.id}
+                      sessionId={id}
                       roleName={contribution.roleDefinition.name}
                       creditNameOverride={contribution.creditNameOverride}
                       era={contribution.era}
