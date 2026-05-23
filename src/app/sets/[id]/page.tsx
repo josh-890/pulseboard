@@ -3,7 +3,7 @@ import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import { Tag } from "lucide-react";
 import { SetBrowseNavBar, SetBrowseBackLink } from "@/components/sets/set-browse-nav-bar";
-import { getSetById, getChannelsForSelect } from "@/lib/services/set-service";
+import { getSetById, getChannelsForSelect, getSetParticipantEraMap } from "@/lib/services/set-service";
 import { getSetMediaGallery, getCoverPhotosForSets, getHeadshotsForPersons } from "@/lib/services/media-service";
 import { getHeroBackdropEnabled } from "@/lib/services/setting-service";
 import { getAllContributionRoleGroups } from "@/lib/services/contribution-role-service";
@@ -51,10 +51,11 @@ export default async function SetDetailPage({ params }: SetDetailPageProps) {
     const participants = set.participants;
 
     const participantIds = participants.map((p) => p.personId);
-    const [galleryItems, coverPhotoMap, headshotMap] = await Promise.all([
+    const [galleryItems, coverPhotoMap, headshotMap, participantEraMap] = await Promise.all([
       getSetMediaGallery(id, setData.coverMediaItemId),
       getCoverPhotosForSets([id]),
       getHeadshotsForPersons(participantIds),
+      getSetParticipantEraMap(id),
     ]);
     const coverPhoto = coverPhotoMap.get(id) ?? null;
 
@@ -147,6 +148,7 @@ export default async function SetDetailPage({ params }: SetDetailPageProps) {
           set={set}
           coverPhoto={coverPhoto}
           headshotMap={headshotMap}
+          participantEraMap={Object.fromEntries(participantEraMap)}
           backdropEnabled={backdropEnabled}
           mediaCount={galleryItems.length}
           archiveStatus={archiveStatus}

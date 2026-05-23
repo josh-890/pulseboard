@@ -332,9 +332,46 @@ export function computePlausibilityIssues(person: PersonData): PlausibilityIssue
     }
   }
 
-  // TODO(E2 follow-up): overlapping-eras — flag when two non-baseline Eras'
-  // member-date ranges intersect. Deferred until Era exposes an explicit range
-  // (derived from members per ADR-0001) rather than just an anchor date.
+  // ── Overlapping eras (ADR-0001) ────────────────────────────────────────
+  // Eras are curated phases — they MAY overlap (the design explicitly allows
+  // it), but overlaps are usually a sign of stale curation worth a manual
+  // tidy-up. Compute each non-baseline Era's member-date range (deltas +
+  // anchor date) and flag any pair whose ranges intersect. Single-date Eras
+  // collapse to point ranges and only "overlap" with another that contains
+  // that exact date.
+  const datedEras = person.eras
+    .filter((e) => e.id && !e.isBaseline)
+    .map((e) => {
+      const dates = (e.scalarDeltas ?? []).map((d) => d.date).filter((d): d is Date => d !== null);
+      if (e.date) dates.push(e.date);
+      if (dates.length === 0) return null;
+      const min = dates.reduce((a, b) => (a < b ? a : b));
+      const max = dates.reduce((a, b) => (a > b ? a : b));
+      return { id: e.id!, min, max };
+    })
+    .filter((e): e is { id: string; min: Date; max: Date } => e !== null);
+  let overlapPairCount = 0;
+  for (let i = 0; i < datedEras.length; i++) {
+    for (let j = i + 1; j < datedEras.length; j++) {
+      const a = datedEras[i];
+      const b = datedEras[j];
+      // [a.min..a.max] ∩ [b.min..b.max] ≠ ∅
+      if (a.min <= b.max && b.min <= a.max) overlapPairCount++;
+    }
+  }
+  if (overlapPairCount > 0) {
+    issues.push({
+      id: "overlapping-eras",
+      severity: "info",
+      category: "timeline",
+      message:
+        overlapPairCount === 1
+          ? "Two eras' date ranges overlap"
+          : `${overlapPairCount} pairs of eras with overlapping date ranges`,
+      fixHint: "Eras may overlap, but check that this is intentional",
+      fixTab: "appearance",
+    });
+  }
 
   return issues;
 }

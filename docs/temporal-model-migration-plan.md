@@ -369,9 +369,9 @@ from/to UI is preserved.
      confidence) and `participation-before-active` (soft, confirmed/probable
      only).
    - Kept `era-before-birth`; grammar fixed.
-   - **Deferred — TODO comment in service:** `overlapping-eras` (needs the
-     explicit Era member-date range model from ADR-0001) and
-     `contribution-era-mismatch` (Phase F).
+   - `contribution-era-mismatch` landed in Phase F (§6.1); `overlapping-eras`
+     landed as Phase-F cleanup on 2026-05-23 — ranges computed inline from
+     each Era's deltas + anchor date.
 3. **[E3 — done 2026-05-23]** Draft-era UX: `findOrCreateEraForDate` sets
    `isDraft: true` on auto-create. `updateEra` clears the flag on any edit.
    `era-timeline-entry.tsx` shows a dashed amber dot + amber "Draft" pill with
@@ -439,11 +439,18 @@ Delivers ADR-0004. Landed in commits and migration `20260523000003_contribution_
 **Nothing breaks:** purely additive; `eraId` is optional and read-side only — a
 contribution is not a delta and does not affect the fold.
 
-**Follow-up TODOs:**
-- Set-detail participant snapshot (handle compilation sets spanning eras).
-- Contribution-edit UI to expose the picker after creation (action already
-  accepts `eraId`).
-- `overlapping-eras` plausibility rule — still deferred from E2.
+**Follow-up TODOs — all closed 2026-05-23:**
+- ~~Set-detail participant snapshot~~ ✅ — `getSetParticipantEraMap` joins
+  through SetSession → SessionContribution and resolves each participant to a
+  single Era when all linked contributions agree, or an "N eras" fallback
+  pill when they don't (compilation sets). Rendered as a small amber line
+  beneath the avatar age in `ParticipantAvatars`.
+- ~~Contribution-edit UI~~ ✅ — Era pill on the session participant row is now
+  a button that opens `EditContributionEraDialog` (commit `4609093`). Picker
+  matches the Add flow; saves via `updateSessionContributionAction`.
+- ~~`overlapping-eras` plausibility rule~~ ✅ — Info-severity rule flags pairs
+  of non-baseline Eras whose member-date ranges intersect. Ranges computed
+  inline from each Era's deltas + anchor date.
 
 ---
 

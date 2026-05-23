@@ -43,6 +43,7 @@ function ParticipantAvatars({
   fallbackDate,
   fallbackPrecision,
   creditedAsMap,
+  eraMap,
 }: {
   participants: Participant[];
   headshotMap: Map<string, HeadshotData>;
@@ -50,6 +51,7 @@ function ParticipantAvatars({
   fallbackDate: Date | null;
   fallbackPrecision: string;
   creditedAsMap: Map<string, string>;
+  eraMap?: Record<string, SetParticipantEraInfo>;
 }) {
   if (participants.length === 0) return null;
 
@@ -74,7 +76,15 @@ function ParticipantAvatars({
           fallbackDate,
           fallbackPrecision,
         );
-        const title = creditedAs ? `${name} (credited as: ${creditedAs})` : name;
+        const eraInfo = eraMap?.[p.personId];
+        const eraSuffix = eraInfo
+          ? eraInfo.eraCount > 1
+            ? ` · across ${eraInfo.eraCount} eras`
+            : eraInfo.eraLabel
+              ? ` · ${eraInfo.isBaseline ? "Baseline" : eraInfo.eraLabel}`
+              : ""
+          : "";
+        const title = (creditedAs ? `${name} (credited as: ${creditedAs})` : name) + eraSuffix;
         return (
           <Link
             key={p.personId}
@@ -110,6 +120,22 @@ function ParticipantAvatars({
                 {age}
               </span>
             )}
+            {eraInfo && eraInfo.eraCount > 0 && (
+              <span
+                className={
+                  eraInfo.eraCount > 1
+                    ? "w-full truncate text-center text-[8px] leading-none text-muted-foreground/50 italic"
+                    : "w-full truncate text-center text-[8px] leading-none text-amber-600/80 dark:text-amber-400/80"
+                }
+                title={eraInfo.eraCount > 1 ? "Multiple eras across this set's sessions" : "Linked Era"}
+              >
+                {eraInfo.eraCount > 1
+                  ? `${eraInfo.eraCount} eras`
+                  : eraInfo.isBaseline
+                    ? "Baseline"
+                    : eraInfo.eraLabel}
+              </span>
+            )}
           </Link>
         );
       })}
@@ -124,10 +150,20 @@ function ParticipantAvatars({
   );
 }
 
+// ADR-0004: per-Set participant Era resolution. Single-era set → label + a
+// "baseline" flag for styling; compilation set with multiple eras → eraCount > 1
+// and label === null. Built by `getSetParticipantEraMap` on the server.
+type SetParticipantEraInfo = {
+  eraLabel: string | null;
+  isBaseline: boolean;
+  eraCount: number;
+};
+
 type SetHeroProps = {
   set: SetData;
   coverPhoto: CoverPhotoData | null;
   headshotMap: Map<string, HeadshotData>;
+  participantEraMap?: Record<string, SetParticipantEraInfo>;
   backdropEnabled: boolean;
   mediaCount: number;
   archiveStatus?: ArchiveStatus | "UNKNOWN";
@@ -139,6 +175,7 @@ export function SetHero({
   set,
   coverPhoto,
   headshotMap,
+  participantEraMap,
   backdropEnabled,
   mediaCount,
   archiveStatus,
@@ -233,6 +270,7 @@ export function SetHero({
           fallbackDate={set.releaseDate}
           fallbackPrecision={set.releaseDatePrecision}
           creditedAsMap={creditedAsMap}
+          eraMap={participantEraMap}
         />
         {participantCount === 0 && (
           <p className="text-xs text-muted-foreground/50 italic">No participants</p>

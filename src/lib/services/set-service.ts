@@ -255,6 +255,77 @@ export async function getSetsPaginated(
   return { items, nextCursor, totalCount };
 }
 
+/**
+ * Resolve each Set participant's linked Era (ADR-0004) by joining through
+ * SetSession → SessionContribution. A SetParticipant is a derived cache and
+ * intentionally has no eraId of its own — the source of truth is the
+ * SessionContribution.
+ *
+ * Returns a Map keyed by personId:
+ *  - eraLabel        : the era label IF the person has a single distinct
+ *                      non-null eraId across every linked-session contribution
+ *  - isBaseline      : true if that single era is the baseline
+ *  - eraCount        : number of distinct non-null eras across the linked
+ *                      sessions (0 = none, 1 = consistent, >1 = compilation
+ *                      ambiguity — no snapshot shown)
+ */
+export type SetParticipantEraInfo = {
+  eraLabel: string | null;
+  isBaseline: boolean;
+  eraCount: number;
+};
+
+export async function getSetParticipantEraMap(
+  setId: string,
+): Promise<Map<string, SetParticipantEraInfo>> {
+  // Resolve via linked sessions in two hops; keeping the include tree shallow
+  // to stay well under Prisma's recursive-type budget (cf. Phase F).
+  const sessionLinks = await prisma.setSession.findMany({
+    where: { setId },
+    select: { sessionId: true },
+  });
+  const sessionIds = sessionLinks.map((l) => l.sessionId);
+  if (sessionIds.length === 0) return new Map();
+
+  const contributions = await prisma.sessionContribution.findMany({
+    where: { sessionId: { in: sessionIds }, eraId: { not: null } },
+    select: {
+      personId: true,
+      era: { select: { id: true, label: true, isBaseline: true } },
+    },
+  });
+
+  // Group distinct eras per person.
+  type Bucket = { eras: Map<string, { label: string; isBaseline: boolean }> };
+  const byPerson = new Map<string, Bucket>();
+  for (const c of contributions) {
+    if (!c.era) continue;
+    const bucket = byPerson.get(c.personId) ?? { eras: new Map() };
+    bucket.eras.set(c.era.id, { label: c.era.label, isBaseline: c.era.isBaseline });
+    byPerson.set(c.personId, bucket);
+  }
+
+  const result = new Map<string, SetParticipantEraInfo>();
+  for (const [personId, bucket] of byPerson) {
+    const distinctCount = bucket.eras.size;
+    if (distinctCount === 1) {
+      const only = bucket.eras.values().next().value!;
+      result.set(personId, {
+        eraLabel: only.label,
+        isBaseline: only.isBaseline,
+        eraCount: 1,
+      });
+    } else {
+      result.set(personId, {
+        eraLabel: null,
+        isBaseline: false,
+        eraCount: distinctCount,
+      });
+    }
+  }
+  return result;
+}
+
 export async function getSetById(id: string) {
   return prisma.set.findUnique({
     where: { id },
