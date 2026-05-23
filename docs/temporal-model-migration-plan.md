@@ -384,11 +384,21 @@ from/to UI is preserved.
 5. **[E5 — N/A]** Delete dead `computePersonCurrentState`. No such symbol
    remains — the only current-state entrypoints are
    `recomputePersonCurrentState` (in-tx) and `recomputePersonCurrentStateStandalone`.
-6. **[E6]** Physical table rename `Persona`→`Era`: `ALTER TABLE "Persona"
-   RENAME TO "Era"`, rename the `personaId` columns to `eraId`, drop the
-   `@@map`/`@map`. Recreate any view/FK referencing the old names.
-7. **[E7]** Rewrite `docs/data-model.md` (currently badly stale) and update
-   `docs/architecture.md` + `docs/user-guide.md`.
+6. **[E6 — done 2026-05-23]** Physical table rename `Persona`→`Era`: migration
+   `20260523000002_rename_persona_to_era` renames the table, all 9 `personaId`
+   columns + their FK constraints + indexes, recreates `v_person_body_events`,
+   and rebuilds `app_recompute_person_current_state` against the new names.
+   schema.prisma drops `@@map("Persona")` + the 9 `@map("personaId")`
+   annotations. e2e cleanup-test-data + person-search-service raw SQL updated.
+   80/80 e2e pass on dev.
+7. **[E7 — done 2026-05-23]** `docs/data-model.md` rewritten as a concept
+   reference deferring to `schema.prisma` for field-level truth.
+   `docs/architecture.md` updated: ERD swap to Era/ScalarDelta/PersonCurrentState,
+   service inventory swap (`persona-service` → `era-service` +
+   `current-state-service`), MV section notes the cache-table replacement.
+   `docs/user-guide.md` swap user-facing "persona timeline" / "persona dates"
+   to "era timeline" / "era dates"; History panel description mentions the
+   draft pill.
 
 ---
 

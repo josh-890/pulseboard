@@ -98,7 +98,8 @@ All services in `src/lib/services/`. All functions are async, return Promises. S
 **`skill-service.ts`** — PersonSkill/SkillEvent CRUD, timeline, event media
 **`skill-catalog-service.ts`** — SkillGroup/SkillDefinition catalog CRUD
 **`physical-attribute-catalog-service.ts`** — PhysicalAttributeGroup/PhysicalAttributeDefinition catalog CRUD
-**`persona-service.ts`** — Persona CRUD, physical changes, body mark/modification/procedure events
+**`era-service.ts`** — Era CRUD, `findOrCreateEraForDate` (auto-creates drafts), batch create with deltas + body mark/modification/procedure events
+**`current-state-service.ts`** — `recomputePersonCurrentState(tx, personId)` (in-tx, the canonical fold trigger) + standalone variant + `rebuildAllCurrentState` + `verifyCurrentStateIntegrity`
 **`category-service.ts`** — MediaCategoryGroup/MediaCategory CRUD, person category population counts
 **`collection-service.ts`** — MediaCollection CRUD, item management
 **`tag-service.ts`** — TagGroup/TagDefinition registry CRUD, search, merge, usage counts
@@ -151,7 +152,7 @@ All import services in `src/lib/services/import/`.
 
 ### Infrastructure Services
 
-**`view-service.ts`** — Materialized view refresh (`mv_dashboard_stats`, `mv_person_current_state`, `mv_person_affiliations`)
+**`view-service.ts`** — Materialized view refresh (`mv_dashboard_stats`, `mv_person_affiliations`). `PersonCurrentState` is a cache *table*, not an MV — see `current-state-service.ts` for in-tx recomputation
 **`stats-service.ts`** — Dashboard KPI counts from `mv_dashboard_stats`
 **`activity-service.ts`** — Activity feed queries
 **`setting-service.ts`** — App settings (profile image labels, skill level configs)
@@ -237,7 +238,7 @@ components/
 ├── dashboard/        # KpiGrid, KpiCard, ActivityFeed, QuickActions
 ├── gallery/          # GalleryLightbox, GalleryInfoPanel, GalleryFilmstrip, JustifiedGrid, CarouselHeader
 ├── media/            # MediaManager, MediaGrid, BatchUploadZone, DuplicateReviewDialog
-├── people/           # 35+ files: list/detail/add/edit, body features, aliases, personas, skills, career
+├── people/           # 35+ files: list/detail/add/edit, body features, aliases, eras, skills, career
 ├── sets/             # 15+ files: list/detail, credits, sessions, evidence, media picker
 ├── sessions/         # 15+ files: list/detail, contributions, merge, status
 ├── projects/         # ProjectList, ProjectCard, add/edit sheets
@@ -344,15 +345,17 @@ Browser pages (`/people`, `/sets`) support a `groupBy` URL param. When active:
 
 ```
 Person ──┬── PersonAlias[] ──── PersonAliasChannel[] ──── Channel
-         ├── Persona[] ──┬── PersonaPhysical?
-         │               ├── BodyMarkEvent[] ──── BodyMark
-         │               ├── BodyModificationEvent[] ──── BodyModification
-         │               ├── CosmeticProcedureEvent[] ──── CosmeticProcedure ──?── PhysicalAttributeDefinition
-         │               ├── PersonDigitalIdentity[]
-         │               └── PersonSkillEvent[] ──── PersonSkill ──── SkillDefinition ──── SkillGroup
+         ├── Era[] ──┬── ScalarDelta[] ──── PhysicalAttributeDefinition ──── PhysicalAttributeGroup
+         │           ├── BodyMarkEvent[] ──── BodyMark
+         │           ├── BodyModificationEvent[] ──── BodyModification
+         │           ├── CosmeticProcedureEvent[] ──── CosmeticProcedure ──?── PhysicalAttributeDefinition
+         │           ├── DigitalIdentityEvent[] ──── PersonDigitalIdentity
+         │           ├── InterestEvent[] ──── PersonInterest
+         │           └── PersonSkillEvent[] ──── PersonSkill ──── SkillDefinition ──── SkillGroup
+         ├── PersonCurrentState (1:1, cache for the fold output)
          ├── PersonMediaLink[] ──── MediaItem ──── Session
          ├── PersonRelationship[] ──── RelationshipEvent[]
-         ├── PersonEducation[], PersonAward[], PersonInterest[]
+         ├── PersonEducation[], PersonAward[]
          ├── SessionContribution[] ──┬── ContributionSkill[] ──── SkillDefinition
          │                           └── ContributionRoleDefinition ──── ContributionRoleGroup
          └── referenceSession (Session, 1:1 unique)
@@ -395,12 +398,13 @@ MediaItem ──┬── PersonMediaLink[] (usage: PROFILE/HEADSHOT/DETAIL/PORT
 - **ImportItem**: `type` (PERSON/PERSON_ALIAS/DIGITAL_IDENTITY/CHANNEL/LABEL/SET/CO_MODEL/CREDIT), `status` (NEW/MATCHED/PROBABLE/BLOCKED/IMPORTED/SKIPPED/FAILED), `data` (JSON), `editedData` (JSON), `dependsOn` (String[]), `matchedEntityId`, `matchConfidence`
 - **Person**: `icgId` (unique, mandatory), `status` (active/inactive/wishlist/archived), `rating`, `pgrade`
 - **PersonAlias**: `type` (common/birth/alias), `nameNorm` for search. One `common` alias = display name
-- **Persona**: `isBaseline` (one per person, auto-created), `date` + `datePrecision`
+- **Era**: `isBaseline` (one per person, **dateless** — see ADR-0001), `isDraft` (auto-created via `findOrCreateEraForDate`; cleared by `updateEra` on any edit), `date` + `datePrecision` + `dateModifier` for non-baseline
+- **ScalarDelta**: one row per attribute change, filed into an Era; has `attributeDefinitionId` + `value` + own `date`/`datePrecision`/`dateModifier`. Folded into `PersonCurrentState` via `app_recompute_person_current_state` SQL function (mirrors TS `foldScalarDeltas`)
+- **PersonCurrentState**: cache table holding folded physical state per person (1:1). Recomputed in-tx with every fold-input mutation via `recomputePersonCurrentState(tx, personId)`. Unique index on `personId`
 - **Session**: `type` (REFERENCE/PRODUCTION), `status` (DRAFT/CONFIRMED), `personId` (unique FK for REFERENCE type)
 - **MediaItem**: `variants` (JSON — profile/gallery sizes), `focalX`/`focalY` (0-1 normalized), `hash` (SHA256), `phash` (dHash)
 - **PersonMediaLink**: `usage` enum, `slot` (for HEADSHOT), `categoryId` (for DETAIL), entity FKs (`bodyMarkId`, etc.)
-- **PhysicalAttributeGroup/Definition**: Admin catalog for extensible physical measurements (mirrors SkillGroup/SkillDefinition pattern)
-- **PersonaPhysicalAttribute**: Key-value measurements per PersonaPhysical (unique on physicalId + definitionId)
+- **PhysicalAttributeGroup/Definition**: Admin catalog for typed scalar attributes — every ScalarDelta points at one definition. Mirrors SkillGroup/SkillDefinition pattern
 - **CosmeticProcedure**: Optional `attributeDefinitionId` FK to PhysicalAttributeDefinition — links procedure to the physical attribute it affects. Enables derived `AttributeStatus` (NATURAL/ENHANCED/RESTORED) on extensible attributes
 - **CosmeticProcedureEvent**: `valueBefore`/`valueAfter`/`unit` — observation fields for before/after values of a procedure
 
@@ -409,8 +413,12 @@ MediaItem ──┬── PersonMediaLink[] (usage: PROFILE/HEADSHOT/DETAIL/PORT
 | View | Purpose | Refresh |
 |------|---------|---------|
 | `mv_dashboard_stats` | KPI counts | After bulk ops, startup |
-| `mv_person_current_state` | Folded physical state per person | After persona mutations |
 | `mv_person_affiliations` | Person→label set counts | After set/contribution changes |
+
+`mv_person_current_state` was **replaced** by the `PersonCurrentState` cache
+**table** (Phase B / ADR-0003). The cache is recomputed in-transaction with
+every fold-input mutation via `recomputePersonCurrentState(tx, personId)` —
+no MV refresh needed.
 
 ### Normalized Search
 
@@ -450,7 +458,7 @@ AddPersonSheet (form submit)
   → createPerson(raw) server action
   → createPersonSchema.safeParse(raw)
   → createPersonRecord(data) service
-  → Creates Person + common alias + baseline Persona + Reference Session
+  → Creates Person + common alias + baseline Era (dateless) + Reference Session
   → revalidatePath("/people")
   → Returns { success: true, id }
   → Client navigates to /people/[id]
@@ -549,4 +557,4 @@ External scan script visits a folder on a different drive than before:
 - `date.ts` — `DATE_MODIFIER_OPTIONS`, `DATE_MODIFIER_SYMBOLS` (EXACT→"", APPROXIMATE→"~", ESTIMATED→"est.", BEFORE→"before", AFTER→"after")
 
 ### `lib/validations/`
-- Zod schemas for all CRUD inputs: person, set, session, project, label, network, channel, media, persona, body-mark, body-modification, cosmetic-procedure, education, interest
+- Zod schemas for all CRUD inputs: person, set, session, project, label, network, channel, media, era, body-mark, body-modification, cosmetic-procedure, education, interest

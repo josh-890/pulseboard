@@ -1,352 +1,196 @@
 # Pulseboard — Data Model Reference
 
-## Overview
+> **`prisma/schema.prisma` is the source of truth.** This document explains the
+> *concepts* and the cross-model relationships that aren't obvious from the
+> schema alone. Field-level details (types, defaults, `@map`, `@@index`) live
+> in the schema — read it directly.
 
-Pulseboard tracks people in art production — their profiles, work history, inter-personal connections, and the organizations/sets they're associated with.
+## What Pulseboard tracks
+
+Pulseboard is a personal information management tool for tracking people in
+art/creative production. The model is built around two axes:
+
+- **Identity & relationships** — Who someone is, what names they go by, who
+  they work with, what organizations and projects they belong to.
+- **Development over time** — Physical attributes, skills, identities, and
+  career markers all change. The model captures *deltas* and *events*
+  (Phase A–D of the temporal redesign — see `docs/adr/0001`–`0004`).
+
+---
+
+## Domain glossary
+
+The canonical glossary lives in `CONTEXT.md` (project-root). The entries most
+relevant to the data model:
+
+- **Person** — The thing being tracked. Has aliases, an ICG id, demographic
+  fields, and `activeFrom`/`retiredAt` career markers. *Never* `firstName` /
+  `lastName` — display name comes from the `isCommon` alias.
+- **PersonAlias** — Names. Exactly one `isCommon` (display name) per person.
+  At most one `isBirth`. Flags are independent.
+- **Era** — A *curated phase* of a person's life. Ordered list of Eras per
+  person; one is `isBaseline` (dateless, "time zero"); others have a
+  `date`/`datePrecision`. Auto-created eras start with `isDraft: true` until
+  a user curates them. *Eras are folders, not date ranges* — see ADR-0001.
+- **ScalarDelta** — One typed scalar change to a Person attribute, filed into
+  an Era. Carries its own date. Replaces the legacy `PersonaPhysical` table.
+- **Event** — A dated, typed log entry on a status-bearing entity
+  (`BodyMarkEvent`, `BodyModificationEvent`, `CosmeticProcedureEvent`,
+  `DigitalIdentityEvent`, `InterestEvent`, `PersonSkillEvent`,
+  `RelationshipEvent`, `BodyMarkEvent`). The entity's `status` column is a
+  *projection* of its event log — re-derived in the same tx as every event
+  mutation (ADR-0002). Events are linked to the Era that hosts them.
+- **Fold** — The pure reduction `(eras + deltas + events) → current state`.
+  Canonical sort order pinned in ADR-0001 § fold sort order. Lives in both
+  TS (`foldScalarDeltas`) and SQL (`app_recompute_person_current_state`) —
+  same outcome, opposite literal sort direction.
+- **PersonCurrentState** — Cache table holding the folded current physical
+  state. Recomputed in-transaction with every fold-input mutation
+  (ADR-0003). Replaces the old `mv_person_current_state` materialized view.
+
+---
+
+## Production layer
+
+The work-recording layer connecting people to released material:
 
 ```
-Network ──< LabelNetwork >── Label ──< Channel
-                              |
-                         ProjectLabel
-                              |
-                           Project
-                              |
-                           Session
-                              |
-                            Set ──< SetContribution >── Person
-                                                             |
-                                                          Alias
-                                                         Persona
-                                                    PersonRelationship
+Network ──< LabelNetwork >── Label
+                              │
+                          Channel ──< ChannelLabelMap (evidence) >── Label
+                              │
+                            Set ──< SetMediaItem >── MediaItem
+                              │           │
+                              │      ┌────┴── Session (PRODUCTION)
+                              │      │
+                       SetParticipant     SessionContribution
+                              │              │
+                            Person ─────────┘
 ```
 
----
-
-## Enums
-
-| Enum | Values |
-|---|---|
-| `PersonStatus` | `active`, `inactive`, `wishlist`, `archived` |
-| `ContributionRole` | `main`, `supporting`, `background` |
-| `SetType` | `photo`, `video` |
-| `RelationshipSource` | `derived`, `manual` |
-| `ProjectStatus` | `active`, `paused`, `completed` |
-| `ActivityType` | `person_added`, `set_added`, `project_added`, `label_added`, `note` |
-| `EntityType` | `person`, `set` |
-| `DatePrecision` | `UNKNOWN`, `YEAR`, `MONTH`, `DAY` |
-| `DateModifier` | `EXACT`, `APPROXIMATE`, `ESTIMATED`, `BEFORE`, `AFTER` |
+- **Session** (`SessionType`: REFERENCE / PRODUCTION; `SessionStatus`: DRAFT /
+  CONFIRMED). REFERENCE sessions are auto-created per person via the
+  `personId @unique` field — never manually created/edited/deleted/merged.
+- **Set** has no `sessionId` — connected via the `SetMediaItem` bridge plus
+  optional `SetSession` links (compilation sets span multiple sources).
+- **SetCreditRaw** — Raw credits from imports awaiting resolution
+  (`UNRESOLVED` / `RESOLVED` / `IGNORED`).
+- **SessionContribution** + **SetParticipant** both carry
+  `confidence ParticipationConfidence` (CONFIRMED / PROBABLE / POSSIBLE) and
+  `confidenceSource ConfidenceSource` (MANUAL / CREDIT_MATCH / IMPORT).
+  Resolving a credit promotes confidence to CONFIRMED + CREDIT_MATCH.
+  SetParticipant mirrors the highest confidence of its linked contributions.
 
 ---
 
-## Models
+## Identity layer
 
-### `Person`
-The central entity. Rich profile combining personal, physical, demographic, career, and assessment data.
+```
+Person ──┬── PersonAlias ──< PersonAliasChannel >── Channel
+         ├── PersonRelationship (× 2 sides) ──< RelationshipEvent
+         ├── Era[]  (one isBaseline, others curated/draft)
+         ├── PersonDigitalIdentity ──< DigitalIdentityEvent (Era)
+         ├── PersonSkill ──< PersonSkillEvent (Era) ──< SkillEventMedia >── MediaItem
+         ├── PersonInterest ──< InterestEvent (Era)
+         ├── PersonEducation, PersonAward
+         ├── PersonResearch, PersonTag
+         ├── BodyMark ──< BodyMarkEvent (Era)
+         ├── BodyModification ──< BodyModificationEvent (Era)
+         ├── CosmeticProcedure ──< CosmeticProcedureEvent (Era)
+         └── PersonCurrentState  (cache row, 1:1)
+```
 
-| Field | Type | Notes |
-|---|---|---|
-| `id` | `String` | cuid |
-| `firstName` | `String` | |
-| `lastName` | `String` | |
-| `birthdate` | `DateTime?` | |
-| `nationality` | `String?` | |
-| `ethnicity` | `String?` | |
-| `location` | `String?` | City / country |
-| `height` | `Int?` | cm |
-| `hairColor` | `String?` | |
-| `eyeColor` | `String?` | |
-| `bodyType` | `String?` | Free-form tag |
-| `measurements` | `String?` | |
-| `activeSince` | `Int?` | Year |
-| `specialization` | `String?` | |
-| `status` | `PersonStatus` | default: `active` |
-| `rating` | `Int?` | 1–5 |
-| `notes` | `String?` | Personal assessment notes |
-| `tags` | `String[]` | User-defined labels |
-| `createdAt` | `DateTime` | |
-| `deletedAt` | `DateTime?` | Soft delete |
-
-Relations: `aliases[]`, `personas[]`, `contributions[]`, `relationships[]`, `relatedTo[]`
+`Era` is the per-person *timeline spine*: every event log row references one
+(`eraId`). The fold walks all deltas/events for a person, sorted by their own
+date, with the Era providing only its anchor date as fallback.
 
 ---
 
-### `PersonAlias`
-Flat list of known names for a person — used for text search.
+## Media layer
 
-| Field | Type | Notes |
-|---|---|---|
-| `id` | `String` | cuid |
-| `personId` | `String` | FK → Person |
-| `name` | `String` | The alias/stage name |
-| `isPrimary` | `Boolean` | One alias is the display name |
-| `deletedAt` | `DateTime?` | |
+```
+MediaItem ──< PersonMediaLink >── Person     (usage / category / slot)
+   │     ──< SetMediaItem      >── Set
+   │     ──< MediaCollectionItem >── MediaCollection (user album)
+   │     ──< MediaItemTag        >── Tag
+   │     ──< SkillEventMedia     >── PersonSkillEvent
+```
 
-Indexes: `(personId)`, `(name)`
-
----
-
-### `Persona`
-An independent working identity with description. Not bound to a label.
-
-| Field | Type | Notes |
-|---|---|---|
-| `id` | `String` | cuid |
-| `personId` | `String` | FK → Person |
-| `name` | `String` | Persona/stage name |
-| `description` | `String?` | |
-| `notes` | `String?` | |
-| `isBaseline` | `Boolean` | "Real" identity |
-| `createdAt` | `DateTime` | |
-| `deletedAt` | `DateTime?` | |
+- `PersonMediaUsage`: PROFILE / HEADSHOT / DETAIL / PORTFOLIO. DETAIL media
+  links via `categoryId` to a `MediaCategory` (admin-configurable; categories
+  with `entityModel` drive body-mark / body-mod / procedure linking).
+- Cover photo is `Set.coverMediaItemId` (nullable).
 
 ---
 
-### `PersonRelationship`
-Tracks connections between persons — derived from shared sets or manually labelled.
+## Catalog & reference data
 
-| Field | Type | Notes |
-|---|---|---|
-| `id` | `String` | cuid |
-| `personAId` | `String` | FK → Person |
-| `personBId` | `String` | FK → Person |
-| `source` | `RelationshipSource` | `derived` or `manual` |
-| `label` | `String?` | e.g. "frequent collaborators" |
-| `sharedSetCount` | `Int` | Auto-calculated |
-| `deletedAt` | `DateTime?` | |
-
-Unique constraint: `(personAId, personBId)`
+- **PhysicalAttributeGroup** / **PhysicalAttributeDefinition** — typed catalog
+  of scalar attributes. `ScalarDelta.attributeDefinitionId` points here.
+  Definitions are seeded; users can add more.
+- **MediaCategoryGroup** / **MediaCategory** — admin-configurable in Settings.
+- **color_catalog** — hair/eye/skin lookup tables for normalized search;
+  `lookup_hair_hue()`, `lookup_eye_shade()`, etc. SQL helpers.
+- **SkillGroup** / **SkillDefinition** — typed skill catalog.
 
 ---
 
-### `Network`
-Groups of linked Labels.
+## Views & SQL functions
 
-| Field | Type | Notes |
-|---|---|---|
-| `id` | `String` | cuid |
-| `name` | `String` | |
-| `description` | `String?` | |
-| `website` | `String?` | |
-| `deletedAt` | `DateTime?` | |
-
-Relations: `labelMemberships[]` (via `LabelNetwork`)
-
----
-
-### `Label`
-A producing organization. Can own channels and co-own projects.
-
-| Field | Type | Notes |
-|---|---|---|
-| `id` | `String` | cuid |
-| `name` | `String` | |
-| `description` | `String?` | |
-| `website` | `String?` | |
-| `deletedAt` | `DateTime?` | |
-
-Relations: `networks[]` (via `LabelNetwork`), `channels[]`, `projects[]` (via `ProjectLabel`)
+| Object | Type | What it does | Refresh trigger |
+|---|---|---|---|
+| `v_person_list` | view | List page rows: commonAlias, birthAlias, currentAge, careerStartAge, activeBodyMarkCount, setCount | live |
+| `v_person_work_history` | view | Person × Set joins with ageAtRelease | live |
+| `v_person_body_events` | view | UNION of body mark / modification / procedure events with ageAtEvent | live |
+| `mv_dashboard_stats` | mv | Entity counts | `refreshDashboardStats()` on bulk ops |
+| `mv_person_affiliations` | mv | Person → label set counts | `refreshPersonAffiliations()` |
+| `PersonCurrentState` | table (cache) | Folded current physical state per person | `app_recompute_person_current_state(p_id?)` in every fold-input tx |
+| `compute_age_at(birth, prec, evt, prec)` | function | Returns text with `~` prefix for imprecise ages | — |
+| `app_recompute_person_current_state(p_id?)` | function | Canonical SQL fold (mirrors `foldScalarDeltas` TS) | called by services |
 
 ---
 
-### `LabelNetwork` (join)
-| Field | Type |
-|---|---|
-| `labelId` | FK → Label |
-| `networkId` | FK → Network |
+## Temporal uncertainty
 
-Composite PK: `(labelId, networkId)`
+Every date field carries a precision and (where applicable) a modifier:
 
----
+- **DatePrecision**: `UNKNOWN` / `YEAR` / `MONTH` / `DAY`. Convention:
+  `UNKNOWN` → date is null; `YEAR` → `YYYY-01-01`; `MONTH` → `YYYY-MM-01`;
+  `DAY` → exact date.
+- **DateModifier**: `EXACT` / `APPROXIMATE` / `ESTIMATED` / `BEFORE` /
+  `AFTER`. Display via `getModifierSymbol()` → `""`, `"~"`, `"est."`,
+  `"before "`, `"after "`.
 
-### `Channel`
-A subscription/content platform belonging to a Label.
+Fields with both: `birthdate`, `activeFrom`, `retiredAt`, `Era.date`,
+`ScalarDelta.date`, `BodyMarkEvent.date`, `BodyModificationEvent.date`,
+`CosmeticProcedureEvent.date`, `DigitalIdentityEvent.date`,
+`InterestEvent.date`, `PersonSkillEvent.date`, `Session.date`,
+`Set.releaseDate`, `PersonAward.date`, `RelationshipEvent.date`,
+`PersonEducation.startDate`/`endDate`.
 
-| Field | Type | Notes |
-|---|---|---|
-| `id` | `String` | cuid |
-| `labelId` | `String` | FK → Label |
-| `name` | `String` | |
-| `url` | `String?` | |
-| `platform` | `String?` | e.g. "OnlyFans", "website" |
-| `deletedAt` | `DateTime?` | |
-
-Relations: `sets[]`
+Plausibility rules (soft, never block saves) live in
+`src/lib/services/plausibility-service.ts`. Surfaced on the Overview "Data
+Quality" card.
 
 ---
 
-### `Project`
-An art production project. Can be co-owned by multiple Labels.
+## Delete model
 
-| Field | Type | Notes |
-|---|---|---|
-| `id` | `String` | cuid |
-| `name` | `String` | |
-| `description` | `String?` | |
-| `status` | `ProjectStatus` | default: `active` |
-| `tags` | `String[]` | |
-| `createdAt` | `DateTime` | |
-| `updatedAt` | `DateTime` | auto |
-| `deletedAt` | `DateTime?` | |
-
-Relations: `labels[]` (via `ProjectLabel`), `sessions[]`
+**Hard-delete only.** No `deletedAt` columns anywhere. Cascade helpers in
+`src/lib/services/cascade-helpers.ts` orchestrate the FK chains in a single
+`$transaction` (e.g. `cascadeDeleteSet`, `cascadeDeleteSession`,
+`cascadeDeleteEra`, `cascadeDeletePersonSkills`). Every cascade helper takes a
+`TxClient` and is composable.
 
 ---
 
-### `ProjectLabel` (join)
-| Field | Type |
-|---|---|
-| `projectId` | FK → Project |
-| `labelId` | FK → Label |
+## Where to look next
 
-Composite PK: `(projectId, labelId)`
-
----
-
-### `Session`
-A single shoot/recording session within a project.
-
-| Field | Type | Notes |
-|---|---|---|
-| `id` | `String` | cuid |
-| `projectId` | `String` | FK → Project |
-| `name` | `String` | |
-| `description` | `String?` | |
-| `date` | `DateTime?` | When the session took place |
-| `createdAt` | `DateTime` | |
-| `deletedAt` | `DateTime?` | |
-
-Relations: `sets[]`
-
----
-
-### `Set`
-The publishable output of a session (photoset or videoset).
-
-| Field | Type | Notes |
-|---|---|---|
-| `id` | `String` | cuid |
-| `sessionId` | `String` | FK → Session |
-| `channelId` | `String?` | FK → Channel (where published) |
-| `type` | `SetType` | `photo` or `video` |
-| `title` | `String` | |
-| `description` | `String?` | |
-| `notes` | `String?` | Trivia, behind-the-scenes |
-| `releaseDate` | `DateTime?` | |
-| `category` | `String?` | |
-| `genre` | `String?` | |
-| `tags` | `String[]` | |
-| `createdAt` | `DateTime` | |
-| `deletedAt` | `DateTime?` | |
-
-Relations: `contributions[]` (via `SetContribution`), photos via `Photo(entityType=set, entityId=set.id)`
-
----
-
-### `SetContribution`
-Person's involvement in a Set with their role.
-
-| Field | Type | Notes |
-|---|---|---|
-| `id` | `String` | cuid |
-| `setId` | `String` | FK → Set |
-| `personId` | `String` | FK → Person |
-| `role` | `ContributionRole` | `main`, `supporting`, `background` |
-| `deletedAt` | `DateTime?` | |
-
-Unique: `(setId, personId)`
-
----
-
-### `Photo`
-Polymorphic photo model. `entityType` + `entityId` together identify the owning entity.
-
-| Field | Type | Notes |
-|---|---|---|
-| `id` | `String` | cuid |
-| `entityType` | `EntityType` | `person` or `set` |
-| `entityId` | `String` | ID of the owning entity |
-| `filename` | `String` | |
-| `mimeType` | `String` | |
-| `size` | `Int` | bytes |
-| `originalWidth` | `Int` | |
-| `originalHeight` | `Int` | |
-| `variants` | `Json` | Resized versions (thumb, medium, large) |
-| `tags` | `String[]` | Person-tagging, GIN indexed |
-| `linkedEntityType` | `String?` | Optional secondary link |
-| `linkedEntityId` | `String?` | Optional secondary link |
-| `caption` | `String?` | |
-| `isFavorite` | `Boolean` | Profile image selection |
-| `sortOrder` | `Int` | Display order |
-| `createdAt` | `DateTime` | |
-| `deletedAt` | `DateTime?` | |
-
----
-
-### `Setting`
-Key/value store for app configuration.
-
-| Field | Type |
-|---|---|
-| `key` | `String` (PK) |
-| `value` | `String` |
-| `updatedAt` | `DateTime` |
-
----
-
-### `Activity`
-Dashboard feed entries.
-
-| Field | Type | Notes |
-|---|---|---|
-| `id` | `String` | cuid |
-| `title` | `String` | Human-readable description |
-| `time` | `DateTime` | When the event occurred |
-| `type` | `ActivityType` | |
-| `createdAt` | `DateTime` | |
-| `deletedAt` | `DateTime?` | |
-
----
-
-## Temporal Uncertainty
-
-### Date Modifiers
-
-The `DateModifier` enum expresses confidence in a date value:
-
-| Modifier | Display Prefix | Meaning |
-|----------|---------------|---------|
-| `EXACT` | *(none)* | The date is known precisely |
-| `APPROXIMATE` | `~` | Close to the actual date but not confirmed |
-| `ESTIMATED` | `est.` | Derived from indirect evidence |
-| `BEFORE` | `before` | The actual date is on or before this value |
-| `AFTER` | `after` | The actual date is on or after this value |
-
-### Date Fields with Modifier + Source
-
-Several models carry `modifier` (DateModifier, default EXACT) and `source` (String?, free-text provenance note) alongside their date and precision fields:
-
-| Model | Date Field | Precision Field | Modifier Field | Source Field |
-|-------|-----------|----------------|----------------|--------------|
-| `Person` | `birthdate` | `birthdatePrecision` | `birthdateModifier` | `birthdateSource` |
-| `Person` | `activeFrom` | `activeFromPrecision` | `activeFromModifier` | `activeFromSource` |
-| `Person` | `retiredAt` | `retiredAtPrecision` | `retiredAtModifier` | `retiredAtSource` |
-| `Persona` | `date` | `datePrecision` | `dateModifier` | `dateSource` |
-| `Session` | `date` | `datePrecision` | `dateModifier` | `dateSource` |
-| `Set` | `releaseDate` | `releaseDatePrecision` | `releaseDateModifier` | `releaseDateSource` |
-
-### Career Field Changes
-
-The old integer-year career fields have been replaced with full temporal fields:
-
-| Old Field | New Fields |
-|-----------|-----------|
-| `activeSince Int?` (year only) | `activeFrom DateTime?` + `activeFromPrecision` + `activeFromModifier` + `activeFromSource` |
-| `retiredIn Int?` (year only) | `retiredAt DateTime?` + `retiredAtPrecision` + `retiredAtModifier` + `retiredAtSource` |
-
-This allows career dates to carry the same day/month/year precision, modifier, and source tracking as all other temporal fields.
-
----
-
-## Soft Delete
-
-All models except `Setting` and join tables (`LabelNetwork`, `ProjectLabel`) have a `deletedAt` field. The Prisma soft-delete extension automatically filters `deletedAt: null` on all read operations.
+- `prisma/schema.prisma` — every field, type, default, index, FK.
+- `CONTEXT.md` — domain glossary.
+- `docs/adr/0001`–`0004` — design decisions for Era/Delta/Event/Fold/Cache
+  and Era-linked participation.
+- `docs/temporal-model-migration-plan.md` — phases A–F, history of the
+  redesign.
+- `docs/architecture.md` — system map (routes, services, actions, data
+  flows, invariants).

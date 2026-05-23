@@ -154,19 +154,19 @@ async function cleanupTestData() {
       for (const id of ids) {
         // Get era IDs for cascading
         const eraIds = await tx.$queryRaw<{ id: string }[]>`
-          SELECT id FROM "Persona" WHERE "personId" = ${id}`;
+          SELECT id FROM "Era" WHERE "personId" = ${id}`;
         const pIds = eraIds.map((p) => p.id);
 
         if (pIds.length > 0) {
           for (const pId of pIds) {
-            await tx.$executeRaw`DELETE FROM "BodyMarkEvent" WHERE "personaId" = ${pId}`;
-            await tx.$executeRaw`DELETE FROM "BodyModificationEvent" WHERE "personaId" = ${pId}`;
-            await tx.$executeRaw`DELETE FROM "CosmeticProcedureEvent" WHERE "personaId" = ${pId}`;
+            await tx.$executeRaw`DELETE FROM "BodyMarkEvent" WHERE "eraId" = ${pId}`;
+            await tx.$executeRaw`DELETE FROM "BodyModificationEvent" WHERE "eraId" = ${pId}`;
+            await tx.$executeRaw`DELETE FROM "CosmeticProcedureEvent" WHERE "eraId" = ${pId}`;
             await tx.$executeRaw`DELETE FROM "ScalarDelta" WHERE "eraId" = ${pId}`;
-            await tx.$executeRaw`DELETE FROM "PersonDigitalIdentity" WHERE "personaId" = ${pId}`;
-            await tx.$executeRaw`DELETE FROM "PersonSkillEvent" WHERE "personaId" = ${pId}`;
+            await tx.$executeRaw`DELETE FROM "PersonDigitalIdentity" WHERE "eraId" = ${pId}`;
+            await tx.$executeRaw`DELETE FROM "PersonSkillEvent" WHERE "eraId" = ${pId}`;
           }
-          await tx.$executeRaw`DELETE FROM "Persona" WHERE "personId" = ${id}`;
+          await tx.$executeRaw`DELETE FROM "Era" WHERE "personId" = ${id}`;
         }
 
         // Body marks (events already deleted via era cascade above)
@@ -273,17 +273,17 @@ async function cleanupTestData() {
 
     // Eras with non-seed IDs on seed person (cascade physical/events)
     const testEraIds = await tx.$queryRaw<{ id: string }[]>`
-      SELECT id FROM "Persona" WHERE "personId" = 'seed-person-1' AND id NOT LIKE 'seed-%'`;
+      SELECT id FROM "Era" WHERE "personId" = 'seed-person-1' AND id NOT LIKE 'seed-%'`;
     for (const { id: pId } of testEraIds) {
-      await tx.$executeRaw`DELETE FROM "BodyMarkEvent" WHERE "personaId" = ${pId}`;
-      await tx.$executeRaw`DELETE FROM "BodyModificationEvent" WHERE "personaId" = ${pId}`;
-      await tx.$executeRaw`DELETE FROM "CosmeticProcedureEvent" WHERE "personaId" = ${pId}`;
+      await tx.$executeRaw`DELETE FROM "BodyMarkEvent" WHERE "eraId" = ${pId}`;
+      await tx.$executeRaw`DELETE FROM "BodyModificationEvent" WHERE "eraId" = ${pId}`;
+      await tx.$executeRaw`DELETE FROM "CosmeticProcedureEvent" WHERE "eraId" = ${pId}`;
       await tx.$executeRaw`DELETE FROM "ScalarDelta" WHERE "eraId" = ${pId}`;
-      await tx.$executeRaw`DELETE FROM "PersonDigitalIdentity" WHERE "personaId" = ${pId}`;
-      await tx.$executeRaw`DELETE FROM "PersonSkillEvent" WHERE "personaId" = ${pId}`;
+      await tx.$executeRaw`DELETE FROM "PersonDigitalIdentity" WHERE "eraId" = ${pId}`;
+      await tx.$executeRaw`DELETE FROM "PersonSkillEvent" WHERE "eraId" = ${pId}`;
     }
     r = await tx.$executeRaw`
-      DELETE FROM "Persona" WHERE "personId" = 'seed-person-1' AND id NOT LIKE 'seed-%'`;
+      DELETE FROM "Era" WHERE "personId" = 'seed-person-1' AND id NOT LIKE 'seed-%'`;
     if (r) console.log(`  Era (test): ${r}`);
 
     // Aliases with non-seed IDs on seed person

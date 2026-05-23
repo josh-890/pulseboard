@@ -365,7 +365,6 @@ model Era {
   mediaLinks              PersonMediaLink[]
 
   @@index([personId])
-  @@map("Persona")
 }
 
 model BodyMark {
@@ -398,7 +397,7 @@ model BodyMarkEvent {
   id            String            @id @default(cuid())
   bodyMarkId    String
   bodyMark      BodyMark          @relation(fields: [bodyMarkId], references: [id])
-  eraId         String            @map("personaId")
+  eraId         String
   era           Era               @relation(fields: [eraId], references: [id])
   eventType     BodyMarkEventType
   notes         String?
@@ -421,7 +420,7 @@ model PersonDigitalIdentity {
   id       String                @id @default(cuid())
   personId String
   person   Person                @relation(fields: [personId], references: [id])
-  eraId    String?               @map("personaId")
+  eraId    String?
   era      Era?                  @relation(fields: [eraId], references: [id])
   platform String
   handle   String?
@@ -440,7 +439,7 @@ model DigitalIdentityEvent {
   id                String                   @id @default(cuid())
   digitalIdentityId String
   digitalIdentity   PersonDigitalIdentity    @relation(fields: [digitalIdentityId], references: [id])
-  eraId             String                   @map("personaId")
+  eraId             String
   era               Era                      @relation(fields: [eraId], references: [id])
   eventType         DigitalIdentityEventType
   notes             String?
@@ -461,7 +460,7 @@ model PersonSkill {
   id                String           @id @default(cuid())
   personId          String
   person            Person           @relation(fields: [personId], references: [id])
-  eraId             String?          @map("personaId")
+  eraId             String?
   era               Era?             @relation(fields: [eraId], references: [id])
   skillDefinitionId String?
   skillDefinition   SkillDefinition? @relation(fields: [skillDefinitionId], references: [id])
@@ -528,7 +527,7 @@ model BodyModificationEvent {
   id                 String                    @id @default(cuid())
   bodyModificationId String
   bodyModification   BodyModification          @relation(fields: [bodyModificationId], references: [id])
-  eraId              String                    @map("personaId")
+  eraId              String
   era                Era                       @relation(fields: [eraId], references: [id])
   eventType          BodyModificationEventType
   notes              String?
@@ -577,7 +576,7 @@ model CosmeticProcedureEvent {
   id                  String                     @id @default(cuid())
   cosmeticProcedureId String
   cosmeticProcedure   CosmeticProcedure          @relation(fields: [cosmeticProcedureId], references: [id])
-  eraId               String                     @map("personaId")
+  eraId               String
   era                 Era                        @relation(fields: [eraId], references: [id])
   eventType           CosmeticProcedureEventType
   notes               String?
@@ -657,7 +656,7 @@ model InterestEvent {
   id            String            @id @default(cuid())
   interestId    String
   interest      PersonInterest    @relation(fields: [interestId], references: [id])
-  eraId         String            @map("personaId")
+  eraId         String
   era           Era               @relation(fields: [eraId], references: [id])
   eventType     InterestEventType
   notes         String?
@@ -1074,7 +1073,7 @@ model PersonMediaLink {
   cosmeticProcedure   CosmeticProcedure? @relation(fields: [cosmeticProcedureId], references: [id])
   categoryId          String?
   category            MediaCategory?     @relation(fields: [categoryId], references: [id])
-  eraId               String?            @map("personaId")
+  eraId               String?
   era                 Era?               @relation(fields: [eraId], references: [id], onDelete: SetNull)
 
   createdAt DateTime @default(now())
@@ -1331,7 +1330,7 @@ model PersonSkillEvent {
   id            String         @id @default(cuid())
   personSkillId String
   personSkill   PersonSkill    @relation(fields: [personSkillId], references: [id])
-  eraId         String?        @map("personaId")
+  eraId         String?
   era           Era?           @relation(fields: [eraId], references: [id])
   eventType     SkillEventType
   level         SkillLevel?

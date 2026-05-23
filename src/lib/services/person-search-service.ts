@@ -90,7 +90,7 @@ function buildCategoricalClauses(filters: CategoricalFilter[], timeScope: "curre
     if (timeScope === "ever" && (f.field === "hairHue" || f.field === "hairLightness")) {
       const lookupColumn = f.field === "hairHue" ? "hue" : "shade";
       out.push(Prisma.sql`EXISTS (
-        SELECT 1 FROM "Persona" per
+        SELECT 1 FROM "Era" per
         JOIN "ScalarDelta" sd ON sd."eraId" = per.id
         JOIN "PhysicalAttributeDefinition" pad
           ON pad.id = sd."attributeDefinitionId" AND pad.slug = 'hair_color'
@@ -140,7 +140,7 @@ function buildRangeClauses(filters: RangeFilter[], timeScope: "current" | "ever"
         ? bounds.reduce((a, b, i) => (i === 0 ? b : Prisma.sql`${a} AND ${b}`))
         : Prisma.sql`true`;
       out.push(Prisma.sql`EXISTS (
-        SELECT 1 FROM "Persona" per
+        SELECT 1 FROM "Era" per
         JOIN "ScalarDelta" sd ON sd."eraId" = per.id
         JOIN "PhysicalAttributeDefinition" pad
           ON pad.id = sd."attributeDefinitionId" AND pad.slug = 'weight'
@@ -236,7 +236,7 @@ function buildAttributeClauses(
     if (timeScope === "ever") {
       if (hasValues) {
         out.push(Prisma.sql`EXISTS (
-          SELECT 1 FROM "Persona" per
+          SELECT 1 FROM "Era" per
           JOIN "ScalarDelta" sd ON sd."eraId" = per.id
           WHERE per."personId" = p.id
             AND sd."attributeDefinitionId" = ${f.definitionId}

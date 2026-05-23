@@ -117,7 +117,7 @@ Shows a link to the person's reference session (auto-created, one per person). D
 **Overview**
 - **About [Name]** — editable bio section with Markdown support (see [Bio & Markdown](#bio--markdown) below)
 - Recent Photos — horizontal scroll of latest reference photos with lightbox
-- History — collapsible persona timeline
+- History — collapsible era timeline (one card per phase, baseline first; auto-created "draft" eras are flagged with an amber pill until you curate them)
 - Digital Identities, Notes & Tags
 
 #### Bio & Markdown
@@ -179,7 +179,7 @@ Only photos from the person's reference session can be embedded — external URL
 - Extensible physical attributes with Natural/Enhanced/Restored status badges
 - Active body marks, body modifications, cosmetic procedures with event timelines
 - Cosmetic procedure events support before/after values (e.g. "A → D cup size")
-- Folded chronologically from persona history
+- Folded chronologically from era history (latest delta wins per attribute — see the History panel for the full timeline)
 
 **Details**
 - Only visible when media categories exist
@@ -1180,7 +1180,7 @@ Session (production event)
 Person
   ├── Reference Session (auto, 1:1)
   ├── PersonMediaLink → MediaItem
-  ├── Persona (appearance snapshots over time)
+  ├── Era (curated phases — baseline first, deltas/events filed within)
   ├── PersonAlias (names)
   ├── PersonRelationship → Person
   └── SetParticipant → Set
@@ -1208,7 +1208,7 @@ MediaCollection (global or per-person album)
 
 ### Date Modifiers
 
-When entering or editing dates (birthdate, career dates, persona dates, session dates, set release dates), you can set a **modifier** indicating how confident you are in the value:
+When entering or editing dates (birthdate, career dates, era dates, session dates, set release dates), you can set a **modifier** indicating how confident you are in the value:
 
 | Modifier | Display | When to use |
 |----------|---------|-------------|
@@ -1218,7 +1218,7 @@ When entering or editing dates (birthdate, career dates, persona dates, session 
 | **Before** | `before` | The actual date is on or before this value |
 | **After** | `after` | The actual date is on or after this value |
 
-The modifier selector appears next to every date input that supports precision (birthdate, career dates in Edit Person, persona dates, session dates, set release dates).
+The modifier selector appears next to every date input that supports precision (birthdate, career dates in Edit Person, era dates, session dates, set release dates).
 
 ### Source Field
 
