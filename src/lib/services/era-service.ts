@@ -287,6 +287,8 @@ export async function deleteEra(id: string) {
     await tx.bodyMarkEvent.deleteMany({ where: { eraId: id } });
     await tx.bodyModificationEvent.deleteMany({ where: { eraId: id } });
     await tx.cosmeticProcedureEvent.deleteMany({ where: { eraId: id } });
+    await tx.digitalIdentityEvent.deleteMany({ where: { eraId: id } });
+    await tx.interestEvent.deleteMany({ where: { eraId: id } });
     const skillEvents = await tx.personSkillEvent.findMany({
       where: { eraId: id },
       select: { id: true },

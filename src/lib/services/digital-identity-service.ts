@@ -1,24 +1,39 @@
 import { prisma } from "@/lib/db";
 import type { PersonDigitalIdentityItem } from "@/lib/types";
 import type { CreateDigitalIdentityInput, UpdateDigitalIdentityInput } from "@/lib/validations/digital-identity";
+import { deriveInterval } from "@/lib/utils/event-interval";
 
 export async function getPersonDigitalIdentities(personId: string): Promise<PersonDigitalIdentityItem[]> {
   const identities = await prisma.personDigitalIdentity.findMany({
     where: { personId },
-    include: { era: { select: { label: true } } },
-    orderBy: { validFrom: "asc" },
+    include: {
+      era: { select: { label: true } },
+      events: { select: { date: true, eventType: true } },
+    },
   });
 
-  return identities.map((i) => ({
-    id: i.id,
-    platform: i.platform,
-    handle: i.handle,
-    url: i.url,
-    status: i.status,
-    validFrom: i.validFrom,
-    validTo: i.validTo,
-    eraLabel: i.era?.label ?? null,
-  }));
+  const mapped: PersonDigitalIdentityItem[] = identities.map((i) => {
+    const { validFrom, validTo } = deriveInterval(i.events);
+    return {
+      id: i.id,
+      platform: i.platform,
+      handle: i.handle,
+      url: i.url,
+      status: i.status,
+      validFrom,
+      validTo,
+      eraLabel: i.era?.label ?? null,
+    };
+  });
+
+  // Sort by reconstructed validFrom ascending (matches the prior orderBy).
+  mapped.sort((a, b) => {
+    if (!a.validFrom && !b.validFrom) return 0;
+    if (!a.validFrom) return -1;
+    if (!b.validFrom) return 1;
+    return a.validFrom.getTime() - b.validFrom.getTime();
+  });
+  return mapped;
 }
 
 export async function createDigitalIdentity(data: CreateDigitalIdentityInput) {
@@ -46,7 +61,8 @@ export async function updateDigitalIdentity(id: string, data: UpdateDigitalIdent
 }
 
 export async function deleteDigitalIdentity(id: string) {
-  return prisma.personDigitalIdentity.delete({
-    where: { id },
+  return prisma.$transaction(async (tx) => {
+    await tx.digitalIdentityEvent.deleteMany({ where: { digitalIdentityId: id } });
+    return tx.personDigitalIdentity.delete({ where: { id } });
   });
 }

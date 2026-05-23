@@ -2,6 +2,7 @@ import { prisma } from "@/lib/db";
 import type { SkillLevel, SkillEventType, DatePrecision } from "@/generated/prisma/client";
 import type { PersonSkillItem, PersonSkillEventItem, SkillEventMediaThumb, PhotoVariants, GalleryItem } from "@/lib/types";
 import { buildUrl, buildPhotoUrls } from "@/lib/media-url";
+import { deriveInterval } from "@/lib/utils/event-interval";
 
 /** Map skill event media rows to thumb type */
 function mapEventMedia(
@@ -49,14 +50,16 @@ export async function getPersonSkillsEnriched(
     orderBy: { name: "asc" },
   });
 
-  return skills.map((s) => ({
+  return skills.map((s) => {
+    const { validFrom, validTo } = deriveInterval(s.events);
+    return {
     id: s.id,
     name: s.name,
     category: s.category,
     level: s.level,
     evidence: s.evidence,
-    validFrom: s.validFrom,
-    validTo: s.validTo,
+    validFrom,
+    validTo,
     eraLabel: s.era?.label ?? null,
     skillDefinitionId: s.skillDefinitionId,
     groupName: s.skillDefinition?.group.name ?? null,
@@ -74,7 +77,8 @@ export async function getPersonSkillsEnriched(
       eraDate: e.era?.date ?? null,
       media: mapEventMedia(e.media),
     })),
-  }));
+  };
+  });
 }
 
 // ─── Person Skill CRUD ───────────────────────────────────────────────────────
@@ -105,18 +109,20 @@ export async function createPersonSkill(data: {
     }
   }
 
-  return prisma.personSkill.create({
-    data: {
-      personId: data.personId,
-      eraId: data.eraId ?? null,
-      skillDefinitionId: data.skillDefinitionId ?? null,
-      name,
-      category,
-      level: data.level ?? null,
-      evidence: data.evidence ?? null,
-      validFrom: data.validFrom ?? null,
-      validTo: data.validTo ?? null,
-    },
+  return prisma.$transaction(async (tx) => {
+    const skill = await tx.personSkill.create({
+      data: {
+        personId: data.personId,
+        eraId: data.eraId ?? null,
+        skillDefinitionId: data.skillDefinitionId ?? null,
+        name,
+        category,
+        level: data.level ?? null,
+        evidence: data.evidence ?? null,
+      },
+    });
+    await syncSkillIntervalEvents(tx, skill.id, data.validFrom, data.validTo, data.eraId ?? null);
+    return skill;
   });
 }
 
@@ -130,10 +136,39 @@ export async function updatePersonSkill(
     eraId?: string | null;
   },
 ) {
-  return prisma.personSkill.update({
-    where: { id },
-    data,
+  return prisma.$transaction(async (tx) => {
+    const { validFrom, validTo, ...rest } = data;
+    const skill = await tx.personSkill.update({ where: { id }, data: rest });
+    await syncSkillIntervalEvents(tx, id, validFrom, validTo, skill.eraId);
+    return skill;
   });
+}
+
+// Replace the ACQUIRED / RETIRED events for a skill with the given dates.
+// Only the side of the interval explicitly passed (not `undefined`) is touched.
+async function syncSkillIntervalEvents(
+  tx: import("@/generated/prisma/client").Prisma.TransactionClient,
+  personSkillId: string,
+  validFrom: Date | null | undefined,
+  validTo: Date | null | undefined,
+  eraId: string | null,
+): Promise<void> {
+  if (validFrom !== undefined) {
+    await tx.personSkillEvent.deleteMany({ where: { personSkillId, eventType: "ACQUIRED" } });
+    if (validFrom !== null) {
+      await tx.personSkillEvent.create({
+        data: { personSkillId, eraId, eventType: "ACQUIRED", date: validFrom },
+      });
+    }
+  }
+  if (validTo !== undefined) {
+    await tx.personSkillEvent.deleteMany({ where: { personSkillId, eventType: "RETIRED" } });
+    if (validTo !== null) {
+      await tx.personSkillEvent.create({
+        data: { personSkillId, eraId, eventType: "RETIRED", date: validTo },
+      });
+    }
+  }
 }
 
 export async function deletePersonSkill(id: string) {

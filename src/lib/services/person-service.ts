@@ -23,6 +23,7 @@ import type { CreatePersonInput, UpdatePersonInput } from "@/lib/validations/per
 import { batchComputeCompleteness } from "@/lib/services/completeness-service";
 import { refreshStatusesForIcgId } from "@/lib/services/import/participant-status-service";
 import { ensureCatalogEntry } from "@/lib/services/color-catalog-service";
+import { deriveInterval } from "@/lib/utils/event-interval";
 import { recomputePersonCurrentState } from "@/lib/services/current-state-service";
 import {
   cascadeDeleteSession,
@@ -200,7 +201,9 @@ export async function getPersonWithDetails(id: string) {
             include: { cosmeticProcedure: true },
             orderBy: { date: "asc" },
           },
-          digitalIdentities: true,
+          digitalIdentities: {
+            include: { events: { select: { date: true, eventType: true } } },
+          },
         },
       },
       bodyMarks: true,
@@ -320,14 +323,16 @@ export async function getPersonSkills(personId: string): Promise<PersonSkillItem
     orderBy: { name: "asc" },
   });
 
-  return skills.map((s) => ({
+  return skills.map((s) => {
+    const { validFrom, validTo } = deriveInterval(s.events);
+    return {
     id: s.id,
     name: s.name,
     category: s.category,
     level: s.level,
     evidence: s.evidence,
-    validFrom: s.validFrom,
-    validTo: s.validTo,
+    validFrom,
+    validTo,
     eraLabel: s.era?.label ?? null,
     skillDefinitionId: s.skillDefinitionId,
     groupName: s.skillDefinition?.group.name ?? null,
@@ -345,7 +350,8 @@ export async function getPersonSkills(personId: string): Promise<PersonSkillItem
       eraDate: e.era?.date ?? null,
       media: mapSkillEventMedia(e.media),
     })),
-  }));
+  };
+  });
 }
 
 export async function getPersonWorkHistory(personId: string): Promise<PersonWorkHistoryItem[]> {
@@ -688,7 +694,6 @@ export function deriveCurrentState(
     };
   }
 
-  const now = new Date();
 
   // ── Body Marks ──
   const activeBodyMarks: BodyMarkWithEvents[] = [];
@@ -850,15 +855,16 @@ export function deriveCurrentState(
   for (const era of person.eras) {
     for (const i of era.digitalIdentities) {
       if (i.status !== "active") continue;
-      if (i.validTo && i.validTo <= now) continue;
+      const { validFrom, validTo, active } = deriveInterval(i.events);
+      if (!active) continue;
       activeDigitalIdentities.push({
         id: i.id,
         platform: i.platform,
         handle: i.handle,
         url: i.url,
         status: i.status,
-        validFrom: i.validFrom,
-        validTo: i.validTo,
+        validFrom,
+        validTo,
         eraLabel: era.label,
       });
     }
@@ -866,15 +872,16 @@ export function deriveCurrentState(
 
   const activeSkills: PersonSkillItem[] = [];
   for (const s of person.skills) {
-    if (s.validTo && s.validTo <= now) continue;
+    const { validFrom: skillFrom, validTo: skillTo, active: skillActive } = deriveInterval(s.events);
+    if (!skillActive) continue;
     activeSkills.push({
       id: s.id,
       name: s.name,
       category: s.category,
       level: s.level,
       evidence: s.evidence,
-      validFrom: s.validFrom,
-      validTo: s.validTo,
+      validFrom: skillFrom,
+      validTo: skillTo,
       eraLabel: s.era?.label ?? null,
       skillDefinitionId: s.skillDefinitionId,
       groupName: s.skillDefinition?.group.name ?? null,
@@ -1335,10 +1342,14 @@ export async function deletePersonRecord(id: string): Promise<PhotoVariants[]> {
     // Delete cosmetic procedures + events + media links
     await cascadeDeleteCosmeticProcedures(tx, id, eraIds);
 
+    // Delete interest events (the interests themselves get removed by cascadeDeletePersonExtras)
+    await tx.interestEvent.deleteMany({ where: { interest: { personId: id } } });
+
     // Delete education, awards, interests
     await cascadeDeletePersonExtras(tx, id);
 
-    // Delete digital identities
+    // Delete digital identities + their event log
+    await tx.digitalIdentityEvent.deleteMany({ where: { digitalIdentity: { personId: id } } });
     await tx.personDigitalIdentity.deleteMany({
       where: { personId: id },
     });

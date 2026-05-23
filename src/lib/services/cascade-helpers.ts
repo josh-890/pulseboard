@@ -283,6 +283,8 @@ export async function cascadeDeleteEra(
   await tx.cosmeticProcedureEvent.deleteMany({
     where: { eraId },
   });
+  await tx.digitalIdentityEvent.deleteMany({ where: { eraId } });
+  await tx.interestEvent.deleteMany({ where: { eraId } });
   await tx.personDigitalIdentity.deleteMany({
     where: { eraId },
   });
