@@ -17,6 +17,8 @@ import type {
 } from "@/generated/prisma/client";
 import {
   findOrCreateEraForDate,
+  autoClusterDeltaIntoDraftEra,
+  getBaselineEraId,
   createEraBatch,
   updateEra,
   deleteEra,
@@ -890,6 +892,12 @@ type PhysicalChangeData = {
   // Stored on each ScalarDelta this change creates; drives the AttributeStatus
   // derivation (NATURAL / ENHANCED / RESTORED). Defaults to NATURAL.
   cause?: "NATURAL" | "SURGICAL" | "OTHER";
+  // Phase G Slice 7 / ADR-0006: where the delta lands.
+  //  - 'on-date'  → auto-cluster into a draft Era around `date` (±N months)
+  //  - 'dateless' → land in the person's dateless draft Era ("I don't know when")
+  //  - 'baseline' → land on Baseline ("this was always true")
+  // Default 'on-date' if `date` is set, else 'baseline' (back-compat).
+  intent?: "on-date" | "dateless" | "baseline";
 };
 
 type ScalarDeltaItem = { attributeDefinitionId: string; value: string; notes?: string | null };
@@ -947,12 +955,33 @@ export async function recordPhysicalChangeAction(
     try {
       const date = data.date ? new Date(data.date) : null;
       const precision = (data.datePrecision ?? "UNKNOWN") as DatePrecision;
+      const intent: "on-date" | "dateless" | "baseline" =
+        data.intent ?? (date ? "on-date" : "baseline");
 
       await ensureCatalogEntry("hair", data.currentHairColor);
 
       await prisma.$transaction(async (tx) => {
-        const eraId = await findOrCreateEraForDate(tx, personId, date, precision);
-        await replaceEraScalarDeltas(tx, eraId, buildPhysicalDeltaItems(data), date, precision, data.cause ?? "NATURAL");
+        let eraId: string;
+        if (intent === "baseline") {
+          eraId = await getBaselineEraId(tx, personId);
+        } else if (intent === "dateless") {
+          eraId = await autoClusterDeltaIntoDraftEra(tx, personId, null, "UNKNOWN");
+        } else {
+          // 'on-date'
+          eraId = await autoClusterDeltaIntoDraftEra(tx, personId, date, precision);
+        }
+        // Baseline-fill drops the per-delta date; the dated/dateless intents
+        // keep the date on the delta itself (Era is just the cluster bucket).
+        const deltaDate = intent === "baseline" ? null : date;
+        const deltaPrecision = intent === "baseline" ? "UNKNOWN" : precision;
+        await replaceEraScalarDeltas(
+          tx,
+          eraId,
+          buildPhysicalDeltaItems(data),
+          deltaDate,
+          deltaPrecision as DatePrecision,
+          data.cause ?? "NATURAL",
+        );
         await recomputePersonCurrentState(tx, personId);
       });
 

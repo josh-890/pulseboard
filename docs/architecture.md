@@ -98,7 +98,7 @@ All services in `src/lib/services/`. All functions are async, return Promises. S
 **`skill-service.ts`** — PersonSkill/SkillEvent CRUD, timeline, event media
 **`skill-catalog-service.ts`** — SkillGroup/SkillDefinition catalog CRUD
 **`physical-attribute-catalog-service.ts`** — PhysicalAttributeGroup/PhysicalAttributeDefinition catalog CRUD
-**`era-service.ts`** — Era CRUD: `getBaselineEraId`, `findOrCreateEraForDate` (auto-creates year-bucket draft eras and marks `isDraft: true`), `getPersonEras` (picker list), `createEraBatch` (one-shot create with deltas + body mark/mod/procedure events), `updateEra` (clears `isDraft` on any edit), `deleteEra` (cascades + orphan cleanup), `getPersonEraContributions` (ADR-0004 reverse-nav — sessions filed into each era).
+**`era-service.ts`** — Era CRUD: `getBaselineEraId`, `findOrCreateEraForDate` (legacy year-bucket auto-draft for non-physical-change flows), `autoClusterDeltaIntoDraftEra` (Slice 7 / ADR-0006: ±AUTO_CLUSTER_WINDOW_MONTHS proximity clustering for the record-physical-change flow; `null` date → dedicated dateless draft Era), `getPersonEras` (picker list), `createEraBatch` (one-shot create with deltas + body mark/mod events), `updateEra` (clears `isDraft` on any edit), `deleteEra` (cascades + orphan cleanup), `getPersonEraContributions` (ADR-0004 reverse-nav — sessions filed into each era).
 **`current-state-service.ts`** — `recomputePersonCurrentState(tx, personId)` (in-tx, the canonical fold trigger) + `recomputePersonCurrentStateStandalone` + `rebuildAllCurrentState` + `verifyCurrentStateIntegrity`. Wraps the SQL function `app_recompute_person_current_state(p_id?)` which mirrors `foldScalarDeltas` (TS, in `person-service.ts`). Both folds documented in ADR-0001 § fold sort order.
 **`person-service.ts`** — `getPersonWithDetails`, `deriveCurrentState` (full fold incl. body marks/mods/procedures/skills/identities), `foldScalarDeltas` (canonical TS scalar fold with `{ asOf }` cutoff option), `deriveAppearanceAtShoot(eras, asOf)` (lightweight scalar snapshot for participant cards), `defaultEraForSessionDate(eras, sessionDate)` (era-picker default), `getPersonSessionWorkHistory` (work timeline, includes `eraId` per session).
 **`category-service.ts`** — MediaCategoryGroup/MediaCategory CRUD, person category population counts
@@ -458,7 +458,9 @@ All searchable entities have `nameNorm`/`titleNorm` fields with `pg_trgm` trigra
 
 15. **Baseline Era is dateless** — Every Person has exactly one baseline Era (`isBaseline: true`, `date: null`). It is folded first by virtue of its flag, not its date. The only hard temporal floor for sanity checks is the Person's birthdate.
 
-16. **Draft Eras are nudges, not gates** — `findOrCreateEraForDate` sets `isDraft: true` when it spawns an Era to host a quick-edit. Drafts behave identically to curated Eras; the flag is cleared on any user edit (`updateEra`). The History panel surfaces drafts with an amber dashed dot + pill.
+16. **Draft Eras are nudges, not gates** — `findOrCreateEraForDate` and `autoClusterDeltaIntoDraftEra` set `isDraft: true` when they spawn an Era to host a quick-edit. Drafts behave identically to curated Eras; the flag is cleared on any user edit (`updateEra`). The History panel surfaces drafts with an amber dashed dot + pill.
+
+17. **Emergent Era authoring (ADR-0006, Slice 7)** — The record-physical-change sheet has **no Era picker**. The user picks one of three intents: `on-date` (auto-cluster into a draft Era around the date, ±AUTO_CLUSTER_WINDOW_MONTHS), `dateless` (file into the person's dedicated dateless draft Era — semantically distinct from baseline), or `baseline` ("this was always true"). Initial radio value is inferred from history: if the person has no prior physical data, default to `baseline`; otherwise default to `on-date`. Sticky membership is preserved for curated Eras; draft re-clustering on date edit is Slice 8.
 
 ---
 

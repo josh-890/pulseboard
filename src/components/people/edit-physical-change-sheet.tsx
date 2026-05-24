@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState, useTransition } from "react";
+import { useCallback, useMemo, useState, useTransition } from "react";
 import { useEscToClose } from "@/lib/hooks/use-esc-to-close";
 import { ChevronRight, X } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -54,6 +54,16 @@ export function EditPhysicalChangeSheet({ personId, item, attributeGroups, onClo
       : "";
   const initPrec = item.isBaseline ? "UNKNOWN" : (item.datePrecision ?? "UNKNOWN");
 
+  // Phase G Slice 7 / ADR-0006: intent radio mirrors the record sheet.
+  // Initial value reflects the item's current Era assignment.
+  // Note: Slice 7 keeps the existing Era on save; Slice 8 will wire the
+  // re-cluster-on-edit logic for deltas in draft Eras.
+  const initIntent: "on-date" | "dateless" | "baseline" = item.isBaseline
+    ? "baseline"
+    : item.date
+      ? "on-date"
+      : "dateless";
+  const [intent, setIntent] = useState<"on-date" | "dateless" | "baseline">(initIntent);
   const [date, setDate] = useState(initDate);
   const [datePrecision, setDatePrecision] = useState(initPrec);
   // Phase G Slice 4 / ADR-0007: the edit sheet doesn't know the existing
@@ -164,13 +174,60 @@ export function EditPhysicalChangeSheet({ personId, item, attributeGroups, onClo
             Editing physical change from <span className="font-medium text-foreground">{item.eraLabel}</span>.
           </p>
 
-          <PartialDateInput
-            dateValue={date}
-            precisionValue={datePrecision}
-            onDateChange={setDate}
-            onPrecisionChange={setDatePrecision}
-            label="When"
-          />
+          {/* Phase G Slice 7 / ADR-0006: 3-way intent radio mirrors the
+              record sheet. Slice 7 keeps the existing Era on save —
+              Slice 8 wires draft-Era re-clustering. */}
+          <fieldset className="space-y-2">
+            <legend className="mb-1.5 text-sm font-medium">When did this change?</legend>
+            <label className="flex items-start gap-2 cursor-pointer">
+              <input
+                type="radio"
+                name="intent"
+                value="on-date"
+                checked={intent === "on-date"}
+                onChange={() => setIntent("on-date")}
+                className="mt-1 cursor-pointer"
+              />
+              <div className="flex-1 space-y-2">
+                <span className="text-sm">On this date</span>
+                {intent === "on-date" && (
+                  <PartialDateInput
+                    dateValue={date}
+                    precisionValue={datePrecision}
+                    onDateChange={setDate}
+                    onPrecisionChange={setDatePrecision}
+                    label=""
+                  />
+                )}
+              </div>
+            </label>
+            <label className="flex items-start gap-2 cursor-pointer">
+              <input
+                type="radio"
+                name="intent"
+                value="dateless"
+                checked={intent === "dateless"}
+                onChange={() => setIntent("dateless")}
+                className="mt-1 cursor-pointer"
+              />
+              <span className="text-sm">I don&apos;t know when yet</span>
+            </label>
+            <label className="flex items-start gap-2 cursor-pointer">
+              <input
+                type="radio"
+                name="intent"
+                value="baseline"
+                checked={intent === "baseline"}
+                onChange={() => setIntent("baseline")}
+                className="mt-1 cursor-pointer"
+              />
+              <span className="text-sm">Actually, this was always true (baseline)</span>
+            </label>
+          </fieldset>
+
+          <p className="text-xs text-muted-foreground -mt-2">
+            Editing within <span className="font-medium text-foreground">{item.eraLabel}</span> — re-clustering on date change comes in a follow-up slice.
+          </p>
 
           {/* Phase G Slice 4 / ADR-0007 + Slice 6½ amendment: Cause select
               only renders when at least one status-bearing attr is in this

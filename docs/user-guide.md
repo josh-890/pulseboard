@@ -1023,6 +1023,14 @@ Define custom physical attributes for tracking measurements over time. An accord
 
 These definitions are used in **Recording physical changes** — extensible attribute inputs appear in the Record/Edit Physical Change sheets below the 5 fixed fields. The record-change sheet has a **Cause** field (default `Natural`); setting it to `Surgical` drives the derived **Enhanced** status badge.
 
+**When did this change? (Phase G Slice 7 / ADR-0006).** The Record sheet no longer has an Era picker. Instead you pick one of three intents:
+
+- **On this date** — pick a date and precision. The delta is auto-clustered into a draft Era of nearby changes (within ±6 months). If no draft is in range, a new one is started for you.
+- **I don't know when yet** — files the delta into your *Undated changes* drawer (a dedicated dateless draft Era — distinct from baseline). Set the date later and it re-clusters into the right draft.
+- **Actually, this was always true (baseline)** — adds the value to baseline. Use this when you're filling in measurements that were always true but weren't captured at import.
+
+The default reflects history: a fresh person opens with **baseline** preselected; a person with existing measurements opens with **On this date**. Once a draft Era reaches a meaningful size, the Overview History panel will nudge you to name it (curation nudge — coming in Slice 9). Naming an Era promotes it from draft → curated and locks its membership.
+
 **Attribute status** (derived automatically per ADR-0007, shown as badges in the Appearance tab; only attributes with `statusBearing=true` surface a badge):
 - **Natural** — no delta on this attribute has `cause=SURGICAL`
 - **Enhanced** (purple badge) — the winning delta of the fold has `cause=SURGICAL`

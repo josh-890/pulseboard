@@ -67,6 +67,91 @@ export async function findOrCreateEraForDate(
   return era.id;
 }
 
+// ─── Phase G Slice 7 (ADR-0006): emergent Era authoring via proximity ───────
+
+/**
+ * Width of the proximity window for auto-clustering. Defined once here so the
+ * tuning knob is a single-line change. Per ADR-0006 §"How to apply": start at
+ * ±6 months; revisit empirically after ~2 weeks of use.
+ */
+export const AUTO_CLUSTER_WINDOW_MONTHS = 6;
+
+/**
+ * Phase G Slice 7 (ADR-0006): emergent-Era auto-clustering for the
+ * record-physical-change flow.
+ *
+ * Replaces calendar-year bucketing (`findOrCreateEraForDate`) for the inline
+ * "record a change" path. Sticky-membership is preserved for curated Eras —
+ * this function only ever creates or returns DRAFT Eras.
+ *
+ * Routing:
+ * - `date === null` → return (or create) the person's **dateless draft Era**
+ *   (a draft Era with `date IS NULL`). Per ADR-0006 this is distinct from
+ *   Baseline: Baseline = "this was always true"; dateless draft = "this is
+ *   a real change, I just don't know when yet."
+ * - `date` set → find a draft Era for this person whose ScalarDelta members
+ *   have at least one date within ±AUTO_CLUSTER_WINDOW_MONTHS of `date`; if
+ *   found, return it; else create a new draft Era seeded with `date`.
+ */
+export async function autoClusterDeltaIntoDraftEra(
+  tx: TxClient,
+  personId: string,
+  date: Date | null,
+  datePrecision: DatePrecision,
+): Promise<string> {
+  if (!date) {
+    const existing = await tx.era.findFirst({
+      where: { personId, isDraft: true, isBaseline: false, date: null },
+      select: { id: true },
+      orderBy: { createdAt: "asc" },
+    });
+    if (existing) return existing.id;
+    const created = await tx.era.create({
+      data: {
+        personId,
+        label: "Undated changes",
+        date: null,
+        datePrecision: "UNKNOWN",
+        isBaseline: false,
+        isDraft: true,
+      },
+      select: { id: true },
+    });
+    return created.id;
+  }
+
+  // Search window: [date - N months, date + N months]
+  const windowStart = new Date(date);
+  windowStart.setUTCMonth(windowStart.getUTCMonth() - AUTO_CLUSTER_WINDOW_MONTHS);
+  const windowEnd = new Date(date);
+  windowEnd.setUTCMonth(windowEnd.getUTCMonth() + AUTO_CLUSTER_WINDOW_MONTHS);
+
+  const match = await tx.era.findFirst({
+    where: {
+      personId,
+      isDraft: true,
+      isBaseline: false,
+      scalarDeltas: { some: { date: { gte: windowStart, lte: windowEnd } } },
+    },
+    select: { id: true },
+    orderBy: { createdAt: "asc" },
+  });
+  if (match) return match.id;
+
+  const created = await tx.era.create({
+    data: {
+      personId,
+      label: `${date.getUTCFullYear()}`,
+      date,
+      datePrecision,
+      isBaseline: false,
+      isDraft: true,
+    },
+    select: { id: true },
+  });
+  return created.id;
+}
+
 /**
  * Reverse navigation (ADR-0004): for each Era of a person, return the
  * contributions filed into it. Returns a Map keyed by eraId. Fetched

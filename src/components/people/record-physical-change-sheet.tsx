@@ -23,6 +23,20 @@ type RecordPhysicalChangeSheetProps = {
 export function RecordPhysicalChangeSheet({ personId, currentState, attributeGroups, onClose }: RecordPhysicalChangeSheetProps) {
   const [isPending, startTransition] = useTransition();
   useEscToClose(onClose);
+
+  // Phase G Slice 7 / ADR-0006: the date input is replaced by a 3-way
+  // intent radio (on-date / dateless-draft / baseline). The default infers
+  // from history — see hasAnyPriorHistory below.
+  const hasAnyPriorHistory =
+    (currentState?.currentHairColor ?? "") !== "" ||
+    currentState?.weight != null ||
+    (currentState?.build ?? "") !== "" ||
+    (currentState?.breastSize ?? "") !== "" ||
+    Object.keys(currentState?.extensibleAttributes ?? {}).length > 0;
+
+  const [intent, setIntent] = useState<"on-date" | "dateless" | "baseline">(
+    hasAnyPriorHistory ? "on-date" : "baseline",
+  );
   const [date, setDate] = useState("");
   const [datePrecision, setDatePrecision] = useState("UNKNOWN");
   const [cause, setCause] = useState<"NATURAL" | "SURGICAL" | "OTHER">("NATURAL");
@@ -109,8 +123,9 @@ export function RecordPhysicalChangeSheet({ personId, currentState, attributeGro
         .map(([definitionId, value]) => ({ definitionId, value: value.trim() }));
 
       const result = await recordPhysicalChangeAction(personId, {
-        date: date || null,
-        datePrecision,
+        date: intent === "on-date" ? (date || null) : null,
+        datePrecision: intent === "on-date" ? datePrecision : "UNKNOWN",
+        intent,
         currentHairColor: hairChanged && currentHairColor.trim() ? currentHairColor.trim() : undefined,
         weight: weightChanged && weight.trim() ? parseFloat(weight) : undefined,
         build: buildChanged && build.trim() ? build.trim() : undefined,
@@ -126,7 +141,7 @@ export function RecordPhysicalChangeSheet({ personId, currentState, attributeGro
       }
       onClose();
     });
-  }, [personId, date, datePrecision, currentHairColor, weight, build, breastSize, breastStatus, breastDescription, attrValues, hasAnyChange, hairChanged, weightChanged, buildChanged, breastSizeChanged, breastStatusChanged, breastDescChanged, initialAttrValues, onClose]);
+  }, [personId, date, datePrecision, intent, cause, currentHairColor, weight, build, breastSize, breastStatus, breastDescription, attrValues, hasAnyChange, hairChanged, weightChanged, buildChanged, breastSizeChanged, breastStatusChanged, breastDescChanged, initialAttrValues, onClose]);
 
   return (
     <div role="dialog" aria-modal="true" className="fixed inset-0 z-50 flex justify-end">
@@ -144,14 +159,64 @@ export function RecordPhysicalChangeSheet({ personId, currentState, attributeGro
             Current values are pre-filled. Change only what&apos;s different — unchanged fields are ignored.
           </p>
 
-          {/* Date + Precision */}
-          <PartialDateInput
-            dateValue={date}
-            precisionValue={datePrecision}
-            onDateChange={setDate}
-            onPrecisionChange={setDatePrecision}
-            label="When"
-          />
+          {/* Phase G Slice 7 / ADR-0006: 3-way intent radio replaces the bare
+              date input. Auto-clustering into draft Eras happens server-side
+              based on the chosen intent. */}
+          <fieldset className="space-y-2">
+            <legend className="mb-1.5 text-sm font-medium">When did this change?</legend>
+            <label className="flex items-start gap-2 cursor-pointer">
+              <input
+                type="radio"
+                name="intent"
+                value="on-date"
+                checked={intent === "on-date"}
+                onChange={() => setIntent("on-date")}
+                className="mt-1 cursor-pointer"
+              />
+              <div className="flex-1 space-y-2">
+                <span className="text-sm">On this date</span>
+                {intent === "on-date" && (
+                  <PartialDateInput
+                    dateValue={date}
+                    precisionValue={datePrecision}
+                    onDateChange={setDate}
+                    onPrecisionChange={setDatePrecision}
+                    label=""
+                  />
+                )}
+              </div>
+            </label>
+            <label className="flex items-start gap-2 cursor-pointer">
+              <input
+                type="radio"
+                name="intent"
+                value="dateless"
+                checked={intent === "dateless"}
+                onChange={() => setIntent("dateless")}
+                className="mt-1 cursor-pointer"
+              />
+              <span className="text-sm">I don&apos;t know when yet</span>
+            </label>
+            <label className="flex items-start gap-2 cursor-pointer">
+              <input
+                type="radio"
+                name="intent"
+                value="baseline"
+                checked={intent === "baseline"}
+                onChange={() => setIntent("baseline")}
+                className="mt-1 cursor-pointer"
+              />
+              <span className="text-sm">Actually, this was always true (baseline)</span>
+            </label>
+          </fieldset>
+
+          <p className="text-xs text-muted-foreground -mt-2">
+            {intent === "on-date"
+              ? "Filed into a draft Era and clustered with nearby changes."
+              : intent === "dateless"
+              ? "Filed into your Undated changes drawer until you fix the date."
+              : "Added to baseline — applies as far back as records go."}
+          </p>
 
           {/* Phase G Slice 4 / ADR-0007: optional Cause for this change set.
               Defaults NATURAL. SURGICAL flips attribute status to ENHANCED.
