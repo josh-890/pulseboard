@@ -346,6 +346,21 @@ function AttributeControl({
     );
   }
 
+  // TEXT — no value facet (too many distinct values to be useful), but the
+  // status sub-filter is still meaningful for attrs that may be status-bearing
+  // (e.g. breast size). This row is the only way today to filter "natural
+  // breast status" until Slice 16 tightens the catalog (and a deeper review
+  // of which attrs are actually status-eligible — see
+  // feedback_attribute_status_eligibility.md).
+  if (option.valueType === "TEXT") {
+    return (
+      <div className="space-y-1">
+        <div className="text-[11px] text-muted-foreground">{option.name}</div>
+        {statusFilter}
+      </div>
+    );
+  }
+
   // SINGLE_SELECT / MULTI_SELECT — checkbox list of allowed values + facet counts
   const selected = new Set(current?.values ?? []);
   const toggle = (val: string) => {

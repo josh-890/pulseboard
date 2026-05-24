@@ -52,21 +52,22 @@ async function renderPage(searchParams: Record<string, string>) {
   const attributeGroups: AttributeGroupForFilter[] = attrGroupsRaw
     .map((g) => ({
       groupName: g.name,
-      // TEXT-typed attributes don't appear as sidebar facets — too many
-      // distinct values to be useful. They're still editable per person.
-      options: g.definitions
-        .filter((d) => d.valueType !== "TEXT")
-        .map((d) => ({
-          definitionId: d.id,
-          slug: d.slug,
-          name: d.name,
-          groupName: g.name,
-          valueType: d.valueType,
-          allowedValues: d.allowedValues,
-          ordinalMin: d.ordinalMin,
-          ordinalMax: d.ordinalMax,
-          unit: d.unit,
-        })),
+      // Include every attribute including TEXT. TEXT attrs have no value
+      // facet (too many distinct values to be useful), but Phase G Slice 6
+      // gives them a status-only filter row so the user can still filter
+      // by AttributeStatus (e.g. "natural breast size"). The AttributeControl
+      // component decides what to render per valueType.
+      options: g.definitions.map((d) => ({
+        definitionId: d.id,
+        slug: d.slug,
+        name: d.name,
+        groupName: g.name,
+        valueType: d.valueType,
+        allowedValues: d.allowedValues,
+        ordinalMin: d.ordinalMin,
+        ordinalMax: d.ordinalMax,
+        unit: d.unit,
+      })),
     }))
     .filter((g) => g.options.length > 0);
 
