@@ -39,10 +39,9 @@ type DetailMediaPickerSheetProps = {
   onLinked?: () => void;
 };
 
-const ENTITY_FIELD_MAP: Record<string, "bodyMarkId" | "bodyModificationId" | "cosmeticProcedureId"> = {
+const ENTITY_FIELD_MAP: Record<string, "bodyMarkId" | "bodyModificationId"> = {
   BodyMark: "bodyMarkId",
   BodyModification: "bodyModificationId",
-  CosmeticProcedure: "cosmeticProcedureId",
 };
 
 export function DetailMediaPickerSheet({

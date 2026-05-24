@@ -8,24 +8,19 @@ import type {
   PersonCurrentState,
   BodyMarkWithEvents,
   BodyModificationWithEvents,
-  CosmeticProcedureWithEvents,
 } from "@/lib/types";
 import { MutabilityPrimitive } from "@/components/people/mutability-primitive";
 import { AttributeStatusProgression } from "@/components/people/attribute-status-progression";
 import { AddAttributePicker } from "@/components/people/add-attribute-picker";
 import { BodyMarkRow } from "@/components/people/body-mark-row";
 import { BodyModificationRow } from "@/components/people/body-modification-row";
-import { CosmeticProcedureRow } from "@/components/people/cosmetic-procedure-row";
 import { AppearanceBodyMap } from "@/components/people/appearance-body-map";
 import { AddBodyMarkSheet } from "@/components/people/add-body-mark-sheet";
 import { EditBodyMarkSheet } from "@/components/people/edit-body-mark-sheet";
 import { AddBodyModificationSheet } from "@/components/people/add-body-modification-sheet";
 import { EditBodyModificationSheet } from "@/components/people/edit-body-modification-sheet";
-import { AddCosmeticProcedureSheet } from "@/components/people/add-cosmetic-procedure-sheet";
-import { EditCosmeticProcedureSheet } from "@/components/people/edit-cosmetic-procedure-sheet";
 import { AddBodyMarkEventDialog } from "@/components/people/add-body-mark-event-dialog";
 import { AddBodyModificationEventDialog } from "@/components/people/add-body-modification-event-dialog";
-import { AddCosmeticProcedureEventDialog } from "@/components/people/add-cosmetic-procedure-event-dialog";
 import { EditEventDialog } from "@/components/people/edit-event-dialog";
 import { RecordPhysicalChangeSheet } from "@/components/people/record-physical-change-sheet";
 import { EditPhysicalChangeSheet } from "@/components/people/edit-physical-change-sheet";
@@ -40,11 +35,8 @@ import {
   deleteBodyMarkEventAction,
   deleteBodyModificationAction,
   deleteBodyModificationEventAction,
-  deleteCosmeticProcedureAction,
-  deleteCosmeticProcedureEventAction,
   updateBodyMarkEventAction,
   updateBodyModificationEventAction,
-  updateCosmeticProcedureEventAction,
   toggleEntityHeroVisibility,
 } from "@/lib/actions/appearance-actions";
 import {
@@ -52,8 +44,6 @@ import {
   BODY_MARK_EVENT_STYLES,
   BODY_MODIFICATION_EVENT_TYPES,
   BODY_MODIFICATION_EVENT_STYLES,
-  COSMETIC_PROCEDURE_EVENT_TYPES,
-  COSMETIC_PROCEDURE_EVENT_STYLES,
 } from "@/lib/constants/body";
 import {
   Activity,
@@ -61,7 +51,6 @@ import {
   Pencil,
   Plus,
   Wrench,
-  Sparkles,
 } from "lucide-react";
 import { SectionCard, EmptyState, InfoRow } from "@/components/people/person-detail-helpers";
 import { formatPartialDate } from "@/lib/utils";
@@ -116,10 +105,6 @@ type AppearanceOpenState =
   | { type: "editBodyMod"; modification: BodyModificationWithEvents }
   | { type: "addBodyModEvent"; modId: string; modLabel: string; computed: BodyModificationWithEvents["computed"] }
   | { type: "editBodyModEvent"; event: EventItem; modId: string; eventOverrides: { bodyRegions: string[]; description: string | null; material: string | null; gauge: string | null } }
-  | "addCosmProc"
-  | { type: "editCosmProc"; procedure: CosmeticProcedureWithEvents }
-  | { type: "addCosmProcEvent"; procId: string; procLabel: string; computed: CosmeticProcedureWithEvents["computed"] }
-  | { type: "editCosmProcEvent"; event: EventItem; procId: string; eventOverrides: { bodyRegions: string[]; description: string | null; provider: string | null; valueBefore: string | null; valueAfter: string | null; unit: string | null } }
   | { type: "editPhysical"; item: PhysicalChangeItem }
   | "trackAttribute"
   | { type: "manageEntityPhotos"; entityId: string; entityModel: string; entityType: string; entityLabel: string };
@@ -137,10 +122,9 @@ export type AppearanceTabProps = {
 // the record-/edit-physical-change sheets so they can skip these IDs in the
 // generic extensible loop (otherwise hair color etc. render twice).
 
-const ENTITY_FIELD_MAP: Record<string, 'bodyMarkId' | 'bodyModificationId' | 'cosmeticProcedureId'> = {
+const ENTITY_FIELD_MAP: Record<string, 'bodyMarkId' | 'bodyModificationId'> = {
   BodyMark: 'bodyMarkId',
   BodyModification: 'bodyModificationId',
-  CosmeticProcedure: 'cosmeticProcedureId',
 }
 
 export function AppearanceTab({
@@ -298,18 +282,8 @@ export function AppearanceTab({
     return deleteBodyModificationEventAction(eventId, person.id);
   }, [person.id]);
 
-  const handleDeleteCosmProc = useCallback((procId: string) => {
-    startTransition(async () => {
-      await deleteCosmeticProcedureAction(procId, person.id);
-    });
-  }, [person.id]);
-
-  const handleDeleteCosmProcEvent = useCallback(async (eventId: string) => {
-    return deleteCosmeticProcedureEventAction(eventId, person.id);
-  }, [person.id]);
-
   const handleToggleHeroVisibility = useCallback(
-    (entityType: "bodyMark" | "bodyModification" | "cosmeticProcedure", entityId: string, visible: boolean) => {
+    (entityType: "bodyMark" | "bodyModification", entityId: string, visible: boolean) => {
       startTransition(async () => {
         await toggleEntityHeroVisibility(entityType, entityId, visible, person.id);
       });
@@ -342,7 +316,7 @@ export function AppearanceTab({
   // ─── Entity detail upload ───────────────────────────────────────────────────
   const uploadInputRef = useRef<HTMLInputElement>(null);
   const uploadTargetRef = useRef<{
-    entityField: "bodyMarkId" | "bodyModificationId" | "cosmeticProcedureId";
+    entityField: "bodyMarkId" | "bodyModificationId";
     entityId: string;
     categoryId: string;
   } | null>(null);
@@ -353,13 +327,8 @@ export function AppearanceTab({
       const cat = findCategoryForEntity(entityModel, entityType);
       if (!cat) return;
 
-      const fieldMap: Record<string, "bodyMarkId" | "bodyModificationId" | "cosmeticProcedureId"> = {
-        BodyMark: "bodyMarkId",
-        BodyModification: "bodyModificationId",
-        CosmeticProcedure: "cosmeticProcedureId",
-      };
       uploadTargetRef.current = {
-        entityField: fieldMap[entityModel],
+        entityField: ENTITY_FIELD_MAP[entityModel],
         entityId,
         categoryId: cat.id,
       };
@@ -410,12 +379,7 @@ export function AppearanceTab({
         const cat = findCategoryForEntity(entityModel, entityType);
         if (!cat) return;
 
-        const fieldMap: Record<string, "bodyMarkId" | "bodyModificationId" | "cosmeticProcedureId"> = {
-          BodyMark: "bodyMarkId",
-          BodyModification: "bodyModificationId",
-          CosmeticProcedure: "cosmeticProcedureId",
-        };
-        const entityField = fieldMap[entityModel];
+        const entityField = ENTITY_FIELD_MAP[entityModel];
 
         for (const file of Array.from(files)) {
           const formData = new FormData();
@@ -467,12 +431,6 @@ export function AppearanceTab({
       }
       if (entityModel === "BodyModification") {
         return currentState.activeBodyModifications.map((m) => ({
-          id: m.id,
-          label: `${m.type} — ${m.bodyRegion}`,
-        }));
-      }
-      if (entityModel === "CosmeticProcedure") {
-        return currentState.activeCosmeticProcedures.map((m) => ({
           id: m.id,
           label: `${m.type} — ${m.bodyRegion}`,
         }));
@@ -848,43 +806,6 @@ export function AppearanceTab({
             )}
           </SectionCard>
 
-          {/* Cosmetic Procedures */}
-          <SectionCard
-            title="Cosmetic Procedures"
-            icon={<Sparkles size={18} />}
-            badge={currentState.activeCosmeticProcedures.length}
-            accent="rose"
-            action={addButton(() => setOpenState("addCosmProc"))}
-          >
-            {currentState.activeCosmeticProcedures.length === 0 ? (
-              <EmptyState message="No cosmetic procedures recorded." />
-            ) : (
-              <div className="space-y-2">
-                {currentState.activeCosmeticProcedures.map((proc) => (
-                  <CosmeticProcedureRow
-                    key={proc.id}
-                    procedure={proc}
-                    photos={entityMedia?.[proc.id]}
-                    onEdit={() => setOpenState({ type: "editCosmProc", procedure: proc })}
-                    onDelete={() => handleDeleteCosmProc(proc.id)}
-                    onManagePhotos={referenceSessionId ? () => setOpenState({ type: "manageEntityPhotos", entityId: proc.id, entityModel: "CosmeticProcedure", entityType: proc.type, entityLabel: `${proc.type} — ${proc.bodyRegion}` }) : undefined}
-                    onUploadPhoto={referenceSessionId ? () => handleEntityUpload("CosmeticProcedure", proc.id, proc.type) : undefined}
-                    onDropFiles={referenceSessionId ? handleEntityDrop("CosmeticProcedure", proc.id, proc.type) : undefined}
-                    onSelectFromSessions={referenceSessionId ? (() => { const cat = findCategoryForEntity("CosmeticProcedure", proc.type); if (cat) setEntityPicker({ categoryId: cat.id, entityId: proc.id, entityModel: 'CosmeticProcedure', entityLabel: `${proc.type} — ${proc.bodyRegion}` }); }) : undefined}
-                    onViewPhotos={entityMedia?.[proc.id]?.length ? (idx) => setEntityLightbox({ entityId: proc.id, initialIndex: idx }) : undefined}
-                    onDeleteEvent={handleDeleteCosmProcEvent}
-                    onAddEvent={() => setOpenState({ type: "addCosmProcEvent", procId: proc.id, procLabel: `${proc.type} — ${proc.bodyRegion}`, computed: proc.computed })}
-                    onToggleHeroVisibility={(visible) => handleToggleHeroVisibility("cosmeticProcedure", proc.id, visible)}
-                    onEditEvent={(event) => {
-                      const fullEvent = proc.events.find((e) => e.id === event.id);
-                      setOpenState({ type: "editCosmProcEvent", event, procId: proc.id, eventOverrides: { bodyRegions: fullEvent?.bodyRegions ?? [], description: fullEvent?.description ?? null, provider: fullEvent?.provider ?? null, valueBefore: fullEvent?.valueBefore ?? null, valueAfter: fullEvent?.valueAfter ?? null, unit: fullEvent?.unit ?? null } });
-                    }}
-                    isPending={isPending}
-                  />
-                ))}
-              </div>
-            )}
-          </SectionCard>
         </div>
 
         {/* Right column — sticky body map (hidden below lg) */}
@@ -990,45 +911,6 @@ export function AppearanceTab({
             description: data.description,
             material: data.material,
             gauge: data.gauge,
-          })}
-          onClose={handleSheetClose}
-        />
-      )}
-      {openState === "addCosmProc" && (
-        <AddCosmeticProcedureSheet personId={person.id} referenceSessionId={referenceSessionId} categoryId={findCategoryForEntity("CosmeticProcedure")?.id} attributeGroups={attributeGroups} onClose={handleSheetClose} />
-      )}
-      {typeof openState === "object" && openState?.type === "editCosmProc" && (
-        <EditCosmeticProcedureSheet personId={person.id} procedure={openState.procedure} referenceSessionId={referenceSessionId} categoryId={findCategoryForEntity("CosmeticProcedure", openState.procedure.type)?.id} existingPhotos={entityMedia?.[openState.procedure.id]} attributeGroups={attributeGroups} onClose={handleSheetClose} />
-      )}
-      {typeof openState === "object" && openState?.type === "addCosmProcEvent" && (
-        <AddCosmeticProcedureEventDialog
-          personId={person.id}
-          cosmeticProcedureId={openState.procId}
-          procedureLabel={openState.procLabel}
-          currentComputed={openState.computed}
-          onClose={handleSheetClose}
-        />
-      )}
-      {typeof openState === "object" && openState?.type === "editCosmProcEvent" && (
-        <EditEventDialog
-          event={openState.event}
-          entityId={openState.procId}
-          eventTypes={COSMETIC_PROCEDURE_EVENT_TYPES as unknown as string[]}
-          eventStyles={COSMETIC_PROCEDURE_EVENT_STYLES}
-          entityKind="cosmeticProcedure"
-          overrides={openState.eventOverrides}
-          onSave={(data) => updateCosmeticProcedureEventAction(openState.event.id, person.id, {
-            cosmeticProcedureId: openState.procId,
-            eventType: data.eventType,
-            date: data.date,
-            datePrecision: data.datePrecision,
-            notes: data.notes,
-            bodyRegions: data.bodyRegions,
-            description: data.description,
-            provider: data.provider,
-            valueBefore: data.valueBefore,
-            valueAfter: data.valueAfter,
-            unit: data.unit,
           })}
           onClose={handleSheetClose}
         />

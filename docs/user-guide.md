@@ -177,13 +177,13 @@ Only photos from the person's reference session can be embedded — external URL
 **Appearance**
 - Current physical state (height, weight, body type, ethnicity, hair color)
 - Extensible physical attributes with Natural/Enhanced/Restored status badges
-- Active body marks, body modifications, cosmetic procedures with event timelines
-- Cosmetic procedure events support before/after values (e.g. "A → D cup size")
+- Active body marks and body modifications with event timelines
+- Surgical changes to scalar attributes are captured as deltas with `cause=SURGICAL`, driving the Enhanced status badge (ADR-0007)
 - Folded chronologically from era history (latest delta wins per attribute — see the History panel for the full timeline)
 
 **Details**
 - Only visible when media categories exist
-- Expandable groups of media categories (Physical Features, Body Marks, Body Modifications, Cosmetic Procedures)
+- Expandable groups of media categories (Physical Features, Body Marks, Body Modifications)
 - Each category shows a photo count badge
 - Click to expand and view a gallery for that category
 
@@ -623,7 +623,7 @@ These additional sections appear when viewing media in a reference session:
   - PORTFOLIO: general portfolio image
   - DETAIL: linked to a specific body feature via category
 - **Headshot slot assignment** — dropdown to assign/remove from profile slot (1–5) with custom labels from Settings
-- **Entity linking** (when usage is DETAIL) — link to a specific Body Mark, Body Modification, or Cosmetic Procedure
+- **Entity linking** (when usage is DETAIL) — link to a specific Body Mark or Body Modification
 - **Collections** — add/remove the image from any collection
 - **Category assignment** — assign to a media category (used in person Detail tab)
 
@@ -997,12 +997,11 @@ Organize photo documentation by category. An accordion interface allows managing
 - Physical Features
 - Body Marks
 - Body Modifications
-- Cosmetic Procedures
 
 **Per category:**
 - Name and slug
 - Sort order (drag to reorder)
-- Entity model link (optional): BodyMark, BodyModification, or CosmeticProcedure
+- Entity model link (optional): BodyMark or BodyModification
 
 Categories with an entity model automatically enable entity linking in the lightbox when a photo is assigned to that category.
 
@@ -1022,14 +1021,12 @@ Define custom physical attributes for tracking measurements over time. An accord
 - Unit (optional, e.g. "cm", "cup size")
 - Sort order (drag to reorder)
 
-These definitions are used in two places:
-1. **Recording physical changes** — extensible attribute inputs appear in the Record/Edit Physical Change sheets below the 5 fixed fields
-2. **Cosmetic procedure linking** — an "Affects Attribute" dropdown on add/edit procedure sheets links a procedure to an attribute, enabling automatic **Natural/Enhanced/Restored** status tracking
+These definitions are used in **Recording physical changes** — extensible attribute inputs appear in the Record/Edit Physical Change sheets below the 5 fixed fields. The record-change sheet has a **Cause** field (default `Natural`); setting it to `Surgical` drives the derived **Enhanced** status badge.
 
-**Attribute status** (derived automatically, shown as badges in Appearance tab):
-- **Natural** — no cosmetic procedure targets this attribute
-- **Enhanced** (purple badge) — a cosmetic procedure was performed targeting this attribute
-- **Restored** (green badge) — the cosmetic procedure was reversed
+**Attribute status** (derived automatically per ADR-0007, shown as badges in the Appearance tab; only attributes with `statusBearing=true` surface a badge):
+- **Natural** — no delta on this attribute has `cause=SURGICAL`
+- **Enhanced** (purple badge) — the winning delta of the fold has `cause=SURGICAL`
+- **Restored** (green badge) — a SURGICAL delta exists in history but a later non-SURGICAL delta overrode it
 
 **Operations:** Add group, add definition to group, edit definition, delete definition (blocked if in use), reorder.
 

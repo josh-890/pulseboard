@@ -260,7 +260,8 @@ export async function importPerson(item: ImportItem): Promise<ImportResult> {
     }
 
     // Baseline breast data → a ScalarDelta. (hair colour was set as a delta by
-    // createPersonRecord via currentHairColor.) Enhanced status → a procedure.
+    // createPersonRecord via currentHairColor.) Enhanced status → an additional
+    // ScalarDelta with cause=SURGICAL on a draft era (ADR-0007, Phase G Slice 5).
     if (naturalCup || breastParsed) {
       const baselineEra = await prisma.era.findFirst({
         where: { personId: person.id, isBaseline: true },
@@ -281,7 +282,6 @@ export async function importPerson(item: ImportItem): Promise<ImportResult> {
         })
       }
 
-      // "Enhanced" is the derived Attribute status — model it as a procedure.
       if (breastParsed?.status === 'enhanced') {
         let draftEra = await prisma.era.findFirst({
           where: { personId: person.id, label: 'Imported — undated changes', isDraft: true },
@@ -289,24 +289,14 @@ export async function importPerson(item: ImportItem): Promise<ImportResult> {
         draftEra ??= await prisma.era.create({
           data: { personId: person.id, label: 'Imported — undated changes', isDraft: true },
         })
-        const procedure = await prisma.cosmeticProcedure.create({
+        await prisma.scalarDelta.create({
           data: {
-            personId: person.id,
-            type: 'breast augmentation',
-            bodyRegion: 'chest',
-            bodyRegions: ['chest'],
-            description: breastParsed.raw,
-            status: 'completed',
-            attributeDefinitionId: 'cattr-breast-size',
-          },
-        })
-        await prisma.cosmeticProcedureEvent.create({
-          data: {
-            cosmeticProcedureId: procedure.id,
             eraId: draftEra.id,
-            eventType: 'performed',
+            attributeDefinitionId: 'cattr-breast-size',
+            value: naturalCup ?? breastParsed.cupSize ?? '',
+            cause: 'SURGICAL',
             datePrecision: 'UNKNOWN',
-            valueAfter: naturalCup,
+            dateSource: 'import-enhanced',
             notes: `import: "${breastParsed.raw}"`,
           },
         })

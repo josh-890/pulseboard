@@ -261,7 +261,7 @@ components/
 page.tsx (Server Component — calls ~12 service functions)
   └── PersonDetailTabs (Client — receives all data as props, manages tab state)
         ├── OverviewTab — HeroCard (plausibility badge), BasicInfoPanel, PhysicalStatsPanel, HistoryPanel, KpiStatsPanel, DataQualityCard (plausibility warnings)
-        ├── AppearanceTab (extracted file) — Physical stats, BodyMarkCard, BodyModificationCard, CosmeticProcedureCard + add/edit sheets
+        ├── AppearanceTab (extracted file) — Physical stats, BodyMarkCard, BodyModificationCard + add/edit sheets (Cosmetic Procedures card removed in Phase G Slice 5; surgical changes now flow through ScalarDelta with cause=SURGICAL)
         ├── PersonDetailsTab — Category groups with expandable photo galleries via /api/categories/[id]/media
         ├── PersonSkillsTab — Category-grouped skills, event timeline, inline media
         ├── PersonAliasesTab — By-alias/by-channel views, multi-select, import/merge
@@ -349,7 +349,6 @@ Person ──┬── PersonAlias[] ──── PersonAliasChannel[] ───
          ├── Era[] ──┬── ScalarDelta[] ──── PhysicalAttributeDefinition ──── PhysicalAttributeGroup
          │           ├── BodyMarkEvent[] ──── BodyMark
          │           ├── BodyModificationEvent[] ──── BodyModification
-         │           ├── CosmeticProcedureEvent[] ──── CosmeticProcedure ──?── PhysicalAttributeDefinition
          │           ├── DigitalIdentityEvent[] ──── PersonDigitalIdentity
          │           ├── InterestEvent[] ──── PersonInterest
          │           └── PersonSkillEvent[] ──── PersonSkill ──── SkillDefinition ──── SkillGroup
@@ -405,9 +404,9 @@ MediaItem ──┬── PersonMediaLink[] (usage: PROFILE/HEADSHOT/DETAIL/PORT
 - **Session**: `type` (REFERENCE/PRODUCTION), `status` (DRAFT/CONFIRMED), `personId` (unique FK for REFERENCE type)
 - **MediaItem**: `variants` (JSON — profile/gallery sizes), `focalX`/`focalY` (0-1 normalized), `hash` (SHA256), `phash` (dHash)
 - **PersonMediaLink**: `usage` enum, `slot` (for HEADSHOT), `categoryId` (for DETAIL), entity FKs (`bodyMarkId`, etc.)
-- **PhysicalAttributeGroup/Definition**: Admin catalog for typed scalar attributes — every ScalarDelta points at one definition. Mirrors SkillGroup/SkillDefinition pattern
-- **CosmeticProcedure**: Optional `attributeDefinitionId` FK to PhysicalAttributeDefinition — links procedure to the physical attribute it affects. Enables derived `AttributeStatus` (NATURAL/ENHANCED/RESTORED) on extensible attributes
-- **CosmeticProcedureEvent**: `valueBefore`/`valueAfter`/`unit` — observation fields for before/after values of a procedure
+- **PhysicalAttributeGroup/Definition**: Admin catalog for typed scalar attributes — every ScalarDelta points at one definition. Mirrors SkillGroup/SkillDefinition pattern. `statusBearing` (Boolean, default FALSE) gates the AttributeStatus UI per definition
+- **ScalarDelta.cause** (ADR-0007): `DeltaCause` enum (`NATURAL` / `SURGICAL` / `OTHER`). Drives the derived `AttributeStatus` (NATURAL / ENHANCED / RESTORED) on status-bearing attrs; cached in `PersonCurrentState.attributeStatuses` (JSON)
+- **CosmeticProcedure / CosmeticProcedureEvent** (legacy, deprecated Phase G Slice 5): tables remain in the schema during soak but are no longer authored — the import workflow and the Appearance tab no longer create or surface them. To be dropped in Slice 17 after the new model has soaked in prod
 
 ### Materialized Views
 
@@ -443,7 +442,7 @@ All searchable entities have `nameNorm`/`titleNorm` fields with `pg_trgm` trigra
 
 7. **Contribution → skill progression** — `addContributionSkill()` auto-creates/upgrades PersonSkill and creates DEMONSTRATED event tagged with `[session:ID]`.
 
-8. **Entity media linking** — DETAIL usage on PersonMediaLink can be categorized (`categoryId`) and linked to specific entities (bodyMarkId, bodyModificationId, cosmeticProcedureId). Categories driven by `entityModel` field on MediaCategory.
+8. **Entity media linking** — DETAIL usage on PersonMediaLink can be categorized (`categoryId`) and linked to specific entities (`bodyMarkId`, `bodyModificationId`). Categories driven by `entityModel` field on MediaCategory. (The `cosmeticProcedureId` column remains in the schema during the Slice 5 → Slice 17 soak but is no longer written by any code path.)
 
 9. **SetParticipant is derived** — Rebuilt from SessionContribution via `rebuildSetParticipantsFromContributions()`. Never edited directly.
 
@@ -453,7 +452,7 @@ All searchable entities have `nameNorm`/`titleNorm` fields with `pg_trgm` trigra
 
 12. **In-tx cache recompute (ADR-0003)** — Every mutation that writes a fold input (ScalarDelta, BodyMarkEvent, etc.) MUST end its `$transaction` with `recomputePersonCurrentState(tx, personId)`. The `PersonCurrentState` cache is the only thing the read path queries — it cannot drift because the mutation path can't commit without writing it.
 
-13. **Event-derived status projections (ADR-0002)** — `BodyMark.status` / `BodyModification.status` / `CosmeticProcedure.status` are projections of their event logs. Every event mutation calls the matching `recompute*Status(tx, id)` helper from `cascade-helpers.ts` in the same transaction.
+13. **Event-derived status projections (ADR-0002)** — `BodyMark.status` and `BodyModification.status` are projections of their event logs. Every event mutation calls the matching `recompute*Status(tx, id)` helper from `cascade-helpers.ts` in the same transaction. (Legacy `CosmeticProcedure.status` followed the same pattern but is no longer surfaced — see invariant about the Slice 5 deprecation.)
 
 14. **Era-linked participation lives on SessionContribution, not SetParticipant (ADR-0004)** — A Session is one shoot = one Era. A Set may be a compilation spanning multiple Eras for the same person. The `eraId` is therefore authored on `SessionContribution` (source of truth); `SetParticipant` is derived. `addSessionContribution` / `updateSessionContribution` propagate `eraId` across every contribution row for the same `(sessionId, personId)` in one tx.
 
