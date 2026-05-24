@@ -228,6 +228,23 @@ function buildAttributeClauses(
     const { slug, valueType } = meta;
     const hasValues = f.values.length > 0;
     const hasRange = f.min != null || f.max != null;
+    const hasStatus = f.status != null;
+
+    // Phase G Slice 6 / ADR-0007: AttributeStatus sub-filter against the cached
+    // PersonCurrentState.attributeStatuses JSONB. The cache only stores
+    // non-NATURAL keys (smaller payload), so NATURAL filter = "this slug is
+    // NOT a key in the JSON" — covers the "no SURGICAL in history" case AND
+    // the "no value tracked at all" case (which is fine — the value-filter
+    // clause on the same row would have eliminated them anyway if they
+    // mattered).
+    if (hasStatus) {
+      if (f.status === "NATURAL") {
+        out.push(Prisma.sql`NOT (mv."attributeStatuses" ? ${slug})`);
+      } else {
+        out.push(Prisma.sql`mv."attributeStatuses" ->> ${slug} = ${f.status}`);
+      }
+    }
+
     if (!hasValues && !hasRange) continue;
 
     // "Ever" mode: route through PersonaPhysicalAttribute history rather than

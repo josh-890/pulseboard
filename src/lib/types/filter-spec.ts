@@ -35,11 +35,18 @@ export type TextFilter = {
   fuzzy: boolean;
 };
 
+export type AttributeStatusFilter = "NATURAL" | "ENHANCED" | "RESTORED";
+
 export type AttributeFilter = {
   definitionId: string;
   values: string[];         // for BOOLEAN / SINGLE_SELECT / MULTI_SELECT
   min?: number;             // for ORDINAL / NUMERIC
   max?: number;             // for ORDINAL / NUMERIC
+  // Phase G Slice 6 / ADR-0007: optional status sub-filter. Backed by the
+  // PersonCurrentState.attributeStatuses JSONB column. NATURAL is the implicit
+  // default in the cache (only non-NATURAL keys are stored), so the query for
+  // NATURAL translates to "this slug is NOT a key in attributeStatuses".
+  status?: AttributeStatusFilter;
 };
 
 export type TimeScope = "current" | "ever";
@@ -99,6 +106,7 @@ export function specSummary(spec: FilterSpec): string {
   }
   for (const a of spec.attribute) {
     if (a.values.length > 0) parts.push(`${a.definitionId}=${a.values.join("|")}`);
+    if (a.status) parts.push(`${a.definitionId}.status=${a.status}`);
   }
   if (spec.timeScope === "ever") parts.push("ever");
   return parts.join(" ");
@@ -145,10 +153,12 @@ export function specToUrlParams(spec: FilterSpec): URLSearchParams {
   for (const a of spec.attribute) {
     const hasValues = a.values.length > 0;
     const hasRange = a.min != null || a.max != null;
-    if (!hasValues && !hasRange) continue;
+    const hasStatus = a.status != null;
+    if (!hasValues && !hasRange && !hasStatus) continue;
     if (hasValues) p.set(`attr.${a.definitionId}`, a.values.join(","));
     if (a.min != null) p.set(`attr.${a.definitionId}.min`, String(a.min));
     if (a.max != null) p.set(`attr.${a.definitionId}.max`, String(a.max));
+    if (a.status != null) p.set(`attr.${a.definitionId}.status`, a.status);
   }
   if (spec.timeScope === "ever") p.set("time", "ever");
 
@@ -282,13 +292,16 @@ export function specFromUrlParams(params: ReadableParams): FilterSpec {
     if (key.startsWith("attr.")) {
       const rest = key.slice(5);
       let definitionId: string;
-      let kind: "values" | "min" | "max" = "values";
+      let kind: "values" | "min" | "max" | "status" = "values";
       if (rest.endsWith(".min")) {
         definitionId = rest.slice(0, -4);
         kind = "min";
       } else if (rest.endsWith(".max")) {
         definitionId = rest.slice(0, -4);
         kind = "max";
+      } else if (rest.endsWith(".status")) {
+        definitionId = rest.slice(0, -7);
+        kind = "status";
       } else {
         definitionId = rest;
       }
@@ -303,9 +316,13 @@ export function specFromUrlParams(params: ReadableParams): FilterSpec {
       } else if (kind === "min") {
         const n = Number(value);
         if (Number.isFinite(n)) entry.min = n;
-      } else {
+      } else if (kind === "max") {
         const n = Number(value);
         if (Number.isFinite(n)) entry.max = n;
+      } else if (kind === "status") {
+        if (value === "NATURAL" || value === "ENHANCED" || value === "RESTORED") {
+          entry.status = value;
+        }
       }
       continue;
     }
@@ -318,7 +335,7 @@ export function specFromUrlParams(params: ReadableParams): FilterSpec {
   spec.region = Array.from(regionFields.values()).filter((r) => r.regions.length > 0);
   spec.text = Array.from(textFields.values()).filter((t) => t.query);
   spec.attribute = spec.attribute.filter(
-    (a) => a.values.length > 0 || a.min != null || a.max != null,
+    (a) => a.values.length > 0 || a.min != null || a.max != null || a.status != null,
   );
 
   return spec;

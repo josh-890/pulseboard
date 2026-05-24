@@ -243,29 +243,69 @@ function AttributeControl({
 }) {
   const current = spec.attribute.find((a) => a.definitionId === option.definitionId);
 
-  const replaceEntry = (patch: Partial<{ values: string[]; min: number | undefined; max: number | undefined }>) => {
+  const replaceEntry = (patch: Partial<{
+    values: string[];
+    min: number | undefined;
+    max: number | undefined;
+    status: import("@/lib/types/filter-spec").AttributeStatusFilter | undefined;
+  }>) => {
     const others = spec.attribute.filter((a) => a.definitionId !== option.definitionId);
     const merged = {
       definitionId: option.definitionId,
       values: patch.values ?? current?.values ?? [],
       min:    patch.min    !== undefined ? patch.min    : current?.min,
       max:    patch.max    !== undefined ? patch.max    : current?.max,
+      status: patch.status !== undefined ? patch.status : current?.status,
     };
-    const empty = merged.values.length === 0 && merged.min == null && merged.max == null;
+    const empty =
+      merged.values.length === 0 &&
+      merged.min == null &&
+      merged.max == null &&
+      merged.status == null;
     onChange({ ...spec, attribute: empty ? others : [...others, merged] });
   };
+
+  // Compact status sub-filter (Phase G Slice 6 / ADR-0007). Rendered for every
+  // attribute regardless of type — defaults to "Any" so it's invisible noise
+  // when the user doesn't care.
+  const statusFilter = (
+    <div className="flex items-center gap-1 text-[10px] text-muted-foreground/70 pt-0.5">
+      <span>status</span>
+      <select
+        value={current?.status ?? ""}
+        onChange={(e) => {
+          const v = e.target.value;
+          replaceEntry({
+            status: v === ""
+              ? undefined
+              : (v as import("@/lib/types/filter-spec").AttributeStatusFilter),
+          });
+        }}
+        className="rounded bg-muted/40 px-1 py-0.5 text-[10px] focus:outline-none focus:ring-1 focus:ring-ring"
+        aria-label={`Filter ${option.name} by status`}
+      >
+        <option value="">Any</option>
+        <option value="NATURAL">Natural</option>
+        <option value="ENHANCED">Enhanced</option>
+        <option value="RESTORED">Restored</option>
+      </select>
+    </div>
+  );
 
   // BOOLEAN — single checkbox
   if (option.valueType === "BOOLEAN") {
     const selected = current?.values.includes("yes") ?? false;
     return (
-      <label className="flex items-center gap-2 rounded px-1 py-0.5 text-xs hover:bg-white/5">
-        <Checkbox
-          checked={selected}
-          onCheckedChange={(c) => replaceEntry({ values: c ? ["yes"] : [] })}
-        />
-        <span className="flex-1">{option.name}</span>
-      </label>
+      <div className="space-y-0.5">
+        <label className="flex items-center gap-2 rounded px-1 py-0.5 text-xs hover:bg-white/5">
+          <Checkbox
+            checked={selected}
+            onCheckedChange={(c) => replaceEntry({ values: c ? ["yes"] : [] })}
+          />
+          <span className="flex-1">{option.name}</span>
+        </label>
+        {statusFilter}
+      </div>
     );
   }
 
@@ -301,6 +341,7 @@ function AttributeControl({
             inputMode="numeric"
           />
         </div>
+        {statusFilter}
       </div>
     );
   }
@@ -345,6 +386,7 @@ function AttributeControl({
           ))}
         </div>
       )}
+      {statusFilter}
     </div>
   );
 }
