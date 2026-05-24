@@ -333,47 +333,9 @@ export function PersonForm({ onSubmit, submitLabel = "Create Person", onCancel }
               {showAppearance && (
                 <div className="border-t px-4 pb-4 pt-3">
                   <div className="grid grid-cols-2 gap-3">
-                    <FormField
-                      control={form.control}
-                      name="eyeColor"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Eye Color</FormLabel>
-                          <FormControl>
-                            <ColorValueCombobox
-                              category="eye"
-                              value={field.value || undefined}
-                              onChange={(v) => field.onChange(v ?? "")}
-                              placeholder="Select eye color..."
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={form.control}
-                      name="height"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Height (cm)</FormLabel>
-                          <FormControl>
-                            <Input
-                              type="number"
-                              placeholder="e.g. 170"
-                              {...field}
-                              value={(field.value as number | undefined) ?? ""}
-                              onChange={(e) =>
-                                field.onChange(e.target.value === "" ? undefined : e.target.value)
-                              }
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
+                    {/* Eye Color + Height are now catalog-driven (Phase G Slice 3a,
+                        ADR-0005). Set them via the Appearance tab → "+ Track another
+                        attribute" or via Record Change. */}
                     <FormField
                       control={form.control}
                       name="currentHairColor"

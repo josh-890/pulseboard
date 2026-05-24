@@ -170,7 +170,7 @@ export function AppearanceTab({
     router.refresh();
   }, [router]);
 
-  const hasStatic = person.ethnicity || person.height || person.eyeColor;
+  const hasStatic = person.ethnicity; // height + eyeColor moved to catalog (Slice 3a)
   const hasComputed = currentState.currentHairColor || currentState.weight !== null || currentState.build || currentState.breastSize || currentState.breastStatus || currentState.breastDescription || currentState.measurements;
   const hasExtensible = Object.keys(currentState.extensibleAttributes).length > 0;
 
@@ -610,9 +610,11 @@ export function AppearanceTab({
             ) : (
               <>
                 <dl className="grid grid-cols-1 gap-2 text-sm sm:grid-cols-2">
+                  {/* Ethnicity stays here until Phase G Slice 3b migrates it off Person. */}
                   {person.ethnicity && <InfoRow label="Ethnicity" value={person.ethnicity} labelWidth="w-28" />}
-                  {person.height && <InfoRow label="Height" value={`${person.height} cm`} labelWidth="w-28" />}
-                  {person.eyeColor && <InfoRow label="Eye color" value={<span className="capitalize">{person.eyeColor}</span>} labelWidth="w-28" />}
+                  {/* Height + Eye Color migrated to the catalog/delta path in Phase G Slice 3a —
+                      they appear automatically in the extensible groups section below
+                      (Core Body Measurements / Eye Features). Don't dupe them here. */}
                   {currentState.currentHairColor && <InfoRow label="Hair color" value={<span className="capitalize">{currentState.currentHairColor}</span>} labelWidth="w-28" />}
                   {currentState.breastSize && <InfoRow label="Breast size" value={currentState.breastSize} labelWidth="w-28" />}
                   {currentState.breastStatus && <InfoRow label="Breast status" value={<span className="capitalize">{currentState.breastStatus}</span>} labelWidth="w-28" />}

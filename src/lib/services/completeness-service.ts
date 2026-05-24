@@ -56,8 +56,10 @@ export async function computeProfileCompleteness(
     sexAtBirth: { filled: !!person.sexAtBirth, weight: WEIGHTS.sexAtBirth, label: "Sex at Birth" },
     ethnicity: { filled: !!person.ethnicity, weight: WEIGHTS.ethnicity, label: "Ethnicity" },
     headshot: { filled: headshot !== null, weight: WEIGHTS.headshot, label: "Headshot" },
-    eyeColor: { filled: !!person.eyeColor, weight: WEIGHTS.eyeColor, label: "Eye Color" },
-    height: { filled: person.height !== null, weight: WEIGHTS.height, label: "Height" },
+    // eyeColor + height moved off Person into the catalog (Phase G Slice 3a).
+    // Read from the same baseline-delta source as the other catalog attrs.
+    eyeColor: { filled: hasDelta("cattr-eye-color"), weight: WEIGHTS.eyeColor, label: "Eye Color" },
+    height: { filled: hasDelta("cattr-height"), weight: WEIGHTS.height, label: "Height" },
     currentHairColor: { filled: hasDelta("cattr-hair-color"), weight: WEIGHTS.currentHairColor, label: "Hair Color" },
     build: { filled: hasDelta("cattr-build"), weight: WEIGHTS.build, label: "Build" },
     birthPlace: { filled: !!person.birthPlace, weight: WEIGHTS.birthPlace, label: "Birth Place" },
@@ -128,8 +130,9 @@ export async function batchComputeCompleteness(
     if (person.sexAtBirth) score += WEIGHTS.sexAtBirth;
     if (person.ethnicity) score += WEIGHTS.ethnicity;
     if (hasHeadshot.has(person.id)) score += WEIGHTS.headshot;
-    if (person.eyeColor) score += WEIGHTS.eyeColor;
-    if (person.height !== null) score += WEIGHTS.height;
+    // eyeColor + height moved off Person into the catalog (Phase G Slice 3a).
+    if (hasDelta(deltaMap.get(person.id), "cattr-eye-color")) score += WEIGHTS.eyeColor;
+    if (hasDelta(deltaMap.get(person.id), "cattr-height")) score += WEIGHTS.height;
     if (hasDelta(deltaMap.get(person.id), "cattr-hair-color")) score += WEIGHTS.currentHairColor;
     if (hasDelta(deltaMap.get(person.id), "cattr-build")) score += WEIGHTS.build;
     if (person.birthPlace) score += WEIGHTS.birthPlace;

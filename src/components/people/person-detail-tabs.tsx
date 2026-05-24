@@ -207,7 +207,12 @@ function PhysicalMetrics({
 }) {
   return (
     <dl className={cn("grid grid-cols-1 text-sm", fieldGap)}>
-      <InfoRow label="Height" value={person.height ? `${person.height} cm` : "\u2014"} labelWidth={labelWidth} />
+      <InfoRow label="Height" value={(() => {
+        // Height moved off Person.height into the catalog (Phase G Slice 3a) \u2014
+        // read from the folded extensibleAttributes cache via cattr-height.
+        const a = currentState.extensibleAttributes["cattr-height"];
+        return a ? `${a.value} cm` : "\u2014";
+      })()} labelWidth={labelWidth} />
       <InfoRow label="Weight" value={currentState.weight !== null && currentState.weight !== undefined ? `${currentState.weight} kg` : "\u2014"} labelWidth={labelWidth} />
       <InfoRow label="Measurements" value={currentState.measurements ?? "—"} labelWidth={labelWidth} />
     </dl>
@@ -227,7 +232,12 @@ function PhysicalDescriptive({
 }) {
   return (
     <dl className={cn("grid grid-cols-1 text-sm", fieldGap)}>
-      <InfoRow label="Eye color" value={person.eyeColor ? <span className="capitalize">{person.eyeColor}</span> : "—"} labelWidth={labelWidth} />
+      <InfoRow label="Eye color" value={(() => {
+        // Eye color moved off Person.eyeColor into the catalog (Phase G Slice 3a) —
+        // read from the folded extensibleAttributes cache via cattr-eye-color.
+        const a = currentState.extensibleAttributes["cattr-eye-color"];
+        return a ? <span className="capitalize">{a.value}</span> : "—";
+      })()} labelWidth={labelWidth} />
       <InfoRow label="Current hair" value={currentState.currentHairColor ? <span className="capitalize">{currentState.currentHairColor}</span> : "—"} labelWidth={labelWidth} />
       {currentState.breastSize && <InfoRow label="Current breasts" value={currentState.breastSize} labelWidth={labelWidth} />}
       {currentState.breastStatus && <InfoRow label="Breast status" value={<span className="capitalize">{currentState.breastStatus}</span>} labelWidth={labelWidth} />}

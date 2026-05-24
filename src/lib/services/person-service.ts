@@ -1171,8 +1171,8 @@ export async function createPersonRecord(data: CreatePersonInput) {
         birthPlace: data.birthPlace,
         nationality: data.nationality,
         ethnicity: data.ethnicity,
-        eyeColor: data.eyeColor,
-        height: data.height,
+        // eyeColor + height intentionally NOT written here — they migrated
+        // to Baseline ScalarDeltas in Phase G Slice 3a (see below).
       },
     });
 
@@ -1206,6 +1206,11 @@ export async function createPersonRecord(data: CreatePersonInput) {
       baselineDeltas.push({ attributeDefinitionId: CORE_ATTR.build, value: data.build, notes: null });
     if (data.breastSize)
       baselineDeltas.push({ attributeDefinitionId: CORE_ATTR.breastSize, value: data.breastSize, notes: data.breastDescription ?? null });
+    // Phase G Slice 3a: eyeColor + height enter via catalog deltas, not Person columns.
+    if (data.eyeColor)
+      baselineDeltas.push({ attributeDefinitionId: "cattr-eye-color", value: data.eyeColor, notes: null });
+    if (data.height !== undefined && data.height !== null)
+      baselineDeltas.push({ attributeDefinitionId: "cattr-height", value: String(data.height), notes: null });
     if (data.hairLength) {
       const hairLengthDef = await tx.physicalAttributeDefinition.findFirst({
         where: { slug: "hair-length" },
@@ -1345,13 +1350,9 @@ export async function updatePersonAppearance(
     ensureCatalogEntry("eye",  data.eyeColor),
   ]);
   await prisma.$transaction(async (tx) => {
-    await tx.person.update({
-      where: { id },
-      data: {
-        eyeColor: data.eyeColor ?? null,
-        height: data.height ?? null,
-      },
-    });
+    // eyeColor + height moved to Baseline ScalarDeltas in Phase G Slice 3a.
+    // Person columns are no longer written here (orphan-data avoidance).
+    // All baseline attribute updates are funnelled through `setBaselineDelta` below.
 
     // Weight / build / hair colour are baseline ScalarDeltas. Editing appearance
     // replaces the baseline era's delta for each provided attribute.
@@ -1376,6 +1377,9 @@ export async function updatePersonAppearance(
       await setBaselineDelta(CORE_ATTR.build, data.build);
       await setBaselineDelta(CORE_ATTR.breastSize, data.breastSize);
       await setBaselineDelta(CORE_ATTR.measurements, data.measurements);
+      // Phase G Slice 3a additions
+      await setBaselineDelta("cattr-eye-color", data.eyeColor);
+      await setBaselineDelta("cattr-height", data.height !== undefined ? String(data.height) : undefined);
     }
 
     await recomputePersonCurrentState(tx, id);
