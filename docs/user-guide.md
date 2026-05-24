@@ -1031,6 +1031,8 @@ These definitions are used in **Recording physical changes** — extensible attr
 
 The default reflects history: a fresh person opens with **baseline** preselected; a person with existing measurements opens with **On this date**. Once a draft Era reaches a meaningful size, the Overview History panel will nudge you to name it (curation nudge — coming in Slice 9). Naming an Era promotes it from draft → curated and locks its membership.
 
+**Editing a recorded change.** Open the Edit sheet on any History row to change values, the date, or the intent. While the containing Era is still a **draft** (unnamed), editing the date freely re-clusters the change into a better-fitting draft — and a now-empty source draft cleans itself up automatically. Once you name (curate) the Era, membership becomes sticky: you can still edit the date itself, but the change stays in the curated Era.
+
 **Attribute status** (derived automatically per ADR-0007, shown as badges in the Appearance tab; only attributes with `statusBearing=true` surface a badge):
 - **Natural** — no delta on this attribute has `cause=SURGICAL`
 - **Enhanced** (purple badge) — the winning delta of the fold has `cause=SURGICAL`

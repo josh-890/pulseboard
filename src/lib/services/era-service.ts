@@ -153,6 +153,54 @@ export async function autoClusterDeltaIntoDraftEra(
 }
 
 /**
+ * Phase G Slice 8 (ADR-0006): delete a draft Era if it has no remaining
+ * members (deltas, events, contributions). Never deletes baseline or
+ * curated Eras. Returns true if the Era was deleted.
+ *
+ * Intended for use after moving a delta out of a draft Era — if the source
+ * was the last thing keeping that draft alive, the draft is empty noise
+ * and should disappear.
+ */
+export async function deleteDraftEraIfEmpty(
+  tx: TxClient,
+  eraId: string,
+): Promise<boolean> {
+  const era = await tx.era.findUnique({
+    where: { id: eraId },
+    select: { id: true, isDraft: true, isBaseline: true },
+  });
+  if (!era || era.isBaseline || !era.isDraft) return false;
+
+  const [
+    deltas,
+    bodyMarkEvents,
+    bodyModEvents,
+    digitalIdEvents,
+    interestEvents,
+    skillEvents,
+    contributions,
+    digitalIds,
+  ] = await Promise.all([
+    tx.scalarDelta.count({ where: { eraId } }),
+    tx.bodyMarkEvent.count({ where: { eraId } }),
+    tx.bodyModificationEvent.count({ where: { eraId } }),
+    tx.digitalIdentityEvent.count({ where: { eraId } }),
+    tx.interestEvent.count({ where: { eraId } }),
+    tx.personSkillEvent.count({ where: { eraId } }),
+    tx.sessionContribution.count({ where: { eraId } }),
+    tx.personDigitalIdentity.count({ where: { eraId } }),
+  ]);
+
+  const totalMembers =
+    deltas + bodyMarkEvents + bodyModEvents + digitalIdEvents +
+    interestEvents + skillEvents + contributions + digitalIds;
+  if (totalMembers > 0) return false;
+
+  await tx.era.delete({ where: { id: eraId } });
+  return true;
+}
+
+/**
  * Reverse navigation (ADR-0004): for each Era of a person, return the
  * contributions filed into it. Returns a Map keyed by eraId. Fetched
  * separately from `getPersonWithDetails` because nesting it under

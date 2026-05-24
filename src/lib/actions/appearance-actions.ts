@@ -19,6 +19,7 @@ import {
   findOrCreateEraForDate,
   autoClusterDeltaIntoDraftEra,
   getBaselineEraId,
+  deleteDraftEraIfEmpty,
   createEraBatch,
   updateEra,
   deleteEra,
@@ -996,6 +997,10 @@ export async function recordPhysicalChangeAction(
 }
 
 // `eraId` identifies the physical change being edited (its era's scalar deltas).
+// Phase G Slice 8 / ADR-0006: on save, re-route to a different Era when the
+// source is a draft (or baseline + explicit intent change). Curated Eras
+// retain sticky membership — date can still be edited, but the deltas stay
+// in their source Era.
 export async function updatePhysicalChangeAction(
   eraId: string,
   personId: string,
@@ -1005,11 +1010,73 @@ export async function updatePhysicalChangeAction(
     try {
       const date = data.date ? new Date(data.date) : null;
       const precision = (data.datePrecision ?? "UNKNOWN") as DatePrecision;
+      const newIntent: "on-date" | "dateless" | "baseline" =
+        data.intent ?? (date ? "on-date" : "baseline");
 
       await ensureCatalogEntry("hair", data.currentHairColor);
 
       await prisma.$transaction(async (tx) => {
-        await replaceEraScalarDeltas(tx, eraId, buildPhysicalDeltaItems(data), date, precision, data.cause ?? "NATURAL");
+        const source = await tx.era.findUniqueOrThrow({
+          where: { id: eraId },
+          select: { id: true, isDraft: true, isBaseline: true },
+        });
+
+        // Compute the target Era based on the user's chosen intent.
+        let targetEraId: string;
+        if (newIntent === "baseline") {
+          targetEraId = await getBaselineEraId(tx, personId);
+        } else if (newIntent === "dateless") {
+          targetEraId = await autoClusterDeltaIntoDraftEra(tx, personId, null, "UNKNOWN");
+        } else {
+          targetEraId = await autoClusterDeltaIntoDraftEra(tx, personId, date, precision);
+        }
+
+        // Sticky-only-for-curated rule:
+        //  - source is curated (!isDraft && !isBaseline): never move
+        //  - source is baseline: only move if user explicitly picked a
+        //    non-baseline intent
+        //  - source is draft: always re-cluster freely
+        const canMove =
+          source.isDraft ||
+          (source.isBaseline && newIntent !== "baseline");
+        const effectiveEraId = canMove ? targetEraId : source.id;
+
+        // Baseline-fill drops the per-delta date; the dated/dateless intents
+        // keep the date on the delta itself.
+        const baselineLanding =
+          canMove ? newIntent === "baseline" : source.isBaseline;
+        const deltaDate = baselineLanding ? null : date;
+        const deltaPrecision = baselineLanding ? "UNKNOWN" : precision;
+
+        // If we're moving out of the source, clear the source's deltas for
+        // the affected attribute IDs first (otherwise they'd remain orphaned
+        // in the old Era).
+        if (canMove && effectiveEraId !== source.id) {
+          const items = buildPhysicalDeltaItems(data);
+          if (items.length > 0) {
+            await tx.scalarDelta.deleteMany({
+              where: {
+                eraId: source.id,
+                attributeDefinitionId: { in: items.map((i) => i.attributeDefinitionId) },
+              },
+            });
+          }
+        }
+
+        await replaceEraScalarDeltas(
+          tx,
+          effectiveEraId,
+          buildPhysicalDeltaItems(data),
+          deltaDate,
+          deltaPrecision as DatePrecision,
+          data.cause ?? "NATURAL",
+        );
+
+        // If we just emptied the source draft Era, garbage-collect it.
+        if (canMove && effectiveEraId !== source.id) {
+          await deleteDraftEraIfEmpty(tx, source.id);
+        }
+
         await recomputePersonCurrentState(tx, personId);
       });
 

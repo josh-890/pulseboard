@@ -139,8 +139,9 @@ export function EditPhysicalChangeSheet({ personId, item, attributeGroups, onClo
         .map(([definitionId, value]) => ({ definitionId, value: value.trim() }));
 
       const result = await updatePhysicalChangeAction(item.eraId, personId, {
-        date: date || null,
-        datePrecision,
+        date: intent === "on-date" ? (date || null) : null,
+        datePrecision: intent === "on-date" ? datePrecision : "UNKNOWN",
+        intent,
         currentHairColor: currentHairColor.trim() || undefined,
         weight: weight.trim() ? parseFloat(weight) : undefined,
         build: build.trim() || undefined,
@@ -156,7 +157,7 @@ export function EditPhysicalChangeSheet({ personId, item, attributeGroups, onClo
       }
       onClose();
     });
-  }, [item.eraId, personId, date, datePrecision, currentHairColor, weight, build, breastSize, breastStatus, breastDescription, attrValues, hasAnyField, cause, onClose]);
+  }, [item.eraId, personId, date, datePrecision, intent, currentHairColor, weight, build, breastSize, breastStatus, breastDescription, attrValues, hasAnyField, cause, onClose]);
 
   return (
     <div role="dialog" aria-modal="true" className="fixed inset-0 z-50 flex justify-end">
@@ -226,7 +227,9 @@ export function EditPhysicalChangeSheet({ personId, item, attributeGroups, onClo
           </fieldset>
 
           <p className="text-xs text-muted-foreground -mt-2">
-            Editing within <span className="font-medium text-foreground">{item.eraLabel}</span> — re-clustering on date change comes in a follow-up slice.
+            {item.isBaseline
+              ? `Editing within ${item.eraLabel}. Picking a date or "I don't know yet" moves this out of baseline into a draft Era.`
+              : `Editing within ${item.eraLabel}. Date or intent changes re-cluster automatically while this Era is still a draft; once you name it, membership locks.`}
           </p>
 
           {/* Phase G Slice 4 / ADR-0007 + Slice 6½ amendment: Cause select
