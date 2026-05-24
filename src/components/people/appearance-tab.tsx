@@ -11,6 +11,7 @@ import type {
   CosmeticProcedureWithEvents,
 } from "@/lib/types";
 import { MutabilityPrimitive } from "@/components/people/mutability-primitive";
+import { AttributeStatusProgression } from "@/components/people/attribute-status-progression";
 import { AddAttributePicker } from "@/components/people/add-attribute-picker";
 import { BodyMarkRow } from "@/components/people/body-mark-row";
 import { BodyModificationRow } from "@/components/people/body-modification-row";
@@ -173,6 +174,28 @@ export function AppearanceTab({
   const hasStatic = person.ethnicity; // height + eyeColor moved to catalog (Slice 3a)
   const hasComputed = currentState.currentHairColor || currentState.weight !== null || currentState.build || currentState.breastSize || currentState.breastStatus || currentState.breastDescription || currentState.measurements;
   const hasExtensible = Object.keys(currentState.extensibleAttributes).length > 0;
+
+  // Baseline value of the "core" breast_size scalar for Pattern Y rendering
+  // (Phase G Slice 4). Core attrs are special-cased in the hardcoded section
+  // below and don't flow through extensibleAttributes; the unification happens
+  // in Slice 5. Look up the Baseline Era's delta for cattr-breast-size.
+  const baselineBreastSize = useMemo<string | null>(() => {
+    const baseline = person.eras.find((e) => e.isBaseline);
+    if (!baseline) return null;
+    const d = baseline.scalarDeltas.find(
+      (d) => d.attributeDefinitionId === "cattr-breast-size" && d.value.trim() !== "",
+    );
+    return d?.value ?? null;
+  }, [person.eras]);
+
+  // Map currentState.breastStatus (legacy string) to AttributeStatus for the
+  // progression component. "enhanced" / "natural" / "restored" → uppercase.
+  const breastAttrStatus = useMemo<import("@/lib/types").AttributeStatus>(() => {
+    const s = (currentState.breastStatus ?? "").toLowerCase();
+    if (s === "enhanced") return "ENHANCED";
+    if (s === "restored") return "RESTORED";
+    return "NATURAL";
+  }, [currentState.breastStatus]);
 
   // Definition IDs the person already has a value for — used by AddAttributePicker
   // to grey-out "already tracked" rows. Includes the hardcoded "core" attrs that
@@ -618,8 +641,22 @@ export function AppearanceTab({
                       they appear automatically in the extensible groups section below
                       (Core Body Measurements / Eye Features). Don't dupe them here. */}
                   {currentState.currentHairColor && <InfoRow label="Hair color" value={<span className="capitalize">{currentState.currentHairColor}</span>} labelWidth="w-28" />}
-                  {currentState.breastSize && <InfoRow label="Breast size" value={currentState.breastSize} labelWidth="w-28" />}
-                  {currentState.breastStatus && <InfoRow label="Breast status" value={<span className="capitalize">{currentState.breastStatus}</span>} labelWidth="w-28" />}
+                  {currentState.breastSize && (
+                    <InfoRow
+                      label="Breast size"
+                      labelWidth="w-28"
+                      value={
+                        // Pattern Y rendering (ADR-0007 / Phase G Slice 4):
+                        // ENHANCED/RESTORED show `B (Natural) → D (Enhanced)`;
+                        // NATURAL renders as the plain current value.
+                        <AttributeStatusProgression
+                          baselineValue={baselineBreastSize}
+                          currentValue={currentState.breastSize}
+                          status={breastAttrStatus}
+                        />
+                      }
+                    />
+                  )}
                   {currentState.breastDescription && <InfoRow label="Breast desc." value={currentState.breastDescription} labelWidth="w-28" />}
                   {currentState.weight !== null && currentState.weight !== undefined && <InfoRow label="Weight" value={`${currentState.weight} kg`} labelWidth="w-28" />}
                   {currentState.build && <InfoRow label="Build" value={<span className="capitalize">{currentState.build}</span>} labelWidth="w-28" />}
