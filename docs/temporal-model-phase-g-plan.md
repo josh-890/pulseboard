@@ -250,6 +250,7 @@ Three structurally-similar field migrations bundled into one slice. Add the attr
 ### Risks
 - **`ethnicity` may not have a clear value type.** Today it's free text. → For the migration, valueType=TEXT; the cleanup batch (slice 16) tightens to SINGLE_SELECT with a curated vocabulary.
 - **Hero rendering coherence.** Old code read `person.eyeColor`; new code reads cache. Ensure no remaining old-path reads. → Grep gate before merging.
+- **Tenant-specific `PhysicalAttributeGroup` IDs.** The S3a migration as-shipped hardcoded dev's group UUIDs for `Eye Features` and `Core Body Measurements`, which broke on prod tenants whose catalog groups have different IDs. The migration was recovered manually via `docs/migration-recipes/slice-3a-portable.sql` (name-based lookup + `ON CONFLICT DO NOTHING`) and marked applied via `prisma migrate resolve --applied`. **Lesson for any future catalog-seeding migration: never hardcode group IDs.** Use name-based subqueries (`SELECT id FROM "PhysicalAttributeGroup" WHERE name = '…'`).
 
 ### Rollback
 - Migration revert: delete the new deltas (keyed by `dateSource = 'migration-2026-05-phase-g'`), drop the new catalog entries. Person columns are still present; old code paths work again.
