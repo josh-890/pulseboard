@@ -11,6 +11,7 @@ import type {
   CosmeticProcedureWithEvents,
 } from "@/lib/types";
 import { MutabilityPrimitive } from "@/components/people/mutability-primitive";
+import { AddAttributePicker } from "@/components/people/add-attribute-picker";
 import { BodyMarkRow } from "@/components/people/body-mark-row";
 import { BodyModificationRow } from "@/components/people/body-modification-row";
 import { CosmeticProcedureRow } from "@/components/people/cosmetic-procedure-row";
@@ -119,6 +120,7 @@ type AppearanceOpenState =
   | { type: "addCosmProcEvent"; procId: string; procLabel: string; computed: CosmeticProcedureWithEvents["computed"] }
   | { type: "editCosmProcEvent"; event: EventItem; procId: string; eventOverrides: { bodyRegions: string[]; description: string | null; provider: string | null; valueBefore: string | null; valueAfter: string | null; unit: string | null } }
   | { type: "editPhysical"; item: PhysicalChangeItem }
+  | "trackAttribute"
   | { type: "manageEntityPhotos"; entityId: string; entityModel: string; entityType: string; entityLabel: string };
 
 export type AppearanceTabProps = {
@@ -171,6 +173,19 @@ export function AppearanceTab({
   const hasStatic = person.ethnicity || person.height || person.eyeColor;
   const hasComputed = currentState.currentHairColor || currentState.weight !== null || currentState.build || currentState.breastSize || currentState.breastStatus || currentState.breastDescription || currentState.measurements;
   const hasExtensible = Object.keys(currentState.extensibleAttributes).length > 0;
+
+  // Definition IDs the person already has a value for — used by AddAttributePicker
+  // to grey-out "already tracked" rows. Includes the hardcoded "core" attrs that
+  // map to currentState cache fields, plus every extensible attr the fold produced.
+  const populatedDefinitionIds = useMemo(() => {
+    const ids = new Set<string>(Object.keys(currentState.extensibleAttributes));
+    if (currentState.currentHairColor) ids.add("cattr-hair-color");
+    if (currentState.weight !== null && currentState.weight !== undefined) ids.add("cattr-weight");
+    if (currentState.build) ids.add("cattr-build");
+    if (currentState.breastSize) ids.add("cattr-breast-size");
+    if (currentState.measurements) ids.add("cattr-measurements");
+    return ids;
+  }, [currentState]);
 
   // Group extensible attributes by group name for display
   const extensibleByGroup = useMemo(() => {
@@ -631,6 +646,22 @@ export function AppearanceTab({
                   </div>
                 )}
 
+                {/* Cross-group "Track another attribute" footer (Phase G Slice 2).
+                    Lets the user discover and start tracking any catalog attribute
+                    without hunting through the Record Change sheet. */}
+                {attributeGroups && attributeGroups.length > 0 && (
+                  <div className="mt-3 flex justify-start">
+                    <button
+                      type="button"
+                      onClick={() => setOpenState("trackAttribute")}
+                      className="flex items-center gap-1 rounded-lg border border-dashed border-white/15 px-2.5 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:border-white/30 hover:text-foreground"
+                    >
+                      <Plus size={12} />
+                      Track another attribute
+                    </button>
+                  </div>
+                )}
+
                 {/* Change History */}
                 {physicalChanges.length > 0 && (
                   <div className="mt-4 border-t border-white/10 pt-4">
@@ -820,6 +851,18 @@ export function AppearanceTab({
       {/* Sheets & Dialogs */}
       {openState === "physicalChange" && (
         <RecordPhysicalChangeSheet personId={person.id} currentState={currentState} attributeGroups={attributeGroups} onClose={handleSheetClose} />
+      )}
+      {openState === "trackAttribute" && attributeGroups && (
+        <AddAttributePicker
+          attributeGroups={attributeGroups}
+          populatedDefinitionIds={populatedDefinitionIds}
+          onClose={() => setOpenState(null)}
+          onSelect={() => {
+            // Selection just opens the Record Change sheet for now — pre-scrolling
+            // to a specific attribute is Slice 7 (sheet redesign) work.
+            setOpenState("physicalChange");
+          }}
+        />
       )}
       {typeof openState === "object" && openState?.type === "editPhysical" && (
         <EditPhysicalChangeSheet personId={person.id} item={openState.item} attributeGroups={attributeGroups} onClose={handleSheetClose} />

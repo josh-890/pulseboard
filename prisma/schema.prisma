@@ -273,6 +273,10 @@ model Person {
   notes               String?
   bio                 String?
   tags                String[]
+  // Per-person pinned attribute slugs (Phase G Slice 2). PhysicalAttributeDefinition
+  // slugs the user wants always-visible on the Appearance grid even with no delta.
+  // Augments the system-default pinned set in `lib/constants/appearance`.
+  pinnedAttributeSlugs String[]      @default([])
 
   aliases              PersonAlias[]
   eras                 Era[]
