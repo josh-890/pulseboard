@@ -1,12 +1,15 @@
 "use client";
 
-import { useCallback, useState, useTransition } from "react";
+import { useCallback, useMemo, useState, useTransition } from "react";
 import { toast } from "sonner";
+import { Pencil, X } from "lucide-react";
 import { cn, formatPartialDate } from "@/lib/utils";
 import { DeleteButton } from "@/components/shared/delete-button";
 import type { getPersonWithDetails } from "@/lib/services/person-service";
 import type { EraContributionInfo } from "@/lib/services/era-service";
-import { deleteEraAction, updateEraAction } from "@/lib/actions/appearance-actions";
+import { deleteEraAction, updateEraAction, promoteEraAction } from "@/lib/actions/appearance-actions";
+import { ScalarDeltaInlineEditor } from "@/components/people/scalar-delta-inline-editor";
+import { useNudgeDismissal, NUDGE_THRESHOLD_DELTAS } from "@/lib/hooks/use-nudge-dismissal";
 
 type EraItem = NonNullable<Awaited<ReturnType<typeof getPersonWithDetails>>>["eras"][number];
 
@@ -24,6 +27,8 @@ type EraTimelineEntryProps = {
 export function EraTimelineEntry({ era, personId, connectAbove, connectBelow, contributions }: EraTimelineEntryProps) {
   const [editing, setEditing] = useState<"label" | "notes" | false>(false);
   const [isPending, startTransition] = useTransition();
+  const [promoting, setPromoting] = useState(false);
+  const [editingDeltaId, setEditingDeltaId] = useState<string | null>(null);
 
   // Inline edit state
   const [savedLabel, setSavedLabel] = useState(era.label);
@@ -31,13 +36,30 @@ export function EraTimelineEntry({ era, personId, connectAbove, connectBelow, co
   const [draftLabel, setDraftLabel] = useState(era.label);
   const [draftNotes, setDraftNotes] = useState(era.notes ?? "");
 
-  // One pill per scalar delta in this era — "Attribute: value".
-  const physicalFields = era.scalarDeltas
-    .filter((d) => d.value.trim() !== "")
-    .map((d) => {
-      const unit = d.attributeDefinition.unit ? ` ${d.attributeDefinition.unit}` : "";
-      return `${d.attributeDefinition.name}: ${d.value}${unit}`;
-    });
+  // Phase G Slice 9: dateless draft Eras get the "Undated changes" treatment.
+  const isUndatedDrawer = !era.isBaseline && era.isDraft && era.date === null;
+
+  // Phase G Slice 9: curation nudge eligibility — draft Era with ≥N deltas
+  // that the user hasn't dismissed recently.
+  const populatedDeltas = useMemo(
+    () => era.scalarDeltas.filter((d) => d.value.trim() !== ""),
+    [era.scalarDeltas],
+  );
+  const [nudgeDismissed, dismissNudge] = useNudgeDismissal(era.id);
+  const showNudge =
+    !era.isBaseline &&
+    era.isDraft &&
+    populatedDeltas.length >= NUDGE_THRESHOLD_DELTAS &&
+    !nudgeDismissed &&
+    !promoting &&
+    !editing;
+
+  // Per-delta initial intent for the inline editor.
+  const intentForDelta = (deltaDate: Date | null): "on-date" | "dateless" | "baseline" => {
+    if (era.isBaseline) return "baseline";
+    if (deltaDate === null) return "dateless";
+    return "on-date";
+  };
 
   const startEditing = useCallback((field: "label" | "notes") => {
     setDraftLabel(savedLabel);
@@ -101,7 +123,8 @@ export function EraTimelineEntry({ era, personId, connectAbove, connectBelow, co
 
       <div className={cn(
         "rounded-xl border bg-card/40 p-4 transition-colors",
-        editing ? "border-primary/30 bg-card/60" : "border-white/10",
+        editing || promoting ? "border-primary/30 bg-card/60" : "border-white/10",
+        isUndatedDrawer && !editing && !promoting && "border-amber-500/30 bg-amber-500/5",
       )}>
         {/* Header — always visible */}
         <div className="mb-2 flex flex-wrap items-center gap-2">
@@ -118,6 +141,10 @@ export function EraTimelineEntry({ era, personId, connectAbove, connectBelow, co
                 if (e.key === "Escape") cancelEditing();
               }}
             />
+          ) : isUndatedDrawer ? (
+            <span className="font-medium text-amber-600 dark:text-amber-400">
+              Undated changes
+            </span>
           ) : (
             <span
               role="button"
@@ -213,22 +240,106 @@ export function EraTimelineEntry({ era, personId, connectAbove, connectBelow, co
           </button>
         )}
 
-        {/* Physical changes */}
-        {physicalFields.length > 0 && (
+        {/* Phase G Slice 9: curation nudge. Inline, soft-amber, dismissible. */}
+        {showNudge && (
+          <div className="mb-3 flex items-center justify-between rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs">
+            <button
+              type="button"
+              onClick={() => setPromoting(true)}
+              className="text-left text-amber-700 hover:text-amber-900 dark:text-amber-300 dark:hover:text-amber-100 transition-colors"
+            >
+              {populatedDeltas.length} changes saved here — <span className="font-medium underline-offset-2 hover:underline">Name this phase?</span>
+            </button>
+            <button
+              type="button"
+              onClick={dismissNudge}
+              className="ml-2 text-muted-foreground hover:text-foreground transition-colors"
+              title="Dismiss for 7 days"
+              aria-label="Dismiss nudge"
+            >
+              <X size={14} />
+            </button>
+          </div>
+        )}
+
+        {/* Phase G Slice 9: promotion sheet — name + checkbox list of deltas. */}
+        {promoting && (
+          <PromotionSheet
+            eraId={era.id}
+            personId={personId}
+            initialName={savedLabel === `${era.date?.getUTCFullYear()}` || savedLabel === "Undated changes" ? "" : savedLabel}
+            deltas={populatedDeltas}
+            onCancel={() => setPromoting(false)}
+            onSaved={(newName) => {
+              setSavedLabel(newName);
+              setPromoting(false);
+            }}
+          />
+        )}
+
+        {/* Physical changes — per-delta editor in Undated drawer; pills elsewhere. */}
+        {populatedDeltas.length > 0 && !promoting && (
           <div className="mb-2">
             <p className="mb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground/70">
-              Physical changes
+              {isUndatedDrawer ? "Set a date for each:" : "Physical changes"}
             </p>
-            <div className="flex flex-wrap gap-1.5">
-              {physicalFields.map((field) => (
-                <span
-                  key={field}
-                  className="inline-flex items-center rounded-full border border-white/10 bg-muted/50 px-2.5 py-0.5 text-xs text-foreground/80"
-                >
-                  {field}
-                </span>
-              ))}
-            </div>
+            {isUndatedDrawer ? (
+              <div className="space-y-1.5">
+                {populatedDeltas.map((d) => {
+                  const isEditing = editingDeltaId === d.id;
+                  if (isEditing) {
+                    return (
+                      <ScalarDeltaInlineEditor
+                        key={d.id}
+                        delta={{
+                          ...d,
+                          cause: d.cause as "NATURAL" | "SURGICAL" | "OTHER",
+                          attributeDefinition: {
+                            ...d.attributeDefinition,
+                            valueType: d.attributeDefinition.valueType as "TEXT" | "NUMERIC" | "SINGLE_SELECT" | "MULTI_SELECT" | "BOOLEAN" | "ORDINAL",
+                          },
+                        }}
+                        personId={personId}
+                        initialIntent={intentForDelta(d.date)}
+                        onClose={() => setEditingDeltaId(null)}
+                      />
+                    );
+                  }
+                  const unit = d.attributeDefinition.unit ? ` ${d.attributeDefinition.unit}` : "";
+                  return (
+                    <div
+                      key={d.id}
+                      className="group flex items-center justify-between rounded-md bg-muted/30 px-2.5 py-1 text-sm"
+                    >
+                      <span className="text-foreground/80">
+                        <span className="text-muted-foreground">{d.attributeDefinition.name}:</span> {d.value}{unit}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setEditingDeltaId(d.id)}
+                        className="opacity-0 transition-opacity group-hover:opacity-100 text-xs text-muted-foreground hover:text-foreground inline-flex items-center gap-1"
+                      >
+                        <Pencil size={12} /> Set date
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="flex flex-wrap gap-1.5">
+                {populatedDeltas.map((d) => {
+                  const unit = d.attributeDefinition.unit ? ` ${d.attributeDefinition.unit}` : "";
+                  return (
+                    <span
+                      key={d.id}
+                      className="inline-flex items-center rounded-full border border-white/10 bg-muted/50 px-2.5 py-0.5 text-xs text-foreground/80"
+                    >
+                      {d.attributeDefinition.name}: {d.value}{unit}
+                    </span>
+                  );
+                })}
+              </div>
+            )}
           </div>
         )}
 
@@ -350,6 +461,147 @@ export function EraTimelineEntry({ era, personId, connectAbove, connectBelow, co
             </div>
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Promotion sheet ────────────────────────────────────────────────────────
+// Phase G Slice 9 / ADR-0006: inline editor that promotes a draft Era to
+// curated, with optional split — unchecked deltas move out to per-date
+// draft Eras via the action's autoCluster routing.
+
+type PromotionDelta = {
+  id: string;
+  value: string;
+  date: Date | null;
+  datePrecision: string;
+  attributeDefinition: { name: string; unit: string | null };
+};
+
+function PromotionSheet({
+  eraId,
+  personId,
+  initialName,
+  deltas,
+  onCancel,
+  onSaved,
+}: {
+  eraId: string;
+  personId: string;
+  initialName: string;
+  deltas: PromotionDelta[];
+  onCancel: () => void;
+  onSaved: (newName: string) => void;
+}) {
+  const [name, setName] = useState(initialName);
+  const [keptIds, setKeptIds] = useState<Set<string>>(() => new Set(deltas.map((d) => d.id)));
+  const [isPending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+
+  const splitIds = deltas.map((d) => d.id).filter((id) => !keptIds.has(id));
+  const allUnchecked = splitIds.length === deltas.length && deltas.length > 0;
+
+  const toggle = (id: string) => {
+    setKeptIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const handleSave = useCallback(() => {
+    const trimmed = name.trim();
+    if (!trimmed) {
+      setError("Name is required.");
+      return;
+    }
+    if (allUnchecked) {
+      setError("At least one change must stay in this Era. Uncheck fewer, or cancel.");
+      return;
+    }
+    startTransition(async () => {
+      setError(null);
+      const result = await promoteEraAction(eraId, personId, { name: trimmed, splitDeltaIds: splitIds });
+      if (!result.success) {
+        setError(result.error ?? "Failed to promote Era.");
+        return;
+      }
+      toast.success("Era named.");
+      onSaved(trimmed);
+    });
+  }, [eraId, personId, name, splitIds, allUnchecked, onSaved]);
+
+  return (
+    <div className="mb-3 space-y-3 rounded-lg border border-primary/30 bg-card/60 p-3">
+      <div>
+        <label className="mb-1 block text-xs font-medium text-muted-foreground">Name this phase</label>
+        <input
+          type="text"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="e.g. Post-surgery, Short-blonde era…"
+          className="w-full rounded-lg border border-white/15 bg-muted/30 px-2.5 py-1.5 text-sm font-medium focus:outline-none focus:ring-1 focus:ring-ring"
+          autoFocus
+          onKeyDown={(e) => {
+            if (e.key === "Escape") onCancel();
+          }}
+        />
+      </div>
+
+      {deltas.length > 0 && (
+        <div>
+          <p className="mb-1 text-xs font-medium text-muted-foreground">
+            Changes to keep in this Era ({keptIds.size} of {deltas.length})
+          </p>
+          <p className="mb-2 text-xs text-muted-foreground/70">
+            Uncheck a row to split it out into its own draft Era based on its date.
+          </p>
+          <div className="space-y-1">
+            {deltas.map((d) => {
+              const checked = keptIds.has(d.id);
+              const unit = d.attributeDefinition.unit ? ` ${d.attributeDefinition.unit}` : "";
+              const dateStr = d.date
+                ? formatPartialDate(d.date, d.datePrecision)
+                : "(no date)";
+              return (
+                <label key={d.id} className="flex items-center gap-2 rounded-md bg-muted/20 px-2 py-1 text-sm cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={() => toggle(d.id)}
+                  />
+                  <span className={cn("flex-1 text-foreground/80", !checked && "line-through opacity-60")}>
+                    <span className="text-muted-foreground">{d.attributeDefinition.name}:</span> {d.value}{unit}
+                  </span>
+                  <span className="text-xs text-muted-foreground/60">{dateStr}</span>
+                </label>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {error && <p className="text-xs text-red-500">{error}</p>}
+
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={handleSave}
+          disabled={isPending}
+          className="rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
+        >
+          {isPending ? "Saving…" : splitIds.length > 0 ? `Save & split ${splitIds.length}` : "Save"}
+        </button>
+        <button
+          type="button"
+          onClick={onCancel}
+          disabled={isPending}
+          className="rounded-lg border border-white/15 px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
+        >
+          Cancel
+        </button>
       </div>
     </div>
   );

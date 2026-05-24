@@ -21,6 +21,7 @@ import { FlagImage } from "@/components/shared/flag-image";
 import { findCountryByCode } from "@/lib/constants/countries";
 import { EraTimelineEntry } from "@/components/people/era-timeline-entry";
 import type { EraContributionInfo } from "@/lib/services/era-service";
+import { useDraftErasReadyCount } from "@/lib/hooks/use-nudge-dismissal";
 import { AppearanceTab } from "@/components/people/appearance-tab";
 import { NewEraSheet } from "@/components/people/new-era-sheet";
 import {
@@ -2052,8 +2053,10 @@ export function PersonDetailTabs({
     return min;
   }, [sessionWorkHistory]);
 
+  const draftErasReady = useDraftErasReadyCount(person.eras);
+
   const tabs: { id: TabId; label: string; badge?: number; icon: React.ReactNode }[] = [
-    { id: "overview", label: "Overview", icon: <LayoutDashboard size={14} /> },
+    { id: "overview", label: "Overview", badge: draftErasReady || undefined, icon: <LayoutDashboard size={14} /> },
     { id: "aliases", label: "Aliases", badge: aliasCount || undefined, icon: <BookUser size={14} /> },
     { id: "appearance", label: "Appearance", badge: (currentState.activeBodyMarks.length + currentState.activeBodyModifications.length + currentState.activeCosmeticProcedures.length) || undefined, icon: <Sparkles size={14} /> },
     ...(categories && categories.length > 0

@@ -1033,6 +1033,10 @@ The default reflects history: a fresh person opens with **baseline** preselected
 
 **Editing a recorded change.** Open the Edit sheet on any History row to change values, the date, or the intent. While the containing Era is still a **draft** (unnamed), editing the date freely re-clusters the change into a better-fitting draft — and a now-empty source draft cleans itself up automatically. Once you name (curate) the Era, membership becomes sticky: you can still edit the date itself, but the change stays in the curated Era.
 
+**Undated changes drawer.** Changes saved with "I don't know when yet" land in a per-person drawer surfaced on the Overview History panel as **Undated changes** (soft-amber styling). Each row has a `Set date` affordance opening an inline mini-form: edit the value, pick a date + precision (or change intent), and Save. The change re-clusters into a dated draft Era of its own (or joins one nearby per the ±6-month rule). When the drawer empties, it disappears.
+
+**Curation nudge & promotion.** When a draft Era accumulates ≥3 populated changes, a soft inline prompt appears on the Era card: *"N changes saved here — Name this phase?"*. Clicking opens an **inline promotion editor**: enter a name + a checkbox list of the member deltas (all checked by default). Save promotes the Era from draft → curated; **unchecked rows split out** into their own draft Eras (clustered by date). At least one change must stay in the source Era. Dismissing the nudge (×) hides it for 7 days. The aggregate count of nudge-eligible drafts also surfaces as a badge on the **Overview tab label** itself.
+
 **Attribute status** (derived automatically per ADR-0007, shown as badges in the Appearance tab; only attributes with `statusBearing=true` surface a badge):
 - **Natural** — no delta on this attribute has `cause=SURGICAL`
 - **Enhanced** (purple badge) — the winning delta of the fold has `cause=SURGICAL`

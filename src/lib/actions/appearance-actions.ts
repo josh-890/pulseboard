@@ -1090,6 +1090,202 @@ export async function updatePhysicalChangeAction(
   });
 }
 
+// Phase G Slice 9 / ADR-0006: per-delta edit. Same sticky-only-for-curated
+// routing as updatePhysicalChangeAction, but operates on one ScalarDelta —
+// not all the deltas in an Era. Lets the user fix the date/intent of a
+// single change without disturbing siblings (the natural unit for the
+// Undated drawer, where unrelated changes pile up).
+export type ScalarDeltaEdit = {
+  value?: string;
+  date?: string | null;
+  datePrecision?: string;
+  intent?: "on-date" | "dateless" | "baseline";
+  cause?: "NATURAL" | "SURGICAL" | "OTHER";
+  notes?: string | null;
+};
+
+export async function editScalarDeltaAction(
+  deltaId: string,
+  personId: string,
+  data: ScalarDeltaEdit,
+): Promise<ActionResultWithId> {
+  return withTenantFromHeaders(async () => {
+    try {
+      const date = data.date ? new Date(data.date) : null;
+      const precision = (data.datePrecision ?? "UNKNOWN") as DatePrecision;
+      const newIntent: "on-date" | "dateless" | "baseline" =
+        data.intent ?? (date ? "on-date" : "baseline");
+
+      await prisma.$transaction(async (tx) => {
+        const delta = await tx.scalarDelta.findUniqueOrThrow({
+          where: { id: deltaId },
+          select: {
+            id: true,
+            eraId: true,
+            attributeDefinitionId: true,
+            era: { select: { isDraft: true, isBaseline: true, personId: true } },
+          },
+        });
+        if (delta.era.personId !== personId) {
+          throw new Error("Delta does not belong to this person.");
+        }
+        const source = delta.era;
+        const sourceEraId = delta.eraId;
+
+        // Compute target Era using same routing as updatePhysicalChangeAction.
+        let targetEraId: string;
+        if (newIntent === "baseline") {
+          targetEraId = await getBaselineEraId(tx, personId);
+        } else if (newIntent === "dateless") {
+          targetEraId = await autoClusterDeltaIntoDraftEra(tx, personId, null, "UNKNOWN");
+        } else {
+          targetEraId = await autoClusterDeltaIntoDraftEra(tx, personId, date, precision);
+        }
+
+        // Sticky rule: curated source never moves; baseline moves only on
+        // explicit non-baseline intent; draft moves freely.
+        const canMove =
+          source.isDraft ||
+          (source.isBaseline && newIntent !== "baseline");
+        const effectiveEraId = canMove ? targetEraId : sourceEraId;
+
+        const baselineLanding =
+          canMove ? newIntent === "baseline" : source.isBaseline;
+        const deltaDate = baselineLanding ? null : date;
+        const deltaPrecision = baselineLanding ? "UNKNOWN" : precision;
+
+        // If a target row exists for the same (era, attrDef), delete it first
+        // — replaceEraScalarDeltas would do the same for whole-Era edits.
+        if (effectiveEraId !== sourceEraId) {
+          await tx.scalarDelta.deleteMany({
+            where: {
+              eraId: effectiveEraId,
+              attributeDefinitionId: delta.attributeDefinitionId,
+              id: { not: deltaId },
+            },
+          });
+        }
+
+        await tx.scalarDelta.update({
+          where: { id: deltaId },
+          data: {
+            eraId: effectiveEraId,
+            ...(data.value !== undefined && { value: data.value.trim() }),
+            date: deltaDate,
+            datePrecision: deltaPrecision as DatePrecision,
+            ...(data.cause !== undefined && { cause: data.cause }),
+            ...(data.notes !== undefined && { notes: data.notes }),
+          },
+        });
+
+        // GC the source draft Era if it just lost its last member.
+        if (canMove && effectiveEraId !== sourceEraId) {
+          await deleteDraftEraIfEmpty(tx, sourceEraId);
+        }
+
+        await recomputePersonCurrentState(tx, personId);
+      });
+
+      revalidatePath(`/people/${personId}`);
+      return { success: true };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unexpected error";
+      return { success: false, error: message };
+    }
+  });
+}
+
+// Phase G Slice 9 / ADR-0006: promote a draft Era to curated, with optional
+// split. `splitDeltaIds` are the IDs of member deltas the user *unchecked*
+// in the promotion sheet — they are moved out into per-date draft Eras via
+// autoClusterDeltaIntoDraftEra (using each delta's own date). The remaining
+// deltas + non-scalar events stay in the (now curated) source Era.
+//
+// Refuses to promote an Era that would end up empty after the split.
+export async function promoteEraAction(
+  eraId: string,
+  personId: string,
+  data: { name: string; splitDeltaIds?: string[] },
+): Promise<ActionResultWithId> {
+  return withTenantFromHeaders(async () => {
+    try {
+      const name = data.name.trim();
+      if (!name) return { success: false, error: "Name is required." };
+
+      await prisma.$transaction(async (tx) => {
+        const era = await tx.era.findUniqueOrThrow({
+          where: { id: eraId },
+          select: { id: true, isBaseline: true, personId: true, scalarDeltas: { select: { id: true } } },
+        });
+        if (era.personId !== personId) {
+          throw new Error("Era does not belong to this person.");
+        }
+        if (era.isBaseline) {
+          throw new Error("Baseline cannot be promoted.");
+        }
+
+        const splitIds = (data.splitDeltaIds ?? []).filter((id) =>
+          era.scalarDeltas.some((d) => d.id === id),
+        );
+        const remainingCount = era.scalarDeltas.length - splitIds.length;
+        // Allow promoting an Era with zero deltas as long as it has events
+        // (body marks / mods / etc.). Block only if ALL members would leave.
+        if (remainingCount === 0 && splitIds.length > 0) {
+          const [marks, mods, di, ie, se, contribs] = await Promise.all([
+            tx.bodyMarkEvent.count({ where: { eraId } }),
+            tx.bodyModificationEvent.count({ where: { eraId } }),
+            tx.digitalIdentityEvent.count({ where: { eraId } }),
+            tx.interestEvent.count({ where: { eraId } }),
+            tx.personSkillEvent.count({ where: { eraId } }),
+            tx.sessionContribution.count({ where: { eraId } }),
+          ]);
+          if (marks + mods + di + ie + se + contribs === 0) {
+            throw new Error("Cannot split out every member — at least one must stay in the curated Era.");
+          }
+        }
+
+        // Move each split delta to its own auto-clustered draft Era based on
+        // its own date. (May join an existing draft if one fits the date.)
+        for (const id of splitIds) {
+          const d = await tx.scalarDelta.findUniqueOrThrow({
+            where: { id },
+            select: { date: true, datePrecision: true, attributeDefinitionId: true },
+          });
+          const targetEraId = d.date
+            ? await autoClusterDeltaIntoDraftEra(tx, personId, d.date, d.datePrecision)
+            : await autoClusterDeltaIntoDraftEra(tx, personId, null, "UNKNOWN");
+          if (targetEraId === eraId) continue; // no-op if cluster lands back here
+          await tx.scalarDelta.deleteMany({
+            where: {
+              eraId: targetEraId,
+              attributeDefinitionId: d.attributeDefinitionId,
+              id: { not: id },
+            },
+          });
+          await tx.scalarDelta.update({
+            where: { id },
+            data: { eraId: targetEraId },
+          });
+        }
+
+        // Promote the source Era. updateEra already clears isDraft.
+        await tx.era.update({
+          where: { id: eraId },
+          data: { label: name, isDraft: false },
+        });
+
+        await recomputePersonCurrentState(tx, personId);
+      });
+
+      revalidatePath(`/people/${personId}`);
+      return { success: true };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unexpected error";
+      return { success: false, error: message };
+    }
+  });
+}
+
 // ─── Era Batch/Edit/Delete Actions ──────────────────────────────────────
 
 export async function createEraBatchAction(
