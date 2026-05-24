@@ -1013,18 +1013,30 @@ export function deriveCurrentState(
   //
   // Build a per-attribute "has any SURGICAL in history" set + a baseline-value
   // map (for Pattern Y progression rendering) by walking all eras once.
+  // Baseline picking is resilient to duplicates: when an attribute has multiple
+  // baseline deltas (data anomaly from old imports), prefer the one whose value
+  // *differs* from the current fold winner — that's the value Pattern Y needs
+  // to show progression. Falls back to the first baseline delta otherwise.
   const surgicalHistory = new Set<string>();
-  const baselineValues = new Map<string, string>();
+  const baselineCandidates = new Map<string, string[]>();
   for (const era of person.eras) {
     for (const d of era.scalarDeltas) {
       if (d.value.trim() === "") continue;
       if (d.cause === "SURGICAL") {
         surgicalHistory.add(d.attributeDefinitionId);
       }
-      if (era.isBaseline && !baselineValues.has(d.attributeDefinitionId)) {
-        baselineValues.set(d.attributeDefinitionId, d.value);
+      if (era.isBaseline) {
+        const arr = baselineCandidates.get(d.attributeDefinitionId) ?? [];
+        arr.push(d.value);
+        baselineCandidates.set(d.attributeDefinitionId, arr);
       }
     }
+  }
+  const baselineValues = new Map<string, string>();
+  for (const [defId, candidates] of baselineCandidates) {
+    const winnerValue = folded[defId]?.value;
+    const differing = candidates.find((v) => v !== winnerValue);
+    baselineValues.set(defId, differing ?? candidates[0]);
   }
 
   const deriveStatus = (defId: string): import("@/lib/types").AttributeStatus => {

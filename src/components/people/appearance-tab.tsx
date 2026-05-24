@@ -179,14 +179,20 @@ export function AppearanceTab({
   // (Phase G Slice 4). Core attrs are special-cased in the hardcoded section
   // below and don't flow through extensibleAttributes; the unification happens
   // in Slice 5. Look up the Baseline Era's delta for cattr-breast-size.
+  // Resilient to data anomalies: when multiple baseline deltas exist (legacy
+  // import artifact), prefer one whose value differs from the current size —
+  // that's what Pattern Y needs to render the progression arrow.
   const baselineBreastSize = useMemo<string | null>(() => {
     const baseline = person.eras.find((e) => e.isBaseline);
     if (!baseline) return null;
-    const d = baseline.scalarDeltas.find(
-      (d) => d.attributeDefinitionId === "cattr-breast-size" && d.value.trim() !== "",
-    );
-    return d?.value ?? null;
-  }, [person.eras]);
+    const candidates = baseline.scalarDeltas
+      .filter((d) => d.attributeDefinitionId === "cattr-breast-size" && d.value.trim() !== "")
+      .map((d) => d.value);
+    if (candidates.length === 0) return null;
+    const current = currentState.breastSize;
+    const differing = candidates.find((v) => v !== current);
+    return differing ?? candidates[0];
+  }, [person.eras, currentState.breastSize]);
 
   // Map currentState.breastStatus (legacy string) to AttributeStatus for the
   // progression component. "enhanced" / "natural" / "restored" → uppercase.
