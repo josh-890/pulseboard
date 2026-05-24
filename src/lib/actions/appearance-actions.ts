@@ -886,6 +886,10 @@ type PhysicalChangeData = {
   breastStatus?: string; // accepted for compatibility — status is derived, not stored
   breastDescription?: string;
   attributes?: { definitionId: string; value: string }[];
+  // Phase G Slice 4 / ADR-0007: optional cause for the whole change set.
+  // Stored on each ScalarDelta this change creates; drives the AttributeStatus
+  // derivation (NATURAL / ENHANCED / RESTORED). Defaults to NATURAL.
+  cause?: "NATURAL" | "SURGICAL" | "OTHER";
 };
 
 type ScalarDeltaItem = { attributeDefinitionId: string; value: string; notes?: string | null };
@@ -913,6 +917,7 @@ async function replaceEraScalarDeltas(
   items: ScalarDeltaItem[],
   date: Date | null,
   datePrecision: DatePrecision,
+  cause: "NATURAL" | "SURGICAL" | "OTHER" = "NATURAL",
 ) {
   for (const item of items) {
     await tx.scalarDelta.deleteMany({
@@ -927,6 +932,7 @@ async function replaceEraScalarDeltas(
           notes: item.notes ?? null,
           date,
           datePrecision,
+          cause,
         },
       });
     }
@@ -946,7 +952,7 @@ export async function recordPhysicalChangeAction(
 
       await prisma.$transaction(async (tx) => {
         const eraId = await findOrCreateEraForDate(tx, personId, date, precision);
-        await replaceEraScalarDeltas(tx, eraId, buildPhysicalDeltaItems(data), date, precision);
+        await replaceEraScalarDeltas(tx, eraId, buildPhysicalDeltaItems(data), date, precision, data.cause ?? "NATURAL");
         await recomputePersonCurrentState(tx, personId);
       });
 
@@ -974,7 +980,7 @@ export async function updatePhysicalChangeAction(
       await ensureCatalogEntry("hair", data.currentHairColor);
 
       await prisma.$transaction(async (tx) => {
-        await replaceEraScalarDeltas(tx, eraId, buildPhysicalDeltaItems(data), date, precision);
+        await replaceEraScalarDeltas(tx, eraId, buildPhysicalDeltaItems(data), date, precision, data.cause ?? "NATURAL");
         await recomputePersonCurrentState(tx, personId);
       });
 

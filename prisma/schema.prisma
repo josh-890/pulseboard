@@ -112,6 +112,16 @@ enum CosmeticProcedureEventType {
   reversed
 }
 
+// Causation flag on deltas + identity-bearing entity events (ADR-0007).
+// Drives the NATURAL / ENHANCED / RESTORED derivation: any winning delta with
+// cause=SURGICAL flips status to ENHANCED; a subsequent non-SURGICAL delta
+// overriding it flips to RESTORED. Default NATURAL.
+enum DeltaCause {
+  NATURAL
+  SURGICAL
+  OTHER
+}
+
 enum DigitalIdentityStatus {
   active
   inactive
@@ -409,6 +419,7 @@ model BodyMarkEvent {
   date          DateTime?
   datePrecision DatePrecision     @default(UNKNOWN)
   dateModifier  DateModifier      @default(EXACT)
+  cause         DeltaCause        @default(NATURAL) // Phase G Slice 4 / ADR-0007
   // Property overrides (empty array / null = no change)
   bodyRegions   String[]
   motif         String?
@@ -539,6 +550,7 @@ model BodyModificationEvent {
   date               DateTime?
   datePrecision      DatePrecision             @default(UNKNOWN)
   dateModifier       DateModifier              @default(EXACT)
+  cause              DeltaCause                @default(NATURAL) // Phase G Slice 4 / ADR-0007
   // Property overrides (empty array / null = no change)
   bodyRegions        String[]
   description        String?
@@ -1230,6 +1242,7 @@ model ScalarDelta {
   dateModifier          DateModifier                @default(EXACT)
   dateSource            String?
   notes                 String? // raw import provenance, e.g. "import: 'enlarged or fake'"
+  cause                 DeltaCause                  @default(NATURAL) // Phase G Slice 4 / ADR-0007
   createdAt             DateTime                    @default(now())
 
   @@index([eraId])

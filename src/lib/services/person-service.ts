@@ -636,6 +636,7 @@ type FoldableEra = {
     notes: string | null;
     createdAt: Date;
     attributeDefinitionId: string;
+    cause: import("@/generated/prisma/client").DeltaCause; // Phase G Slice 4 / ADR-0007
     attributeDefinition: {
       unit: string | null;
       name: string;
@@ -731,6 +732,7 @@ export function deriveAppearanceAtShoot<E extends FoldableEra>(
       groupName: d.attributeDefinition.group.name,
       status: "NATURAL" as import("@/lib/types").AttributeStatus,
       mutability: d.attributeDefinition.mutability,
+      baselineValue: null,
     };
   }
   return {
@@ -790,6 +792,7 @@ export function deriveCurrentState(
       groupName: d.attributeDefinition.group.name,
       status: "NATURAL" as import("@/lib/types").AttributeStatus,
       mutability: d.attributeDefinition.mutability,
+      baselineValue: null,  // populated below in the status-derivation loop
     };
   }
 
@@ -1001,44 +1004,50 @@ export function deriveCurrentState(
     });
   }
 
-  // Derive attribute status from cosmetic procedures targeting attributes.
-  for (const proc of activeCosmeticProcedures) {
-    if (!proc.attributeDefinitionId) continue;
-    const defId = proc.attributeDefinitionId;
-    const lastEventType = proc.events.length > 0
-      ? proc.events[proc.events.length - 1].eventType
-      : null;
-    const isReversed = lastEventType === "reversed";
-    const derivedStatus: import("@/lib/types").AttributeStatus = isReversed ? "RESTORED" : "ENHANCED";
-
-    // breast_size is a core scalar — its status surfaces as breastStatus.
-    if (defId === CORE_ATTR.breastSize) {
-      breastStatus = isReversed ? "natural" : "enhanced";
-      continue;
-    }
-    if (CORE_ATTR_IDS.has(defId)) continue; // other core scalars carry no status
-
-    if (extensibleAttributes[defId]) {
-      extensibleAttributes[defId].status = derivedStatus;
-    } else {
-      // Procedure targets an attribute not yet in the fold — create it from procedure data
-      const procDef = person.cosmeticProcedures.find((p) => p.id === proc.id);
-      const attrDef = procDef?.attributeDefinition;
-      if (attrDef) {
-        extensibleAttributes[defId] = {
-          value: proc.computed.valueAfter ?? "",
-          unit: attrDef.unit,
-          name: attrDef.name,
-          groupName: attrDef.group.name,
-          status: derivedStatus,
-          mutability: attrDef.mutability,
-        };
+  // Derive AttributeStatus from delta `cause` (ADR-0007 / Phase G Slice 4).
+  // Replaces the previous CosmeticProcedure-presence rule.
+  //   NATURAL  — no delta in this attribute's history has cause=SURGICAL.
+  //   ENHANCED — the winning delta has cause=SURGICAL.
+  //   RESTORED — a SURGICAL delta exists in history but the winning delta
+  //              does not (a later non-SURGICAL delta overrode it).
+  //
+  // Build a per-attribute "has any SURGICAL in history" set + a baseline-value
+  // map (for Pattern Y progression rendering) by walking all eras once.
+  const surgicalHistory = new Set<string>();
+  const baselineValues = new Map<string, string>();
+  for (const era of person.eras) {
+    for (const d of era.scalarDeltas) {
+      if (d.value.trim() === "") continue;
+      if (d.cause === "SURGICAL") {
+        surgicalHistory.add(d.attributeDefinitionId);
+      }
+      if (era.isBaseline && !baselineValues.has(d.attributeDefinitionId)) {
+        baselineValues.set(d.attributeDefinitionId, d.value);
       }
     }
   }
 
-  // A known breast size with no procedure folds to "natural".
-  if (breastStatus === null && breastSize !== null) breastStatus = "natural";
+  const deriveStatus = (defId: string): import("@/lib/types").AttributeStatus => {
+    const winner = folded[defId];
+    if (winner?.cause === "SURGICAL") return "ENHANCED";
+    if (surgicalHistory.has(defId)) return "RESTORED";
+    return "NATURAL";
+  };
+
+  // Apply to extensible attributes — set status + baseline value for Pattern Y.
+  for (const defId of Object.keys(extensibleAttributes)) {
+    extensibleAttributes[defId].status = deriveStatus(defId);
+    extensibleAttributes[defId].baselineValue = baselineValues.get(defId) ?? null;
+  }
+
+  // breast_size is a core scalar — its status surfaces as breastStatus.
+  const breastDerived = deriveStatus(CORE_ATTR.breastSize);
+  if (breastSize !== null) {
+    breastStatus =
+      breastDerived === "ENHANCED" ? "enhanced" :
+      breastDerived === "RESTORED" ? "natural" :  // restored back to baseline natural
+      "natural";
+  }
 
   return {
     currentHairColor,

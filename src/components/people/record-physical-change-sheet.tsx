@@ -25,6 +25,7 @@ export function RecordPhysicalChangeSheet({ personId, currentState, attributeGro
   useEscToClose(onClose);
   const [date, setDate] = useState("");
   const [datePrecision, setDatePrecision] = useState("UNKNOWN");
+  const [cause, setCause] = useState<"NATURAL" | "SURGICAL" | "OTHER">("NATURAL");
 
   // Pre-fill with current state values
   const initialHairColor = currentState?.currentHairColor ?? "";
@@ -88,6 +89,7 @@ export function RecordPhysicalChangeSheet({ personId, currentState, attributeGro
         breastStatus: breastStatusChanged && breastStatus.trim() ? breastStatus.trim() : undefined,
         breastDescription: breastDescChanged && breastDescription.trim() ? breastDescription.trim() : undefined,
         attributes: attributes.length > 0 ? attributes : undefined,
+        cause,
       });
       if (!result.success) {
         setError(result.error ?? "Failed to record change.");
@@ -121,6 +123,21 @@ export function RecordPhysicalChangeSheet({ personId, currentState, attributeGro
             onPrecisionChange={setDatePrecision}
             label="When"
           />
+
+          {/* Phase G Slice 4 / ADR-0007: optional Cause for this change set.
+              Defaults NATURAL. SURGICAL flips attribute status to ENHANCED. */}
+          <div>
+            <label className="mb-1.5 block text-sm font-medium">Cause</label>
+            <select
+              value={cause}
+              onChange={(e) => setCause(e.target.value as "NATURAL" | "SURGICAL" | "OTHER")}
+              className="w-full rounded-lg border border-white/15 bg-muted/30 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+            >
+              <option value="NATURAL">Natural — usual drift / no intervention</option>
+              <option value="SURGICAL">Surgical — cosmetic procedure caused this change</option>
+              <option value="OTHER">Other</option>
+            </select>
+          </div>
 
           <div>
             <label className="mb-1.5 block text-sm font-medium">Current Hair Color</label>

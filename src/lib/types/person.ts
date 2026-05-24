@@ -315,6 +315,11 @@ export type ExtensibleAttributeValue = {
   groupName: string;
   status: AttributeStatus;
   mutability: import("@/generated/prisma/client").Mutability;
+  // Phase G Slice 4: the value from the Baseline Era's delta (if any). Used by
+  // Pattern Y rendering to show progression `B (Natural) → D (Enhanced)` when
+  // status is ENHANCED/RESTORED. Null when no Baseline delta exists for this
+  // attribute (in which case the primitive falls back to plain `value`).
+  baselineValue: string | null;
 };
 
 export type PersonCurrentState = {

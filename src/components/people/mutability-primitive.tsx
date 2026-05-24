@@ -12,6 +12,7 @@ type MutabilityPrimitiveProps = {
   value: string;
   unit?: string | null;
   status?: AttributeStatus;
+  baselineValue?: string | null;  // Phase G Slice 4 / ADR-0007: Pattern Y progression
   onRecordChange?: () => void;
 };
 
@@ -24,11 +25,12 @@ export function MutabilityPrimitive({
   value,
   unit,
   status,
+  baselineValue,
   onRecordChange,
 }: MutabilityPrimitiveProps) {
   switch (mutability) {
     case "ALWAYS_STATIC":
-      return <StaticLabelRow name={name} value={value} unit={unit} status={status} />;
+      return <StaticLabelRow name={name} value={value} unit={unit} status={status} baselineValue={baselineValue} />;
     case "RARELY_CHANGES":
       return (
         <ValueWithChangeRow
@@ -36,6 +38,7 @@ export function MutabilityPrimitive({
           value={value}
           unit={unit}
           status={status}
+          baselineValue={baselineValue}
           onRecordChange={onRecordChange}
         />
       );
@@ -46,6 +49,7 @@ export function MutabilityPrimitive({
           value={value}
           unit={unit}
           status={status}
+          baselineValue={baselineValue}
           onRecordChange={onRecordChange}
         />
       );

@@ -56,6 +56,10 @@ export function EditPhysicalChangeSheet({ personId, item, attributeGroups, onClo
 
   const [date, setDate] = useState(initDate);
   const [datePrecision, setDatePrecision] = useState(initPrec);
+  // Phase G Slice 4 / ADR-0007: the edit sheet doesn't know the existing
+  // delta's cause without an extra service call, so default it to NATURAL.
+  // Selecting SURGICAL here will tag the (re-written) deltas accordingly.
+  const [cause, setCause] = useState<"NATURAL" | "SURGICAL" | "OTHER">("NATURAL");
   const [currentHairColor, setCurrentHairColor] = useState(item.currentHairColor ?? "");
   const [weight, setWeight] = useState(item.weight !== null ? String(item.weight) : "");
   const [build, setBuild] = useState(item.build ?? "");
@@ -111,6 +115,7 @@ export function EditPhysicalChangeSheet({ personId, item, attributeGroups, onClo
         breastStatus: breastStatus.trim() || undefined,
         breastDescription: breastDescription.trim() || undefined,
         attributes: attributes.length > 0 ? attributes : undefined,
+        cause,
       });
       if (!result.success) {
         setError(result.error ?? "Failed to update change.");
@@ -118,7 +123,7 @@ export function EditPhysicalChangeSheet({ personId, item, attributeGroups, onClo
       }
       onClose();
     });
-  }, [item.eraId, personId, date, datePrecision, currentHairColor, weight, build, breastSize, breastStatus, breastDescription, attrValues, hasAnyField, onClose]);
+  }, [item.eraId, personId, date, datePrecision, currentHairColor, weight, build, breastSize, breastStatus, breastDescription, attrValues, hasAnyField, cause, onClose]);
 
   return (
     <div role="dialog" aria-modal="true" className="fixed inset-0 z-50 flex justify-end">
@@ -143,6 +148,20 @@ export function EditPhysicalChangeSheet({ personId, item, attributeGroups, onClo
             onPrecisionChange={setDatePrecision}
             label="When"
           />
+
+          {/* Phase G Slice 4 / ADR-0007: optional Cause select. */}
+          <div>
+            <label className="mb-1.5 block text-sm font-medium">Cause</label>
+            <select
+              value={cause}
+              onChange={(e) => setCause(e.target.value as "NATURAL" | "SURGICAL" | "OTHER")}
+              className="w-full rounded-lg border border-white/15 bg-muted/30 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+            >
+              <option value="NATURAL">Natural</option>
+              <option value="SURGICAL">Surgical</option>
+              <option value="OTHER">Other</option>
+            </select>
+          </div>
 
           <div>
             <label className="mb-1.5 block text-sm font-medium">Current Hair Color</label>
