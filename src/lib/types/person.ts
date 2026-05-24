@@ -320,6 +320,10 @@ export type ExtensibleAttributeValue = {
   // status is ENHANCED/RESTORED. Null when no Baseline delta exists for this
   // attribute (in which case the primitive falls back to plain `value`).
   baselineValue: string | null;
+  // Phase G Slice 6½ / ADR-0007 amendment: gates the AttributeStatus UI
+  // surfaces (Pattern Y, status sub-filter, Cause picker). When false, the
+  // rendering layer collapses to plain value regardless of any cause history.
+  statusBearing: boolean;
 };
 
 export type PersonCurrentState = {

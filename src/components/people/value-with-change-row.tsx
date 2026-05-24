@@ -10,6 +10,7 @@ type ValueWithChangeRowProps = {
   unit?: string | null;
   status?: AttributeStatus;
   baselineValue?: string | null;
+  statusBearing?: boolean;
   onRecordChange?: () => void;
 };
 
@@ -23,6 +24,7 @@ export function ValueWithChangeRow({
   unit,
   status,
   baselineValue,
+  statusBearing,
   onRecordChange,
 }: ValueWithChangeRowProps) {
   return (
@@ -34,6 +36,7 @@ export function ValueWithChangeRow({
           currentValue={value}
           status={status ?? "NATURAL"}
           unit={unit}
+          statusBearing={statusBearing}
         />
       </dd>
       {onRecordChange && (

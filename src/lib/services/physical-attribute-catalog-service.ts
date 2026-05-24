@@ -130,6 +130,7 @@ export async function createPhysicalAttributeDefinition(data: {
   ordinalMin?: number | null;
   ordinalMax?: number | null;
   mutability?: Mutability;
+  statusBearing?: boolean;
 }) {
   const valueType: PhysicalAttributeValueType = data.valueType ?? "TEXT";
   const typedInput: DefinitionTypedInput = {
@@ -156,6 +157,7 @@ export async function createPhysicalAttributeDefinition(data: {
       ordinalMin: data.ordinalMin ?? null,
       ordinalMax: data.ordinalMax ?? null,
       mutability: data.mutability ?? "RARELY_CHANGES",
+      statusBearing: data.statusBearing ?? false,
       sortOrder: data.sortOrder ?? (maxOrder._max.sortOrder ?? 0) + 1,
     },
   });
@@ -172,6 +174,7 @@ export async function updatePhysicalAttributeDefinition(
     ordinalMin?: number | null;
     ordinalMax?: number | null;
     mutability?: Mutability;
+    statusBearing?: boolean;
   },
 ) {
   // When changing typed fields, validate against the resulting state. We need
@@ -211,6 +214,7 @@ export async function updatePhysicalAttributeDefinition(
   if (data.ordinalMin !== undefined) updateData.ordinalMin = data.ordinalMin;
   if (data.ordinalMax !== undefined) updateData.ordinalMax = data.ordinalMax;
   if (data.mutability !== undefined) updateData.mutability = data.mutability;
+  if (data.statusBearing !== undefined) updateData.statusBearing = data.statusBearing;
 
   return prisma.physicalAttributeDefinition.update({
     where: { id },

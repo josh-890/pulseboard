@@ -57,6 +57,8 @@ A *derived* property of a changing attribute — `NATURAL`, `ENHANCED`, or `REST
 
 Cached per attribute in `PersonCurrentState.attributeStatuses` for query (filter: "all persons with natural breast status"). Hero/grid display: `NATURAL` renders as plain value; `ENHANCED` / `RESTORED` render as `B (Natural) → D (Enhanced)` with a status label per value pill.
 
+**Status is gated by `PhysicalAttributeDefinition.statusBearing`** (Boolean, default `FALSE`). The ENHANCED/RESTORED vocabulary only makes semantic sense for attributes that can be the target of a cosmetic procedure (breast size; potentially face attrs). For non-status-bearing attrs (weight, hair color, build, all body measurements, etc.) the UI surfaces — Pattern Y, status sub-filter in the sidebar, the Cause picker in the record-change sheet — are hidden. The `cause` column on `ScalarDelta` and the fold-derived `attributeStatuses` cache column remain populated uniformly; gating is a UI/UX policy, not a data constraint (same pattern as `mutability` per ADR-0005). See `docs/adr/0007` amendment block and `project_status_bearing_eligibility.md`.
+
 _Historical note_: until 2026-05-24, status was derived from the presence of a `CosmeticProcedure` record targeting the attribute. ADR-0007 dropped the `CosmeticProcedure` entity and moved causation onto the delta itself.
 
 **Fold**:

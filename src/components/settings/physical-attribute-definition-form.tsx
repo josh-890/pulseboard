@@ -16,6 +16,7 @@ export type DefinitionFormValue = {
   ordinalMin: number | null;
   ordinalMax: number | null;
   mutability: Mutability;
+  statusBearing: boolean;
 };
 
 type Props = {
@@ -65,6 +66,9 @@ export function PhysicalAttributeDefinitionForm({
   const [unit, setUnit] = useState(initial?.unit ?? "");
   const [mutability, setMutability] = useState<Mutability>(
     initial?.mutability ?? "RARELY_CHANGES",
+  );
+  const [statusBearing, setStatusBearing] = useState<boolean>(
+    initial?.statusBearing ?? false,
   );
   const [error, setError] = useState<string | null>(null);
 
@@ -116,6 +120,7 @@ export function PhysicalAttributeDefinitionForm({
       ordinalMin: valueType === "ORDINAL" ? Number(ordinalMin) : null,
       ordinalMax: valueType === "ORDINAL" ? Number(ordinalMax) : null,
       mutability,
+      statusBearing,
     });
   };
 
@@ -173,6 +178,26 @@ export function PhysicalAttributeDefinitionForm({
         {mutOpt && (
           <p className="mt-0.5 text-[10px] text-muted-foreground/70">{mutOpt.hint}</p>
         )}
+      </div>
+
+      {/* Status-bearing — gates the Natural/Enhanced/Restored UI (ADR-0007 amendment) */}
+      <div>
+        <label className="flex items-start gap-2 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={statusBearing}
+            onChange={(e) => setStatusBearing(e.target.checked)}
+            className="mt-0.5 rounded border-white/15"
+          />
+          <span>
+            <span className="text-xs">Status-bearing</span>
+            <span className="block text-[10px] text-muted-foreground/70">
+              The attribute can be the target of a cosmetic procedure
+              (Natural / Enhanced / Restored applies). Off for most attributes;
+              on for e.g. breast size.
+            </span>
+          </span>
+        </label>
       </div>
 
       {/* Per-type editors */}

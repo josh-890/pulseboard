@@ -10,6 +10,7 @@ type ValueWithSparklineRowProps = {
   unit?: string | null;
   status?: AttributeStatus;
   baselineValue?: string | null;
+  statusBearing?: boolean;
   onRecordChange?: () => void;
 };
 
@@ -25,6 +26,7 @@ export function ValueWithSparklineRow({
   unit,
   status,
   baselineValue,
+  statusBearing,
   onRecordChange,
 }: ValueWithSparklineRowProps) {
   return (
@@ -36,6 +38,7 @@ export function ValueWithSparklineRow({
           currentValue={value}
           status={status ?? "NATURAL"}
           unit={unit}
+          statusBearing={statusBearing}
         />
       </dd>
       {onRecordChange && (

@@ -73,6 +73,23 @@ The People search sidebar gains a status sub-filter on any attribute filter that
 - **Option C — Keep current; just unify the three cards.** Reintroduces the dual-tracking smell ADR-0002 warned against.
 - **Carrying a richer `cause` enum from day one** (`TRAINING`, `INJURY`, `MEDICAL`, `WEIGHT_CHANGE`, …). Speculative; only `SURGICAL` is needed today. Add categories when real use cases appear.
 
+## Amendment (2026-05-24): status is gated by per-definition `statusBearing` flag
+
+After Slice 6 deployment, the user observed that "Enhanced on Weight is meaningless" — surfacing the `AttributeStatus` (ENHANCED / RESTORED) label on every catalog attribute is semantic noise. Only a small subset of attributes is meaningfully "status-bearing" — those that can be the target of a cosmetic procedure (in the user's domain, just `breast_size` today).
+
+**Amendment:** `PhysicalAttributeDefinition` gains `statusBearing: Boolean` (default `FALSE`). The `cause` enum and status-derivation rules above are unchanged at the data layer — every delta still carries `cause`; the SQL/TS fold still computes `attributeStatuses`. What changes is the **UI/UX gating surface**:
+
+- People search sidebar — the status sub-dropdown renders only for `statusBearing` attrs.
+- Appearance grid — `<AttributeStatusProgression>` Pattern Y renders only for `statusBearing` attrs; non-bearing attrs render as plain current value.
+- Hero "Physique" panel — same gating.
+- Record-physical-change sheet — the Cause picker renders only when at least one changed attr is status-bearing; the picked cause applies to status-bearing deltas only. (Slice 7 will redesign per-row cause; this is the bridge model.)
+
+**Data integrity stance: lenient.** Writes accept any cause on any delta — UI gating is the policy layer, not a schema constraint. Same "policy on definition, not storage" pattern as ADR-0005's mutability.
+
+Initial backfill: `breast_size = TRUE`; everything else `FALSE`. The user can opt additional attrs in via the catalog manager.
+
+See `project_status_bearing_eligibility.md` for the full rationale + gating table.
+
 ## Consequences
 
 - A migration is required to lift `CosmeticProcedureEvent` rows into `ScalarDelta` rows and re-target the photo links. Run as a single transaction; verify counts; drop old tables only after the migration is confirmed.

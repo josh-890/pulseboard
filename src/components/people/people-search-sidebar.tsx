@@ -228,6 +228,10 @@ export type AttributeOption = {
   ordinalMin: number | null;
   ordinalMax: number | null;
   unit: string | null;
+  // Phase G Slice 6½ / ADR-0007 amendment: when false, the status sub-dropdown
+  // is hidden from this attribute's row (and TEXT attrs with statusBearing=false
+  // disappear from the sidebar entirely — see people-search-page).
+  statusBearing: boolean;
 };
 
 function AttributeControl({
@@ -265,10 +269,11 @@ function AttributeControl({
     onChange({ ...spec, attribute: empty ? others : [...others, merged] });
   };
 
-  // Compact status sub-filter (Phase G Slice 6 / ADR-0007). Rendered for every
-  // attribute regardless of type — defaults to "Any" so it's invisible noise
-  // when the user doesn't care.
-  const statusFilter = (
+  // Compact status sub-filter (Phase G Slice 6 / ADR-0007).
+  // Gated on option.statusBearing (Phase G Slice 6½ / ADR-0007 amendment) —
+  // for non-status-bearing attrs ("Enhanced Weight" being meaningless), this
+  // is null and nothing renders.
+  const statusFilter = option.statusBearing ? (
     <div className="flex items-center gap-1 text-[10px] text-muted-foreground/70 pt-0.5">
       <span>status</span>
       <select
@@ -290,7 +295,7 @@ function AttributeControl({
         <option value="RESTORED">Restored</option>
       </select>
     </div>
-  );
+  ) : null;
 
   // BOOLEAN — single checkbox
   if (option.valueType === "BOOLEAN") {
@@ -346,13 +351,13 @@ function AttributeControl({
     );
   }
 
-  // TEXT — no value facet (too many distinct values to be useful), but the
-  // status sub-filter is still meaningful for attrs that may be status-bearing
-  // (e.g. breast size). This row is the only way today to filter "natural
-  // breast status" until Slice 16 tightens the catalog (and a deeper review
-  // of which attrs are actually status-eligible — see
-  // feedback_attribute_status_eligibility.md).
+  // TEXT — no value facet (too many distinct values to be useful). After Slice
+  // 6½'s statusBearing gate, a TEXT attr that is not status-bearing has
+  // nothing to render in the sidebar (no value picker, no status filter), so
+  // we omit it entirely. Status-bearing TEXT attrs (today: just breast_size)
+  // render as a status-only row.
   if (option.valueType === "TEXT") {
+    if (!option.statusBearing) return null;
     return (
       <div className="space-y-1">
         <div className="text-[11px] text-muted-foreground">{option.name}</div>

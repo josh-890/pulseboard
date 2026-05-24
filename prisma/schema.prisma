@@ -1215,6 +1215,11 @@ model PhysicalAttributeDefinition {
   ordinalMin    Int?
   ordinalMax    Int?
   mutability    Mutability                 @default(RARELY_CHANGES)
+  // Phase G Slice 6½ / ADR-0007 amendment: gates UI surfaces that surface
+  // AttributeStatus (sidebar status sub-filter, Pattern Y progression, Cause
+  // picker in record-change sheet). Default false; backfilled true only for
+  // breast_size.
+  statusBearing Boolean                    @default(false)
   sortOrder     Int                        @default(0)
   createdAt     DateTime                   @default(now())
 

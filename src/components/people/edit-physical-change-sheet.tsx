@@ -94,6 +94,29 @@ export function EditPhysicalChangeSheet({ personId, item, attributeGroups, onClo
   const hasAnyAttr = Object.values(attrValues).some((v) => v.trim());
   const hasAnyField = currentHairColor.trim() || weight.trim() || build.trim() || breastSize.trim() || breastStatus.trim() || breastDescription.trim() || hasAnyAttr;
 
+  // Phase G Slice 6½ / ADR-0007 amendment: gate the Cause picker on at least
+  // one status-bearing attr being present in this Era's editable set.
+  const statusBearingDefIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const g of attributeGroups ?? []) {
+      for (const d of g.definitions) {
+        if (d.statusBearing) ids.add(d.id);
+      }
+    }
+    return ids;
+  }, [attributeGroups]);
+
+  const anyStatusBearingInForm = useMemo(() => {
+    if (breastSize.trim() && statusBearingDefIds.has("cattr-breast-size")) return true;
+    if (currentHairColor.trim() && statusBearingDefIds.has("cattr-hair-color")) return true;
+    if (weight.trim() && statusBearingDefIds.has("cattr-weight")) return true;
+    if (build.trim() && statusBearingDefIds.has("cattr-build")) return true;
+    for (const [id, v] of Object.entries(attrValues)) {
+      if (v.trim() && statusBearingDefIds.has(id)) return true;
+    }
+    return false;
+  }, [breastSize, currentHairColor, weight, build, attrValues, statusBearingDefIds]);
+
   const handleSubmit = useCallback(() => {
     if (!hasAnyField) {
       setError("At least one physical field is required.");
@@ -149,19 +172,23 @@ export function EditPhysicalChangeSheet({ personId, item, attributeGroups, onClo
             label="When"
           />
 
-          {/* Phase G Slice 4 / ADR-0007: optional Cause select. */}
-          <div>
-            <label className="mb-1.5 block text-sm font-medium">Cause</label>
-            <select
-              value={cause}
-              onChange={(e) => setCause(e.target.value as "NATURAL" | "SURGICAL" | "OTHER")}
-              className="w-full rounded-lg border border-white/15 bg-muted/30 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
-            >
-              <option value="NATURAL">Natural</option>
-              <option value="SURGICAL">Surgical</option>
-              <option value="OTHER">Other</option>
-            </select>
-          </div>
+          {/* Phase G Slice 4 / ADR-0007 + Slice 6½ amendment: Cause select
+              only renders when at least one status-bearing attr is in this
+              Era's form. */}
+          {anyStatusBearingInForm && (
+            <div>
+              <label className="mb-1.5 block text-sm font-medium">Cause</label>
+              <select
+                value={cause}
+                onChange={(e) => setCause(e.target.value as "NATURAL" | "SURGICAL" | "OTHER")}
+                className="w-full rounded-lg border border-white/15 bg-muted/30 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+              >
+                <option value="NATURAL">Natural</option>
+                <option value="SURGICAL">Surgical</option>
+                <option value="OTHER">Other</option>
+              </select>
+            </div>
+          )}
 
           <div>
             <label className="mb-1.5 block text-sm font-medium">Current Hair Color</label>

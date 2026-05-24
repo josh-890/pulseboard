@@ -66,6 +66,35 @@ export function RecordPhysicalChangeSheet({ personId, currentState, attributeGro
   );
   const hasAnyChange = hairChanged || weightChanged || buildChanged || breastSizeChanged || breastStatusChanged || breastDescChanged || attrChanged;
 
+  // Phase G Slice 6½ / ADR-0007 amendment: the Cause picker is rendered only
+  // when at least one status-bearing attribute is being changed in this save.
+  // Look up status-bearing IDs from attributeGroups, then check the in-flight
+  // change set. The 5 core attrs (hair-color, weight, build, breast-size,
+  // measurements) are status-bearing only if explicitly flagged in the catalog;
+  // today only breast_size is.
+  const statusBearingDefIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const g of attributeGroups ?? []) {
+      for (const d of g.definitions) {
+        if (d.statusBearing) ids.add(d.id);
+      }
+    }
+    return ids;
+  }, [attributeGroups]);
+
+  const anyStatusBearingChanged = useMemo(() => {
+    if (breastSizeChanged && statusBearingDefIds.has("cattr-breast-size")) return true;
+    if (hairChanged && statusBearingDefIds.has("cattr-hair-color")) return true;
+    if (weightChanged && statusBearingDefIds.has("cattr-weight")) return true;
+    if (buildChanged && statusBearingDefIds.has("cattr-build")) return true;
+    for (const [id, v] of Object.entries(attrValues)) {
+      if (v.trim() !== (initialAttrValues[id] ?? "") && statusBearingDefIds.has(id)) {
+        return true;
+      }
+    }
+    return false;
+  }, [breastSizeChanged, hairChanged, weightChanged, buildChanged, attrValues, initialAttrValues, statusBearingDefIds]);
+
   const handleSubmit = useCallback(() => {
     if (!hasAnyChange) {
       setError("Change at least one field before recording.");
@@ -125,19 +154,23 @@ export function RecordPhysicalChangeSheet({ personId, currentState, attributeGro
           />
 
           {/* Phase G Slice 4 / ADR-0007: optional Cause for this change set.
-              Defaults NATURAL. SURGICAL flips attribute status to ENHANCED. */}
-          <div>
-            <label className="mb-1.5 block text-sm font-medium">Cause</label>
-            <select
-              value={cause}
-              onChange={(e) => setCause(e.target.value as "NATURAL" | "SURGICAL" | "OTHER")}
-              className="w-full rounded-lg border border-white/15 bg-muted/30 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
-            >
-              <option value="NATURAL">Natural — usual drift / no intervention</option>
-              <option value="SURGICAL">Surgical — cosmetic procedure caused this change</option>
-              <option value="OTHER">Other</option>
-            </select>
-          </div>
+              Defaults NATURAL. SURGICAL flips attribute status to ENHANCED.
+              Gated on at least one status-bearing attr being changed
+              (ADR-0007 amendment / Slice 6½). */}
+          {anyStatusBearingChanged && (
+            <div>
+              <label className="mb-1.5 block text-sm font-medium">Cause</label>
+              <select
+                value={cause}
+                onChange={(e) => setCause(e.target.value as "NATURAL" | "SURGICAL" | "OTHER")}
+                className="w-full rounded-lg border border-white/15 bg-muted/30 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+              >
+                <option value="NATURAL">Natural — usual drift / no intervention</option>
+                <option value="SURGICAL">Surgical — cosmetic procedure caused this change</option>
+                <option value="OTHER">Other</option>
+              </select>
+            </div>
+          )}
 
           <div>
             <label className="mb-1.5 block text-sm font-medium">Current Hair Color</label>

@@ -8,6 +8,13 @@ type AttributeStatusProgressionProps = {
   currentValue: string;
   status: AttributeStatus;
   unit?: string | null;
+  // Phase G Slice 6½ / ADR-0007 amendment: if the underlying attribute is
+  // not status-bearing, render plain value regardless of the derived status.
+  // The cause column on the delta is still valid data; this gate just hides
+  // the status semantics from the UI where they wouldn't make sense
+  // ("Enhanced Weight" being the canonical bad case). Defaults to true so
+  // existing callers behave as before.
+  statusBearing?: boolean;
 };
 
 // Pattern Y rendering per ADR-0007.
@@ -17,15 +24,17 @@ type AttributeStatusProgressionProps = {
 //     (covers cases like a breast lift / implant replacement that didn't
 //     change the cup size — surgery still happened, status still applies,
 //     but there's no progression arrow to draw.)
+//   statusBearing === false            → plain value, ignore status entirely.
 export function AttributeStatusProgression({
   baselineValue,
   currentValue,
   status,
   unit,
+  statusBearing = true,
 }: AttributeStatusProgressionProps) {
   const fmt = (v: string) => (unit ? `${v} ${unit}` : v);
 
-  if (status === "NATURAL") {
+  if (!statusBearing || status === "NATURAL") {
     return <span>{fmt(currentValue)}</span>;
   }
 

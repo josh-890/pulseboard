@@ -127,6 +127,7 @@ export function PhysicalAttributeManager({
           ordinalMin: value.ordinalMin,
           ordinalMax: value.ordinalMax,
           mutability: value.mutability,
+          statusBearing: value.statusBearing,
         });
         if (result.success) {
           setAddingDefGroupId(null);
@@ -150,6 +151,7 @@ export function PhysicalAttributeManager({
           ordinalMin: value.ordinalMin,
           ordinalMax: value.ordinalMax,
           mutability: value.mutability,
+          statusBearing: value.statusBearing,
         });
         if (!result.success) {
           alert(result.error ?? "Failed to update attribute");
@@ -169,6 +171,7 @@ export function PhysicalAttributeManager({
                     ordinalMin: value.ordinalMin,
                     ordinalMax: value.ordinalMax,
                     mutability: value.mutability,
+                    statusBearing: value.statusBearing,
                   }
                 : d,
             ),
@@ -322,6 +325,7 @@ export function PhysicalAttributeManager({
                             ordinalMin: def.ordinalMin,
                             ordinalMax: def.ordinalMax,
                             mutability: def.mutability,
+                            statusBearing: def.statusBearing,
                           }}
                           onCancel={() => setEditingDefId(null)}
                           onSubmit={(v) => handleUpdateDefinition(def.id, v)}

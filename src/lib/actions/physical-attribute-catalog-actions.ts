@@ -25,6 +25,7 @@ export type CreateDefinitionInput = {
   ordinalMin?: number | null;
   ordinalMax?: number | null;
   mutability?: Mutability;
+  statusBearing?: boolean;
 };
 
 export type UpdateDefinitionInput = {
@@ -36,6 +37,7 @@ export type UpdateDefinitionInput = {
   ordinalMin?: number | null;
   ordinalMax?: number | null;
   mutability?: Mutability;
+  statusBearing?: boolean;
 };
 
 // ─── Group actions ───────────────────────────────────────────────────────────

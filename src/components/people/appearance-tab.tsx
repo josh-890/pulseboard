@@ -227,6 +227,7 @@ export function AppearanceTab({
         status: import("@/lib/types").AttributeStatus;
         mutability: import("@/generated/prisma/client").Mutability;
         baselineValue: string | null;
+        statusBearing: boolean;
       }[]
     > = {};
     for (const attr of Object.values(currentState.extensibleAttributes)) {
@@ -238,6 +239,7 @@ export function AppearanceTab({
         status: attr.status,
         mutability: attr.mutability,
         baselineValue: attr.baselineValue,
+        statusBearing: attr.statusBearing,
       });
     }
     return groups;
@@ -659,6 +661,7 @@ export function AppearanceTab({
                           baselineValue={baselineBreastSize}
                           currentValue={currentState.breastSize}
                           status={breastAttrStatus}
+                          statusBearing={true}
                         />
                       }
                     />
@@ -685,6 +688,7 @@ export function AppearanceTab({
                               unit={attr.unit}
                               status={attr.status}
                               baselineValue={attr.baselineValue}
+                              statusBearing={attr.statusBearing}
                               onRecordChange={() => setOpenState("physicalChange")}
                             />
                           ))}

@@ -67,6 +67,7 @@ async function renderPage(searchParams: Record<string, string>) {
         ordinalMin: d.ordinalMin,
         ordinalMax: d.ordinalMax,
         unit: d.unit,
+        statusBearing: d.statusBearing,
       })),
     }))
     .filter((g) => g.options.length > 0);

@@ -86,4 +86,43 @@ describe("PhysicalAttributeDefinition mutability", () => {
     });
     expect(updated.mutability).toBe("ALWAYS_STATIC");
   });
+
+  // ─── statusBearing (Phase G Slice 6½) ──────────────────────────────────────
+
+  it("statusBearing defaults to FALSE when not provided", async () => {
+    const groupId = await getTestGroupId();
+    const def = await createPhysicalAttributeDefinition({
+      groupId,
+      name: `${TEST_NAME_PREFIX}sb_default_${Date.now()}`,
+      valueType: "TEXT",
+    });
+    expect(def.statusBearing).toBe(false);
+  });
+
+  it("persists explicit statusBearing=true on create", async () => {
+    const groupId = await getTestGroupId();
+    const def = await createPhysicalAttributeDefinition({
+      groupId,
+      name: `${TEST_NAME_PREFIX}sb_true_${Date.now()}`,
+      valueType: "TEXT",
+      statusBearing: true,
+    });
+    expect(def.statusBearing).toBe(true);
+  });
+
+  it("update can flip statusBearing without touching other fields", async () => {
+    const groupId = await getTestGroupId();
+    const created = await createPhysicalAttributeDefinition({
+      groupId,
+      name: `${TEST_NAME_PREFIX}sb_flip_${Date.now()}`,
+      valueType: "TEXT",
+      statusBearing: false,
+    });
+    const updated = await updatePhysicalAttributeDefinition(created.id, {
+      statusBearing: true,
+    });
+    expect(updated.statusBearing).toBe(true);
+    expect(updated.name).toBe(created.name);
+    expect(updated.mutability).toBe(created.mutability);
+  });
 });
