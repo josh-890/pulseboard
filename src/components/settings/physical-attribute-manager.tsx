@@ -126,6 +126,7 @@ export function PhysicalAttributeManager({
           allowedValues: value.allowedValues,
           ordinalMin: value.ordinalMin,
           ordinalMax: value.ordinalMax,
+          mutability: value.mutability,
         });
         if (result.success) {
           setAddingDefGroupId(null);
@@ -148,6 +149,7 @@ export function PhysicalAttributeManager({
           allowedValues: value.allowedValues,
           ordinalMin: value.ordinalMin,
           ordinalMax: value.ordinalMax,
+          mutability: value.mutability,
         });
         if (!result.success) {
           alert(result.error ?? "Failed to update attribute");
@@ -166,6 +168,7 @@ export function PhysicalAttributeManager({
                     allowedValues: value.allowedValues,
                     ordinalMin: value.ordinalMin,
                     ordinalMax: value.ordinalMax,
+                    mutability: value.mutability,
                   }
                 : d,
             ),
@@ -318,6 +321,7 @@ export function PhysicalAttributeManager({
                             allowedValues: def.allowedValues,
                             ordinalMin: def.ordinalMin,
                             ordinalMax: def.ordinalMax,
+                            mutability: def.mutability,
                           }}
                           onCancel={() => setEditingDefId(null)}
                           onSubmit={(v) => handleUpdateDefinition(def.id, v)}
@@ -349,6 +353,17 @@ export function PhysicalAttributeManager({
                               : def.valueType === "ORDINAL" && def.ordinalMin != null && def.ordinalMax != null
                               ? ` · ${def.ordinalMin}–${def.ordinalMax}`
                               : ""}
+                          </span>
+                          <span
+                            className={cn(
+                              "text-[10px] rounded px-1.5 py-0.5 font-medium shrink-0",
+                              def.mutability === "ALWAYS_STATIC" && "bg-sky-500/15 text-sky-400",
+                              def.mutability === "RARELY_CHANGES" && "bg-muted/40 text-muted-foreground/80",
+                              def.mutability === "VOLATILE" && "bg-amber-500/15 text-amber-400",
+                            )}
+                            title={`Mutability: ${def.mutability}`}
+                          >
+                            {def.mutability === "ALWAYS_STATIC" ? "static" : def.mutability === "VOLATILE" ? "volatile" : "rarely"}
                           </span>
                         </div>
                       </div>

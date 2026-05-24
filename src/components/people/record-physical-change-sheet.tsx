@@ -11,7 +11,7 @@ import type { PersonCurrentState } from "@/lib/types";
 import { SelectWithOther } from "@/components/shared/select-with-other";
 import { ColorValueCombobox } from "@/components/people/color-value-combobox";
 import { TypedAttributeInput } from "@/components/people/typed-attribute-input";
-import { BUILD_OPTIONS, BREAST_SIZE_OPTIONS, BREAST_STATUS_OPTIONS } from "@/lib/constants/appearance";
+import { BUILD_OPTIONS, BREAST_SIZE_OPTIONS, BREAST_STATUS_OPTIONS, CORE_PHYSICAL_ATTR_IDS } from "@/lib/constants/appearance";
 
 type RecordPhysicalChangeSheetProps = {
   personId: string;
@@ -186,11 +186,23 @@ export function RecordPhysicalChangeSheet({ personId, currentState, attributeGro
             />
           </div>
 
-          {/* Extensible Physical Attributes */}
-          {attributeGroups && attributeGroups.length > 0 && (
+          {/* Extensible Physical Attributes — core attrs (hair color, weight,
+              build, breast size, measurements) are SKIPPED here because they
+              have dedicated UI above; rendering them here too would duplicate
+              the input AND (critically for hair color) bypass the
+              color_catalog ecosystem in favour of a generic text field. */}
+          {attributeGroups && attributeGroups.length > 0 && (() => {
+            const nonCoreGroups = attributeGroups
+              .map((g) => ({
+                ...g,
+                definitions: g.definitions.filter((d) => !CORE_PHYSICAL_ATTR_IDS.has(d.id)),
+              }))
+              .filter((g) => g.definitions.length > 0);
+            if (nonCoreGroups.length === 0) return null;
+            return (
             <div className="border-t border-white/10 pt-4 space-y-2">
               <h3 className="text-sm font-medium text-muted-foreground">Additional Measurements</h3>
-              {attributeGroups.map((group) => {
+              {nonCoreGroups.map((group) => {
                 const isExpanded = expandedAttrGroups.has(group.id);
                 return (
                   <div key={group.id} className="rounded-lg border border-white/10 bg-muted/20">
@@ -230,7 +242,8 @@ export function RecordPhysicalChangeSheet({ personId, currentState, attributeGro
                 );
               })}
             </div>
-          )}
+            );
+          })()}
 
           {error && <p className="text-sm text-red-500">{error}</p>}
 

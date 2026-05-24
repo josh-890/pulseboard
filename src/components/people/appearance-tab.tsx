@@ -10,6 +10,7 @@ import type {
   BodyModificationWithEvents,
   CosmeticProcedureWithEvents,
 } from "@/lib/types";
+import { MutabilityPrimitive } from "@/components/people/mutability-primitive";
 import { BodyMarkRow } from "@/components/people/body-mark-row";
 import { BodyModificationRow } from "@/components/people/body-modification-row";
 import { CosmeticProcedureRow } from "@/components/people/cosmetic-procedure-row";
@@ -62,6 +63,7 @@ import {
 } from "lucide-react";
 import { SectionCard, EmptyState, InfoRow } from "@/components/people/person-detail-helpers";
 import { formatPartialDate } from "@/lib/utils";
+import { CORE_PHYSICAL_ATTR_IDS } from "@/lib/constants/appearance";
 import type { EntityMediaThumbnail } from "@/lib/services/media-service";
 import type { CategoryWithGroup } from "@/components/gallery/gallery-info-panel";
 import { GalleryLightbox } from "@/components/gallery";
@@ -128,10 +130,9 @@ export type AppearanceTabProps = {
   attributeGroups?: PhysicalAttributeGroupWithDefinitions[];
 };
 
-// Core scalars get dedicated display rows; everything else is an extensible attribute.
-const CORE_PHYSICAL_ATTR_IDS = new Set([
-  "cattr-hair-color", "cattr-weight", "cattr-build", "cattr-breast-size", "cattr-measurements",
-]);
+// CORE_PHYSICAL_ATTR_IDS moved to @/lib/constants/appearance — shared with
+// the record-/edit-physical-change sheets so they can skip these IDs in the
+// generic extensible loop (otherwise hair color etc. render twice).
 
 const ENTITY_FIELD_MAP: Record<string, 'bodyMarkId' | 'bodyModificationId' | 'cosmeticProcedureId'> = {
   BodyMark: 'bodyMarkId',
@@ -173,10 +174,25 @@ export function AppearanceTab({
 
   // Group extensible attributes by group name for display
   const extensibleByGroup = useMemo(() => {
-    const groups: Record<string, { name: string; unit: string | null; value: string; status: import("@/lib/types").AttributeStatus }[]> = {};
+    const groups: Record<
+      string,
+      {
+        name: string;
+        unit: string | null;
+        value: string;
+        status: import("@/lib/types").AttributeStatus;
+        mutability: import("@/generated/prisma/client").Mutability;
+      }[]
+    > = {};
     for (const attr of Object.values(currentState.extensibleAttributes)) {
       if (!groups[attr.groupName]) groups[attr.groupName] = [];
-      groups[attr.groupName].push({ name: attr.name, unit: attr.unit, value: attr.value, status: attr.status });
+      groups[attr.groupName].push({
+        name: attr.name,
+        unit: attr.unit,
+        value: attr.value,
+        status: attr.status,
+        mutability: attr.mutability,
+      });
     }
     return groups;
   }, [currentState.extensibleAttributes]);
@@ -591,33 +607,24 @@ export function AppearanceTab({
                   {currentState.measurements && <InfoRow label="Measurements" value={currentState.measurements} labelWidth="w-28" />}
                 </dl>
 
-                {/* Extensible Physical Attributes */}
+                {/* Extensible Physical Attributes — primitive per row driven by mutability (ADR-0005) */}
                 {hasExtensible && (
                   <div className="mt-3 space-y-3">
                     {Object.entries(extensibleByGroup).map(([groupName, attrs]) => (
                       <div key={groupName}>
                         <h4 className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">{groupName}</h4>
                         <dl className="grid grid-cols-1 gap-1.5 text-sm sm:grid-cols-2">
-                          {attrs.map((attr) => {
-                            const displayValue = attr.unit ? `${attr.value} ${attr.unit}` : attr.value;
-                            const statusBadge = attr.status !== "NATURAL" ? (
-                              <span className={cn(
-                                "ml-1.5 inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium",
-                                attr.status === "ENHANCED" && "bg-purple-500/20 text-purple-400",
-                                attr.status === "RESTORED" && "bg-emerald-500/20 text-emerald-400",
-                              )}>
-                                {attr.status === "ENHANCED" ? "Enhanced" : "Restored"}
-                              </span>
-                            ) : null;
-                            return (
-                              <div key={attr.name} className="flex items-start gap-2 px-2.5 py-1.5 rounded-lg bg-muted/20">
-                                <dt className="w-28 shrink-0 text-xs text-muted-foreground">{attr.name}</dt>
-                                <dd className="text-sm text-foreground">
-                                  {displayValue}{statusBadge}
-                                </dd>
-                              </div>
-                            );
-                          })}
+                          {attrs.map((attr) => (
+                            <MutabilityPrimitive
+                              key={attr.name}
+                              mutability={attr.mutability}
+                              name={attr.name}
+                              value={attr.value}
+                              unit={attr.unit}
+                              status={attr.status}
+                              onRecordChange={() => setOpenState("physicalChange")}
+                            />
+                          ))}
                         </dl>
                       </div>
                     ))}

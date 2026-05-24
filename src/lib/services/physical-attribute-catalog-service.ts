@@ -1,5 +1,8 @@
 import { prisma } from "@/lib/db";
-import type { PhysicalAttributeValueType } from "@/generated/prisma/client";
+import type {
+  Mutability,
+  PhysicalAttributeValueType,
+} from "@/generated/prisma/client";
 
 function slugify(name: string): string {
   return name
@@ -126,6 +129,7 @@ export async function createPhysicalAttributeDefinition(data: {
   allowedValues?: string[];
   ordinalMin?: number | null;
   ordinalMax?: number | null;
+  mutability?: Mutability;
 }) {
   const valueType: PhysicalAttributeValueType = data.valueType ?? "TEXT";
   const typedInput: DefinitionTypedInput = {
@@ -151,6 +155,7 @@ export async function createPhysicalAttributeDefinition(data: {
       allowedValues: typedInput.allowedValues ?? [],
       ordinalMin: data.ordinalMin ?? null,
       ordinalMax: data.ordinalMax ?? null,
+      mutability: data.mutability ?? "RARELY_CHANGES",
       sortOrder: data.sortOrder ?? (maxOrder._max.sortOrder ?? 0) + 1,
     },
   });
@@ -166,6 +171,7 @@ export async function updatePhysicalAttributeDefinition(
     allowedValues?: string[];
     ordinalMin?: number | null;
     ordinalMax?: number | null;
+    mutability?: Mutability;
   },
 ) {
   // When changing typed fields, validate against the resulting state. We need
@@ -204,6 +210,7 @@ export async function updatePhysicalAttributeDefinition(
   if (data.allowedValues !== undefined) updateData.allowedValues = data.allowedValues;
   if (data.ordinalMin !== undefined) updateData.ordinalMin = data.ordinalMin;
   if (data.ordinalMax !== undefined) updateData.ordinalMax = data.ordinalMax;
+  if (data.mutability !== undefined) updateData.mutability = data.mutability;
 
   return prisma.physicalAttributeDefinition.update({
     where: { id },

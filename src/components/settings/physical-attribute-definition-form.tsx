@@ -3,7 +3,10 @@
 import { useState } from "react";
 import { Plus, X } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { PhysicalAttributeValueType } from "@/generated/prisma/client";
+import type {
+  Mutability,
+  PhysicalAttributeValueType,
+} from "@/generated/prisma/client";
 
 export type DefinitionFormValue = {
   name: string;
@@ -12,6 +15,7 @@ export type DefinitionFormValue = {
   allowedValues: string[];
   ordinalMin: number | null;
   ordinalMax: number | null;
+  mutability: Mutability;
 };
 
 type Props = {
@@ -29,6 +33,12 @@ const TYPE_OPTIONS: { value: PhysicalAttributeValueType; label: string; hint: st
   { value: "ORDINAL",       label: "Ordinal scale",   hint: "integer between min and max" },
   { value: "NUMERIC",       label: "Numeric",         hint: "number, optionally with a unit (kg, cm, %)" },
   { value: "TEXT",          label: "Text (freeform)", hint: "freetext, no search facet" },
+];
+
+const MUTABILITY_OPTIONS: { value: Mutability; label: string; hint: string }[] = [
+  { value: "ALWAYS_STATIC",  label: "Always static",  hint: "doesn't change in adult life (eye color, handedness). Inline display only." },
+  { value: "RARELY_CHANGES", label: "Rarely changes", hint: "drifts over time but slowly (build, face shape, body measurements). Default." },
+  { value: "VOLATILE",       label: "Volatile",       hint: "changes frequently (weight, hair color, hair length). Record-change is the primary action." },
 ];
 
 export function PhysicalAttributeDefinitionForm({
@@ -53,6 +63,9 @@ export function PhysicalAttributeDefinitionForm({
     initial?.ordinalMax != null ? String(initial.ordinalMax) : "5",
   );
   const [unit, setUnit] = useState(initial?.unit ?? "");
+  const [mutability, setMutability] = useState<Mutability>(
+    initial?.mutability ?? "RARELY_CHANGES",
+  );
   const [error, setError] = useState<string | null>(null);
 
   const addAllowedValue = () => {
@@ -102,10 +115,12 @@ export function PhysicalAttributeDefinitionForm({
           : [],
       ordinalMin: valueType === "ORDINAL" ? Number(ordinalMin) : null,
       ordinalMax: valueType === "ORDINAL" ? Number(ordinalMax) : null,
+      mutability,
     });
   };
 
   const typeOpt = TYPE_OPTIONS.find((o) => o.value === valueType);
+  const mutOpt = MUTABILITY_OPTIONS.find((o) => o.value === mutability);
 
   return (
     <div className="space-y-2 rounded-lg border border-white/15 bg-background/40 p-3">
@@ -138,6 +153,25 @@ export function PhysicalAttributeDefinitionForm({
         </select>
         {typeOpt && (
           <p className="mt-0.5 text-[10px] text-muted-foreground/70">{typeOpt.hint}</p>
+        )}
+      </div>
+
+      {/* Mutability — drives the Appearance grid primitive (ADR-0005) */}
+      <div>
+        <label className="text-[10px] text-muted-foreground">Mutability</label>
+        <select
+          value={mutability}
+          onChange={(e) => setMutability(e.target.value as Mutability)}
+          className="mt-0.5 w-full rounded-md border border-white/15 bg-background px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+        >
+          {MUTABILITY_OPTIONS.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+        {mutOpt && (
+          <p className="mt-0.5 text-[10px] text-muted-foreground/70">{mutOpt.hint}</p>
         )}
       </div>
 

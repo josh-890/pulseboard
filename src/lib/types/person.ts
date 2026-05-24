@@ -314,6 +314,7 @@ export type ExtensibleAttributeValue = {
   name: string;
   groupName: string;
   status: AttributeStatus;
+  mutability: import("@/generated/prisma/client").Mutability;
 };
 
 export type PersonCurrentState = {

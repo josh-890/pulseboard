@@ -210,7 +210,7 @@ export async function getPersonWithDetails(id: string) {
       bodyModifications: true,
       cosmeticProcedures: {
         include: {
-          attributeDefinition: { select: { id: true, name: true, unit: true, group: { select: { name: true } } } },
+          attributeDefinition: { select: { id: true, name: true, unit: true, mutability: true, group: { select: { name: true } } } },
         },
       },
       skills: {
@@ -636,7 +636,12 @@ type FoldableEra = {
     notes: string | null;
     createdAt: Date;
     attributeDefinitionId: string;
-    attributeDefinition: { unit: string | null; name: string; group: { name: string } };
+    attributeDefinition: {
+      unit: string | null;
+      name: string;
+      mutability: import("@/generated/prisma/client").Mutability;
+      group: { name: string };
+    };
   }>;
 };
 
@@ -725,6 +730,7 @@ export function deriveAppearanceAtShoot<E extends FoldableEra>(
       name: d.attributeDefinition.name,
       groupName: d.attributeDefinition.group.name,
       status: "NATURAL" as import("@/lib/types").AttributeStatus,
+      mutability: d.attributeDefinition.mutability,
     };
   }
   return {
@@ -783,6 +789,7 @@ export function deriveCurrentState(
       name: d.attributeDefinition.name,
       groupName: d.attributeDefinition.group.name,
       status: "NATURAL" as import("@/lib/types").AttributeStatus,
+      mutability: d.attributeDefinition.mutability,
     };
   }
 
@@ -1024,6 +1031,7 @@ export function deriveCurrentState(
           name: attrDef.name,
           groupName: attrDef.group.name,
           status: derivedStatus,
+          mutability: attrDef.mutability,
         };
       }
     }

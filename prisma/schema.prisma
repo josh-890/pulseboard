@@ -1177,6 +1177,16 @@ enum PhysicalAttributeValueType {
   TEXT
 }
 
+// Mutability policy on a scalar attribute definition. Drives UI affordance
+// and validation only — never modifies stored history (ADR-0005). Reclassifying
+// an attribute changes future authoring behaviour immediately and leaves all
+// existing ScalarDelta rows untouched.
+enum Mutability {
+  ALWAYS_STATIC
+  RARELY_CHANGES
+  VOLATILE
+}
+
 model PhysicalAttributeDefinition {
   id            String                     @id @default(cuid())
   groupId       String
@@ -1188,6 +1198,7 @@ model PhysicalAttributeDefinition {
   allowedValues String[]                   @default([])
   ordinalMin    Int?
   ordinalMax    Int?
+  mutability    Mutability                 @default(RARELY_CHANGES)
   sortOrder     Int                        @default(0)
   createdAt     DateTime                   @default(now())
 

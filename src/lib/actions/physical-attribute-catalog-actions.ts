@@ -11,7 +11,10 @@ import {
   deletePhysicalAttributeDefinition,
 } from "@/lib/services/physical-attribute-catalog-service";
 import type { SimpleActionResult } from "@/lib/types";
-import type { PhysicalAttributeValueType } from "@/generated/prisma/client";
+import type {
+  Mutability,
+  PhysicalAttributeValueType,
+} from "@/generated/prisma/client";
 
 export type CreateDefinitionInput = {
   groupId: string;
@@ -21,6 +24,7 @@ export type CreateDefinitionInput = {
   allowedValues?: string[];
   ordinalMin?: number | null;
   ordinalMax?: number | null;
+  mutability?: Mutability;
 };
 
 export type UpdateDefinitionInput = {
@@ -31,6 +35,7 @@ export type UpdateDefinitionInput = {
   allowedValues?: string[];
   ordinalMin?: number | null;
   ordinalMax?: number | null;
+  mutability?: Mutability;
 };
 
 // ─── Group actions ───────────────────────────────────────────────────────────
