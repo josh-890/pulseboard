@@ -247,19 +247,24 @@ function AttributeControl({
 }) {
   const current = spec.attribute.find((a) => a.definitionId === option.definitionId);
 
-  const replaceEntry = (patch: Partial<{
-    values: string[];
-    min: number | undefined;
-    max: number | undefined;
-    status: import("@/lib/types/filter-spec").AttributeStatusFilter | undefined;
-  }>) => {
+  const replaceEntry = (patch: {
+    values?: string[];
+    min?: number | undefined;
+    max?: number | undefined;
+    status?: import("@/lib/types/filter-spec").AttributeStatusFilter | undefined;
+  }) => {
     const others = spec.attribute.filter((a) => a.definitionId !== option.definitionId);
+    // Use key-presence (`'k' in patch`), not undefined-ness — callers pass
+    // `status: undefined` deliberately to clear the filter back to "Any"; the
+    // old `patch.x !== undefined ? ...` merge made that indistinguishable from
+    // "no patch for x" and silently kept the old value (caught on prod: couldn't
+    // un-select breast_size status). Same fix for min/max range clearing.
     const merged = {
       definitionId: option.definitionId,
-      values: patch.values ?? current?.values ?? [],
-      min:    patch.min    !== undefined ? patch.min    : current?.min,
-      max:    patch.max    !== undefined ? patch.max    : current?.max,
-      status: patch.status !== undefined ? patch.status : current?.status,
+      values: 'values' in patch ? (patch.values ?? []) : (current?.values ?? []),
+      min:    'min'    in patch ? patch.min    : current?.min,
+      max:    'max'    in patch ? patch.max    : current?.max,
+      status: 'status' in patch ? patch.status : current?.status,
     };
     const empty =
       merged.values.length === 0 &&
