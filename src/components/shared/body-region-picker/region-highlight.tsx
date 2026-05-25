@@ -31,7 +31,16 @@ export function RegionPath({
       const v = getSubRegionView(s);
       return v === "both" || v === side;
     });
-  const isHovered = hovered === id;
+  // Same sub-region rule for hover — otherwise a row anchored to a sub-region
+  // (e.g. forearm_l.inner) wouldn't emphasize the parent SVG path on row hover.
+  const isHovered =
+    hovered === id ||
+    (!!hovered &&
+      hovered.startsWith(id + ".") &&
+      (() => {
+        const v = getSubRegionView(hovered);
+        return v === "both" || v === side;
+      })());
 
   const handleClick = useCallback(
     (e: React.MouseEvent) => onClick(id, e),
