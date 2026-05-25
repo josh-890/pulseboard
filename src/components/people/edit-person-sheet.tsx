@@ -38,7 +38,7 @@ import {
   type UpdatePersonFormValues,
   type UpdatePersonInput,
 } from "@/lib/validations/person";
-import { ETHNICITY_BROAD_OPTIONS } from "@/lib/constants/ethnicity";
+import { EthnicityFields } from "@/components/people/ethnicity-fields";
 import { CountryPicker } from "@/components/shared/country-picker";
 import { updatePerson } from "@/lib/actions/person-actions";
 import { PartialDateInput } from "@/components/shared/partial-date-input";
@@ -429,53 +429,12 @@ export function EditPersonSheet({ person }: EditPersonSheetProps) {
                       )}
                     />
 
-                    {/* Phase G Slice 16C T3: Ethnicity split into Broad
-                        SINGLE_SELECT + Specific TEXT, written as ScalarDeltas. */}
-                    <FormField
-                      control={form.control}
-                      name="ethnicityBroad"
-                      render={({ field }) => (
-                        <FormItem className="col-span-2">
-                          <FormLabel>Ethnicity (Broad)</FormLabel>
-                          <Select
-                            onValueChange={(v) => field.onChange(v === "_none" ? undefined : v)}
-                            value={field.value ?? "_none"}
-                          >
-                            <FormControl>
-                              <SelectTrigger className="w-full">
-                                <SelectValue placeholder="Select broad category…" />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              <SelectItem value="_none">— not specified —</SelectItem>
-                              {ETHNICITY_BROAD_OPTIONS.map((opt) => (
-                                <SelectItem key={opt} value={opt}>
-                                  {opt}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={form.control}
-                      name="ethnicitySpecific"
-                      render={({ field }) => (
-                        <FormItem className="col-span-2">
-                          <FormLabel>Ethnicity (Specific)</FormLabel>
-                          <FormControl>
-                            <Input
-                              placeholder="Optional sub-region, e.g. Eastern European"
-                              value={field.value ?? ""}
-                              onChange={(e) => field.onChange(e.target.value || undefined)}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
+                    {/* Phase G Slice 16C T3+T4: Ethnicity = Broad SELECT +
+                        Specific SELECT (filtered by Broad). */}
+                    <EthnicityFields
+                      broadName="ethnicityBroad"
+                      specificName="ethnicitySpecific"
+                      className="col-span-2"
                     />
                   </div>
                 </section>
