@@ -44,8 +44,13 @@ function normalizeForMatch(name: string): string {
 
 // ─── Person Matching ────────────────────────────────────────────────────────
 
-export async function matchPerson(icgId: string, name: string): Promise<PersonMatchResult> {
-  // Tier 1: Exact icgId match
+export async function matchPerson(icgId: string, _name: string): Promise<PersonMatchResult> {
+  // ICG-ID is the canonical person identifier — exact match only.
+  // The previous tier 2 (fuzzy name match via pg_trgm >0.6) was removed
+  // 2026-05-26: it silently merged different real people whose names
+  // happened to look alike (importPerson auto-merges any non-null
+  // matchedEntityId without checking confidence). The defensive guard in
+  // importPerson is the second layer; this is the first.
   const exactMatch = await prisma.person.findUnique({
     where: { icgId },
     select: {
@@ -67,31 +72,9 @@ export async function matchPerson(icgId: string, name: string): Promise<PersonMa
     }
   }
 
-  // Tier 2: Fuzzy name match via pg_trgm
-  const nameNorm = normalizeForMatch(name)
-  if (!nameNorm) return { matchedEntityId: null, matchConfidence: null, matchDetails: null }
-
-  const fuzzyResults = await prisma.$queryRaw<
-    Array<{ person_id: string; alias_name: string; sim: number }>
-  >`
-    SELECT pa."personId" AS person_id, pa.name AS alias_name,
-           similarity(pa."nameNorm", ${nameNorm}) AS sim
-    FROM "PersonAlias" pa
-    WHERE similarity(pa."nameNorm", ${nameNorm}) > 0.6
-    ORDER BY sim DESC
-    LIMIT 1
-  `
-
-  if (fuzzyResults.length > 0) {
-    const r = fuzzyResults[0]
-    return {
-      matchedEntityId: r.person_id,
-      matchConfidence: Number(r.sim),
-      matchDetails: `Fuzzy name match: "${r.alias_name}" (similarity: ${Number(r.sim).toFixed(2)})`,
-      existingName: r.alias_name,
-    }
-  }
-
+  // No fallback. Different ICG-ID = different person. If the user truly
+  // wants to merge two records, that's a manual merge action, not an
+  // auto-decision at import time.
   return { matchedEntityId: null, matchConfidence: null, matchDetails: null }
 }
 

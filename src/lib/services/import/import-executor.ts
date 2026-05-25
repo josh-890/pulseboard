@@ -145,9 +145,23 @@ export async function importPerson(item: ImportItem): Promise<ImportResult> {
   try {
     const data = (item.editedData ?? item.data) as ItemData
 
-    if (item.matchedEntityId) {
+    // Defensive guard (2026-05-26): only auto-merge into a matched person
+    // when the match is canonical (confidence === 1.0 = exact ICG-ID
+    // match). Anything weaker would mean we're silently merging two
+    // potentially different real people — which is the no-go reported by
+    // the user. The matcher itself was also tightened to never return
+    // <1.0 confidence for persons, but this guard catches any other code
+    // path that ever pre-fills matchedEntityId on a person item.
+    if (item.matchedEntityId && item.matchConfidence === 1.0) {
       await markItemImported(item.id, item.matchedEntityId)
       return { success: true, entityId: item.matchedEntityId, error: null }
+    }
+    if (item.matchedEntityId && item.matchConfidence !== 1.0) {
+      return {
+        success: false,
+        entityId: null,
+        error: `Refusing to auto-merge: matched entity ${item.matchedEntityId} has confidence ${item.matchConfidence ?? 'null'} (only 1.0 = exact ICG-ID match is allowed). Clear the match in the UI to create a new person, or accept the match explicitly.`,
+      }
     }
 
     // Build birthdate from month + year
