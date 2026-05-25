@@ -11,7 +11,9 @@ import {
 } from "@/lib/constants/body";
 import { BodyRegionChips } from "@/components/shared/body-region-picker";
 import { EntityEventTimeline } from "@/components/people/entity-event-timeline";
-import { Camera, ChevronRight, ImageIcon, Pencil, Pin, PinOff, ScanSearch, Trash2, Upload } from "lucide-react";
+import { ExpandedEntityView } from "@/components/people/expanded-entity-view";
+import { EntityStatusPill } from "@/components/people/entity-status-pill";
+import { Camera, ChevronRight, ImageIcon, Pencil, Pin, PinOff, Plus, ScanSearch, Trash2, Upload } from "lucide-react";
 import { useFileDrop } from "@/lib/hooks/use-file-drop";
 
 type EntityMediaThumbnail = {
@@ -142,100 +144,123 @@ export function BodyModificationRow({
 
       {expanded && (
         <div className="relative border-t border-white/5 px-3 pb-3 pt-2" {...dropProps}>
-          <div className="mb-2 flex items-center gap-1">
-            {onToggleHeroVisibility && (
-              <button
-                type="button"
-                onClick={() => onToggleHeroVisibility(!modification.heroVisible)}
-                disabled={isPending}
-                className={cn(
-                  "rounded p-1 text-xs transition-colors",
-                  modification.heroVisible ? "text-teal-400 hover:text-muted-foreground" : "text-muted-foreground hover:text-teal-400",
+          <ExpandedEntityView
+            toolbar={
+              <>
+                {onToggleHeroVisibility && (
+                  <button
+                    type="button"
+                    onClick={() => onToggleHeroVisibility(!modification.heroVisible)}
+                    disabled={isPending}
+                    className={cn(
+                      "rounded p-1 text-xs transition-colors",
+                      modification.heroVisible ? "text-teal-400 hover:text-muted-foreground" : "text-muted-foreground hover:text-teal-400",
+                    )}
+                    aria-label={modification.heroVisible ? "Unpin from hero card" : "Pin to hero card"}
+                    title={modification.heroVisible ? "Unpin from hero card" : "Pin to hero card"}
+                  >
+                    {modification.heroVisible ? <Pin size={14} /> : <PinOff size={14} />}
+                  </button>
                 )}
-                aria-label={modification.heroVisible ? "Unpin from hero card" : "Pin to hero card"}
-                title={modification.heroVisible ? "Unpin from hero card" : "Pin to hero card"}
-              >
-                {modification.heroVisible ? <Pin size={14} /> : <PinOff size={14} />}
-              </button>
-            )}
-            {onManagePhotos && (
-              <button type="button" onClick={onManagePhotos} className="rounded p-1 text-xs text-muted-foreground hover:text-amber-400 transition-colors" aria-label="Manage photos">
-                <Camera size={14} />
-              </button>
-            )}
-            {onSelectFromSessions && (
-              <button
-                type="button"
-                onClick={onSelectFromSessions}
-                className="rounded p-1 text-xs text-muted-foreground hover:text-indigo-400 transition-colors"
-                aria-label="Select from any session"
-                title="Select from any session"
-              >
-                <ScanSearch size={14} />
-              </button>
-            )}
-            {onUploadPhoto && (
-              <button type="button" onClick={onUploadPhoto} className="rounded p-1 text-xs text-muted-foreground hover:text-amber-400 transition-colors" aria-label="Upload detail photo" title="Upload detail photo">
-                <Upload size={14} />
-              </button>
-            )}
-            {onEdit && (
-              <button type="button" onClick={onEdit} disabled={isPending} className="rounded p-1 text-xs text-muted-foreground hover:text-foreground transition-colors" aria-label="Edit body modification">
-                <Pencil size={14} />
-              </button>
-            )}
-            {onDelete && (
-              <button type="button" onClick={onDelete} disabled={isPending} className="rounded p-1 text-xs text-muted-foreground hover:text-red-400 transition-colors" aria-label="Delete body modification">
-                <Trash2 size={14} />
-              </button>
-            )}
-          </div>
-
-          {c.description && (
-            <p className="text-sm text-muted-foreground">{c.description}</p>
-          )}
-          {(c.material || c.gauge) && (
-            <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground/70">
-              {c.material && <span>Material: {c.material}</span>}
-              {c.gauge && <span>Gauge: {c.gauge}</span>}
-            </div>
-          )}
-
-          {onDeleteEvent && onAddEvent && (
-            <div className="mt-2">
-              <EntityEventTimeline
-                events={modification.events}
-                eventStyles={BODY_MODIFICATION_EVENT_STYLES}
-                onDeleteEvent={onDeleteEvent}
-                onAddEvent={onAddEvent}
-                onEditEvent={onEditEvent}
-                isPending={isPending}
-              />
-            </div>
-          )}
-
-          {photos && photos.length > 0 && (
-            <div className="mt-2 flex gap-2 overflow-x-auto scroll-smooth snap-x snap-mandatory pb-1">
-              {photos.map((photo, idx) => (
-                <button
-                  key={photo.id}
-                  type="button"
-                  onClick={() => onViewPhotos ? onViewPhotos(idx) : onManagePhotos?.()}
-                  className="shrink-0 h-20 w-20 snap-start overflow-hidden rounded-lg border border-white/10 bg-muted/30 transition-all hover:border-amber-500/40 cursor-pointer"
-                >
-                  <Image
-                    src={photo.url}
-                    alt=""
-                    width={photo.width}
-                    height={photo.height}
-                    unoptimized
-                    className="h-full w-full object-cover"
-                    style={focalStyle(photo.focalX, photo.focalY)}
+                {onManagePhotos && (
+                  <button type="button" onClick={onManagePhotos} className="rounded p-1 text-xs text-muted-foreground hover:text-amber-400 transition-colors" aria-label="Manage photos">
+                    <Camera size={14} />
+                  </button>
+                )}
+                {onSelectFromSessions && (
+                  <button type="button" onClick={onSelectFromSessions} className="rounded p-1 text-xs text-muted-foreground hover:text-indigo-400 transition-colors" aria-label="Select from any session" title="Select from any session">
+                    <ScanSearch size={14} />
+                  </button>
+                )}
+                {onUploadPhoto && (
+                  <button type="button" onClick={onUploadPhoto} className="rounded p-1 text-xs text-muted-foreground hover:text-amber-400 transition-colors" aria-label="Upload detail photo" title="Upload detail photo">
+                    <Upload size={14} />
+                  </button>
+                )}
+                {onEdit && (
+                  <button type="button" onClick={onEdit} disabled={isPending} className="rounded p-1 text-xs text-muted-foreground hover:text-foreground transition-colors" aria-label="Edit body modification">
+                    <Pencil size={14} />
+                  </button>
+                )}
+                {onDelete && (
+                  <button type="button" onClick={onDelete} disabled={isPending} className="rounded p-1 text-xs text-muted-foreground hover:text-red-400 transition-colors" aria-label="Delete body modification">
+                    <Trash2 size={14} />
+                  </button>
+                )}
+              </>
+            }
+            status={<EntityStatusPill status={modification.status} />}
+            currentProperties={
+              (c.description || c.material || c.gauge) ? (
+                <dl className="grid grid-cols-[max-content_1fr] gap-x-3 gap-y-1 text-sm">
+                  {c.material && (
+                    <>
+                      <dt className="text-muted-foreground">Material</dt>
+                      <dd className="text-foreground/80">{c.material}</dd>
+                    </>
+                  )}
+                  {c.gauge && (
+                    <>
+                      <dt className="text-muted-foreground">Gauge</dt>
+                      <dd className="text-foreground/80">{c.gauge}</dd>
+                    </>
+                  )}
+                  {c.description && (
+                    <>
+                      <dt className="text-muted-foreground">Description</dt>
+                      <dd className="text-foreground/80">{c.description}</dd>
+                    </>
+                  )}
+                </dl>
+              ) : undefined
+            }
+            photos={
+              photos && photos.length > 0 ? (
+                <div className="flex gap-2 overflow-x-auto scroll-smooth snap-x snap-mandatory pb-1">
+                  {photos.map((photo, idx) => (
+                    <button
+                      key={photo.id}
+                      type="button"
+                      onClick={() => onViewPhotos ? onViewPhotos(idx) : onManagePhotos?.()}
+                      className="shrink-0 h-20 w-20 snap-start overflow-hidden rounded-lg border border-white/10 bg-muted/30 transition-all hover:border-amber-500/40 cursor-pointer"
+                    >
+                      <Image
+                        src={photo.url}
+                        alt=""
+                        width={photo.width}
+                        height={photo.height}
+                        unoptimized
+                        className="h-full w-full object-cover"
+                        style={focalStyle(photo.focalX, photo.focalY)}
+                      />
+                    </button>
+                  ))}
+                </div>
+              ) : undefined
+            }
+            lifecycle={
+              onDeleteEvent && onAddEvent ? (
+                <div className="space-y-2">
+                  <EntityEventTimeline
+                    events={modification.events}
+                    eventStyles={BODY_MODIFICATION_EVENT_STYLES}
+                    onDeleteEvent={onDeleteEvent}
+                    onAddEvent={onAddEvent}
+                    onEditEvent={onEditEvent}
+                    isPending={isPending}
                   />
-                </button>
-              ))}
-            </div>
-          )}
+                  <button
+                    type="button"
+                    onClick={onAddEvent}
+                    disabled={isPending}
+                    className="flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    <Plus size={12} /> Record event
+                  </button>
+                </div>
+              ) : undefined
+            }
+          />
 
           {/* Drop overlay */}
           {isDragOver && (

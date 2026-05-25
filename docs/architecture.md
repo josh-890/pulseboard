@@ -261,7 +261,7 @@ components/
 page.tsx (Server Component — calls ~12 service functions)
   └── PersonDetailTabs (Client — receives all data as props, manages tab state)
         ├── OverviewTab — HeroCard (plausibility badge), BasicInfoPanel, PhysicalStatsPanel, HistoryPanel, KpiStatsPanel, DataQualityCard (plausibility warnings)
-        ├── AppearanceTab (extracted file) — Physical stats, BodyFeaturesCard (Phase G Slice 11: unified Body Marks + Body Modifications with populated-only subsections + "+ Add body feature" type-picker popover), add/edit sheets. Cosmetic Procedures card removed in Phase G Slice 5; surgical changes flow through ScalarDelta with cause=SURGICAL.
+        ├── AppearanceTab (extracted file) — Physical stats, BodyFeaturesCard (Phase G Slice 11: unified Body Marks + Body Modifications with populated-only subsections + "+ Add body feature" type-picker popover). Each row's expanded view uses the ExpandedEntityView shell (Phase G Slice 12: 4-section structure — toolbar + status pill at top-right, then PROPERTIES / PHOTOS / LIFECYCLE labelled sections separated by faint dividers; populated-only per section). Cosmetic Procedures card removed in Phase G Slice 5; surgical changes flow through ScalarDelta with cause=SURGICAL.
         ├── PersonDetailsTab — Category groups with expandable photo galleries via /api/categories/[id]/media
         ├── PersonSkillsTab — Category-grouped skills, event timeline, inline media
         ├── PersonAliasesTab — By-alias/by-channel views, multi-select, import/merge
