@@ -139,6 +139,42 @@ export function AppearanceTab({
   const [openState, setOpenState] = useState<AppearanceOpenState>(null);
   const [isPending, startTransition] = useTransition();
 
+  // Phase G Slice 13: Level-2 body map interactivity.
+  //  - selectedRegion drives the filter chip on BodyFeaturesCard (set by
+  //    region click on the map, cleared by the × on the chip).
+  //  - hoveredRegion is the bidirectional highlight channel: set by hovering
+  //    a region on the map OR by hovering a list row in the features card.
+  //    Drives both the existing map tooltip AND the row glow effect.
+  const [selectedRegion, setSelectedRegion] = useState<string | null>(null);
+  const [hoveredRegion, setHoveredRegion] = useState<string | null>(null);
+
+  // Region-match helper used for the filter + the highlight glow. An entity
+  // matches a region when its (folded) regions list contains the region
+  // exactly OR when the entity sits at a child of that region (e.g. a mark
+  // on "face.nose" matches when "face" is selected). Falls back to the
+  // legacy single bodyRegion field if computed.bodyRegions is empty.
+  const matchesRegion = useCallback(
+    (entityRegions: string[], legacy: string, target: string): boolean => {
+      const regions = entityRegions.length > 0 ? entityRegions : [legacy];
+      return regions.some((r) => r === target || r.startsWith(target + "."));
+    },
+    [],
+  );
+
+  const filteredMarks = useMemo(() => {
+    if (!selectedRegion) return currentState.activeBodyMarks;
+    return currentState.activeBodyMarks.filter((m) =>
+      matchesRegion(m.computed.bodyRegions, m.bodyRegion, selectedRegion),
+    );
+  }, [currentState.activeBodyMarks, selectedRegion, matchesRegion]);
+
+  const filteredMods = useMemo(() => {
+    if (!selectedRegion) return currentState.activeBodyModifications;
+    return currentState.activeBodyModifications.filter((m) =>
+      matchesRegion(m.computed.bodyRegions, m.bodyRegion, selectedRegion),
+    );
+  }, [currentState.activeBodyModifications, selectedRegion, matchesRegion]);
+
   // Cross-session picker + stage dialog + annotation editor for entity photos
   type EntityPickerContext = { categoryId: string; entityId: string; entityModel: string; entityLabel: string }
   type StagedEntityPhoto = { item: GalleryItem; categoryId: string; entityId: string; entityModel: string; entityLabel: string }
@@ -734,8 +770,10 @@ export function AppearanceTab({
               separate Body Marks + Body Modifications cards. Rows still use
               the existing BodyMarkRow / BodyModificationRow components. */}
           <BodyFeaturesCard
-            markCount={currentState.activeBodyMarks.length}
-            modCount={currentState.activeBodyModifications.length}
+            markCount={filteredMarks.length}
+            modCount={filteredMods.length}
+            selectedRegion={selectedRegion}
+            onClearSelectedRegion={() => setSelectedRegion(null)}
             onAddSelect={(choice) => {
               if (choice.kind === "mark") {
                 setOpenState({ type: "addBodyMark", initialType: choice.type });
@@ -743,11 +781,16 @@ export function AppearanceTab({
                 setOpenState({ type: "addBodyMod", initialType: choice.type });
               }
             }}
-            markRows={currentState.activeBodyMarks.map((mark) => (
+            markRows={filteredMarks.map((mark) => {
+              const regions = mark.computed.bodyRegions.length > 0 ? mark.computed.bodyRegions : [mark.bodyRegion];
+              const highlighted = !!hoveredRegion && matchesRegion(mark.computed.bodyRegions, mark.bodyRegion, hoveredRegion);
+              return (
               <BodyMarkRow
                 key={mark.id}
                 mark={mark}
                 photos={entityMedia?.[mark.id]}
+                isHighlighted={highlighted}
+                onHover={(entering) => setHoveredRegion(entering ? (regions[0] ?? null) : null)}
                 onEdit={() => setOpenState({ type: "editBodyMark", mark })}
                 onDelete={() => handleDeleteBodyMark(mark.id)}
                 onManagePhotos={referenceSessionId ? () => setOpenState({ type: "manageEntityPhotos", entityId: mark.id, entityModel: "BodyMark", entityType: mark.type, entityLabel: `${mark.type} — ${mark.bodyRegion}` }) : undefined}
@@ -764,12 +807,18 @@ export function AppearanceTab({
                 }}
                 isPending={isPending}
               />
-            ))}
-            modRows={currentState.activeBodyModifications.map((mod) => (
+              );
+            })}
+            modRows={filteredMods.map((mod) => {
+              const regions = mod.computed.bodyRegions.length > 0 ? mod.computed.bodyRegions : [mod.bodyRegion];
+              const highlighted = !!hoveredRegion && matchesRegion(mod.computed.bodyRegions, mod.bodyRegion, hoveredRegion);
+              return (
               <BodyModificationRow
                 key={mod.id}
                 modification={mod}
                 photos={entityMedia?.[mod.id]}
+                isHighlighted={highlighted}
+                onHover={(entering) => setHoveredRegion(entering ? (regions[0] ?? null) : null)}
                 onEdit={() => setOpenState({ type: "editBodyMod", modification: mod })}
                 onDelete={() => handleDeleteBodyMod(mod.id)}
                 onManagePhotos={referenceSessionId ? () => setOpenState({ type: "manageEntityPhotos", entityId: mod.id, entityModel: "BodyModification", entityType: mod.type, entityLabel: `${mod.type} — ${mod.bodyRegion}` }) : undefined}
@@ -786,7 +835,8 @@ export function AppearanceTab({
                 }}
                 isPending={isPending}
               />
-            ))}
+              );
+            })}
           />
 
         </div>
@@ -794,14 +844,26 @@ export function AppearanceTab({
         {/* Right column — sticky body map (hidden below lg) */}
         <div className="hidden w-[380px] shrink-0 lg:block">
           <div className="sticky top-6">
-            <AppearanceBodyMap currentState={currentState} />
+            <AppearanceBodyMap
+              currentState={currentState}
+              hoveredRegion={hoveredRegion}
+              onHoverRegion={setHoveredRegion}
+              selectedRegion={selectedRegion}
+              onSelectRegion={setSelectedRegion}
+            />
           </div>
         </div>
       </div>
 
       {/* Body map below content on smaller screens */}
       <div className="mt-6 flex justify-center lg:hidden">
-        <AppearanceBodyMap currentState={currentState} />
+        <AppearanceBodyMap
+          currentState={currentState}
+          hoveredRegion={hoveredRegion}
+          onHoverRegion={setHoveredRegion}
+          selectedRegion={selectedRegion}
+          onSelectRegion={setSelectedRegion}
+        />
       </div>
 
       {/* Sheets & Dialogs */}

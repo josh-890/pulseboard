@@ -1,9 +1,10 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { Plus, Sparkles } from "lucide-react";
+import { Plus, Sparkles, X } from "lucide-react";
 import { SectionCard, EmptyState } from "@/components/people/person-detail-helpers";
 import { AddBodyFeaturePopover, type BodyFeatureChoice } from "@/components/people/add-body-feature-popover";
+import { getRegionLabel } from "@/lib/constants/body-regions";
 
 // Phase G Slice 11 / project_identity_bearing_ui: unified card replacing
 // the separate Body Marks + Body Modifications cards.
@@ -24,9 +25,15 @@ type Props = {
   markRows: React.ReactNode;
   modRows: React.ReactNode;
   onAddSelect: (choice: BodyFeatureChoice) => void;
+  // Phase G Slice 13: region filter chip. Driven by clicks on the body
+  // map. When non-null, the parent has already filtered markRows/modRows
+  // to the matching subset; this card just surfaces the chip with × to
+  // clear.
+  selectedRegion?: string | null;
+  onClearSelectedRegion?: () => void;
 };
 
-export function BodyFeaturesCard({ markCount, modCount, markRows, modRows, onAddSelect }: Props) {
+export function BodyFeaturesCard({ markCount, modCount, markRows, modRows, onAddSelect, selectedRegion, onClearSelectedRegion }: Props) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const addBtnRef = useRef<HTMLButtonElement>(null);
   const total = markCount + modCount;
@@ -59,6 +66,20 @@ export function BodyFeaturesCard({ markCount, modCount, markRows, modRows, onAdd
       accent="indigo"
       action={addButton}
     >
+      {selectedRegion && onClearSelectedRegion && (
+        <div className="mb-3 inline-flex items-center gap-1.5 rounded-full border border-indigo-500/30 bg-indigo-500/10 px-2.5 py-0.5 text-xs text-indigo-700 dark:text-indigo-300">
+          <span className="font-medium">Region:</span>
+          <span>{getRegionLabel(selectedRegion)}</span>
+          <button
+            type="button"
+            onClick={onClearSelectedRegion}
+            className="ml-0.5 -mr-0.5 rounded-full p-0.5 hover:bg-indigo-500/20 transition-colors"
+            aria-label="Clear region filter"
+          >
+            <X size={11} />
+          </button>
+        </div>
+      )}
       {total === 0 ? (
         <EmptyState message="No body features recorded yet." />
       ) : (

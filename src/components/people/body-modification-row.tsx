@@ -50,6 +50,9 @@ type BodyModificationRowProps = {
   onViewPhotos?: (index: number) => void;
   onToggleHeroVisibility?: (visible: boolean) => void;
   isPending?: boolean;
+  // Phase G Slice 13: Level-2 interactivity.
+  isHighlighted?: boolean;
+  onHover?: (entering: boolean) => void;
 };
 
 export function BodyModificationRow({
@@ -67,6 +70,8 @@ export function BodyModificationRow({
   onViewPhotos,
   onToggleHeroVisibility,
   isPending,
+  isHighlighted,
+  onHover,
 }: BodyModificationRowProps) {
   const [expanded, setExpanded] = useState(false);
   const { isDragOver, dropProps } = useFileDrop(onDropFiles);
@@ -84,7 +89,16 @@ export function BodyModificationRow({
   const isBaselineDate = !firstEvent?.date && (firstEvent?.era.isBaseline ?? false);
 
   return (
-    <div className="group rounded-lg border border-white/10 bg-card/30 transition-colors hover:border-white/15">
+    <div
+      className={cn(
+        "group rounded-lg border bg-card/30 transition-all",
+        isHighlighted
+          ? "border-teal-500/60 ring-2 ring-teal-500/30"
+          : "border-white/10 hover:border-white/15",
+      )}
+      onMouseEnter={onHover ? () => onHover(true) : undefined}
+      onMouseLeave={onHover ? () => onHover(false) : undefined}
+    >
       <button
         type="button"
         onClick={() => setExpanded(!expanded)}
