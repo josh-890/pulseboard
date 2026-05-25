@@ -696,40 +696,48 @@ type HeroSharedProps = {
   plausibilityCount?: number;
 };
 
+// Phase G Slice 15 / project_identity_bearing_ui ("Hero — type-presence
+// chips"): one subtle chip per distinct body-feature type the person
+// currently has. No count, no per-instance breakdown — purely binary
+// presence at first glance. Driven by currentState.presentBodyFeatureTypes
+// (cached in the SQL fold + mirrored in TS). The legacy per-mark
+// heroVisible / heroOrder columns are still in the schema until Slice 16
+// drops them; this UI no longer reads them.
+//
+// Click → onAppearanceClick (parent handles tab switch). Auto-filtering to
+// the clicked type is a deferred follow-up.
+
+const BODY_MOD_TYPES = new Set<string>([
+  "piercing", "stretching", "branding", "scarification", "implant", "teeth", "jewelry",
+]);
+
 function EntityPills({ currentState, onAppearanceClick }: { currentState: PersonCurrentState; onAppearanceClick?: () => void }) {
-  const heroEntities = [
-    ...currentState.activeBodyMarks.filter((m) => m.heroVisible).map((m) => ({ kind: "mark" as const, label: m.type, heroOrder: m.heroOrder, id: m.id })),
-    ...currentState.activeBodyModifications.filter((m) => m.heroVisible).map((m) => ({ kind: "mod" as const, label: m.type, heroOrder: m.heroOrder, id: m.id })),
-    ...currentState.activeCosmeticProcedures.filter((p) => p.heroVisible).map((p) => ({ kind: "proc" as const, label: p.type, heroOrder: p.heroOrder, id: p.id })),
-  ].sort((a, b) => (a.heroOrder ?? 999) - (b.heroOrder ?? 999));
+  const types = currentState.presentBodyFeatureTypes;
+  if (types.length === 0) return null;
 
-  if (heroEntities.length === 0) return null;
-
-  const visiblePills = heroEntities.slice(0, 4);
-  const overflow = heroEntities.length - visiblePills.length;
-
-  const pillStyles = {
-    mark: "border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400",
-    mod: "border-teal-500/30 bg-teal-500/10 text-teal-600 dark:text-teal-400",
-    proc: "border-rose-500/30 bg-rose-500/10 text-rose-600 dark:text-rose-400",
-  };
+  const styleFor = (type: string) =>
+    BODY_MOD_TYPES.has(type)
+      ? "border-teal-500/30 bg-teal-500/10 text-teal-600 dark:text-teal-400"
+      : "border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400";
 
   const Wrapper = onAppearanceClick ? "button" : "div";
   return (
     <Wrapper
       {...(onAppearanceClick ? { type: "button" as const, onClick: onAppearanceClick } : {})}
       className="flex flex-wrap items-center gap-1.5"
+      aria-label="Body feature types"
     >
-      {visiblePills.map((e) => (
-        <span key={`${e.kind}-${e.id}`} className={cn("rounded-full border px-2 py-0.5 text-[11px] font-medium capitalize", pillStyles[e.kind])}>
-          {e.label}
+      {types.map((type) => (
+        <span
+          key={type}
+          className={cn(
+            "rounded-full border px-2 py-0.5 text-[11px] font-medium capitalize",
+            styleFor(type),
+          )}
+        >
+          {type}
         </span>
       ))}
-      {overflow > 0 && (
-        <span className="rounded-full border border-white/15 bg-muted/50 px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
-          +{overflow} more
-        </span>
-      )}
     </Wrapper>
   );
 }

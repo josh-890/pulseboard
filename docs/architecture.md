@@ -405,6 +405,7 @@ MediaItem ──┬── PersonMediaLink[] (usage: PROFILE/HEADSHOT/DETAIL/PORT
 - **MediaItem**: `variants` (JSON — profile/gallery sizes), `focalX`/`focalY` (0-1 normalized), `hash` (SHA256), `phash` (dHash)
 - **PersonMediaLink**: `usage` enum, `slot` (for HEADSHOT), `categoryId` (for DETAIL), entity FKs (`bodyMarkId`, etc.)
 - **PhysicalAttributeGroup/Definition**: Admin catalog for typed scalar attributes — every ScalarDelta points at one definition. Mirrors SkillGroup/SkillDefinition pattern. `statusBearing` (Boolean, default FALSE) gates the AttributeStatus UI per definition
+- **PersonCurrentState.presentBodyFeatureTypes** (Slice 15): String[] of distinct mark + modification types where `status <> 'removed'`. Drives the hero's binary type-presence chips. GIN-indexed for future filter queries. Populated by `app_recompute_person_current_state`. Replaces the per-mark `heroVisible/heroOrder` UI; the legacy `has*` booleans stay in the schema until Slice 17 (people-search-service still queries them)
 - **ScalarDelta.cause** (ADR-0007): `DeltaCause` enum (`NATURAL` / `SURGICAL` / `OTHER`). Drives the derived `AttributeStatus` (NATURAL / ENHANCED / RESTORED) on status-bearing attrs; cached in `PersonCurrentState.attributeStatuses` (JSON)
 - **CosmeticProcedure / CosmeticProcedureEvent** (legacy, deprecated Phase G Slice 5): tables remain in the schema during soak but are no longer authored — the import workflow and the Appearance tab no longer create or surface them. To be dropped in Slice 17 after the new model has soaked in prod
 

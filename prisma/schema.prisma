@@ -1296,6 +1296,11 @@ model PersonCurrentState {
   modificationRegions String[] @default([])
   procedureRegions    String[] @default([])
 
+  // Phase G Slice 15: union of distinct mark.type + mod.type for the person's
+  // present (non-removed) body features. Drives the hero type-presence chips
+  // and replaces the per-type has* booleans (which stay until Slice 17).
+  presentBodyFeatureTypes String[] @default([])
+
   updatedAt DateTime @default(now())
 
   @@index([currentAttributes], type: Gin)
@@ -1304,6 +1309,7 @@ model PersonCurrentState {
   @@index([piercingRegions], type: Gin)
   @@index([modificationRegions], type: Gin)
   @@index([procedureRegions], type: Gin)
+  @@index([presentBodyFeatureTypes], type: Gin)
   @@index([hairHue])
   @@index([hairLightnessRank])
   @@index([eyeHue])

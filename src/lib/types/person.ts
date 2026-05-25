@@ -347,4 +347,8 @@ export type PersonCurrentState = {
   activeDigitalIdentities: PersonDigitalIdentityItem[];
   // Active skills
   activeSkills: PersonSkillItem[];
+  // Phase G Slice 15: sorted union of distinct mark + modification types for
+  // the person's present (non-removed) body features. Drives hero presence
+  // chips. Mirrors PersonCurrentState.presentBodyFeatureTypes column.
+  presentBodyFeatureTypes: string[];
 };

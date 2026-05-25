@@ -1064,6 +1064,19 @@ export function deriveCurrentState(
       "natural";
   }
 
+  // Phase G Slice 15: union of distinct mark + modification types where the
+  // entity is present (not removed). Mirrors the SQL fold in
+  // app_recompute_person_current_state — kept in sync deliberately. Sorted
+  // for stable rendering.
+  const presentBodyFeatureTypeSet = new Set<string>();
+  for (const m of activeBodyMarks) {
+    if (m.status !== "removed") presentBodyFeatureTypeSet.add(m.type);
+  }
+  for (const m of activeBodyModifications) {
+    if (m.status !== "removed") presentBodyFeatureTypeSet.add(m.type);
+  }
+  const presentBodyFeatureTypes = Array.from(presentBodyFeatureTypeSet).sort();
+
   return {
     currentHairColor,
     weight,
@@ -1078,6 +1091,7 @@ export function deriveCurrentState(
     activeCosmeticProcedures,
     activeDigitalIdentities,
     activeSkills,
+    presentBodyFeatureTypes,
   };
 }
 
