@@ -135,7 +135,7 @@ const COMPARISON_ROWS: ComparisonRow[] = [
     kind: 'field',
     source: null,
     sourceRef: 'hairColor',
-    target: { key: 'currentHairColor', label: 'Current Hair Color', getValue: (d) => d.baselinePhysical?.currentHairColor ?? null },
+    target: { key: 'currentHairColor', label: 'Hair Color', getValue: (d) => d.baselinePhysical?.currentHairColor ?? null },
     changeMode: 'overwrite',
     getPreview: (f) => f.hairColor ?? null,
   },

@@ -239,8 +239,8 @@ function PhysicalDescriptive({
         const a = currentState.extensibleAttributes["cattr-eye-color"];
         return a ? <span className="capitalize">{a.value}</span> : "—";
       })()} labelWidth={labelWidth} />
-      <InfoRow label="Current hair" value={currentState.currentHairColor ? <span className="capitalize">{currentState.currentHairColor}</span> : "—"} labelWidth={labelWidth} />
-      {currentState.breastSize && <InfoRow label="Current breasts" value={currentState.breastSize} labelWidth={labelWidth} />}
+      <InfoRow label="Hair color" value={currentState.currentHairColor ? <span className="capitalize">{currentState.currentHairColor}</span> : "—"} labelWidth={labelWidth} />
+      {currentState.breastSize && <InfoRow label="Breast size" value={currentState.breastSize} labelWidth={labelWidth} />}
       {currentState.breastStatus && <InfoRow label="Breast status" value={<span className="capitalize">{currentState.breastStatus}</span>} labelWidth={labelWidth} />}
       <InfoRow label="Build" value={currentState.build ? <span className="capitalize">{currentState.build}</span> : "—"} labelWidth={labelWidth} />
     </dl>

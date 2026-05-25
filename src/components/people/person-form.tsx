@@ -341,7 +341,7 @@ export function PersonForm({ onSubmit, submitLabel = "Create Person", onCancel }
                       name="currentHairColor"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Current Hair Color</FormLabel>
+                          <FormLabel>Hair Color</FormLabel>
                           <FormControl>
                             <ColorValueCombobox
                               category="hair"
@@ -379,7 +379,7 @@ export function PersonForm({ onSubmit, submitLabel = "Create Person", onCancel }
                       name="breastSize"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Current Breast Size</FormLabel>
+                          <FormLabel>Breast Size</FormLabel>
                           <FormControl>
                             <SelectWithOther
                               options={BREAST_SIZE_OPTIONS}

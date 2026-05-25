@@ -251,7 +251,7 @@ export function EditPhysicalChangeSheet({ personId, item, attributeGroups, onClo
           )}
 
           <div>
-            <label className="mb-1.5 block text-sm font-medium">Current Hair Color</label>
+            <label className="mb-1.5 block text-sm font-medium">Hair Color</label>
             <ColorValueCombobox
               category="hair"
               value={currentHairColor || undefined}
