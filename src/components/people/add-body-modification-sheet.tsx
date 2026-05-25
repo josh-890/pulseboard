@@ -21,13 +21,14 @@ type AddBodyModificationSheetProps = {
   personId: string;
   referenceSessionId?: string;
   categoryId?: string;
+  initialType?: BodyModificationType;
   onClose: () => void;
 };
 
-export function AddBodyModificationSheet({ personId, referenceSessionId, categoryId, onClose }: AddBodyModificationSheetProps) {
+export function AddBodyModificationSheet({ personId, referenceSessionId, categoryId, initialType, onClose }: AddBodyModificationSheetProps) {
   const [isPending, startTransition] = useTransition();
   useEscToClose(onClose);
-  const [type, setType] = useState<BodyModificationType>("piercing");
+  const [type, setType] = useState<BodyModificationType>(initialType ?? "piercing");
   const [bodyRegions, setBodyRegions] = useState<string[]>([]);
   const [description, setDescription] = useState("");
   const [material, setMaterial] = useState("");

@@ -177,7 +177,7 @@ Only photos from the person's reference session can be embedded — external URL
 **Appearance**
 - Current physical state (height, weight, body type, ethnicity, hair color)
 - Extensible physical attributes with Natural/Enhanced/Restored status badges
-- Active body marks and body modifications with event timelines
+- **Body Features** (Phase G Slice 11) — one unified card replaces the separate Body Marks + Body Modifications cards. Subsections (● Body Marks / ● Body Modifications) only render when there's at least one entry of that type — empty categories disappear. The footer `+ Add body feature` opens a type-picker popover (Tattoo / Scar / Mark / Burn / Deformity / Other for marks; Piercing / Stretching / Branding / Scarification / Implant / Teeth / Jewelry / Other for modifications); clicking a type opens the matching add sheet pre-selected.
 - Surgical changes to scalar attributes are captured as deltas with `cause=SURGICAL`, driving the Enhanced status badge (ADR-0007)
 - Folded chronologically from era history (latest delta wins per attribute — see the History panel for the full timeline)
 

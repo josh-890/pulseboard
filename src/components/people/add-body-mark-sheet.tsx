@@ -21,13 +21,14 @@ type AddBodyMarkSheetProps = {
   personId: string;
   referenceSessionId?: string;
   categoryId?: string;
+  initialType?: BodyMarkType;
   onClose: () => void;
 };
 
-export function AddBodyMarkSheet({ personId, referenceSessionId, categoryId, onClose }: AddBodyMarkSheetProps) {
+export function AddBodyMarkSheet({ personId, referenceSessionId, categoryId, initialType, onClose }: AddBodyMarkSheetProps) {
   const [isPending, startTransition] = useTransition();
   useEscToClose(onClose);
-  const [type, setType] = useState<BodyMarkType>("tattoo");
+  const [type, setType] = useState<BodyMarkType>(initialType ?? "tattoo");
   const [bodyRegions, setBodyRegions] = useState<string[]>([]);
   const [description, setDescription] = useState("");
   const [motif, setMotif] = useState("");

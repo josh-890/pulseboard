@@ -9,11 +9,13 @@ import type {
   BodyMarkWithEvents,
   BodyModificationWithEvents,
 } from "@/lib/types";
+import type { BodyMarkType, BodyModificationType } from "@/generated/prisma/client";
 import { MutabilityPrimitive } from "@/components/people/mutability-primitive";
 import { AttributeStatusProgression } from "@/components/people/attribute-status-progression";
 import { AddAttributePicker } from "@/components/people/add-attribute-picker";
 import { BodyMarkRow } from "@/components/people/body-mark-row";
 import { BodyModificationRow } from "@/components/people/body-modification-row";
+import { BodyFeaturesCard } from "@/components/people/body-features-card";
 import { AppearanceBodyMap } from "@/components/people/appearance-body-map";
 import { AddBodyMarkSheet } from "@/components/people/add-body-mark-sheet";
 import { EditBodyMarkSheet } from "@/components/people/edit-body-mark-sheet";
@@ -47,10 +49,8 @@ import {
 } from "@/lib/constants/body";
 import {
   Activity,
-  Fingerprint,
   Pencil,
   Plus,
-  Wrench,
 } from "lucide-react";
 import { SectionCard, EmptyState, InfoRow } from "@/components/people/person-detail-helpers";
 import { formatPartialDate } from "@/lib/utils";
@@ -97,11 +97,11 @@ type EventItem = {
 type AppearanceOpenState =
   | null
   | "physicalChange"
-  | "addBodyMark"
+  | { type: "addBodyMark"; initialType?: BodyMarkType }
   | { type: "editBodyMark"; mark: BodyMarkWithEvents }
   | { type: "addBodyMarkEvent"; markId: string; markLabel: string; computed: BodyMarkWithEvents["computed"] }
   | { type: "editBodyMarkEvent"; event: EventItem; markId: string; eventOverrides: { bodyRegions: string[]; motif: string | null; colors: string[]; size: string | null; description: string | null } }
-  | "addBodyMod"
+  | { type: "addBodyMod"; initialType?: BodyModificationType }
   | { type: "editBodyMod"; modification: BodyModificationWithEvents }
   | { type: "addBodyModEvent"; modId: string; modLabel: string; computed: BodyModificationWithEvents["computed"] }
   | { type: "editBodyModEvent"; event: EventItem; modId: string; eventOverrides: { bodyRegions: string[]; description: string | null; material: string | null; gauge: string | null } }
@@ -730,81 +730,64 @@ export function AppearanceTab({
             )}
           </SectionCard>
 
-          {/* Body Marks */}
-          <SectionCard
-            title="Body Marks"
-            icon={<Fingerprint size={18} />}
-            badge={currentState.activeBodyMarks.length}
-            accent="amber"
-            action={addButton(() => setOpenState("addBodyMark"))}
-          >
-            {currentState.activeBodyMarks.length === 0 ? (
-              <EmptyState message="No body marks recorded." />
-            ) : (
-              <div className="space-y-2">
-                {currentState.activeBodyMarks.map((mark) => (
-                  <BodyMarkRow
-                    key={mark.id}
-                    mark={mark}
-                    photos={entityMedia?.[mark.id]}
-                    onEdit={() => setOpenState({ type: "editBodyMark", mark })}
-                    onDelete={() => handleDeleteBodyMark(mark.id)}
-                    onManagePhotos={referenceSessionId ? () => setOpenState({ type: "manageEntityPhotos", entityId: mark.id, entityModel: "BodyMark", entityType: mark.type, entityLabel: `${mark.type} — ${mark.bodyRegion}` }) : undefined}
-                    onUploadPhoto={referenceSessionId ? () => handleEntityUpload("BodyMark", mark.id, mark.type) : undefined}
-                    onDropFiles={referenceSessionId ? handleEntityDrop("BodyMark", mark.id, mark.type) : undefined}
-                    onSelectFromSessions={referenceSessionId ? (() => { const cat = findCategoryForEntity("BodyMark", mark.type); if (cat) setEntityPicker({ categoryId: cat.id, entityId: mark.id, entityModel: 'BodyMark', entityLabel: `${mark.type} — ${mark.bodyRegion}` }); }) : undefined}
-                    onViewPhotos={entityMedia?.[mark.id]?.length ? (idx) => setEntityLightbox({ entityId: mark.id, initialIndex: idx }) : undefined}
-                    onDeleteEvent={handleDeleteBodyMarkEvent}
-                    onAddEvent={() => setOpenState({ type: "addBodyMarkEvent", markId: mark.id, markLabel: `${mark.type} — ${mark.bodyRegion}`, computed: mark.computed })}
-                    onToggleHeroVisibility={(visible) => handleToggleHeroVisibility("bodyMark", mark.id, visible)}
-                    onEditEvent={(event) => {
-                      const fullEvent = mark.events.find((e) => e.id === event.id);
-                      setOpenState({ type: "editBodyMarkEvent", event, markId: mark.id, eventOverrides: { bodyRegions: fullEvent?.bodyRegions ?? [], motif: fullEvent?.motif ?? null, colors: fullEvent?.colors ?? [], size: fullEvent?.size ?? null, description: fullEvent?.description ?? null } });
-                    }}
-                    isPending={isPending}
-                  />
-                ))}
-              </div>
-            )}
-          </SectionCard>
-
-          {/* Body Modifications */}
-          <SectionCard
-            title="Body Modifications"
-            icon={<Wrench size={18} />}
-            badge={currentState.activeBodyModifications.length}
-            accent="teal"
-            action={addButton(() => setOpenState("addBodyMod"))}
-          >
-            {currentState.activeBodyModifications.length === 0 ? (
-              <EmptyState message="No body modifications recorded." />
-            ) : (
-              <div className="space-y-2">
-                {currentState.activeBodyModifications.map((mod) => (
-                  <BodyModificationRow
-                    key={mod.id}
-                    modification={mod}
-                    photos={entityMedia?.[mod.id]}
-                    onEdit={() => setOpenState({ type: "editBodyMod", modification: mod })}
-                    onDelete={() => handleDeleteBodyMod(mod.id)}
-                    onManagePhotos={referenceSessionId ? () => setOpenState({ type: "manageEntityPhotos", entityId: mod.id, entityModel: "BodyModification", entityType: mod.type, entityLabel: `${mod.type} — ${mod.bodyRegion}` }) : undefined}
-                    onUploadPhoto={referenceSessionId ? () => handleEntityUpload("BodyModification", mod.id, mod.type) : undefined}
-                    onDropFiles={referenceSessionId ? handleEntityDrop("BodyModification", mod.id, mod.type) : undefined}
-                    onSelectFromSessions={referenceSessionId ? (() => { const cat = findCategoryForEntity("BodyModification", mod.type); if (cat) setEntityPicker({ categoryId: cat.id, entityId: mod.id, entityModel: 'BodyModification', entityLabel: `${mod.type} — ${mod.bodyRegion}` }); }) : undefined}
-                    onViewPhotos={entityMedia?.[mod.id]?.length ? (idx) => setEntityLightbox({ entityId: mod.id, initialIndex: idx }) : undefined}
-                    onDeleteEvent={handleDeleteBodyModEvent}
-                    onAddEvent={() => setOpenState({ type: "addBodyModEvent", modId: mod.id, modLabel: `${mod.type} — ${mod.bodyRegion}`, computed: mod.computed })}
-                    onToggleHeroVisibility={(visible) => handleToggleHeroVisibility("bodyModification", mod.id, visible)}
-                    onEditEvent={(event) => {
-                      const fullEvent = mod.events.find((e) => e.id === event.id);
-                      setOpenState({ type: "editBodyModEvent", event, modId: mod.id, eventOverrides: { bodyRegions: fullEvent?.bodyRegions ?? [], description: fullEvent?.description ?? null, material: fullEvent?.material ?? null, gauge: fullEvent?.gauge ?? null } });
-                    }}
-                    isPending={isPending}
-                  />
-                ))}
-              </div>
-            )}
-          </SectionCard>
+          {/* Phase G Slice 11: unified Body Features card replacing the
+              separate Body Marks + Body Modifications cards. Rows still use
+              the existing BodyMarkRow / BodyModificationRow components. */}
+          <BodyFeaturesCard
+            markCount={currentState.activeBodyMarks.length}
+            modCount={currentState.activeBodyModifications.length}
+            onAddSelect={(choice) => {
+              if (choice.kind === "mark") {
+                setOpenState({ type: "addBodyMark", initialType: choice.type });
+              } else {
+                setOpenState({ type: "addBodyMod", initialType: choice.type });
+              }
+            }}
+            markRows={currentState.activeBodyMarks.map((mark) => (
+              <BodyMarkRow
+                key={mark.id}
+                mark={mark}
+                photos={entityMedia?.[mark.id]}
+                onEdit={() => setOpenState({ type: "editBodyMark", mark })}
+                onDelete={() => handleDeleteBodyMark(mark.id)}
+                onManagePhotos={referenceSessionId ? () => setOpenState({ type: "manageEntityPhotos", entityId: mark.id, entityModel: "BodyMark", entityType: mark.type, entityLabel: `${mark.type} — ${mark.bodyRegion}` }) : undefined}
+                onUploadPhoto={referenceSessionId ? () => handleEntityUpload("BodyMark", mark.id, mark.type) : undefined}
+                onDropFiles={referenceSessionId ? handleEntityDrop("BodyMark", mark.id, mark.type) : undefined}
+                onSelectFromSessions={referenceSessionId ? (() => { const cat = findCategoryForEntity("BodyMark", mark.type); if (cat) setEntityPicker({ categoryId: cat.id, entityId: mark.id, entityModel: 'BodyMark', entityLabel: `${mark.type} — ${mark.bodyRegion}` }); }) : undefined}
+                onViewPhotos={entityMedia?.[mark.id]?.length ? (idx) => setEntityLightbox({ entityId: mark.id, initialIndex: idx }) : undefined}
+                onDeleteEvent={handleDeleteBodyMarkEvent}
+                onAddEvent={() => setOpenState({ type: "addBodyMarkEvent", markId: mark.id, markLabel: `${mark.type} — ${mark.bodyRegion}`, computed: mark.computed })}
+                onToggleHeroVisibility={(visible) => handleToggleHeroVisibility("bodyMark", mark.id, visible)}
+                onEditEvent={(event) => {
+                  const fullEvent = mark.events.find((e) => e.id === event.id);
+                  setOpenState({ type: "editBodyMarkEvent", event, markId: mark.id, eventOverrides: { bodyRegions: fullEvent?.bodyRegions ?? [], motif: fullEvent?.motif ?? null, colors: fullEvent?.colors ?? [], size: fullEvent?.size ?? null, description: fullEvent?.description ?? null } });
+                }}
+                isPending={isPending}
+              />
+            ))}
+            modRows={currentState.activeBodyModifications.map((mod) => (
+              <BodyModificationRow
+                key={mod.id}
+                modification={mod}
+                photos={entityMedia?.[mod.id]}
+                onEdit={() => setOpenState({ type: "editBodyMod", modification: mod })}
+                onDelete={() => handleDeleteBodyMod(mod.id)}
+                onManagePhotos={referenceSessionId ? () => setOpenState({ type: "manageEntityPhotos", entityId: mod.id, entityModel: "BodyModification", entityType: mod.type, entityLabel: `${mod.type} — ${mod.bodyRegion}` }) : undefined}
+                onUploadPhoto={referenceSessionId ? () => handleEntityUpload("BodyModification", mod.id, mod.type) : undefined}
+                onDropFiles={referenceSessionId ? handleEntityDrop("BodyModification", mod.id, mod.type) : undefined}
+                onSelectFromSessions={referenceSessionId ? (() => { const cat = findCategoryForEntity("BodyModification", mod.type); if (cat) setEntityPicker({ categoryId: cat.id, entityId: mod.id, entityModel: 'BodyModification', entityLabel: `${mod.type} — ${mod.bodyRegion}` }); }) : undefined}
+                onViewPhotos={entityMedia?.[mod.id]?.length ? (idx) => setEntityLightbox({ entityId: mod.id, initialIndex: idx }) : undefined}
+                onDeleteEvent={handleDeleteBodyModEvent}
+                onAddEvent={() => setOpenState({ type: "addBodyModEvent", modId: mod.id, modLabel: `${mod.type} — ${mod.bodyRegion}`, computed: mod.computed })}
+                onToggleHeroVisibility={(visible) => handleToggleHeroVisibility("bodyModification", mod.id, visible)}
+                onEditEvent={(event) => {
+                  const fullEvent = mod.events.find((e) => e.id === event.id);
+                  setOpenState({ type: "editBodyModEvent", event, modId: mod.id, eventOverrides: { bodyRegions: fullEvent?.bodyRegions ?? [], description: fullEvent?.description ?? null, material: fullEvent?.material ?? null, gauge: fullEvent?.gauge ?? null } });
+                }}
+                isPending={isPending}
+              />
+            ))}
+          />
 
         </div>
 
@@ -840,8 +823,8 @@ export function AppearanceTab({
       {typeof openState === "object" && openState?.type === "editPhysical" && (
         <EditPhysicalChangeSheet personId={person.id} item={openState.item} attributeGroups={attributeGroups} onClose={handleSheetClose} />
       )}
-      {openState === "addBodyMark" && (
-        <AddBodyMarkSheet personId={person.id} referenceSessionId={referenceSessionId} categoryId={findCategoryForEntity("BodyMark")?.id} onClose={handleSheetClose} />
+      {typeof openState === "object" && openState?.type === "addBodyMark" && (
+        <AddBodyMarkSheet personId={person.id} referenceSessionId={referenceSessionId} categoryId={findCategoryForEntity("BodyMark")?.id} initialType={openState.initialType} onClose={handleSheetClose} />
       )}
       {typeof openState === "object" && openState?.type === "editBodyMark" && (
         <EditBodyMarkSheet personId={person.id} mark={openState.mark} referenceSessionId={referenceSessionId} categoryId={findCategoryForEntity("BodyMark", openState.mark.type)?.id} existingPhotos={entityMedia?.[openState.mark.id]} onClose={handleSheetClose} />
@@ -878,8 +861,8 @@ export function AppearanceTab({
           onClose={handleSheetClose}
         />
       )}
-      {openState === "addBodyMod" && (
-        <AddBodyModificationSheet personId={person.id} referenceSessionId={referenceSessionId} categoryId={findCategoryForEntity("BodyModification")?.id} onClose={handleSheetClose} />
+      {typeof openState === "object" && openState?.type === "addBodyMod" && (
+        <AddBodyModificationSheet personId={person.id} referenceSessionId={referenceSessionId} categoryId={findCategoryForEntity("BodyModification")?.id} initialType={openState.initialType} onClose={handleSheetClose} />
       )}
       {typeof openState === "object" && openState?.type === "editBodyMod" && (
         <EditBodyModificationSheet personId={person.id} modification={openState.modification} referenceSessionId={referenceSessionId} categoryId={findCategoryForEntity("BodyModification", openState.modification.type)?.id} existingPhotos={entityMedia?.[openState.modification.id]} onClose={handleSheetClose} />
