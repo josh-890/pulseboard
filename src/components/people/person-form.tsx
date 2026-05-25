@@ -32,7 +32,7 @@ import {
   BUILD_OPTIONS,
   BREAST_SIZE_OPTIONS,
 } from "@/lib/constants/appearance";
-import { ETHNICITY_OPTIONS } from "@/lib/constants/ethnicity";
+import { ETHNICITY_BROAD_OPTIONS } from "@/lib/constants/ethnicity";
 import { CountryPicker } from "@/components/shared/country-picker";
 import { SelectWithOther } from "@/components/shared/select-with-other";
 import { ColorValueCombobox } from "@/components/people/color-value-combobox";
@@ -282,30 +282,50 @@ export function PersonForm({ onSubmit, submitLabel = "Create Person", onCancel }
                   )}
                 />
 
+                {/* Phase G Slice 16C T3: Ethnicity split into Broad SINGLE_SELECT
+                    + Specific TEXT — both written as ScalarDeltas on baseline Era. */}
                 <FormField
                   control={form.control}
-                  name="ethnicity"
+                  name="ethnicityBroad"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Ethnicity</FormLabel>
+                      <FormLabel>Ethnicity (Broad)</FormLabel>
                       <Select
                         onValueChange={(v) => field.onChange(v === "_none" ? undefined : v)}
                         value={field.value ?? "_none"}
                       >
                         <FormControl>
                           <SelectTrigger className="w-full">
-                            <SelectValue placeholder="Select ethnicity..." />
+                            <SelectValue placeholder="Select broad category..." />
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
                           <SelectItem value="_none">— not specified —</SelectItem>
-                          {ETHNICITY_OPTIONS.map((opt) => (
+                          {ETHNICITY_BROAD_OPTIONS.map((opt) => (
                             <SelectItem key={opt} value={opt}>
                               {opt}
                             </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="ethnicitySpecific"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Ethnicity (Specific)</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder="Optional sub-region, e.g. Eastern European"
+                          value={field.value ?? ""}
+                          onChange={(e) => field.onChange(e.target.value || undefined)}
+                        />
+                      </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}

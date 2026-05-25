@@ -25,7 +25,11 @@ export const createPersonSchema = z.object({
   birthdateSource: z.string().optional(),
   birthPlace: z.string().optional(),
   nationality: z.string().length(2).regex(/^[A-Z]{2}$/, "Must be a valid ISO alpha-2 country code").optional().or(z.literal("")),
-  ethnicity: z.string().optional(),
+  // Phase G Slice 16C T3: Ethnicity split into Broad SINGLE_SELECT +
+  // Specific TEXT, both written as ScalarDeltas on baseline Era. The
+  // legacy `ethnicity` combined field is removed (was: `z.string().optional()`).
+  ethnicityBroad: z.string().optional(),
+  ethnicitySpecific: z.string().optional(),
   // Static physical
   eyeColor: z.string().optional(),
   height: z.coerce.number().int().positive().optional(),
@@ -55,7 +59,9 @@ export const updatePersonSchema = z.object({
   birthdateSource: z.string().optional(),
   birthPlace: z.string().optional(),
   nationality: z.string().length(2).regex(/^[A-Z]{2}$/, "Must be a valid ISO alpha-2 country code").optional().or(z.literal("")),
-  ethnicity: z.string().optional(),
+  // Phase G Slice 16C T3: same split as createPersonSchema.
+  ethnicityBroad: z.string().optional(),
+  ethnicitySpecific: z.string().optional(),
   location: z.string().optional(),
   notes: z.string().optional(),
   activeFrom: z.string().optional(),

@@ -1238,9 +1238,9 @@ export async function createPersonRecord(data: CreatePersonInput) {
         birthdateSource: data.birthdateSource || undefined,
         birthPlace: data.birthPlace,
         nationality: data.nationality,
-        ethnicity: data.ethnicity,
-        // eyeColor + height intentionally NOT written here — they migrated
-        // to Baseline ScalarDeltas in Phase G Slice 3a (see below).
+        // ethnicity / eyeColor / height intentionally NOT written here —
+        // they all migrated to Baseline ScalarDeltas (eyeColor + height
+        // in Phase G Slice 3a; ethnicity in Slice 16C).
       },
     });
 
@@ -1279,6 +1279,11 @@ export async function createPersonRecord(data: CreatePersonInput) {
       baselineDeltas.push({ attributeDefinitionId: "cattr-eye-color", value: data.eyeColor, notes: null });
     if (data.height !== undefined && data.height !== null)
       baselineDeltas.push({ attributeDefinitionId: "cattr-height", value: String(data.height), notes: null });
+    // Phase G Slice 16C: ethnicity broad + specific enter via catalog deltas.
+    if (data.ethnicityBroad)
+      baselineDeltas.push({ attributeDefinitionId: "cattr-ethnicity-broad", value: data.ethnicityBroad, notes: null });
+    if (data.ethnicitySpecific)
+      baselineDeltas.push({ attributeDefinitionId: "cattr-ethnicity-specific", value: data.ethnicitySpecific, notes: null });
     if (data.hairLength) {
       const hairLengthDef = await tx.physicalAttributeDefinition.findFirst({
         where: { slug: "hair-length" },
@@ -1328,7 +1333,8 @@ export async function updatePersonRecord(id: string, data: UpdatePersonInput): P
         birthdateSource: data.birthdateSource || null,
         birthPlace: data.birthPlace,
         nationality: data.nationality,
-        ethnicity: data.ethnicity,
+        // ethnicity intentionally NOT written here — migrated to catalog
+        // deltas in Slice 16C; the upsert below handles broad + specific.
         location: data.location,
         notes: data.notes,
         activeFrom: data.activeFrom ? new Date(data.activeFrom) : null,
@@ -1356,6 +1362,34 @@ export async function updatePersonRecord(id: string, data: UpdatePersonInput): P
           data: { name: data.commonName, nameNorm: normalizeForSearch(data.commonName) },
         });
       }
+    }
+
+    // Phase G Slice 16C T3: upsert ethnicity broad + specific as baseline-Era
+    // ScalarDeltas. Each is replaced if present in the form payload; an
+    // empty/undefined value deletes the existing delta (form-driven clear).
+    const baselineEra = await tx.era.findFirst({
+      where: { personId: id, isBaseline: true },
+      select: { id: true },
+    });
+    if (baselineEra) {
+      for (const [defId, value] of [
+        ["cattr-ethnicity-broad", data.ethnicityBroad],
+        ["cattr-ethnicity-specific", data.ethnicitySpecific],
+      ] as const) {
+        await tx.scalarDelta.deleteMany({
+          where: { eraId: baselineEra.id, attributeDefinitionId: defId },
+        });
+        if (value && value.trim() !== "") {
+          await tx.scalarDelta.create({
+            data: {
+              eraId: baselineEra.id,
+              attributeDefinitionId: defId,
+              value: value.trim(),
+            },
+          });
+        }
+      }
+      await recomputePersonCurrentState(tx, id);
     }
   });
 }
@@ -1770,7 +1804,6 @@ export async function getPersonsPaginated(
       birthdate: p.birthdate,
       nationality: p.nationality,
       sexAtBirth: p.sexAtBirth,
-      ethnicity: p.ethnicity,
       eyeColor: p.eyeColor,
       height: p.height,
       birthPlace: p.birthPlace,

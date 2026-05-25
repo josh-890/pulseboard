@@ -38,7 +38,7 @@ import {
   type UpdatePersonFormValues,
   type UpdatePersonInput,
 } from "@/lib/validations/person";
-import { ETHNICITY_OPTIONS } from "@/lib/constants/ethnicity";
+import { ETHNICITY_BROAD_OPTIONS } from "@/lib/constants/ethnicity";
 import { CountryPicker } from "@/components/shared/country-picker";
 import { updatePerson } from "@/lib/actions/person-actions";
 import { PartialDateInput } from "@/components/shared/partial-date-input";
@@ -66,6 +66,16 @@ export function EditPersonSheet({ person }: EditPersonSheetProps) {
 
   const commonAlias = person.aliases.find((a) => a.isCommon);
 
+  // Phase G Slice 16C T3: ethnicity now lives as two baseline ScalarDeltas.
+  // Pull them off the included eras[] to pre-fill the split form fields.
+  const baselineEra = person.eras.find((e) => e.isBaseline);
+  const ethnicityBroadDelta = baselineEra?.scalarDeltas.find(
+    (d) => d.attributeDefinitionId === "cattr-ethnicity-broad",
+  );
+  const ethnicitySpecificDelta = baselineEra?.scalarDeltas.find(
+    (d) => d.attributeDefinitionId === "cattr-ethnicity-specific",
+  );
+
   const getDefaults = (): UpdatePersonFormValues => ({
     id: person.id,
     commonName: commonAlias?.name ?? "",
@@ -79,7 +89,8 @@ export function EditPersonSheet({ person }: EditPersonSheetProps) {
     birthdateSource: person.birthdateSource ?? "",
     birthPlace: person.birthPlace ?? "",
     nationality: person.nationality ?? "",
-    ethnicity: person.ethnicity ?? undefined,
+    ethnicityBroad: ethnicityBroadDelta?.value ?? undefined,
+    ethnicitySpecific: ethnicitySpecificDelta?.value ?? undefined,
     location: person.location ?? "",
     notes: person.notes ?? "",
     activeFrom: person.activeFrom
@@ -418,30 +429,50 @@ export function EditPersonSheet({ person }: EditPersonSheetProps) {
                       )}
                     />
 
+                    {/* Phase G Slice 16C T3: Ethnicity split into Broad
+                        SINGLE_SELECT + Specific TEXT, written as ScalarDeltas. */}
                     <FormField
                       control={form.control}
-                      name="ethnicity"
+                      name="ethnicityBroad"
                       render={({ field }) => (
                         <FormItem className="col-span-2">
-                          <FormLabel>Ethnicity</FormLabel>
+                          <FormLabel>Ethnicity (Broad)</FormLabel>
                           <Select
                             onValueChange={(v) => field.onChange(v === "_none" ? undefined : v)}
                             value={field.value ?? "_none"}
                           >
                             <FormControl>
                               <SelectTrigger className="w-full">
-                                <SelectValue placeholder="Select ethnicity…" />
+                                <SelectValue placeholder="Select broad category…" />
                               </SelectTrigger>
                             </FormControl>
                             <SelectContent>
                               <SelectItem value="_none">— not specified —</SelectItem>
-                              {ETHNICITY_OPTIONS.map((opt) => (
+                              {ETHNICITY_BROAD_OPTIONS.map((opt) => (
                                 <SelectItem key={opt} value={opt}>
                                   {opt}
                                 </SelectItem>
                               ))}
                             </SelectContent>
                           </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="ethnicitySpecific"
+                      render={({ field }) => (
+                        <FormItem className="col-span-2">
+                          <FormLabel>Ethnicity (Specific)</FormLabel>
+                          <FormControl>
+                            <Input
+                              placeholder="Optional sub-region, e.g. Eastern European"
+                              value={field.value ?? ""}
+                              onChange={(e) => field.onChange(e.target.value || undefined)}
+                            />
+                          </FormControl>
                           <FormMessage />
                         </FormItem>
                       )}

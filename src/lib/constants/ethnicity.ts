@@ -1,39 +1,21 @@
-export const ETHNICITY_OPTIONS = [
-  "Asian → Central Asian",
-  "Asian → East Asian (Chinese)",
-  "Asian → East Asian (Japanese)",
-  "Asian → East Asian (Korean)",
-  "Asian → East Asian (Other)",
-  "Asian → South Asian",
-  "Asian → Southeast Asian",
-  "Black → African American",
-  "Black → Caribbean",
-  "Black → Sub-Saharan African",
-  "Hispanic/Latino → Caribbean",
-  "Hispanic/Latino → Central American",
-  "Hispanic/Latino → Mexican",
-  "Hispanic/Latino → South American",
-  "Hispanic/Latino → Spanish",
-  "Indigenous → Central American",
-  "Indigenous → North American",
-  "Indigenous → South American",
-  "MENA → Arab",
-  "MENA → Jewish/Israeli",
-  "MENA → Other MENA",
-  "MENA → Persian/Iranian",
-  "MENA → Turkish",
-  "Mixed → Two or More Races",
-  "Other → Other",
-  "Pacific Islander → Australian Aboriginal",
-  "Pacific Islander → Hawaiian",
-  "Pacific Islander → Maori",
-  "Pacific Islander → Melanesian",
-  "Pacific Islander → Micronesian",
-  "Pacific Islander → Polynesian",
-  "Unknown",
-  "White/Caucasian → Eastern European",
-  "White/Caucasian → European",
-  "White/Caucasian → Northern European",
-  "White/Caucasian → Other White",
-  "White/Caucasian → Southern European",
+// Phase G Slice 16C T3: Ethnicity is now two attributes in the catalog —
+// Ethnicity (Broad) SINGLE_SELECT + Ethnicity (Specific) TEXT.
+// Forms use this Broad vocab; Specific is free-form text.
+//
+// Keep in sync with allowedValues on cattr-ethnicity-broad (migration
+// 20260525140000_ethnicity_to_catalog_t1).
+
+export const ETHNICITY_BROAD_OPTIONS = [
+  "White/Caucasian",
+  "Black/African",
+  "Hispanic/Latino",
+  "East Asian",
+  "South Asian",
+  "Pacific Islander",
+  "Middle Eastern",
+  "Native/Indigenous",
+  "Mixed",
+  "Other",
 ] as const;
+
+export type EthnicityBroad = (typeof ETHNICITY_BROAD_OPTIONS)[number];
