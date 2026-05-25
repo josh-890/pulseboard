@@ -143,16 +143,17 @@ function parseHeight(raw: string): { cm: number | null; ftIn: string | null } {
 }
 
 function parseBorn(raw: string): { month: string | null; year: string | null } {
-  // Format: "March 1982" or "1982" or empty
+  // Accepts: "1982", "March 1982", "Mar 1982", "1982-03-15", "??-??-1986",
+  // "MM-DD-1986", etc. Extracts any 4-digit year and any alphabetic month
+  // token independently. Numeric placeholders ("??", "MM") never produce a
+  // month — month must be a recognizable word.
   if (isEmptyValue(raw)) return { month: null, year: null }
-  const parts = raw.trim().split(/\s+/)
-  if (parts.length >= 2) {
-    return { month: parts[0], year: parts[parts.length - 1] }
+  const yearMatch = raw.match(/\b(\d{4})\b/)
+  const monthMatch = raw.match(/\b([A-Za-z]{3,})\b/)
+  return {
+    month: monthMatch ? monthMatch[1] : null,
+    year: yearMatch ? yearMatch[1] : null,
   }
-  if (parts.length === 1 && /^\d{4}$/.test(parts[0])) {
-    return { month: null, year: parts[0] }
-  }
-  return { month: null, year: null }
 }
 
 function parseModelsList(raw: string): ParsedModelRef[] {

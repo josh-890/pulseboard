@@ -7,7 +7,7 @@
 
 import { prisma } from '@/lib/db'
 import { normalizeForSearch } from '@/lib/normalize'
-import type { ImportItem } from '@/generated/prisma/client'
+import type { ImportItem, Prisma } from '@/generated/prisma/client'
 import { createLabelRecord } from '@/lib/services/label-service'
 import { createChannelRecord } from '@/lib/services/channel-service'
 import { createPersonRecord } from '@/lib/services/person-service'
@@ -232,8 +232,11 @@ export async function importPerson(item: ImportItem): Promise<ImportResult> {
       sexAtBirth: 'female' as const,
     })
 
-    // Update additional person fields not covered by createPersonRecord
-    const additionalUpdates: Record<string, unknown> = {}
+    // Update additional person fields not covered by createPersonRecord.
+    // Typed as Prisma.PersonUpdateInput so writes to columns that no longer
+    // exist (e.g. the legacy `naturalBreastSize` / `measurements` fields
+    // dropped in Phase G) fail at compile time instead of at runtime.
+    const additionalUpdates: Prisma.PersonUpdateInput = {}
 
     if (activeFrom) {
       additionalUpdates.activeFrom = new Date(activeFrom)
@@ -256,14 +259,6 @@ export async function importPerson(item: ImportItem): Promise<ImportResult> {
     if (data.activities) bioParts.push(`Activities: ${data.activities}`)
     if (bioParts.length > 0) {
       additionalUpdates.bio = bioParts.join('\n\n')
-    }
-
-    if (measurementsRaw) {
-      additionalUpdates.measurements = measurementsRaw
-    }
-
-    if (naturalCup) {
-      additionalUpdates.naturalBreastSize = naturalCup
     }
 
     if (Object.keys(additionalUpdates).length > 0) {
