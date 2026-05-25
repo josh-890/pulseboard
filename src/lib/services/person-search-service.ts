@@ -23,7 +23,12 @@ type CategoricalFieldDef = {
 
 const CATEGORICAL_FIELDS: Record<string, CategoricalFieldDef> = {
   status:           { column: Prisma.sql`p.status::text` },
-  ethnicity:        { column: Prisma.sql`p.ethnicity`,            caseInsensitive: true },
+  // Slice 16C T2: ethnicity filter switched from Person.ethnicity column to
+  // the catalog JSON path. Broad value lives in PersonCurrentState
+  // .currentAttributes->>'ethnicity-broad' (SINGLE_SELECT vocab); filtering
+  // is exact-match against the broad bucket. Specific sub-region is captured
+  // in 'ethnicity-specific' for display, not for filtering.
+  ethnicity:        { column: Prisma.sql`mv."currentAttributes"->>'ethnicity-broad'`,            caseInsensitive: true },
   bodyType:         { column: Prisma.sql`mv."currentBuild"`,      caseInsensitive: true },
   naturalHairColor: { column: Prisma.sql`mv."currentHairColor"`,  caseInsensitive: true },
   // Hair / eye classified via color_catalog. Lightness is ABSOLUTE — Dark on
@@ -403,7 +408,14 @@ export async function searchPeople(
       p.tags,
       mv."currentHairColor" AS "naturalHairColor",
       mv."currentBuild" AS "bodyType",
-      p.ethnicity,
+      -- Slice 16C T2: ethnicity rebuilt from the catalog as
+      -- "Broad → Specific" for back-compat with the existing display
+      -- shape. The two JSON keys are populated by the fold.
+      CASE
+        WHEN mv."currentAttributes"->>'ethnicity-broad' IS NULL THEN NULL
+        WHEN COALESCE(mv."currentAttributes"->>'ethnicity-specific', '') = '' THEN mv."currentAttributes"->>'ethnicity-broad'
+        ELSE (mv."currentAttributes"->>'ethnicity-broad') || ' → ' || (mv."currentAttributes"->>'ethnicity-specific')
+      END AS "ethnicity",
       p.location,
       p."activeFrom",
       p."activeFromPrecision"::text AS "activeFromPrecision",

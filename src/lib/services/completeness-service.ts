@@ -54,7 +54,9 @@ export async function computeProfileCompleteness(
     birthdate: { filled: person.birthdate !== null, weight: WEIGHTS.birthdate, label: "Birthdate" },
     nationality: { filled: !!person.nationality, weight: WEIGHTS.nationality, label: "Nationality" },
     sexAtBirth: { filled: !!person.sexAtBirth, weight: WEIGHTS.sexAtBirth, label: "Sex at Birth" },
-    ethnicity: { filled: !!person.ethnicity, weight: WEIGHTS.ethnicity, label: "Ethnicity" },
+    // Slice 16C T2: ethnicity moved off Person into the catalog (two attrs:
+    // broad + specific). Counts as filled when the broad value is present.
+    ethnicity: { filled: hasDelta("cattr-ethnicity-broad"), weight: WEIGHTS.ethnicity, label: "Ethnicity" },
     headshot: { filled: headshot !== null, weight: WEIGHTS.headshot, label: "Headshot" },
     // eyeColor + height moved off Person into the catalog (Phase G Slice 3a).
     // Read from the same baseline-delta source as the other catalog attrs.
@@ -128,7 +130,8 @@ export async function batchComputeCompleteness(
     if (person.birthdate !== null) score += WEIGHTS.birthdate;
     if (person.nationality) score += WEIGHTS.nationality;
     if (person.sexAtBirth) score += WEIGHTS.sexAtBirth;
-    if (person.ethnicity) score += WEIGHTS.ethnicity;
+    // Slice 16C T2: ethnicity moved off Person into the catalog.
+    if (hasDelta(deltaMap.get(person.id), "cattr-ethnicity-broad")) score += WEIGHTS.ethnicity;
     if (hasHeadshot.has(person.id)) score += WEIGHTS.headshot;
     // eyeColor + height moved off Person into the catalog (Phase G Slice 3a).
     if (hasDelta(deltaMap.get(person.id), "cattr-eye-color")) score += WEIGHTS.eyeColor;

@@ -18,6 +18,31 @@ import type {
 import { parsePhotoVariants } from "@/lib/types";
 import type { PersonStatus, Prisma } from "@/generated/prisma/client";
 import { normalizeForSearch } from "@/lib/normalize";
+
+// Phase G Slice 16C T2: Ethnicity moved off Person.ethnicity into the catalog
+// as two SCALAR attributes — ethnicity-broad (SINGLE_SELECT) + ethnicity-specific
+// (TEXT). The fold writes both into PersonCurrentState.currentAttributes JSON
+// keyed by slug. This helper rebuilds the legacy combined "Broad → Specific"
+// string for display + back-compat with the existing PersonWithCommonAlias
+// shape. Returns null when no broad value is present.
+export function ethnicityFromCurrentAttrs(attrs: unknown): string | null {
+  if (!attrs || typeof attrs !== "object") return null;
+  const obj = attrs as Record<string, unknown>;
+  const broad = obj["ethnicity-broad"];
+  const specific = obj["ethnicity-specific"];
+  if (typeof broad !== "string" || broad.trim() === "") return null;
+  if (typeof specific === "string" && specific.trim() !== "") {
+    return `${broad} → ${specific}`;
+  }
+  return broad;
+}
+
+// Extract the Broad value from a free-form ethnicity filter string (handles
+// both new broad-only values and legacy "Broad → Specific" composites).
+export function ethnicityBroadFromFilterValue(v: string): string {
+  const idx = v.indexOf(" → ");
+  return idx >= 0 ? v.slice(0, idx).trim() : v.trim();
+}
 import { expandRegionFilter } from "@/lib/constants/body-regions";
 import type { CreatePersonInput, UpdatePersonInput } from "@/lib/validations/person";
 import { batchComputeCompleteness } from "@/lib/services/completeness-service";
@@ -111,12 +136,17 @@ export async function getPersons(filters: PersonFilters = {}): Promise<PersonWit
   if (bodyType) {
     currentStateWhere.currentBuild = { equals: bodyType, mode: "insensitive" };
   }
+  // Phase G Slice 16C T2: ethnicity filter now queries currentAttributes
+  // JSON path. Filter value may be the new broad-only form or a legacy
+  // "Broad → Specific" composite; split + match on broad part either way.
+  if (ethnicity) {
+    currentStateWhere.currentAttributes = {
+      path: ["ethnicity-broad"],
+      equals: ethnicityBroadFromFilterValue(ethnicity),
+    };
+  }
   if (Object.keys(currentStateWhere).length > 0) {
     where.currentState = currentStateWhere;
-  }
-
-  if (ethnicity) {
-    where.ethnicity = { equals: ethnicity, mode: "insensitive" };
   }
 
   if (q) {
@@ -151,7 +181,7 @@ export async function getPersons(filters: PersonFilters = {}): Promise<PersonWit
     tags: p.tags,
     naturalHairColor: p.currentState?.currentHairColor ?? null,
     bodyType: p.currentState?.currentBuild ?? null,
-    ethnicity: p.ethnicity,
+    ethnicity: ethnicityFromCurrentAttrs(p.currentState?.currentAttributes),
     location: p.location,
     activeFrom: p.activeFrom,
     activeFromPrecision: p.activeFromPrecision,
@@ -1617,12 +1647,15 @@ export async function getPersonsPaginated(
   if (bodyType) {
     currentStateWhere.currentBuild = { equals: bodyType, mode: "insensitive" };
   }
+  // Slice 16C T2: ethnicity now lives in currentAttributes JSON (see helper).
+  if (ethnicity) {
+    currentStateWhere.currentAttributes = {
+      path: ["ethnicity-broad"],
+      equals: ethnicityBroadFromFilterValue(ethnicity),
+    };
+  }
   if (Object.keys(currentStateWhere).length > 0) {
     where.currentState = currentStateWhere;
-  }
-
-  if (ethnicity) {
-    where.ethnicity = { equals: ethnicity, mode: "insensitive" };
   }
 
   // Body region filter: find persons who have body marks/modifications/procedures
@@ -1677,7 +1710,7 @@ export async function getPersonsPaginated(
   // Helper to map a raw person to PersonWithCommonAlias (sans completeness)
   type RawPerson = Awaited<ReturnType<typeof prisma.person.findMany>>[number] & {
     aliases: { isCommon: boolean; isBirth: boolean; name: string; nameNorm: string | null }[];
-    currentState: { currentHairColor: string | null; currentBuild: string | null } | null;
+    currentState: { currentHairColor: string | null; currentBuild: string | null; currentAttributes: Prisma.JsonValue } | null;
   };
 
   function mapPerson(p: RawPerson, score: number, q?: string): PersonWithCommonAlias {
@@ -1695,7 +1728,7 @@ export async function getPersonsPaginated(
       tags: p.tags,
       naturalHairColor: p.currentState?.currentHairColor ?? null,
       bodyType: p.currentState?.currentBuild ?? null,
-      ethnicity: p.ethnicity,
+      ethnicity: ethnicityFromCurrentAttrs(p.currentState?.currentAttributes),
       location: p.location,
       activeFrom: p.activeFrom,
       activeFromPrecision: p.activeFromPrecision,
@@ -1726,7 +1759,7 @@ export async function getPersonsPaginated(
               ? { OR: [{ isCommon: true }, { isBirth: true }, { name: { contains: q, mode: "insensitive" } }] }
               : { OR: [{ isCommon: true }, { isBirth: true }] },
           },
-          currentState: { select: { currentHairColor: true, currentBuild: true } },
+          currentState: { select: { currentHairColor: true, currentBuild: true, currentAttributes: true } },
         },
       }),
     ]);
@@ -1802,7 +1835,7 @@ export async function getPersonsPaginated(
             ? { OR: [{ isCommon: true }, { isBirth: true }, { name: { contains: q, mode: "insensitive" } }] }
             : { OR: [{ isCommon: true }, { isBirth: true }] },
         },
-          currentState: { select: { currentHairColor: true, currentBuild: true } },
+          currentState: { select: { currentHairColor: true, currentBuild: true, currentAttributes: true } },
       },
       orderBy,
       take: limit + 1,
@@ -1860,13 +1893,19 @@ export async function getDistinctBodyTypes(): Promise<string[]> {
 }
 
 export async function getDistinctEthnicities(): Promise<string[]> {
-  const result = await prisma.person.findMany({
-    where: { ethnicity: { not: null } },
-    select: { ethnicity: true },
-    distinct: ["ethnicity"],
-    orderBy: { ethnicity: "asc" },
+  // Slice 16C T2: source from ScalarDelta on ethnicity-broad (the
+  // SINGLE_SELECT side). Sub-region values from ethnicity-specific stay out
+  // of this list — facets group by broad only for a clean ~10-value picker.
+  const result = await prisma.scalarDelta.findMany({
+    where: {
+      attributeDefinitionId: "cattr-ethnicity-broad",
+      value: { not: "" },
+    },
+    select: { value: true },
+    distinct: ["value"],
+    orderBy: { value: "asc" },
   });
-  return result.map((r) => r.ethnicity!).filter(Boolean);
+  return result.map((r) => r.value).filter(Boolean);
 }
 
 export type PersonFacetCounts = {
@@ -1884,8 +1923,14 @@ export async function getPersonFacetCounts(filters: Omit<PersonFilters, "sort" |
     const cs: Prisma.PersonCurrentStateWhereInput = {};
     if (merged.naturalHairColor) cs.currentHairColor = { equals: merged.naturalHairColor, mode: "insensitive" };
     if (merged.bodyType) cs.currentBuild = { equals: merged.bodyType, mode: "insensitive" };
+    // Slice 16C T2: ethnicity filter via currentAttributes JSON path.
+    if (merged.ethnicity) {
+      cs.currentAttributes = {
+        path: ["ethnicity-broad"],
+        equals: ethnicityBroadFromFilterValue(merged.ethnicity),
+      };
+    }
     if (Object.keys(cs).length > 0) w.currentState = cs;
-    if (merged.ethnicity) w.ethnicity = { equals: merged.ethnicity, mode: "insensitive" };
     if (filters.birthdateFrom || filters.birthdateTo) {
       w.birthdate = {
         ...(filters.birthdateFrom ? { gte: filters.birthdateFrom } : {}),
@@ -1907,17 +1952,28 @@ export async function getPersonFacetCounts(filters: Omit<PersonFilters, "sort" |
     return w;
   }
 
-  const [statusGroups, hairGroups, bodyTypeGroups, ethnicityGroups] = await Promise.all([
+  // Slice 16C T2: ethnicity facet counts by broad value via ScalarDelta on
+  // 'cattr-ethnicity-broad'. The Era→Person join carries the other filters
+  // through the existing buildBase() Prisma where on the underlying Person.
+  const [statusGroups, hairGroups, bodyTypeGroups, ethnicityRows] = await Promise.all([
     prisma.person.groupBy({ by: ["status"], where: buildBase({ status: undefined }), _count: { _all: true } }),
     prisma.personCurrentState.groupBy({ by: ["currentHairColor"], where: { person: buildBase({ naturalHairColor: undefined }) }, _count: { _all: true } }),
     prisma.personCurrentState.groupBy({ by: ["currentBuild"], where: { person: buildBase({ bodyType: undefined }) }, _count: { _all: true } }),
-    prisma.person.groupBy({ by: ["ethnicity"], where: buildBase({ ethnicity: undefined }), _count: { _all: true } }),
+    prisma.scalarDelta.groupBy({
+      by: ["value"],
+      where: {
+        attributeDefinitionId: "cattr-ethnicity-broad",
+        value: { not: "" },
+        era: { person: buildBase({ ethnicity: undefined }) },
+      },
+      _count: { _all: true },
+    }),
   ]);
 
   return {
     status: Object.fromEntries(statusGroups.map((r) => [r.status, r._count._all])),
     naturalHairColor: Object.fromEntries(hairGroups.filter((r) => r.currentHairColor).map((r) => [r.currentHairColor!, r._count._all])),
     bodyType: Object.fromEntries(bodyTypeGroups.filter((r) => r.currentBuild).map((r) => [r.currentBuild!, r._count._all])),
-    ethnicity: Object.fromEntries(ethnicityGroups.filter((r) => r.ethnicity).map((r) => [r.ethnicity!, r._count._all])),
+    ethnicity: Object.fromEntries(ethnicityRows.map((r) => [r.value, r._count._all])),
   };
 }

@@ -216,7 +216,15 @@ export function AppearanceTab({
     router.refresh();
   }, [router]);
 
-  const hasStatic = person.ethnicity; // height + eyeColor moved to catalog (Slice 3a)
+  // Slice 16C T2: ethnicity moved off Person; build display string from
+  // the catalog deltas folded into currentState.extensibleAttributes.
+  // extensibleAttributes is keyed by attributeDefinitionId (not slug).
+  const ethnicityBroad = currentState.extensibleAttributes["cattr-ethnicity-broad"]?.value;
+  const ethnicitySpecific = currentState.extensibleAttributes["cattr-ethnicity-specific"]?.value;
+  const ethnicityDisplay = ethnicityBroad
+    ? ethnicitySpecific ? `${ethnicityBroad} → ${ethnicitySpecific}` : ethnicityBroad
+    : null;
+  const hasStatic = ethnicityDisplay; // height + eyeColor moved to catalog (Slice 3a); ethnicity in Slice 16C
   const hasComputed = currentState.currentHairColor || currentState.weight !== null || currentState.build || currentState.breastSize || currentState.breastStatus || currentState.breastDescription || currentState.measurements;
   const hasExtensible = Object.keys(currentState.extensibleAttributes).length > 0;
 
@@ -275,7 +283,11 @@ export function AppearanceTab({
         statusBearing: boolean;
       }[]
     > = {};
-    for (const attr of Object.values(currentState.extensibleAttributes)) {
+    for (const [defId, attr] of Object.entries(currentState.extensibleAttributes)) {
+      // Slice 16C T2: Identity-group ethnicity attrs are surfaced in the
+      // static section as a combined "Broad → Specific" line. Skip them
+      // here to avoid double-rendering.
+      if (defId === "cattr-ethnicity-broad" || defId === "cattr-ethnicity-specific") continue;
       if (!groups[attr.groupName]) groups[attr.groupName] = [];
       groups[attr.groupName].push({
         name: attr.name,
@@ -662,8 +674,8 @@ export function AppearanceTab({
             ) : (
               <>
                 <dl className="grid grid-cols-1 gap-2 text-sm sm:grid-cols-2">
-                  {/* Ethnicity stays here until Phase G Slice 3b migrates it off Person. */}
-                  {person.ethnicity && <InfoRow label="Ethnicity" value={person.ethnicity} labelWidth="w-28" />}
+                  {/* Slice 16C: ethnicity now sourced from the catalog deltas via currentState. */}
+                  {ethnicityDisplay && <InfoRow label="Ethnicity" value={ethnicityDisplay} labelWidth="w-28" />}
                   {/* Height + Eye Color migrated to the catalog/delta path in Phase G Slice 3a —
                       they appear automatically in the extensible groups section below
                       (Core Body Measurements / Eye Features). Don't dupe them here. */}
