@@ -175,6 +175,31 @@ export function AppearanceTab({
     );
   }, [currentState.activeBodyModifications, selectedRegion, matchesRegion]);
 
+  // Phase G Slice 14: scroll-to-row + brief highlight when the user clicks
+  // an entity inside the body-map's hover tooltip.
+  const handleEntityClick = useCallback(
+    (entityId: string) => {
+      const el = document.getElementById(`body-feature-${entityId}`);
+      if (el) el.scrollIntoView({ block: "center", behavior: "smooth" });
+      const mark = currentState.activeBodyMarks.find((m) => m.id === entityId);
+      const mod = mark ? null : currentState.activeBodyModifications.find((m) => m.id === entityId);
+      const regions = mark
+        ? (mark.computed.bodyRegions.length > 0 ? mark.computed.bodyRegions : [mark.bodyRegion])
+        : mod
+          ? (mod.computed.bodyRegions.length > 0 ? mod.computed.bodyRegions : [mod.bodyRegion])
+          : [];
+      if (regions[0]) {
+        setHoveredRegion(regions[0]);
+        // Clear the glow after ~1.5s so it doesn't latch indefinitely.
+        const r = regions[0];
+        setTimeout(() => {
+          setHoveredRegion((prev) => (prev === r ? null : prev));
+        }, 1500);
+      }
+    },
+    [currentState.activeBodyMarks, currentState.activeBodyModifications],
+  );
+
   // Cross-session picker + stage dialog + annotation editor for entity photos
   type EntityPickerContext = { categoryId: string; entityId: string; entityModel: string; entityLabel: string }
   type StagedEntityPhoto = { item: GalleryItem; categoryId: string; entityId: string; entityModel: string; entityLabel: string }
@@ -785,8 +810,8 @@ export function AppearanceTab({
               const regions = mark.computed.bodyRegions.length > 0 ? mark.computed.bodyRegions : [mark.bodyRegion];
               const highlighted = !!hoveredRegion && matchesRegion(mark.computed.bodyRegions, mark.bodyRegion, hoveredRegion);
               return (
+              <div id={`body-feature-${mark.id}`} key={mark.id}>
               <BodyMarkRow
-                key={mark.id}
                 mark={mark}
                 photos={entityMedia?.[mark.id]}
                 isHighlighted={highlighted}
@@ -807,14 +832,15 @@ export function AppearanceTab({
                 }}
                 isPending={isPending}
               />
+              </div>
               );
             })}
             modRows={filteredMods.map((mod) => {
               const regions = mod.computed.bodyRegions.length > 0 ? mod.computed.bodyRegions : [mod.bodyRegion];
               const highlighted = !!hoveredRegion && matchesRegion(mod.computed.bodyRegions, mod.bodyRegion, hoveredRegion);
               return (
+              <div id={`body-feature-${mod.id}`} key={mod.id}>
               <BodyModificationRow
-                key={mod.id}
                 modification={mod}
                 photos={entityMedia?.[mod.id]}
                 isHighlighted={highlighted}
@@ -835,6 +861,7 @@ export function AppearanceTab({
                 }}
                 isPending={isPending}
               />
+              </div>
               );
             })}
           />
@@ -850,6 +877,8 @@ export function AppearanceTab({
               onHoverRegion={setHoveredRegion}
               selectedRegion={selectedRegion}
               onSelectRegion={setSelectedRegion}
+              entityMedia={entityMedia}
+              onEntityClick={handleEntityClick}
             />
           </div>
         </div>
@@ -863,6 +892,8 @@ export function AppearanceTab({
           onHoverRegion={setHoveredRegion}
           selectedRegion={selectedRegion}
           onSelectRegion={setSelectedRegion}
+          entityMedia={entityMedia}
+          onEntityClick={handleEntityClick}
         />
       </div>
 

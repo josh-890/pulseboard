@@ -1,9 +1,10 @@
 "use client";
 
-import { useCallback, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { PersonCurrentState } from "@/lib/types";
 import { BodyOverview } from "@/components/shared/body-region-picker/body-overview";
 import { getRegionLabel } from "@/lib/constants/body-regions";
+import { EntityHoverTooltip, type EntityTooltipItem, type EntityTooltipThumbnail } from "@/components/people/entity-hover-tooltip";
 
 // Phase G Slice 13: Level-2 interactivity.
 //  - hoveredRegion is **externally controlled** so list-row hover can drive
@@ -11,8 +12,13 @@ import { getRegionLabel } from "@/lib/constants/body-regions";
 //  - onSelectRegion fires when the user clicks a region that has at least
 //    one entity; appearance-tab uses this to set the filter chip on the
 //    BodyFeaturesCard.
-//  - Removed marks/modifications render as outlined dots in the tooltip
-//    (historical presence is interesting; the list view alone loses it).
+//
+// Phase G Slice 14: hover tooltip with bounded image (300ms delay before
+// reveal to prevent drive-by flicker). Click an entity row in the tooltip
+// → onEntityClick fires; parent scrolls to + highlights the matching list
+// row.
+
+const TOOLTIP_SHOW_DELAY_MS = 300;
 
 type AppearanceBodyMapProps = {
   currentState: PersonCurrentState;
@@ -20,11 +26,17 @@ type AppearanceBodyMapProps = {
   onHoverRegion: (regionId: string | null) => void;
   selectedRegion: string | null;
   onSelectRegion: (regionId: string | null) => void;
+  /** Thumbnails per entity (keyed by mark/mod id). Same shape used by row photos. */
+  entityMedia?: Record<string, Array<EntityTooltipThumbnail> | undefined>;
+  /** Fires when the user clicks an entity inside the tooltip. */
+  onEntityClick?: (entityId: string) => void;
 };
 
 type RegionEntity = {
-  label: string;
-  type: "mark" | "modification";
+  id: string;
+  type: string;
+  description: string | null;
+  category: "mark" | "modification";
   status: "present" | "modified" | "removed" | "overgrown";
 };
 
@@ -34,6 +46,8 @@ export function AppearanceBodyMap({
   onHoverRegion,
   selectedRegion,
   onSelectRegion,
+  entityMedia,
+  onEntityClick,
 }: AppearanceBodyMapProps) {
   // Collect all entity regions for highlighting + tooltip content.
   const { allRegions, regionEntities } = useMemo(() => {
@@ -47,8 +61,10 @@ export function AppearanceBodyMap({
         regions.add(r);
         const list = entities.get(r) ?? [];
         list.push({
-          label: `${mark.type}${c.motif ? `: ${c.motif}` : ""}`,
-          type: "mark",
+          id: mark.id,
+          type: mark.type,
+          description: c.motif ?? c.description ?? null,
+          category: "mark",
           status: mark.status,
         });
         entities.set(r, list);
@@ -62,8 +78,10 @@ export function AppearanceBodyMap({
         regions.add(r);
         const list = entities.get(r) ?? [];
         list.push({
-          label: `${mod.type}${c.description ? `: ${c.description}` : ""}`,
-          type: "modification",
+          id: mod.id,
+          type: mod.type,
+          description: c.description ?? null,
+          category: "modification",
           status: mod.status,
         });
         entities.set(r, list);
@@ -98,6 +116,47 @@ export function AppearanceBodyMap({
     return combined.length > 0 ? combined : null;
   }, [hoveredRegion, regionEntities]);
 
+  // Phase G Slice 14: delay tooltip reveal by 300ms to prevent flicker on
+  // hover-out. Cancel the pending timer if the hover ends before it fires.
+  const [tooltipVisible, setTooltipVisible] = useState(false);
+  const showTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (showTimerRef.current) {
+      clearTimeout(showTimerRef.current);
+      showTimerRef.current = null;
+    }
+    if (tooltipEntities) {
+      showTimerRef.current = setTimeout(() => setTooltipVisible(true), TOOLTIP_SHOW_DELAY_MS);
+    } else {
+      setTooltipVisible(false);
+    }
+    return () => {
+      if (showTimerRef.current) {
+        clearTimeout(showTimerRef.current);
+        showTimerRef.current = null;
+      }
+    };
+  }, [tooltipEntities]);
+
+  // Resolve thumbnails per entity from the entityMedia map (first photo).
+  const tooltipItems: EntityTooltipItem[] = useMemo(() => {
+    if (!tooltipEntities || !hoveredRegion) return [];
+    const regionLabel = getRegionLabel(hoveredRegion);
+    return tooltipEntities.map((e) => {
+      const photos = entityMedia?.[e.id];
+      const thumbnail = photos && photos.length > 0 ? photos[0] : undefined;
+      return {
+        id: e.id,
+        type: e.type,
+        category: e.category,
+        regionLabel,
+        description: e.description,
+        status: e.status,
+        thumbnail,
+      };
+    });
+  }, [tooltipEntities, hoveredRegion, entityMedia]);
+
   const totalEntities = currentState.activeBodyMarks.length + currentState.activeBodyModifications.length;
 
   if (totalEntities === 0) return null;
@@ -119,44 +178,12 @@ export function AppearanceBodyMap({
           <BodyOverview side="back" {...sharedProps} />
         </div>
 
-        {tooltipEntities && hoveredRegion && (
-          <div className="pointer-events-none absolute inset-x-0 top-0 z-20 flex justify-center">
-            <div className="rounded-lg border border-white/15 bg-card/95 px-3 py-1.5 shadow-lg backdrop-blur-md">
-              <p className="mb-0.5 text-[11px] font-semibold text-foreground">
-                {getRegionLabel(hoveredRegion)}
-              </p>
-              {tooltipEntities.map((entity, i) => {
-                const isMark = entity.type === "mark";
-                const isRemoved = entity.status === "removed";
-                // Dot style: filled = present; outlined = removed. Tailwind
-                // needs literal class names, so the four combinations are
-                // spelled out rather than interpolated.
-                const dotClass = isMark
-                  ? isRemoved
-                    ? "border border-amber-500 bg-transparent"
-                    : "border border-amber-500 bg-amber-500"
-                  : isRemoved
-                    ? "border border-teal-500 bg-transparent"
-                    : "border border-teal-500 bg-teal-500";
-                return (
-                  <div key={i} className="flex items-center gap-1.5 text-[11px]">
-                    <span
-                      className={`h-1.5 w-1.5 shrink-0 rounded-full ${dotClass}`}
-                      aria-label={isRemoved ? `${entity.type} (removed)` : entity.type}
-                    />
-                    <span
-                      className={
-                        isRemoved
-                          ? "text-muted-foreground/60 line-through"
-                          : "text-muted-foreground"
-                      }
-                    >
-                      {entity.label}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
+        {tooltipVisible && tooltipItems.length > 0 && (
+          <div className="absolute inset-x-0 top-0 z-20 flex justify-center">
+            <EntityHoverTooltip
+              items={tooltipItems}
+              onItemClick={onEntityClick}
+            />
           </div>
         )}
       </div>
