@@ -79,7 +79,12 @@ export function ColorValueCombobox({ category, value, onChange, placeholder }: P
     } else {
       setOtherActive(false);
       setShowAddForm(false);
-      onChange(v);
+      // Phase G Slice 16E: store the catalog `display` (title case) rather
+      // than `value` (lowercase value_norm) so display surfaces don't
+      // flicker between casings. The fold's lookup_* SQL functions
+      // normalize for grouping/filtering regardless.
+      const picked = entries?.find((e) => e.value === v);
+      onChange(picked?.display ?? v);
     }
   }
 
