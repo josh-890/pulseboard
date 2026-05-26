@@ -78,7 +78,7 @@ export async function mergeSetRecords(setIdA: string, setIdB: string): Promise<M
     prisma.set.findUniqueOrThrow({
       where: { id: setIdA },
       select: {
-        id: true, title: true, externalId: true, isComplete: true, coverMediaItemId: true,
+        id: true, title: true, externalId: true, channelId: true, isComplete: true, coverMediaItemId: true,
         _count: { select: { setMediaItems: true } },
         archiveLinks: { select: { status: true, archivePath: true } },
         sessionLinks: { where: { isPrimary: true }, select: { sessionId: true } },
@@ -87,13 +87,31 @@ export async function mergeSetRecords(setIdA: string, setIdB: string): Promise<M
     prisma.set.findUniqueOrThrow({
       where: { id: setIdB },
       select: {
-        id: true, title: true, externalId: true, isComplete: true, coverMediaItemId: true,
+        id: true, title: true, externalId: true, channelId: true, isComplete: true, coverMediaItemId: true,
         _count: { select: { setMediaItems: true } },
         archiveLinks: { select: { status: true, archivePath: true } },
         sessionLinks: { where: { isPrimary: true }, select: { sessionId: true } },
       },
     }),
   ])
+
+  // Guard: a merge means "these two rows represent the same entity", so any
+  // identity column populated on both sides must agree. externalId is a stable
+  // source-of-truth identifier; channelId is the production source. If either
+  // disagrees, the operator is almost certainly merging the wrong target
+  // (xpulse 2026-05-26: a Slim Babe Set was merged into Pink Heart Set,
+  // silently rewiring the Slim Babe staging set's promotedSetId via the
+  // staging_set UPDATE below). Block here instead.
+  if (setA.externalId && setB.externalId && setA.externalId !== setB.externalId) {
+    throw new Error(
+      `Refusing to merge sets with conflicting externalId ("${setA.externalId}" vs "${setB.externalId}"). External IDs are stable identifiers — if both are set and they differ, these are not the same entity. Clear one externalId manually if you're sure this merge is intended.`,
+    )
+  }
+  if (setA.channelId && setB.channelId && setA.channelId !== setB.channelId) {
+    throw new Error(
+      `Refusing to merge sets from different channels ("${setA.title}" / channel ${setA.channelId} vs "${setB.title}" / channel ${setB.channelId}). A set belongs to exactly one production channel; cross-channel merges are almost always a wrong-target accident.`,
+    )
+  }
 
   // Guard: both sets have CONFIRMED archive links on different folders
   const aConfirmed = setA.archiveLinks.find((l) => l.status === 'CONFIRMED')
