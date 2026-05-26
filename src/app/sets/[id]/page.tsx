@@ -14,6 +14,7 @@ import { deleteSet } from "@/lib/actions/set-actions";
 import { SetActionsMenu } from "@/components/sets/set-actions-menu";
 import { SetHero } from "@/components/sets/set-hero";
 import { SetArchivePanel } from "@/components/sets/set-archive-panel";
+import { SetArchiveChipSheet } from "@/components/sets/set-archive-chip-sheet";
 import { SetAboutCard } from "@/components/sets/set-about-card";
 import { CreditsPanel } from "@/components/sets/credits-panel";
 import { getArchiveSuggestionsForSet } from "@/lib/services/archive-service";
@@ -143,7 +144,11 @@ export default async function SetDetailPage({ params }: SetDetailPageProps) {
           </div>
         </div>
 
-        {/* Hero card */}
+        {/* Hero card — when the archive link is healthy we replace the static
+            green chip with a clickable button that opens a management Sheet,
+            so users can still inspect / re-link / unlink a healthy manual
+            link (otherwise invisible because showArchivePanel below hides the
+            inline panel on the calm-path). */}
         <SetHero
           set={set}
           coverPhoto={coverPhoto}
@@ -154,6 +159,27 @@ export default async function SetDetailPage({ params }: SetDetailPageProps) {
           archiveStatus={archiveStatus}
           archiveFileCount={archiveFileCount}
           hasSuggestion={hasSuggestion}
+          archiveOkChip={al ? (
+            <SetArchiveChipSheet
+              setId={id}
+              isVideo={setData.type === "video"}
+              archiveLinkId={al.id}
+              archiveFolderId={al.archiveFolder?.id ?? null}
+              archivePath={al.archivePath ?? null}
+              archiveStatus={archiveStatus}
+              archiveLastChecked={al.archiveLastChecked ?? null}
+              archiveFileCount={al.archiveFileCount ?? null}
+              archiveFileCountPrev={al.archiveFileCountPrev ?? null}
+              archiveVideoPresent={al.archiveVideoPresent ?? null}
+              archiveVideoFiles={al.archiveVideoFiles ? (JSON.parse(al.archiveVideoFiles) as string[]) : null}
+              archiveVideoFilename={al.archiveVideoFilename ?? null}
+              mediaPriority={setData.mediaPriority ?? null}
+              mediaQueueAt={setData.mediaQueueAt ?? null}
+              folderName={al.archiveFolder?.folderName ?? null}
+              archiveSuggestions={archiveSuggestions}
+              fileCount={archiveFileCount}
+            />
+          ) : undefined}
         />
 
         {/* About card — hidden when description + notes both empty */}

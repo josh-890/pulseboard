@@ -169,6 +169,11 @@ type SetHeroProps = {
   archiveStatus?: ArchiveStatus | "UNKNOWN";
   archiveFileCount?: number | null;
   hasSuggestion?: boolean;
+  // Optional override for the OK chip — when provided, replaces the static
+  // green chip with a clickable element (the chip-sheet wrapper). The page
+  // passes this in when an archive link exists, so users can manage even a
+  // healthy link without surfacing the full panel inline.
+  archiveOkChip?: React.ReactNode;
 };
 
 export function SetHero({
@@ -181,6 +186,7 @@ export function SetHero({
   archiveStatus,
   archiveFileCount,
   hasSuggestion = false,
+  archiveOkChip,
 }: SetHeroProps) {
   const typeConfig = SET_TYPE_CONFIG[set.type] ?? SET_TYPE_CONFIG.photo;
   const participantCount = set.participants.length;
@@ -307,12 +313,12 @@ export function SetHero({
           )}
           <span>·</span>
           <SetCompleteBadge setId={set.id} isComplete={set.isComplete} />
-          {archiveStatus === "OK" && (
+          {archiveStatus === "OK" && (archiveOkChip ?? (
             <span className="inline-flex items-center gap-1 rounded-full border border-green-500/20 bg-green-500/10 px-2 py-0.5 text-[11px] text-green-600 dark:text-green-400">
               <FolderCheck size={11} />
               In archive{archiveFileCount != null ? ` · ${archiveFileCount} files` : ""}
             </span>
-          )}
+          ))}
           {hasSuggestion && archiveStatus !== "OK" && (
             <span className="inline-flex items-center gap-1 rounded-full border border-amber-500/20 bg-amber-500/10 px-2 py-0.5 text-[11px] text-amber-600 dark:text-amber-400">
               <FolderOpen size={11} />
