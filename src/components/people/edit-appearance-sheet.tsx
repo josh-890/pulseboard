@@ -74,7 +74,9 @@ export function EditAppearanceSheet({ person, open: controlledOpen, onOpenChange
 
   const getDefaults = (): UpdateAppearanceFormValues => ({
     id: person.id,
-    eyeColor: person.eyeColor ?? "",
+    // Eye color migrated off Person.eyeColor in Slice 3a — read the baseline
+    // delta so the form reflects what we actually persist.
+    eyeColor: baselineDeltaValue("cattr-eye-color") ?? "",
     measurements: baselineDeltaValue("cattr-measurements") ?? "",
     height: person.height ?? undefined,
     weight: weightValue ? Number(weightValue) : undefined,

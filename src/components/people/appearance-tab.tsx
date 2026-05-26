@@ -224,8 +224,12 @@ export function AppearanceTab({
   const ethnicityDisplay = ethnicityBroad
     ? ethnicitySpecific ? `${ethnicityBroad} → ${ethnicitySpecific}` : ethnicityBroad
     : null;
-  const hasStatic = ethnicityDisplay; // height + eyeColor moved to catalog (Slice 3a); ethnicity in Slice 16C
-  const hasComputed = currentState.currentHairColor || currentState.weight !== null || currentState.build || currentState.breastSize || currentState.breastStatus || currentState.breastDescription || currentState.measurements;
+  // Eye color comes from extensibleAttributes['cattr-eye-color'] — it lives on
+  // the baseline ScalarDelta but renders right next to hair color in the static
+  // section so editing static attrs to fix import errors stays a first-class flow.
+  const eyeColorValue = currentState.extensibleAttributes["cattr-eye-color"]?.value ?? null;
+  const hasStatic = ethnicityDisplay; // height moved to catalog (Slice 3a); ethnicity in Slice 16C
+  const hasComputed = currentState.currentHairColor || eyeColorValue || currentState.weight !== null || currentState.build || currentState.breastSize || currentState.breastStatus || currentState.breastDescription || currentState.measurements;
   const hasExtensible = Object.keys(currentState.extensibleAttributes).length > 0;
 
   // Baseline value of the "core" breast_size scalar for Pattern Y rendering
@@ -288,6 +292,8 @@ export function AppearanceTab({
       // static section as a combined "Broad → Specific" line. Skip them
       // here to avoid double-rendering.
       if (defId === "cattr-ethnicity-broad" || defId === "cattr-ethnicity-specific") continue;
+      // Eye color is surfaced inline next to Hair Color in the static section.
+      if (defId === "cattr-eye-color") continue;
       if (!groups[attr.groupName]) groups[attr.groupName] = [];
       groups[attr.groupName].push({
         name: attr.name,
@@ -676,10 +682,11 @@ export function AppearanceTab({
                 <dl className="grid grid-cols-1 gap-2 text-sm sm:grid-cols-2">
                   {/* Slice 16C: ethnicity now sourced from the catalog deltas via currentState. */}
                   {ethnicityDisplay && <InfoRow label="Ethnicity" value={ethnicityDisplay} labelWidth="w-28" />}
-                  {/* Height + Eye Color migrated to the catalog/delta path in Phase G Slice 3a —
-                      they appear automatically in the extensible groups section below
-                      (Core Body Measurements / Eye Features). Don't dupe them here. */}
+                  {/* Height migrated to the catalog/delta path in Phase G Slice 3a —
+                      appears in the Core Body Measurements group below. Eye color
+                      is surfaced inline here next to Hair Color for discoverability. */}
                   {currentState.currentHairColor && <InfoRow label="Hair color" value={<span className="capitalize">{currentState.currentHairColor}</span>} labelWidth="w-28" />}
+                  {eyeColorValue && <InfoRow label="Eye color" value={<span className="capitalize">{eyeColorValue}</span>} labelWidth="w-28" />}
                   {currentState.breastSize && (
                     <InfoRow
                       label="Breast size"
