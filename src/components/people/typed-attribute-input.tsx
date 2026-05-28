@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -116,54 +117,8 @@ export function TypedAttributeInput({ definition, value, onChange, className }: 
       );
     }
 
-    case "NUMERIC": {
-      // ADR-0008 / Phase G Slice 16D Step 4: when the canonical unit is cm,
-      // show an inches sibling so the user can author in either system. cm
-      // stays canonical; inches is a view. Body measurements from US sources
-      // (e.g. "34-23-35") can be typed straight into the in field.
-      const showInches = definition.unit === "cm";
-      const numValue = value === "" ? null : Number(value);
-      const inchesView =
-        showInches && numValue != null && Number.isFinite(numValue)
-          ? (numValue / 2.54).toFixed(1)
-          : "";
-      return (
-        <div className={cn("flex items-center gap-2", className)}>
-          <Input
-            type="number"
-            value={value}
-            onChange={(e) => onChange(e.target.value)}
-            step="any"
-            className="h-9 flex-1 text-sm"
-          />
-          {definition.unit && (
-            <span className="text-xs text-muted-foreground">{definition.unit}</span>
-          )}
-          {showInches && (
-            <>
-              <span className="text-xs text-muted-foreground">≈</span>
-              <Input
-                type="number"
-                value={inchesView}
-                onChange={(e) => {
-                  const raw = e.target.value;
-                  if (raw === "") {
-                    onChange("");
-                    return;
-                  }
-                  const n = Number(raw);
-                  if (Number.isFinite(n)) onChange((n * 2.54).toFixed(1));
-                }}
-                step="any"
-                className="h-9 w-20 text-sm"
-                aria-label={`${definition.name} in inches`}
-              />
-              <span className="text-xs text-muted-foreground">in</span>
-            </>
-          )}
-        </div>
-      );
-    }
+    case "NUMERIC":
+      return <NumericInput definition={definition} value={value} onChange={onChange} className={className} />;
 
     case "TEXT":
     default:
@@ -176,4 +131,90 @@ export function TypedAttributeInput({ definition, value, onChange, className }: 
         />
       );
   }
+}
+
+// ADR-0008 / Phase G Slice 16D Step 4: NUMERIC input with an optional inches
+// sibling when the canonical unit is cm. cm stays the stored value; the
+// inches field is a view + alternate authoring path for US-formatted body
+// measurements (e.g. "34-23-35").
+//
+// Each input owns a local draft string while focused so the derived re-format
+// can't clobber what the user is mid-type. On blur the draft is dropped and
+// the view re-derives from the canonical cm value.
+function NumericInput({
+  definition,
+  value,
+  onChange,
+  className,
+}: {
+  definition: TypedAttributeDefinition;
+  value: string;
+  onChange: (next: string) => void;
+  className?: string;
+}) {
+  const showInches = definition.unit === "cm";
+  const cmNumber = value === "" ? null : Number(value);
+  const inchesView =
+    cmNumber != null && Number.isFinite(cmNumber)
+      ? (cmNumber / 2.54).toFixed(1)
+      : "";
+
+  const [cmFocused, setCmFocused] = useState(false);
+  const [cmDraft, setCmDraft] = useState("");
+  const [inFocused, setInFocused] = useState(false);
+  const [inDraft, setInDraft] = useState("");
+
+  const cmDisplay = cmFocused ? cmDraft : value;
+  const inDisplay = inFocused ? inDraft : inchesView;
+
+  return (
+    <div className={cn("flex items-center gap-2", className)}>
+      <Input
+        type="number"
+        value={cmDisplay}
+        onFocus={() => {
+          setCmDraft(value);
+          setCmFocused(true);
+        }}
+        onBlur={() => setCmFocused(false)}
+        onChange={(e) => {
+          setCmDraft(e.target.value);
+          onChange(e.target.value);
+        }}
+        step="any"
+        className="h-9 flex-1 text-sm"
+      />
+      {definition.unit && (
+        <span className="text-xs text-muted-foreground">{definition.unit}</span>
+      )}
+      {showInches && (
+        <>
+          <span className="text-xs text-muted-foreground">≈</span>
+          <Input
+            type="number"
+            value={inDisplay}
+            onFocus={() => {
+              setInDraft(inchesView);
+              setInFocused(true);
+            }}
+            onBlur={() => setInFocused(false)}
+            onChange={(e) => {
+              const raw = e.target.value;
+              setInDraft(raw);
+              if (raw === "") {
+                onChange("");
+                return;
+              }
+              const n = Number(raw);
+              if (Number.isFinite(n)) onChange(String(n * 2.54));
+            }}
+            step="any"
+            className="h-9 w-20 text-sm"
+            aria-label={`${definition.name} in inches`}
+          />
+          <span className="text-xs text-muted-foreground">in</span>
+        </>
+      )}
+    </div>
+  );
 }
