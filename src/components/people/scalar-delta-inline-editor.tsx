@@ -19,6 +19,7 @@ type DeltaForEdit = {
   attributeDefinition: {
     id: string;
     name: string;
+    slug: string;
     unit: string | null;
     valueType: "TEXT" | "NUMERIC" | "SINGLE_SELECT" | "MULTI_SELECT" | "BOOLEAN" | "ORDINAL";
     allowedValues: string[];

@@ -9,6 +9,7 @@ import type { PhysicalAttributeValueType } from "@/generated/prisma/client";
 export type TypedAttributeDefinition = {
   id: string;
   name: string;
+  slug: string;
   unit: string | null;
   valueType: PhysicalAttributeValueType;
   allowedValues: string[];
@@ -152,7 +153,11 @@ function NumericInput({
   onChange: (next: string) => void;
   className?: string;
 }) {
-  const showInches = definition.unit === "cm";
+  // Height has its own dedicated edit affordance, and US convention for
+  // height is ft′in″ not raw inches — show 165 cm ≈ 65 in is technically
+  // correct but misleading. Skip the sibling for height; body measurements
+  // (Bust/Waist/Hips/Inseam/...) keep it.
+  const showInches = definition.unit === "cm" && definition.slug !== "height";
   const cmNumber = value === "" ? null : Number(value);
   const inchesView =
     cmNumber != null && Number.isFinite(cmNumber)
