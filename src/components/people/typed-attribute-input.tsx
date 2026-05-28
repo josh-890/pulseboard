@@ -116,7 +116,17 @@ export function TypedAttributeInput({ definition, value, onChange, className }: 
       );
     }
 
-    case "NUMERIC":
+    case "NUMERIC": {
+      // ADR-0008 / Phase G Slice 16D Step 4: when the canonical unit is cm,
+      // show an inches sibling so the user can author in either system. cm
+      // stays canonical; inches is a view. Body measurements from US sources
+      // (e.g. "34-23-35") can be typed straight into the in field.
+      const showInches = definition.unit === "cm";
+      const numValue = value === "" ? null : Number(value);
+      const inchesView =
+        showInches && numValue != null && Number.isFinite(numValue)
+          ? (numValue / 2.54).toFixed(1)
+          : "";
       return (
         <div className={cn("flex items-center gap-2", className)}>
           <Input
@@ -129,8 +139,31 @@ export function TypedAttributeInput({ definition, value, onChange, className }: 
           {definition.unit && (
             <span className="text-xs text-muted-foreground">{definition.unit}</span>
           )}
+          {showInches && (
+            <>
+              <span className="text-xs text-muted-foreground">≈</span>
+              <Input
+                type="number"
+                value={inchesView}
+                onChange={(e) => {
+                  const raw = e.target.value;
+                  if (raw === "") {
+                    onChange("");
+                    return;
+                  }
+                  const n = Number(raw);
+                  if (Number.isFinite(n)) onChange((n * 2.54).toFixed(1));
+                }}
+                step="any"
+                className="h-9 w-20 text-sm"
+                aria-label={`${definition.name} in inches`}
+              />
+              <span className="text-xs text-muted-foreground">in</span>
+            </>
+          )}
         </div>
       );
+    }
 
     case "TEXT":
     default:
