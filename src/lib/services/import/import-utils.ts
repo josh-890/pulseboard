@@ -48,3 +48,17 @@ export function extractCupFromMeasurements(measurements: string): string | null 
   const match = measurements.match(/\d{2,3}([A-H]{1,2})/i)
   return match ? match[1].toUpperCase() : null
 }
+
+/**
+ * ADR-0008 principle 4: when the source signals an enhanced status, the cup
+ * we extracted from measurements / breast description reflects the post-
+ * enhancement state and is not a natural baseline value. Returning null tells
+ * the import not to write a baseline breast-size delta — the gap stays
+ * searchable as "natural breast size unknown" for manual curation.
+ */
+export function chooseNaturalCup(
+  cupAny: string | null,
+  parsedStatus: 'natural' | 'enhanced' | null,
+): string | null {
+  return parsedStatus === 'enhanced' ? null : cupAny
+}

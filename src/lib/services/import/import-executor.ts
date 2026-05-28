@@ -18,7 +18,7 @@ import { recomputePersonCurrentStateStandalone } from '@/lib/services/current-st
 import { markItemImported, computeDependencies } from './staging-service'
 import { markStagingSetPromoted } from './staging-set-service'
 import type { ParticipantStatus } from './staging-set-service'
-import { parseBreastDescription, extractCupFromMeasurements } from './import-utils'
+import { parseBreastDescription, extractCupFromMeasurements, chooseNaturalCup } from './import-utils'
 import { transferStagingCoverToSet } from './cover-transfer'
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -214,8 +214,10 @@ export async function importPerson(item: ImportItem): Promise<ImportResult> {
       cupFromMeasurements = extractCupFromMeasurements(measurementsRaw)
     }
 
-    // Best cup size: prefer measurements-derived (precise letter) over text description
-    const naturalCup = cupFromMeasurements ?? breastParsed?.cupSize ?? null
+    // Best cup size from any source. Used as the post-enhancement value when
+    // the source signals SURGICAL.
+    const cupAny = cupFromMeasurements ?? breastParsed?.cupSize ?? null
+    const naturalCup = chooseNaturalCup(cupAny, breastParsed?.status ?? null)
 
     const hairColor = data.hairColor as string | undefined
 
@@ -302,7 +304,7 @@ export async function importPerson(item: ImportItem): Promise<ImportResult> {
           data: {
             eraId: draftEra.id,
             attributeDefinitionId: 'cattr-breast-size',
-            value: naturalCup ?? breastParsed.cupSize ?? '',
+            value: cupAny ?? '',
             cause: 'SURGICAL',
             datePrecision: 'UNKNOWN',
             dateSource: 'import-enhanced',
