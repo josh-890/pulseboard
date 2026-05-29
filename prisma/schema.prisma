@@ -1281,8 +1281,12 @@ model PersonCurrentState {
   skinToneRank      Int?
   skinUndertone     String?
 
-  currentAttributes Json @default("{}")
-  attributeStatuses Json @default("{}") // folded NATURAL/ENHANCED/RESTORED — populated in Phase C
+  currentAttributes  Json @default("{}")
+  attributeStatuses  Json @default("{}") // folded NATURAL/ENHANCED/RESTORED — populated in Phase C
+  // Slice 16 Step 4 / ADR-0008 principle 4: {slug: value} for baseline-Era
+  // deltas only. Drives the "baseline value is missing for attribute X"
+  // search filter — the audit hook ADR-0008 commits the product to.
+  baselineAttributes Json @default("{}")
 
   hasTattoo       Boolean @default(false)
   hasScar         Boolean @default(false)

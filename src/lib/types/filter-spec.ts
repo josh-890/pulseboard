@@ -37,6 +37,8 @@ export type TextFilter = {
 
 export type AttributeStatusFilter = "NATURAL" | "ENHANCED" | "RESTORED";
 
+export type AttributeBaselinePresence = "has" | "missing";
+
 export type AttributeFilter = {
   definitionId: string;
   values: string[];         // for BOOLEAN / SINGLE_SELECT / MULTI_SELECT
@@ -47,6 +49,13 @@ export type AttributeFilter = {
   // default in the cache (only non-NATURAL keys are stored), so the query for
   // NATURAL translates to "this slug is NOT a key in attributeStatuses".
   status?: AttributeStatusFilter;
+  // Slice 16 Step 4 / ADR-0008 principle 4: "natural value unknown" audit
+  // filter. `missing` finds persons whose baseline Era has no delta for this
+  // attribute — surfacing the gap left by the source-explicit-status carve-out
+  // in ADR-0008 (e.g. "enhanced" cup with no natural cup to write to baseline).
+  // `has` is the inverse — useful when narrowing to persons with a confirmed
+  // baseline. Backed by PersonCurrentState.baselineAttributes JSONB.
+  baselinePresence?: AttributeBaselinePresence;
 };
 
 export type TimeScope = "current" | "ever";
@@ -107,6 +116,7 @@ export function specSummary(spec: FilterSpec): string {
   for (const a of spec.attribute) {
     if (a.values.length > 0) parts.push(`${a.definitionId}=${a.values.join("|")}`);
     if (a.status) parts.push(`${a.definitionId}.status=${a.status}`);
+    if (a.baselinePresence) parts.push(`${a.definitionId}.baseline=${a.baselinePresence}`);
   }
   if (spec.timeScope === "ever") parts.push("ever");
   return parts.join(" ");
@@ -154,11 +164,13 @@ export function specToUrlParams(spec: FilterSpec): URLSearchParams {
     const hasValues = a.values.length > 0;
     const hasRange = a.min != null || a.max != null;
     const hasStatus = a.status != null;
-    if (!hasValues && !hasRange && !hasStatus) continue;
+    const hasBaseline = a.baselinePresence != null;
+    if (!hasValues && !hasRange && !hasStatus && !hasBaseline) continue;
     if (hasValues) p.set(`attr.${a.definitionId}`, a.values.join(","));
     if (a.min != null) p.set(`attr.${a.definitionId}.min`, String(a.min));
     if (a.max != null) p.set(`attr.${a.definitionId}.max`, String(a.max));
     if (a.status != null) p.set(`attr.${a.definitionId}.status`, a.status);
+    if (a.baselinePresence != null) p.set(`attr.${a.definitionId}.baseline`, a.baselinePresence);
   }
   if (spec.timeScope === "ever") p.set("time", "ever");
 
@@ -292,7 +304,7 @@ export function specFromUrlParams(params: ReadableParams): FilterSpec {
     if (key.startsWith("attr.")) {
       const rest = key.slice(5);
       let definitionId: string;
-      let kind: "values" | "min" | "max" | "status" = "values";
+      let kind: "values" | "min" | "max" | "status" | "baseline" = "values";
       if (rest.endsWith(".min")) {
         definitionId = rest.slice(0, -4);
         kind = "min";
@@ -302,6 +314,9 @@ export function specFromUrlParams(params: ReadableParams): FilterSpec {
       } else if (rest.endsWith(".status")) {
         definitionId = rest.slice(0, -7);
         kind = "status";
+      } else if (rest.endsWith(".baseline")) {
+        definitionId = rest.slice(0, -9);
+        kind = "baseline";
       } else {
         definitionId = rest;
       }
@@ -323,6 +338,10 @@ export function specFromUrlParams(params: ReadableParams): FilterSpec {
         if (value === "NATURAL" || value === "ENHANCED" || value === "RESTORED") {
           entry.status = value;
         }
+      } else if (kind === "baseline") {
+        if (value === "has" || value === "missing") {
+          entry.baselinePresence = value;
+        }
       }
       continue;
     }
@@ -335,7 +354,12 @@ export function specFromUrlParams(params: ReadableParams): FilterSpec {
   spec.region = Array.from(regionFields.values()).filter((r) => r.regions.length > 0);
   spec.text = Array.from(textFields.values()).filter((t) => t.query);
   spec.attribute = spec.attribute.filter(
-    (a) => a.values.length > 0 || a.min != null || a.max != null || a.status != null,
+    (a) =>
+      a.values.length > 0 ||
+      a.min != null ||
+      a.max != null ||
+      a.status != null ||
+      a.baselinePresence != null,
   );
 
   return spec;

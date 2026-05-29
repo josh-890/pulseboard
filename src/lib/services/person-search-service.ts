@@ -250,6 +250,20 @@ function buildAttributeClauses(
       }
     }
 
+    // Slice 16 Step 4 / ADR-0008 principle 4: baseline-presence sub-filter
+    // against the cached PersonCurrentState.baselineAttributes JSONB. `missing`
+    // is the audit-search target — finds persons whose baseline Era has no
+    // delta for this attribute (e.g. enhanced cup without a separate natural
+    // value). `has` is the inverse. Orthogonal to status: a person can be
+    // status=NATURAL with baseline=missing (the snapshot-vs-era carve-out).
+    if (f.baselinePresence != null) {
+      if (f.baselinePresence === "missing") {
+        out.push(Prisma.sql`NOT (mv."baselineAttributes" ? ${slug})`);
+      } else {
+        out.push(Prisma.sql`mv."baselineAttributes" ? ${slug}`);
+      }
+    }
+
     if (!hasValues && !hasRange) continue;
 
     // "Ever" mode: route through PersonaPhysicalAttribute history rather than
