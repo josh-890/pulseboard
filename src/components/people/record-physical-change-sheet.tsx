@@ -12,6 +12,7 @@ import { SelectWithOther } from "@/components/shared/select-with-other";
 import { ColorValueCombobox } from "@/components/people/color-value-combobox";
 import { TypedAttributeInput } from "@/components/people/typed-attribute-input";
 import { BUILD_OPTIONS, BREAST_SIZE_OPTIONS, BREAST_STATUS_OPTIONS, CORE_PHYSICAL_ATTR_IDS } from "@/lib/constants/appearance";
+import { CoreFieldRow } from "@/components/people/core-field-row";
 
 type RecordPhysicalChangeSheetProps = {
   personId: string;
@@ -445,47 +446,3 @@ export function RecordPhysicalChangeSheet({ personId, currentState, attributeGro
   );
 }
 
-// Slice 16 follow-up: small wrapper that renders a Tier 1 core field with
-// an inline "don't know" toggle. When `unknown` is true the input collapses
-// to a muted "Marked unknown" notice with a clear link.
-function CoreFieldRow({
-  label,
-  unknown,
-  onUnknownChange,
-  children,
-}: {
-  label: string;
-  unknown: boolean;
-  onUnknownChange: (next: boolean) => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <div>
-      <div className="mb-1.5 flex items-center justify-between gap-2">
-        <label className="block text-sm font-medium">{label}</label>
-        {unknown ? (
-          <button
-            type="button"
-            onClick={() => onUnknownChange(false)}
-            className="text-[10px] text-muted-foreground hover:text-foreground underline"
-          >
-            clear
-          </button>
-        ) : (
-          <button
-            type="button"
-            onClick={() => onUnknownChange(true)}
-            className="text-[10px] text-muted-foreground hover:text-foreground underline"
-          >
-            don&apos;t know
-          </button>
-        )}
-      </div>
-      {unknown ? (
-        <p className="text-sm italic text-muted-foreground/70">Marked unknown.</p>
-      ) : (
-        children
-      )}
-    </div>
-  );
-}

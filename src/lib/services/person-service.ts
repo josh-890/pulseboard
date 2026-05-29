@@ -1469,6 +1469,13 @@ export async function updatePersonAppearance(
     build?: string;
     currentHairColor?: string;
     breastSize?: string;
+    // Slice 16 follow-up: per-field verified-unknown flags.
+    eyeColorUnknown?: boolean;
+    hairColorUnknown?: boolean;
+    weightUnknown?: boolean;
+    heightUnknown?: boolean;
+    buildUnknown?: boolean;
+    breastSizeUnknown?: boolean;
   },
 ): Promise<void> {
   await Promise.all([
@@ -1476,36 +1483,54 @@ export async function updatePersonAppearance(
     ensureCatalogEntry("eye",  data.eyeColor),
   ]);
   await prisma.$transaction(async (tx) => {
-    // eyeColor + height moved to Baseline ScalarDeltas in Phase G Slice 3a.
-    // Person columns are no longer written here (orphan-data avoidance).
-    // All baseline attribute updates are funnelled through `setBaselineDelta` below.
-
-    // Weight / build / hair colour are baseline ScalarDeltas. Editing appearance
-    // replaces the baseline era's delta for each provided attribute.
     const baselineEra = await tx.era.findFirst({
       where: { personId: id, isBaseline: true },
       select: { id: true },
     });
     if (baselineEra) {
-      const setBaselineDelta = async (attrId: string, value: string | undefined) => {
-        if (value === undefined) return; // not in the patch — leave as-is
+      // Slice 16 follow-up: when isVerifiedUnknown is true, write an empty-
+      // value delta with the flag set; the fold writes the "__UNKNOWN__"
+      // sentinel into baselineAttributes. Otherwise normal value semantics.
+      const setBaselineDelta = async (
+        attrId: string,
+        value: string | undefined,
+        isUnknown: boolean = false,
+      ) => {
+        if (value === undefined && !isUnknown) return; // not in the patch — leave as-is
         await tx.scalarDelta.deleteMany({
           where: { eraId: baselineEra.id, attributeDefinitionId: attrId },
         });
-        if (value.trim() !== "") {
+        if (isUnknown) {
+          await tx.scalarDelta.create({
+            data: {
+              eraId: baselineEra.id,
+              attributeDefinitionId: attrId,
+              value: "",
+              isVerifiedUnknown: true,
+            },
+          });
+        } else if (value && value.trim() !== "") {
           await tx.scalarDelta.create({
             data: { eraId: baselineEra.id, attributeDefinitionId: attrId, value },
           });
         }
       };
-      await setBaselineDelta(CORE_ATTR.hairColor, data.currentHairColor);
-      await setBaselineDelta(CORE_ATTR.weight, data.weight !== undefined ? String(data.weight) : undefined);
-      await setBaselineDelta(CORE_ATTR.build, data.build);
-      await setBaselineDelta(CORE_ATTR.breastSize, data.breastSize);
+      await setBaselineDelta(CORE_ATTR.hairColor, data.currentHairColor, data.hairColorUnknown ?? false);
+      await setBaselineDelta(
+        CORE_ATTR.weight,
+        data.weight !== undefined ? String(data.weight) : undefined,
+        data.weightUnknown ?? false,
+      );
+      await setBaselineDelta(CORE_ATTR.build, data.build, data.buildUnknown ?? false);
+      await setBaselineDelta(CORE_ATTR.breastSize, data.breastSize, data.breastSizeUnknown ?? false);
       await setBaselineDelta(CORE_ATTR.measurements, data.measurements);
       // Phase G Slice 3a additions
-      await setBaselineDelta("cattr-eye-color", data.eyeColor);
-      await setBaselineDelta("cattr-height", data.height !== undefined ? String(data.height) : undefined);
+      await setBaselineDelta("cattr-eye-color", data.eyeColor, data.eyeColorUnknown ?? false);
+      await setBaselineDelta(
+        "cattr-height",
+        data.height !== undefined ? String(data.height) : undefined,
+        data.heightUnknown ?? false,
+      );
     }
 
     await recomputePersonCurrentState(tx, id);

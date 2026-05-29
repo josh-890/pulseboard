@@ -315,6 +315,11 @@ export function AppearanceTab({
       .map((p) => {
         const deltaFor = (defId: string) =>
           p.scalarDeltas.find((d) => d.attributeDefinitionId === defId && d.value.trim() !== "");
+        // Slice 16 follow-up: an Era's verified-unknown delta has value="" and
+        // isVerifiedUnknown=true. The non-empty deltaFor() helper skips those,
+        // so look them up separately.
+        const unknownFor = (defId: string) =>
+          p.scalarDeltas.some((d) => d.attributeDefinitionId === defId && d.isVerifiedUnknown);
         const weightVal = deltaFor("cattr-weight")?.value;
         const breastDelta = deltaFor("cattr-breast-size");
         return {
@@ -329,6 +334,10 @@ export function AppearanceTab({
           breastSize: breastDelta?.value ?? null,
           breastStatus: null,
           breastDescription: breastDelta?.notes ?? null,
+          hairColorUnknown: unknownFor("cattr-hair-color"),
+          weightUnknown: unknownFor("cattr-weight"),
+          buildUnknown: unknownFor("cattr-build"),
+          breastSizeUnknown: unknownFor("cattr-breast-size"),
           // Slice 16 follow-up: verified-unknown deltas have value="" but
           // must surface in the edit list so the user can clear or modify them.
           attributes: p.scalarDeltas

@@ -10,6 +10,7 @@ import type { PhysicalAttributeGroupWithDefinitions } from "@/lib/services/physi
 import { SelectWithOther } from "@/components/shared/select-with-other";
 import { ColorValueCombobox } from "@/components/people/color-value-combobox";
 import { TypedAttributeInput } from "@/components/people/typed-attribute-input";
+import { CoreFieldRow } from "@/components/people/core-field-row";
 import { BREAST_SIZE_OPTIONS, BREAST_STATUS_OPTIONS, CORE_PHYSICAL_ATTR_IDS } from "@/lib/constants/appearance";
 
 type PhysicalAttributeItem = {
@@ -32,6 +33,11 @@ type PhysicalChangeItem = {
   breastSize: string | null;
   breastStatus: string | null;
   breastDescription: string | null;
+  // Slice 16 follow-up: verified-unknown flags per core field on this Era.
+  hairColorUnknown?: boolean;
+  weightUnknown?: boolean;
+  buildUnknown?: boolean;
+  breastSizeUnknown?: boolean;
   attributes: PhysicalAttributeItem[];
 };
 
@@ -77,6 +83,11 @@ export function EditPhysicalChangeSheet({ personId, item, attributeGroups, onClo
   const [breastSize, setBreastSize] = useState(item.breastSize ?? "");
   const [breastStatus, setBreastStatus] = useState(item.breastStatus ?? "");
   const [breastDescription, setBreastDescription] = useState(item.breastDescription ?? "");
+  // Slice 16 follow-up: verified-unknown flags for the 4 core fields.
+  const [hairColorUnknown, setHairColorUnknown] = useState(item.hairColorUnknown ?? false);
+  const [weightUnknown, setWeightUnknown] = useState(item.weightUnknown ?? false);
+  const [buildUnknown, setBuildUnknown] = useState(item.buildUnknown ?? false);
+  const [breastSizeUnknown, setBreastSizeUnknown] = useState(item.breastSizeUnknown ?? false);
   // Initialize extensible attribute values from existing item
   const [attrValues, setAttrValues] = useState<Record<string, string>>(() => {
     const init: Record<string, string> = {};
@@ -110,8 +121,20 @@ export function EditPhysicalChangeSheet({ personId, item, attributeGroups, onClo
   });
   const [error, setError] = useState<string | null>(null);
 
-  const hasAnyAttr = Object.values(attrValues).some((v) => v.trim());
-  const hasAnyField = currentHairColor.trim() || weight.trim() || build.trim() || breastSize.trim() || breastStatus.trim() || breastDescription.trim() || hasAnyAttr;
+  const hasAnyAttr = Object.values(attrValues).some((v) => v.trim()) || Object.values(attrUnknown).some(Boolean);
+  // Verified-unknown flags also count as "filled" for the submit gate.
+  const hasAnyField =
+    currentHairColor.trim() ||
+    weight.trim() ||
+    build.trim() ||
+    breastSize.trim() ||
+    breastStatus.trim() ||
+    breastDescription.trim() ||
+    hairColorUnknown ||
+    weightUnknown ||
+    buildUnknown ||
+    breastSizeUnknown ||
+    hasAnyAttr;
 
   // Phase G Slice 6½ / ADR-0007 amendment: gate the Cause picker on at least
   // one status-bearing attr being present in this Era's editable set.
@@ -158,14 +181,25 @@ export function EditPhysicalChangeSheet({ personId, item, attributeGroups, onClo
         date: intent === "on-date" ? (date || null) : null,
         datePrecision: intent === "on-date" ? datePrecision : "UNKNOWN",
         intent,
-        currentHairColor: currentHairColor.trim() || undefined,
-        weight: weight.trim() ? parseFloat(weight) : undefined,
-        build: build.trim() || undefined,
-        breastSize: breastSize.trim() || undefined,
+        // When a field is marked unknown, send "" so the action takes the
+        // verified-unknown branch via coreAttrUnknown below.
+        currentHairColor: hairColorUnknown ? "" : (currentHairColor.trim() || undefined),
+        weight: weightUnknown ? undefined : (weight.trim() ? parseFloat(weight) : undefined),
+        build: buildUnknown ? "" : (build.trim() || undefined),
+        breastSize: breastSizeUnknown ? "" : (breastSize.trim() || undefined),
         breastStatus: breastStatus.trim() || undefined,
         breastDescription: breastDescription.trim() || undefined,
         attributes: attributes.length > 0 ? attributes : undefined,
         cause,
+        coreAttrUnknown:
+          hairColorUnknown || weightUnknown || buildUnknown || breastSizeUnknown
+            ? {
+                hairColor: hairColorUnknown,
+                weight: weightUnknown,
+                build: buildUnknown,
+                breastSize: breastSizeUnknown,
+              }
+            : undefined,
       });
       if (!result.success) {
         setError(result.error ?? "Failed to update change.");
@@ -173,7 +207,7 @@ export function EditPhysicalChangeSheet({ personId, item, attributeGroups, onClo
       }
       onClose();
     });
-  }, [item.eraId, personId, date, datePrecision, intent, currentHairColor, weight, build, breastSize, breastStatus, breastDescription, attrValues, hasAnyField, cause, onClose]);
+  }, [item.eraId, personId, date, datePrecision, intent, currentHairColor, weight, build, breastSize, breastStatus, breastDescription, attrValues, attrUnknown, hairColorUnknown, weightUnknown, buildUnknown, breastSizeUnknown, hasAnyField, cause, onClose]);
 
   return (
     <div role="dialog" aria-modal="true" className="fixed inset-0 z-50 flex justify-end">
@@ -266,18 +300,16 @@ export function EditPhysicalChangeSheet({ personId, item, attributeGroups, onClo
             </div>
           )}
 
-          <div>
-            <label className="mb-1.5 block text-sm font-medium">Hair Color</label>
+          <CoreFieldRow label="Hair Color" unknown={hairColorUnknown} onUnknownChange={(v) => { setHairColorUnknown(v); if (v) setCurrentHairColor(""); }}>
             <ColorValueCombobox
               category="hair"
               value={currentHairColor || undefined}
               onChange={(v) => setCurrentHairColor(v ?? "")}
               placeholder="Select hair color…"
             />
-          </div>
+          </CoreFieldRow>
 
-          <div>
-            <label className="mb-1.5 block text-sm font-medium">Weight (kg)</label>
+          <CoreFieldRow label="Weight (kg)" unknown={weightUnknown} onUnknownChange={(v) => { setWeightUnknown(v); if (v) setWeight(""); }}>
             <input
               type="number"
               value={weight}
@@ -287,10 +319,9 @@ export function EditPhysicalChangeSheet({ personId, item, attributeGroups, onClo
               min="0"
               className="w-full rounded-lg border border-white/15 bg-muted/30 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
             />
-          </div>
+          </CoreFieldRow>
 
-          <div>
-            <label className="mb-1.5 block text-sm font-medium">Build</label>
+          <CoreFieldRow label="Build" unknown={buildUnknown} onUnknownChange={(v) => { setBuildUnknown(v); if (v) setBuild(""); }}>
             <input
               type="text"
               value={build}
@@ -298,17 +329,16 @@ export function EditPhysicalChangeSheet({ personId, item, attributeGroups, onClo
               placeholder="e.g. slim, athletic, muscular..."
               className="w-full rounded-lg border border-white/15 bg-muted/30 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
             />
-          </div>
+          </CoreFieldRow>
 
-          <div>
-            <label className="mb-1.5 block text-sm font-medium">Breast Size</label>
+          <CoreFieldRow label="Breast Size" unknown={breastSizeUnknown} onUnknownChange={(v) => { setBreastSizeUnknown(v); if (v) setBreastSize(""); }}>
             <SelectWithOther
               options={BREAST_SIZE_OPTIONS}
               value={breastSize || undefined}
               onChange={(v) => setBreastSize(v ?? "")}
               placeholder="Select cup size…"
             />
-          </div>
+          </CoreFieldRow>
 
           <div>
             <label className="mb-1.5 block text-sm font-medium">Breast Status</label>

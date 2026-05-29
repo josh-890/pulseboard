@@ -31,6 +31,7 @@ import {
 import { updatePersonAppearanceAction } from "@/lib/actions/person-actions";
 import { SelectWithOther } from "@/components/shared/select-with-other";
 import { ColorValueCombobox } from "@/components/people/color-value-combobox";
+import { CoreFieldRow } from "@/components/people/core-field-row";
 import {
   BUILD_OPTIONS,
   BREAST_SIZE_OPTIONS,
@@ -70,6 +71,12 @@ export function EditAppearanceSheet({ person, open: controlledOpen, onOpenChange
     baselineEra?.scalarDeltas.find(
       (d) => d.attributeDefinitionId === defId && d.value.trim() !== "",
     )?.value ?? null;
+  // Slice 16 follow-up: surface verified-unknown deltas (value="", flag=true)
+  // so the form initialises with the right unknown state per field.
+  const baselineDeltaUnknown = (defId: string) =>
+    baselineEra?.scalarDeltas.some(
+      (d) => d.attributeDefinitionId === defId && d.isVerifiedUnknown,
+    ) ?? false;
   const weightValue = baselineDeltaValue("cattr-weight");
 
   const getDefaults = (): UpdateAppearanceFormValues => ({
@@ -83,6 +90,12 @@ export function EditAppearanceSheet({ person, open: controlledOpen, onOpenChange
     build: baselineDeltaValue("cattr-build") ?? undefined,
     currentHairColor: baselineDeltaValue("cattr-hair-color") ?? "",
     breastSize: baselineDeltaValue("cattr-breast-size") ?? "",
+    eyeColorUnknown: baselineDeltaUnknown("cattr-eye-color"),
+    hairColorUnknown: baselineDeltaUnknown("cattr-hair-color"),
+    weightUnknown: baselineDeltaUnknown("cattr-weight"),
+    heightUnknown: baselineDeltaUnknown("cattr-height"),
+    buildUnknown: baselineDeltaUnknown("cattr-build"),
+    breastSizeUnknown: baselineDeltaUnknown("cattr-breast-size"),
   });
 
   const form = useForm<UpdateAppearanceFormValues, unknown, UpdateAppearanceInput>({
@@ -136,43 +149,61 @@ export function EditAppearanceSheet({ person, open: controlledOpen, onOpenChange
               <section className="rounded-xl border bg-muted/30 dark:bg-muted/20 p-4 space-y-4">
                 <SectionHeader>Appearance</SectionHeader>
                 <div className="grid grid-cols-2 gap-3">
-                  <FormField
-                    control={form.control}
-                    name="eyeColor"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Eye Color</FormLabel>
-                        <FormControl>
-                          <ColorValueCombobox
-                            category="eye"
-                            value={field.value || undefined}
-                            onChange={(v) => field.onChange(v ?? "")}
-                            placeholder="Select eye color…"
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                  {/* Slice 16 follow-up: every Tier 1 field gets a "don't know"
+                      affordance via CoreFieldRow. Measurements is Tier 2 — stays plain. */}
+                  <CoreFieldRow
+                    label="Eye Color"
+                    unknown={form.watch("eyeColorUnknown") ?? false}
+                    onUnknownChange={(v) => {
+                      form.setValue("eyeColorUnknown", v);
+                      if (v) form.setValue("eyeColor", "");
+                    }}
+                  >
+                    <FormField
+                      control={form.control}
+                      name="eyeColor"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormControl>
+                            <ColorValueCombobox
+                              category="eye"
+                              value={field.value || undefined}
+                              onChange={(v) => field.onChange(v ?? "")}
+                              placeholder="Select eye color…"
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </CoreFieldRow>
 
-                  <FormField
-                    control={form.control}
-                    name="breastSize"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Breast Size</FormLabel>
-                        <FormControl>
-                          <SelectWithOther
-                            options={BREAST_SIZE_OPTIONS}
-                            value={field.value || undefined}
-                            onChange={(v) => field.onChange(v ?? "")}
-                            placeholder="Select cup size…"
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                  <CoreFieldRow
+                    label="Breast Size"
+                    unknown={form.watch("breastSizeUnknown") ?? false}
+                    onUnknownChange={(v) => {
+                      form.setValue("breastSizeUnknown", v);
+                      if (v) form.setValue("breastSize", "");
+                    }}
+                  >
+                    <FormField
+                      control={form.control}
+                      name="breastSize"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormControl>
+                            <SelectWithOther
+                              options={BREAST_SIZE_OPTIONS}
+                              value={field.value || undefined}
+                              onChange={(v) => field.onChange(v ?? "")}
+                              placeholder="Select cup size…"
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </CoreFieldRow>
 
                   <FormField
                     control={form.control}
@@ -192,89 +223,120 @@ export function EditAppearanceSheet({ person, open: controlledOpen, onOpenChange
                     )}
                   />
 
-                  <FormField
-                    control={form.control}
-                    name="height"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Height (cm)</FormLabel>
-                        <FormControl>
-                          <Input
-                            type="number"
-                            placeholder="e.g. 170"
-                            {...field}
-                            value={(field.value as number | undefined) ?? ""}
-                            onChange={(e) =>
-                              field.onChange(e.target.value === "" ? undefined : e.target.value)
-                            }
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                  <CoreFieldRow
+                    label="Height (cm)"
+                    unknown={form.watch("heightUnknown") ?? false}
+                    onUnknownChange={(v) => {
+                      form.setValue("heightUnknown", v);
+                      if (v) form.setValue("height", undefined);
+                    }}
+                  >
+                    <FormField
+                      control={form.control}
+                      name="height"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormControl>
+                            <Input
+                              type="number"
+                              placeholder="e.g. 170"
+                              {...field}
+                              value={(field.value as number | undefined) ?? ""}
+                              onChange={(e) =>
+                                field.onChange(e.target.value === "" ? undefined : e.target.value)
+                              }
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </CoreFieldRow>
 
-                  <FormField
-                    control={form.control}
-                    name="weight"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Weight (kg)</FormLabel>
-                        <FormControl>
-                          <Input
-                            type="number"
-                            step="0.1"
-                            placeholder="e.g. 65"
-                            {...field}
-                            value={(field.value as number | undefined) ?? ""}
-                            onChange={(e) =>
-                              field.onChange(e.target.value === "" ? undefined : e.target.value)
-                            }
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                  <CoreFieldRow
+                    label="Weight (kg)"
+                    unknown={form.watch("weightUnknown") ?? false}
+                    onUnknownChange={(v) => {
+                      form.setValue("weightUnknown", v);
+                      if (v) form.setValue("weight", undefined);
+                    }}
+                  >
+                    <FormField
+                      control={form.control}
+                      name="weight"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormControl>
+                            <Input
+                              type="number"
+                              step="0.1"
+                              placeholder="e.g. 65"
+                              {...field}
+                              value={(field.value as number | undefined) ?? ""}
+                              onChange={(e) =>
+                                field.onChange(e.target.value === "" ? undefined : e.target.value)
+                              }
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </CoreFieldRow>
 
-                  <FormField
-                    control={form.control}
-                    name="build"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Build</FormLabel>
-                        <FormControl>
-                          <SelectWithOther
-                            options={BUILD_OPTIONS}
-                            value={field.value || undefined}
-                            onChange={(v) => field.onChange(v ?? "")}
-                            placeholder="Select build…"
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                  <CoreFieldRow
+                    label="Build"
+                    unknown={form.watch("buildUnknown") ?? false}
+                    onUnknownChange={(v) => {
+                      form.setValue("buildUnknown", v);
+                      if (v) form.setValue("build", undefined);
+                    }}
+                  >
+                    <FormField
+                      control={form.control}
+                      name="build"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormControl>
+                            <SelectWithOther
+                              options={BUILD_OPTIONS}
+                              value={field.value || undefined}
+                              onChange={(v) => field.onChange(v ?? "")}
+                              placeholder="Select build…"
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </CoreFieldRow>
 
-                  <FormField
-                    control={form.control}
-                    name="currentHairColor"
-                    /* the single, folded hair colour */
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Hair Color</FormLabel>
-                        <FormControl>
-                          <ColorValueCombobox
-                            category="hair"
-                            value={field.value || undefined}
-                            onChange={(v) => field.onChange(v ?? "")}
-                            placeholder="Select hair color…"
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                  <CoreFieldRow
+                    label="Hair Color"
+                    unknown={form.watch("hairColorUnknown") ?? false}
+                    onUnknownChange={(v) => {
+                      form.setValue("hairColorUnknown", v);
+                      if (v) form.setValue("currentHairColor", "");
+                    }}
+                  >
+                    <FormField
+                      control={form.control}
+                      name="currentHairColor"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormControl>
+                            <ColorValueCombobox
+                              category="hair"
+                              value={field.value || undefined}
+                              onChange={(v) => field.onChange(v ?? "")}
+                              placeholder="Select hair color…"
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </CoreFieldRow>
 
                 </div>
               </section>

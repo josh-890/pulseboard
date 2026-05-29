@@ -103,6 +103,15 @@ export const updateAppearanceSchema = z.object({
   build: z.string().optional(),
   currentHairColor: z.string().optional(),
   breastSize: z.string().optional(),
+  // Slice 16 follow-up: verified-unknown flags. True = explicitly mark
+  // the attribute as unknown; the action writes a ScalarDelta with
+  // isVerifiedUnknown=true and value="". Measurements is Tier 2; no flag.
+  eyeColorUnknown: z.boolean().optional(),
+  hairColorUnknown: z.boolean().optional(),
+  weightUnknown: z.boolean().optional(),
+  heightUnknown: z.boolean().optional(),
+  buildUnknown: z.boolean().optional(),
+  breastSizeUnknown: z.boolean().optional(),
 });
 export type UpdateAppearanceFormValues = z.input<typeof updateAppearanceSchema>;
 export type UpdateAppearanceInput = z.output<typeof updateAppearanceSchema>;
