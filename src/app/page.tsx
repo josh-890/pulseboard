@@ -5,6 +5,7 @@ import { KpiGridSkeleton } from "@/components/dashboard/kpi-grid-skeleton";
 import { DashboardActivity } from "@/components/dashboard/dashboard-activity";
 import { ActivityFeedSkeleton } from "@/components/dashboard/activity-feed-skeleton";
 import { QuickActions } from "@/components/dashboard/quick-actions";
+import { MaintenanceTile } from "@/components/dashboard/maintenance-tile";
 
 export const dynamic = "force-dynamic";
 
@@ -22,7 +23,10 @@ export default async function Home() {
               <DashboardActivity />
             </Suspense>
           </div>
-          <div>
+          <div className="space-y-6">
+            <Suspense>
+              <MaintenanceTile />
+            </Suspense>
             <div className="rounded-2xl border border-white/30 bg-card/70 p-4 shadow-lg backdrop-blur-md md:p-6 dark:border-white/10">
               <h2 className="mb-4 text-lg font-semibold">Quick Actions</h2>
               <QuickActions />

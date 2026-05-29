@@ -306,32 +306,11 @@ function AttributeControl({
     </div>
   ) : null;
 
-  // Slice 16 Step 4 / ADR-0008 principle 4: baseline-presence sub-filter.
-  // Universal — every catalog attribute can have a missing baseline value,
-  // not just status-bearing ones. Same compact shape as the status row.
-  const baselineFilter = (
-    <div className="flex items-center gap-1 text-[10px] text-muted-foreground/70 pt-0.5">
-      <span>baseline</span>
-      <select
-        value={current?.baselinePresence ?? ""}
-        onChange={(e) => {
-          const v = e.target.value;
-          replaceEntry({
-            baselinePresence:
-              v === ""
-                ? undefined
-                : (v as import("@/lib/types/filter-spec").AttributeBaselinePresence),
-          });
-        }}
-        className="rounded bg-muted/40 px-1 py-0.5 text-[10px] focus:outline-none focus:ring-1 focus:ring-ring"
-        aria-label={`Filter ${option.name} by baseline presence`}
-      >
-        <option value="">Any</option>
-        <option value="has">Has value</option>
-        <option value="missing">Unknown</option>
-      </select>
-    </div>
-  );
+  // Slice 16 Step 4 / ADR-0008 principle 4: the baseline-presence filter is
+  // a maintenance affordance, not a daily-search one. The /maintenance page
+  // is the destination — this sidebar stays focused on finding people. The
+  // URL primitive (`attr.<id>.baseline=...`) is preserved in FilterSpec so
+  // the audit page can generate drill-down links to filtered people lists.
 
   // BOOLEAN — single checkbox
   if (option.valueType === "BOOLEAN") {
@@ -346,7 +325,6 @@ function AttributeControl({
           <span className="flex-1">{option.name}</span>
         </label>
         {statusFilter}
-        {baselineFilter}
       </div>
     );
   }
@@ -384,22 +362,21 @@ function AttributeControl({
           />
         </div>
         {statusFilter}
-        {baselineFilter}
       </div>
     );
   }
 
-  // TEXT — no value facet (too many distinct values to be useful). Slice 16
-  // Step 4 / ADR-0008: even non-status-bearing TEXT attrs render now, since
-  // the baseline-presence filter is meaningful for any catalog attribute
-  // (e.g. "Measurements baseline = unknown"). The row collapses to just the
-  // baseline sub-filter when nothing else is renderable.
+  // TEXT — no value facet (too many distinct values to be useful). After Slice
+  // 6½'s statusBearing gate, a TEXT attr that is not status-bearing has
+  // nothing to render in the sidebar (no value picker, no status filter), so
+  // we omit it entirely. Status-bearing TEXT attrs (today: just breast_size)
+  // render as a status-only row.
   if (option.valueType === "TEXT") {
+    if (!option.statusBearing) return null;
     return (
       <div className="space-y-1">
         <div className="text-[11px] text-muted-foreground">{option.name}</div>
         {statusFilter}
-        {baselineFilter}
       </div>
     );
   }
@@ -445,7 +422,6 @@ function AttributeControl({
         </div>
       )}
       {statusFilter}
-      {baselineFilter}
     </div>
   );
 }

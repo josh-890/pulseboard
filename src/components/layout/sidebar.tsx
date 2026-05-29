@@ -19,6 +19,7 @@ import {
   Palette,
   HardDrive,
   FolderSearch,
+  Wrench,
 } from "lucide-react";
 import { NavLink } from "./nav-link";
 import { useSidebar } from "./sidebar-provider";
@@ -41,6 +42,7 @@ const navItems = [
   { href: "/staging-sets", icon: <Layers size={20} />, label: "Staging Sets" },
   { href: "/shopping-list", icon: <HardDrive size={20} />, label: "Shopping List" },
   { href: "/archive", icon: <FolderSearch size={20} />, label: "Archive" },
+  { href: "/maintenance", icon: <Wrench size={20} />, label: "Maintenance" },
   { href: "/settings", icon: <Settings size={20} />, label: "Settings" },
 ];
 
