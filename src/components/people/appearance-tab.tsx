@@ -329,13 +329,20 @@ export function AppearanceTab({
           breastSize: breastDelta?.value ?? null,
           breastStatus: null,
           breastDescription: breastDelta?.notes ?? null,
+          // Slice 16 follow-up: verified-unknown deltas have value="" but
+          // must surface in the edit list so the user can clear or modify them.
           attributes: p.scalarDeltas
-            .filter((d) => !CORE_PHYSICAL_ATTR_IDS.has(d.attributeDefinitionId) && d.value.trim() !== "")
+            .filter(
+              (d) =>
+                !CORE_PHYSICAL_ATTR_IDS.has(d.attributeDefinitionId) &&
+                (d.value.trim() !== "" || d.isVerifiedUnknown),
+            )
             .map((d) => ({
               definitionId: d.attributeDefinitionId,
               name: d.attributeDefinition.name,
               unit: d.attributeDefinition.unit,
               value: d.value,
+              isVerifiedUnknown: d.isVerifiedUnknown,
             })),
         };
       });

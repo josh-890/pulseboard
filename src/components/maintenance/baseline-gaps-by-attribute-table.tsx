@@ -70,6 +70,12 @@ function Section({
               <th className="px-4 py-3 text-left font-medium">Attribute</th>
               <th className="px-4 py-3 text-left font-medium">Group</th>
               <th className="px-4 py-3 text-right font-medium">Populated</th>
+              <th
+                className="px-4 py-3 text-right font-medium"
+                title="Persons explicitly marked with no value (verified unknown)"
+              >
+                Unknown
+              </th>
               <th className="px-4 py-3 text-right font-medium">Missing</th>
               <th className="px-4 py-3 text-right font-medium"></th>
             </tr>
@@ -93,6 +99,16 @@ function Section({
                   <td className="px-4 py-3 font-medium">{r.name}</td>
                   <td className="px-4 py-3 text-muted-foreground">{r.groupName}</td>
                   <td className="px-4 py-3 text-right tabular-nums">{r.populatedCount}</td>
+                  <td
+                    className={cn(
+                      "px-4 py-3 text-right tabular-nums",
+                      r.verifiedUnknownCount > 0
+                        ? "text-muted-foreground"
+                        : "text-muted-foreground/30",
+                    )}
+                  >
+                    {r.verifiedUnknownCount}
+                  </td>
                   <td
                     className={cn(
                       "px-4 py-3 text-right tabular-nums font-medium",

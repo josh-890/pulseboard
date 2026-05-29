@@ -57,8 +57,13 @@ export const updatePersonSchema = z.object({
   birthdatePrecision: datePrecisionEnum,
   birthdateModifier: dateModifierEnum,
   birthdateSource: z.string().optional(),
+  // Slice 16 follow-up: verified-unknown flag for Birthday/Nationality.
+  // True = user explicitly confirmed there's no value; the audit
+  // distinguishes this from "haven't checked yet" (null+false).
+  birthdateUnknown: z.boolean().optional(),
   birthPlace: z.string().optional(),
   nationality: z.string().length(2).regex(/^[A-Z]{2}$/, "Must be a valid ISO alpha-2 country code").optional().or(z.literal("")),
+  nationalityUnknown: z.boolean().optional(),
   // Phase G Slice 16C T3: same split as createPersonSchema.
   ethnicityBroad: z.string().optional(),
   ethnicitySpecific: z.string().optional(),

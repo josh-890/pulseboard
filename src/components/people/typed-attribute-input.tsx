@@ -15,12 +15,21 @@ export type TypedAttributeDefinition = {
   allowedValues: string[];
   ordinalMin: number | null;
   ordinalMax: number | null;
+  // Slice 16 follow-up: drives the inline "Don't know" affordance —
+  // only rendered for TIER_1 attributes.
+  tier?: "TIER_1" | "TIER_2" | "NONE";
 };
 
 type Props = {
   definition: TypedAttributeDefinition;
   value: string;       // raw stored string; "" = absent
   onChange: (next: string) => void;
+  // Slice 16 follow-up: verified-unknown affordance. When isVerifiedUnknown
+  // is true the input collapses to a muted "Marked unknown" state with a
+  // "Clear" toggle; otherwise the normal input renders with a small
+  // "Don't know" link next to it (Tier 1 only).
+  isVerifiedUnknown?: boolean;
+  onVerifiedUnknownChange?: (next: boolean) => void;
   className?: string;
 };
 
@@ -36,7 +45,68 @@ function encodeMulti(values: string[]): string {
   return values.join(MULTI_DELIM);
 }
 
-export function TypedAttributeInput({ definition, value, onChange, className }: Props) {
+export function TypedAttributeInput({
+  definition,
+  value,
+  onChange,
+  isVerifiedUnknown,
+  onVerifiedUnknownChange,
+  className,
+}: Props) {
+  // Slice 16 follow-up: verified-unknown affordance — Tier 1 only, and
+  // only when the parent passed a setter (caller decides whether to wire
+  // it; today only the record/edit physical-change sheets do).
+  const tierOneAffordance =
+    definition.tier === "TIER_1" && onVerifiedUnknownChange != null;
+
+  // Muted "Marked unknown" collapsed state.
+  if (tierOneAffordance && isVerifiedUnknown) {
+    return (
+      <div className={cn("flex items-center gap-2 text-sm", className)}>
+        <span className="italic text-muted-foreground/70">Marked unknown</span>
+        <button
+          type="button"
+          onClick={() => onVerifiedUnknownChange?.(false)}
+          className="text-[10px] text-muted-foreground hover:text-foreground underline"
+        >
+          clear
+        </button>
+      </div>
+    );
+  }
+
+  const inputEl = renderInputBody({ definition, value, onChange, className });
+
+  if (!tierOneAffordance) return inputEl;
+
+  return (
+    <div className="flex items-start gap-2">
+      <div className="flex-1">{inputEl}</div>
+      <button
+        type="button"
+        onClick={() => {
+          onChange("");
+          onVerifiedUnknownChange?.(true);
+        }}
+        className="mt-1.5 whitespace-nowrap text-[10px] text-muted-foreground hover:text-foreground underline"
+      >
+        don&apos;t know
+      </button>
+    </div>
+  );
+}
+
+function renderInputBody({
+  definition,
+  value,
+  onChange,
+  className,
+}: {
+  definition: TypedAttributeDefinition;
+  value: string;
+  onChange: (next: string) => void;
+  className?: string;
+}) {
   switch (definition.valueType) {
     case "BOOLEAN": {
       const checked = value === "yes";

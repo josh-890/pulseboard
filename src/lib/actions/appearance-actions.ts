@@ -888,7 +888,22 @@ type PhysicalChangeData = {
   breastSize?: string;
   breastStatus?: string; // accepted for compatibility — status is derived, not stored
   breastDescription?: string;
-  attributes?: { definitionId: string; value: string }[];
+  // Slice 16 follow-up: `isVerifiedUnknown` records "user confirmed there's no
+  // value" for this attribute. Forces stored value to "" so the catalog
+  // value-shape invariant holds; the fold writes the sentinel
+  // `"__UNKNOWN__"` into PersonCurrentState.baselineAttributes.
+  attributes?: { definitionId: string; value: string; isVerifiedUnknown?: boolean }[];
+  // Slice 16 follow-up: verified-unknown flags for the 4 core scalar attrs
+  // (Hair Color, Weight, Build, Breast Size) that have hardcoded UI in the
+  // record-change sheet. When set, the matching core field's delta is
+  // written with isVerifiedUnknown=true and value="" regardless of any
+  // non-empty value passed in the top-level field.
+  coreAttrUnknown?: {
+    hairColor?: boolean;
+    weight?: boolean;
+    build?: boolean;
+    breastSize?: boolean;
+  };
   // Phase G Slice 4 / ADR-0007: optional cause for the whole change set.
   // Stored on each ScalarDelta this change creates; drives the AttributeStatus
   // derivation (NATURAL / ENHANCED / RESTORED). Defaults to NATURAL.
@@ -901,21 +916,48 @@ type PhysicalChangeData = {
   intent?: "on-date" | "dateless" | "baseline";
 };
 
-type ScalarDeltaItem = { attributeDefinitionId: string; value: string; notes?: string | null };
+type ScalarDeltaItem = {
+  attributeDefinitionId: string;
+  value: string;
+  notes?: string | null;
+  isVerifiedUnknown?: boolean;
+};
 
 // Map a physical-change form payload to ScalarDelta items.
 function buildPhysicalDeltaItems(data: PhysicalChangeData): ScalarDeltaItem[] {
   const items: ScalarDeltaItem[] = [];
-  if (data.currentHairColor !== undefined)
-    items.push({ attributeDefinitionId: "cattr-hair-color", value: data.currentHairColor });
-  if (data.weight !== undefined)
-    items.push({ attributeDefinitionId: "cattr-weight", value: data.weight != null ? String(data.weight) : "" });
-  if (data.build !== undefined)
-    items.push({ attributeDefinitionId: "cattr-build", value: data.build });
-  if (data.breastSize !== undefined)
-    items.push({ attributeDefinitionId: "cattr-breast-size", value: data.breastSize, notes: data.breastDescription ?? null });
+  const u = data.coreAttrUnknown ?? {};
+  if (data.currentHairColor !== undefined || u.hairColor)
+    items.push({
+      attributeDefinitionId: "cattr-hair-color",
+      value: u.hairColor ? "" : (data.currentHairColor ?? ""),
+      isVerifiedUnknown: u.hairColor ?? false,
+    });
+  if (data.weight !== undefined || u.weight)
+    items.push({
+      attributeDefinitionId: "cattr-weight",
+      value: u.weight ? "" : (data.weight != null ? String(data.weight) : ""),
+      isVerifiedUnknown: u.weight ?? false,
+    });
+  if (data.build !== undefined || u.build)
+    items.push({
+      attributeDefinitionId: "cattr-build",
+      value: u.build ? "" : (data.build ?? ""),
+      isVerifiedUnknown: u.build ?? false,
+    });
+  if (data.breastSize !== undefined || u.breastSize)
+    items.push({
+      attributeDefinitionId: "cattr-breast-size",
+      value: u.breastSize ? "" : (data.breastSize ?? ""),
+      notes: data.breastDescription ?? null,
+      isVerifiedUnknown: u.breastSize ?? false,
+    });
   for (const a of data.attributes ?? [])
-    items.push({ attributeDefinitionId: a.definitionId, value: a.value });
+    items.push({
+      attributeDefinitionId: a.definitionId,
+      value: a.value,
+      isVerifiedUnknown: a.isVerifiedUnknown ?? false,
+    });
   return items;
 }
 
@@ -932,7 +974,22 @@ async function replaceEraScalarDeltas(
     await tx.scalarDelta.deleteMany({
       where: { eraId, attributeDefinitionId: item.attributeDefinitionId },
     });
-    if (item.value.trim() !== "") {
+    // Verified-unknown writes a real row with empty value + flag; the SQL
+    // fold substitutes the "__UNKNOWN__" sentinel into baselineAttributes.
+    if (item.isVerifiedUnknown) {
+      await tx.scalarDelta.create({
+        data: {
+          eraId,
+          attributeDefinitionId: item.attributeDefinitionId,
+          value: "",
+          notes: item.notes ?? null,
+          date,
+          datePrecision,
+          cause,
+          isVerifiedUnknown: true,
+        },
+      });
+    } else if (item.value.trim() !== "") {
       await tx.scalarDelta.create({
         data: {
           eraId,

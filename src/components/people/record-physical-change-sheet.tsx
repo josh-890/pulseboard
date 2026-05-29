@@ -57,6 +57,15 @@ export function RecordPhysicalChangeSheet({ personId, currentState, attributeGro
     }
     return vals;
   }, [extensibleAttributes]);
+  // Slice 16 follow-up: parallel state for the verified-unknown flag.
+  const initialAttrUnknown = useMemo(() => {
+    if (!extensibleAttributes) return {};
+    const flags: Record<string, boolean> = {};
+    for (const [defId, attr] of Object.entries(extensibleAttributes)) {
+      flags[defId] = attr.isVerifiedUnknown;
+    }
+    return flags;
+  }, [extensibleAttributes]);
 
   const [currentHairColor, setCurrentHairColor] = useState(initialHairColor);
   const [weight, setWeight] = useState(initialWeight);
@@ -64,20 +73,41 @@ export function RecordPhysicalChangeSheet({ personId, currentState, attributeGro
   const [breastSize, setBreastSize] = useState(initialBreastSize);
   const [breastStatus, setBreastStatus] = useState(initialBreastStatus);
   const [breastDescription, setBreastDescription] = useState(initialBreastDescription);
+  // Slice 16 follow-up: verified-unknown flags for the 4 core Tier 1 attrs
+  // that have hardcoded UI in this sheet (Hair Color, Weight, Build, Breast Size).
+  const initialCoreUnknown = currentState?.coreAttrUnknown ?? {
+    hairColor: false,
+    weight: false,
+    build: false,
+    breastSize: false,
+  };
+  const [hairColorUnknown, setHairColorUnknown] = useState(initialCoreUnknown.hairColor);
+  const [weightUnknown, setWeightUnknown] = useState(initialCoreUnknown.weight);
+  const [buildUnknown, setBuildUnknown] = useState(initialCoreUnknown.build);
+  const [breastSizeUnknown, setBreastSizeUnknown] = useState(initialCoreUnknown.breastSize);
   const [attrValues, setAttrValues] = useState<Record<string, string>>(initialAttrValues);
+  const [attrUnknown, setAttrUnknown] = useState<Record<string, boolean>>(initialAttrUnknown);
   const [expandedAttrGroups, setExpandedAttrGroups] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
 
   // Check if any field was actually changed from its initial value
-  const hairChanged = currentHairColor.trim() !== initialHairColor;
-  const weightChanged = weight.trim() !== initialWeight;
-  const buildChanged = build.trim() !== initialBuild;
-  const breastSizeChanged = breastSize.trim() !== initialBreastSize;
+  const hairChanged =
+    currentHairColor.trim() !== initialHairColor || hairColorUnknown !== initialCoreUnknown.hairColor;
+  const weightChanged =
+    weight.trim() !== initialWeight || weightUnknown !== initialCoreUnknown.weight;
+  const buildChanged =
+    build.trim() !== initialBuild || buildUnknown !== initialCoreUnknown.build;
+  const breastSizeChanged =
+    breastSize.trim() !== initialBreastSize || breastSizeUnknown !== initialCoreUnknown.breastSize;
   const breastStatusChanged = breastStatus.trim() !== initialBreastStatus;
   const breastDescChanged = breastDescription.trim() !== initialBreastDescription;
-  const attrChanged = Object.entries(attrValues).some(
-    ([id, v]) => v.trim() !== (initialAttrValues[id] ?? ""),
-  );
+  const attrChanged =
+    Object.entries(attrValues).some(
+      ([id, v]) => v.trim() !== (initialAttrValues[id] ?? ""),
+    ) ||
+    Object.entries(attrUnknown).some(
+      ([id, u]) => u !== (initialAttrUnknown[id] ?? false),
+    );
   const hasAnyChange = hairChanged || weightChanged || buildChanged || breastSizeChanged || breastStatusChanged || breastDescChanged || attrChanged;
 
   // Phase G Slice 6½ / ADR-0007 amendment: the Cause picker is rendered only
@@ -116,24 +146,48 @@ export function RecordPhysicalChangeSheet({ personId, currentState, attributeGro
     }
     startTransition(async () => {
       setError(null);
-      // Only send changed extensible attributes
-      const attributes = Object.entries(attrValues)
-        .filter(([id, v]) => v.trim() !== (initialAttrValues[id] ?? ""))
-        .filter(([, v]) => v.trim())
-        .map(([definitionId, value]) => ({ definitionId, value: value.trim() }));
+      // Only send changed extensible attributes. Verified-unknown deltas
+      // are also sent (with empty value + flag) when toggled — those have
+      // empty `value` so the old `.filter((_, v) => v.trim())` would drop
+      // them. Send any entry where either the value OR the unknown flag
+      // changed.
+      const changedIds = new Set<string>();
+      for (const [id, v] of Object.entries(attrValues)) {
+        if (v.trim() !== (initialAttrValues[id] ?? "")) changedIds.add(id);
+      }
+      for (const [id, u] of Object.entries(attrUnknown)) {
+        if (u !== (initialAttrUnknown[id] ?? false)) changedIds.add(id);
+      }
+      const attributes = Array.from(changedIds).map((definitionId) => ({
+        definitionId,
+        value: attrUnknown[definitionId] ? "" : (attrValues[definitionId] ?? "").trim(),
+        isVerifiedUnknown: attrUnknown[definitionId] ?? false,
+      }));
 
       const result = await recordPhysicalChangeAction(personId, {
         date: intent === "on-date" ? (date || null) : null,
         datePrecision: intent === "on-date" ? datePrecision : "UNKNOWN",
         intent,
-        currentHairColor: hairChanged && currentHairColor.trim() ? currentHairColor.trim() : undefined,
-        weight: weightChanged && weight.trim() ? parseFloat(weight) : undefined,
-        build: buildChanged && build.trim() ? build.trim() : undefined,
-        breastSize: breastSizeChanged && breastSize.trim() ? breastSize.trim() : undefined,
+        // Slice 16 follow-up: when the unknown flag is set, send `""` so the
+        // action takes the verified-unknown branch (see PhysicalChangeData /
+        // coreAttrUnknown plumbing in appearance-actions).
+        currentHairColor: hairChanged ? (hairColorUnknown ? "" : currentHairColor.trim() || undefined) : undefined,
+        weight: weightChanged ? (weightUnknown ? undefined : (weight.trim() ? parseFloat(weight) : undefined)) : undefined,
+        build: buildChanged ? (buildUnknown ? "" : build.trim() || undefined) : undefined,
+        breastSize: breastSizeChanged ? (breastSizeUnknown ? "" : breastSize.trim() || undefined) : undefined,
         breastStatus: breastStatusChanged && breastStatus.trim() ? breastStatus.trim() : undefined,
         breastDescription: breastDescChanged && breastDescription.trim() ? breastDescription.trim() : undefined,
         attributes: attributes.length > 0 ? attributes : undefined,
         cause,
+        coreAttrUnknown:
+          hairColorUnknown || weightUnknown || buildUnknown || breastSizeUnknown
+            ? {
+                hairColor: hairChanged ? hairColorUnknown : undefined,
+                weight: weightChanged ? weightUnknown : undefined,
+                build: buildChanged ? buildUnknown : undefined,
+                breastSize: breastSizeChanged ? breastSizeUnknown : undefined,
+              }
+            : undefined,
       });
       if (!result.success) {
         setError(result.error ?? "Failed to record change.");
@@ -237,18 +291,16 @@ export function RecordPhysicalChangeSheet({ personId, currentState, attributeGro
             </div>
           )}
 
-          <div>
-            <label className="mb-1.5 block text-sm font-medium">Hair Color</label>
+          <CoreFieldRow label="Hair Color" unknown={hairColorUnknown} onUnknownChange={(v) => { setHairColorUnknown(v); if (v) setCurrentHairColor(""); }}>
             <ColorValueCombobox
               category="hair"
               value={currentHairColor || undefined}
               onChange={(v) => setCurrentHairColor(v ?? "")}
               placeholder="Select hair color…"
             />
-          </div>
+          </CoreFieldRow>
 
-          <div>
-            <label className="mb-1.5 block text-sm font-medium">Weight (kg)</label>
+          <CoreFieldRow label="Weight (kg)" unknown={weightUnknown} onUnknownChange={(v) => { setWeightUnknown(v); if (v) setWeight(""); }}>
             <input
               type="number"
               value={weight}
@@ -258,27 +310,25 @@ export function RecordPhysicalChangeSheet({ personId, currentState, attributeGro
               min="0"
               className="w-full rounded-lg border border-white/15 bg-muted/30 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
             />
-          </div>
+          </CoreFieldRow>
 
-          <div>
-            <label className="mb-1.5 block text-sm font-medium">Build</label>
+          <CoreFieldRow label="Build" unknown={buildUnknown} onUnknownChange={(v) => { setBuildUnknown(v); if (v) setBuild(""); }}>
             <SelectWithOther
               options={BUILD_OPTIONS}
               value={build || undefined}
               onChange={(v) => setBuild(v ?? "")}
               placeholder="Select build…"
             />
-          </div>
+          </CoreFieldRow>
 
-          <div>
-            <label className="mb-1.5 block text-sm font-medium">Breast Size</label>
+          <CoreFieldRow label="Breast Size" unknown={breastSizeUnknown} onUnknownChange={(v) => { setBreastSizeUnknown(v); if (v) setBreastSize(""); }}>
             <SelectWithOther
               options={BREAST_SIZE_OPTIONS}
               value={breastSize || undefined}
               onChange={(v) => setBreastSize(v ?? "")}
               placeholder="Select cup size…"
             />
-          </div>
+          </CoreFieldRow>
 
           <div>
             <label className="mb-1.5 block text-sm font-medium">Breast Status</label>
@@ -362,6 +412,10 @@ export function RecordPhysicalChangeSheet({ personId, currentState, attributeGro
                                 definition={def}
                                 value={attrValues[def.id] ?? ""}
                                 onChange={(v) => setAttrValues((prev) => ({ ...prev, [def.id]: v }))}
+                                isVerifiedUnknown={attrUnknown[def.id] ?? false}
+                                onVerifiedUnknownChange={(u) =>
+                                  setAttrUnknown((prev) => ({ ...prev, [def.id]: u }))
+                                }
                               />
                             </div>
                           ))}
@@ -387,6 +441,51 @@ export function RecordPhysicalChangeSheet({ personId, currentState, attributeGro
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+// Slice 16 follow-up: small wrapper that renders a Tier 1 core field with
+// an inline "don't know" toggle. When `unknown` is true the input collapses
+// to a muted "Marked unknown" notice with a clear link.
+function CoreFieldRow({
+  label,
+  unknown,
+  onUnknownChange,
+  children,
+}: {
+  label: string;
+  unknown: boolean;
+  onUnknownChange: (next: boolean) => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <div>
+      <div className="mb-1.5 flex items-center justify-between gap-2">
+        <label className="block text-sm font-medium">{label}</label>
+        {unknown ? (
+          <button
+            type="button"
+            onClick={() => onUnknownChange(false)}
+            className="text-[10px] text-muted-foreground hover:text-foreground underline"
+          >
+            clear
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={() => onUnknownChange(true)}
+            className="text-[10px] text-muted-foreground hover:text-foreground underline"
+          >
+            don&apos;t know
+          </button>
+        )}
+      </div>
+      {unknown ? (
+        <p className="text-sm italic text-muted-foreground/70">Marked unknown.</p>
+      ) : (
+        children
+      )}
     </div>
   );
 }

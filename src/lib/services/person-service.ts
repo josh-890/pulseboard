@@ -240,7 +240,7 @@ export async function getPersonWithDetails(id: string) {
       bodyModifications: true,
       cosmeticProcedures: {
         include: {
-          attributeDefinition: { select: { id: true, name: true, slug: true, unit: true, mutability: true, statusBearing: true, group: { select: { name: true } } } },
+          attributeDefinition: { select: { id: true, name: true, slug: true, unit: true, mutability: true, statusBearing: true, tier: true, group: { select: { name: true } } } },
         },
       },
       skills: {
@@ -667,12 +667,14 @@ type FoldableEra = {
     createdAt: Date;
     attributeDefinitionId: string;
     cause: import("@/generated/prisma/client").DeltaCause; // Phase G Slice 4 / ADR-0007
+    isVerifiedUnknown: boolean; // Slice 16 follow-up
     attributeDefinition: {
       unit: string | null;
       name: string;
       slug: string;
       mutability: import("@/generated/prisma/client").Mutability;
       statusBearing: boolean; // Phase G Slice 6½ / ADR-0007 amendment
+      tier?: "TIER_1" | "TIER_2" | "NONE"; // Slice 16 follow-up
       group: { name: string };
     };
   }>;
@@ -698,9 +700,12 @@ export function foldScalarDeltas<E extends FoldableEra>(
   opts?: { asOf?: Date | null },
 ) {
   const asOf = opts?.asOf ?? null;
+  // Slice 16 follow-up: verified-unknown deltas pass the filter even though
+  // their value is empty — the consumer needs to know "the user marked this
+  // unknown" distinctly from "no record at all".
   const all = eras.flatMap((e) =>
     e.scalarDeltas
-      .filter((d) => d.value.trim() !== "")
+      .filter((d) => d.value.trim() !== "" || d.isVerifiedUnknown)
       .map((d) => ({ d, baseline: e.isBaseline, eraDate: e.date })),
   );
   // Point-in-time mode: drop any delta whose effective date is strictly after
@@ -767,6 +772,7 @@ export function deriveAppearanceAtShoot<E extends FoldableEra>(
       mutability: d.attributeDefinition.mutability,
       baselineValue: null,
       statusBearing: d.attributeDefinition.statusBearing,
+      isVerifiedUnknown: d.isVerifiedUnknown,
     };
   }
   return {
@@ -813,6 +819,13 @@ export function deriveCurrentState(
   const breastSize = folded[CORE_ATTR.breastSize]?.value ?? null;
   const breastDescription = folded[CORE_ATTR.breastSize]?.notes ?? null;
   const measurements = folded[CORE_ATTR.measurements]?.value ?? null;
+  // Slice 16 follow-up: verified-unknown flags for the four core scalar attrs.
+  const coreAttrUnknown = {
+    hairColor: folded[CORE_ATTR.hairColor]?.isVerifiedUnknown ?? false,
+    weight: folded[CORE_ATTR.weight]?.isVerifiedUnknown ?? false,
+    build: folded[CORE_ATTR.build]?.isVerifiedUnknown ?? false,
+    breastSize: folded[CORE_ATTR.breastSize]?.isVerifiedUnknown ?? false,
+  };
   let breastStatus: string | null = null; // derived from cosmetic procedures below
 
   // Every non-core scalar delta becomes an extensible attribute.
@@ -829,6 +842,7 @@ export function deriveCurrentState(
       mutability: d.attributeDefinition.mutability,
       baselineValue: null,  // populated below in the status-derivation loop
       statusBearing: d.attributeDefinition.statusBearing,
+      isVerifiedUnknown: d.isVerifiedUnknown,
     };
   }
 
@@ -1118,6 +1132,7 @@ export function deriveCurrentState(
     breastStatus,
     breastDescription,
     measurements,
+    coreAttrUnknown,
     extensibleAttributes,
     activeBodyMarks,
     activeBodyModifications,
@@ -1330,12 +1345,18 @@ export async function updatePersonRecord(id: string, data: UpdatePersonInput): P
       data: {
         status: data.status,
         sexAtBirth: data.sexAtBirth,
-        birthdate: data.birthdate ? new Date(data.birthdate) : null,
+        // Slice 16 follow-up: "verified unknown" flags clear the value
+        // (we don't want stale data when the user explicitly marks unknown)
+        // and set the flag. The maintenance audit reads the flag to
+        // distinguish "verified unknown" from "not yet checked".
+        birthdate: data.birthdateUnknown ? null : data.birthdate ? new Date(data.birthdate) : null,
         birthdatePrecision: data.birthdatePrecision ?? "UNKNOWN",
         birthdateModifier: data.birthdateModifier ?? "EXACT",
         birthdateSource: data.birthdateSource || null,
+        birthdateUnknown: data.birthdateUnknown ?? false,
         birthPlace: data.birthPlace,
-        nationality: data.nationality,
+        nationality: data.nationalityUnknown ? null : data.nationality,
+        nationalityUnknown: data.nationalityUnknown ?? false,
         // ethnicity intentionally NOT written here — migrated to catalog
         // deltas in Slice 16C; the upsert below handles broad + specific.
         location: data.location,

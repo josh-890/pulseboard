@@ -316,6 +316,9 @@ export type ExtensibleAttributeValue = {
   groupName: string;
   status: AttributeStatus;
   mutability: import("@/generated/prisma/client").Mutability;
+  // Slice 16 follow-up: true = the winning delta has isVerifiedUnknown set;
+  // value is empty. UI should render "Unknown" muted instead of the value.
+  isVerifiedUnknown: boolean;
   // Phase G Slice 4: the value from the Baseline Era's delta (if any). Used by
   // Pattern Y rendering to show progression `B (Natural) → D (Enhanced)` when
   // status is ENHANCED/RESTORED. Null when no Baseline delta exists for this
@@ -336,6 +339,16 @@ export type PersonCurrentState = {
   breastStatus: string | null;
   breastDescription: string | null;
   measurements: string | null;
+  // Slice 16 follow-up: verified-unknown flags for the four core scalar
+  // attrs whose values appear as top-level fields above. true = the
+  // winning delta was marked unknown; hero should render "Unknown"
+  // muted italic instead of a dash.
+  coreAttrUnknown: {
+    hairColor: boolean;
+    weight: boolean;
+    build: boolean;
+    breastSize: boolean;
+  };
   // Extensible (non-core) physical attributes, folded from ScalarDelta
   extensibleAttributes: Record<string, ExtensibleAttributeValue>;
   // Active body marks (status = present)

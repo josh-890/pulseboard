@@ -62,19 +62,32 @@ export function BaselineGapsByPersonTable({ rows }: Props) {
                 </td>
                 <td className="px-4 py-3">
                   <div className="flex flex-wrap gap-1">
-                    {r.missing.map((m) => (
-                      <span
-                        key={m.slug}
-                        className={cn(
-                          "rounded-full border px-2 py-0.5 text-[10px]",
-                          m.tier === "TIER_1"
-                            ? "border-amber-500/30 bg-amber-500/[0.08] text-amber-300"
-                            : "border-sky-500/30 bg-sky-500/[0.06] text-sky-300",
-                        )}
-                      >
-                        {m.slug.replace("_person.", "")}
-                      </span>
-                    ))}
+                    {r.missing.map((m) => {
+                      // Verified-unknown chips render in muted gray with a
+                      // tiny "?" prefix to differentiate from real gaps.
+                      const chipClass = m.isVerifiedUnknown
+                        ? "border-white/10 bg-muted/30 text-muted-foreground/60 italic"
+                        : m.tier === "TIER_1"
+                          ? "border-amber-500/30 bg-amber-500/[0.08] text-amber-300"
+                          : "border-sky-500/30 bg-sky-500/[0.06] text-sky-300";
+                      return (
+                        <span
+                          key={`${m.slug}-${m.isVerifiedUnknown ? "u" : "m"}`}
+                          className={cn(
+                            "rounded-full border px-2 py-0.5 text-[10px]",
+                            chipClass,
+                          )}
+                          title={
+                            m.isVerifiedUnknown
+                              ? "Marked unknown (verified)"
+                              : "Missing baseline value"
+                          }
+                        >
+                          {m.isVerifiedUnknown ? "? " : ""}
+                          {m.slug.replace("_person.", "")}
+                        </span>
+                      );
+                    })}
                   </div>
                 </td>
                 <td className="px-4 py-3 text-right">

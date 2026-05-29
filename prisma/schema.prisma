@@ -260,9 +260,14 @@ model Person {
   birthdatePrecision  DatePrecision @default(UNKNOWN)
   birthdateModifier   DateModifier  @default(EXACT)
   birthdateSource     String?
+  // Slice 16 follow-up: verified-unknown flags for the two Tier 1 Person
+  // columns. true = user explicitly confirmed there's no value to record;
+  // distinguishes "verified unknown" from "haven't checked yet".
+  birthdateUnknown    Boolean       @default(false)
   sexAtBirth          String?
   birthPlace          String?
   nationality         String?
+  nationalityUnknown  Boolean       @default(false)
   ethnicity           String?
   location            String?
   height              Int?
@@ -1262,6 +1267,12 @@ model ScalarDelta {
   dateSource            String?
   notes                 String? // raw import provenance, e.g. "import: 'enlarged or fake'"
   cause                 DeltaCause                  @default(NATURAL) // Phase G Slice 4 / ADR-0007
+  // Slice 16 follow-up / FHIR-style verified-unknown: true = user
+  // explicitly confirmed there's no value for this attribute. The fold
+  // writes a "__UNKNOWN__" sentinel into PersonCurrentState.baselineAttributes
+  // so existing JSONB key-presence queries see it as populated. Value is
+  // forced empty when this is true.
+  isVerifiedUnknown     Boolean                     @default(false)
   createdAt             DateTime                    @default(now())
 
   @@index([eraId])

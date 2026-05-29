@@ -28,6 +28,7 @@ export type BaselineGapByAttribute = {
   groupName: string;
   tier: AuditTier;
   populatedCount: number;
+  verifiedUnknownCount: number;
   missingCount: number;
   isPersonColumn: boolean;
 };
@@ -40,7 +41,8 @@ export type BaselineGapByPerson = {
   tier2MissingCount: number;
   worstTier: AuditTier | null;
   // Items rendered as chips, tier-labelled so the UI can color them.
-  missing: { slug: string; tier: AuditTier }[];
+  // `isVerifiedUnknown` chips render in muted gray (not as a gap warning).
+  missing: { slug: string; tier: AuditTier; isVerifiedUnknown: boolean }[];
 };
 
 export type BaselineGapTotals = {
@@ -58,6 +60,9 @@ export type BaselineGapTotals = {
  * Sort: tier ASC (TIER_1 first), then missingCount DESC.
  */
 export async function getBaselineGapsByAttribute(): Promise<BaselineGapByAttribute[]> {
+  // 3-bucket split inspects the JSONB value: "__UNKNOWN__" sentinel
+  // counts as verified-unknown; any other value as populated; absent
+  // key as missing.
   const catalogRows = await prisma.$queryRaw<
     {
       definitionId: string;
@@ -66,6 +71,7 @@ export async function getBaselineGapsByAttribute(): Promise<BaselineGapByAttribu
       groupName: string;
       tier: AuditTier;
       populatedCount: bigint;
+      verifiedUnknownCount: bigint;
       missingCount: bigint;
     }[]
   >`
@@ -75,7 +81,13 @@ export async function getBaselineGapsByAttribute(): Promise<BaselineGapByAttribu
       pad.name         AS name,
       pag.name         AS "groupName",
       pad.tier::text   AS tier,
-      count(pcs.*) FILTER (WHERE pcs."baselineAttributes" ? pad.slug)       AS "populatedCount",
+      count(pcs.*) FILTER (
+        WHERE pcs."baselineAttributes" ? pad.slug
+          AND pcs."baselineAttributes" ->> pad.slug <> '__UNKNOWN__'
+      ) AS "populatedCount",
+      count(pcs.*) FILTER (
+        WHERE pcs."baselineAttributes" ->> pad.slug = '__UNKNOWN__'
+      ) AS "verifiedUnknownCount",
       count(pcs.*) FILTER (WHERE NOT (pcs."baselineAttributes" ? pad.slug)) AS "missingCount"
     FROM "PhysicalAttributeDefinition" pad
     JOIN "PhysicalAttributeGroup" pag ON pag.id = pad."groupId"
@@ -86,19 +98,29 @@ export async function getBaselineGapsByAttribute(): Promise<BaselineGapByAttribu
   `;
 
   const personColumnRows = await prisma.$queryRaw<
-    { birthdateMissing: bigint; nationalityMissing: bigint; total: bigint }[]
+    {
+      birthdateMissing: bigint;
+      birthdateUnknown: bigint;
+      nationalityMissing: bigint;
+      nationalityUnknown: bigint;
+      total: bigint;
+    }[]
   >`
     SELECT
-      count(*) FILTER (WHERE birthdate IS NULL)     AS "birthdateMissing",
-      count(*) FILTER (WHERE nationality IS NULL)   AS "nationalityMissing",
-      count(*)                                      AS total
+      count(*) FILTER (WHERE birthdate IS NULL AND NOT "birthdateUnknown")       AS "birthdateMissing",
+      count(*) FILTER (WHERE "birthdateUnknown")                                 AS "birthdateUnknown",
+      count(*) FILTER (WHERE nationality IS NULL AND NOT "nationalityUnknown")   AS "nationalityMissing",
+      count(*) FILTER (WHERE "nationalityUnknown")                               AS "nationalityUnknown",
+      count(*)                                                                   AS total
     FROM "Person"
   `;
   const pc =
     personColumnRows[0] ??
     {
       birthdateMissing: BigInt(0),
+      birthdateUnknown: BigInt(0),
       nationalityMissing: BigInt(0),
+      nationalityUnknown: BigInt(0),
       total: BigInt(0),
     };
   const totalPersons = Number(pc.total);
@@ -109,7 +131,9 @@ export async function getBaselineGapsByAttribute(): Promise<BaselineGapByAttribu
       name: PERSON_COLUMN_AUDITS[0].name,
       groupName: PERSON_COLUMN_AUDITS[0].groupName,
       tier: "TIER_1",
-      populatedCount: totalPersons - Number(pc.birthdateMissing),
+      populatedCount:
+        totalPersons - Number(pc.birthdateMissing) - Number(pc.birthdateUnknown),
+      verifiedUnknownCount: Number(pc.birthdateUnknown),
       missingCount: Number(pc.birthdateMissing),
       isPersonColumn: true,
     },
@@ -119,7 +143,9 @@ export async function getBaselineGapsByAttribute(): Promise<BaselineGapByAttribu
       name: PERSON_COLUMN_AUDITS[1].name,
       groupName: PERSON_COLUMN_AUDITS[1].groupName,
       tier: "TIER_1",
-      populatedCount: totalPersons - Number(pc.nationalityMissing),
+      populatedCount:
+        totalPersons - Number(pc.nationalityMissing) - Number(pc.nationalityUnknown),
+      verifiedUnknownCount: Number(pc.nationalityUnknown),
       missingCount: Number(pc.nationalityMissing),
       isPersonColumn: true,
     },
@@ -132,6 +158,7 @@ export async function getBaselineGapsByAttribute(): Promise<BaselineGapByAttribu
     groupName: r.groupName,
     tier: r.tier,
     populatedCount: Number(r.populatedCount),
+    verifiedUnknownCount: Number(r.verifiedUnknownCount),
     missingCount: Number(r.missingCount),
     isPersonColumn: false,
   }));
@@ -159,7 +186,9 @@ export async function getBaselineGapsByPerson(): Promise<BaselineGapByPerson[]> 
       displayName: string;
       missingTier1: { slug: string }[];
       missingTier2: { slug: string }[];
+      verifiedUnknownAttrs: { slug: string; tier: AuditTier }[];
       personColumnGaps: string[];
+      personColumnUnknown: string[];
     }[]
   >`
     WITH tiered_attrs AS (
@@ -185,18 +214,43 @@ export async function getBaselineGapsByPerson(): Promise<BaselineGapByPerson[]> 
       WHERE ta.slug IS NOT NULL
       GROUP BY pcs."personId"
     ),
+    -- Verified-unknown catalog attrs per person: baseline value is the sentinel.
+    per_person_unknown AS (
+      SELECT pcs."personId",
+        coalesce(
+          jsonb_agg(jsonb_build_object('slug', ta.slug, 'tier', ta.tier) ORDER BY ta.slug),
+          '[]'::jsonb
+        ) AS unknowns
+      FROM "PersonCurrentState" pcs
+      LEFT JOIN tiered_attrs ta
+        ON pcs."baselineAttributes" ->> ta.slug = '__UNKNOWN__'
+      WHERE ta.slug IS NOT NULL
+      GROUP BY pcs."personId"
+    ),
     person_column_gaps AS (
       SELECT p.id AS "personId",
         coalesce(
           array_remove(
             ARRAY[
-              CASE WHEN p.birthdate IS NULL THEN '_person.birthdate' END,
-              CASE WHEN p.nationality IS NULL THEN '_person.nationality' END
+              -- "missing" only counts when both the value is null AND the
+              -- user has not marked the field as verified-unknown.
+              CASE WHEN p.birthdate IS NULL AND NOT p."birthdateUnknown" THEN '_person.birthdate' END,
+              CASE WHEN p.nationality IS NULL AND NOT p."nationalityUnknown" THEN '_person.nationality' END
             ],
             NULL
           ),
           '{}'::text[]
-        ) AS gaps
+        ) AS gaps,
+        coalesce(
+          array_remove(
+            ARRAY[
+              CASE WHEN p."birthdateUnknown" THEN '_person.birthdate' END,
+              CASE WHEN p."nationalityUnknown" THEN '_person.nationality' END
+            ],
+            NULL
+          ),
+          '{}'::text[]
+        ) AS unknowns
       FROM "Person" p
     )
     SELECT
@@ -205,31 +259,61 @@ export async function getBaselineGapsByPerson(): Promise<BaselineGapByPerson[]> 
       COALESCE(pa.name, p."icgId")      AS "displayName",
       COALESCE(t1.missing, '[]'::jsonb) AS "missingTier1",
       COALESCE(t2.missing, '[]'::jsonb) AS "missingTier2",
-      pcg.gaps                          AS "personColumnGaps"
+      COALESCE(pu.unknowns, '[]'::jsonb) AS "verifiedUnknownAttrs",
+      pcg.gaps                          AS "personColumnGaps",
+      pcg.unknowns                      AS "personColumnUnknown"
     FROM "Person" p
     LEFT JOIN "PersonAlias" pa ON pa."personId" = p.id AND pa."isCommon" = true
     LEFT JOIN per_person_tier1 t1 ON t1."personId" = p.id
     LEFT JOIN per_person_tier2 t2 ON t2."personId" = p.id
+    LEFT JOIN per_person_unknown pu ON pu."personId" = p.id
     LEFT JOIN person_column_gaps pcg ON pcg."personId" = p.id
     ORDER BY "displayName" ASC
   `;
 
   type SlugRow = { slug: string };
+  type SlugTierRow = { slug: string; tier: AuditTier };
   const results: BaselineGapByPerson[] = [];
   for (const r of rows) {
     // Person-column gaps merge into the tier-1 set since they're tier-1 by
     // design. The synthetic slug `_person.<field>` is what the UI chips use.
-    const t1: { slug: string; tier: AuditTier }[] = [
-      ...(r.missingTier1 as SlugRow[]).map((m) => ({ slug: m.slug, tier: "TIER_1" as const })),
-      ...r.personColumnGaps.map((slug) => ({ slug, tier: "TIER_1" as const })),
+    const t1: { slug: string; tier: AuditTier; isVerifiedUnknown: boolean }[] = [
+      ...(r.missingTier1 as SlugRow[]).map((m) => ({
+        slug: m.slug,
+        tier: "TIER_1" as const,
+        isVerifiedUnknown: false,
+      })),
+      ...r.personColumnGaps.map((slug) => ({
+        slug,
+        tier: "TIER_1" as const,
+        isVerifiedUnknown: false,
+      })),
     ];
-    const t2: { slug: string; tier: AuditTier }[] = (r.missingTier2 as SlugRow[]).map((m) => ({
-      slug: m.slug,
-      tier: "TIER_2" as const,
-    }));
+    const t2: { slug: string; tier: AuditTier; isVerifiedUnknown: boolean }[] =
+      (r.missingTier2 as SlugRow[]).map((m) => ({
+        slug: m.slug,
+        tier: "TIER_2" as const,
+        isVerifiedUnknown: false,
+      }));
     const tier1MissingCount = t1.length;
     const tier2MissingCount = t2.length;
     if (tier1MissingCount === 0 && tier2MissingCount === 0) continue;
+
+    // Verified-unknown chips appear on the row as muted context; they don't
+    // count as gaps but show the user what's been triaged.
+    const unknown: { slug: string; tier: AuditTier; isVerifiedUnknown: boolean }[] = [
+      ...(r.verifiedUnknownAttrs as SlugTierRow[]).map((u) => ({
+        slug: u.slug,
+        tier: u.tier,
+        isVerifiedUnknown: true,
+      })),
+      ...r.personColumnUnknown.map((slug) => ({
+        slug,
+        tier: "TIER_1" as const,
+        isVerifiedUnknown: true,
+      })),
+    ];
+
     const worstTier: AuditTier | null =
       tier1MissingCount > 0 ? "TIER_1" : tier2MissingCount > 0 ? "TIER_2" : null;
     results.push({
@@ -239,7 +323,7 @@ export async function getBaselineGapsByPerson(): Promise<BaselineGapByPerson[]> 
       tier1MissingCount,
       tier2MissingCount,
       worstTier,
-      missing: [...t1, ...t2],
+      missing: [...t1, ...t2, ...unknown],
     });
   }
   // Sort: worst tier first (T1 before T2), then by missing-count descending,
@@ -278,6 +362,10 @@ export async function getBaselineGapTotals(): Promise<BaselineGapTotals> {
       WHERE tier <> 'NONE'
     ),
     person_gap_flags AS (
+      -- "Gap" excludes verified-unknown: the JSONB key must be absent for the
+      -- attribute to count as missing (the sentinel "__UNKNOWN__" lives in
+      -- the value but the key IS present, so this clause naturally excludes
+      -- it). Tier-2 same.
       SELECT
         pcs."personId",
         bool_or(ta.tier = 'TIER_1' AND NOT (pcs."baselineAttributes" ? ta.slug))
@@ -291,7 +379,10 @@ export async function getBaselineGapTotals(): Promise<BaselineGapTotals> {
     person_with_column_gap AS (
       SELECT
         p.id AS "personId",
-        (p.birthdate IS NULL OR p.nationality IS NULL) AS has_person_column_gap
+        (
+          (p.birthdate IS NULL AND NOT p."birthdateUnknown")
+          OR (p.nationality IS NULL AND NOT p."nationalityUnknown")
+        ) AS has_person_column_gap
       FROM "Person" p
     ),
     combined AS (

@@ -17,6 +17,7 @@ type PhysicalAttributeItem = {
   name: string;
   unit: string | null;
   value: string;
+  isVerifiedUnknown?: boolean;
 };
 
 type PhysicalChangeItem = {
@@ -84,6 +85,14 @@ export function EditPhysicalChangeSheet({ personId, item, attributeGroups, onClo
     }
     return init;
   });
+  // Slice 16 follow-up: verified-unknown flag per attr.
+  const [attrUnknown, setAttrUnknown] = useState<Record<string, boolean>>(() => {
+    const init: Record<string, boolean> = {};
+    for (const attr of item.attributes) {
+      init[attr.definitionId] = attr.isVerifiedUnknown ?? false;
+    }
+    return init;
+  });
   const [expandedAttrGroups, setExpandedAttrGroups] = useState<Set<string>>(() => {
     // Auto-expand groups that have existing values
     const groupIds = new Set<string>();
@@ -134,9 +143,16 @@ export function EditPhysicalChangeSheet({ personId, item, attributeGroups, onClo
     }
     startTransition(async () => {
       setError(null);
-      const attributes = Object.entries(attrValues)
-        .filter(([, v]) => v.trim())
-        .map(([definitionId, value]) => ({ definitionId, value: value.trim() }));
+      // Include attrs that have a value OR are marked unknown.
+      const ids = new Set<string>([
+        ...Object.entries(attrValues).filter(([, v]) => v.trim()).map(([id]) => id),
+        ...Object.entries(attrUnknown).filter(([, u]) => u).map(([id]) => id),
+      ]);
+      const attributes = Array.from(ids).map((definitionId) => ({
+        definitionId,
+        value: attrUnknown[definitionId] ? "" : (attrValues[definitionId] ?? "").trim(),
+        isVerifiedUnknown: attrUnknown[definitionId] ?? false,
+      }));
 
       const result = await updatePhysicalChangeAction(item.eraId, personId, {
         date: intent === "on-date" ? (date || null) : null,
@@ -372,6 +388,10 @@ export function EditPhysicalChangeSheet({ personId, item, attributeGroups, onClo
                                 definition={def}
                                 value={attrValues[def.id] ?? ""}
                                 onChange={(v) => setAttrValues((prev) => ({ ...prev, [def.id]: v }))}
+                                isVerifiedUnknown={attrUnknown[def.id] ?? false}
+                                onVerifiedUnknownChange={(u) =>
+                                  setAttrUnknown((prev) => ({ ...prev, [def.id]: u }))
+                                }
                               />
                             </div>
                           ))}

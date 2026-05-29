@@ -194,6 +194,16 @@ const CP_COLORS = [
 
 // ── Basic Info Panel ─────────────────────────────────────────────────────────
 
+// Slice 16 follow-up: muted "Unknown" pill rendered when a Tier 1 attribute
+// is verified-unknown. Distinct visual treatment from a real value or a dash.
+function UnknownPill() {
+  return (
+    <span className="italic text-muted-foreground/60" title="Marked unknown">
+      Unknown
+    </span>
+  );
+}
+
 // ── Physical Stats Panel ─────────────────────────────────────────────────────
 
 function PhysicalMetrics({
@@ -213,9 +223,14 @@ function PhysicalMetrics({
         // Height moved off Person.height into the catalog (Phase G Slice 3a) \u2014
         // read from the folded extensibleAttributes cache via cattr-height.
         const a = currentState.extensibleAttributes["cattr-height"];
+        if (a?.isVerifiedUnknown) return <UnknownPill />;
         return a ? `${a.value} cm` : "\u2014";
       })()} labelWidth={labelWidth} />
-      <InfoRow label="Weight" value={currentState.weight !== null && currentState.weight !== undefined ? `${currentState.weight} kg` : "\u2014"} labelWidth={labelWidth} />
+      <InfoRow label="Weight" value={
+        currentState.coreAttrUnknown.weight
+          ? <UnknownPill />
+          : (currentState.weight !== null && currentState.weight !== undefined ? `${currentState.weight} kg` : "\u2014")
+      } labelWidth={labelWidth} />
       <InfoRow
         label="Measurements"
         value={(() => {
@@ -254,12 +269,31 @@ function PhysicalDescriptive({
         // Eye color moved off Person.eyeColor into the catalog (Phase G Slice 3a) —
         // read from the folded extensibleAttributes cache via cattr-eye-color.
         const a = currentState.extensibleAttributes["cattr-eye-color"];
+        if (a?.isVerifiedUnknown) return <UnknownPill />;
         return a ? <span className="capitalize">{a.value}</span> : "—";
       })()} labelWidth={labelWidth} />
-      <InfoRow label="Hair color" value={currentState.currentHairColor ? <span className="capitalize">{currentState.currentHairColor}</span> : "—"} labelWidth={labelWidth} />
-      {currentState.breastSize && <InfoRow label="Breast size" value={currentState.breastSize} labelWidth={labelWidth} />}
+      <InfoRow label="Hair color" value={
+        currentState.coreAttrUnknown.hairColor
+          ? <UnknownPill />
+          : (currentState.currentHairColor
+              ? <span className="capitalize">{currentState.currentHairColor}</span>
+              : "—")
+      } labelWidth={labelWidth} />
+      {(currentState.breastSize || currentState.coreAttrUnknown.breastSize) && (
+        <InfoRow
+          label="Breast size"
+          value={currentState.coreAttrUnknown.breastSize ? <UnknownPill /> : currentState.breastSize}
+          labelWidth={labelWidth}
+        />
+      )}
       {currentState.breastStatus && <InfoRow label="Breast status" value={<span className="capitalize">{currentState.breastStatus}</span>} labelWidth={labelWidth} />}
-      <InfoRow label="Build" value={currentState.build ? <span className="capitalize">{currentState.build}</span> : "—"} labelWidth={labelWidth} />
+      <InfoRow label="Build" value={
+        currentState.coreAttrUnknown.build
+          ? <UnknownPill />
+          : (currentState.build
+              ? <span className="capitalize">{currentState.build}</span>
+              : "—")
+      } labelWidth={labelWidth} />
     </dl>
   );
 }
@@ -847,18 +881,18 @@ function IdentityBlock({ person, displayName, age, heroAliases, onAliasesBadgeCl
 
       {/* Nationality / sex / birthdate */}
       <div className="mt-1.5 min-h-[20px] flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
-        {person.nationality && (
+        {person.nationality ? (
           <span className="flex items-center gap-1.5">
             <FlagImage code={person.nationality} size={16} />
             {findCountryByCode(person.nationality)?.name ?? person.nationality}
           </span>
-        )}
+        ) : (person.nationalityUnknown && <UnknownPill />)}
         {person.sexAtBirth && (
           <span>{person.sexAtBirth === "female" ? "\u2640" : person.sexAtBirth === "male" ? "\u2642" : ""}</span>
         )}
-        {person.birthdate && (
+        {person.birthdate ? (
           <span>{formatDateDMY(person.birthdate, person.birthdatePrecision)}</span>
-        )}
+        ) : (person.birthdateUnknown && <UnknownPill />)}
       </div>
 
       {/* Age / status */}

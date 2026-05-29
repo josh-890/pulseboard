@@ -87,8 +87,10 @@ export function EditPersonSheet({ person }: EditPersonSheetProps) {
     birthdatePrecision: (person.birthdatePrecision as "UNKNOWN" | "YEAR" | "MONTH" | "DAY") ?? "UNKNOWN",
     birthdateModifier: (person.birthdateModifier as "EXACT" | "APPROXIMATE" | "ESTIMATED" | "BEFORE" | "AFTER") ?? "EXACT",
     birthdateSource: person.birthdateSource ?? "",
+    birthdateUnknown: person.birthdateUnknown ?? false,
     birthPlace: person.birthPlace ?? "",
     nationality: person.nationality ?? "",
+    nationalityUnknown: person.nationalityUnknown ?? false,
     ethnicityBroad: ethnicityBroadDelta?.value ?? undefined,
     ethnicitySpecific: ethnicitySpecificDelta?.value ?? undefined,
     location: person.location ?? "",
@@ -383,19 +385,44 @@ export function EditPersonSheet({ person }: EditPersonSheetProps) {
                     />
 
                     <FormItem className="col-span-2">
-                      <FormLabel>Birthdate</FormLabel>
-                      <PartialDateInput
-                        dateValue={form.watch("birthdate") ?? ""}
-                        precisionValue={form.watch("birthdatePrecision") ?? "UNKNOWN"}
-                        onDateChange={(val) => form.setValue("birthdate", val || undefined)}
-                        onPrecisionChange={(val) => form.setValue("birthdatePrecision", val as "UNKNOWN" | "YEAR" | "MONTH" | "DAY")}
-                        showModifier
-                        modifierValue={form.watch("birthdateModifier") ?? "EXACT"}
-                        onModifierChange={(val) => form.setValue("birthdateModifier", val as "EXACT" | "APPROXIMATE" | "ESTIMATED" | "BEFORE" | "AFTER")}
-                        showSource
-                        sourceValue={form.watch("birthdateSource") ?? ""}
-                        onSourceChange={(val) => form.setValue("birthdateSource", val || undefined)}
-                      />
+                      <FormLabel className="flex items-center justify-between gap-2">
+                        <span>Birthdate</span>
+                        {/* Slice 16 follow-up: verified-unknown affordance. */}
+                        <label className="flex items-center gap-1 text-[11px] font-normal text-muted-foreground">
+                          <input
+                            type="checkbox"
+                            checked={form.watch("birthdateUnknown") ?? false}
+                            onChange={(e) => {
+                              const v = e.target.checked;
+                              form.setValue("birthdateUnknown", v);
+                              if (v) {
+                                form.setValue("birthdate", undefined);
+                                form.setValue("birthdatePrecision", "UNKNOWN");
+                              }
+                            }}
+                            className="rounded border-white/15"
+                          />
+                          don&apos;t know
+                        </label>
+                      </FormLabel>
+                      {form.watch("birthdateUnknown") ? (
+                        <p className="text-sm italic text-muted-foreground/70">
+                          Marked unknown.
+                        </p>
+                      ) : (
+                        <PartialDateInput
+                          dateValue={form.watch("birthdate") ?? ""}
+                          precisionValue={form.watch("birthdatePrecision") ?? "UNKNOWN"}
+                          onDateChange={(val) => form.setValue("birthdate", val || undefined)}
+                          onPrecisionChange={(val) => form.setValue("birthdatePrecision", val as "UNKNOWN" | "YEAR" | "MONTH" | "DAY")}
+                          showModifier
+                          modifierValue={form.watch("birthdateModifier") ?? "EXACT"}
+                          onModifierChange={(val) => form.setValue("birthdateModifier", val as "EXACT" | "APPROXIMATE" | "ESTIMATED" | "BEFORE" | "AFTER")}
+                          showSource
+                          sourceValue={form.watch("birthdateSource") ?? ""}
+                          onSourceChange={(val) => form.setValue("birthdateSource", val || undefined)}
+                        />
+                      )}
                     </FormItem>
 
                     <FormField
@@ -417,12 +444,33 @@ export function EditPersonSheet({ person }: EditPersonSheetProps) {
                       name="nationality"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Nationality</FormLabel>
+                          <FormLabel className="flex items-center justify-between gap-2">
+                            <span>Nationality</span>
+                            <label className="flex items-center gap-1 text-[11px] font-normal text-muted-foreground">
+                              <input
+                                type="checkbox"
+                                checked={form.watch("nationalityUnknown") ?? false}
+                                onChange={(e) => {
+                                  const v = e.target.checked;
+                                  form.setValue("nationalityUnknown", v);
+                                  if (v) field.onChange("");
+                                }}
+                                className="rounded border-white/15"
+                              />
+                              don&apos;t know
+                            </label>
+                          </FormLabel>
                           <FormControl>
-                            <CountryPicker
-                              value={field.value || undefined}
-                              onChange={(code) => field.onChange(code ?? "")}
-                            />
+                            {form.watch("nationalityUnknown") ? (
+                              <p className="text-sm italic text-muted-foreground/70">
+                                Marked unknown.
+                              </p>
+                            ) : (
+                              <CountryPicker
+                                value={field.value || undefined}
+                                onChange={(code) => field.onChange(code ?? "")}
+                              />
+                            )}
                           </FormControl>
                           <FormMessage />
                         </FormItem>
