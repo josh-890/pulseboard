@@ -1203,6 +1203,17 @@ enum Mutability {
   VOLATILE
 }
 
+// Audit tier on a scalar attribute definition — drives the /maintenance
+// baseline-gap audit. TIER_1 = every person should have a value, gap shown
+// as a warning. TIER_2 = universal + nice-to-know, gap shown as a hint.
+// NONE = not in audit (covers opt-in attrs like Freckles where absence
+// is meaningful, and irrelevant catalog plumbing like Glove Size).
+enum AuditTier {
+  TIER_1
+  TIER_2
+  NONE
+}
+
 model PhysicalAttributeDefinition {
   id            String                     @id @default(cuid())
   groupId       String
@@ -1220,6 +1231,9 @@ model PhysicalAttributeDefinition {
   // picker in record-change sheet). Default false; backfilled true only for
   // breast_size.
   statusBearing Boolean                    @default(false)
+  // Slice 16 follow-up: maintenance audit tier (TIER_1 warning / TIER_2 hint
+  // / NONE = not audited). See AuditTier enum.
+  tier          AuditTier                  @default(NONE)
   sortOrder     Int                        @default(0)
   createdAt     DateTime                   @default(now())
 

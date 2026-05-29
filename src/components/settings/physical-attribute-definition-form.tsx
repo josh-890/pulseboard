@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Plus, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type {
+  AuditTier,
   Mutability,
   PhysicalAttributeValueType,
 } from "@/generated/prisma/client";
@@ -17,6 +18,7 @@ export type DefinitionFormValue = {
   ordinalMax: number | null;
   mutability: Mutability;
   statusBearing: boolean;
+  tier: AuditTier;
 };
 
 type Props = {
@@ -40,6 +42,12 @@ const MUTABILITY_OPTIONS: { value: Mutability; label: string; hint: string }[] =
   { value: "ALWAYS_STATIC",  label: "Always static",  hint: "doesn't change in adult life (eye color, handedness). Inline display only." },
   { value: "RARELY_CHANGES", label: "Rarely changes", hint: "drifts over time but slowly (build, face shape, body measurements). Default." },
   { value: "VOLATILE",       label: "Volatile",       hint: "changes frequently (weight, hair color, hair length). Record-change is the primary action." },
+];
+
+const TIER_OPTIONS: { value: AuditTier; label: string; hint: string }[] = [
+  { value: "TIER_1", label: "Tier 1 (warning)", hint: "every person should have a value; missing baseline appears as a warning on /maintenance." },
+  { value: "TIER_2", label: "Tier 2 (hint)",    hint: "universal + nice-to-know; missing baseline appears as a hint." },
+  { value: "NONE",   label: "Not audited",      hint: "default. For opt-in attrs (only meaningful when present, e.g. freckles) and irrelevant catalog plumbing." },
 ];
 
 export function PhysicalAttributeDefinitionForm({
@@ -70,6 +78,7 @@ export function PhysicalAttributeDefinitionForm({
   const [statusBearing, setStatusBearing] = useState<boolean>(
     initial?.statusBearing ?? false,
   );
+  const [tier, setTier] = useState<AuditTier>(initial?.tier ?? "NONE");
   const [error, setError] = useState<string | null>(null);
 
   const addAllowedValue = () => {
@@ -121,11 +130,13 @@ export function PhysicalAttributeDefinitionForm({
       ordinalMax: valueType === "ORDINAL" ? Number(ordinalMax) : null,
       mutability,
       statusBearing,
+      tier,
     });
   };
 
   const typeOpt = TYPE_OPTIONS.find((o) => o.value === valueType);
   const mutOpt = MUTABILITY_OPTIONS.find((o) => o.value === mutability);
+  const tierOpt = TIER_OPTIONS.find((o) => o.value === tier);
 
   return (
     <div className="space-y-2 rounded-lg border border-white/15 bg-background/40 p-3">
@@ -177,6 +188,25 @@ export function PhysicalAttributeDefinitionForm({
         </select>
         {mutOpt && (
           <p className="mt-0.5 text-[10px] text-muted-foreground/70">{mutOpt.hint}</p>
+        )}
+      </div>
+
+      {/* Audit tier — drives the /maintenance baseline-gap audit. */}
+      <div>
+        <label className="text-[10px] text-muted-foreground">Audit tier</label>
+        <select
+          value={tier}
+          onChange={(e) => setTier(e.target.value as AuditTier)}
+          className="mt-0.5 w-full rounded-md border border-white/15 bg-background px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+        >
+          {TIER_OPTIONS.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+        {tierOpt && (
+          <p className="mt-0.5 text-[10px] text-muted-foreground/70">{tierOpt.hint}</p>
         )}
       </div>
 

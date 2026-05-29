@@ -312,6 +312,7 @@ export type ExtensibleAttributeValue = {
   value: string;
   unit: string | null;
   name: string;
+  slug: string;
   groupName: string;
   status: AttributeStatus;
   mutability: import("@/generated/prisma/client").Mutability;

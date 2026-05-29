@@ -12,6 +12,7 @@ import {
 } from "@/lib/services/physical-attribute-catalog-service";
 import type { SimpleActionResult } from "@/lib/types";
 import type {
+  AuditTier,
   Mutability,
   PhysicalAttributeValueType,
 } from "@/generated/prisma/client";
@@ -26,6 +27,7 @@ export type CreateDefinitionInput = {
   ordinalMax?: number | null;
   mutability?: Mutability;
   statusBearing?: boolean;
+  tier?: AuditTier;
 };
 
 export type UpdateDefinitionInput = {
@@ -38,6 +40,7 @@ export type UpdateDefinitionInput = {
   ordinalMax?: number | null;
   mutability?: Mutability;
   statusBearing?: boolean;
+  tier?: AuditTier;
 };
 
 // ─── Group actions ───────────────────────────────────────────────────────────

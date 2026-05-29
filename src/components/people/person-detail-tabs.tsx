@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { cn, computeAge, formatPartialDate } from "@/lib/utils";
+import { formatMeasurements } from "@/lib/utils/measurements";
 import type { getPersonWithDetails } from "@/lib/services/person-service";
 import type {
   PersonCurrentState,
@@ -215,7 +216,23 @@ function PhysicalMetrics({
         return a ? `${a.value} cm` : "\u2014";
       })()} labelWidth={labelWidth} />
       <InfoRow label="Weight" value={currentState.weight !== null && currentState.weight !== undefined ? `${currentState.weight} kg` : "\u2014"} labelWidth={labelWidth} />
-      <InfoRow label="Measurements" value={currentState.measurements ?? "—"} labelWidth={labelWidth} />
+      <InfoRow
+        label="Measurements"
+        value={(() => {
+          // Slice 16 follow-up: 3-state composition — structured Bust-Waist-Hips
+          // (cm) if all three present, else TEXT measurements, else dash.
+          const findBy = (slug: string) =>
+            Object.values(currentState.extensibleAttributes).find((a) => a.slug === slug);
+          const composed = formatMeasurements({
+            bust: findBy("bust-chest")?.value,
+            waist: findBy("waist")?.value,
+            hips: findBy("hips")?.value,
+            textFallback: currentState.measurements,
+          });
+          return composed ?? "—";
+        })()}
+        labelWidth={labelWidth}
+      />
     </dl>
   );
 }

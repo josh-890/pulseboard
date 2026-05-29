@@ -60,6 +60,11 @@ export type AttributeFilter = {
 
 export type TimeScope = "current" | "ever";
 
+// Slice 16 follow-up: drill-down primitive for Person-column gaps in the
+// /maintenance audit. Only fires for missing data on the Person table
+// itself; catalog-attr gaps use AttributeFilter.baselinePresence='missing'.
+export type PersonColumnMissingFilter = "birthdate" | "nationality";
+
 export type FilterSpec = {
   categorical: CategoricalFilter[];
   range: RangeFilter[];
@@ -68,6 +73,7 @@ export type FilterSpec = {
   text: TextFilter[];
   attribute: AttributeFilter[];
   timeScope: TimeScope;
+  missing?: PersonColumnMissingFilter;
 };
 
 export const EMPTY_SPEC: FilterSpec = {
@@ -87,7 +93,8 @@ export function isEmptySpec(spec: FilterSpec): boolean {
     spec.presence.length === 0 &&
     spec.region.length === 0 &&
     spec.text.length === 0 &&
-    spec.attribute.length === 0
+    spec.attribute.length === 0 &&
+    spec.missing == null
   );
 }
 
@@ -173,6 +180,7 @@ export function specToUrlParams(spec: FilterSpec): URLSearchParams {
     if (a.baselinePresence != null) p.set(`attr.${a.definitionId}.baseline`, a.baselinePresence);
   }
   if (spec.timeScope === "ever") p.set("time", "ever");
+  if (spec.missing) p.set("missing", spec.missing);
 
   return p;
 }
@@ -226,6 +234,13 @@ export function specFromUrlParams(params: ReadableParams): FilterSpec {
     const key = renameLegacyKey(rawKey);
     if (key === "time") {
       if (value === "ever") spec.timeScope = "ever";
+      continue;
+    }
+
+    if (key === "missing") {
+      if (value === "birthdate" || value === "nationality") {
+        spec.missing = value;
+      }
       continue;
     }
 

@@ -399,6 +399,13 @@ async function buildWhereForSpec(spec: FilterSpec): Promise<Prisma.Sql> {
     ...buildTextClauses(spec.text),
     ...buildAttributeClauses(spec.attribute, metaById, spec.timeScope),
   ];
+  // Slice 16 follow-up: drill-down primitive for Person-column gaps coming
+  // from the /maintenance audit. Narrow surface, single-purpose.
+  if (spec.missing === "birthdate") {
+    clauses.push(Prisma.sql`p.birthdate IS NULL`);
+  } else if (spec.missing === "nationality") {
+    clauses.push(Prisma.sql`p.nationality IS NULL`);
+  }
   return combineWhere(clauses);
 }
 

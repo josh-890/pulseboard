@@ -1,49 +1,70 @@
 import { prisma } from "@/lib/db";
 
-// Slice 16 Step 4 audit destination / ADR-0008 principle 4.
+// Slice 16 follow-up audit destination / ADR-0008 principle 4.
 //
-// Periodic data-quality work: are all persons fully populated for the
-// meaningful baseline attrs? Mixing the audit into the daily people-search
-// sidebar buried it under filter noise (see the design conversation that
-// produced the dedicated /maintenance destination). These queries back the
-// page; they auto-scope to "active" attributes — those with at least one
-// populated baseline somewhere in the dataset — so the audit doesn't
-// surface noise for catalog entries nobody fills.
+// Periodic data-quality work: which persons are missing baseline data for
+// attributes that matter? The tier model (TIER_1 = warning, TIER_2 = hint,
+// NONE = not audited) lives on PhysicalAttributeDefinition.tier and lets the
+// catalog admin decide what counts. The two Person-column identity fields
+// (Birthday, Nationality) are tier 1 by design and audited via synthetic
+// rows here — they stay as Person columns and are not migrated to the
+// catalog.
+
+export type AuditTier = "TIER_1" | "TIER_2";
+
+// Synthetic Person-column "attributes" — they live as nullable columns on
+// Person, not in the catalog, but appear in the audit as if they were
+// tiered catalog attrs. Use the `_person.` prefix so they never collide
+// with real catalog slugs.
+const PERSON_COLUMN_AUDITS = [
+  { slug: "_person.birthdate", name: "Birthday", groupName: "Person field" },
+  { slug: "_person.nationality", name: "Nationality", groupName: "Person field" },
+] as const;
 
 export type BaselineGapByAttribute = {
-  definitionId: string;
+  definitionId: string; // for Person columns: same as slug
   slug: string;
   name: string;
   groupName: string;
+  tier: AuditTier;
   populatedCount: number;
   missingCount: number;
+  isPersonColumn: boolean;
 };
 
 export type BaselineGapByPerson = {
   personId: string;
   icgId: string;
   displayName: string;
-  missingCount: number;
-  missingSlugs: string[];
+  tier1MissingCount: number;
+  tier2MissingCount: number;
+  worstTier: AuditTier | null;
+  // Items rendered as chips, tier-labelled so the UI can color them.
+  missing: { slug: string; tier: AuditTier }[];
 };
 
 export type BaselineGapTotals = {
-  personsWithGaps: number;
+  tier1PersonsWithGaps: number;
+  tier2PersonsWithGaps: number;
+  personsWithAnyGap: number;
   totalPersons: number;
-  activeAttrsTotal: number;
+  tier1AttrsTotal: number;
+  tier2AttrsTotal: number;
 };
 
 /**
- * Per-attribute gap counts, scoped to attrs that have ≥1 populated baseline
- * value across the dataset. Sorted by missing-count descending.
+ * Per-attribute gap counts, scoped to attrs where `tier <> 'NONE'`. Also
+ * injects synthetic rows for the Person-column audits (Birthday, Nationality).
+ * Sort: tier ASC (TIER_1 first), then missingCount DESC.
  */
 export async function getBaselineGapsByAttribute(): Promise<BaselineGapByAttribute[]> {
-  const rows = await prisma.$queryRaw<
+  const catalogRows = await prisma.$queryRaw<
     {
       definitionId: string;
       slug: string;
       name: string;
       groupName: string;
+      tier: AuditTier;
       populatedCount: bigint;
       missingCount: bigint;
     }[]
@@ -53,28 +74,82 @@ export async function getBaselineGapsByAttribute(): Promise<BaselineGapByAttribu
       pad.slug         AS slug,
       pad.name         AS name,
       pag.name         AS "groupName",
+      pad.tier::text   AS tier,
       count(pcs.*) FILTER (WHERE pcs."baselineAttributes" ? pad.slug)       AS "populatedCount",
       count(pcs.*) FILTER (WHERE NOT (pcs."baselineAttributes" ? pad.slug)) AS "missingCount"
     FROM "PhysicalAttributeDefinition" pad
     JOIN "PhysicalAttributeGroup" pag ON pag.id = pad."groupId"
     CROSS JOIN "PersonCurrentState" pcs
-    GROUP BY pad.id, pad.slug, pad.name, pag.name
-    HAVING count(pcs.*) FILTER (WHERE pcs."baselineAttributes" ? pad.slug) > 0
-    ORDER BY "missingCount" DESC, "name" ASC
+    WHERE pad.tier <> 'NONE'
+    GROUP BY pad.id, pad.slug, pad.name, pag.name, pad.tier
+    ORDER BY pad.tier ASC, "missingCount" DESC, pad.name ASC
   `;
-  return rows.map((r) => ({
+
+  const personColumnRows = await prisma.$queryRaw<
+    { birthdateMissing: bigint; nationalityMissing: bigint; total: bigint }[]
+  >`
+    SELECT
+      count(*) FILTER (WHERE birthdate IS NULL)     AS "birthdateMissing",
+      count(*) FILTER (WHERE nationality IS NULL)   AS "nationalityMissing",
+      count(*)                                      AS total
+    FROM "Person"
+  `;
+  const pc =
+    personColumnRows[0] ??
+    {
+      birthdateMissing: BigInt(0),
+      nationalityMissing: BigInt(0),
+      total: BigInt(0),
+    };
+  const totalPersons = Number(pc.total);
+  const personColumnGaps: BaselineGapByAttribute[] = [
+    {
+      definitionId: PERSON_COLUMN_AUDITS[0].slug,
+      slug: PERSON_COLUMN_AUDITS[0].slug,
+      name: PERSON_COLUMN_AUDITS[0].name,
+      groupName: PERSON_COLUMN_AUDITS[0].groupName,
+      tier: "TIER_1",
+      populatedCount: totalPersons - Number(pc.birthdateMissing),
+      missingCount: Number(pc.birthdateMissing),
+      isPersonColumn: true,
+    },
+    {
+      definitionId: PERSON_COLUMN_AUDITS[1].slug,
+      slug: PERSON_COLUMN_AUDITS[1].slug,
+      name: PERSON_COLUMN_AUDITS[1].name,
+      groupName: PERSON_COLUMN_AUDITS[1].groupName,
+      tier: "TIER_1",
+      populatedCount: totalPersons - Number(pc.nationalityMissing),
+      missingCount: Number(pc.nationalityMissing),
+      isPersonColumn: true,
+    },
+  ];
+
+  const catalog: BaselineGapByAttribute[] = catalogRows.map((r) => ({
     definitionId: r.definitionId,
     slug: r.slug,
     name: r.name,
     groupName: r.groupName,
+    tier: r.tier,
     populatedCount: Number(r.populatedCount),
     missingCount: Number(r.missingCount),
+    isPersonColumn: false,
   }));
+
+  // Merge person-column rows into the catalog list, preserve overall sort
+  // (TIER_1 first by tier, then by missing desc, then by name).
+  const merged = [...personColumnGaps, ...catalog];
+  merged.sort((a, b) => {
+    if (a.tier !== b.tier) return a.tier === "TIER_1" ? -1 : 1;
+    if (a.missingCount !== b.missingCount) return b.missingCount - a.missingCount;
+    return a.name.localeCompare(b.name);
+  });
+  return merged;
 }
 
 /**
- * Per-person gap list. Only includes persons missing at least one active
- * attr. `missingSlugs` is the explicit list so the UI can show what's gone.
+ * Per-person gap list with tier-aware sub-counts. Persons with no gaps
+ * (across both tiers) are omitted.
  */
 export async function getBaselineGapsByPerson(): Promise<BaselineGapByPerson[]> {
   const rows = await prisma.$queryRaw<
@@ -82,75 +157,168 @@ export async function getBaselineGapsByPerson(): Promise<BaselineGapByPerson[]> 
       personId: string;
       icgId: string;
       displayName: string;
-      missingCount: bigint;
-      missingSlugs: string[];
+      missingTier1: { slug: string }[];
+      missingTier2: { slug: string }[];
+      personColumnGaps: string[];
     }[]
   >`
-    WITH active_slugs AS (
-      SELECT DISTINCT key AS slug
-      FROM "PersonCurrentState", jsonb_object_keys("baselineAttributes") AS key
+    WITH tiered_attrs AS (
+      SELECT slug, tier::text AS tier
+      FROM "PhysicalAttributeDefinition"
+      WHERE tier <> 'NONE'
     ),
-    per_person_missing AS (
-      SELECT
-        pcs."personId",
-        array_agg(act.slug ORDER BY act.slug) AS "missingSlugs"
+    per_person_tier1 AS (
+      SELECT pcs."personId",
+        coalesce(jsonb_agg(jsonb_build_object('slug', ta.slug) ORDER BY ta.slug), '[]'::jsonb) AS missing
       FROM "PersonCurrentState" pcs
-      CROSS JOIN active_slugs act
-      WHERE NOT (pcs."baselineAttributes" ? act.slug)
+      LEFT JOIN tiered_attrs ta
+        ON ta.tier = 'TIER_1' AND NOT (pcs."baselineAttributes" ? ta.slug)
+      WHERE ta.slug IS NOT NULL
       GROUP BY pcs."personId"
+    ),
+    per_person_tier2 AS (
+      SELECT pcs."personId",
+        coalesce(jsonb_agg(jsonb_build_object('slug', ta.slug) ORDER BY ta.slug), '[]'::jsonb) AS missing
+      FROM "PersonCurrentState" pcs
+      LEFT JOIN tiered_attrs ta
+        ON ta.tier = 'TIER_2' AND NOT (pcs."baselineAttributes" ? ta.slug)
+      WHERE ta.slug IS NOT NULL
+      GROUP BY pcs."personId"
+    ),
+    person_column_gaps AS (
+      SELECT p.id AS "personId",
+        coalesce(
+          array_remove(
+            ARRAY[
+              CASE WHEN p.birthdate IS NULL THEN '_person.birthdate' END,
+              CASE WHEN p.nationality IS NULL THEN '_person.nationality' END
+            ],
+            NULL
+          ),
+          '{}'::text[]
+        ) AS gaps
+      FROM "Person" p
     )
     SELECT
-      ppm."personId"   AS "personId",
-      p."icgId"        AS "icgId",
-      COALESCE(pa.name, p."icgId") AS "displayName",
-      array_length(ppm."missingSlugs", 1)::bigint AS "missingCount",
-      ppm."missingSlugs"
-    FROM per_person_missing ppm
-    JOIN "Person" p ON p.id = ppm."personId"
-    LEFT JOIN "PersonAlias" pa
-      ON pa."personId" = p.id AND pa."isCommon" = true
-    ORDER BY "missingCount" DESC, "displayName" ASC
+      p.id                              AS "personId",
+      p."icgId"                         AS "icgId",
+      COALESCE(pa.name, p."icgId")      AS "displayName",
+      COALESCE(t1.missing, '[]'::jsonb) AS "missingTier1",
+      COALESCE(t2.missing, '[]'::jsonb) AS "missingTier2",
+      pcg.gaps                          AS "personColumnGaps"
+    FROM "Person" p
+    LEFT JOIN "PersonAlias" pa ON pa."personId" = p.id AND pa."isCommon" = true
+    LEFT JOIN per_person_tier1 t1 ON t1."personId" = p.id
+    LEFT JOIN per_person_tier2 t2 ON t2."personId" = p.id
+    LEFT JOIN person_column_gaps pcg ON pcg."personId" = p.id
+    ORDER BY "displayName" ASC
   `;
-  return rows.map((r) => ({
-    personId: r.personId,
-    icgId: r.icgId,
-    displayName: r.displayName,
-    missingCount: Number(r.missingCount),
-    missingSlugs: r.missingSlugs,
-  }));
+
+  type SlugRow = { slug: string };
+  const results: BaselineGapByPerson[] = [];
+  for (const r of rows) {
+    // Person-column gaps merge into the tier-1 set since they're tier-1 by
+    // design. The synthetic slug `_person.<field>` is what the UI chips use.
+    const t1: { slug: string; tier: AuditTier }[] = [
+      ...(r.missingTier1 as SlugRow[]).map((m) => ({ slug: m.slug, tier: "TIER_1" as const })),
+      ...r.personColumnGaps.map((slug) => ({ slug, tier: "TIER_1" as const })),
+    ];
+    const t2: { slug: string; tier: AuditTier }[] = (r.missingTier2 as SlugRow[]).map((m) => ({
+      slug: m.slug,
+      tier: "TIER_2" as const,
+    }));
+    const tier1MissingCount = t1.length;
+    const tier2MissingCount = t2.length;
+    if (tier1MissingCount === 0 && tier2MissingCount === 0) continue;
+    const worstTier: AuditTier | null =
+      tier1MissingCount > 0 ? "TIER_1" : tier2MissingCount > 0 ? "TIER_2" : null;
+    results.push({
+      personId: r.personId,
+      icgId: r.icgId,
+      displayName: r.displayName,
+      tier1MissingCount,
+      tier2MissingCount,
+      worstTier,
+      missing: [...t1, ...t2],
+    });
+  }
+  // Sort: worst tier first (T1 before T2), then by missing-count descending,
+  // then by name.
+  results.sort((a, b) => {
+    const aWorst = a.worstTier === "TIER_1" ? 0 : 1;
+    const bWorst = b.worstTier === "TIER_1" ? 0 : 1;
+    if (aWorst !== bWorst) return aWorst - bWorst;
+    const aTotal = a.tier1MissingCount + a.tier2MissingCount;
+    const bTotal = b.tier1MissingCount + b.tier2MissingCount;
+    if (aTotal !== bTotal) return bTotal - aTotal;
+    return a.displayName.localeCompare(b.displayName);
+  });
+  return results;
 }
 
 /**
  * Top-line totals for the dashboard tile + page header.
+ * `tier1PersonsWithGaps` is the audit-warning count (drives the tile);
+ * `tier2PersonsWithGaps` is hint-level; both can be zero independently.
  */
 export async function getBaselineGapTotals(): Promise<BaselineGapTotals> {
   const rows = await prisma.$queryRaw<
     {
-      personsWithGaps: bigint;
+      tier1PersonsWithGaps: bigint;
+      tier2PersonsWithGaps: bigint;
+      personsWithAnyGap: bigint;
       totalPersons: bigint;
-      activeAttrsTotal: bigint;
+      tier1AttrsTotal: bigint;
+      tier2AttrsTotal: bigint;
     }[]
   >`
-    WITH active_slugs AS (
-      SELECT DISTINCT key AS slug
-      FROM "PersonCurrentState", jsonb_object_keys("baselineAttributes") AS key
+    WITH tiered_attrs AS (
+      SELECT slug, tier::text AS tier
+      FROM "PhysicalAttributeDefinition"
+      WHERE tier <> 'NONE'
     ),
-    per_person_missing AS (
-      SELECT pcs."personId"
+    person_gap_flags AS (
+      SELECT
+        pcs."personId",
+        bool_or(ta.tier = 'TIER_1' AND NOT (pcs."baselineAttributes" ? ta.slug))
+          AS has_tier1_attr_gap,
+        bool_or(ta.tier = 'TIER_2' AND NOT (pcs."baselineAttributes" ? ta.slug))
+          AS has_tier2_gap
       FROM "PersonCurrentState" pcs
-      CROSS JOIN active_slugs act
-      WHERE NOT (pcs."baselineAttributes" ? act.slug)
+      LEFT JOIN tiered_attrs ta ON true
       GROUP BY pcs."personId"
+    ),
+    person_with_column_gap AS (
+      SELECT
+        p.id AS "personId",
+        (p.birthdate IS NULL OR p.nationality IS NULL) AS has_person_column_gap
+      FROM "Person" p
+    ),
+    combined AS (
+      SELECT
+        pgf."personId",
+        COALESCE(pgf.has_tier1_attr_gap, false) OR COALESCE(pwcg.has_person_column_gap, false)
+          AS has_tier1_gap,
+        COALESCE(pgf.has_tier2_gap, false) AS has_tier2_gap
+      FROM person_gap_flags pgf
+      LEFT JOIN person_with_column_gap pwcg ON pwcg."personId" = pgf."personId"
     )
     SELECT
-      (SELECT count(*)::bigint FROM per_person_missing)         AS "personsWithGaps",
-      (SELECT count(*)::bigint FROM "PersonCurrentState")       AS "totalPersons",
-      (SELECT count(*)::bigint FROM active_slugs)               AS "activeAttrsTotal"
+      (SELECT count(*)::bigint FROM combined WHERE has_tier1_gap)                            AS "tier1PersonsWithGaps",
+      (SELECT count(*)::bigint FROM combined WHERE has_tier2_gap)                            AS "tier2PersonsWithGaps",
+      (SELECT count(*)::bigint FROM combined WHERE has_tier1_gap OR has_tier2_gap)           AS "personsWithAnyGap",
+      (SELECT count(*)::bigint FROM "PersonCurrentState")                                    AS "totalPersons",
+      (SELECT count(*)::bigint FROM tiered_attrs WHERE tier = 'TIER_1')                      AS "tier1AttrsTotal",
+      (SELECT count(*)::bigint FROM tiered_attrs WHERE tier = 'TIER_2')                      AS "tier2AttrsTotal"
   `;
   const r = rows[0];
   return {
-    personsWithGaps: r ? Number(r.personsWithGaps) : 0,
+    tier1PersonsWithGaps: r ? Number(r.tier1PersonsWithGaps) : 0,
+    tier2PersonsWithGaps: r ? Number(r.tier2PersonsWithGaps) : 0,
+    personsWithAnyGap: r ? Number(r.personsWithAnyGap) : 0,
     totalPersons: r ? Number(r.totalPersons) : 0,
-    activeAttrsTotal: r ? Number(r.activeAttrsTotal) : 0,
+    // +2 = the two Person-column tier-1 fields (Birthday, Nationality).
+    tier1AttrsTotal: (r ? Number(r.tier1AttrsTotal) : 0) + PERSON_COLUMN_AUDITS.length,
+    tier2AttrsTotal: r ? Number(r.tier2AttrsTotal) : 0,
   };
 }

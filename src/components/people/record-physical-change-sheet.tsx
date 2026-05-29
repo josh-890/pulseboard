@@ -335,24 +335,39 @@ export function RecordPhysicalChangeSheet({ personId, currentState, attributeGro
                       {group.name}
                       <span className="text-xs font-normal text-muted-foreground/50">{group.definitions.length}</span>
                     </button>
-                    {isExpanded && (
-                      <div className="border-t border-white/5 px-3 pb-3 pt-2 space-y-3">
-                        {group.definitions.map((def) => (
-                          <div key={def.id}>
-                            {def.valueType !== "BOOLEAN" && (
-                              <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
-                                {def.name}{def.unit ? ` (${def.unit})` : ""}
-                              </label>
-                            )}
-                            <TypedAttributeInput
-                              definition={def}
-                              value={attrValues[def.id] ?? ""}
-                              onChange={(v) => setAttrValues((prev) => ({ ...prev, [def.id]: v }))}
-                            />
-                          </div>
-                        ))}
-                      </div>
-                    )}
+                    {isExpanded && (() => {
+                      // Bespoke conditional gating, mirroring the Ethnicity
+                      // Broad→Specific pattern (see ethnicity-fields.tsx). Catalog-
+                      // level conditionality is deferred; only Freckles dependent
+                      // fields are handled here.
+                      const frecklesDef = group.definitions.find((d) => d.slug === "freckles");
+                      const frecklesValue = frecklesDef
+                        ? (attrValues[frecklesDef.id] ?? "").trim().toLowerCase()
+                        : "";
+                      const frecklesGated = frecklesValue === "" || frecklesValue === "no";
+                      const FRECKLES_DEPENDENT = new Set(["freckle-intensity", "freckle-location"]);
+                      const visible = group.definitions.filter(
+                        (d) => !(frecklesGated && FRECKLES_DEPENDENT.has(d.slug)),
+                      );
+                      return (
+                        <div className="border-t border-white/5 px-3 pb-3 pt-2 space-y-3">
+                          {visible.map((def) => (
+                            <div key={def.id}>
+                              {def.valueType !== "BOOLEAN" && (
+                                <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
+                                  {def.name}{def.unit ? ` (${def.unit})` : ""}
+                                </label>
+                              )}
+                              <TypedAttributeInput
+                                definition={def}
+                                value={attrValues[def.id] ?? ""}
+                                onChange={(v) => setAttrValues((prev) => ({ ...prev, [def.id]: v }))}
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      );
+                    })()}
                   </div>
                 );
               })}

@@ -240,7 +240,7 @@ export async function getPersonWithDetails(id: string) {
       bodyModifications: true,
       cosmeticProcedures: {
         include: {
-          attributeDefinition: { select: { id: true, name: true, unit: true, mutability: true, statusBearing: true, group: { select: { name: true } } } },
+          attributeDefinition: { select: { id: true, name: true, slug: true, unit: true, mutability: true, statusBearing: true, group: { select: { name: true } } } },
         },
       },
       skills: {
@@ -670,6 +670,7 @@ type FoldableEra = {
     attributeDefinition: {
       unit: string | null;
       name: string;
+      slug: string;
       mutability: import("@/generated/prisma/client").Mutability;
       statusBearing: boolean; // Phase G Slice 6½ / ADR-0007 amendment
       group: { name: string };
@@ -760,6 +761,7 @@ export function deriveAppearanceAtShoot<E extends FoldableEra>(
       value: d.value,
       unit: d.attributeDefinition.unit,
       name: d.attributeDefinition.name,
+      slug: d.attributeDefinition.slug,
       groupName: d.attributeDefinition.group.name,
       status: "NATURAL" as import("@/lib/types").AttributeStatus,
       mutability: d.attributeDefinition.mutability,
@@ -821,6 +823,7 @@ export function deriveCurrentState(
       value: d.value,
       unit: d.attributeDefinition.unit,
       name: d.attributeDefinition.name,
+      slug: d.attributeDefinition.slug,
       groupName: d.attributeDefinition.group.name,
       status: "NATURAL" as import("@/lib/types").AttributeStatus,
       mutability: d.attributeDefinition.mutability,
