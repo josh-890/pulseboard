@@ -15,6 +15,9 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { PersonComparisonGrid } from './person-comparison-grid'
+import { ImportPersonReview } from './import-person-review'
+import { useRouter } from 'next/navigation'
+import type { ImportItemDecisions } from '@/lib/services/import/diff'
 
 type ImportItemDetailProps = {
   item: ImportItem
@@ -62,8 +65,12 @@ export function ImportItemDetail({
   isImporting,
 }: ImportItemDetailProps) {
   const data = (item.editedData ?? item.data) as Record<string, unknown>
+  // ADR-0009: READY_TO_IMPORT (all re-import decisions made) is also actionable.
   const isActionable =
-    item.status === 'NEW' || item.status === 'MATCHED' || item.status === 'PROBABLE'
+    item.status === 'NEW' ||
+    item.status === 'MATCHED' ||
+    item.status === 'PROBABLE' ||
+    item.status === 'READY_TO_IMPORT'
   return (
     <div className="space-y-4">
       {/* Header */}
@@ -171,6 +178,16 @@ export function ImportItemDetail({
           </div>
         </div>
       )}
+
+      {/* ADR-0009: re-import review surfaces for matched PERSON items
+          with pending or made decisions. Rendered above the regular
+          edit grid so it's the primary action surface for re-imports. */}
+      {item.type === 'PERSON' &&
+        (item.status === 'PENDING_ATTRIBUTE_REVIEW' ||
+          item.status === 'READY_TO_IMPORT') &&
+        item.decisions != null && (
+          <ReimportReviewBlock item={item} />
+        )}
 
       {/* Data fields — hide comparison after import (stale data is misleading) */}
       {item.status !== 'IMPORTED' && (
@@ -499,4 +516,18 @@ function getItemTitle(item: ImportItem): string {
     default:
       return 'Unknown'
   }
+}
+
+// ADR-0009: small wrapper that pulls the decisions off the item and
+// refreshes the page after a save so the new status is reflected.
+function ReimportReviewBlock({ item }: { item: ImportItem }) {
+  const router = useRouter()
+  return (
+    <ImportPersonReview
+      itemId={item.id}
+      batchId={item.batchId}
+      initial={item.decisions as unknown as ImportItemDecisions}
+      onSaved={() => router.refresh()}
+    />
+  )
 }

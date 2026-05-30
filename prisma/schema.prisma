@@ -1618,6 +1618,13 @@ enum ImportItemStatus {
   MATCHED
   PROBABLE
   BLOCKED
+  // ADR-0009: re-import case (existing person matched by exact ICG-ID).
+  // The item waits in this status until the user makes per-attribute
+  // Accept/Decline decisions in the review UI. importPerson() refuses
+  // to execute items in this status; it requires READY_TO_IMPORT or
+  // MATCHED-with-no-pending-decisions.
+  PENDING_ATTRIBUTE_REVIEW
+  READY_TO_IMPORT
   QUEUED
   IMPORTING
   IMPORTED
@@ -1688,6 +1695,12 @@ model ImportItem {
   dependsOn       String[]
   blockedReason   String?
   editedData      Json?
+  // ADR-0009: in-flight per-attribute decisions for re-imports of existing
+  // persons. Populated when matchConfidence=1.0; shape is the diff between
+  // the import file's data and the matched person's current state, with
+  // per-row Accept/Decline + intent. importPerson() reads this to apply
+  // the user-decided Accept set.
+  decisions       Json?
   createdAt       DateTime         @default(now())
   updatedAt       DateTime         @updatedAt
 

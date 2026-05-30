@@ -6,6 +6,7 @@
  */
 
 import { prisma } from '@/lib/db'
+import { Prisma } from '@/generated/prisma/client'
 import type { ImportBatch, ImportItem, ImportItemStatus, ImportItemType } from '@/generated/prisma/client'
 import {
   parseImportFile,
@@ -18,6 +19,8 @@ import type { ParsedSet } from './parser'
 import { matchAllEntities } from './matcher'
 import { normalizeForSearch } from '@/lib/services/alias-service'
 import { runMatchingForPerson } from './cover-basket-service'
+import { buildImportItemDecisions } from './build-decisions'
+import { isEmptyDiff, type ImportItemDecisions } from './diff'
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -108,6 +111,7 @@ export async function createBatch(
     matchDetails: string | null
     dependsOn: string[]
     blockedReason: string | null
+    decisions?: ImportItemDecisions
   }> = []
 
   // ── Channels (standalone — label resolved via channel linking) ─────────
@@ -137,12 +141,22 @@ export async function createBatch(
 
   // ── Person (subject, tier 2) ──────────────────────────────────────────
   const personMatch = matches.person
-  const personStatus: ImportItemStatus =
-    personMatch.matchedEntityId
-      ? personMatch.matchConfidence === 1.0
-        ? 'MATCHED'
-        : 'PROBABLE'
-      : 'NEW'
+  // ADR-0009: when the matcher finds an exact ICG-ID match (confidence=1.0)
+  // we have a re-import. Compute the diff between the import file and the
+  // matched person's current state. If there are decisions to make, gate
+  // execution behind PENDING_ATTRIBUTE_REVIEW; if the file is identical to
+  // the DB (empty diff), the existing MATCHED status keeps today's silent
+  // skip semantics.
+  let personDecisions: ImportItemDecisions | undefined
+  let personStatus: ImportItemStatus
+  if (personMatch.matchedEntityId && personMatch.matchConfidence === 1.0) {
+    personDecisions = await buildImportItemDecisions(prisma, personMatch.matchedEntityId, parsed.person)
+    personStatus = isEmptyDiff(personDecisions) ? 'MATCHED' : 'PENDING_ATTRIBUTE_REVIEW'
+  } else if (personMatch.matchedEntityId) {
+    personStatus = 'PROBABLE'
+  } else {
+    personStatus = 'NEW'
+  }
 
   items.push({
     type: 'PERSON',
@@ -155,6 +169,7 @@ export async function createBatch(
     matchDetails: personMatch.matchDetails ?? null,
     dependsOn: [],
     blockedReason: null,
+    decisions: personDecisions,
   })
 
   // ── Aliases (tier 3, depend on person + channel) ──────────────────────
@@ -709,24 +724,48 @@ export async function refreshBatchMatches(batchId: string): Promise<ImportBatchW
     }
 
     if (newMatch) {
-      const newStatus: ImportItemStatus =
-        newMatch.matchedEntityId
-          ? newMatch.matchConfidence === 1.0
-            ? 'MATCHED'
-            : 'PROBABLE'
-          : item.status === 'BLOCKED'
-            ? 'BLOCKED'
-            : 'NEW'
+      // ADR-0009: PERSON items with confidence=1.0 enter the review gate.
+      // Other types keep today's MATCHED/PROBABLE/NEW transitions.
+      let newStatus: ImportItemStatus
+      let newDecisions: ImportItemDecisions | null = null
+      if (item.type === 'PERSON' && newMatch.matchedEntityId && newMatch.matchConfidence === 1.0) {
+        newDecisions = await buildImportItemDecisions(
+          prisma,
+          newMatch.matchedEntityId,
+          data as Parameters<typeof buildImportItemDecisions>[2],
+        )
+        // Preserve existing in-flight decisions if the user has already
+        // started reviewing (don't blow away their work on every page load).
+        if (item.status === 'PENDING_ATTRIBUTE_REVIEW' && item.decisions) {
+          newDecisions = item.decisions as ImportItemDecisions
+        }
+        newStatus = isEmptyDiff(newDecisions) ? 'MATCHED' : 'PENDING_ATTRIBUTE_REVIEW'
+      } else {
+        newStatus =
+          newMatch.matchedEntityId
+            ? newMatch.matchConfidence === 1.0
+              ? 'MATCHED'
+              : 'PROBABLE'
+            : item.status === 'BLOCKED'
+              ? 'BLOCKED'
+              : 'NEW'
+      }
 
-      await prisma.importItem.update({
-        where: { id: item.id },
-        data: {
-          status: newStatus,
-          matchedEntityId: newMatch.matchedEntityId,
-          matchConfidence: newMatch.matchConfidence,
-          matchDetails: newMatch.matchDetails,
-        },
-      })
+      const updateData: Prisma.ImportItemUpdateInput = {
+        status: newStatus,
+        matchedEntityId: newMatch.matchedEntityId,
+        matchConfidence: newMatch.matchConfidence,
+        matchDetails: newMatch.matchDetails,
+      }
+      if (item.type === 'PERSON') {
+        // Prisma's nullable JSON column needs JsonNull to explicitly null,
+        // or a plain JS object value otherwise.
+        updateData.decisions =
+          newDecisions === null
+            ? Prisma.JsonNull
+            : (newDecisions as unknown as Prisma.InputJsonValue)
+      }
+      await prisma.importItem.update({ where: { id: item.id }, data: updateData })
     }
   }
 
@@ -893,6 +932,27 @@ export async function updateItemData(
     where: { id: itemId },
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Prisma Json field
     data: { editedData: editedData as any },
+  })
+}
+
+/**
+ * ADR-0009: persist the user's per-row Accept/Decline decisions on a
+ * PERSON ImportItem. When every row in the decisions structure has been
+ * resolved, the item auto-transitions PENDING_ATTRIBUTE_REVIEW →
+ * READY_TO_IMPORT so the "Import" button can fire `importPerson()`.
+ */
+export async function updateItemDecisions(
+  itemId: string,
+  decisions: ImportItemDecisions,
+): Promise<ImportItem> {
+  const { allDecisionsMade } = await import('./diff')
+  const ready = allDecisionsMade(decisions)
+  return prisma.importItem.update({
+    where: { id: itemId },
+    data: {
+      decisions: decisions as unknown as Prisma.InputJsonValue,
+      ...(ready ? { status: 'READY_TO_IMPORT' as ImportItemStatus } : {}),
+    },
   })
 }
 

@@ -20,6 +20,7 @@ import { markStagingSetPromoted } from './staging-set-service'
 import type { ParticipantStatus } from './staging-set-service'
 import { parseBreastDescription, extractCupFromMeasurements, chooseNaturalCup } from './import-utils'
 import { transferStagingCoverToSet } from './cover-transfer'
+import { autoClusterDeltaIntoDraftEra, getBaselineEraId } from '@/lib/services/era-service'
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -139,6 +140,138 @@ export async function importChannel(item: ImportItem): Promise<ImportResult> {
   }
 }
 
+// ─── ADR-0009: re-import Accept-set application ─────────────────────────────
+
+/**
+ * Apply the user-decided Accept set from an ImportItem.decisions payload
+ * to an already-existing person. Called from importPerson() when the item
+ * is in READY_TO_IMPORT.
+ *
+ * Scalar Accepts route by chosenDestination:
+ *  - 'baseline'  → replace baseline ScalarDelta for the slug
+ *  - 'on-date'   → autoCluster into a draft Era at the source date
+ *  - 'dateless'  → file into the person's dateless draft Era
+ *
+ * Relation Accepts create new rows. Person column Accepts overwrite the
+ * column. Decline rows are no-ops in Phase 1 (Phase 2 will log them to
+ * ImportDeclineLog for future-import context).
+ */
+async function applyReimportDecisions(
+  personId: string,
+  decisions: import('./diff').ImportItemDecisions,
+  batchId: string,
+): Promise<void> {
+  // Source date for "on-date" defaults: the batch's extractionDate if set,
+  // else its createdAt (always present). Re-imports cluster around the
+  // file's snapshot date, not the moment the import was run.
+  const batch = await prisma.importBatch.findUniqueOrThrow({
+    where: { id: batchId },
+    select: { extractionDate: true, createdAt: true },
+  })
+  const sourceDate = batch.extractionDate ?? batch.createdAt
+  const sourcePrecision: 'DAY' = 'DAY'
+
+  // Cache slug → definitionId so we don't re-query in the loop.
+  const slugs = decisions.scalars
+    .filter((r) => r.decision === 'accept')
+    .map((r) => r.slug)
+  const defs =
+    slugs.length === 0
+      ? []
+      : await prisma.physicalAttributeDefinition.findMany({
+          where: { slug: { in: slugs } },
+          select: { id: true, slug: true },
+        })
+  const defBySlug = new Map(defs.map((d) => [d.slug, d.id]))
+
+  // Process scalar Accepts.
+  for (const row of decisions.scalars) {
+    if (row.decision !== 'accept') continue
+    const definitionId = defBySlug.get(row.slug)
+    if (!definitionId) continue
+    const dest = row.chosenDestination ?? row.defaultDestination
+    let eraId: string
+    let deltaDate: Date | null
+    if (dest === 'baseline') {
+      eraId = await getBaselineEraId(prisma, personId)
+      deltaDate = null
+      // Baseline writes replace any existing delta for this attr.
+      await prisma.scalarDelta.deleteMany({
+        where: { eraId, attributeDefinitionId: definitionId },
+      })
+    } else if (dest === 'dateless') {
+      eraId = await autoClusterDeltaIntoDraftEra(prisma, personId, null, 'UNKNOWN')
+      deltaDate = null
+    } else {
+      // 'on-date'
+      eraId = await autoClusterDeltaIntoDraftEra(
+        prisma,
+        personId,
+        sourceDate,
+        sourcePrecision,
+      )
+      deltaDate = sourceDate
+    }
+    await prisma.scalarDelta.create({
+      data: {
+        eraId,
+        attributeDefinitionId: definitionId,
+        value: row.importValue,
+        date: deltaDate,
+        datePrecision: deltaDate ? sourcePrecision : 'UNKNOWN',
+        dateSource: 'import-reimport',
+      },
+    })
+  }
+
+  // Aliases — create only on Accept (Phase 1 has no decline log yet).
+  for (const row of decisions.aliases) {
+    if (row.decision !== 'accept') continue
+    await prisma.personAlias.create({
+      data: {
+        personId,
+        name: row.importLabel,
+        nameNorm: normalizeForSearch(row.importLabel),
+        isCommon: row.kind === 'common',
+        isBirth: row.kind === 'birth',
+      },
+    })
+  }
+
+  // Person columns — overwrite the column directly on Accept (ADR-0008
+  // user-verifies-at-import-time principle).
+  const personUpdate: Record<string, unknown> = {}
+  for (const row of decisions.personColumns) {
+    if (row.decision !== 'accept') continue
+    switch (row.field) {
+      case 'birthdate':
+        personUpdate.birthdate = new Date(row.importValue)
+        break
+      case 'nationality':
+        personUpdate.nationality = row.importValue
+        break
+      case 'activeFrom':
+        personUpdate.activeFrom = new Date(row.importValue)
+        break
+      case 'retiredAt':
+        personUpdate.retiredAt = new Date(row.importValue)
+        break
+      case 'bio':
+        personUpdate.bio = row.importValue
+        break
+      case 'sexAtBirth':
+        personUpdate.sexAtBirth = row.importValue
+        break
+      case 'birthPlace':
+        personUpdate.birthPlace = row.importValue
+        break
+    }
+  }
+  if (Object.keys(personUpdate).length > 0) {
+    await prisma.person.update({ where: { id: personId }, data: personUpdate })
+  }
+}
+
 // ─── Import: Person ─────────────────────────────────────────────────────────
 
 export async function importPerson(item: ImportItem): Promise<ImportResult> {
@@ -148,12 +281,29 @@ export async function importPerson(item: ImportItem): Promise<ImportResult> {
     // Defensive guard (2026-05-26): only auto-merge into a matched person
     // when the match is canonical (confidence === 1.0 = exact ICG-ID
     // match). Anything weaker would mean we're silently merging two
-    // potentially different real people — which is the no-go reported by
-    // the user. The matcher itself was also tightened to never return
-    // <1.0 confidence for persons, but this guard catches any other code
-    // path that ever pre-fills matchedEntityId on a person item.
+    // potentially different real people.
     if (item.matchedEntityId && item.matchConfidence === 1.0) {
+      // ADR-0009: matched re-import path.
+      //  - PENDING_ATTRIBUTE_REVIEW → refuse; user must finish the review.
+      //  - READY_TO_IMPORT → apply the user-decided Accept set.
+      //  - MATCHED (empty diff) → silent skip, as before.
+      if (item.status === 'PENDING_ATTRIBUTE_REVIEW') {
+        return {
+          success: false,
+          entityId: null,
+          error: 'Re-import review pending — complete the Accept/Decline decisions before importing.',
+        }
+      }
+      if (item.status === 'READY_TO_IMPORT' && item.decisions) {
+        await applyReimportDecisions(
+          item.matchedEntityId,
+          item.decisions as unknown as import('./diff').ImportItemDecisions,
+          item.batchId,
+        )
+      }
+      await recomputePersonCurrentStateStandalone(item.matchedEntityId)
       await markItemImported(item.id, item.matchedEntityId)
+      await computeDependencies(item.batchId)
       return { success: true, entityId: item.matchedEntityId, error: null }
     }
     if (item.matchedEntityId && item.matchConfidence !== 1.0) {
