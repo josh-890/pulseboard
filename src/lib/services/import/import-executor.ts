@@ -385,6 +385,10 @@ export async function importPerson(item: ImportItem): Promise<ImportResult> {
       nationality,
       currentHairColor: hairColor, // baseline hair colour ScalarDelta
       height: data.heightCm as number | undefined,
+      // ADR-0008 low-stakes TEXT pass-through: raw measurements string lands
+      // on the cattr-measurements baseline delta as-is, no parsing into
+      // Bust/Waist/Hips numeric scalars.
+      measurements: measurementsRaw ?? undefined,
       sexAtBirth: 'female' as const,
     })
 

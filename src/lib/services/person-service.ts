@@ -1292,6 +1292,12 @@ export async function createPersonRecord(data: CreatePersonInput) {
       baselineDeltas.push({ attributeDefinitionId: CORE_ATTR.build, value: data.build, notes: null });
     if (data.breastSize)
       baselineDeltas.push({ attributeDefinitionId: CORE_ATTR.breastSize, value: data.breastSize, notes: data.breastDescription ?? null });
+    // ADR-0008 low-stakes TEXT pass-through: raw measurements string lands on
+    // the baseline delta as-is, no parsing. Without this push imports silently
+    // dropped the field on fresh-person creation even though the parser
+    // extracted it.
+    if (data.measurements)
+      baselineDeltas.push({ attributeDefinitionId: CORE_ATTR.measurements, value: data.measurements, notes: null });
     // Phase G Slice 3a: eyeColor + height enter via catalog deltas, not Person columns.
     if (data.eyeColor)
       baselineDeltas.push({ attributeDefinitionId: "cattr-eye-color", value: data.eyeColor, notes: null });

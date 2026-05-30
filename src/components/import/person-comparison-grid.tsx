@@ -22,7 +22,6 @@ type PersonCurrentData = {
     icgId: string
     birthdate: string | null
     nationality: string | null
-    height: number | null
     activeFrom: string | null
     retiredAt: string | null
     bio: string | null
@@ -184,8 +183,10 @@ const COMPARISON_ROWS: ComparisonRow[] = [
     getPreview: (f) => f.retiredYear ? 'inactive' : 'active',
   },
   // Physical — one row per catalog attribute the parser can populate.
-  // Height stays here because it's still a Person.height column (slated for
-  // migration to a cattr-height ScalarDelta in a later catalog-cleanup slice).
+  // Height is a separate manual row because the parser produces it as
+  // `heightCm` (number) while the storage target is the cattr-height
+  // baseline ScalarDelta (string). Person.height column has been a no-op
+  // since Phase G Slice 3a — read from baselineAttributes.
   { kind: 'section', section: 'Physical' },
   {
     kind: 'field',
@@ -193,7 +194,10 @@ const COMPARISON_ROWS: ComparisonRow[] = [
     target: {
       key: 'height',
       label: 'Height',
-      getValue: (d) => (d.person.height != null ? `${d.person.height} cm` : null),
+      getValue: (d) => {
+        const v = d.baselineAttributes['height']?.value
+        return v ? `${v} cm` : null
+      },
     },
     changeMode: 'overwrite',
   },

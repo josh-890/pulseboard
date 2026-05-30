@@ -78,14 +78,18 @@ export function EditAppearanceSheet({ person, open: controlledOpen, onOpenChange
       (d) => d.attributeDefinitionId === defId && d.isVerifiedUnknown,
     ) ?? false;
   const weightValue = baselineDeltaValue("cattr-weight");
+  const heightValue = baselineDeltaValue("cattr-height");
 
   const getDefaults = (): UpdateAppearanceFormValues => ({
     id: person.id,
-    // Eye color migrated off Person.eyeColor in Slice 3a — read the baseline
-    // delta so the form reflects what we actually persist.
+    // Eye color + height migrated off Person.eyeColor / Person.height in
+    // Slice 3a — read the baseline deltas so the form reflects what we
+    // actually persist. (Person.height stays in the schema for now but is
+    // no longer written by createPersonRecord, so reading it would show
+    // empty for every post-Slice-3a person.)
     eyeColor: baselineDeltaValue("cattr-eye-color") ?? "",
     measurements: baselineDeltaValue("cattr-measurements") ?? "",
-    height: person.height ?? undefined,
+    height: heightValue ? Number(heightValue) : undefined,
     weight: weightValue ? Number(weightValue) : undefined,
     build: baselineDeltaValue("cattr-build") ?? undefined,
     currentHairColor: baselineDeltaValue("cattr-hair-color") ?? "",

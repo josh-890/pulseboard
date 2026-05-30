@@ -39,6 +39,10 @@ export const createPersonSchema = z.object({
   currentHairColor: z.string().optional(),
   breastSize: z.string().optional(),
   breastDescription: z.string().optional(),
+  // Raw measurements string (e.g. "35-23-34 / ~89-58-86"). Written to the
+  // cattr-measurements baseline ScalarDelta verbatim — no parsing into
+  // Bust/Waist/Hips per ADR-0008 (low-stakes TEXT pass-through).
+  measurements: z.string().optional(),
   hairLength: z.string().optional(),
 });
 

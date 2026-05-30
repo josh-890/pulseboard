@@ -72,7 +72,9 @@ export async function GET(
         nationality: person.nationality
           ? (person.nationality.length === 2 ? toIocCode(person.nationality) : person.nationality)
           : null,
-        height: person.height,
+        // Height intentionally dropped from the legacy `person` shape —
+        // it's a no-op column since Phase G Slice 3a. Consumers read it
+        // via baselineAttributes['height'] now.
         activeFrom: person.activeFrom
           ? formatPartialDate(person.activeFrom, person.activeFromPrecision)
           : null,
