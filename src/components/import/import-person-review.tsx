@@ -43,9 +43,21 @@ type Props = {
   batchId: string
   initial: ImportItemDecisions
   onSaved?: () => void
+  // ADR-0009: when supplied, the review block can chain Save → Import in a
+  // single click once every row is resolved. Without it, the user has to
+  // hunt for the small header Import button after the page refreshes.
+  onImport?: () => Promise<void>
+  isImporting?: boolean
 }
 
-export function ImportPersonReview({ itemId, batchId, initial, onSaved }: Props) {
+export function ImportPersonReview({
+  itemId,
+  batchId,
+  initial,
+  onSaved,
+  onImport,
+  isImporting = false,
+}: Props) {
   const [decisions, setDecisions] = useState<ImportItemDecisions>(() => structuredClone(initial))
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -106,16 +118,20 @@ export function ImportPersonReview({ itemId, batchId, initial, onSaved }: Props)
     decisions.personColumns.filter((r) => r.decision != null).length
   const allDecided = decidedRows === totalRows
 
+  const persistDecisions = useCallback(async () => {
+    const res = await fetch(`/api/import/${batchId}/items/${itemId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ decisions }),
+    })
+    if (!res.ok) throw new Error(`Save failed (${res.status})`)
+  }, [batchId, itemId, decisions])
+
   const handleSave = useCallback(async () => {
     setIsSaving(true)
     setError(null)
     try {
-      const res = await fetch(`/api/import/${batchId}/items/${itemId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ decisions }),
-      })
-      if (!res.ok) throw new Error(`Save failed (${res.status})`)
+      await persistDecisions()
       const totalRowsNow =
         decisions.scalars.length + decisions.aliases.length + decisions.personColumns.length
       const decidedRowsNow =
@@ -135,7 +151,26 @@ export function ImportPersonReview({ itemId, batchId, initial, onSaved }: Props)
     } finally {
       setIsSaving(false)
     }
-  }, [batchId, itemId, decisions, onSaved])
+  }, [decisions, persistDecisions, onSaved])
+
+  // ADR-0009: one-click commit path. Persists the decisions then triggers
+  // the same import endpoint the header button uses. Only valid when every
+  // row is resolved.
+  const handleSaveAndImport = useCallback(async () => {
+    if (!onImport || !allDecided) return
+    setIsSaving(true)
+    setError(null)
+    try {
+      await persistDecisions()
+      await onImport()
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Save & import failed'
+      setError(msg)
+      toast.error(msg)
+    } finally {
+      setIsSaving(false)
+    }
+  }, [onImport, allDecided, persistDecisions])
 
   return (
     <div className="space-y-4 rounded-lg border border-amber-500/20 bg-amber-500/[0.04] p-4">
@@ -157,10 +192,39 @@ export function ImportPersonReview({ itemId, batchId, initial, onSaved }: Props)
             </p>
           </div>
         </div>
-        <Button size="sm" onClick={handleSave} disabled={isSaving || totalRows === 0}>
-          {isSaving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
-          {allDecided ? 'Save (ready to import)' : 'Save progress'}
-        </Button>
+        <div className="flex items-center gap-2">
+          {allDecided && onImport && (
+            <Button
+              size="sm"
+              onClick={handleSaveAndImport}
+              disabled={isSaving || isImporting || totalRows === 0}
+            >
+              {isSaving || isImporting ? (
+                <Loader2 size={14} className="animate-spin" />
+              ) : (
+                <Check size={14} />
+              )}
+              Save & Import
+            </Button>
+          )}
+          <Button
+            size="sm"
+            variant={allDecided && onImport ? 'outline' : 'default'}
+            onClick={handleSave}
+            disabled={isSaving || isImporting || totalRows === 0}
+          >
+            {isSaving ? (
+              <Loader2 size={14} className="animate-spin" />
+            ) : (
+              <Save size={14} />
+            )}
+            {allDecided && !onImport
+              ? 'Save (ready to import)'
+              : allDecided
+                ? 'Save only'
+                : 'Save progress'}
+          </Button>
+        </div>
       </div>
 
       {error && <p className="text-xs text-red-500">{error}</p>}

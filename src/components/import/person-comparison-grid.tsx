@@ -5,9 +5,17 @@ import { cn } from '@/lib/utils'
 import { Input } from '@/components/ui/input'
 import { AlertTriangle, Plus, Pencil, Check, X, RotateCcw } from 'lucide-react'
 import { parseBreastDescription, extractCupFromMeasurements } from '@/lib/services/import/import-utils'
+import { IMPORT_SCALAR_ATTRS } from '@/lib/services/import/scalar-attrs'
 import { resolveNationalityToIoc, toIocCode } from '@/lib/constants/countries'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
+
+type BaselineAttribute = {
+  value: string | null
+  isVerifiedUnknown: boolean
+  notes: string | null
+  attributeStatus: string | null
+}
 
 type PersonCurrentData = {
   person: {
@@ -15,21 +23,13 @@ type PersonCurrentData = {
     birthdate: string | null
     nationality: string | null
     height: number | null
-    naturalHairColor: string | null
-    naturalBreastSize: string | null
-    measurements: string | null
     activeFrom: string | null
     retiredAt: string | null
     bio: string | null
     status: string
   }
   commonAlias: string | null
-  baselinePhysical: {
-    currentHairColor: string | null
-    breastSize: string | null
-    breastStatus: string | null
-    breastDescription: string | null
-  } | null
+  baselineAttributes: Record<string, BaselineAttribute>
 }
 
 type ComparisonRow =
@@ -38,9 +38,24 @@ type ComparisonRow =
       kind: 'field'
       source: { key: string; label: string } | null
       sourceRef?: string
-      target: { key: string; label: string; getValue: (d: PersonCurrentData) => string | null }
+      target: {
+        key: string
+        label: string
+        getValue: (d: PersonCurrentData) => string | null
+        // Status-bearing rows (currently only breast_size) surface the
+        // folded AttributeStatus as a pill next to the value.
+        getStatusPill?: (d: PersonCurrentData) => string | null
+      }
       changeMode: 'overwrite' | 'append'
       getPreview?: (fields: Record<string, string>) => string | null
+    }
+  // ADR-0008: annotation rows show context that isn't a decision — e.g. the
+  // raw verbatim wording behind a parsed value. No change indicator, no
+  // editable source cell.
+  | {
+      kind: 'annotation'
+      source: { key: string; label: string }
+      target: { label: string; getValue: (d: PersonCurrentData) => string | null }
     }
 
 type ChangeType = 'overwrite' | 'set' | 'append' | 'match' | 'none'
@@ -60,6 +75,61 @@ type PersonComparisonGridProps = {
 
 function previewCupSize(f: Record<string, string>): string | null {
   return extractCupFromMeasurements(f.measurements ?? '') ?? (f.breastDescription ? parseBreastDescription(f.breastDescription).cupSize : null)
+}
+
+// Status-pill label derived from the AttributeStatus folded onto the baseline
+// delta. The fold writes "NATURAL" / "ENHANCED" / "RESTORED"; render as the
+// title-cased form a user expects on a pill.
+function formatAttributeStatus(raw: string | null): string | null {
+  if (!raw) return null
+  return raw.charAt(0).toUpperCase() + raw.slice(1).toLowerCase()
+}
+
+// ─── Row generator: Physical section ─────────────────────────────────────────
+
+// Generates one ComparisonRow per scalar attribute the import parser can
+// actually populate (parserKey defined). The grid hides rows whose source +
+// target are both empty so attrs no parser produces today don't show up.
+// For breast_size we additionally emit an annotation row carrying the raw
+// source wording — it's context, not a decision.
+function buildPhysicalAttributeRows(): ComparisonRow[] {
+  const rows: ComparisonRow[] = []
+  for (const attr of IMPORT_SCALAR_ATTRS) {
+    if (!attr.parserKey) continue
+    const slug = attr.slug
+    const isBreastSize = slug === 'breast_size'
+    rows.push({
+      kind: 'field',
+      source: { key: attr.parserKey, label: attr.name },
+      target: {
+        key: slug,
+        label: attr.name,
+        getValue: (d) => d.baselineAttributes[slug]?.value ?? null,
+        ...(attr.statusBearing
+          ? {
+              getStatusPill: (d) =>
+                formatAttributeStatus(d.baselineAttributes[slug]?.attributeStatus ?? null),
+            }
+          : {}),
+      },
+      changeMode: 'overwrite',
+      // breast_size needs the parsed cup as the preview; everything else
+      // shows the raw source value (handled by the generic fallback in the
+      // main render loop).
+      ...(isBreastSize ? { getPreview: previewCupSize } : {}),
+    })
+    if (isBreastSize) {
+      rows.push({
+        kind: 'annotation',
+        source: { key: 'breastDescription', label: '↳ Description' },
+        target: {
+          label: 'Breast Description',
+          getValue: (d) => d.baselineAttributes[slug]?.notes ?? null,
+        },
+      })
+    }
+  }
+  return rows
 }
 
 // ─── Row definitions ─────────────────────────────────────────────────────────
@@ -113,7 +183,9 @@ const COMPARISON_ROWS: ComparisonRow[] = [
     changeMode: 'overwrite',
     getPreview: (f) => f.retiredYear ? 'inactive' : 'active',
   },
-  // Physical
+  // Physical — one row per catalog attribute the parser can populate.
+  // Height stays here because it's still a Person.height column (slated for
+  // migration to a cattr-height ScalarDelta in a later catalog-cleanup slice).
   { kind: 'section', section: 'Physical' },
   {
     kind: 'field',
@@ -125,57 +197,7 @@ const COMPARISON_ROWS: ComparisonRow[] = [
     },
     changeMode: 'overwrite',
   },
-  {
-    kind: 'field',
-    source: { key: 'hairColor', label: 'Hair color' },
-    target: { key: 'naturalHairColor', label: 'Natural Hair Color', getValue: (d) => d.person.naturalHairColor },
-    changeMode: 'overwrite',
-  },
-  {
-    kind: 'field',
-    source: null,
-    sourceRef: 'hairColor',
-    target: { key: 'currentHairColor', label: 'Hair Color', getValue: (d) => d.baselinePhysical?.currentHairColor ?? null },
-    changeMode: 'overwrite',
-    getPreview: (f) => f.hairColor ?? null,
-  },
-  {
-    kind: 'field',
-    source: { key: 'measurements', label: 'Measurements' },
-    target: { key: 'measurements', label: 'Measurements', getValue: (d) => d.person.measurements },
-    changeMode: 'overwrite',
-  },
-  {
-    kind: 'field',
-    source: { key: 'breastDescription', label: 'Breasts' },
-    target: { key: 'naturalBreastSize', label: 'Natural Breast Size', getValue: (d) => d.person.naturalBreastSize },
-    changeMode: 'overwrite',
-    getPreview: previewCupSize,
-  },
-  {
-    kind: 'field',
-    source: null,
-    sourceRef: 'breastDescription',
-    target: { key: 'breastSize', label: 'Breast Size (current)', getValue: (d) => d.baselinePhysical?.breastSize ?? null },
-    changeMode: 'overwrite',
-    getPreview: previewCupSize,
-  },
-  {
-    kind: 'field',
-    source: null,
-    sourceRef: 'breastDescription',
-    target: { key: 'breastStatus', label: 'Breast Status', getValue: (d) => d.baselinePhysical?.breastStatus ?? null },
-    changeMode: 'overwrite',
-    getPreview: (f) => f.breastDescription ? parseBreastDescription(f.breastDescription).status : null,
-  },
-  {
-    kind: 'field',
-    source: null,
-    sourceRef: 'breastDescription',
-    target: { key: 'breastDescription', label: 'Breast Description', getValue: (d) => d.baselinePhysical?.breastDescription ?? null },
-    changeMode: 'overwrite',
-    getPreview: (f) => f.breastDescription ?? null,
-  },
+  ...buildPhysicalAttributeRows(),
   // Other
   { kind: 'section', section: 'Other' },
   {
@@ -544,12 +566,16 @@ function ComparisonTargetCell({
   changeType,
   isAppendRow,
   previewValue,
+  statusPill,
 }: {
   label: string
   currentValue: string | null
   changeType: ChangeType
   isAppendRow?: boolean
   previewValue?: string | null
+  // Folded AttributeStatus for status-bearing rows (Natural/Enhanced/
+  // Restored). Rendered as a small pill next to the value.
+  statusPill?: string | null
 }) {
   // Append rows: don't show the full bio value, just the label + indicator
   const displayValue = isAppendRow ? null : currentValue
@@ -567,7 +593,7 @@ function ComparisonTargetCell({
       </span>
       <span
         className={cn(
-          'min-w-0 flex-1 truncate text-sm',
+          'flex min-w-0 flex-1 items-center gap-1.5 truncate text-sm',
           !displayValue && !showPreview && 'italic text-muted-foreground/40',
         )}
       >
@@ -582,6 +608,20 @@ function ComparisonTargetCell({
               : displayValue
             : displayValue
           : isAppendRow ? '' : '—'}
+        {statusPill && (
+          <span
+            className={cn(
+              'shrink-0 rounded-sm px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wider',
+              statusPill === 'Natural'
+                ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
+                : statusPill === 'Enhanced'
+                  ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400'
+                  : 'bg-sky-500/15 text-sky-600 dark:text-sky-400',
+            )}
+          >
+            {statusPill}
+          </span>
+        )}
       </span>
       {changeType !== 'none' && (
         <span className="flex shrink-0 items-center gap-1 text-[10px] font-medium text-muted-foreground">
@@ -589,6 +629,43 @@ function ComparisonTargetCell({
           {CHANGE_LABELS[changeType]}
         </span>
       )}
+    </div>
+  )
+}
+
+// ADR-0008: read-only annotation row underneath an attribute decision row.
+// No source-edit input, no change indicator — just label + source/db values
+// side-by-side for context (e.g. the verbatim breast description string).
+function AnnotationRow({
+  sourceLabel,
+  sourceValue,
+  targetLabel,
+  targetValue,
+}: {
+  sourceLabel: string
+  sourceValue: string
+  targetLabel: string
+  targetValue: string | null
+}) {
+  if (!sourceValue && !targetValue) return null
+  return (
+    <div className="col-span-2 grid grid-cols-2 gap-x-6">
+      <div className="flex items-center gap-2 py-1.5 pl-4">
+        <span className="w-20 shrink-0 text-[11px] font-medium text-muted-foreground/70">
+          {sourceLabel}
+        </span>
+        <span className="truncate text-xs italic text-muted-foreground">
+          {sourceValue || <span className="text-muted-foreground/40">(empty)</span>}
+        </span>
+      </div>
+      <div className="flex items-center gap-3 rounded px-2 py-1.5">
+        <span className="w-36 shrink-0 text-[11px] font-medium text-muted-foreground/70">
+          {targetLabel}
+        </span>
+        <span className="min-w-0 flex-1 truncate text-xs italic text-muted-foreground">
+          {targetValue || <span className="text-muted-foreground/40">—</span>}
+        </span>
+      </div>
     </div>
   )
 }
@@ -668,7 +745,7 @@ export function PersonComparisonGrid({
 
       {/* Comparison grid */}
       <div className="grid grid-cols-2 gap-x-6">
-        {COMPARISON_ROWS.map((row) => {
+        {COMPARISON_ROWS.map((row, idx) => {
           if (row.kind === 'section') {
             return (
               <h3
@@ -677,6 +754,20 @@ export function PersonComparisonGrid({
               >
                 {row.section}
               </h3>
+            )
+          }
+
+          if (row.kind === 'annotation') {
+            const srcVal = fields[row.source.key] ?? ''
+            const tgtVal = data ? row.target.getValue(data) : null
+            return (
+              <AnnotationRow
+                key={`annotation-${row.source.key}-${idx}`}
+                sourceLabel={row.source.label}
+                sourceValue={srcVal}
+                targetLabel={row.target.label}
+                targetValue={tgtVal}
+              />
             )
           }
 
@@ -707,6 +798,7 @@ export function PersonComparisonGrid({
             }
           }
 
+          const statusPill = data && row.target.getStatusPill ? row.target.getStatusPill(data) : null
           const rowKey = `${row.target.key}-${sourceKey ?? 'none'}`
 
           return (
@@ -737,6 +829,7 @@ export function PersonComparisonGrid({
                 changeType={changeType}
                 isAppendRow={row.changeMode === 'append'}
                 previewValue={previewValue}
+                statusPill={statusPill}
               />
             </div>
           )

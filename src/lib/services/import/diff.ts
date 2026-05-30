@@ -18,6 +18,13 @@ export type ScalarDecisionRow = {
   dbValue: string | null;
   dbIsVerifiedUnknown: boolean;
   importValue: string;
+  // Verbatim source string for slugs whose parsed value loses information —
+  // currently only `breast_size`, where the parser collapses "Small (Real)"
+  // into cup="B" + status="natural" and the raw text would otherwise be
+  // discarded. Written to ScalarDelta.notes by applyReimportDecisions so
+  // provenance survives the re-import. Optional so old saved decisions JSON
+  // (predating this field) reads without TypeScript narrowing complaints.
+  importNotes?: string | null;
   // Default destination — fill-gap → baseline; true conflict → on-date.
   defaultDestination: DecisionDestination;
   decision: DecisionAction | null;
@@ -53,21 +60,7 @@ export type ImportItemDecisions = {
   personColumns: PersonColumnDecisionRow[];
 };
 
-// Catalog attribute slugs the diff considers. Order matters for UI: Tier 1
-// first, then Tier 2. Not catalog-driven on purpose — re-import data has
-// a fixed shape per the existing import-executor.ts.
-const SCALAR_SLUGS_TO_NAME: { slug: string; name: string }[] = [
-  { slug: "hair_color", name: "Hair Color" },
-  { slug: "weight", name: "Weight" },
-  { slug: "build", name: "Build" },
-  { slug: "breast_size", name: "Breast Size" },
-  { slug: "hair-length", name: "Hair Length" },
-  { slug: "eye-color", name: "Eye Color" },
-  { slug: "height", name: "Height" },
-  { slug: "ethnicity-broad", name: "Ethnicity (Broad)" },
-  { slug: "ethnicity-specific", name: "Ethnicity (Specific)" },
-  { slug: "measurements", name: "Measurements" },
-];
+import { IMPORT_SCALAR_ATTRS } from "./scalar-attrs";
 
 // Normaliser used for alias keys + dedup. Aligns with normalizeForSearch
 // — kept self-contained here to keep diff.ts pure (no DB / locale deps).
@@ -109,6 +102,10 @@ export type ImportPayload = {
   // Catalog scalar attribute values (per slug). Missing slug = nothing in
   // the file for that attr.
   scalars: Record<string, string>;
+  // Optional verbatim source string per slug. Only populated where the
+  // parsed value loses information (currently only breast_size). Written
+  // to ScalarDelta.notes by applyReimportDecisions.
+  scalarNotes?: Record<string, string>;
 };
 
 /**
@@ -121,7 +118,7 @@ export function computeImportDiff(
   matched: MatchedPersonSnapshot,
 ): ImportItemDecisions {
   const scalars: ScalarDecisionRow[] = [];
-  for (const { slug, name } of SCALAR_SLUGS_TO_NAME) {
+  for (const { slug, name } of IMPORT_SCALAR_ATTRS) {
     const importValue = (payload.scalars[slug] ?? "").trim();
     if (importValue === "") continue;
     const dbEntry = matched.baselineScalars.get(slug);
@@ -138,6 +135,7 @@ export function computeImportDiff(
       dbValue,
       dbIsVerifiedUnknown,
       importValue,
+      importNotes: payload.scalarNotes?.[slug] ?? null,
       defaultDestination,
       decision: null,
       chosenDestination: null,

@@ -18,6 +18,17 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.
     color: 'bg-emerald-500/15 text-emerald-500 border-emerald-500/20',
     icon: <Check size={10} />,
   },
+  // ADR-0009: re-import workflow.
+  PENDING_ATTRIBUTE_REVIEW: {
+    label: 'Review needed',
+    color: 'bg-amber-500/15 text-amber-500 border-amber-500/20',
+    icon: <HelpCircle size={10} />,
+  },
+  READY_TO_IMPORT: {
+    label: 'Ready to import',
+    color: 'bg-sky-500/15 text-sky-500 border-sky-500/20',
+    icon: <Check size={10} />,
+  },
   PROBABLE: {
     label: 'Probable',
     color: 'bg-amber-500/15 text-amber-500 border-amber-500/20',

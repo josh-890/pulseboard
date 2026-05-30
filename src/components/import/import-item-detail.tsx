@@ -65,12 +65,16 @@ export function ImportItemDetail({
   isImporting,
 }: ImportItemDetailProps) {
   const data = (item.editedData ?? item.data) as Record<string, unknown>
-  // ADR-0009: READY_TO_IMPORT (all re-import decisions made) is also actionable.
+  // ADR-0009: PENDING_ATTRIBUTE_REVIEW shows the action surface so Skip is
+  // available and the Import button is visible (disabled until decisions
+  // are resolved). READY_TO_IMPORT enables it.
   const isActionable =
     item.status === 'NEW' ||
     item.status === 'MATCHED' ||
     item.status === 'PROBABLE' ||
+    item.status === 'PENDING_ATTRIBUTE_REVIEW' ||
     item.status === 'READY_TO_IMPORT'
+  const isReviewBlocked = item.status === 'PENDING_ATTRIBUTE_REVIEW'
   return (
     <div className="space-y-4">
       {/* Header */}
@@ -99,7 +103,12 @@ export function ImportItemDetail({
             <Button
               size="sm"
               onClick={() => onImport(item.id)}
-              disabled={isImporting}
+              disabled={isImporting || isReviewBlocked}
+              title={
+                isReviewBlocked
+                  ? 'Resolve every re-import decision below first'
+                  : undefined
+              }
             >
               {isImporting ? (
                 <Loader2 size={14} className="animate-spin" />
@@ -180,17 +189,28 @@ export function ImportItemDetail({
       )}
 
       {/* ADR-0009: re-import review surfaces for matched PERSON items
-          with pending or made decisions. Rendered above the regular
-          edit grid so it's the primary action surface for re-imports. */}
+          with pending or made decisions. The existing PersonDetailEditable
+          is suppressed in these states — its inline "overwrite" warnings
+          contradict the gated review flow and confused users on first use. */}
       {item.type === 'PERSON' &&
         (item.status === 'PENDING_ATTRIBUTE_REVIEW' ||
           item.status === 'READY_TO_IMPORT') &&
         item.decisions != null && (
-          <ReimportReviewBlock item={item} />
+          <ReimportReviewBlock
+            item={item}
+            onImport={onImport}
+            isImporting={isImporting}
+          />
         )}
 
-      {/* Data fields — hide comparison after import (stale data is misleading) */}
-      {item.status !== 'IMPORTED' && (
+      {/* Data fields — hide comparison after import (stale data is misleading).
+          Also hidden during the re-import review (handled by ReimportReviewBlock above). */}
+      {item.status !== 'IMPORTED' &&
+        !(
+          item.type === 'PERSON' &&
+          (item.status === 'PENDING_ATTRIBUTE_REVIEW' ||
+            item.status === 'READY_TO_IMPORT')
+        ) && (
         <div className="rounded-lg border border-border/50 bg-card/50 p-4">
           {item.type === 'PERSON' && (
             <PersonDetailEditable
@@ -520,7 +540,19 @@ function getItemTitle(item: ImportItem): string {
 
 // ADR-0009: small wrapper that pulls the decisions off the item and
 // refreshes the page after a save so the new status is reflected.
-function ReimportReviewBlock({ item }: { item: ImportItem }) {
+// `onImport` is forwarded so the review block can offer a one-click
+// "Save & Import" action when all decisions are resolved — avoiding the
+// "where's the Import button?" UX trap where the only Import affordance
+// is the small top-right header button far from the user's mouse.
+function ReimportReviewBlock({
+  item,
+  onImport,
+  isImporting,
+}: {
+  item: ImportItem
+  onImport: (itemId: string) => Promise<void>
+  isImporting: boolean
+}) {
   const router = useRouter()
   return (
     <ImportPersonReview
@@ -528,6 +560,8 @@ function ReimportReviewBlock({ item }: { item: ImportItem }) {
       batchId={item.batchId}
       initial={item.decisions as unknown as ImportItemDecisions}
       onSaved={() => router.refresh()}
+      onImport={() => onImport(item.id)}
+      isImporting={isImporting}
     />
   )
 }

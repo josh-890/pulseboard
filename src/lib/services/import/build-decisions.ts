@@ -81,6 +81,11 @@ export function buildImportPayloadFromParsed(data: ParsedPersonData): ImportPayl
   // ethnicity-broad, ethnicity-specific in the structured fields above.
   // If parser extracts them in the future, set them here too.
 
+  // Verbatim source strings for slugs whose parsed value loses info. Carried
+  // through to ScalarDelta.notes so the description survives a re-import.
+  const scalarNotes: Record<string, string> = {}
+  if (data.breastDescription) scalarNotes['breast_size'] = data.breastDescription
+
   return {
     birthdateIso,
     birthdatePrecision,
@@ -93,6 +98,7 @@ export function buildImportPayloadFromParsed(data: ParsedPersonData): ImportPayl
     commonName: data.name,
     birthName: undefined,
     scalars,
+    scalarNotes,
   }
 }
 

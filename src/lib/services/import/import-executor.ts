@@ -220,6 +220,10 @@ async function applyReimportDecisions(
         date: deltaDate,
         datePrecision: deltaDate ? sourcePrecision : 'UNKNOWN',
         dateSource: 'import-reimport',
+        // Verbatim source string when the parsed value loses information
+        // (currently only breast_size). Preserves the description across
+        // re-imports so the annotation row in the grid keeps its data.
+        notes: row.importNotes ?? null,
       },
     })
   }
@@ -423,13 +427,20 @@ export async function importPerson(item: ImportItem): Promise<ImportResult> {
     // Baseline breast data → a ScalarDelta. (hair colour was set as a delta by
     // createPersonRecord via currentHairColor.) Enhanced status → an additional
     // ScalarDelta with cause=SURGICAL on a draft era (ADR-0007, Phase G Slice 5).
-    if (naturalCup || breastParsed) {
+    //
+    // Provenance preservation: when breastRaw is present we ALWAYS write a
+    // baseline delta — `notes` carries the verbatim source string so it's
+    // available for later reference even when no natural cup can be set
+    // (enhanced status, or unparseable text). Per ADR-0008 principle 4, the
+    // delta is marked isVerifiedUnknown when there is no natural cup so the
+    // gap stays searchable as "natural breast size unknown".
+    if (breastParsed || breastRaw) {
       const baselineEra = await prisma.era.findFirst({
         where: { personId: person.id, isBaseline: true },
         select: { id: true },
       })
 
-      if (baselineEra && naturalCup) {
+      if (baselineEra) {
         await prisma.scalarDelta.deleteMany({
           where: { eraId: baselineEra.id, attributeDefinitionId: 'cattr-breast-size' },
         })
@@ -437,8 +448,9 @@ export async function importPerson(item: ImportItem): Promise<ImportResult> {
           data: {
             eraId: baselineEra.id,
             attributeDefinitionId: 'cattr-breast-size',
-            value: naturalCup,
-            notes: breastParsed?.raw ?? null,
+            value: naturalCup ?? '',
+            isVerifiedUnknown: naturalCup == null,
+            notes: breastParsed?.raw ?? breastRaw,
           },
         })
       }

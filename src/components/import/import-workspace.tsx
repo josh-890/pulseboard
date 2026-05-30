@@ -88,7 +88,16 @@ export function ImportWorkspace({ batch }: ImportWorkspaceProps) {
       // SET items are always sent to staging workspace on batch creation — treat as done
       if (item.type === 'SET') {
         result[item.type].done++
-      } else if (item.status === 'NEW' || item.status === 'MATCHED' || item.status === 'PROBABLE') {
+      } else if (
+        item.status === 'NEW' ||
+        item.status === 'MATCHED' ||
+        item.status === 'PROBABLE' ||
+        // ADR-0009: items in re-import review still count toward "ready"
+        // so they remain visible in the per-tab counter (otherwise the
+        // sidebar reads zero and the user can't tell anything is pending).
+        item.status === 'PENDING_ATTRIBUTE_REVIEW' ||
+        item.status === 'READY_TO_IMPORT'
+      ) {
         result[item.type].ready++
       } else if (item.status === 'IMPORTED' || item.status === 'SKIPPED') {
         result[item.type].done++

@@ -4,6 +4,24 @@ import { formatPartialDate } from '@/lib/utils'
 import { withTenantFromHeaders } from '@/lib/tenant-context'
 import { toIocCode } from '@/lib/constants/countries'
 
+// Returns the matched person's current state in a shape aligned with the
+// import comparison grid + ADR-0009 re-import review. The legacy
+// `naturalHairColor` / `naturalBreastSize` / `breastPhysical` aliases were
+// dropped — they fabricated old Person columns from baseline-Era ScalarDeltas
+// and made the grid look like it was tracking two separate concepts.
+// Today every catalog-backed attribute is keyed by slug under
+// `baselineAttributes`.
+
+type BaselineAttribute = {
+  value: string | null
+  isVerifiedUnknown: boolean
+  notes: string | null
+  // From PersonCurrentState.attributeStatuses — only populated for
+  // statusBearing definitions (currently only `breast_size`). Drives the
+  // Natural/Enhanced/Restored pill in the grid.
+  attributeStatus: string | null
+}
+
 export async function GET(
   _req: Request,
   { params }: { params: Promise<{ personId: string }> },
@@ -22,10 +40,7 @@ export async function GET(
           },
           take: 1,
         },
-        cosmeticProcedures: {
-          where: { attributeDefinitionId: "cattr-breast-size" },
-          select: { id: true },
-        },
+        currentState: { select: { attributeStatuses: true } },
       },
     })
 
@@ -34,23 +49,19 @@ export async function GET(
     }
 
     const baselineDeltas = person.eras[0]?.scalarDeltas ?? []
-    const deltaFor = (slug: string) =>
-      baselineDeltas.find((d) => d.attributeDefinition.slug === slug) ?? null
-    const hairDelta = deltaFor("hair_color")
-    const breastDelta = deltaFor("breast_size")
-    const baseline =
-      hairDelta || breastDelta
-        ? {
-            currentHairColor: hairDelta?.value ?? null,
-            breastSize: breastDelta?.value ?? null,
-            breastStatus: person.cosmeticProcedures.length > 0
-              ? "enhanced"
-              : breastDelta
-                ? "natural"
-                : null,
-            breastDescription: breastDelta?.notes ?? null,
-          }
-        : null
+    const statusMap =
+      (person.currentState?.attributeStatuses as Record<string, string> | null) ?? {}
+
+    const baselineAttributes: Record<string, BaselineAttribute> = {}
+    for (const delta of baselineDeltas) {
+      const slug = delta.attributeDefinition.slug
+      baselineAttributes[slug] = {
+        value: delta.value || null,
+        isVerifiedUnknown: delta.isVerifiedUnknown,
+        notes: delta.notes,
+        attributeStatus: statusMap[slug] ?? null,
+      }
+    }
 
     return NextResponse.json({
       person: {
@@ -62,9 +73,6 @@ export async function GET(
           ? (person.nationality.length === 2 ? toIocCode(person.nationality) : person.nationality)
           : null,
         height: person.height,
-        naturalHairColor: hairDelta?.value ?? null,
-        naturalBreastSize: breastDelta?.value ?? null,
-        measurements: deltaFor("measurements")?.value ?? null,
         activeFrom: person.activeFrom
           ? formatPartialDate(person.activeFrom, person.activeFromPrecision)
           : null,
@@ -75,14 +83,7 @@ export async function GET(
         status: person.status,
       },
       commonAlias: person.aliases[0]?.name ?? null,
-      baselinePhysical: baseline
-        ? {
-            currentHairColor: baseline.currentHairColor,
-            breastSize: baseline.breastSize,
-            breastStatus: baseline.breastStatus,
-            breastDescription: baseline.breastDescription,
-          }
-        : null,
+      baselineAttributes,
     })
   })
 }
