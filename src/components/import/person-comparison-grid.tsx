@@ -636,18 +636,26 @@ function ComparisonTargetCell({
 // ADR-0008: read-only annotation row underneath an attribute decision row.
 // No source-edit input, no change indicator — just label + source/db values
 // side-by-side for context (e.g. the verbatim breast description string).
+//
+// For new entities the right cell shows a "will set" preview pill mirroring
+// the source value so the user can tell the description IS going to be
+// persisted — otherwise the empty right cell reads as "this field will be
+// dropped on import".
 function AnnotationRow({
   sourceLabel,
   sourceValue,
   targetLabel,
   targetValue,
+  isNewEntity,
 }: {
   sourceLabel: string
   sourceValue: string
   targetLabel: string
   targetValue: string | null
+  isNewEntity: boolean
 }) {
   if (!sourceValue && !targetValue) return null
+  const showPreview = isNewEntity && !targetValue && sourceValue !== ''
   return (
     <div className="col-span-2 grid grid-cols-2 gap-x-6">
       <div className="flex items-center gap-2 py-1.5 pl-4">
@@ -658,13 +666,32 @@ function AnnotationRow({
           {sourceValue || <span className="text-muted-foreground/40">(empty)</span>}
         </span>
       </div>
-      <div className="flex items-center gap-3 rounded px-2 py-1.5">
+      <div
+        className={cn(
+          'flex items-center gap-3 rounded px-2 py-1.5',
+          showPreview && 'border-l-2 border-l-emerald-500 bg-emerald-500/5',
+        )}
+      >
         <span className="w-36 shrink-0 text-[11px] font-medium text-muted-foreground/70">
           {targetLabel}
         </span>
         <span className="min-w-0 flex-1 truncate text-xs italic text-muted-foreground">
-          {targetValue || <span className="text-muted-foreground/40">—</span>}
+          {targetValue ? (
+            targetValue
+          ) : showPreview ? (
+            <span className="rounded border border-emerald-500/30 bg-emerald-500/10 px-1.5 py-0.5 not-italic font-medium text-emerald-700 dark:text-emerald-300">
+              {sourceValue}
+            </span>
+          ) : (
+            <span className="text-muted-foreground/40">—</span>
+          )}
         </span>
+        {showPreview && (
+          <span className="flex shrink-0 items-center gap-1 text-[10px] font-medium text-muted-foreground">
+            <Plus size={10} className="text-emerald-500" />
+            will set
+          </span>
+        )}
       </div>
     </div>
   )
@@ -767,6 +794,7 @@ export function PersonComparisonGrid({
                 sourceValue={srcVal}
                 targetLabel={row.target.label}
                 targetValue={tgtVal}
+                isNewEntity={isNewEntity}
               />
             )
           }

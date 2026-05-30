@@ -1491,12 +1491,24 @@ export async function updatePersonAppearance(
       // Slice 16 follow-up: when isVerifiedUnknown is true, write an empty-
       // value delta with the flag set; the fold writes the "__UNKNOWN__"
       // sentinel into baselineAttributes. Otherwise normal value semantics.
+      //
+      // Notes preservation: this edit sheet doesn't expose a description /
+      // notes input, but the import path writes provenance to
+      // breast_size.notes (verbatim "Small (Real)" etc.). Without an
+      // explicit pass-through, the delete-then-create here would wipe that
+      // provenance every time a user touches the Hero pencil — making it
+      // look like the description was never imported. Read the existing
+      // notes first and write them back on the replacement delta.
       const setBaselineDelta = async (
         attrId: string,
         value: string | undefined,
         isUnknown: boolean = false,
       ) => {
         if (value === undefined && !isUnknown) return; // not in the patch — leave as-is
+        const existing = await tx.scalarDelta.findFirst({
+          where: { eraId: baselineEra.id, attributeDefinitionId: attrId },
+          select: { notes: true },
+        });
         await tx.scalarDelta.deleteMany({
           where: { eraId: baselineEra.id, attributeDefinitionId: attrId },
         });
@@ -1507,11 +1519,17 @@ export async function updatePersonAppearance(
               attributeDefinitionId: attrId,
               value: "",
               isVerifiedUnknown: true,
+              notes: existing?.notes ?? null,
             },
           });
         } else if (value && value.trim() !== "") {
           await tx.scalarDelta.create({
-            data: { eraId: baselineEra.id, attributeDefinitionId: attrId, value },
+            data: {
+              eraId: baselineEra.id,
+              attributeDefinitionId: attrId,
+              value,
+              notes: existing?.notes ?? null,
+            },
           });
         }
       };
