@@ -316,6 +316,8 @@ model Person {
   research             PersonResearch[]
   coverBaskets         CoverBasket[]           @relation("PersonCoverBaskets")
   currentState         PersonCurrentState?
+  importDeclines       ImportDeclineLog[]
+  deletionTombstones   ItemDeletionTombstone[]
 
   createdAt DateTime @default(now())
 
@@ -1675,6 +1677,7 @@ model ImportBatch {
   updatedAt       DateTime          @updatedAt
   items           ImportItem[]
   stagingSets     StagingSet[]
+  declineLog      ImportDeclineLog[]
 
   @@index([subjectIcgId])
   @@map("import_batch")
@@ -1709,6 +1712,46 @@ model ImportItem {
   @@index([batchId, type])
   @@index([batchId, status])
   @@map("import_item")
+}
+
+// ADR-0009 Phase 2: re-import decision history. Today only `kind='alias'`
+// rows are written — scalars are explicitly NOT logged per the
+// hair-colour-cycling carve-out, and digital identities use their own SKIP
+// flow rather than per-row Decline. `itemKey` is the normalised key
+// produced by normaliseAliasKey() in src/lib/services/import/diff.ts.
+// Surfaces in the review UI as "Previously declined ..." next to a
+// matching row in a later re-import.
+model ImportDeclineLog {
+  id                String      @id @default(cuid())
+  personId          String
+  person            Person      @relation(fields: [personId], references: [id], onDelete: Cascade)
+  kind              String
+  itemKey           String
+  declinedInBatchId String
+  declinedInBatch   ImportBatch @relation(fields: [declinedInBatchId], references: [id], onDelete: Cascade)
+  declinedAt        DateTime    @default(now())
+
+  @@index([personId, kind])
+  @@index([declinedAt])
+  @@map("import_decline_log")
+}
+
+// ADR-0009 Phase 2: manual-deletion record for relation kinds (alias /
+// digital identity). Written in the same $transaction as the delete so a
+// future re-import surfaces "Previously manually deleted ..." rather than
+// silently proposing to re-create. `kind` ∈ {'alias','digital_identity'};
+// `itemKey` is the kind-appropriate normalisation.
+model ItemDeletionTombstone {
+  id        String   @id @default(cuid())
+  personId  String
+  person    Person   @relation(fields: [personId], references: [id], onDelete: Cascade)
+  kind      String
+  itemKey   String
+  deletedAt DateTime @default(now())
+
+  @@index([personId, kind])
+  @@index([deletedAt])
+  @@map("item_deletion_tombstone")
 }
 
 // ─── Staging Sets ─────────────────────────────────────────────────────────────

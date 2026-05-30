@@ -36,6 +36,15 @@ export type AliasDecisionRow = {
   itemKey: string;
   importLabel: string;
   decision: DecisionAction | null;
+  // Phase 2: cross-batch context for the UI. ISO date strings so the JSON
+  // round-trip is lossless. `declinedDates` lists prior batches where this
+  // exact alias key was declined (excludes the current batch — that's "live
+  // decision", not "history"). `manuallyDeletedAt` is set when the user has
+  // previously hard-deleted an alias with this key from the person page.
+  context?: {
+    declinedDates?: string[];
+    manuallyDeletedAt?: string;
+  };
 };
 
 export type PersonColumnField =
@@ -66,6 +75,19 @@ import { IMPORT_SCALAR_ATTRS } from "./scalar-attrs";
 // — kept self-contained here to keep diff.ts pure (no DB / locale deps).
 export function normaliseAliasKey(name: string): string {
   return name.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+// Key shape used by ItemDeletionTombstone for digital identities. Mirrors
+// the lookup format the staging-service matcher already uses
+// (`${platform}:${url || handle || ''}`) so a tombstone written at delete
+// time is findable by the matcher's existing key on the next re-import.
+// NOTE: the matcher's *index* side (matcher.ts:386) only uses url, not
+// handle — a pre-existing inconsistency that's out of scope here.
+export function normaliseDigitalIdentityKey(
+  platform: string,
+  urlOrHandle: string | null | undefined,
+): string {
+  return `${platform}:${urlOrHandle ?? ""}`;
 }
 
 export type MatchedPersonSnapshot = {

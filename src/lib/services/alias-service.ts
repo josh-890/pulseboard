@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { normaliseAliasKey } from "@/lib/services/import/diff";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -205,6 +206,17 @@ export async function deleteAlias(aliasId: string) {
 
     await tx.personAliasChannel.deleteMany({ where: { aliasId } });
     await tx.personAlias.delete({ where: { id: aliasId } });
+
+    // ADR-0009 Phase 2: record the manual deletion so a future re-import can
+    // surface "Previously manually deleted ..." next to the matching review
+    // row instead of silently proposing to re-create the alias.
+    await tx.itemDeletionTombstone.create({
+      data: {
+        personId: alias.personId,
+        kind: "alias",
+        itemKey: normaliseAliasKey(alias.name),
+      },
+    });
   });
 }
 

@@ -277,6 +277,7 @@ export function ImportPersonReview({
               dbValue={null}
               importValue={row.importLabel}
               decision={row.decision}
+              contextLines={formatAliasContext(row.context)}
               onAccept={() => setAliasDecision(row.itemKey, 'accept')}
               onDecline={() => setAliasDecision(row.itemKey, 'decline')}
             />
@@ -309,6 +310,7 @@ function DecisionRow({
   dbValue,
   importValue,
   decision,
+  contextLines,
   onAccept,
   onDecline,
 }: {
@@ -316,33 +318,64 @@ function DecisionRow({
   dbValue: string | null
   importValue: string
   decision: DecisionAction | null
+  // ADR-0009 Phase 2: optional grey subtitle lines ("Previously declined
+  // ...", "Manually deleted ..."). Rendered beneath the main row when
+  // populated.
+  contextLines?: string[]
   onAccept: () => void
   onDecline: () => void
 }) {
   // Column convention matches PersonComparisonGrid: Import (source) LEFT,
   // DB (current) RIGHT.
   return (
-    <div className="grid grid-cols-12 items-center gap-2 rounded-md border border-white/10 bg-white/[0.02] px-3 py-2 text-sm">
-      <div className="col-span-3 font-medium">{label}</div>
-      <div className="col-span-3 whitespace-pre-line break-words text-xs">
-        <span className="text-muted-foreground/60">Import:</span>{' '}
-        <span className="font-medium">{importValue}</span>
+    <div className="rounded-md border border-white/10 bg-white/[0.02] px-3 py-2 text-sm">
+      <div className="grid grid-cols-12 items-center gap-2">
+        <div className="col-span-3 font-medium">{label}</div>
+        <div className="col-span-3 whitespace-pre-line break-words text-xs">
+          <span className="text-muted-foreground/60">Import:</span>{' '}
+          <span className="font-medium">{importValue}</span>
+        </div>
+        <div className="col-span-3 whitespace-pre-line break-words text-xs text-muted-foreground">
+          {dbValue ? (
+            <>
+              <span className="text-muted-foreground/60">DB:</span> {dbValue}
+            </>
+          ) : (
+            <span className="italic text-muted-foreground/50">(no value)</span>
+          )}
+        </div>
+        <div className="col-span-3 flex justify-end gap-1">
+          <DecisionButton selected={decision === 'accept'} onClick={onAccept} kind="accept" />
+          <DecisionButton selected={decision === 'decline'} onClick={onDecline} kind="decline" />
+        </div>
       </div>
-      <div className="col-span-3 whitespace-pre-line break-words text-xs text-muted-foreground">
-        {dbValue ? (
-          <>
-            <span className="text-muted-foreground/60">DB:</span> {dbValue}
-          </>
-        ) : (
-          <span className="italic text-muted-foreground/50">(no value)</span>
-        )}
-      </div>
-      <div className="col-span-3 flex justify-end gap-1">
-        <DecisionButton selected={decision === 'accept'} onClick={onAccept} kind="accept" />
-        <DecisionButton selected={decision === 'decline'} onClick={onDecline} kind="decline" />
-      </div>
+      {contextLines && contextLines.length > 0 && (
+        <div className="mt-1.5 space-y-0.5 border-t border-white/5 pt-1.5 text-[10px] italic text-muted-foreground/70">
+          {contextLines.map((line, i) => (
+            <div key={i}>{line}</div>
+          ))}
+        </div>
+      )}
     </div>
   )
+}
+
+// Format the AliasDecisionRow.context fields into user-readable lines.
+function formatAliasContext(
+  context: { declinedDates?: string[]; manuallyDeletedAt?: string } | undefined,
+): string[] {
+  if (!context) return []
+  const lines: string[] = []
+  if (context.manuallyDeletedAt) {
+    lines.push(
+      `Manually deleted ${new Date(context.manuallyDeletedAt).toLocaleDateString()}`,
+    )
+  }
+  if (context.declinedDates && context.declinedDates.length > 0) {
+    const dates = context.declinedDates.map((d) => new Date(d).toLocaleDateString())
+    lines.push(`Previously declined ${dates.join(', ')}`)
+  }
+  return lines
 }
 
 function ScalarDecisionRow({

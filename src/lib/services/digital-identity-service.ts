@@ -2,6 +2,7 @@ import { prisma } from "@/lib/db";
 import type { PersonDigitalIdentityItem } from "@/lib/types";
 import type { CreateDigitalIdentityInput, UpdateDigitalIdentityInput } from "@/lib/validations/digital-identity";
 import { deriveInterval } from "@/lib/utils/event-interval";
+import { normaliseDigitalIdentityKey } from "@/lib/services/import/diff";
 
 export async function getPersonDigitalIdentities(personId: string): Promise<PersonDigitalIdentityItem[]> {
   const identities = await prisma.personDigitalIdentity.findMany({
@@ -62,7 +63,26 @@ export async function updateDigitalIdentity(id: string, data: UpdateDigitalIdent
 
 export async function deleteDigitalIdentity(id: string) {
   return prisma.$transaction(async (tx) => {
+    // Fetch what we need for the tombstone before deleting.
+    const di = await tx.personDigitalIdentity.findUniqueOrThrow({
+      where: { id },
+      select: { personId: true, platform: true, url: true, handle: true },
+    });
+
     await tx.digitalIdentityEvent.deleteMany({ where: { digitalIdentityId: id } });
-    return tx.personDigitalIdentity.delete({ where: { id } });
+    const deleted = await tx.personDigitalIdentity.delete({ where: { id } });
+
+    // ADR-0009 Phase 2: record the manual deletion so a future re-import
+    // surfaces "Previously manually deleted ..." next to the matching
+    // review row instead of silently proposing to re-create.
+    await tx.itemDeletionTombstone.create({
+      data: {
+        personId: di.personId,
+        kind: "digital_identity",
+        itemKey: normaliseDigitalIdentityKey(di.platform, di.url ?? di.handle),
+      },
+    });
+
+    return deleted;
   });
 }

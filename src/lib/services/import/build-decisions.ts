@@ -178,13 +178,72 @@ export async function loadMatchedPersonSnapshot(
 /**
  * End-to-end: load snapshot + build payload + compute diff. Returned
  * as the JSON shape ready to write to ImportItem.decisions.
+ *
+ * Phase 2: when `currentBatchId` is supplied, alias decision rows are
+ * annotated with cross-batch context (prior declines + manual deletions
+ * of the same itemKey) so the review UI can surface "Previously declined
+ * 2026-04-20" / "Previously manually deleted 2026-03-10" subtitles. The
+ * current batch is excluded from the decline-log lookup (those entries
+ * are the live save state, not history).
  */
 export async function buildImportItemDecisions(
   tx: TxClient,
   matchedPersonId: string,
   data: ParsedPersonData,
+  currentBatchId?: string,
 ): Promise<ImportItemDecisions> {
   const matched = await loadMatchedPersonSnapshot(tx, matchedPersonId)
   const payload = buildImportPayloadFromParsed(data)
-  return computeImportDiff(payload, matched)
+  const decisions = computeImportDiff(payload, matched)
+
+  if (decisions.aliases.length === 0) return decisions
+
+  // Single-pass context lookup for the diff's alias keys.
+  const aliasKeys = decisions.aliases.map((a) => a.itemKey)
+  const [declineRows, tombstoneRows] = await Promise.all([
+    tx.importDeclineLog.findMany({
+      where: {
+        personId: matchedPersonId,
+        kind: 'alias',
+        itemKey: { in: aliasKeys },
+        ...(currentBatchId ? { declinedInBatchId: { not: currentBatchId } } : {}),
+      },
+      select: { itemKey: true, declinedAt: true },
+      orderBy: { declinedAt: 'desc' },
+    }),
+    tx.itemDeletionTombstone.findMany({
+      where: {
+        personId: matchedPersonId,
+        kind: 'alias',
+        itemKey: { in: aliasKeys },
+      },
+      select: { itemKey: true, deletedAt: true },
+      orderBy: { deletedAt: 'desc' },
+    }),
+  ])
+
+  const declineByKey = new Map<string, Date[]>()
+  for (const r of declineRows) {
+    const arr = declineByKey.get(r.itemKey) ?? []
+    arr.push(r.declinedAt)
+    declineByKey.set(r.itemKey, arr)
+  }
+  // Most recent tombstone wins if multiple exist (unlikely but possible
+  // if an alias was re-created then re-deleted across batches).
+  const tombstoneByKey = new Map<string, Date>()
+  for (const r of tombstoneRows) {
+    if (!tombstoneByKey.has(r.itemKey)) tombstoneByKey.set(r.itemKey, r.deletedAt)
+  }
+
+  for (const row of decisions.aliases) {
+    const dates = declineByKey.get(row.itemKey)
+    const tombstone = tombstoneByKey.get(row.itemKey)
+    if (!dates && !tombstone) continue
+    row.context = {
+      ...(dates ? { declinedDates: dates.map((d) => d.toISOString()) } : {}),
+      ...(tombstone ? { manuallyDeletedAt: tombstone.toISOString() } : {}),
+    }
+  }
+
+  return decisions
 }

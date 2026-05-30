@@ -733,6 +733,7 @@ export async function refreshBatchMatches(batchId: string): Promise<ImportBatchW
           prisma,
           newMatch.matchedEntityId,
           data as Parameters<typeof buildImportItemDecisions>[2],
+          item.batchId,
         )
         // Preserve existing in-flight decisions if the user has already
         // started reviewing (don't blow away their work on every page load).
@@ -940,6 +941,12 @@ export async function updateItemData(
  * PERSON ImportItem. When every row in the decisions structure has been
  * resolved, the item auto-transitions PENDING_ATTRIBUTE_REVIEW →
  * READY_TO_IMPORT so the "Import" button can fire `importPerson()`.
+ *
+ * Phase 2: write ImportDeclineLog entries for declined alias rows in the
+ * same transaction. The slice (personId × kind='alias' × this batch) is
+ * rewritten on every save so the log reflects the user's *current* intent
+ * for this batch — flipping a row back from Decline → Accept removes the
+ * stale entry.
  */
 export async function updateItemDecisions(
   itemId: string,
@@ -947,12 +954,64 @@ export async function updateItemDecisions(
 ): Promise<ImportItem> {
   const { allDecisionsMade } = await import('./diff')
   const ready = allDecisionsMade(decisions)
-  return prisma.importItem.update({
-    where: { id: itemId },
-    data: {
-      decisions: decisions as unknown as Prisma.InputJsonValue,
-      ...(ready ? { status: 'READY_TO_IMPORT' as ImportItemStatus } : {}),
-    },
+
+  return prisma.$transaction(async (tx) => {
+    const updated = await tx.importItem.update({
+      where: { id: itemId },
+      data: {
+        decisions: decisions as unknown as Prisma.InputJsonValue,
+        ...(ready ? { status: 'READY_TO_IMPORT' as ImportItemStatus } : {}),
+      },
+      select: {
+        id: true,
+        batchId: true,
+        matchedEntityId: true,
+        type: true,
+        status: true,
+        data: true,
+        editedData: true,
+        rawText: true,
+        sortOrder: true,
+        matchConfidence: true,
+        matchDetails: true,
+        dependsOn: true,
+        blockedReason: true,
+        decisions: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    })
+
+    // Decline-log slice rewrite: only for PERSON re-imports against a
+    // matched person. The slice scope is (personId, kind='alias', batchId).
+    if (
+      updated.type === 'PERSON' &&
+      updated.matchedEntityId &&
+      updated.batchId
+    ) {
+      await tx.importDeclineLog.deleteMany({
+        where: {
+          personId: updated.matchedEntityId,
+          kind: 'alias',
+          declinedInBatchId: updated.batchId,
+        },
+      })
+      const declinedAliases = decisions.aliases.filter(
+        (r) => r.decision === 'decline',
+      )
+      if (declinedAliases.length > 0) {
+        await tx.importDeclineLog.createMany({
+          data: declinedAliases.map((r) => ({
+            personId: updated.matchedEntityId!,
+            kind: 'alias',
+            itemKey: r.itemKey,
+            declinedInBatchId: updated.batchId,
+          })),
+        })
+      }
+    }
+
+    return updated as unknown as ImportItem
   })
 }
 
