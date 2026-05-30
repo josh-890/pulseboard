@@ -347,13 +347,43 @@ export async function deleteMediaItemsAction(
   });
 }
 
+// `referenceSessionId` is optional — when omitted the action derives it
+// from Person.referenceSession. Returns a NO_REF_SESSION error code when
+// the target person hasn't been given a reference session yet, so callers
+// (e.g. the production-set lightbox) can show a precise toast instead of
+// a generic message. Existing callers that already have the refSession
+// can keep passing it explicitly — same behaviour.
+export type CopyToReferenceResult =
+  | { success: true; newMediaItemId: string; personName: string; referenceSessionId: string }
+  | { success: false; error: string; code?: "NO_REF_SESSION" | "SOURCE_NOT_FOUND" | "PERSON_NOT_FOUND" };
+
 export async function copyMediaItemToReferenceAction(
   sourceMediaItemId: string,
   personId: string,
-  referenceSessionId: string,
-): Promise<SimpleActionResult & { newMediaItemId?: string }> {
+  referenceSessionId?: string,
+): Promise<CopyToReferenceResult> {
   return withTenantFromHeaders(async () => {
     try {
+      // Resolve the destination reference session if not supplied.
+      let destRefSessionId = referenceSessionId;
+      const person = await prisma.person.findUnique({
+        where: { id: personId },
+        select: {
+          referenceSession: { select: { id: true } },
+          aliases: { where: { isCommon: true }, take: 1, select: { name: true } },
+        },
+      });
+      if (!person) return { success: false, error: "Person not found", code: "PERSON_NOT_FOUND" };
+      if (!destRefSessionId) destRefSessionId = person.referenceSession?.id;
+      if (!destRefSessionId) {
+        const name = person.aliases[0]?.name ?? "this person";
+        return {
+          success: false,
+          error: `${name} has no reference session yet`,
+          code: "NO_REF_SESSION",
+        };
+      }
+
       const source = await prisma.mediaItem.findUnique({
         where: { id: sourceMediaItemId },
         select: {
@@ -364,20 +394,22 @@ export async function copyMediaItemToReferenceAction(
           originalWidth: true,
           originalHeight: true,
           variants: true,
+          hash: true,
+          phash: true,
         },
       });
-      if (!source) return { success: false, error: "Source media item not found" };
+      if (!source) return { success: false, error: "Source media item not found", code: "SOURCE_NOT_FOUND" };
 
       const { copyMediaFilesToReference } = await import("@/lib/media-upload");
       const { variants: newVariants, fileRef: newFileRef } = await copyMediaFilesToReference(
         (source.variants ?? {}) as import("@/lib/types").PhotoVariants,
         source.fileRef,
-        referenceSessionId,
+        destRefSessionId,
       );
 
       const newItem = await prisma.mediaItem.create({
         data: {
-          sessionId: referenceSessionId,
+          sessionId: destRefSessionId,
           mediaType: "PHOTO",
           filename: source.filename,
           fileRef: newFileRef,
@@ -387,15 +419,24 @@ export async function copyMediaItemToReferenceAction(
           originalHeight: source.originalHeight,
           variants: newVariants as Record<string, string>,
           tags: [],
-          hash: null,
-          phash: null,
+          // Preserve dedup hashes so existing similarity / duplicate queries
+          // see the copy too. Variants point at fresh MinIO keys so the
+          // bytes are duplicated, but content-identity is preserved.
+          hash: source.hash,
+          phash: source.phash,
           isAnnotation: false,
+          copiedFromMediaItemId: sourceMediaItemId,
         },
         select: { id: true },
       });
 
       revalidatePath(`/people/${personId}`);
-      return { success: true, newMediaItemId: newItem.id };
+      return {
+        success: true,
+        newMediaItemId: newItem.id,
+        personName: person.aliases[0]?.name ?? "Unknown",
+        referenceSessionId: destRefSessionId,
+      };
     } catch (err) {
       const message = err instanceof Error ? err.message : "Unexpected error";
       return { success: false, error: message };

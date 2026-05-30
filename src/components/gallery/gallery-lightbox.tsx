@@ -3,10 +3,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import Image from "next/image";
+import { toast } from "sonner";
 import {
   ChevronLeft,
   ChevronRight,
+  Copy,
   Crosshair,
+  Loader2,
   PanelRight,
   PanelRightClose,
   Pencil,
@@ -64,6 +67,26 @@ type GalleryLightboxProps = {
   onDelete?: (id: string) => void;
   // Edit handler — opens annotation editor for the current item
   onEdit?: (item: GalleryItem) => void;
+  // Reference-session copy targets (production-set context). When provided,
+  // a "Copy to reference" action appears in the toolbar + the C key triggers
+  // it. Solo (1 target) fires immediately; multi opens a participant picker.
+  // Empty / undefined → action hidden.
+  copyToReferenceTargets?: ReferenceCopyTarget[];
+  // Async copy handler — receives the chosen target + source mediaItem id.
+  // Returns a structured result so the lightbox can show a precise toast.
+  onCopyToReference?: (
+    target: ReferenceCopyTarget,
+    sourceMediaItemId: string,
+  ) => Promise<{ ok: boolean; message: string; refSessionPersonId?: string }>;
+};
+
+export type ReferenceCopyTarget = {
+  personId: string;
+  name: string;
+  // Null when the person has no reference session yet — UI surfaces the row
+  // as disabled with an explanation, so the user understands why the copy
+  // can't proceed instead of hitting an opaque error after clicking.
+  referenceSessionId: string | null;
 };
 
 export function GalleryLightbox(props: GalleryLightboxProps) {
@@ -92,8 +115,12 @@ function SimpleLightbox({
   collectionContext,
   onDelete,
   onEdit,
+  copyToReferenceTargets,
+  onCopyToReference,
 }: GalleryLightboxProps) {
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
+  const [copyPickerOpen, setCopyPickerOpen] = useState(false);
+  const [copyInFlight, setCopyInFlight] = useState(false);
   const [showInfoPanel, setShowInfoPanel] = useState(referenceContext ? true : false);
   const [showFilmstrip, setShowFilmstrip] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
@@ -139,6 +166,54 @@ function SimpleLightbox({
   );
 
   const item = localItems[currentIndex];
+
+  // ── Copy to reference session ──
+  // The lightbox owns the picker state + dispatch so the parent doesn't have
+  // to thread a popover across the lightbox boundary. Behaviour:
+  //   0 targets  → action hidden
+  //   1 target   → C key / button fires the copy directly
+  //   N targets  → C key / button opens a chooser popover
+  const canCopyToReference = !!onCopyToReference && !!copyToReferenceTargets && copyToReferenceTargets.length > 0;
+  const handleCopyToReferenceTarget = useCallback(
+    async (target: ReferenceCopyTarget) => {
+      if (!onCopyToReference || !item) return;
+      if (target.referenceSessionId == null) {
+        toast.error(`${target.name} has no reference session yet`);
+        return;
+      }
+      setCopyInFlight(true);
+      try {
+        const result = await onCopyToReference(target, item.id);
+        if (result.ok) {
+          toast.success(result.message, {
+            action: result.refSessionPersonId
+              ? {
+                  label: "Open",
+                  onClick: () => {
+                    window.location.href = `/people/${result.refSessionPersonId}`;
+                  },
+                }
+              : undefined,
+          });
+        } else {
+          toast.error(result.message);
+        }
+      } finally {
+        setCopyInFlight(false);
+        setCopyPickerOpen(false);
+      }
+    },
+    [onCopyToReference, item],
+  );
+
+  const handleCopyTrigger = useCallback(() => {
+    if (!canCopyToReference || !copyToReferenceTargets) return;
+    if (copyToReferenceTargets.length === 1) {
+      void handleCopyToReferenceTarget(copyToReferenceTargets[0]);
+    } else {
+      setCopyPickerOpen((p) => !p);
+    }
+  }, [canCopyToReference, copyToReferenceTargets, handleCopyToReferenceTarget]);
 
   const handleFocalPointChange = useCallback(
     (itemId: string, focalX: number | null, focalY: number | null) => {
@@ -247,11 +322,18 @@ function SimpleLightbox({
         case "F":
           if (hasFocalPointSupport) setFocalOverlay((p) => !p);
           break;
+        case "c":
+        case "C":
+          if (canCopyToReference) {
+            e.preventDefault();
+            handleCopyTrigger();
+          }
+          break;
       }
     }
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [onClose, goNext, goPrev, handleToggleInfoPanel, hasFocalPointSupport]);
+  }, [onClose, goNext, goPrev, handleToggleInfoPanel, hasFocalPointSupport, canCopyToReference, handleCopyTrigger]);
 
   useEffect(() => {
     const original = document.body.style.overflow;
@@ -545,6 +627,56 @@ function SimpleLightbox({
               <PanelRight size={16} />
             )}
           </button>
+          {canCopyToReference && (
+            <div className="relative">
+              <button
+                type="button"
+                onClick={handleCopyTrigger}
+                disabled={copyInFlight}
+                className="rounded-full bg-white/10 p-2 text-white/70 transition-colors hover:bg-emerald-500/30 hover:text-emerald-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50 disabled:opacity-50"
+                aria-label="Copy to reference session"
+                title="Copy to reference session (C)"
+              >
+                {copyInFlight ? <Loader2 size={16} className="animate-spin" /> : <Copy size={16} />}
+              </button>
+              {copyPickerOpen && copyToReferenceTargets && copyToReferenceTargets.length > 1 && (
+                <div
+                  className="absolute right-0 top-full z-50 mt-2 w-64 overflow-hidden rounded-lg border border-white/15 bg-zinc-900/95 shadow-lg backdrop-blur-sm"
+                  role="menu"
+                >
+                  <div className="border-b border-white/10 px-3 py-1.5 text-[10px] font-medium uppercase tracking-wider text-white/50">
+                    Copy to reference of…
+                  </div>
+                  {copyToReferenceTargets.map((t) => {
+                    const disabled = t.referenceSessionId == null;
+                    return (
+                      <button
+                        key={t.personId}
+                        type="button"
+                        role="menuitem"
+                        disabled={disabled || copyInFlight}
+                        onClick={() => handleCopyToReferenceTarget(t)}
+                        className={cn(
+                          "block w-full px-3 py-2 text-left text-sm transition-colors",
+                          disabled
+                            ? "cursor-not-allowed text-white/30"
+                            : "text-white/85 hover:bg-emerald-500/20 hover:text-emerald-200",
+                        )}
+                        title={disabled ? "No reference session yet" : undefined}
+                      >
+                        <div>{t.name}</div>
+                        {disabled && (
+                          <div className="text-[10px] text-white/40">
+                            no reference session
+                          </div>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
           {onEdit && (
             <button
               type="button"

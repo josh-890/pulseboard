@@ -18,6 +18,7 @@ import { SetArchiveChipSheet } from "@/components/sets/set-archive-chip-sheet";
 import { SetAboutCard } from "@/components/sets/set-about-card";
 import { CreditsPanel } from "@/components/sets/credits-panel";
 import { getArchiveSuggestionsForSet } from "@/lib/services/archive-service";
+import { prisma } from "@/lib/db";
 
 
 export const dynamic = "force-dynamic";
@@ -52,12 +53,30 @@ export default async function SetDetailPage({ params }: SetDetailPageProps) {
     const participants = set.participants;
 
     const participantIds = participants.map((p) => p.personId);
-    const [galleryItems, coverPhotoMap, headshotMap, participantEraMap] = await Promise.all([
+    const [galleryItems, coverPhotoMap, headshotMap, participantEraMap, referenceTargets] = await Promise.all([
       getSetMediaGallery(id, setData.coverMediaItemId),
       getCoverPhotosForSets([id]),
       getHeadshotsForPersons(participantIds),
       getSetParticipantEraMap(id),
+      // Reference-session IDs per participant — feeds the lightbox's "Copy
+      // to reference" picker. Persons without a referenceSession appear in
+      // the picker greyed out with an explanation.
+      participantIds.length > 0
+        ? prisma.person.findMany({
+            where: { id: { in: participantIds } },
+            select: {
+              id: true,
+              referenceSession: { select: { id: true } },
+              aliases: { where: { isCommon: true }, take: 1, select: { name: true } },
+            },
+          })
+        : Promise.resolve([] as Array<{ id: string; referenceSession: { id: string } | null; aliases: Array<{ name: string }> }>),
     ]);
+    const copyToReferenceTargets = referenceTargets.map((p) => ({
+      personId: p.id,
+      name: p.aliases[0]?.name ?? "Unknown",
+      referenceSessionId: p.referenceSession?.id ?? null,
+    }));
     const coverPhoto = coverPhotoMap.get(id) ?? null;
 
     // Derive archive state
@@ -201,6 +220,7 @@ export default async function SetDetailPage({ params }: SetDetailPageProps) {
               sessionDate: l.session.date,
               isPrimary: l.isPrimary,
             }))}
+            copyToReferenceTargets={copyToReferenceTargets}
           />
 
           {/* Right sidebar: credits + tags + archive (when needed) */}

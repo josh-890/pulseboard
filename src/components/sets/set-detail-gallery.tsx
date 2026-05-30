@@ -51,6 +51,8 @@ import {
   splitMediaToSessionAction,
 } from "@/lib/actions/set-actions";
 import { searchSessionsAction, createSession } from "@/lib/actions/session-actions";
+import { copyMediaItemToReferenceAction } from "@/lib/actions/media-actions";
+import type { ReferenceCopyTarget } from "@/components/gallery/gallery-lightbox";
 import type { GalleryItem } from "@/lib/types";
 import type { SessionStatus } from "@/lib/types";
 import { applyGallerySort, GALLERY_SORT_OPTIONS } from "@/lib/gallery-sort";
@@ -111,6 +113,14 @@ type SetDetailGalleryProps = {
   setType?: "photo" | "video";
   isCompilation?: boolean;
   sessionLinks?: SessionLink[];
+  // Feeds the lightbox's "Copy to reference session" picker. One entry per
+  // SetParticipant; referenceSessionId is null when that participant hasn't
+  // had a reference session created yet (greyed out in the picker).
+  copyToReferenceTargets?: Array<{
+    personId: string;
+    name: string;
+    referenceSessionId: string | null;
+  }>;
 };
 
 export function SetDetailGallery({
@@ -122,6 +132,7 @@ export function SetDetailGallery({
   setType,
   isCompilation = false,
   sessionLinks,
+  copyToReferenceTargets,
 }: SetDetailGalleryProps) {
   const router = useRouter();
   const [coverId, setCoverId] = useState(initialCoverId ?? null);
@@ -916,6 +927,22 @@ export function SetDetailGallery({
           sessionId={primarySessionId}
           productionContext={productionContext}
           collectionContext={collectionContext}
+          copyToReferenceTargets={copyToReferenceTargets}
+          onCopyToReference={async (target: ReferenceCopyTarget, sourceMediaItemId: string) => {
+            const result = await copyMediaItemToReferenceAction(
+              sourceMediaItemId,
+              target.personId,
+              target.referenceSessionId ?? undefined,
+            );
+            if (result.success) {
+              return {
+                ok: true,
+                message: `Copied to ${result.personName}'s reference`,
+                refSessionPersonId: target.personId,
+              };
+            }
+            return { ok: false, message: result.error };
+          }}
         />
       )}
     </div>

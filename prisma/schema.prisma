@@ -963,6 +963,14 @@ model MediaItem {
   notes        String?
   isAnnotation Boolean  @default(false) // Derived/edited photos — hidden from main gallery
 
+  // Provenance for the "copy production image → person reference session"
+  // feature. Self-FK; null for direct uploads / imports / annotations.
+  // SetNull on source delete — copies are independent assets and survive
+  // their origin disappearing, just losing the breadcrumb.
+  copiedFromMediaItemId String?
+  copiedFromMediaItem   MediaItem?  @relation("MediaItemCopySource", fields: [copiedFromMediaItemId], references: [id], onDelete: SetNull)
+  copies                MediaItem[] @relation("MediaItemCopySource")
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -979,6 +987,7 @@ model MediaItem {
   @@index([phash])
   @@index([mediaType])
   @@index([tags], type: Gin)
+  @@index([copiedFromMediaItemId])
 }
 
 model SetMediaItem {
