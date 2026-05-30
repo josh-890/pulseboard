@@ -12,6 +12,7 @@
 
 import { useState, useCallback } from 'react'
 import { Check, X, Save, Loader2, AlertTriangle } from 'lucide-react'
+import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import type {
@@ -115,9 +116,22 @@ export function ImportPersonReview({ itemId, batchId, initial, onSaved }: Props)
         body: JSON.stringify({ decisions }),
       })
       if (!res.ok) throw new Error(`Save failed (${res.status})`)
+      const totalRowsNow =
+        decisions.scalars.length + decisions.aliases.length + decisions.personColumns.length
+      const decidedRowsNow =
+        decisions.scalars.filter((r) => r.decision != null).length +
+        decisions.aliases.filter((r) => r.decision != null).length +
+        decisions.personColumns.filter((r) => r.decision != null).length
+      if (decidedRowsNow === totalRowsNow) {
+        toast.success('Decisions saved — ready to import')
+      } else {
+        toast.success(`Progress saved (${decidedRowsNow} of ${totalRowsNow} decided)`)
+      }
       onSaved?.()
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Save failed')
+      const msg = e instanceof Error ? e.message : 'Save failed'
+      setError(msg)
+      toast.error(msg)
     } finally {
       setIsSaving(false)
     }
@@ -150,6 +164,15 @@ export function ImportPersonReview({ itemId, batchId, initial, onSaved }: Props)
       </div>
 
       {error && <p className="text-xs text-red-500">{error}</p>}
+
+      {totalRows > 0 && (
+        <div className="grid grid-cols-12 gap-2 px-3 text-[10px] font-medium uppercase tracking-wider text-muted-foreground/70">
+          <div className="col-span-3">Field</div>
+          <div className="col-span-3">Source Import Data</div>
+          <div className="col-span-3">Current Database State</div>
+          <div className="col-span-3 text-right">Decision</div>
+        </div>
+      )}
 
       {decisions.personColumns.length > 0 && (
         <Section title="Person identity fields">
@@ -232,21 +255,23 @@ function DecisionRow({
   onAccept: () => void
   onDecline: () => void
 }) {
+  // Column convention matches PersonComparisonGrid: Import (source) LEFT,
+  // DB (current) RIGHT.
   return (
     <div className="grid grid-cols-12 items-center gap-2 rounded-md border border-white/10 bg-white/[0.02] px-3 py-2 text-sm">
       <div className="col-span-3 font-medium">{label}</div>
-      <div className="col-span-3 text-xs text-muted-foreground">
+      <div className="col-span-3 whitespace-pre-line break-words text-xs">
+        <span className="text-muted-foreground/60">Import:</span>{' '}
+        <span className="font-medium">{importValue}</span>
+      </div>
+      <div className="col-span-3 whitespace-pre-line break-words text-xs text-muted-foreground">
         {dbValue ? (
-          <span>
+          <>
             <span className="text-muted-foreground/60">DB:</span> {dbValue}
-          </span>
+          </>
         ) : (
           <span className="italic text-muted-foreground/50">(no value)</span>
         )}
-      </div>
-      <div className="col-span-3 text-xs">
-        <span className="text-muted-foreground/60">Import:</span>{' '}
-        <span className="font-medium">{importValue}</span>
       </div>
       <div className="col-span-3 flex justify-end gap-1">
         <DecisionButton selected={decision === 'accept'} onClick={onAccept} kind="accept" />
@@ -278,20 +303,20 @@ function ScalarDecisionRow({
             </span>
           )}
         </div>
-        <div className="col-span-3 text-xs text-muted-foreground">
+        <div className="col-span-3 whitespace-pre-line break-words text-xs">
+          <span className="text-muted-foreground/60">Import:</span>{' '}
+          <span className="font-medium">{row.importValue}</span>
+        </div>
+        <div className="col-span-3 whitespace-pre-line break-words text-xs text-muted-foreground">
           {row.dbIsVerifiedUnknown ? (
             <span className="italic">marked unknown</span>
           ) : row.dbValue ? (
-            <span>
+            <>
               <span className="text-muted-foreground/60">DB:</span> {row.dbValue}
-            </span>
+            </>
           ) : (
             <span className="italic text-muted-foreground/50">(no value)</span>
           )}
-        </div>
-        <div className="col-span-3 text-xs">
-          <span className="text-muted-foreground/60">Import:</span>{' '}
-          <span className="font-medium">{row.importValue}</span>
         </div>
         <div className="col-span-3 flex justify-end gap-1">
           <DecisionButton selected={row.decision === 'accept'} onClick={onAccept} kind="accept" />
