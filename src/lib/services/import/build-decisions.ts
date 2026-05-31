@@ -8,7 +8,7 @@
 import type { Prisma } from '@/generated/prisma/client'
 import type { PrismaClient } from '@/generated/prisma/client'
 import type { ParsedPersonData } from './parser'
-import { parseBreastDescription, extractCupFromMeasurements, chooseNaturalCup } from './import-utils'
+import { parseBreastDescription, extractCupFromMeasurements, chooseNaturalCup, canonicaliseBreastCup } from './import-utils'
 import { resolveNationalityToCode } from '@/lib/constants/countries'
 import {
   computeImportDiff,
@@ -74,7 +74,7 @@ export function buildImportPayloadFromParsed(data: ParsedPersonData): ImportPayl
 
   const scalars: Record<string, string> = {}
   if (data.hairColor) scalars['hair_color'] = data.hairColor
-  if (naturalCup) scalars['breast_size'] = naturalCup
+  if (naturalCup) scalars['breast_size'] = canonicaliseBreastCup(naturalCup)!
   if (data.heightCm != null) scalars['height'] = String(data.heightCm)
   if (data.measurements) scalars['measurements'] = data.measurements
   // Imports today don't carry: weight, build, hair-length, eye-color,

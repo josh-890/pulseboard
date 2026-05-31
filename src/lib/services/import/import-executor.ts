@@ -18,7 +18,7 @@ import { recomputePersonCurrentStateStandalone } from '@/lib/services/current-st
 import { markItemImported, computeDependencies } from './staging-service'
 import { markStagingSetPromoted } from './staging-set-service'
 import type { ParticipantStatus } from './staging-set-service'
-import { parseBreastDescription, extractCupFromMeasurements, chooseNaturalCup } from './import-utils'
+import { parseBreastDescription, extractCupFromMeasurements, chooseNaturalCup, canonicaliseBreastCup } from './import-utils'
 import { transferStagingCoverToSet } from './cover-transfer'
 import { autoClusterDeltaIntoDraftEra, getBaselineEraId } from '@/lib/services/era-service'
 
@@ -452,7 +452,7 @@ export async function importPerson(item: ImportItem): Promise<ImportResult> {
           data: {
             eraId: baselineEra.id,
             attributeDefinitionId: 'cattr-breast-size',
-            value: naturalCup ?? '',
+            value: canonicaliseBreastCup(naturalCup) ?? '',
             isVerifiedUnknown: naturalCup == null,
             notes: breastParsed?.raw ?? breastRaw,
           },
@@ -470,7 +470,7 @@ export async function importPerson(item: ImportItem): Promise<ImportResult> {
           data: {
             eraId: draftEra.id,
             attributeDefinitionId: 'cattr-breast-size',
-            value: cupAny ?? '',
+            value: canonicaliseBreastCup(cupAny) ?? '',
             cause: 'SURGICAL',
             datePrecision: 'UNKNOWN',
             dateSource: 'import-enhanced',

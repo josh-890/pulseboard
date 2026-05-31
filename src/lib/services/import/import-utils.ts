@@ -62,3 +62,28 @@ export function chooseNaturalCup(
 ): string | null {
   return parsedStatus === 'enhanced' ? null : cupAny
 }
+
+// Map a raw cup letter ("B", "DD") to the canonical anchored
+// breast_size allowedValue ("B (small to medium)", "DD (very full)").
+// Migration `20260601010000_anchor_breast_size` made the anchored form the
+// canonical stored value; the parser still emits short letters from import
+// text, so this helper bridges parser output to catalog convention.
+//
+// Unknown / out-of-vocab cups (e.g. "G", "DD/E") fall through unchanged so
+// pre-existing data anomalies stay observable rather than getting silently
+// rewritten into a wrong canonical form.
+const BREAST_CUP_TO_CANONICAL: Record<string, string> = {
+  'AA': 'AA (very small / nearly flat)',
+  'A':  'A (small)',
+  'B':  'B (small to medium)',
+  'C':  'C (medium)',
+  'D':  'D (full)',
+  'DD': 'DD (very full)',
+  'E':  'E (extra full)',
+  'F':  'F (very large)',
+}
+
+export function canonicaliseBreastCup(cup: string | null): string | null {
+  if (cup == null) return null
+  return BREAST_CUP_TO_CANONICAL[cup] ?? cup
+}

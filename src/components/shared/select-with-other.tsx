@@ -9,6 +9,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { splitOptionLabel } from "@/lib/utils";
 
 type SelectWithOtherProps = {
   options: readonly string[];
@@ -52,19 +53,32 @@ export function SelectWithOther({
     onChange(text || undefined);
   }
 
+  // Strip the `(anchor)` from the trigger label when a value is picked, so
+  // the closed trigger stays compact ("B" not "B (small to medium)"). The
+  // dropdown items themselves still show both lines.
+  const triggerLabel = matchedOption ? splitOptionLabel(matchedOption).label : null;
+
   return (
     <div className="space-y-1.5">
       <Select onValueChange={handleSelectChange} value={shouldShowInput ? OTHER_SENTINEL : selectValue}>
         <SelectTrigger className="w-full">
-          <SelectValue placeholder={placeholder} />
+          <SelectValue placeholder={placeholder}>{triggerLabel}</SelectValue>
         </SelectTrigger>
         <SelectContent>
           <SelectItem value="_none">— not specified —</SelectItem>
-          {options.map((opt) => (
-            <SelectItem key={opt} value={opt}>
-              {opt}
-            </SelectItem>
-          ))}
+          {options.map((opt) => {
+            const { label, helper } = splitOptionLabel(opt);
+            return (
+              <SelectItem key={opt} value={opt} className="py-2">
+                <div className="flex flex-col items-start">
+                  <span>{label}</span>
+                  {helper && (
+                    <span className="text-xs text-muted-foreground">{helper}</span>
+                  )}
+                </div>
+              </SelectItem>
+            );
+          })}
           <SelectItem value={OTHER_SENTINEL}>Other…</SelectItem>
         </SelectContent>
       </Select>

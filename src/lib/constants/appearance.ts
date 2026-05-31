@@ -17,32 +17,42 @@ export const CORE_PHYSICAL_ATTR_IDS = new Set([
   "cattr-measurements",
 ]);
 
+// Mirrors PhysicalAttributeDefinition.allowedValues for the corresponding
+// catalog slug. Kept in sync manually because these dedicated pickers
+// (SelectWithOther in the Record/Edit appearance sheets + person form) need
+// the canonical anchored strings so writes hit the same value space as the
+// catalog. Drift here was the root cause of stray "DD/E", "G+", "Average",
+// "Muscular" rows that don't appear in any allowedValues array.
+
 export const HAIR_LENGTH_OPTIONS = [
-  "Bald/Shaved",
-  "Buzz Cut",
-  "Short",
-  "Medium",
-  "Long",
-  "Very Long",
+  "Buzz / Shaved (under 2 cm)",
+  "Pixie / Ear-length (ear / jawline)",
+  "Short / Bob (chin to neck)",
+  "Shoulder-length (collarbone / shoulders)",
+  "Medium / Armpit-length (armpit level)",
+  "Mid-Long / Bra-strap (bra-strap level)",
+  "Long / Mid-back (below ribs / mid-back)",
+  "Very Long (waist or longer)",
 ] as const;
 
 export const BUILD_OPTIONS = [
-  "Slim",
-  "Average",
-  "Athletic",
-  "Muscular",
-  "Curvy",
+  "Slim (thin frame, low body mass)",
+  "Normal (average proportions)",
+  "Athletic (toned, defined muscles)",
+  "Curvy (pronounced hips/bust, narrow waist)",
+  "Plus (fuller figure)",
+  "Other",
 ] as const;
 
 export const BREAST_SIZE_OPTIONS = [
-  "AA",
-  "A",
-  "B",
-  "C",
-  "D",
-  "DD/E",
-  "F",
-  "G+",
+  "AA (very small / nearly flat)",
+  "A (small)",
+  "B (small to medium)",
+  "C (medium)",
+  "D (full)",
+  "DD (very full)",
+  "E (extra full)",
+  "F (very large)",
 ] as const;
 
 export const BREAST_STATUS_OPTIONS = [
