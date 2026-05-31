@@ -46,6 +46,61 @@ function getContributorName(
 
 const HOVER_SIZE = 64;
 
+// Top-level extraction (was defined inside SessionCard, which broke
+// React Compiler optimisation: lint react-hooks/static-components).
+function AvatarRow({
+  avatarSize,
+  avatarContributors,
+  totalContributionCount,
+  headshotMap,
+  sessionId,
+  sessionDate,
+  sessionDatePrecision,
+  sessionDateIsConfirmed,
+}: {
+  avatarSize: number;
+  avatarContributors: SessionItem["contributions"];
+  totalContributionCount: number;
+  headshotMap: Record<string, HeadshotData>;
+  sessionId: string;
+  sessionDate: SessionItem["date"];
+  sessionDatePrecision: SessionItem["datePrecision"];
+  sessionDateIsConfirmed: SessionItem["dateIsConfirmed"];
+}) {
+  if (avatarContributors.length === 0) return null;
+  return (
+    <TooltipProvider delayDuration={200}>
+      <div className="mt-2 flex items-start gap-1">
+        {avatarContributors.map((c) => (
+          <ContributorAvatar
+            key={`${sessionId}-${c.person.id}`}
+            name={getContributorName(c.person)}
+            headshot={headshotMap[c.person.id]}
+            size={avatarSize}
+            age={computeProductionAge(
+              c.person.birthdate,
+              c.person.birthdatePrecision,
+              sessionDate,
+              sessionDatePrecision,
+              sessionDateIsConfirmed,
+            )}
+          />
+        ))}
+        {totalContributionCount > 4 && (
+          <div className="flex flex-col items-center gap-0.5" style={{ width: avatarSize + 8 }}>
+            <div
+              className="flex items-center justify-center rounded-full border border-white/20 bg-muted/60 text-[9px] text-muted-foreground"
+              style={{ width: avatarSize, height: avatarSize }}
+            >
+              +{totalContributionCount - 4}
+            </div>
+          </div>
+        )}
+      </div>
+    </TooltipProvider>
+  );
+}
+
 function ContributorAvatar({
   name,
   headshot,
@@ -161,40 +216,15 @@ export function SessionCard({
     onToggleStar?.(session.id);
   }
 
-  function AvatarRow({ avatarSize }: { avatarSize: number }) {
-    if (avatarContributors.length === 0) return null;
-    return (
-      <TooltipProvider delayDuration={200}>
-        <div className="mt-2 flex items-start gap-1">
-          {avatarContributors.map((c) => (
-            <ContributorAvatar
-              key={`${session.id}-${c.person.id}`}
-              name={getContributorName(c.person)}
-              headshot={headshotMap[c.person.id]}
-              size={avatarSize}
-              age={computeProductionAge(
-                c.person.birthdate,
-                c.person.birthdatePrecision,
-                session.date,
-                session.datePrecision,
-                session.dateIsConfirmed,
-              )}
-            />
-          ))}
-          {session.contributions.length > 4 && (
-            <div className="flex flex-col items-center gap-0.5" style={{ width: avatarSize + 8 }}>
-              <div
-                className="flex items-center justify-center rounded-full border border-white/20 bg-muted/60 text-[9px] text-muted-foreground"
-                style={{ width: avatarSize, height: avatarSize }}
-              >
-                +{session.contributions.length - 4}
-              </div>
-            </div>
-          )}
-        </div>
-      </TooltipProvider>
-    );
-  }
+  const avatarRowProps = {
+    avatarContributors,
+    totalContributionCount: session.contributions.length,
+    headshotMap,
+    sessionId: session.id,
+    sessionDate: session.date,
+    sessionDatePrecision: session.datePrecision,
+    sessionDateIsConfirmed: session.dateIsConfirmed,
+  };
 
   // ── Poster layout ──────────────────────────────────────────────────────────
   if (isPoster) {
@@ -271,7 +301,7 @@ export function SessionCard({
             </div>
 
             {/* Avatars — comfortable only */}
-            {!isCompact && <AvatarRow avatarSize={24} />}
+            {!isCompact && <AvatarRow {...avatarRowProps} avatarSize={24} />}
           </div>
         </div>
       </Link>
@@ -394,7 +424,7 @@ export function SessionCard({
           </div>
 
           {/* Avatar row — comfortable only */}
-          {!isCompact && <AvatarRow avatarSize={24} />}
+          {!isCompact && <AvatarRow {...avatarRowProps} avatarSize={24} />}
         </div>
       </div>
     </Link>

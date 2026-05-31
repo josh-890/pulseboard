@@ -49,6 +49,108 @@ function getPersonName(
 
 const HOVER_SIZE = 64;
 
+// Top-level extraction of the cover-image badge overlay. Previously
+// defined inside SetCard which made React Compiler treat it as a fresh
+// component on every render (lint: react-hooks/static-components).
+function CoverBadges({
+  isPotentialDuplicate,
+  unresolvedCreditCount,
+  noArchive,
+  suggestedArchiveFolder,
+}: {
+  isPotentialDuplicate: boolean;
+  unresolvedCreditCount: number;
+  noArchive: boolean;
+  suggestedArchiveFolder: SuggestedFolderInfo | null | undefined;
+}) {
+  return (
+    <div className="absolute top-1 right-1 flex flex-col gap-0.5 items-end">
+      {isPotentialDuplicate && (
+        <div
+          className="flex items-center rounded bg-orange-500/80 px-0.5 py-px"
+          title="Potential duplicate — open set to merge"
+        >
+          <Copy size={8} className="text-white" />
+        </div>
+      )}
+      {!isPotentialDuplicate && unresolvedCreditCount > 0 && (
+        <div
+          className="flex items-center rounded bg-amber-500/80 px-0.5 py-px"
+          title={`${unresolvedCreditCount} unresolved credits`}
+        >
+          <AlertTriangle size={8} className="text-white" />
+        </div>
+      )}
+      {noArchive && (
+        <div
+          className={cn(
+            "flex items-center rounded px-0.5 py-px",
+            suggestedArchiveFolder ? "bg-amber-500/80" : "bg-red-500/70",
+          )}
+          title={suggestedArchiveFolder ? "Archive folder suggestion available" : "No archive folder linked"}
+        >
+          <Link2Off size={8} className="text-white" />
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Top-level extraction of the avatar row. Previously defined inside
+// SetCard which broke React Compiler optimisation.
+function AvatarRow({
+  avatarSize,
+  avatarParticipants,
+  totalParticipantCount,
+  headshotMap,
+  primarySession,
+  releaseDate,
+  releaseDatePrecision,
+}: {
+  avatarSize: number;
+  avatarParticipants: SetItem["participants"];
+  totalParticipantCount: number;
+  headshotMap: Record<string, HeadshotData>;
+  primarySession: SetItem["sessionLinks"][number]["session"] | null;
+  releaseDate: SetItem["releaseDate"];
+  releaseDatePrecision: SetItem["releaseDatePrecision"];
+}) {
+  if (avatarParticipants.length === 0) return null;
+  return (
+    <TooltipProvider delayDuration={200}>
+      <div className="mt-2 flex items-start gap-1">
+        {avatarParticipants.map((p) => (
+          <ParticipantAvatar
+            key={`${p.setId}-${p.personId}`}
+            name={getPersonName(p.person)}
+            headshot={headshotMap[p.personId]}
+            size={avatarSize}
+            age={computeProductionAge(
+              p.person.birthdate,
+              p.person.birthdatePrecision,
+              primarySession?.date ?? null,
+              primarySession?.datePrecision ?? "UNKNOWN",
+              primarySession?.dateIsConfirmed ?? false,
+              releaseDate,
+              releaseDatePrecision,
+            )}
+          />
+        ))}
+        {totalParticipantCount > 4 && (
+          <div className="flex flex-col items-center gap-0.5" style={{ width: avatarSize + 8 }}>
+            <div
+              className="flex items-center justify-center rounded-full border border-white/20 bg-muted/60 text-[9px] text-muted-foreground"
+              style={{ width: avatarSize, height: avatarSize }}
+            >
+              +{totalParticipantCount - 4}
+            </div>
+          </div>
+        )}
+      </div>
+    </TooltipProvider>
+  );
+}
+
 function ParticipantAvatar({
   name,
   headshot,
@@ -177,78 +279,22 @@ export function SetCard({
     onToggleStar?.(set.id);
   }
 
-  // Shared badge overlay for the cover image
-  function CoverBadges() {
-    return (
-      <div className="absolute top-1 right-1 flex flex-col gap-0.5 items-end">
-        {isPotentialDuplicate && (
-          <div
-            className="flex items-center rounded bg-orange-500/80 px-0.5 py-px"
-            title="Potential duplicate — open set to merge"
-          >
-            <Copy size={8} className="text-white" />
-          </div>
-        )}
-        {!isPotentialDuplicate && unresolvedCreditCount > 0 && (
-          <div
-            className="flex items-center rounded bg-amber-500/80 px-0.5 py-px"
-            title={`${unresolvedCreditCount} unresolved credits`}
-          >
-            <AlertTriangle size={8} className="text-white" />
-          </div>
-        )}
-        {noArchive && (
-          <div
-            className={cn(
-              "flex items-center rounded px-0.5 py-px",
-              suggestedArchiveFolder ? "bg-amber-500/80" : "bg-red-500/70",
-            )}
-            title={suggestedArchiveFolder ? "Archive folder suggestion available" : "No archive folder linked"}
-          >
-            <Link2Off size={8} className="text-white" />
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  // Shared avatar row
-  function AvatarRow({ avatarSize }: { avatarSize: number }) {
-    if (avatarParticipants.length === 0) return null;
-    return (
-      <TooltipProvider delayDuration={200}>
-        <div className="mt-2 flex items-start gap-1">
-          {avatarParticipants.map((p) => (
-            <ParticipantAvatar
-              key={`${p.setId}-${p.personId}`}
-              name={getPersonName(p.person)}
-              headshot={headshotMap[p.personId]}
-              size={avatarSize}
-              age={computeProductionAge(
-                p.person.birthdate,
-                p.person.birthdatePrecision,
-                primarySession?.date ?? null,
-                primarySession?.datePrecision ?? "UNKNOWN",
-                primarySession?.dateIsConfirmed ?? false,
-                set.releaseDate,
-                set.releaseDatePrecision,
-              )}
-            />
-          ))}
-          {set.participants.length > 4 && (
-            <div className="flex flex-col items-center gap-0.5" style={{ width: avatarSize + 8 }}>
-              <div
-                className="flex items-center justify-center rounded-full border border-white/20 bg-muted/60 text-[9px] text-muted-foreground"
-                style={{ width: avatarSize, height: avatarSize }}
-              >
-                +{set.participants.length - 4}
-              </div>
-            </div>
-          )}
-        </div>
-      </TooltipProvider>
-    );
-  }
+  // Pre-bound prop bundles for the top-level CoverBadges + AvatarRow so
+  // we don't repeat the same lookup at each call site.
+  const coverBadgeProps = {
+    isPotentialDuplicate: isPotentialDuplicate ?? false,
+    unresolvedCreditCount,
+    noArchive,
+    suggestedArchiveFolder,
+  };
+  const avatarRowProps = {
+    avatarParticipants,
+    totalParticipantCount: set.participants.length,
+    headshotMap,
+    primarySession,
+    releaseDate: set.releaseDate,
+    releaseDatePrecision: set.releaseDatePrecision,
+  };
 
   // ── Poster layout ──────────────────────────────────────────────────────────
   if (isPoster) {
@@ -281,7 +327,7 @@ export function SetCard({
               </div>
             )}
 
-            <CoverBadges />
+            <CoverBadges {...coverBadgeProps} />
 
             {onToggleStar && (
               <button
@@ -320,7 +366,7 @@ export function SetCard({
             </div>
 
             {/* Avatars — comfortable only */}
-            {!isCompact && <AvatarRow avatarSize={24} />}
+            {!isCompact && <AvatarRow {...avatarRowProps} avatarSize={24} />}
           </div>
         </div>
       </Link>
@@ -365,7 +411,7 @@ export function SetCard({
             </div>
           )}
 
-          <CoverBadges />
+          <CoverBadges {...coverBadgeProps} />
 
           {onToggleStar && (
             <button
@@ -430,7 +476,7 @@ export function SetCard({
           </div>
 
           {/* Avatar row — comfortable only */}
-          {!isCompact && <AvatarRow avatarSize={24} />}
+          {!isCompact && <AvatarRow {...avatarRowProps} avatarSize={24} />}
         </div>
       </div>
     </Link>
