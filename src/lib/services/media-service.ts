@@ -74,6 +74,7 @@ export function toGalleryItem(
     setCount: item.setCount,
     sourceVideoRef: item.sourceVideoRef,
     sourceTimecodeMs: item.sourceTimecodeMs,
+    copiedFrom: item.copiedFrom,
   };
 }
 
@@ -1059,6 +1060,14 @@ export type MediaItemWithLinks = {
   setCount: number;
   sourceVideoRef: string | null;
   sourceTimecodeMs: number | null;
+  // Provenance for "copy production image → reference session" copies.
+  // Reference-session views (MediaManager) render this as a "from
+  // [SetName]" chip in the lightbox info panel.
+  copiedFrom: {
+    mediaItemId: string;
+    setId: string | null;
+    setTitle: string | null;
+  } | null;
 };
 
 export async function getMediaItemsWithLinks(
@@ -1079,6 +1088,16 @@ export async function getMediaItemsWithLinks(
       },
       setMediaItems: {
         select: { setId: true },
+      },
+      copiedFromMediaItem: {
+        select: {
+          id: true,
+          setMediaItems: {
+            select: { set: { select: { id: true, title: true } } },
+            orderBy: { sortOrder: "asc" },
+            take: 1,
+          },
+        },
       },
     },
     orderBy: { createdAt: "asc" },
@@ -1125,7 +1144,14 @@ export async function getMediaItemsWithLinks(
         setCount: item.setMediaItems.length,
         sourceVideoRef: item.sourceVideoRef,
         sourceTimecodeMs: item.sourceTimecodeMs,
-      };
+        copiedFrom: (item.copiedFromMediaItem
+          ? {
+              mediaItemId: item.copiedFromMediaItem.id,
+              setId: item.copiedFromMediaItem.setMediaItems[0]?.set.id ?? null,
+              setTitle: item.copiedFromMediaItem.setMediaItems[0]?.set.title ?? null,
+            }
+          : null) as MediaItemWithLinks["copiedFrom"],
+      } satisfies MediaItemWithLinks;
     })
     .filter((item): item is MediaItemWithLinks => item !== null)
     .sort((a, b) => (a.links[0]?.sortOrder ?? 0) - (b.links[0]?.sortOrder ?? 0));
