@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { cn, computeAge, formatPartialDate } from "@/lib/utils";
+import { cn, computeAge, formatPartialDate, splitOptionLabel } from "@/lib/utils";
 import { formatMeasurements } from "@/lib/utils/measurements";
 import type { getPersonWithDetails } from "@/lib/services/person-service";
 import type {
@@ -270,19 +270,19 @@ function PhysicalDescriptive({
         // read from the folded extensibleAttributes cache via cattr-eye-color.
         const a = currentState.extensibleAttributes["cattr-eye-color"];
         if (a?.isVerifiedUnknown) return <UnknownPill />;
-        return a ? <span className="capitalize">{a.value}</span> : "—";
+        return a ? <span className="capitalize">{splitOptionLabel(a.value).label}</span> : "—";
       })()} labelWidth={labelWidth} />
       <InfoRow label="Hair color" value={
         currentState.coreAttrUnknown.hairColor
           ? <UnknownPill />
           : (currentState.currentHairColor
-              ? <span className="capitalize">{currentState.currentHairColor}</span>
+              ? <span className="capitalize">{splitOptionLabel(currentState.currentHairColor).label}</span>
               : "—")
       } labelWidth={labelWidth} />
       {(currentState.breastSize || currentState.coreAttrUnknown.breastSize) && (
         <InfoRow
           label="Breast size"
-          value={currentState.coreAttrUnknown.breastSize ? <UnknownPill /> : currentState.breastSize}
+          value={currentState.coreAttrUnknown.breastSize ? <UnknownPill /> : splitOptionLabel(currentState.breastSize ?? "").label}
           labelWidth={labelWidth}
         />
       )}
@@ -291,7 +291,7 @@ function PhysicalDescriptive({
         currentState.coreAttrUnknown.build
           ? <UnknownPill />
           : (currentState.build
-              ? <span className="capitalize">{currentState.build}</span>
+              ? <span className="capitalize">{splitOptionLabel(currentState.build).label}</span>
               : "—")
       } labelWidth={labelWidth} />
     </dl>

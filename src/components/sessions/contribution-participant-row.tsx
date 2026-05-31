@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Pencil } from "lucide-react";
 import { deriveAppearanceAtShoot } from "@/lib/services/person-service";
 import { EditContributionEraDialog } from "@/components/sessions/edit-contribution-era-dialog";
+import { splitOptionLabel } from "@/lib/utils";
 
 type EraInfo = {
   id: string;
@@ -67,9 +68,9 @@ export function ContributionParticipantRow({
   const snapshot = era ? deriveAppearanceAtShoot(person.eras, asOf) : null;
 
   const snapshotParts: string[] = [];
-  if (snapshot?.hairColor) snapshotParts.push(snapshot.hairColor);
+  if (snapshot?.hairColor) snapshotParts.push(splitOptionLabel(snapshot.hairColor).label);
   if (snapshot?.weight) snapshotParts.push(`${snapshot.weight} kg`);
-  if (snapshot?.build) snapshotParts.push(snapshot.build);
+  if (snapshot?.build) snapshotParts.push(splitOptionLabel(snapshot.build).label);
 
   // Era pill / "Set era" CTA — clickable, opens EditContributionEraDialog.
   // Hover affords the action with a pencil icon; pressed state ties to the

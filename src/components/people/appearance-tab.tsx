@@ -679,8 +679,8 @@ export function AppearanceTab({
                   {/* Height migrated to the catalog/delta path in Phase G Slice 3a —
                       appears in the Core Body Measurements group below. Eye color
                       is surfaced inline here next to Hair Color for discoverability. */}
-                  {currentState.currentHairColor && <InfoRow label="Hair color" value={<span className="capitalize">{currentState.currentHairColor}</span>} labelWidth="w-28" />}
-                  {eyeColorValue && <InfoRow label="Eye color" value={<span className="capitalize">{eyeColorValue}</span>} labelWidth="w-28" />}
+                  {currentState.currentHairColor && <InfoRow label="Hair color" value={<span className="capitalize">{splitOptionLabel(currentState.currentHairColor).label}</span>} labelWidth="w-28" />}
+                  {eyeColorValue && <InfoRow label="Eye color" value={<span className="capitalize">{splitOptionLabel(eyeColorValue).label}</span>} labelWidth="w-28" />}
                   {currentState.breastSize && (
                     <InfoRow
                       label="Breast size"
@@ -700,7 +700,7 @@ export function AppearanceTab({
                   )}
                   {currentState.breastDescription && <InfoRow label="Breast desc." value={currentState.breastDescription} labelWidth="w-28" />}
                   {currentState.weight !== null && currentState.weight !== undefined && <InfoRow label="Weight" value={`${currentState.weight} kg`} labelWidth="w-28" />}
-                  {currentState.build && <InfoRow label="Build" value={<span className="capitalize">{currentState.build}</span>} labelWidth="w-28" />}
+                  {currentState.build && <InfoRow label="Build" value={<span className="capitalize">{splitOptionLabel(currentState.build).label}</span>} labelWidth="w-28" />}
                   {currentState.measurements && <InfoRow label="Measurements" value={currentState.measurements} labelWidth="w-28" />}
                 </dl>
 
