@@ -77,6 +77,131 @@ export function toGalleryItem(
   };
 }
 
+// ─── Canonical GalleryItem mapper (Phase 1 of multi-builder consolidation) ──
+//
+// SOLE OWNER of `MediaItem → GalleryItem` field derivation. Every relation
+// the gallery info panel can surface is wired here so adding a new field is
+// a single-place change. Callers (the half-dozen context-specific builders)
+// keep their query autonomy — they pick the WHERE + which relations to
+// include — but never duplicate the mapping logic. When a query doesn't
+// include a relation, the corresponding GalleryItem field stays
+// undefined; the lightbox renders only sections whose data is present.
+//
+// Migration policy: this mapper is the target shape; each legacy builder
+// gets migrated one at a time. `toGalleryItem` (above) stays until its
+// consumers are moved over in Phase 2/3.
+
+/** Loose structural type the canonical mapper accepts. Every relation slot
+ *  is optional — Prisma's actual return types satisfy this via structural
+ *  compatibility, so callers don't need explicit casts. */
+export type MediaItemForGallery = {
+  // Always-present scalars (mandatory).
+  id: string;
+  filename: string;
+  mimeType: string;
+  originalWidth: number;
+  originalHeight: number;
+  caption: string | null;
+  createdAt: Date;
+  variants: unknown;
+  fileRef: string | null;
+  focalX: number | null;
+  focalY: number | null;
+  tags: string[];
+  sessionId: string;
+  sourceVideoRef: string | null;
+  sourceTimecodeMs: number | null;
+
+  // Optional relation slots — each maps to a single GalleryItem field.
+  personMediaLinks?: Array<{
+    id: string;
+    usage: PersonMediaUsage;
+    slot: number | null;
+    bodyRegion: string | null;
+    bodyRegions: string[];
+    bodyMarkId: string | null;
+    bodyModificationId: string | null;
+    cosmeticProcedureId: string | null;
+    categoryId: string | null;
+    eraId: string | null;
+    isFavorite: boolean;
+    isAvatar: boolean;
+    sortOrder: number;
+    notes: string | null;
+  }>;
+  setMediaItems?: Array<{
+    setId: string;
+    set: { id: string; title: string };
+  }>;
+  collectionItems?: Array<{ collectionId: string }>;
+  skillEventMedia?: Array<{ skillEventId: string }>;
+  session?: { id: string; name: string | null } | null;
+  copiedFromMediaItem?: {
+    id: string;
+    setMediaItems: Array<{ set: { id: string; title: string } | null }>;
+  } | null;
+};
+
+export type MapGalleryItemOpts = {
+  /** If set + matches item.id, GalleryItem.isCover is true. */
+  coverMediaItemId?: string | null;
+};
+
+export function mapMediaItemToGalleryItem(
+  item: MediaItemForGallery,
+  opts?: MapGalleryItemOpts,
+): GalleryItem | null {
+  const variants = parsePhotoVariants(item.variants) ?? ({} as PhotoVariants);
+  // Guard: items with no usable file are dropped — the gallery can't
+  // render them anyway and callers were already filtering inline.
+  if (!variants.master_4000 && !variants.original && !item.fileRef) {
+    return null;
+  }
+
+  const firstLink = item.personMediaLinks?.[0];
+  const sourceFirstSet = item.copiedFromMediaItem?.setMediaItems[0]?.set ?? null;
+
+  return {
+    id: item.id,
+    filename: item.filename,
+    mimeType: item.mimeType,
+    originalWidth: item.originalWidth,
+    originalHeight: item.originalHeight,
+    caption: item.caption,
+    createdAt: item.createdAt,
+    urls: buildPhotoUrls(variants, item.fileRef),
+    focalX: item.focalX,
+    focalY: item.focalY,
+    tags: item.tags,
+    isFavorite: firstLink?.isFavorite ?? false,
+    isAvatar: firstLink?.isAvatar ?? false,
+    sortOrder: firstLink?.sortOrder ?? 0,
+    isCover: opts?.coverMediaItemId === item.id,
+    // Per-person link surface — present only when caller included
+    // personMediaLinks. The info panel relies on this to render
+    // usage / body regions / era / notes sections.
+    links: item.personMediaLinks,
+    collectionIds: item.collectionItems?.map((ci) => ci.collectionId),
+    skillEventIds: item.skillEventMedia?.map((sem) => sem.skillEventId),
+    setCount: item.setMediaItems?.length,
+    setLinks: item.setMediaItems?.map((smi) => ({
+      setId: smi.set.id,
+      setTitle: smi.set.title,
+    })),
+    sourceVideoRef: item.sourceVideoRef,
+    sourceTimecodeMs: item.sourceTimecodeMs,
+    sessionId: item.sessionId,
+    sessionName: item.session?.name ?? undefined,
+    copiedFrom: item.copiedFromMediaItem
+      ? {
+          mediaItemId: item.copiedFromMediaItem.id,
+          setId: sourceFirstSet?.id ?? null,
+          setTitle: sourceFirstSet?.title ?? null,
+        }
+      : null,
+  };
+}
+
 
 // ─── Session gallery (production photos) ────────────────────────────────────
 
@@ -411,11 +536,28 @@ export async function getPersonMediaGallery(
   personId: string,
   sessionId: string,
 ): Promise<GalleryItem[]> {
+  // Phase 1 migration: query stays focused on this page's needs (only
+  // THIS person's links + the copy-source breadcrumb), but the mapping
+  // is delegated to the canonical mapper so any future GalleryItem field
+  // appears here automatically as soon as the matching include is added.
   const items = await prisma.mediaItem.findMany({
     where: { sessionId, isAnnotation: false },
     include: {
       personMediaLinks: {
         where: { personId },
+      },
+      // Provenance breadcrumb — surfaces "from [SetName]" in the lightbox
+      // info panel for images that were copied here from a production set.
+      // One shallow hop: source MediaItem → its first SetMediaItem → set.
+      copiedFromMediaItem: {
+        select: {
+          id: true,
+          setMediaItems: {
+            select: { set: { select: { id: true, title: true } } },
+            orderBy: { sortOrder: "asc" },
+            take: 1,
+          },
+        },
       },
     },
     orderBy: { createdAt: "asc" },
@@ -423,27 +565,8 @@ export async function getPersonMediaGallery(
 
   const results: GalleryItem[] = [];
   for (const item of items) {
-    const variants = (item.variants ?? {}) as PhotoVariants;
-    if (!variants.master_4000 && !variants.original && !item.fileRef) continue;
-
-    const link = item.personMediaLinks[0];
-    results.push({
-      id: item.id,
-      filename: item.filename,
-      mimeType: item.mimeType,
-      originalWidth: item.originalWidth,
-      originalHeight: item.originalHeight,
-      caption: item.caption,
-      createdAt: item.createdAt,
-      urls: buildPhotoUrls(variants, item.fileRef),
-      focalX: item.focalX ?? null,
-      focalY: item.focalY ?? null,
-      tags: item.tags,
-      isFavorite: link?.isFavorite ?? false,
-      isAvatar: link?.isAvatar ?? false,
-      sortOrder: link?.sortOrder ?? 0,
-      isCover: false,
-    });
+    const gi = mapMediaItemToGalleryItem(item);
+    if (gi) results.push(gi);
   }
   results.sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
   return results;
