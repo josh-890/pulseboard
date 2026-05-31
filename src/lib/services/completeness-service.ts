@@ -82,10 +82,8 @@ type BatchPersonData = {
   birthdate: Date | null;
   nationality: string | null;
   sexAtBirth: string | null;
-  // Slice 16C T3: ethnicity field removed — score now sourced from
-  // baseline ScalarDelta cattr-ethnicity-broad via hasDelta() below.
-  eyeColor: string | null;
-  height: number | null;
+  // ethnicity / eyeColor / height all sourced from baseline ScalarDelta
+  // via hasDelta() below — no longer fields on this payload.
   birthPlace: string | null;
   birthAlias: string | null;
 };

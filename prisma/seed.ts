@@ -13,6 +13,10 @@ async function main() {
 
   const person = await prisma.person.upsert({
     where: { id: "seed-person-1" },
+    // eyeColor + height fields removed when those Person columns were
+    // dropped in the catalog-quality cleanup. The seed could add baseline
+    // ScalarDeltas instead, but it's not load-bearing for dev tests; the
+    // UI lets you set them when needed.
     update: {
       icgId: "JD-96ABF",
       status: "active",
@@ -20,13 +24,10 @@ async function main() {
       location: "Los Angeles, CA",
       sexAtBirth: "female",
       birthPlace: "Chicago, IL",
-      eyeColor: "brown",
-      height: 168,
       birthdate: new Date("1996-03-14"),
       birthdatePrecision: "DAY",
       nationality: "US",
       ethnicity: "Caucasian",
-
     },
     create: {
       id: "seed-person-1",
@@ -36,8 +37,6 @@ async function main() {
       location: "Los Angeles, CA",
       sexAtBirth: "female",
       birthPlace: "Chicago, IL",
-      eyeColor: "brown",
-      height: 168,
       birthdate: new Date("1996-03-14"),
       birthdatePrecision: "DAY",
       nationality: "US",
@@ -54,12 +53,9 @@ async function main() {
       specialization: "Model",
       location: "New York, NY",
       sexAtBirth: "male",
-      eyeColor: "green",
-      height: 183,
       birthdate: new Date("1988-07-22"),
       birthdatePrecision: "DAY",
       nationality: "US",
-
     },
     create: {
       id: "seed-person-2",
@@ -68,8 +64,6 @@ async function main() {
       specialization: "Model",
       location: "New York, NY",
       sexAtBirth: "male",
-      eyeColor: "green",
-      height: 183,
       birthdate: new Date("1988-07-22"),
       birthdatePrecision: "DAY",
       nationality: "US",

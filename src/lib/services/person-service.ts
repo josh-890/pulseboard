@@ -1871,14 +1871,14 @@ export async function getPersonsPaginated(
       }),
     ]);
 
-    // Batch compute completeness for all persons
+    // Batch compute completeness for all persons.
+    // eyeColor/height moved off Person columns in Phase G Slice 3a; the
+    // scores read from baseline ScalarDeltas inside batchComputeCompleteness.
     const batchData = allPersons.map((p) => ({
       id: p.id,
       birthdate: p.birthdate,
       nationality: p.nationality,
       sexAtBirth: p.sexAtBirth,
-      eyeColor: p.eyeColor,
-      height: p.height,
       birthPlace: p.birthPlace,
       birthAlias: p.aliases.find((a) => a.isBirth)?.name ?? null,
     }));
@@ -1954,15 +1954,13 @@ export async function getPersonsPaginated(
   const items = hasMore ? persons.slice(0, limit) : persons;
   const nextCursor = hasMore ? String(offset + limit) : null;
 
-  // Batch compute completeness
+  // Batch compute completeness. ethnicity/eyeColor/height moved off Person
+  // columns; scored from baseline ScalarDeltas inside the batch helper.
   const batchData = items.map((p) => ({
     id: p.id,
     birthdate: p.birthdate,
     nationality: p.nationality,
     sexAtBirth: p.sexAtBirth,
-    ethnicity: p.ethnicity,
-    eyeColor: p.eyeColor,
-    height: p.height,
     birthPlace: p.birthPlace,
     birthAlias: p.aliases.find((a) => a.isBirth)?.name ?? null,
   }));

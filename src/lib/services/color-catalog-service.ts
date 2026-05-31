@@ -139,16 +139,15 @@ export async function deleteColorCatalogEntry(
 ): Promise<void> {
   const norm = normalize(valueNorm);
   // Refuse deletion if any person record still references this value (by name).
-  // Hair / skin live in ScalarDelta (by attribute slug); eye on Person.eyeColor.
+  // All three categories now live in ScalarDelta (by attribute slug). The
+  // legacy Person.naturalHairColor + Person.eyeColor columns were dropped
+  // — every read goes through the baseline ScalarDelta rows.
   if (category === "hair") {
     const inUse = await prisma.$queryRawUnsafe<{ n: bigint }[]>(
-      `SELECT count(*)::bigint AS n FROM (
-        SELECT 1 FROM "Person" WHERE lower(trim(coalesce("naturalHairColor", ''))) = $1
-        UNION ALL
-        SELECT 1 FROM "ScalarDelta" sd
-          JOIN "PhysicalAttributeDefinition" pad ON pad.id = sd."attributeDefinitionId"
-          WHERE pad.slug = 'hair_color' AND lower(trim(coalesce(sd.value, ''))) = $1
-      ) t`,
+      `SELECT count(*)::bigint AS n
+       FROM "ScalarDelta" sd
+       JOIN "PhysicalAttributeDefinition" pad ON pad.id = sd."attributeDefinitionId"
+       WHERE pad.slug = 'hair_color' AND lower(trim(coalesce(sd.value, ''))) = $1`,
       norm,
     );
     if (Number(inUse[0].n) > 0) {
@@ -156,7 +155,10 @@ export async function deleteColorCatalogEntry(
     }
   } else if (category === "eye") {
     const inUse = await prisma.$queryRawUnsafe<{ n: bigint }[]>(
-      `SELECT count(*)::bigint AS n FROM "Person" WHERE lower(trim(coalesce("eyeColor", ''))) = $1`,
+      `SELECT count(*)::bigint AS n
+       FROM "ScalarDelta" sd
+       JOIN "PhysicalAttributeDefinition" pad ON pad.id = sd."attributeDefinitionId"
+       WHERE pad.slug = 'eye-color' AND lower(trim(coalesce(sd.value, ''))) = $1`,
       norm,
     );
     if (Number(inUse[0].n) > 0) {

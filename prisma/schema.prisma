@@ -270,8 +270,9 @@ model Person {
   nationalityUnknown  Boolean       @default(false)
   ethnicity           String?
   location            String?
-  height              Int?
-  eyeColor            String?
+  // Person.height + Person.eyeColor were dropped in the catalog data quality
+  // cleanup (2026-05-31). Both now live as baseline ScalarDeltas under the
+  // cattr-height / cattr-eye-color slugs; everything reads from there.
   activeFrom          DateTime?
   activeFromPrecision DatePrecision @default(UNKNOWN)
   activeFromModifier  DateModifier  @default(EXACT)

@@ -55,7 +55,10 @@ type RangeFieldDef = {
 };
 
 const RANGE_FIELDS: Record<string, RangeFieldDef> = {
-  height:  { column: Prisma.sql`p.height` },
+  // Height moved off Person column to the cattr-height baseline ScalarDelta
+  // (Phase G Slice 3a); the value is cached on PersonCurrentState's
+  // currentAttributes JSONB by the SQL fold, so we read it from there.
+  height:  { column: Prisma.sql`NULLIF(mv."currentAttributes"->>'height', '')::int` },
   weight:  { column: Prisma.sql`mv."currentWeight"` },
   rating:  { column: Prisma.sql`p.rating` },
   pgrade:  { column: Prisma.sql`p.pgrade` },
