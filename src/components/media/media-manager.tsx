@@ -8,7 +8,8 @@ import { ChevronDown, ChevronRight, GripVertical, Layers, PanelRightClose, Trash
 import { focalStyle } from "@/lib/utils";
 import type { EntityPhotoGroup } from "@/lib/services/media-service";
 import { cn } from "@/lib/utils";
-import type { MediaItemWithLinks } from "@/lib/services/media-service";
+import type { MediaItemWithLinks } from "@/lib/gallery-mappers";
+import { toGalleryItem } from "@/lib/gallery-mappers";
 import type { ProfileImageLabel } from "@/lib/services/setting-service";
 import type { CollectionSummary } from "@/lib/services/collection-service";
 import type { GalleryItem, PersonMediaLinkSummary } from "@/lib/types";
@@ -58,36 +59,12 @@ type MediaManagerProps = {
   anchor?: "reference" | "production";
 };
 
-// NOTE: this mapper duplicates the server-side `toGalleryItem` in
-// media-service.ts. Importing that one would drag Sharp + Prisma into the
-// client bundle (the file co-locates pure mappers with server-only code).
-// Phase 2 of the multi-builder consolidation needs to extract pure mappers
-// into a client-safe module before we can dedupe. Until then, keep this
-// local copy in sync with media-service.ts:toGalleryItem.
-function toGalleryItemLocal(item: MediaItemWithLinks): GalleryItem {
-  const firstLink = item.links[0];
-  return {
-    id: item.id,
-    filename: item.filename,
-    mimeType: item.mimeType,
-    originalWidth: item.originalWidth,
-    originalHeight: item.originalHeight,
-    caption: item.caption,
-    createdAt: item.createdAt,
-    urls: item.urls,
-    focalX: item.focalX,
-    focalY: item.focalY,
-    tags: item.tags,
-    isFavorite: firstLink?.isFavorite ?? false,
-    isAvatar: firstLink?.isAvatar ?? false,
-    sortOrder: firstLink?.sortOrder ?? 0,
-    isCover: false,
-    links: item.links,
-    collectionIds: item.collectionIds,
-    skillEventIds: item.skillEventIds,
-    copiedFrom: item.copiedFrom,
-  };
-}
+// Phase 2 (2026-05-31): `toGalleryItem` extracted to client-safe
+// `@/lib/gallery-mappers` module — no more local duplicate. Wrapped in an
+// arrow so `.map(toGalleryItemLocal)` doesn't accidentally pass `index`
+// as the second arg (which would clash with the `opts` parameter).
+const toGalleryItemLocal = (item: MediaItemWithLinks): GalleryItem =>
+  toGalleryItem(item);
 
 function toEntityGalleryItem(photo: EntityPhotoGroup["photos"][number]): GalleryItem {
   return {

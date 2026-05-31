@@ -1,12 +1,16 @@
 import { randomUUID } from "crypto";
 import { prisma } from "@/lib/db";
-import type { PhotoVariants, PhotoUrls } from "@/lib/types";
+import type { PhotoVariants } from "@/lib/types";
 import { parsePhotoVariants } from "@/lib/types";
 import type { MediaItemWithUrls, PersonMediaUsage } from "@/lib/types";
 import type { GalleryItem, DuplicateMatch, SimilarMatch } from "@/lib/types";
 import type { PersonMediaLink } from "@/generated/prisma/client";
 import { hammingDistance } from "@/lib/image-hash";
 import { buildUrl, buildPhotoUrls } from "@/lib/media-url";
+import {
+  toGalleryItem as toGalleryItemPure,
+  type MediaItemWithLinks as MediaItemWithLinksType,
+} from "@/lib/gallery-mappers";
 
 function assertValidVariants(variants: PhotoVariants): void {
   if (!variants.master_4000 && !variants.original) {
@@ -46,37 +50,17 @@ function toMediaItemWithUrls(item: MediaItemRow): MediaItemWithUrls | null {
 }
 
 // ─── GalleryItem mappers ─────────────────────────────────────────────────────
+//
+// Phase 2: the pure `toGalleryItem` mapper + the MediaItemWithLinks type
+// both live in `@/lib/gallery-mappers` (client-safe — no server-only
+// transitive deps). Re-exported here so existing call sites that import
+// from `@/lib/services/media-service` keep working. The canonical mapper
+// for raw Prisma rows (`mapMediaItemToGalleryItem`) stays in this file
+// because it depends on `buildPhotoUrls` (tenant-context-aware,
+// server-only).
 
-export function toGalleryItem(
-  item: MediaItemWithLinks,
-  opts?: { coverMediaItemId?: string | null },
-): GalleryItem {
-  const firstLink = item.links[0];
-  return {
-    id: item.id,
-    filename: item.filename,
-    mimeType: item.mimeType,
-    originalWidth: item.originalWidth,
-    originalHeight: item.originalHeight,
-    caption: item.caption,
-    createdAt: item.createdAt,
-    urls: item.urls,
-    focalX: item.focalX,
-    focalY: item.focalY,
-    tags: item.tags,
-    isFavorite: firstLink?.isFavorite ?? false,
-    isAvatar: firstLink?.isAvatar ?? false,
-    sortOrder: firstLink?.sortOrder ?? 0,
-    isCover: opts?.coverMediaItemId === item.id,
-    links: item.links,
-    collectionIds: item.collectionIds,
-    skillEventIds: item.skillEventIds,
-    setCount: item.setCount,
-    sourceVideoRef: item.sourceVideoRef,
-    sourceTimecodeMs: item.sourceTimecodeMs,
-    copiedFrom: item.copiedFrom,
-  };
-}
+export { toGalleryItemPure as toGalleryItem };
+export type MediaItemWithLinks = MediaItemWithLinksType;
 
 // ─── Canonical GalleryItem mapper (Phase 1 of multi-builder consolidation) ──
 //
@@ -1023,52 +1007,9 @@ export async function getPersonEntityMedia(
 }
 
 // ─── MediaManager queries ───────────────────────────────────────────────────
-
-export type MediaItemWithLinks = {
-  id: string;
-  filename: string;
-  mimeType: string;
-  originalWidth: number;
-  originalHeight: number;
-  caption: string | null;
-  tags: string[];
-  notes: string | null;
-  createdAt: Date;
-  urls: PhotoUrls;
-  focalX: number | null;
-  focalY: number | null;
-  focalSource: string | null;
-  focalStatus: string | null;
-  links: {
-    id: string;
-    usage: PersonMediaUsage;
-    slot: number | null;
-    bodyRegion: string | null;
-    bodyRegions: string[];
-    bodyMarkId: string | null;
-    bodyModificationId: string | null;
-    cosmeticProcedureId: string | null;
-    categoryId: string | null;
-    eraId: string | null;
-    isFavorite: boolean;
-    isAvatar: boolean;
-    sortOrder: number;
-    notes: string | null;
-  }[];
-  collectionIds: string[];
-  skillEventIds: string[];
-  setCount: number;
-  sourceVideoRef: string | null;
-  sourceTimecodeMs: number | null;
-  // Provenance for "copy production image → reference session" copies.
-  // Reference-session views (MediaManager) render this as a "from
-  // [SetName]" chip in the lightbox info panel.
-  copiedFrom: {
-    mediaItemId: string;
-    setId: string | null;
-    setTitle: string | null;
-  } | null;
-};
+// `MediaItemWithLinks` type lives in `@/lib/gallery-mappers` (re-exported
+// from the top of this file). The query function stays here because it's
+// server-only.
 
 export async function getMediaItemsWithLinks(
   sessionId: string,
