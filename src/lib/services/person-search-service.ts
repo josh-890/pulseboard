@@ -65,12 +65,23 @@ const RANGE_FIELDS: Record<string, RangeFieldDef> = {
   age:     { column: Prisma.sql`p.birthdate`, derive: "age" },
 };
 
+// Boolean expressions evaluated per-row. Replaces the legacy
+// hasTattoo/hasScar/hasPiercing/hasModification/hasProcedure cached
+// boolean columns. The first four are sourced from
+// PersonCurrentState.presentBodyFeatureTypes (a GIN-indexed text[]
+// populated by the SQL fold). `procedure` falls back to an EXISTS
+// subquery on the CosmeticProcedure table (slated for removal in
+// Slice 17 per ADR-0007, but still queryable while the table exists).
+//
+// `modification` is any body-modification type EXCEPT piercing; the
+// array overlap (&&) operator matches if presentBodyFeatureTypes
+// shares any element with the listed modification types.
 const PRESENCE_COLUMN: Record<PresenceField, Prisma.Sql> = {
-  tattoo:       Prisma.sql`mv."hasTattoo"`,
-  scar:         Prisma.sql`mv."hasScar"`,
-  piercing:     Prisma.sql`mv."hasPiercing"`,
-  modification: Prisma.sql`mv."hasModification"`,
-  procedure:    Prisma.sql`mv."hasProcedure"`,
+  tattoo:       Prisma.sql`('tattoo' = ANY(mv."presentBodyFeatureTypes"))`,
+  scar:         Prisma.sql`('scar' = ANY(mv."presentBodyFeatureTypes"))`,
+  piercing:     Prisma.sql`('piercing' = ANY(mv."presentBodyFeatureTypes"))`,
+  modification: Prisma.sql`(mv."presentBodyFeatureTypes" && ARRAY['stretching','branding','scarification','implant','teeth','jewelry','other']::text[])`,
+  procedure:    Prisma.sql`(EXISTS (SELECT 1 FROM "CosmeticProcedure" cp WHERE cp."personId" = p.id))`,
 };
 
 const REGION_COLUMN: Record<PresenceField, Prisma.Sql> = {

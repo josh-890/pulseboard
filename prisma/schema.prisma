@@ -1325,12 +1325,6 @@ model PersonCurrentState {
   // search filter — the audit hook ADR-0008 commits the product to.
   baselineAttributes Json @default("{}")
 
-  hasTattoo       Boolean @default(false)
-  hasScar         Boolean @default(false)
-  hasPiercing     Boolean @default(false)
-  hasModification Boolean @default(false)
-  hasProcedure    Boolean @default(false)
-
   tattooRegions       String[] @default([])
   scarRegions         String[] @default([])
   piercingRegions     String[] @default([])
@@ -1339,7 +1333,8 @@ model PersonCurrentState {
 
   // Phase G Slice 15: union of distinct mark.type + mod.type for the person's
   // present (non-removed) body features. Drives the hero type-presence chips
-  // and replaces the per-type has* booleans (which stay until Slice 17).
+  // and replaced the per-type has* booleans (dropped 2026-05-31). Search
+  // uses array membership against this column instead.
   presentBodyFeatureTypes String[] @default([])
 
   updatedAt DateTime @default(now())
@@ -1357,9 +1352,6 @@ model PersonCurrentState {
   @@index([eyeLightnessRank])
   @@index([skinToneRank])
   @@index([skinUndertone])
-  @@index([hasTattoo])
-  @@index([hasScar])
-  @@index([hasPiercing])
 }
 
 // ─── System ───────────────────────────────────────────────────────────────────
