@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/db";
-import type { GalleryItem, PhotoVariants, PhotoUrls } from "@/lib/types";
-import { buildUrl, buildPhotoUrls } from "@/lib/media-url";
+import type { GalleryItem, PhotoVariants } from "@/lib/types";
+import { buildUrl } from "@/lib/media-url";
+import { mapMediaItemToGalleryItem } from "@/lib/services/media-service";
 
 export type CollectionSummary = {
   id: string;
@@ -144,31 +145,16 @@ export async function getCollectionGalleryItems(collectionId: string): Promise<G
     orderBy: { sortOrder: "asc" },
   });
 
-  return items
-    .map((ci) => {
-      const m = ci.mediaItem;
-      const variants = (m.variants as PhotoVariants) ?? {};
-      const urls: PhotoUrls = buildPhotoUrls(variants, m.fileRef);
-
-      return {
-        id: m.id,
-        filename: m.filename,
-        mimeType: m.mimeType,
-        originalWidth: m.originalWidth,
-        originalHeight: m.originalHeight,
-        caption: m.caption,
-        createdAt: m.createdAt,
-        urls,
-        focalX: m.focalX,
-        focalY: m.focalY,
-        tags: m.tags,
-        isFavorite: false,
-        isAvatar: false,
-        sortOrder: ci.sortOrder,
-        isCover: false,
-        collectionIds: m.collectionItems.map((ci2) => ci2.collectionId),
-      };
-    });
+  // Phase 3: mapper produces the base; sortOrder comes from the
+  // MediaCollectionItem bridge (the canonical mapper doesn't know about
+  // collection bridges — same pattern as SetMediaItem).
+  const results: GalleryItem[] = [];
+  for (const ci of items) {
+    const base = mapMediaItemToGalleryItem(ci.mediaItem);
+    if (!base) continue;
+    results.push({ ...base, sortOrder: ci.sortOrder });
+  }
+  return results;
 }
 
 export async function createCollection(data: {

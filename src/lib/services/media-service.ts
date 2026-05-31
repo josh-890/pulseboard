@@ -215,39 +215,13 @@ export async function getSessionMediaGallery(sessionId: string): Promise<Gallery
     orderBy: { createdAt: "asc" },
   });
 
+  // Phase 3: field assignment delegated to the canonical mapper. The query
+  // chooses which relations to include (its responsibility); the mapper
+  // turns relations into GalleryItem fields (its responsibility).
   const results: GalleryItem[] = [];
   for (const item of items) {
-    const variants = (item.variants ?? {}) as PhotoVariants;
-    if (!variants.master_4000 && !variants.original && !item.fileRef) continue;
-
-    const sourceSet = item.copiedFromMediaItem?.setMediaItems[0]?.set ?? null;
-
-    results.push({
-      id: item.id,
-      filename: item.filename,
-      mimeType: item.mimeType,
-      originalWidth: item.originalWidth,
-      originalHeight: item.originalHeight,
-      caption: item.caption,
-      createdAt: item.createdAt,
-      urls: buildPhotoUrls(variants, item.fileRef),
-      focalX: item.focalX ?? null,
-      focalY: item.focalY ?? null,
-      tags: item.tags,
-      isFavorite: false,
-      isAvatar: false,
-      sortOrder: 0,
-      isCover: false,
-      setCount: item.setMediaItems.length,
-      setLinks: item.setMediaItems.map((smi) => ({ setId: smi.set.id, setTitle: smi.set.title })),
-      copiedFrom: item.copiedFromMediaItem
-        ? {
-            mediaItemId: item.copiedFromMediaItem.id,
-            setId: sourceSet?.id ?? null,
-            setTitle: sourceSet?.title ?? null,
-          }
-        : null,
-    });
+    const gi = mapMediaItemToGalleryItem(item);
+    if (gi) results.push(gi);
   }
   return results;
 }
@@ -647,30 +621,13 @@ export async function getPersonMediaAcrossSessions(
   const page = hasMore ? rows.slice(0, limit) : rows
   const nextCursor = hasMore ? page[page.length - 1].id : null
 
+  // Phase 3: mapper handles every relation present in the query. sessionId
+  // + sessionName flow through `session.name`; isFavorite + isAvatar through
+  // `personMediaLinks[0]` (the query already filters by this person).
   const items: GalleryItem[] = []
   for (const item of page) {
-    const variants = (item.variants ?? {}) as PhotoVariants
-    if (!variants.master_4000 && !variants.original && !item.fileRef) continue
-    const link = item.personMediaLinks[0]
-    items.push({
-      id: item.id,
-      filename: item.filename,
-      mimeType: item.mimeType,
-      originalWidth: item.originalWidth,
-      originalHeight: item.originalHeight,
-      caption: item.caption,
-      createdAt: item.createdAt,
-      urls: buildPhotoUrls(variants, item.fileRef),
-      focalX: item.focalX ?? null,
-      focalY: item.focalY ?? null,
-      tags: item.tags,
-      isFavorite: link?.isFavorite ?? false,
-      isAvatar: link?.isAvatar ?? false,
-      sortOrder: link?.sortOrder ?? 0,
-      isCover: false,
-      sessionId: item.sessionId,
-      sessionName: item.session.name ?? undefined,
-    })
+    const gi = mapMediaItemToGalleryItem(item)
+    if (gi) items.push(gi)
   }
 
   return { items, nextCursor }
@@ -694,33 +651,19 @@ export async function getSetMediaGallery(
     },
     orderBy: { sortOrder: "asc" },
   });
+  // Phase 3: mapper handles the base shape; the SetMediaItem-specific
+  // overrides (link.caption + link.sortOrder) are patched on top because
+  // they're set-context fields the mapper can't see through the
+  // SetMediaItem bridge. Same idea applies for any future builder that
+  // sits on a join table.
   const results: GalleryItem[] = [];
   for (const link of links) {
-    const item = link.mediaItem;
-    const variants = (item.variants ?? {}) as PhotoVariants;
-    if (!variants.master_4000 && !variants.original && !item.fileRef) continue;
-
+    const base = mapMediaItemToGalleryItem(link.mediaItem, { coverMediaItemId });
+    if (!base) continue;
     results.push({
-      id: item.id,
-      filename: item.filename,
-      mimeType: item.mimeType,
-      originalWidth: item.originalWidth,
-      originalHeight: item.originalHeight,
-      caption: link.caption ?? item.caption,
-      createdAt: item.createdAt,
-      urls: buildPhotoUrls(variants, item.fileRef),
-      focalX: item.focalX ?? null,
-      focalY: item.focalY ?? null,
-      tags: item.tags,
-      isFavorite: false,
-      isAvatar: false,
+      ...base,
+      caption: link.caption ?? base.caption,
       sortOrder: link.sortOrder,
-      isCover: coverMediaItemId === item.id,
-      collectionIds: item.collectionItems.map((ci) => ci.collectionId),
-      sourceVideoRef: item.sourceVideoRef,
-      sourceTimecodeMs: item.sourceTimecodeMs,
-      sessionId: item.sessionId,
-      sessionName: item.session.name,
     });
   }
   return results;
