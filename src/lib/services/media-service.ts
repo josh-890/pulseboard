@@ -85,6 +85,22 @@ export async function getSessionMediaGallery(sessionId: string): Promise<Gallery
     where: { sessionId },
     include: {
       setMediaItems: { select: { setId: true, set: { select: { id: true, title: true } } } },
+      // Provenance JOIN — only populated when the item was copied here from
+      // a production set's MediaItem. We follow that source's first
+      // SetMediaItem so the info panel can show "from [SetName]". One
+      // shallow hop; the source MediaItem may itself live in N sets — we
+      // pick the first by sort order, since the badge is informational
+      // and a single chip reads better than a list.
+      copiedFromMediaItem: {
+        select: {
+          id: true,
+          setMediaItems: {
+            select: { setId: true, set: { select: { id: true, title: true } } },
+            orderBy: { sortOrder: "asc" },
+            take: 1,
+          },
+        },
+      },
     },
     orderBy: { createdAt: "asc" },
   });
@@ -93,6 +109,8 @@ export async function getSessionMediaGallery(sessionId: string): Promise<Gallery
   for (const item of items) {
     const variants = (item.variants ?? {}) as PhotoVariants;
     if (!variants.master_4000 && !variants.original && !item.fileRef) continue;
+
+    const sourceSet = item.copiedFromMediaItem?.setMediaItems[0]?.set ?? null;
 
     results.push({
       id: item.id,
@@ -112,6 +130,13 @@ export async function getSessionMediaGallery(sessionId: string): Promise<Gallery
       isCover: false,
       setCount: item.setMediaItems.length,
       setLinks: item.setMediaItems.map((smi) => ({ setId: smi.set.id, setTitle: smi.set.title })),
+      copiedFrom: item.copiedFromMediaItem
+        ? {
+            mediaItemId: item.copiedFromMediaItem.id,
+            setId: sourceSet?.id ?? null,
+            setTitle: sourceSet?.title ?? null,
+          }
+        : null,
     });
   }
   return results;

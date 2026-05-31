@@ -52,4 +52,15 @@ export type GalleryItem = {
   sessionName?: string;
   /** Sets this item belongs to — populated in session gallery context */
   setLinks?: { setId: string; setTitle: string }[];
+  /**
+   * Provenance for "copy production image → reference session" copies
+   * (ADR-0009 follow-up). Populated by reference-session galleries; lets
+   * the lightbox info panel surface a discreet "from [SetName]" link.
+   * Deliberately opt-in surface — never rendered on thumbnails or chrome.
+   */
+  copiedFrom?: {
+    mediaItemId: string;
+    setId: string | null;
+    setTitle: string | null;
+  } | null;
 };

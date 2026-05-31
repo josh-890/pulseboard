@@ -2,8 +2,10 @@
 
 import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import {
+  ArrowUpRight,
   ChevronDown,
   ChevronUp,
+  Copy,
   Crosshair,
   FileText,
   Folder,
@@ -192,7 +194,7 @@ export function GalleryInfoPanel({
   collectionContext,
 }: GalleryInfoPanelProps) {
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
-    new Set(["cover", "headshot", "favorite", "usage", "tags", "structuredTags", "focal", "info"]),
+    new Set(["cover", "headshot", "favorite", "usage", "tags", "structuredTags", "focal", "info", "source"]),
   );
   const [isPending, startTransition] = useTransition();
   const [isFocalPending, startFocalTransition] = useTransition();
@@ -1260,6 +1262,39 @@ export function GalleryInfoPanel({
           />
           {expandedSections.has("caption") && (
             <p className="pb-2 text-xs text-white/70">{item.caption}</p>
+          )}
+        </>
+      )}
+
+      {/* Source — only renders when the item was copied from another media
+          item (ADR-0009 follow-up). Deliberately opt-in via the info panel
+          so it isn't visible as chrome on every reference photo. */}
+      {item.copiedFrom && (
+        <>
+          <SectionHeader
+            title="Source"
+            icon={<Copy size={14} />}
+            section="source"
+            expanded={expandedSections.has("source")}
+            onToggle={toggleSection}
+          />
+          {expandedSections.has("source") && (
+            <div className="pb-2 text-xs text-white/70">
+              {item.copiedFrom.setId && item.copiedFrom.setTitle ? (
+                <a
+                  href={`/sets/${item.copiedFrom.setId}`}
+                  className="inline-flex items-center gap-1 rounded-md border border-white/15 bg-white/5 px-2 py-1 text-xs text-white/80 transition-colors hover:border-emerald-500/40 hover:bg-emerald-500/15 hover:text-emerald-200"
+                >
+                  <span>from</span>
+                  <span className="font-medium">{item.copiedFrom.setTitle}</span>
+                  <ArrowUpRight size={11} className="opacity-70" />
+                </a>
+              ) : (
+                <span className="italic text-white/50">
+                  Copied from another image — source set no longer linked.
+                </span>
+              )}
+            </div>
           )}
         </>
       )}
