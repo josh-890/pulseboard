@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 // Phase G Slice 9 / ADR-0006: curation nudge dismissal state.
 // Stored in localStorage so cross-device dismissal isn't tracked — the user
@@ -42,8 +42,19 @@ export function isNudgeDismissed(eraId: string): boolean {
 export function useDraftErasReadyCount(
   eras: { id: string; isBaseline: boolean; isDraft: boolean; scalarDeltas: { value: string }[] }[],
 ): number {
-  const [count, setCount] = useState(0);
+  // Mounted gate: localStorage isn't available on the server, so we
+  // intentionally return 0 during SSR + first render to keep server +
+  // client hydration in sync, then compute the real count post-mount.
+  // The setState-in-effect here is the canonical "useIsMounted" idiom;
+  // suppress the otherwise-correct lint rule for this one call.
+  const [mounted, setMounted] = useState(false);
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setMounted(true);
+  }, []);
+
+  return useMemo(() => {
+    if (!mounted) return 0;
     let n = 0;
     for (const era of eras) {
       if (era.isBaseline || !era.isDraft) continue;
@@ -52,9 +63,8 @@ export function useDraftErasReadyCount(
       if (isNudgeDismissed(era.id)) continue;
       n += 1;
     }
-    setCount(n);
-  }, [eras]);
-  return count;
+    return n;
+  }, [mounted, eras]);
 }
 
 /**

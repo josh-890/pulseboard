@@ -128,6 +128,10 @@ export function AppearanceBodyMap({
     if (tooltipEntities) {
       showTimerRef.current = setTimeout(() => setTooltipVisible(true), TOOLTIP_SHOW_DELAY_MS);
     } else {
+      // Hover-out: cancel any pending show + hide immediately. Legitimate
+      // sync setState in effect — the "delay on show, cancel on hide"
+      // pattern doesn't have a clean event-driven equivalent.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setTooltipVisible(false);
     }
     return () => {

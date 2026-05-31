@@ -150,10 +150,13 @@ export function StagingSetFilterBar({ filters, onChange, stats }: StagingSetFilt
     return () => document.removeEventListener('mousedown', handleMouseDown)
   }, [])
 
-  // Debounce person search — 200 ms
+  // Debounce person search — 200 ms. The "clear on empty query" reset
+  // here is the canonical debounced-search idiom; see the matching
+  // suppression in cover-baskets-section.tsx for the same pattern.
   useEffect(() => {
     clearTimeout(personDebounceRef.current)
     if (!personSearch.trim()) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setPersonSuggestions([])
       setPersonDropdownOpen(false)
       return

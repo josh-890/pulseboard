@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition, useEffect } from "react";
+import { useCallback, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -52,17 +52,21 @@ export function ChangeIcgIdDialog({ personId, currentIcgId, onSuccess }: ChangeI
 
   const { isSubmitting } = form.formState;
 
-  useEffect(() => {
-    if (!open) {
+  // Event-driven open/close: dialog open transition triggers the impact
+  // load; close resets the form. Avoids the set-state-in-effect anti-
+  // pattern by moving the data fetch off useEffect onto a user gesture.
+  const handleOpenChange = useCallback((next: boolean) => {
+    setOpen(next);
+    if (next) {
+      startLoadImpact(async () => {
+        const counts = await getIcgIdImpactAction(currentIcgId);
+        setImpact(counts);
+      });
+    } else {
       form.reset({ id: personId, icgId: "" });
       setImpact(null);
-      return;
     }
-    startLoadImpact(async () => {
-      const counts = await getIcgIdImpactAction(currentIcgId);
-      setImpact(counts);
-    });
-  }, [open, currentIcgId, personId, form]);
+  }, [currentIcgId, personId, form]);
 
   async function onSubmit(values: IcgIdChangeInput) {
     const result = await updatePersonIcgIdAction(values);
@@ -95,7 +99,7 @@ export function ChangeIcgIdDialog({ personId, currentIcgId, onSuccess }: ChangeI
     <>
       <button
         type="button"
-        onClick={() => setOpen(true)}
+        onClick={() => handleOpenChange(true)}
         className="ml-auto flex items-center gap-1 rounded px-1.5 py-0.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
         title="Change ICG-ID"
       >
@@ -103,7 +107,7 @@ export function ChangeIcgIdDialog({ personId, currentIcgId, onSuccess }: ChangeI
         Change
       </button>
 
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog open={open} onOpenChange={handleOpenChange}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">

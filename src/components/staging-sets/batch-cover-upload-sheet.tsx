@@ -133,8 +133,11 @@ export function BatchCoverUploadSheet({
     [missingSets, setType],
   )
 
-  // Reset files and upload state when type is switched
+  // Reset files and upload state when type is switched. setType comes
+  // from a parent-controlled toggle; reacting via effect is the only
+  // pattern available without re-keying the whole tree.
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setFiles([])
     setUploadStates(new Map())
     setIsDone(false)
@@ -145,8 +148,13 @@ export function BatchCoverUploadSheet({
     [setsForType, files],
   )
 
-  // Sync included set when matches change (auto-include matched files)
+  // Sync included set when matches change (auto-include matched files).
+  // Note: this resets any user toggles when matches change — accepted as
+  // designed; toggling persists until the next file drop. Refactoring to
+  // a useMemo would require representing toggles as overrides, out of
+  // scope for the lint cleanup.
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setIncluded(new Set(
       matches.filter((m) => m.file !== null).map((m) => m.set.id),
     ))
@@ -208,9 +216,12 @@ export function BatchCoverUploadSheet({
     onBatchUploaded(results)
   }, [includedMatches, isUploading, onBatchUploaded])
 
-  // Reset when dialog closes
+  // Reset when dialog closes. The component is controlled via the `open`
+  // prop, so reacting to closure via effect is the only available
+  // pattern — onOpenChange lives on the parent.
   useEffect(() => {
     if (!open) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setFiles([])
       setIncluded(new Set())
       setUploadStates(new Map())

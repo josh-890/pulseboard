@@ -32,10 +32,14 @@ export function CoverBasketsSection({ initialPersonId, initialPersonLabel }: Cov
     return () => document.removeEventListener('mousedown', handleMouseDown)
   }, [])
 
-  // Debounce person search — 200ms
+  // Debounce person search — 200ms. The "clear on empty query" reset
+  // here is the canonical debounced-search idiom; suppress the synchronous
+  // setState lint flag because the source (`personSearch`) is a user-typed
+  // input and the reset is the correct event-driven response.
   useEffect(() => {
     clearTimeout(personDebounceRef.current)
     if (!personSearch.trim()) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setPersonSuggestions([])
       setPersonDropdownOpen(false)
       return

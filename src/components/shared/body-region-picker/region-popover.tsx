@@ -36,8 +36,14 @@ export function RegionPopover({
   // until then so the user doesn't see a one-frame jump.
   const [placement, setPlacement] = useState<{ flipV: boolean; flipH: "none" | "left" | "right" } | null>(null);
 
+  // Measurement-driven layout: we have to render once with placement=null,
+  // then measure the resulting DOM rect and decide whether to flip the
+  // popover above/below + left/right of the click. setState-in-effect is
+  // the canonical pattern for "measure then position" — no event source
+  // exists for it.
   useLayoutEffect(() => {
     if (!ref.current || !containerRef.current) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setPlacement({ flipV: false, flipH: "none" });
       return;
     }
