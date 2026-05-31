@@ -51,7 +51,7 @@ import {
   Plus,
 } from "lucide-react";
 import { SectionCard, EmptyState, InfoRow } from "@/components/people/person-detail-helpers";
-import { formatPartialDate } from "@/lib/utils";
+import { formatPartialDate, splitOptionLabel } from "@/lib/utils";
 import { CORE_PHYSICAL_ATTR_IDS } from "@/lib/constants/appearance";
 import type { EntityMediaThumbnail } from "@/lib/services/media-service";
 import type { CategoryWithGroup } from "@/components/gallery/gallery-info-panel";
@@ -753,14 +753,14 @@ export function AppearanceTab({
                     <div className="space-y-2">
                       {physicalChanges.map((item) => {
                         const fields: string[] = [];
-                        if (item.currentHairColor) fields.push(`Hair: ${item.currentHairColor}`);
+                        if (item.currentHairColor) fields.push(`Hair: ${splitOptionLabel(item.currentHairColor).label}`);
                         if (item.weight !== null) fields.push(`Weight: ${item.weight} kg`);
-                        if (item.build) fields.push(`Build: ${item.build}`);
-                        if (item.breastSize) fields.push(`Breasts: ${item.breastSize}`);
+                        if (item.build) fields.push(`Build: ${splitOptionLabel(item.build).label}`);
+                        if (item.breastSize) fields.push(`Breasts: ${splitOptionLabel(item.breastSize).label}`);
                         if (item.breastStatus) fields.push(`Breast status: ${item.breastStatus}`);
                         if (item.breastDescription) fields.push(`Breast desc: ${item.breastDescription}`);
                         for (const attr of item.attributes) {
-                          fields.push(`${attr.name}: ${attr.value}${attr.unit ? ` ${attr.unit}` : ""}`);
+                          fields.push(`${attr.name}: ${splitOptionLabel(attr.value).label}${attr.unit ? ` ${attr.unit}` : ""}`);
                         }
 
                         return (

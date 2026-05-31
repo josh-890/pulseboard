@@ -1,6 +1,6 @@
 "use client";
 
-import { cn } from "@/lib/utils";
+import { cn, splitOptionLabel } from "@/lib/utils";
 import type { AttributeStatus } from "@/lib/types";
 
 type AttributeStatusProgressionProps = {
@@ -32,7 +32,13 @@ export function AttributeStatusProgression({
   unit,
   statusBearing = true,
 }: AttributeStatusProgressionProps) {
-  const fmt = (v: string) => (unit ? `${v} ${unit}` : v);
+  // Strip trailing-parens helper text from SINGLE_SELECT values for compact
+  // read-only display (e.g. "Pixie / Ear-length (ear / jawline)" → "Pixie /
+  // Ear-length"). No-op for values without parens.
+  const fmt = (v: string) => {
+    const { label } = splitOptionLabel(v);
+    return unit ? `${label} ${unit}` : label;
+  };
 
   if (!statusBearing || status === "NATURAL") {
     return <span>{fmt(currentValue)}</span>;

@@ -1,9 +1,18 @@
 "use client";
 
 import { useState } from "react";
+import { HelpCircle } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
-import { cn } from "@/lib/utils";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { cn, splitOptionLabel } from "@/lib/utils";
 import type { PhysicalAttributeValueType } from "@/generated/prisma/client";
 
 export type TypedAttributeDefinition = {
@@ -121,22 +130,66 @@ function renderInputBody({
       );
     }
 
-    case "SINGLE_SELECT":
+    case "SINGLE_SELECT": {
+      const parsedOptions = definition.allowedValues.map((v) => ({
+        value: v,
+        ...splitOptionLabel(v),
+      }));
+      const anyHelper = parsedOptions.some((o) => o.helper !== null);
+      const currentLabel = value === "" ? null : splitOptionLabel(value).label;
       return (
-        <select
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          className={cn(
-            "h-9 w-full rounded-md border border-white/15 bg-background px-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring",
-            className,
+        <div className={cn("flex items-center gap-1.5", className)}>
+          <Select
+            value={value === "" ? undefined : value}
+            onValueChange={(v) => onChange(v)}
+          >
+            <SelectTrigger className="h-9 flex-1 text-sm">
+              <SelectValue placeholder="—">{currentLabel}</SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              {parsedOptions.map((o) => (
+                <SelectItem key={o.value} value={o.value} className="py-2">
+                  <div className="flex flex-col items-start">
+                    <span>{o.label}</span>
+                    {o.helper && (
+                      <span className="text-xs text-muted-foreground">{o.helper}</span>
+                    )}
+                  </div>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {anyHelper && (
+            <Popover>
+              <PopoverTrigger asChild>
+                <button
+                  type="button"
+                  className="shrink-0 rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                  aria-label={`${definition.name} — option reference`}
+                >
+                  <HelpCircle size={14} />
+                </button>
+              </PopoverTrigger>
+              <PopoverContent align="end" className="w-80 p-3">
+                <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  {definition.name} options
+                </div>
+                <dl className="space-y-1.5 text-sm">
+                  {parsedOptions.map((o) => (
+                    <div key={o.value} className="grid grid-cols-[1fr_1.4fr] gap-3">
+                      <dt className="font-medium">{o.label}</dt>
+                      <dd className="text-xs text-muted-foreground">
+                        {o.helper ?? "—"}
+                      </dd>
+                    </div>
+                  ))}
+                </dl>
+              </PopoverContent>
+            </Popover>
           )}
-        >
-          <option value="">—</option>
-          {definition.allowedValues.map((v) => (
-            <option key={v} value={v}>{v}</option>
-          ))}
-        </select>
+        </div>
       );
+    }
 
     case "MULTI_SELECT": {
       const selected = new Set(parseMulti(value));

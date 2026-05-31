@@ -264,3 +264,14 @@ export function generateChannelShortName(name: string): string {
   // Fallback: first 2 characters
   return word.slice(0, 2).toUpperCase()
 }
+
+// Splits a SINGLE_SELECT allowedValue of the form "Label (anchor)" into its
+// label and helper-text parts. Values without trailing parens return their
+// raw string as `label` and `null` as `helper`. Used both by the picker (to
+// render two-line items) and by read-only displays (to strip the parens
+// from compact badge labels).
+export function splitOptionLabel(value: string): { label: string; helper: string | null } {
+  const match = /^(.*?)\s*\((.+)\)\s*$/.exec(value)
+  if (!match) return { label: value, helper: null }
+  return { label: match[1]!.trim(), helper: match[2]!.trim() }
+}
