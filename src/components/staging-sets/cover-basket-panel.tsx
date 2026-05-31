@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import { Loader2, RefreshCw } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useFileDrop } from '@/lib/hooks/use-file-drop'
@@ -30,7 +30,9 @@ export function CoverBasketPanel({ personId, isVideo, basket, onRefresh }: Cover
   const label = isVideo ? 'Video' : 'Photo'
 
   // ── Stats ──────────────────────────────────────────────────────────────
-  const items = basket?.items ?? []
+  // Memoised so downstream useCallbacks (handleIgnoreAllPending) keep a
+  // stable reference when basket.items hasn't actually changed.
+  const items = useMemo(() => basket?.items ?? [], [basket?.items])
   const pending = items.filter((i) => i.status === 'PENDING').length
   const matched = items.filter((i) => i.status === 'MATCHED').length
   const transferred = items.filter((i) => i.status === 'TRANSFERRED').length

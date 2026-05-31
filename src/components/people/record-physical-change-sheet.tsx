@@ -196,7 +196,7 @@ export function RecordPhysicalChangeSheet({ personId, currentState, attributeGro
       }
       onClose();
     });
-  }, [personId, date, datePrecision, intent, cause, currentHairColor, weight, build, breastSize, breastStatus, breastDescription, attrValues, hasAnyChange, hairChanged, weightChanged, buildChanged, breastSizeChanged, breastStatusChanged, breastDescChanged, initialAttrValues, onClose]);
+  }, [personId, date, datePrecision, intent, cause, currentHairColor, weight, build, breastSize, breastStatus, breastDescription, attrValues, attrUnknown, hasAnyChange, hairChanged, weightChanged, buildChanged, breastSizeChanged, breastStatusChanged, breastDescChanged, initialAttrValues, initialAttrUnknown, hairColorUnknown, weightUnknown, buildUnknown, breastSizeUnknown, onClose]);
 
   return (
     <div role="dialog" aria-modal="true" className="fixed inset-0 z-50 flex justify-end">

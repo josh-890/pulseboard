@@ -152,9 +152,12 @@ export function EditAppearanceSheet({ person, open: controlledOpen, onOpenChange
             <div className="flex-1 overflow-y-auto px-4 py-4">
               <section className="rounded-xl border bg-muted/30 dark:bg-muted/20 p-4 space-y-4">
                 <SectionHeader>Appearance</SectionHeader>
+                {/* Slice 16 follow-up: every Tier 1 field gets a "don't know"
+                    affordance via CoreFieldRow. Measurements is Tier 2 — stays plain.
+                    react-hook-form's `form.watch()` is known incompatible with
+                    React Compiler — disables sit on each `.watch()` line below. */}
+                {/* eslint-disable react-hooks/incompatible-library */}
                 <div className="grid grid-cols-2 gap-3">
-                  {/* Slice 16 follow-up: every Tier 1 field gets a "don't know"
-                      affordance via CoreFieldRow. Measurements is Tier 2 — stays plain. */}
                   <CoreFieldRow
                     label="Eye Color"
                     unknown={form.watch("eyeColorUnknown") ?? false}
@@ -343,6 +346,7 @@ export function EditAppearanceSheet({ person, open: controlledOpen, onOpenChange
                   </CoreFieldRow>
 
                 </div>
+                {/* eslint-enable react-hooks/incompatible-library */}
               </section>
             </div>
 
