@@ -2278,7 +2278,7 @@ export async function confirmArchiveFolderLink(
 ): Promise<void> {
   const folder = await prisma.archiveFolder.findUnique({
     where: { id: folderId },
-    select: { relativePath: true, fileCount: true, videoPresent: true, tenant: true },
+    select: { relativePath: true, fullPath: true, isVideo: true, fileCount: true, videoPresent: true, tenant: true },
   })
   if (!folder) throw new Error('Archive folder not found')
 
@@ -2301,12 +2301,38 @@ export async function confirmArchiveFolderLink(
     confirmedSetId = targetId
   }
 
-  const archiveFields = folder.relativePath ? {
-    archivePath: folder.relativePath,
+  // Backfill relativePath if the scanner didn't compute it (scan pass leaves
+  // relativePath null; only the matcher pass strips known roots — see the
+  // analogous block in matchArchiveFolders). Without this, the ArchiveLink
+  // is created with archivePath=null / archiveStatus=UNKNOWN, breaking the
+  // side-panel "linked" indicator and the career-tab archive pill.
+  let relativePath = folder.relativePath
+  if (!relativePath) {
+    const rootKey = folder.isVideo ? ARCHIVE_VIDEOSET_ROOT_KEY : ARCHIVE_PHOTOSET_ROOT_KEY
+    const roots = parseRoots(await getSetting(rootKey))
+    for (const root of roots) {
+      const normRoot = root.replace(/[/\\]$/, '')
+      if (folder.fullPath.toLowerCase().startsWith(normRoot.toLowerCase())) {
+        relativePath = folder.fullPath.slice(normRoot.length).replace(/^[/\\]/, '')
+        await prisma.archiveFolder.update({
+          where: { id: folderId },
+          data: { relativePath },
+        })
+        break
+      }
+    }
+  }
+
+  // Manual confirm is the user's explicit "this folder is the one" — record
+  // OK status unconditionally. Fall back to fullPath for archivePath if no
+  // configured root matched (relativePath still null); display is verbose
+  // but truthful, and the matcher pass will tighten it on next scan.
+  const archiveFields = {
+    archivePath: relativePath ?? folder.fullPath,
     archiveStatus: 'OK' as const,
     archiveFileCount: folder.fileCount ?? null,
     archiveVideoPresent: folder.videoPresent ?? null,
-  } : {}
+  }
 
   await prisma.archiveLink.upsert({
     where: { archiveFolderId: folderId },

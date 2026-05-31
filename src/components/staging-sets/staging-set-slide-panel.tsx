@@ -594,9 +594,11 @@ function ArchiveSection({ stagingSet, onRefresh }: ArchiveSectionProps) {
   const [isExpanded, setIsExpanded] = useState(true)
   const [isUnlinking, setIsUnlinking] = useState(false)
   const isPromoted = stagingSet.status === 'PROMOTED'
+  // Match the rest of the codebase: filter to CONFIRMED. Using [0] could
+  // bleed a leftover SUGGESTED link into the "linked" rendering path.
   const archiveLink = isPromoted
-    ? (stagingSet.promotedSet?.archiveLinks?.[0] ?? stagingSet.archiveLinks?.[0] ?? null)
-    : (stagingSet.archiveLinks?.[0] ?? null)
+    ? (stagingSet.promotedSet?.archiveLinks?.find((l) => l.status === 'CONFIRMED') ?? stagingSet.archiveLinks?.find((l) => l.status === 'CONFIRMED') ?? null)
+    : (stagingSet.archiveLinks?.find((l) => l.status === 'CONFIRMED') ?? null)
   const archiveFolder = archiveLink?.archiveFolder ?? null
   const archiveStatus = (archiveLink?.archiveStatus ?? 'UNKNOWN') as ArchiveStatus
   const statusCfg = ARCHIVE_STATUS_CONFIG[archiveStatus]
