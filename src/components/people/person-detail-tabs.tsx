@@ -207,7 +207,7 @@ function UnknownPill() {
 // ── Physical Stats Panel ─────────────────────────────────────────────────────
 
 function PhysicalMetrics({
-  person,
+  person: _person,
   currentState,
   labelWidth = "w-32",
   fieldGap = "gap-2",
@@ -253,7 +253,7 @@ function PhysicalMetrics({
 }
 
 function PhysicalDescriptive({
-  person,
+  person: _person,
   currentState,
   labelWidth = "w-32",
   fieldGap = "gap-2",

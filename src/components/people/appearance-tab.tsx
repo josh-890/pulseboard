@@ -2,7 +2,6 @@
 
 import { useCallback, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { cn } from "@/lib/utils";
 import type { getPersonWithDetails } from "@/lib/services/person-service";
 import type {
   PersonCurrentState,
@@ -658,17 +657,6 @@ export function AppearanceTab({
       sortOrder: 0,
       isCover: false,
     })), []);
-
-  const addButton = (onClick: () => void) => (
-    <button
-      type="button"
-      onClick={onClick}
-      className="flex items-center gap-1 rounded-lg border border-white/15 px-2.5 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:border-white/30 hover:text-foreground"
-    >
-      <Plus size={12} />
-      Add
-    </button>
-  );
 
   return (
     <>

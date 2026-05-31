@@ -242,7 +242,6 @@ function PanelContent({
     }
   }, [stagingSet.id, comparison])
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const handleCoverUploaded = useCallback((_coverUrl: string | null) => {
     onRefresh()
   }, [onRefresh])

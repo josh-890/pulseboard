@@ -103,7 +103,6 @@ export function parseFilename(filename: string): FilenameMetadata {
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function trimValue(line: string, _key?: string): string {
   // Handle both "Key : value" and "Key     : value" formats
   const idx = line.indexOf(':')

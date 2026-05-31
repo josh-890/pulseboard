@@ -169,7 +169,7 @@ async function applyReimportDecisions(
     select: { extractionDate: true, createdAt: true },
   })
   const sourceDate = batch.extractionDate ?? batch.createdAt
-  const sourcePrecision: 'DAY' = 'DAY'
+  const sourcePrecision = 'DAY' as const
 
   // Cache slug → definitionId so we don't re-query in the loop.
   const slugs = decisions.scalars

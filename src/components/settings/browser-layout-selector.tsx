@@ -73,7 +73,7 @@ function LayoutRow({
 }
 
 function CoverAspectRow({
-  entity,
+  entity: _entity,
   aspect,
   setAspect,
   layout,

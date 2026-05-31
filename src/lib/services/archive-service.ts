@@ -1377,7 +1377,6 @@ export async function runMatchingPass(
   return { linked, suggested }
 }
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function _normPath(p: string): string {
   return p.replace(/[/\\]+/g, '/').replace(/\/$/, '').toLowerCase()
 }

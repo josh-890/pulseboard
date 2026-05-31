@@ -174,7 +174,7 @@ async function scenarioA(ids: Awaited<ReturnType<typeof setup>>) {
 async function scenarioB(ids: Awaited<ReturnType<typeof setup>>) {
   console.log("── Scenario B: Move Set5 from Channel B → Channel A ────────");
 
-  const { labelAlpha, labelBeta, channelA, set5, session5, sessionShared, set3, set4 } = ids;
+  const { labelAlpha, labelBeta, channelA, set5, session5, sessionShared } = ids;
 
   // Channel A is now linked to Beta (after Scenario A)
   const mapA = await prisma.channelLabelMap.findFirst({ where: { channelId: channelA.id } });

@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Check, CheckCircle2, Circle, Loader2, Upload, X, XCircle } from 'lucide-react'
+import { Check, CheckCircle2, Circle, Loader2, Upload, XCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useFileDrop } from '@/lib/hooks/use-file-drop'
 import { Button } from '@/components/ui/button'

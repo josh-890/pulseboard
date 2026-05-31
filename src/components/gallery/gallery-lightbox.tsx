@@ -374,7 +374,7 @@ function SimpleLightbox({
   }, [focalOverlay, computeRect, currentIndex]);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+     
     setZoomState("fit");
     setZoomTx(0);
     setZoomTy(0);

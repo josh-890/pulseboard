@@ -88,8 +88,6 @@ test.describe("People CRUD", () => {
 // ── Labels ─────────────────────────────────────────────────────────────────────
 
 test.describe("Labels CRUD", () => {
-  let createdLabelId: string;
-
   test("list page has Add Label button", async ({ page }) => {
     await page.goto("/labels");
     await expect(page.getByRole("heading", { name: "Labels" })).toBeVisible();
@@ -112,7 +110,6 @@ test.describe("Labels CRUD", () => {
 
     await waitForToast(page, "Label created");
     await expect(page).toHaveURL(/\/labels\/.+/, { timeout: 10000 });
-    createdLabelId = page.url().split("/labels/")[1];
     await expect(page.getByRole("button", { name: /^edit$/i })).toBeVisible();
   });
 

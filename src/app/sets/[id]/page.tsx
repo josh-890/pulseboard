@@ -48,7 +48,6 @@ export default async function SetDetailPage({ params }: SetDetailPageProps) {
       group: t.group,
     }));
 
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { participants: _participants, ...setData } = set;
     const participants = set.participants;
 
