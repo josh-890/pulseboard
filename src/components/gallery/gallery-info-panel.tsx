@@ -607,6 +607,20 @@ export function GalleryInfoPanel({
     return [];
   }, [prodSelectedContributor, prodSelectedCategory]);
 
+  // True if any "linked context" section below the divider would render.
+  // Drives whether the visual "Linked context" subheader appears at all —
+  // we don't want an empty group label on photos with no link data. The
+  // individual sections still gate themselves; this is the meta-check.
+  const hasLinkedContextContent =
+    (referenceContext != null && hasEntityUsage) ||
+    (productionContext != null &&
+      prodEntityCategories.length > 0 &&
+      productionContext.contributors.length > 0) ||
+    (referenceContext != null && links.length > 0) ||
+    (referenceContext != null && referenceContext.skillEvents.length > 0) ||
+    mergedCollections.length > 0 ||
+    item.copiedFrom != null;
+
   const handleProdEntityLink = useCallback(() => {
     if (!productionContext || !prodLinkPersonId || !prodLinkCategoryId || !prodLinkEntityId || !prodSelectedCategory?.entityModel) return;
     const fieldMap: Record<string, "bodyMarkId" | "bodyModificationId" | "cosmeticProcedureId"> = {
@@ -883,6 +897,23 @@ export function GalleryInfoPanel({
             </div>
           )}
         </>
+      )}
+
+      {/* ── Linked context group ──
+          Visual divider for the sections below: entity links, body
+          regions, era, skill events, collections, notes, source. Each
+          renders only when its specific context data is present (so the
+          divider only appears alongside real content), but together
+          they share a "this image is linked to other entities" theme
+          that the user wants visually demarcated from the always-visible
+          sections above (Headshot/Usage/Categories/Tags/Focal/Info). */}
+      {hasLinkedContextContent && (
+        <div className="mt-3 mb-1 flex items-center gap-2 border-t border-white/10 pt-3">
+          <Link2 size={11} className="text-white/40" aria-hidden="true" />
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-white/40">
+            Linked context
+          </span>
+        </div>
       )}
 
       {/* Entity Linking (reference context only, when entity usages active) */}
@@ -1184,6 +1215,40 @@ export function GalleryInfoPanel({
         </>
       )}
 
+      {/* Source — only renders when the item was copied from another media
+          item (ADR-0009 follow-up). Last in the Linked-context group so the
+          breadcrumb sits next to the entity links it conceptually belongs
+          with. */}
+      {item.copiedFrom && (
+        <>
+          <SectionHeader
+            title="Source"
+            icon={<Copy size={14} />}
+            section="source"
+            expanded={expandedSections.has("source")}
+            onToggle={toggleSection}
+          />
+          {expandedSections.has("source") && (
+            <div className="pb-2 text-xs text-white/70">
+              {item.copiedFrom.setId && item.copiedFrom.setTitle ? (
+                <a
+                  href={`/sets/${item.copiedFrom.setId}`}
+                  className="inline-flex items-center gap-1 rounded-md border border-white/15 bg-white/5 px-2 py-1 text-xs text-white/80 transition-colors hover:border-emerald-500/40 hover:bg-emerald-500/15 hover:text-emerald-200"
+                >
+                  <span>from</span>
+                  <span className="font-medium">{item.copiedFrom.setTitle}</span>
+                  <ArrowUpRight size={11} className="opacity-70" />
+                </a>
+              ) : (
+                <span className="italic text-white/50">
+                  Copied from another image — source set no longer linked.
+                </span>
+              )}
+            </div>
+          )}
+        </>
+      )}
+
       {/* Tags */}
       {showTags && (
         <>
@@ -1262,39 +1327,6 @@ export function GalleryInfoPanel({
           />
           {expandedSections.has("caption") && (
             <p className="pb-2 text-xs text-white/70">{item.caption}</p>
-          )}
-        </>
-      )}
-
-      {/* Source — only renders when the item was copied from another media
-          item (ADR-0009 follow-up). Deliberately opt-in via the info panel
-          so it isn't visible as chrome on every reference photo. */}
-      {item.copiedFrom && (
-        <>
-          <SectionHeader
-            title="Source"
-            icon={<Copy size={14} />}
-            section="source"
-            expanded={expandedSections.has("source")}
-            onToggle={toggleSection}
-          />
-          {expandedSections.has("source") && (
-            <div className="pb-2 text-xs text-white/70">
-              {item.copiedFrom.setId && item.copiedFrom.setTitle ? (
-                <a
-                  href={`/sets/${item.copiedFrom.setId}`}
-                  className="inline-flex items-center gap-1 rounded-md border border-white/15 bg-white/5 px-2 py-1 text-xs text-white/80 transition-colors hover:border-emerald-500/40 hover:bg-emerald-500/15 hover:text-emerald-200"
-                >
-                  <span>from</span>
-                  <span className="font-medium">{item.copiedFrom.setTitle}</span>
-                  <ArrowUpRight size={11} className="opacity-70" />
-                </a>
-              ) : (
-                <span className="italic text-white/50">
-                  Copied from another image — source set no longer linked.
-                </span>
-              )}
-            </div>
           )}
         </>
       )}
