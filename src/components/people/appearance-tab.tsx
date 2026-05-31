@@ -38,7 +38,6 @@ import {
   deleteBodyModificationEventAction,
   updateBodyMarkEventAction,
   updateBodyModificationEventAction,
-  toggleEntityHeroVisibility,
 } from "@/lib/actions/appearance-actions";
 import {
   BODY_MARK_EVENT_TYPES,
@@ -375,15 +374,6 @@ export function AppearanceTab({
   const handleDeleteBodyModEvent = useCallback(async (eventId: string) => {
     return deleteBodyModificationEventAction(eventId, person.id);
   }, [person.id]);
-
-  const handleToggleHeroVisibility = useCallback(
-    (entityType: "bodyMark" | "bodyModification", entityId: string, visible: boolean) => {
-      startTransition(async () => {
-        await toggleEntityHeroVisibility(entityType, entityId, visible, person.id);
-      });
-    },
-    [person.id],
-  );
 
   // Resolve entity model + type → matching category for photo picker
   const findCategoryForEntity = useCallback(
@@ -848,7 +838,6 @@ export function AppearanceTab({
                 onViewPhotos={entityMedia?.[mark.id]?.length ? (idx) => setEntityLightbox({ entityId: mark.id, initialIndex: idx }) : undefined}
                 onDeleteEvent={handleDeleteBodyMarkEvent}
                 onAddEvent={() => setOpenState({ type: "addBodyMarkEvent", markId: mark.id, markLabel: `${mark.type} — ${mark.bodyRegion}`, computed: mark.computed })}
-                onToggleHeroVisibility={(visible) => handleToggleHeroVisibility("bodyMark", mark.id, visible)}
                 onEditEvent={(event) => {
                   const fullEvent = mark.events.find((e) => e.id === event.id);
                   setOpenState({ type: "editBodyMarkEvent", event, markId: mark.id, eventOverrides: { bodyRegions: fullEvent?.bodyRegions ?? [], motif: fullEvent?.motif ?? null, colors: fullEvent?.colors ?? [], size: fullEvent?.size ?? null, description: fullEvent?.description ?? null } });
@@ -877,7 +866,6 @@ export function AppearanceTab({
                 onViewPhotos={entityMedia?.[mod.id]?.length ? (idx) => setEntityLightbox({ entityId: mod.id, initialIndex: idx }) : undefined}
                 onDeleteEvent={handleDeleteBodyModEvent}
                 onAddEvent={() => setOpenState({ type: "addBodyModEvent", modId: mod.id, modLabel: `${mod.type} — ${mod.bodyRegion}`, computed: mod.computed })}
-                onToggleHeroVisibility={(visible) => handleToggleHeroVisibility("bodyModification", mod.id, visible)}
                 onEditEvent={(event) => {
                   const fullEvent = mod.events.find((e) => e.id === event.id);
                   setOpenState({ type: "editBodyModEvent", event, modId: mod.id, eventOverrides: { bodyRegions: fullEvent?.bodyRegions ?? [], description: fullEvent?.description ?? null, material: fullEvent?.material ?? null, gauge: fullEvent?.gauge ?? null } });

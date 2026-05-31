@@ -13,7 +13,7 @@ import { BodyRegionChips } from "@/components/shared/body-region-picker";
 import { EntityEventTimeline } from "@/components/people/entity-event-timeline";
 import { ExpandedEntityView } from "@/components/people/expanded-entity-view";
 import { EntityStatusPill } from "@/components/people/entity-status-pill";
-import { Camera, ChevronRight, ImageIcon, Pencil, Pin, PinOff, Plus, ScanSearch, Trash2, Upload } from "lucide-react";
+import { Camera, ChevronRight, ImageIcon, Pencil, Plus, ScanSearch, Trash2, Upload } from "lucide-react";
 import { useFileDrop } from "@/lib/hooks/use-file-drop";
 
 type EntityMediaThumbnail = {
@@ -48,7 +48,6 @@ type BodyModificationRowProps = {
   onEditEvent?: (event: EventItem) => void;
   onSelectFromSessions?: () => void;
   onViewPhotos?: (index: number) => void;
-  onToggleHeroVisibility?: (visible: boolean) => void;
   isPending?: boolean;
   // Phase G Slice 13: Level-2 interactivity.
   isHighlighted?: boolean;
@@ -68,7 +67,6 @@ export function BodyModificationRow({
   onEditEvent,
   onSelectFromSessions,
   onViewPhotos,
-  onToggleHeroVisibility,
   isPending,
   isHighlighted,
   onHover,
@@ -161,21 +159,9 @@ export function BodyModificationRow({
           <ExpandedEntityView
             toolbar={
               <>
-                {onToggleHeroVisibility && (
-                  <button
-                    type="button"
-                    onClick={() => onToggleHeroVisibility(!modification.heroVisible)}
-                    disabled={isPending}
-                    className={cn(
-                      "rounded p-1 text-xs transition-colors",
-                      modification.heroVisible ? "text-teal-400 hover:text-muted-foreground" : "text-muted-foreground hover:text-teal-400",
-                    )}
-                    aria-label={modification.heroVisible ? "Unpin from hero card" : "Pin to hero card"}
-                    title={modification.heroVisible ? "Unpin from hero card" : "Pin to hero card"}
-                  >
-                    {modification.heroVisible ? <Pin size={14} /> : <PinOff size={14} />}
-                  </button>
-                )}
+                {/* Phase G Slice 15: per-instance Pin/PinOff dropped along
+                    with the heroVisible/heroOrder columns — hero now uses
+                    presentBodyFeatureTypes (one chip per type). */}
                 {onManagePhotos && (
                   <button type="button" onClick={onManagePhotos} className="rounded p-1 text-xs text-muted-foreground hover:text-amber-400 transition-colors" aria-label="Manage photos">
                     <Camera size={14} />

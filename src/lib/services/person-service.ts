@@ -292,7 +292,6 @@ export async function getPersonBodyMarks(personId: string): Promise<BodyMarkWith
       id: m.id, type: m.type, bodyRegion: m.bodyRegion, bodyRegions: m.bodyRegions,
       side: m.side, position: m.position, description: m.description,
       motif: m.motif, colors: m.colors, size: m.size, status: m.status,
-      heroVisible: m.heroVisible, heroOrder: m.heroOrder,
       events,
       computed: foldBodyMarkState(m, events),
     };
@@ -881,7 +880,6 @@ export function deriveCurrentState(
         id: mark.id, type: mark.type, bodyRegion: mark.bodyRegion, bodyRegions: mark.bodyRegions,
         side: mark.side, position: mark.position, description: mark.description,
         motif: mark.motif, colors: mark.colors, size: mark.size, status: mark.status,
-        heroVisible: mark.heroVisible, heroOrder: mark.heroOrder,
         events: allEvents,
         computed: foldBodyMarkState(mark, allEvents),
       });
@@ -893,7 +891,6 @@ export function deriveCurrentState(
       id: mark.id, type: mark.type, bodyRegion: mark.bodyRegion, bodyRegions: mark.bodyRegions,
       side: mark.side, position: mark.position, description: mark.description,
       motif: mark.motif, colors: mark.colors, size: mark.size, status: mark.status,
-      heroVisible: mark.heroVisible, heroOrder: mark.heroOrder,
       events: [],
       computed: { bodyRegions: mark.bodyRegions, motif: mark.motif, colors: mark.colors, size: mark.size, description: mark.description },
     });
@@ -932,7 +929,6 @@ export function deriveCurrentState(
         id: mod.id, type: mod.type, bodyRegion: mod.bodyRegion, bodyRegions: mod.bodyRegions,
         side: mod.side, position: mod.position, description: mod.description,
         material: mod.material, gauge: mod.gauge, status: mod.status,
-        heroVisible: mod.heroVisible, heroOrder: mod.heroOrder,
         events: allEvents,
         computed: foldBodyModificationState(mod, allEvents),
       });
@@ -944,7 +940,6 @@ export function deriveCurrentState(
       id: mod.id, type: mod.type, bodyRegion: mod.bodyRegion, bodyRegions: mod.bodyRegions,
       side: mod.side, position: mod.position, description: mod.description,
       material: mod.material, gauge: mod.gauge, status: mod.status,
-      heroVisible: mod.heroVisible, heroOrder: mod.heroOrder,
       events: [],
       computed: { bodyRegions: mod.bodyRegions, description: mod.description, material: mod.material, gauge: mod.gauge },
     });
@@ -985,7 +980,6 @@ export function deriveCurrentState(
         id: proc.id, type: proc.type, bodyRegion: proc.bodyRegion, bodyRegions: proc.bodyRegions,
         description: proc.description, provider: proc.provider, status: proc.status,
         attributeDefinitionId: proc.attributeDefinitionId,
-        heroVisible: proc.heroVisible, heroOrder: proc.heroOrder,
         events: allEvents,
         computed: foldCosmeticProcedureState(proc, allEvents),
       });
@@ -997,7 +991,6 @@ export function deriveCurrentState(
       id: proc.id, type: proc.type, bodyRegion: proc.bodyRegion, bodyRegions: proc.bodyRegions,
       description: proc.description, provider: proc.provider, status: proc.status,
       attributeDefinitionId: proc.attributeDefinitionId,
-      heroVisible: proc.heroVisible, heroOrder: proc.heroOrder,
       events: [],
       computed: { bodyRegions: proc.bodyRegions, description: proc.description, provider: proc.provider, valueAfter: null, unit: null },
     });

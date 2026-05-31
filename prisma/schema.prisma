@@ -404,8 +404,9 @@ model BodyMark {
   colors      String[]
   size        String?
   status      BodyMarkStatus @default(present)
-  heroVisible Boolean        @default(true)
-  heroOrder   Int?
+  // Phase G Slice 15: per-instance heroVisible/heroOrder columns dropped
+  // when the hero card switched to type-presence chips driven by
+  // PersonCurrentState.presentBodyFeatureTypes.
   createdAt   DateTime       @default(now())
 
   events           BodyMarkEvent[]
@@ -534,8 +535,7 @@ model BodyModification {
   material    String?
   gauge       String?
   status      BodyModificationStatus @default(present)
-  heroVisible Boolean                @default(true)
-  heroOrder   Int?
+  // Same drop as BodyMark — type-presence chips replace per-instance pinning.
   createdAt   DateTime               @default(now())
 
   events           BodyModificationEvent[]
@@ -582,8 +582,8 @@ model CosmeticProcedure {
   description String?
   provider    String?
   status      String   @default("completed")
-  heroVisible Boolean  @default(true)
-  heroOrder   Int?
+  // Same drop as BodyMark/BodyModification. CosmeticProcedure table itself
+  // is slated for removal in Slice 17 per ADR-0007.
   createdAt   DateTime @default(now())
 
   attributeDefinitionId String?

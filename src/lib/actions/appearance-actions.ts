@@ -1405,33 +1405,9 @@ export async function deleteEraAction(
   });
 }
 
-// ── Hero Visibility ───────────────────────────────────────────────────────────
-
-export async function toggleEntityHeroVisibility(
-  entityType: "bodyMark" | "bodyModification" | "cosmeticProcedure",
-  entityId: string,
-  visible: boolean,
-  personId: string,
-): Promise<ActionResultWithId> {
-  return withTenantFromHeaders(async () => {
-    try {
-      switch (entityType) {
-        case "bodyMark":
-          await prisma.bodyMark.update({ where: { id: entityId }, data: { heroVisible: visible } });
-          break;
-        case "bodyModification":
-          await prisma.bodyModification.update({ where: { id: entityId }, data: { heroVisible: visible } });
-          break;
-        case "cosmeticProcedure":
-          await prisma.cosmeticProcedure.update({ where: { id: entityId }, data: { heroVisible: visible } });
-          break;
-      }
-      revalidatePath(`/people/${personId}`);
-      return { success: true };
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Unexpected error";
-      return { success: false, error: message };
-    }
-
-  });
-}
+// Phase G Slice 15: per-instance Pin/PinOff (hero-visibility toggle) was
+// removed when the hero card switched to type-presence chips driven by
+// PersonCurrentState.presentBodyFeatureTypes. The legacy
+// toggleEntityHeroVisibility action + its columns are gone with this
+// commit; if a re-introduction is ever needed, build it on the new
+// presence-types model rather than reviving these columns.

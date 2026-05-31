@@ -959,10 +959,12 @@ function HeroDensityLayout(props: HeroSharedProps) {
   const cfg = DENSITY_CONFIGS[layout];
   const { person, currentState, photos, profileLabels, kpiCounts, calculatedPgrade, meanWcp, displayName, initials, age, heroAliases, referenceSessionId, headshotSlotMap, plausibilityCount, onFavoriteToggle, onSetAvatar, avatarMediaItemId } = props;
 
-  const hasHeroEntities =
-    currentState.activeBodyMarks.some((m) => m.heroVisible) ||
-    currentState.activeBodyModifications.some((m) => m.heroVisible) ||
-    currentState.activeCosmeticProcedures.some((p) => p.heroVisible);
+  // Drives the EntityPills strip. Phase G Slice 15: the hero now shows
+  // one chip per BODY FEATURE TYPE the person currently has (Tattoo /
+  // Piercing / Implant / …), not per-instance pinning. Source of truth
+  // is the folded presentBodyFeatureTypes cache — the legacy per-mark
+  // heroVisible flags were dropped along with their columns.
+  const hasHeroEntities = currentState.presentBodyFeatureTypes.length > 0;
 
   const handleAssignHeadshot = useCallback(
     async (mediaItemId: string, slot: number) => {
