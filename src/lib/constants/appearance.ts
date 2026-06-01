@@ -1,14 +1,16 @@
-// Hair, eye, and skin colors are now catalog-driven via color_catalog.
-// Use <ColorValueCombobox category="hair|eye|skin" /> for any color input.
+// Hair, eye, and skin colors are catalog-driven via color_catalog.
+// Per ADR-0010 (Slice 16E), the catalog definitions for those three slugs
+// carry `colorCategory` and the canonical edit path is <TypedAttributeInput
+// definition={def}> — TypedAttributeInput routes to ColorValueCombobox on
+// the colorCategory branch. Don't import ColorValueCombobox directly in new
+// code; let TypedAttributeInput handle dispatch.
 
 // IDs of the "core" physical attributes that have dedicated UI in the
 // appearance views (purpose-built color picker for hair color, numeric input
 // for weight, curated select for build/breast-size, freeform for measurements).
 // Any view that renders the generic catalog-driven attribute loop should
 // SKIP these IDs to avoid duplicating the dedicated UI — otherwise the same
-// attribute appears twice in the same dialog. Critically for `cattr-hair-color`,
-// the dedicated `<ColorValueCombobox>` is the only path that preserves the
-// color_catalog hue/lightness/shade ecosystem.
+// attribute appears twice in the same dialog.
 export const CORE_PHYSICAL_ATTR_IDS = new Set([
   "cattr-hair-color",
   "cattr-weight",

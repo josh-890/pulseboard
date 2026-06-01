@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState, useTransition } from "react";
+import { useCallback, useMemo, useState, useTransition } from "react";
 import { useEscToClose } from "@/lib/hooks/use-esc-to-close";
 import { ChevronDown, ChevronUp, Plus, Trash2, X } from "lucide-react";
 import { PartialDateInput } from "@/components/shared/partial-date-input";
@@ -9,7 +9,8 @@ import type { BodyMarkWithEvents, BodyModificationWithEvents, CosmeticProcedureW
 import type { BodyMarkType, BodyModificationType, BodyMarkEventType, BodyModificationEventType, CosmeticProcedureEventType } from "@/generated/prisma/client";
 import { BODY_MARK_TYPES, BODY_MARK_TYPE_STYLES, BODY_MARK_EVENT_TYPES, BODY_MARK_EVENT_STYLES, BODY_MODIFICATION_TYPES, BODY_MODIFICATION_TYPE_STYLES, BODY_MODIFICATION_EVENT_TYPES, BODY_MODIFICATION_EVENT_STYLES, COSMETIC_PROCEDURE_EVENT_TYPES, COSMETIC_PROCEDURE_EVENT_STYLES } from "@/lib/constants/body";
 import { createEraBatchAction } from "@/lib/actions/appearance-actions";
-import { ColorValueCombobox } from "@/components/people/color-value-combobox";
+import { TypedAttributeInput } from "@/components/people/typed-attribute-input";
+import type { PhysicalAttributeGroupWithDefinitions } from "@/lib/services/physical-attribute-catalog-service";
 
 type NewBodyMark = {
   type: BodyMarkType;
@@ -51,6 +52,9 @@ type NewEraSheetProps = {
   existingMarks: BodyMarkWithEvents[];
   existingMods: BodyModificationWithEvents[];
   existingProcs: CosmeticProcedureWithEvents[];
+  // Slice 16E: catalog definitions so the hair-color input can route
+  // through TypedAttributeInput's colorCategory branch.
+  attributeGroups?: PhysicalAttributeGroupWithDefinitions[];
   onClose: () => void;
 };
 
@@ -160,10 +164,21 @@ export function NewEraSheet({
   existingMarks,
   existingMods,
   existingProcs,
+  attributeGroups,
   onClose,
 }: NewEraSheetProps) {
   const [isPending, startTransition] = useTransition();
   useEscToClose(onClose);
+
+  // Slice 16E: hair_color catalog def for TypedAttributeInput routing.
+  const hairColorDef = useMemo(() => {
+    for (const group of attributeGroups ?? []) {
+      for (const def of group.definitions) {
+        if (def.slug === "hair_color") return def;
+      }
+    }
+    return null;
+  }, [attributeGroups]);
 
   // Era metadata
   const [label, setLabel] = useState("");
@@ -255,12 +270,13 @@ export function NewEraSheet({
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="mb-1 block text-xs font-medium">Hair Color</label>
-                <ColorValueCombobox
-                  category="hair"
-                  value={currentHairColor || undefined}
-                  onChange={(v) => setCurrentHairColor(v ?? "")}
-                  placeholder="Select hair color…"
-                />
+                {hairColorDef && (
+                  <TypedAttributeInput
+                    definition={hairColorDef}
+                    value={currentHairColor}
+                    onChange={setCurrentHairColor}
+                  />
+                )}
               </div>
               <div>
                 <label className="mb-1 block text-xs font-medium">Weight (kg)</label>

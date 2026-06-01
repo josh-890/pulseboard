@@ -12,8 +12,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { ColorValueCombobox } from "@/components/people/color-value-combobox";
 import { cn, splitOptionLabel } from "@/lib/utils";
-import type { PhysicalAttributeValueType } from "@/generated/prisma/client";
+import type { ColorCategory, PhysicalAttributeValueType } from "@/generated/prisma/client";
 
 export type TypedAttributeDefinition = {
   id: string;
@@ -27,6 +28,10 @@ export type TypedAttributeDefinition = {
   // Slice 16 follow-up: drives the inline "Don't know" affordance —
   // only rendered for TIER_1 attributes.
   tier?: "TIER_1" | "TIER_2" | "NONE";
+  // Slice 16E / ADR-0010: when set, the renderer dispatches to
+  // ColorValueCombobox regardless of valueType. valueType stays TEXT —
+  // storage semantics are unchanged.
+  colorCategory?: ColorCategory | null;
 };
 
 type Props = {
@@ -116,6 +121,18 @@ function renderInputBody({
   onChange: (next: string) => void;
   className?: string;
 }) {
+  // Slice 16E / ADR-0010: color-catalog-backed attrs route to the dedicated
+  // ColorValueCombobox regardless of valueType (which stays TEXT for these).
+  if (definition.colorCategory) {
+    return (
+      <ColorValueCombobox
+        category={definition.colorCategory}
+        value={value || undefined}
+        onChange={(v) => onChange(v ?? "")}
+      />
+    );
+  }
+
   switch (definition.valueType) {
     case "BOOLEAN": {
       const checked = value === "yes";

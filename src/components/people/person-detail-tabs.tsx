@@ -306,12 +306,15 @@ function HistoryPanel({
   currentState,
   defaultOpen = false,
   eraContributions,
+  attributeGroups,
 }: {
   eras: PersonData["eras"];
   personId: string;
   currentState: PersonCurrentState;
   defaultOpen?: boolean;
   eraContributions?: Record<string, EraContributionInfo>;
+  // Slice 16E: catalog defs for NewEraSheet's hair-color routing.
+  attributeGroups?: PhysicalAttributeGroupWithDefinitions[];
 }) {
   const [timelineOpen, setTimelineOpen] = useState(defaultOpen);
   const [showNewEra, setShowNewEra] = useState(false);
@@ -340,6 +343,7 @@ function HistoryPanel({
             existingMarks={currentState.activeBodyMarks}
             existingMods={currentState.activeBodyModifications}
             existingProcs={currentState.activeCosmeticProcedures}
+            attributeGroups={attributeGroups}
             onClose={() => setShowNewEra(false)}
           />
         )}
@@ -411,6 +415,7 @@ function HistoryPanel({
           existingMarks={currentState.activeBodyMarks}
           existingMods={currentState.activeBodyModifications}
           existingProcs={currentState.activeCosmeticProcedures}
+          attributeGroups={attributeGroups}
           onClose={() => setShowNewEra(false)}
         />
       )}
@@ -1481,6 +1486,7 @@ function OverviewTab({
   onTabSwitch,
   entityTags = [],
   eraContributions,
+  attributeGroups,
 }: {
   person: PersonData;
   currentState: PersonCurrentState;
@@ -1490,6 +1496,8 @@ function OverviewTab({
   onTabSwitch?: (tab: string) => void;
   entityTags?: { id: string; name: string; group: { name: string; color: string } }[];
   eraContributions?: Record<string, EraContributionInfo>;
+  // Slice 16E: catalog defs for NewEraSheet's hair-color routing.
+  attributeGroups?: PhysicalAttributeGroupWithDefinitions[];
 }) {
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [tagIds, setTagIds] = useState(entityTags.map((t) => t.id));
@@ -1573,7 +1581,7 @@ function OverviewTab({
           badge={person.eras.length}
           className="md:col-span-2"
         >
-          <HistoryPanel eras={person.eras} personId={person.id} currentState={currentState} eraContributions={eraContributions} />
+          <HistoryPanel eras={person.eras} personId={person.id} currentState={currentState} eraContributions={eraContributions} attributeGroups={attributeGroups} />
         </SectionCard>
       )}
 
@@ -2217,6 +2225,7 @@ export function PersonDetailTabs({
             onTabSwitch={(tab) => setActiveTab(tab as TabId)}
             entityTags={entityTags}
             eraContributions={eraContributions}
+            attributeGroups={physicalAttributeGroups}
           />
         )}
       </div>
@@ -2345,6 +2354,7 @@ export function PersonDetailTabs({
       {/* Appearance edit sheet — controlled from hero pencil icon */}
       <EditAppearanceSheet
         person={person}
+        attributeGroups={physicalAttributeGroups}
         open={editAppearanceOpen}
         onOpenChange={setEditAppearanceOpen}
       />

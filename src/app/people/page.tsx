@@ -11,6 +11,7 @@ import {
 } from "@/lib/services/person-service";
 import type { PersonSort } from "@/lib/services/person-service";
 import { getHeadshotsForPersons } from "@/lib/services/media-service";
+import { getAllPhysicalAttributeGroups } from "@/lib/services/physical-attribute-catalog-service";
 import { getProfileImageLabels } from "@/lib/services/setting-service";
 import type { PersonStatus } from "@/lib/types";
 import { PersonList } from "@/components/people/person-list";
@@ -158,13 +159,14 @@ export default async function PeoplePage({ searchParams }: PeoplePageProps) {
   const parsedSlot = slotParam ? parseInt(slotParam, 10) : undefined;
   const slot = parsedSlot && parsedSlot >= 1 && parsedSlot <= 5 ? parsedSlot : undefined;
 
-  const [paginated, hairColors, bodyTypes, ethnicities, slotLabels, facetCounts] = await Promise.all([
+  const [paginated, hairColors, bodyTypes, ethnicities, slotLabels, facetCounts, attributeGroups] = await Promise.all([
     getPersonsPaginated(filters, undefined, limit),
     getDistinctNaturalHairColors(),
     getDistinctBodyTypes(),
     getDistinctEthnicities(),
     getProfileImageLabels(),
     getPersonFacetCounts(filters),
+    getAllPhysicalAttributeGroups(),
   ]);
 
   // Batch-load profile photos for visible persons (MediaItem-only)
@@ -296,7 +298,7 @@ export default async function PeoplePage({ searchParams }: PeoplePageProps) {
             <Sparkles size={12} />
             Advanced filters
           </Link>
-          <AddPersonSheet />
+          <AddPersonSheet attributeGroups={attributeGroups} />
         </div>
       </div>
 

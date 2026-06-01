@@ -27,6 +27,7 @@ type CatalogEntry = {
   hue: string;
   shade: string | null;
   needsReview: boolean;
+  pickable: boolean;
 };
 
 const NONE_SENTINEL = "_none";
@@ -43,10 +44,14 @@ export function ColorValueCombobox({ category, value, onChange, placeholder }: P
   const [entries, setEntries] = useState<CatalogEntry[] | null>(null);
   const loading = entries === null;
 
-  // Lazy-fetch catalog on mount so we always show the live admin-managed list
+  // Lazy-fetch catalog on mount. We pull the FULL catalog (includes non-
+  // pickable rows) so a person's current value still resolves to a proper
+  // catalog entry when the admin has deselected it from the picker —
+  // policy (α) per ADR-0010. Client-side filter keeps the dropdown lean
+  // (only pickable, plus the legacy current value).
   useEffect(() => {
     let cancelled = false;
-    fetch(`/api/color-catalog/${category}`)
+    fetch(`/api/color-catalog/${category}?includeNonPickable=true`)
       .then((r) => r.json())
       .then((d: { entries: CatalogEntry[] }) => {
         if (!cancelled) setEntries(d.entries);
@@ -62,6 +67,14 @@ export function ColorValueCombobox({ category, value, onChange, placeholder }: P
   const [otherActive, setOtherActive] = useState(isOther);
   const [otherInput, setOtherInput] = useState(isOther ? value! : "");
   const [showAddForm, setShowAddForm] = useState(false);
+
+  // Dropdown shows pickable entries plus the current value if it's been
+  // deselected (matched but non-pickable). ADR-0010 policy (α): legacy
+  // values stay visible in the editor so admins don't have to wonder
+  // where someone's current selection went.
+  const visibleEntries = entries?.filter(
+    (e) => e.pickable || (matched && e.value === matched.value),
+  );
 
   const selectValue = !value
     ? NONE_SENTINEL
@@ -105,11 +118,14 @@ export function ColorValueCombobox({ category, value, onChange, placeholder }: P
         </SelectTrigger>
         <SelectContent>
           <SelectItem value={NONE_SENTINEL}>—</SelectItem>
-          {entries?.map((e) => (
+          {visibleEntries?.map((e) => (
             <SelectItem key={e.value} value={e.value}>
               <span className="flex items-center gap-2">
                 <span>{e.display}</span>
                 <span className="text-[10px] text-muted-foreground">{e.hue}{e.shade ? ` · ${e.shade}` : ""}</span>
+                {!e.pickable && (
+                  <span className="text-[10px] text-muted-foreground/70">(legacy)</span>
+                )}
                 {e.needsReview && <AlertTriangle size={10} className="text-amber-500" />}
               </span>
             </SelectItem>
@@ -146,7 +162,7 @@ export function ColorValueCombobox({ category, value, onChange, placeholder }: P
                 setOtherActive(false);
                 onChange(newValue);
                 // Re-fetch catalog so the newly-added entry appears in the dropdown
-                fetch(`/api/color-catalog/${category}`)
+                fetch(`/api/color-catalog/${category}?includeNonPickable=true`)
                   .then((r) => r.json())
                   .then((d: { entries: CatalogEntry[] }) => setEntries(d.entries))
                   .catch(() => {});

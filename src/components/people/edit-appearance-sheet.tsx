@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -30,18 +30,22 @@ import {
 } from "@/lib/validations/person";
 import { updatePersonAppearanceAction } from "@/lib/actions/person-actions";
 import { SelectWithOther } from "@/components/shared/select-with-other";
-import { ColorValueCombobox } from "@/components/people/color-value-combobox";
+import { TypedAttributeInput } from "@/components/people/typed-attribute-input";
 import { CoreFieldRow } from "@/components/people/core-field-row";
 import {
   BUILD_OPTIONS,
   BREAST_SIZE_OPTIONS,
 } from "@/lib/constants/appearance";
 import type { getPersonWithDetails } from "@/lib/services/person-service";
+import type { PhysicalAttributeGroupWithDefinitions } from "@/lib/services/physical-attribute-catalog-service";
 
 type PersonDetail = NonNullable<Awaited<ReturnType<typeof getPersonWithDetails>>>;
 
 type EditAppearanceSheetProps = {
   person: PersonDetail;
+  // Slice 16E: catalog definitions for hair_color / eye-color so the
+  // color pickers route through TypedAttributeInput's colorCategory branch.
+  attributeGroups?: PhysicalAttributeGroupWithDefinitions[];
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
 };
@@ -55,7 +59,27 @@ function SectionHeader({ children }: { children: React.ReactNode }) {
   );
 }
 
-export function EditAppearanceSheet({ person, open: controlledOpen, onOpenChange }: EditAppearanceSheetProps) {
+export function EditAppearanceSheet({ person, attributeGroups, open: controlledOpen, onOpenChange }: EditAppearanceSheetProps) {
+  // Slice 16E: look up the hair_color + eye-color catalog defs for
+  // TypedAttributeInput. Null-tolerant — the sheet keeps rendering even if
+  // the catalog isn't plumbed in (degraded mode).
+  const hairColorDef = useMemo(() => {
+    for (const group of attributeGroups ?? []) {
+      for (const def of group.definitions) {
+        if (def.slug === "hair_color") return def;
+      }
+    }
+    return null;
+  }, [attributeGroups]);
+  const eyeColorDef = useMemo(() => {
+    for (const group of attributeGroups ?? []) {
+      for (const def of group.definitions) {
+        if (def.slug === "eye-color") return def;
+      }
+    }
+    return null;
+  }, [attributeGroups]);
+
   const router = useRouter();
   const [internalOpen, setInternalOpen] = useState(false);
   const isControlled = controlledOpen !== undefined;
@@ -172,12 +196,13 @@ export function EditAppearanceSheet({ person, open: controlledOpen, onOpenChange
                       render={({ field }) => (
                         <FormItem>
                           <FormControl>
-                            <ColorValueCombobox
-                              category="eye"
-                              value={field.value || undefined}
-                              onChange={(v) => field.onChange(v ?? "")}
-                              placeholder="Select eye color…"
-                            />
+                            {eyeColorDef ? (
+                              <TypedAttributeInput
+                                definition={eyeColorDef}
+                                value={field.value ?? ""}
+                                onChange={(v) => field.onChange(v)}
+                              />
+                            ) : null}
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -332,12 +357,13 @@ export function EditAppearanceSheet({ person, open: controlledOpen, onOpenChange
                       render={({ field }) => (
                         <FormItem>
                           <FormControl>
-                            <ColorValueCombobox
-                              category="hair"
-                              value={field.value || undefined}
-                              onChange={(v) => field.onChange(v ?? "")}
-                              placeholder="Select hair color…"
-                            />
+                            {hairColorDef ? (
+                              <TypedAttributeInput
+                                definition={hairColorDef}
+                                value={field.value ?? ""}
+                                onChange={(v) => field.onChange(v)}
+                              />
+                            ) : null}
                           </FormControl>
                           <FormMessage />
                         </FormItem>

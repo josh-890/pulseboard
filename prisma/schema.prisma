@@ -1231,6 +1231,16 @@ enum AuditTier {
   NONE
 }
 
+// Slice 16E / ADR-0010: which color_catalog category backs an attribute.
+// Only set on hair_color / eye-color / skin-tone. Drives ColorValueCombobox
+// dispatch in TypedAttributeInput; lookup_* SQL functions read the catalog
+// directly via this category.
+enum ColorCategory {
+  hair
+  eye
+  skin
+}
+
 model PhysicalAttributeDefinition {
   id            String                     @id @default(cuid())
   groupId       String
@@ -1251,6 +1261,10 @@ model PhysicalAttributeDefinition {
   // Slice 16 follow-up: maintenance audit tier (TIER_1 warning / TIER_2 hint
   // / NONE = not audited). See AuditTier enum.
   tier          AuditTier                  @default(NONE)
+  // Slice 16E / ADR-0010: annotates which catalog entries are backed by
+  // color_catalog. Drives TypedAttributeInput's early-routing to
+  // ColorValueCombobox. Only set for hair_color / eye-color / skin-tone.
+  colorCategory ColorCategory?
   sortOrder     Int                        @default(0)
   createdAt     DateTime                   @default(now())
 
@@ -2051,6 +2065,12 @@ model ColorCatalog {
   shadeRank   Int?     @map("shade_rank")
   sortOrder   Int      @default(0) @map("sort_order")
   needsReview Boolean  @default(false) @map("needs_review")
+  // Slice 16E / ADR-0010: gates the ColorValueCombobox dropdown. The full
+  // catalog stays preserved; admin curates a working subset by toggling
+  // entries off. ColorValueCombobox still surfaces a person's current
+  // value with a "(legacy)" tag even when pickable=false, so historical
+  // selections never silently vanish.
+  pickable    Boolean  @default(true)
   source      String   @default("manual")
   createdAt   DateTime @default(now()) @map("created_at")
 

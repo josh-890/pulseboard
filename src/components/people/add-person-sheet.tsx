@@ -15,8 +15,13 @@ import {
 import { createPerson } from "@/lib/actions/person-actions";
 import { PersonForm } from "@/components/people/person-form";
 import type { CreatePersonInput } from "@/lib/validations/person";
+import type { PhysicalAttributeGroupWithDefinitions } from "@/lib/services/physical-attribute-catalog-service";
 
-export function AddPersonSheet() {
+type AddPersonSheetProps = {
+  attributeGroups?: PhysicalAttributeGroupWithDefinitions[];
+};
+
+export function AddPersonSheet({ attributeGroups }: AddPersonSheetProps = {}) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
 
@@ -58,6 +63,7 @@ export function AddPersonSheet() {
           onSubmit={handleSubmit}
           submitLabel="Create Person"
           onCancel={() => setOpen(false)}
+          attributeGroups={attributeGroups}
         />
       </SheetContent>
     </Sheet>

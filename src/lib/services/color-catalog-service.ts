@@ -13,6 +13,7 @@ export type ColorCatalogEntryRecord = {
   shadeRank: number | null;
   sortOrder: number;
   needsReview: boolean;
+  pickable: boolean;
   source: string;
   createdAt: Date;
 };
@@ -42,6 +43,7 @@ function toRecord(
     shadeRank: row.shadeRank,
     sortOrder: row.sortOrder,
     needsReview: row.needsReview,
+    pickable: row.pickable,
     source: row.source,
     createdAt: row.createdAt,
   };
@@ -49,11 +51,19 @@ function toRecord(
 
 // ─── Read ────────────────────────────────────────────────────────────────────
 
+export type ListColorCatalogOptions = {
+  // When true (default), returns only entries with `pickable = true`. The
+  // picker uses this; the catalog manager passes `false` to see every row.
+  pickableOnly?: boolean;
+};
+
 export async function listColorCatalog(
   category: ColorCategory,
+  opts: ListColorCatalogOptions = {},
 ): Promise<ColorCatalogEntryRecord[]> {
+  const pickableOnly = opts.pickableOnly ?? true;
   const rows = await prisma.colorCatalog.findMany({
-    where: { category },
+    where: { category, ...(pickableOnly ? { pickable: true } : {}) },
     orderBy: [{ sortOrder: "asc" }, { display: "asc" }],
   });
   return rows.map((r) => toRecord(r)!);
@@ -111,6 +121,7 @@ export type ColorCatalogUpdate = {
   shadeRank?: number | null;
   sortOrder?: number;
   needsReview?: boolean;
+  pickable?: boolean;
 };
 
 export async function updateColorCatalogEntry(
@@ -126,8 +137,13 @@ export async function updateColorCatalogEntry(
       ...(patch.shade !== undefined ? { shade: patch.shade } : {}),
       ...(patch.shadeRank !== undefined ? { shadeRank: patch.shadeRank } : {}),
       ...(patch.sortOrder !== undefined ? { sortOrder: patch.sortOrder } : {}),
-      // Any edit by a human clears the needs_review flag unless explicitly kept
-      needsReview: patch.needsReview ?? false,
+      ...(patch.pickable !== undefined ? { pickable: patch.pickable } : {}),
+      // Any edit by a human clears the needs_review flag unless explicitly kept.
+      // A pickable toggle is curation, not a content edit, so leave needsReview
+      // alone in that case.
+      ...(patch.pickable !== undefined && Object.keys(patch).length === 1
+        ? {}
+        : { needsReview: patch.needsReview ?? false }),
     },
   });
   return toRecord(row)!;

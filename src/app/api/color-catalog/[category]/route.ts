@@ -10,7 +10,7 @@ function isValid(v: string): v is ColorCategory {
 }
 
 export async function GET(
-  _req: Request,
+  req: Request,
   ctx: { params: Promise<{ category: string }> },
 ) {
   return withTenantFromHeaders(async () => {
@@ -18,7 +18,11 @@ export async function GET(
     if (!isValid(category)) {
       return NextResponse.json({ error: "Invalid category" }, { status: 400 });
     }
-    const entries = await listColorCatalog(category);
+    const url = new URL(req.url);
+    const includeNonPickable = url.searchParams.get("includeNonPickable") === "true";
+    const entries = await listColorCatalog(category, {
+      pickableOnly: !includeNonPickable,
+    });
     return NextResponse.json({
       entries: entries.map((e) => ({
         value: e.valueNorm,
@@ -26,6 +30,7 @@ export async function GET(
         hue: e.hue,
         shade: e.shade,
         needsReview: e.needsReview,
+        pickable: e.pickable,
       })),
     });
   });

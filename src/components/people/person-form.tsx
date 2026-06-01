@@ -1,7 +1,7 @@
 "use client";
 /* eslint-disable react-hooks/incompatible-library */
 
-import { useState, useRef, useEffect } from "react";
+import { useMemo, useState, useRef, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { ChevronDown, RefreshCw } from "lucide-react";
@@ -35,7 +35,8 @@ import {
 import { EthnicityFields } from "@/components/people/ethnicity-fields";
 import { CountryPicker } from "@/components/shared/country-picker";
 import { SelectWithOther } from "@/components/shared/select-with-other";
-import { ColorValueCombobox } from "@/components/people/color-value-combobox";
+import { TypedAttributeInput } from "@/components/people/typed-attribute-input";
+import type { PhysicalAttributeGroupWithDefinitions } from "@/lib/services/physical-attribute-catalog-service";
 import { PartialDateInput } from "@/components/shared/partial-date-input";
 import { generateIcgId, cn } from "@/lib/utils";
 
@@ -52,11 +53,40 @@ type PersonFormProps = {
   onSubmit: (data: CreatePersonInput) => Promise<{ fieldErrors?: Record<string, string[]> } | void>;
   submitLabel?: string;
   onCancel?: () => void;
+  // Slice 16E: catalog defs so the hair-color input routes through
+  // TypedAttributeInput's colorCategory branch.
+  attributeGroups?: PhysicalAttributeGroupWithDefinitions[];
 };
 
-export function PersonForm({ onSubmit, submitLabel = "Create Person", onCancel }: PersonFormProps) {
+export function PersonForm({ onSubmit, submitLabel = "Create Person", onCancel, attributeGroups }: PersonFormProps) {
   const [showAppearance, setShowAppearance] = useState(false);
   const userEditedIcgId = useRef(false);
+
+  // Slice 16E: hair_color catalog def for TypedAttributeInput. Looked up
+  // from attributeGroups when available; otherwise falls back to a synthetic
+  // definition with the static fields the picker needs (id, slug, name,
+  // valueType=TEXT, colorCategory='hair'). The fallback exists because
+  // PersonForm is reused by flows (e.g. CreditResolutionPanel) that don't
+  // currently plumb the catalog through — keeping the hair-color field
+  // available without forcing a deeper refactor right now.
+  const hairColorDef = useMemo(() => {
+    for (const group of attributeGroups ?? []) {
+      for (const def of group.definitions) {
+        if (def.slug === "hair_color") return def;
+      }
+    }
+    return {
+      id: "cattr-hair-color",
+      name: "Hair Color",
+      slug: "hair_color",
+      unit: null,
+      valueType: "TEXT" as const,
+      allowedValues: [] as string[],
+      ordinalMin: null,
+      ordinalMax: null,
+      colorCategory: "hair" as const,
+    };
+  }, [attributeGroups]);
 
   const form = useForm<CreatePersonFormValues, unknown, CreatePersonInput>({
     resolver: zodResolver(createPersonSchema),
@@ -319,11 +349,10 @@ export function PersonForm({ onSubmit, submitLabel = "Create Person", onCancel }
                         <FormItem>
                           <FormLabel>Hair Color</FormLabel>
                           <FormControl>
-                            <ColorValueCombobox
-                              category="hair"
-                              value={field.value || undefined}
-                              onChange={(v) => field.onChange(v ?? "")}
-                              placeholder="Select hair color..."
+                            <TypedAttributeInput
+                              definition={hairColorDef}
+                              value={field.value ?? ""}
+                              onChange={(v) => field.onChange(v)}
                             />
                           </FormControl>
                           <FormMessage />

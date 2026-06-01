@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
-import { AlertTriangle, Pencil, Plus, Trash2, X, Check } from "lucide-react";
+import { AlertTriangle, Eye, EyeOff, Pencil, Plus, Trash2, X, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -54,7 +54,7 @@ function primaryOrderFor(category: ColorCategory): readonly string[] {
   return category === "skin" ? SKIN_TONE_ORDER : getAllHues(category);
 }
 
-type ReviewFilter = "all" | "needs_review" | "seed" | "import_auto";
+type ReviewFilter = "all" | "needs_review" | "non_pickable" | "seed" | "import_auto";
 
 export function ColorCatalogManager({ hair, eye, skin }: Props) {
   const [tab, setTab] = useState<ColorCategory>("hair");
@@ -91,6 +91,7 @@ function CategoryTable({
   const filtered = useMemo(() => {
     switch (filter) {
       case "needs_review": return entries.filter((e) => e.needsReview);
+      case "non_pickable": return entries.filter((e) => !e.pickable);
       case "seed":         return entries.filter((e) => e.source === "seed");
       case "import_auto":  return entries.filter((e) => e.source === "import_auto");
       default:             return entries;
@@ -98,6 +99,7 @@ function CategoryTable({
   }, [entries, filter]);
 
   const needsReviewCount = entries.filter((e) => e.needsReview).length;
+  const nonPickableCount = entries.filter((e) => !e.pickable).length;
 
   const handleDelete = (valueNorm: string) => {
     if (!confirm(`Delete "${valueNorm}" from the ${category} catalog?`)) return;
@@ -107,11 +109,18 @@ function CategoryTable({
     });
   };
 
+  const handleTogglePickable = (valueNorm: string, next: boolean) => {
+    startTransition(async () => {
+      const r = await updateColorCatalogEntryAction(category, valueNorm, { pickable: next });
+      if (!r.success) alert(r.error ?? "Failed");
+    });
+  };
+
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-1.5 text-xs">
-          {(["all", "needs_review", "seed", "import_auto"] as ReviewFilter[]).map((f) => (
+          {(["all", "needs_review", "non_pickable", "seed", "import_auto"] as ReviewFilter[]).map((f) => (
             <button
               key={f}
               type="button"
@@ -125,6 +134,7 @@ function CategoryTable({
             >
               {f === "all" ? "All" :
                f === "needs_review" ? `Needs review${needsReviewCount > 0 ? ` (${needsReviewCount})` : ""}` :
+               f === "non_pickable" ? `Hidden from picker${nonPickableCount > 0 ? ` (${nonPickableCount})` : ""}` :
                f === "seed" ? "Seed only" :
                "Auto-imported"}
             </button>
@@ -154,13 +164,14 @@ function CategoryTable({
               <th className="px-2 py-2">{PRIMARY_AXIS_LABEL[category]}</th>
               <th className="px-2 py-2">{SECONDARY_AXIS_LABEL[category]}</th>
               <th className="px-2 py-2">Source</th>
+              <th className="w-12 px-2 py-2 text-center" title="Visible in the picker dropdown">Picker</th>
               <th className="w-20 px-2 py-2 text-right">Actions</th>
             </tr>
           </thead>
           <tbody>
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={7} className="px-2 py-4 text-center text-xs text-muted-foreground">
+                <td colSpan={8} className="px-2 py-4 text-center text-xs text-muted-foreground">
                   No entries match this filter.
                 </td>
               </tr>
@@ -168,7 +179,7 @@ function CategoryTable({
             {filtered.map((entry) =>
               editingValueNorm === entry.valueNorm ? (
                 <tr key={entry.valueNorm} className="bg-white/5">
-                  <td colSpan={7} className="p-2">
+                  <td colSpan={8} className="p-2">
                     <EntryForm
                       category={category}
                       initial={entry}
@@ -178,17 +189,45 @@ function CategoryTable({
                   </td>
                 </tr>
               ) : (
-                <tr key={entry.valueNorm} className="border-t border-white/5 hover:bg-white/[0.03]">
+                <tr
+                  key={entry.valueNorm}
+                  className={cn(
+                    "border-t border-white/5 hover:bg-white/[0.03]",
+                    !entry.pickable && "opacity-60",
+                  )}
+                >
                   <td className="px-2 py-1.5 text-center">
                     {entry.needsReview && (
                       <AlertTriangle size={12} className="inline text-amber-500" />
                     )}
                   </td>
-                  <td className="px-2 py-1.5 font-mono text-xs">{entry.valueNorm}</td>
+                  <td className="px-2 py-1.5 font-mono text-xs">
+                    <span>{entry.valueNorm}</span>
+                    {!entry.pickable && (
+                      <span className="ml-1.5 rounded-full border border-muted-foreground/30 bg-muted/40 px-1.5 py-0.5 text-[9px] uppercase tracking-wider text-muted-foreground">
+                        hidden
+                      </span>
+                    )}
+                  </td>
                   <td className="px-2 py-1.5">{entry.display}</td>
                   <td className="px-2 py-1.5 text-xs">{entry.hue}</td>
                   <td className="px-2 py-1.5 text-xs">{entry.shade ?? "—"}</td>
                   <td className="px-2 py-1.5 text-xs text-muted-foreground">{entry.source}</td>
+                  <td className="px-2 py-1.5 text-center">
+                    <button
+                      type="button"
+                      onClick={() => handleTogglePickable(entry.valueNorm, !entry.pickable)}
+                      className={cn(
+                        "transition-colors",
+                        entry.pickable
+                          ? "text-emerald-500 hover:text-emerald-400"
+                          : "text-muted-foreground/60 hover:text-foreground",
+                      )}
+                      title={entry.pickable ? "Hide from picker" : "Show in picker"}
+                    >
+                      {entry.pickable ? <Eye size={14} /> : <EyeOff size={14} />}
+                    </button>
+                  </td>
                   <td className="px-2 py-1.5 text-right">
                     <button
                       type="button"

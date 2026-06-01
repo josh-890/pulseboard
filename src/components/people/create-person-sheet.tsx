@@ -11,14 +11,16 @@ import {
 import { createPerson } from "@/lib/actions/person-actions";
 import { PersonForm } from "@/components/people/person-form";
 import type { CreatePersonInput } from "@/lib/validations/person";
+import type { PhysicalAttributeGroupWithDefinitions } from "@/lib/services/physical-attribute-catalog-service";
 
 type CreatePersonSheetProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onCreated: (person: { id: string; name: string }) => void;
+  attributeGroups?: PhysicalAttributeGroupWithDefinitions[];
 };
 
-export function CreatePersonSheet({ open, onOpenChange, onCreated }: CreatePersonSheetProps) {
+export function CreatePersonSheet({ open, onOpenChange, onCreated, attributeGroups }: CreatePersonSheetProps) {
   async function handleSubmit(data: CreatePersonInput): Promise<{ fieldErrors?: Record<string, string[]> } | void> {
     const result = await createPerson(data);
 
@@ -53,6 +55,7 @@ export function CreatePersonSheet({ open, onOpenChange, onCreated }: CreatePerso
           onSubmit={handleSubmit}
           submitLabel="Create Person"
           onCancel={() => onOpenChange(false)}
+          attributeGroups={attributeGroups}
         />
       </SheetContent>
     </Sheet>

@@ -8,7 +8,6 @@ import { PartialDateInput } from "@/components/shared/partial-date-input";
 import { updatePhysicalChangeAction } from "@/lib/actions/appearance-actions";
 import type { PhysicalAttributeGroupWithDefinitions } from "@/lib/services/physical-attribute-catalog-service";
 import { SelectWithOther } from "@/components/shared/select-with-other";
-import { ColorValueCombobox } from "@/components/people/color-value-combobox";
 import { TypedAttributeInput } from "@/components/people/typed-attribute-input";
 import { CoreFieldRow } from "@/components/people/core-field-row";
 import { BREAST_SIZE_OPTIONS, BREAST_STATUS_OPTIONS, CORE_PHYSICAL_ATTR_IDS } from "@/lib/constants/appearance";
@@ -146,6 +145,17 @@ export function EditPhysicalChangeSheet({ personId, item, attributeGroups, onClo
       }
     }
     return ids;
+  }, [attributeGroups]);
+
+  // Slice 16E: look up the hair_color catalog definition for TypedAttributeInput
+  // (which routes to ColorValueCombobox via the colorCategory annotation).
+  const hairColorDef = useMemo(() => {
+    for (const group of attributeGroups ?? []) {
+      for (const def of group.definitions) {
+        if (def.slug === "hair_color") return def;
+      }
+    }
+    return null;
   }, [attributeGroups]);
 
   const anyStatusBearingInForm = useMemo(() => {
@@ -301,12 +311,13 @@ export function EditPhysicalChangeSheet({ personId, item, attributeGroups, onClo
           )}
 
           <CoreFieldRow label="Hair Color" unknown={hairColorUnknown} onUnknownChange={(v) => { setHairColorUnknown(v); if (v) setCurrentHairColor(""); }}>
-            <ColorValueCombobox
-              category="hair"
-              value={currentHairColor || undefined}
-              onChange={(v) => setCurrentHairColor(v ?? "")}
-              placeholder="Select hair color…"
-            />
+            {hairColorDef && (
+              <TypedAttributeInput
+                definition={hairColorDef}
+                value={currentHairColor}
+                onChange={setCurrentHairColor}
+              />
+            )}
           </CoreFieldRow>
 
           <CoreFieldRow label="Weight (kg)" unknown={weightUnknown} onUnknownChange={(v) => { setWeightUnknown(v); if (v) setWeight(""); }}>

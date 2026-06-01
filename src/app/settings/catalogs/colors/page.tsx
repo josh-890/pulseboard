@@ -6,10 +6,12 @@ import { listColorCatalog } from "@/lib/services/color-catalog-service";
 
 export default async function ColorsPage() {
   return withTenantFromHeaders(async () => {
+    // Manager is the admin curation surface — show every row, pickable or
+    // not, so deselected entries are visible for re-enabling.
     const [hair, eye, skin] = await Promise.all([
-      listColorCatalog("hair"),
-      listColorCatalog("eye"),
-      listColorCatalog("skin"),
+      listColorCatalog("hair", { pickableOnly: false }),
+      listColorCatalog("eye", { pickableOnly: false }),
+      listColorCatalog("skin", { pickableOnly: false }),
     ]);
 
     return (
