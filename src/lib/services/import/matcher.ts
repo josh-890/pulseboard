@@ -11,6 +11,7 @@ import type {
   ParsedCoModel,
   ParsedSet,
 } from './parser'
+import { normaliseDigitalIdentityKey, deriveHandleFromUrl } from './diff'
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -272,7 +273,10 @@ export type IdentityMatchResult = MatchResult & {
 
 /**
  * Compare an import identity against a person's existing digital identities.
- * Matches by URL (primary) or platform+handle combo (fallback).
+ * Matches by URL (primary) or platform+handle combo (fallback). When the
+ * caller passes a URL without a handle, derives a handle from the URL so
+ * the fallback can still match handle-only DB rows (entered manually with
+ * url=null) against a URL-bearing re-import.
  */
 export async function matchDigitalIdentity(
   personId: string,
@@ -296,13 +300,15 @@ export async function matchDigitalIdentity(
     }
   }
 
-  // Fallback: platform + handle match
-  if (handle) {
+  // Fallback: platform + handle match. Derive handle from URL if the caller
+  // didn't provide one, so we still catch DB rows stored with handle only.
+  const effectiveHandle = handle ?? deriveHandleFromUrl(url)
+  if (effectiveHandle) {
     const handleMatch = await prisma.personDigitalIdentity.findFirst({
       where: {
         personId,
         platform: { equals: platform, mode: 'insensitive' },
-        handle: { equals: handle, mode: 'insensitive' },
+        handle: { equals: effectiveHandle, mode: 'insensitive' },
       },
       select: { id: true },
     })
@@ -383,7 +389,10 @@ export async function matchAllEntities(data: ParsedImportData): Promise<BatchMat
   const personId = person.matchedEntityId
   if (personId && data.digitalIdentities) {
     for (const di of data.digitalIdentities) {
-      const key = `${di.platform}:${di.url || ''}`
+      // Canonical key shape matches the ItemDeletionTombstone format
+      // (normaliseDigitalIdentityKey in diff.ts) so the in-batch map,
+      // tombstones, and decline-log all key digital identities the same way.
+      const key = normaliseDigitalIdentityKey(di.platform, di.url)
       identities.set(key, await matchDigitalIdentity(
         personId,
         di.platform,

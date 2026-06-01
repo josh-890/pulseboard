@@ -81,13 +81,38 @@ export function normaliseAliasKey(name: string): string {
 // the lookup format the staging-service matcher already uses
 // (`${platform}:${url || handle || ''}`) so a tombstone written at delete
 // time is findable by the matcher's existing key on the next re-import.
-// NOTE: the matcher's *index* side (matcher.ts:386) only uses url, not
-// handle — a pre-existing inconsistency that's out of scope here.
 export function normaliseDigitalIdentityKey(
   platform: string,
   urlOrHandle: string | null | undefined,
 ): string {
   return `${platform}:${urlOrHandle ?? ""}`;
+}
+
+// Derive a handle from a URL when the parser only provided a URL. Lets the
+// matcher fall back to handle-matching against DB rows that were entered
+// manually (handle set, url=null) — without this, a URL-bearing re-import
+// of an already-recorded handle-only identity would create a duplicate.
+//
+// Handles the common social-platform URL shapes:
+//   https://twitter.com/username       → "username"
+//   https://instagram.com/username/    → "username"
+//   https://linkedin.com/in/username   → "username"  (uses last segment)
+//   https://tiktok.com/@username       → "username"  (strips leading @)
+// Returns null for non-URL inputs or empty paths.
+export function deriveHandleFromUrl(url: string | null | undefined): string | null {
+  if (!url) return null;
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return null;
+  }
+  const trimmed = parsed.pathname.replace(/^\/+/, "").replace(/\/+$/, "");
+  if (!trimmed) return null;
+  const segments = trimmed.split("/");
+  const last = segments[segments.length - 1];
+  if (!last) return null;
+  return last.replace(/^@/, "");
 }
 
 export type MatchedPersonSnapshot = {

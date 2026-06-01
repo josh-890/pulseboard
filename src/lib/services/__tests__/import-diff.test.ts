@@ -4,6 +4,8 @@ import {
   allDecisionsMade,
   isEmptyDiff,
   normaliseAliasKey,
+  normaliseDigitalIdentityKey,
+  deriveHandleFromUrl,
   type MatchedPersonSnapshot,
   type ImportPayload,
 } from "@/lib/services/import/diff";
@@ -192,5 +194,43 @@ describe("isEmptyDiff", () => {
 describe("normaliseAliasKey", () => {
   it("lowercases and collapses whitespace", () => {
     expect(normaliseAliasKey("  Nancy   A  ")).toBe("nancy a");
+  });
+});
+
+describe("normaliseDigitalIdentityKey", () => {
+  it("uses url-or-handle as the value half", () => {
+    expect(normaliseDigitalIdentityKey("twitter", "https://twitter.com/foo")).toBe(
+      "twitter:https://twitter.com/foo",
+    );
+    expect(normaliseDigitalIdentityKey("twitter", "foo")).toBe("twitter:foo");
+  });
+
+  it("returns platform: for null urlOrHandle", () => {
+    expect(normaliseDigitalIdentityKey("twitter", null)).toBe("twitter:");
+    expect(normaliseDigitalIdentityKey("twitter", undefined)).toBe("twitter:");
+  });
+});
+
+describe("deriveHandleFromUrl", () => {
+  it("extracts the trailing slug for common social URLs", () => {
+    expect(deriveHandleFromUrl("https://twitter.com/username")).toBe("username");
+    expect(deriveHandleFromUrl("https://instagram.com/username/")).toBe("username");
+    expect(deriveHandleFromUrl("https://onlyfans.com/username")).toBe("username");
+  });
+
+  it("uses the last path segment for nested URLs", () => {
+    expect(deriveHandleFromUrl("https://linkedin.com/in/username")).toBe("username");
+  });
+
+  it("strips a leading @ from tiktok-style paths", () => {
+    expect(deriveHandleFromUrl("https://tiktok.com/@username")).toBe("username");
+  });
+
+  it("returns null for empty / invalid / pathless URLs", () => {
+    expect(deriveHandleFromUrl(null)).toBeNull();
+    expect(deriveHandleFromUrl("")).toBeNull();
+    expect(deriveHandleFromUrl("not a url")).toBeNull();
+    expect(deriveHandleFromUrl("https://twitter.com/")).toBeNull();
+    expect(deriveHandleFromUrl("https://twitter.com")).toBeNull();
   });
 });
