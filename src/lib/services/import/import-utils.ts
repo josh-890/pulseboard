@@ -1,6 +1,10 @@
 // ─── Breast description parsing ─────────────────────────────────────────────
 
-// Reverse map: textual description → cup letter (best guess, lower bound)
+// Reverse map: textual description → cup letter (best guess, lower bound).
+// Output letters must match a PhysicalAttributeDefinition.allowedValues
+// entry for breast_size (AA, A, B, C, D, DD, E, F). 'extra large' previously
+// mapped to 'G', which is not in the catalog — corrected to 'F' so the
+// canonicalisation step downstream finds a matching anchored value.
 export const BREAST_TEXT_TO_CUP: Record<string, string> = {
   'very small': 'A',
   'tiny': 'A',
@@ -10,7 +14,7 @@ export const BREAST_TEXT_TO_CUP: Record<string, string> = {
   'medium–large': 'D',
   'large': 'DD',
   'very large': 'F',
-  'extra large': 'G',
+  'extra large': 'F',
 }
 
 /**
