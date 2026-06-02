@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { withTenantFromHeaders } from '@/lib/tenant-context'
 import { prisma } from '@/lib/db'
 import { importSet, promoteManualStagingSet } from '@/lib/services/import/import-executor'
+import { recomputeMatchForStagingSet } from '@/lib/services/import/match-refresh-service'
 
 export async function POST(
   _request: Request,
@@ -22,6 +23,15 @@ export async function POST(
           { status: 404 },
         )
       }
+
+      // Refresh the cached match against current Set table state before the
+      // promote dispatch reads it. The matcher otherwise only re-runs every
+      // 24h, so a corrected externalId or a deleted/renamed Set leaves the
+      // cached matchedSetId stale. Without this refresh, importSet /
+      // promoteManualStagingSet can silently route enrichment into the wrong
+      // Set (this exact bug shipped the "Attached → Grecian Sirens" incident
+      // on 2026-06-02; recovery via Layer 1 SQL).
+      await recomputeMatchForStagingSet(id)
 
       // Manual staging sets (no ImportItem) use a separate promotion path
       if (!stagingSet.importItemId) {

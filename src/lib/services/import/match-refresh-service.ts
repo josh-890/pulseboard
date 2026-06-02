@@ -120,6 +120,43 @@ export async function refreshMatchesIfStale(): Promise<number> {
   return refreshAllMatches()
 }
 
+// ─── Single-Set Refresh ───────────────────────────────────────────────────
+
+/**
+ * Re-run the matcher against ONE staging set and write the result.
+ * Called from the promote API route to eliminate the 24h staleness window
+ * — the cached matchedSetId on the staging row is recomputed against
+ * current Set table state before the promote dispatch reads it.
+ *
+ * No-ops silently if the staging set doesn't exist or is in a terminal
+ * state (PROMOTED / SKIPPED) — terminal rows shouldn't have their cached
+ * match overwritten.
+ */
+export async function recomputeMatchForStagingSet(id: string): Promise<void> {
+  const ss = await prisma.stagingSet.findUnique({
+    where: { id },
+    select: {
+      id: true,
+      status: true,
+      title: true,
+      externalId: true,
+      channelName: true,
+      releaseDate: true,
+    },
+  })
+  if (!ss) return
+  if (ss.status === 'PROMOTED' || ss.status === 'SKIPPED') return
+  await recomputeMatchesForSets([
+    {
+      id: ss.id,
+      title: ss.title,
+      externalId: ss.externalId,
+      channelName: ss.channelName,
+      releaseDate: ss.releaseDate,
+    },
+  ])
+}
+
 // ─── Internal ─────────────────────────────────────────────────────────────
 
 async function recomputeMatchesForSets(

@@ -186,11 +186,15 @@ export async function matchLabel(labelName: string): Promise<MatchResult> {
 // ─── Set Matching ───────────────────────────────────────────────────────────
 
 export async function matchSet(set: ParsedSet): Promise<SetMatchResult> {
-  // Tier 1: Exact externalId match
-  if (set.externalId) {
+  // Tier 1: Exact externalId match. Strict — empty / whitespace-only
+  // externalIds never match (two rows with externalId='' would otherwise
+  // claim Tier 1 confidence 1.0 against each other, locking in a wrong
+  // cached match that the promote dispatch then trusts).
+  const externalIdTrimmed = set.externalId?.trim() ?? ''
+  if (externalIdTrimmed) {
     const exactMatch = await prisma.set.findFirst({
       where: {
-        externalId: set.externalId,
+        externalId: externalIdTrimmed,
       },
       select: { id: true, title: true },
     })
@@ -199,7 +203,7 @@ export async function matchSet(set: ParsedSet): Promise<SetMatchResult> {
       return {
         matchedEntityId: exactMatch.id,
         matchConfidence: 1.0,
-        matchDetails: `Exact external ID match: ${set.externalId}`,
+        matchDetails: `Exact external ID match: ${externalIdTrimmed}`,
         existingTitle: exactMatch.title,
       }
     }

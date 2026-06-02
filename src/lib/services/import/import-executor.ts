@@ -575,6 +575,78 @@ export async function importDigitalIdentity(item: ImportItem): Promise<ImportRes
   }
 }
 
+// ─── Match validation guards (shared between importSet + promoteManualStagingSet) ─
+
+type MatchValidationOutcome =
+  | { kind: 'enrich'; matchedSetId: string; matchedTitle: string }
+  | { kind: 'create-new' }
+  | { kind: 'error'; error: string }
+
+/**
+ * Validates a staging set's cached `matchedSetId` against current data
+ * before promotion enriches the matched Set. Three guards in order:
+ *
+ *   1. The matched Set still exists.
+ *   2. If both sides have an externalId, they still agree (catches
+ *      data-correction drift where the cache was set at a moment when
+ *      externalIds collided).
+ *   3. The cached match confidence is 1.0 (exact externalId match at
+ *      cache time). Anything below requires explicit user confirmation —
+ *      we refuse to silently merge into a fuzzy-matched Set.
+ *
+ * Failure modes:
+ *   - Guard 1 or 2 fails → cached match is stale. Clear it on the
+ *     staging row and tell the caller to take Path B (create new Set).
+ *   - Guard 3 fails → match was always fuzzy. Refuse with a structured
+ *     error so the UI can surface "please clear or confirm the match
+ *     in the staging panel before promoting."
+ *
+ * Ships with the 2026-06-02 "Attached → Grecian Sirens" fix. See
+ * docs/adr/0011 (forthcoming) for the design rationale.
+ */
+async function validateCachedMatchForPromote(
+  stagingSetId: string,
+  cachedMatchId: string,
+  cachedConfidence: number | null,
+  stagingExternalId: string | null,
+): Promise<MatchValidationOutcome> {
+  const matched = await prisma.set.findUnique({
+    where: { id: cachedMatchId },
+    select: { id: true, externalId: true, title: true },
+  })
+
+  // Guard 1: matched Set still exists
+  if (!matched) {
+    await prisma.stagingSet.update({
+      where: { id: stagingSetId },
+      data: { matchedSetId: null, matchConfidence: null, matchDetails: null },
+    })
+    return { kind: 'create-new' }
+  }
+
+  // Guard 2: externalId still agrees (when both sides have one)
+  if (stagingExternalId && matched.externalId && stagingExternalId !== matched.externalId) {
+    await prisma.stagingSet.update({
+      where: { id: stagingSetId },
+      data: { matchedSetId: null, matchConfidence: null, matchDetails: null },
+    })
+    return { kind: 'create-new' }
+  }
+
+  // Guard 3: confidence must be 1.0 (exact). Anything fuzzy requires
+  // explicit user resolution — fail loud.
+  if (cachedConfidence !== null && cachedConfidence < 1.0) {
+    return {
+      kind: 'error',
+      error:
+        `Refusing to merge into existing Set "${matched.title}" — match confidence is ${cachedConfidence.toFixed(2)} (not exact). ` +
+        `Please confirm the match or clear it in the staging panel before promoting.`,
+    }
+  }
+
+  return { kind: 'enrich', matchedSetId: matched.id, matchedTitle: matched.title }
+}
+
 // ─── Import: Set ────────────────────────────────────────────────────────────
 
 export async function importSet(item: ImportItem): Promise<ImportResult> {
@@ -600,19 +672,40 @@ export async function importSet(item: ImportItem): Promise<ImportResult> {
         }
       : (item.editedData ?? item.data) as ItemData
 
-    // Path A: Enrich existing set (matched by externalId or user-confirmed)
-    const matchedSetId = stagingSet?.matchedSetId ?? item.matchedEntityId
-    if (matchedSetId) {
-      const enrichResult = await enrichExistingSet(item, matchedSetId, data)
-      if (stagingSet) {
-        await markStagingSetPromoted(stagingSet.id, matchedSetId)
-        // Transfer cover image (fire-and-forget, non-critical)
+    // Path A: Enrich existing set (matched by externalId or user-confirmed).
+    // Three guards (validateCachedMatchForPromote) prevent the
+    // "Attached → Grecian Sirens" bug class: stale-match, externalId
+    // drift, fuzzy-confidence merge. See helper above for details.
+    const cachedMatchId = stagingSet?.matchedSetId ?? item.matchedEntityId
+    const cachedConfidence = stagingSet?.matchConfidence ?? null
+    if (cachedMatchId && stagingSet) {
+      const verdict = await validateCachedMatchForPromote(
+        stagingSet.id,
+        cachedMatchId,
+        cachedConfidence,
+        stagingSet.externalId,
+      )
+      if (verdict.kind === 'error') {
+        return { success: false, entityId: null, error: verdict.error }
+      }
+      if (verdict.kind === 'enrich') {
+        const enrichResult = await enrichExistingSet(item, verdict.matchedSetId, data)
+        await markStagingSetPromoted(stagingSet.id, verdict.matchedSetId)
         if (stagingSet.coverImageUrl) {
-          transferStagingCoverToSet(stagingSet.coverImageUrl, matchedSetId).catch((err) =>
+          transferStagingCoverToSet(stagingSet.coverImageUrl, verdict.matchedSetId).catch((err) =>
             console.error('Cover transfer failed (enrich):', err),
           )
         }
+        return enrichResult
       }
+      // verdict.kind === 'create-new' → fall through to Path B below
+    } else if (cachedMatchId && !stagingSet) {
+      // No staging set wrapper (older import-only path). Conservative:
+      // require exact match — if `item.matchedEntityId` was the source,
+      // we don't have a staging row to validate against, so just enrich
+      // (this branch predates the staging-set workflow and only fires
+      // for legacy ImportItem-only imports).
+      const enrichResult = await enrichExistingSet(item, cachedMatchId, data)
       return enrichResult
     }
 
@@ -1015,6 +1108,7 @@ export async function promoteManualStagingSet(stagingSetId: string): Promise<Imp
       artist: true,
       participantStatuses: true,
       matchedSetId: true,
+      matchConfidence: true,
       coverImageUrl: true,
       mediaPriority: true,
       mediaQueueAt: true,
@@ -1027,10 +1121,23 @@ export async function promoteManualStagingSet(stagingSetId: string): Promise<Imp
   const unknownParticipants = participantStatuses.filter((p) => p.status !== 'known')
 
   try {
-    // Path A: Enrich existing matched Set
+    // Path A: Enrich existing matched Set — gated by the three-guard
+    // validator that prevents the "Attached → Grecian Sirens" bug class
+    // (stale-match, externalId drift, fuzzy-confidence merge).
     if (stagingSet.matchedSetId) {
-      const setId = stagingSet.matchedSetId
-      await prisma.$transaction(async (tx) => {
+      const verdict = await validateCachedMatchForPromote(
+        stagingSetId,
+        stagingSet.matchedSetId,
+        stagingSet.matchConfidence,
+        stagingSet.externalId,
+      )
+      if (verdict.kind === 'error') {
+        return { success: false, entityId: null, error: verdict.error }
+      }
+      // verdict.kind === 'create-new' → fall through to Path B below
+      if (verdict.kind === 'enrich') {
+        const setId = verdict.matchedSetId
+        await prisma.$transaction(async (tx) => {
         const setSession = await tx.setSession.findFirst({
           where: { setId, isPrimary: true },
           select: { sessionId: true },
@@ -1083,7 +1190,8 @@ export async function promoteManualStagingSet(stagingSetId: string): Promise<Imp
       })
       await markStagingSetPromoted(stagingSetId, setId)
       return { success: true, entityId: setId, error: null }
-    }
+      } // end if (verdict.kind === 'enrich')
+    } // end if (stagingSet.matchedSetId)
 
     // Path B: Create new Set
     if (!stagingSet.channelId) {
