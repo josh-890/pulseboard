@@ -13,6 +13,7 @@ import { BrowserToolbar } from "@/components/shared/browser-toolbar";
 import type { BrowserToolbarConfig, FilterGroup } from "@/components/shared/browser-toolbar";
 import { SavedViewsBar } from "@/components/shared/saved-views-bar";
 import { AddSetSheet } from "@/components/sets/add-set-sheet";
+import { ratingFilterOptions } from "@/components/shared/rating-filter-options";
 
 export const dynamic = "force-dynamic";
 
@@ -240,14 +241,7 @@ export default async function SetsPage({ searchParams }: SetsPageProps) {
       param: "rating",
       label: "Rating",
       searchable: false,
-      options: [
-        { value: "5", label: "★★★★★", count: facetCounts.rating?.[5] },
-        { value: "4", label: "★★★★☆", count: facetCounts.rating?.[4] },
-        { value: "3", label: "★★★☆☆", count: facetCounts.rating?.[3] },
-        { value: "2", label: "★★☆☆☆", count: facetCounts.rating?.[2] },
-        { value: "1", label: "★☆☆☆☆", count: facetCounts.rating?.[1] },
-        { value: "unrated", label: "Unrated", count: facetCounts.rating?.unrated },
-      ],
+      options: ratingFilterOptions(facetCounts.rating ?? {}),
     },
   ];
 

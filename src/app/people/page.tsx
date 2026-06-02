@@ -22,6 +22,7 @@ import { HeadshotSlotSelector } from "@/components/people/headshot-slot-selector
 import { BodyRegionFilterWrapper } from "@/components/people/body-region-filter-wrapper";
 import { AddPersonSheet } from "@/components/people/add-person-sheet";
 import { PeopleSearchPage } from "@/components/people/people-search-page";
+import { ratingFilterOptions } from "@/components/shared/rating-filter-options";
 
 const ADVANCED_PREFIXES = ["cat.", "range.", "presence.", "region.", "text.", "attr."];
 function hasAdvancedParams(params: Record<string, unknown>): boolean {
@@ -238,14 +239,7 @@ export default async function PeoplePage({ searchParams }: PeoplePageProps) {
     param: "rating",
     label: "Rating",
     searchable: false,
-    options: [
-      { value: "5", label: "★★★★★", count: facetCounts.rating?.[5] },
-      { value: "4", label: "★★★★☆", count: facetCounts.rating?.[4] },
-      { value: "3", label: "★★★☆☆", count: facetCounts.rating?.[3] },
-      { value: "2", label: "★★☆☆☆", count: facetCounts.rating?.[2] },
-      { value: "1", label: "★☆☆☆☆", count: facetCounts.rating?.[1] },
-      { value: "unrated", label: "Unrated", count: facetCounts.rating?.unrated },
-    ],
+    options: ratingFilterOptions(facetCounts.rating ?? {}),
   });
 
   if (hairColors.length > 0) {

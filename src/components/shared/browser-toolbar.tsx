@@ -56,11 +56,22 @@ type FacetFilter = {
 // Multi-select variant of `facet`. URL is a comma-separated list of
 // option values for the single `param` key (e.g. `?rating=5,4,unrated`).
 // Each option toggles independently; absent param = no filter.
+//
+// `label` is the plain-text label (used for the Command search index and
+// as fallback rendering). `displayLabel` is an optional React node that
+// replaces the text rendering — lets pages style stars yellow, render
+// icons, etc. The same `displayLabel` is also used in the active filter
+// chip so the styling stays consistent.
 type MultiFacetFilter = {
   type: "multifacet";
   param: string;
   label: string;
-  options: { value: string; label: string; count?: number }[];
+  options: {
+    value: string;
+    label: string;
+    displayLabel?: React.ReactNode;
+    count?: number;
+  }[];
   searchable?: boolean;
 };
 
@@ -326,8 +337,16 @@ export function BrowserToolbar({ config, children }: BrowserToolbarProps) {
     });
   }
 
-  // Collect active filter chips — each chip knows which params to remove
-  const activeChips: { label: string; params: string[]; replacementValue?: string }[] = [];
+  // Collect active filter chips — each chip knows which params to remove.
+  // `label` is ReactNode so multifacet chips can reuse the option's
+  // displayLabel (e.g. yellow stars) and stay visually consistent with
+  // the dropdown. `key` is a separate stable string for React.
+  const activeChips: {
+    key: string;
+    label: React.ReactNode;
+    params: string[];
+    replacementValue?: string;
+  }[] = [];
   for (const group of filterGroups) {
     if (group.type === "pill" || group.type === "facet") {
       const paramValue = searchParams.get(group.param);
@@ -335,6 +354,7 @@ export function BrowserToolbar({ config, children }: BrowserToolbarProps) {
       const opt = group.options.find((o) => o.value === paramValue);
       if (opt) {
         activeChips.push({
+          key: `${group.param}:${opt.value}`,
           label: `${group.label}: ${opt.label}`,
           params: [group.param],
         });
@@ -351,14 +371,19 @@ export function BrowserToolbar({ config, children }: BrowserToolbarProps) {
         // deletes the param entirely if it was the last one).
         const remaining = selected.filter((v) => v !== value);
         activeChips.push({
-          label: `${group.label}: ${opt.label}`,
+          key: `${group.param}:${opt.value}`,
+          label: (
+            <>
+              {group.label}: {opt.displayLabel ?? opt.label}
+            </>
+          ),
           params: [group.param],
           replacementValue: remaining.length > 0 ? `${group.param}=${remaining.join(",")}` : undefined,
         });
       }
     } else if (group.type === "toggle") {
       if (searchParams.get(group.param) === "true") {
-        activeChips.push({ label: group.label, params: [group.param] });
+        activeChips.push({ key: group.param, label: group.label, params: [group.param] });
       }
     } else if (group.type === "daterange") {
       const from = searchParams.get(group.paramFrom);
@@ -366,6 +391,7 @@ export function BrowserToolbar({ config, children }: BrowserToolbarProps) {
       if (from || to) {
         const range = from && to ? `${from} – ${to}` : from ? `from ${from}` : `to ${to}`;
         activeChips.push({
+          key: `${group.paramFrom}:${group.paramTo}`,
           label: `${group.label}: ${range}`,
           params: [group.paramFrom, group.paramTo],
         });
@@ -377,6 +403,7 @@ export function BrowserToolbar({ config, children }: BrowserToolbarProps) {
           ? (searchParams.get(group.displayParam) ?? paramValue)
           : paramValue;
         activeChips.push({
+          key: group.param,
           label: `${group.label}: ${displayValue}`,
           params: [group.param, ...(group.displayParam ? [group.displayParam] : [])],
         });
@@ -615,7 +642,7 @@ export function BrowserToolbar({ config, children }: BrowserToolbarProps) {
           )}
           {activeChips.map((chip) => (
             <button
-              key={chip.label}
+              key={chip.key}
               type="button"
               onClick={() => handleRemoveChip(chip.params, chip.replacementValue)}
               className="inline-flex items-center gap-1 rounded-full border border-primary/20 bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary transition-colors hover:bg-primary/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
@@ -760,7 +787,9 @@ function MultiFacetDropdown({
                         isSelected ? "opacity-100" : "opacity-0",
                       )}
                     />
-                    <span className="flex-1">{option.label}</span>
+                    <span className="flex-1">
+                      {option.displayLabel ?? option.label}
+                    </span>
                     {option.count !== undefined && (
                       <span className="ml-2 text-[11px] text-muted-foreground tabular-nums">
                         {option.count}
