@@ -4,6 +4,7 @@ import { Camera, Film, FolderCheck, FolderOpen, FolderX } from "lucide-react";
 import { cn, focalStyle, formatPartialDateISO, getInitialsFromName, computeProductionAge } from "@/lib/utils";
 import { SetInlineTitle } from "@/components/sets/set-detail-header";
 import { SetCompleteBadge } from "@/components/sets/set-complete-badge";
+import { SetRating } from "@/components/sets/set-rating";
 import type { getSetById } from "@/lib/services/set-service";
 import type { CoverPhotoData, HeadshotData } from "@/lib/services/media-service";
 import type { ArchiveStatus } from "@/generated/prisma/client";
@@ -355,6 +356,11 @@ export function SetHero({
               <span className="text-muted-foreground/70 font-mono text-xs">ID: {set.externalId}</span>
             </>
           )}
+        </div>
+
+        {/* Subjective star rating — mirrors Person.rating UI */}
+        <div className="mt-auto pt-3">
+          <SetRating setId={set.id} initialRating={set.rating} />
         </div>
       </div>
     </div>

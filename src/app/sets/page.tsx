@@ -37,6 +37,7 @@ type SetsPageProps = {
     releaseDateTo?: string;
     createdFrom?: string;
     createdTo?: string;
+    rating?: string;
     groupBy?: string;
   }>;
 };
@@ -44,6 +45,7 @@ type SetsPageProps = {
 const VALID_TYPES = new Set<string>(["photo", "video"]);
 const VALID_SORTS = new Set<string>([
   "date-desc", "date-asc", "title-asc", "title-desc", "newest", "media-desc", "updated",
+  "rating-desc", "rating-asc",
 ]);
 
 const VALID_GROUP_BYS = new Set<string>([
@@ -75,6 +77,8 @@ const SORT_OPTIONS = [
   { value: "newest", label: "Recently added" },
   { value: "updated", label: "Recently updated" },
   { value: "media-desc", label: "Most media" },
+  { value: "rating-desc", label: "Highest rated" },
+  { value: "rating-asc", label: "Lowest rated" },
 ];
 
 function parseDate(value: string | undefined): Date | undefined {
@@ -97,6 +101,7 @@ export default async function SetsPage({ searchParams }: SetsPageProps) {
       releaseDateTo: releaseDateToParam,
       createdFrom: createdFromParam,
       createdTo: createdToParam,
+      rating: ratingParam,
       groupBy: groupByParam,
     } = await searchParams;
 
@@ -130,6 +135,12 @@ export default async function SetsPage({ searchParams }: SetsPageProps) {
     duplicatePairs.flatMap((p) => [[p.idA, p.idB], [p.idB, p.idA]]),
   );
 
+  // Parse rating multifacet param: comma-separated "1".."5" + "unrated".
+  const resolvedRatings = ratingParam
+    ? ratingParam.split(",").filter(Boolean).map((v) => (v === "unrated" ? ("unrated" as const) : parseInt(v, 10)))
+        .filter((v): v is number | "unrated" => v === "unrated" || (typeof v === "number" && v >= 1 && v <= 5 && !isNaN(v)))
+    : undefined;
+
   const filters: SetFilters = {
     q: q?.trim() || undefined,
     type: resolvedType ?? ("all" as const),
@@ -141,6 +152,7 @@ export default async function SetsPage({ searchParams }: SetsPageProps) {
     archiveFilter,
     noArchiveLink: noArchiveLinkParam === 'true' ? true : undefined,
     ids: duplicateSetIds,
+    ratings: resolvedRatings,
     releaseDateFrom,
     releaseDateTo,
     createdFrom,
@@ -222,6 +234,20 @@ export default async function SetsPage({ searchParams }: SetsPageProps) {
       paramFrom: "createdFrom",
       paramTo: "createdTo",
       label: "Added",
+    },
+    {
+      type: "multifacet",
+      param: "rating",
+      label: "Rating",
+      searchable: false,
+      options: [
+        { value: "5", label: "★★★★★", count: facetCounts.rating?.[5] },
+        { value: "4", label: "★★★★☆", count: facetCounts.rating?.[4] },
+        { value: "3", label: "★★★☆☆", count: facetCounts.rating?.[3] },
+        { value: "2", label: "★★☆☆☆", count: facetCounts.rating?.[2] },
+        { value: "1", label: "★☆☆☆☆", count: facetCounts.rating?.[1] },
+        { value: "unrated", label: "Unrated", count: facetCounts.rating?.unrated },
+      ],
     },
   ];
 

@@ -15,7 +15,9 @@ export type SetSort =
   | "title-desc"
   | "newest"
   | "media-desc"
-  | "updated";
+  | "updated"
+  | "rating-desc"
+  | "rating-asc";
 
 export type SetFilters = {
   q?: string;
@@ -28,6 +30,10 @@ export type SetFilters = {
   archiveFilter?: 'noArchive' | 'verified' | 'changed' | 'missing' | 'notImported'
   noArchiveLink?: boolean
   ids?: string[]
+  // Multi-select star rating, same shape as PersonFilters.ratings.
+  // Numeric values 1..5 select Sets rated exactly that many stars;
+  // "unrated" selects Sets with rating IS NULL.
+  ratings?: (number | "unrated")[];
   releaseDateFrom?: Date;
   releaseDateTo?: Date;
   createdFrom?: Date;
@@ -120,6 +126,10 @@ function getSetOrderBy(sort?: SetSort): Prisma.SetOrderByWithRelationInput[] {
       return [{ setMediaItems: { _count: "desc" } }];
     case "updated":
       return [{ updatedAt: "desc" }];
+    case "rating-desc":
+      return [{ rating: { sort: "desc", nulls: "last" } }];
+    case "rating-asc":
+      return [{ rating: { sort: "asc", nulls: "last" } }];
     case "date-desc":
     default:
       return [{ releaseDate: { sort: "desc", nulls: "last" } }];
@@ -131,12 +141,24 @@ export async function getSetsPaginated(
   cursor?: string,
   limit = 50,
 ): Promise<PaginatedSets> {
-  const { q, type, labelId, channelId, personId, hasMedia, sort, archiveFilter, noArchiveLink, ids, releaseDateFrom, releaseDateTo, createdFrom, createdTo } = filters;
+  const { q, type, labelId, channelId, personId, hasMedia, sort, archiveFilter, noArchiveLink, ids, ratings, releaseDateFrom, releaseDateTo, createdFrom, createdTo } = filters;
 
   const where: Prisma.SetWhereInput = {};
 
   if (ids && ids.length > 0) {
     where.id = { in: ids };
+  }
+
+  // Multi-select rating: same shape as PersonFilters. Numeric buckets
+  // select exact-match ratings; "unrated" sentinel selects NULL.
+  if (ratings && ratings.length > 0) {
+    const nums = ratings.filter((r): r is number => typeof r === "number");
+    const includesUnrated = ratings.includes("unrated");
+    const clauses: Prisma.SetWhereInput[] = [];
+    if (nums.length > 0) clauses.push({ rating: { in: nums } });
+    if (includesUnrated) clauses.push({ rating: null });
+    if (clauses.length === 1) Object.assign(where, clauses[0]);
+    else if (clauses.length > 1) where.OR = [...(where.OR ?? []), ...clauses];
   }
 
   if (type && type !== "all") {
@@ -395,13 +417,17 @@ export type SetFacetCounts = {
   type: Record<string, number>;
   channelId: Record<string, number>;
   labelId: Record<string, number>;
+  // Keyed by "1".."5" (numeric buckets) + "unrated" for null. Each
+  // count excludes the rating filter from its own selection so users
+  // see the effect of toggling a bucket.
+  rating: Record<string, number>;
 };
 
 export async function getSetFacetCounts(
   filters: Omit<SetFilters, "sort">,
   labelIds: string[] = [],
 ): Promise<SetFacetCounts> {
-  function buildBase(overrides: Partial<Pick<SetFilters, "type" | "channelId" | "labelId">> = {}): Prisma.SetWhereInput {
+  function buildBase(overrides: Partial<Pick<SetFilters, "type" | "channelId" | "labelId" | "ratings">> = {}): Prisma.SetWhereInput {
     const merged = { ...filters, ...overrides };
     const w: Prisma.SetWhereInput = {};
     if (filters.ids && filters.ids.length > 0) w.id = { in: filters.ids };
@@ -412,6 +438,15 @@ export async function getSetFacetCounts(
     if (filters.personId) w.participants = { some: { personId: filters.personId } };
     if (filters.hasMedia) w.setMediaItems = { some: {} };
     if (filters.noArchiveLink) w.archiveLinks = { none: { status: ArchiveLinkStatus.CONFIRMED } };
+    if (merged.ratings && merged.ratings.length > 0) {
+      const nums = merged.ratings.filter((r): r is number => typeof r === "number");
+      const includesUnrated = merged.ratings.includes("unrated");
+      const clauses: Prisma.SetWhereInput[] = [];
+      if (nums.length > 0) clauses.push({ rating: { in: nums } });
+      if (includesUnrated) clauses.push({ rating: null });
+      if (clauses.length === 1) Object.assign(w, clauses[0]);
+      else if (clauses.length > 1) w.OR = [...(w.OR ?? []), ...clauses];
+    }
     if (filters.releaseDateFrom || filters.releaseDateTo) {
       w.releaseDate = {
         ...(filters.releaseDateFrom ? { gte: filters.releaseDateFrom } : {}),
@@ -427,9 +462,10 @@ export async function getSetFacetCounts(
     return w;
   }
 
-  const [typeGroups, channelGroups, ...labelCounts] = await Promise.all([
+  const [typeGroups, channelGroups, ratingGroups, ...labelCounts] = await Promise.all([
     prisma.set.groupBy({ by: ["type"], where: buildBase({ type: undefined }), _count: { _all: true } }),
     prisma.set.groupBy({ by: ["channelId"], where: buildBase({ channelId: undefined }), _count: { _all: true } }),
+    prisma.set.groupBy({ by: ["rating"], where: buildBase({ ratings: undefined }), _count: { _all: true } }),
     ...labelIds.map((id) =>
       prisma.set.count({ where: { ...buildBase({ labelId: undefined }), channel: { labelMaps: { some: { labelId: id } } } } })
         .then((count) => [id, count] as [string, number]),
@@ -440,6 +476,9 @@ export async function getSetFacetCounts(
     type: Object.fromEntries(typeGroups.map((r) => [r.type, r._count._all])),
     channelId: Object.fromEntries(channelGroups.filter((r) => r.channelId).map((r) => [r.channelId!, r._count._all])),
     labelId: Object.fromEntries((labelCounts as [string, number][]).filter(Boolean)),
+    rating: Object.fromEntries(
+      ratingGroups.map((r) => [r.rating === null ? "unrated" : String(r.rating), r._count._all]),
+    ),
   };
 }
 

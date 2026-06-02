@@ -53,6 +53,17 @@ type FacetFilter = {
   searchable?: boolean;
 };
 
+// Multi-select variant of `facet`. URL is a comma-separated list of
+// option values for the single `param` key (e.g. `?rating=5,4,unrated`).
+// Each option toggles independently; absent param = no filter.
+type MultiFacetFilter = {
+  type: "multifacet";
+  param: string;
+  label: string;
+  options: { value: string; label: string; count?: number }[];
+  searchable?: boolean;
+};
+
 type ToggleFilter = {
   type: "toggle";
   param: string;
@@ -74,7 +85,7 @@ type TypeaheadFilter = {
   displayParam?: string;
 };
 
-type FilterGroup = PillFilter | FacetFilter | ToggleFilter | DateRangeFilter | TypeaheadFilter;
+type FilterGroup = PillFilter | FacetFilter | MultiFacetFilter | ToggleFilter | DateRangeFilter | TypeaheadFilter;
 
 type GroupByOption = {
   value: string;
@@ -271,6 +282,21 @@ export function BrowserToolbar({ config, children }: BrowserToolbarProps) {
     });
   }
 
+  function handleMultiFacetToggle(param: string, value: string) {
+    updateParams((params) => {
+      const current = params.get(param);
+      const selected = current ? current.split(",").filter(Boolean) : [];
+      const next = selected.includes(value)
+        ? selected.filter((v) => v !== value)
+        : [...selected, value];
+      if (next.length === 0) {
+        params.delete(param);
+      } else {
+        params.set(param, next.join(","));
+      }
+    });
+  }
+
   function handleToggle(param: string) {
     updateParams((params) => {
       if (params.has(param)) {
@@ -301,7 +327,7 @@ export function BrowserToolbar({ config, children }: BrowserToolbarProps) {
   }
 
   // Collect active filter chips — each chip knows which params to remove
-  const activeChips: { label: string; params: string[] }[] = [];
+  const activeChips: { label: string; params: string[]; replacementValue?: string }[] = [];
   for (const group of filterGroups) {
     if (group.type === "pill" || group.type === "facet") {
       const paramValue = searchParams.get(group.param);
@@ -311,6 +337,23 @@ export function BrowserToolbar({ config, children }: BrowserToolbarProps) {
         activeChips.push({
           label: `${group.label}: ${opt.label}`,
           params: [group.param],
+        });
+      }
+    } else if (group.type === "multifacet") {
+      const paramValue = searchParams.get(group.param);
+      if (!paramValue) continue;
+      const selected = paramValue.split(",").filter(Boolean);
+      for (const value of selected) {
+        const opt = group.options.find((o) => o.value === value);
+        if (!opt) continue;
+        // Each selected value gets its own removable chip. Removing one
+        // rewrites the param to the remaining comma-joined values (or
+        // deletes the param entirely if it was the last one).
+        const remaining = selected.filter((v) => v !== value);
+        activeChips.push({
+          label: `${group.label}: ${opt.label}`,
+          params: [group.param],
+          replacementValue: remaining.length > 0 ? `${group.param}=${remaining.join(",")}` : undefined,
         });
       }
     } else if (group.type === "toggle") {
@@ -353,8 +396,16 @@ export function BrowserToolbar({ config, children }: BrowserToolbarProps) {
     router.replace(basePath);
   }
 
-  function handleRemoveChip(params: string[]) {
-    updateParams((p) => { for (const param of params) p.delete(param); });
+  function handleRemoveChip(params: string[], replacementValue?: string) {
+    updateParams((p) => {
+      for (const param of params) p.delete(param);
+      if (replacementValue) {
+        // Multi-facet chip removal: param has other selected values that
+        // should survive. replacementValue is the `param=v1,v2` form.
+        const [k, v] = replacementValue.split("=");
+        if (k && v) p.set(k, v);
+      }
+    });
   }
 
   const currentSortLabel =
@@ -465,6 +516,19 @@ export function BrowserToolbar({ config, children }: BrowserToolbarProps) {
             );
           }
 
+          if (group.type === "multifacet") {
+            const current = searchParams.get(group.param);
+            const selected = current ? current.split(",").filter(Boolean) : [];
+            return (
+              <MultiFacetDropdown
+                key={group.param}
+                filter={group}
+                selected={selected}
+                onToggle={(v) => handleMultiFacetToggle(group.param, v)}
+              />
+            );
+          }
+
           if (group.type === "toggle") {
             const isActive = searchParams.get(group.param) === "true";
             return (
@@ -551,9 +615,9 @@ export function BrowserToolbar({ config, children }: BrowserToolbarProps) {
           )}
           {activeChips.map((chip) => (
             <button
-              key={chip.params.join(",")}
+              key={chip.label}
               type="button"
-              onClick={() => handleRemoveChip(chip.params)}
+              onClick={() => handleRemoveChip(chip.params, chip.replacementValue)}
               className="inline-flex items-center gap-1 rounded-full border border-primary/20 bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary transition-colors hover:bg-primary/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               {chip.label}
@@ -629,6 +693,82 @@ function SortDropdown({
                   {option.label}
                 </CommandItem>
               ))}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+// Multi-select counterpart of FacetDropdown. Popover stays open across
+// clicks; each item toggles inclusion in the comma-separated URL value.
+// Trigger displays "{Label}: N" when one or more options are picked.
+function MultiFacetDropdown({
+  filter,
+  selected,
+  onToggle,
+}: {
+  filter: MultiFacetFilter;
+  selected: string[];
+  onToggle: (value: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const activeCount = selected.length;
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          variant="outline"
+          size="sm"
+          className={cn(
+            "h-8 gap-1.5 text-xs",
+            activeCount > 0
+              ? "border-primary/30 bg-primary/10 text-primary hover:bg-primary/20"
+              : "border-white/20 bg-card/50 text-muted-foreground hover:border-white/30 hover:bg-card/80 hover:text-foreground",
+          )}
+        >
+          {activeCount > 0 ? `${filter.label}: ${activeCount}` : filter.label}
+          <ChevronDown size={12} />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-[220px] p-0" align="start">
+        <Command>
+          {filter.searchable !== false && filter.options.length > 6 && (
+            <CommandInput placeholder={`Search ${filter.label.toLowerCase()}...`} />
+          )}
+          <CommandList>
+            <CommandEmpty>No results.</CommandEmpty>
+            <CommandGroup>
+              {filter.options.map((option) => {
+                const isSelected = selected.includes(option.value);
+                return (
+                  <CommandItem
+                    key={option.value}
+                    value={option.label}
+                    onSelect={() => {
+                      onToggle(option.value);
+                      // Deliberately leave popover open so multiple
+                      // selections can be made in one gesture.
+                    }}
+                  >
+                    <Check
+                      size={14}
+                      className={cn(
+                        "mr-2 shrink-0",
+                        isSelected ? "opacity-100" : "opacity-0",
+                      )}
+                    />
+                    <span className="flex-1">{option.label}</span>
+                    {option.count !== undefined && (
+                      <span className="ml-2 text-[11px] text-muted-foreground tabular-nums">
+                        {option.count}
+                      </span>
+                    )}
+                  </CommandItem>
+                );
+              })}
             </CommandGroup>
           </CommandList>
         </Command>

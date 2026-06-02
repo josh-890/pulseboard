@@ -52,6 +52,7 @@ type PeoplePageProps = {
     birthdateTo?: string;
     createdFrom?: string;
     createdTo?: string;
+    rating?: string;
     groupBy?: string;
   }>;
 };
@@ -59,7 +60,7 @@ type PeoplePageProps = {
 const VALID_STATUSES = new Set<string>(["active", "inactive", "wishlist", "archived"]);
 const VALID_SORTS = new Set<string>([
   "name-asc", "name-desc", "newest", "oldest",
-  "age-asc", "age-desc", "rating-desc", "updated",
+  "age-asc", "age-desc", "rating-desc", "rating-asc", "updated",
   "completeness-asc", "completeness-desc",
 ]);
 const VALID_COMPLETENESS = new Set<string>(["low", "medium", "high"]);
@@ -92,6 +93,7 @@ const SORT_OPTIONS = [
   { value: "age-asc", label: "Youngest first" },
   { value: "age-desc", label: "Oldest people" },
   { value: "rating-desc", label: "Highest rated" },
+  { value: "rating-asc", label: "Lowest rated" },
   { value: "updated", label: "Recently updated" },
   { value: "completeness-asc", label: "Profile ↑" },
   { value: "completeness-desc", label: "Profile ↓" },
@@ -115,6 +117,7 @@ export default async function PeoplePage({ searchParams }: PeoplePageProps) {
       slot: slotParam, sort: sortParam, completeness: completenessParam,
       birthdateFrom: birthdateFromParam, birthdateTo: birthdateToParam,
       createdFrom: createdFromParam, createdTo: createdToParam,
+      rating: ratingParam,
       groupBy: groupByParam,
     } = raw;
 
@@ -139,6 +142,12 @@ export default async function PeoplePage({ searchParams }: PeoplePageProps) {
   const birthdateTo = parseDate(birthdateToParam);
   const createdFrom = parseDate(createdFromParam);
   const createdTo = parseDate(createdToParam);
+  // Multi-facet rating param: comma-separated values, each either
+  // "1".."5" or the literal "unrated". Anything unrecognised is dropped.
+  const resolvedRatings = ratingParam
+    ? ratingParam.split(",").filter(Boolean).map((v) => (v === "unrated" ? ("unrated" as const) : parseInt(v, 10)))
+        .filter((v): v is number | "unrated" => v === "unrated" || (typeof v === "number" && v >= 1 && v <= 5 && !isNaN(v)))
+    : undefined;
 
   const filters = {
     q: q?.trim() || undefined,
@@ -148,6 +157,7 @@ export default async function PeoplePage({ searchParams }: PeoplePageProps) {
     ethnicity: ethnicity || undefined,
     bodyRegions: resolvedBodyRegions?.length ? resolvedBodyRegions : undefined,
     bodyRegionMatch: resolvedBodyRegionMatch,
+    ratings: resolvedRatings,
     sort: resolvedSort,
     completeness: resolvedCompleteness,
     birthdateFrom,
@@ -221,6 +231,21 @@ export default async function PeoplePage({ searchParams }: PeoplePageProps) {
     paramFrom: "createdFrom",
     paramTo: "createdTo",
     label: "Added",
+  });
+
+  filterGroups.push({
+    type: "multifacet",
+    param: "rating",
+    label: "Rating",
+    searchable: false,
+    options: [
+      { value: "5", label: "★★★★★", count: facetCounts.rating?.[5] },
+      { value: "4", label: "★★★★☆", count: facetCounts.rating?.[4] },
+      { value: "3", label: "★★★☆☆", count: facetCounts.rating?.[3] },
+      { value: "2", label: "★★☆☆☆", count: facetCounts.rating?.[2] },
+      { value: "1", label: "★☆☆☆☆", count: facetCounts.rating?.[1] },
+      { value: "unrated", label: "Unrated", count: facetCounts.rating?.unrated },
+    ],
   });
 
   if (hairColors.length > 0) {

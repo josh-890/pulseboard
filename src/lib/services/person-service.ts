@@ -100,6 +100,7 @@ export type PersonSort =
   | "age-asc"
   | "age-desc"
   | "rating-desc"
+  | "rating-asc"
   | "updated"
   | "completeness-asc"
   | "completeness-desc";
@@ -112,6 +113,10 @@ export type PersonFilters = {
   ethnicity?: string;
   bodyRegions?: string[];
   bodyRegionMatch?: "any" | "all";
+  // Multi-select star rating. Numeric values 1..5 select Persons rated
+  // exactly that many stars. The sentinel string "unrated" selects
+  // Persons with rating IS NULL. Empty array (or undefined) = no filter.
+  ratings?: (number | "unrated")[];
   sort?: PersonSort;
   completeness?: "low" | "medium" | "high";
   birthdateFrom?: Date;
@@ -1716,6 +1721,8 @@ function getPersonOrderBy(sort?: PersonSort): Prisma.PersonOrderByWithRelationIn
       return [{ birthdate: { sort: "asc", nulls: "last" } }];
     case "rating-desc":
       return [{ rating: { sort: "desc", nulls: "last" } }];
+    case "rating-asc":
+      return [{ rating: { sort: "asc", nulls: "last" } }];
     case "updated":
       return [{ createdAt: "desc" }]; // Person has no updatedAt — use createdAt
     case "completeness-asc":
@@ -1732,12 +1739,32 @@ export async function getPersonsPaginated(
   cursor?: string,
   limit = 50,
 ): Promise<PaginatedPersons> {
-  const { q, status, naturalHairColor, bodyType, ethnicity, bodyRegions, sort, birthdateFrom, birthdateTo, createdFrom, createdTo } = filters;
+  const { q, status, naturalHairColor, bodyType, ethnicity, bodyRegions, ratings, sort, birthdateFrom, birthdateTo, createdFrom, createdTo } = filters;
 
   const where: Prisma.PersonWhereInput = {};
 
   if (status && status !== "all") {
     where.status = status;
+  }
+
+  // Multi-select rating filter. Buckets: 1..5 (exact match) + "unrated"
+  // (IS NULL). Translates to `rating IN (...) OR rating IS NULL`
+  // depending on which sentinels are selected.
+  if (ratings && ratings.length > 0) {
+    const numericRatings = ratings.filter((r): r is number => typeof r === "number");
+    const includesUnrated = ratings.includes("unrated");
+    const ratingClauses: Prisma.PersonWhereInput[] = [];
+    if (numericRatings.length > 0) {
+      ratingClauses.push({ rating: { in: numericRatings } });
+    }
+    if (includesUnrated) {
+      ratingClauses.push({ rating: null });
+    }
+    if (ratingClauses.length === 1) {
+      Object.assign(where, ratingClauses[0]);
+    } else if (ratingClauses.length > 1) {
+      where.OR = [...(where.OR ?? []), ...ratingClauses];
+    }
   }
 
   const currentStateWhere: Prisma.PersonCurrentStateWhereInput = {};
@@ -2010,10 +2037,15 @@ export type PersonFacetCounts = {
   naturalHairColor: Record<string, number>;
   bodyType: Record<string, number>;
   ethnicity: Record<string, number>;
+  // Keyed by 1..5 (numeric strings) + "unrated" for null. Each value is
+  // the count of Persons in that bucket under the OTHER current filters
+  // (per the facet-counts pattern: each facet excludes its own selection
+  // so the user always sees what they'd get if they added/removed a bucket).
+  rating: Record<string, number>;
 };
 
 export async function getPersonFacetCounts(filters: Omit<PersonFilters, "sort" | "bodyRegions" | "bodyRegionMatch" | "completeness">): Promise<PersonFacetCounts> {
-  function buildBase(overrides: Partial<Pick<PersonFilters, "status" | "naturalHairColor" | "bodyType" | "ethnicity">> = {}): Prisma.PersonWhereInput {
+  function buildBase(overrides: Partial<Pick<PersonFilters, "status" | "naturalHairColor" | "bodyType" | "ethnicity" | "ratings">> = {}): Prisma.PersonWhereInput {
     const merged = { ...filters, ...overrides };
     const w: Prisma.PersonWhereInput = {};
     if (merged.status && merged.status !== "all") w.status = merged.status;
@@ -2028,6 +2060,15 @@ export async function getPersonFacetCounts(filters: Omit<PersonFilters, "sort" |
       };
     }
     if (Object.keys(cs).length > 0) w.currentState = cs;
+    if (merged.ratings && merged.ratings.length > 0) {
+      const nums = merged.ratings.filter((r): r is number => typeof r === "number");
+      const includesUnrated = merged.ratings.includes("unrated");
+      const clauses: Prisma.PersonWhereInput[] = [];
+      if (nums.length > 0) clauses.push({ rating: { in: nums } });
+      if (includesUnrated) clauses.push({ rating: null });
+      if (clauses.length === 1) Object.assign(w, clauses[0]);
+      else if (clauses.length > 1) w.OR = [...(w.OR ?? []), ...clauses];
+    }
     if (filters.birthdateFrom || filters.birthdateTo) {
       w.birthdate = {
         ...(filters.birthdateFrom ? { gte: filters.birthdateFrom } : {}),
@@ -2052,7 +2093,7 @@ export async function getPersonFacetCounts(filters: Omit<PersonFilters, "sort" |
   // Slice 16C T2: ethnicity facet counts by broad value via ScalarDelta on
   // 'cattr-ethnicity-broad'. The Era→Person join carries the other filters
   // through the existing buildBase() Prisma where on the underlying Person.
-  const [statusGroups, hairGroups, bodyTypeGroups, ethnicityRows] = await Promise.all([
+  const [statusGroups, hairGroups, bodyTypeGroups, ethnicityRows, ratingGroups] = await Promise.all([
     prisma.person.groupBy({ by: ["status"], where: buildBase({ status: undefined }), _count: { _all: true } }),
     prisma.personCurrentState.groupBy({ by: ["currentHairColor"], where: { person: buildBase({ naturalHairColor: undefined }) }, _count: { _all: true } }),
     prisma.personCurrentState.groupBy({ by: ["currentBuild"], where: { person: buildBase({ bodyType: undefined }) }, _count: { _all: true } }),
@@ -2065,6 +2106,7 @@ export async function getPersonFacetCounts(filters: Omit<PersonFilters, "sort" |
       },
       _count: { _all: true },
     }),
+    prisma.person.groupBy({ by: ["rating"], where: buildBase({ ratings: undefined }), _count: { _all: true } }),
   ]);
 
   return {
@@ -2072,5 +2114,8 @@ export async function getPersonFacetCounts(filters: Omit<PersonFilters, "sort" |
     naturalHairColor: Object.fromEntries(hairGroups.filter((r) => r.currentHairColor).map((r) => [r.currentHairColor!, r._count._all])),
     bodyType: Object.fromEntries(bodyTypeGroups.filter((r) => r.currentBuild).map((r) => [r.currentBuild!, r._count._all])),
     ethnicity: Object.fromEntries(ethnicityRows.map((r) => [r.value, r._count._all])),
+    rating: Object.fromEntries(
+      ratingGroups.map((r) => [r.rating === null ? "unrated" : String(r.rating), r._count._all]),
+    ),
   };
 }

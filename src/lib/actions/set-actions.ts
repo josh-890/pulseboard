@@ -621,3 +621,26 @@ export async function mergeSetAction(
     }
   });
 }
+
+// Subjective 1-5 star rating on a Set. Mirrors updatePersonRating. Pass
+// rating=null to clear.
+export async function updateSetRating(
+  setId: string,
+  rating: number | null,
+): Promise<SimpleActionResult> {
+  return withTenantFromHeaders(async () => {
+    try {
+      if (rating !== null && (rating < 1 || rating > 5)) {
+        return { success: false, error: "Rating must be between 1 and 5" };
+      }
+      await prisma.set.update({
+        where: { id: setId },
+        data: { rating },
+      });
+      revalidatePath(`/sets/${setId}`);
+      return { success: true };
+    } catch {
+      return { success: false, error: "Failed to update rating" };
+    }
+  });
+}
