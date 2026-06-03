@@ -24,6 +24,14 @@ import { getPersonResearch } from "@/lib/services/research-service";
 import { getStagingWorkHistoryForPerson } from "@/lib/services/import/staging-set-service";
 import { getEntityTags } from "@/lib/services/entity-tag-service";
 import { getPersonEraContributions } from "@/lib/services/era-service";
+import {
+  getCareerTimeline,
+  getCareerFacetCounts,
+  getCareerChannelsForPerson,
+  getCareerErasForPerson,
+  type CareerSort,
+  type CareerArchiveStatusBucket,
+} from "@/lib/services/career-service";
 import { PersonDetailTabs } from "@/components/people/person-detail-tabs";
 import { computePlausibilityIssues } from "@/lib/services/plausibility-service";
 import { EditPersonSheet } from "@/components/people/edit-person-sheet";
@@ -34,18 +42,70 @@ export const dynamic = "force-dynamic";
 
 type PersonDetailPageProps = {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ tab?: string }>;
+  searchParams: Promise<{
+    tab?: string;
+    ctype?: string;
+    channel?: string;
+    crating?: string;
+    era?: string;
+    archive?: string;
+    csort?: string;
+  }>;
 };
+
+const VALID_CAREER_SORTS = new Set<CareerSort>([
+  "date-desc",
+  "date-asc",
+  "rating-desc",
+  "rating-asc",
+]);
+
+const VALID_ARCHIVE_BUCKETS = new Set<CareerArchiveStatusBucket>([
+  "linked",
+  "unlinked",
+  "missing",
+  "changed",
+]);
 
 export default async function PersonDetailPage({ params, searchParams }: PersonDetailPageProps) {
   return withTenantFromHeaders(async () => {
     const { id } = await params;
-    const { tab: initialTab } = await searchParams;
+    const sp = await searchParams;
+    const initialTab = sp.tab;
+
+    // Parse career-tab URL searchParams. Type defaults to "photo".
+    const ctype = sp.ctype === "video" ? "video" : "photo";
+    const channelIds = sp.channel ? sp.channel.split(",").filter(Boolean) : [];
+    const ratingsRaw = sp.crating ? sp.crating.split(",").filter(Boolean) : [];
+    const activeRatings = ratingsRaw
+      .map((v) => (v === "unrated" ? ("unrated" as const) : parseInt(v, 10)))
+      .filter((v): v is number | "unrated" =>
+        v === "unrated" || (typeof v === "number" && !isNaN(v) && v >= 1 && v <= 5),
+      );
+    const eraIds = sp.era ? sp.era.split(",").filter(Boolean) : [];
+    const archiveStatuses = sp.archive
+      ? (sp.archive.split(",").filter(Boolean) as CareerArchiveStatusBucket[]).filter((v) =>
+          VALID_ARCHIVE_BUCKETS.has(v),
+        )
+      : [];
+    const careerSort: CareerSort =
+      sp.csort && VALID_CAREER_SORTS.has(sp.csort as CareerSort)
+        ? (sp.csort as CareerSort)
+        : "date-desc";
+
+    const careerFilters = {
+      type: ctype as "photo" | "video",
+      channelIds: channelIds.length > 0 ? channelIds : undefined,
+      ratings: activeRatings.length > 0 ? activeRatings : undefined,
+      eraIds: eraIds.length > 0 ? eraIds : undefined,
+      archiveStatuses: archiveStatuses.length > 0 ? archiveStatuses : undefined,
+      sort: careerSort,
+    };
 
   // Ensure system entity categories exist before loading category data
   await ensureEntityCategories();
 
-  const [person, workHistory, connections, profileLabels, refSession, headshots, filledSlots, categoryGroups, populatedCounts, skillGroups, skillLevelConfigs, aliasesWithChannels, sessionWorkHistory, productionSessions, entityMediaMap, physicalAttributeGroups, personEntityTags, digitalIdentities, researchEntries, stagingWorkHistory, eraContributionsMap] =
+  const [person, workHistory, connections, profileLabels, refSession, headshots, filledSlots, categoryGroups, populatedCounts, skillGroups, skillLevelConfigs, aliasesWithChannels, sessionWorkHistory, productionSessions, entityMediaMap, physicalAttributeGroups, personEntityTags, digitalIdentities, researchEntries, stagingWorkHistory, eraContributionsMap, careerTimeline, careerFacetCounts, careerChannels, careerEras] =
     await Promise.all([
       getPersonWithDetails(id),
       getPersonWorkHistory(id),
@@ -68,6 +128,10 @@ export default async function PersonDetailPage({ params, searchParams }: PersonD
       getPersonResearch(id),
       getStagingWorkHistoryForPerson(id),
       getPersonEraContributions(id),
+      getCareerTimeline(id, careerFilters),
+      getCareerFacetCounts(id, careerFilters),
+      getCareerChannelsForPerson(id),
+      getCareerErasForPerson(id),
     ]);
 
   // Flatten Map → Record for client-component serialization.
@@ -198,6 +262,16 @@ export default async function PersonDetailPage({ params, searchParams }: PersonD
         digitalIdentities={digitalIdentities}
         researchEntries={researchEntries}
         stagingWorkHistory={stagingWorkHistory}
+        careerTimeline={careerTimeline}
+        careerFacetCounts={careerFacetCounts}
+        careerChannels={careerChannels}
+        careerEras={careerEras}
+        careerActiveType={ctype as "photo" | "video"}
+        careerActiveChannelIds={channelIds}
+        careerActiveRatings={activeRatings}
+        careerActiveEraIds={eraIds}
+        careerActiveArchiveStatuses={archiveStatuses}
+        careerActiveSort={careerSort}
         eraContributions={eraContributions}
         entityTags={personEntityTags.map((t) => ({
           id: t.id,

@@ -123,6 +123,7 @@ export type {
   FilterGroup,
   PillFilter,
   FacetFilter,
+  MultiFacetFilter,
   ToggleFilter,
   DateRangeFilter,
   TypeaheadFilter,
@@ -731,7 +732,10 @@ function SortDropdown({
 // Multi-select counterpart of FacetDropdown. Popover stays open across
 // clicks; each item toggles inclusion in the comma-separated URL value.
 // Trigger displays "{Label}: N" when one or more options are picked.
-function MultiFacetDropdown({
+//
+// Exported so in-page filter bars (e.g. the Career tab) can compose
+// multifacet dropdowns without using the full BrowserToolbar shell.
+export function MultiFacetDropdown({
   filter,
   selected,
   onToggle,

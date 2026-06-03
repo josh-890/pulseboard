@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { cn, computeAge, formatPartialDate, splitOptionLabel } from "@/lib/utils";
 import { formatMeasurements } from "@/lib/utils/measurements";
 import type { getPersonWithDetails } from "@/lib/services/person-service";
@@ -31,7 +30,6 @@ import {
   BookUser,
   Users,
   Film,
-  Network,
   MapPin,
   Tag,
   Building2,
@@ -52,7 +50,6 @@ import {
   ArrowUpDown,
   Upload,
   ScrollText,
-  Archive,
 } from "lucide-react";
 import NextImage from "next/image";
 import Link from "next/link";
@@ -61,15 +58,12 @@ import { JustifiedGrid } from "@/components/gallery/justified-grid";
 import { GalleryLightbox } from "@/components/gallery/gallery-lightbox";
 import { BatchUploadZone } from "@/components/media/batch-upload-zone";
 import { PersonDetailsTab } from "@/components/people/person-details-tab";
-import { Button } from "@/components/ui/button";
 import { SectionCard, EmptyState, InfoRow } from "@/components/people/person-detail-helpers";
 import { PersonSkillsTab } from "@/components/people/person-skills-tab";
 import { PersonAliasesTab } from "@/components/people/person-aliases-tab";
 import { PersonResearchTab } from "@/components/people/person-research-tab";
 import type { PersonResearchItem } from "@/lib/services/research-service";
-import { CareerSessionList } from "@/components/people/career-session-list";
-import { StagingWorkCard } from "@/components/people/staging-work-card";
-import { CreateKnownSetSheet } from "@/components/staging-sets/create-known-set-sheet";
+import { CareerTab } from "@/components/people/career-tab";
 import { ProductionPhotoList } from "@/components/people/production-photo-list";
 import type { SkillGroupWithDefinitions } from "@/lib/services/skill-catalog-service";
 import type { PersonAliasWithChannels } from "@/lib/services/alias-service";
@@ -125,6 +119,19 @@ type PersonDetailTabsProps = {
   entityTags?: { id: string; name: string; group: { name: string; color: string } }[];
   researchEntries?: PersonResearchItem[];
   stagingWorkHistory?: StagingWorkHistoryItem[];
+  // Career-tab unified timeline data (ADR-0011 forthcoming + plan
+  // `we-keep-freckles-scalar-twinkly-squirrel.md`). Loaded by the page
+  // based on URL searchParams.
+  careerTimeline?: import("@/lib/services/career-service").CareerTimelineRow[];
+  careerFacetCounts?: import("@/lib/services/career-service").CareerFacetCounts;
+  careerChannels?: { id: string; name: string }[];
+  careerEras?: { id: string; label: string }[];
+  careerActiveType?: import("@/generated/prisma/client").SetType;
+  careerActiveChannelIds?: string[];
+  careerActiveRatings?: (number | "unrated")[];
+  careerActiveEraIds?: string[];
+  careerActiveArchiveStatuses?: string[];
+  careerActiveSort?: import("@/lib/services/career-service").CareerSort;
   // ADR-0004 — eraContributions: per-era list of sessions filed into it.
   // Keyed by era id. Loaded by the page via `getPersonEraContributions`.
   eraContributions?: Record<string, EraContributionInfo>;
@@ -1611,141 +1618,10 @@ function OverviewTab({
 }
 
 // ── Career Tab ───────────────────────────────────────────────────────────────
-
-function CareerTab({
-  person,
-  sessionWorkHistory,
-  affiliations,
-  stagingWorkHistory,
-}: {
-  person: PersonData;
-  sessionWorkHistory: PersonSessionWorkEntry[];
-  affiliations: PersonAffiliation[];
-  stagingWorkHistory: StagingWorkHistoryItem[];
-}) {
-  const router = useRouter();
-  const [createKnownSetOpen, setCreateKnownSetOpen] = useState(false);
-
-  // Derive affiliations from session work history
-  const derivedAffiliations = useMemo(() => {
-    if (affiliations.length > 0) return affiliations;
-    const labelMap = new Map<string, PersonAffiliation>();
-    for (const entry of sessionWorkHistory) {
-      if (!entry.labelId || !entry.labelName) continue;
-      const existing = labelMap.get(entry.labelId);
-      if (existing) {
-        existing.setCount++;
-      } else {
-        labelMap.set(entry.labelId, {
-          labelId: entry.labelId,
-          labelName: entry.labelName,
-          setCount: 1,
-        });
-      }
-    }
-    return Array.from(labelMap.values()).sort((a, b) => b.setCount - a.setCount);
-  }, [affiliations, sessionWorkHistory]);
-
-  return (
-    <div className="space-y-6">
-      {/* Professional Summary */}
-      {(person.activeFrom || person.specialization) && (
-        <SectionCard title="Professional" icon={<Briefcase size={18} />}>
-          <dl className="grid grid-cols-1 gap-2 sm:grid-cols-2 text-sm">
-            {person.activeFrom && (
-              <InfoRow label="Active from" value={formatDateDMY(person.activeFrom, person.activeFromPrecision)} />
-            )}
-            {person.retiredAt && (
-              <InfoRow label="Retired" value={formatDateDMY(person.retiredAt, person.retiredAtPrecision)} />
-            )}
-            {person.specialization && (
-              <InfoRow label="Specialization" value={person.specialization} />
-            )}
-          </dl>
-        </SectionCard>
-      )}
-
-      {/* Session Work History */}
-      <SectionCard
-        title="Work History"
-        icon={<Film size={18} />}
-        badge={sessionWorkHistory.length}
-      >
-        {sessionWorkHistory.length === 0 ? (
-          <EmptyState message="No work history recorded." />
-        ) : (
-          <CareerSessionList entries={sessionWorkHistory} />
-        )}
-      </SectionCard>
-
-      {/* Staged Sets */}
-      {stagingWorkHistory.length > 0 && (
-        <SectionCard
-          title="Staged Sets"
-          icon={<Archive size={18} />}
-          badge={stagingWorkHistory.length}
-        >
-          <div className="space-y-3">
-            {stagingWorkHistory.map((entry) => (
-              <StagingWorkCard
-                key={entry.stagingSetId}
-                entry={entry}
-                personId={person.id}
-                personLabel={person.aliases.find((a) => a.isCommon)?.name}
-              />
-            ))}
-          </div>
-        </SectionCard>
-      )}
-
-      {/* Add known set button */}
-      <div>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => setCreateKnownSetOpen(true)}
-          className="gap-1.5"
-        >
-          <Plus size={13} />
-          Add known set
-        </Button>
-      </div>
-
-      <CreateKnownSetSheet
-        open={createKnownSetOpen}
-        onOpenChange={setCreateKnownSetOpen}
-        initialPersonId={person.id}
-        onCreated={() => router.refresh()}
-      />
-
-      {/* Label Affiliations */}
-      <SectionCard
-        title="Label Affiliations"
-        icon={<Network size={18} />}
-        badge={derivedAffiliations.length}
-      >
-        {derivedAffiliations.length === 0 ? (
-          <EmptyState message="No label affiliations." />
-        ) : (
-          <div className="flex flex-wrap gap-2">
-            {derivedAffiliations.map((aff) => (
-              <div
-                key={aff.labelId}
-                className="flex items-center gap-2 rounded-xl border border-white/20 bg-card/50 px-3 py-2"
-              >
-                <Building2 size={14} className="text-muted-foreground" aria-hidden="true" />
-                <span className="text-sm font-medium">{aff.labelName}</span>
-                <span className="rounded-full bg-primary/10 px-1.5 py-0.5 text-xs font-medium text-primary">
-                  {aff.setCount}
-                </span>
-              </div>
-            ))}
-          </div>
-        )}
-      </SectionCard>
-    </div>
-  );
-}
+// The Career tab component is defined in `./career-tab.tsx` (imported above).
+// Previously this file owned the legacy implementation (Work History +
+// Staged Sets as separate sections); the new unified-timeline design lives
+// in the dedicated module so it can be co-evolved without bloating this file.
 
 // ── Network Tab ──────────────────────────────────────────────────────────────
 
@@ -2033,6 +1909,16 @@ export function PersonDetailTabs({
   entityTags = [],
   researchEntries = [],
   stagingWorkHistory = [],
+  careerTimeline = [],
+  careerFacetCounts = { channel: {}, rating: {}, era: {}, archiveStatus: {} },
+  careerChannels = [],
+  careerEras = [],
+  careerActiveType = "photo",
+  careerActiveChannelIds = [],
+  careerActiveRatings = [],
+  careerActiveEraIds = [],
+  careerActiveArchiveStatuses = [],
+  careerActiveSort = "date-desc",
   eraContributions,
 }: PersonDetailTabsProps) {
   const VALID_TABS: Set<string> = useMemo(
@@ -2305,9 +2191,18 @@ export function PersonDetailTabs({
         {activeTab === "career" && (
           <CareerTab
             person={person}
-            sessionWorkHistory={sessionWorkHistory ?? []}
+            careerTimeline={careerTimeline}
+            facetCounts={careerFacetCounts}
+            channels={careerChannels}
+            eras={careerEras}
             affiliations={affiliations}
-            stagingWorkHistory={stagingWorkHistory}
+            activeType={careerActiveType}
+            activeChannelIds={careerActiveChannelIds}
+            activeRatings={careerActiveRatings}
+            activeEraIds={careerActiveEraIds}
+            activeArchiveStatuses={careerActiveArchiveStatuses}
+            activeSort={careerActiveSort}
+            withTint={true}
           />
         )}
       </div>
