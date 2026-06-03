@@ -26,7 +26,15 @@ export function AppShell({ children }: AppShellProps) {
           <MobileDrawer />
           <span className="text-lg font-bold">Pulseboard</span>
         </header>
-        <main className="w-full flex-1 overflow-x-hidden px-4 py-6 md:px-8 md:py-8">
+        {/*
+          `overflow-x: clip` (not `hidden`) prevents horizontal bleed
+          without turning <main> into a CSS scroll container. Per CSS spec,
+          `overflow-x: hidden` implicitly sets `overflow-y: auto`, which
+          would make <main> the containing block for `position: sticky`
+          descendants — breaking sticky year headers etc. since the actual
+          scroll happens on the document.
+        */}
+        <main className="w-full flex-1 overflow-x-clip px-4 py-6 md:px-8 md:py-8">
           {children}
         </main>
       </div>
