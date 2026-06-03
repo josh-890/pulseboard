@@ -130,10 +130,34 @@ export function TimelineSection({
     hoverTimerRef.current = setTimeout(async () => {
       // Guard: cursor may have moved on before timer fires.
       if (lastHoveredKeyRef.current !== key) return;
+      // Position the popover beside the row, clamped to viewport bounds.
+      // Popover is ~420px wide. If the row's right edge + 12px gap would
+      // overflow the right of the viewport, flip the popover to the LEFT
+      // side of the row; if that also overflows, pin to the right viewport
+      // edge with a small margin. Vertical: clamp so the popover doesn't
+      // run off the bottom.
+      const POPOVER_WIDTH = 420;
+      const POPOVER_HEIGHT_ESTIMATE = 400;
+      const MARGIN = 16;
+      const rightOfRow = rect.right + 12;
+      const fitsRight = rightOfRow + POPOVER_WIDTH <= window.innerWidth - MARGIN;
+      const leftOfRow = rect.left - 12 - POPOVER_WIDTH;
+      const fitsLeft = leftOfRow >= MARGIN;
+      let leftPx: number;
+      if (fitsRight) {
+        leftPx = rightOfRow;
+      } else if (fitsLeft) {
+        leftPx = leftOfRow;
+      } else {
+        leftPx = Math.max(MARGIN, window.innerWidth - POPOVER_WIDTH - MARGIN);
+      }
+      const idealTop = rect.top;
+      const maxTop = window.innerHeight - POPOVER_HEIGHT_ESTIMATE - MARGIN;
+      const topPx = Math.max(MARGIN, Math.min(idealTop, maxTop));
       setHoverRow(row);
       setHoverPos({
-        top: rect.top + window.scrollY,
-        left: rect.right + window.scrollX + 12,
+        top: topPx + window.scrollY,
+        left: leftPx + window.scrollX,
       });
       const data = await fetchHoverPreview(row);
       if (lastHoveredKeyRef.current === key) {
