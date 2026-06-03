@@ -154,11 +154,11 @@ export function TimelineSection({
       const idealTop = rect.top;
       const maxTop = window.innerHeight - POPOVER_HEIGHT_ESTIMATE - MARGIN;
       const topPx = Math.max(MARGIN, Math.min(idealTop, maxTop));
+      // The popover uses `position: fixed`, which is viewport-relative
+      // — do NOT add scroll offset. (Previous bug: adding window.scrollY
+      // made the popover drift down as the user scrolled.)
       setHoverRow(row);
-      setHoverPos({
-        top: topPx + window.scrollY,
-        left: leftPx + window.scrollX,
-      });
+      setHoverPos({ top: topPx, left: leftPx });
       const data = await fetchHoverPreview(row);
       if (lastHoveredKeyRef.current === key) {
         setHoverData(data);
