@@ -18,6 +18,22 @@ import type { ParsedSet } from './parser'
 
 const REFRESH_SETTING_KEY = 'matches.lastRefresh'
 
+/**
+ * Whether a recompute should overwrite the cached match fields.
+ *
+ * True only when the matched TARGET changed (including null↔id). When the target
+ * is unchanged we leave matchConfidence/matchDetails alone — this preserves a
+ * user-confirmed match (recorded as matchConfidence=1.0 in the staging panel)
+ * that an unconditional rewrite would otherwise reset to the fuzzy score,
+ * blocking promotion. See the call site for the full rationale.
+ */
+export function matchTargetChanged(
+  cachedMatchId: string | null,
+  newMatchId: string | null,
+): boolean {
+  return cachedMatchId !== newMatchId
+}
+
 // ─── Targeted Refresh ─────────────────────────────────────────────────────
 
 /**
@@ -40,9 +56,9 @@ export async function refreshMatchesForTitle(
   // Find staging sets in same channel (by resolved channelId or by channel name)
   // that aren't already terminal
   const candidates = await prisma.$queryRaw<
-    Array<{ id: string; title: string; externalId: string | null; channelName: string; releaseDate: Date | null }>
+    Array<{ id: string; title: string; externalId: string | null; channelName: string; releaseDate: Date | null; matchedSetId: string | null }>
   >`
-    SELECT id, title, "externalId", "channelName", "releaseDate"
+    SELECT id, title, "externalId", "channelName", "releaseDate", "matchedSetId"
     FROM "StagingSet"
     WHERE status NOT IN ('PROMOTED', 'SKIPPED')
       AND (
@@ -79,6 +95,7 @@ export async function refreshAllMatches(): Promise<number> {
         externalId: true,
         channelName: true,
         releaseDate: true,
+        matchedSetId: true,
       },
       orderBy: { id: 'asc' },
       skip,
@@ -142,6 +159,7 @@ export async function recomputeMatchForStagingSet(id: string): Promise<void> {
       externalId: true,
       channelName: true,
       releaseDate: true,
+      matchedSetId: true,
     },
   })
   if (!ss) return
@@ -153,6 +171,7 @@ export async function recomputeMatchForStagingSet(id: string): Promise<void> {
       externalId: ss.externalId,
       channelName: ss.channelName,
       releaseDate: ss.releaseDate,
+      matchedSetId: ss.matchedSetId,
     },
   ])
 }
@@ -166,6 +185,8 @@ async function recomputeMatchesForSets(
     externalId: string | null
     channelName: string
     releaseDate: Date | null
+    /** Currently cached match target — used to decide whether to overwrite. */
+    matchedSetId: string | null
   }>,
 ): Promise<number> {
   let updated = 0
@@ -192,10 +213,22 @@ async function recomputeMatchesForSets(
 
     const result = await matchSet(parsed)
 
-    // Only update if match state changed
     const newMatchId = result.matchedEntityId ?? null
     const newConfidence = result.matchConfidence ?? null
     const newDetails = result.matchDetails ?? null
+
+    // Only overwrite when the matched TARGET changes. This honors the original
+    // intent ("only update if match state changed") and, crucially, preserves a
+    // user-confirmed match: the staging panel records confirmation by bumping
+    // matchConfidence to 1.0, and the promote route recomputes before the merge
+    // guard reads it. An unconditional rewrite reset that confirmed 1.0 back to
+    // the fuzzy score, making confirmed fuzzy merges impossible to promote
+    // ("Refusing to merge … confidence is 0.95"). Skipping the rewrite for an
+    // unchanged target is safe: guards 1 & 2 in validateCachedMatchForPromote
+    // still catch a deleted target / externalId drift before enriching. When the
+    // target genuinely changes (stale cache — the "Grecian Sirens" case) we
+    // still rewrite, so that protection is intact.
+    if (!matchTargetChanged(ss.matchedSetId, newMatchId)) continue
 
     await prisma.stagingSet.update({
       where: { id: ss.id },
