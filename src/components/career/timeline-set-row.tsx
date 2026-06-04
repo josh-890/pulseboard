@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { Camera, Film, Star } from "lucide-react";
+import { Camera, Film, FolderCheck, FolderX, Star } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   StatusPill,
@@ -11,6 +11,7 @@ import {
   type SetStatus,
 } from "@/components/shared/status-pill";
 import type { CareerTimelineRow } from "@/lib/services/career-service";
+import type { ArchiveStatus } from "@/generated/prisma/client";
 
 // One row in the Career timeline. Date-first / title-second anatomy per
 // the grilling outcome (matches archive folder naming convention reading
@@ -30,6 +31,76 @@ function formatIsoDate(date: Date | null): string {
   const m = String(date.getUTCMonth() + 1).padStart(2, "0");
   const d = String(date.getUTCDate()).padStart(2, "0");
   return `${y}-${m}-${d}`;
+}
+
+// Archive-link indicator pill — mirrors the hero pill style for visual
+// consistency. Three visual states by intent (silent fourth for unlinked):
+//   OK                        → green   "In archive"     (link confirmed + folder healthy)
+//   MISSING/CHANGED/INCOMPLETE → red    specific label   (real operational problem)
+//   PENDING/UNKNOWN           → slate   "Linked"         (linked but not yet validated — neither healthy nor a problem)
+//   unlinked / null           → silent                   (absence of signal carries meaning)
+//
+// Why PENDING/UNKNOWN gets a neutral slate rather than red: red is reserved
+// for states that demand action (folder gone, content drifted, files
+// missing). Marking every freshly-linked-but-unverified row red would cry
+// wolf and dilute the real-problem signal.
+//
+// Color choice: green for OK matches the hero. Problem state uses red
+// (not amber) to avoid color collision with STAGED (amber) — the row's
+// status pill carries amber/emerald and adding amber/green-only for
+// archive would blur the two semantic axes.
+function ArchivePill({
+  archiveStatus,
+  hasArchiveLink,
+}: {
+  archiveStatus: ArchiveStatus | null;
+  hasArchiveLink: boolean;
+}) {
+  if (!hasArchiveLink || archiveStatus === null) return null;
+
+  if (archiveStatus === "OK") {
+    return (
+      <span
+        className="inline-flex items-center gap-1 rounded-full border border-green-500/20 bg-green-500/10 px-2 py-0.5 text-[10px] font-medium text-green-600 dark:text-green-400"
+        title="Archive folder linked and healthy"
+      >
+        <FolderCheck size={10} />
+        In archive
+      </span>
+    );
+  }
+
+  if (archiveStatus === "PENDING" || archiveStatus === "UNKNOWN") {
+    return (
+      <span
+        className="inline-flex items-center gap-1 rounded-full border border-slate-500/20 bg-slate-500/10 px-2 py-0.5 text-[10px] font-medium text-slate-600 dark:text-slate-400"
+        title={
+          archiveStatus === "PENDING"
+            ? "Archive folder linked — validation pending"
+            : "Archive folder linked — state unknown"
+        }
+      >
+        <FolderCheck size={10} />
+        Linked
+      </span>
+    );
+  }
+
+  // MISSING / CHANGED / INCOMPLETE → red problem pill with specific issue.
+  const label: Record<"MISSING" | "CHANGED" | "INCOMPLETE", string> = {
+    MISSING: "Missing",
+    CHANGED: "Changed",
+    INCOMPLETE: "Incomplete",
+  };
+  return (
+    <span
+      className="inline-flex items-center gap-1 rounded-full border border-red-500/20 bg-red-500/10 px-2 py-0.5 text-[10px] font-medium text-red-600 dark:text-red-400"
+      title={`Archive folder: ${label[archiveStatus]}`}
+    >
+      <FolderX size={10} />
+      {label[archiveStatus]}
+    </span>
+  );
 }
 
 function StarsCompact({ rating }: { rating: number | null }) {
@@ -148,6 +219,10 @@ export function TimelineSetRow({
             {row.title}
           </span>
           <StatusPill status={status} />
+          <ArchivePill
+            archiveStatus={row.archiveStatus}
+            hasArchiveLink={row.hasArchiveLink}
+          />
           <StarsCompact rating={row.rating} />
         </div>
       </div>
