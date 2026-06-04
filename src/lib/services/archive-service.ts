@@ -261,17 +261,58 @@ export async function confirmVideoFile(
  * The `path` field is the FULL filesystem path (root + relative) reconstructed
  * from current Settings. Entries whose root is not configured are excluded.
  */
+/**
+ * Build a scan-path entry for a CONFIRMED ArchiveLink, resolving the path to check.
+ *
+ * Precedence: the link's own archivePath → the folder's relativePath → the folder's
+ * absolute fullPath. Legacy links confirmed before the archivePath backfill (commit
+ * c20bf61) have archivePath=null; without the folder-level fallbacks they would be
+ * skipped by the verify scan forever and stay stuck at archiveStatus=UNKNOWN.
+ *
+ * Pure: `toFullPath` (root reconstruction) is injected so this is unit-testable.
+ */
+export function buildArchivePathEntry(
+  link: {
+    id: string
+    archivePath: string | null
+    archiveVideoFilename: string | null
+    archiveFolder: { isVideo: boolean; folderName: string; relativePath: string | null; fullPath: string }
+  },
+  toFullPath: (relativePath: string, isVideo: boolean) => string | null,
+): ArchivePathEntry | null {
+  const isVideo = link.archiveFolder.isVideo
+  const relPath = link.archivePath ?? link.archiveFolder.relativePath
+  let path: string | null
+  let folderName: string
+  if (relPath) {
+    path = toFullPath(relPath, isVideo)
+    folderName = relPath.replace(/[/\\]$/, '').split(/[/\\]/).pop() ?? ''
+  } else {
+    // No relative path on either side — fall back to the folder's absolute path as scanned.
+    path = link.archiveFolder.fullPath || null
+    folderName = link.archiveFolder.folderName
+  }
+  if (!path) return null
+  return {
+    archiveLinkId: link.id,
+    path,
+    isVideo,
+    folderName,
+    confirmedVideoFilename: link.archiveVideoFilename ?? null,
+  }
+}
+
 export async function getArchivePaths(): Promise<ArchivePathEntry[]> {
   const [rawPhotoRoots, rawVideoRoots, links] = await Promise.all([
     getSetting(ARCHIVE_PHOTOSET_ROOT_KEY),
     getSetting(ARCHIVE_VIDEOSET_ROOT_KEY),
     prisma.archiveLink.findMany({
-      where: { status: 'CONFIRMED', archivePath: { not: null } },
+      where: { status: 'CONFIRMED' },
       select: {
         id: true,
         archivePath: true,
         archiveVideoFilename: true,
-        archiveFolder: { select: { isVideo: true, folderName: true } },
+        archiveFolder: { select: { isVideo: true, folderName: true, relativePath: true, fullPath: true } },
       },
     }),
   ])
@@ -287,25 +328,10 @@ export async function getArchivePaths(): Promise<ArchivePathEntry[]> {
     return root.replace(/[/\\]$/, '') + sep + relativePath
   }
 
-  function folderNameFromPath(relativePath: string): string {
-    const trimmed = relativePath.replace(/[/\\]$/, '')
-    const segments = trimmed.split(/[/\\]/)
-    return segments[segments.length - 1] ?? ''
-  }
-
   const results: ArchivePathEntry[] = []
   for (const link of links) {
-    if (!link.archivePath) continue
-    const isVideo = link.archiveFolder.isVideo
-    const fullPath = toFullPath(link.archivePath, isVideo)
-    if (!fullPath) continue
-    results.push({
-      archiveLinkId: link.id,
-      path: fullPath,
-      isVideo,
-      folderName: folderNameFromPath(link.archivePath),
-      confirmedVideoFilename: link.archiveVideoFilename ?? null,
-    })
+    const entry = buildArchivePathEntry(link, toFullPath)
+    if (entry) results.push(entry)
   }
   return results
 }
@@ -327,9 +353,25 @@ export async function ingestScanResults(results: ScanResult[]): Promise<void> {
 
     const current = await prisma.archiveLink.findUnique({
       where: { id: r.archiveLinkId },
-      select: { archiveFileCount: true, archiveVideoFilename: true, setId: true, stagingSetId: true },
+      select: {
+        archiveFileCount: true, archiveVideoFilename: true, archivePath: true,
+        setId: true, stagingSetId: true,
+        archiveFolder: { select: { isVideo: true, relativePath: true, fullPath: true } },
+      },
     })
     if (!current) continue
+
+    // Backfill archivePath for legacy null-path links (confirmed before commit
+    // c20bf61). The verify scan can now reach them (see buildArchivePathEntry),
+    // but without persisting a path the set-detail panel's `hasPath` check stays
+    // false. Mirror the relativePath → fullPath precedence used on manual confirm.
+    let archivePathBackfill: string | undefined
+    if (current.archivePath == null) {
+      archivePathBackfill =
+        current.archiveFolder.relativePath
+        ?? (await _computeRelativePath(current.archiveFolder.fullPath, current.archiveFolder.isVideo))
+        ?? current.archiveFolder.fullPath
+    }
 
     const prevCount = current.archiveFileCount ?? null
     const derivedStatus: ArchiveStatus =
@@ -351,6 +393,7 @@ export async function ingestScanResults(results: ScanResult[]): Promise<void> {
         archiveVideoPresent: videoPresent,
         archiveVideoFiles: r.videoFiles != null ? JSON.stringify(r.videoFiles) : undefined,
         archiveVideoFilename: videoFilename,
+        ...(archivePathBackfill !== undefined ? { archivePath: archivePathBackfill } : {}),
         ...(derivedStatus === 'OK' ? { lastVerifiedAt: now } : {}),
       },
     })
