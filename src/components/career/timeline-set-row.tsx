@@ -165,6 +165,11 @@ export function TimelineSetRow({
   // a `+N` overflow chip.
   const hasParticipantLine = row.participants.length > 0;
 
+  // Sample thumbnail strip: populated server-side for promoted photo
+  // sets only (videos and staged sets have an empty array). Hidden on
+  // narrow viewports — the cluster on the left is the priority there.
+  const hasSampleStrip = row.sampleThumbnails.length > 0;
+
   return (
     <Link
       href={href}
@@ -258,6 +263,38 @@ export function TimelineSetRow({
           </div>
         )}
       </div>
+
+      {/* Sample thumbnail strip — promoted photo sets only. Inspired by
+          the Production Photos pattern in the Photos tab: each tile is
+          h-16, width by aspect ratio. Hidden below `lg` so narrow
+          viewports keep the cluster legible. */}
+      {hasSampleStrip && (
+        <div className="ml-auto hidden shrink-0 gap-1 lg:flex">
+          {row.sampleThumbnails.map((thumb) => {
+            const w =
+              thumb.height > 0
+                ? Math.round((thumb.width / thumb.height) * 64)
+                : 64;
+            return (
+              <div
+                key={thumb.mediaItemId}
+                className="h-16 overflow-hidden rounded border border-white/10 bg-muted/40"
+                style={{ width: w || 64 }}
+              >
+                <Image
+                  src={thumb.url}
+                  alt=""
+                  width={w || 64}
+                  height={64}
+                  className="h-full w-full object-cover"
+                  unoptimized
+                  loading="lazy"
+                />
+              </div>
+            );
+          })}
+        </div>
+      )}
     </Link>
   );
 }

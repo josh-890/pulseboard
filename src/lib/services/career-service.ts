@@ -16,6 +16,8 @@ import type {
   Prisma,
 } from "@/generated/prisma/client";
 import { getCoverPhotosForSets } from "@/lib/services/media-service";
+import { buildUrl } from "@/lib/media-url";
+import type { PhotoVariants } from "@/lib/types/photo";
 
 // ─── Filter spec ─────────────────────────────────────────────────────────
 
@@ -56,6 +58,18 @@ export type CareerRowParticipant = {
   commonAlias: string;
 };
 
+// Sample thumbnail surfaced on a promoted-photo row's right side. Borrows
+// the SessionThumbnail shape from the Production Photos pattern: URL plus
+// natural dimensions so the row can size each tile by aspect ratio.
+export type CareerRowSampleThumbnail = {
+  mediaItemId: string;
+  url: string;
+  width: number;
+  height: number;
+};
+
+const MAX_SAMPLE_THUMBNAILS = 4;
+
 type CareerTimelineRowBase = {
   title: string;
   releaseDate: Date | null;
@@ -70,6 +84,10 @@ type CareerTimelineRowBase = {
   eraId: string | null;
   participants: CareerRowParticipant[];
   extraParticipantCount: number;
+  // Up to 4 sample thumbnails. Populated for promoted photo sets only —
+  // promoted videos and staged sets carry an empty array (the row's
+  // 60×80 cover already represents the set).
+  sampleThumbnails: CareerRowSampleThumbnail[];
 };
 
 const MAX_VISIBLE_PARTICIPANTS = 5;
@@ -210,6 +228,11 @@ async function getPromotedRowsForPerson(
   // visible 5 are stable across renders.
   const participantsBySetId = await fetchParticipantsForSets(setIds, personId);
 
+  // Step 5: sample thumbnails for photo sets (up to MAX_SAMPLE_THUMBNAILS
+  // per set). Promoted videos and staged sets render with the cover only.
+  const photoSetIds = sets.filter((s) => s.type === "photo").map((s) => s.id);
+  const sampleThumbsBySetId = await fetchSampleThumbsForSets(photoSetIds);
+
   return sets.map((s) => {
     const participantInfo = participantsBySetId.get(s.id) ?? {
       participants: [],
@@ -232,8 +255,59 @@ async function getPromotedRowsForPerson(
       eraId: eraBySetId.get(s.id) ?? null,
       participants: participantInfo.participants,
       extraParticipantCount: participantInfo.extraParticipantCount,
+      sampleThumbnails: sampleThumbsBySetId.get(s.id) ?? [],
     };
   });
+}
+
+// Batched sample-thumbnail fetch. Walks SetMediaItem ordered by sortOrder
+// for the supplied setIds and groups in JS, keeping the first
+// MAX_SAMPLE_THUMBNAILS items per set. URLs are resolved from the
+// gallery_512 variant when present, falling back to the original then the
+// raw fileRef — same pattern the (deleted) hover-preview service used.
+async function fetchSampleThumbsForSets(
+  setIds: string[],
+): Promise<Map<string, CareerRowSampleThumbnail[]>> {
+  if (setIds.length === 0) return new Map();
+  const rows = await prisma.setMediaItem.findMany({
+    where: { setId: { in: setIds } },
+    orderBy: [{ setId: "asc" }, { sortOrder: "asc" }],
+    select: {
+      setId: true,
+      mediaItem: {
+        select: {
+          id: true,
+          variants: true,
+          fileRef: true,
+          originalWidth: true,
+          originalHeight: true,
+        },
+      },
+    },
+  });
+
+  const map = new Map<string, CareerRowSampleThumbnail[]>();
+  for (const row of rows) {
+    const existing = map.get(row.setId) ?? [];
+    if (existing.length >= MAX_SAMPLE_THUMBNAILS) continue;
+    const variants = (row.mediaItem.variants ?? {}) as PhotoVariants;
+    const url = variants.gallery_512
+      ? buildUrl(variants.gallery_512)
+      : variants.original
+        ? buildUrl(variants.original)
+        : row.mediaItem.fileRef
+          ? buildUrl(row.mediaItem.fileRef)
+          : null;
+    if (!url) continue;
+    existing.push({
+      mediaItemId: row.mediaItem.id,
+      url,
+      width: row.mediaItem.originalWidth,
+      height: row.mediaItem.originalHeight,
+    });
+    map.set(row.setId, existing);
+  }
+  return map;
 }
 
 // Batched fetch: for each setId, returns the up-to-5 co-participants
@@ -431,6 +505,7 @@ async function getStagedRowsForPerson(
       eraId: null,
       participants: visible,
       extraParticipantCount: overflow,
+      sampleThumbnails: [],
     };
   });
 }
