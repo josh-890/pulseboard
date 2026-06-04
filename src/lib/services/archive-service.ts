@@ -11,6 +11,7 @@
 import { randomUUID } from 'crypto'
 import { prisma } from '@/lib/db'
 import { getSetting, setSetting } from '@/lib/services/setting-service'
+import { normalizeForSearch } from '@/lib/normalize'
 import { ArchiveLinkStatus, Prisma } from '@/generated/prisma/client'
 import type { ArchiveStatus } from '@/generated/prisma/client'
 
@@ -20,6 +21,155 @@ export const ARCHIVE_PHOTOSET_ROOT_KEY = 'archive.photosetRoot'
 export const ARCHIVE_VIDEOSET_ROOT_KEY = 'archive.videosetRoot'
 export const ARCHIVE_LAST_SCAN_KEY = 'archive.lastScan'
 export const ARCHIVE_LAST_SCAN_SUMMARY_KEY = 'archive.lastScanSummary'
+
+// ─── Archive match scoring ──────────────────────────────────────────────────
+//
+// As the archive grows, more folders share the coarse key the matcher keys on
+// (releaseDate + channel shortName + isVideo). Title similarity alone (top-1, no
+// floor) produced confident false positives. The canonical folder name encodes
+// the participant — `YYYY-MM-DD-CODE Person - Title` — which is a strong
+// disambiguator, so we factor a person-name match in alongside a title floor.
+
+/** Title trigram floor to suggest at HIGH confidence on title alone. */
+export const HIGH_TITLE_THRESHOLD = 0.6
+/** Title trigram floor for a MEDIUM suggestion. */
+export const MEDIUM_TITLE_THRESHOLD = 0.4
+
+/**
+ * Extract the participant (person) segment from a canonical archive folder name
+ * `YYYY-MM-DD-CODE Person - Title`, returning it normalized (normalizeForSearch),
+ * or null when the name isn't in canonical form. Mirrors Parse-FolderName
+ * Pattern 1 in scripts/archive-scan.ps1 (group 3, the person).
+ */
+export function parseFolderParticipant(folderName: string): string | null {
+  const m = folderName.match(/^\d{4}-\d{2}-\d{2}-[A-Za-z0-9]+\s+(.+?)\s+[-–—]\s+.+$/)
+  if (!m || !m[1]) return null
+  const norm = normalizeForSearch(m[1])
+  return norm || null
+}
+
+function _nameTokens(s: string): string[] {
+  return s.split(/[^a-z0-9]+/i).filter(Boolean)
+}
+
+/**
+ * Whether the folder's (normalized) person segment matches any of the entity's
+ * participant name-norms. Matches on full equality or a token-subset either way,
+ * so "anna y" matches "anna-y" and a single-name alias "anna". Tolerant by design:
+ * the folder person may be an alias not listed under the common name, and may not
+ * be a recorded alias at all (then it simply doesn't match — never excludes).
+ */
+export function folderPersonMatches(folderPersonNorm: string | null, entityNameNorms: string[]): boolean {
+  if (!folderPersonNorm) return false
+  const fTokens = _nameTokens(folderPersonNorm)
+  if (fTokens.length === 0) return false
+  const fSet = new Set(fTokens)
+  for (const n of entityNameNorms) {
+    if (!n) continue
+    if (n === folderPersonNorm) return true
+    const nTokens = _nameTokens(n)
+    if (nTokens.length === 0) continue
+    const nSet = new Set(nTokens)
+    if (fTokens.every((t) => nSet.has(t)) || nTokens.every((t) => fSet.has(t))) return true
+  }
+  return false
+}
+
+export type ArchiveMatchConfidence = 'HIGH' | 'MEDIUM' | null
+
+/**
+ * Gate an archive folder↔entity candidate to a suggestion confidence.
+ *
+ * A participant-name match is the strongest signal and lifts to HIGH even when
+ * the title barely matches (the folder person may not be a recorded alias yet,
+ * and titles drift). Absent a name match we fall back to title trigram
+ * similarity. Below the MEDIUM floor with no name match → no suggestion — this
+ * is what kills the "any same date+channel set" false positives.
+ */
+export function scoreArchiveMatch(args: { titleSim: number; nameMatch: boolean }): ArchiveMatchConfidence {
+  if (args.nameMatch) return 'HIGH'
+  if (args.titleSim >= HIGH_TITLE_THRESHOLD) return 'HIGH'
+  if (args.titleSim >= MEDIUM_TITLE_THRESHOLD) return 'MEDIUM'
+  return null
+}
+
+/** A scored candidate considered for a SUGGESTED archive link. */
+export type ScoredArchiveCandidate = {
+  id: string
+  titleSim: number
+  nameMatch: boolean
+  /** Exact release-date == folder date match (preferred tiebreaker over the year window). */
+  isExactDay: boolean
+}
+
+/**
+ * Pick the best candidate: highest confidence, then exact-day over year-window,
+ * then highest title similarity. Returns null when none clears the gate.
+ */
+export function pickBestArchiveCandidate(
+  candidates: ScoredArchiveCandidate[],
+): { id: string; confidence: 'HIGH' | 'MEDIUM' } | null {
+  let best: { id: string; confidence: 'HIGH' | 'MEDIUM'; rank: number; exact: number; sim: number } | null = null
+  for (const c of candidates) {
+    const conf = scoreArchiveMatch({ titleSim: c.titleSim, nameMatch: c.nameMatch })
+    if (!conf) continue
+    const rank = conf === 'HIGH' ? 1 : 0
+    const exact = c.isExactDay ? 1 : 0
+    if (
+      !best ||
+      rank > best.rank ||
+      (rank === best.rank && exact > best.exact) ||
+      (rank === best.rank && exact === best.exact && c.titleSim > best.sim)
+    ) {
+      best = { id: c.id, confidence: conf, rank, exact, sim: c.titleSim }
+    }
+  }
+  return best ? { id: best.id, confidence: best.confidence } : null
+}
+
+/** Split a comma-joined participantNamesNorm into individual normalized names. */
+function _splitNamesNorm(participantNamesNorm: string | null): string[] {
+  if (!participantNamesNorm) return []
+  return participantNamesNorm.split(',').map((s) => s.trim()).filter(Boolean)
+}
+
+/** Map ICG ID → all alias name-norms, for resolving staging participants to known aliases. */
+async function _aliasNormsByIcgId(icgIds: string[]): Promise<Map<string, string[]>> {
+  const ids = [...new Set(icgIds.filter(Boolean))]
+  const map = new Map<string, string[]>()
+  if (ids.length === 0) return map
+  const rows = await prisma.personAlias.findMany({
+    where: { nameNorm: { not: null }, person: { icgId: { in: ids } } },
+    select: { nameNorm: true, person: { select: { icgId: true } } },
+  })
+  for (const r of rows) {
+    if (!r.nameNorm) continue
+    const arr = map.get(r.person.icgId) ?? []
+    arr.push(r.nameNorm)
+    map.set(r.person.icgId, arr)
+  }
+  return map
+}
+
+/** Map Set ID → all participant alias name-norms (via SetParticipant → person → aliases). */
+async function _aliasNormsBySetId(setIds: string[]): Promise<Map<string, string[]>> {
+  const ids = [...new Set(setIds)]
+  const map = new Map<string, string[]>()
+  if (ids.length === 0) return map
+  const rows = await prisma.setParticipant.findMany({
+    where: { setId: { in: ids } },
+    select: {
+      setId: true,
+      person: { select: { aliases: { where: { nameNorm: { not: null } }, select: { nameNorm: true } } } },
+    },
+  })
+  for (const r of rows) {
+    const arr = map.get(r.setId) ?? []
+    for (const a of r.person.aliases) if (a.nameNorm) arr.push(a.nameNorm)
+    map.set(r.setId, arr)
+  }
+  return map
+}
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -1245,182 +1395,128 @@ export async function runMatchingPass(
       }
     }
 
-    // Step 1 (HIGH confidence): exact parsedDate + exact parsedShortName → suggestion
-    if (folder.parsedDate && folder.parsedShortName) {
-      const dateStart = new Date(folder.parsedDate)
-      dateStart.setHours(0, 0, 0, 0)
-      const dateEnd = new Date(dateStart)
-      dateEnd.setDate(dateEnd.getDate() + 1)
+    // Person-aware match: search the channel+year window (folder date ± same year),
+    // score every candidate by participant-name match and title trigram similarity,
+    // and only suggest when the gate clears (see scoreArchiveMatch). The folder
+    // person comes from the canonical folder name and disambiguates same-day
+    // collisions; absent it we fall back to a title floor.
+    if (!folder.parsedDate || !folder.parsedShortName) continue
 
-      // Try staging sets first (skip PROMOTED + SKIPPED; skip sets already claimed by a different folder)
-      // When parsedTitle is available, pick the best title-similarity match to avoid wrong-person
-      // assignments on channels that publish multiple sets on the same date (e.g. MetArt).
-      type StagingIdRow = { id: string }
-      let stagingCandidateId: string | null = null
+    const dateStart = new Date(folder.parsedDate)
+    dateStart.setHours(0, 0, 0, 0)
+    const dateEnd = new Date(dateStart)
+    dateEnd.setDate(dateEnd.getDate() + 1)
+    const year = folder.parsedDate.getFullYear()
+    const ptNorm = folder.parsedTitle ? normalizeForSearch(folder.parsedTitle) : ''
+    const folderPersonNorm = parseFolderParticipant(folder.folderName)
 
-      if (folder.parsedTitle) {
-        const folderIsVideo = folder.isVideo
-        const rows = await prisma.$queryRaw<StagingIdRow[]>`
-          SELECT ss.id
-          FROM staging_set ss
-          JOIN "Channel" c ON c.id = ss."channelId"
-          WHERE ss."releaseDate" >= ${dateStart} AND ss."releaseDate" < ${dateEnd}
-            AND LOWER(c."shortName") = LOWER(${folder.parsedShortName})
-            AND ss."isVideo" = ${folderIsVideo}
-            AND ss.status NOT IN ('PROMOTED', 'SKIPPED')
-            AND NOT EXISTS (
-              SELECT 1 FROM "ArchiveLink" al
-              WHERE al."stagingSetId" = ss.id
-                AND al.status IN ('CONFIRMED', 'SUGGESTED')
-                AND al."archiveFolderId" <> ${folder.id}
-            )
-          ORDER BY similarity(${folder.parsedTitle}, ss."titleNorm") DESC
-          LIMIT 1
-        `
-        if (rows.length > 0 && rows[0]) stagingCandidateId = rows[0].id
-      } else {
-        const rows = await prisma.stagingSet.findMany({
-          where: {
-            releaseDate: { gte: dateStart, lt: dateEnd },
-            channel: { shortName: { equals: folder.parsedShortName, mode: 'insensitive' } },
-            isVideo: folder.isVideo,
-            status: { notIn: ['PROMOTED', 'SKIPPED'] },
-            archiveLinks: { none: { status: { in: [ArchiveLinkStatus.CONFIRMED, ArchiveLinkStatus.SUGGESTED] } } },
-          },
-          select: { id: true },
-          take: 1,
-        })
-        if (rows.length > 0) stagingCandidateId = rows[0].id
-      }
+    // ── Staging sets first ──
+    type StagingCandRow = {
+      id: string
+      sim: number
+      is_exact_day: boolean
+      participant_names_norm: string | null
+      participant_icg_ids: string[]
+    }
+    const stagingCands = await prisma.$queryRaw<StagingCandRow[]>`
+      SELECT ss.id,
+             similarity(${ptNorm}, ss."titleNorm") AS sim,
+             (ss."releaseDate" >= ${dateStart} AND ss."releaseDate" < ${dateEnd}) AS is_exact_day,
+             ss."participantNamesNorm" AS participant_names_norm,
+             ss."participantIcgIds" AS participant_icg_ids
+      FROM staging_set ss
+      JOIN "Channel" c ON c.id = ss."channelId"
+      WHERE LOWER(c."shortName") = LOWER(${folder.parsedShortName})
+        AND EXTRACT(YEAR FROM ss."releaseDate") = ${year}
+        AND ss."isVideo" = ${folder.isVideo}
+        AND ss.status NOT IN ('PROMOTED', 'SKIPPED')
+        AND NOT EXISTS (
+          SELECT 1 FROM "ArchiveLink" al
+          WHERE al."stagingSetId" = ss.id
+            AND al.status IN ('CONFIRMED', 'SUGGESTED')
+            AND al."archiveFolderId" <> ${folder.id}
+        )
+        AND (
+          (ss."releaseDate" >= ${dateStart} AND ss."releaseDate" < ${dateEnd})
+          OR similarity(${ptNorm}, ss."titleNorm") >= ${MEDIUM_TITLE_THRESHOLD}
+        )
+      ORDER BY is_exact_day DESC, sim DESC
+      LIMIT 50
+    `
 
-      if (stagingCandidateId) {
+    if (stagingCands.length > 0) {
+      const aliasByIcg = await _aliasNormsByIcgId(stagingCands.flatMap((c) => c.participant_icg_ids ?? []))
+      const scored: ScoredArchiveCandidate[] = stagingCands.map((c) => {
+        const names = [
+          ..._splitNamesNorm(c.participant_names_norm),
+          ...(c.participant_icg_ids ?? []).flatMap((icg) => aliasByIcg.get(icg) ?? []),
+        ]
+        return {
+          id: c.id,
+          titleSim: Number(c.sim) || 0,
+          nameMatch: folderPersonMatches(folderPersonNorm, names),
+          isExactDay: c.is_exact_day === true,
+        }
+      })
+      const best = pickBestArchiveCandidate(scored)
+      if (best) {
         await prisma.archiveLink.upsert({
           where: { archiveFolderId: folder.id },
-          create: { archiveFolderId: folder.id, stagingSetId: stagingCandidateId, status: 'SUGGESTED', confidence: 'HIGH', tenant },
-          update: { stagingSetId: stagingCandidateId, setId: null, status: 'SUGGESTED', confidence: 'HIGH' },
+          create: { archiveFolderId: folder.id, stagingSetId: best.id, status: 'SUGGESTED', confidence: best.confidence, tenant },
+          update: { stagingSetId: best.id, setId: null, status: 'SUGGESTED', confidence: best.confidence },
         })
-        // Remove any other SUGGESTED links that were previously pointing to the same staging set
-        // from a different folder — prevents accumulation across multiple matching passes.
         await prisma.archiveLink.deleteMany({
-          where: { stagingSetId: stagingCandidateId, status: ArchiveLinkStatus.SUGGESTED, archiveFolderId: { not: folder.id } },
+          where: { stagingSetId: best.id, status: ArchiveLinkStatus.SUGGESTED, archiveFolderId: { not: folder.id } },
         })
         suggested++
         continue
-      }
-
-      // Try promoted sets — order by title similarity when parsedTitle is available
-      type SetIdRow = { id: string }
-      const folderIsVideo = folder.isVideo
-      const setTypeStr = folderIsVideo ? 'video' : 'photo'
-      let setMatch: SetIdRow | null = null
-
-      if (folder.parsedTitle) {
-        const rows = await prisma.$queryRaw<SetIdRow[]>`
-          SELECT s.id
-          FROM "Set" s
-          JOIN "Channel" c ON c.id = s."channelId"
-          WHERE s."releaseDate" >= ${dateStart} AND s."releaseDate" < ${dateEnd}
-            AND LOWER(c."shortName") = LOWER(${folder.parsedShortName})
-            AND s.type = ${setTypeStr}::"SetType"
-            AND NOT EXISTS (
-              SELECT 1 FROM "ArchiveLink" al
-              WHERE al."setId" = s.id AND al.status = 'CONFIRMED'
-            )
-          ORDER BY similarity(${folder.parsedTitle}, s."titleNorm") DESC
-          LIMIT 1
-        `
-        setMatch = rows[0] ?? null
-      } else {
-        const rows = await prisma.set.findMany({
-          where: {
-            releaseDate: { gte: dateStart, lt: dateEnd },
-            channel: { shortName: { equals: folder.parsedShortName, mode: 'insensitive' } },
-            type: folder.isVideo ? 'video' : 'photo',
-            archiveLinks: { none: { status: ArchiveLinkStatus.CONFIRMED } },
-          },
-          select: { id: true },
-          take: 1,
-        })
-        setMatch = rows[0] ?? null
-      }
-
-      if (setMatch) {
-        // Dedup: skip if this set already has a SUGGESTED ArchiveLink from another folder
-        const alreadyClaimed = await prisma.archiveLink.findFirst({
-          where: { setId: setMatch.id, status: 'SUGGESTED', archiveFolderId: { not: folder.id } },
-          select: { id: true },
-        })
-        if (!alreadyClaimed) {
-          await prisma.archiveLink.upsert({
-            where: { archiveFolderId: folder.id },
-            create: { archiveFolderId: folder.id, setId: setMatch.id, status: 'SUGGESTED', confidence: 'HIGH', tenant },
-            update: { setId: setMatch.id, stagingSetId: null, status: 'SUGGESTED', confidence: 'HIGH' },
-          })
-          suggested++
-          continue
-        }
       }
     }
 
-    // Step 2 (MEDIUM confidence): same year + same shortName + title trigram similarity ≥ 0.4
-    if (folder.parsedDate && folder.parsedShortName && folder.parsedTitle) {
-      const year = folder.parsedDate.getFullYear()
-      type SimilarityRow = { id: string; sim: number }
+    // ── Promoted sets ──
+    const setTypeStr = folder.isVideo ? 'video' : 'photo'
+    type SetCandRow = { id: string; sim: number; is_exact_day: boolean }
+    const setCands = await prisma.$queryRaw<SetCandRow[]>`
+      SELECT s.id,
+             similarity(${ptNorm}, s."titleNorm") AS sim,
+             (s."releaseDate" >= ${dateStart} AND s."releaseDate" < ${dateEnd}) AS is_exact_day
+      FROM "Set" s
+      JOIN "Channel" c ON c.id = s."channelId"
+      WHERE LOWER(c."shortName") = LOWER(${folder.parsedShortName})
+        AND EXTRACT(YEAR FROM s."releaseDate") = ${year}
+        AND s.type = ${setTypeStr}::"SetType"
+        AND NOT EXISTS (
+          SELECT 1 FROM "ArchiveLink" al
+          WHERE al."setId" = s.id
+            AND (al.status = 'CONFIRMED' OR (al.status = 'SUGGESTED' AND al."archiveFolderId" <> ${folder.id}))
+        )
+        AND (
+          (s."releaseDate" >= ${dateStart} AND s."releaseDate" < ${dateEnd})
+          OR similarity(${ptNorm}, s."titleNorm") >= ${MEDIUM_TITLE_THRESHOLD}
+        )
+      ORDER BY is_exact_day DESC, sim DESC
+      LIMIT 50
+    `
 
-      const folderIsVideoMedium = folder.isVideo
-      const stagingMedium = await prisma.$queryRaw<SimilarityRow[]>`
-        SELECT ss.id, similarity(${folder.parsedTitle}, ss."titleNorm") AS sim
-        FROM staging_set ss
-        JOIN "Channel" c ON c.id = ss."channelId"
-        WHERE LOWER(c."shortName") = LOWER(${folder.parsedShortName})
-          AND EXTRACT(YEAR FROM ss."releaseDate") = ${year}
-          AND ss."isVideo" = ${folderIsVideoMedium}
-          AND ss.status NOT IN ('PROMOTED', 'SKIPPED')
-          AND NOT EXISTS (SELECT 1 FROM "ArchiveLink" al WHERE al."stagingSetId" = ss.id AND al.status IN ('CONFIRMED', 'SUGGESTED'))
-          AND similarity(${folder.parsedTitle}, ss."titleNorm") >= 0.4
-        ORDER BY sim DESC
-        LIMIT 1
-      `
-      if (stagingMedium.length > 0 && stagingMedium[0]) {
+    if (setCands.length > 0) {
+      const namesBySet = await _aliasNormsBySetId(setCands.map((c) => c.id))
+      const scored: ScoredArchiveCandidate[] = setCands.map((c) => ({
+        id: c.id,
+        titleSim: Number(c.sim) || 0,
+        nameMatch: folderPersonMatches(folderPersonNorm, namesBySet.get(c.id) ?? []),
+        isExactDay: c.is_exact_day === true,
+      }))
+      const best = pickBestArchiveCandidate(scored)
+      if (best) {
         await prisma.archiveLink.upsert({
           where: { archiveFolderId: folder.id },
-          create: { archiveFolderId: folder.id, stagingSetId: stagingMedium[0].id, status: 'SUGGESTED', confidence: 'MEDIUM', tenant },
-          update: { stagingSetId: stagingMedium[0].id, setId: null, status: 'SUGGESTED', confidence: 'MEDIUM' },
+          create: { archiveFolderId: folder.id, setId: best.id, status: 'SUGGESTED', confidence: best.confidence, tenant },
+          update: { setId: best.id, stagingSetId: null, status: 'SUGGESTED', confidence: best.confidence },
         })
-        // Remove any other SUGGESTED links previously pointing to the same staging set from a different folder
         await prisma.archiveLink.deleteMany({
-          where: { stagingSetId: stagingMedium[0].id, status: ArchiveLinkStatus.SUGGESTED, archiveFolderId: { not: folder.id } },
+          where: { setId: best.id, status: ArchiveLinkStatus.SUGGESTED, archiveFolderId: { not: folder.id } },
         })
         suggested++
-        continue
-      }
-
-      const setTypeFilter = folder.isVideo ? 'video' : 'photo'
-      const setMedium = await prisma.$queryRaw<SimilarityRow[]>`
-        SELECT s.id, similarity(${folder.parsedTitle}, s."titleNorm") AS sim
-        FROM "Set" s
-        JOIN "Channel" c ON c.id = s."channelId"
-        WHERE LOWER(c."shortName") = LOWER(${folder.parsedShortName})
-          AND EXTRACT(YEAR FROM s."releaseDate") = ${year}
-          AND s.type = ${setTypeFilter}::"SetType"
-          AND NOT EXISTS (SELECT 1 FROM "ArchiveLink" al WHERE al."setId" = s.id AND al.status = 'CONFIRMED')
-          AND similarity(${folder.parsedTitle}, s."titleNorm") >= 0.4
-        ORDER BY sim DESC
-        LIMIT 1
-      `
-      if (setMedium.length > 0 && setMedium[0]) {
-        const alreadyClaimed = await prisma.archiveLink.findFirst({
-          where: { setId: setMedium[0].id, status: 'SUGGESTED', archiveFolderId: { not: folder.id } },
-          select: { id: true },
-        })
-        if (!alreadyClaimed) {
-          await prisma.archiveLink.upsert({
-            where: { archiveFolderId: folder.id },
-            create: { archiveFolderId: folder.id, setId: setMedium[0].id, status: 'SUGGESTED', confidence: 'MEDIUM', tenant },
-            update: { setId: setMedium[0].id, stagingSetId: null, status: 'SUGGESTED', confidence: 'MEDIUM' },
-          })
-          suggested++
-        }
       }
     }
   }
@@ -1455,6 +1551,7 @@ export async function runMatchingPassForItem(
   let shortName: string | null = null
   let titleNorm: string | null = null
   let alreadyConfirmed = false
+  let entityNameNorms: string[] = []
 
   if (type === 'staging') {
     const ss = await prisma.stagingSet.findUnique({
@@ -1463,6 +1560,8 @@ export async function runMatchingPassForItem(
         releaseDate: true,
         isVideo: true,
         titleNorm: true,
+        participantNamesNorm: true,
+        participantIcgIds: true,
         channel: { select: { shortName: true } },
         archiveLinks: { where: { status: 'CONFIRMED' }, select: { id: true }, take: 1 },
       },
@@ -1473,6 +1572,11 @@ export async function runMatchingPassForItem(
     isVideo = ss.isVideo
     shortName = ss.channel?.shortName ?? null
     titleNorm = ss.titleNorm ?? null
+    const aliasByIcg = await _aliasNormsByIcgId(ss.participantIcgIds ?? [])
+    entityNameNorms = [
+      ..._splitNamesNorm(ss.participantNamesNorm),
+      ...(ss.participantIcgIds ?? []).flatMap((icg) => aliasByIcg.get(icg) ?? []),
+    ]
   } else {
     const set = await prisma.set.findUnique({
       where: { id },
@@ -1490,6 +1594,7 @@ export async function runMatchingPassForItem(
     isVideo = set.type === 'video'
     shortName = set.channel?.shortName ?? null
     titleNorm = set.titleNorm ?? null
+    entityNameNorms = (await _aliasNormsBySetId([id])).get(id) ?? []
   }
 
   if (alreadyConfirmed || !releaseDate || !shortName) return { matched: false }
@@ -1505,103 +1610,61 @@ export async function runMatchingPassForItem(
   dateStart.setHours(0, 0, 0, 0)
   const dateEnd = new Date(dateStart)
   dateEnd.setDate(dateEnd.getDate() + 1)
+  const year = releaseDate.getFullYear()
+  const titleCmp = titleNorm ?? ''
 
-  type FolderRow = { id: string }
+  // Score candidate folders in the channel+year window by participant-name match
+  // (folder name carries the person) and title trigram similarity; gate via
+  // scoreArchiveMatch so a same-date collision with a different person/title is
+  // no longer auto-suggested as HIGH.
+  type FolderCandRow = { id: string; folder_name: string; sim: number; is_exact_day: boolean }
+  const rows = await prisma.$queryRaw<FolderCandRow[]>`
+    SELECT af.id,
+           af."folderName" AS folder_name,
+           similarity(${titleCmp}, COALESCE(af."parsedTitle", '')) AS sim,
+           (af."parsedDate" >= ${dateStart} AND af."parsedDate" < ${dateEnd}) AS is_exact_day
+    FROM archive_folder af
+    WHERE af.tenant = ${tenant}
+      AND LOWER(af."parsedShortName") = LOWER(${shortName})
+      AND EXTRACT(YEAR FROM af."parsedDate") = ${year}
+      AND af."isVideo" = ${isVideo}
+      AND af."missingOnDisk" = false
+      AND NOT EXISTS (
+        SELECT 1 FROM "ArchiveLink" al
+        WHERE al."archiveFolderId" = af.id AND al.status = 'CONFIRMED'
+      )
+      AND (
+        (af."parsedDate" >= ${dateStart} AND af."parsedDate" < ${dateEnd})
+        OR similarity(${titleCmp}, COALESCE(af."parsedTitle", '')) >= ${MEDIUM_TITLE_THRESHOLD}
+      )
+    ORDER BY is_exact_day DESC, sim DESC
+    LIMIT 50
+  `
 
-  // Step 1: HIGH confidence — exact date + exact shortName, best title similarity
-  let folderMatch: FolderRow | null = null
-  if (titleNorm) {
-    const rows = await prisma.$queryRaw<FolderRow[]>`
-      SELECT af.id
-      FROM archive_folder af
-      WHERE af.tenant = ${tenant}
-        AND af."parsedDate" >= ${dateStart} AND af."parsedDate" < ${dateEnd}
-        AND LOWER(af."parsedShortName") = LOWER(${shortName})
-        AND af."isVideo" = ${isVideo}
-        AND af."missingOnDisk" = false
-        AND NOT EXISTS (
-          SELECT 1 FROM "ArchiveLink" al
-          WHERE al."archiveFolderId" = af.id AND al.status = 'CONFIRMED'
-        )
-      ORDER BY similarity(${titleNorm}, COALESCE(af."parsedTitle", '')) DESC
-      LIMIT 1
-    `
-    folderMatch = rows[0] ?? null
-  } else {
-    const rows = await prisma.archiveFolder.findMany({
-      where: {
-        tenant,
-        parsedDate: { gte: dateStart, lt: dateEnd },
-        parsedShortName: { equals: shortName, mode: 'insensitive' },
-        isVideo,
-        missingOnDisk: false,
-        OR: [{ archiveLink: null }, { archiveLink: { status: 'SUGGESTED' } }],
-      },
-      select: { id: true },
-      take: 1,
+  const scored: ScoredArchiveCandidate[] = rows.map((r) => ({
+    id: r.id,
+    titleSim: Number(r.sim) || 0,
+    nameMatch: folderPersonMatches(parseFolderParticipant(r.folder_name), entityNameNorms),
+    isExactDay: r.is_exact_day === true,
+  }))
+  const best = pickBestArchiveCandidate(scored)
+  if (!best) return { matched: false }
+
+  const fid = best.id
+  if (type === 'staging') {
+    await prisma.archiveLink.upsert({
+      where: { archiveFolderId: fid },
+      create: { archiveFolderId: fid, stagingSetId: id, status: 'SUGGESTED', confidence: best.confidence, tenant },
+      update: { stagingSetId: id, setId: null, status: 'SUGGESTED', confidence: best.confidence },
     })
-    folderMatch = rows[0] ?? null
+  } else {
+    await prisma.archiveLink.upsert({
+      where: { archiveFolderId: fid },
+      create: { archiveFolderId: fid, setId: id, status: 'SUGGESTED', confidence: best.confidence, tenant },
+      update: { setId: id, stagingSetId: null, status: 'SUGGESTED', confidence: best.confidence },
+    })
   }
-
-  if (folderMatch) {
-    const fid = folderMatch.id
-    if (type === 'staging') {
-      await prisma.archiveLink.upsert({
-        where: { archiveFolderId: fid },
-        create: { archiveFolderId: fid, stagingSetId: id, status: 'SUGGESTED', confidence: 'HIGH', tenant },
-        update: { stagingSetId: id, setId: null, status: 'SUGGESTED', confidence: 'HIGH' },
-      })
-    } else {
-      await prisma.archiveLink.upsert({
-        where: { archiveFolderId: fid },
-        create: { archiveFolderId: fid, setId: id, status: 'SUGGESTED', confidence: 'HIGH', tenant },
-        update: { setId: id, stagingSetId: null, status: 'SUGGESTED', confidence: 'HIGH' },
-      })
-    }
-    return { matched: true, confidence: 'HIGH' }
-  }
-
-  // Step 2: MEDIUM confidence — same year + same shortName + trigram ≥ 0.4
-  if (titleNorm) {
-    const year = releaseDate.getFullYear()
-    type SimilarityRow = { id: string; sim: number }
-    const rows = await prisma.$queryRaw<SimilarityRow[]>`
-      SELECT af.id, similarity(${titleNorm}, COALESCE(af."parsedTitle", '')) AS sim
-      FROM archive_folder af
-      WHERE af.tenant = ${tenant}
-        AND LOWER(af."parsedShortName") = LOWER(${shortName})
-        AND EXTRACT(YEAR FROM af."parsedDate") = ${year}
-        AND af."isVideo" = ${isVideo}
-        AND af."missingOnDisk" = false
-        AND NOT EXISTS (
-          SELECT 1 FROM "ArchiveLink" al
-          WHERE al."archiveFolderId" = af.id AND al.status = 'CONFIRMED'
-        )
-        AND similarity(${titleNorm}, COALESCE(af."parsedTitle", '')) >= 0.4
-      ORDER BY sim DESC
-      LIMIT 1
-    `
-    const med = rows[0]
-    if (med) {
-      const fid = med.id
-      if (type === 'staging') {
-        await prisma.archiveLink.upsert({
-          where: { archiveFolderId: fid },
-          create: { archiveFolderId: fid, stagingSetId: id, status: 'SUGGESTED', confidence: 'MEDIUM', tenant },
-          update: { stagingSetId: id, setId: null, status: 'SUGGESTED', confidence: 'MEDIUM' },
-        })
-      } else {
-        await prisma.archiveLink.upsert({
-          where: { archiveFolderId: fid },
-          create: { archiveFolderId: fid, setId: id, status: 'SUGGESTED', confidence: 'MEDIUM', tenant },
-          update: { setId: id, stagingSetId: null, status: 'SUGGESTED', confidence: 'MEDIUM' },
-        })
-      }
-      return { matched: true, confidence: 'MEDIUM' }
-    }
-  }
-
-  return { matched: false }
+  return { matched: true, confidence: best.confidence }
 }
 
 // ─── Archive Folder Search ────────────────────────────────────────────────────
