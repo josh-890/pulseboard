@@ -92,19 +92,27 @@ export function StagingSetsWorkspace() {
 
   // Restore from sessionStorage after hydration (avoids server/client mismatch)
   const filtersRestoredRef = useRef(false)
+  // Gates the first data fetch until the sessionStorage restore has run. Without
+  // it the mount fetch fired with default filters and then raced the
+  // restored-filter fetch; the unfiltered (larger, slower) response often landed
+  // last and overwrote the filtered list, so the filter fields showed the saved
+  // values while the list stayed unfiltered.
+  const [filtersReady, setFiltersReady] = useState(false)
   useEffect(() => {
     if (filtersRestoredRef.current) return
     filtersRestoredRef.current = true
-    // Skip if URL params were used, or if this is a deep-link (select param)
-    const statusParam = searchParams.get('status')
-    const batchId = searchParams.get('batchId')
-    if (statusParam || batchId || searchParams.get('select')) return
-    try {
-      const saved = sessionStorage.getItem(FILTER_STORAGE_KEY)
-      if (saved) {
-        setFilters({ ...DEFAULT_FILTERS, ...JSON.parse(saved) } as StagingSetFilterState)
-      }
-    } catch {}
+    // Skip restoring when URL params drive the view (status/batch/deep-link
+    // select) — those already seeded the filter state in useState above.
+    const fromUrl = searchParams.get('status') || searchParams.get('batchId') || searchParams.get('select')
+    if (!fromUrl) {
+      try {
+        const saved = sessionStorage.getItem(FILTER_STORAGE_KEY)
+        if (saved) {
+          setFilters({ ...DEFAULT_FILTERS, ...JSON.parse(saved) } as StagingSetFilterState)
+        }
+      } catch {}
+    }
+    setFiltersReady(true)
   }, [searchParams])
 
   // Persist filter changes to sessionStorage
@@ -200,9 +208,13 @@ export function StagingSetsWorkspace() {
   }, [selectParam, isLoading, data])
 
   // ── Fetch data ────────────────────────────────────────────────────────
+  // Monotonic request id — only the latest in-flight fetch may write state, so a
+  // slower earlier response (e.g. an unfiltered query) can't overwrite a newer one.
+  const fetchSeqRef = useRef(0)
   const fetchData = useCallback(async (append?: boolean, _cursor?: string, offset?: number, limitOverride?: number) => {
     // Cover baskets tab has its own data fetching — skip the staging sets API
     if (activeTab === 'cover-baskets') { setIsLoading(false); return }
+    const seq = ++fetchSeqRef.current
     if (!append) setIsLoading(true)
     else setIsLoadingMore(true)
 
@@ -243,6 +255,9 @@ export function StagingSetsWorkspace() {
       ])
       const listData = (await listRes.json()) as FetchResult
 
+      // A newer fetch started while this one was in flight — discard this result.
+      if (seq !== fetchSeqRef.current) return
+
       if (append) {
         setData((prev) => {
           if (!prev) return listData
@@ -266,14 +281,19 @@ export function StagingSetsWorkspace() {
     } catch {
       // Silently fail
     } finally {
-      setIsLoading(false)
-      setIsLoadingMore(false)
+      // Only the latest fetch clears the loading flags, so a superseded response
+      // can't switch the skeleton off while a newer fetch is still running.
+      if (seq === fetchSeqRef.current) {
+        setIsLoading(false)
+        setIsLoadingMore(false)
+      }
     }
   }, [filters, activeTab])
 
   useEffect(() => {
+    if (!filtersReady) return
     fetchData()
-  }, [fetchData])
+  }, [fetchData, filtersReady])
 
   // Auto-refresh participant statuses if >24hrs stale (runs once on mount)
   const autoRefreshRan = useRef(false)
