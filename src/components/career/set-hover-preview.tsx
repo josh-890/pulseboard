@@ -1,144 +1,55 @@
 "use client";
 
-import Link from "next/link";
 import Image from "next/image";
-import { ArrowRight, Camera, Film } from "lucide-react";
-import { cn, getInitialsFromName } from "@/lib/utils";
-import type { CareerHoverPreviewData } from "@/lib/services/career-service";
+import { Camera, Film } from "lucide-react";
 
-// Floating preview card shown on row hover. Pure presentational — parent
-// fetches the data and decides when to mount this. Layout:
-//   ┌────────────────────────────────────────────┐
-//   │ [enlarged cover]  [sample 1][sample 2]     │
-//   │                   [sample 3][sample 4]     │
-//   │                   [sample 5][sample 6]     │
-//   │ ──────────────────────────────────────     │
-//   │ (•) (•) (•) (•) +2  participants           │
-//   │ ──────────────────────────────────────     │
-//   │ [Open set →]                               │
-//   └────────────────────────────────────────────┘
+// Minimal hover preview for a timeline row's cover. Renders just an
+// enlarged version of the cover image. The row already shows title,
+// status, archive state, rating, and participants — the popover only
+// adds visual confirmation (a bigger image). Clicking the row
+// navigates to the set; no link pill is needed in the popover.
+//
+// Triggered by hovering the SMALL cover thumbnail on the row (not the
+// whole row), keeping the affordance precise: "I want to see this
+// image bigger" → hand goes to the cover, popover appears next to it.
 
 export type SetHoverPreviewProps = {
-  title: string;
+  coverUrl: string | null;
   isVideo: boolean;
-  previewData: CareerHoverPreviewData;
-  href: string;
-  linkLabel: string;
-  isStaged?: boolean;
 };
 
-const MAX_PARTICIPANT_AVATARS = 5;
+const PHOTO_W = 240;
+const PHOTO_H = 320;
+const VIDEO_W = 480;
+const VIDEO_H = 270;
 
-export function SetHoverPreview({
-  title,
-  isVideo,
-  previewData,
-  href,
-  linkLabel,
-  isStaged,
-}: SetHoverPreviewProps) {
-  const coverW = isVideo ? 240 : 160;
-  const coverH = isVideo ? 135 : 213;
-  const visibleParticipants = previewData.participants.slice(0, MAX_PARTICIPANT_AVATARS);
-  const overflow = Math.max(0, previewData.participants.length - MAX_PARTICIPANT_AVATARS);
-  const hasParticipants = previewData.participants.length > 0;
-
+export function SetHoverPreview({ coverUrl, isVideo }: SetHoverPreviewProps) {
+  const w = isVideo ? VIDEO_W : PHOTO_W;
+  const h = isVideo ? VIDEO_H : PHOTO_H;
   return (
-    <div className="w-[420px] rounded-lg border border-white/15 bg-popover/95 p-3 shadow-xl backdrop-blur-sm">
-      <div className="text-xs font-semibold text-foreground/90 mb-2 truncate">
-        {title}
-      </div>
-      <div className="flex gap-3">
-        {/* Cover */}
-        <div
-          className="relative shrink-0 overflow-hidden rounded bg-muted/40"
-          style={{ width: coverW, height: coverH }}
-        >
-          {previewData.coverUrl ? (
-            <Image
-              src={previewData.coverUrl}
-              alt=""
-              fill
-              className="object-cover"
-              unoptimized
-              sizes={`${coverW}px`}
-            />
-          ) : (
-            <div className="flex h-full w-full items-center justify-center text-muted-foreground/40">
-              {isVideo ? <Film size={28} /> : <Camera size={28} />}
-            </div>
-          )}
-        </div>
-        {/* Samples grid */}
-        <div className="flex min-w-0 flex-1 items-start">
-          {isStaged && previewData.sampleThumbnails.length === 0 ? (
-            <div className="flex h-full w-full items-center justify-center rounded border border-dashed border-white/10 px-3 py-4 text-center text-[10px] italic text-muted-foreground/60">
-              No sample images yet — staged
-            </div>
-          ) : previewData.sampleThumbnails.length > 0 ? (
-            <div className="grid grid-cols-3 gap-1">
-              {previewData.sampleThumbnails.slice(0, 6).map((t) => (
-                <div
-                  key={t.mediaItemId}
-                  className="relative aspect-square overflow-hidden rounded bg-muted/40"
-                >
-                  <Image
-                    src={t.url}
-                    alt=""
-                    fill
-                    className="object-cover"
-                    unoptimized
-                    sizes="64px"
-                  />
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="flex h-full w-full items-center justify-center rounded border border-dashed border-white/10 px-3 py-4 text-center text-[10px] italic text-muted-foreground/60">
-              No sample images
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Participants line */}
-      {hasParticipants && (
-        <div className="mt-3 border-t border-white/10 pt-2">
-          <div className="flex items-center gap-1.5">
-            {visibleParticipants.map((p) => (
-              <div
-                key={p.personId}
-                className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-white/15 bg-muted/60 text-[9px] font-medium text-muted-foreground"
-                title={p.commonAlias ?? p.icgId}
-              >
-                {getInitialsFromName(p.commonAlias ?? p.icgId)}
-              </div>
-            ))}
-            {overflow > 0 && (
-              <span className="text-[10px] text-muted-foreground/70">+{overflow}</span>
-            )}
-            <span className="ml-2 truncate text-[10px] text-muted-foreground/80">
-              {visibleParticipants.map((p) => p.commonAlias ?? p.icgId).join(" · ")}
-              {overflow > 0 && ` …`}
-            </span>
-          </div>
+    <div
+      className="relative overflow-hidden rounded-lg border border-white/15 bg-popover shadow-2xl"
+      style={{ width: w, height: h }}
+    >
+      {coverUrl ? (
+        <Image
+          src={coverUrl}
+          alt=""
+          fill
+          className="object-cover"
+          unoptimized
+          sizes={`${w}px`}
+        />
+      ) : (
+        <div className="flex h-full w-full items-center justify-center text-muted-foreground/40">
+          {isVideo ? <Film size={64} /> : <Camera size={64} />}
         </div>
       )}
-
-      {/* Action pill */}
-      <div className="mt-3 flex justify-end border-t border-white/10 pt-2">
-        <Link
-          href={href}
-          className={cn(
-            "inline-flex items-center gap-1 rounded-full border border-primary/30 bg-primary/10",
-            "px-2.5 py-1 text-[11px] font-medium text-primary",
-            "transition-colors hover:bg-primary/20",
-          )}
-        >
-          {linkLabel}
-          <ArrowRight size={11} />
-        </Link>
-      </div>
     </div>
   );
 }
+
+export const SET_HOVER_PREVIEW_DIMS = {
+  photo: { width: PHOTO_W, height: PHOTO_H },
+  video: { width: VIDEO_W, height: VIDEO_H },
+} as const;

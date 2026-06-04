@@ -15,14 +15,11 @@ import { cn } from "@/lib/utils";
 import { MultiFacetDropdown } from "@/components/shared/browser-toolbar";
 import { ratingFilterOptions } from "@/components/shared/rating-filter-options";
 import { TimelineSection } from "@/components/career/timeline-section";
-import { CareerSummaryCard } from "@/components/career/career-summary-card";
 import { CreateKnownSetSheet } from "@/components/staging-sets/create-known-set-sheet";
-import { getCareerHoverPreviewAction } from "@/lib/actions/career-actions";
 import type {
   CareerTimelineRow,
   CareerFacetCounts,
   CareerSort,
-  CareerHoverPreviewData,
 } from "@/lib/services/career-service";
 import type { PersonAffiliation } from "@/lib/types";
 import type { SetType } from "@/generated/prisma/client";
@@ -217,17 +214,6 @@ export function CareerTab({
     activeEraIds.length > 0 ||
     activeArchiveStatuses.length > 0;
 
-  // Hover preview fetcher — wraps the server action.
-  const fetchHoverPreview = useCallback(
-    async (row: CareerTimelineRow): Promise<CareerHoverPreviewData | null> => {
-      if (row.kind === "promoted") {
-        return getCareerHoverPreviewAction("promoted", row.setId);
-      }
-      return getCareerHoverPreviewAction("staged", row.stagingSetId);
-    },
-    [],
-  );
-
   return (
     <div className="space-y-4">
       {/* Compact Professional + Specialization row */}
@@ -394,12 +380,7 @@ export function CareerTab({
           onAddSet={() => setCreateKnownSetOpen(true)}
         />
       ) : (
-        <TimelineSection
-          rows={careerTimeline}
-          withTint={withTint}
-          fetchHoverPreview={fetchHoverPreview}
-          summaryNode={<CareerSummaryCard rows={careerTimeline} />}
-        />
+        <TimelineSection rows={careerTimeline} withTint={withTint} />
       )}
 
       <CreateKnownSetSheet

@@ -16,8 +16,6 @@ import type {
   Prisma,
 } from "@/generated/prisma/client";
 import { getCoverPhotosForSets } from "@/lib/services/media-service";
-import { buildUrl } from "@/lib/media-url";
-import type { PhotoVariants } from "@/lib/types/photo";
 
 // ─── Filter spec ─────────────────────────────────────────────────────────
 
@@ -44,6 +42,17 @@ export type CareerTimelineFilters = {
 
 // ─── Row shape ───────────────────────────────────────────────────────────
 
+// Co-participants on a set, excluding the person whose career page is
+// being viewed. Surfaced on the row as a 3rd line when non-empty.
+//   - Solo sets (no other participants) → empty array; the row hides
+//     the 3rd line.
+//   - Up to MAX_VISIBLE_PARTICIPANTS names; remainder summarised by
+//     `extraParticipantCount`.
+export type CareerRowParticipant = {
+  personId: string;
+  commonAlias: string;
+};
+
 type CareerTimelineRowBase = {
   title: string;
   releaseDate: Date | null;
@@ -56,7 +65,11 @@ type CareerTimelineRowBase = {
   hasArchiveLink: boolean;
   itemCount: number | null;
   eraId: string | null;
+  participants: CareerRowParticipant[];
+  extraParticipantCount: number;
 };
+
+const MAX_VISIBLE_PARTICIPANTS = 5;
 
 export type CareerTimelineRow =
   | (CareerTimelineRowBase & {
@@ -183,22 +196,89 @@ async function getPromotedRowsForPerson(
     }
   }
 
-  return sets.map((s) => ({
-    kind: "promoted" as const,
-    setId: s.id,
-    title: s.title,
-    type: s.type,
-    releaseDate: s.releaseDate,
-    releaseDatePrecision: s.releaseDatePrecision,
-    channelId: s.channelId,
-    channelName: s.channel?.name ?? null,
-    itemCount: s.imageCount ?? null,
-    rating: s.rating,
-    coverUrl: coverMap.get(s.id)?.url ?? null,
-    archiveStatus: s.archiveLinks[0]?.archiveStatus ?? null,
-    hasArchiveLink: !!s.archiveLinks[0],
-    eraId: eraBySetId.get(s.id) ?? null,
-  }));
+  // Step 4: co-participants per set (excluding this person). Reads the
+  // SetParticipant denormalised cache; one batched query covers every
+  // set in the view. Iteration order matches insertion order, so the
+  // visible 5 are stable across renders.
+  const participantsBySetId = await fetchParticipantsForSets(setIds, personId);
+
+  return sets.map((s) => {
+    const participantInfo = participantsBySetId.get(s.id) ?? {
+      participants: [],
+      extraParticipantCount: 0,
+    };
+    return {
+      kind: "promoted" as const,
+      setId: s.id,
+      title: s.title,
+      type: s.type,
+      releaseDate: s.releaseDate,
+      releaseDatePrecision: s.releaseDatePrecision,
+      channelId: s.channelId,
+      channelName: s.channel?.name ?? null,
+      itemCount: s.imageCount ?? null,
+      rating: s.rating,
+      coverUrl: coverMap.get(s.id)?.url ?? null,
+      archiveStatus: s.archiveLinks[0]?.archiveStatus ?? null,
+      hasArchiveLink: !!s.archiveLinks[0],
+      eraId: eraBySetId.get(s.id) ?? null,
+      participants: participantInfo.participants,
+      extraParticipantCount: participantInfo.extraParticipantCount,
+    };
+  });
+}
+
+// Batched fetch: for each setId, returns the up-to-5 co-participants
+// (excluding the viewer) plus the overflow count. Single SetParticipant
+// findMany covers the entire timeline.
+type ParticipantsForSet = {
+  participants: CareerRowParticipant[];
+  extraParticipantCount: number;
+};
+
+async function fetchParticipantsForSets(
+  setIds: string[],
+  excludePersonId: string,
+): Promise<Map<string, ParticipantsForSet>> {
+  if (setIds.length === 0) return new Map();
+  const rows = await prisma.setParticipant.findMany({
+    where: { setId: { in: setIds }, personId: { not: excludePersonId } },
+    select: {
+      setId: true,
+      person: {
+        select: {
+          id: true,
+          icgId: true,
+          aliases: {
+            where: { isCommon: true },
+            select: { name: true },
+            take: 1,
+          },
+        },
+      },
+    },
+  });
+
+  // Group by setId; preserve order from the query.
+  const grouped = new Map<string, CareerRowParticipant[]>();
+  for (const r of rows) {
+    const arr = grouped.get(r.setId) ?? [];
+    arr.push({
+      personId: r.person.id,
+      commonAlias: r.person.aliases[0]?.name ?? r.person.icgId,
+    });
+    grouped.set(r.setId, arr);
+  }
+
+  // Cap visible + count overflow.
+  const result = new Map<string, ParticipantsForSet>();
+  for (const [setId, all] of grouped) {
+    result.set(setId, {
+      participants: all.slice(0, MAX_VISIBLE_PARTICIPANTS),
+      extraParticipantCount: Math.max(0, all.length - MAX_VISIBLE_PARTICIPANTS),
+    });
+  }
+  return result;
 }
 
 // ─── Staged: per-StagingSet query ────────────────────────────────────────
@@ -271,6 +351,7 @@ async function getStagedRowsForPerson(
       externalId: true,
       coverImageUrl: true,
       imageCount: true,
+      participantIcgIds: true,
       archiveLinks: {
         where: { status: "CONFIRMED" },
         select: { archiveStatus: true },
@@ -279,23 +360,66 @@ async function getStagedRowsForPerson(
     },
   });
 
-  return stagingSets.map((s) => ({
-    kind: "staged" as const,
-    stagingSetId: s.id,
-    title: s.title,
-    type: s.isVideo ? ("video" as const) : ("photo" as const),
-    releaseDate: s.releaseDate,
-    releaseDatePrecision: s.releaseDatePrecision,
-    channelId: s.channelId,
-    channelName: s.channelName,
-    externalId: s.externalId,
-    itemCount: s.imageCount ?? null,
-    rating: null,
-    coverUrl: s.coverImageUrl,
-    archiveStatus: s.archiveLinks[0]?.archiveStatus ?? null,
-    hasArchiveLink: !!s.archiveLinks[0],
-    eraId: null,
-  }));
+  // Resolve all co-participant ICG IDs (excluding the viewer) to Person
+  // rows with their common alias. One batched query covers the whole
+  // timeline; the viewer's own ICG is excluded before the lookup.
+  const allOtherIcgIds = Array.from(
+    new Set(
+      stagingSets.flatMap((s) =>
+        s.participantIcgIds.filter((icg) => icg !== person.icgId),
+      ),
+    ),
+  );
+  const resolvedPersons =
+    allOtherIcgIds.length > 0
+      ? await prisma.person.findMany({
+          where: { icgId: { in: allOtherIcgIds } },
+          select: {
+            id: true,
+            icgId: true,
+            aliases: {
+              where: { isCommon: true },
+              select: { name: true },
+              take: 1,
+            },
+          },
+        })
+      : [];
+  const personByIcg = new Map<string, { personId: string; commonAlias: string }>();
+  for (const p of resolvedPersons) {
+    personByIcg.set(p.icgId, {
+      personId: p.id,
+      commonAlias: p.aliases[0]?.name ?? p.icgId,
+    });
+  }
+
+  return stagingSets.map((s) => {
+    const otherIcgs = s.participantIcgIds.filter((icg) => icg !== person.icgId);
+    const resolved: CareerRowParticipant[] = otherIcgs
+      .map((icg) => personByIcg.get(icg))
+      .filter((p): p is { personId: string; commonAlias: string } => p !== undefined);
+    const visible = resolved.slice(0, MAX_VISIBLE_PARTICIPANTS);
+    const overflow = Math.max(0, resolved.length - MAX_VISIBLE_PARTICIPANTS);
+    return {
+      kind: "staged" as const,
+      stagingSetId: s.id,
+      title: s.title,
+      type: s.isVideo ? ("video" as const) : ("photo" as const),
+      releaseDate: s.releaseDate,
+      releaseDatePrecision: s.releaseDatePrecision,
+      channelId: s.channelId,
+      channelName: s.channelName,
+      externalId: s.externalId,
+      itemCount: s.imageCount ?? null,
+      rating: null,
+      coverUrl: s.coverImageUrl,
+      archiveStatus: s.archiveLinks[0]?.archiveStatus ?? null,
+      hasArchiveLink: !!s.archiveLinks[0],
+      eraId: null,
+      participants: visible,
+      extraParticipantCount: overflow,
+    };
+  });
 }
 
 // ─── Unified merge ────────────────────────────────────────────────────────
@@ -391,71 +515,6 @@ export async function getCareerFacetCounts(
   };
 }
 
-// ─── Hover preview ───────────────────────────────────────────────────────
-
-export type CareerHoverParticipant = {
-  personId: string;
-  commonAlias: string | null;
-  icgId: string;
-};
-
-export type CareerHoverPreviewData = {
-  coverUrl: string | null;
-  sampleThumbnails: { url: string; mediaItemId: string }[];
-  participants: CareerHoverParticipant[];
-};
-
-export async function getPromotedHoverPreview(
-  setId: string,
-): Promise<CareerHoverPreviewData | null> {
-  // Fetch base set + cover via the shared helper (handles explicit + fallback).
-  const [coverMap, mediaLinks, participantRows] = await Promise.all([
-    getCoverPhotosForSets([setId]),
-    prisma.setMediaItem.findMany({
-      where: { setId },
-      orderBy: { sortOrder: "asc" },
-      take: 6,
-      select: {
-        mediaItem: { select: { id: true, variants: true, fileRef: true } },
-      },
-    }),
-    prisma.setParticipant.findMany({
-      where: { setId },
-      select: {
-        person: {
-          select: {
-            id: true,
-            icgId: true,
-            aliases: { where: { isCommon: true }, select: { name: true }, take: 1 },
-          },
-        },
-      },
-    }),
-  ]);
-
-  return {
-    coverUrl: coverMap.get(setId)?.url ?? null,
-    sampleThumbnails: mediaLinks
-      .map((m) => {
-        const variants = (m.mediaItem.variants ?? {}) as PhotoVariants;
-        const url = variants.gallery_512
-          ? buildUrl(variants.gallery_512)
-          : variants.original
-            ? buildUrl(variants.original)
-            : m.mediaItem.fileRef
-              ? buildUrl(m.mediaItem.fileRef)
-              : null;
-        return url ? { url, mediaItemId: m.mediaItem.id } : null;
-      })
-      .filter((x): x is { url: string; mediaItemId: string } => x !== null),
-    participants: participantRows.map((p) => ({
-      personId: p.person.id,
-      icgId: p.person.icgId,
-      commonAlias: p.person.aliases[0]?.name ?? null,
-    })),
-  };
-}
-
 // ─── Filter option lists ─────────────────────────────────────────────────
 
 // Distinct channels for the person across promoted + staged sets. Used
@@ -526,34 +585,3 @@ export async function getCareerErasForPerson(
     .sort((a, b) => a.label.localeCompare(b.label));
 }
 
-export async function getStagedHoverPreview(
-  stagingSetId: string,
-): Promise<CareerHoverPreviewData | null> {
-  const s = await prisma.stagingSet.findUnique({
-    where: { id: stagingSetId },
-    select: { coverImageUrl: true, participantIcgIds: true },
-  });
-  if (!s) return null;
-
-  const participants =
-    s.participantIcgIds.length > 0
-      ? await prisma.person.findMany({
-          where: { icgId: { in: s.participantIcgIds } },
-          select: {
-            id: true,
-            icgId: true,
-            aliases: { where: { isCommon: true }, select: { name: true }, take: 1 },
-          },
-        })
-      : [];
-
-  return {
-    coverUrl: s.coverImageUrl,
-    sampleThumbnails: [],
-    participants: participants.map((p) => ({
-      personId: p.id,
-      icgId: p.icgId,
-      commonAlias: p.aliases[0]?.name ?? null,
-    })),
-  };
-}

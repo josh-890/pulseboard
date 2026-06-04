@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { Camera, Film, FolderCheck, FolderX, Star } from "lucide-react";
+import { Camera, Film, FolderCheck, FolderX, Star, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   StatusPill,
@@ -124,21 +124,20 @@ export type TimelineSetRowProps = {
   row: CareerTimelineRow;
   withTint: boolean;
   ageAtShoot?: string | null;
-  // Whether this row is currently the target of the right preview panel
-  // (panel mode only). Adds a subtle background bump so the eye links
-  // the row to the panel content.
-  isSelected?: boolean;
-  onHoverEnter?: (row: CareerTimelineRow) => void;
-  onHoverLeave?: () => void;
+  // Cover-hover events. The row attaches these to the cover thumbnail
+  // ONLY (not the whole row), so the popover preview only triggers when
+  // the user explicitly indicates intent ("I want to see this image
+  // bigger") rather than firing on incidental row hover.
+  onCoverEnter?: (coverRect: DOMRect) => void;
+  onCoverLeave?: () => void;
 };
 
 export function TimelineSetRow({
   row,
   withTint,
   ageAtShoot,
-  isSelected,
-  onHoverEnter,
-  onHoverLeave,
+  onCoverEnter,
+  onCoverLeave,
 }: TimelineSetRowProps) {
   const status = STATUS_BY_KIND[row.kind];
   const isVideo = row.type === "video";
@@ -160,29 +159,36 @@ export function TimelineSetRow({
   const coverW = isVideo ? 80 : 60;
   const coverH = isVideo ? 45 : 80;
 
+  // Participants line: hidden for solo sets (only the viewer was in the
+  // set, so participants[] is empty). When other collaborators are
+  // present, we render a 3rd row line listing their common aliases with
+  // a `+N` overflow chip.
+  const hasParticipantLine = row.participants.length > 0;
+
   return (
     <Link
       href={href}
-      onMouseEnter={() => onHoverEnter?.(row)}
-      onMouseLeave={() => onHoverLeave?.()}
       className={cn(
         "group flex items-center gap-3 rounded-md border border-l-4 border-white/10 px-3 py-2",
         "transition-all duration-150",
         "hover:-translate-y-px hover:shadow-[0_4px_14px_-6px_rgba(0,0,0,0.25)] hover:bg-white/[0.03]",
         STATUS_STRIPE_CLASS[status],
         withTint && STATUS_TINT_CLASS[status],
-        // Selected row (panel mode) — subtle bump so the eye links the
-        // row to the right panel's contents.
-        isSelected && "ring-1 ring-primary/40 bg-white/[0.04]",
       )}
-      style={{ minHeight: isVideo ? 60 : 90 }}
+      // Row height:
+      //   - Photo: 90px always (the 60×80 portrait cover requires it).
+      //   - Video, solo set:    60px (compact, 2-line content fits).
+      //   - Video, multi-cast:  90px (3rd line for participants).
+      style={{ minHeight: !isVideo ? 90 : hasParticipantLine ? 90 : 60 }}
     >
-      {/* Cover */}
+      {/* Cover — its OWN hover surface for the enlarged-cover popover.
+          The popover is purely visual (no link pill, no extra info);
+          clicking anywhere on the row navigates instead. */}
       <div
-        className={cn(
-          "relative shrink-0 overflow-hidden rounded bg-muted/40",
-        )}
+        className="relative shrink-0 overflow-hidden rounded bg-muted/40"
         style={{ width: coverW, height: coverH }}
+        onMouseEnter={(e) => onCoverEnter?.(e.currentTarget.getBoundingClientRect())}
+        onMouseLeave={() => onCoverLeave?.()}
       >
         {row.coverUrl ? (
           <Image
@@ -233,6 +239,24 @@ export function TimelineSetRow({
           />
           <StarsCompact rating={row.rating} />
         </div>
+        {/* Line 3: co-participants (hidden for solo sets). The viewer is
+            never listed here — the surrounding page already names them. */}
+        {hasParticipantLine && (
+          <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+            <Users size={11} className="shrink-0 opacity-60" />
+            <span className="min-w-0 truncate">
+              {row.participants.map((p, i) => (
+                <span key={p.personId}>
+                  {i > 0 && <span className="mx-1 opacity-50">·</span>}
+                  {p.commonAlias}
+                </span>
+              ))}
+              {row.extraParticipantCount > 0 && (
+                <span className="ml-1.5 opacity-60">+{row.extraParticipantCount}</span>
+              )}
+            </span>
+          </div>
+        )}
       </div>
     </Link>
   );
