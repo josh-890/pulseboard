@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
-import Link from "next/link";
 import { Briefcase, Building2, Camera, Film, Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -51,6 +50,7 @@ export type CareerTabProps = {
   activeRatings: (number | "unrated")[];
   activeEraIds: string[];
   activeArchiveStatuses: string[];
+  activeLabelIds: string[];
   activeSort: CareerSort;
   withTint: boolean;
 };
@@ -89,6 +89,7 @@ export function CareerTab({
   activeRatings,
   activeEraIds,
   activeArchiveStatuses,
+  activeLabelIds,
   activeSort,
   withTint,
 }: CareerTabProps) {
@@ -156,6 +157,7 @@ export function CareerTab({
       sp.delete("crating");
       sp.delete("era");
       sp.delete("archive");
+      sp.delete("clabel");
     });
   };
 
@@ -171,14 +173,18 @@ export function CareerTab({
     return [];
   }, [affiliations]);
 
-  // Channel options for filter dropdown.
+  // Channel options for filter dropdown. Only includes channels with a
+  // non-zero count in the current view — channels that became empty due
+  // to other active filters aren't useful to display.
   const channelOptions = useMemo(
     () =>
-      channels.map((c) => ({
-        value: c.id,
-        label: c.name,
-        count: facetCounts.channel[c.id],
-      })),
+      channels
+        .map((c) => ({
+          value: c.id,
+          label: c.name,
+          count: facetCounts.channel[c.id] ?? 0,
+        }))
+        .filter((o) => o.count > 0),
     [channels, facetCounts.channel],
   );
 
@@ -212,7 +218,8 @@ export function CareerTab({
     activeChannelIds.length > 0 ||
     activeRatings.length > 0 ||
     activeEraIds.length > 0 ||
-    activeArchiveStatuses.length > 0;
+    activeArchiveStatuses.length > 0 ||
+    activeLabelIds.length > 0;
 
   return (
     <div className="space-y-4">
@@ -248,23 +255,40 @@ export function CareerTab({
         </div>
       )}
 
-      {/* Label Affiliations chips (compact) */}
+      {/* Label Affiliations chips — act as multi-select filters. Click
+          a chip to toggle filtering the timeline to sets in that label;
+          active chips get the primary accent. */}
       {derivedAffiliations.length > 0 && (
         <div className="flex flex-wrap items-center gap-1.5 text-xs">
           <span className="flex items-center gap-1.5 text-muted-foreground">
             <Building2 size={12} />
             <span className="uppercase tracking-wider opacity-70">Labels</span>
           </span>
-          {derivedAffiliations.map((aff) => (
-            <Link
-              key={aff.labelId}
-              href={`/labels/${aff.labelId}`}
-              className="inline-flex items-center gap-1 rounded-full border border-white/15 bg-muted/40 px-2 py-0.5 hover:bg-muted/60 transition-colors"
-            >
-              <span>{aff.labelName}</span>
-              <span className="text-[10px] opacity-60">{aff.setCount}</span>
-            </Link>
-          ))}
+          {derivedAffiliations.map((aff) => {
+            const isActive = activeLabelIds.includes(aff.labelId);
+            return (
+              <button
+                key={aff.labelId}
+                type="button"
+                onClick={() => handleMultifacetToggle("clabel", aff.labelId)}
+                aria-pressed={isActive}
+                title={
+                  isActive
+                    ? `Remove ${aff.labelName} filter`
+                    : `Filter to sets in ${aff.labelName}`
+                }
+                className={cn(
+                  "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 transition-colors",
+                  isActive
+                    ? "border-primary/50 bg-primary/15 text-primary"
+                    : "border-white/15 bg-muted/40 hover:bg-muted/60",
+                )}
+              >
+                <span>{aff.labelName}</span>
+                <span className="text-[10px] opacity-60">{aff.setCount}</span>
+              </button>
+            );
+          })}
         </div>
       )}
 

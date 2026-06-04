@@ -37,6 +37,9 @@ export type CareerTimelineFilters = {
   ratings?: (number | "unrated")[];
   eraIds?: string[];
   archiveStatuses?: CareerArchiveStatusBucket[];
+  // Filter to sets whose channel is mapped to any of these label IDs.
+  // Channels relate to Labels via the ChannelLabelMap join (M:M).
+  labelIds?: string[];
   sort?: CareerSort;
 };
 
@@ -108,6 +111,11 @@ async function getPromotedRowsForPerson(
   if (filters.type) whereSet.type = filters.type;
   if (filters.channelIds && filters.channelIds.length > 0) {
     whereSet.channelId = { in: filters.channelIds };
+  }
+  if (filters.labelIds && filters.labelIds.length > 0) {
+    whereSet.channel = {
+      labelMaps: { some: { labelId: { in: filters.labelIds } } },
+    };
   }
   if (filters.ratings && filters.ratings.length > 0) {
     const nums = filters.ratings.filter((r): r is number => typeof r === "number");
@@ -303,6 +311,11 @@ async function getStagedRowsForPerson(
 
   if (filters.channelIds && filters.channelIds.length > 0) {
     whereStaging.channelId = { in: filters.channelIds };
+  }
+  if (filters.labelIds && filters.labelIds.length > 0) {
+    whereStaging.channel = {
+      labelMaps: { some: { labelId: { in: filters.labelIds } } },
+    };
   }
 
   // Rating filter: staged sets have no rating. They effectively belong to

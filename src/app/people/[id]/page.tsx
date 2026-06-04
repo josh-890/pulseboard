@@ -49,6 +49,7 @@ type PersonDetailPageProps = {
     crating?: string;
     era?: string;
     archive?: string;
+    clabel?: string;
     csort?: string;
   }>;
 };
@@ -83,6 +84,7 @@ export default async function PersonDetailPage({ params, searchParams }: PersonD
         v === "unrated" || (typeof v === "number" && !isNaN(v) && v >= 1 && v <= 5),
       );
     const eraIds = sp.era ? sp.era.split(",").filter(Boolean) : [];
+    const labelIds = sp.clabel ? sp.clabel.split(",").filter(Boolean) : [];
     const archiveStatuses = sp.archive
       ? (sp.archive.split(",").filter(Boolean) as CareerArchiveStatusBucket[]).filter((v) =>
           VALID_ARCHIVE_BUCKETS.has(v),
@@ -99,6 +101,7 @@ export default async function PersonDetailPage({ params, searchParams }: PersonD
       ratings: activeRatings.length > 0 ? activeRatings : undefined,
       eraIds: eraIds.length > 0 ? eraIds : undefined,
       archiveStatuses: archiveStatuses.length > 0 ? archiveStatuses : undefined,
+      labelIds: labelIds.length > 0 ? labelIds : undefined,
       sort: careerSort,
     };
 
@@ -271,6 +274,7 @@ export default async function PersonDetailPage({ params, searchParams }: PersonD
         careerActiveRatings={activeRatings}
         careerActiveEraIds={eraIds}
         careerActiveArchiveStatuses={archiveStatuses}
+        careerActiveLabelIds={labelIds}
         careerActiveSort={careerSort}
         eraContributions={eraContributions}
         entityTags={personEntityTags.map((t) => ({

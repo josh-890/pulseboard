@@ -131,6 +131,7 @@ type PersonDetailTabsProps = {
   careerActiveRatings?: (number | "unrated")[];
   careerActiveEraIds?: string[];
   careerActiveArchiveStatuses?: string[];
+  careerActiveLabelIds?: string[];
   careerActiveSort?: import("@/lib/services/career-service").CareerSort;
   // ADR-0004 — eraContributions: per-era list of sessions filed into it.
   // Keyed by era id. Loaded by the page via `getPersonEraContributions`.
@@ -1918,6 +1919,7 @@ export function PersonDetailTabs({
   careerActiveRatings = [],
   careerActiveEraIds = [],
   careerActiveArchiveStatuses = [],
+  careerActiveLabelIds = [],
   careerActiveSort = "date-desc",
   eraContributions,
 }: PersonDetailTabsProps) {
@@ -2201,6 +2203,7 @@ export function PersonDetailTabs({
             activeRatings={careerActiveRatings}
             activeEraIds={careerActiveEraIds}
             activeArchiveStatuses={careerActiveArchiveStatuses}
+            activeLabelIds={careerActiveLabelIds}
             activeSort={careerActiveSort}
             withTint={true}
           />
