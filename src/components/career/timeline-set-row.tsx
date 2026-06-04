@@ -124,6 +124,10 @@ export type TimelineSetRowProps = {
   row: CareerTimelineRow;
   withTint: boolean;
   ageAtShoot?: string | null;
+  // Whether this row is currently the target of the right preview panel
+  // (panel mode only). Adds a subtle background bump so the eye links
+  // the row to the panel content.
+  isSelected?: boolean;
   onHoverEnter?: (row: CareerTimelineRow) => void;
   onHoverLeave?: () => void;
 };
@@ -132,6 +136,7 @@ export function TimelineSetRow({
   row,
   withTint,
   ageAtShoot,
+  isSelected,
   onHoverEnter,
   onHoverLeave,
 }: TimelineSetRowProps) {
@@ -166,6 +171,9 @@ export function TimelineSetRow({
         "hover:-translate-y-px hover:shadow-[0_4px_14px_-6px_rgba(0,0,0,0.25)] hover:bg-white/[0.03]",
         STATUS_STRIPE_CLASS[status],
         withTint && STATUS_TINT_CLASS[status],
+        // Selected row (panel mode) — subtle bump so the eye links the
+        // row to the right panel's contents.
+        isSelected && "ring-1 ring-primary/40 bg-white/[0.04]",
       )}
       style={{ minHeight: isVideo ? 60 : 90 }}
     >

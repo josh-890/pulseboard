@@ -15,6 +15,7 @@ import { cn } from "@/lib/utils";
 import { MultiFacetDropdown } from "@/components/shared/browser-toolbar";
 import { ratingFilterOptions } from "@/components/shared/rating-filter-options";
 import { TimelineSection } from "@/components/career/timeline-section";
+import { CareerSummaryCard } from "@/components/career/career-summary-card";
 import { CreateKnownSetSheet } from "@/components/staging-sets/create-known-set-sheet";
 import { getCareerHoverPreviewAction } from "@/lib/actions/career-actions";
 import type {
@@ -397,6 +398,7 @@ export function CareerTab({
           rows={careerTimeline}
           withTint={withTint}
           fetchHoverPreview={fetchHoverPreview}
+          summaryNode={<CareerSummaryCard rows={careerTimeline} />}
         />
       )}
 

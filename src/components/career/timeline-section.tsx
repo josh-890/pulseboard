@@ -2,35 +2,45 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
+import { useMediaQuery } from "@/hooks/use-media-query";
 import { TimelineSetRow } from "./timeline-set-row";
 import { SetHoverPreview } from "./set-hover-preview";
+import { SetPreviewPanel, SetPreviewPanelLoading } from "./set-preview-panel";
 import { YearScrubber, type YearScrubberEntry } from "./year-scrubber";
 import type {
   CareerTimelineRow,
   CareerHoverPreviewData,
 } from "@/lib/services/career-service";
 
-// Container for the Career timeline: rows grouped by year with sticky
-// year headers (CSS sticky), optional right-edge year scrubber for fast
-// year-jumping (Apple Photos style), and lazy on-hover preview popover.
+// Career timeline layout with two rendering modes governed by viewport width:
 //
-// Virtualisation deferred — at our current scales (xpulse outlier: 350
-// rows for Cara Mell), DOM bloat is manageable with lazy-loaded covers
-// (Next.js Image `loading="lazy"`). Threshold for retrofitting
-// virtualisation: ~1000 rows / person.
+//  ≥ 1100px  → master-detail.  Three columns: timeline (capped ~760px)
+//              | sticky preview panel (~360px) | narrowed year scrubber
+//              (~60px). Hovering a row updates the panel; the panel
+//              stays pinned on the last hovered row until the user
+//              clicks "Summary" to restore the idle career-summary view.
+//
+//  < 1100px  → popover fallback.  Single timeline column + (optional)
+//              year scrubber on the right. Hovering a row shows a
+//              floating popover, the previously-shipped behaviour.
+//
+// Hover timing in panel mode: 300ms before the first activation
+// (debounces flicks across the list); 100ms thereafter (snappy
+// cross-fade once primed). No decay on mouse-leave — the panel keeps
+// the last-hovered row pinned (Linear / Outlook / iCloud Photos
+// convention).
 
 export type TimelineSectionProps = {
   rows: CareerTimelineRow[];
   withTint: boolean;
   ageAtShoot?: (row: CareerTimelineRow) => string | null;
-  // Era display for a year header — returns a label like "post-surgery era"
-  // or null. Called per year-section header.
   eraLabelForYear?: (year: number) => string | null;
-  // Async hover-preview fetcher. Implemented by the consuming page using
-  // the server actions. Returns null when not available.
   fetchHoverPreview: (
     row: CareerTimelineRow,
   ) => Promise<CareerHoverPreviewData | null>;
+  // Idle content for the right panel in master-detail mode (typically a
+  // <CareerSummaryCard />). Ignored below the 1100px breakpoint.
+  summaryNode?: React.ReactNode;
 };
 
 type YearGroup = {
@@ -39,7 +49,7 @@ type YearGroup = {
 };
 
 function yearOf(row: CareerTimelineRow): number {
-  return row.releaseDate?.getUTCFullYear() ?? 0; // 0 sentinel for undated
+  return row.releaseDate?.getUTCFullYear() ?? 0;
 }
 
 function groupByYear(rows: CareerTimelineRow[]): YearGroup[] {
@@ -50,10 +60,6 @@ function groupByYear(rows: CareerTimelineRow[]): YearGroup[] {
     arr.push(r);
     map.set(y, arr);
   }
-  // Preserve the sort order of the incoming rows. Map iteration follows
-  // insertion order; the first occurrence of each year fixes that year's
-  // position. So we sort the year keys by the first occurrence index in
-  // the input.
   const firstIndex = new Map<number, number>();
   rows.forEach((r, i) => {
     const y = yearOf(r);
@@ -67,27 +73,38 @@ function groupByYear(rows: CareerTimelineRow[]): YearGroup[] {
 
 const SCRUBBER_MIN_YEARS = 5;
 
+function rowKey(row: CareerTimelineRow): string {
+  return row.kind === "promoted" ? `p:${row.setId}` : `s:${row.stagingSetId}`;
+}
+
 export function TimelineSection({
   rows,
   withTint,
   ageAtShoot,
   eraLabelForYear,
   fetchHoverPreview,
+  summaryNode,
 }: TimelineSectionProps) {
+  const isPanelMode = useMediaQuery("(min-width: 1100px)");
   const groups = useMemo(() => groupByYear(rows), [rows]);
   const yearRefs = useRef<Map<number, HTMLElement>>(new Map());
   const [activeYear, setActiveYear] = useState<number | undefined>(
     groups[0]?.year,
   );
 
-  // Hover preview state — lazily fetched on row hover with a 300ms delay.
-  const [hoverRow, setHoverRow] = useState<CareerTimelineRow | null>(null);
-  const [hoverData, setHoverData] = useState<CareerHoverPreviewData | null>(null);
-  const [hoverPos, setHoverPos] = useState<{ top: number; left: number } | null>(null);
+  // Shared selection state — used by BOTH modes. In panel mode this is
+  // the row whose preview is currently in the right panel. In popover
+  // mode this is the row whose floating popover is open.
+  const [selectedRow, setSelectedRow] = useState<CareerTimelineRow | null>(null);
+  const [previewData, setPreviewData] = useState<CareerHoverPreviewData | null>(null);
+  // Popover-only positioning state.
+  const [popoverPos, setPopoverPos] = useState<{ top: number; left: number } | null>(null);
   const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastHoveredKeyRef = useRef<string | null>(null);
+  // Panel-mode hover priming: once activated, subsequent row hovers
+  // cross-fade at 100ms instead of waiting the full 300ms.
+  const isPanelPrimedRef = useRef(false);
 
-  // Year-scrubber entries
   const scrubberEntries: YearScrubberEntry[] = useMemo(
     () => groups.filter((g) => g.year > 0).map((g) => ({ year: g.year, count: g.rows.length })),
     [groups],
@@ -99,10 +116,8 @@ export function TimelineSection({
     if (typeof window === "undefined") return;
     const observer = new IntersectionObserver(
       (entries) => {
-        // Among intersecting headers, pick the one closest to top of viewport.
         const visible = entries.filter((e) => e.isIntersecting);
         if (visible.length === 0) return;
-        // Sort by boundingClientRect.top ascending (closest to 0 = at top)
         const top = visible.reduce((a, b) =>
           Math.abs(a.boundingClientRect.top) < Math.abs(b.boundingClientRect.top) ? a : b,
         );
@@ -126,16 +141,28 @@ export function TimelineSection({
     if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
     const key = rowKey(row);
     lastHoveredKeyRef.current = key;
+
+    if (isPanelMode) {
+      // Panel mode: snappy cross-fade once primed.
+      const delay = isPanelPrimedRef.current ? 100 : 300;
+      hoverTimerRef.current = setTimeout(async () => {
+        if (lastHoveredKeyRef.current !== key) return;
+        isPanelPrimedRef.current = true;
+        setSelectedRow(row);
+        setPreviewData(null);
+        const data = await fetchHoverPreview(row);
+        if (lastHoveredKeyRef.current === key) {
+          setPreviewData(data);
+        }
+      }, delay);
+      return;
+    }
+
+    // Popover mode: legacy floating-popover behaviour. Position is
+    // computed relative to the row element with viewport-edge clamping.
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
     hoverTimerRef.current = setTimeout(async () => {
-      // Guard: cursor may have moved on before timer fires.
       if (lastHoveredKeyRef.current !== key) return;
-      // Position the popover beside the row, clamped to viewport bounds.
-      // Popover is ~420px wide. If the row's right edge + 12px gap would
-      // overflow the right of the viewport, flip the popover to the LEFT
-      // side of the row; if that also overflows, pin to the right viewport
-      // edge with a small margin. Vertical: clamp so the popover doesn't
-      // run off the bottom.
       const POPOVER_WIDTH = 420;
       const POPOVER_HEIGHT_ESTIMATE = 400;
       const MARGIN = 16;
@@ -144,24 +171,18 @@ export function TimelineSection({
       const leftOfRow = rect.left - 12 - POPOVER_WIDTH;
       const fitsLeft = leftOfRow >= MARGIN;
       let leftPx: number;
-      if (fitsRight) {
-        leftPx = rightOfRow;
-      } else if (fitsLeft) {
-        leftPx = leftOfRow;
-      } else {
-        leftPx = Math.max(MARGIN, window.innerWidth - POPOVER_WIDTH - MARGIN);
-      }
+      if (fitsRight) leftPx = rightOfRow;
+      else if (fitsLeft) leftPx = leftOfRow;
+      else leftPx = Math.max(MARGIN, window.innerWidth - POPOVER_WIDTH - MARGIN);
       const idealTop = rect.top;
       const maxTop = window.innerHeight - POPOVER_HEIGHT_ESTIMATE - MARGIN;
       const topPx = Math.max(MARGIN, Math.min(idealTop, maxTop));
-      // The popover uses `position: fixed`, which is viewport-relative
-      // — do NOT add scroll offset. (Previous bug: adding window.scrollY
-      // made the popover drift down as the user scrolled.)
-      setHoverRow(row);
-      setHoverPos({ top: topPx, left: leftPx });
+      setSelectedRow(row);
+      setPopoverPos({ top: topPx, left: leftPx });
+      setPreviewData(null);
       const data = await fetchHoverPreview(row);
       if (lastHoveredKeyRef.current === key) {
-        setHoverData(data);
+        setPreviewData(data);
       }
     }, 300);
   };
@@ -169,11 +190,17 @@ export function TimelineSection({
   const handleHoverLeave = () => {
     if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
     lastHoveredKeyRef.current = null;
-    // Delay clearing so the user has time to move into the popover.
+
+    if (isPanelMode) {
+      // Panel mode: keep last-hovered row pinned (no decay back to summary).
+      return;
+    }
+
+    // Popover mode: delay so user can move INTO the popover before it hides.
     hoverTimerRef.current = setTimeout(() => {
-      setHoverRow(null);
-      setHoverData(null);
-      setHoverPos(null);
+      setSelectedRow(null);
+      setPreviewData(null);
+      setPopoverPos(null);
     }, 120);
   };
 
@@ -181,9 +208,65 @@ export function TimelineSection({
     if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
   };
 
+  const handleBackToSummary = () => {
+    setSelectedRow(null);
+    setPreviewData(null);
+    lastHoveredKeyRef.current = null;
+  };
+
+  // Note: we intentionally don't clear `selectedRow` / `previewData` on
+  // breakpoint changes via useEffect (the React Compiler lint forbids
+  // setState in an effect body). State self-heals on the next hover:
+  //   - panel → popover: `popoverPos` is null until next hover, so the
+  //     stale floating popover isn't shown. New hover sets both.
+  //   - popover → panel: any previewData for that row is reused — the
+  //     panel renders the same CareerHoverPreviewData shape the popover
+  //     was using.
+
+  const selectedKey = selectedRow ? rowKey(selectedRow) : null;
+
+  // Build a stable "panel content" block for panel mode.
+  const panelContent = (() => {
+    if (!isPanelMode) return null;
+    if (selectedRow) {
+      if (previewData) {
+        return (
+          <SetPreviewPanel
+            title={selectedRow.title}
+            isVideo={selectedRow.type === "video"}
+            previewData={previewData}
+            href={
+              selectedRow.kind === "promoted"
+                ? `/sets/${selectedRow.setId}`
+                : `/staging-sets?focus=${selectedRow.stagingSetId}`
+            }
+            linkLabel={selectedRow.kind === "promoted" ? "Open set" : "View in staging"}
+            isStaged={selectedRow.kind === "staged"}
+            onBackToSummary={handleBackToSummary}
+          />
+        );
+      }
+      return (
+        <SetPreviewPanelLoading
+          title={selectedRow.title}
+          onBackToSummary={handleBackToSummary}
+        />
+      );
+    }
+    return summaryNode ?? null;
+  })();
+
   return (
-    <div className={cn("flex gap-3", showScrubber ? "pr-2" : "")}>
-      <div className="min-w-0 flex-1 space-y-6">
+    <div className="flex gap-4">
+      {/* Timeline column — capped in panel mode so the cluster sits next
+          to the cover instead of stretching across the viewport. In
+          popover mode the timeline reverts to flex-1 (existing behaviour). */}
+      <div
+        className={cn(
+          "min-w-0 space-y-6",
+          isPanelMode ? "w-[760px] shrink-0" : "flex-1",
+        )}
+      >
         {groups.map((group) => (
           <section key={group.year} className="space-y-1.5">
             <header
@@ -211,24 +294,36 @@ export function TimelineSection({
               </span>
             </header>
             <div className="space-y-1.5">
-              {group.rows.map((row) => (
-                <div
-                  key={rowKey(row)}
-                  onMouseEnter={(e) => handleHoverEnter(row, e)}
-                  onMouseLeave={handleHoverLeave}
-                >
-                  <TimelineSetRow
-                    row={row}
-                    withTint={withTint}
-                    ageAtShoot={ageAtShoot?.(row)}
-                  />
-                </div>
-              ))}
+              {group.rows.map((row) => {
+                const key = rowKey(row);
+                return (
+                  <div
+                    key={key}
+                    onMouseEnter={(e) => handleHoverEnter(row, e)}
+                    onMouseLeave={handleHoverLeave}
+                  >
+                    <TimelineSetRow
+                      row={row}
+                      withTint={withTint}
+                      ageAtShoot={ageAtShoot?.(row)}
+                      isSelected={isPanelMode && selectedKey === key}
+                    />
+                  </div>
+                );
+              })}
             </div>
           </section>
         ))}
       </div>
 
+      {/* Right panel (panel mode only) */}
+      {isPanelMode && panelContent && (
+        <aside className="w-[360px] shrink-0">
+          <div className="sticky top-16">{panelContent}</div>
+        </aside>
+      )}
+
+      {/* Year scrubber */}
       {showScrubber && (
         <aside className="w-[60px] shrink-0">
           <YearScrubber
@@ -239,26 +334,26 @@ export function TimelineSection({
         </aside>
       )}
 
-      {/* Hover preview popover */}
-      {hoverRow && hoverPos && (
+      {/* Hover preview popover (popover mode only) */}
+      {!isPanelMode && selectedRow && popoverPos && (
         <div
           className="pointer-events-auto fixed z-50"
-          style={{ top: hoverPos.top, left: hoverPos.left }}
+          style={{ top: popoverPos.top, left: popoverPos.left }}
           onMouseEnter={handlePopoverEnter}
           onMouseLeave={handleHoverLeave}
         >
-          {hoverData ? (
+          {previewData ? (
             <SetHoverPreview
-              title={hoverRow.title}
-              isVideo={hoverRow.type === "video"}
-              previewData={hoverData}
+              title={selectedRow.title}
+              isVideo={selectedRow.type === "video"}
+              previewData={previewData}
               href={
-                hoverRow.kind === "promoted"
-                  ? `/sets/${hoverRow.setId}`
-                  : `/staging-sets?focus=${hoverRow.stagingSetId}`
+                selectedRow.kind === "promoted"
+                  ? `/sets/${selectedRow.setId}`
+                  : `/staging-sets?focus=${selectedRow.stagingSetId}`
               }
-              linkLabel={hoverRow.kind === "promoted" ? "Open set" : "View in staging"}
-              isStaged={hoverRow.kind === "staged"}
+              linkLabel={selectedRow.kind === "promoted" ? "Open set" : "View in staging"}
+              isStaged={selectedRow.kind === "staged"}
             />
           ) : (
             <div className="w-[420px] rounded-lg border border-white/15 bg-popover/95 p-3 text-xs text-muted-foreground italic shadow-xl backdrop-blur-sm">
@@ -269,8 +364,4 @@ export function TimelineSection({
       )}
     </div>
   );
-}
-
-function rowKey(row: CareerTimelineRow): string {
-  return row.kind === "promoted" ? `p:${row.setId}` : `s:${row.stagingSetId}`;
 }
