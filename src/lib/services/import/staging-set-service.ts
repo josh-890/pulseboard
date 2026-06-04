@@ -386,6 +386,109 @@ export async function updateStagingSetStatus(
   })
 }
 
+// The candidate set(s) that triggered THIS set's duplicate warning — the
+// "suggested duplicate". NOT to be confused with a split sibling
+// (StagingSet.siblingId: the photo/video counterpart of one import set).
+export type DuplicateCandidate = {
+  id: string
+  title: string
+  channelName: string | null
+  releaseDate: Date | null
+  isVideo: boolean
+  externalId: string | null
+  status: StagingSetStatus
+  coverImageUrl: string | null
+  participantNames: string[]
+  kind: 'confirmed' | 'probable'
+}
+
+function _participantDisplayNames(participants: unknown): string[] {
+  if (!Array.isArray(participants)) return []
+  return participants
+    .map((p) =>
+      p && typeof p === 'object' && 'name' in p ? String((p as { name?: unknown }).name ?? '').trim() : '',
+    )
+    .filter(Boolean)
+}
+
+/**
+ * The staging set(s) that triggered this set's duplicate warning, so the user can
+ * verify rather than guess. Confirmed: same duplicateGroupId. Probable: same
+ * channel + release date AND flagged isDuplicate — mirroring
+ * resolveStagingSetDuplicate, which also excludes the split photo/video sibling
+ * (it shares the same externalId and is therefore never flagged isDuplicate).
+ * Both exclude self and SKIPPED. Returns [] when the set carries no duplicate flag.
+ */
+export async function getDuplicateCandidates(id: string): Promise<DuplicateCandidate[]> {
+  const self = await prisma.stagingSet.findUnique({
+    where: { id },
+    select: { duplicateGroupId: true, channelId: true, releaseDate: true },
+  })
+  if (!self) return []
+
+  const select = {
+    id: true,
+    title: true,
+    channelName: true,
+    releaseDate: true,
+    isVideo: true,
+    externalId: true,
+    status: true,
+    coverImageUrl: true,
+    participants: true,
+  } as const
+
+  let rows: Array<{
+    id: string
+    title: string
+    channelName: string | null
+    releaseDate: Date | null
+    isVideo: boolean
+    externalId: string | null
+    status: StagingSetStatus
+    coverImageUrl: string | null
+    participants: unknown
+  }>
+  let kind: 'confirmed' | 'probable'
+
+  if (self.duplicateGroupId) {
+    kind = 'confirmed'
+    rows = await prisma.stagingSet.findMany({
+      where: { duplicateGroupId: self.duplicateGroupId, id: { not: id }, status: { not: 'SKIPPED' } },
+      select,
+      orderBy: { releaseDate: 'asc' },
+    })
+  } else if (self.channelId && self.releaseDate) {
+    kind = 'probable'
+    rows = await prisma.stagingSet.findMany({
+      where: {
+        channelId: self.channelId,
+        releaseDate: self.releaseDate,
+        isDuplicate: true,
+        id: { not: id },
+        status: { not: 'SKIPPED' },
+      },
+      select,
+      orderBy: { title: 'asc' },
+    })
+  } else {
+    return []
+  }
+
+  return rows.map((r) => ({
+    id: r.id,
+    title: r.title,
+    channelName: r.channelName,
+    releaseDate: r.releaseDate,
+    isVideo: r.isVideo,
+    externalId: r.externalId,
+    status: r.status,
+    coverImageUrl: r.coverImageUrl,
+    participantNames: _participantDisplayNames(r.participants),
+    kind,
+  }))
+}
+
 export async function linkStagingSetDuplicate(
   id: string,
   duplicateGroupId: string,

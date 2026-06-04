@@ -22,7 +22,7 @@ import { StagingSetCoverUpload } from './staging-set-cover-upload'
 import { SetComparisonGrid } from '@/components/import/set-comparison-grid'
 import { ArchiveFolderPicker } from './archive-folder-picker'
 import { ArchiveStatusBanner } from '@/components/archive/archive-status-banner'
-import type { StagingSetWithRelations, StagingSetComparison } from '@/lib/services/import/staging-set-service'
+import type { StagingSetWithRelations, StagingSetComparison, DuplicateCandidate } from '@/lib/services/import/staging-set-service'
 import type { StagingSetStatus, ArchiveStatus } from '@/generated/prisma/client'
 // (recordArchivePathAction / clearArchivePathAction removed — scan-first workflow only)
 import { acceptDateSuggestionAction, dismissDateSuggestionAction } from '@/lib/actions/staging-set-actions'
@@ -110,6 +110,9 @@ function PanelContent({
   const [pickerOpen, setPickerOpen] = useState(false)
   const [dateSuggestion, setDateSuggestion] = useState(stagingSet.releaseDateSuggestion ?? null)
   const [isDateSuggestionPending, setIsDateSuggestionPending] = useState(false)
+  const [duplicateCandidates, setDuplicateCandidates] = useState<DuplicateCandidate[]>([])
+
+  const hasDuplicateFlag = (stagingSet.isDuplicate || !!stagingSet.duplicateGroupId) && stagingSet.status !== 'SKIPPED'
 
   const hasMatch = !!stagingSet.matchedSetId
   const isExactMatch = hasMatch && stagingSet.matchConfidence === 1.0
@@ -155,6 +158,22 @@ function PanelContent({
     load()
     return () => { cancelled = true }
   }, [stagingSet.id, hasMatch])
+
+  // Load the sibling set(s) that triggered the duplicate flag so the user can
+  // verify them (same async-load-in-effect pattern as the comparison above).
+  useEffect(() => {
+    if (!hasDuplicateFlag) return
+    let cancelled = false
+    const load = async () => {
+      try {
+        const r = await fetch(`/api/staging-sets/${stagingSet.id}/duplicates`)
+        const data = (await r.json()) as { candidates?: DuplicateCandidate[] }
+        if (!cancelled) setDuplicateCandidates(data.candidates ?? [])
+      } catch { /* ignore */ }
+    }
+    load()
+    return () => { cancelled = true }
+  }, [stagingSet.id, hasDuplicateFlag])
 
   const startEditing = useCallback(() => {
     setEditFields({
@@ -335,6 +354,47 @@ function PanelContent({
                 ? 'Same set was already imported from another file. Resolve to hide it and prevent re-flagging on future imports.'
                 : 'Another staging set shares the same channel and release date. Resolve if this is confirmed the same set, or dismiss if they are different sets.'}
             </p>
+
+            {/* The candidate set(s) that triggered the flag — shown so the match can be verified */}
+            {duplicateCandidates.length > 0 && (
+              <div className="mb-3 space-y-1.5">
+                {duplicateCandidates.map((cand) => (
+                  <Link
+                    key={cand.id}
+                    href={`/staging-sets?select=${cand.id}`}
+                    className="flex items-center gap-2 rounded-md border border-border/50 bg-background/40 p-1.5 transition-colors hover:bg-muted/60"
+                  >
+                    {cand.coverImageUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={cand.coverImageUrl} alt="" className="h-9 w-9 shrink-0 rounded object-cover" />
+                    ) : (
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded bg-muted text-[9px] text-muted-foreground">
+                        n/a
+                      </div>
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-xs font-medium">{cand.title}</p>
+                      <p className="truncate text-[10px] text-muted-foreground">
+                        {[
+                          cand.participantNames.join(', ') || null,
+                          cand.externalId ? `ID ${cand.externalId}` : 'no ID',
+                          cand.isVideo ? 'video' : 'photo',
+                        ]
+                          .filter(Boolean)
+                          .join(' · ')}
+                      </p>
+                    </div>
+                    {STATUS_BADGE[cand.status] && (
+                      <span className={cn('shrink-0 rounded px-1.5 py-0.5 text-[9px] font-medium', STATUS_BADGE[cand.status].className)}>
+                        {STATUS_BADGE[cand.status].label}
+                      </span>
+                    )}
+                    <ExternalLink size={11} className="shrink-0 text-muted-foreground" />
+                  </Link>
+                ))}
+              </div>
+            )}
+
             <div className="flex gap-2">
               <Button
                 size="sm"

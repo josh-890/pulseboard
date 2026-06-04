@@ -133,6 +133,11 @@ export function StagingSetsWorkspace() {
   // ── Selection state ───────────────────────────────────────────────────
   const selectParam = searchParams.get('select')
   const [selectedId, setSelectedId] = useState<string | null>(selectParam)
+  // Follow ?select=<id> changes after mount so in-app deep links (e.g. the
+  // duplicate-sibling "Open" link in the slide panel) switch the open panel.
+  useEffect(() => {
+    if (selectParam) setSelectedId(selectParam)
+  }, [selectParam])
   const [isMultiSelectMode, setIsMultiSelectMode] = useState(false)
   const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set())
   const [isProcessing, setIsProcessing] = useState(false)
@@ -146,10 +151,29 @@ export function StagingSetsWorkspace() {
     const found = data?.items.find((s) => s.id === selectedId)
     if (found) selectedSetCacheRef.current = found
   }, [selectedId, data])
+
+  // On-demand fetch for a selected set that isn't in the current filtered page —
+  // e.g. opening a duplicate counterpart whose status is filtered out. Without
+  // this the panel would fall back to the previously-shown set.
+  const [fetchedSet, setFetchedSet] = useState<StagingSetWithRelations | null>(null)
+  useEffect(() => {
+    if (!selectedId || data?.items.some((s) => s.id === selectedId)) return
+    let cancelled = false
+    fetch(`/api/staging-sets/${selectedId}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((s: StagingSetWithRelations | null) => { if (!cancelled && s?.id === selectedId) setFetchedSet(s) })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [selectedId, data])
+
   const selectedSet = useMemo(() => {
     if (!selectedId) return null
-    return data?.items.find((s) => s.id === selectedId) ?? selectedSetCacheRef.current
-  }, [selectedId, data])
+    return (
+      data?.items.find((s) => s.id === selectedId)
+      ?? (fetchedSet?.id === selectedId ? fetchedSet : null)
+      ?? selectedSetCacheRef.current
+    )
+  }, [selectedId, data, fetchedSet])
 
   // ── Grid ref for keyboard nav ─────────────────────────────────────────
   const gridRef = useRef<HTMLDivElement | null>(null)
