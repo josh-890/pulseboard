@@ -272,11 +272,9 @@ export function CareerTab({
                 type="button"
                 onClick={() => handleMultifacetToggle("clabel", aff.labelId)}
                 aria-pressed={isActive}
-                title={
-                  isActive
-                    ? `Remove ${aff.labelName} filter`
-                    : `Filter to sets in ${aff.labelName}`
-                }
+                title={`${aff.labelName}: ${aff.photoCount} photo set${aff.photoCount === 1 ? "" : "s"}, ${aff.videoCount} video set${aff.videoCount === 1 ? "" : "s"}${
+                  isActive ? " — click to remove filter" : " — click to filter"
+                }`}
                 className={cn(
                   "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 transition-colors",
                   isActive
@@ -285,7 +283,11 @@ export function CareerTab({
                 )}
               >
                 <span>{aff.labelName}</span>
-                <span className="text-[10px] opacity-60">{aff.setCount}</span>
+                <span className="text-[10px] tabular-nums opacity-60">
+                  {aff.photoCount}
+                  <span className="opacity-40">/</span>
+                  {aff.videoCount}
+                </span>
               </button>
             );
           })}

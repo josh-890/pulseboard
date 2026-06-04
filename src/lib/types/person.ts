@@ -78,6 +78,11 @@ export type StagingWorkHistoryItem = {
   isVideo: boolean;
   externalId: string | null;
   coverImageUrl: string | null;
+  // Label info denormalised from channel.labelMaps[0]. Mirrors the
+  // shape of `PersonWorkHistoryItem` so affiliation derivation can
+  // treat promoted + staged items uniformly.
+  labelId: string | null;
+  labelName: string | null;
   archiveStatus: import("@/generated/prisma/client").ArchiveStatus | null;
   archiveFileCount: number | null;
   hasSuggestion: boolean;
@@ -86,7 +91,12 @@ export type StagingWorkHistoryItem = {
 export type PersonAffiliation = {
   labelId: string;
   labelName: string;
+  // Total across both promoted + staged + photo + video. Kept for
+  // backward compat with non-Career-tab consumers.
   setCount: number;
+  // Split by type so the Career-tab pill can show n/m (photos / videos).
+  photoCount: number;
+  videoCount: number;
 };
 
 export type PersonConnection = {

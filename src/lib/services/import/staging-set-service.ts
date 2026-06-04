@@ -165,6 +165,17 @@ export async function getStagingWorkHistoryForPerson(personId: string): Promise<
       isVideo: true,
       externalId: true,
       coverImageUrl: true,
+      // Pull label info via the channel's labelMaps so the staging
+      // contribution counts toward the same per-label affiliation that
+      // promoted sets do (deriveAffiliations consumes both arrays).
+      channel: {
+        select: {
+          labelMaps: {
+            take: 1,
+            select: { label: { select: { id: true, name: true } } },
+          },
+        },
+      },
       archiveLinks: {
         select: { archiveStatus: true, status: true, archiveFileCount: true },
       },
@@ -172,26 +183,27 @@ export async function getStagingWorkHistoryForPerson(personId: string): Promise<
     orderBy: [{ releaseDate: 'desc' }, { title: 'asc' }],
   })
 
-  return stagingSets.map((s) => ({
-    stagingSetId: s.id,
-    title: s.title,
-    channelName: s.channelName,
-    channelId: s.channelId,
-    releaseDate: s.releaseDate,
-    releaseDatePrecision: s.releaseDatePrecision,
-    isVideo: s.isVideo,
-    externalId: s.externalId,
-    coverImageUrl: s.coverImageUrl,
-    ...(() => {
-      const confirmed = s.archiveLinks.find((l) => l.status === 'CONFIRMED')
-      const hasSuggestion = !confirmed && s.archiveLinks.some((l) => l.status === 'SUGGESTED')
-      return {
-        archiveStatus: confirmed?.archiveStatus ?? null,
-        archiveFileCount: confirmed?.archiveFileCount ?? null,
-        hasSuggestion,
-      }
-    })(),
-  }))
+  return stagingSets.map((s) => {
+    const labelRow = s.channel?.labelMaps[0]?.label ?? null
+    const confirmed = s.archiveLinks.find((l) => l.status === 'CONFIRMED')
+    const hasSuggestion = !confirmed && s.archiveLinks.some((l) => l.status === 'SUGGESTED')
+    return {
+      stagingSetId: s.id,
+      title: s.title,
+      channelName: s.channelName,
+      channelId: s.channelId,
+      releaseDate: s.releaseDate,
+      releaseDatePrecision: s.releaseDatePrecision,
+      isVideo: s.isVideo,
+      externalId: s.externalId,
+      coverImageUrl: s.coverImageUrl,
+      labelId: labelRow?.id ?? null,
+      labelName: labelRow?.name ?? null,
+      archiveStatus: confirmed?.archiveStatus ?? null,
+      archiveFileCount: confirmed?.archiveFileCount ?? null,
+      hasSuggestion,
+    }
+  })
 }
 
 export async function getStagingSetsForPerson(

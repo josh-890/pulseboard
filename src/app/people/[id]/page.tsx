@@ -143,7 +143,7 @@ export default async function PersonDetailPage({ params, searchParams }: PersonD
   if (!person) notFound();
 
   const currentState = deriveCurrentState(person);
-  const affiliations = deriveAffiliations(workHistory);
+  const affiliations = deriveAffiliations(workHistory, stagingWorkHistory);
 
   const plausibilityIssues = computePlausibilityIssues({
     birthdate: person.birthdate,

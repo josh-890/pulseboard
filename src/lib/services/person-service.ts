@@ -14,6 +14,7 @@ import type {
   PersonSessionWorkEntry,
   PersonProductionSession,
   SessionThumbnail,
+  StagingWorkHistoryItem,
 } from "@/lib/types";
 import { parsePhotoVariants } from "@/lib/types";
 import type { PersonStatus, Prisma } from "@/generated/prisma/client";
@@ -1144,22 +1145,51 @@ export function deriveCurrentState(
 /**
  * Derives label affiliations from already-loaded work history items.
  * Pure sync function — no DB access. Replaces the async `getPersonAffiliations`.
+ *
+ * Counts both promoted sets (PersonWorkHistoryItem) and approved staged
+ * sets (StagingWorkHistoryItem). Each affiliation reports the total
+ * setCount AND a split by media type (photoCount / videoCount) so the
+ * Career-tab pill can render an n/m indicator.
+ *
+ * The staged contribution matters: a freshly-imported person may have
+ * MPLStudios staging sets that won't appear in any per-label tally
+ * computed from `SetParticipant` alone.
  */
-export function deriveAffiliations(workHistory: PersonWorkHistoryItem[]): PersonAffiliation[] {
+export function deriveAffiliations(
+  workHistory: PersonWorkHistoryItem[],
+  stagingWorkHistory: StagingWorkHistoryItem[] = [],
+): PersonAffiliation[] {
   const labelMap = new Map<string, PersonAffiliation>();
-  for (const item of workHistory) {
-    if (!item.labelId || !item.labelName) continue;
-    const existing = labelMap.get(item.labelId);
+
+  const tally = (
+    labelId: string | null,
+    labelName: string | null,
+    isVideo: boolean,
+  ) => {
+    if (!labelId || !labelName) return;
+    const existing = labelMap.get(labelId);
     if (existing) {
-      existing.setCount++;
+      existing.setCount += 1;
+      if (isVideo) existing.videoCount += 1;
+      else existing.photoCount += 1;
     } else {
-      labelMap.set(item.labelId, {
-        labelId: item.labelId,
-        labelName: item.labelName,
+      labelMap.set(labelId, {
+        labelId,
+        labelName,
         setCount: 1,
+        photoCount: isVideo ? 0 : 1,
+        videoCount: isVideo ? 1 : 0,
       });
     }
+  };
+
+  for (const item of workHistory) {
+    tally(item.labelId, item.labelName, item.setType === "video");
   }
+  for (const item of stagingWorkHistory) {
+    tally(item.labelId, item.labelName, item.isVideo);
+  }
+
   return Array.from(labelMap.values()).sort((a, b) => b.setCount - a.setCount);
 }
 
@@ -1178,16 +1208,21 @@ export async function getPersonAffiliations(personId: string): Promise<PersonAff
   const labelMap = new Map<string, PersonAffiliation>();
   for (const p of participants) {
     const labelMaps = p.set.channel?.labelMaps ?? [];
+    const isVideo = p.set.type === "video";
     for (const lm of labelMaps) {
       const label = lm.label;
       const existing = labelMap.get(label.id);
       if (existing) {
-        existing.setCount++;
+        existing.setCount += 1;
+        if (isVideo) existing.videoCount += 1;
+        else existing.photoCount += 1;
       } else {
         labelMap.set(label.id, {
           labelId: label.id,
           labelName: label.name,
           setCount: 1,
+          photoCount: isVideo ? 0 : 1,
+          videoCount: isVideo ? 1 : 0,
         });
       }
     }
