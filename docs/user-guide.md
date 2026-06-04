@@ -192,9 +192,33 @@ Only photos from the person's reference session can be embedded — external URL
 - Click to expand and view a gallery for that category
 
 **Career**
-- Work history table: Title, Channel, Label, Release Date, Age at Release, Role
-- Populated from SetParticipant records
-- Click set titles to navigate to set detail
+- Unified chronological timeline that blends Promoted Sets and Staged
+  StagingSets per the type tab (Photos / Videos — defaults to Photos,
+  remembered per person)
+- Each row: cover thumbnail · `yyyy-mm-dd · channel · count · age` ·
+  **title** + status pill (`PROMOTED` emerald / `STAGED` amber) +
+  archive pill (green `In archive` / slate `Linked` / red specific
+  issue) + rating stars. Multi-cast sets show a 3rd line listing the
+  other participants (the viewer themselves is omitted)
+- Promoted photo rows display up to 4 sample thumbnails on the right
+  (cover counts as the first frame for videos and staged sets, so
+  those rows skip the strip)
+- **Hover the small cover thumbnail** to see an enlarged version of
+  the cover (~240×320 photos / 480×270 videos) — purely visual; no
+  link pill since clicking anywhere on the row already navigates
+- Year navigation: sticky year header (year + era pill when defined
+  + set count) and a narrow right-edge year scrubber whose row
+  background fill encodes that year's density relative to the
+  busiest
+- **Label affiliation chips** (FemJoy 43/3, VipNudes 2/0, …) act as
+  multi-select filters — click a chip to filter the timeline to sets
+  in that label; the active chip is highlighted. The `n/m` indicator
+  on each chip splits photo sets (n) from video sets (m)
+- Filters in the toolbar — Channel · Rating · Era (when defined) ·
+  Archive · Sort. Channel dropdown only lists channels with > 0
+  matching sets in the current view. URL-driven via comma-separated
+  searchParams (`channel`, `crating`, `era`, `archive`, `clabel`,
+  `csort`)
 
 **Network**
 - Relationships with other people

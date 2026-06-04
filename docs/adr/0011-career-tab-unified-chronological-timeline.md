@@ -138,15 +138,55 @@ heights are uniform.
 - **"Archive-only sets manually linked to a person"** — schema doesn't
   support this; would be a separate schema-extension slice.
 
+## 2026-06-04 amendments (post-launch feedback)
+
+After living with the shipped design, several refinements landed in
+rapid succession. None overturn the three core decisions above; they
+sharpen the row anatomy and the hover affordance:
+
+1. **Row meta cluster.** Line 2 dropped `flex-1` on the title — title,
+   status pill, archive pill, and rating now cluster tight on the left
+   next to the cover, eliminating the ~750px horizontal saccade
+   between cover/title and the status pill the original layout had on
+   wide rows.
+2. **Persistent right panel: tried and rolled back.** A master-detail
+   layout (Linear / iCloud Photos pattern) was prototyped — sticky
+   right panel with rich preview + idle career-summary card,
+   responsive popover fallback < 1100px. Shipped briefly, then
+   rolled back: the panel didn't earn the screen estate it occupied,
+   and most of its content duplicated what the row already showed.
+   Useful information from the panel got re-homed onto the row itself.
+3. **Row 3rd line: co-participants.** Multi-cast sets show a 3rd
+   line listing other participants (the viewer themselves is omitted).
+   Solo sets stay 2-line tall. Photo rows always 90px (cover dictates),
+   video rows 60px when solo / 90px when multi-cast.
+4. **Cover-only hover popover.** Replaced the row-wide hover popover
+   (which appeared far from the cursor on wide rows) with a tight
+   cover-thumbnail hover that pops only an enlarged version of the
+   cover (240×320 photos / 480×270 videos). No samples grid, no link
+   pill — click anywhere on the row to navigate.
+5. **Archive-link pill on every row.** Three visual states with a
+   silent fourth for unlinked: green `In archive` (OK), slate `Linked`
+   (PENDING/UNKNOWN — link exists but not validated), red specific
+   label (`Missing` / `Changed` / `Incomplete`). Mirrors the hero pill
+   style, recoloured to red-not-amber to avoid collision with STAGED.
+6. **Label affiliation chips become filters.** Previously linked to
+   `/labels/[id]`; now toggle a multi-select `clabel` filter on the
+   timeline. Counts show `n/m` (photos / videos) computed across
+   promoted + staged work history so newly-imported labels (e.g. only
+   in staging) no longer go missing.
+7. **Sample thumbnail strip.** Promoted photo rows render up to 4
+   sample thumbnails on the right (h-16, width by aspect ratio),
+   inspired by the Production Photos preview-strip pattern. Hidden
+   on viewports < `lg` so the cluster stays the priority.
+
 ## Pointers
 
-- Grilling brief / final design: plan at
-  `/home/josh/.claude/plans/we-keep-freckles-scalar-twinkly-squirrel.md`
-  (snapshot from the 2026-06-03 session, then overwritten by subsequent
-  plan rounds).
 - Primitives: `src/components/career/`, `src/components/shared/status-pill.tsx`.
 - Data layer: `src/lib/services/career-service.ts`.
-- Server action (hover-preview lazy fetch): `src/lib/actions/career-actions.ts`.
+- Affiliation derivation: `deriveAffiliations()` in
+  `src/lib/services/person-service.ts` (consumes both
+  `getPersonWorkHistory` and `getStagingWorkHistoryForPerson`).
 - Page integration: `src/app/people/[id]/page.tsx`,
   `src/components/people/person-detail-tabs.tsx`,
   `src/components/people/career-tab.tsx`.

@@ -265,7 +265,7 @@ page.tsx (Server Component — calls ~12 service functions)
         ├── PersonDetailsTab — Category groups with expandable photo galleries via /api/categories/[id]/media
         ├── PersonSkillsTab — Category-grouped skills, event timeline, inline media
         ├── PersonAliasesTab — By-alias/by-channel views, multi-select, import/merge
-        ├── CareerTab — CareerSessionList, ProductionPhotoList
+        ├── CareerTab — Unified chronological timeline (ADR-0011). Header stack: compact career row · Label affiliation pills (act as multi-select filter via `clabel` URL param; show `n/m` photo/video counts; computed by `deriveAffiliations(workHistory, stagingWorkHistory)`) · multifacet toolbar (channel/rating/era/archive — channel dropdown filters to count > 0; URL params `channel`, `crating`, `era`, `archive`, `clabel`, `csort`) · type tabs. Timeline driven by `career-service.ts` primitives: `TimelineSection` (year groups + sticky headers + narrow density-by-bg-fill `YearScrubber`), `TimelineSetRow` (cover · meta lines · status pill · archive pill · star rating; 3rd line for co-participants on multi-cast sets; right-side strip of 4 sample thumbnails for promoted photo rows). Cover-hover `SetHoverPreview` shows just an enlarged cover (240×320 photos / 480×270 videos) anchored to the small cover with viewport-clamped fallback.
         ├── NetworkTab — PersonConnection cards
         └── PhotosTab — JustifiedGrid → GalleryLightbox with full info panel
 ```
