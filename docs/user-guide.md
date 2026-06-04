@@ -778,6 +778,8 @@ Each staging set row shows its archive status as a compact strip below the main 
 **✗** — rejects the suggestion (folder remains unlinked, will not be re-suggested unless re-scanned).  
 **Link folder** — opens the **Archive Folder Picker** sheet.
 
+Suggestions are **person-aware**: the matcher reads the person from the folder name (`…-CODE Person - Title`) and matches it against the set's people — using *any* recorded alias, plus the names from the import — alongside title similarity. A folder that only shares the date and channel but has a different person and title is no longer offered as a HIGH suggestion, which cuts false positives on channels that publish many sets per day. When neither the person nor the title is a good enough match, no suggestion is made and you link the folder manually via the picker.
+
 ### Archive Folder Picker
 
 A search sheet for manually linking an unlinked archive folder:
@@ -800,6 +802,20 @@ Only folders not yet linked to any Set or StagingSet appear in results.
 - **Search** — free-text on title, channel, artist, person name
 - **Date range** — from/to date filter
 - **Sort** — Date, Title, Priority, Import Date, Undated First
+
+### Duplicate Warning
+
+When a staging set shares its channel and release date with another set — or is a confirmed re-import from another file — its slide panel shows a duplicate banner:
+
+- **Possible duplicate** (amber) — another staging set has the same channel + release date.
+- **Confirmed duplicate** (orange) — the same set was already imported from another file.
+
+The banner lists the **candidate set(s)** that triggered it, so you can verify rather than guess. Each candidate shows a cover thumbnail, title, participant name(s), external ID, photo/video, and status, with an **Open** link to jump straight to that set (it loads in the panel even when its status is filtered out of the current list). Then choose:
+
+- **Resolve (skip)** — marks this entry SKIPPED and cleans up the duplicate group.
+- **Dismiss warning** — clears the flag when the sets are genuinely different.
+
+This is unrelated to a split set's photo/video **sibling** (one import that has both a photo gallery and a video): the sibling shares the same external ID and is never flagged as a duplicate.
 
 ### Promoting a Staging Set
 

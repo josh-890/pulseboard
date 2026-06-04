@@ -125,7 +125,7 @@ All import services in `src/lib/services/import/`.
 
 **`staging-service.ts`** — Batch lifecycle: `createBatch` (parse + match + stage), `refreshBatchMatches` (re-run on every page load), `computeDependencies` (block/unblock items), `getAllBatches`, `updateItemStatus`, `markItemImported`. Creates StagingSet records during batch creation with re-import dedup (skips existing by externalId + subjectIcgId).
 
-**`staging-set-service.ts`** — StagingSet CRUD + querying. `getStagingSetsFiltered` (paginated, filterable by status/person/channel/date/priority/search), `getStagingSetStats`, `getStagingSetComparison` (side-by-side diff vs production Set), `updateStagingSetFields`, `bulkUpdateStatus`, `markStagingSetPromoted` (copies `archiveKey` to promoted Set and linked ArchiveFolder). Lifecycle statuses: PENDING → REVIEWING → APPROVED → PROMOTED / INACTIVE / SKIPPED. `StagingSetWithRelations` includes optional `suggestedArchiveFolder?: SuggestedFolderInfo | null` (populated at API layer, not in Prisma include).
+**`staging-set-service.ts`** — StagingSet CRUD + querying. `getStagingSetsFiltered` (paginated, filterable by status/person/channel/date/priority/search), `getStagingSetStats`, `getStagingSetComparison` (side-by-side diff vs production Set), `updateStagingSetFields`, `bulkUpdateStatus`, `markStagingSetPromoted` (copies `archiveKey` to promoted Set and linked ArchiveFolder), `getDuplicateCandidates(id)` (the staging set(s) that triggered a duplicate warning — confirmed: same `duplicateGroupId`; probable: same channel + release date AND `isDuplicate`, which excludes the split photo/video **sibling**, `StagingSet.siblingId`). Lifecycle statuses: PENDING → REVIEWING → APPROVED → PROMOTED / INACTIVE / SKIPPED. `StagingSetWithRelations` includes optional `suggestedArchiveFolder?: SuggestedFolderInfo | null` (populated at API layer, not in Prisma include).
 
 **`import-executor.ts`** — Per-entity import: `importItem` dispatches to type-specific functions (`importLabel`, `importChannel`, `importPerson`, `importAlias`, `importDigitalIdentity`, `importSet`, `importCoModel`). Set import routes through `enrichExistingSet` (matched) or `createNewSet` (unresolved), marks StagingSet as PROMOTED.
 
@@ -136,7 +136,7 @@ All import services in `src/lib/services/import/`.
 - `buildFolderName(dateStr, shortName, participant, title)` — pure function, builds folder segment `yyyy-mm-dd-{short} {person} - {title}`
 - `buildExpectedPathForStagingSet/Set` — async, computes expected relative path for display
 - `buildFullPaths(relativePath, isVideo)` — returns one absolute path per configured root (multi-root support)
-- `runMatchingPass()` — two-tier matching: **HIGH** (exact date + exact shortName) → **MEDIUM** (same year + shortName + `pg_trgm similarity ≥ 0.4`). Writes `suggestedStagingId/SetId` + `suggestedConfidence` to ArchiveFolder
+- `runMatchingPass(tenant)` (folder→entity) / `runMatchingPassForItem(id, type, tenant)` (entity→folder) — **person-aware** matching over the channel+year window. Scores each candidate by participant-name match (`parseFolderParticipant` extracts the person from the canonical folder name `YYYY-MM-DD-CODE Person - Title`; `folderPersonMatches` compares it against **all** of the entity's participant alias-norms + staging import names) and title `pg_trgm` similarity, then gates via `scoreArchiveMatch` (name match → **HIGH**; else title ≥ `HIGH_TITLE_THRESHOLD` 0.6 → HIGH, ≥ `MEDIUM_TITLE_THRESHOLD` 0.4 → **MEDIUM**, else **no suggestion**) and `pickBestArchiveCandidate` (HIGH → exact-day → similarity). Writes a SUGGESTED `ArchiveLink`. The person signal disambiguates same date+channel collisions; pure helpers are unit-tested in `archive-match-score.test.ts`.
 - `upsertArchiveFolders(items)` — ingest scan results; detects renames (by path), moves (by `sidecarKey` → `ArchiveFolder.archiveKey` lookup), and new folders; propagates path changes to linked Set/StagingSet
 - `confirmArchiveFolderLink(folderId, setId, type)` — propagates folder's existing `archiveKey` to Set/StagingSet, clears suggestion; returns `{ archiveKey }`. No UUID generation here — key is always already present on ArchiveFolder.
 - `rejectArchiveSuggestion(folderId)` — clears `suggestedStagingId/SetId` + `suggestedConfidence`
@@ -219,6 +219,7 @@ All actions in `src/lib/actions/`. Each validates input with Zod, calls services
 | `/api/staging-sets/stats` | GET | Staging set counts by status + match type |
 | `/api/staging-sets/[id]` | GET, PATCH | Get/update staging set (fields, status, priority, notes) |
 | `/api/staging-sets/[id]/comparison` | GET | Side-by-side diff vs production Set |
+| `/api/staging-sets/[id]/duplicates` | GET | The duplicate candidate set(s) that triggered the warning (`getDuplicateCandidates`) — shown in the slide panel |
 | `/api/staging-sets/[id]/promote` | POST | Promote staging set to production |
 | `/api/staging-sets/bulk-update` | POST | Bulk status change |
 | `/api/staging-sets/bulk-promote` | POST | Bulk promote to production |
