@@ -230,7 +230,7 @@ export function TimelineSection({
       </div>
 
       {showScrubber && (
-        <aside className="w-[120px] shrink-0">
+        <aside className="w-[60px] shrink-0">
           <YearScrubber
             entries={scrubberEntries}
             activeYear={activeYear}

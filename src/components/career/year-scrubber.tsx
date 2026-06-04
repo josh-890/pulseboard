@@ -29,7 +29,7 @@ export function YearScrubber({ entries, activeYear, onYearClick }: YearScrubberP
   return (
     <nav
       aria-label="Year navigator"
-      className="sticky top-20 flex max-h-[calc(100vh-8rem)] flex-col gap-0.5 overflow-y-auto pl-2 pr-1"
+      className="sticky top-20 flex max-h-[calc(100vh-8rem)] flex-col gap-0.5 overflow-y-auto pr-0.5"
     >
       {entries.map((e) => {
         const isActive = e.year === activeYear;
@@ -40,27 +40,28 @@ export function YearScrubber({ entries, activeYear, onYearClick }: YearScrubberP
             type="button"
             onClick={() => onYearClick(e.year)}
             className={cn(
-              "group flex items-center gap-1.5 rounded px-1.5 py-1 text-left text-[10px]",
+              "group relative flex items-center overflow-hidden rounded px-1.5 py-1 text-left text-[10px]",
               "transition-colors",
               isActive
-                ? "bg-primary/15 text-primary"
-                : "text-muted-foreground hover:bg-white/5 hover:text-foreground",
+                ? "text-primary"
+                : "text-muted-foreground hover:text-foreground",
             )}
             title={`${e.year} · ${e.count} set${e.count === 1 ? "" : "s"}`}
           >
-            <span className="w-9 shrink-0 font-mono tabular-nums">{e.year}</span>
-            <span className="flex h-1.5 w-12 shrink-0 items-center">
-              <span
-                className={cn(
-                  "block h-1 rounded-full",
-                  isActive ? "bg-primary/80" : "bg-muted-foreground/30 group-hover:bg-muted-foreground/50",
-                )}
-                style={{ width: `${widthPct}%` }}
-              />
-            </span>
-            <span className="w-6 shrink-0 text-right tabular-nums opacity-60">
-              {e.count}
-            </span>
+            {/* Density fill — fills the button background from the left,
+                width proportional to that year's count vs the busiest year.
+                Sits behind the year label (z-0). */}
+            <span
+              aria-hidden
+              className={cn(
+                "absolute inset-y-0 left-0 transition-colors",
+                isActive
+                  ? "bg-primary/20"
+                  : "bg-muted-foreground/10 group-hover:bg-muted-foreground/20",
+              )}
+              style={{ width: `${widthPct}%` }}
+            />
+            <span className="relative z-10 font-mono tabular-nums">{e.year}</span>
           </button>
         );
       })}

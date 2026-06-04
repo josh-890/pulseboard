@@ -139,13 +139,16 @@ export function TimelineSetRow({
             ))}
           </span>
         </div>
-        {/* Line 2: title (bold) + rating + status pill */}
+        {/* Line 2: title (bold) + status pill + rating, clustered on the
+            left next to the cover. No flex-1 on the title — we don't want
+            to push the pill/stars to the far right of the row (the
+            "1012px void" that Phase 1 of the row-layout refinement fixed). */}
         <div className="flex items-center gap-2">
-          <span className="min-w-0 flex-1 truncate text-sm font-semibold text-foreground">
+          <span className="min-w-0 truncate text-sm font-semibold text-foreground">
             {row.title}
           </span>
-          <StarsCompact rating={row.rating} />
           <StatusPill status={status} />
+          <StarsCompact rating={row.rating} />
         </div>
       </div>
     </Link>
