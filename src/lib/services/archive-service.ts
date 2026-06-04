@@ -264,10 +264,17 @@ export async function confirmVideoFile(
 /**
  * Build a scan-path entry for a CONFIRMED ArchiveLink, resolving the path to check.
  *
- * Precedence: the link's own archivePath → the folder's relativePath → the folder's
- * absolute fullPath. Legacy links confirmed before the archivePath backfill (commit
- * c20bf61) have archivePath=null; without the folder-level fallbacks they would be
- * skipped by the verify scan forever and stay stuck at archiveStatus=UNKNOWN.
+ * Precedence: the folder's absolute fullPath → reconstruct from relative path
+ * (link.archivePath → folder.relativePath) against the first configured root.
+ *
+ * fullPath is preferred because it is the real absolute path recorded by the last
+ * full-walk scan and is therefore correct regardless of which configured root the
+ * folder lives under — essential for multi-root archives, where reconstructing from
+ * a relative path against `roots[0]` would point at the wrong root. The full-walk
+ * re-records fullPath every run, so a root remap self-corrects on the next full scan.
+ * Relative reconstruction remains only as a fallback for the (schema-wise impossible
+ * but defensive) case of a missing fullPath, and covers legacy links confirmed
+ * before the archivePath backfill (commit c20bf61).
  *
  * Pure: `toFullPath` (root reconstruction) is injected so this is unit-testable.
  */
@@ -281,16 +288,18 @@ export function buildArchivePathEntry(
   toFullPath: (relativePath: string, isVideo: boolean) => string | null,
 ): ArchivePathEntry | null {
   const isVideo = link.archiveFolder.isVideo
-  const relPath = link.archivePath ?? link.archiveFolder.relativePath
   let path: string | null
   let folderName: string
-  if (relPath) {
-    path = toFullPath(relPath, isVideo)
-    folderName = relPath.replace(/[/\\]$/, '').split(/[/\\]/).pop() ?? ''
-  } else {
-    // No relative path on either side — fall back to the folder's absolute path as scanned.
-    path = link.archiveFolder.fullPath || null
+  if (link.archiveFolder.fullPath) {
+    path = link.archiveFolder.fullPath
     folderName = link.archiveFolder.folderName
+  } else {
+    // No recorded absolute path — reconstruct from the relative path against the root.
+    const relPath = link.archivePath ?? link.archiveFolder.relativePath
+    path = relPath ? toFullPath(relPath, isVideo) : null
+    folderName = relPath
+      ? (relPath.replace(/[/\\]$/, '').split(/[/\\]/).pop() ?? '')
+      : link.archiveFolder.folderName
   }
   if (!path) return null
   return {
