@@ -881,12 +881,26 @@ async function enrichExistingSet(
       // Fill empty fields on the Set
       const existingSet = await tx.set.findUnique({
         where: { id: setId },
-        select: { description: true, imageCount: true },
+        select: { description: true, imageCount: true, externalId: true },
       })
       if (existingSet) {
         const updates: Record<string, unknown> = {}
         if (!existingSet.description && data.description) updates.description = data.description
         if (existingSet.imageCount == null && data.imageCount != null) updates.imageCount = data.imageCount
+        // Backfill externalId when the matched Set has none. createNewSet (Path B)
+        // sets it on create, but this enrich path previously skipped it, so a
+        // confirmed merge silently dropped the external ID the comparison view
+        // promised ("will add … External-ID"). externalId is @unique — only claim
+        // it if no other Set holds it, so a stray duplicate can't abort the whole
+        // promote transaction.
+        const incomingExternalId = (data.externalId as string | null | undefined) ?? null
+        if (!existingSet.externalId && incomingExternalId) {
+          const clash = await tx.set.findFirst({
+            where: { externalId: incomingExternalId, id: { not: setId } },
+            select: { id: true },
+          })
+          if (!clash) updates.externalId = incomingExternalId
+        }
         if (Object.keys(updates).length > 0) {
           await tx.set.update({ where: { id: setId }, data: updates })
         }
@@ -1186,6 +1200,30 @@ export async function promoteManualStagingSet(stagingSetId: string): Promise<Imp
             })
           }
         }
+
+        // Fill empty fields on the matched Set — mirror enrichExistingSet so a
+        // manual promote backfills the same data (esp. externalId) the comparison
+        // view promised. externalId is @unique → only claim it if unheld.
+        const existingSet = await tx.set.findUnique({
+          where: { id: setId },
+          select: { description: true, imageCount: true, externalId: true },
+        })
+        if (existingSet) {
+          const updates: Record<string, unknown> = {}
+          if (!existingSet.description && stagingSet.description) updates.description = stagingSet.description
+          if (existingSet.imageCount == null && stagingSet.imageCount != null) updates.imageCount = stagingSet.imageCount
+          if (!existingSet.externalId && stagingSet.externalId) {
+            const clash = await tx.set.findFirst({
+              where: { externalId: stagingSet.externalId, id: { not: setId } },
+              select: { id: true },
+            })
+            if (!clash) updates.externalId = stagingSet.externalId
+          }
+          if (Object.keys(updates).length > 0) {
+            await tx.set.update({ where: { id: setId }, data: updates })
+          }
+        }
+
         await rebuildSetParticipantsFromContributions(tx, setId)
       })
       await markStagingSetPromoted(stagingSetId, setId)
