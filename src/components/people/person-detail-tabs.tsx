@@ -59,10 +59,6 @@ import { GalleryLightbox } from "@/components/gallery/gallery-lightbox";
 import { BatchUploadZone } from "@/components/media/batch-upload-zone";
 import { PersonDetailsTab } from "@/components/people/person-details-tab";
 import { SectionCard, EmptyState, InfoRow } from "@/components/people/person-detail-helpers";
-import { useRouter } from "next/navigation";
-import { CrossSessionPicker } from "@/components/media/cross-session-picker";
-import { MotifAligner } from "@/components/people/motif-aligner";
-import type { MotifTemplateRecord } from "@/lib/services/motif-template-service";
 import { PersonSkillsTab } from "@/components/people/person-skills-tab";
 import { PersonAliasesTab } from "@/components/people/person-aliases-tab";
 import { PersonResearchTab } from "@/components/people/person-research-tab";
@@ -103,9 +99,7 @@ type PersonDetailTabsProps = {
   connections: PersonConnection[];
   photos: GalleryItem[];
   profileLabels: ProfileImageLabel[];
-  motifTemplates?: MotifTemplateRecord[];
   referenceSessionId?: string;
-  filledHeadshotSlots?: number[];
   headshotSlotEntries?: HeadshotSlotEntry[];
   categories?: CategoryWithGroup[];
   categoryCounts?: { categoryId: string; count: number }[];
@@ -1694,25 +1688,18 @@ function PhotosTab({
   person,
   photos,
   referenceSessionId,
-  filledHeadshotSlots,
   profileLabels,
-  motifTemplates = [],
   headshotSlotEntries,
   productionSessions,
 }: {
   person: PersonData;
   photos: GalleryItem[];
   referenceSessionId?: string;
-  filledHeadshotSlots?: number[];
   profileLabels: ProfileImageLabel[];
-  motifTemplates?: MotifTemplateRecord[];
   headshotSlotEntries?: HeadshotSlotEntry[];
   productionSessions: PersonProductionSession[];
 }) {
-  const router = useRouter();
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
-  const [motifPick, setMotifPick] = useState<MotifTemplateRecord | null>(null);
-  const [motifAligner, setMotifAligner] = useState<{ template: MotifTemplateRecord; source: { id: string; url: string } } | null>(null);
   const [slotEntries, setSlotEntries] = useState(headshotSlotEntries ?? []);
   const [isDragOver, setIsDragOver] = useState(false);
   const dragCounterRef = useRef(0);
@@ -1799,52 +1786,6 @@ function PhotosTab({
 
   return (
     <div className="space-y-6">
-      {/* Standardized slots — align a source photo to a per-slot motif template */}
-      {referenceSessionId && motifTemplates.length > 0 && (
-        <SectionCard title="Standardized Slots" icon={<ImageIcon size={18} />} badge={motifTemplates.length}>
-          <div className="flex flex-wrap gap-4">
-            {motifTemplates.map((t) => {
-              const entry = (headshotSlotEntries ?? []).find((e) => e.slot === t.slot);
-              const filled = !!entry;
-              const label = profileLabels[t.slot - 1]?.label ?? `Slot ${t.slot}`;
-              return (
-                <div key={t.id} className="flex w-36 shrink-0 flex-col gap-2">
-                  <div
-                    className="w-full overflow-hidden rounded-lg border border-white/10 bg-muted/30"
-                    style={{ aspectRatio: `${t.aspectW} / ${t.aspectH}` }}
-                  >
-                    {filled && entry?.thumbUrl ? (
-                      <NextImage
-                        src={entry.thumbUrl}
-                        alt={label}
-                        width={t.aspectW * 80}
-                        height={t.aspectH * 80}
-                        unoptimized
-                        className="h-full w-full object-cover"
-                      />
-                    ) : (
-                      <div className="flex h-full w-full items-center justify-center text-[10px] text-muted-foreground">
-                        empty
-                      </div>
-                    )}
-                  </div>
-                  <span className="truncate text-center text-xs font-medium" title={label}>
-                    {label}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => setMotifPick(t)}
-                    className="rounded-md border border-white/15 bg-card/60 px-2 py-1 text-[11px] text-muted-foreground transition-all hover:border-entity-person/40 hover:text-entity-person"
-                  >
-                    {filled ? "Re-standardize" : "Standardize"}
-                  </button>
-                </div>
-              );
-            })}
-          </div>
-        </SectionCard>
-      )}
-
       {/* Reference Photos */}
       <div ref={refPhotosContainerRef} className="relative">
         <SectionCard
@@ -1888,8 +1829,6 @@ function PhotosTab({
           <BatchUploadZone
             sessionId={referenceSessionId}
             personId={person.id}
-            filledHeadshotSlots={filledHeadshotSlots}
-            totalHeadshotSlots={profileLabels.length || 5}
             hideDropzone
             addFilesRef={addFilesRef}
           />
@@ -1920,29 +1859,6 @@ function PhotosTab({
         />
       )}
 
-      {/* Motif: pick a source photo, then align it to the slot's template */}
-      {motifPick && (
-        <CrossSessionPicker
-          personId={person.id}
-          title={`Pick a source photo to standardize for ${profileLabels[motifPick.slot - 1]?.label ?? `Slot ${motifPick.slot}`}`}
-          onSelect={(item) => {
-            setMotifAligner({ template: motifPick, source: { id: item.id, url: item.urls.original } });
-            setMotifPick(null);
-          }}
-          onClose={() => setMotifPick(null)}
-        />
-      )}
-      {motifAligner && referenceSessionId && (
-        <MotifAligner
-          source={motifAligner.source}
-          template={motifAligner.template}
-          personId={person.id}
-          referenceSessionId={referenceSessionId}
-          onSaved={() => { setMotifAligner(null); router.refresh(); }}
-          onCancel={() => setMotifAligner(null)}
-        />
-      )}
-
       {/* Production Photos */}
       <SectionCard
         title="Production Photos"
@@ -1969,9 +1885,7 @@ export function PersonDetailTabs({
   connections,
   photos,
   profileLabels,
-  motifTemplates = [],
   referenceSessionId,
-  filledHeadshotSlots,
   headshotSlotEntries,
   categories,
   categoryCounts,
@@ -2308,9 +2222,7 @@ export function PersonDetailTabs({
             person={person}
             photos={photos}
             profileLabels={profileLabels}
-            motifTemplates={motifTemplates}
             referenceSessionId={referenceSessionId}
-            filledHeadshotSlots={filledHeadshotSlots}
             headshotSlotEntries={headshotSlotEntries}
             productionSessions={productionSessions ?? []}
           />

@@ -7,8 +7,9 @@ import { SessionBrowseNavBar, SessionBrowseBackLink } from "@/components/session
 import { getSessionById } from "@/lib/services/session-service";
 import { getLabels } from "@/lib/services/label-service";
 import { getProjects } from "@/lib/services/project-service";
-import { getSessionMediaGallery, getMediaItemsWithLinks, getFilledHeadshotSlots, getCoverPhotosForSessions, getHeadshotsForPersons } from "@/lib/services/media-service";
+import { getSessionMediaGallery, getMediaItemsWithLinks, getCoverPhotosForSessions, getHeadshotsForPersons, getPersonSlotState } from "@/lib/services/media-service";
 import { getProfileImageLabels, getHeroBackdropEnabled } from "@/lib/services/setting-service";
+import { getMotifTemplates } from "@/lib/services/motif-template-service";
 import { getCollectionsForPerson } from "@/lib/services/collection-service";
 import { getAllCategoryGroups } from "@/lib/services/category-service";
 import { getSessionContributions, getContributionSkillMediaMap, getContributorsWithEntities } from "@/lib/services/contribution-service";
@@ -121,12 +122,13 @@ export default async function SessionDetailPage({ params, searchParams }: Sessio
     cosmeticProcedures: { id: string; name: string }[];
     eras: { id: string; label: string; date: string | null }[];
     skillEvents: { id: string; skillName: string; eventType: string; date: string | null }[];
-    filledHeadshotSlots: number[];
+    motifTemplates: Awaited<ReturnType<typeof getMotifTemplates>>;
+    slotState: Awaited<ReturnType<typeof getPersonSlotState>>;
   } | null = null;
 
   if (isReference && session.personId) {
     const personId = session.personId;
-    const [itemsWithLinks, slotLabels, collections, categoryGroups, bodyMarks, bodyMods, cosmetics, eras, skillEventsRaw, filledSlots] =
+    const [itemsWithLinks, slotLabels, collections, categoryGroups, bodyMarks, bodyMods, cosmetics, eras, skillEventsRaw, motifTemplates, slotState] =
       await Promise.all([
         getMediaItemsWithLinks(id, personId),
         getProfileImageLabels(),
@@ -164,11 +166,14 @@ export default async function SessionDetailPage({ params, searchParams }: Sessio
           },
           orderBy: { date: "desc" },
         }),
-        getFilledHeadshotSlots(personId),
+        getMotifTemplates(),
+        getPersonSlotState(personId),
       ]);
     mediaManagerData = {
       items: itemsWithLinks,
       slotLabels,
+      motifTemplates,
+      slotState,
       collections,
       categories: categoryGroups.flatMap((g) =>
         g.categories.map((c) => ({
@@ -196,7 +201,6 @@ export default async function SessionDetailPage({ params, searchParams }: Sessio
           eventType: e.eventType,
           date: e.date ? e.date.toISOString().split("T")[0] : null,
         })),
-      filledHeadshotSlots: filledSlots,
     };
   } else {
     mediaItems = await getSessionMediaGallery(id);
@@ -222,6 +226,8 @@ export default async function SessionDetailPage({ params, searchParams }: Sessio
           createdAt: createdAt.toISOString() as unknown as Date,
         }))}
         slotLabels={mediaManagerData.slotLabels}
+        motifTemplates={mediaManagerData.motifTemplates}
+        slotState={mediaManagerData.slotState}
         collections={mediaManagerData.collections}
         categories={mediaManagerData.categories}
         bodyMarks={mediaManagerData.bodyMarks}
@@ -229,7 +235,6 @@ export default async function SessionDetailPage({ params, searchParams }: Sessio
         cosmeticProcedures={mediaManagerData.cosmeticProcedures}
         eras={mediaManagerData.eras}
         skillEvents={mediaManagerData.skillEvents}
-        filledHeadshotSlots={mediaManagerData.filledHeadshotSlots}
         initialTab={resolvedSearchParams.tab}
       />
     );

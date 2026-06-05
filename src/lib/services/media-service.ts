@@ -801,6 +801,41 @@ export type HeadshotData = {
   focalY: number | null;
 };
 
+/** Per-slot state for the Slot Manager: current image + raw/standardized + default(avatar). */
+export type SlotState = {
+  slot: number;
+  mediaItemId: string;
+  thumbUrl: string | null;
+  isStandardized: boolean;
+  isAvatar: boolean;
+};
+
+export async function getPersonSlotState(personId: string): Promise<SlotState[]> {
+  const links = await prisma.personMediaLink.findMany({
+    where: { personId, usage: "HEADSHOT", slot: { not: null } },
+    include: { mediaItem: true },
+    orderBy: [{ slot: "asc" }, { sortOrder: "asc" }],
+  });
+  const seen = new Set<number>();
+  const out: SlotState[] = [];
+  for (const l of links) {
+    const slot = l.slot!;
+    if (seen.has(slot)) continue;
+    seen.add(slot);
+    const variants = parsePhotoVariants(l.mediaItem.variants) ?? ({} as PhotoVariants);
+    const urls = buildPhotoUrls(variants, l.mediaItem.fileRef);
+    out.push({
+      slot,
+      mediaItemId: l.mediaItem.id,
+      // Aspect-preserving thumbnail (works for normalized 2:3 + raw alike).
+      thumbUrl: urls.gallery_512 ?? urls.view_1200 ?? urls.original ?? null,
+      isStandardized: !!l.mediaItem.motifTemplateId,
+      isAvatar: l.isAvatar,
+    });
+  }
+  return out;
+}
+
 function headshotDataFromLink(link: {
   personId: string;
   mediaItem: { variants: unknown; focalX: number | null; focalY: number | null; fileRef: string | null; motifTemplateId?: string | null };

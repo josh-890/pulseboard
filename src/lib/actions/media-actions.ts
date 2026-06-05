@@ -59,6 +59,22 @@ export async function assignHeadshotSlot(
   });
 }
 
+export async function clearSlotAction(
+  personId: string,
+  slot: number,
+): Promise<SimpleActionResult> {
+  return withTenantFromHeaders(async () => {
+    try {
+      await prisma.personMediaLink.deleteMany({ where: { personId, usage: "HEADSHOT", slot } });
+      revalidatePath("/people");
+      revalidatePath(`/people/${personId}`);
+      return { success: true };
+    } catch (err) {
+      return { success: false, error: err instanceof Error ? err.message : "Failed to clear slot" };
+    }
+  });
+}
+
 export async function removeHeadshotSlot(
   personId: string,
   mediaItemId: string,

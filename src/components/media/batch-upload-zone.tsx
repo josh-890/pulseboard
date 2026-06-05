@@ -19,8 +19,6 @@ type BatchUploadZoneProps = {
   sessionId: string;
   personId?: string;
   setId?: string;
-  filledHeadshotSlots?: number[];
-  totalHeadshotSlots?: number;
   onBatchComplete?: () => void;
   /** Hide the built-in dropzone UI. Use `addFilesRef` to trigger uploads externally. */
   hideDropzone?: boolean;
@@ -98,28 +96,12 @@ function computeMetadata(
   files: File[],
   personId?: string,
   setId?: string,
-  filledSlots: number[] = [],
-  totalSlots = 5,
 ): Pick<UploadFile, "usage" | "slot">[] {
-  if (setId) {
+  // Uploads no longer auto-fill profile slots — slots are filled explicitly in the
+  // Slot Manager (reference session). Person/set uploads default to PORTFOLIO.
+  if (setId || personId) {
     return files.map(() => ({ usage: "PORTFOLIO" as PersonMediaUsage }));
   }
-
-  if (personId) {
-    const allSlots = Array.from({ length: totalSlots }, (_, i) => i + 1);
-    const emptySlots = allSlots.filter((s) => !filledSlots.includes(s));
-
-    return files.map((_, i) => {
-      if (i < emptySlots.length) {
-        return {
-          usage: "HEADSHOT" as PersonMediaUsage,
-          slot: emptySlots[i],
-        };
-      }
-      return { usage: "PROFILE" as PersonMediaUsage };
-    });
-  }
-
   return files.map(() => ({}));
 }
 
@@ -127,8 +109,6 @@ export function BatchUploadZone({
   sessionId,
   personId,
   setId,
-  filledHeadshotSlots = [],
-  totalHeadshotSlots = 5,
   onBatchComplete,
   hideDropzone = false,
   addFilesRef,
@@ -390,13 +370,7 @@ export function BatchUploadZone({
       // Resize oversized images client-side before upload (server still re-encodes to WebP)
       const scaledFiles = await Promise.all(validFiles.map(prescaleIfNeeded));
 
-      const metadata = computeMetadata(
-        scaledFiles,
-        personId,
-        setId,
-        filledHeadshotSlots,
-        totalHeadshotSlots,
-      );
+      const metadata = computeMetadata(scaledFiles, personId, setId);
 
       const newItems: UploadFile[] = scaledFiles.map((file, i) => ({
         id: globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`,
@@ -418,8 +392,6 @@ export function BatchUploadZone({
     [
       personId,
       setId,
-      filledHeadshotSlots,
-      totalHeadshotSlots,
       queue.length,
       processQueue,
     ],

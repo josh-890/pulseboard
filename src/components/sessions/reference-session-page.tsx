@@ -11,6 +11,9 @@ import type { MediaItemWithLinks } from "@/lib/services/media-service";
 import type { ProfileImageLabel } from "@/lib/services/setting-service";
 import type { CollectionSummary } from "@/lib/services/collection-service";
 import type { CategoryWithGroup } from "@/components/gallery/gallery-info-panel";
+import { SlotManager } from "@/components/people/slot-manager";
+import type { MotifTemplateRecord } from "@/lib/services/motif-template-service";
+import type { SlotState } from "@/lib/services/media-service";
 
 type EntityOption = { id: string; name: string };
 type EraOption = { id: string; label: string; date: string | null };
@@ -26,6 +29,8 @@ type ReferenceSessionPageProps = {
   mediaCount: number;
   items: MediaItemWithLinks[];
   slotLabels: ProfileImageLabel[];
+  motifTemplates: MotifTemplateRecord[];
+  slotState: SlotState[];
   collections: CollectionSummary[];
   categories: CategoryWithGroup[];
   bodyMarks: EntityOption[];
@@ -33,7 +38,6 @@ type ReferenceSessionPageProps = {
   cosmeticProcedures: EntityOption[];
   eras: EraOption[];
   skillEvents: SkillEventOption[];
-  filledHeadshotSlots: number[];
   initialTab?: string;
 };
 
@@ -45,6 +49,8 @@ export function ReferenceSessionPage({
   mediaCount,
   items,
   slotLabels,
+  motifTemplates,
+  slotState,
   collections,
   categories,
   bodyMarks,
@@ -52,7 +58,6 @@ export function ReferenceSessionPage({
   cosmeticProcedures,
   eras,
   skillEvents,
-  filledHeadshotSlots,
   initialTab,
 }: ReferenceSessionPageProps) {
   const [activeTab, setActiveTabRaw] = useState<TabId>(
@@ -248,11 +253,22 @@ export function ReferenceSessionPage({
       >
         {activeTab === "media" && (
           <>
+            <div className="mb-4">
+              <SlotManager
+                personId={personId}
+                referenceSessionId={sessionId}
+                templates={motifTemplates}
+                slotState={slotState}
+                slotLabels={slotLabels.map((l, i) => ({ slot: i + 1, label: l.label }))}
+              />
+            </div>
+            {/* slotLabels=[] hides the redundant slot toggles + keyboard assign in the
+                media manager — the SlotManager above is now the single home. */}
             <MediaManager
               items={items}
               personId={personId}
               sessionId={sessionId}
-              slotLabels={slotLabels}
+              slotLabels={[]}
               collections={collections}
               categories={categories}
               bodyMarks={bodyMarks}
@@ -266,8 +282,6 @@ export function ReferenceSessionPage({
             <BatchUploadZone
               sessionId={sessionId}
               personId={personId}
-              filledHeadshotSlots={filledHeadshotSlots}
-              totalHeadshotSlots={slotLabels.length || 5}
               hideDropzone
               addFilesRef={addFilesRef}
             />

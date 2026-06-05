@@ -12,9 +12,8 @@ import {
   deriveAffiliations,
 } from "@/lib/services/person-service";
 import { getProfileImageLabels, getSkillLevelConfigs } from "@/lib/services/setting-service";
-import { getMotifTemplates } from "@/lib/services/motif-template-service";
 import { getPersonReferenceSession } from "@/lib/services/session-service";
-import { getPersonHeadshots, getFilledHeadshotSlots, getPersonMediaGallery, getPersonEntityMedia } from "@/lib/services/media-service";
+import { getPersonHeadshots, getPersonMediaGallery, getPersonEntityMedia } from "@/lib/services/media-service";
 import type { EntityMediaThumbnail } from "@/lib/services/media-service";
 import { getAllCategoryGroups, getPopulatedCategoriesForPerson, ensureEntityCategories } from "@/lib/services/category-service";
 import { getAllSkillGroups } from "@/lib/services/skill-catalog-service";
@@ -109,7 +108,7 @@ export default async function PersonDetailPage({ params, searchParams }: PersonD
   // Ensure system entity categories exist before loading category data
   await ensureEntityCategories();
 
-  const [person, workHistory, connections, profileLabels, refSession, headshots, filledSlots, categoryGroups, populatedCounts, skillGroups, skillLevelConfigs, aliasesWithChannels, sessionWorkHistory, productionSessions, entityMediaMap, physicalAttributeGroups, personEntityTags, digitalIdentities, researchEntries, stagingWorkHistory, eraContributionsMap, careerTimeline, careerFacetCounts, careerChannels, careerEras, motifTemplates] =
+  const [person, workHistory, connections, profileLabels, refSession, headshots, categoryGroups, populatedCounts, skillGroups, skillLevelConfigs, aliasesWithChannels, sessionWorkHistory, productionSessions, entityMediaMap, physicalAttributeGroups, personEntityTags, digitalIdentities, researchEntries, stagingWorkHistory, eraContributionsMap, careerTimeline, careerFacetCounts, careerChannels, careerEras] =
     await Promise.all([
       getPersonWithDetails(id),
       getPersonWorkHistory(id),
@@ -117,7 +116,6 @@ export default async function PersonDetailPage({ params, searchParams }: PersonD
       getProfileImageLabels(),
       getPersonReferenceSession(id),
       getPersonHeadshots(id),
-      getFilledHeadshotSlots(id),
       getAllCategoryGroups(),
       getPopulatedCategoriesForPerson(id),
       getAllSkillGroups(),
@@ -136,7 +134,6 @@ export default async function PersonDetailPage({ params, searchParams }: PersonD
       getCareerFacetCounts(id, careerFilters),
       getCareerChannelsForPerson(id),
       getCareerErasForPerson(id),
-      getMotifTemplates(),
     ]);
 
   // Flatten Map → Record for client-component serialization.
@@ -255,10 +252,8 @@ export default async function PersonDetailPage({ params, searchParams }: PersonD
         connections={connections}
         photos={galleryItems}
         profileLabels={profileLabels}
-        motifTemplates={motifTemplates}
         referenceSessionId={refSession?.id}
         refMediaCount={refSession?._count.mediaItems ?? 0}
-        filledHeadshotSlots={filledSlots}
         headshotSlotEntries={headshotSlotEntries}
         categories={flatCategories}
         categoryCounts={categoryCounts}
