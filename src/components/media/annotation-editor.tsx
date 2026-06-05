@@ -11,10 +11,10 @@ type Tool = 'crop' | 'arrow' | 'line' | 'rect' | 'circle'
 type Point = { x: number; y: number }
 
 type Shape =
-  | { type: 'arrow'; x1: number; y1: number; x2: number; y2: number; color: string }
-  | { type: 'line'; x1: number; y1: number; x2: number; y2: number; color: string }
-  | { type: 'rect'; x1: number; y1: number; x2: number; y2: number; color: string }
-  | { type: 'circle'; x1: number; y1: number; x2: number; y2: number; color: string }
+  | { type: 'arrow'; x1: number; y1: number; x2: number; y2: number; color: string; width: number }
+  | { type: 'line'; x1: number; y1: number; x2: number; y2: number; color: string; width: number }
+  | { type: 'rect'; x1: number; y1: number; x2: number; y2: number; color: string; width: number }
+  | { type: 'circle'; x1: number; y1: number; x2: number; y2: number; color: string; width: number }
 
 const COLORS = [
   { value: '#EF4444', label: 'Red' },
@@ -35,12 +35,18 @@ type AnnotationEditorProps = {
   initialTool?: 'arrow' | 'crop'
 }
 
-const LINE_WIDTH = 3
-const ARROW_HEAD_LEN = 14
+// Stroke width is expressed as a fraction of the image's larger dimension so it
+// renders consistently regardless of the (potentially 4000px) master resolution.
+const THICKNESS_OPTIONS = [
+  { id: 'thin', label: 'S', frac: 0.0035 },
+  { id: 'medium', label: 'M', frac: 0.0065 },
+  { id: 'thick', label: 'L', frac: 0.011 },
+] as const
+type Thickness = (typeof THICKNESS_OPTIONS)[number]['id']
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-function drawArrow(ctx: CanvasRenderingContext2D, x1: number, y1: number, x2: number, y2: number) {
+function drawArrow(ctx: CanvasRenderingContext2D, x1: number, y1: number, x2: number, y2: number, headLen: number) {
   const angle = Math.atan2(y2 - y1, x2 - x1)
   ctx.beginPath()
   ctx.moveTo(x1, y1)
@@ -49,13 +55,13 @@ function drawArrow(ctx: CanvasRenderingContext2D, x1: number, y1: number, x2: nu
   ctx.beginPath()
   ctx.moveTo(x2, y2)
   ctx.lineTo(
-    x2 - ARROW_HEAD_LEN * Math.cos(angle - Math.PI / 6),
-    y2 - ARROW_HEAD_LEN * Math.sin(angle - Math.PI / 6),
+    x2 - headLen * Math.cos(angle - Math.PI / 6),
+    y2 - headLen * Math.sin(angle - Math.PI / 6),
   )
   ctx.moveTo(x2, y2)
   ctx.lineTo(
-    x2 - ARROW_HEAD_LEN * Math.cos(angle + Math.PI / 6),
-    y2 - ARROW_HEAD_LEN * Math.sin(angle + Math.PI / 6),
+    x2 - headLen * Math.cos(angle + Math.PI / 6),
+    y2 - headLen * Math.sin(angle + Math.PI / 6),
   )
   ctx.stroke()
 }
@@ -82,12 +88,12 @@ function drawCircle(ctx: CanvasRenderingContext2D, x1: number, y1: number, x2: n
 }
 
 function drawShapes(ctx: CanvasRenderingContext2D, shapes: Shape[]) {
-  ctx.lineWidth = LINE_WIDTH
   ctx.lineCap = 'round'
   ctx.lineJoin = 'round'
   for (const s of shapes) {
+    ctx.lineWidth = s.width
     ctx.strokeStyle = s.color
-    if (s.type === 'arrow') drawArrow(ctx, s.x1, s.y1, s.x2, s.y2)
+    if (s.type === 'arrow') drawArrow(ctx, s.x1, s.y1, s.x2, s.y2, Math.max(s.width * 3.5, 8))
     else if (s.type === 'line') drawLine(ctx, s.x1, s.y1, s.x2, s.y2)
     else if (s.type === 'rect') drawRect(ctx, s.x1, s.y1, s.x2, s.y2)
     else if (s.type === 'circle') drawCircle(ctx, s.x1, s.y1, s.x2, s.y2)
@@ -105,6 +111,7 @@ export function AnnotationEditor({
 }: AnnotationEditorProps) {
   const [tool, setTool] = useState<Tool>(initialTool ?? 'arrow')
   const [color, setColor] = useState(COLORS[0].value)
+  const [thickness, setThickness] = useState<Thickness>('medium')
   const [shapes, setShapes] = useState<Shape[]>([])
   const [, setCropRect] = useState<{ x: number; y: number; w: number; h: number } | null>(null)
   const [pendingCrop, setPendingCrop] = useState<{ x1: number; y1: number; x2: number; y2: number } | null>(null)
@@ -112,14 +119,25 @@ export function AnnotationEditor({
   const [dragStart, setDragStart] = useState<Point | null>(null)
   const [liveShape, setLiveShape] = useState<Shape | null>(null)
 
-  // Two stacked canvases: imageCanvas (background) + overlayCanvas (annotations)
+  // Three stacked canvases: imageCanvas (background) + overlayCanvas (annotations)
+  // + captureCanvas (transparent, receives pointer events).
   const imageCanvasRef = useRef<HTMLCanvasElement>(null)
   const overlayCanvasRef = useRef<HTMLCanvasElement>(null)
+  const captureCanvasRef = useRef<HTMLCanvasElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const imgRef = useRef<HTMLImageElement | null>(null)
 
   // Scale factor: canvas-to-display ratio (for hi-DPI and resizing)
   const scaleRef = useRef({ x: 1, y: 1 })
+
+  // Resolve the current stroke width in image (canvas) pixels — scaled to the
+  // image's larger dimension so it looks the same on a 4000px master and a small one.
+  const resolveWidth = useCallback(() => {
+    const c = imageCanvasRef.current
+    const base = c && c.width ? Math.max(c.width, c.height) : 1000
+    const opt = THICKNESS_OPTIONS.find((t) => t.id === thickness) ?? THICKNESS_OPTIONS[1]
+    return Math.max(2, Math.round(base * opt.frac))
+  }, [thickness])
 
   // Load and draw image
   useEffect(() => {
@@ -134,6 +152,15 @@ export function AnnotationEditor({
       const overlay = overlayCanvasRef.current!
       overlay.width = img.naturalWidth
       overlay.height = img.naturalHeight
+      // Size the pointer-capture layer to the loaded image. This must happen on
+      // load (not just in the mount-time ref callback, which runs before the
+      // image is ready and would leave the capture area stuck at 300×150 — so
+      // crop/draw didn't work until a tool toggle forced a re-render/resize).
+      const capture = captureCanvasRef.current
+      if (capture) {
+        capture.width = img.naturalWidth
+        capture.height = img.naturalHeight
+      }
       const ctx = canvas.getContext('2d')!
       ctx.drawImage(img, 0, 0)
     }
@@ -161,11 +188,13 @@ export function AnnotationEditor({
     ctx.clearRect(0, 0, overlay.width, overlay.height)
     drawShapes(ctx, shapes)
     if (extraShape) drawShapes(ctx, [extraShape])
-    // Draw pending crop rect
+    // Draw pending crop rect — scale the dashed stroke to the image so it's
+    // visible on a large (e.g. 4000px) master, not a sub-pixel hairline.
     if (pendingCrop) {
-      ctx.strokeStyle = 'rgba(255,255,255,0.8)'
-      ctx.setLineDash([6, 4])
-      ctx.lineWidth = 2
+      const cropW = Math.max(2, Math.round(Math.max(overlay.width, overlay.height) * 0.0035))
+      ctx.strokeStyle = 'rgba(255,255,255,0.9)'
+      ctx.setLineDash([cropW * 3, cropW * 2])
+      ctx.lineWidth = cropW
       ctx.strokeRect(
         pendingCrop.x1, pendingCrop.y1,
         pendingCrop.x2 - pendingCrop.x1,
@@ -201,37 +230,39 @@ export function AnnotationEditor({
   const onMouseMove = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     if (!isDrawing || !dragStart) return
     const pt = toCanvas(e)
+    const width = resolveWidth()
     if (tool === 'arrow') {
-      setLiveShape({ type: 'arrow', x1: dragStart.x, y1: dragStart.y, x2: pt.x, y2: pt.y, color })
+      setLiveShape({ type: 'arrow', x1: dragStart.x, y1: dragStart.y, x2: pt.x, y2: pt.y, color, width })
     } else if (tool === 'line') {
-      setLiveShape({ type: 'line', x1: dragStart.x, y1: dragStart.y, x2: pt.x, y2: pt.y, color })
+      setLiveShape({ type: 'line', x1: dragStart.x, y1: dragStart.y, x2: pt.x, y2: pt.y, color, width })
     } else if (tool === 'rect') {
-      setLiveShape({ type: 'rect', x1: dragStart.x, y1: dragStart.y, x2: pt.x, y2: pt.y, color })
+      setLiveShape({ type: 'rect', x1: dragStart.x, y1: dragStart.y, x2: pt.x, y2: pt.y, color, width })
     } else if (tool === 'circle') {
-      setLiveShape({ type: 'circle', x1: dragStart.x, y1: dragStart.y, x2: pt.x, y2: pt.y, color })
+      setLiveShape({ type: 'circle', x1: dragStart.x, y1: dragStart.y, x2: pt.x, y2: pt.y, color, width })
     } else if (tool === 'crop') {
       setPendingCrop({ x1: dragStart.x, y1: dragStart.y, x2: pt.x, y2: pt.y })
     }
-  }, [isDrawing, dragStart, tool, color, toCanvas])
+  }, [isDrawing, dragStart, tool, color, toCanvas, resolveWidth])
 
   const onMouseUp = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     if (!isDrawing || !dragStart) return
     const pt = toCanvas(e)
+    const width = resolveWidth()
     setIsDrawing(false)
     setLiveShape(null)
     setDragStart(null)
     if (tool === 'arrow') {
-      setShapes((prev) => [...prev, { type: 'arrow', x1: dragStart.x, y1: dragStart.y, x2: pt.x, y2: pt.y, color }])
+      setShapes((prev) => [...prev, { type: 'arrow', x1: dragStart.x, y1: dragStart.y, x2: pt.x, y2: pt.y, color, width }])
     } else if (tool === 'line') {
-      setShapes((prev) => [...prev, { type: 'line', x1: dragStart.x, y1: dragStart.y, x2: pt.x, y2: pt.y, color }])
+      setShapes((prev) => [...prev, { type: 'line', x1: dragStart.x, y1: dragStart.y, x2: pt.x, y2: pt.y, color, width }])
     } else if (tool === 'rect') {
-      setShapes((prev) => [...prev, { type: 'rect', x1: dragStart.x, y1: dragStart.y, x2: pt.x, y2: pt.y, color }])
+      setShapes((prev) => [...prev, { type: 'rect', x1: dragStart.x, y1: dragStart.y, x2: pt.x, y2: pt.y, color, width }])
     } else if (tool === 'circle') {
-      setShapes((prev) => [...prev, { type: 'circle', x1: dragStart.x, y1: dragStart.y, x2: pt.x, y2: pt.y, color }])
+      setShapes((prev) => [...prev, { type: 'circle', x1: dragStart.x, y1: dragStart.y, x2: pt.x, y2: pt.y, color, width }])
     } else if (tool === 'crop') {
       setPendingCrop({ x1: dragStart.x, y1: dragStart.y, x2: pt.x, y2: pt.y })
     }
-  }, [isDrawing, dragStart, tool, color, toCanvas])
+  }, [isDrawing, dragStart, tool, color, toCanvas, resolveWidth])
 
   const applyCrop = useCallback(() => {
     if (!pendingCrop) return
@@ -251,10 +282,12 @@ export function AnnotationEditor({
     imgCanvas.height = h
     ctx.putImageData(imageData, 0, 0)
 
-    // Resize overlay to match
+    // Resize overlay + capture layer to match
     const overlay = overlayCanvasRef.current!
     overlay.width = w
     overlay.height = h
+    const capture = captureCanvasRef.current
+    if (capture) { capture.width = w; capture.height = h }
 
     // Shift all existing shapes by crop offset
     setShapes((prev) => prev.map((s) => ({
@@ -286,6 +319,8 @@ export function AnnotationEditor({
     const overlay = overlayCanvasRef.current!
     overlay.width = img.naturalWidth
     overlay.height = img.naturalHeight
+    const capture = captureCanvasRef.current
+    if (capture) { capture.width = img.naturalWidth; capture.height = img.naturalHeight }
     setShapes([])
     setPendingCrop(null)
     setCropRect(null)
@@ -395,6 +430,22 @@ export function AnnotationEditor({
                 />
               ))}
             </div>
+            <div className="mx-1 h-4 w-px bg-white/10" />
+            <div className="flex items-center gap-1" title="Line width">
+              {THICKNESS_OPTIONS.map((t) => (
+                <button
+                  key={t.id}
+                  onClick={() => setThickness(t.id)}
+                  title={`Line width: ${t.id}`}
+                  className={cn(
+                    'flex h-6 w-6 items-center justify-center rounded-md text-[11px] font-semibold transition-colors',
+                    thickness === t.id ? 'bg-indigo-600 text-white' : 'text-zinc-400 hover:bg-white/5 hover:text-white',
+                  )}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
           </>
         )}
 
@@ -443,14 +494,10 @@ export function AnnotationEditor({
             ref={overlayCanvasRef}
             className="pointer-events-none absolute inset-0 max-h-[calc(100vh-80px)] max-w-full"
           />
-          {/* Mouse event capture layer */}
+          {/* Mouse event capture layer — sized to the image on load (see effect) */}
           <canvas
+            ref={captureCanvasRef}
             className="absolute inset-0 max-h-[calc(100vh-80px)] max-w-full cursor-crosshair opacity-0"
-            ref={(el) => {
-              if (!el || !imageCanvasRef.current) return
-              el.width = imageCanvasRef.current.width
-              el.height = imageCanvasRef.current.height
-            }}
             onMouseDown={onMouseDown}
             onMouseMove={onMouseMove}
             onMouseUp={onMouseUp}
