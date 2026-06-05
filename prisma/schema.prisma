@@ -969,6 +969,14 @@ model MediaItem {
   notes        String?
   isAnnotation Boolean  @default(false) // Derived/edited photos — hidden from main gallery
 
+  // Motif normalization: when set, this MediaItem is a baked, template-aligned
+  // "standardized motif" image (e.g. a headshot). The headshot/card path displays
+  // it via an aspect-preserving variant (not the 4:5 profile crop). motifProvenance
+  // = { sourceMediaItemId, points, matrix } so it can be re-opened and re-baked.
+  motifTemplateId String?
+  motifTemplate   MotifTemplate? @relation(fields: [motifTemplateId], references: [id], onDelete: SetNull)
+  motifProvenance Json?
+
   // Provenance for the "copy production image → person reference session"
   // feature. Self-FK; null for direct uploads / imports / annotations.
   // SetNull on source delete — copies are independent assets and survive
@@ -994,6 +1002,27 @@ model MediaItem {
   @@index([mediaType])
   @@index([tags], type: Gin)
   @@index([copiedFromMediaItemId])
+  @@index([motifTemplateId])
+}
+
+// A "standardized motif" definition for a profile slot: the output geometry +
+// the target keypoint positions an aligned image must hit, so the same motif
+// (e.g. headshot eye-line/zoom) is framed identically across people. Authored in
+// the Motif Templates catalog; consumed by the Motif Aligner. One per slot.
+model MotifTemplate {
+  id            String   @id @default(cuid())
+  name          String
+  slot          Int      @unique // profile slot this template fills (1..N)
+  aspectW       Int
+  aspectH       Int
+  bakeLongSide  Int // baked output long side in px (never upscaled beyond source)
+  keypoints     Json // [{ name, x, y }] target positions as 0..1 frame fractions
+  silhouetteRef String? // optional overlay image (MinIO key) shown while aligning
+  minSourcePx   Int? // warn-but-allow threshold for the aligned region
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  normalizedImages MediaItem[]
 }
 
 model SetMediaItem {

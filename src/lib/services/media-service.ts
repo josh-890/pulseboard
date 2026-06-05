@@ -803,22 +803,36 @@ export type HeadshotData = {
 
 function headshotDataFromLink(link: {
   personId: string;
-  mediaItem: { variants: unknown; focalX: number | null; focalY: number | null; fileRef: string | null };
+  mediaItem: { variants: unknown; focalX: number | null; focalY: number | null; fileRef: string | null; motifTemplateId?: string | null };
 }): HeadshotData | null {
   const variants = (link.mediaItem.variants ?? {}) as PhotoVariants;
-  const url = variants.profile_512
-    ? buildUrl(variants.profile_512)
-    : variants.profile_256
-      ? buildUrl(variants.profile_256)
-      : variants.profile_128
-        ? buildUrl(variants.profile_128)
-        : variants.original
-          ? buildUrl(variants.original)
-          : link.mediaItem.fileRef
-            ? buildUrl(link.mediaItem.fileRef)
-            : null;
+  const isNormalized = !!link.mediaItem.motifTemplateId;
+
+  // Normalized (template-aligned) images already carry the target aspect (e.g. 2:3),
+  // so display them via an aspect-preserving variant — the 4:5 profile_* cover crop
+  // would re-crop and undo the alignment.
+  const url = isNormalized
+    ? (variants.view_1200 ? buildUrl(variants.view_1200)
+      : variants.gallery_512 ? buildUrl(variants.gallery_512)
+      : variants.master_4000 ? buildUrl(variants.master_4000)
+      : variants.original ? buildUrl(variants.original)
+      : link.mediaItem.fileRef ? buildUrl(link.mediaItem.fileRef)
+      : null)
+    : (variants.profile_512 ? buildUrl(variants.profile_512)
+      : variants.profile_256 ? buildUrl(variants.profile_256)
+      : variants.profile_128 ? buildUrl(variants.profile_128)
+      : variants.original ? buildUrl(variants.original)
+      : link.mediaItem.fileRef ? buildUrl(link.mediaItem.fileRef)
+      : null);
   if (!url) return null;
-  return { url, focalX: link.mediaItem.focalX ?? null, focalY: link.mediaItem.focalY ?? null };
+
+  // A normalized image is already centered/cropped — neutralize focal point so the
+  // card's object-cover doesn't shift it.
+  return {
+    url,
+    focalX: isNormalized ? null : (link.mediaItem.focalX ?? null),
+    focalY: isNormalized ? null : (link.mediaItem.focalY ?? null),
+  };
 }
 
 export async function getHeadshotsForPersons(
