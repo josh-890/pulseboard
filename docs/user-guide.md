@@ -112,6 +112,16 @@ The detail page has two main sections: a **Reference Media Card** at the top and
 
 Shows a link to the person's reference session (auto-created, one per person). Displays up to 5 headshot slot thumbnails with customizable slot labels. Click to navigate to the reference session for media management.
 
+#### Standardized Slots (motif templates)
+
+On the **Photos** tab, a **Standardized Slots** panel lets you produce a consistently-framed image for each profile slot using a **motif template** (e.g. the headshot: same eye-line, zoom and orientation across all people):
+
+1. Click **Standardize** on a slot → pick any of the person's photos as the source.
+2. The **aligner** opens: click the template's keypoints on the source (for the headshot: **left eye, right eye, mouth**). The app computes the exact rotate/scale/translate that lands them on the template's targets and shows a live preview; a warning appears if the source is too small (result would be soft).
+3. **Save to slot** bakes the aligned image and assigns it to the slot. It then displays at the template's aspect (e.g. 2:3) — not re-cropped — so the framing is identical to every other image in that slot.
+
+Templates are defined under **Settings → Catalogs → Motif Templates** (output aspect/size + draggable target keypoints; one template per slot). Add half/full-body motifs there with their own keypoints — no code needed.
+
 #### Tabs
 
 **Overview**

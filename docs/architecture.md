@@ -115,6 +115,8 @@ All services in `src/lib/services/`. All functions are async, return Promises. S
 
 ### Infrastructure Services
 
+**`motif-template-service.ts`** — "Standardized motif" templates per profile slot (`MotifTemplate`): output aspect + `bakeLongSide` + target keypoints (frame fractions). CRUD + `getMotifTemplateForSlot`. The **Motif Aligner** (`components/people/motif-aligner.tsx`) loads a source master, the user clicks the template's keypoints, and `lib/image/similarity-transform.ts` (pure, unit-tested 2D Umeyama fit) maps them onto the targets; the baked 2:3 image is uploaded, tagged normalized (`MediaItem.motifTemplateId` + `motifProvenance`) and assigned to the slot via `assignMotifImageAction`. Normalized images display through an aspect-preserving variant in `headshotDataFromLink` (not the 4:5 profile crop). Authored at `/settings/catalogs/motif-templates`; launched from the person Photos tab "Standardized Slots" → `CrossSessionPicker`.
+
 ### Import Pipeline Services
 
 All import services in `src/lib/services/import/`.
@@ -176,6 +178,7 @@ All actions in `src/lib/actions/`. Each validates input with Zod, calls services
 | `set-actions.ts` | `createSet`, `updateSet`, `deleteSet`, `addExistingMediaToSetAction`, `reassignSetSessionAction` |
 | `session-actions.ts` | `createSession`, `updateSession`, `deleteSession`, `mergeSessionsAction` |
 | `media-actions.ts` | `assignHeadshotSlot`, `updatePersonMediaLinkAction`, `batchSetUsageAction`, `deleteMediaItemsAction`, `setFocalPointAction`, `resetFocalPointAction`, `reorderPersonMediaAction`, `setPersonMediaFavoriteAction`, `setEntityMediaCoverAction` (body-feature cover, entity-scoped) |
+| `motif-template-actions.ts` | `createMotifTemplateAction`, `updateMotifTemplateAction`, `deleteMotifTemplateAction`, `assignMotifImageAction` (tag a baked image normalized + assign to slot) |
 | `appearance-actions.ts` | Body mark/modification/procedure CRUD + event CRUD (~15 actions), `toggleEntityHeroVisibility` |
 | `contribution-actions.ts` | `addSessionContributionAction` (accepts `eraId` — propagated across all the person's contribution rows in the session), `updateSessionContributionAction` (same), `removeSessionContributionAction`, `updateContributionConfidenceAction`, `addContributionSkill`, `removeContributionSkill`, `getPersonErasForPickerAction` |
 | `skill-actions.ts` | PersonSkill/SkillEvent CRUD, skill event media management |
@@ -445,6 +448,8 @@ All searchable entities have `nameNorm`/`titleNorm` fields with `pg_trgm` trigra
 7. **Contribution → skill progression** — `addContributionSkill()` auto-creates/upgrades PersonSkill and creates DEMONSTRATED event tagged with `[session:ID]`.
 
 8. **Entity media linking** — DETAIL usage on PersonMediaLink can be categorized (`categoryId`) and linked to specific entities (`bodyMarkId`, `bodyModificationId`). Categories driven by `entityModel` field on MediaCategory. The first photo by `sortOrder` is the entity's body-map cover; reorder via `setEntityMediaCover` (entity-FK-scoped). (The `cosmeticProcedureId` column remains in the schema during the Slice 5 → Slice 17 soak but is no longer written by any code path.)
+
+8b. **Motif templates** — `MotifTemplate` (one per slot: aspect, `bakeLongSide`, target keypoints) defines a standardized slot motif. A baked, template-aligned image carries `MediaItem.motifTemplateId` + `motifProvenance` ({sourceMediaItemId, points, matrix}) and is displayed via an aspect-preserving variant (not the 4:5 `profile_*` crop) so the alignment survives.
 
 8a. **Image editing sources the master** — the crop/annotation editor (`AnnotationEditor`) always loads `urls.original` (the best-quality master: `master_4000` for new uploads, raw `original` for legacy), never a display variant, so edits aren't silently downscaled.
 
