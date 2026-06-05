@@ -66,7 +66,8 @@ function ParticipantAvatars({
         const name = p.person.aliases[0]?.name ?? p.person.icgId ?? "";
         const firstName = name.split(" ")[0];
         const initials = getInitialsFromName(name);
-        const photoUrl = headshotMap.get(p.personId)?.url ?? null;
+        const headshot = headshotMap.get(p.personId) ?? null;
+        const photoUrl = headshot?.url ?? null;
         const creditedAs = creditedAsMap.get(p.personId) ?? null;
         const age = computeProductionAge(
           p.person.birthdate,
@@ -101,6 +102,7 @@ function ParticipantAvatars({
                 width={48}
                 height={48}
                 className="h-12 w-12 rounded-full border-2 border-card object-cover"
+                style={focalStyle(headshot?.focalX ?? null, headshot?.focalY ?? null)}
                 unoptimized
               />
             ) : (

@@ -4,7 +4,7 @@ import { useCallback, useState } from "react";
 import { useRouter } from "next/navigation";
 import NextImage from "next/image";
 import { Star, Crop, Link2, Trash2 } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, focalStyle } from "@/lib/utils";
 import type { GalleryItem } from "@/lib/types";
 import { CrossSessionPicker } from "@/components/media/cross-session-picker";
 import { MotifAligner } from "@/components/people/motif-aligner";
@@ -86,7 +86,7 @@ export function SlotManager({ personId, referenceSessionId, templates, slotState
                 style={{ aspectRatio: `${aspectW} / ${aspectH}` }}
               >
                 {st?.thumbUrl ? (
-                  <NextImage src={st.thumbUrl} alt={sl.label} width={aspectW * 90} height={aspectH * 90} unoptimized className="h-full w-full object-cover" />
+                  <NextImage src={st.thumbUrl} alt={sl.label} width={aspectW * 90} height={aspectH * 90} unoptimized className="h-full w-full object-cover" style={focalStyle(st.focalX, st.focalY)} />
                 ) : (
                   <div className="flex h-full w-full items-center justify-center text-[10px] text-muted-foreground/50">empty</div>
                 )}

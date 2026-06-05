@@ -808,6 +808,9 @@ export type SlotState = {
   thumbUrl: string | null;
   isStandardized: boolean;
   isAvatar: boolean;
+  // Focal point for raw slots (null for standardized — already aligned/centered).
+  focalX: number | null;
+  focalY: number | null;
 };
 
 export async function getPersonSlotState(personId: string): Promise<SlotState[]> {
@@ -824,13 +827,18 @@ export async function getPersonSlotState(personId: string): Promise<SlotState[]>
     seen.add(slot);
     const variants = parsePhotoVariants(l.mediaItem.variants) ?? ({} as PhotoVariants);
     const urls = buildPhotoUrls(variants, l.mediaItem.fileRef);
+    const isStandardized = !!l.mediaItem.motifTemplateId;
     out.push({
       slot,
       mediaItemId: l.mediaItem.id,
       // Aspect-preserving thumbnail (works for normalized 2:3 + raw alike).
       thumbUrl: urls.gallery_512 ?? urls.view_1200 ?? urls.original ?? null,
-      isStandardized: !!l.mediaItem.motifTemplateId,
+      isStandardized,
       isAvatar: l.isAvatar,
+      // Standardized images are already centered — neutralize focal so the card's
+      // object-cover doesn't shift them; raw slots honour the focal point.
+      focalX: isStandardized ? null : (l.mediaItem.focalX ?? null),
+      focalY: isStandardized ? null : (l.mediaItem.focalY ?? null),
     });
   }
   return out;
