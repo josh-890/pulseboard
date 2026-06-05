@@ -20,7 +20,9 @@ type SlotManagerProps = {
   slotLabels: { slot: number; label: string }[];
 };
 
-type Mode = { kind: "standardize" | "link"; template: MotifTemplateRecord };
+type Mode =
+  | { kind: "standardize"; slot: number; label: string; template: MotifTemplateRecord }
+  | { kind: "link"; slot: number; label: string };
 
 export function SlotManager({ personId, referenceSessionId, templates, slotState, slotLabels }: SlotManagerProps) {
   const router = useRouter();
@@ -29,6 +31,7 @@ export function SlotManager({ personId, referenceSessionId, templates, slotState
   const [busy, setBusy] = useState(false);
 
   const stateBySlot = new Map(slotState.map((s) => [s.slot, s]));
+  const templateBySlot = new Map(templates.map((t) => [t.slot, t]));
 
   const run = useCallback(async (fn: () => Promise<{ success: boolean; error?: string }>) => {
     setBusy(true);
@@ -46,20 +49,11 @@ export function SlotManager({ personId, referenceSessionId, templates, slotState
       setAligner({ template: pick.template, source: { id: item.id, url: item.urls.original } });
       setPick(null);
     } else {
-      const slot = pick.template.slot;
+      const slot = pick.slot;
       setPick(null);
       void run(() => assignHeadshotSlot(personId, item.id, slot));
     }
   }, [pick, personId, run]);
-
-  if (templates.length === 0) {
-    return (
-      <div className="rounded-2xl border border-white/15 bg-card/60 p-4 text-sm text-muted-foreground">
-        No profile-slot templates defined.{" "}
-        <a href="/settings/catalogs/motif-templates" className="text-entity-person hover:underline">Define one</a>.
-      </div>
-    );
-  }
 
   return (
     <div className="rounded-2xl border border-white/15 bg-card/60 p-4 shadow-md backdrop-blur-sm">
@@ -71,22 +65,30 @@ export function SlotManager({ personId, referenceSessionId, templates, slotState
       </div>
 
       <div className="flex flex-wrap gap-4">
-        {templates.map((t) => {
-          const st = stateBySlot.get(t.slot);
-          const label = slotLabels.find((l) => l.slot === t.slot)?.label ?? `Slot ${t.slot}`;
+        {slotLabels.map((sl) => {
+          const template = templateBySlot.get(sl.slot);
+          const st = stateBySlot.get(sl.slot);
+          const aspectW = template?.aspectW ?? 2;
+          const aspectH = template?.aspectH ?? 3;
           const stateLabel = !st ? "Empty" : st.isStandardized ? "Standardized" : "Raw — not aligned";
           const stateClass = !st
-            ? "bg-muted/50 text-muted-foreground"
+            ? "bg-muted/40 text-muted-foreground"
             : st.isStandardized
               ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
               : "bg-amber-500/15 text-amber-600 dark:text-amber-400";
           return (
-            <div key={t.id} className="flex w-40 shrink-0 flex-col gap-1.5">
-              <div className="relative w-full overflow-hidden rounded-lg border border-white/10 bg-muted/30" style={{ aspectRatio: `${t.aspectW} / ${t.aspectH}` }}>
+            <div key={sl.slot} className="flex w-40 shrink-0 flex-col gap-1.5">
+              <div
+                className={cn(
+                  "relative w-full overflow-hidden rounded-lg border",
+                  st ? "border-white/10 bg-muted/30" : "border-dashed border-white/10 bg-muted/15",
+                )}
+                style={{ aspectRatio: `${aspectW} / ${aspectH}` }}
+              >
                 {st?.thumbUrl ? (
-                  <NextImage src={st.thumbUrl} alt={label} width={t.aspectW * 90} height={t.aspectH * 90} unoptimized className="h-full w-full object-cover" />
+                  <NextImage src={st.thumbUrl} alt={sl.label} width={aspectW * 90} height={aspectH * 90} unoptimized className="h-full w-full object-cover" />
                 ) : (
-                  <div className="flex h-full w-full items-center justify-center text-[10px] text-muted-foreground">empty</div>
+                  <div className="flex h-full w-full items-center justify-center text-[10px] text-muted-foreground/50">empty</div>
                 )}
                 {st && (
                   <button
@@ -105,22 +107,22 @@ export function SlotManager({ personId, referenceSessionId, templates, slotState
                 )}
               </div>
 
-              <div className="flex items-center justify-between gap-1">
-                <span className="truncate text-xs font-medium" title={label}>{label}</span>
-              </div>
+              <span className="truncate text-xs font-medium" title={sl.label}>{sl.label}</span>
               <span className={cn("w-fit rounded px-1.5 py-0.5 text-[10px] font-medium", stateClass)}>{stateLabel}</span>
 
               <div className="mt-0.5 flex flex-wrap gap-1">
-                <button type="button" disabled={busy} onClick={() => setPick({ kind: "standardize", template: t })}
-                  className="flex items-center gap-1 rounded-md border border-white/15 bg-card/60 px-2 py-1 text-[11px] text-muted-foreground transition-all hover:border-entity-person/40 hover:text-entity-person">
-                  <Crop size={11} /> Standardize
-                </button>
-                <button type="button" disabled={busy} onClick={() => setPick({ kind: "link", template: t })}
+                {template && (
+                  <button type="button" disabled={busy} onClick={() => setPick({ kind: "standardize", slot: sl.slot, label: sl.label, template })}
+                    className="flex items-center gap-1 rounded-md border border-white/15 bg-card/60 px-2 py-1 text-[11px] text-muted-foreground transition-all hover:border-entity-person/40 hover:text-entity-person">
+                    <Crop size={11} /> Standardize
+                  </button>
+                )}
+                <button type="button" disabled={busy} onClick={() => setPick({ kind: "link", slot: sl.slot, label: sl.label })}
                   className="flex items-center gap-1 rounded-md border border-white/15 bg-card/60 px-2 py-1 text-[11px] text-muted-foreground transition-all hover:border-white/30 hover:text-foreground">
                   <Link2 size={11} /> Link
                 </button>
                 {st && (
-                  <button type="button" disabled={busy} onClick={() => void run(() => clearSlotAction(personId, t.slot))}
+                  <button type="button" disabled={busy} onClick={() => void run(() => clearSlotAction(personId, sl.slot))}
                     className="flex items-center gap-1 rounded-md border border-white/15 bg-card/60 px-2 py-1 text-[11px] text-muted-foreground transition-all hover:border-destructive/40 hover:text-destructive">
                     <Trash2 size={11} /> Clear
                   </button>
@@ -136,8 +138,8 @@ export function SlotManager({ personId, referenceSessionId, templates, slotState
           personId={personId}
           title={
             pick.kind === "standardize"
-              ? `Pick a source photo to standardize for ${slotLabels.find((l) => l.slot === pick.template.slot)?.label ?? `Slot ${pick.template.slot}`}`
-              : `Pick a photo to link to ${slotLabels.find((l) => l.slot === pick.template.slot)?.label ?? `Slot ${pick.template.slot}`}`
+              ? `Pick a source photo to standardize for ${pick.label}`
+              : `Pick a photo to link to ${pick.label}`
           }
           onSelect={onPicked}
           onClose={() => setPick(null)}
