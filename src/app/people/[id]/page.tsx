@@ -220,7 +220,13 @@ export default async function PersonDetailPage({ params, searchParams }: PersonD
   // Build headshot slot entries for the gallery lightbox (serializable array)
   const headshotSlotEntries = headshots
     .filter((h) => h.slot !== null)
-    .map((h) => ({ mediaItemId: h.mediaItem.id, slot: h.slot as number }));
+    .map((h) => ({
+      mediaItemId: h.mediaItem.id,
+      slot: h.slot as number,
+      // Aspect-preserving thumbnail for the Standardized Slots expander (works
+      // for normalized 2:3 images and raw headshots alike).
+      thumbUrl: h.mediaItem.urls.gallery_512 ?? h.mediaItem.urls.view_1200 ?? h.mediaItem.urls.original ?? null,
+    }));
 
   return (
     <div className="space-y-6">

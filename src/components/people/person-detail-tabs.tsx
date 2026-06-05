@@ -50,6 +50,7 @@ import {
   ArrowUpDown,
   Upload,
   ScrollText,
+  ChevronRight,
 } from "lucide-react";
 import NextImage from "next/image";
 import Link from "next/link";
@@ -93,7 +94,7 @@ type PersonData = NonNullable<Awaited<ReturnType<typeof getPersonWithDetails>>>;
 
 type TabId = "overview" | "aliases" | "appearance" | "details" | "skills" | "career" | "network" | "photos" | "research";
 
-type HeadshotSlotEntry = { mediaItemId: string; slot: number };
+type HeadshotSlotEntry = { mediaItemId: string; slot: number; thumbUrl?: string | null };
 
 type PersonDetailTabsProps = {
   person: PersonData;
@@ -1713,6 +1714,7 @@ function PhotosTab({
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [motifPick, setMotifPick] = useState<MotifTemplateRecord | null>(null);
   const [motifAligner, setMotifAligner] = useState<{ template: MotifTemplateRecord; source: { id: string; url: string } } | null>(null);
+  const [expandedSlots, setExpandedSlots] = useState<Set<number>>(new Set());
   const [slotEntries, setSlotEntries] = useState(headshotSlotEntries ?? []);
   const [isDragOver, setIsDragOver] = useState(false);
   const dragCounterRef = useRef(0);
@@ -1802,25 +1804,61 @@ function PhotosTab({
       {/* Standardized slots — align a source photo to a per-slot motif template */}
       {referenceSessionId && motifTemplates.length > 0 && (
         <SectionCard title="Standardized Slots" icon={<ImageIcon size={18} />} badge={motifTemplates.length}>
-          <div className="grid gap-2 sm:grid-cols-2">
+          <div className="space-y-2">
             {motifTemplates.map((t) => {
-              const filled = filledHeadshotSlots?.includes(t.slot);
+              const entry = (headshotSlotEntries ?? []).find((e) => e.slot === t.slot);
+              const filled = !!entry;
+              const expanded = expandedSlots.has(t.slot);
               const label = profileLabels[t.slot - 1]?.label ?? `Slot ${t.slot}`;
               return (
-                <div key={t.id} className="flex items-center justify-between gap-2 rounded-lg border border-white/10 bg-card/50 px-3 py-2">
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-medium">{label}</p>
-                    <p className="text-[11px] text-muted-foreground">
-                      {t.name} · {t.aspectW}:{t.aspectH} · {filled ? "filled" : "empty"}
-                    </p>
+                <div key={t.id} className="rounded-lg border border-white/10 bg-card/50">
+                  <div className="flex items-center justify-between gap-2 px-3 py-2">
+                    <button
+                      type="button"
+                      disabled={!filled}
+                      onClick={() =>
+                        setExpandedSlots((prev) => {
+                          const next = new Set(prev);
+                          if (next.has(t.slot)) next.delete(t.slot);
+                          else next.add(t.slot);
+                          return next;
+                        })
+                      }
+                      className="flex min-w-0 flex-1 items-center gap-2 text-left disabled:cursor-default"
+                      title={filled ? "Show standardized image" : undefined}
+                    >
+                      {filled ? (
+                        <ChevronRight size={14} className={cn("shrink-0 text-muted-foreground transition-transform", expanded && "rotate-90")} />
+                      ) : (
+                        <span className="w-[14px] shrink-0" />
+                      )}
+                      <span className="min-w-0">
+                        <span className="block truncate text-sm font-medium">{label}</span>
+                        <span className="block text-[11px] text-muted-foreground">
+                          {t.name} · {t.aspectW}:{t.aspectH} · {filled ? "filled" : "empty"}
+                        </span>
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setMotifPick(t)}
+                      className="shrink-0 rounded-md border border-white/15 bg-card/60 px-2.5 py-1 text-xs text-muted-foreground transition-all hover:border-entity-person/40 hover:text-entity-person"
+                    >
+                      {filled ? "Re-standardize" : "Standardize"}
+                    </button>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => setMotifPick(t)}
-                    className="shrink-0 rounded-md border border-white/15 bg-card/60 px-2.5 py-1 text-xs text-muted-foreground transition-all hover:border-entity-person/40 hover:text-entity-person"
-                  >
-                    {filled ? "Re-standardize" : "Standardize"}
-                  </button>
+                  {filled && expanded && entry?.thumbUrl && (
+                    <div className="border-t border-white/5 px-3 py-3">
+                      <NextImage
+                        src={entry.thumbUrl}
+                        alt={label}
+                        width={t.aspectW * 80}
+                        height={t.aspectH * 80}
+                        unoptimized
+                        className="mx-auto max-h-72 w-auto rounded-md border border-white/10"
+                      />
+                    </div>
+                  )}
                 </div>
               );
             })}
