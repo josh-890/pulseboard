@@ -601,13 +601,9 @@ export function PersonDetailsTab({
       {/* Annotation editor */}
       {annotateState && (
         <AnnotationEditor
-          imageUrl={
-            annotateState.item.urls.master_4000 ??
-            annotateState.item.urls.view_1200 ??
-            annotateState.item.urls.gallery_512 ??
-            annotateState.item.urls.original ??
-            ''
-          }
+          // urls.original = best full-quality source (master_4000 → legacy original);
+          // edit from it so the result isn't downscaled to a display variant.
+          imageUrl={annotateState.item.urls.original}
           onSave={handleAnnotationSave}
           onCancel={() => setAnnotateState(null)}
           isSaving={isSavingAnnotation}

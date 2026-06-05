@@ -949,6 +949,55 @@ export async function getPersonEntityMedia(
   return result;
 }
 
+// ─── Entity media cover (body-map hover photo) ──────────────────────────────
+
+export type EntityMediaModel = "BodyMark" | "BodyModification" | "CosmeticProcedure";
+
+/** Return `orderedIds` with `id` moved to the front. No-op if absent or already first. */
+export function moveToFront(orderedIds: string[], id: string): string[] {
+  if (!orderedIds.includes(id)) return orderedIds.slice();
+  return [id, ...orderedIds.filter((x) => x !== id)];
+}
+
+function entityMediaWhere(
+  model: EntityMediaModel,
+  personId: string,
+  entityId: string,
+): { personId: string; bodyMarkId?: string; bodyModificationId?: string; cosmeticProcedureId?: string } {
+  if (model === "BodyMark") return { personId, bodyMarkId: entityId };
+  if (model === "BodyModification") return { personId, bodyModificationId: entityId };
+  return { personId, cosmeticProcedureId: entityId };
+}
+
+/**
+ * Make `mediaItemId` the cover (first) photo of a body feature by rewriting the
+ * `sortOrder` of that entity's PersonMediaLinks — scoped by the entity FK so the
+ * same image's HEADSHOT/REFERENCE links are untouched. The body map hover and
+ * row strip read the first photo by `[sortOrder, createdAt]`, so the cover wins.
+ */
+export async function setEntityMediaCover(
+  personId: string,
+  entityModel: EntityMediaModel,
+  entityId: string,
+  mediaItemId: string,
+): Promise<void> {
+  const base = entityMediaWhere(entityModel, personId, entityId);
+  await prisma.$transaction(async (tx) => {
+    const links = await tx.personMediaLink.findMany({
+      where: base,
+      orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+      select: { mediaItemId: true },
+    });
+    const ordered = moveToFront(links.map((l) => l.mediaItemId), mediaItemId);
+    for (let i = 0; i < ordered.length; i++) {
+      await tx.personMediaLink.updateMany({
+        where: { ...base, mediaItemId: ordered[i] },
+        data: { sortOrder: i },
+      });
+    }
+  });
+}
+
 // ─── MediaManager queries ───────────────────────────────────────────────────
 // `MediaItemWithLinks` type lives in `@/lib/gallery-mappers` (re-exported
 // from the top of this file). The query function stays here because it's

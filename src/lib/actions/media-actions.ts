@@ -8,6 +8,8 @@ import {
   batchUpdatePersonMediaLinks,
   batchSetUsage,
   batchRemoveUsage,
+  setEntityMediaCover,
+  type EntityMediaModel,
 } from "@/lib/services/media-service";
 import { cascadeHardDeleteMediaItems } from "@/lib/services/cascade-helpers";
 import { refreshDashboardStats } from "@/lib/services/view-service";
@@ -285,6 +287,28 @@ export async function reorderPersonMediaAction(
       return { success: false, error: message };
     }
 
+  });
+}
+
+/**
+ * Make a photo the cover (first / body-map hover) of a body feature. Entity-scoped
+ * so it doesn't disturb the same image's other links — see setEntityMediaCover.
+ */
+export async function setEntityMediaCoverAction(
+  personId: string,
+  entityModel: EntityMediaModel,
+  entityId: string,
+  mediaItemId: string,
+): Promise<SimpleActionResult> {
+  return withTenantFromHeaders(async () => {
+    try {
+      await setEntityMediaCover(personId, entityModel, entityId, mediaItemId);
+      revalidatePath(`/people/${personId}`);
+      return { success: true };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unexpected error";
+      return { success: false, error: message };
+    }
   });
 }
 

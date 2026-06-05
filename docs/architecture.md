@@ -84,7 +84,7 @@ All services in `src/lib/services/`. All functions are async, return Promises. S
 
 **`person-service.ts`** (~1,350 lines) — Person CRUD, paginated listing, work history, connections, affiliations, current state derivation, entity media queries, cover photos
 
-**`media-service.ts`** (~1,130 lines) — MediaItem CRUD, gallery item construction (`toGalleryItem`), person/session/set gallery queries, headshot management, usage/link management, batch operations, duplicate detection, similar image search
+**`media-service.ts`** (~1,130 lines) — MediaItem CRUD, gallery item construction (`toGalleryItem`), person/session/set gallery queries, headshot management, usage/link management, batch operations, duplicate detection, similar image search. `getPersonEntityMedia`/`getPersonMediaForEntity` return a body feature's photos ordered by `[sortOrder, createdAt]` (first = body-map hover cover). `setEntityMediaCover(personId, entityModel, entityId, mediaItemId)` makes a photo the cover by rewriting `PersonMediaLink.sortOrder` **scoped by the entity FK** (`moveToFront` helper) so the same image's HEADSHOT/REFERENCE links are untouched — distinct from `reorderPersonMediaAction` which is `{personId, mediaItemId}`-scoped.
 
 **`set-service.ts`** (~820 lines) — Set CRUD, credit resolution, participant rebuilding, session link management, media bridging (`addExistingMediaToSet`, `syncSetSessionLinks`). `getSuggestedResolutions(rawName, channelId)` uses a three-tier priority: (1) alias+channel exact match ("Known alias on this channel"), (2) previously-resolved same rawName, (3) frequent in channel. `resolveCreditRaw()` auto-matches `rawName` to `PersonAlias.nameNorm`, sets `resolvedAliasId`, populates `creditNameOverride` on `SessionContribution`, and returns `suggestNewAlias: true` when no alias exists.
 
@@ -175,7 +175,7 @@ All actions in `src/lib/actions/`. Each validates input with Zod, calls services
 | `person-actions.ts` | `createPerson`, `updatePerson`, `deletePerson`, `updatePersonBio` |
 | `set-actions.ts` | `createSet`, `updateSet`, `deleteSet`, `addExistingMediaToSetAction`, `reassignSetSessionAction` |
 | `session-actions.ts` | `createSession`, `updateSession`, `deleteSession`, `mergeSessionsAction` |
-| `media-actions.ts` | `assignHeadshotSlot`, `updatePersonMediaLinkAction`, `batchSetUsageAction`, `deleteMediaItemsAction`, `setFocalPointAction`, `resetFocalPointAction` |
+| `media-actions.ts` | `assignHeadshotSlot`, `updatePersonMediaLinkAction`, `batchSetUsageAction`, `deleteMediaItemsAction`, `setFocalPointAction`, `resetFocalPointAction`, `reorderPersonMediaAction`, `setPersonMediaFavoriteAction`, `setEntityMediaCoverAction` (body-feature cover, entity-scoped) |
 | `appearance-actions.ts` | Body mark/modification/procedure CRUD + event CRUD (~15 actions), `toggleEntityHeroVisibility` |
 | `contribution-actions.ts` | `addSessionContributionAction` (accepts `eraId` — propagated across all the person's contribution rows in the session), `updateSessionContributionAction` (same), `removeSessionContributionAction`, `updateContributionConfidenceAction`, `addContributionSkill`, `removeContributionSkill`, `getPersonErasForPickerAction` |
 | `skill-actions.ts` | PersonSkill/SkillEvent CRUD, skill event media management |
@@ -444,7 +444,9 @@ All searchable entities have `nameNorm`/`titleNorm` fields with `pg_trgm` trigra
 
 7. **Contribution → skill progression** — `addContributionSkill()` auto-creates/upgrades PersonSkill and creates DEMONSTRATED event tagged with `[session:ID]`.
 
-8. **Entity media linking** — DETAIL usage on PersonMediaLink can be categorized (`categoryId`) and linked to specific entities (`bodyMarkId`, `bodyModificationId`). Categories driven by `entityModel` field on MediaCategory. (The `cosmeticProcedureId` column remains in the schema during the Slice 5 → Slice 17 soak but is no longer written by any code path.)
+8. **Entity media linking** — DETAIL usage on PersonMediaLink can be categorized (`categoryId`) and linked to specific entities (`bodyMarkId`, `bodyModificationId`). Categories driven by `entityModel` field on MediaCategory. The first photo by `sortOrder` is the entity's body-map cover; reorder via `setEntityMediaCover` (entity-FK-scoped). (The `cosmeticProcedureId` column remains in the schema during the Slice 5 → Slice 17 soak but is no longer written by any code path.)
+
+8a. **Image editing sources the master** — the crop/annotation editor (`AnnotationEditor`) always loads `urls.original` (the best-quality master: `master_4000` for new uploads, raw `original` for legacy), never a display variant, so edits aren't silently downscaled.
 
 9. **SetParticipant is derived** — Rebuilt from SessionContribution via `rebuildSetParticipantsFromContributions()`. Never edited directly.
 

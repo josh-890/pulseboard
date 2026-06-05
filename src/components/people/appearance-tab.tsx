@@ -29,7 +29,8 @@ import { DetailMediaPickerSheet } from "@/components/people/detail-media-picker-
 import { CrossSessionPicker } from "@/components/media/cross-session-picker";
 import { AnnotationEditor } from "@/components/media/annotation-editor";
 import { StagePhotoDialog } from "@/components/media/stage-photo-dialog";
-import { linkMediaToDetailCategoryAction, copyMediaItemToReferenceAction } from "@/lib/actions/media-actions";
+import { linkMediaToDetailCategoryAction, copyMediaItemToReferenceAction, setEntityMediaCoverAction } from "@/lib/actions/media-actions";
+import type { EntityMediaModel } from "@/lib/services/media-service";
 import type { GalleryItem } from "@/lib/types";
 import {
   deleteBodyMarkAction,
@@ -196,6 +197,14 @@ export function AppearanceTab({
       }
     },
     [currentState.activeBodyMarks, currentState.activeBodyModifications],
+  );
+
+  const handleSetEntityCover = useCallback(
+    async (entityModel: EntityMediaModel, entityId: string, mediaItemId: string) => {
+      const res = await setEntityMediaCoverAction(person.id, entityModel, entityId, mediaItemId);
+      if (res.success) router.refresh();
+    },
+    [person.id, router],
   );
 
   // Cross-session picker + stage dialog + annotation editor for entity photos
@@ -836,6 +845,7 @@ export function AppearanceTab({
                 onDropFiles={referenceSessionId ? handleEntityDrop("BodyMark", mark.id, mark.type) : undefined}
                 onSelectFromSessions={referenceSessionId ? (() => { const cat = findCategoryForEntity("BodyMark", mark.type); if (cat) setEntityPicker({ categoryId: cat.id, entityId: mark.id, entityModel: 'BodyMark', entityLabel: `${mark.type} — ${mark.bodyRegion}` }); }) : undefined}
                 onViewPhotos={entityMedia?.[mark.id]?.length ? (idx) => setEntityLightbox({ entityId: mark.id, initialIndex: idx }) : undefined}
+                onSetCover={(mediaItemId) => handleSetEntityCover("BodyMark", mark.id, mediaItemId)}
                 onDeleteEvent={handleDeleteBodyMarkEvent}
                 onAddEvent={() => setOpenState({ type: "addBodyMarkEvent", markId: mark.id, markLabel: `${mark.type} — ${mark.bodyRegion}`, computed: mark.computed })}
                 onEditEvent={(event) => {
@@ -864,6 +874,7 @@ export function AppearanceTab({
                 onDropFiles={referenceSessionId ? handleEntityDrop("BodyModification", mod.id, mod.type) : undefined}
                 onSelectFromSessions={referenceSessionId ? (() => { const cat = findCategoryForEntity("BodyModification", mod.type); if (cat) setEntityPicker({ categoryId: cat.id, entityId: mod.id, entityModel: 'BodyModification', entityLabel: `${mod.type} — ${mod.bodyRegion}` }); }) : undefined}
                 onViewPhotos={entityMedia?.[mod.id]?.length ? (idx) => setEntityLightbox({ entityId: mod.id, initialIndex: idx }) : undefined}
+                onSetCover={(mediaItemId) => handleSetEntityCover("BodyModification", mod.id, mediaItemId)}
                 onDeleteEvent={handleDeleteBodyModEvent}
                 onAddEvent={() => setOpenState({ type: "addBodyModEvent", modId: mod.id, modLabel: `${mod.type} — ${mod.bodyRegion}`, computed: mod.computed })}
                 onEditEvent={(event) => {
@@ -1055,13 +1066,10 @@ export function AppearanceTab({
       {/* Annotation editor for entity photos */}
       {annotateEntityState && (
         <AnnotationEditor
-          imageUrl={
-            annotateEntityState.item.urls.master_4000 ??
-            annotateEntityState.item.urls.view_1200 ??
-            annotateEntityState.item.urls.gallery_512 ??
-            annotateEntityState.item.urls.original ??
-            ''
-          }
+          // urls.original is the best full-quality source (master_4000 for new
+          // uploads, raw original for legacy) — always start editing from it so
+          // the crop/annotation isn't downscaled to a display variant.
+          imageUrl={annotateEntityState.item.urls.original}
           onSave={handleEntityAnnotationSave}
           onCancel={() => setAnnotateEntityState(null)}
           isSaving={isSavingAnnotation}
@@ -1075,6 +1083,12 @@ export function AppearanceTab({
           items={toGalleryItems(entityMedia[entityLightbox.entityId])}
           initialIndex={entityLightbox.initialIndex}
           onClose={() => setEntityLightbox(null)}
+          coverMediaItemId={entityMedia[entityLightbox.entityId]?.[0]?.id ?? null}
+          onSetCover={(mediaItemId) => {
+            if (!mediaItemId) return;
+            const isMark = currentState.activeBodyMarks.some((m) => m.id === entityLightbox.entityId);
+            handleSetEntityCover(isMark ? "BodyMark" : "BodyModification", entityLightbox.entityId, mediaItemId);
+          }}
           onEdit={(galleryItem) => {
             setEntityLightbox(null);
             setAnnotateEntityState({

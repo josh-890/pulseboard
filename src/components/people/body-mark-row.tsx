@@ -9,7 +9,7 @@ import { BodyRegionChips } from "@/components/shared/body-region-picker";
 import { EntityEventTimeline } from "@/components/people/entity-event-timeline";
 import { ExpandedEntityView } from "@/components/people/expanded-entity-view";
 import { EntityStatusPill } from "@/components/people/entity-status-pill";
-import { Camera, ChevronRight, ImageIcon, Pencil, Plus, ScanSearch, Trash2, Upload } from "lucide-react";
+import { Camera, ChevronRight, ImageIcon, Pencil, Plus, ScanSearch, Star, Trash2, Upload } from "lucide-react";
 import { useFileDrop } from "@/lib/hooks/use-file-drop";
 
 type EntityMediaThumbnail = {
@@ -44,6 +44,8 @@ type BodyMarkRowProps = {
   onEditEvent?: (event: EventItem) => void;
   onSelectFromSessions?: () => void;
   onViewPhotos?: (index: number) => void;
+  /** Make a photo the cover (first → body-map hover). Receives the mediaItemId. */
+  onSetCover?: (mediaItemId: string) => void;
   isPending?: boolean;
   // Phase G Slice 13: Level-2 interactivity.
   isHighlighted?: boolean;
@@ -63,6 +65,7 @@ export function BodyMarkRow({
   onEditEvent,
   onSelectFromSessions,
   onViewPhotos,
+  onSetCover,
   isPending,
   isHighlighted,
   onHover,
@@ -230,22 +233,41 @@ export function BodyMarkRow({
               photos && photos.length > 0 ? (
                 <div className="flex gap-2 overflow-x-auto scroll-smooth snap-x snap-mandatory pb-1">
                   {photos.map((photo, idx) => (
-                    <button
-                      key={photo.id}
-                      type="button"
-                      onClick={() => onViewPhotos ? onViewPhotos(idx) : onManagePhotos?.()}
-                      className="shrink-0 h-20 w-20 snap-start overflow-hidden rounded-lg border border-white/10 bg-muted/30 transition-all hover:border-amber-500/40 cursor-pointer"
-                    >
-                      <Image
-                        src={photo.url}
-                        alt=""
-                        width={photo.width}
-                        height={photo.height}
-                        unoptimized
-                        className="h-full w-full object-cover"
-                        style={focalStyle(photo.focalX, photo.focalY)}
-                      />
-                    </button>
+                    <div key={photo.id} className="group/photo relative h-20 w-20 shrink-0 snap-start">
+                      <button
+                        type="button"
+                        onClick={() => onViewPhotos ? onViewPhotos(idx) : onManagePhotos?.()}
+                        className="h-full w-full overflow-hidden rounded-lg border border-white/10 bg-muted/30 transition-all hover:border-amber-500/40 cursor-pointer"
+                      >
+                        <Image
+                          src={photo.url}
+                          alt=""
+                          width={photo.width}
+                          height={photo.height}
+                          unoptimized
+                          className="h-full w-full object-cover"
+                          style={focalStyle(photo.focalX, photo.focalY)}
+                        />
+                      </button>
+                      {idx === 0 ? (
+                        <span
+                          className="pointer-events-none absolute left-1 top-1 inline-flex items-center gap-0.5 rounded bg-amber-500/90 px-1 py-0.5 text-[9px] font-medium text-white"
+                          title="Shown on the body map"
+                        >
+                          <Star size={9} className="fill-current" /> Cover
+                        </span>
+                      ) : onSetCover ? (
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); onSetCover(photo.id); }}
+                          className="absolute right-1 top-1 rounded bg-black/60 p-1 text-white/80 opacity-0 transition-opacity hover:text-amber-400 group-hover/photo:opacity-100"
+                          title="Set as cover (show on body map)"
+                          aria-label="Set as cover"
+                        >
+                          <Star size={11} />
+                        </button>
+                      ) : null}
+                    </div>
                   ))}
                 </div>
               ) : undefined
