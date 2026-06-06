@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import Image from "next/image";
 import { toast } from "sonner";
 import {
   ChevronLeft,
@@ -30,6 +29,7 @@ import {
 import { cn } from "@/lib/utils";
 import type { GalleryItem } from "@/lib/types";
 import type { ProfileImageLabel } from "@/lib/services/setting-service";
+import { ZoomableImage } from "@/components/media/zoomable-image";
 import { GalleryFilmstrip } from "./gallery-filmstrip";
 import { GalleryInfoPanel } from "./gallery-info-panel";
 import type { ReferenceContext, ProductionContext, CollectionContext } from "./gallery-info-panel";
@@ -136,19 +136,9 @@ function SimpleLightbox({
     Map<string, string[]>
   >(new Map());
   const touchStartX = useRef<number | null>(null);
-  const imageContainerRef = useRef<HTMLDivElement>(null);
-  const [imageRect, setImageRect] = useState<{ x: number; y: number; w: number; h: number; cw: number; ch: number } | null>(null);
-  const [zoomState, setZoomState] = useState<"fit" | "zoomed">("fit");
-  const [zoomTx, setZoomTx] = useState(0);
-  const [zoomTy, setZoomTy] = useState(0);
-  const [zoomedSrc, setZoomedSrc] = useState<string | null>(null);
-  const [isPanning, setIsPanning] = useState(false);
-  const [isPinching, setIsPinching] = useState(false);
-  const [zoomScale, setZoomScale] = useState(1);
-  const panStartRef = useRef({ mouseX: 0, mouseY: 0, baseTx: 0, baseTy: 0 });
-  const touchPanRef = useRef({ startX: 0, startY: 0, baseTx: 0, baseTy: 0 });
-  const pinchRef = useRef({ startDist: 0, startScale: 1, startTx: 0, startTy: 0, startMidX: 0, startMidY: 0, containerLeft: 0, containerTop: 0, cw: 0, ch: 0 });
-  const isPinchingRef = useRef(false);
+  // Zoom/pan is owned by <ZoomableImage>; we only track whether it's zoomed so
+  // single-finger swipe-navigation is suppressed while the image is zoomed.
+  const [imgZoomed, setImgZoomed] = useState(false);
 
   const localItems = useMemo(
     () =>
@@ -343,78 +333,13 @@ function SimpleLightbox({
     };
   }, []);
 
-  // Compute the rendered image rect for focal point overlay
-  const computeRect = useCallback(() => {
-    const container = imageContainerRef.current;
-    if (!container || !item) return;
-    const img = container.querySelector("img");
-    if (!img || !img.naturalWidth) return;
-    const cw = container.clientWidth;
-    const ch = container.clientHeight;
-    const scale = Math.min(cw / img.naturalWidth, ch / img.naturalHeight);
-    const w = img.naturalWidth * scale;
-    const h = img.naturalHeight * scale;
-    const x = (cw - w) / 2;
-    const y = (ch - h) / 2;
-    setImageRect({ x, y, w, h, cw, ch });
-  }, [item]);
-
-  const fillScale = useMemo(() => {
-    if (!imageRect) return 2;
-    return Math.max(imageRect.cw / imageRect.w, imageRect.ch / imageRect.h);
-  }, [imageRect]);
-
-  useEffect(() => {
-    if (!focalOverlay) return;
-    const container = imageContainerRef.current;
-    if (!container) return;
-    const observer = new ResizeObserver(() => computeRect());
-    observer.observe(container);
-    return () => observer.disconnect();
-  }, [focalOverlay, computeRect, currentIndex]);
-
-  useEffect(() => {
-     
-    setZoomState("fit");
-    setZoomTx(0);
-    setZoomTy(0);
-    setZoomedSrc(null);
-    setIsPanning(false);
-    setIsPinching(false);
-    setZoomScale(1);
-    isPinchingRef.current = false;
-  }, [currentIndex]);
-
-  function handleMouseDown(e: React.MouseEvent) {
-    if (zoomState !== "zoomed") return;
-    e.preventDefault();
-    setIsPanning(true);
-    panStartRef.current = { mouseX: e.clientX, mouseY: e.clientY, baseTx: zoomTx, baseTy: zoomTy };
-  }
-
-  function handleMouseMove(e: React.MouseEvent) {
-    if (!isPanning) return;
-    const { mouseX, mouseY, baseTx, baseTy } = panStartRef.current;
-    setZoomTx(baseTx + (e.clientX - mouseX));
-    setZoomTy(baseTy + (e.clientY - mouseY));
-  }
-
-  function handleMouseUp() {
-    setIsPanning(false);
-  }
-
-  function getTouchDistance(touches: React.TouchList) {
-    const dx = touches[0].clientX - touches[1].clientX;
-    const dy = touches[0].clientY - touches[1].clientY;
-    return Math.sqrt(dx * dx + dy * dy);
-  }
-
+  // Single-finger swipe navigation (zoom/pan is handled inside <ZoomableImage>).
   function handleTouchStart(e: React.TouchEvent) {
     touchStartX.current = e.touches[0].clientX;
   }
 
   function handleTouchEnd(e: React.TouchEvent) {
-    if (zoomState === "zoomed" || isPinchingRef.current) return;
+    if (imgZoomed) return; // image is zoomed — let pan own the gesture
     if (touchStartX.current === null) return;
     const diff = touchStartX.current - e.changedTouches[0].clientX;
     if (Math.abs(diff) > 50) {
@@ -424,118 +349,10 @@ function SimpleLightbox({
     touchStartX.current = null;
   }
 
-  function handleTouchStartWrapper(e: React.TouchEvent) {
-    if (e.touches.length === 2) {
-      e.stopPropagation();
-      isPinchingRef.current = true;
-      setIsPinching(true);
-      const dist = getTouchDistance(e.touches);
-      const midX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
-      const midY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
-      const containerEl = imageContainerRef.current!.getBoundingClientRect();
-      pinchRef.current = {
-        startDist: dist,
-        startScale: zoomScale,
-        startTx: zoomTx,
-        startTy: zoomTy,
-        startMidX: midX,
-        startMidY: midY,
-        containerLeft: containerEl.left,
-        containerTop: containerEl.top,
-        cw: containerEl.width,
-        ch: containerEl.height,
-      };
-      if (zoomState === "fit") setZoomState("zoomed");
-    } else if (e.touches.length === 1 && zoomState === "zoomed") {
-      touchPanRef.current = {
-        startX: e.touches[0].clientX,
-        startY: e.touches[0].clientY,
-        baseTx: zoomTx,
-        baseTy: zoomTy,
-      };
-    }
-  }
-
-  function handleTouchMoveWrapper(e: React.TouchEvent) {
-    if (e.touches.length === 2 && isPinchingRef.current) {
-      e.stopPropagation();
-      const { startDist, startScale, startTx, startTy, startMidX, startMidY, containerLeft, containerTop, cw, ch } = pinchRef.current;
-      const currentDist = getTouchDistance(e.touches);
-      const rawScale = startScale * (currentDist / startDist);
-      const newScale = Math.max(1, Math.min(rawScale, 10));
-      const currentMidX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
-      const currentMidY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
-      // Keep the pinch midpoint anchored: shift by the scale delta, then add pan
-      const originX = startMidX - containerLeft - cw / 2;
-      const originY = startMidY - containerTop - ch / 2;
-      setZoomTx(startTx + originX * (startScale - newScale) + (currentMidX - startMidX));
-      setZoomTy(startTy + originY * (startScale - newScale) + (currentMidY - startMidY));
-      setZoomScale(newScale);
-      if (newScale <= 1) {
-        setZoomState("fit");
-        setZoomTx(0);
-        setZoomTy(0);
-      } else if (zoomState !== "zoomed") {
-        setZoomState("zoomed");
-      }
-    } else if (e.touches.length === 1 && zoomState === "zoomed" && !isPinchingRef.current) {
-      const { startX, startY, baseTx, baseTy } = touchPanRef.current;
-      setZoomTx(baseTx + (e.touches[0].clientX - startX));
-      setZoomTy(baseTy + (e.touches[0].clientY - startY));
-    }
-  }
-
-  function handleTouchEndWrapper(e: React.TouchEvent) {
-    if (e.touches.length < 2 && isPinchingRef.current) {
-      isPinchingRef.current = false;
-      setIsPinching(false);
-      if (zoomScale <= 1.05) {
-        setZoomState("fit");
-        setZoomTx(0);
-        setZoomTy(0);
-        setZoomScale(1);
-      }
-    }
-  }
-
   if (!item) return null;
 
   const displayUrl =
     item.urls.full_2400 ?? item.urls.gallery_1600 ?? item.urls.gallery_1024 ?? item.urls.original;
-
-  function handleImageDoubleClick(e: React.MouseEvent) {
-    e.stopPropagation();
-    if (!imageRect || !imageContainerRef.current) return;
-
-    if (zoomState === "zoomed") {
-      setZoomState("fit");
-      setZoomTx(0);
-      setZoomTy(0);
-      setZoomScale(1);
-      setZoomedSrc(null);
-      return;
-    }
-
-    const containerEl = imageContainerRef.current.getBoundingClientRect();
-    const clickContainerX = e.clientX - containerEl.left;
-    const clickContainerY = e.clientY - containerEl.top;
-    const imageCenterX = imageRect.x + imageRect.w / 2;
-    const imageCenterY = imageRect.y + imageRect.h / 2;
-    const relX = clickContainerX - imageCenterX;
-    const relY = clickContainerY - imageCenterY;
-    const S = fillScale;
-    setZoomTx(relX * (1 - S));
-    setZoomTy(relY * (1 - S));
-    setZoomScale(S);
-    setZoomState("zoomed");
-
-    const maxUrl = item.urls.master_4000;
-    if (maxUrl && maxUrl !== displayUrl) {
-      const preload = new window.Image();
-      preload.onload = () => setZoomedSrc(maxUrl);
-      preload.src = maxUrl;
-    }
-  }
 
   const infoPanelProps = {
     item,
@@ -714,13 +531,7 @@ function SimpleLightbox({
       <div className="flex flex-1 min-h-0">
         <div className="flex flex-1 flex-col min-w-0">
           {/* Image area with nav */}
-          <div
-            ref={imageContainerRef}
-            className={cn(
-              "relative flex flex-1 items-center justify-center p-4 sm:p-6 min-h-0",
-              zoomState === "zoomed" && "overflow-hidden",
-            )}
-          >
+          <div className="relative flex flex-1 items-center justify-center p-4 sm:p-6 min-h-0 overflow-hidden">
             {localItems.length > 1 && (
               <>
                 {currentIndex > 0 && (
@@ -746,71 +557,17 @@ function SimpleLightbox({
               </>
             )}
 
-            <div
-              className="absolute inset-0 flex items-center justify-center"
-              onDoubleClick={handleImageDoubleClick}
-              onMouseDown={handleMouseDown}
-              onMouseMove={handleMouseMove}
-              onMouseUp={handleMouseUp}
-              onMouseLeave={handleMouseUp}
-              onTouchStart={handleTouchStartWrapper}
-              onTouchMove={handleTouchMoveWrapper}
-              onTouchEnd={handleTouchEndWrapper}
-              style={{
-                transform: zoomState === "zoomed"
-                  ? `translate(${zoomTx}px, ${zoomTy}px) scale(${zoomScale})`
-                  : "translate(0px, 0px) scale(1)",
-                transformOrigin: "50% 50%",
-                transition: (isPanning || isPinching) ? "none" : "transform 0.2s ease",
-                cursor: zoomState === "zoomed" ? (isPanning ? "grabbing" : "grab") : "zoom-in",
-                userSelect: "none",
-                touchAction: "none",
-              }}
-            >
-              <Image
-                src={zoomedSrc ?? displayUrl}
-                alt={item.caption ?? `Photo ${currentIndex + 1}`}
-                width={item.originalWidth}
-                height={item.originalHeight}
-                unoptimized
-                className="max-h-full max-w-full object-contain rounded-lg"
-                priority
-                onLoad={computeRect}
-              />
-            </div>
-
-            {/* Focal point overlay on main image */}
-            {focalOverlay && zoomState === "fit" && imageRect && item.focalX != null && item.focalY != null && (
-              <div className="pointer-events-none absolute inset-0 z-20" aria-hidden="true">
-                {/* Crosshair lines */}
-                <div
-                  className="absolute h-px bg-amber-500/30"
-                  style={{
-                    left: imageRect.x,
-                    width: imageRect.w,
-                    top: imageRect.y + item.focalY * imageRect.h,
-                  }}
-                />
-                <div
-                  className="absolute w-px bg-amber-500/30"
-                  style={{
-                    top: imageRect.y,
-                    height: imageRect.h,
-                    left: imageRect.x + item.focalX * imageRect.w,
-                  }}
-                />
-                {/* Ring + center dot */}
-                <div
-                  className="absolute h-8 w-8 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-amber-500 shadow-[0_0_8px_rgba(0,0,0,0.6)] transition-all duration-200"
-                  style={{
-                    left: imageRect.x + item.focalX * imageRect.w,
-                    top: imageRect.y + item.focalY * imageRect.h,
-                  }}
-                >
-                  <div className="absolute left-1/2 top-1/2 h-1.5 w-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-amber-500" />
-                </div>
-              </div>
-            )}
+            <ZoomableImage
+              fitUrl={displayUrl}
+              zoomUrl={item.urls.master_4000}
+              width={item.originalWidth}
+              height={item.originalHeight}
+              alt={item.caption ?? `Photo ${currentIndex + 1}`}
+              focalX={item.focalX}
+              focalY={item.focalY}
+              showFocalOverlay={focalOverlay}
+              onZoomChange={setImgZoomed}
+            />
           </div>
 
           {/* Filmstrip */}
