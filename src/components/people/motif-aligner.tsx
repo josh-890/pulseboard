@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Loader2, RotateCcw, Save, X, AlertTriangle, Check } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { computeSimilarityTransform, type Pt } from '@/lib/image/similarity-transform'
@@ -199,8 +200,11 @@ export function MotifAligner({
     }
   }, [fit, bakeW, bakeH, template, referenceSessionId, personId, source.id, points, onSaved])
 
-  return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-zinc-950">
+  if (typeof document === 'undefined') return null
+  // Portal to <body> so the full-screen overlay isn't trapped by an ancestor's
+  // backdrop-filter/transform containing block (e.g. the Slot Manager card).
+  return createPortal(
+    <div className="fixed inset-0 z-[100] flex flex-col bg-zinc-950">
       <div className="flex shrink-0 items-center gap-3 border-b border-white/10 px-4 py-2">
         <button onClick={onCancel} className="rounded-md p-1.5 text-zinc-400 hover:bg-white/5 hover:text-white">
           <X size={16} />
@@ -254,6 +258,7 @@ export function MotifAligner({
           <canvas ref={previewCanvasRef} className="rounded-lg border border-amber-500/30" style={{ height: PREVIEW_H, width: previewW }} />
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }

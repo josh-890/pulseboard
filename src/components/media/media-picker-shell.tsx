@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import Image from "next/image";
 import { X, Loader2, Check, Columns2, Maximize2, ArrowLeft } from "lucide-react";
 import { cn, focalStyle } from "@/lib/utils";
@@ -209,7 +210,10 @@ export function MediaPickerShell({
 
   const compareItems = compareIds.map((id) => itemById.get(id)).filter((i): i is PickerItem => !!i);
 
-  return (
+  if (typeof document === "undefined") return null;
+  // Portal to <body> so the overlay isn't trapped by an ancestor's
+  // backdrop-filter/transform containing block (e.g. the Slot Manager card).
+  return createPortal(
     <div className="fixed inset-0 z-[100] flex flex-col bg-zinc-950 text-white">
       {/* Header */}
       <div className="flex shrink-0 items-center gap-3 border-b border-white/10 px-4 py-3">
@@ -396,7 +400,8 @@ export function MediaPickerShell({
           selectedIds={selectedIds}
         />
       )}
-    </div>
+    </div>,
+    document.body,
   );
 }
 
