@@ -2,8 +2,10 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Trash2, Save, X, ImagePlus, Pin, PinOff, RotateCcw } from "lucide-react";
+import { Plus, Trash2, Save, X, ImagePlus, Images, Pin, PinOff, RotateCcw } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { LibraryImagePicker } from "@/components/media/library-image-picker";
+import type { PickerItem } from "@/components/media/media-picker-shell";
 import {
   createMotifTemplateAction,
   updateMotifTemplateAction,
@@ -68,9 +70,11 @@ export function MotifTemplatesCatalog({
 
   // Reference underlay (visual aid only — never affects keypoint coords)
   const [refUrl, setRefUrl] = useState<string | null>(null);
-  const [refFile, setRefFile] = useState<File | null>(null); // present = transient, not yet pinned
+  const [refFile, setRefFile] = useState<File | null>(null); // present = transient local file, not yet pinned
+  const [refSourceUrl, setRefSourceUrl] = useState<string | null>(null); // present = library pick, not yet pinned
   const [refTx, setRefTx] = useState<SilhouetteTransform>(DEFAULT_TX);
   const [pinning, setPinning] = useState(false);
+  const [libraryOpen, setLibraryOpen] = useState(false);
   const objectUrlRef = useRef<string | null>(null);
   const panRef = useRef<{ active: boolean; startX: number; startY: number; offX: number; offY: number }>({ active: false, startX: 0, startY: 0, offX: 0, offY: 0 });
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -92,7 +96,17 @@ export function MotifTemplatesCatalog({
     revokeObjectUrl();
     setRefUrl(null);
     setRefFile(null);
+    setRefSourceUrl(null);
     setRefTx(DEFAULT_TX);
+  }, [revokeObjectUrl]);
+
+  const pickFromLibrary = useCallback((item: PickerItem) => {
+    revokeObjectUrl();
+    setRefUrl(item.previewUrl);
+    setRefFile(null);
+    setRefSourceUrl(item.zoomUrl ?? item.previewUrl); // higher-res source for the server-side copy
+    setRefTx(DEFAULT_TX);
+    setLibraryOpen(false);
   }, [revokeObjectUrl]);
 
   const startNew = () => { setError(null); clearRef(); setDraft({ ...BLANK }); };
@@ -123,6 +137,7 @@ export function MotifTemplatesCatalog({
     objectUrlRef.current = url;
     setRefUrl(url);
     setRefFile(file);
+    setRefSourceUrl(null);
     setRefTx(DEFAULT_TX);
   }, [revokeObjectUrl]);
 
@@ -183,25 +198,26 @@ export function MotifTemplatesCatalog({
   }, [refUrl, previewW, previewH]);
 
   const pinReference = useCallback(async () => {
-    if (!refFile) return;
+    if (!refFile && !refSourceUrl) return;
     setPinning(true);
     setError(null);
     try {
-      const fd = new FormData();
-      fd.append("file", refFile);
-      const res = await fetch("/api/motif-templates/silhouette", { method: "POST", body: fd });
+      const res = refFile
+        ? await fetch("/api/motif-templates/silhouette", { method: "POST", body: (() => { const fd = new FormData(); fd.append("file", refFile); return fd; })() })
+        : await fetch("/api/motif-templates/silhouette", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sourceUrl: refSourceUrl }) });
       if (!res.ok) { setError("Pin failed"); return; }
       const data = (await res.json()) as { key: string; url: string };
       revokeObjectUrl();
       setRefUrl(data.url);
       setRefFile(null);
+      setRefSourceUrl(null);
       setDraft((d) => (d ? { ...d, silhouetteRef: data.key } : d));
     } catch {
       setError("Pin failed");
     } finally {
       setPinning(false);
     }
-  }, [refFile, revokeObjectUrl]);
+  }, [refFile, refSourceUrl, revokeObjectUrl]);
 
   const unpin = useCallback(() => {
     setDraft((d) => (d ? { ...d, silhouetteRef: null } : d));
@@ -301,9 +317,14 @@ export function MotifTemplatesCatalog({
               <div className="flex items-center justify-between">
                 <p className="text-xs font-medium text-muted-foreground">Target keypoints (drag)</p>
                 {!refUrl ? (
-                  <button onClick={() => fileInputRef.current?.click()} className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground">
-                    <ImagePlus size={12} /> Reference image
-                  </button>
+                  <div className="flex items-center gap-3">
+                    <button onClick={() => fileInputRef.current?.click()} className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground">
+                      <ImagePlus size={12} /> Upload
+                    </button>
+                    <button onClick={() => setLibraryOpen(true)} className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground">
+                      <Images size={12} /> Library
+                    </button>
+                  </div>
                 ) : (
                   <button onClick={clearRef} className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-destructive">
                     <X size={12} /> Remove image
@@ -372,7 +393,7 @@ export function MotifTemplatesCatalog({
                   </div>
                   <p className="text-[10px] text-muted-foreground">Drag to move · scroll to zoom · this image is a guide only — it is never saved into the template geometry.</p>
                   <div className="flex items-center gap-2">
-                    {refFile ? (
+                    {refFile || refSourceUrl ? (
                       <button onClick={pinReference} disabled={pinning} className="flex items-center gap-1 rounded-md border border-white/15 px-2 py-1 text-[11px] hover:bg-muted disabled:opacity-50">
                         <Pin size={12} /> {pinning ? "Pinning…" : "Pin for next time"}
                       </button>
@@ -381,7 +402,7 @@ export function MotifTemplatesCatalog({
                         <PinOff size={12} /> Unpin
                       </button>
                     ) : null}
-                    {draft.silhouetteRef && !refFile && <span className="text-[10px] text-emerald-500">📌 pinned — transform saved on Save</span>}
+                    {draft.silhouetteRef && !refFile && !refSourceUrl && <span className="text-[10px] text-emerald-500">📌 pinned — transform saved on Save</span>}
                   </div>
                 </div>
               )}
@@ -416,6 +437,14 @@ export function MotifTemplatesCatalog({
             </button>
           </div>
         </div>
+      )}
+
+      {libraryOpen && (
+        <LibraryImagePicker
+          title="Pick a reference image"
+          onSelect={pickFromLibrary}
+          onClose={() => setLibraryOpen(false)}
+        />
       )}
     </div>
   );

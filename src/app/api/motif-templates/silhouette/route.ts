@@ -18,17 +18,28 @@ const ALLOWED_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 export async function POST(request: Request) {
   return withTenantFromHeaders(async () => {
     try {
-      const formData = await request.formData();
-      const file = formData.get("file") as File | null;
-      if (!file) return NextResponse.json({ error: "No file provided" }, { status: 400 });
-      if (!ALLOWED_TYPES.has(file.type)) {
-        return NextResponse.json({ error: "Invalid file type. Accepted: JPEG, PNG, WebP" }, { status: 400 });
+      // Two modes: a multipart file upload, or JSON { sourceUrl } to copy an existing
+      // image (e.g. a slot image picked from the library) server-side — no CORS, and
+      // the reference survives even if the source photo is later deleted.
+      let buffer: Buffer;
+      if (request.headers.get("content-type")?.includes("application/json")) {
+        const { sourceUrl } = (await request.json()) as { sourceUrl?: string };
+        if (!sourceUrl) return NextResponse.json({ error: "No sourceUrl provided" }, { status: 400 });
+        const src = await fetch(sourceUrl);
+        if (!src.ok) return NextResponse.json({ error: "Could not fetch source image" }, { status: 400 });
+        buffer = Buffer.from(await src.arrayBuffer());
+      } else {
+        const formData = await request.formData();
+        const file = formData.get("file") as File | null;
+        if (!file) return NextResponse.json({ error: "No file provided" }, { status: 400 });
+        if (!ALLOWED_TYPES.has(file.type)) {
+          return NextResponse.json({ error: "Invalid file type. Accepted: JPEG, PNG, WebP" }, { status: 400 });
+        }
+        if (file.size > MAX_SIZE) {
+          return NextResponse.json({ error: "File too large (max 15MB)" }, { status: 400 });
+        }
+        buffer = Buffer.from(await file.arrayBuffer());
       }
-      if (file.size > MAX_SIZE) {
-        return NextResponse.json({ error: "File too large (max 15MB)" }, { status: 400 });
-      }
-
-      const buffer = Buffer.from(await file.arrayBuffer());
       const resized = await sharp(buffer)
         .rotate() // auto-orient from EXIF
         .resize({ width: 1024, height: 1024, fit: "inside", withoutEnlargement: true })
