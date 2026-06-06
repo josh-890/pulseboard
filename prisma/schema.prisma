@@ -1018,6 +1018,7 @@ model MotifTemplate {
   bakeLongSide  Int // baked output long side in px (never upscaled beyond source)
   keypoints     Json // [{ name, x, y }] target positions as 0..1 frame fractions
   silhouetteRef String? // optional overlay image (MinIO key) shown while aligning
+  silhouetteTransform Json? // {offsetXFrac,offsetYFrac,scale,rotationDeg,opacity} for the editor underlay
   minSourcePx   Int? // warn-but-allow threshold for the aligned region
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt

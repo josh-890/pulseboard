@@ -6,6 +6,7 @@
  */
 
 import { prisma } from "@/lib/db";
+import { Prisma } from "@/generated/prisma/client";
 
 export type MotifKeypoint = {
   /** Stable identifier the aligner asks the user to click (e.g. "left_eye"). */
@@ -13,6 +14,16 @@ export type MotifKeypoint = {
   /** Target position as a fraction (0..1) of the output frame. */
   x: number;
   y: number;
+};
+
+/** Editor-underlay transform for the pinned silhouette reference image. */
+export type SilhouetteTransform = {
+  /** Pan as a fraction of the canvas box dims (resolution-independent). */
+  offsetXFrac: number;
+  offsetYFrac: number;
+  scale: number;
+  rotationDeg: number;
+  opacity: number;
 };
 
 export type MotifTemplateRecord = {
@@ -24,8 +35,22 @@ export type MotifTemplateRecord = {
   bakeLongSide: number;
   keypoints: MotifKeypoint[];
   silhouetteRef: string | null;
+  silhouetteTransform: SilhouetteTransform | null;
   minSourcePx: number | null;
 };
+
+function parseSilhouetteTransform(value: unknown): SilhouetteTransform | null {
+  if (!value || typeof value !== "object") return null;
+  const v = value as Record<string, unknown>;
+  const num = (x: unknown, d: number) => (typeof x === "number" && Number.isFinite(x) ? x : d);
+  return {
+    offsetXFrac: num(v.offsetXFrac, 0),
+    offsetYFrac: num(v.offsetYFrac, 0),
+    scale: num(v.scale, 1),
+    rotationDeg: num(v.rotationDeg, 0),
+    opacity: num(v.opacity, 0.3),
+  };
+}
 
 function parseKeypoints(value: unknown): MotifKeypoint[] {
   if (!Array.isArray(value)) return [];
@@ -45,6 +70,7 @@ type Row = {
   bakeLongSide: number;
   keypoints: unknown;
   silhouetteRef: string | null;
+  silhouetteTransform: unknown;
   minSourcePx: number | null;
 };
 
@@ -58,6 +84,7 @@ function toRecord(r: Row): MotifTemplateRecord {
     bakeLongSide: r.bakeLongSide,
     keypoints: parseKeypoints(r.keypoints),
     silhouetteRef: r.silhouetteRef,
+    silhouetteTransform: parseSilhouetteTransform(r.silhouetteTransform),
     minSourcePx: r.minSourcePx,
   };
 }
@@ -71,6 +98,7 @@ const SELECT = {
   bakeLongSide: true,
   keypoints: true,
   silhouetteRef: true,
+  silhouetteTransform: true,
   minSourcePx: true,
 } as const;
 
@@ -97,6 +125,7 @@ export type MotifTemplateInput = {
   bakeLongSide: number;
   keypoints: MotifKeypoint[];
   silhouetteRef?: string | null;
+  silhouetteTransform?: SilhouetteTransform | null;
   minSourcePx?: number | null;
 };
 
@@ -110,6 +139,7 @@ export async function createMotifTemplate(input: MotifTemplateInput): Promise<Mo
       bakeLongSide: input.bakeLongSide,
       keypoints: input.keypoints,
       silhouetteRef: input.silhouetteRef ?? null,
+      silhouetteTransform: input.silhouetteTransform ?? undefined,
       minSourcePx: input.minSourcePx ?? null,
     },
     select: SELECT,
@@ -128,6 +158,9 @@ export async function updateMotifTemplate(id: string, input: Partial<MotifTempla
       ...(input.bakeLongSide !== undefined ? { bakeLongSide: input.bakeLongSide } : {}),
       ...(input.keypoints !== undefined ? { keypoints: input.keypoints } : {}),
       ...(input.silhouetteRef !== undefined ? { silhouetteRef: input.silhouetteRef } : {}),
+      ...(input.silhouetteTransform !== undefined
+        ? { silhouetteTransform: input.silhouetteTransform === null ? Prisma.DbNull : input.silhouetteTransform }
+        : {}),
       ...(input.minSourcePx !== undefined ? { minSourcePx: input.minSourcePx } : {}),
     },
     select: SELECT,

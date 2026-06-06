@@ -3,11 +3,17 @@ export const dynamic = "force-dynamic";
 import { withTenantFromHeaders } from "@/lib/tenant-context";
 import { getMotifTemplates } from "@/lib/services/motif-template-service";
 import { getProfileImageLabels } from "@/lib/services/setting-service";
+import { buildUrl } from "@/lib/media-url";
 import { MotifTemplatesCatalog } from "@/components/settings/motif-templates-catalog";
 
 export default async function MotifTemplatesPage() {
   return withTenantFromHeaders(async () => {
     const [templates, slotLabels] = await Promise.all([getMotifTemplates(), getProfileImageLabels()]);
+    // Resolve the pinned silhouette key → URL server-side (buildUrl is server-only under multi-tenant).
+    const templatesWithUrls = templates.map((t) => ({
+      ...t,
+      silhouetteUrl: t.silhouetteRef ? buildUrl(t.silhouetteRef) : null,
+    }));
 
     return (
       <div className="max-w-3xl space-y-6">
@@ -21,7 +27,7 @@ export default async function MotifTemplatesPage() {
           </p>
         </div>
         <MotifTemplatesCatalog
-          templates={templates}
+          templates={templatesWithUrls}
           slotLabels={slotLabels.map((l, i) => ({ slot: i + 1, label: l.label }))}
         />
       </div>
