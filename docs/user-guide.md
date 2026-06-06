@@ -126,7 +126,7 @@ Per slot you can:
 - **Clear** → empty the slot.
 - **★** → mark that slot as the person's **default** (the image shown on the People-browser card when no slot filter is active).
 
-Uploading photos **no longer auto-fills slots** — slot images are always set explicitly here. Templates (output aspect/size + draggable target keypoints, one per slot) are defined under **Settings → Catalogs → Motif Templates**; add half/full-body motifs there — no code needed.
+Uploading photos **no longer auto-fills slots** — slot images are always set explicitly here. Templates (output aspect/size + draggable target keypoints, one per slot) are defined under **Settings → Catalogs → Motif Templates**; add half/full-body motifs there — no code needed. When editing a template you can drop a **reference photo** behind the keypoint canvas as a visual guide (drag to move, scroll to zoom, rotate + opacity sliders) and place the dots over real anatomy — it's a guide only and never changes the saved geometry. **Pin** it to keep that reference (and its position) for next time.
 
 #### Choosing an image (big-preview picker)
 
