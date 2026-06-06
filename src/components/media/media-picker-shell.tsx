@@ -19,6 +19,8 @@ export type PickerItem = {
   caption?: string | null;
   badgeLabel?: string | null;
   badgeHighlight?: boolean;
+  /** Small chips shown top-right (e.g. person names in a set/collection picker). */
+  metaBadges?: string[];
   width?: number | null;
   height?: number | null;
 };
@@ -32,12 +34,18 @@ type MediaPickerShellProps = {
   onLoadMore?: () => void;
   onClose: () => void;
   selectionMode: "single" | "multi";
+  /** Uncontrolled initial selection (multi). Ignored when `selectedIds` is supplied. */
   initialSelectedIds?: string[];
+  /** Controlled selection (multi). When provided, the parent owns selection state. */
+  selectedIds?: string[];
+  onSelectionChange?: (ids: string[]) => void;
   /** single-select: fired with the chosen item. */
   onConfirmOne?: (item: PickerItem) => void;
   /** multi-select: fired with the chosen ids. */
   onConfirm?: (ids: string[]) => void;
   confirmLabel?: string;
+  /** Override the confirm-button disabled state (default: disabled when nothing selected). */
+  confirmDisabled?: boolean;
   toolbar?: React.ReactNode;
   /** Full-width row rendered below the header (e.g. session-filter chips). */
   filterBar?: React.ReactNode;
@@ -71,9 +79,12 @@ export function MediaPickerShell({
   onClose,
   selectionMode,
   initialSelectedIds = [],
+  selectedIds: controlledSelectedIds,
+  onSelectionChange,
   onConfirmOne,
   onConfirm,
   confirmLabel = "Add",
+  confirmDisabled,
   toolbar,
   filterBar,
   uploadSlot,
@@ -81,7 +92,12 @@ export function MediaPickerShell({
 }: MediaPickerShellProps) {
   const isWide = useIsWide();
   const [activeId, setActiveId] = useState<string | null>(items[0]?.id ?? null);
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set(initialSelectedIds));
+  const [internalSel, setInternalSel] = useState<Set<string>>(new Set(initialSelectedIds));
+  const isControlled = controlledSelectedIds !== undefined;
+  const selectedIds = useMemo(
+    () => (isControlled ? new Set(controlledSelectedIds) : internalSel),
+    [isControlled, controlledSelectedIds, internalSel],
+  );
   const [compareIds, setCompareIds] = useState<string[]>([]);
   const [compareOpen, setCompareOpen] = useState(false);
   const [quickLookOpen, setQuickLookOpen] = useState(false);
@@ -106,13 +122,12 @@ export function MediaPickerShell({
   );
 
   const toggleSelect = useCallback((id: string) => {
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  }, []);
+    const next = new Set(selectedIds);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    if (isControlled) onSelectionChange?.(Array.from(next));
+    else setInternalSel(next);
+  }, [selectedIds, isControlled, onSelectionChange]);
 
   const toggleCompare = useCallback((id: string) => {
     setCompareIds((prev) => {
@@ -207,7 +222,7 @@ export function MediaPickerShell({
           {selectionMode === "multi" && (
             <button
               onClick={confirmMulti}
-              disabled={selectedIds.size === 0}
+              disabled={confirmDisabled ?? selectedIds.size === 0}
               className="rounded-md bg-indigo-500 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-indigo-400 disabled:cursor-not-allowed disabled:opacity-40"
             >
               {confirmLabel}
@@ -434,7 +449,15 @@ function Tile({
       )}
 
       {comparing && (
-        <span className="absolute right-1.5 top-1.5 rounded bg-indigo-500/90 px-1 py-0.5 text-[9px] font-semibold text-white">CMP</span>
+        <span className="absolute bottom-1.5 left-1.5 rounded bg-indigo-500/90 px-1 py-0.5 text-[9px] font-semibold text-white">CMP</span>
+      )}
+
+      {item.metaBadges && item.metaBadges.length > 0 && (
+        <div className="absolute right-1.5 top-1.5 flex flex-col items-end gap-0.5">
+          {item.metaBadges.slice(0, 2).map((m, i) => (
+            <span key={i} className="max-w-[90%] truncate rounded bg-black/55 px-1 text-[9px] text-white/80 backdrop-blur-sm">{m}</span>
+          ))}
+        </div>
       )}
 
       {item.badgeLabel && (

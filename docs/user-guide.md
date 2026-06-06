@@ -128,6 +128,17 @@ Per slot you can:
 
 Uploading photos **no longer auto-fills slots** — slot images are always set explicitly here. Templates (output aspect/size + draggable target keypoints, one per slot) are defined under **Settings → Catalogs → Motif Templates**; add half/full-body motifs there — no code needed.
 
+#### Choosing an image (big-preview picker)
+
+Whenever you pick a photo for a task — a source to standardize a slot, a photo for a tattoo/piercing, or media to add to a set/collection/skill-event — the picker opens as a **full-screen split view**: the thumbnail grid on the left, a **large live preview (loupe)** on the right.
+
+- **Click** a thumbnail to preview it big; **←/→** to step through; **double-click the preview** (or pinch) to **zoom and pan** for fine detail (sharpness, a small tattoo).
+- **Choose deliberately:** *Select this* for single-pick tasks; a **checkbox** on each tile (and *Select* in the loupe) for multi-pick tasks, then the **Add/Save** button.
+- **Compare two:** press **Space** or *Compare* to add the current photo to the compare tray; with two marked, **Compare side-by-side** shows them next to each other (each zoomable) so you can **pick the winner**.
+- On phones the split view collapses to a **Quick-Look**: the grid fills the screen, tap a tile for the big preview, back to return.
+
+(The collection picker also keeps its **desktop drag-to-add panel** beside the gallery for quick bulk adds.)
+
 #### Tabs
 
 **Overview**

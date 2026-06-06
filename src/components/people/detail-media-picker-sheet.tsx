@@ -1,15 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useState, useTransition } from "react";
-import Image from "next/image";
-import { useEscToClose } from "@/lib/hooks/use-esc-to-close";
-import { Check, ImageIcon, Loader2, Upload, X } from "lucide-react";
-import { cn, focalStyle } from "@/lib/utils";
+import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
+import { Loader2, Upload } from "lucide-react";
+import { cn } from "@/lib/utils";
 import {
   linkMediaToDetailCategoryAction,
   unlinkMediaFromDetailCategoryAction,
 } from "@/lib/actions/media-actions";
 import { EntityCombobox } from "@/components/shared/entity-combobox";
+import { MediaPickerShell, type PickerItem } from "@/components/media/media-picker-shell";
 import type { CategoryWithGroup } from "@/components/gallery/gallery-info-panel";
 
 type MediaItem = {
@@ -44,6 +43,21 @@ const ENTITY_FIELD_MAP: Record<string, "bodyMarkId" | "bodyModificationId"> = {
   BodyModification: "bodyModificationId",
 };
 
+function toPickerItem(item: MediaItem): PickerItem {
+  const u = item.urls;
+  return {
+    id: item.id,
+    thumbUrl: u.gallery_512 ?? u.master_4000 ?? u.original ?? "",
+    previewUrl: u.full_2400 ?? u.view_1200 ?? u.gallery_512 ?? u.original ?? "",
+    zoomUrl: u.master_4000 ?? u.full_2400 ?? null,
+    focalX: item.focalX,
+    focalY: item.focalY,
+    caption: item.filename,
+    width: item.originalWidth || null,
+    height: item.originalHeight || null,
+  };
+}
+
 export function DetailMediaPickerSheet({
   personId,
   referenceSessionId,
@@ -61,8 +75,6 @@ export function DetailMediaPickerSheet({
   const [selectedEntityId, setSelectedEntityId] = useState<string>(preselectedEntityId ?? "");
   const [isPending, startTransition] = useTransition();
   const [uploading, setUploading] = useState(false);
-  const handleClose = useCallback(() => onOpenChange(false), [onOpenChange]);
-  useEscToClose(handleClose);
 
   // Load reference-session media when sheet opens
   useEffect(() => {
@@ -80,35 +92,19 @@ export function DetailMediaPickerSheet({
       .catch(() => setLoading(false));
   }, [open, personId, referenceSessionId, category.id]);
 
-  const toggleItem = useCallback((id: string) => {
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  }, []);
-
-  const handleSave = useCallback(() => {
-    const toLink = [...selected].filter((id) => !initialLinked.has(id));
-    const toUnlink = [...initialLinked].filter((id) => !selected.has(id));
+  const handleConfirm = useCallback((ids: string[]) => {
+    const selSet = new Set(ids);
+    const toLink = ids.filter((id) => !initialLinked.has(id));
+    const toUnlink = [...initialLinked].filter((id) => !selSet.has(id));
 
     if (toLink.length === 0 && toUnlink.length === 0) {
       onOpenChange(false);
       return;
     }
-
     const entityField = category.entityModel ? ENTITY_FIELD_MAP[category.entityModel] : undefined;
-
     startTransition(async () => {
       if (toLink.length > 0) {
-        await linkMediaToDetailCategoryAction(
-          personId,
-          toLink,
-          category.id,
-          entityField,
-          selectedEntityId || undefined,
-        );
+        await linkMediaToDetailCategoryAction(personId, toLink, category.id, entityField, selectedEntityId || undefined);
       }
       if (toUnlink.length > 0) {
         await unlinkMediaFromDetailCategoryAction(personId, toUnlink, category.id);
@@ -116,7 +112,7 @@ export function DetailMediaPickerSheet({
       onLinked?.();
       onOpenChange(false);
     });
-  }, [selected, initialLinked, personId, category, selectedEntityId, onLinked, onOpenChange]);
+  }, [initialLinked, personId, category, selectedEntityId, onLinked, onOpenChange]);
 
   const handleUpload = useCallback(
     async (files: FileList) => {
@@ -128,18 +124,12 @@ export function DetailMediaPickerSheet({
           formData.append("sessionId", referenceSessionId);
           formData.append("personId", personId);
 
-          let res = await fetch("/api/media/upload", {
-            method: "POST",
-            body: formData,
-          });
+          let res = await fetch("/api/media/upload", { method: "POST", body: formData });
           if (!res.ok) continue;
-
-          let json = await res.json() as {
+          let json = (await res.json()) as {
             mediaItem?: { id: string; filename: string; urls: Record<string, string | null> };
             duplicateFound?: boolean;
           };
-
-          // Auto-accept duplicates in this context — re-submit with accept flag
           if (json.duplicateFound && !json.mediaItem) {
             const retryForm = new FormData();
             retryForm.append("file", file);
@@ -150,18 +140,11 @@ export function DetailMediaPickerSheet({
             if (!res.ok) continue;
             json = await res.json();
           }
-
           if (json.mediaItem) {
             const mi = json.mediaItem;
             const newItem: MediaItem = {
-              id: mi.id,
-              filename: mi.filename,
-              urls: mi.urls,
-              originalWidth: 0,
-              originalHeight: 0,
-              focalX: null,
-              focalY: null,
-              isLinked: false,
+              id: mi.id, filename: mi.filename, urls: mi.urls,
+              originalWidth: 0, originalHeight: 0, focalX: null, focalY: null, isLinked: false,
             };
             setItems((prev) => [newItem, ...prev]);
             setSelected((prev) => new Set([...prev, mi.id]));
@@ -174,147 +157,66 @@ export function DetailMediaPickerSheet({
     [referenceSessionId, personId],
   );
 
-  if (!open) return null;
+  const pickerItems = useMemo(() => items.map(toPickerItem), [items]);
 
   const hasChanges =
     [...selected].some((id) => !initialLinked.has(id)) ||
     [...initialLinked].some((id) => !selected.has(id));
 
-  return (
-    <div role="dialog" aria-modal="true" className="fixed inset-0 z-50 flex justify-end">
-      <div
-        className="absolute inset-0 bg-black/50 backdrop-blur-sm"
-        onClick={() => onOpenChange(false)}
+  if (!open) return null;
+
+  const uploadSlot = (
+    <label
+      className={cn(
+        "flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-white/20 py-2.5 text-xs text-zinc-300 transition-colors hover:border-white/40 hover:text-white",
+        uploading && "pointer-events-none opacity-60",
+      )}
+    >
+      {uploading ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
+      {uploading ? "Uploading…" : "Upload new photos"}
+      <input
+        type="file"
+        accept="image/*"
+        multiple
+        className="hidden"
+        onChange={(e) => {
+          if (e.target.files?.length) handleUpload(e.target.files);
+          e.target.value = "";
+        }}
       />
-      <div className="relative w-full max-w-lg bg-background border-l border-white/15 shadow-2xl overflow-y-auto">
-        {/* Header */}
-        <div className="sticky top-0 z-10 flex items-center justify-between border-b border-white/15 bg-background px-6 py-4">
-          <div>
-            <h2 className="text-lg font-semibold">
-              {category.name}
-            </h2>
-            <p className="text-xs text-muted-foreground">{category.groupName}</p>
-          </div>
-          <div className="flex items-center gap-1">
-            <button
-              type="button"
-              onClick={() => onOpenChange(false)}
-              className="rounded-md p-1 text-muted-foreground hover:text-foreground"
-            >
-              <X size={18} />
-            </button>
-          </div>
-        </div>
+    </label>
+  );
 
-        <div className="space-y-4 p-6">
-          {/* Upload zone */}
-          <label
-            className={cn(
-              "flex cursor-pointer items-center justify-center gap-2 rounded-xl border-2 border-dashed border-white/20 py-4 text-sm text-muted-foreground transition-colors hover:border-white/40 hover:text-foreground",
-              uploading && "pointer-events-none opacity-60",
-            )}
-          >
-            {uploading ? (
-              <Loader2 size={16} className="animate-spin" />
-            ) : (
-              <Upload size={16} />
-            )}
-            {uploading ? "Uploading..." : "Upload new photos"}
-            <input
-              type="file"
-              accept="image/*"
-              multiple
-              className="hidden"
-              onChange={(e) => {
-                if (e.target.files?.length) handleUpload(e.target.files);
-                e.target.value = "";
-              }}
-            />
-          </label>
-
-          {/* Entity selector */}
-          {category.entityModel && entities && entities.length > 0 && (
-            <div>
-              <label className="mb-1.5 block text-sm font-medium">
-                Link to specific {category.entityModel === "BodyMark" ? "body mark" : category.entityModel === "BodyModification" ? "modification" : "procedure"}
-              </label>
-              <EntityCombobox
-                entities={entities.map((e) => ({ id: e.id, label: e.label }))}
-                value={selectedEntityId}
-                onChange={setSelectedEntityId}
-                placeholder="None (category only)"
-                emptyLabel="None (category only)"
-              />
-            </div>
-          )}
-
-          {/* Photo grid */}
-          {loading ? (
-            <div className="flex items-center justify-center py-12">
-              <Loader2 size={24} className="animate-spin text-muted-foreground" />
-            </div>
-          ) : items.length === 0 ? (
-            <p className="py-8 text-center text-sm text-muted-foreground italic">
-              No photos found. Upload some above.
-            </p>
-          ) : (
-            <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
-              {items.map((item) => {
-                const isSelected = selected.has(item.id);
-                const thumbUrl =
-                  item.urls.gallery_512 ?? item.urls.master_4000 ?? item.urls.original ?? null;
-
-                return (
-                  <button
-                    key={item.id}
-                    type="button"
-                    onClick={() => toggleItem(item.id)}
-                    className={cn(
-                      "group relative aspect-square overflow-hidden rounded-lg border-2 transition-all",
-                      isSelected
-                        ? "border-primary ring-1 ring-primary"
-                        : "border-white/10 hover:border-white/30",
-                    )}
-                  >
-                    {thumbUrl ? (
-                      <Image
-                        src={thumbUrl}
-                        alt={item.filename}
-                        width={item.originalWidth || 512}
-                        height={item.originalHeight || 512}
-                        unoptimized
-                        className="h-full w-full object-cover"
-                        style={focalStyle(item.focalX, item.focalY)}
-                      />
-                    ) : (
-                      <div className="flex h-full w-full items-center justify-center bg-muted/30">
-                        <ImageIcon size={20} className="text-muted-foreground/40" />
-                      </div>
-                    )}
-                    {isSelected && (
-                      <div className="absolute inset-0 bg-primary/20 flex items-center justify-center">
-                        <div className="rounded-full bg-primary p-1">
-                          <Check size={14} className="text-primary-foreground" />
-                        </div>
-                      </div>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          )}
-
-          {/* Save button */}
-          <button
-            type="button"
-            onClick={handleSave}
-            disabled={isPending || !hasChanges}
-            className="w-full rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
-          >
-            {isPending ? "Saving..." : hasChanges ? "Save Changes" : "No Changes"}
-          </button>
-        </div>
+  const footerExtras =
+    category.entityModel && entities && entities.length > 0 ? (
+      <div>
+        <label className="mb-1.5 block text-xs font-medium text-zinc-300">
+          Link to specific {category.entityModel === "BodyMark" ? "body mark" : category.entityModel === "BodyModification" ? "modification" : "procedure"}
+        </label>
+        <EntityCombobox
+          entities={entities.map((e) => ({ id: e.id, label: e.label }))}
+          value={selectedEntityId}
+          onChange={setSelectedEntityId}
+          placeholder="None (category only)"
+          emptyLabel="None (category only)"
+        />
       </div>
-    </div>
+    ) : undefined;
+
+  return (
+    <MediaPickerShell
+      title={`${category.name} · ${category.groupName}`}
+      items={pickerItems}
+      loading={loading}
+      onClose={() => onOpenChange(false)}
+      selectionMode="multi"
+      selectedIds={Array.from(selected)}
+      onSelectionChange={(ids) => setSelected(new Set(ids))}
+      onConfirm={handleConfirm}
+      confirmLabel={isPending ? "Saving…" : "Save changes"}
+      confirmDisabled={isPending || !hasChanges}
+      uploadSlot={uploadSlot}
+      footerExtras={footerExtras}
+    />
   );
 }

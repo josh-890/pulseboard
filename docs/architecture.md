@@ -115,7 +115,19 @@ All services in `src/lib/services/`. All functions are async, return Promises. S
 
 ### Infrastructure Services
 
-**`motif-template-service.ts`** — "Standardized motif" templates per profile slot (`MotifTemplate`): output aspect + `bakeLongSide` + target keypoints (frame fractions). CRUD + `getMotifTemplateForSlot`. The **Motif Aligner** (`components/people/motif-aligner.tsx`) loads a source master, the user clicks the template's keypoints, and `lib/image/similarity-transform.ts` (pure, unit-tested 2D Umeyama fit) maps them onto the targets; the baked 2:3 image is uploaded, tagged normalized (`MediaItem.motifTemplateId` + `motifProvenance`) and assigned to the slot via `assignMotifImageAction`. Normalized images display through an aspect-preserving variant in `headshotDataFromLink` (not the 4:5 profile crop). Authored at `/settings/catalogs/motif-templates`; launched from the person Photos tab "Standardized Slots" → `CrossSessionPicker`.
+**`motif-template-service.ts`** — "Standardized motif" templates per profile slot (`MotifTemplate`): output aspect + `bakeLongSide` + target keypoints (frame fractions). CRUD + `getMotifTemplateForSlot`. The **Motif Aligner** (`components/people/motif-aligner.tsx`) loads a source master, the user clicks the template's keypoints, and `lib/image/similarity-transform.ts` (pure, unit-tested 2D Umeyama fit) maps them onto the targets; the baked 2:3 image is uploaded, tagged normalized (`MediaItem.motifTemplateId` + `motifProvenance`) and assigned to the slot via `assignMotifImageAction`. Normalized images display through an aspect-preserving variant in `headshotDataFromLink` (not the 4:5 profile crop). Authored at `/settings/catalogs/motif-templates`; launched from the reference-session **Slot Manager** → `CrossSessionPicker`.
+
+### Image selection — MediaPickerShell + ZoomableImage
+
+**`components/media/zoomable-image.tsx`** — self-contained pan/zoom image viewer (double-click/pinch zoom toward cursor up to 10×, swaps in `master_4000`; drag/touch pan; optional focal crosshair). Single source of truth for image zoom going forward. *(The legacy `gallery-lightbox.tsx` still has its own inline copy — a follow-up will refactor it onto `ZoomableImage`.)*
+
+**`components/media/media-picker-shell.tsx`** — the shared big-preview picker engine used by **all** image-selection surfaces. Full-screen split-pane: thumbnail grid (click = preview, focal-aware tiles, optional `metaBadges`) beside a large live **loupe** (`ZoomableImage`); keyboard nav (←/→ / Enter / Space / Esc); **single- or multi-select**; **2-up compare** (mark two → tray → side-by-side → pick winner); responsive collapse to a Quick-Look overlay on narrow viewports. Selection is uncontrolled (`initialSelectedIds`) or **controlled** (`selectedIds` + `onSelectionChange`). Picker-specific UI comes in via `toolbar` / `filterBar` / `uploadSlot` / `footerExtras` slots; defines the normalized `PickerItem` shape. Adopters map their native results → `PickerItem` and keep their own data source + save action:
+- `media/cross-session-picker.tsx` (single) — slot standardize/link + body-feature source.
+- `people/detail-media-picker-sheet.tsx` (multi, controlled) — body-feature category link; keeps upload + entity-link combobox.
+- `sets/media-picker-sheet.tsx`, `people/skill-event-media-picker.tsx` (multi).
+- `collections/collection-media-picker-sheet.tsx` — the **mobile Sheet** uses the shell; the **desktop inline draggable panel** (`CollectionMediaPickerPanel`, drag-to-add beside the gallery) is intentionally kept as compact thumbnails.
+
+`/api/media/search` returns `previewUrl` + `zoomUrl` + focal (alongside `thumbUrl`) so the search-backed pickers can drive the loupe + zoom.
 
 ### Import Pipeline Services
 

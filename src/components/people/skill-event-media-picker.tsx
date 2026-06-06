@@ -1,23 +1,13 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import Image from "next/image";
-import { Check, ImageIcon, Loader2, Plus, X } from "lucide-react";
 import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
-} from "@/components/ui/sheet";
-import { cn } from "@/lib/utils";
 import {
   addMediaToSkillEventAction,
   removeMediaFromSkillEventAction,
 } from "@/lib/actions/skill-actions";
+import { MediaPickerShell, type PickerItem } from "@/components/media/media-picker-shell";
 
 type MediaSearchResult = {
   id: string;
@@ -25,6 +15,10 @@ type MediaSearchResult = {
   originalWidth: number;
   originalHeight: number;
   thumbUrl: string;
+  previewUrl?: string;
+  zoomUrl?: string | null;
+  focalX?: number | null;
+  focalY?: number | null;
 };
 
 type ActionResult = { success: boolean; error?: string };
@@ -39,6 +33,20 @@ type SkillEventMediaPickerProps = {
   onRemoveMedia?: (mediaItemId: string) => Promise<ActionResult>;
 };
 
+function toPickerItem(r: MediaSearchResult): PickerItem {
+  return {
+    id: r.id,
+    thumbUrl: r.thumbUrl,
+    previewUrl: r.previewUrl ?? r.thumbUrl,
+    zoomUrl: r.zoomUrl ?? null,
+    focalX: r.focalX ?? null,
+    focalY: r.focalY ?? null,
+    caption: r.filename,
+    width: r.originalWidth,
+    height: r.originalHeight,
+  };
+}
+
 export function SkillEventMediaPicker({
   eventId,
   sessionId,
@@ -51,8 +59,6 @@ export function SkillEventMediaPicker({
   const router = useRouter();
   const [results, setResults] = useState<MediaSearchResult[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selected, setSelected] = useState<Set<string>>(new Set(existingMediaIds));
-  const [saving, setSaving] = useState(false);
 
   const loadMedia = useCallback(async () => {
     setLoading(true);
@@ -61,9 +67,7 @@ export function SkillEventMediaPicker({
       params.set("sessionId", sessionId);
       params.set("limit", "100");
       const res = await fetch(`/api/media/search?${params.toString()}`);
-      const data = (await res.json()) as {
-        items: MediaSearchResult[];
-      };
+      const data = (await res.json()) as { items: MediaSearchResult[] };
       setResults(data.items);
     } finally {
       setLoading(false);
@@ -74,19 +78,12 @@ export function SkillEventMediaPicker({
     loadMedia();
   }, [loadMedia]);
 
-  function toggleSelect(id: string) {
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  }
+  const pickerItems = useMemo(() => results.map(toPickerItem), [results]);
 
-  async function handleSave() {
-    setSaving(true);
+  const handleConfirm = useCallback(async (ids: string[]) => {
+    const selected = new Set(ids);
     const existingSet = new Set(existingMediaIds);
-    const toAdd = Array.from(selected).filter((id) => !existingSet.has(id));
+    const toAdd = ids.filter((id) => !existingSet.has(id));
     const toRemove = existingMediaIds.filter((id) => !selected.has(id));
 
     let hasError = false;
@@ -111,130 +108,24 @@ export function SkillEventMediaPicker({
       }
     }
 
-    setSaving(false);
     if (!hasError) {
       const changed = toAdd.length + toRemove.length;
-      if (changed > 0) {
-        toast.success(`Updated ${changed} media link${changed > 1 ? "s" : ""}`);
-      }
+      if (changed > 0) toast.success(`Updated ${changed} media link${changed > 1 ? "s" : ""}`);
       onClose();
       router.refresh();
     }
-  }
-
-  const existingSet = new Set(existingMediaIds);
-  const hasChanges =
-    Array.from(selected).some((id) => !existingSet.has(id)) ||
-    existingMediaIds.some((id) => !selected.has(id));
+  }, [eventId, personId, existingMediaIds, onAddMedia, onRemoveMedia, onClose, router]);
 
   return (
-    <Sheet open onOpenChange={(open) => !open && onClose()}>
-      <SheetContent side="right" className="flex w-full flex-col sm:max-w-xl">
-        <SheetHeader>
-          <SheetTitle>Link Session Media</SheetTitle>
-          <SheetDescription>
-            Select photos from this session to attach to the skill event.
-          </SheetDescription>
-        </SheetHeader>
-
-        <div className="flex flex-1 flex-col gap-4 min-h-0 pt-4">
-          {/* Results grid */}
-          <div className="flex-1 overflow-y-auto min-h-0">
-            {loading && (
-              <div className="flex justify-center py-8">
-                <Loader2 size={24} className="animate-spin text-muted-foreground" />
-              </div>
-            )}
-
-            {!loading && results.length === 0 && (
-              <div className="flex flex-col items-center justify-center gap-2 py-12 text-muted-foreground">
-                <ImageIcon size={32} />
-                <p className="text-sm">No media in this session</p>
-              </div>
-            )}
-
-            <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
-              {results.map((item) => {
-                const isSelected = selected.has(item.id);
-                const wasExisting = existingSet.has(item.id);
-                return (
-                  <button
-                    key={item.id}
-                    type="button"
-                    onClick={() => toggleSelect(item.id)}
-                    className={cn(
-                      "group relative aspect-square overflow-hidden rounded-lg border-2 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                      isSelected
-                        ? "border-primary ring-2 ring-primary/30"
-                        : "border-transparent hover:border-white/20",
-                    )}
-                  >
-                    {item.thumbUrl ? (
-                      <Image
-                        src={item.thumbUrl}
-                        alt={item.filename}
-                        fill
-                        className="object-cover"
-                        unoptimized
-                      />
-                    ) : (
-                      <div className="flex h-full w-full items-center justify-center bg-muted">
-                        <ImageIcon size={24} className="text-muted-foreground" />
-                      </div>
-                    )}
-
-                    {/* Selection check / remove indicator */}
-                    <div
-                      className={cn(
-                        "absolute left-1.5 top-1.5 flex h-5 w-5 items-center justify-center rounded-full border transition-all",
-                        isSelected
-                          ? "border-primary bg-primary text-primary-foreground"
-                          : wasExisting
-                            ? "border-red-400 bg-red-500/80 text-white"
-                            : "border-white/40 bg-black/30 opacity-0 group-hover:opacity-100",
-                      )}
-                    >
-                      {isSelected && <Check size={12} />}
-                      {!isSelected && wasExisting && <X size={12} />}
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Footer */}
-          <div className="flex items-center justify-between border-t border-white/10 pt-4">
-            <div className="text-sm text-muted-foreground">
-              {selected.size > 0 ? (
-                <span>
-                  {selected.size} photo{selected.size > 1 ? "s" : ""} selected
-                </span>
-              ) : (
-                <span>Select photos to link</span>
-              )}
-            </div>
-            <div className="flex gap-2">
-              <Button variant="ghost" size="sm" onClick={onClose}>
-                Cancel
-              </Button>
-              <Button
-                size="sm"
-                disabled={!hasChanges || saving}
-                onClick={handleSave}
-                className="gap-1"
-              >
-                {saving ? (
-                  <Loader2 size={14} className="animate-spin" />
-                ) : (
-                  <Plus size={14} />
-                )}
-                Save
-              </Button>
-            </div>
-          </div>
-        </div>
-      </SheetContent>
-    </Sheet>
+    <MediaPickerShell
+      title="Link session media"
+      items={pickerItems}
+      loading={loading}
+      onClose={onClose}
+      selectionMode="multi"
+      initialSelectedIds={existingMediaIds}
+      onConfirm={handleConfirm}
+      confirmLabel="Save"
+    />
   );
 }

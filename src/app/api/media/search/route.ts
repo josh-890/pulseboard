@@ -79,6 +79,19 @@ export async function GET(request: Request) {
         : item.fileRef
           ? buildUrl(item.fileRef)
           : "";
+      // Larger variants so pickers can show a real loupe + zoom (not an upscaled thumb).
+      const previewUrl = variants.full_2400
+        ? buildUrl(variants.full_2400)
+        : variants.view_1200
+          ? buildUrl(variants.view_1200)
+          : variants.gallery_1600
+            ? buildUrl(variants.gallery_1600)
+            : thumbUrl;
+      const zoomUrl = variants.master_4000
+        ? buildUrl(variants.master_4000)
+        : variants.full_2400
+          ? buildUrl(variants.full_2400)
+          : null;
 
       return {
         id: item.id,
@@ -87,6 +100,10 @@ export async function GET(request: Request) {
         originalWidth: item.originalWidth,
         originalHeight: item.originalHeight,
         thumbUrl,
+        previewUrl,
+        zoomUrl,
+        focalX: item.focalX,
+        focalY: item.focalY,
         sessionId: item.sessionId,
         sessionName: item.session?.name ?? null,
         persons: Object.values(
