@@ -25,7 +25,7 @@ import { ArchiveStatusBanner } from '@/components/archive/archive-status-banner'
 import type { StagingSetWithRelations, StagingSetComparison, DuplicateCandidate } from '@/lib/services/import/staging-set-service'
 import type { StagingSetStatus, ArchiveStatus } from '@/generated/prisma/client'
 // (recordArchivePathAction / clearArchivePathAction removed — scan-first workflow only)
-import { acceptDateSuggestionAction, dismissDateSuggestionAction } from '@/lib/actions/staging-set-actions'
+import { acceptDateSuggestionAction, dismissDateSuggestionAction, removeStagingSetParticipantAction, addStagingSetParticipantAction } from '@/lib/actions/staging-set-actions'
 import { unlinkArchiveFolderAction } from '@/lib/actions/archive-actions'
 import Link from 'next/link'
 
@@ -111,6 +111,21 @@ function PanelContent({
   const [dateSuggestion, setDateSuggestion] = useState(stagingSet.releaseDateSuggestion ?? null)
   const [isDateSuggestionPending, setIsDateSuggestionPending] = useState(false)
   const [duplicateCandidates, setDuplicateCandidates] = useState<DuplicateCandidate[]>([])
+  // Add-participant search
+  const [partQuery, setPartQuery] = useState('')
+  const [partResults, setPartResults] = useState<{ id: string; displayName: string; icgId: string }[]>([])
+
+  useEffect(() => {
+    const q = partQuery.trim()
+    if (q.length < 2) { setPartResults([]); return }
+    const t = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/people/search?q=${encodeURIComponent(q)}`)
+        setPartResults(((await res.json()) as { id: string; displayName: string; icgId: string }[]).slice(0, 6))
+      } catch { setPartResults([]) }
+    }, 250)
+    return () => clearTimeout(t)
+  }, [partQuery])
 
   const hasDuplicateFlag = (stagingSet.isDuplicate || !!stagingSet.duplicateGroupId) && stagingSet.status !== 'SKIPPED'
 
@@ -507,17 +522,67 @@ function PanelContent({
         )}
 
         {/* Participants */}
-        {participants.length > 0 && (
+        {(participants.length > 0 || !isPromoted) && (
           <div className="rounded-lg border border-border/50 bg-card/50 p-3">
             <h3 className="mb-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
               Participants ({participants.length})
             </h3>
             {participants.map((p, i) => (
-              <div key={i} className="flex items-center gap-2 py-1">
+              <div key={i} className="group flex items-center gap-2 py-1">
                 <span className="text-xs">{p.name}</span>
-                <span className="text-[10px] text-muted-foreground">({p.icgId})</span>
+                <span className="text-[10px] text-muted-foreground">{p.icgId ? `(${p.icgId})` : <span className="text-amber-500">unresolved</span>}</span>
+                {!isPromoted && (
+                  <button
+                    type="button"
+                    aria-label={`Remove ${p.name}`}
+                    title="Remove participant"
+                    className="ml-auto rounded p-0.5 text-muted-foreground/40 opacity-0 transition hover:text-destructive group-hover:opacity-100"
+                    onClick={async () => {
+                      const res = await removeStagingSetParticipantAction(stagingSet.id, p.name, p.icgId ?? '')
+                      if (res.success) onRefresh()
+                    }}
+                  >
+                    <X size={12} />
+                  </button>
+                )}
               </div>
             ))}
+
+            {/* Add / exchange a participant (non-promoted only) */}
+            {!isPromoted && (
+              <div className="relative mt-2">
+                <Input
+                  value={partQuery}
+                  onChange={(e) => setPartQuery(e.target.value)}
+                  placeholder="Add participant — search person…"
+                  className="h-8 text-xs"
+                />
+                {partResults.length > 0 && (
+                  <div className="absolute z-10 mt-1 w-full overflow-hidden rounded-md border border-border bg-popover shadow-md">
+                    {partResults.map((r) => (
+                      <button
+                        key={r.id}
+                        type="button"
+                        className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs hover:bg-muted"
+                        onClick={async () => {
+                          const res = await addStagingSetParticipantAction(stagingSet.id, {
+                            name: r.displayName,
+                            icgId: r.icgId,
+                            personId: r.id,
+                          })
+                          setPartQuery('')
+                          setPartResults([])
+                          if (res.success) onRefresh()
+                        }}
+                      >
+                        <span className="font-medium">{r.displayName}</span>
+                        <span className="text-[10px] text-muted-foreground">({r.icgId})</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
 

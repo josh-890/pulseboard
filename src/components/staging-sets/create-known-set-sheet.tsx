@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/sheet";
 import { Label } from "@/components/ui/label";
 import { EntityCombobox } from "@/components/shared/entity-combobox";
+import { PartialDateInput } from "@/components/shared/partial-date-input";
 import { createManualStagingSetAction } from "@/lib/actions/staging-set-actions";
 
 // ─── Types ─────────────────────────────────────────────────────────────────
@@ -197,7 +198,9 @@ export function CreateKnownSetSheet({
   function addKnownParticipant(person: PersonSearchResult) {
     if (participants.some((p) => p.personId === person.id)) return;
     setParticipants((prev) => [
-      ...prev,
+      // Drop an unresolved candidate with the same name (e.g. the one parsed from the
+      // folder) so resolving it doesn't leave a duplicate.
+      ...prev.filter((p) => p.personId || p.name.toLowerCase() !== person.displayName.toLowerCase()),
       { key: person.id, name: person.displayName, icgId: person.icgId, personId: person.id },
     ]);
     setPersonQuery("");
@@ -289,30 +292,14 @@ export function CreateKnownSetSheet({
             />
           </div>
 
-          {/* Release date + precision */}
-          <div className="space-y-1.5">
-            <Label htmlFor="ks-date">Release date</Label>
-            <div className="flex gap-2">
-              <Input
-                id="ks-date"
-                type="date"
-                value={releaseDate}
-                onChange={(e) => setReleaseDate(e.target.value)}
-                className="flex-1"
-              />
-              <select
-                value={releaseDatePrecision}
-                onChange={(e) => setReleaseDatePrecision(e.target.value as DatePrecision)}
-                className="rounded-lg border border-white/15 bg-muted/30 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
-                aria-label="Date precision"
-              >
-                <option value="DAY">Day</option>
-                <option value="MONTH">Month</option>
-                <option value="YEAR">Year</option>
-                <option value="UNKNOWN">Unknown</option>
-              </select>
-            </div>
-          </div>
+          {/* Release date + precision — locale-agnostic YYYY / Month / DD (app standard) */}
+          <PartialDateInput
+            label="Release date"
+            dateValue={releaseDate}
+            precisionValue={releaseDatePrecision}
+            onDateChange={setReleaseDate}
+            onPrecisionChange={(v) => setReleaseDatePrecision(v as DatePrecision)}
+          />
 
           {/* Type toggle */}
           <div className="space-y-1.5">

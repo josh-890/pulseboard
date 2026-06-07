@@ -854,6 +854,12 @@ The banner lists the **candidate set(s)** that triggered it, so you can verify r
 
 This is unrelated to a split set's photo/video **sibling** (one import that has both a photo gallery and a video): the sibling shares the same external ID and is never flagged as a duplicate.
 
+### Editing participants
+
+In a (non-promoted) staging set's slide panel, the **Participants** block lets you fix the cast before promoting:
+- **Remove** — hover a participant and click the **×** (unresolved participants are flagged "unresolved").
+- **Add / exchange** — use **"Add participant — search person…"** to find and add a known person. To swap a wrong participant for the right one, remove the wrong one and add the correct person.
+
 ### Promoting a Staging Set
 
 1. Select a staging set to open its slide panel

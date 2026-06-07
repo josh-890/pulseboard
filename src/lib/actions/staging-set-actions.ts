@@ -172,6 +172,98 @@ export async function createManualStagingSetAction(
   })
 }
 
+/**
+ * Remove a participant from a (non-promoted) staging set, identified by name+icgId.
+ * Recomputes all denormalised participant fields consistently.
+ */
+export async function removeStagingSetParticipantAction(
+  stagingSetId: string,
+  name: string,
+  icgId: string,
+): Promise<SimpleActionResult> {
+  return withTenantFromHeaders(async () => {
+    try {
+      const ss = await prisma.stagingSet.findUnique({
+        where: { id: stagingSetId },
+        select: { participants: true, participantStatuses: true },
+      })
+      if (!ss) return { success: false, error: 'Staging set not found' }
+
+      const matches = (p: { name?: string; icgId?: string }) =>
+        p.name === name && (p.icgId ?? '') === icgId
+
+      const participants = ((ss.participants as { name: string; icgId: string }[]) ?? []).filter(
+        (p) => !matches(p),
+      )
+      const participantStatuses = ((ss.participantStatuses as { name: string; icgId?: string; status?: string; personId?: string }[]) ?? []).filter(
+        (p) => !matches(p),
+      )
+      const participantIcgIds = participants.filter((p) => p.icgId).map((p) => p.icgId)
+      const participantNamesNorm = participants.map((p) => normalizeForSearch(p.name)).join(' ')
+
+      await prisma.stagingSet.update({
+        where: { id: stagingSetId },
+        data: { participants, participantStatuses, participantIcgIds, participantNamesNorm },
+      })
+      revalidatePath('/staging-sets')
+      return { success: true }
+    } catch (err) {
+      return { success: false, error: err instanceof Error ? err.message : 'Failed to remove participant' }
+    }
+  })
+}
+
+/**
+ * Add a participant to a (non-promoted) staging set. `personId` set → known, else a
+ * candidate to resolve. No-op if already present. Recomputes denormalised fields.
+ */
+export async function addStagingSetParticipantAction(
+  stagingSetId: string,
+  participant: { name: string; icgId?: string; personId?: string },
+): Promise<SimpleActionResult> {
+  return withTenantFromHeaders(async () => {
+    try {
+      const ss = await prisma.stagingSet.findUnique({
+        where: { id: stagingSetId },
+        select: { participants: true, participantStatuses: true },
+      })
+      if (!ss) return { success: false, error: 'Staging set not found' }
+
+      const participants = (ss.participants as { name: string; icgId: string }[]) ?? []
+      const statuses = (ss.participantStatuses as { name: string; icgId?: string; status?: string; personId?: string }[]) ?? []
+      const icg = participant.icgId ?? ''
+
+      const dup = participant.personId
+        ? statuses.some((p) => p.personId === participant.personId)
+        : participants.some((p) => p.name === participant.name && (p.icgId ?? '') === icg)
+      if (dup) return { success: true }
+
+      const newParticipants = [...participants, { name: participant.name, icgId: icg }]
+      const newStatuses = [
+        ...statuses,
+        {
+          name: participant.name,
+          icgId: icg,
+          status: participant.personId ? ('known' as const) : ('candidate' as const),
+          ...(participant.personId ? { personId: participant.personId } : {}),
+        },
+      ]
+      const participantIcgIds = newParticipants.filter((p) => p.icgId).map((p) => p.icgId)
+      const participantNamesNorm = newParticipants.map((p) => normalizeForSearch(p.name)).join(' ')
+
+      await prisma.stagingSet.update({
+        where: { id: stagingSetId },
+        data: { participants: newParticipants, participantStatuses: newStatuses, participantIcgIds, participantNamesNorm },
+      })
+      revalidatePath('/staging-sets')
+      if (participant.personId) revalidatePath(`/people/${participant.personId}`)
+      return { success: true }
+    } catch (err) {
+      return { success: false, error: err instanceof Error ? err.message : 'Failed to add participant' }
+    }
+  })
+}
+
 /** Dismiss the suggested date without applying it. */
 export async function dismissDateSuggestionAction(id: string): Promise<SimpleActionResult> {
   return withTenantFromHeaders(async () => {
