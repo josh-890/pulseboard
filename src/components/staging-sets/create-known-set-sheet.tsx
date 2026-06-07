@@ -20,7 +20,7 @@ import { createManualStagingSetAction } from "@/lib/actions/staging-set-actions"
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
-type ChannelOption = { id: string; name: string };
+type ChannelOption = { id: string; name: string; shortName?: string | null };
 
 type PersonSearchResult = {
   id: string;
@@ -43,6 +43,15 @@ export type CreateKnownSetSheetProps = {
   onOpenChange: (open: boolean) => void;
   initialPersonId?: string;
   onCreated?: () => void;
+  // Archive-folder pre-fill (Archive Browser → "+ Create"):
+  initialTitle?: string;
+  initialChannelShortName?: string | null;
+  initialReleaseDate?: string; // "YYYY-MM-DD"
+  initialReleaseDatePrecision?: DatePrecision;
+  initialIsVideo?: boolean;
+  initialParticipantName?: string | null;
+  /** When set, the created staging set is linked (CONFIRMED) to this archive folder. */
+  archiveFolderId?: string;
 };
 
 // ─── Component ─────────────────────────────────────────────────────────────
@@ -52,6 +61,13 @@ export function CreateKnownSetSheet({
   onOpenChange,
   initialPersonId,
   onCreated,
+  initialTitle,
+  initialChannelShortName,
+  initialReleaseDate,
+  initialReleaseDatePrecision,
+  initialIsVideo,
+  initialParticipantName,
+  archiveFolderId,
 }: CreateKnownSetSheetProps) {
   const [isPending, startTransition] = useTransition();
 
@@ -105,14 +121,15 @@ export function CreateKnownSetSheet({
       .catch(() => {});
   }, [open, initialPersonId]);
 
-  // Reset on open
+  // Reset + seed on open. Synchronous fields seed from props; channelId and the
+  // archive participant resolve in the effects below (they need async data).
   useEffect(() => {
     if (open) {
-      setTitle("");
+      setTitle(initialTitle ?? "");
       setChannelId("");
-      setReleaseDate("");
-      setReleaseDatePrecision("YEAR");
-      setIsVideo(false);
+      setReleaseDate(initialReleaseDate ?? "");
+      setReleaseDatePrecision(initialReleaseDatePrecision ?? "YEAR");
+      setIsVideo(initialIsVideo ?? false);
       setExternalId("");
       setNotes("");
       setParticipants([]);
@@ -121,7 +138,39 @@ export function CreateKnownSetSheet({
       setManualName("");
       setError(null);
     }
-  }, [open]);
+  }, [open, initialTitle, initialReleaseDate, initialReleaseDatePrecision, initialIsVideo]);
+
+  // Resolve the folder's channel (by shortName) to a channelId once channels load.
+  useEffect(() => {
+    if (!open || !initialChannelShortName || channels.length === 0) return;
+    const match = channels.find(
+      (c) => c.shortName && c.shortName.toLowerCase() === initialChannelShortName.toLowerCase(),
+    );
+    if (match) setChannelId(match.id);
+  }, [open, initialChannelShortName, channels]);
+
+  // Resolve the participant parsed from the folder name: exact alias match → known,
+  // otherwise a candidate row to resolve (never fuzzy-auto-merge).
+  useEffect(() => {
+    if (!open || !initialParticipantName) return;
+    const name = initialParticipantName;
+    let cancelled = false;
+    fetch(`/api/people/search?q=${encodeURIComponent(name)}`)
+      .then((r) => r.json())
+      .then((data: PersonSearchResult[]) => {
+        if (cancelled) return;
+        const exact = data.find((p) => p.displayName?.toLowerCase() === name.toLowerCase());
+        setParticipants(
+          exact
+            ? [{ key: exact.id, name: exact.displayName, icgId: exact.icgId, personId: exact.id }]
+            : [{ key: `cand-${name}`, name }],
+        );
+      })
+      .catch(() => {
+        if (!cancelled) setParticipants([{ key: `cand-${name}`, name }]);
+      });
+    return () => { cancelled = true; };
+  }, [open, initialParticipantName]);
 
   // Debounced person search
   useEffect(() => {
@@ -194,10 +243,11 @@ export function CreateKnownSetSheet({
           icgId: p.icgId,
           personId: p.personId,
         })),
+        archiveFolderId,
       });
 
       if (result.success) {
-        toast.success("Staging set created.");
+        toast.success(archiveFolderId ? "Staging set created from folder." : "Staging set created.");
         onCreated?.();
         onOpenChange(false);
       } else {

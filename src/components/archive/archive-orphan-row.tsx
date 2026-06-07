@@ -9,10 +9,10 @@ import type { ArchiveFolderEntry } from '@/lib/services/archive-service'
 import {
   confirmArchiveFolderLinkAction,
   rejectArchiveSuggestionAction,
-  createStagingSetFromOrphanAction,
   deleteArchiveFolderAction,
 } from '@/lib/actions/archive-actions'
 import { ArchiveSetPicker } from './archive-set-picker'
+import { CreateKnownSetSheet } from '@/components/staging-sets/create-known-set-sheet'
 
 type Props = {
   item: ArchiveFolderEntry
@@ -22,6 +22,7 @@ export function ArchiveOrphanRow({ item }: Props) {
   const [pending, startTransition] = useTransition()
   const [dismissed, setDismissed] = useState(false)
   const [pickerOpen, setPickerOpen] = useState(false)
+  const [sheetOpen, setSheetOpen] = useState(false)
   const router = useRouter()
 
   const dateStr = item.parsedDate
@@ -57,12 +58,9 @@ export function ArchiveOrphanRow({ item }: Props) {
   }
 
   function handleCreateStagingSet() {
-    startTransition(async () => {
-      const result = await createStagingSetFromOrphanAction(item.id)
-      if (result.success && result.stagingSetId) {
-        router.push(`/staging-sets?selected=${result.stagingSetId}`)
-      }
-    })
+    // Open the pre-filled Create-Known-Set sheet (review participants, then save +
+    // link the folder) instead of silently creating a bare staging set.
+    setSheetOpen(true)
   }
 
   function handleDelete() {
@@ -290,6 +288,19 @@ export function ArchiveOrphanRow({ item }: Props) {
         onOpenChange={setPickerOpen}
         folderId={item.id}
         initialQuery={item.parsedTitle ?? item.folderName}
+      />
+
+      <CreateKnownSetSheet
+        open={sheetOpen}
+        onOpenChange={setSheetOpen}
+        initialTitle={item.parsedTitle ?? item.folderName}
+        initialChannelShortName={item.parsedShortName}
+        initialReleaseDate={dateStr ?? undefined}
+        initialReleaseDatePrecision={dateStr ? 'DAY' : 'UNKNOWN'}
+        initialIsVideo={item.isVideo}
+        initialParticipantName={item.parsedParticipant}
+        archiveFolderId={item.id}
+        onCreated={() => router.refresh()}
       />
     </div>
   )

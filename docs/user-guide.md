@@ -895,6 +895,17 @@ The matching system runs two tiers:
 
 HIGH suggestions show amber; MEDIUM suggestions show dimmer amber.
 
+### Linking an orphan folder
+
+An **orphan** folder is one the scan found but that isn't linked to any Set or Staging Set. Each orphan row offers:
+
+- **Confirm** — accept the suggested Set/Staging match (when one is shown).
+- **+ Create** — open the **Add Known Set** sheet **pre-filled from the folder** (title, channel, release date, photo/video, and the **participant parsed from the folder name** — exact alias match → known, otherwise an *unresolved* candidate you resolve via person search). Saving creates a staging set **and links the folder** to it; you then promote it to a full Set (the archive link carries over). This is the canonical "make a set from an archive folder" path.
+- **Link to existing set/staging** — search and attach the folder to a record that already exists.
+- **Delete** — remove the scan record (safe; a rescan recreates it).
+
+To attach a folder to a Set you've **already created**, use the Set detail page's **Archive → Link folder** picker instead (the inverse direction).
+
 ### Archive Roots (Multi-Root)
 
 Configure archive roots in **Settings → Archive Roots**. Multiple roots are supported (one path per line, or a JSON array). The system will check all roots when computing expected paths and when scanning for folder moves.

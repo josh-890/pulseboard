@@ -874,6 +874,8 @@ export type ArchiveFolderEntry = {
   parsedDate: Date | null
   parsedShortName: string | null
   parsedTitle: string | null
+  /** Person name parsed from the folder name (for pre-filling a new staging set). */
+  parsedParticipant: string | null
   linkedSetId: string | null
   linkedStagingId: string | null
   suggestedSetId: string | null
@@ -2011,6 +2013,7 @@ export async function getArchiveWorkspace(filters: WorkspaceFilters): Promise<Wo
         parsedDate: r.parsedDate,
         parsedShortName: r.parsedShortName,
         parsedTitle: r.parsedTitle,
+        parsedParticipant: parseFolderParticipant(r.folderName),
         linkedSetId,
         linkedStagingId,
         suggestedSetId,
@@ -2161,6 +2164,7 @@ export async function getArchiveWorkspace(filters: WorkspaceFilters): Promise<Wo
         parsedDate: r.parsedDate,
         parsedShortName: r.parsedShortName,
         parsedTitle: r.parsedTitle,
+        parsedParticipant: parseFolderParticipant(r.folderName),
         linkedSetId,
         linkedStagingId,
         suggestedSetId,
@@ -2236,6 +2240,7 @@ export async function getArchiveWorkspace(filters: WorkspaceFilters): Promise<Wo
         parsedDate: r.parsedDate,
         parsedShortName: r.parsedShortName,
         parsedTitle: r.parsedTitle,
+        parsedParticipant: parseFolderParticipant(r.folderName),
         linkedSetId,
         linkedStagingId,
         suggestedSetId: null,

@@ -5,7 +5,7 @@ import { withTenantFromHeaders } from "@/lib/tenant-context";
 export async function GET() {
   return withTenantFromHeaders(async () => {
     const channels = await prisma.channel.findMany({
-      select: { id: true, name: true },
+      select: { id: true, name: true, shortName: true },
       orderBy: { name: "asc" },
     });
 

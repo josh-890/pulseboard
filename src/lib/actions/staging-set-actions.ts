@@ -12,6 +12,7 @@ import {
   refreshAllMatches,
   refreshMatchesIfStale,
 } from '@/lib/services/import/match-refresh-service'
+import { confirmArchiveFolderLink } from '@/lib/services/archive-service'
 import type { DatePrecision } from '@/generated/prisma/client'
 
 export async function refreshParticipantStatusesAction(): Promise<{ updated: number }> {
@@ -112,6 +113,8 @@ type CreateManualStagingSetInput = {
   externalId?: string
   notes?: string
   participants: ManualParticipantInput[]
+  /** When set, the new staging set is linked (CONFIRMED) to this archive folder. */
+  archiveFolderId?: string
 }
 
 export async function createManualStagingSetAction(
@@ -154,7 +157,13 @@ export async function createManualStagingSetAction(
       select: { id: true },
     })
 
+    // Link the source archive folder (CONFIRMED) when created from the Archive Browser.
+    if (input.archiveFolderId) {
+      await confirmArchiveFolderLink(input.archiveFolderId, stagingSet.id, 'staging')
+    }
+
     revalidatePath('/staging-sets')
+    revalidatePath('/archive')
     for (const personId of knownPersonIds) {
       revalidatePath(`/people/${personId}`)
     }
