@@ -209,16 +209,19 @@ export default async function SessionDetailPage({ params, searchParams }: Sessio
   // Reference sessions → dedicated page component
   if (isReference && mediaManagerData && session.personId) {
     const personName = session.person?.aliases[0]?.name ?? session.person?.icgId ?? session.name;
-    const firstHeadshot = mediaManagerData.items.find(
-      (item) => item.links.some((l) => l.usage === "HEADSHOT"),
-    );
-    const personThumbUrl = firstHeadshot?.urls.profile_128 ?? null;
+    // Use the canonical avatar resolution (★ HEADSHOT slot, else lowest slot;
+    // standardized served aspect-preserving) — same as the People card / person hero —
+    // so the back-link thumb tracks the avatar.
+    const personHeadshot = (await getHeadshotsForPersons([session.personId])).get(session.personId) ?? null;
+    const personThumbUrl = personHeadshot?.url ?? null;
 
     return (
       <ReferenceSessionPage
         personId={session.personId}
         personName={personName}
         personThumbUrl={personThumbUrl}
+        personThumbFocalX={personHeadshot?.focalX ?? null}
+        personThumbFocalY={personHeadshot?.focalY ?? null}
         sessionId={id}
         mediaCount={mediaCount}
         items={mediaManagerData.items.map(({ createdAt, ...rest }) => ({

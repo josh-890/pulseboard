@@ -4,7 +4,7 @@ import { useState, useCallback, useRef, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { ImageIcon, BookOpen, Plus, Upload } from "lucide-react";
-import { cn, getInitialsFromName } from "@/lib/utils";
+import { cn, getInitialsFromName, focalStyle } from "@/lib/utils";
 import { MediaManager } from "@/components/media/media-manager";
 import { BatchUploadZone } from "@/components/media/batch-upload-zone";
 import type { MediaItemWithLinks } from "@/lib/services/media-service";
@@ -25,6 +25,8 @@ type ReferenceSessionPageProps = {
   personId: string;
   personName: string;
   personThumbUrl: string | null;
+  personThumbFocalX?: number | null;
+  personThumbFocalY?: number | null;
   sessionId: string;
   mediaCount: number;
   items: MediaItemWithLinks[];
@@ -45,6 +47,8 @@ export function ReferenceSessionPage({
   personId,
   personName,
   personThumbUrl,
+  personThumbFocalX,
+  personThumbFocalY,
   sessionId,
   mediaCount,
   items,
@@ -155,6 +159,7 @@ export function ReferenceSessionPage({
               width={32}
               height={32}
               className="h-8 w-8 rounded-full object-cover ring-1 ring-white/15"
+              style={focalStyle(personThumbFocalX ?? null, personThumbFocalY ?? null)}
               unoptimized
             />
           ) : (
