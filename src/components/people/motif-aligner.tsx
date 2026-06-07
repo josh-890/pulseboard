@@ -204,7 +204,7 @@ export function MotifAligner({
   // Portal to <body> so the full-screen overlay isn't trapped by an ancestor's
   // backdrop-filter/transform containing block (e.g. the Slot Manager card).
   return createPortal(
-    <div className="fixed inset-0 z-[100] flex flex-col bg-zinc-950">
+    <div role="dialog" aria-modal="true" aria-label={`Standardize ${template.name}`} className="fixed inset-0 z-[100] flex flex-col bg-zinc-950">
       <div className="flex shrink-0 items-center gap-3 border-b border-white/10 px-4 py-2">
         <button onClick={onCancel} className="rounded-md p-1.5 text-zinc-400 hover:bg-white/5 hover:text-white">
           <X size={16} />

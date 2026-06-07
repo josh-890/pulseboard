@@ -214,7 +214,7 @@ export function MediaPickerShell({
   // Portal to <body> so the overlay isn't trapped by an ancestor's
   // backdrop-filter/transform containing block (e.g. the Slot Manager card).
   return createPortal(
-    <div className="fixed inset-0 z-[100] flex flex-col bg-zinc-950 text-white">
+    <div role="dialog" aria-modal="true" aria-label={title} className="fixed inset-0 z-[100] flex flex-col bg-zinc-950 text-white">
       {/* Header */}
       <div className="flex shrink-0 items-center gap-3 border-b border-white/10 px-4 py-3">
         <button onClick={onClose} aria-label="Close" className="rounded-md p-1.5 text-zinc-400 hover:bg-white/5 hover:text-white">
