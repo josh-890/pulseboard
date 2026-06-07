@@ -3,8 +3,9 @@
 import { useState, useCallback, useTransition } from 'react'
 import {
   FolderOpen, FolderCheck, FolderX,
-  Check, X, Flag, Film,
+  Check, X, Flag, Film, FolderSearch,
 } from 'lucide-react'
+import { ArchiveFolderPicker } from '@/components/staging-sets/archive-folder-picker'
 import { Button } from '@/components/ui/button'
 import {
   unlinkArchiveFolderAction,
@@ -48,6 +49,10 @@ type SetArchivePanelProps = {
   mediaQueueAt: Date | null
   folderName?: string | null
   archiveSuggestions?: ArchiveSuggestionProp[]
+  // Seeds for the manual "Link folder" picker
+  setTitle?: string | null
+  channelShortName?: string | null
+  releaseYear?: number | null
 }
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
@@ -92,10 +97,14 @@ export function SetArchivePanel(props: SetArchivePanelProps) {
     mediaQueueAt: initialQueueAt,
     folderName,
     archiveSuggestions = [],
+    setTitle,
+    channelShortName,
+    releaseYear,
   } = props
 
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
+  const [pickerOpen, setPickerOpen] = useState(false)
   const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set())
   const visibleSuggestions = archiveSuggestions.filter((s) => !dismissedIds.has(s.folderId))
 
@@ -178,26 +187,39 @@ export function SetArchivePanel(props: SetArchivePanelProps) {
           )}
         </div>
 
-        {/* Queue toggle */}
-        <button
-          type="button"
-          onClick={handleQueueToggle}
-          className={cn(
-            'flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-colors',
-            inQueue
-              ? 'bg-amber-500/15 text-amber-600 hover:bg-amber-500/25 dark:text-amber-400'
-              : 'text-muted-foreground hover:bg-muted hover:text-foreground',
-          )}
-          title={inQueue ? 'Remove from shopping list' : 'Add to shopping list'}
-        >
-          <Flag size={13} className={inQueue ? 'fill-current' : ''} />
-          {inQueue ? 'On list' : 'Add to list'}
-          {inQueue && mediaPriority && (
-            <span className={cn('rounded px-1 py-0.5 text-[10px] font-bold', PRIORITY_CLASS[mediaPriority])}>
-              P{mediaPriority}
-            </span>
-          )}
-        </button>
+        <div className="flex items-center gap-2">
+          {/* Manual link / change folder */}
+          <button
+            type="button"
+            onClick={() => setPickerOpen(true)}
+            className="flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            title={hasPath ? 'Change the linked archive folder' : 'Search & link an archive folder'}
+          >
+            <FolderSearch size={13} />
+            {hasPath ? 'Change folder' : 'Link folder'}
+          </button>
+
+          {/* Queue toggle */}
+          <button
+            type="button"
+            onClick={handleQueueToggle}
+            className={cn(
+              'flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-colors',
+              inQueue
+                ? 'bg-amber-500/15 text-amber-600 hover:bg-amber-500/25 dark:text-amber-400'
+                : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+            )}
+            title={inQueue ? 'Remove from shopping list' : 'Add to shopping list'}
+          >
+            <Flag size={13} className={inQueue ? 'fill-current' : ''} />
+            {inQueue ? 'On list' : 'Add to list'}
+            {inQueue && mediaPriority && (
+              <span className={cn('rounded px-1 py-0.5 text-[10px] font-bold', PRIORITY_CLASS[mediaPriority])}>
+                P{mediaPriority}
+              </span>
+            )}
+          </button>
+        </div>
       </div>
 
       {/* Priority selector (when in queue) */}
@@ -367,6 +389,19 @@ export function SetArchivePanel(props: SetArchivePanelProps) {
           )}
         </div>
       )}
+
+      {/* Manual folder picker — search any unlinked folder and link it to this set */}
+      <ArchiveFolderPicker
+        open={pickerOpen}
+        onOpenChange={setPickerOpen}
+        targetId={setId}
+        targetType="set"
+        initialQuery={setTitle ?? ''}
+        shortName={channelShortName ?? undefined}
+        year={releaseYear ?? undefined}
+        isVideo={isVideo}
+        onSuccess={() => router.refresh()}
+      />
     </div>
   )
 }

@@ -424,6 +424,16 @@ Inline editable text fields. Click to edit, changes auto-save.
 - **Browse & Add** — opens a sheet to search and add existing media from other sessions. Selected media creates SetMediaItem links without changing media ownership. Source sessions auto-link via SetSession.
 - **Lightbox** — click any thumbnail to open the full-screen viewer with cover selection and Find Similar
 
+#### Archive
+
+Links the set to its archive folder (the on-disk image/video files). It shows in the right sidebar when the link needs attention, or — when healthy — behind the green **In archive** chip in the header (click it to manage).
+
+- **Suggestions** — if the matcher found a folder for this set, it appears as **"Possible archive match"** → click **Confirm** to link it.
+- **Link folder / Change folder** — opens the **Archive Folder Picker**: search unlinked folders by name/title/date and pick one to link (or re-assign a folder from another set). Use this for **manually-created sets** that didn't auto-match a folder.
+- **Unlink folder** — detaches the folder.
+- **Add to list** — adds the set to the media shopping list with a P1–P3 priority.
+- A status pill (OK / Changed / Missing / Incomplete / Pending) shows the last-checked time and file count.
+
 #### Credits Section
 
 Tracks who participated in the set (models, photographers).

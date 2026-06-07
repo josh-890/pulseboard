@@ -872,7 +872,8 @@ export const StagingSetRow = memo(function StagingSetRow({
         <ArchiveFolderPicker
           open={pickerOpen}
           onOpenChange={setPickerOpen}
-          stagingSetId={ss.id}
+          targetId={ss.id}
+          targetType="staging"
           initialQuery={pickerInitialQuery}
           shortName={pickerShortName}
           year={pickerYear}

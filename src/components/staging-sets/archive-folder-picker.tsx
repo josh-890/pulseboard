@@ -33,7 +33,9 @@ type SearchResponse = {
 type ArchiveFolderPickerProps = {
   open: boolean
   onOpenChange: (open: boolean) => void
-  stagingSetId: string
+  /** The entity to link the chosen folder to. */
+  targetId: string
+  targetType: 'staging' | 'set'
   /** Pre-seeds the search field with the set title */
   initialQuery?: string
   /** Channel shortName — passed as a separate filter param for better matching */
@@ -51,7 +53,8 @@ type ArchiveFolderPickerProps = {
 export function ArchiveFolderPicker({
   open,
   onOpenChange,
-  stagingSetId,
+  targetId,
+  targetType,
   initialQuery = '',
   shortName,
   year,
@@ -112,7 +115,7 @@ export function ArchiveFolderPicker({
 
   function handleSelect(folder: FolderResult) {
     startTransition(async () => {
-      const result = await confirmArchiveFolderLinkAction(folder.id, stagingSetId, 'staging')
+      const result = await confirmArchiveFolderLinkAction(folder.id, targetId, targetType)
       if (result.success) {
         onOpenChange(false)
         onSuccess?.()
@@ -124,7 +127,7 @@ export function ArchiveFolderPicker({
 
   function handleReassign(folder: LinkedFolderResult) {
     startTransition(async () => {
-      const result = await confirmArchiveFolderLinkAction(folder.id, stagingSetId, 'staging')
+      const result = await confirmArchiveFolderLinkAction(folder.id, targetId, targetType)
       if (result.success) {
         setConfirmingId(null)
         onOpenChange(false)

@@ -84,6 +84,8 @@ export default async function SetDetailPage({ params }: SetDetailPageProps) {
     const archiveFileCount = al?.archiveFileCount ?? null;
     const hasSuggestion = archiveSuggestions.length > 0;
     const showArchivePanel = archiveStatus !== "OK" || hasSuggestion;
+    // Seeds for the manual "Link folder" picker (improves folder-search matching).
+    const releaseYear = setData.releaseDate ? new Date(setData.releaseDate).getFullYear() : null;
 
     const roleDefinitions = roleGroups.flatMap((g) =>
       g.definitions.map((d) => ({ id: d.id, name: d.name, groupName: g.name })),
@@ -196,6 +198,8 @@ export default async function SetDetailPage({ params }: SetDetailPageProps) {
               folderName={al.archiveFolder?.folderName ?? null}
               archiveSuggestions={archiveSuggestions}
               fileCount={archiveFileCount}
+              setTitle={setData.title}
+              releaseYear={releaseYear}
             />
           ) : undefined}
         />
@@ -268,6 +272,8 @@ export default async function SetDetailPage({ params }: SetDetailPageProps) {
                 mediaPriority={setData.mediaPriority ?? null}
                 mediaQueueAt={setData.mediaQueueAt ?? null}
                 archiveSuggestions={archiveSuggestions}
+                setTitle={setData.title}
+                releaseYear={releaseYear}
               />
             )}
           </div>

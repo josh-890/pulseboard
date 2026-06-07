@@ -621,7 +621,8 @@ function PanelContent({
             setPickerOpen(open)
             if (!open) onRefresh()
           }}
-          stagingSetId={stagingSet.id}
+          targetId={stagingSet.id}
+          targetType="staging"
           initialQuery={pickerInitialQuery}
           shortName={pickerShortName}
           year={pickerYear}
