@@ -124,6 +124,9 @@ function SimpleLightbox({
   const [showInfoPanel, setShowInfoPanel] = useState(referenceContext ? true : false);
   const [showFilmstrip, setShowFilmstrip] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  // Optimistically hide just-deleted items so the lightbox can advance to the next one
+  // regardless of how/when the parent updates its `items` prop.
+  const [deletedIds, setDeletedIds] = useState<Set<string>>(new Set());
   const [focalOverlay, setFocalOverlay] = useState(false);
   const [localFocalPoints, setLocalFocalPoints] = useState<
     Map<string, { focalX: number | null; focalY: number | null }>
@@ -142,17 +145,19 @@ function SimpleLightbox({
 
   const localItems = useMemo(
     () =>
-      items.map((it) => {
-        const focalOverride = localFocalPoints.get(it.id);
-        const linksOverride = localLinksMap.get(it.id);
-        const collOverride = localCollectionIdsMap.get(it.id);
-        let result = it;
-        if (focalOverride) result = { ...result, focalX: focalOverride.focalX, focalY: focalOverride.focalY };
-        if (linksOverride !== undefined) result = { ...result, links: linksOverride };
-        if (collOverride !== undefined) result = { ...result, collectionIds: collOverride };
-        return result;
-      }),
-    [items, localFocalPoints, localLinksMap, localCollectionIdsMap],
+      items
+        .filter((it) => !deletedIds.has(it.id))
+        .map((it) => {
+          const focalOverride = localFocalPoints.get(it.id);
+          const linksOverride = localLinksMap.get(it.id);
+          const collOverride = localCollectionIdsMap.get(it.id);
+          let result = it;
+          if (focalOverride) result = { ...result, focalX: focalOverride.focalX, focalY: focalOverride.focalY };
+          if (linksOverride !== undefined) result = { ...result, links: linksOverride };
+          if (collOverride !== undefined) result = { ...result, collectionIds: collOverride };
+          return result;
+        }),
+    [items, deletedIds, localFocalPoints, localLinksMap, localCollectionIdsMap],
   );
 
   const item = localItems[currentIndex];
@@ -609,7 +614,17 @@ function SimpleLightbox({
             <AlertDialogAction
               onClick={() => {
                 setDeleteConfirmOpen(false);
-                onDelete?.(item.id);
+                const deletedId = item.id;
+                // Was this the last image in the row? (last index, or the only one left)
+                const wasLast = currentIndex >= localItems.length - 1;
+                onDelete?.(deletedId);
+                // Optimistically drop it: localItems shrinks by one. If it wasn't the last,
+                // currentIndex now points at what was the *next* image; if it was the last
+                // (or only) one, fall back to the gallery.
+                setDeletedIds((prev) => new Set(prev).add(deletedId));
+                if (localItems.length <= 1 || wasLast) {
+                  onClose();
+                }
               }}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >

@@ -171,8 +171,8 @@ export function SessionProductionGallery({ items: initialItems, sessionId, cover
   }, [selectedIds, sessionId, clearSelection]);
 
   const handleLightboxDelete = useCallback((id: string) => {
+    // The lightbox advances to the next image itself (or closes if it was the last).
     setLocalItems((prev) => prev.filter((it) => it.id !== id));
-    setLightboxIndex(null);
     startTransition(async () => {
       await deleteMediaItemsAction([id], "", sessionId ?? "");
     });

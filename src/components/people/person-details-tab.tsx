@@ -202,7 +202,8 @@ export function PersonDetailsTab({
   const handleDetailsLightboxDelete = useCallback(async (id: string) => {
     if (!referenceSessionId || !detailsLightbox) return;
     const catId = detailsLightbox.categoryId;
-    setDetailsLightbox(null);
+    // The lightbox advances to the next image itself (or closes if it was the last);
+    // don't force it shut here.
     const result = await deleteMediaItemsAction([id], personId, referenceSessionId);
     if (!result.success) {
       toast.error(result.error ?? "Failed to delete item");

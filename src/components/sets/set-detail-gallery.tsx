@@ -388,8 +388,9 @@ export function SetDetailGallery({
 
   const handleLightboxDelete = useCallback(
     (id: string) => {
+      // The lightbox advances to the next image itself (or closes if it was the last);
+      // just drop the item from the grid + run the delete.
       setLocalItems((prev) => prev.filter((it) => it.id !== id));
-      setLightboxIndex(null);
       startTransition(async () => {
         const result = await deleteSetMediaAction(entityId, primarySessionId ?? "", [id]);
         if (!result.success) {
