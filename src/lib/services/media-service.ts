@@ -901,9 +901,11 @@ export async function getHeadshotsForPersons(
     return result;
   }
 
-  // Avatar mode — Pass 1: explicit isAvatar=true (any usage)
+  // Avatar mode — Pass 1: the ★ default, constrained to HEADSHOT slots. The avatar is
+  // owned by the Slot Manager (a slot's ★), so a stray isAvatar on a non-slot gallery
+  // photo must NOT win — otherwise standardizing a slot can't update the avatar.
   const avatarLinks = await prisma.personMediaLink.findMany({
-    where: { personId: { in: personIds }, isAvatar: true },
+    where: { personId: { in: personIds }, isAvatar: true, usage: "HEADSHOT" },
     include: { mediaItem: true },
   });
   const result = new Map<string, HeadshotData>();

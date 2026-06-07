@@ -2,11 +2,14 @@
 
 import { useState } from "react";
 import Image from "next/image";
-import { ChevronLeft, ChevronRight, ImageIcon, User, Star } from "lucide-react";
+import { ChevronLeft, ChevronRight, ImageIcon, Star } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { GalleryItem } from "@/lib/types";
 import type { ProfileImageLabel } from "@/lib/services/setting-service";
 import { GalleryLightbox } from "./gallery-lightbox";
+
+/** Canonical headshot shown as the first slide (★ slot, else lowest slot). */
+type LeadHeadshot = { id: string; url: string; focalX: number | null; focalY: number | null };
 
 type CarouselHeaderProps = {
   items: GalleryItem[];
@@ -26,9 +29,11 @@ type CarouselHeaderProps = {
   profileLabels?: ProfileImageLabel[];
   headshotSlotMap?: Map<string, number>;
   onFindSimilar?: (mediaItemId: string) => void;
-  onSetAvatar?: (mediaItemId: string) => void;
-  avatarMediaItemId?: string | null;
+  /** Canonical headshot — rendered as slide 0, deduped from the gallery items. */
+  leadHeadshot?: LeadHeadshot | null;
 };
+
+type Slide = { url: string; focalX: number | null; focalY: number | null; item: GalleryItem | null };
 
 export function CarouselHeader({
   items,
@@ -47,20 +52,32 @@ export function CarouselHeader({
   profileLabels,
   headshotSlotMap,
   onFindSimilar,
-  onSetAvatar,
-  avatarMediaItemId,
+  leadHeadshot,
 }: CarouselHeaderProps) {
-  // Sort: favorite first, then by sortOrder
-  const sorted = [...items].sort((a, b) => {
-    if (a.isFavorite && !b.isFavorite) return -1;
-    if (!a.isFavorite && b.isFavorite) return 1;
-    return a.sortOrder - b.sortOrder;
-  });
-
   const [activeIndex, setActiveIndex] = useState(0);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
 
-  if (sorted.length === 0) {
+  // Gallery photos (favorite first, then sortOrder) minus the lead (avoid showing twice).
+  const gallery = [...items]
+    .filter((i) => !leadHeadshot || i.id !== leadHeadshot.id)
+    .sort((a, b) => {
+      if (a.isFavorite && !b.isFavorite) return -1;
+      if (!a.isFavorite && b.isFavorite) return 1;
+      return a.sortOrder - b.sortOrder;
+    });
+
+  // The canonical headshot leads; gallery photos follow.
+  const slides: Slide[] = [
+    ...(leadHeadshot ? [{ url: leadHeadshot.url, focalX: leadHeadshot.focalX, focalY: leadHeadshot.focalY, item: null }] : []),
+    ...gallery.map((g) => ({
+      url: g.urls.profile_512 ?? g.urls.profile_768 ?? g.urls.original,
+      focalX: g.focalX,
+      focalY: g.focalY,
+      item: g,
+    })),
+  ];
+
+  if (slides.length === 0) {
     return (
       <div
         className="flex shrink-0 items-center justify-center overflow-hidden rounded-2xl"
@@ -75,26 +92,25 @@ export function CarouselHeader({
     );
   }
 
-  const current = sorted[activeIndex];
-  if (!current) return null;
+  const idx = Math.min(activeIndex, slides.length - 1);
+  const current = slides[idx];
 
-  const displayUrl =
-    current.urls.profile_512 ?? current.urls.profile_768 ?? current.urls.original;
+  const openLightbox = () => {
+    if (current.item) setLightboxIndex(gallery.indexOf(current.item));
+    else if (gallery.length > 0) setLightboxIndex(0); // lead headshot isn't in the gallery
+  };
 
   return (
     <>
-      <div
-        className="group relative shrink-0 overflow-hidden rounded-2xl"
-        style={{ width, height }}
-      >
+      <div className="group relative shrink-0 overflow-hidden rounded-2xl" style={{ width, height }}>
         <button
           type="button"
-          onClick={() => setLightboxIndex(activeIndex)}
+          onClick={openLightbox}
           className="relative block h-full w-full cursor-zoom-in"
           aria-label="View photo fullscreen"
         >
           <Image
-            src={displayUrl}
+            src={current.url}
             alt="Profile photo"
             fill
             className="object-cover"
@@ -109,22 +125,22 @@ export function CarouselHeader({
           />
         </button>
 
-        {sorted.length > 1 && (
+        {slides.length > 1 && (
           <>
-            {activeIndex > 0 && (
+            {idx > 0 && (
               <button
                 type="button"
-                onClick={() => setActiveIndex((i) => i - 1)}
+                onClick={() => setActiveIndex(idx - 1)}
                 aria-label="Previous photo"
                 className="absolute left-1.5 top-1/2 -translate-y-1/2 rounded-full bg-black/40 p-1 text-white opacity-0 transition-opacity duration-150 hover:bg-black/60 group-hover:opacity-100"
               >
                 <ChevronLeft size={16} />
               </button>
             )}
-            {activeIndex < sorted.length - 1 && (
+            {idx < slides.length - 1 && (
               <button
                 type="button"
-                onClick={() => setActiveIndex((i) => i + 1)}
+                onClick={() => setActiveIndex(idx + 1)}
                 aria-label="Next photo"
                 className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded-full bg-black/40 p-1 text-white opacity-0 transition-opacity duration-150 hover:bg-black/60 group-hover:opacity-100"
               >
@@ -134,53 +150,36 @@ export function CarouselHeader({
           </>
         )}
 
-        {sorted.length > 1 && (
+        {slides.length > 1 && (
           <span className="absolute bottom-2 left-2 rounded-full bg-black/50 px-2 py-0.5 text-[10px] font-medium text-white">
-            {activeIndex + 1}/{sorted.length}
+            {idx + 1}/{slides.length}
           </span>
         )}
 
-        {(onSetAvatar || onFavoriteToggle) && (
+        {/* Favorite (gallery slides only — the lead headshot is the avatar, set in the Slot Manager). */}
+        {onFavoriteToggle && current.item && (
           <div className="absolute right-1.5 top-1.5 flex gap-1 opacity-0 transition-opacity duration-150 group-hover:opacity-100">
-            {onSetAvatar && (
-              <button
-                type="button"
-                onClick={(e) => { e.stopPropagation(); onSetAvatar(current.id); }}
-                aria-label="Set as avatar"
-                title="Set as avatar"
-                className={cn(
-                  "rounded-full p-1 transition-colors",
-                  avatarMediaItemId === current.id
-                    ? "bg-indigo-500/80 text-white"
-                    : "bg-black/40 text-white/70 hover:bg-black/60 hover:text-white",
-                )}
-              >
-                <User size={14} />
-              </button>
-            )}
-            {onFavoriteToggle && (
-              <button
-                type="button"
-                onClick={(e) => { e.stopPropagation(); onFavoriteToggle(current.id); }}
-                aria-label="Set as hero cover"
-                title="Set as hero cover"
-                className={cn(
-                  "rounded-full p-1 transition-colors",
-                  current.isFavorite
-                    ? "bg-amber-500/80 text-white"
-                    : "bg-black/40 text-white/70 hover:bg-black/60 hover:text-white",
-                )}
-              >
-                <Star size={14} />
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onFavoriteToggle(current.item!.id); }}
+              aria-label="Set as hero cover"
+              title="Set as hero cover"
+              className={cn(
+                "rounded-full p-1 transition-colors",
+                current.item.isFavorite
+                  ? "bg-amber-500/80 text-white"
+                  : "bg-black/40 text-white/70 hover:bg-black/60 hover:text-white",
+              )}
+            >
+              <Star size={14} />
+            </button>
           </div>
         )}
       </div>
 
       {lightboxIndex !== null && (
         <GalleryLightbox
-          items={sorted}
+          items={gallery}
           initialIndex={lightboxIndex}
           onClose={() => setLightboxIndex(null)}
           onFavoriteToggle={onFavoriteToggle}

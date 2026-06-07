@@ -13,7 +13,7 @@ import {
 } from "@/lib/services/person-service";
 import { getProfileImageLabels, getSkillLevelConfigs } from "@/lib/services/setting-service";
 import { getPersonReferenceSession } from "@/lib/services/session-service";
-import { getPersonHeadshots, getPersonMediaGallery, getPersonEntityMedia } from "@/lib/services/media-service";
+import { getPersonHeadshots, getPersonMediaGallery, getPersonEntityMedia, getHeadshotsForPersons } from "@/lib/services/media-service";
 import type { EntityMediaThumbnail } from "@/lib/services/media-service";
 import { getAllCategoryGroups, getPopulatedCategoriesForPerson, ensureEntityCategories } from "@/lib/services/category-service";
 import { getAllSkillGroups } from "@/lib/services/skill-catalog-service";
@@ -225,6 +225,18 @@ export default async function PersonDetailPage({ params, searchParams }: PersonD
       thumbUrl: h.mediaItem.urls.gallery_512 ?? h.mediaItem.urls.view_1200 ?? h.mediaItem.urls.original ?? null,
     }));
 
+  // Canonical headshot for the hero lead slide — same resolution as the People browser
+  // (★ slot, else lowest slot; standardized images served aspect-preserving). The id is
+  // the canonical link's media item, used to de-dupe it from the gallery carousel.
+  const heroHeadshot = (await getHeadshotsForPersons([id])).get(id) ?? null;
+  const leadLink = [...headshots].sort((a, b) =>
+    a.isAvatar === b.isAvatar ? (a.slot ?? 99) - (b.slot ?? 99) : a.isAvatar ? -1 : 1,
+  )[0];
+  const heroLead =
+    heroHeadshot && leadLink
+      ? { id: leadLink.mediaItem.id, url: heroHeadshot.url, focalX: heroHeadshot.focalX, focalY: heroHeadshot.focalY }
+      : null;
+
   return (
     <div className="space-y-6">
       {/* Back link + browse nav + actions row */}
@@ -255,6 +267,7 @@ export default async function PersonDetailPage({ params, searchParams }: PersonD
         referenceSessionId={refSession?.id}
         refMediaCount={refSession?._count.mediaItems ?? 0}
         headshotSlotEntries={headshotSlotEntries}
+        heroLead={heroLead}
         categories={flatCategories}
         categoryCounts={categoryCounts}
         skillGroups={skillGroups}

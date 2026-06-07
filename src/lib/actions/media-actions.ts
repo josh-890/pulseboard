@@ -24,6 +24,13 @@ export async function assignHeadshotSlot(
   return withTenantFromHeaders(async () => {
     try {
       await prisma.$transaction(async (tx) => {
+        // Carry the ★ avatar over if the image previously in this slot was the avatar.
+        const prev = await tx.personMediaLink.findFirst({
+          where: { personId, usage: "HEADSHOT", slot },
+          select: { isAvatar: true },
+        });
+        const inheritAvatar = prev?.isAvatar ?? false;
+
         // Remove the HEADSHOT link from whatever image previously held this slot
         await tx.personMediaLink.deleteMany({
           where: { personId, usage: "HEADSHOT", slot },
@@ -38,12 +45,13 @@ export async function assignHeadshotSlot(
               usage: "HEADSHOT",
             },
           },
-          update: { slot },
+          update: { slot, ...(inheritAvatar ? { isAvatar: true } : {}) },
           create: {
             personId,
             mediaItemId,
             usage: "HEADSHOT",
             slot,
+            isAvatar: inheritAvatar,
           },
         });
       });

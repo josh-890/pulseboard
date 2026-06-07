@@ -77,7 +77,6 @@ import {
   assignHeadshotSlot as assignHeadshotSlotAction,
   removeHeadshotSlot as removeHeadshotSlotAction,
   setPersonMediaFavoriteAction,
-  setPersonAvatarAction,
 } from "@/lib/actions/media-actions";
 import { updatePersonBio, updatePersonPgrade, updatePersonRating } from "@/lib/actions/person-actions";
 import { setEntityTagsAction } from "@/lib/actions/tag-actions";
@@ -91,6 +90,9 @@ type TabId = "overview" | "aliases" | "appearance" | "details" | "skills" | "car
 
 type HeadshotSlotEntry = { mediaItemId: string; slot: number; thumbUrl?: string | null };
 
+/** Canonical headshot for the hero lead slide (★ slot, else lowest slot). */
+type HeroLead = { id: string; url: string; focalX: number | null; focalY: number | null };
+
 type PersonDetailTabsProps = {
   person: PersonData;
   currentState: PersonCurrentState;
@@ -101,6 +103,7 @@ type PersonDetailTabsProps = {
   profileLabels: ProfileImageLabel[];
   referenceSessionId?: string;
   headshotSlotEntries?: HeadshotSlotEntry[];
+  heroLead?: HeroLead | null;
   categories?: CategoryWithGroup[];
   categoryCounts?: { categoryId: string; count: number }[];
   skillGroups?: SkillGroupWithDefinitions[];
@@ -754,8 +757,7 @@ type HeroSharedProps = {
   onAppearanceClick?: () => void;
   onEditAppearanceClick?: () => void;
   onFavoriteToggle?: (itemId: string) => void;
-  onSetAvatar?: (mediaItemId: string) => void;
-  avatarMediaItemId?: string | null;
+  heroLead?: HeroLead | null;
   plausibilityCount?: number;
 };
 
@@ -969,7 +971,7 @@ function KpiStatsStrip({ kpiCounts }: { kpiCounts: KpiCounts }) {
 function HeroDensityLayout(props: HeroSharedProps) {
   const { layout } = useHeroLayout();
   const cfg = DENSITY_CONFIGS[layout];
-  const { person, currentState, photos, profileLabels, kpiCounts, calculatedPgrade, meanWcp, displayName, initials, age, heroAliases, referenceSessionId, headshotSlotMap, plausibilityCount, onFavoriteToggle, onSetAvatar, avatarMediaItemId } = props;
+  const { person, currentState, photos, profileLabels, kpiCounts, calculatedPgrade, meanWcp, displayName, initials, age, heroAliases, referenceSessionId, headshotSlotMap, plausibilityCount, onFavoriteToggle, heroLead } = props;
 
   // Drives the EntityPills strip. Phase G Slice 15: the hero now shows
   // one chip per BODY FEATURE TYPE the person currently has (Tattoo /
@@ -1012,8 +1014,7 @@ function HeroDensityLayout(props: HeroSharedProps) {
           headshotSlotMap={headshotSlotMap}
           onFindSimilar={handleFindSimilar}
           onFavoriteToggle={onFavoriteToggle}
-          onSetAvatar={onSetAvatar}
-          avatarMediaItemId={avatarMediaItemId}
+          leadHeadshot={heroLead}
         />
 
         {/* Zones 2+3: Identity | Physical — 2-col grid, no hairline */}
@@ -1159,8 +1160,7 @@ function HeroCard({
   onAppearanceClick,
   onEditAppearanceClick,
   onFavoriteToggle,
-  onSetAvatar,
-  avatarMediaItemId,
+  heroLead,
   aliasesWithChannels,
   plausibilityCount = 0,
 }: {
@@ -1179,8 +1179,7 @@ function HeroCard({
   onAppearanceClick?: () => void;
   onEditAppearanceClick?: () => void;
   onFavoriteToggle?: (itemId: string) => void;
-  onSetAvatar?: (mediaItemId: string) => void;
-  avatarMediaItemId?: string | null;
+  heroLead?: HeroLead | null;
   aliasesWithChannels?: PersonAliasWithChannels[];
   plausibilityCount?: number;
 }) {
@@ -1243,8 +1242,7 @@ function HeroCard({
     onAppearanceClick,
     onEditAppearanceClick,
     onFavoriteToggle,
-    onSetAvatar,
-    avatarMediaItemId,
+    heroLead,
     plausibilityCount,
   };
 
@@ -1887,6 +1885,7 @@ export function PersonDetailTabs({
   profileLabels,
   referenceSessionId,
   headshotSlotEntries,
+  heroLead,
   categories,
   categoryCounts,
   skillGroups,
@@ -1946,17 +1945,8 @@ export function PersonDetailTabs({
     });
   }, [localPhotos, person.id]);
 
-  const handleSetAvatar = useCallback((mediaItemId: string) => {
-    setLocalPhotos((prev) => prev.map((p) => ({ ...p, isAvatar: p.id === mediaItemId })));
-    startPhotoTransition(async () => {
-      await setPersonAvatarAction(person.id, mediaItemId);
-    });
-  }, [person.id]);
-
-  const avatarMediaItemId = useMemo(
-    () => localPhotos.find((p) => p.isAvatar)?.id ?? null,
-    [localPhotos],
-  );
+  // The avatar (★) is owned by the reference-session Slot Manager; the hero shows the
+  // canonical headshot via `heroLead`. No gallery "set as avatar" here.
 
   // Sync active tab to URL search param (for BrowseNavBar tab preservation)
   const setActiveTab = useCallback((tab: TabId) => {
@@ -2044,8 +2034,7 @@ export function PersonDetailTabs({
         onAppearanceClick={handleAppearanceClick}
         onEditAppearanceClick={handleEditAppearanceClick}
         onFavoriteToggle={handleFavoriteToggle}
-        onSetAvatar={handleSetAvatar}
-        avatarMediaItemId={avatarMediaItemId}
+        heroLead={heroLead}
         aliasesWithChannels={aliasesWithChannels}
         plausibilityCount={plausibilityIssues.length}
       />

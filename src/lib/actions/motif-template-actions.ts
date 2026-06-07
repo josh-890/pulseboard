@@ -36,11 +36,17 @@ export async function assignMotifImageAction(
             isAnnotation: true,
           },
         });
+        // Carry the ★ avatar over from the image previously in this slot.
+        const prev = await tx.personMediaLink.findFirst({
+          where: { personId, usage: "HEADSHOT", slot },
+          select: { isAvatar: true },
+        });
+        const inheritAvatar = prev?.isAvatar ?? false;
         await tx.personMediaLink.deleteMany({ where: { personId, usage: "HEADSHOT", slot } });
         await tx.personMediaLink.upsert({
           where: { personId_mediaItemId_usage: { personId, mediaItemId, usage: "HEADSHOT" } },
-          update: { slot },
-          create: { personId, mediaItemId, usage: "HEADSHOT", slot },
+          update: { slot, ...(inheritAvatar ? { isAvatar: true } : {}) },
+          create: { personId, mediaItemId, usage: "HEADSHOT", slot, isAvatar: inheritAvatar },
         });
       });
       revalidatePath("/people");
