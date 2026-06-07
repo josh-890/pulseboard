@@ -194,6 +194,21 @@ export function StagingSetFilterBar({ filters, onChange, stats }: StagingSetFilt
     onChange({ ...filters, channelTier: next })
   }
 
+  // Locale-agnostic ISO (YYYY-MM-DD) date-range inputs. Local drafts hold partial typing;
+  // we only commit to the filters when the value is empty or a complete valid ISO date.
+  const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/
+  const [dateFromDraft, setDateFromDraft] = useState(filters.dateFrom ?? '')
+  const [dateToDraft, setDateToDraft] = useState(filters.dateTo ?? '')
+  const [dateSync, setDateSync] = useState({ from: filters.dateFrom, to: filters.dateTo })
+  if (dateSync.from !== filters.dateFrom || dateSync.to !== filters.dateTo) {
+    setDateSync({ from: filters.dateFrom, to: filters.dateTo })
+    setDateFromDraft(filters.dateFrom ?? '')
+    setDateToDraft(filters.dateTo ?? '')
+  }
+  const commitDate = (key: 'dateFrom' | 'dateTo', v: string) => {
+    if (v === '' || ISO_DATE.test(v)) onChange({ ...filters, [key]: v || undefined })
+  }
+
   const tierDiffersFromDefault =
     filters.channelTier.length !== DEFAULT_STAGING_TIERS.length ||
     !DEFAULT_STAGING_TIERS.every((t) => filters.channelTier.includes(t))
@@ -453,21 +468,25 @@ export function StagingSetFilterBar({ filters, onChange, stats }: StagingSetFilt
           )}
         </div>
 
-        {/* Date range */}
+        {/* Date range — ISO (YYYY-MM-DD), locale-agnostic */}
         <div className="flex items-center gap-1">
           <CalendarDays size={13} className="text-muted-foreground" />
           <input
-            type="date"
-            value={filters.dateFrom ?? ''}
-            onChange={(e) => onChange({ ...filters, dateFrom: e.target.value || undefined })}
-            className="h-8 rounded-md border border-input bg-background px-2 text-xs"
+            type="text"
+            inputMode="numeric"
+            placeholder="YYYY-MM-DD"
+            value={dateFromDraft}
+            onChange={(e) => { setDateFromDraft(e.target.value); commitDate('dateFrom', e.target.value) }}
+            className="h-8 w-[110px] rounded-md border border-input bg-background px-2 text-xs"
           />
           <span className="text-xs text-muted-foreground">–</span>
           <input
-            type="date"
-            value={filters.dateTo ?? ''}
-            onChange={(e) => onChange({ ...filters, dateTo: e.target.value || undefined })}
-            className="h-8 rounded-md border border-input bg-background px-2 text-xs"
+            type="text"
+            inputMode="numeric"
+            placeholder="YYYY-MM-DD"
+            value={dateToDraft}
+            onChange={(e) => { setDateToDraft(e.target.value); commitDate('dateTo', e.target.value) }}
+            className="h-8 w-[110px] rounded-md border border-input bg-background px-2 text-xs"
           />
         </div>
 
