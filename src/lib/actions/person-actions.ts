@@ -230,9 +230,11 @@ export async function updatePersonIcgIdAction(raw: unknown): Promise<CrudActionR
       revalidatePath("/staging-sets");
       return { success: true, id: parsed.data.id };
     } catch (err) {
-      if (err instanceof Error && err.message.includes("P2002")) {
+      // Prisma surfaces the unique violation via the error CODE, not the message text.
+      if (err && typeof err === "object" && (err as { code?: string }).code === "P2002") {
         return { success: false, error: { fieldErrors: { icgId: ["ICG-ID already exists"] } } };
       }
+      console.error("updatePersonIcgIdAction failed", err);
       return { success: false, error: "Unexpected error" };
     }
   });

@@ -1473,20 +1473,22 @@ export async function updatePersonIcgId(id: string, newIcgId: string): Promise<v
       data: { subjectIcgId: newIcgId },
     });
 
-    await tx.$queryRaw`
-      UPDATE "StagingSet"
-      SET "participantIcgIds" = array_replace("participantIcgIds", ${existing.icgId}::text, ${newIcgId}::text)
-      WHERE ${existing.icgId}::text = ANY("participantIcgIds")
-    `;
-
+    // Rewrite old id → new in the participant array AND the participants JSON, via Prisma
+    // (respects @@map("staging_set")). The previous raw `UPDATE "StagingSet"` referenced a
+    // table name that doesn't exist (42P01), silently rolling back the whole change.
     const participantSets = await tx.stagingSet.findMany({
-      where: { participantIcgIds: { has: existing.icgId }, participants: { not: "DbNull" as const } },
-      select: { id: true, participants: true },
+      where: { participantIcgIds: { has: existing.icgId } },
+      select: { id: true, participantIcgIds: true, participants: true },
     });
     for (const s of participantSets) {
-      const updated = (s.participants as { name: string; icgId: string; url?: string }[])
-        .map(p => p.icgId === existing.icgId ? { ...p, icgId: newIcgId } : p);
-      await tx.stagingSet.update({ where: { id: s.id }, data: { participants: updated } });
+      const data: { participantIcgIds: string[]; participants?: { name: string; icgId: string; url?: string }[] } = {
+        participantIcgIds: s.participantIcgIds.map((x) => (x === existing.icgId ? newIcgId : x)),
+      };
+      if (Array.isArray(s.participants)) {
+        data.participants = (s.participants as { name: string; icgId: string; url?: string }[])
+          .map((pp) => (pp.icgId === existing.icgId ? { ...pp, icgId: newIcgId } : pp));
+      }
+      await tx.stagingSet.update({ where: { id: s.id }, data });
     }
 
     return { changed: true, oldIcgId: existing.icgId };
