@@ -2,7 +2,6 @@
 
 import { useState, useTransition } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
 import { Camera, Film, Check, X, Plus, ExternalLink, TriangleAlert, Trash2, Link2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { ArchiveFolderEntry } from '@/lib/services/archive-service'
@@ -16,14 +15,16 @@ import { CreateKnownSetSheet } from '@/components/staging-sets/create-known-set-
 
 type Props = {
   item: ArchiveFolderEntry
+  /** Called after the folder leaves the orphan list (linked or deleted) so the parent
+   *  can drop it from its client-fetched state — router.refresh() can't (see workspace). */
+  onRemoved?: (id: string) => void
 }
 
-export function ArchiveOrphanRow({ item }: Props) {
+export function ArchiveOrphanRow({ item, onRemoved }: Props) {
   const [pending, startTransition] = useTransition()
   const [dismissed, setDismissed] = useState(false)
   const [pickerOpen, setPickerOpen] = useState(false)
   const [sheetOpen, setSheetOpen] = useState(false)
-  const router = useRouter()
 
   const dateStr = item.parsedDate
     ? new Date(item.parsedDate).toISOString().split('T')[0]
@@ -45,8 +46,8 @@ export function ArchiveOrphanRow({ item }: Props) {
   function handleConfirmSuggestion() {
     if (!suggestedId) return
     startTransition(async () => {
-      await confirmArchiveFolderLinkAction(item.id, suggestedId, suggestedType)
-      router.refresh()
+      const res = await confirmArchiveFolderLinkAction(item.id, suggestedId, suggestedType)
+      if (res.success) onRemoved?.(item.id)
     })
   }
 
@@ -65,8 +66,8 @@ export function ArchiveOrphanRow({ item }: Props) {
 
   function handleDelete() {
     startTransition(async () => {
-      await deleteArchiveFolderAction(item.id)
-      router.refresh()
+      const res = await deleteArchiveFolderAction(item.id)
+      if (res.success) onRemoved?.(item.id)
     })
   }
 
@@ -300,7 +301,7 @@ export function ArchiveOrphanRow({ item }: Props) {
         initialIsVideo={item.isVideo}
         initialParticipantName={item.parsedParticipant}
         archiveFolderId={item.id}
-        onCreated={() => router.refresh()}
+        onCreated={() => onRemoved?.(item.id)}
       />
     </div>
   )

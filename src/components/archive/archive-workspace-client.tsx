@@ -365,6 +365,30 @@ export function ArchiveWorkspaceClient({
     })
   }, [tab, isVideo, hasSuggestion, search])
 
+  // Optimistically drop a folder row after it's linked (Create / Confirm) or deleted.
+  // The workspace list is client-fetched (channelLeaves / folderItems), so a server
+  // router.refresh() never updates it — the just-linked folder would keep showing its
+  // "+ Create" button. Removing it from local state recomputes the virtual rows so the
+  // row disappears immediately, preserving every other channel's expansion. See the
+  // orphan row's `onRemoved`.
+  const removeFolderItem = useCallback((id: string) => {
+    setFolderItems((prev) => prev.filter((it) => it.id !== id))
+    setChannelLeaves((prev) => {
+      let changed = false
+      const next = new Map(prev)
+      for (const [key, leaf] of prev) {
+        if (leaf.status !== 'loaded') continue
+        const items = leaf.items.filter((it) => it.id !== id)
+        if (items.length !== leaf.items.length) {
+          next.set(key, { status: 'loaded', items })
+          changed = true
+        }
+      }
+      return changed ? next : prev
+    })
+    setCounts((prev) => ({ ...prev, [tab]: Math.max(0, prev[tab] - 1) }))
+  }, [tab])
+
   // ── Data fetching ──────────────────────────────────────────────────────────
   useEffect(() => {
     if (!hydrated) return
@@ -860,7 +884,7 @@ export function ArchiveWorkspaceClient({
                         'py-0.5 rounded-xl transition-all duration-500',
                         activeHighlight === row.item.id && 'ring-2 ring-amber-400 ring-offset-1',
                       )}>
-                        <ArchiveOrphanRow item={row.item} />
+                        <ArchiveOrphanRow item={row.item} onRemoved={removeFolderItem} />
                       </div>
                     )}
                     {row.kind === 'folder-item' && (tab === 'linked' || (tab === 'all' && !!(row.item.linkedSetId || row.item.linkedStagingId))) && (
