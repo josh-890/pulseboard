@@ -56,9 +56,9 @@ export async function refreshMatchesForTitle(
   // Find staging sets in same channel (by resolved channelId or by channel name)
   // that aren't already terminal
   const candidates = await prisma.$queryRaw<
-    Array<{ id: string; title: string; externalId: string | null; channelName: string; releaseDate: Date | null; matchedSetId: string | null }>
+    Array<{ id: string; title: string; externalId: string | null; channelName: string; releaseDate: Date | null; matchedSetId: string | null; rejectedMatchSetIds: string[] }>
   >`
-    SELECT id, title, "externalId", "channelName", "releaseDate", "matchedSetId"
+    SELECT id, title, "externalId", "channelName", "releaseDate", "matchedSetId", "rejectedMatchSetIds"
     FROM "StagingSet"
     WHERE status NOT IN ('PROMOTED', 'SKIPPED')
       AND (
@@ -96,6 +96,7 @@ export async function refreshAllMatches(): Promise<number> {
         channelName: true,
         releaseDate: true,
         matchedSetId: true,
+        rejectedMatchSetIds: true,
       },
       orderBy: { id: 'asc' },
       skip,
@@ -160,6 +161,7 @@ export async function recomputeMatchForStagingSet(id: string): Promise<void> {
       channelName: true,
       releaseDate: true,
       matchedSetId: true,
+      rejectedMatchSetIds: true,
     },
   })
   if (!ss) return
@@ -172,6 +174,7 @@ export async function recomputeMatchForStagingSet(id: string): Promise<void> {
       channelName: ss.channelName,
       releaseDate: ss.releaseDate,
       matchedSetId: ss.matchedSetId,
+      rejectedMatchSetIds: ss.rejectedMatchSetIds,
     },
   ])
 }
@@ -187,6 +190,8 @@ async function recomputeMatchesForSets(
     releaseDate: Date | null
     /** Currently cached match target — used to decide whether to overwrite. */
     matchedSetId: string | null
+    /** Set ids the user explicitly rejected ("Wrong Match") — never re-cache these. */
+    rejectedMatchSetIds?: string[]
   }>,
 ): Promise<number> {
   let updated = 0
@@ -213,9 +218,17 @@ async function recomputeMatchesForSets(
 
     const result = await matchSet(parsed)
 
-    const newMatchId = result.matchedEntityId ?? null
-    const newConfidence = result.matchConfidence ?? null
-    const newDetails = result.matchDetails ?? null
+    let newMatchId = result.matchedEntityId ?? null
+    let newConfidence = result.matchConfidence ?? null
+    let newDetails = result.matchDetails ?? null
+
+    // Honor a user's persistent "Wrong Match": never re-cache a rejected target
+    // (otherwise a fuzzy series match — "Part 2" → "Part 1" — keeps reappearing).
+    if (newMatchId && (ss.rejectedMatchSetIds ?? []).includes(newMatchId)) {
+      newMatchId = null
+      newConfidence = null
+      newDetails = null
+    }
 
     // Only overwrite when the matched TARGET changes. This honors the original
     // intent ("only update if match state changed") and, crucially, preserves a

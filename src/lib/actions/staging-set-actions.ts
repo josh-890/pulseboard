@@ -264,6 +264,40 @@ export async function addStagingSetParticipantAction(
   })
 }
 
+/**
+ * Persistently reject the cached match ("Wrong Match"): clear it and remember the target
+ * so the matcher won't re-cache it. Lets a fuzzy series match (e.g. "Part 2" → "Part 1")
+ * be dismissed for good, so the set can promote as a new Set.
+ */
+export async function rejectStagingSetMatchAction(stagingSetId: string): Promise<SimpleActionResult> {
+  return withTenantFromHeaders(async () => {
+    try {
+      const ss = await prisma.stagingSet.findUnique({
+        where: { id: stagingSetId },
+        select: { matchedSetId: true, rejectedMatchSetIds: true },
+      })
+      if (!ss) return { success: false, error: 'Staging set not found' }
+
+      const rejected = new Set(ss.rejectedMatchSetIds)
+      if (ss.matchedSetId) rejected.add(ss.matchedSetId)
+
+      await prisma.stagingSet.update({
+        where: { id: stagingSetId },
+        data: {
+          matchedSetId: null,
+          matchConfidence: null,
+          matchDetails: null,
+          rejectedMatchSetIds: [...rejected],
+        },
+      })
+      revalidatePath('/staging-sets')
+      return { success: true }
+    } catch (err) {
+      return { success: false, error: err instanceof Error ? err.message : 'Failed to reject match' }
+    }
+  })
+}
+
 /** Dismiss the suggested date without applying it. */
 export async function dismissDateSuggestionAction(id: string): Promise<SimpleActionResult> {
   return withTenantFromHeaders(async () => {

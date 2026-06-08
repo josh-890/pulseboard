@@ -25,7 +25,7 @@ import { ArchiveStatusBanner } from '@/components/archive/archive-status-banner'
 import type { StagingSetWithRelations, StagingSetComparison, DuplicateCandidate } from '@/lib/services/import/staging-set-service'
 import type { StagingSetStatus, ArchiveStatus } from '@/generated/prisma/client'
 // (recordArchivePathAction / clearArchivePathAction removed — scan-first workflow only)
-import { acceptDateSuggestionAction, dismissDateSuggestionAction, removeStagingSetParticipantAction, addStagingSetParticipantAction } from '@/lib/actions/staging-set-actions'
+import { acceptDateSuggestionAction, dismissDateSuggestionAction, removeStagingSetParticipantAction, addStagingSetParticipantAction, rejectStagingSetMatchAction } from '@/lib/actions/staging-set-actions'
 import { unlinkArchiveFolderAction } from '@/lib/actions/archive-actions'
 import Link from 'next/link'
 
@@ -254,11 +254,8 @@ function PanelContent({
   }, [stagingSet.id, onRefresh])
 
   const handleClearMatch = useCallback(async () => {
-    await fetch(`/api/staging-sets/${stagingSet.id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ matchedSetId: null, matchConfidence: null, matchDetails: null }),
-    })
+    // Persistent reject so the matcher won't re-suggest this target (e.g. series Part 1).
+    await rejectStagingSetMatchAction(stagingSet.id)
     setComparison(null)
     onRefresh()
   }, [stagingSet.id, onRefresh])

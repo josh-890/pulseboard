@@ -1867,6 +1867,9 @@ model StagingSet {
   matchedSet      Set?    @relation("StagingSetMatch", fields: [matchedSetId], references: [id])
   matchConfidence Float?
   matchDetails    String?
+  // Set ids the user explicitly rejected as a match ("Wrong Match"). The matcher skips
+  // these so a fuzzy auto-match (e.g. series "Part 2" → "Part 1") won't keep reappearing.
+  rejectedMatchSetIds String[] @default([])
 
   // Resolution
   status        StagingSetStatus @default(PENDING)
