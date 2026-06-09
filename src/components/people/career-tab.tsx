@@ -259,6 +259,9 @@ export function CareerTab({
         </div>
       )}
 
+      {/* Catalogue stats: claimed vs promoted vs staged (collapsed by default) */}
+      <CareerStatsStrip stats={careerStats} />
+
       {/* Label Affiliations chips — act as multi-select filters. Click
           a chip to toggle filtering the timeline to sets in that label;
           active chips get the primary accent. */}
@@ -381,9 +384,6 @@ export function CareerTab({
           </Button>
         </div>
       </div>
-
-      {/* Catalogue stats: claimed vs promoted vs staged (gap analysis) */}
-      <CareerStatsStrip stats={careerStats} />
 
       {/* Type tabs */}
       <div className="flex items-center gap-1 border-b border-white/10">
