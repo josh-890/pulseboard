@@ -87,6 +87,11 @@ export function CareerStatsStrip({ stats }: CareerStatsStripProps) {
               <StatRow key={r.key} row={r} total={r.key === "covers"} />
             ))}
           </div>
+          {stats.claimed.note && (
+            <p className="mt-2 text-[11px] italic text-muted-foreground/60">
+              Claimed source: {stats.claimed.note}
+            </p>
+          )}
         </div>
       )}
     </div>

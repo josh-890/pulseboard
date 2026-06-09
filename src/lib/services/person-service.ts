@@ -1385,13 +1385,16 @@ export async function updatePersonRecord(id: string, data: UpdatePersonInput): P
     // lock them against future biography re-parsing.
     const newPhotosets = data.claimedPhotosets ?? null;
     const newVideos = data.claimedVideos ?? null;
+    const newNote = data.claimedStatsNote?.trim() || null;
     const cur = await tx.person.findUnique({
       where: { id },
-      select: { claimedPhotosets: true, claimedVideos: true },
+      select: { claimedPhotosets: true, claimedVideos: true, claimedStatsNote: true },
     });
     const claimedChanged =
       !!cur &&
-      (newPhotosets !== cur.claimedPhotosets || newVideos !== cur.claimedVideos);
+      (newPhotosets !== cur.claimedPhotosets ||
+        newVideos !== cur.claimedVideos ||
+        newNote !== cur.claimedStatsNote);
 
     await tx.person.update({
       where: { id },
@@ -1400,6 +1403,7 @@ export async function updatePersonRecord(id: string, data: UpdatePersonInput): P
           ? {
               claimedPhotosets: newPhotosets,
               claimedVideos: newVideos,
+              claimedStatsNote: newNote,
               claimedStatsUserSet: true,
             }
           : {}),

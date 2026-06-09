@@ -296,6 +296,9 @@ model Person {
   claimedPhotosets    Int?
   claimedVideos       Int?
   claimedStatsUserSet Boolean       @default(false)
+  // Free-text provenance for manually-entered claimed figures (e.g. which
+  // bio/site they came from). Shown on the Career-tab catalogue panel.
+  claimedStatsNote    String?
   // Per-person pinned attribute slugs (Phase G Slice 2). PhysicalAttributeDefinition
   // slugs the user wants always-visible on the Appearance grid even with no delta.
   // Augments the system-default pinned set in `lib/constants/appearance`.

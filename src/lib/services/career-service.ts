@@ -612,7 +612,12 @@ export type CareerStatTriple = { photos: number; videos: number; covers: number 
 // staging sets matched to the person, dedup'd against existing Sets so a
 // staged shoot that would merge into a promoted Set isn't double-counted.
 export type CareerStats = {
-  claimed: { photosets: number | null; videos: number | null; covers: number | null };
+  claimed: {
+    photosets: number | null;
+    videos: number | null;
+    covers: number | null;
+    note: string | null;
+  };
   promoted: CareerStatTriple;
   staged: CareerStatTriple;
 };
@@ -624,7 +629,12 @@ const STAGED_PIPELINE_STATUSES = ["PENDING", "REVIEWING", "APPROVED"] as const;
 export async function getCareerStats(personId: string): Promise<CareerStats> {
   const person = await prisma.person.findUnique({
     where: { id: personId },
-    select: { icgId: true, claimedPhotosets: true, claimedVideos: true },
+    select: {
+      icgId: true,
+      claimedPhotosets: true,
+      claimedVideos: true,
+      claimedStatsNote: true,
+    },
   });
 
   const claimedPhotosets = person?.claimedPhotosets ?? null;
@@ -646,6 +656,10 @@ export async function getCareerStats(personId: string): Promise<CareerStats> {
     matchedSetId: null, // exclude sets that would merge into an existing Set
     status: { in: [...STAGED_PIPELINE_STATUSES] },
     participantIcgIds: { has: icgId ?? "" },
+    // Only count staged sets we actually hold — a CONFIRMED archive link means
+    // the folder is on disk. Staged rows without a linked folder are planned,
+    // not had, so they don't count toward "have".
+    archiveLinks: { some: { status: "CONFIRMED" } },
   });
 
   const [promPhotos, promVideos, stagedPhotos, stagedVideos] = await Promise.all([
@@ -656,7 +670,12 @@ export async function getCareerStats(personId: string): Promise<CareerStats> {
   ]);
 
   return {
-    claimed: { photosets: claimedPhotosets, videos: claimedVideos, covers: claimedCovers },
+    claimed: {
+      photosets: claimedPhotosets,
+      videos: claimedVideos,
+      covers: claimedCovers,
+      note: person?.claimedStatsNote ?? null,
+    },
     promoted: { photos: promPhotos, videos: promVideos, covers: promPhotos + promVideos },
     staged: { photos: stagedPhotos, videos: stagedVideos, covers: stagedPhotos + stagedVideos },
   };

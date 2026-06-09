@@ -89,6 +89,8 @@ export const updatePersonSchema = z.object({
   // so coerce.number().optional() never sees ""; a change flips claimedStatsUserSet.
   claimedPhotosets: z.coerce.number().int().min(0).optional(),
   claimedVideos: z.coerce.number().int().min(0).optional(),
+  // Free-text provenance for the claimed figures (e.g. "THENUDE bio 2024").
+  claimedStatsNote: z.string().optional(),
 });
 
 export type UpdatePersonFormValues = z.input<typeof updatePersonSchema>;

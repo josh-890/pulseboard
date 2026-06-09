@@ -112,6 +112,7 @@ export function EditPersonSheet({ person }: EditPersonSheetProps) {
     pgrade: person.pgrade ?? undefined,
     claimedPhotosets: person.claimedPhotosets ?? undefined,
     claimedVideos: person.claimedVideos ?? undefined,
+    claimedStatsNote: person.claimedStatsNote ?? "",
   });
 
   const form = useForm<UpdatePersonFormValues, unknown, UpdatePersonInput>({
@@ -279,6 +280,23 @@ export function EditPersonSheet({ person }: EditPersonSheetProps) {
                               onChange={(e) =>
                                 field.onChange(e.target.value === "" ? undefined : e.target.value)
                               }
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="claimedStatsNote"
+                      render={({ field }) => (
+                        <FormItem className="col-span-2">
+                          <FormLabel>Claimed figures — source</FormLabel>
+                          <FormControl>
+                            <Input
+                              placeholder="e.g. THENUDE bio 2024 · manual count"
+                              {...field}
                             />
                           </FormControl>
                           <FormMessage />

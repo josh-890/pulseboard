@@ -1906,7 +1906,7 @@ export function PersonDetailTabs({
   stagingWorkHistory = [],
   careerTimeline = [],
   careerStats = {
-    claimed: { photosets: null, videos: null, covers: null },
+    claimed: { photosets: null, videos: null, covers: null, note: null },
     promoted: { photos: 0, videos: 0, covers: 0 },
     staged: { photos: 0, videos: 0, covers: 0 },
   },
