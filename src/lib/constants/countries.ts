@@ -195,7 +195,7 @@ export const COUNTRIES: Country[] = [
   { code: "UA", name: "Ukraine", aliases: ["Ukrainian", "UKR"] },
   { code: "AE", name: "United Arab Emirates", aliases: ["Emirati", "UAE"] },
   { code: "GB", name: "United Kingdom", aliases: ["British", "UK", "GBR", "England", "English", "Scottish", "Welsh"] },
-  { code: "US", name: "United States", aliases: ["American", "USA", "U.S.", "U.S.A."] },
+  { code: "US", name: "United States", aliases: ["American", "USA", "U.S.", "U.S.A.", "United States of America", "America"] },
   { code: "UY", name: "Uruguay", aliases: ["Uruguayan", "URU"] },
   { code: "UZ", name: "Uzbekistan", aliases: ["Uzbek", "UZB"] },
   { code: "VU", name: "Vanuatu", aliases: ["Ni-Vanuatu"] },
@@ -257,6 +257,20 @@ export function resolveNationalityToCode(value: string): string | null {
   // Partial name match (if unique)
   const partials = COUNTRIES.filter((c) => c.name.toLowerCase().includes(lower));
   if (partials.length === 1) return partials[0].code;
+
+  // Verbose-form match: the input starts with a country name or alias (handles
+  // "United States of America" → US, "Russian Federation" → RU). Pick the
+  // longest such match so "Guinea-Bissau" beats "Guinea".
+  let best: { code: string; len: number } | null = null;
+  for (const c of COUNTRIES) {
+    for (const label of [c.name, ...c.aliases]) {
+      const l = label.toLowerCase();
+      if (l.length >= 4 && lower.startsWith(l) && (!best || l.length > best.len)) {
+        best = { code: c.code, len: l.length };
+      }
+    }
+  }
+  if (best) return best.code;
 
   return null;
 }

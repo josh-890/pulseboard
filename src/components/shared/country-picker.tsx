@@ -17,7 +17,7 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command";
-import { COUNTRIES, findCountryByCode } from "@/lib/constants/countries";
+import { COUNTRIES, findCountryByCode, toIocCode } from "@/lib/constants/countries";
 import { FlagImage } from "@/components/shared/flag-image";
 
 type CountryPickerProps = {
@@ -73,25 +73,30 @@ export function CountryPicker({
             <CommandList>
               <CommandEmpty>No country found.</CommandEmpty>
               <CommandGroup>
-                {COUNTRIES.map((country) => (
-                  <CommandItem
-                    key={country.code}
-                    value={country.code}
-                    onSelect={() => {
-                      onChange(country.code === value ? undefined : country.code);
-                      setOpen(false);
-                    }}
-                  >
-                    <FlagImage code={country.code} size={16} className="mr-2 shrink-0" />
-                    <span className="truncate">{country.name}</span>
-                    <Check
-                      className={cn(
-                        "ml-auto h-4 w-4 shrink-0",
-                        value === country.code ? "opacity-100" : "opacity-0",
-                      )}
-                    />
-                  </CommandItem>
-                ))}
+                {COUNTRIES.map((country) => {
+                  // Stored value is the 3-letter IOC code; cmdk item value stays
+                  // the alpha-2 code (internal filter key only).
+                  const ioc = toIocCode(country.code);
+                  return (
+                    <CommandItem
+                      key={country.code}
+                      value={country.code}
+                      onSelect={() => {
+                        onChange(ioc === value ? undefined : ioc);
+                        setOpen(false);
+                      }}
+                    >
+                      <FlagImage code={country.code} size={16} className="mr-2 shrink-0" />
+                      <span className="truncate">{country.name}</span>
+                      <Check
+                        className={cn(
+                          "ml-auto h-4 w-4 shrink-0",
+                          value === ioc ? "opacity-100" : "opacity-0",
+                        )}
+                      />
+                    </CommandItem>
+                  );
+                })}
               </CommandGroup>
             </CommandList>
           </Command>

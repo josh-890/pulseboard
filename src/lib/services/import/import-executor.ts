@@ -47,7 +47,7 @@ function monthNameToNumber(month: string): string | null {
 
 // ─── Country name → ISO code mapping (common ones) ──────────────────────────
 
-import { resolveNationalityToCode } from '@/lib/constants/countries'
+import { resolveNationalityToIoc } from '@/lib/constants/countries'
 
 // ─── Resolve dependencies from batch items ──────────────────────────────────
 
@@ -368,7 +368,7 @@ export async function importPerson(item: ImportItem): Promise<ImportResult> {
 
     // Map nationality
     const nationalityRaw = data.nationality as string | null
-    const nationality = nationalityRaw ? resolveNationalityToCode(nationalityRaw) ?? undefined : undefined
+    const nationality = nationalityRaw ? resolveNationalityToIoc(nationalityRaw) ?? undefined : undefined
 
     // Parse breast description
     const breastRaw = data.breastDescription as string | null

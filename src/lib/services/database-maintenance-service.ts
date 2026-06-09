@@ -11,7 +11,7 @@ import {
 import { rebuildAllCurrentState, verifyCurrentStateIntegrity } from "@/lib/services/current-state-service";
 import { normalizeForSearch } from "@/lib/normalize";
 import { refreshAllParticipantStatuses } from "@/lib/services/import/participant-status-service";
-import { resolveNationalityToCode } from "@/lib/constants/countries";
+import { resolveNationalityToIoc } from "@/lib/constants/countries";
 
 export type MaintenanceResult = {
   found: number;
@@ -584,9 +584,9 @@ export async function reconcileStagingSetParticipants(): Promise<MaintenanceResu
 }
 
 /**
- * Find Person records with a 3-letter IOC nationality code (stored by a bug in the
- * import executor that called resolveNationalityToIoc instead of resolveNationalityToCode)
- * and convert them to the canonical ISO alpha-2 format expected by the edit form.
+ * Canonical nationality format is the 3-letter IOC code (e.g. "GER", "USA").
+ * Find Person records still holding a 2-letter ISO alpha-2 (or any non-IOC)
+ * value and convert them to IOC, so they match the edit form + import.
  */
 export async function fixImportedNationalityCodes(): Promise<MaintenanceResult> {
   const persons = await prisma.person.findMany({
@@ -596,24 +596,25 @@ export async function fixImportedNationalityCodes(): Promise<MaintenanceResult> 
     select: { id: true, nationality: true },
   });
 
+  // Anything that isn't already a valid 3-letter IOC code needs converting.
   const toFix = persons.filter(
-    (p) => p.nationality && p.nationality.length === 3,
+    (p) => p.nationality && resolveNationalityToIoc(p.nationality) !== p.nationality,
   );
 
   const details: string[] = [];
   let fixed = 0;
 
   for (const p of toFix) {
-    const alpha2 = resolveNationalityToCode(p.nationality!);
-    if (alpha2 && alpha2 !== p.nationality) {
+    const ioc = resolveNationalityToIoc(p.nationality!);
+    if (ioc && ioc !== p.nationality) {
       await prisma.person.update({
         where: { id: p.id },
-        data: { nationality: alpha2 },
+        data: { nationality: ioc },
       });
-      details.push(`Person ${p.id}: nationality ${p.nationality} → ${alpha2}`);
+      details.push(`Person ${p.id}: nationality ${p.nationality} → ${ioc}`);
       fixed++;
     } else {
-      details.push(`Person ${p.id}: nationality ${p.nationality} — no alpha-2 mapping found, skipped`);
+      details.push(`Person ${p.id}: nationality ${p.nationality} — no IOC mapping found, skipped`);
     }
   }
 

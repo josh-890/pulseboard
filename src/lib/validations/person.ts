@@ -24,7 +24,7 @@ export const createPersonSchema = z.object({
   birthdateModifier: dateModifierEnum,
   birthdateSource: z.string().optional(),
   birthPlace: z.string().optional(),
-  nationality: z.string().length(2).regex(/^[A-Z]{2}$/, "Must be a valid ISO alpha-2 country code").optional().or(z.literal("")),
+  nationality: z.string().length(3).regex(/^[A-Z]{3}$/, "Must be a valid 3-letter IOC country code").optional().or(z.literal("")),
   // Phase G Slice 16C T3: Ethnicity split into Broad SINGLE_SELECT +
   // Specific TEXT, both written as ScalarDeltas on baseline Era. The
   // legacy `ethnicity` combined field is removed (was: `z.string().optional()`).
@@ -66,7 +66,7 @@ export const updatePersonSchema = z.object({
   // distinguishes this from "haven't checked yet" (null+false).
   birthdateUnknown: z.boolean().optional(),
   birthPlace: z.string().optional(),
-  nationality: z.string().length(2).regex(/^[A-Z]{2}$/, "Must be a valid ISO alpha-2 country code").optional().or(z.literal("")),
+  nationality: z.string().length(3).regex(/^[A-Z]{3}$/, "Must be a valid 3-letter IOC country code").optional().or(z.literal("")),
   nationalityUnknown: z.boolean().optional(),
   // Phase G Slice 16C T3: same split as createPersonSchema.
   ethnicityBroad: z.string().optional(),

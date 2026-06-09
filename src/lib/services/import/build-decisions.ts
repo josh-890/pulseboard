@@ -9,7 +9,7 @@ import type { Prisma } from '@/generated/prisma/client'
 import type { PrismaClient } from '@/generated/prisma/client'
 import type { ParsedPersonData } from './parser'
 import { parseBreastDescription, extractCupFromMeasurements, chooseNaturalCup, canonicaliseBreastCup } from './import-utils'
-import { resolveNationalityToCode } from '@/lib/constants/countries'
+import { resolveNationalityToIoc } from '@/lib/constants/countries'
 import {
   computeImportDiff,
   type ImportItemDecisions,
@@ -48,9 +48,9 @@ export function buildImportPayloadFromParsed(data: ParsedPersonData): ImportPayl
   // Retired (presence flips status; for the diff we just compare the date).
   const retiredAtIso = data.retiredYear ? `${data.retiredYear}-01-01` : undefined
 
-  // Nationality → ISO alpha-2 (mirrors import-executor).
+  // Nationality → 3-letter IOC code (mirrors import-executor).
   const nationality = data.nationality
-    ? resolveNationalityToCode(data.nationality) ?? undefined
+    ? resolveNationalityToIoc(data.nationality) ?? undefined
     : undefined
 
   // Bio composition mirrors importPerson(): biography + biographies + tattoos + activities

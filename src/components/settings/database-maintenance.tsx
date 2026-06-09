@@ -105,9 +105,9 @@ const actions: ActionConfig[] = [
     action: checkCurrentStateIntegrityAction,
   },
   {
-    title: "Imported Nationality Codes",
+    title: "Nationality Codes → IOC",
     description:
-      "Find persons whose nationality was stored as a 3-letter IOC code (e.g. 'RUS') by a bug in the import executor. Converts them to ISO alpha-2 (e.g. 'RU') so the nationality picker works correctly.",
+      "Canonical nationality format is the 3-letter IOC code (e.g. 'GER', 'USA'). Find persons whose nationality is still stored as a 2-letter ISO code (e.g. 'DE') or other non-IOC value and convert them to IOC so the nationality picker, import, and edit form agree.",
     icon: <Flag className="h-5 w-5 text-muted-foreground" />,
     action: fixImportedNationalityCodesAction,
   },
