@@ -603,6 +603,65 @@ export async function getCareerFacetCounts(
   };
 }
 
+// ─── Career stats (claimed vs promoted vs staged) ──────────────────────────
+
+export type CareerStatTriple = { photos: number; videos: number; covers: number };
+
+// Claimed figures parsed from the biography (covers is derived); promoted =
+// distinct Sets credited to the person by type; staged = active-pipeline
+// staging sets matched to the person, dedup'd against existing Sets so a
+// staged shoot that would merge into a promoted Set isn't double-counted.
+export type CareerStats = {
+  claimed: { photosets: number | null; videos: number | null; covers: number | null };
+  promoted: CareerStatTriple;
+  staged: CareerStatTriple;
+};
+
+// Statuses that count as "in the pipeline toward complete". PROMOTED rows are
+// already counted as promoted; SKIPPED / INACTIVE are out of the pipeline.
+const STAGED_PIPELINE_STATUSES = ["PENDING", "REVIEWING", "APPROVED"] as const;
+
+export async function getCareerStats(personId: string): Promise<CareerStats> {
+  const person = await prisma.person.findUnique({
+    where: { id: personId },
+    select: { icgId: true, claimedPhotosets: true, claimedVideos: true },
+  });
+
+  const claimedPhotosets = person?.claimedPhotosets ?? null;
+  const claimedVideos = person?.claimedVideos ?? null;
+  const claimedCovers =
+    claimedPhotosets === null && claimedVideos === null
+      ? null
+      : (claimedPhotosets ?? 0) + (claimedVideos ?? 0);
+
+  // Same person-credit reach as getPromotedRowsForPerson, narrowed to a type.
+  const promotedWhere = (type: SetType): Prisma.SetWhereInput => ({
+    type,
+    sessionLinks: { some: { session: { contributions: { some: { personId } } } } },
+  });
+
+  const icgId = person?.icgId ?? null;
+  const stagedWhere = (isVideo: boolean): Prisma.StagingSetWhereInput => ({
+    isVideo,
+    matchedSetId: null, // exclude sets that would merge into an existing Set
+    status: { in: [...STAGED_PIPELINE_STATUSES] },
+    participantIcgIds: { has: icgId ?? "" },
+  });
+
+  const [promPhotos, promVideos, stagedPhotos, stagedVideos] = await Promise.all([
+    prisma.set.count({ where: promotedWhere("photo") }),
+    prisma.set.count({ where: promotedWhere("video") }),
+    icgId ? prisma.stagingSet.count({ where: stagedWhere(false) }) : Promise.resolve(0),
+    icgId ? prisma.stagingSet.count({ where: stagedWhere(true) }) : Promise.resolve(0),
+  ]);
+
+  return {
+    claimed: { photosets: claimedPhotosets, videos: claimedVideos, covers: claimedCovers },
+    promoted: { photos: promPhotos, videos: promVideos, covers: promPhotos + promVideos },
+    staged: { photos: stagedPhotos, videos: stagedVideos, covers: stagedPhotos + stagedVideos },
+  };
+}
+
 // ─── Filter option lists ─────────────────────────────────────────────────
 
 // Distinct channels for the person across promoted + staged sets. Used

@@ -15,10 +15,12 @@ import { MultiFacetDropdown } from "@/components/shared/browser-toolbar";
 import { ratingFilterOptions } from "@/components/shared/rating-filter-options";
 import { TimelineSection } from "@/components/career/timeline-section";
 import { CreateKnownSetSheet } from "@/components/staging-sets/create-known-set-sheet";
+import { CareerStatsStrip } from "@/components/people/career-stats-strip";
 import type {
   CareerTimelineRow,
   CareerFacetCounts,
   CareerSort,
+  CareerStats,
 } from "@/lib/services/career-service";
 import type { PersonAffiliation } from "@/lib/types";
 import type { SetType } from "@/generated/prisma/client";
@@ -40,6 +42,7 @@ type CareerTabPerson = {
 export type CareerTabProps = {
   person: CareerTabPerson;
   careerTimeline: CareerTimelineRow[];
+  careerStats: CareerStats;
   facetCounts: CareerFacetCounts;
   channels: { id: string; name: string }[];
   eras: { id: string; label: string }[];
@@ -80,6 +83,7 @@ function formatIsoYM(d: Date | null, precision: string): string {
 export function CareerTab({
   person,
   careerTimeline,
+  careerStats,
   facetCounts,
   channels,
   eras,
@@ -378,6 +382,9 @@ export function CareerTab({
         </div>
       </div>
 
+      {/* Catalogue stats: claimed vs promoted vs staged (gap analysis) */}
+      <CareerStatsStrip stats={careerStats} />
+
       {/* Type tabs */}
       <div className="flex items-center gap-1 border-b border-white/10">
         <TypeTabButton
@@ -385,12 +392,16 @@ export function CareerTab({
           onClick={() => handleTypeChange("photo")}
           icon={<Camera size={14} />}
           label="Photos"
+          have={careerStats.promoted.photos + careerStats.staged.photos}
+          claimed={careerStats.claimed.photosets}
         />
         <TypeTabButton
           active={activeType === "video"}
           onClick={() => handleTypeChange("video")}
           icon={<Film size={14} />}
           label="Videos"
+          have={careerStats.promoted.videos + careerStats.staged.videos}
+          claimed={careerStats.claimed.videos}
         />
       </div>
 
@@ -424,11 +435,15 @@ function TypeTabButton({
   onClick,
   icon,
   label,
+  have,
+  claimed,
 }: {
   active: boolean;
   onClick: () => void;
   icon: React.ReactNode;
   label: string;
+  have: number;
+  claimed: number | null;
 }) {
   return (
     <button
@@ -443,6 +458,10 @@ function TypeTabButton({
     >
       {icon}
       {label}
+      <span className="font-mono text-[10px] tabular-nums opacity-60">
+        {have}
+        {claimed !== null && <span className="opacity-60">/{claimed}</span>}
+      </span>
     </button>
   );
 }

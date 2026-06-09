@@ -84,6 +84,11 @@ export const updatePersonSchema = z.object({
   specialization: z.string().optional(),
   rating: z.coerce.number().int().min(1).max(5).optional(),
   pgrade: z.coerce.number().int().min(1).max(10).optional(),
+  // Claimed catalogue size from the biography. Covers is derived, not stored.
+  // The form's onChange sends undefined for an empty input (mirrors `height`),
+  // so coerce.number().optional() never sees ""; a change flips claimedStatsUserSet.
+  claimedPhotosets: z.coerce.number().int().min(0).optional(),
+  claimedVideos: z.coerce.number().int().min(0).optional(),
 });
 
 export type UpdatePersonFormValues = z.input<typeof updatePersonSchema>;

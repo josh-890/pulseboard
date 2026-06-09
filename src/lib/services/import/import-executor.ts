@@ -19,6 +19,7 @@ import { markItemImported, computeDependencies } from './staging-service'
 import { markStagingSetPromoted } from './staging-set-service'
 import type { ParticipantStatus } from './staging-set-service'
 import { parseBreastDescription, extractCupFromMeasurements, chooseNaturalCup, canonicaliseBreastCup } from './import-utils'
+import { parseClaimedStats } from './parse-claimed-stats'
 import { transferStagingCoverToSet } from './cover-transfer'
 import { autoClusterDeltaIntoDraftEra, getBaselineEraId } from '@/lib/services/era-service'
 
@@ -271,6 +272,21 @@ async function applyReimportDecisions(
         break
     }
   }
+  // Re-parse the claimed catalogue size when an updated bio is accepted, unless
+  // the user has hand-edited the figures (claimedStatsUserSet) — then we leave
+  // them alone so a re-import can't clobber a manual correction.
+  if (typeof personUpdate.bio === 'string') {
+    const cur = await prisma.person.findUnique({
+      where: { id: personId },
+      select: { claimedStatsUserSet: true },
+    })
+    if (!cur?.claimedStatsUserSet) {
+      const claimed = parseClaimedStats(personUpdate.bio)
+      if (claimed.photosets !== null) personUpdate.claimedPhotosets = claimed.photosets
+      if (claimed.videos !== null) personUpdate.claimedVideos = claimed.videos
+    }
+  }
+
   if (Object.keys(personUpdate).length > 0) {
     await prisma.person.update({ where: { id: personId }, data: personUpdate })
   }
@@ -418,7 +434,13 @@ export async function importPerson(item: ImportItem): Promise<ImportResult> {
     if (data.tattoos) bioParts.push(`Tattoos: ${data.tattoos}`)
     if (data.activities) bioParts.push(`Activities: ${data.activities}`)
     if (bioParts.length > 0) {
-      additionalUpdates.bio = bioParts.join('\n\n')
+      const composedBio = bioParts.join('\n\n')
+      additionalUpdates.bio = composedBio
+      // Claimed catalogue size from the biography line ("… Y photosets, Z videos").
+      // New person → claimedStatsUserSet stays false (re-imports may refresh it).
+      const claimed = parseClaimedStats(composedBio)
+      if (claimed.photosets !== null) additionalUpdates.claimedPhotosets = claimed.photosets
+      if (claimed.videos !== null) additionalUpdates.claimedVideos = claimed.videos
     }
 
     if (Object.keys(additionalUpdates).length > 0) {

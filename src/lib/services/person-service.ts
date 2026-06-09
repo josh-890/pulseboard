@@ -1379,9 +1379,30 @@ export async function createPersonRecord(data: CreatePersonInput) {
 
 export async function updatePersonRecord(id: string, data: UpdatePersonInput): Promise<void> {
   await prisma.$transaction(async (tx) => {
+    // Claimed catalogue stats: only write (and flip the user-set guard that
+    // protects them from re-import) when the submitted value actually differs
+    // from what's stored — so a routine edit that leaves them untouched doesn't
+    // lock them against future biography re-parsing.
+    const newPhotosets = data.claimedPhotosets ?? null;
+    const newVideos = data.claimedVideos ?? null;
+    const cur = await tx.person.findUnique({
+      where: { id },
+      select: { claimedPhotosets: true, claimedVideos: true },
+    });
+    const claimedChanged =
+      !!cur &&
+      (newPhotosets !== cur.claimedPhotosets || newVideos !== cur.claimedVideos);
+
     await tx.person.update({
       where: { id },
       data: {
+        ...(claimedChanged
+          ? {
+              claimedPhotosets: newPhotosets,
+              claimedVideos: newVideos,
+              claimedStatsUserSet: true,
+            }
+          : {}),
         status: data.status,
         sexAtBirth: data.sexAtBirth,
         // Slice 16 follow-up: "verified unknown" flags clear the value

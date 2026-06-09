@@ -125,6 +125,7 @@ type PersonDetailTabsProps = {
   // `we-keep-freckles-scalar-twinkly-squirrel.md`). Loaded by the page
   // based on URL searchParams.
   careerTimeline?: import("@/lib/services/career-service").CareerTimelineRow[];
+  careerStats?: import("@/lib/services/career-service").CareerStats;
   careerFacetCounts?: import("@/lib/services/career-service").CareerFacetCounts;
   careerChannels?: { id: string; name: string }[];
   careerEras?: { id: string; label: string }[];
@@ -1904,6 +1905,11 @@ export function PersonDetailTabs({
   researchEntries = [],
   stagingWorkHistory = [],
   careerTimeline = [],
+  careerStats = {
+    claimed: { photosets: null, videos: null, covers: null },
+    promoted: { photos: 0, videos: 0, covers: 0 },
+    staged: { photos: 0, videos: 0, covers: 0 },
+  },
   careerFacetCounts = { channel: {}, rating: {}, era: {}, archiveStatus: {} },
   careerChannels = [],
   careerEras = [],
@@ -2177,6 +2183,7 @@ export function PersonDetailTabs({
           <CareerTab
             person={person}
             careerTimeline={careerTimeline}
+            careerStats={careerStats}
             facetCounts={careerFacetCounts}
             channels={careerChannels}
             eras={careerEras}

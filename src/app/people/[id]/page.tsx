@@ -26,6 +26,7 @@ import { getEntityTags } from "@/lib/services/entity-tag-service";
 import { getPersonEraContributions } from "@/lib/services/era-service";
 import {
   getCareerTimeline,
+  getCareerStats,
   getCareerFacetCounts,
   getCareerChannelsForPerson,
   getCareerErasForPerson,
@@ -108,7 +109,7 @@ export default async function PersonDetailPage({ params, searchParams }: PersonD
   // Ensure system entity categories exist before loading category data
   await ensureEntityCategories();
 
-  const [person, workHistory, connections, profileLabels, refSession, headshots, categoryGroups, populatedCounts, skillGroups, skillLevelConfigs, aliasesWithChannels, sessionWorkHistory, productionSessions, entityMediaMap, physicalAttributeGroups, personEntityTags, digitalIdentities, researchEntries, stagingWorkHistory, eraContributionsMap, careerTimeline, careerFacetCounts, careerChannels, careerEras] =
+  const [person, workHistory, connections, profileLabels, refSession, headshots, categoryGroups, populatedCounts, skillGroups, skillLevelConfigs, aliasesWithChannels, sessionWorkHistory, productionSessions, entityMediaMap, physicalAttributeGroups, personEntityTags, digitalIdentities, researchEntries, stagingWorkHistory, eraContributionsMap, careerTimeline, careerStats, careerFacetCounts, careerChannels, careerEras] =
     await Promise.all([
       getPersonWithDetails(id),
       getPersonWorkHistory(id),
@@ -131,6 +132,7 @@ export default async function PersonDetailPage({ params, searchParams }: PersonD
       getStagingWorkHistoryForPerson(id),
       getPersonEraContributions(id),
       getCareerTimeline(id, careerFilters),
+      getCareerStats(id),
       getCareerFacetCounts(id, careerFilters),
       getCareerChannelsForPerson(id),
       getCareerErasForPerson(id),
@@ -283,6 +285,7 @@ export default async function PersonDetailPage({ params, searchParams }: PersonD
         researchEntries={researchEntries}
         stagingWorkHistory={stagingWorkHistory}
         careerTimeline={careerTimeline}
+        careerStats={careerStats}
         careerFacetCounts={careerFacetCounts}
         careerChannels={careerChannels}
         careerEras={careerEras}

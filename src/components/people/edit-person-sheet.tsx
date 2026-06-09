@@ -110,6 +110,8 @@ export function EditPersonSheet({ person }: EditPersonSheetProps) {
     specialization: person.specialization ?? "",
     rating: person.rating ?? undefined,
     pgrade: person.pgrade ?? undefined,
+    claimedPhotosets: person.claimedPhotosets ?? undefined,
+    claimedVideos: person.claimedVideos ?? undefined,
   });
 
   const form = useForm<UpdatePersonFormValues, unknown, UpdatePersonInput>({
@@ -232,6 +234,52 @@ export function EditPersonSheet({ person }: EditPersonSheetProps) {
                           <FormLabel>Specialization</FormLabel>
                           <FormControl>
                             <Input placeholder="e.g. Glamour" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="claimedPhotosets"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Claimed photosets</FormLabel>
+                          <FormControl>
+                            <Input
+                              type="number"
+                              min={0}
+                              placeholder="from bio"
+                              {...field}
+                              value={(field.value as number | undefined) ?? ""}
+                              onChange={(e) =>
+                                field.onChange(e.target.value === "" ? undefined : e.target.value)
+                              }
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="claimedVideos"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Claimed videos</FormLabel>
+                          <FormControl>
+                            <Input
+                              type="number"
+                              min={0}
+                              placeholder="from bio"
+                              {...field}
+                              value={(field.value as number | undefined) ?? ""}
+                              onChange={(e) =>
+                                field.onChange(e.target.value === "" ? undefined : e.target.value)
+                              }
+                            />
                           </FormControl>
                           <FormMessage />
                         </FormItem>

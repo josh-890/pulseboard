@@ -289,6 +289,13 @@ model Person {
   notes               String?
   bio                 String?
   tags                String[]
+  // Claimed catalogue size from the imported biography ("… Y photosets, Z videos").
+  // Covers (= photosets + videos) is always derived, never stored. The Career-tab
+  // stats strip compares these to promoted + staged counts. claimedStatsUserSet is
+  // flipped true by a manual edit so later re-imports stop overwriting the values.
+  claimedPhotosets    Int?
+  claimedVideos       Int?
+  claimedStatsUserSet Boolean       @default(false)
   // Per-person pinned attribute slugs (Phase G Slice 2). PhysicalAttributeDefinition
   // slugs the user wants always-visible on the Appearance grid even with no delta.
   // Augments the system-default pinned set in `lib/constants/appearance`.

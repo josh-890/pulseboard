@@ -219,6 +219,23 @@ Only photos from the person's reference session can be embedded — external URL
 - Click to expand and view a gallery for that category
 
 **Career**
+- **Catalogue stats strip** (top of the tab) — a gap/completeness view
+  comparing what the biography *claims* against what you actually hold.
+  Three rows — Photosets · Videos · Covers (covers = photosets + videos,
+  always derived) — each showing **Have / Claimed** (with the
+  promoted + staged breakdown, e.g. `35/50 (30+5)`), a completeness bar
+  (solid = promoted, lighter = staged), the completeness %, and the
+  **Missing** count. The bar caps at 100% and flags any overage (`+2`);
+  when there's no claimed figure the bar is hidden and only the raw
+  counts show. The Photos / Videos type tabs also carry a `have/claimed`
+  badge.
+  - *Claimed* figures are auto-parsed from the imported biography line
+    ("… Y photosets, Z videos") into editable fields on the person
+    (Edit ▸ Claimed photosets / Claimed videos). Once you edit them by
+    hand they're protected — a later re-import won't overwrite your
+    values. *Staged* counts only active-pipeline staging sets
+    (PENDING/REVIEWING/APPROVED) that aren't already matched to an
+    existing Set, so promoted + staged never double-counts a shoot.
 - Unified chronological timeline that blends Promoted Sets and Staged
   StagingSets per the type tab (Photos / Videos — defaults to Photos,
   remembered per person)
