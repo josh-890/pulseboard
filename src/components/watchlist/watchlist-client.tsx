@@ -267,23 +267,6 @@ export function WatchlistClient({ entries }: { entries: WatchlistEntry[] }) {
                       : "no scannable pages"}
                 </span>
 
-                {/* Quick-check links */}
-                <div className="flex shrink-0 items-center gap-1">
-                  {e.links.map((l, i) => (
-                    <a
-                      key={`${l.platform}-${i}`}
-                      href={l.url}
-                      target="_blank"
-                      rel="noreferrer"
-                      title={l.platform}
-                      className="inline-flex items-center gap-1 rounded-md border border-border/50 bg-muted/40 px-1.5 py-0.5 text-[10px] text-muted-foreground transition-colors hover:border-primary/40 hover:text-primary"
-                    >
-                      {l.platform}
-                      <ExternalLink size={9} />
-                    </a>
-                  ))}
-                </div>
-
                 {/* Actions */}
                 <div className="flex shrink-0 items-center gap-1.5">
                   <button

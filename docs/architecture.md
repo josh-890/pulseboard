@@ -47,7 +47,7 @@ Media path:
 |-------|----------------|----------------|
 | `/` | `getDashboardStats()`, `getRecentActivities()` | `KpiGrid`, `DashboardActivity`, `QuickActions` |
 | `/people` | `getPersonsPaginated()`, `getHeadshotsForPersons()`, `getDistinct*()` | `PersonList`, `BrowserToolbar`, `AddPersonSheet`. `StatusFilter` carries a `watching=true` toggle (orthogonal to `status`) → `PersonFilters.watching` |
-| `/watchlist` | `getWatchlist()` | `WatchlistClient` — watched persons (needs-rescan → worst-due → priority → oldest-scan sort) with the claimed−recorded gap, due/overdue badges, needs-rescan flag, per-page scan selection, quick links, Mark-checked (`markPersonChecked`), and a sticky **Generate scan files** bar → `POST /api/scan-round/export` |
+| `/watchlist` | `getWatchlist()` | `WatchlistClient` — watched persons (needs-rescan → worst-due → priority → oldest-scan sort) with the claimed−recorded gap, due/overdue badges, needs-rescan flag, per-page scan selection (expand row), Mark-checked (`markPersonChecked`), and a sticky **Generate scan files** bar → `POST /api/scan-round/export` |
 | `/settings/scanning` | `getAllScrapeSources()`, `getScanCadenceDays()` | `ScanSettingsClient` — scrape-source registry editor (scannable, fileName, lineFormat, domains) + per-priority scan cadence |
 | `/sets` | `getSetsPaginated()`, `getCoverPhotosForSets()`, `getHeadshotsForPersons()`, `getSuggestedFoldersForSets()`, `getChannelsWithLabelMaps()` | `SetGrid`, `SetCard`, `BrowserToolbar`, `AddSetSheet` |
 | `/sessions` | `getSessionsPaginated()`, `getCoverPhotosForSessions()` | `SessionList`, `SessionCard`, `AddSessionSheet` |

@@ -235,8 +235,6 @@ export type WatchlistEntry = {
   checkedAt: Date | null;
   /** Derived: newest promoted Set credited to this person (when a set last "landed"). */
   lastSetAddedAt: Date | null;
-  /** Active digital identities with a URL — quick-check links. */
-  links: { platform: string; url: string }[];
   claimed: { photosets: number | null; videos: number | null };
   recorded: { photos: number; videos: number };
   /** Known-missing = claimed − recorded; null per metric when no claimed figure. */
@@ -413,9 +411,6 @@ export async function getWatchlist(): Promise<WatchlistEntry[]> {
       sourceUrl: p.watchSourceUrl,
       checkedAt: p.watchCheckedAt,
       lastSetAddedAt: lastSetByPerson.get(p.id) ?? null,
-      links: p.digitalIdentities
-        .filter((d): d is (typeof d) & { url: string } => !!d.url)
-        .map((d) => ({ platform: d.platform, url: d.url })),
       claimed: { photosets: s.claimed.photosets, videos: s.claimed.videos },
       recorded: { photos: recPhotos, videos: recVideos },
       missing: { photos: missPhotos, videos: missVideos, total },

@@ -107,8 +107,7 @@ status — a watched person is usually still Active.
   - **Missing** = Claimed − Recorded (from the Career-tab catalogue gap) — e.g. "missing 12p · 3v" — so you see who actually has new sets to chase. "complete" / "no claim" when there's nothing outstanding or no claimed figure.
   - **Due / Overdue badge** — the worst freshness across the person's scannable pages, against their priority cadence (set in **Settings → Scanning**).
   - **Rescan flag** — an archive-born set (one you created manually from the Archive) is newer than the person's last source scan, i.e. there are releases the scrapers haven't caught.
-  - **Quick-check links** — the person's Digital Identities, opening in a new tab.
-  - **Mark checked** and an **Import** jump.
+  - **Mark checked** and an **Import** jump. (To open a person's profile pages, use the **Digital Identities** on their detail page, or expand the row to reach their scannable pages.)
 
 #### Building a scan round
 
