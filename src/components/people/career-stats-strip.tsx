@@ -77,11 +77,12 @@ export function CareerStatsStrip({ stats }: CareerStatsStripProps) {
 
       {open && (
         <div className="border-t border-white/10 px-3 py-2">
-          <div className="grid w-fit grid-cols-[auto_repeat(4,3.5rem)] gap-x-6 gap-y-1">
+          <div className="grid w-fit grid-cols-[auto_repeat(5,3.5rem)] gap-x-5 gap-y-1">
             <span />
             <HeaderCell>Claimed</HeaderCell>
             <HeaderCell>Promoted</HeaderCell>
             <HeaderCell>Staged</HeaderCell>
+            <HeaderCell>Recorded</HeaderCell>
             <HeaderCell>Missing</HeaderCell>
             {rows.map((r) => (
               <StatRow key={r.key} row={r} total={r.key === "covers"} />
@@ -124,6 +125,7 @@ function StatRow({ row, total }: { row: MetricRow; total: boolean }) {
       </span>
       <span className={cn(cell, border)}>{row.promoted}</span>
       <span className={cn(cell, border)}>{row.staged}</span>
+      <span className={cn(cell, border, "font-semibold text-foreground")}>{have}</span>
       <span
         className={cn(
           cell,
