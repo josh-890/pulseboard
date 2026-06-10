@@ -109,6 +109,20 @@ Person ──┬── PersonAlias ──< PersonAliasChannel >── Channel
 (`eraId`). The fold walks all deltas/events for a person, sorted by their own
 date, with the Era providing only its anchor date as fallback.
 
+### Watchlist scan workflow (ADR-0012)
+
+`PersonDigitalIdentity` carries two scan columns: `scannedThroughAt` (the scrape
+date of the newest import landed from that page — monotonic, null = never) and
+`excludeFromScan` (drop a dead page from scan rounds without deleting it).
+
+`ScrapeSource` is the platform registry (subsumes the legacy `DOMAIN_TO_PLATFORM`
+map): `key` (unique), `displayName`, `domains[]` (URL → platform resolution),
+`isScannable` (appears in scan rounds + stamps scan dates), `fileName` (per-platform
+scan file), and `lineFormat` (`URL_ONLY` vs `ICGID_URL`). Per-priority scan
+cadence lives in the key/value `Setting` store (`scan-cadence-{HIGH|NORMAL|LOW}`).
+The **needs-rescan** signal is derived (not stored): an archive-born `StagingSet`
+(`importBatchId IS NULL`) newer than the person's newest `scannedThroughAt`.
+
 ---
 
 ## Media layer

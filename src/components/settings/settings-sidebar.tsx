@@ -2,12 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Paintbrush, LayoutGrid, HardDrive, TriangleAlert } from "lucide-react";
+import { Paintbrush, LayoutGrid, HardDrive, TriangleAlert, Radar } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const NAV_ITEMS = [
   { href: "/settings/appearance", label: "Appearance", icon: Paintbrush },
   { href: "/settings/catalogs", label: "Catalogs", icon: LayoutGrid },
+  { href: "/settings/scanning", label: "Scanning", icon: Radar },
   { href: "/settings/storage", label: "Storage", icon: HardDrive },
   { href: "/settings/system", label: "System", icon: TriangleAlert, danger: true },
 ];

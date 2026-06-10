@@ -72,6 +72,23 @@ The result of the Fold as of *now* — a Person's present hair color, weight, ac
 **Era-linked participation**:
 A person's participation in a shoot (`SessionContribution`) optionally references the **Era** the person was in at that time. This anchors their *appearance at the shoot* — the Fold computed `asOf` that Era — and lets an Era list the sessions and sets that occurred during it.
 
+### Watchlist scan workflow (added 2026-06-10)
+
+**Scrape source** (code model & DB table: `ScrapeSource`):
+An external platform whose profile pages can be scraped into import files. The registry records which platforms are **scannable** (have a scraper) and how their URL file is shaped. A reference-only link (IAFD, Boobpedia) is *not* a scrape source's scannable target. Subsumes the legacy hardcoded domain→platform map.
+
+**Scannable identity page**:
+A `PersonDigitalIdentity` whose platform is a scannable scrape source and which isn't individually excluded (`excludeFromScan`). These are the units a scan round selects.
+
+**Scanned-through date** (`PersonDigitalIdentity.scannedThroughAt`):
+Per identity page. The scrape date (`ImportBatch.extractionDate`) of the newest import landed from that page — the page's content is known-current up to here. Advances monotonically forward; `null` = never scanned.
+
+**Scan round**:
+An ephemeral selection of scannable identity pages, exported as one URL file per platform for the external scrapers. **Not persisted** — the import is the sole source of truth for what has been scanned.
+
+**Needs rescan**:
+A derived per-person signal: an archive-born set (a `StagingSet` with no import batch, created manually from the Archive) has a release date newer than the person's newest scanned-through date — evidence of releases not yet pulled from the source pages.
+
 ## Flagged ambiguities
 
 - **"Persona"** — In the wider domain a "persona" usually means a stage identity / working name. In Pulseboard it does **not**: stage names are **Aliases** (`PersonAlias`). The concept is an **Era** — a phase on the Person's development timeline. The legacy `Persona` Prisma model + DB table were renamed to `Era` in May 2026 — no Persona references remain in current code or docs. If you find one, it's either inside `prisma/migrations/` (historical) or it's drift worth fixing.

@@ -37,7 +37,6 @@ import { PersonDetailTabs } from "@/components/people/person-detail-tabs";
 import { computePlausibilityIssues } from "@/lib/services/plausibility-service";
 import { EditPersonSheet } from "@/components/people/edit-person-sheet";
 import { PersonActionsMenu } from "@/components/people/person-actions-menu";
-import { WatchToggle } from "@/components/people/watch-toggle";
 import { deletePerson } from "@/lib/actions/person-actions";
 
 export const dynamic = "force-dynamic";
@@ -253,7 +252,6 @@ export default async function PersonDetailPage({ params, searchParams }: PersonD
           </Suspense>
         </div>
         <div className="flex items-center justify-end gap-2">
-          <WatchToggle personId={id} watching={person.watching} />
           <EditPersonSheet person={person} />
           <PersonActionsMenu personId={id} onDelete={deletePerson.bind(null, id)} redirectTo="/people" />
         </div>

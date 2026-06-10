@@ -65,6 +65,7 @@ import { PersonResearchTab } from "@/components/people/person-research-tab";
 import type { PersonResearchItem } from "@/lib/services/research-service";
 import { CareerTab } from "@/components/people/career-tab";
 import { ProductionPhotoList } from "@/components/people/production-photo-list";
+import { WatchToggle } from "@/components/people/watch-toggle";
 import type { SkillGroupWithDefinitions } from "@/lib/services/skill-catalog-service";
 import type { PersonAliasWithChannels } from "@/lib/services/alias-service";
 import type { GalleryItem } from "@/lib/types";
@@ -829,7 +830,14 @@ function IdentityBlock({ person, displayName, age, heroAliases, onAliasesBadgeCl
 
   const topSection = (
     <>
-      <h1 className={cn("font-bold leading-tight", nameSize)}>{displayName}</h1>
+      <div className="flex items-start gap-1.5">
+        <h1 className={cn("font-bold leading-tight", nameSize)}>{displayName}</h1>
+        <WatchToggle
+          variant="icon"
+          personId={person.id}
+          watching={person.watching}
+        />
+      </div>
       {displayName !== person.icgId && (
         <div className="mt-0.5 flex items-center gap-2">
           <p className="font-mono text-sm text-muted-foreground">{person.icgId}</p>

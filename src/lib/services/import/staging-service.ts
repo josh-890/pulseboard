@@ -21,6 +21,7 @@ import { normalizeForSearch } from '@/lib/services/alias-service'
 import { runMatchingForPerson } from './cover-basket-service'
 import { buildImportItemDecisions } from './build-decisions'
 import { isEmptyDiff, type ImportItemDecisions } from './diff'
+import { resolvePlatformFromUrl } from '@/lib/services/scrape-source-service'
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -38,37 +39,6 @@ export type ImportBatchSummary = {
   createdAt: Date
   itemCounts: Record<ImportItemStatus, number>
   totalItems: number
-}
-
-// ─── Helpers ────────────────────────────────────────────────────────────────
-
-/** Extract a human-readable platform name from a URL domain. */
-const DOMAIN_TO_PLATFORM: Record<string, string> = {
-  'thenude.com': 'THENUDE',
-  'indexxx.com': 'Indexxx',
-  'freeones.com': 'FreeOnes',
-  'babepedia.com': 'Babepedia',
-  'iafd.com': 'IAFD',
-  'boobpedia.com': 'Boobpedia',
-  'egafd.com': 'EGAFD',
-}
-
-function detectPlatformFromUrl(url: string): string {
-  try {
-    const hostname = new URL(url).hostname.replace(/^www\./, '')
-    for (const [domain, platform] of Object.entries(DOMAIN_TO_PLATFORM)) {
-      if (hostname === domain || hostname.endsWith(`.${domain}`)) return platform
-    }
-    // Fallback: capitalize the domain name without TLD
-    const parts = hostname.split('.')
-    if (parts.length >= 2) {
-      const name = parts[parts.length - 2]
-      return name.charAt(0).toUpperCase() + name.slice(1)
-    }
-  } catch {
-    // Invalid URL
-  }
-  return 'Source'
 }
 
 // ─── Create Batch ───────────────────────────────────────────────────────────
@@ -199,7 +169,7 @@ export async function createBatch(
   // ── Digital Identities (tier 3, depend on person) ─────────────────────
   // Add source URL as first identity — detect platform from domain
   if (parsed.person.sourceUrl) {
-    const platform = detectPlatformFromUrl(parsed.person.sourceUrl)
+    const platform = await resolvePlatformFromUrl(parsed.person.sourceUrl)
     items.push({
       type: 'DIGITAL_IDENTITY',
       data: {

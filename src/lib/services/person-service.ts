@@ -1,5 +1,11 @@
 import { prisma } from "@/lib/db";
 import { getCareerStats } from "@/lib/services/career-service";
+import {
+  getScanCadenceDays,
+  pageDueLevel,
+  type DueLevel,
+} from "@/lib/services/scan-service";
+import { getAllScrapeSources } from "@/lib/services/scrape-source-service";
 import type { WatchPriority } from "@/generated/prisma/client";
 import type {
   PersonWithCommonAlias,
@@ -235,9 +241,30 @@ export type WatchlistEntry = {
   recorded: { photos: number; videos: number };
   /** Known-missing = claimed − recorded; null per metric when no claimed figure. */
   missing: { photos: number | null; videos: number | null; total: number | null };
+  /** Identity pages on a scannable source (not excluded) — the scan-round units. */
+  scannablePages: WatchlistPage[];
+  newestScannedThroughAt: Date | null;
+  oldestScannedThroughAt: Date | null;
+  /** Any scannable page is due or overdue against the priority cadence. */
+  due: boolean;
+  /** An archive-born set is newer than the newest source scan → rescan signal. */
+  needsRescan: boolean;
+  /** Release date of the newest archive-born set that triggers the rescan flag. */
+  rescanSetDate: Date | null;
+};
+
+export type WatchlistPage = {
+  id: string;
+  platform: string;
+  url: string;
+  scannedThroughAt: Date | null;
+  excludeFromScan: boolean;
+  dueLevel: DueLevel;
+  ageDays: number | null;
 };
 
 const WATCH_PRIORITY_ORDER: Record<WatchPriority, number> = { HIGH: 0, NORMAL: 1, LOW: 2 };
+const DUE_RANK: Record<DueLevel, number> = { fresh: 0, due: 1, overdue: 2 };
 
 /**
  * Watched persons for the /watchlist view. Each row carries the watch metadata,
@@ -259,11 +286,46 @@ export async function getWatchlist(): Promise<WatchlistEntry[]> {
       aliases: { where: { isCommon: true }, select: { name: true }, take: 1 },
       digitalIdentities: {
         where: { status: "active", url: { not: null } },
-        select: { platform: true, url: true },
+        select: {
+          id: true,
+          platform: true,
+          url: true,
+          scannedThroughAt: true,
+          excludeFromScan: true,
+        },
       },
     },
   });
   if (persons.length === 0) return [];
+
+  const now = new Date();
+  const [cadence, scrapeSources] = await Promise.all([
+    getScanCadenceDays(),
+    getAllScrapeSources(),
+  ]);
+
+  // Rescan signal: archive-born staging sets (no import batch, not discarded)
+  // whose releaseDate could postdate a watched person's newest source scan.
+  // One batched query over the watched ICG-ID set; compared per person below.
+  const watchedIcgIds = persons.map((p) => p.icgId);
+  const archiveSets = await prisma.stagingSet.findMany({
+    where: {
+      importBatchId: null,
+      status: { notIn: ["SKIPPED", "INACTIVE"] },
+      releaseDate: { not: null },
+      participantIcgIds: { hasSome: watchedIcgIds },
+    },
+    select: { releaseDate: true, participantIcgIds: true },
+  });
+  // icgId -> newest archive-born release date
+  const newestArchiveByIcg = new Map<string, Date>();
+  for (const s of archiveSets) {
+    if (!s.releaseDate) continue;
+    for (const icg of s.participantIcgIds) {
+      const cur = newestArchiveByIcg.get(icg);
+      if (!cur || s.releaseDate > cur) newestArchiveByIcg.set(icg, s.releaseDate);
+    }
+  }
 
   // Derived "last set landed": newest promoted Set credited to each person.
   // One batched query (bounded by the watched set), reduced in JS.
@@ -303,6 +365,45 @@ export async function getWatchlist(): Promise<WatchlistEntry[]> {
       s.claimed.videos === null ? null : Math.max(0, s.claimed.videos - recVideos);
     const total =
       missPhotos === null && missVideos === null ? null : (missPhotos ?? 0) + (missVideos ?? 0);
+
+    // Scannable pages = active url'd identities on a scannable source, not excluded.
+    const cadenceDays = cadence[p.watchPriority];
+    const scannablePages: WatchlistPage[] = [];
+    for (const d of p.digitalIdentities) {
+      if (!d.url || d.excludeFromScan) continue;
+      const source = scrapeSources.find((src) =>
+        srcMatchesUrl(src.domains, d.url as string),
+      );
+      if (!source || !source.isScannable) continue;
+      const { level, ageDays } = pageDueLevel(d.scannedThroughAt, cadenceDays, now);
+      scannablePages.push({
+        id: d.id,
+        platform: source.key,
+        url: d.url,
+        scannedThroughAt: d.scannedThroughAt,
+        excludeFromScan: d.excludeFromScan,
+        dueLevel: level,
+        ageDays,
+      });
+    }
+    const scanDates = scannablePages
+      .map((pg) => pg.scannedThroughAt)
+      .filter((x): x is Date => x !== null);
+    const newestScan =
+      scanDates.length > 0
+        ? new Date(Math.max(...scanDates.map((x) => x.getTime())))
+        : null;
+    const oldestScan =
+      scanDates.length > 0
+        ? new Date(Math.min(...scanDates.map((x) => x.getTime())))
+        : null;
+
+    // Rescan: an archive-born set newer than the newest source scan (or any such
+    // set when we've never scanned a scannable page).
+    const newestArchive = newestArchiveByIcg.get(p.icgId) ?? null;
+    const needsRescan =
+      newestArchive !== null && (newestScan === null || newestArchive > newestScan);
+
     return {
       id: p.id,
       icgId: p.icgId,
@@ -313,24 +414,51 @@ export async function getWatchlist(): Promise<WatchlistEntry[]> {
       checkedAt: p.watchCheckedAt,
       lastSetAddedAt: lastSetByPerson.get(p.id) ?? null,
       links: p.digitalIdentities
-        .filter((d): d is { platform: string; url: string } => !!d.url)
+        .filter((d): d is (typeof d) & { url: string } => !!d.url)
         .map((d) => ({ platform: d.platform, url: d.url })),
       claimed: { photosets: s.claimed.photosets, videos: s.claimed.videos },
       recorded: { photos: recPhotos, videos: recVideos },
       missing: { photos: missPhotos, videos: missVideos, total },
+      scannablePages,
+      newestScannedThroughAt: newestScan,
+      oldestScannedThroughAt: oldestScan,
+      due: scannablePages.some((pg) => pg.dueLevel !== "fresh"),
+      needsRescan,
+      rescanSetDate: needsRescan ? newestArchive : null,
     };
   });
 
-  // Priority (HIGH→LOW), then stalest manual check first (null = never = top).
+  // Needs-rescan first, then worst due level, then priority (HIGH→LOW), then
+  // oldest source scan first (null = never scanned = top).
   entries.sort((a, b) => {
+    if (a.needsRescan !== b.needsRescan) return a.needsRescan ? -1 : 1;
+    const dl = maxDueRank(b.scannablePages) - maxDueRank(a.scannablePages);
+    if (dl !== 0) return dl;
     const pr = WATCH_PRIORITY_ORDER[a.priority] - WATCH_PRIORITY_ORDER[b.priority];
     if (pr !== 0) return pr;
-    const at = a.checkedAt?.getTime() ?? -Infinity;
-    const bt = b.checkedAt?.getTime() ?? -Infinity;
+    const at = a.oldestScannedThroughAt?.getTime() ?? -Infinity;
+    const bt = b.oldestScannedThroughAt?.getTime() ?? -Infinity;
     return at - bt;
   });
 
   return entries;
+}
+
+/** Does any of a source's domains match a URL's host (suffix-aware)? */
+function srcMatchesUrl(domains: string[], url: string): boolean {
+  let host: string;
+  try {
+    host = new URL(url).hostname.replace(/^www\./, "");
+  } catch {
+    return false;
+  }
+  return domains.some((d) => host === d || host.endsWith(`.${d}`));
+}
+
+function maxDueRank(pages: WatchlistPage[]): number {
+  let max = -1;
+  for (const pg of pages) max = Math.max(max, DUE_RANK[pg.dueLevel]);
+  return max;
 }
 
 export async function getPersonWithDetails(id: string) {

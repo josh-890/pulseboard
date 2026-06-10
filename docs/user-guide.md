@@ -96,16 +96,40 @@ When grouping is active, up to 500 persons are loaded at once. Each section head
 Mark people you need to **actively monitor for new sets to import**. This is independent of
 status — a watched person is usually still Active.
 
-- **Add/remove:** the **Watch** toggle on the person detail header (also editable in the
-  Edit sheet, which adds **priority** High/Normal/Low, a **source URL**, and a **note**).
+- **Add/remove:** the compact **eye toggle** next to the person's name on their detail page
+  (also editable in the Edit sheet, which adds **priority** High/Normal/Low, a **source URL**,
+  and a **note**).
 - **Markers:** watched people show an eye marker on their card and surface under the
   **Watching** filter on `/people`.
-- **The Watchlist page** (sidebar → **Watchlist**) lists everyone you watch, sorted by
-  priority then *stalest first* (least-recently-checked at the top). Each row shows:
+- **The Watchlist page** (sidebar → **Watchlist**) lists everyone you watch, sorted with
+  **needs-rescan** first, then by how overdue their pages are, then priority, then oldest
+  scan. Each row shows:
   - **Missing** = Claimed − Recorded (from the Career-tab catalogue gap) — e.g. "missing 12p · 3v" — so you see who actually has new sets to chase. "complete" / "no claim" when there's nothing outstanding or no claimed figure.
-  - **Quick-check links** — the person's Digital Identities plus the freeform watch source URL, opening in a new tab.
-  - **Checked / last set** — when you last marked them checked, and when a set for them last landed (derived from set creation).
-  - **Mark checked** (bumps the timestamp and re-sorts) and an **Import** jump.
+  - **Due / Overdue badge** — the worst freshness across the person's scannable pages, against their priority cadence (set in **Settings → Scanning**).
+  - **Rescan flag** — an archive-born set (one you created manually from the Archive) is newer than the person's last source scan, i.e. there are releases the scrapers haven't caught.
+  - **Quick-check links** — the person's Digital Identities, opening in a new tab.
+  - **Mark checked** and an **Import** jump.
+
+#### Building a scan round
+
+The active loop for pulling new releases:
+
+1. On `/watchlist`, tick the people you want to scan (this selects all their scannable
+   identity pages); expand a row to fine-tune which pages. **Due** and **overdue** pages
+   are pre-checked.
+2. The sticky bar shows *N people · M pages · K platforms*. Hit **Generate scan files** to
+   download a `.zip` with **one `.txt` per platform** (e.g. `thenude.txt`, `indexxx.txt`).
+   THENUDE files are bare URLs; other platforms are `ICG-ID⇥URL` per line so their scrapes
+   stay attributable.
+3. Feed each file into that platform's external scraper script; it produces import `.txt`
+   files.
+4. **Import** the results (sidebar → Import). Importing a file advances that page's
+   *scanned-through* date to the scrape date — so the person's scannable pages go fresh and
+   drop out of "due".
+
+Because a scrape pulls everything up to its run date, no imported staged set is ever newer
+than the scan. A newer set only appears via the **Archive** workflow (a manually created
+staged set) — which is exactly what raises the **rescan** flag.
 
 ### Create Person
 

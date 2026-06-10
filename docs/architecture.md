@@ -47,7 +47,8 @@ Media path:
 |-------|----------------|----------------|
 | `/` | `getDashboardStats()`, `getRecentActivities()` | `KpiGrid`, `DashboardActivity`, `QuickActions` |
 | `/people` | `getPersonsPaginated()`, `getHeadshotsForPersons()`, `getDistinct*()` | `PersonList`, `BrowserToolbar`, `AddPersonSheet`. `StatusFilter` carries a `watching=true` toggle (orthogonal to `status`) → `PersonFilters.watching` |
-| `/watchlist` | `getWatchlist()` | `WatchlistClient` — watched persons (priority→stalest sort) with the claimed−recorded gap, digital-identity + watch-source quick links, Mark-checked (`markPersonChecked`), Import jump |
+| `/watchlist` | `getWatchlist()` | `WatchlistClient` — watched persons (needs-rescan → worst-due → priority → oldest-scan sort) with the claimed−recorded gap, due/overdue badges, needs-rescan flag, per-page scan selection, quick links, Mark-checked (`markPersonChecked`), and a sticky **Generate scan files** bar → `POST /api/scan-round/export` |
+| `/settings/scanning` | `getAllScrapeSources()`, `getScanCadenceDays()` | `ScanSettingsClient` — scrape-source registry editor (scannable, fileName, lineFormat, domains) + per-priority scan cadence |
 | `/sets` | `getSetsPaginated()`, `getCoverPhotosForSets()`, `getHeadshotsForPersons()`, `getSuggestedFoldersForSets()`, `getChannelsWithLabelMaps()` | `SetGrid`, `SetCard`, `BrowserToolbar`, `AddSetSheet` |
 | `/sessions` | `getSessionsPaginated()`, `getCoverPhotosForSessions()` | `SessionList`, `SessionCard`, `AddSessionSheet` |
 | `/projects` | `getProjectsPaginated()` | `ProjectList`, `ProjectCard`, `AddProjectSheet` |
@@ -130,6 +131,12 @@ All services in `src/lib/services/`. All functions are async, return Promises. S
 
 `/api/media/search` returns `previewUrl` + `zoomUrl` + focal (alongside `thumbUrl`) so the search-backed pickers can drive the loupe + zoom.
 
+### Watchlist Scan Services
+
+**`scrape-source-service.ts`** — The `ScrapeSource` registry (subsumes the legacy hardcoded `DOMAIN_TO_PLATFORM`). `getAllScrapeSources`, `getScannableSources`, `resolvePlatformFromUrl`/`resolveSourceFromUrl` (URL → platform via `domains`, capitalize-domain fallback), and CRUD. `staging-service` resolves the import source URL's platform through this.
+
+**`scan-service.ts`** — Scan cadence + per-platform file building. `getScanCadenceDays`/`setScanCadenceDays` (per-priority intervals in `Setting`), `pageDueLevel` (fresh/due/overdue vs cadence; consumed by `getWatchlist`), and `buildScanFiles(identityIds)` → per-platform `{ fileName, content }` deduped, line-formatted per source (`URL_ONLY` bare, `ICGID_URL` = `icgId\turl`). Stamping of `PersonDigitalIdentity.scannedThroughAt` happens at import time in `import-executor.ts#importDigitalIdentity` (primary source page = DI whose handle is the subject ICG-ID; `extractionDate`, monotonic). See ADR-0012.
+
 ### Import Pipeline Services
 
 All import services in `src/lib/services/import/`.
@@ -188,6 +195,7 @@ All actions in `src/lib/actions/`. Each validates input with Zod, calls services
 | File | Key Actions |
 |------|------------|
 | `person-actions.ts` | `createPerson`, `updatePerson`, `deletePerson`, `updatePersonBio`, `togglePersonWatch`, `markPersonChecked` |
+| `scan-actions.ts` | `createScrapeSourceAction`, `updateScrapeSourceAction`, `deleteScrapeSourceAction`, `updateScanCadenceAction` |
 | `set-actions.ts` | `createSet`, `updateSet`, `deleteSet`, `addExistingMediaToSetAction`, `reassignSetSessionAction` |
 | `session-actions.ts` | `createSession`, `updateSession`, `deleteSession`, `mergeSessionsAction` |
 | `media-actions.ts` | `assignHeadshotSlot`, `updatePersonMediaLinkAction`, `batchSetUsageAction`, `deleteMediaItemsAction`, `setFocalPointAction`, `resetFocalPointAction`, `reorderPersonMediaAction`, `setPersonMediaFavoriteAction`, `setEntityMediaCoverAction` (body-feature cover, entity-scoped), `clearSlotAction` |
@@ -231,6 +239,7 @@ All actions in `src/lib/actions/`. Each validates input with Zod, calls services
 | `/api/import/[batchId]/refresh` | POST | Force re-run matching for all items |
 | `/api/import/[batchId]/items/[itemId]` | PATCH | Update item status or edited data |
 | `/api/import/[batchId]/items/[itemId]/import` | POST | Execute import for single item |
+| `/api/scan-round/export` | POST | `{ identityIds }` → zip of per-platform scan files (`buildScanFiles`); 400 empty, 404 no scannable URLs |
 | `/api/staging-sets` | GET | Filtered staging set list; augments each item with `suggestedArchiveFolder` via batch call to `getSuggestedFoldersForStagingSets` |
 | `/api/staging-sets/stats` | GET | Staging set counts by status + match type |
 | `/api/staging-sets/[id]` | GET, PATCH | Get/update staging set (fields, status, priority, notes) |

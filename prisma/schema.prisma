@@ -22,6 +22,15 @@ enum WatchPriority {
   LOW
 }
 
+// How a scrape source's URL list is formatted for its external scraper script.
+// URL_ONLY = bare URL per line (scraper derives the ICG-ID from the page itself,
+// e.g. THENUDE). ICGID_URL = "{icgId}\t{url}" per line, so platforms that can't
+// self-identify the person still produce ICG-ID-attributable import files.
+enum ScrapeLineFormat {
+  URL_ONLY
+  ICGID_URL
+}
+
 enum AliasSource {
   MANUAL
   IMPORT
@@ -478,11 +487,19 @@ model PersonDigitalIdentity {
   handle   String?
   url      String?
   status   DigitalIdentityStatus @default(active)
+  // Watchlist scan workflow: when an import landed from this page, content is
+  // current through here (= the file's extractionDate, advanced monotonically).
+  // null = never scanned. excludeFromScan drops a dead/irrelevant page from
+  // scan rounds without removing the identity. Scannability is otherwise a
+  // property of the page's platform via the ScrapeSource registry.
+  scannedThroughAt DateTime?
+  excludeFromScan  Boolean   @default(false)
 
   events DigitalIdentityEvent[]
 
   @@index([personId])
   @@index([eraId])
+  @@index([scannedThroughAt])
 }
 
 // Event log for digital-identity lifecycle changes (ADR-0002). Replaces the
@@ -506,6 +523,28 @@ model DigitalIdentityEvent {
   @@index([digitalIdentityId])
   @@index([eraId])
   @@index([date])
+}
+
+// Scrape-source registry — the canonical list of external platforms, which of
+// them are scrapeable into import files (`isScannable`), how to group a page's
+// URL into the per-platform scan file (`fileName`), and the line format that
+// platform's scraper expects (`lineFormat`). Subsumes the old hardcoded
+// DOMAIN_TO_PLATFORM map: `domains` resolves a profile URL to its platform key.
+model ScrapeSource {
+  id          String           @id @default(cuid())
+  key         String           @unique // normalized platform, e.g. "THENUDE"
+  displayName String
+  domains     String[]         @default([]) // host suffixes that resolve to this source
+  isScannable Boolean          @default(false)
+  fileName    String           @default("") // per-platform scan file, e.g. "thenude.txt"
+  lineFormat  ScrapeLineFormat @default(ICGID_URL)
+  urlPattern  String? // optional hint/validation for this platform's profile URLs
+  sortOrder   Int              @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([isScannable])
 }
 
 model PersonSkill {

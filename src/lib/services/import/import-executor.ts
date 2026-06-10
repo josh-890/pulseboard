@@ -581,17 +581,65 @@ export async function importDigitalIdentity(item: ImportItem): Promise<ImportRes
       return { success: false, entityId: null, error: 'Person not yet imported' }
     }
 
-    const identity = await createDigitalIdentity({
-      personId,
-      platform: data.platform as string,
-      handle: (data.handle as string) || undefined,
-      url: (data.url as string) || undefined,
-      status: 'active',
+    const platform = (data.platform as string) || 'Source'
+    const url = (data.url as string) || null
+    const handle = (data.handle as string) || null
+
+    // Watchlist scan workflow: the primary scraped page is the DI whose handle is
+    // the subject's ICG-ID (set in staging-service). Stamp ITS scanned-through
+    // date from the batch's extraction date (= the scrape date), advancing only
+    // forward so re-importing an older file never regresses freshness.
+    const batch = await prisma.importBatch.findUnique({
+      where: { id: item.batchId },
+      select: { extractionDate: true, subjectIcgId: true },
+    })
+    const isPrimarySource =
+      !!handle && !!batch?.subjectIcgId && handle === batch.subjectIcgId
+    const scanDate = isPrimarySource ? batch?.extractionDate ?? null : null
+
+    // Find-or-update so re-imports don't duplicate the identity (by URL when we
+    // have one, else platform + handle).
+    const existing = await prisma.personDigitalIdentity.findFirst({
+      where: { personId, ...(url ? { url } : { platform, handle }) },
+      select: { id: true, scannedThroughAt: true },
     })
 
-    await markItemImported(item.id, identity.id)
+    let identityId: string
+    if (existing) {
+      const nextScan =
+        scanDate &&
+        (!existing.scannedThroughAt || scanDate > existing.scannedThroughAt)
+          ? scanDate
+          : undefined
+      await prisma.personDigitalIdentity.update({
+        where: { id: existing.id },
+        data: {
+          ...(url ? { url } : {}),
+          ...(handle ? { handle } : {}),
+          ...(nextScan ? { scannedThroughAt: nextScan } : {}),
+        },
+      })
+      identityId = existing.id
+    } else {
+      const identity = await createDigitalIdentity({
+        personId,
+        platform,
+        handle: handle || undefined,
+        url: url || undefined,
+        status: 'active',
+      })
+      if (scanDate) {
+        await prisma.personDigitalIdentity.update({
+          where: { id: identity.id },
+          data: { scannedThroughAt: scanDate },
+        })
+      }
+      identityId = identity.id
+    }
 
-    return { success: true, entityId: identity.id, error: null }
+    await markItemImported(item.id, identityId)
+
+    return { success: true, entityId: identityId, error: null }
   } catch (err) {
     return { success: false, entityId: null, error: String(err) }
   }
