@@ -1,4 +1,6 @@
 import { prisma } from "@/lib/db";
+import { getCareerStats } from "@/lib/services/career-service";
+import type { WatchPriority } from "@/generated/prisma/client";
 import type {
   PersonWithCommonAlias,
   PersonWorkHistoryItem,
@@ -109,6 +111,7 @@ export type PersonSort =
 export type PersonFilters = {
   q?: string;
   status?: PersonStatus | "all";
+  watching?: boolean;
   naturalHairColor?: string;
   bodyType?: string;
   ethnicity?: string;
@@ -133,6 +136,10 @@ export async function getPersons(filters: PersonFilters = {}): Promise<PersonWit
 
   if (status && status !== "all") {
     where.status = status;
+  }
+
+  if (filters.watching) {
+    where.watching = true;
   }
 
   const currentStateWhere: Prisma.PersonCurrentStateWhereInput = {};
@@ -183,6 +190,7 @@ export async function getPersons(filters: PersonFilters = {}): Promise<PersonWit
     id: p.id,
     icgId: p.icgId,
     status: p.status,
+    watching: p.watching,
     rating: p.rating,
     tags: p.tags,
     naturalHairColor: p.currentState?.currentHairColor ?? null,
@@ -207,6 +215,122 @@ export async function getPersons(filters: PersonFilters = {}): Promise<PersonWit
 
 export async function getPersonById(id: string) {
   return prisma.person.findUnique({ where: { id } });
+}
+
+// ─── Watchlist ──────────────────────────────────────────────────────────────
+
+export type WatchlistEntry = {
+  id: string;
+  icgId: string;
+  commonAlias: string | null;
+  priority: WatchPriority;
+  note: string | null;
+  sourceUrl: string | null;
+  checkedAt: Date | null;
+  /** Derived: newest promoted Set credited to this person (when a set last "landed"). */
+  lastSetAddedAt: Date | null;
+  /** Active digital identities with a URL — quick-check links. */
+  links: { platform: string; url: string }[];
+  claimed: { photosets: number | null; videos: number | null };
+  recorded: { photos: number; videos: number };
+  /** Known-missing = claimed − recorded; null per metric when no claimed figure. */
+  missing: { photos: number | null; videos: number | null; total: number | null };
+};
+
+const WATCH_PRIORITY_ORDER: Record<WatchPriority, number> = { HIGH: 0, NORMAL: 1, LOW: 2 };
+
+/**
+ * Watched persons for the /watchlist view. Each row carries the watch metadata,
+ * quick-check links (digital identities + the freeform watch source), the
+ * derived "last set landed" date, and the claimed-vs-recorded gap (reusing
+ * getCareerStats so "missing" matches the Career tab). Sorted by priority, then
+ * stalest manual check first (never-checked at the top).
+ */
+export async function getWatchlist(): Promise<WatchlistEntry[]> {
+  const persons = await prisma.person.findMany({
+    where: { watching: true },
+    select: {
+      id: true,
+      icgId: true,
+      watchPriority: true,
+      watchNote: true,
+      watchSourceUrl: true,
+      watchCheckedAt: true,
+      aliases: { where: { isCommon: true }, select: { name: true }, take: 1 },
+      digitalIdentities: {
+        where: { status: "active", url: { not: null } },
+        select: { platform: true, url: true },
+      },
+    },
+  });
+  if (persons.length === 0) return [];
+
+  // Derived "last set landed": newest promoted Set credited to each person.
+  // One batched query (bounded by the watched set), reduced in JS.
+  const ids = persons.map((p) => p.id);
+  const lastSetByPerson = new Map<string, Date>();
+  const links = await prisma.setSession.findMany({
+    where: { session: { contributions: { some: { personId: { in: ids } } } } },
+    select: {
+      set: { select: { createdAt: true } },
+      session: {
+        select: {
+          contributions: {
+            where: { personId: { in: ids } },
+            select: { personId: true },
+          },
+        },
+      },
+    },
+  });
+  for (const l of links) {
+    for (const c of l.session.contributions) {
+      const cur = lastSetByPerson.get(c.personId);
+      if (!cur || l.set.createdAt > cur) lastSetByPerson.set(c.personId, l.set.createdAt);
+    }
+  }
+
+  // Gap per person via the shared career stats (small N — the watched subset).
+  const stats = await Promise.all(persons.map((p) => getCareerStats(p.id)));
+
+  const entries: WatchlistEntry[] = persons.map((p, i) => {
+    const s = stats[i];
+    const recPhotos = s.promoted.photos + s.staged.photos;
+    const recVideos = s.promoted.videos + s.staged.videos;
+    const missPhotos =
+      s.claimed.photosets === null ? null : Math.max(0, s.claimed.photosets - recPhotos);
+    const missVideos =
+      s.claimed.videos === null ? null : Math.max(0, s.claimed.videos - recVideos);
+    const total =
+      missPhotos === null && missVideos === null ? null : (missPhotos ?? 0) + (missVideos ?? 0);
+    return {
+      id: p.id,
+      icgId: p.icgId,
+      commonAlias: p.aliases[0]?.name ?? null,
+      priority: p.watchPriority,
+      note: p.watchNote,
+      sourceUrl: p.watchSourceUrl,
+      checkedAt: p.watchCheckedAt,
+      lastSetAddedAt: lastSetByPerson.get(p.id) ?? null,
+      links: p.digitalIdentities
+        .filter((d): d is { platform: string; url: string } => !!d.url)
+        .map((d) => ({ platform: d.platform, url: d.url })),
+      claimed: { photosets: s.claimed.photosets, videos: s.claimed.videos },
+      recorded: { photos: recPhotos, videos: recVideos },
+      missing: { photos: missPhotos, videos: missVideos, total },
+    };
+  });
+
+  // Priority (HIGH→LOW), then stalest manual check first (null = never = top).
+  entries.sort((a, b) => {
+    const pr = WATCH_PRIORITY_ORDER[a.priority] - WATCH_PRIORITY_ORDER[b.priority];
+    if (pr !== 0) return pr;
+    const at = a.checkedAt?.getTime() ?? -Infinity;
+    const bt = b.checkedAt?.getTime() ?? -Infinity;
+    return at - bt;
+  });
+
+  return entries;
 }
 
 export async function getPersonWithDetails(id: string) {
@@ -1436,6 +1560,12 @@ export async function updatePersonRecord(id: string, data: UpdatePersonInput): P
         specialization: data.specialization,
         rating: data.rating,
         pgrade: data.pgrade,
+        ...(data.watching !== undefined ? { watching: data.watching } : {}),
+        ...(data.watchPriority !== undefined ? { watchPriority: data.watchPriority } : {}),
+        ...(data.watchNote !== undefined ? { watchNote: data.watchNote || null } : {}),
+        ...(data.watchSourceUrl !== undefined
+          ? { watchSourceUrl: data.watchSourceUrl || null }
+          : {}),
       },
     });
 
@@ -1801,12 +1931,16 @@ export async function getPersonsPaginated(
   cursor?: string,
   limit = 50,
 ): Promise<PaginatedPersons> {
-  const { q, status, naturalHairColor, bodyType, ethnicity, bodyRegions, ratings, sort, birthdateFrom, birthdateTo, createdFrom, createdTo } = filters;
+  const { q, status, watching, naturalHairColor, bodyType, ethnicity, bodyRegions, ratings, sort, birthdateFrom, birthdateTo, createdFrom, createdTo } = filters;
 
   const where: Prisma.PersonWhereInput = {};
 
   if (status && status !== "all") {
     where.status = status;
+  }
+
+  if (watching) {
+    where.watching = true;
   }
 
   // Multi-select rating filter. Buckets: 1..5 (exact match) + "unrated"
@@ -1913,6 +2047,7 @@ export async function getPersonsPaginated(
       id: p.id,
       icgId: p.icgId,
       status: p.status,
+      watching: p.watching,
       rating: p.rating,
       tags: p.tags,
       naturalHairColor: p.currentState?.currentHairColor ?? null,

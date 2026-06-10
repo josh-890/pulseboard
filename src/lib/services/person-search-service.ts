@@ -382,6 +382,7 @@ type RawPersonRow = {
   id: string;
   icgId: string;
   status: import("@/generated/prisma/client").PersonStatus;
+  watching: boolean;
   rating: number | null;
   tags: string[];
   naturalHairColor: string | null;
@@ -439,6 +440,7 @@ export async function searchPeople(
       p.id,
       p."icgId",
       p.status,
+      p.watching,
       p.rating,
       p.tags,
       mv."currentHairColor" AS "naturalHairColor",
@@ -477,6 +479,7 @@ export async function searchPeople(
     id: r.id,
     icgId: r.icgId,
     status: r.status,
+    watching: r.watching,
     rating: r.rating,
     tags: r.tags ?? [],
     naturalHairColor: r.naturalHairColor,

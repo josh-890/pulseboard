@@ -32,6 +32,7 @@ export type PersonWithCommonAlias = {
   id: string;
   icgId: string;
   status: import("@/generated/prisma/client").PersonStatus;
+  watching: boolean;
   rating: number | null;
   tags: string[];
   naturalHairColor: string | null;

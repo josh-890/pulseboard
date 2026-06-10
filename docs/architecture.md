@@ -46,7 +46,8 @@ Media path:
 | Route | Services Called | Key Components |
 |-------|----------------|----------------|
 | `/` | `getDashboardStats()`, `getRecentActivities()` | `KpiGrid`, `DashboardActivity`, `QuickActions` |
-| `/people` | `getPersonsPaginated()`, `getHeadshotsForPersons()`, `getDistinct*()` | `PersonList`, `BrowserToolbar`, `AddPersonSheet` |
+| `/people` | `getPersonsPaginated()`, `getHeadshotsForPersons()`, `getDistinct*()` | `PersonList`, `BrowserToolbar`, `AddPersonSheet`. `StatusFilter` carries a `watching=true` toggle (orthogonal to `status`) → `PersonFilters.watching` |
+| `/watchlist` | `getWatchlist()` | `WatchlistClient` — watched persons (priority→stalest sort) with the claimed−recorded gap, digital-identity + watch-source quick links, Mark-checked (`markPersonChecked`), Import jump |
 | `/sets` | `getSetsPaginated()`, `getCoverPhotosForSets()`, `getHeadshotsForPersons()`, `getSuggestedFoldersForSets()`, `getChannelsWithLabelMaps()` | `SetGrid`, `SetCard`, `BrowserToolbar`, `AddSetSheet` |
 | `/sessions` | `getSessionsPaginated()`, `getCoverPhotosForSessions()` | `SessionList`, `SessionCard`, `AddSessionSheet` |
 | `/projects` | `getProjectsPaginated()` | `ProjectList`, `ProjectCard`, `AddProjectSheet` |
@@ -186,7 +187,7 @@ All actions in `src/lib/actions/`. Each validates input with Zod, calls services
 
 | File | Key Actions |
 |------|------------|
-| `person-actions.ts` | `createPerson`, `updatePerson`, `deletePerson`, `updatePersonBio` |
+| `person-actions.ts` | `createPerson`, `updatePerson`, `deletePerson`, `updatePersonBio`, `togglePersonWatch`, `markPersonChecked` |
 | `set-actions.ts` | `createSet`, `updateSet`, `deleteSet`, `addExistingMediaToSetAction`, `reassignSetSessionAction` |
 | `session-actions.ts` | `createSession`, `updateSession`, `deleteSession`, `mergeSessionsAction` |
 | `media-actions.ts` | `assignHeadshotSlot`, `updatePersonMediaLinkAction`, `batchSetUsageAction`, `deleteMediaItemsAction`, `setFocalPointAction`, `resetFocalPointAction`, `reorderPersonMediaAction`, `setPersonMediaFavoriteAction`, `setEntityMediaCoverAction` (body-feature cover, entity-scoped), `clearSlotAction` |

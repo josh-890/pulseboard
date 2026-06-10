@@ -40,6 +40,7 @@ type PeoplePageProps = {
   searchParams: Promise<{
     q?: string;
     status?: string;
+    watching?: string;
     hairColor?: string;
     bodyType?: string;
     ethnicity?: string;
@@ -113,7 +114,7 @@ export default async function PeoplePage({ searchParams }: PeoplePageProps) {
       return <PeopleSearchPage searchParams={raw as Record<string, string>} />;
     }
     const {
-      q, status, hairColor, bodyType, ethnicity, bodyRegions: bodyRegionsParam,
+      q, status, watching: watchingParam, hairColor, bodyType, ethnicity, bodyRegions: bodyRegionsParam,
       bodyRegionMatch: bodyRegionMatchParam, loaded,
       slot: slotParam, sort: sortParam, completeness: completenessParam,
       birthdateFrom: birthdateFromParam, birthdateTo: birthdateToParam,
@@ -153,6 +154,7 @@ export default async function PeoplePage({ searchParams }: PeoplePageProps) {
   const filters = {
     q: q?.trim() || undefined,
     status: resolvedStatus ?? ("all" as const),
+    watching: watchingParam === "true" || undefined,
     naturalHairColor: hairColor || undefined,
     bodyType: bodyType || undefined,
     ethnicity: ethnicity || undefined,
@@ -207,6 +209,12 @@ export default async function PeoplePage({ searchParams }: PeoplePageProps) {
       ],
     },
   ];
+
+  filterGroups.push({
+    type: "toggle",
+    param: "watching",
+    label: "Watching",
+  });
 
   filterGroups.push({
     type: "pill",

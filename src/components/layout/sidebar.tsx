@@ -20,6 +20,7 @@ import {
   HardDrive,
   FolderSearch,
   Wrench,
+  Eye,
 } from "lucide-react";
 import { NavLink } from "./nav-link";
 import { useSidebar } from "./sidebar-provider";
@@ -33,6 +34,7 @@ const navItems = [
   { href: "/sets", icon: <ImageIcon size={20} />, label: "Sets" },
   { href: "/collections", icon: <Library size={20} />, label: "Collections" },
   { href: "/people", icon: <Users size={20} />, label: "People", resolveHref: getBrowseReturnUrl },
+  { href: "/watchlist", icon: <Eye size={20} />, label: "Watchlist" },
   { href: "/projects", icon: <FolderKanban size={20} />, label: "Projects" },
   { href: "/labels", icon: <Building2 size={20} />, label: "Labels" },
   { href: "/channels", icon: <Radio size={20} />, label: "Channels" },

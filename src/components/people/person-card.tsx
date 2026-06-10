@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { MapPin, Sparkles, Star } from "lucide-react";
+import { Eye, MapPin, Sparkles, Star } from "lucide-react";
 import { FlagImage } from "@/components/shared/flag-image";
 import { cn, getInitialsFromName, computeAge } from "@/lib/utils";
 import { useDensity } from "@/components/layout/density-provider";
@@ -118,6 +118,16 @@ export function PersonCard({
               className={cn("absolute top-1.5 left-1.5 size-2 rounded-full shadow-sm", STATUS_DOT[person.status])}
               title={STATUS_LABELS[person.status]}
             />
+
+            {/* Watchlist marker — top-left, beside the status dot */}
+            {person.watching && (
+              <div
+                className="absolute top-1 left-4 rounded-full bg-primary/90 p-0.5 text-primary-foreground shadow-sm"
+                title="On watchlist"
+              >
+                <Eye size={10} />
+              </div>
+            )}
 
             {/* Plausibility dot — top-right */}
             {plausibilityCount > 0 && (

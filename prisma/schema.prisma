@@ -16,6 +16,12 @@ enum PersonStatus {
   archived
 }
 
+enum WatchPriority {
+  HIGH
+  NORMAL
+  LOW
+}
+
 enum AliasSource {
   MANUAL
   IMPORT
@@ -299,6 +305,16 @@ model Person {
   // Free-text provenance for manually-entered claimed figures (e.g. which
   // bio/site they came from). Shown on the Career-tab catalogue panel.
   claimedStatsNote    String?
+  // Watchlist: monitor this person for new sets to import. Orthogonal to
+  // `status` (a watched person is usually still active). watchCheckedAt is the
+  // manual "last looked for new releases" stamp; "last set landed" is derived
+  // (max Set.createdAt), not stored. Source links reuse digitalIdentities plus
+  // this freeform watchSourceUrl. Surfaced on the /watchlist page + hero toggle.
+  watching            Boolean       @default(false)
+  watchPriority       WatchPriority @default(NORMAL)
+  watchNote           String?
+  watchSourceUrl      String?
+  watchCheckedAt      DateTime?
   // Per-person pinned attribute slugs (Phase G Slice 2). PhysicalAttributeDefinition
   // slugs the user wants always-visible on the Appearance grid even with no delta.
   // Augments the system-default pinned set in `lib/constants/appearance`.
@@ -333,6 +349,7 @@ model Person {
   createdAt DateTime @default(now())
 
   @@index([status])
+  @@index([watching])
 }
 
 model PersonAlias {

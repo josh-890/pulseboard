@@ -91,6 +91,11 @@ export const updatePersonSchema = z.object({
   claimedVideos: z.coerce.number().int().min(0).optional(),
   // Free-text provenance for the claimed figures (e.g. "THENUDE bio 2024").
   claimedStatsNote: z.string().optional(),
+  // Watchlist: monitor for new sets to import (orthogonal to status).
+  watching: z.boolean().optional(),
+  watchPriority: z.enum(["HIGH", "NORMAL", "LOW"]).optional(),
+  watchNote: z.string().optional(),
+  watchSourceUrl: z.string().optional(),
 });
 
 export type UpdatePersonFormValues = z.input<typeof updatePersonSchema>;

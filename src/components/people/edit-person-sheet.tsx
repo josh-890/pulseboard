@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
 import {
   Sheet,
   SheetContent,
@@ -113,6 +114,10 @@ export function EditPersonSheet({ person }: EditPersonSheetProps) {
     claimedPhotosets: person.claimedPhotosets ?? undefined,
     claimedVideos: person.claimedVideos ?? undefined,
     claimedStatsNote: person.claimedStatsNote ?? "",
+    watching: person.watching,
+    watchPriority: person.watchPriority,
+    watchNote: person.watchNote ?? "",
+    watchSourceUrl: person.watchSourceUrl ?? "",
   });
 
   const form = useForm<UpdatePersonFormValues, unknown, UpdatePersonInput>({
@@ -412,6 +417,82 @@ export function EditPersonSheet({ person }: EditPersonSheetProps) {
                                 field.onChange(e.target.value === "" ? undefined : e.target.value)
                               }
                             />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                </section>
+
+                {/* Section 2½ — Watchlist */}
+                <section className="rounded-xl border bg-muted/30 dark:bg-muted/20 p-4 space-y-4">
+                  <SectionHeader>Watchlist</SectionHeader>
+                  <div className="grid grid-cols-2 gap-3">
+                    <FormField
+                      control={form.control}
+                      name="watching"
+                      render={({ field }) => (
+                        <FormItem className="col-span-2 flex items-center justify-between gap-3">
+                          <FormLabel className="mb-0">Monitor for new sets</FormLabel>
+                          <FormControl>
+                            <Switch
+                              checked={field.value ?? false}
+                              onCheckedChange={field.onChange}
+                            />
+                          </FormControl>
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="watchPriority"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Priority</FormLabel>
+                          <Select
+                            value={field.value ?? "NORMAL"}
+                            onValueChange={field.onChange}
+                          >
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="HIGH">High</SelectItem>
+                              <SelectItem value="NORMAL">Normal</SelectItem>
+                              <SelectItem value="LOW">Low</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="watchSourceUrl"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Source URL</FormLabel>
+                          <FormControl>
+                            <Input placeholder="where new sets appear" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="watchNote"
+                      render={({ field }) => (
+                        <FormItem className="col-span-2">
+                          <FormLabel>Watch note</FormLabel>
+                          <FormControl>
+                            <Input placeholder="e.g. check FemJoy monthly" {...field} />
                           </FormControl>
                           <FormMessage />
                         </FormItem>

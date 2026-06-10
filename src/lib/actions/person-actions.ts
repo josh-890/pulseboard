@@ -167,6 +167,46 @@ export async function updatePersonPgrade(
   });
 }
 
+/** Toggle whether a person is on the watchlist (monitored for new sets). */
+export async function togglePersonWatch(
+  personId: string,
+  watching: boolean,
+): Promise<SimpleActionResult> {
+  return withTenantFromHeaders(async () => {
+    try {
+      await prisma.person.update({
+        where: { id: personId },
+        data: { watching },
+      });
+      revalidatePath("/watchlist");
+      revalidatePath("/people");
+      revalidatePath(`/people/${personId}`);
+      return { success: true };
+    } catch {
+      return { success: false, error: "Failed to update watchlist" };
+    }
+  });
+}
+
+/** Stamp the watchlist "last checked for new releases" time to now. */
+export async function markPersonChecked(
+  personId: string,
+): Promise<SimpleActionResult> {
+  return withTenantFromHeaders(async () => {
+    try {
+      await prisma.person.update({
+        where: { id: personId },
+        data: { watchCheckedAt: new Date() },
+      });
+      revalidatePath("/watchlist");
+      revalidatePath(`/people/${personId}`);
+      return { success: true };
+    } catch {
+      return { success: false, error: "Failed to mark checked" };
+    }
+  });
+}
+
 export async function updatePersonRating(
   personId: string,
   rating: number | null,
