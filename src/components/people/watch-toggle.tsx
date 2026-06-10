@@ -54,10 +54,10 @@ export function WatchToggle({
         aria-label={title}
         title={title}
         className={cn(
-          "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border transition-colors",
+          "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-colors",
           watching
-            ? "border-primary/50 bg-primary/15 text-primary"
-            : "border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground",
+            ? "text-emerald-500 hover:text-emerald-400"
+            : "text-muted-foreground/50 hover:text-muted-foreground",
           pending && "opacity-60",
         )}
       >
