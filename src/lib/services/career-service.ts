@@ -644,30 +644,40 @@ export async function getCareerStats(personId: string): Promise<CareerStats> {
       ? null
       : (claimedPhotosets ?? 0) + (claimedVideos ?? 0);
 
-  // Same person-credit reach as getPromotedRowsForPerson, narrowed to a type.
-  const promotedWhere = (type: SetType): Prisma.SetWhereInput => ({
-    type,
-    sessionLinks: { some: { session: { contributions: { some: { personId } } } } },
-  });
-
   const icgId = person?.icgId ?? null;
-  const stagedWhere = (isVideo: boolean): Prisma.StagingSetWhereInput => ({
-    isVideo,
-    matchedSetId: null, // exclude sets that would merge into an existing Set
-    status: { in: [...STAGED_PIPELINE_STATUSES] },
-    participantIcgIds: { has: icgId ?? "" },
-    // Only count staged sets we actually hold — a CONFIRMED archive link means
-    // the folder is on disk. Staged rows without a linked folder are planned,
-    // not had, so they don't count toward "have".
-    archiveLinks: { some: { status: "CONFIRMED" } },
-  });
 
-  const [promPhotos, promVideos, stagedPhotos, stagedVideos] = await Promise.all([
-    prisma.set.count({ where: promotedWhere("photo") }),
-    prisma.set.count({ where: promotedWhere("video") }),
-    icgId ? prisma.stagingSet.count({ where: stagedWhere(false) }) : Promise.resolve(0),
-    icgId ? prisma.stagingSet.count({ where: stagedWhere(true) }) : Promise.resolve(0),
+  // One grouped count per source instead of one per (source × type). Both group
+  // queries are index-driven: SessionContribution.personId + SetSession.sessionId
+  // for promoted; the participantIcgIds GIN index for staged.
+  const [promotedGroups, stagedGroups] = await Promise.all([
+    // Distinct Sets credited to the person (same reach as getPromotedRowsForPerson).
+    prisma.set.groupBy({
+      by: ["type"],
+      where: {
+        sessionLinks: { some: { session: { contributions: { some: { personId } } } } },
+      },
+      _count: true,
+    }),
+    // Active-pipeline staged sets we actually hold: dedup'd against existing Sets
+    // (matchedSetId null) and gated on a CONFIRMED archive link (folder on disk).
+    icgId
+      ? prisma.stagingSet.groupBy({
+          by: ["isVideo"],
+          where: {
+            matchedSetId: null,
+            status: { in: [...STAGED_PIPELINE_STATUSES] },
+            participantIcgIds: { has: icgId },
+            archiveLinks: { some: { status: "CONFIRMED" } },
+          },
+          _count: true,
+        })
+      : Promise.resolve([] as { isVideo: boolean; _count: number }[]),
   ]);
+
+  const promPhotos = promotedGroups.find((g) => g.type === "photo")?._count ?? 0;
+  const promVideos = promotedGroups.find((g) => g.type === "video")?._count ?? 0;
+  const stagedPhotos = stagedGroups.find((g) => !g.isVideo)?._count ?? 0;
+  const stagedVideos = stagedGroups.find((g) => g.isVideo)?._count ?? 0;
 
   return {
     claimed: {

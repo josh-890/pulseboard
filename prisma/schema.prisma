@@ -1106,6 +1106,9 @@ model SetSession {
   createdAt DateTime @default(now())
 
   @@id([setId, sessionId])
+  // PK (setId, sessionId) can't seek by sessionId alone; needed for the
+  // Session→SetSession hop in per-person Set counts/timelines.
+  @@index([sessionId])
 }
 
 model SetCreditRaw {
@@ -1926,6 +1929,9 @@ model StagingSet {
   @@index([importBatchId])
   @@index([status])
   @@index([duplicateGroupId])
+  // GIN index for `participantIcgIds has <icgId>` (array containment) — used by
+  // the per-person career stats/lookups; without it that filter seq-scans.
+  @@index([participantIcgIds], type: Gin)
   @@map("staging_set")
 }
 
