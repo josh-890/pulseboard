@@ -105,12 +105,15 @@ export type CareerTimelineRow =
       rating: null;
     });
 
-// ─── Promoted: per-Set query ─────────────────────────────────────────────
+// ─── Shared WHERE builders ───────────────────────────────────────────────
 
-async function getPromotedRowsForPerson(
+// Promoted Sets credited to the person, with the active filters applied.
+// Shared by the display timeline and the lean facet-count fetch so they can
+// never diverge.
+function buildPromotedWhere(
   personId: string,
   filters: CareerTimelineFilters,
-): Promise<CareerTimelineRow[]> {
+): Prisma.SetWhereInput {
   const whereSet: Prisma.SetWhereInput = {
     sessionLinks: {
       some: {
@@ -166,6 +169,104 @@ async function getPromotedRowsForPerson(
       whereSet.OR = [...(whereSet.OR ?? []), ...archiveClauses];
     }
   }
+  return whereSet;
+}
+
+// APPROVED staged sets matched to the person. Returns null when the active
+// filters exclude staged rows entirely — staged sets are unrated and era-less,
+// so an era filter (any) or a rating filter that omits "unrated" yields none.
+function buildStagedWhere(
+  icgId: string,
+  filters: CareerTimelineFilters,
+): Prisma.StagingSetWhereInput | null {
+  if (filters.eraIds && filters.eraIds.length > 0) return null;
+  if (
+    filters.ratings &&
+    filters.ratings.length > 0 &&
+    !filters.ratings.includes("unrated")
+  ) {
+    return null;
+  }
+
+  const whereStaging: Prisma.StagingSetWhereInput = {
+    participantIcgIds: { has: icgId },
+    status: "APPROVED",
+  };
+  if (filters.type === "photo") whereStaging.isVideo = false;
+  else if (filters.type === "video") whereStaging.isVideo = true;
+  if (filters.channelIds && filters.channelIds.length > 0) {
+    whereStaging.channelId = { in: filters.channelIds };
+  }
+  if (filters.labelIds && filters.labelIds.length > 0) {
+    whereStaging.channel = {
+      labelMaps: { some: { labelId: { in: filters.labelIds } } },
+    };
+  }
+  if (filters.archiveStatuses && filters.archiveStatuses.length > 0) {
+    const archiveClauses: Prisma.StagingSetWhereInput[] = [];
+    if (filters.archiveStatuses.includes("linked")) {
+      archiveClauses.push({ archiveLinks: { some: { status: "CONFIRMED" } } });
+    }
+    if (filters.archiveStatuses.includes("unlinked")) {
+      archiveClauses.push({ archiveLinks: { none: { status: "CONFIRMED" } } });
+    }
+    if (filters.archiveStatuses.includes("missing")) {
+      archiveClauses.push({
+        archiveLinks: { some: { status: "CONFIRMED", archiveStatus: "MISSING" } },
+      });
+    }
+    if (filters.archiveStatuses.includes("changed")) {
+      archiveClauses.push({
+        archiveLinks: { some: { status: "CONFIRMED", archiveStatus: "CHANGED" } },
+      });
+    }
+    if (archiveClauses.length > 0) {
+      whereStaging.OR = [...(whereStaging.OR ?? []), ...archiveClauses];
+    }
+  }
+  return whereStaging;
+}
+
+// For each setId, the viewer's contribution eraId via the set's primary
+// session. One query; shared by the timeline + facet counts.
+async function fetchEraBySetId(
+  personId: string,
+  setIds: string[],
+): Promise<Map<string, string | null>> {
+  const eraBySetId = new Map<string, string | null>();
+  if (setIds.length === 0) return eraBySetId;
+  const contributionRows = await prisma.sessionContribution.findMany({
+    where: {
+      personId,
+      session: { setSessionLinks: { some: { setId: { in: setIds }, isPrimary: true } } },
+    },
+    select: {
+      eraId: true,
+      session: {
+        select: {
+          setSessionLinks: {
+            where: { isPrimary: true, setId: { in: setIds } },
+            select: { setId: true },
+          },
+        },
+      },
+    },
+  });
+  for (const c of contributionRows) {
+    for (const ss of c.session.setSessionLinks) {
+      if (!eraBySetId.has(ss.setId)) eraBySetId.set(ss.setId, c.eraId);
+    }
+  }
+  return eraBySetId;
+}
+
+// ─── Promoted: per-Set query ─────────────────────────────────────────────
+
+async function getPromotedRowsForPerson(
+  personId: string,
+  filters: CareerTimelineFilters,
+): Promise<CareerTimelineRow[]> {
+  const whereSet = buildPromotedWhere(personId, filters);
 
   // Step 1: flat scalar query (no nested variant include — avoids type
   // recursion). Era is looked up via a secondary query below.
@@ -197,30 +298,8 @@ async function getPromotedRowsForPerson(
   const coverMap = await getCoverPhotosForSets(setIds);
 
   // Step 3: era per set — for each set's primary session, look up this
-  // person's contribution eraId. Single query.
-  const contributionRows = await prisma.sessionContribution.findMany({
-    where: {
-      personId,
-      session: { setSessionLinks: { some: { setId: { in: setIds }, isPrimary: true } } },
-    },
-    select: {
-      eraId: true,
-      session: {
-        select: {
-          setSessionLinks: {
-            where: { isPrimary: true, setId: { in: setIds } },
-            select: { setId: true },
-          },
-        },
-      },
-    },
-  });
-  const eraBySetId = new Map<string, string | null>();
-  for (const c of contributionRows) {
-    for (const ss of c.session.setSessionLinks) {
-      if (!eraBySetId.has(ss.setId)) eraBySetId.set(ss.setId, c.eraId);
-    }
-  }
+  // person's contribution eraId. Single query (shared helper).
+  const eraBySetId = await fetchEraBySetId(personId, setIds);
 
   // Step 4: co-participants per set (excluding this person). Reads the
   // SetParticipant denormalised cache; one batched query covers every
@@ -375,55 +454,8 @@ async function getStagedRowsForPerson(
   });
   if (!person) return [];
 
-  const whereStaging: Prisma.StagingSetWhereInput = {
-    participantIcgIds: { has: person.icgId },
-    status: "APPROVED",
-  };
-
-  if (filters.type === "photo") whereStaging.isVideo = false;
-  else if (filters.type === "video") whereStaging.isVideo = true;
-
-  if (filters.channelIds && filters.channelIds.length > 0) {
-    whereStaging.channelId = { in: filters.channelIds };
-  }
-  if (filters.labelIds && filters.labelIds.length > 0) {
-    whereStaging.channel = {
-      labelMaps: { some: { labelId: { in: filters.labelIds } } },
-    };
-  }
-
-  // Rating filter: staged sets have no rating. They effectively belong to
-  // the "unrated" bucket — include only when "unrated" is among picks
-  // (or when no rating filter is active).
-  if (filters.ratings && filters.ratings.length > 0) {
-    if (!filters.ratings.includes("unrated")) return [];
-  }
-
-  // Era filter: staged sets are not era-bound. Exclude when era filter is active.
-  if (filters.eraIds && filters.eraIds.length > 0) return [];
-
-  if (filters.archiveStatuses && filters.archiveStatuses.length > 0) {
-    const archiveClauses: Prisma.StagingSetWhereInput[] = [];
-    if (filters.archiveStatuses.includes("linked")) {
-      archiveClauses.push({ archiveLinks: { some: { status: "CONFIRMED" } } });
-    }
-    if (filters.archiveStatuses.includes("unlinked")) {
-      archiveClauses.push({ archiveLinks: { none: { status: "CONFIRMED" } } });
-    }
-    if (filters.archiveStatuses.includes("missing")) {
-      archiveClauses.push({
-        archiveLinks: { some: { status: "CONFIRMED", archiveStatus: "MISSING" } },
-      });
-    }
-    if (filters.archiveStatuses.includes("changed")) {
-      archiveClauses.push({
-        archiveLinks: { some: { status: "CONFIRMED", archiveStatus: "CHANGED" } },
-      });
-    }
-    if (archiveClauses.length > 0) {
-      whereStaging.OR = [...(whereStaging.OR ?? []), ...archiveClauses];
-    }
-  }
+  const whereStaging = buildStagedWhere(person.icgId, filters);
+  if (!whereStaging) return [];
 
   const stagingSets = await prisma.stagingSet.findMany({
     where: whereStaging,
@@ -560,18 +592,95 @@ export type CareerFacetCounts = {
   archiveStatus: Record<string, number>;
 };
 
+// Lean per-row facet data — only the scalar fields the counts bucket on. This
+// is the cheap counterpart to getCareerTimeline (no covers, thumbnails,
+// participants, or titles), so the 4 facet passes don't materialise full rows.
+type CareerFacetRow = {
+  channelId: string | null;
+  rating: number | null;
+  eraId: string | null;
+  hasArchiveLink: boolean;
+  archiveStatus: ArchiveStatus | null;
+};
+
+async function getCareerFacetRows(
+  personId: string,
+  icgId: string | null,
+  filters: CareerTimelineFilters,
+): Promise<CareerFacetRow[]> {
+  const stagedWhere = icgId ? buildStagedWhere(icgId, filters) : null;
+  const [sets, stagingRows] = await Promise.all([
+    prisma.set.findMany({
+      where: buildPromotedWhere(personId, filters),
+      select: {
+        id: true,
+        rating: true,
+        channelId: true,
+        archiveLinks: { where: { status: "CONFIRMED" }, select: { archiveStatus: true }, take: 1 },
+      },
+    }),
+    stagedWhere
+      ? prisma.stagingSet.findMany({
+          where: stagedWhere,
+          select: {
+            channelId: true,
+            archiveLinks: { where: { status: "CONFIRMED" }, select: { archiveStatus: true }, take: 1 },
+          },
+        })
+      : Promise.resolve(
+          [] as { channelId: string | null; archiveLinks: { archiveStatus: ArchiveStatus }[] }[],
+        ),
+  ]);
+
+  const eraBySetId = await fetchEraBySetId(personId, sets.map((s) => s.id));
+
+  const promoted: CareerFacetRow[] = sets.map((s) => ({
+    channelId: s.channelId,
+    rating: s.rating,
+    eraId: eraBySetId.get(s.id) ?? null,
+    hasArchiveLink: !!s.archiveLinks[0],
+    archiveStatus: s.archiveLinks[0]?.archiveStatus ?? null,
+  }));
+  const staged: CareerFacetRow[] = stagingRows.map((s) => ({
+    channelId: s.channelId,
+    rating: null,
+    eraId: null,
+    hasArchiveLink: !!s.archiveLinks[0],
+    archiveStatus: s.archiveLinks[0]?.archiveStatus ?? null,
+  }));
+  return [...promoted, ...staged];
+}
+
 export async function getCareerFacetCounts(
   personId: string,
   filters: CareerTimelineFilters = {},
 ): Promise<CareerFacetCounts> {
-  // Each facet's count: re-run the timeline query with that facet's filter
-  // removed, then bucket. O(facets × timeline-size); acceptable for ≤ 1000
-  // rows / person.
+  // Each facet's count = the row set with that one facet's filter removed
+  // (others still applied), then bucketed. We fetch only the scalar facet
+  // fields, and dedupe identical variants — with no active filters all four
+  // collapse to a single fetch, scaling with the number of active filters.
+  const person = await prisma.person.findUnique({
+    where: { id: personId },
+    select: { icgId: true },
+  });
+  const icgId = person?.icgId ?? null;
+
+  const cache = new Map<string, Promise<CareerFacetRow[]>>();
+  const rowsFor = (f: CareerTimelineFilters): Promise<CareerFacetRow[]> => {
+    const key = JSON.stringify([f.type, f.channelIds, f.ratings, f.eraIds, f.archiveStatuses, f.labelIds]);
+    let p = cache.get(key);
+    if (!p) {
+      p = getCareerFacetRows(personId, icgId, f);
+      cache.set(key, p);
+    }
+    return p;
+  };
+
   const [channelRows, ratingRows, eraRows, archiveRows] = await Promise.all([
-    getCareerTimeline(personId, { ...filters, channelIds: undefined }),
-    getCareerTimeline(personId, { ...filters, ratings: undefined }),
-    getCareerTimeline(personId, { ...filters, eraIds: undefined }),
-    getCareerTimeline(personId, { ...filters, archiveStatuses: undefined }),
+    rowsFor({ ...filters, channelIds: undefined }),
+    rowsFor({ ...filters, ratings: undefined }),
+    rowsFor({ ...filters, eraIds: undefined }),
+    rowsFor({ ...filters, archiveStatuses: undefined }),
   ]);
 
   const channelCounts: Record<string, number> = {};
