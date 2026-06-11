@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { isSkippableEmptyLeaf } from "@/lib/services/archive-service";
+import {
+  isSkippableEmptyLeaf,
+  shouldSkipEmptyUpdate,
+} from "@/lib/services/archive-service";
+
+const emptyLeaf = { contentSignature: "empty" as string | null, fileCount: 0 as number | null };
 
 describe("isSkippableEmptyLeaf", () => {
   it("skips a confirmed-empty leaf with no sidecarKey", () => {
@@ -26,5 +31,32 @@ describe("isSkippableEmptyLeaf", () => {
 
   it("does NOT treat an unreadable leaf (fileCount null, signature not 'empty') as empty", () => {
     expect(isSkippableEmptyLeaf({ contentSignature: null, fileCount: null })).toBe(false);
+  });
+});
+
+describe("shouldSkipEmptyUpdate", () => {
+  it("does not skip when the incoming leaf isn't a skippable empty leaf", () => {
+    // has content
+    expect(
+      shouldSkipEmptyUpdate({ contentSignature: "sig", fileCount: 5 }, { fileCount: 5, contentSignature: "sig" }),
+    ).toBe(false);
+    // empty but carries a sidecarKey (tracked / moved)
+    expect(
+      shouldSkipEmptyUpdate({ ...emptyLeaf, sidecarKey: "K" }, { fileCount: 9, contentSignature: "sig" }),
+    ).toBe(false);
+  });
+
+  it("skips when no record is at the path anymore (real folder moved away this scan)", () => {
+    expect(shouldSkipEmptyUpdate(emptyLeaf, null)).toBe(true);
+  });
+
+  it("skips when the stored record still holds content (backup ghost at old path)", () => {
+    expect(shouldSkipEmptyUpdate(emptyLeaf, { fileCount: 42, contentSignature: "sig" })).toBe(true);
+    expect(shouldSkipEmptyUpdate(emptyLeaf, { fileCount: null, contentSignature: "sig" })).toBe(true);
+  });
+
+  it("does NOT skip when the stored record was already empty (let it refresh / stay seen)", () => {
+    expect(shouldSkipEmptyUpdate(emptyLeaf, { fileCount: 0, contentSignature: "empty" })).toBe(false);
+    expect(shouldSkipEmptyUpdate(emptyLeaf, { fileCount: 0, contentSignature: null })).toBe(false);
   });
 });

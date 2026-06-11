@@ -1053,6 +1053,28 @@ export function isSkippableEmptyLeaf(item: {
   return isEmpty && !item.sidecarKey
 }
 
+/**
+ * Update-branch hardening predicate. Given an incoming empty/no-sidecar leaf and the
+ * record currently stored at its path, decide whether to SKIP the update instead of
+ * clobbering content to empty. Skip when:
+ *  - the leaf isn't a skippable empty leaf → false (normal update), OR
+ *  - no record is at this path anymore (real folder moved away by sidecar this scan;
+ *    a plain update would P2025) → true, OR
+ *  - the stored record still holds content (had files / a non-empty signature) → true.
+ * A record that was ALREADY empty falls through (false) so its scannedAt stays fresh.
+ */
+export function shouldSkipEmptyUpdate(
+  item: { contentSignature: string | null; fileCount: number | null; sidecarKey?: string | null },
+  prev: { fileCount: number | null; contentSignature: string | null } | null,
+): boolean {
+  if (!isSkippableEmptyLeaf(item)) return false
+  if (prev == null) return true
+  return (
+    (prev.fileCount ?? 0) > 0 ||
+    (prev.contentSignature != null && prev.contentSignature !== 'empty')
+  )
+}
+
 export async function upsertArchiveFolders(
   items: FullIngestItem[],
   tenant: string,
@@ -1182,6 +1204,26 @@ export async function upsertArchiveFolders(
         } else {
           // Key not yet in DB — write as a correction
           correctedArchiveKey = item.sidecarKey
+        }
+      }
+
+      // Update-branch empty guard: a leaf that's now empty AND carries no sidecarKey
+      // (isSkippableEmptyLeaf) must never clobber an existing record that still holds
+      // content. That pattern is a backup/ghost folder re-created at an OLD path while
+      // the real content + its _pulseboard.json now live elsewhere (e.g. after a
+      // rename). Skip when the matched record had content, or when no record is here
+      // anymore (the real folder already moved away by sidecar this same scan — would
+      // otherwise P2025). A record that was ALREADY empty still falls through to a
+      // harmless refresh so mark-ghosts keeps treating it as seen. Maintenance-emptied
+      // folders keep their sidecar, so they have a sidecarKey and never reach here.
+      if (isSkippableEmptyLeaf(item)) {
+        const prev = await prisma.archiveFolder.findUnique({
+          where: { fullPath: item.fullPath },
+          select: { fileCount: true, contentSignature: true },
+        })
+        if (shouldSkipEmptyUpdate(item, prev)) {
+          counts.skipped++
+          continue
         }
       }
 
