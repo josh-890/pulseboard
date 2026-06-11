@@ -1010,6 +1010,7 @@ Add `-VideosetRoot "V:\Video\"` if you also have a video archive. After this run
 
 - Every leaf folder under the root(s) is recorded in the DB as an `ArchiveFolder`.
 - **A stable `archiveKey` UUID is generated immediately for every folder** — no confirmation step is required. This is the folder's permanent identity.
+- **Empty leaf folders are skipped**, not registered: a new leaf that holds no content *and* has no `_pulseboard.json` is treated as a maintenance/backup leftover and reported as `Skipped (empty)` in the summary. It gets neither an `ArchiveFolder` record nor an `archiveKey`/sidecar. (Folders that still carry their sidecar — e.g. you removed the images for maintenance — keep their record and are never skipped.) Once a skipped folder gains content, the next scan registers it normally.
 - The **matching pass** runs automatically. Sets and Staging Sets that have a HIGH or MEDIUM confidence match will show an amber suggestion dot in the UI.
 - At the end of the scan the script counts how many on-disk folders are missing `_pulseboard.json` and asks:
   ```

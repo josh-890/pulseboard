@@ -923,7 +923,7 @@ function Run-FullScan {
     }
 
     # ── Step 3: POST delta in batches (skip if nothing to send) ─────────────
-    $totCre = 0; $totUpd = 0; $totRen = 0; $totUnch = 0
+    $totCre = 0; $totUpd = 0; $totRen = 0; $totUnch = 0; $totSkip = 0
     $allKeyConflicts = [System.Collections.ArrayList]::new()
 
     if ($totalDelta -eq 0) {
@@ -950,6 +950,7 @@ function Run-FullScan {
                 $totUpd  += [int]$resp.updated
                 $totRen  += [int]$resp.renamed
                 $totUnch += [int]$resp.unchanged
+                $totSkip += [int]$resp.skipped
                 # Accumulate any sidecar key conflicts reported by the server
                 if ($resp.keyConflicts -and $resp.keyConflicts.Count -gt 0) {
                     foreach ($kc in $resp.keyConflicts) {
@@ -971,6 +972,7 @@ function Run-FullScan {
         Write-Host ("  Updated:          " + $totUpd)
         Write-Host ("  Renamed:          " + $totRen)
         Write-Host ("  Unchanged (mtime):" + $totUnch)
+        if ($totSkip -gt 0) { Write-Host ("  Skipped (empty):  " + $totSkip) }
         if ($totCre -gt 0) {
             Write-Host "  Matching pass:    running in background on server"
         }

@@ -1036,12 +1036,29 @@ export type KeyConflict = {
   currentPath: string       // the path being scanned now that also claims this key
 }
 
+/**
+ * Empty-folder guard predicate (see the `create` branch of upsertArchiveFolders).
+ * A brand-new leaf is skipped when it holds no content AND carries no sidecarKey —
+ * a maintenance/backup leftover that fits the archive naming scheme but isn't a real
+ * set. A sidecarKey means the user already tracked it (or it moved here with its
+ * _pulseboard.json), so those are never skipped. fileCount === null (unreadable) is
+ * NOT treated as empty — we only skip a confirmed-empty leaf.
+ */
+export function isSkippableEmptyLeaf(item: {
+  contentSignature: string | null
+  fileCount: number | null
+  sidecarKey?: string | null
+}): boolean {
+  const isEmpty = item.contentSignature === 'empty' || item.fileCount === 0
+  return isEmpty && !item.sidecarKey
+}
+
 export async function upsertArchiveFolders(
   items: FullIngestItem[],
   tenant: string,
-): Promise<{ created: number; updated: number; renamed: number; unchanged: number; errors: number; keyConflicts: KeyConflict[] }> {
+): Promise<{ created: number; updated: number; renamed: number; unchanged: number; skipped: number; errors: number; keyConflicts: KeyConflict[] }> {
   const now = new Date()
-  const counts = { created: 0, updated: 0, renamed: 0, unchanged: 0, errors: 0, keyConflicts: [] as KeyConflict[] }
+  const counts = { created: 0, updated: 0, renamed: 0, unchanged: 0, skipped: 0, errors: 0, keyConflicts: [] as KeyConflict[] }
 
   for (const item of items) {
     try {
@@ -1051,6 +1068,18 @@ export async function upsertArchiveFolders(
     const chanFolderModifiedAt = new Date(item.chanFolderModifiedAt)
 
     if (item.action === 'create') {
+      // Empty-folder guard: do NOT register a brand-new ArchiveFolder (with a fresh
+      // archiveKey + later a sidecar) for a leaf that holds no content AND carries no
+      // sidecarKey. These are maintenance/backup leftovers that match the archive
+      // naming scheme but aren't real sets. A sidecarKey means the user already
+      // tracked this folder (or it moved here with its _pulseboard.json), so those
+      // are never skipped — only truly empty, untracked new leaves. Once such a
+      // folder gains content it arrives as a normal create on a later scan.
+      if (isSkippableEmptyLeaf(item)) {
+        counts.skipped++
+        continue
+      }
+
       // Sidecar-key lookup: folder may have moved to a new path (possibly new drive/root).
       // If a sidecarKey is present, try to find the existing ArchiveFolder by archiveKey
       // and update its path in-place rather than creating a duplicate record.
