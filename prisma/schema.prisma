@@ -1090,6 +1090,11 @@ model MotifTemplate {
   updatedAt     DateTime @updatedAt
 
   normalizedImages MediaItem[]
+
+  // Generalised binding (ADR-0014): an Alignment Template may back exactly one
+  // locus MediaCategory (Eyes, a pose, a headshot framing). Optional — legacy
+  // profile-slot templates still use `slot` until the unification slice.
+  category MediaCategory?
 }
 
 model SetMediaItem {
@@ -1284,6 +1289,13 @@ model MediaCategory {
   entityModel String?
   sortOrder   Int                @default(0)
   createdAt   DateTime           @default(now())
+
+  // Alignment Template binding (ADR-0014), 0:1. A locus category (Eyes, a pose,
+  // a headshot framing) opts into exactly one template → alignable + Atlas grid.
+  // Entity-collection categories (Tattoos, Scars…) leave it null → plain bucket.
+  // SetNull: deleting the template demotes the category to a plain bucket.
+  alignmentTemplateId String?        @unique
+  alignmentTemplate   MotifTemplate? @relation(fields: [alignmentTemplateId], references: [id], onDelete: SetNull)
 
   personMediaLinks PersonMediaLink[]
 
