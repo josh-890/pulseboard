@@ -205,6 +205,7 @@ export default async function PersonDetailPage({ params, searchParams }: PersonD
       groupId: g.id,
       groupName: g.name,
       entityModel: c.entityModel,
+      alignmentTemplateId: c.alignmentTemplateId,
     })),
   );
 

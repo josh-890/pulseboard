@@ -500,7 +500,9 @@ export async function getPersonMediaGallery(
   // is delegated to the canonical mapper so any future GalleryItem field
   // appears here automatically as soon as the matching include is added.
   const items = await prisma.mediaItem.findMany({
-    where: { sessionId, isAnnotation: false },
+    // Raw media only: exclude annotations AND Aligned images (motifTemplateId set,
+    // ADR-0013) — both are derivatives shown in their own surfaces, not the gallery.
+    where: { sessionId, isAnnotation: false, motifTemplateId: null },
     include: {
       personMediaLinks: {
         where: { personId },
@@ -564,6 +566,7 @@ export async function getPersonSessionsWithMedia(personId: string): Promise<Pers
     by: ['sessionId'],
     where: {
       isAnnotation: false,
+      motifTemplateId: null,
       session: personSessionWhere(personId),
     },
     _count: { _all: true },
@@ -601,6 +604,7 @@ export async function getPersonMediaAcrossSessions(
   const rows = await prisma.mediaItem.findMany({
     where: {
       isAnnotation: false,
+      motifTemplateId: null,
       ...(options?.sessionId
         ? { sessionId: options.sessionId }
         : { session: personSessionWhere(personId) }),

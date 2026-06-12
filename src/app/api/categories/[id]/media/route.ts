@@ -42,6 +42,8 @@ export async function GET(
         originalHeight: mi.originalHeight,
         focalX: mi.focalX ?? null,
         focalY: mi.focalY ?? null,
+        // Aligned image (ADR-0013) — baked to the category's template; shown with a badge.
+        isAligned: mi.motifTemplateId != null,
       };
     });
 

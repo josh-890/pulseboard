@@ -95,6 +95,8 @@ export type CategoryWithGroup = {
   groupId: string;
   groupName: string;
   entityModel: string | null;
+  /** Bound Alignment Template (ADR-0014); null = not an alignable locus. */
+  alignmentTemplateId?: string | null;
 };
 
 export type CollectionContext = {

@@ -4,13 +4,16 @@ import { useCallback, useMemo, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { ChevronDown, ChevronRight, ImageIcon, Layers, Plus, ScanSearch, Upload } from "lucide-react";
+import { ChevronDown, ChevronRight, Frame, ImageIcon, Layers, Plus, ScanSearch, Upload } from "lucide-react";
 import { cn, focalStyle } from "@/lib/utils";
 import type { CategoryWithGroup } from "@/components/gallery/gallery-info-panel";
 import type { GalleryItem, PersonCurrentState } from "@/lib/types";
 import { DetailMediaPickerSheet } from "@/components/people/detail-media-picker-sheet";
 import { CrossSessionPicker } from "@/components/media/cross-session-picker";
+import { MotifAligner } from "@/components/people/motif-aligner";
 import { AnnotationEditor } from "@/components/media/annotation-editor";
+import { getAlignmentTemplateForCategoryAction } from "@/lib/actions/motif-template-actions";
+import type { MotifTemplateRecord } from "@/lib/services/motif-template-service";
 import { StagePhotoDialog } from "@/components/media/stage-photo-dialog";
 import { GalleryLightbox } from "@/components/gallery/gallery-lightbox";
 import { linkMediaToDetailCategoryAction, copyMediaItemToReferenceAction, deleteMediaItemsAction } from "@/lib/actions/media-actions";
@@ -28,6 +31,7 @@ type CategoryMediaItem = {
   originalHeight: number;
   focalX: number | null;
   focalY: number | null;
+  isAligned?: boolean;
 };
 
 function categoryItemToGalleryItem(item: CategoryMediaItem): GalleryItem {
@@ -90,6 +94,9 @@ export function PersonDetailsTab({
   type StagedPhoto = { item: GalleryItem; category: CategoryWithGroup }
   type AnnotateState = { item: GalleryItem; category: CategoryWithGroup; editorMode?: 'arrow' | 'crop'; editingMediaItemId?: string }
   const [crossPicker, setCrossPicker] = useState<CrossPickerState | null>(null);
+  // Align flow: pick a source photo → fetch the category's template → open the aligner.
+  const [alignPicker, setAlignPicker] = useState<CategoryWithGroup | null>(null);
+  const [aligner, setAligner] = useState<{ template: MotifTemplateRecord; source: { id: string; url: string }; categoryId: string } | null>(null);
   const [stagedPhoto, setStagedPhoto] = useState<StagedPhoto | null>(null);
   const [isStagingCopy, setIsStagingCopy] = useState(false);
   const [annotateState, setAnnotateState] = useState<AnnotateState | null>(null);
@@ -217,6 +224,19 @@ export function PersonDetailsTab({
     setStagedPhoto({ item, category: crossPicker.category });
     setCrossPicker(null);
   }, [crossPicker]);
+
+  // Align picker: user chose a source → fetch the category's bound template, open the aligner.
+  const handleAlignSourcePicked = useCallback(async (item: GalleryItem) => {
+    if (!alignPicker) return;
+    const cat = alignPicker;
+    setAlignPicker(null);
+    const template = await getAlignmentTemplateForCategoryAction(cat.id);
+    if (!template) {
+      toast.error(`No alignment template bound to ${cat.name}`);
+      return;
+    }
+    setAligner({ template, source: { id: item.id, url: item.urls.original }, categoryId: cat.id });
+  }, [alignPicker]);
 
   // Stage dialog: "Save as copy"
   const handleStageSaveCopy = useCallback(async () => {
@@ -487,6 +507,17 @@ export function PersonDetailsTab({
                           <ScanSearch size={14} />
                         </button>
                       )}
+                      {referenceSessionId && cat.alignmentTemplateId && (
+                        <button
+                          type="button"
+                          onClick={() => setAlignPicker(cat)}
+                          className="rounded-md p-1 text-muted-foreground transition-colors hover:text-amber-400 hover:bg-amber-500/10"
+                          title="Align a photo to this category's template"
+                          aria-label={`Align a photo for ${cat.name}`}
+                        >
+                          <Frame size={14} />
+                        </button>
+                      )}
                     </div>
                   </div>
 
@@ -533,6 +564,14 @@ export function PersonDetailsTab({
                                     <ImageIcon size={20} className="text-muted-foreground/40" />
                                   </div>
                                 )}
+                                {item.isAligned && (
+                                  <span
+                                    className="absolute left-1 top-1 flex items-center gap-0.5 rounded bg-amber-500/85 px-1 py-0.5 text-[9px] font-medium text-black"
+                                    title="Aligned to the category template"
+                                  >
+                                    <Frame size={9} /> aligned
+                                  </span>
+                                )}
                               </button>
                             );
                           })}
@@ -577,6 +616,27 @@ export function PersonDetailsTab({
           onSelect={handleCrossPickerSelect}
           onClose={() => setCrossPicker(null)}
           title={`Select photo — ${crossPicker.category.name}`}
+        />
+      )}
+
+      {/* Align: pick a source photo to align to the category's template */}
+      {alignPicker && (
+        <CrossSessionPicker
+          personId={personId}
+          onSelect={handleAlignSourcePicked}
+          onClose={() => setAlignPicker(null)}
+          title={`Pick a photo to align — ${alignPicker.name}`}
+        />
+      )}
+      {/* Align: keypoint aligner → bakes an Aligned image into the category */}
+      {aligner && referenceSessionId && (
+        <MotifAligner
+          source={aligner.source}
+          template={aligner.template}
+          personId={personId}
+          referenceSessionId={referenceSessionId}
+          onSaved={() => { const cid = aligner.categoryId; setAligner(null); refreshCategory(cid); }}
+          onCancel={() => setAligner(null)}
         />
       )}
 

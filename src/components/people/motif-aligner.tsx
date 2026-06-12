@@ -5,7 +5,7 @@ import { createPortal } from 'react-dom'
 import { Loader2, RotateCcw, Save, X, AlertTriangle, Check } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { computeSimilarityTransform, type Pt } from '@/lib/image/similarity-transform'
-import { assignMotifImageAction } from '@/lib/actions/motif-template-actions'
+import { assignMotifImageAction, assignAlignedImageAction } from '@/lib/actions/motif-template-actions'
 import type { MotifTemplateRecord } from '@/lib/services/motif-template-service'
 
 type MotifAlignerProps = {
@@ -51,6 +51,10 @@ export function MotifAligner({
   const orderedKps = template.keypoints
   const nextKp = orderedKps.find((k) => !points[k.name]) ?? null
   const allPlaced = orderedKps.length >= 2 && orderedKps.every((k) => points[k.name])
+
+  // Category-bound templates (ADR-0014) bake an Aligned image into a locus
+  // category; legacy profile-slot templates bake into a headshot slot.
+  const isCategoryMode = template.categoryId != null
 
   // Load the source master.
   useEffect(() => {
@@ -156,10 +160,8 @@ export function MotifAligner({
   const handleSave = useCallback(async () => {
     const img = imgRef.current
     if (!fit || !img) return
-    // Slice 2: this aligner still targets profile slots only; category-bound
-    // templates (slot === null) get their own bake path in slice 3.
     const slot = template.slot
-    if (slot == null) { setError('This template is not bound to a profile slot'); return }
+    if (!isCategoryMode && slot == null) { setError('This template is not bound to a profile slot'); return }
     setIsSaving(true)
     setError(null)
     try {
@@ -176,14 +178,16 @@ export function MotifAligner({
 
       const blob: Blob | null = await new Promise((res) => out.toBlob(res, 'image/jpeg', 0.92))
       if (!blob) throw new Error('Failed to render image')
-      const file = new File([blob], `motif-${slot}-${Date.now()}.jpg`, { type: 'image/jpeg' })
+      const file = new File([blob], `motif-${isCategoryMode ? template.categoryId : slot}-${Date.now()}.jpg`, { type: 'image/jpeg' })
 
       const upload = async (accept?: boolean) => {
         const fd = new FormData()
         fd.append('file', file)
         fd.append('sessionId', referenceSessionId)
         fd.append('personId', personId)
-        fd.append('isAnnotation', 'true')
+        // Aligned images are NOT annotations (ADR-0013) — identity is the
+        // template binding set by the assign action below, not isAnnotation.
+        fd.append('isAnnotation', isCategoryMode ? 'false' : 'true')
         if (accept) fd.append('duplicateAction', 'accept')
         const r = await fetch('/api/media/upload', { method: 'POST', body: fd })
         return (await r.json()) as { mediaItem?: { id: string }; duplicateFound?: boolean }
@@ -194,7 +198,9 @@ export function MotifAligner({
       if (!mediaItemId) throw new Error('Upload failed')
 
       const provenance = { sourceMediaItemId: source.id, points, matrix: fit.matrix }
-      const res = await assignMotifImageAction(personId, mediaItemId, slot, template.id, provenance)
+      const res = isCategoryMode
+        ? await assignAlignedImageAction(personId, mediaItemId, template.categoryId!, template.id, provenance)
+        : await assignMotifImageAction(personId, mediaItemId, slot!, template.id, provenance)
       if (!res.success) throw new Error(res.error ?? 'Assign failed')
       onSaved()
     } catch (err) {
@@ -202,7 +208,7 @@ export function MotifAligner({
     } finally {
       setIsSaving(false)
     }
-  }, [fit, bakeW, bakeH, template, referenceSessionId, personId, source.id, points, onSaved])
+  }, [fit, bakeW, bakeH, template, isCategoryMode, referenceSessionId, personId, source.id, points, onSaved])
 
   if (typeof document === 'undefined') return null
   // Portal to <body> so the full-screen overlay isn't trapped by an ancestor's
@@ -213,7 +219,10 @@ export function MotifAligner({
         <button onClick={onCancel} className="rounded-md p-1.5 text-zinc-400 hover:bg-white/5 hover:text-white">
           <X size={16} />
         </button>
-        <span className="text-sm font-medium text-zinc-200">Standardize: {template.name} (Slot {template.slot})</span>
+        <span className="text-sm font-medium text-zinc-200">
+          {isCategoryMode ? 'Align' : 'Standardize'}: {template.name}
+          {isCategoryMode ? (template.categoryName ? ` · ${template.categoryName}` : '') : ` (Slot ${template.slot})`}
+        </span>
         <span className="text-xs text-zinc-400">
           {nextKp ? `Click the ${nextKp.name.replace(/_/g, ' ')}` : 'All points placed — review the preview'}
         </span>
@@ -226,7 +235,7 @@ export function MotifAligner({
           className="ml-auto flex items-center gap-1.5 rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-500 disabled:opacity-40"
         >
           {isSaving ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
-          Save to slot
+          Save to {isCategoryMode ? 'category' : 'slot'}
         </button>
       </div>
 
