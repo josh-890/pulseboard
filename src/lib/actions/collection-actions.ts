@@ -8,6 +8,7 @@ import {
   deleteCollection,
   addToCollection,
   removeFromCollection,
+  type CollectionLayout,
 } from "@/lib/services/collection-service";
 import type { SimpleActionResult } from "@/lib/types";
 
@@ -17,6 +18,7 @@ export async function createCollectionAction(
   personId: string | null,
   name: string,
   description?: string,
+  layout?: CollectionLayout,
 ): Promise<ActionResultWithId> {
   return withTenantFromHeaders(async () => {
     try {
@@ -24,6 +26,7 @@ export async function createCollectionAction(
         name,
         description,
         personId: personId ?? undefined,
+        layout,
       });
       revalidatePath("/collections");
       if (personId) {
@@ -41,7 +44,7 @@ export async function createCollectionAction(
 
 export async function updateCollectionAction(
   collectionId: string,
-  data: { name?: string; description?: string },
+  data: { name?: string; description?: string; layout?: CollectionLayout },
 ): Promise<ActionResultWithId> {
   return withTenantFromHeaders(async () => {
     try {

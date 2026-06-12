@@ -1243,10 +1243,19 @@ model PersonMediaLink {
 
 // ─── Media Collections ──────────────────────────────────────────────────────
 
+// How a collection's items are presented. GRID = the default justified gallery;
+// SIDE_BY_SIDE = a before/after composite (2-up panes, framing comparable when the
+// items are Aligned images). Time- and person-agnostic — see ADR-0014 / D8.
+enum CollectionLayout {
+  GRID
+  SIDE_BY_SIDE
+}
+
 model MediaCollection {
   id          String                @id @default(uuid())
   name        String
   description String?
+  layout      CollectionLayout      @default(GRID)
   personId    String?
   person      Person?               @relation(fields: [personId], references: [id])
   items       MediaCollectionItem[]

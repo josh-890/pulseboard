@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import { FolderSearch, ImageIcon, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { JustifiedGrid } from "@/components/gallery/justified-grid";
@@ -14,16 +15,19 @@ import {
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { addToCollectionAction } from "@/lib/actions/collection-actions";
+import type { CollectionLayout } from "@/lib/services/collection-service";
 import type { GalleryItem } from "@/lib/types";
 
 type CollectionDetailGalleryProps = {
   collectionId: string;
   items: GalleryItem[];
+  layout: CollectionLayout;
 };
 
 export function CollectionDetailGallery({
   collectionId,
   items,
+  layout,
 }: CollectionDetailGalleryProps) {
   const router = useRouter();
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
@@ -87,15 +91,46 @@ export function CollectionDetailGallery({
     }
   }, [collectionId, router]);
 
+  const openLightbox = useCallback((id: string) => {
+    const idx = indexMap.get(id);
+    if (idx !== undefined) setLightboxIndex(idx);
+  }, [indexMap]);
+
+  // SIDE_BY_SIDE = before/after composite: 2-up panes, images shown whole
+  // (object-contain) so the framing reads comparably across the panes.
+  const sideBySide = (
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      {items.map((item, i) => (
+        <figure key={item.id} className="space-y-1.5">
+          <button
+            type="button"
+            onClick={() => openLightbox(item.id)}
+            className="block w-full overflow-hidden rounded-lg border border-white/10 bg-muted/30 transition-colors hover:border-primary/40"
+          >
+            <Image
+              src={item.urls.full_2400 ?? item.urls.view_1200 ?? item.urls.original}
+              alt={item.caption ?? `Item ${i + 1}`}
+              width={item.originalWidth}
+              height={item.originalHeight}
+              unoptimized
+              className="h-auto w-full object-contain"
+            />
+          </button>
+          <figcaption className="truncate text-xs text-muted-foreground">
+            {item.caption ?? `#${i + 1}`}
+          </figcaption>
+        </figure>
+      ))}
+    </div>
+  );
+
   const galleryContent = items.length > 0 ? (
     <div className="space-y-4">
-      <JustifiedGrid
-        items={items}
-        onOpen={(id) => {
-          const idx = indexMap.get(id);
-          if (idx !== undefined) setLightboxIndex(idx);
-        }}
-      />
+      {layout === "SIDE_BY_SIDE" ? (
+        sideBySide
+      ) : (
+        <JustifiedGrid items={items} onOpen={openLightbox} />
+      )}
       {!pickerOpen && (
         <div className="flex flex-wrap items-center gap-2">
           <Button

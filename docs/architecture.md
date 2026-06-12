@@ -69,7 +69,7 @@ Media path:
 | `/people/[id]` | `getPersonWithDetails()`, `getPersonWorkHistory()`, `getPersonConnections()`, `getPersonReferenceSession()`, `getPersonHeadshots()`, `getFilledHeadshotSlots()`, `getPersonMediaGallery()`, `getPopulatedCategoriesForPerson()`, `getAllSkillGroups()`, `getPersonAliases()`, `getPersonSessionWorkHistory()`, `getPersonProductionSessions()`, `getPersonEntityMedia()`, `getCareerStats()` | `PersonDetailTabs` → `OverviewTab`, `AppearanceTab`, `PersonDetailsTab`, `PersonSkillsTab`, `PersonAliasesTab`, `CareerTab`, `NetworkTab`, `PhotosTab` |
 | `/sets/[id]` | `getSetById()`, `getSetMediaGallery()`, `getAllContributionRoleGroups()` | `SetDetailGallery`, `CreditResolutionPanel`, `EditSetSheet`, `SetSessionManager` |
 | `/sessions/[id]` | `getSessionById()`, `getMediaItemsForSession()` or `getMediaItemsWithLinks()`, `getSessionContributions()` | `MediaManager` (reference) or `SessionProductionGallery` (production), `SessionContributionSkills`, `BatchUploadZone` |
-| `/collections/[id]` | `getCollectionWithItems()`, `getCollectionGalleryItems()` | `CollectionDetailGallery` |
+| `/collections/[id]` | `getCollectionWithItems()`, `getCollectionGalleryItems()` | `CollectionDetailGallery` — `MediaCollection.layout` (`GRID` \| `SIDE_BY_SIDE`); SIDE_BY_SIDE renders a 2-up before/after composite (ADR-0014/D8) |
 | `/atlas/[id]` | `getAtlasGridForCategory()` | `AtlasGrid` — every person's Aligned image in one locus, ordered by person, with a person-name filter; tiles link to the person |
 | `/projects/[id]` | `getProjectById()`, `getProjectSessions()` | `ProjectDetail`, `EditProjectSheet` |
 | `/labels/[id]` | `getLabelById()` | `LabelDetail`, `EditLabelSheet` |

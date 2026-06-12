@@ -41,6 +41,7 @@ export default async function CollectionDetailPage({ params }: CollectionDetailP
           collectionId={id}
           name={collection.name}
           description={collection.description}
+          layout={collection.layout}
         />
       </div>
 
@@ -82,6 +83,7 @@ export default async function CollectionDetailPage({ params }: CollectionDetailP
       <CollectionDetailGallery
         collectionId={id}
         items={galleryItems}
+        layout={collection.layout}
       />
     </div>
     );

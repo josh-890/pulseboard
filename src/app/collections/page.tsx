@@ -1,7 +1,7 @@
 import { withTenantFromHeaders } from "@/lib/tenant-context";
 import Link from "next/link";
 import Image from "next/image";
-import { Library, ImageIcon, User, Globe } from "lucide-react";
+import { Library, ImageIcon, User, Globe, Columns2 } from "lucide-react";
 import { getAllCollections } from "@/lib/services/collection-service";
 import { AddCollectionDialog } from "@/components/collections/add-collection-dialog";
 
@@ -80,6 +80,16 @@ export default async function CollectionsPage() {
                     </span>
                   )}
                 </div>
+
+                {/* Before/after badge */}
+                {collection.layout === "SIDE_BY_SIDE" && (
+                  <div className="absolute right-2 top-2">
+                    <span className="inline-flex items-center gap-1 rounded-full border border-amber-500/30 bg-amber-500/15 px-2 py-0.5 text-[10px] font-medium text-amber-600 backdrop-blur-sm dark:text-amber-400">
+                      <Columns2 size={10} />
+                      Before / after
+                    </span>
+                  </div>
+                )}
 
                 {/* Item count */}
                 <div className="absolute bottom-2 right-2">

@@ -17,22 +17,27 @@ import {
   updateCollectionAction,
   deleteCollectionAction,
 } from "@/lib/actions/collection-actions";
+import type { CollectionLayout } from "@/lib/services/collection-service";
+import { CollectionLayoutPicker } from "@/components/collections/collection-layout-picker";
 
 type CollectionActionsProps = {
   collectionId: string;
   name: string;
   description: string | null;
+  layout: CollectionLayout;
 };
 
 export function CollectionActions({
   collectionId,
   name: initialName,
   description: initialDescription,
+  layout: initialLayout,
 }: CollectionActionsProps) {
   const router = useRouter();
   const [editOpen, setEditOpen] = useState(false);
   const [name, setName] = useState(initialName);
   const [description, setDescription] = useState(initialDescription ?? "");
+  const [layout, setLayout] = useState<CollectionLayout>(initialLayout);
   const [saving, setSaving] = useState(false);
 
   async function handleSave() {
@@ -41,6 +46,7 @@ export function CollectionActions({
     const result = await updateCollectionAction(collectionId, {
       name: name.trim(),
       description: description.trim() || undefined,
+      layout,
     });
     setSaving(false);
 
@@ -97,6 +103,10 @@ export function CollectionActions({
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
               />
+            </div>
+            <div>
+              <span className="text-sm font-medium">Layout</span>
+              <CollectionLayoutPicker value={layout} onChange={setLayout} />
             </div>
             <div className="flex justify-end gap-2 pt-2">
               <Button variant="ghost" size="sm" onClick={() => setEditOpen(false)}>

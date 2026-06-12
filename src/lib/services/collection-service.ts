@@ -3,11 +3,14 @@ import type { GalleryItem, PhotoVariants } from "@/lib/types";
 import { buildUrl } from "@/lib/media-url";
 import { mapMediaItemToGalleryItem } from "@/lib/services/media-service";
 
+export type CollectionLayout = "GRID" | "SIDE_BY_SIDE";
+
 export type CollectionSummary = {
   id: string;
   name: string;
   description: string | null;
   personId: string | null;
+  layout: CollectionLayout;
   itemCount: number;
   thumbnailUrl: string | null;
   personName: string | null;
@@ -54,6 +57,7 @@ export async function getAllCollections(filters: {
       name: c.name,
       description: c.description,
       personId: c.personId,
+      layout: c.layout as CollectionLayout,
       itemCount: c._count.items,
       thumbnailUrl: thumbKey ? buildUrl(thumbKey) : null,
       personName: c.person?.aliases[0]?.name ?? null,
@@ -101,6 +105,7 @@ export async function getCollectionsForPerson(
       name: c.name,
       description: c.description,
       personId: c.personId,
+      layout: c.layout as CollectionLayout,
       itemCount: c._count.items,
       thumbnailUrl: thumbKey ? buildUrl(thumbKey) : null,
       personName: null, // caller already has person context
@@ -161,12 +166,14 @@ export async function createCollection(data: {
   name: string;
   description?: string;
   personId?: string;
+  layout?: CollectionLayout;
 }): Promise<string> {
   const collection = await prisma.mediaCollection.create({
     data: {
       name: data.name,
       description: data.description,
       personId: data.personId,
+      ...(data.layout ? { layout: data.layout } : {}),
     },
   });
   return collection.id;
@@ -174,11 +181,15 @@ export async function createCollection(data: {
 
 export async function updateCollection(
   id: string,
-  data: { name?: string; description?: string },
+  data: { name?: string; description?: string; layout?: CollectionLayout },
 ): Promise<void> {
   await prisma.mediaCollection.update({
     where: { id },
-    data,
+    data: {
+      ...(data.name !== undefined ? { name: data.name } : {}),
+      ...(data.description !== undefined ? { description: data.description } : {}),
+      ...(data.layout !== undefined ? { layout: data.layout } : {}),
+    },
   });
 }
 

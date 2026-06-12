@@ -14,18 +14,21 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { createCollectionAction } from "@/lib/actions/collection-actions";
+import type { CollectionLayout } from "@/lib/services/collection-service";
+import { CollectionLayoutPicker } from "@/components/collections/collection-layout-picker";
 
 export function AddCollectionDialog() {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
+  const [layout, setLayout] = useState<CollectionLayout>("GRID");
   const [saving, setSaving] = useState(false);
 
   async function handleCreate() {
     if (!name.trim()) return;
     setSaving(true);
-    const result = await createCollectionAction(null, name.trim(), description.trim() || undefined);
+    const result = await createCollectionAction(null, name.trim(), description.trim() || undefined, layout);
     setSaving(false);
 
     if (result.success) {
@@ -33,6 +36,7 @@ export function AddCollectionDialog() {
       setOpen(false);
       setName("");
       setDescription("");
+      setLayout("GRID");
       if (result.id) {
         router.push(`/collections/${result.id}`);
       } else {
@@ -80,6 +84,10 @@ export function AddCollectionDialog() {
                 onChange={(e) => setDescription(e.target.value)}
                 placeholder="Optional description"
               />
+            </div>
+            <div>
+              <span className="text-sm font-medium">Layout</span>
+              <CollectionLayoutPicker value={layout} onChange={setLayout} />
             </div>
             <div className="flex justify-end gap-2 pt-2">
               <Button variant="ghost" size="sm" onClick={() => setOpen(false)}>

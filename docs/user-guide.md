@@ -548,6 +548,7 @@ Click **"New Collection"** to open the creation dialog:
 |-------|----------|-------|
 | Name | Yes | e.g. "Portfolio Candidates" |
 | Description | No | |
+| Layout | Yes | **Grid** (default justified gallery) or **Before / after** — a side-by-side composite. Pick *Before / after* for comparisons; for matched framing on both sides, add **Aligned images** (see the Atlas). Change the layout anytime via the collection's Edit dialog. |
 
 Collections created from this page are global (no person scope). Person-scoped collections are created from the lightbox info panel on a person's reference session.
 
