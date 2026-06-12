@@ -72,6 +72,25 @@ The result of the Fold as of *now* — a Person's present hair color, weight, ac
 **Era-linked participation**:
 A person's participation in a shoot (`SessionContribution`) optionally references the **Era** the person was in at that time. This anchors their *appearance at the shoot* — the Fold computed `asOf` that Era — and lets an Era list the sessions and sets that occurred during it.
 
+### Imagery & alignment (added 2026-06-12)
+
+**Alignment Template** (concept; code model & DB table: `MotifTemplate`):
+A geometric recipe for standardised framing — target **keypoints** (frame fractions 0..1) + output aspect + bake long side (+ optional silhouette guide). Applied post-hoc: the user clicks the keypoints on a source photo, a Umeyama 2D similarity transform maps them to the targets, and the result is baked. Its sole job is **comparability** — make every image framed against it share the same visual impression. Generalises the original Motif/headshot mechanism. Binds to a **MediaCategory** (0:1). See ADR-0014.
+_Historical note_: born as "Motif Template" tied to a profile `slot @unique`; the slot weld is retired and the recipe generalised to any locus category.
+
+**Aligned image**:
+A **baked pixel copy** (a `MediaItem` in the person's reference session) produced by applying an Alignment Template to a **source image**. A derived copy with decoupled identity that **retains provenance** (`sourceMediaItemId` + template + transform matrix) — re-bakeable and staleness-detectable, never an orphan and never a render-time transform. Identified by its alignment-template binding + provenance. Visibility is derived: hidden from the main raw photo gallery, shown in its category grid, the Details tab, and any Collection. See ADR-0013.
+_Avoid_: "normalized image" (legacy code term — same thing); **"annotation"** (a *different* concept — see Flagged ambiguities).
+
+**MediaCategoryGroup** vs **MediaCategory** (sharpened 2026-06-12):
+A **Group** is a broad theme drawer (Physical Features, Body Marks, Poses, Profile) — purely organisational, **never** a unit of comparison. A **Category** is a **single comparable locus** (Eyes, "standing pose front", a headshot framing) — *the* unit of the cross-person grid, carrying **at most one** Alignment Template. Two kinds: **locus categories** (a single anatomical place — alignable, opt into a template) and **entity-collection categories** (`entityModel` set: Tattoos, Scars, Piercings — many distinct objects, template-less plain buckets). Multiplicity of framings within a theme lives at the **Group** level (many pose categories under one "Poses" group), never as multiple templates on one category.
+
+**Atlas**:
+The automatic **cross-person comparison** surface (`/atlas`). Pick a locus category → see every person's Aligned image in that locus side by side. Generated from the alignment data, not curated. Distinct from a **Collection** (hand-curated) and from the per-person **Details tab** (one person's loci). _Avoid_: "Compare" / "Details" as the surface name — the latter collides with the Details tab.
+
+**Before/after composite**:
+A curated `MediaCollection` with `layout = SIDE_BY_SIDE` — an ordered list of hand-picked Aligned images, agnostic to whose/when. Serves both temporal (same person over time) and cross-person comparison with no special-casing. Era-linking per pane is deferred polish, not part of the concept.
+
 ### Watchlist scan workflow (added 2026-06-10)
 
 **Scrape source** (code model & DB table: `ScrapeSource`):
@@ -94,6 +113,7 @@ A derived per-person signal: an archive-born set (a `StagingSet` with no import 
 - **"Persona"** — In the wider domain a "persona" usually means a stage identity / working name. In Pulseboard it does **not**: stage names are **Aliases** (`PersonAlias`). The concept is an **Era** — a phase on the Person's development timeline. The legacy `Persona` Prisma model + DB table were renamed to `Era` in May 2026 — no Persona references remain in current code or docs. If you find one, it's either inside `prisma/migrations/` (historical) or it's drift worth fixing.
 - **"natural" vs "current"** — Older fields (`naturalHairColor`, `naturalBreastSize`, `currentHairColor`) implied a fixed-vs-live split. There is no such split: a changing attribute has exactly one timeline, whose first value is on the **Baseline** Era. "Natural" is simply the Baseline value.
 - **"Snapshot"** — In the broader domain, a point-in-time observation without era information often warrants a distinct row type. Pulseboard has no `Snapshot` entity: an imported observation is just a delta — by default written to **Baseline** as best-guess; the source-explicit-status exception (e.g. `breastDescription="enhanced"`) routes specific values to an undated-changes Era. The conceptual tension resolves via policy, not schema. See ADR-0008.
+- **"Annotation" vs "Aligned image"** — Two separate kinds of derived image, never to be conflated. An **Annotation** (`MediaItem.isAnnotation`) is a cropped/highlighted derivative made to emphasise a topic — a tattoo, a body mark. An **Aligned image** is a template-framed baked copy made for *comparison* (see Imagery & alignment). They differ in purpose (highlight vs compare), in marker (`isAnnotation` vs alignment-template binding + provenance), and in surface. The current Motif headshot bake borrows `isAnnotation=true` to hide itself — that reuse is the one conflation to remove; aligned-ness must be identified by the template binding, not the annotation flag. See ADR-0013/0014.
 - **"Re-import"** — Importing a file that contains a person whose ICG-ID already exists. Operationally indistinguishable from a first-time import at upload (same workflow); the system handles the matched-person case via a gated per-attribute review (`ImportItemStatus = PENDING_ATTRIBUTE_REVIEW`). Each non-identical delta becomes an explicit Accept/Decline decision; nothing flows through silently. **Principle: absence is information** — an empty field, a missing alias, or a verified-unknown flag in the DB might be intentional (the user cleared it, removed it, or marked it unknown), so the review surfaces additions and fill-gaps too, not just true conflicts. Sets are the carve-out — auto-flow to staging by external-set-id. See ADR-0009.
 
 ## Example dialogue
