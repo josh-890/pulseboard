@@ -18,13 +18,17 @@ import type {
 } from "@/lib/services/motif-template-service";
 
 type SlotLabel = { slot: number; label: string };
+type LocusCategory = { id: string; name: string; groupName: string; boundTemplateId: string | null };
 
 type TemplateWithUrl = MotifTemplateRecord & { silhouetteUrl: string | null };
 
 type Draft = {
   id: string | null;
   name: string;
+  /** Binding mode: a profile slot (legacy headshot) XOR a locus category (ADR-0014). */
+  target: "slot" | "category";
   slot: number;
+  categoryId: string | null;
   aspectW: number;
   aspectH: number;
   bakeLongSide: number;
@@ -36,7 +40,9 @@ type Draft = {
 const BLANK: Draft = {
   id: null,
   name: "",
+  target: "slot",
   slot: 1,
+  categoryId: null,
   aspectW: 2,
   aspectH: 3,
   bakeLongSide: 2048,
@@ -57,9 +63,11 @@ const REF_PREVIEW_W = 400; // enlarge the canvas while a reference image is load
 export function MotifTemplatesCatalog({
   templates,
   slotLabels,
+  categories,
 }: {
   templates: TemplateWithUrl[];
   slotLabels: SlotLabel[];
+  categories: LocusCategory[];
 }) {
   const router = useRouter();
   const [draft, setDraft] = useState<Draft | null>(null);
@@ -114,7 +122,10 @@ export function MotifTemplatesCatalog({
     setError(null);
     revokeObjectUrl();
     setDraft({
-      id: t.id, name: t.name, slot: t.slot, aspectW: t.aspectW, aspectH: t.aspectH,
+      id: t.id, name: t.name,
+      target: t.categoryId ? "category" : "slot",
+      slot: t.slot ?? 1, categoryId: t.categoryId,
+      aspectW: t.aspectW, aspectH: t.aspectH,
       bakeLongSide: t.bakeLongSide, minSourcePx: t.minSourcePx, silhouetteRef: t.silhouetteRef,
       keypoints: t.keypoints.map((k) => ({ ...k })),
     });
@@ -228,10 +239,15 @@ export function MotifTemplatesCatalog({
     if (!draft) return;
     if (!draft.name.trim()) { setError("Name is required"); return; }
     if (draft.keypoints.length < 2) { setError("At least 2 keypoints are required"); return; }
+    if (draft.target === "category" && !draft.categoryId) { setError("Pick a locus category"); return; }
     setSaving(true);
     setError(null);
+    // Slot XOR category — send the inactive binding as null so the service clears it.
     const input = {
-      name: draft.name.trim(), slot: draft.slot, aspectW: draft.aspectW, aspectH: draft.aspectH,
+      name: draft.name.trim(),
+      slot: draft.target === "slot" ? draft.slot : null,
+      categoryId: draft.target === "category" ? draft.categoryId : null,
+      aspectW: draft.aspectW, aspectH: draft.aspectH,
       bakeLongSide: draft.bakeLongSide, minSourcePx: draft.minSourcePx, keypoints: draft.keypoints,
       silhouetteRef: draft.silhouetteRef,
       silhouetteTransform: draft.silhouetteRef ? refTx : null,
@@ -270,7 +286,9 @@ export function MotifTemplatesCatalog({
                 <div className="min-w-0">
                   <p className="truncate text-sm font-medium">{t.name}</p>
                   <p className="text-[11px] text-muted-foreground">
-                    {slotLabels.find((s) => s.slot === t.slot)?.label ?? `Slot ${t.slot}`} · {t.aspectW}:{t.aspectH} · {t.bakeLongSide}px · {t.keypoints.length} keypoints{t.silhouetteRef ? " · 📌 ref" : ""}
+                    {t.categoryId
+                      ? `◎ ${t.categoryName ?? "Category"}`
+                      : slotLabels.find((s) => s.slot === t.slot)?.label ?? `Slot ${t.slot}`} · {t.aspectW}:{t.aspectH} · {t.bakeLongSide}px · {t.keypoints.length} keypoints{t.silhouetteRef ? " · 📌 ref" : ""}
                   </p>
                 </div>
                 <div className="flex shrink-0 gap-1">
@@ -299,11 +317,49 @@ export function MotifTemplatesCatalog({
               <Field label="Name">
                 <input value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} className="w-full rounded-md border border-white/15 bg-background/60 px-2 py-1 text-sm" />
               </Field>
-              <Field label="Slot">
-                <select value={draft.slot} onChange={(e) => setDraft({ ...draft, slot: Number(e.target.value) })} className="w-full rounded-md border border-white/15 bg-background/60 px-2 py-1 text-sm">
-                  {slotLabels.map((s) => <option key={s.slot} value={s.slot}>{s.slot}. {s.label}</option>)}
-                </select>
+              <Field label="Bind to">
+                <div className="flex gap-1 rounded-md border border-white/15 bg-background/60 p-0.5">
+                  {(["slot", "category"] as const).map((mode) => (
+                    <button
+                      key={mode}
+                      type="button"
+                      onClick={() => setDraft({ ...draft, target: mode })}
+                      className={cn(
+                        "flex-1 rounded px-2 py-1 text-xs font-medium transition-colors",
+                        draft.target === mode ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground",
+                      )}
+                    >
+                      {mode === "slot" ? "Profile slot" : "Locus category"}
+                    </button>
+                  ))}
+                </div>
               </Field>
+              {draft.target === "slot" ? (
+                <Field label="Slot">
+                  <select value={draft.slot} onChange={(e) => setDraft({ ...draft, slot: Number(e.target.value) })} className="w-full rounded-md border border-white/15 bg-background/60 px-2 py-1 text-sm">
+                    {slotLabels.map((s) => <option key={s.slot} value={s.slot}>{s.slot}. {s.label}</option>)}
+                  </select>
+                </Field>
+              ) : (
+                <Field label="Locus category">
+                  <select
+                    value={draft.categoryId ?? ""}
+                    onChange={(e) => setDraft({ ...draft, categoryId: e.target.value || null })}
+                    className="w-full rounded-md border border-white/15 bg-background/60 px-2 py-1 text-sm"
+                  >
+                    <option value="">— pick a category —</option>
+                    {categories.map((c) => {
+                      // Disable categories already bound to a different template.
+                      const takenByOther = !!c.boundTemplateId && c.boundTemplateId !== draft.id;
+                      return (
+                        <option key={c.id} value={c.id} disabled={takenByOther}>
+                          {c.groupName} › {c.name}{takenByOther ? " (bound)" : ""}
+                        </option>
+                      );
+                    })}
+                  </select>
+                </Field>
+              )}
               <div className="grid grid-cols-2 gap-2">
                 <Field label="Aspect W"><NumInput value={draft.aspectW} onChange={(v) => setDraft({ ...draft, aspectW: v })} /></Field>
                 <Field label="Aspect H"><NumInput value={draft.aspectH} onChange={(v) => setDraft({ ...draft, aspectH: v })} /></Field>

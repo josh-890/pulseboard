@@ -31,7 +31,8 @@ export function SlotManager({ personId, referenceSessionId, templates, slotState
   const [busy, setBusy] = useState(false);
 
   const stateBySlot = new Map(slotState.map((s) => [s.slot, s]));
-  const templateBySlot = new Map(templates.map((t) => [t.slot, t]));
+  // Slot manager handles profile-slot templates only; ignore category-bound ones.
+  const templateBySlot = new Map(templates.filter((t) => t.slot != null).map((t) => [t.slot as number, t]));
 
   const run = useCallback(async (fn: () => Promise<{ success: boolean; error?: string }>) => {
     setBusy(true);

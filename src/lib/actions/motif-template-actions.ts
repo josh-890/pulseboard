@@ -12,6 +12,8 @@ import {
 import type { SimpleActionResult } from "@/lib/types";
 
 const CATALOG_PATH = "/settings/catalogs/motif-templates";
+// Binding a template to a locus category mutates MediaCategory rows surfaced here.
+const MEDIA_CATALOG_PATH = "/settings/catalogs/media";
 
 /**
  * Finalize a freshly-uploaded baked motif image: tag it as normalized (template +
@@ -63,6 +65,7 @@ export async function createMotifTemplateAction(input: MotifTemplateInput): Prom
     try {
       await createMotifTemplate(input);
       revalidatePath(CATALOG_PATH);
+      revalidatePath(MEDIA_CATALOG_PATH);
       return { success: true };
     } catch (err) {
       return { success: false, error: err instanceof Error ? err.message : "Failed to create template" };
@@ -78,6 +81,7 @@ export async function updateMotifTemplateAction(
     try {
       await updateMotifTemplate(id, input);
       revalidatePath(CATALOG_PATH);
+      revalidatePath(MEDIA_CATALOG_PATH);
       return { success: true };
     } catch (err) {
       return { success: false, error: err instanceof Error ? err.message : "Failed to update template" };

@@ -156,6 +156,10 @@ export function MotifAligner({
   const handleSave = useCallback(async () => {
     const img = imgRef.current
     if (!fit || !img) return
+    // Slice 2: this aligner still targets profile slots only; category-bound
+    // templates (slot === null) get their own bake path in slice 3.
+    const slot = template.slot
+    if (slot == null) { setError('This template is not bound to a profile slot'); return }
     setIsSaving(true)
     setError(null)
     try {
@@ -172,7 +176,7 @@ export function MotifAligner({
 
       const blob: Blob | null = await new Promise((res) => out.toBlob(res, 'image/jpeg', 0.92))
       if (!blob) throw new Error('Failed to render image')
-      const file = new File([blob], `motif-${template.slot}-${Date.now()}.jpg`, { type: 'image/jpeg' })
+      const file = new File([blob], `motif-${slot}-${Date.now()}.jpg`, { type: 'image/jpeg' })
 
       const upload = async (accept?: boolean) => {
         const fd = new FormData()
@@ -190,7 +194,7 @@ export function MotifAligner({
       if (!mediaItemId) throw new Error('Upload failed')
 
       const provenance = { sourceMediaItemId: source.id, points, matrix: fit.matrix }
-      const res = await assignMotifImageAction(personId, mediaItemId, template.slot, template.id, provenance)
+      const res = await assignMotifImageAction(personId, mediaItemId, slot, template.id, provenance)
       if (!res.success) throw new Error(res.error ?? 'Assign failed')
       onSaved()
     } catch (err) {

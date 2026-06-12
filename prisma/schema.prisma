@@ -1078,7 +1078,10 @@ model MediaItem {
 model MotifTemplate {
   id            String   @id @default(cuid())
   name          String
-  slot          Int      @unique // profile slot this template fills (1..N)
+  // Profile slot this template fills (1..N), @unique. Nullable since ADR-0014:
+  // a category-bound Alignment Template has no slot (slot XOR category binding).
+  // Postgres allows multiple NULLs under a UNIQUE index. Retired at unification.
+  slot          Int?     @unique
   aspectW       Int
   aspectH       Int
   bakeLongSide  Int // baked output long side in px (never upscaled beyond source)
