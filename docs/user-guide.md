@@ -166,7 +166,15 @@ Per slot you can:
 - **Clear** → empty the slot.
 - **★** → mark that slot as the person's **default** (the image shown on the People-browser card when no slot filter is active).
 
-Uploading photos **no longer auto-fills slots** — slot images are always set explicitly here. Templates (output aspect/size + draggable target keypoints, one per slot) are defined under **Settings → Catalogs → Motif Templates**; add half/full-body motifs there — no code needed. When editing a template you can drop a **reference photo** behind the keypoint canvas as a visual guide (drag to move, scroll to zoom, rotate + opacity sliders) and place the dots over real anatomy — it's a guide only and never changes the saved geometry. **Pin** it to keep that reference (and its position) for next time.
+Uploading photos **no longer auto-fills slots** — slot images are always set explicitly here. Templates (output aspect/size + draggable target keypoints) are defined under **Settings → Catalogs → Motif Templates**; add half/full-body motifs there — no code needed. When editing a template you can drop a **reference photo** behind the keypoint canvas as a visual guide (drag to move, scroll to zoom, rotate + opacity sliders) and place the dots over real anatomy — it's a guide only and never changes the saved geometry. **Pin** it to keep that reference (and its position) for next time.
+
+#### Aligned detail photos & the Atlas
+
+The same template alignment that standardizes headshots also works for **detail loci** (eyes, a specific pose, …) so they're **comparable across people**. In **Settings → Catalogs → Motif Templates**, set a template's **Bind to** toggle to **Locus category** and pick a category (e.g. *Eyes*) instead of a profile slot.
+
+Once a category has a template, an **Align** button (frame icon) appears next to that category on a person's **Details** tab. Click it → pick a source photo → the same keypoint aligner opens → **Save to category** bakes an **Aligned image** that lands in that category (marked with an *aligned* badge). Aligned images are derived copies kept in the reference session; they're hidden from the raw photo gallery and source pickers so they don't clutter your originals. You can align as many photos per locus as you like.
+
+The **Atlas** (sidebar) is the pay-off: pick a locus and see **every person's aligned image side by side** — automatically comparable because they share the template's framing. Filter the grid by person; click a tile to jump to that person. (This is the *automatic* counterpart to **Collections**, which are hand-curated.)
 
 #### Choosing an image (big-preview picker)
 
