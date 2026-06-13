@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { Columns2, X, Loader2, Plus, ChevronLeft, ImageIcon } from "lucide-react";
@@ -21,11 +22,14 @@ export function CompareTrayBar() {
   const router = useRouter();
   const [open, setOpen] = useState(false);
 
-  if (items.length === 0) return null;
+  if (items.length === 0 || typeof document === "undefined") return null;
 
+  // Portal to <body> at a z-index above the lightbox (z-100) so the tray stays
+  // visible while you gather photos from within the lightbox.
   return (
     <>
-      <div className="fixed bottom-4 left-1/2 z-50 flex -translate-x-1/2 items-center gap-3 rounded-2xl border border-white/15 bg-card/95 p-2 pl-3 shadow-xl backdrop-blur-md">
+      {createPortal(
+        <div className="fixed bottom-4 left-1/2 z-[110] flex -translate-x-1/2 items-center gap-3 rounded-2xl border border-white/15 bg-card/95 p-2 pl-3 shadow-xl backdrop-blur-md">
         <span className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
           <Columns2 size={14} className="text-amber-500" /> Compare tray
         </span>
@@ -55,7 +59,9 @@ export function CompareTrayBar() {
         <button type="button" onClick={clear} className="rounded-md p-1 text-muted-foreground hover:text-destructive" title="Clear tray" aria-label="Clear tray">
           <X size={15} />
         </button>
-      </div>
+        </div>,
+        document.body,
+      )}
 
       <CompareTrayDialog
         open={open}
@@ -138,7 +144,7 @@ function CompareTrayDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="z-[130] sm:max-w-md">
         <DialogHeader>
           <DialogTitle>{count} photo{count !== 1 ? "s" : ""} → a comparison</DialogTitle>
         </DialogHeader>
