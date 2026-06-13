@@ -193,6 +193,7 @@ export function CarouselHeader({
           profileLabels={profileLabels}
           headshotSlotMap={headshotSlotMap}
           onFindSimilar={onFindSimilar}
+          enableCollections
         />
       )}
     </>

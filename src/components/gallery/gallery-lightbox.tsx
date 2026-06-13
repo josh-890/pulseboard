@@ -63,6 +63,9 @@ type GalleryLightboxProps = {
   productionContext?: ProductionContext;
   // Standalone collection context (optional — forwarded to GalleryInfoPanel)
   collectionContext?: CollectionContext;
+  // When true and no collectionContext is supplied, the lightbox self-fetches the
+  // collections list so "Add to collection" works anywhere (e.g. a person gallery).
+  enableCollections?: boolean;
   // Delete handler — shows inline confirmation, then calls this
   onDelete?: (id: string) => void;
   // Edit handler — opens annotation editor for the current item
@@ -113,6 +116,7 @@ function SimpleLightbox({
   referenceContext,
   productionContext,
   collectionContext,
+  enableCollections,
   onDelete,
   onEdit,
   copyToReferenceTargets,
@@ -245,21 +249,35 @@ function SimpleLightbox({
     };
   }, [referenceContext]);
 
-  // Build standalone collectionContext with local-state-aware callback
+  // Self-fetched collections list when enableCollections is set (no explicit context).
+  const [fetchedCollections, setFetchedCollections] = useState<{ id: string; name: string }[]>([]);
+  useEffect(() => {
+    if (!enableCollections || collectionContext) return;
+    let cancelled = false;
+    fetch("/api/collections/list")
+      .then((r) => r.json())
+      .then((data: { id: string; name: string }[]) => { if (!cancelled) setFetchedCollections(data); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [enableCollections, collectionContext]);
+
+  // Build standalone collectionContext with local-state-aware callback. Falls back
+  // to the self-fetched list so add-to-collection works in any lightbox.
   const augmentedCollectionContext = useMemo(() => {
-    if (!collectionContext) return undefined;
+    const base = collectionContext ?? (fetchedCollections.length > 0 ? { collections: fetchedCollections } : undefined);
+    if (!base) return undefined;
     return {
-      ...collectionContext,
+      ...base,
       onCollectionIdsChange: (itemId: string, collIds: string[]) => {
         setLocalCollectionIdsMap((prev) => {
           const next = new Map(prev);
           next.set(itemId, collIds);
           return next;
         });
-        collectionContext.onCollectionIdsChange?.(itemId, collIds);
+        base.onCollectionIdsChange?.(itemId, collIds);
       },
     };
-  }, [collectionContext]);
+  }, [collectionContext, fetchedCollections]);
 
   const goNext = useCallback(() => {
     setCurrentIndex((i) => Math.min(items.length - 1, i + 1));

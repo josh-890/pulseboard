@@ -1581,6 +1581,7 @@ function OverviewTab({
             <GalleryLightbox
               items={recentPhotos}
               initialIndex={lightboxIndex}
+              enableCollections
               onClose={() => setLightboxIndex(null)}
             />
           )}
@@ -1856,6 +1857,7 @@ function PhotosTab({
         <GalleryLightbox
           items={photos}
           initialIndex={lightboxIndex}
+          enableCollections
           onClose={() => setLightboxIndex(null)}
           onAssignHeadshot={handleAssignHeadshot}
           onRemoveHeadshot={handleRemoveHeadshot}

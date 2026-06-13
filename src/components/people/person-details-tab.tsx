@@ -677,6 +677,7 @@ export function PersonDetailsTab({
         <GalleryLightbox
           items={detailsLightbox.items}
           initialIndex={detailsLightbox.initialIndex}
+          enableCollections
           onClose={() => setDetailsLightbox(null)}
           onEdit={(galleryItem) => {
             const category = categories.find((c) => c.id === detailsLightbox.categoryId);
