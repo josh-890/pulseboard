@@ -5,7 +5,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { ChevronLeft, Columns2, SlidersHorizontal, Crop, Maximize2, Anchor, ArrowLeft, ArrowRight, Trash2, Plus } from "lucide-react";
+import { ChevronLeft, Columns2, SlidersHorizontal, Crop, Maximize2, Anchor, ArrowLeft, ArrowRight, Trash2, Plus, Crosshair } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ImageCompareSlider } from "@/components/collections/image-compare-slider";
 import { ComparisonBuilderSheet } from "@/components/collections/comparison-builder-sheet";
@@ -34,6 +34,8 @@ export function ComparisonViewer({
   const [addOpen, setAddOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [title, setTitle] = useState(comparison.title ?? "");
+  // Focal editing is a one-time orientation step; toggle it off for a clean view.
+  const [showFocal, setShowFocal] = useState(true);
 
   const members = comparison.members;
   const driver = members.find((m) => m.isAspectDriver) ?? members[0];
@@ -72,7 +74,7 @@ export function ComparisonViewer({
     void run(() => removeComparisonItemAction(comparison.id, mediaItemId, collectionId));
   };
   const setFocalFromClick = (mediaItemId: string, e: React.MouseEvent<HTMLDivElement>) => {
-    if (!isCover) return;
+    if (!isCover || !showFocal) return;
     const rect = e.currentTarget.getBoundingClientRect();
     const x = (e.clientX - rect.left) / rect.width;
     const y = (e.clientY - rect.top) / rect.height;
@@ -117,6 +119,20 @@ export function ComparisonViewer({
                 </button>
               ))}
             </div>
+            {/* Focal indicator toggle (Fill mode only) */}
+            {isCover && (
+              <button
+                type="button"
+                onClick={() => setShowFocal((v) => !v)}
+                title={showFocal ? "Hide focal points" : "Show focal points (click a photo to set)"}
+                className={cn(
+                  "flex items-center gap-1 rounded-md border border-white/15 px-2 py-1 text-xs font-medium transition-colors",
+                  showFocal ? "bg-primary text-primary-foreground" : "bg-card/60 text-muted-foreground hover:text-foreground",
+                )}
+              >
+                <Crosshair size={12} /> Focal
+              </button>
+            )}
             {/* View mode (pairs) */}
             {canSlider && (
               <div className="flex gap-0.5 rounded-md border border-white/15 bg-background/60 p-0.5">
@@ -137,8 +153,8 @@ export function ComparisonViewer({
             </button>
           </div>
         </div>
-        {isCover && !showSlider && (
-          <p className="mt-1 text-[11px] text-muted-foreground">Fill mode: click a photo to set its focal point (what stays centred). Use the ⚓ to pick which photo&rsquo;s shape governs the cells.</p>
+        {isCover && showFocal && !showSlider && (
+          <p className="mt-1 text-[11px] text-muted-foreground">Fill mode: click a photo to set its focal point (what stays centred). Toggle <strong>Focal</strong> off to hide the dots. Use the ⚓ to pick which photo&rsquo;s shape governs the cells.</p>
         )}
       </div>
 
@@ -169,7 +185,7 @@ export function ComparisonViewer({
                   onClick={(e) => setFocalFromClick(m.mediaItemId, e)}
                   className={cn(
                     "group relative overflow-hidden rounded-lg border border-white/10 bg-black/50",
-                    isCover && "cursor-crosshair",
+                    isCover && showFocal && "cursor-crosshair",
                   )}
                   style={{ aspectRatio: `${aspectW} / ${aspectH}`, height: "min(70vh, 80vw)" }}
                 >
@@ -184,8 +200,8 @@ export function ComparisonViewer({
                     />
                   ) : null}
 
-                  {/* Focal dot (cover only) */}
-                  {isCover && (
+                  {/* Focal dot (cover + focal toggle on) */}
+                  {isCover && showFocal && (
                     <span className="pointer-events-none absolute h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white bg-primary/80 shadow"
                       style={{ left: `${fx * 100}%`, top: `${fy * 100}%` }} />
                   )}
