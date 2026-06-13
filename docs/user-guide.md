@@ -554,17 +554,21 @@ Collections created from this page are global (no person scope). Person-scoped c
 
 ### Collection Detail
 
-- Header with name, description, type badge, and item count
-- **Gallery** — `GRID` shows a justified grid; **`SIDE_BY_SIDE` (Before / after)** shows a **comparison composite**: a row of equal-sized cells (2…N) with each photo letterboxed so different aspect ratios line up. For **exactly two** photos a **Slider** toggle appears — a draggable before/after wipe (pixel-aligned when both are Aligned images). Reorder with the ◀ ▶ arrows under each cell (sets before vs after).
-- **Edit** — modify name, description, and layout
-- **Delete** — permanently delete the collection (media items are not affected)
+- **`GRID` collections** hold single photos in a justified grid (lightbox, drag-to-add, Browse & Add).
+- **`SIDE_BY_SIDE` (Before / after) collections** hold **Comparisons** — each a group of 2…N photos that belong together. The collection shows one **montage tile** per comparison (a mini collage of its members + a count). Click **New comparison** and pick 2+ photos (selection order = before→after) to make one.
+- **Edit** — modify name, description, and layout. **Delete** — removes the collection (photos themselves are untouched).
 
-### Adding Media to Collections
+#### The Comparison viewer (open a montage tile)
 
-Three ways:
-1. **From any lightbox** — open a photo (a person's Recent Photos, the Photos tab, the Details tab, a set or session), open the **info panel → Collections**, and click a collection name to add/remove the current photo.
-2. **Browse & Add** — inside a collection, click **Browse & Add** and **multi-select** several photos at once (handy for grabbing a pair to compare).
-3. **Drag & drop** — drag a gallery thumbnail onto an open collection.
+- **Fill vs Fit** — *Fill* (default) crops each photo to fill its cell; click a photo to set its **focal point** (what stays centred). *Fit* letterboxes the whole photo (bars when shapes differ).
+- **Aspect-driver (⚓)** — pick which photo's shape governs every cell. Independent of order.
+- **Side by side / Slider** — for exactly two photos, a draggable before/after wipe.
+- **Reorder** (◀ ▶, sets before↔after), **Add photos**, **remove** a photo (min 2), **Delete** the comparison.
+
+### Adding photos
+
+- **GRID collections** — from any lightbox's **info panel → Collections** (a person's Recent Photos, Photos/Details tab, a set/session), the collection's **Browse & Add** (multi-select), or **drag** a thumbnail onto the open collection.
+- **Before/after collections** — use **New comparison** (and **Add photos** inside a comparison).
 
 ---
 
