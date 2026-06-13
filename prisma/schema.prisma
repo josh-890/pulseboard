@@ -1059,6 +1059,7 @@ model MediaItem {
   coverForSets     Set[]                 @relation("SetCoverMedia")
   coverForSessions Session[]             @relation("SessionCoverMedia")
   collectionItems  MediaCollectionItem[]
+  comparisonItems  ComparisonItem[]
   skillEventMedia  SkillEventMedia[]
   mediaItemTags    MediaItemTag[]
 
@@ -1259,11 +1260,51 @@ model MediaCollection {
   personId    String?
   person      Person?               @relation(fields: [personId], references: [id])
   items       MediaCollectionItem[]
+  comparisons Comparison[]
   createdAt   DateTime              @default(now())
   updatedAt   DateTime              @updatedAt
 
   @@index([personId])
   @@map("MediaCollection")
+}
+
+// A Comparison (ADR-0015) is the member of a SIDE_BY_SIDE collection: an ordered
+// group of 2…N member photos that belong together. Browsed as a montage tile,
+// opened as the comparison viewer. The aspect-driver member sets the cell shape;
+// fitMode decides how non-driver images fill those cells.
+enum ComparisonFitMode {
+  COVER
+  CONTAIN
+}
+
+model Comparison {
+  id                      String            @id @default(cuid())
+  collectionId            String
+  collection              MediaCollection   @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  sortOrder               Int               @default(0)
+  // Member whose width:height sets every cell's shape. Null ⇒ the first member.
+  aspectDriverMediaItemId String?
+  fitMode                 ComparisonFitMode @default(COVER)
+  createdAt               DateTime          @default(now())
+  updatedAt               DateTime          @updatedAt
+
+  items ComparisonItem[]
+
+  @@index([collectionId])
+}
+
+model ComparisonItem {
+  comparisonId String
+  comparison   Comparison @relation(fields: [comparisonId], references: [id], onDelete: Cascade)
+  mediaItemId  String
+  mediaItem    MediaItem  @relation(fields: [mediaItemId], references: [id])
+  sortOrder    Int        @default(0)
+  // Per-cell focal point for COVER fit (what the crop keeps centred).
+  focalX       Float?
+  focalY       Float?
+
+  @@id([comparisonId, mediaItemId])
+  @@index([mediaItemId])
 }
 
 model MediaCollectionItem {

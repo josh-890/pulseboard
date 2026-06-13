@@ -167,6 +167,16 @@ export async function cascadeHardDeleteMediaItems(
     where: { mediaItemId: { in: mediaItemIds } },
   });
 
+  // 3a-ii. Remove Comparison memberships (ComparisonItem.mediaItem FK is RESTRICT).
+  // A comparison whose driver is deleted falls back to its first remaining member.
+  await tx.comparison.updateMany({
+    where: { aspectDriverMediaItemId: { in: mediaItemIds } },
+    data: { aspectDriverMediaItemId: null },
+  });
+  await tx.comparisonItem.deleteMany({
+    where: { mediaItemId: { in: mediaItemIds } },
+  });
+
   // 3b. Hard-delete SkillEventMedia
   await tx.skillEventMedia.deleteMany({
     where: { mediaItemId: { in: mediaItemIds } },
