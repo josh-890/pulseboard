@@ -3,6 +3,8 @@
 import { useCallback, useRef, useState } from "react";
 import { ChevronsLeftRight } from "lucide-react";
 
+type Focal = { x: number; y: number } | null;
+
 type ImageCompareSliderProps = {
   beforeUrl: string;
   afterUrl: string;
@@ -10,7 +12,16 @@ type ImageCompareSliderProps = {
   aspectH: number;
   beforeLabel?: string;
   afterLabel?: string;
+  /** "cover" crops each image to the frame (using its focal); "contain" letterboxes. */
+  fit?: "cover" | "contain";
+  beforeFocal?: Focal;
+  afterFocal?: Focal;
 };
+
+function focalPos(focal: Focal): string | undefined {
+  if (!focal) return undefined;
+  return `${Math.round(focal.x * 100)}% ${Math.round(focal.y * 100)}%`;
+}
 
 /**
  * Draggable before/after reveal slider (juxtapose-style, no dependency). Both
@@ -25,7 +36,11 @@ export function ImageCompareSlider({
   aspectH,
   beforeLabel = "Before",
   afterLabel = "After",
+  fit = "contain",
+  beforeFocal = null,
+  afterFocal = null,
 }: ImageCompareSliderProps) {
+  const fitClass = fit === "cover" ? "object-cover" : "object-contain";
   const ref = useRef<HTMLDivElement>(null);
   const dragging = useRef(false);
   const [pos, setPos] = useState(50);
@@ -53,15 +68,21 @@ export function ImageCompareSlider({
     >
       {/* After (bottom layer, full) */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={afterUrl} alt={afterLabel} draggable={false} className="pointer-events-none absolute inset-0 h-full w-full object-contain" />
+      <img
+        src={afterUrl}
+        alt={afterLabel}
+        draggable={false}
+        className={`pointer-events-none absolute inset-0 h-full w-full ${fitClass}`}
+        style={{ objectPosition: fit === "cover" ? focalPos(afterFocal) : undefined }}
+      />
       {/* Before (top layer, clipped to the left of the handle) */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={beforeUrl}
         alt={beforeLabel}
         draggable={false}
-        className="pointer-events-none absolute inset-0 h-full w-full object-contain"
-        style={{ clipPath: `inset(0 ${100 - pos}% 0 0)` }}
+        className={`pointer-events-none absolute inset-0 h-full w-full ${fitClass}`}
+        style={{ clipPath: `inset(0 ${100 - pos}% 0 0)`, objectPosition: fit === "cover" ? focalPos(beforeFocal) : undefined }}
       />
 
       <span className="absolute left-2 top-2 rounded bg-black/60 px-1.5 py-0.5 text-[10px] font-medium text-white backdrop-blur-sm">{beforeLabel}</span>

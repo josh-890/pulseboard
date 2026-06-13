@@ -6,7 +6,9 @@ import {
   getCollectionWithItems,
   getCollectionGalleryItems,
 } from "@/lib/services/collection-service";
+import { getComparisonsForCollection } from "@/lib/services/comparison-service";
 import { CollectionDetailGallery } from "@/components/collections/collection-detail-gallery";
+import { ComparisonCollectionView } from "@/components/collections/comparison-collection-view";
 import { CollectionActions } from "@/components/collections/collection-actions";
 
 export const dynamic = "force-dynamic";
@@ -22,7 +24,11 @@ export default async function CollectionDetailPage({ params }: CollectionDetailP
     const collection = await getCollectionWithItems(id);
     if (!collection) notFound();
 
-    const galleryItems = await getCollectionGalleryItems(id);
+    const isSideBySide = collection.layout === "SIDE_BY_SIDE";
+    const comparisons = isSideBySide ? await getComparisonsForCollection(id) : [];
+    const galleryItems = isSideBySide ? [] : await getCollectionGalleryItems(id);
+    const itemCount = isSideBySide ? comparisons.length : galleryItems.length;
+    const itemNoun = isSideBySide ? "comparison" : "item";
 
     const personName = collection.person?.aliases[0]?.name ?? null;
 
@@ -72,19 +78,19 @@ export default async function CollectionDetailPage({ params }: CollectionDetailP
               )}
               <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
                 <ImageIcon size={12} />
-                {galleryItems.length} item{galleryItems.length !== 1 ? "s" : ""}
+                {itemCount} {itemNoun}{itemCount !== 1 ? "s" : ""}
               </span>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Gallery */}
-      <CollectionDetailGallery
-        collectionId={id}
-        items={galleryItems}
-        layout={collection.layout}
-      />
+      {/* Members — comparisons (SIDE_BY_SIDE) or a photo gallery (GRID) */}
+      {isSideBySide ? (
+        <ComparisonCollectionView collectionId={id} comparisons={comparisons} />
+      ) : (
+        <CollectionDetailGallery collectionId={id} items={galleryItems} layout={collection.layout} />
+      )}
     </div>
     );
   });
