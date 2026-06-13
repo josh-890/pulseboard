@@ -555,16 +555,16 @@ Collections created from this page are global (no person scope). Person-scoped c
 ### Collection Detail
 
 - Header with name, description, type badge, and item count
-- **Gallery** — justified grid of all collection items with lightbox
-- **Edit** — modify name and description
+- **Gallery** — `GRID` shows a justified grid; **`SIDE_BY_SIDE` (Before / after)** shows a **comparison composite**: a row of equal-sized cells (2…N) with each photo letterboxed so different aspect ratios line up. For **exactly two** photos a **Slider** toggle appears — a draggable before/after wipe (pixel-aligned when both are Aligned images). Reorder with the ◀ ▶ arrows under each cell (sets before vs after).
+- **Edit** — modify name, description, and layout
 - **Delete** — permanently delete the collection (media items are not affected)
 
 ### Adding Media to Collections
 
-From any lightbox with the reference context (person reference sessions):
-1. Open the info panel
-2. Scroll to the Collections section
-3. Click a collection name to add or remove the current media item
+Three ways:
+1. **From any lightbox** — open a photo (a person's Recent Photos, the Photos tab, the Details tab, a set or session), open the **info panel → Collections**, and click a collection name to add/remove the current photo.
+2. **Browse & Add** — inside a collection, click **Browse & Add** and **multi-select** several photos at once (handy for grabbing a pair to compare).
+3. **Drag & drop** — drag a gallery thumbnail onto an open collection.
 
 ---
 
