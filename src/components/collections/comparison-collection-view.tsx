@@ -1,13 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { Columns2, ImageIcon, Plus } from "lucide-react";
+import { Columns2, ImageIcon, Plus, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { ComparisonBuilderSheet } from "@/components/collections/comparison-builder-sheet";
 import type { ComparisonSummary } from "@/lib/services/comparison-service";
+
+type SortKey = "manual" | "title" | "count-desc" | "count-asc";
 
 /** A small montage of a comparison's members (up to 4 thumbs; +N overlay beyond). */
 function Montage({ members }: { members: ComparisonSummary["members"] }) {
@@ -46,6 +48,23 @@ export function ComparisonCollectionView({
   comparisons: ComparisonSummary[];
 }) {
   const [builderOpen, setBuilderOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const [sort, setSort] = useState<SortKey>("manual");
+
+  const displayed = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    const list = comparisons.filter((c) => !q || (c.title ?? "").toLowerCase().includes(q));
+    switch (sort) {
+      case "title":
+        return [...list].sort((a, b) => (a.title ?? "￿").localeCompare(b.title ?? "￿"));
+      case "count-desc":
+        return [...list].sort((a, b) => b.memberCount - a.memberCount);
+      case "count-asc":
+        return [...list].sort((a, b) => a.memberCount - b.memberCount);
+      default:
+        return list; // manual = the stored sortOrder
+    }
+  }, [comparisons, query, sort]);
 
   return (
     <div className="space-y-4">
@@ -58,6 +77,31 @@ export function ComparisonCollectionView({
         </Button>
       </div>
 
+      {comparisons.length > 1 && (
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="relative min-w-[180px] flex-1 sm:max-w-xs">
+            <Search size={14} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Filter by title…"
+              className="w-full rounded-lg border border-white/15 bg-background/60 py-1.5 pl-8 pr-3 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            />
+          </div>
+          <select
+            value={sort}
+            onChange={(e) => setSort(e.target.value as SortKey)}
+            className="rounded-lg border border-white/15 bg-background/60 px-2 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            aria-label="Sort comparisons"
+          >
+            <option value="manual">Manual order</option>
+            <option value="title">Title A–Z</option>
+            <option value="count-desc">Most photos</option>
+            <option value="count-asc">Fewest photos</option>
+          </select>
+        </div>
+      )}
+
       {comparisons.length === 0 ? (
         <div className="rounded-2xl border border-white/20 bg-card/70 p-12 text-center shadow-md backdrop-blur-sm">
           <Columns2 size={32} className="mx-auto mb-3 text-muted-foreground" />
@@ -68,9 +112,11 @@ export function ComparisonCollectionView({
             <Plus size={14} /> New comparison
           </Button>
         </div>
+      ) : displayed.length === 0 ? (
+        <p className="text-sm text-muted-foreground italic">No comparisons match &ldquo;{query}&rdquo;.</p>
       ) : (
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-          {comparisons.map((c) => (
+          {displayed.map((c) => (
             <Link
               key={c.id}
               href={`/collections/${collectionId}/comparison/${c.id}`}
