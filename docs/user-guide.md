@@ -560,6 +560,8 @@ Collections created from this page are global (no person scope). Person-scoped c
 
 #### The Comparison viewer (open a montage tile)
 
+- **Title** — click the heading to name the comparison (shows on its montage tile).
+- The whole lineup is sized to fit the screen height; cells share the aspect-driver's shape.
 - **Fill vs Fit** — *Fill* (default) crops each photo to fill its cell; click a photo to set its **focal point** (what stays centred). *Fit* letterboxes the whole photo (bars when shapes differ).
 - **Aspect-driver (⚓)** — pick which photo's shape governs every cell. Independent of order.
 - **Side by side / Slider** — for exactly two photos, a draggable before/after wipe.
@@ -568,7 +570,9 @@ Collections created from this page are global (no person scope). Person-scoped c
 ### Adding photos
 
 - **GRID collections** — from any lightbox's **info panel → Collections** (a person's Recent Photos, Photos/Details tab, a set/session), the collection's **Browse & Add** (multi-select), or **drag** a thumbnail onto the open collection.
-- **Before/after collections** — use **New comparison** (and **Add photos** inside a comparison).
+- **Before/after collections** — a photo belongs to a *comparison*, not the collection directly, so you build comparisons:
+  - **Compare tray** — in any lightbox, **Add to compare** (the ⧉ button) gathers photos into a tray (a bar at the bottom, kept as you browse). When you have 2+, **Make comparison** → pick a before/after collection (or make one) → it creates the comparison, or appends the tray to an existing one.
+  - Inside a collection, **New comparison**; inside a comparison, **Add photos**.
 
 ---
 
