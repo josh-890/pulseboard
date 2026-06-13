@@ -12,6 +12,7 @@ import {
   setComparisonAspectDriver,
   setComparisonFitMode,
   setComparisonItemFocal,
+  setComparisonTitle,
   type ComparisonFitMode,
 } from "@/lib/services/comparison-service";
 import type { SimpleActionResult } from "@/lib/types";
@@ -125,6 +126,22 @@ export async function setComparisonAspectDriverAction(
       return { success: true };
     } catch (err) {
       return { success: false, error: err instanceof Error ? err.message : "Failed to set aspect driver" };
+    }
+  });
+}
+
+export async function setComparisonTitleAction(
+  comparisonId: string,
+  title: string | null,
+  collectionId: string,
+): Promise<SimpleActionResult> {
+  return withTenantFromHeaders(async () => {
+    try {
+      await setComparisonTitle(comparisonId, title);
+      revalidateCollection(collectionId);
+      return { success: true };
+    } catch (err) {
+      return { success: false, error: err instanceof Error ? err.message : "Failed to set title" };
     }
   });
 }

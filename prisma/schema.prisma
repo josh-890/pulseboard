@@ -1281,6 +1281,7 @@ model Comparison {
   id                      String            @id @default(cuid())
   collectionId            String
   collection              MediaCollection   @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  title                   String?
   sortOrder               Int               @default(0)
   // Member whose width:height sets every cell's shape. Null ⇒ the first member.
   aspectDriverMediaItemId String?

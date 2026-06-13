@@ -82,6 +82,9 @@ export function ComparisonCollectionView({
                   <Columns2 size={10} /> {c.memberCount}
                 </span>
               </div>
+              {c.title && (
+                <p className="truncate px-3 py-2 text-sm font-medium group-hover:text-primary" title={c.title}>{c.title}</p>
+              )}
             </Link>
           ))}
         </div>

@@ -13,6 +13,7 @@ import {
   setComparisonFitModeAction,
   setComparisonAspectDriverAction,
   setComparisonItemFocalAction,
+  setComparisonTitleAction,
   reorderComparisonItemsAction,
   removeComparisonItemAction,
   deleteComparisonAction,
@@ -32,6 +33,7 @@ export function ComparisonViewer({
   const [viewMode, setViewMode] = useState<"row" | "slider">("row");
   const [addOpen, setAddOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [title, setTitle] = useState(comparison.title ?? "");
 
   const members = comparison.members;
   const driver = members.find((m) => m.isAspectDriver) ?? members[0];
@@ -52,6 +54,10 @@ export function ComparisonViewer({
     }
   }, [router]);
 
+  const commitTitle = () => {
+    if ((title.trim() || null) === (comparison.title ?? null)) return;
+    void run(() => setComparisonTitleAction(comparison.id, title, collectionId));
+  };
   const setFit = (fitMode: ComparisonFitMode) => run(() => setComparisonFitModeAction(comparison.id, fitMode, collectionId));
   const setDriver = (mediaItemId: string) => run(() => setComparisonAspectDriverAction(comparison.id, mediaItemId, collectionId));
   const move = (index: number, dir: -1 | 1) => {
@@ -88,7 +94,18 @@ export function ComparisonViewer({
           <ChevronLeft size={15} /> {collectionName}
         </Link>
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h1 className="text-xl font-bold leading-tight">Comparison · {members.length} photos</h1>
+          <div className="min-w-0">
+            <input
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              onBlur={commitTitle}
+              onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
+              placeholder="Untitled comparison"
+              aria-label="Comparison title"
+              className="w-full max-w-md truncate rounded border border-transparent bg-transparent text-xl font-bold leading-tight placeholder:text-muted-foreground/60 hover:border-white/15 focus:border-white/30 focus:outline-none"
+            />
+            <p className="text-xs text-muted-foreground">{members.length} photos</p>
+          </div>
           <div className="flex flex-wrap items-center gap-2">
             {/* Fit mode */}
             <div className="flex gap-0.5 rounded-md border border-white/15 bg-background/60 p-0.5">
@@ -126,31 +143,35 @@ export function ComparisonViewer({
       </div>
 
       {showSlider ? (
-        <ImageCompareSlider
-          beforeUrl={members[0].viewUrl ?? ""}
-          afterUrl={members[1].viewUrl ?? ""}
-          aspectW={aspectW}
-          aspectH={aspectH}
-          fit={isCover ? "cover" : "contain"}
-          beforeFocal={members[0].focalX != null && members[0].focalY != null ? { x: members[0].focalX, y: members[0].focalY } : null}
-          afterFocal={members[1].focalX != null && members[1].focalY != null ? { x: members[1].focalX, y: members[1].focalY } : null}
-          beforeLabel="Before"
-          afterLabel="After"
-        />
+        <div className="mx-auto" style={{ maxWidth: `calc(70vh * ${aspectW} / ${aspectH})` }}>
+          <ImageCompareSlider
+            beforeUrl={members[0].viewUrl ?? ""}
+            afterUrl={members[1].viewUrl ?? ""}
+            aspectW={aspectW}
+            aspectH={aspectH}
+            fit={isCover ? "cover" : "contain"}
+            beforeFocal={members[0].focalX != null && members[0].focalY != null ? { x: members[0].focalX, y: members[0].focalY } : null}
+            afterFocal={members[1].focalX != null && members[1].focalY != null ? { x: members[1].focalX, y: members[1].focalY } : null}
+            beforeLabel="Before"
+            afterLabel="After"
+          />
+        </div>
       ) : (
-        <div className="flex gap-3 overflow-x-auto pb-1">
+        // Fit the whole lineup on screen: cells sized by height (capped to the
+        // viewport) so a tall governing aspect doesn't overflow vertically.
+        <div className="flex justify-center gap-3 overflow-x-auto pb-1">
           {members.map((m, i) => {
             const fx = m.focalX ?? 0.5;
             const fy = m.focalY ?? 0.5;
             return (
-              <figure key={m.mediaItemId} className="flex min-w-[200px] flex-1 flex-col gap-1.5">
+              <figure key={m.mediaItemId} className="flex shrink-0 flex-col gap-1.5">
                 <div
                   onClick={(e) => setFocalFromClick(m.mediaItemId, e)}
                   className={cn(
-                    "group relative w-full overflow-hidden rounded-lg border border-white/10 bg-black/50",
+                    "group relative overflow-hidden rounded-lg border border-white/10 bg-black/50",
                     isCover && "cursor-crosshair",
                   )}
-                  style={{ aspectRatio: `${aspectW} / ${aspectH}` }}
+                  style={{ aspectRatio: `${aspectW} / ${aspectH}`, height: "min(70vh, 80vw)" }}
                 >
                   {m.viewUrl ? (
                     <Image

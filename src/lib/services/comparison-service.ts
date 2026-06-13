@@ -24,6 +24,7 @@ function bestUrl(variants: unknown, fileRef: string | null): string | null {
 
 export type ComparisonSummary = {
   id: string;
+  title: string | null;
   sortOrder: number;
   fitMode: ComparisonFitMode;
   memberCount: number;
@@ -45,6 +46,7 @@ export type ComparisonMember = {
 export type ComparisonDetail = {
   id: string;
   collectionId: string;
+  title: string | null;
   fitMode: ComparisonFitMode;
   aspectDriverMediaItemId: string | null;
   members: ComparisonMember[];
@@ -64,6 +66,7 @@ export async function getComparisonsForCollection(collectionId: string): Promise
   });
   return comps.map((c) => ({
     id: c.id,
+    title: c.title,
     sortOrder: c.sortOrder,
     fitMode: c.fitMode as ComparisonFitMode,
     memberCount: c.items.length,
@@ -89,6 +92,7 @@ export async function getComparisonDetail(comparisonId: string): Promise<Compari
   return {
     id: c.id,
     collectionId: c.collectionId,
+    title: c.title,
     fitMode: c.fitMode as ComparisonFitMode,
     aspectDriverMediaItemId: driverId,
     members: c.items.map((it) => ({
@@ -175,6 +179,10 @@ export async function setComparisonAspectDriver(comparisonId: string, mediaItemI
 
 export async function setComparisonFitMode(comparisonId: string, fitMode: ComparisonFitMode): Promise<void> {
   await prisma.comparison.update({ where: { id: comparisonId }, data: { fitMode } });
+}
+
+export async function setComparisonTitle(comparisonId: string, title: string | null): Promise<void> {
+  await prisma.comparison.update({ where: { id: comparisonId }, data: { title: title?.trim() || null } });
 }
 
 export async function setComparisonItemFocal(

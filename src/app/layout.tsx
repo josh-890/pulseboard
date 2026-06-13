@@ -7,6 +7,8 @@ import { BrowserLayoutProvider } from "@/components/layout/browser-layout-provid
 import { HeroLayoutProvider } from "@/components/layout/hero-layout-provider";
 import { SidebarProvider } from "@/components/layout/sidebar-provider";
 import { AppShell } from "@/components/layout/app-shell";
+import { CompareTrayProvider } from "@/components/collections/compare-tray-provider";
+import { CompareTrayBar } from "@/components/collections/compare-tray-bar";
 import { Toaster } from "@/components/ui/sonner";
 import { getCurrentTenantConfig } from "@/lib/tenant-context";
 import { isSingleTenantMode } from "@/lib/tenants";
@@ -57,7 +59,10 @@ export default async function RootLayout({
               <BrowserLayoutProvider>
               <HeroLayoutProvider>
                 <SidebarProvider>
-                  <AppShell>{children}</AppShell>
+                  <CompareTrayProvider>
+                    <AppShell>{children}</AppShell>
+                    <CompareTrayBar />
+                  </CompareTrayProvider>
                   <Toaster richColors />
                 </SidebarProvider>
               </HeroLayoutProvider>

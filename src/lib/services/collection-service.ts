@@ -69,14 +69,15 @@ export type CollectionSummaryLight = {
   id: string;
   name: string;
   personId: string | null;
+  layout: CollectionLayout;
 };
 
 export async function getAllCollectionsSummary(): Promise<CollectionSummaryLight[]> {
   const collections = await prisma.mediaCollection.findMany({
-    select: { id: true, name: true, personId: true },
+    select: { id: true, name: true, personId: true, layout: true },
     orderBy: { name: "asc" },
   });
-  return collections;
+  return collections.map((c) => ({ ...c, layout: c.layout as CollectionLayout }));
 }
 
 export async function getCollectionsForPerson(

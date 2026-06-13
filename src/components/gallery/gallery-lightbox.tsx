@@ -13,6 +13,7 @@ import {
   PanelRightClose,
   Pencil,
   Rows3,
+  Columns2,
   Trash2,
   X,
 } from "lucide-react";
@@ -33,6 +34,7 @@ import { ZoomableImage } from "@/components/media/zoomable-image";
 import { GalleryFilmstrip } from "./gallery-filmstrip";
 import { GalleryInfoPanel } from "./gallery-info-panel";
 import type { ReferenceContext, ProductionContext, CollectionContext } from "./gallery-info-panel";
+import { useCompareTray } from "@/components/collections/compare-tray-provider";
 
 export type { ReferenceContext, ProductionContext, ProductionContributor, CategoryWithGroup, CollectionContext } from "./gallery-info-panel";
 
@@ -250,13 +252,19 @@ function SimpleLightbox({
   }, [referenceContext]);
 
   // Self-fetched collections list when enableCollections is set (no explicit context).
+  const tray = useCompareTray();
   const [fetchedCollections, setFetchedCollections] = useState<{ id: string; name: string }[]>([]);
   useEffect(() => {
     if (!enableCollections || collectionContext) return;
     let cancelled = false;
     fetch("/api/collections/list")
       .then((r) => r.json())
-      .then((data: { id: string; name: string }[]) => { if (!cancelled) setFetchedCollections(data); })
+      // Plain toggles only make sense for GRID collections; SIDE_BY_SIDE membership
+      // goes through the Compare tray (a photo belongs to a comparison, not the
+      // collection directly).
+      .then((data: { id: string; name: string; layout?: string }[]) => {
+        if (!cancelled) setFetchedCollections(data.filter((c) => c.layout !== "SIDE_BY_SIDE").map(({ id, name }) => ({ id, name })));
+      })
       .catch(() => {});
     return () => { cancelled = true; };
   }, [enableCollections, collectionContext]);
@@ -447,6 +455,23 @@ function SimpleLightbox({
               title="Filmstrip (T)"
             >
               <Rows3 size={16} />
+            </button>
+          )}
+          {item && (
+            <button
+              type="button"
+              onClick={() => {
+                if (tray.has(item.id)) tray.remove(item.id);
+                else tray.add({ mediaItemId: item.id, thumbUrl: item.urls.gallery_512 ?? item.urls.view_1200 ?? item.urls.original ?? null });
+              }}
+              className={cn(
+                "rounded-full p-2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50",
+                tray.has(item.id) ? "bg-amber-400 text-black" : "bg-white/10 text-white/70 hover:bg-white/20 hover:text-white",
+              )}
+              aria-label={tray.has(item.id) ? "Remove from compare tray" : "Add to compare tray"}
+              title="Add to compare tray"
+            >
+              <Columns2 size={16} />
             </button>
           )}
           <button
