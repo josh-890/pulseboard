@@ -88,8 +88,19 @@ A **Group** is a broad theme drawer (Physical Features, Body Marks, Poses, Profi
 **Atlas**:
 The automatic **cross-person comparison** surface (`/atlas`). Pick a locus category → see every person's Aligned image in that locus side by side. Generated from the alignment data, not curated. Distinct from a **Collection** (hand-curated) and from the per-person **Details tab** (one person's loci). _Avoid_: "Compare" / "Details" as the surface name — the latter collides with the Details tab.
 
-**Before/after composite**:
-A curated `MediaCollection` with `layout = SIDE_BY_SIDE` — an ordered list of hand-picked Aligned images, agnostic to whose/when. Serves both temporal (same person over time) and cross-person comparison with no special-casing. Era-linking per pane is deferred polish, not part of the concept.
+**Before/after collection**:
+A `MediaCollection` with `layout = SIDE_BY_SIDE`. Its members are **Comparisons** (not photos), agnostic to whose/when. Serves both temporal (same person over time) and cross-person comparison. Era-linking is deferred polish.
+
+**Comparison** (code model & DB table: `Comparison`, added 2026-06-13):
+A curated, ordered group of **2…N member photos** that belong together — "the row of cells" you compare. It is a **member of exactly one** before/after collection (composition, not a reusable asset). Browsable as one **montage tile** (auto-generated from its members, before→after order — no chosen cover) and openable to the comparison viewer (cells in a row; a reveal **slider** when there are exactly 2). The analog is a Lightroom **stack** + a clinical **before/after** object. See ADR-0015. _Avoid_: "cover" (there is none — the tile is a montage); calling the flat photo list a comparison (that was the superseded first cut).
+
+**Aspect-driver**:
+The one Comparison member (user-chosen, default first, independent of everything else) whose width:height sets the **cell shape** for the whole comparison — the frame the others conform to.
+
+**Fit mode** (`ComparisonFitMode`): how non-driver images sit in the governing-shaped cells. **`COVER`** (default) fills + crops to the cell with a per-cell **focal point** (`ComparisonItem.focalX/Y`); **`CONTAIN`** letterboxes the whole image (bars when shapes differ). COVER+focal is "alignment by hand"; CONTAIN is the escape hatch. See ADR-0015.
+
+**Stitched comparison** (deferred):
+A flattened single-JPEG **export** of a Comparison for **external** use. Not a `MediaItem` and not session-bound (a comparison can be cross-person/global, with no honest session); when built, an on-demand canvas stitch optionally cached as a raw object (`exportRef`, like `MotifTemplate.silhouetteRef`). Out of scope until the Comparison entity + viewer exist.
 
 ### Watchlist scan workflow (added 2026-06-10)
 
