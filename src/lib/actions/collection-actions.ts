@@ -8,6 +8,7 @@ import {
   deleteCollection,
   addToCollection,
   removeFromCollection,
+  reorderCollection,
   type CollectionLayout,
 } from "@/lib/services/collection-service";
 import type { SimpleActionResult } from "@/lib/types";
@@ -89,6 +90,23 @@ export async function addToCollectionAction(
       return { success: false, error: message };
     }
 
+  });
+}
+
+export async function reorderCollectionAction(
+  collectionId: string,
+  orderedMediaItemIds: string[],
+): Promise<ActionResultWithId> {
+  return withTenantFromHeaders(async () => {
+    try {
+      await reorderCollection(collectionId, orderedMediaItemIds);
+      revalidatePath("/collections");
+      revalidatePath(`/collections/${collectionId}`);
+      return { success: true };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unexpected error";
+      return { success: false, error: message };
+    }
   });
 }
 

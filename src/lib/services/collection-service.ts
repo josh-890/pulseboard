@@ -237,6 +237,21 @@ export async function removeFromCollection(
   });
 }
 
+/** Rewrite item order to match the given mediaItemId sequence (0..n sortOrder). */
+export async function reorderCollection(
+  collectionId: string,
+  orderedMediaItemIds: string[],
+): Promise<void> {
+  await prisma.$transaction(
+    orderedMediaItemIds.map((mediaItemId, i) =>
+      prisma.mediaCollectionItem.update({
+        where: { collectionId_mediaItemId: { collectionId, mediaItemId } },
+        data: { sortOrder: i },
+      }),
+    ),
+  );
+}
+
 export async function getCollectionIdsForMediaItems(
   mediaItemIds: string[],
 ): Promise<Map<string, string[]>> {
