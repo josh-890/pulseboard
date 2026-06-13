@@ -32,7 +32,7 @@ export async function getAllCollections(filters: {
   const collections = await prisma.mediaCollection.findMany({
     where,
     include: {
-      _count: { select: { items: true } },
+      _count: { select: { items: true, comparisons: true } },
       person: {
         select: {
           aliases: { where: { isCommon: true }, take: 1 },
@@ -43,12 +43,26 @@ export async function getAllCollections(filters: {
         orderBy: { sortOrder: "asc" },
         include: { mediaItem: { select: { variants: true, fileRef: true } } },
       },
+      // SIDE_BY_SIDE collections hold no loose items — derive cover + count from
+      // their first comparison's first member.
+      comparisons: {
+        take: 1,
+        orderBy: { sortOrder: "asc" },
+        include: {
+          items: {
+            take: 1,
+            orderBy: { sortOrder: "asc" },
+            include: { mediaItem: { select: { variants: true, fileRef: true } } },
+          },
+        },
+      },
     },
     orderBy: { updatedAt: "desc" },
   });
 
   return collections.map((c) => {
-    const firstItem = c.items[0]?.mediaItem;
+    const isSxs = c.layout === "SIDE_BY_SIDE";
+    const firstItem = isSxs ? c.comparisons[0]?.items[0]?.mediaItem : c.items[0]?.mediaItem;
     const variants = (firstItem?.variants as PhotoVariants) ?? {};
     const thumbKey = variants.gallery_512 ?? firstItem?.fileRef;
 
@@ -58,7 +72,7 @@ export async function getAllCollections(filters: {
       description: c.description,
       personId: c.personId,
       layout: c.layout as CollectionLayout,
-      itemCount: c._count.items,
+      itemCount: isSxs ? c._count.comparisons : c._count.items,
       thumbnailUrl: thumbKey ? buildUrl(thumbKey) : null,
       personName: c.person?.aliases[0]?.name ?? null,
     };
@@ -86,18 +100,30 @@ export async function getCollectionsForPerson(
   const collections = await prisma.mediaCollection.findMany({
     where: { personId },
     include: {
-      _count: { select: { items: true } },
+      _count: { select: { items: true, comparisons: true } },
       items: {
         take: 1,
         orderBy: { sortOrder: "asc" },
         include: { mediaItem: { select: { variants: true, fileRef: true } } },
+      },
+      comparisons: {
+        take: 1,
+        orderBy: { sortOrder: "asc" },
+        include: {
+          items: {
+            take: 1,
+            orderBy: { sortOrder: "asc" },
+            include: { mediaItem: { select: { variants: true, fileRef: true } } },
+          },
+        },
       },
     },
     orderBy: { name: "asc" },
   });
 
   return collections.map((c) => {
-    const firstItem = c.items[0]?.mediaItem;
+    const isSxs = c.layout === "SIDE_BY_SIDE";
+    const firstItem = isSxs ? c.comparisons[0]?.items[0]?.mediaItem : c.items[0]?.mediaItem;
     const variants = (firstItem?.variants as PhotoVariants) ?? {};
     const thumbKey = variants.gallery_512 ?? firstItem?.fileRef;
 
@@ -107,7 +133,7 @@ export async function getCollectionsForPerson(
       description: c.description,
       personId: c.personId,
       layout: c.layout as CollectionLayout,
-      itemCount: c._count.items,
+      itemCount: isSxs ? c._count.comparisons : c._count.items,
       thumbnailUrl: thumbKey ? buildUrl(thumbKey) : null,
       personName: null, // caller already has person context
     };

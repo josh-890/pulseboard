@@ -92,9 +92,11 @@ function CompareTrayDialog({
   const [comparisons, setComparisons] = useState<Comparison[]>([]);
   const [newName, setNewName] = useState("");
   const [busy, setBusy] = useState(false);
+  const [collQuery, setCollQuery] = useState("");
+  const [cmpQuery, setCmpQuery] = useState("");
 
   useEffect(() => {
-    if (!open) { setSelected(null); setNewName(""); return; }
+    if (!open) { setSelected(null); setNewName(""); setCollQuery(""); setCmpQuery(""); return; }
     fetch("/api/collections/list")
       .then((r) => r.json())
       .then((data: Collection[]) => setCollections(data.filter((c) => c.layout === "SIDE_BY_SIDE")))
@@ -102,6 +104,7 @@ function CompareTrayDialog({
   }, [open]);
 
   useEffect(() => {
+    setCmpQuery("");
     if (!selected) { setComparisons([]); return; }
     fetch(`/api/collections/${selected.id}/comparisons`)
       .then((r) => r.json())
@@ -152,9 +155,14 @@ function CompareTrayDialog({
         {!selected ? (
           <div className="space-y-3 py-1">
             <p className="text-xs text-muted-foreground">Pick a before/after collection:</p>
+            {collections.length > 8 && (
+              <Input value={collQuery} onChange={(e) => setCollQuery(e.target.value)} placeholder="Filter collections…" className="h-8" autoFocus />
+            )}
             <div className="max-h-56 space-y-1 overflow-y-auto">
               {collections.length === 0 && <p className="text-sm text-muted-foreground italic">No before/after collections yet.</p>}
-              {collections.map((c) => (
+              {collections
+                .filter((c) => c.name.toLowerCase().includes(collQuery.trim().toLowerCase()))
+                .map((c) => (
                 <button key={c.id} type="button" onClick={() => setSelected(c)}
                   className="flex w-full items-center justify-between rounded-lg border border-white/10 bg-background/40 px-3 py-2 text-left text-sm hover:border-amber-500/40">
                   <span className="truncate">{c.name}</span>
@@ -185,8 +193,13 @@ function CompareTrayDialog({
             {comparisons.length > 0 && (
               <div className="space-y-1.5 border-t border-white/10 pt-3">
                 <p className="text-xs text-muted-foreground">…or append to an existing comparison:</p>
+                {comparisons.length > 8 && (
+                  <Input value={cmpQuery} onChange={(e) => setCmpQuery(e.target.value)} placeholder="Filter by title…" className="h-8" />
+                )}
                 <div className="max-h-44 space-y-1 overflow-y-auto">
-                  {comparisons.map((cmp) => (
+                  {comparisons
+                    .filter((cmp) => (cmp.title ?? "").toLowerCase().includes(cmpQuery.trim().toLowerCase()))
+                    .map((cmp) => (
                     <button key={cmp.id} type="button" disabled={busy} onClick={() => appendTo(cmp.id)}
                       className={cn("flex w-full items-center gap-2 rounded-lg border border-white/10 bg-background/40 p-1.5 text-left hover:border-amber-500/40")}>
                       <div className="flex gap-0.5">
