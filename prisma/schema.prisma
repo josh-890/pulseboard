@@ -1079,10 +1079,6 @@ model MediaItem {
 model MotifTemplate {
   id            String   @id @default(cuid())
   name          String
-  // Profile slot this template fills (1..N), @unique. Nullable since ADR-0014:
-  // a category-bound Alignment Template has no slot (slot XOR category binding).
-  // Postgres allows multiple NULLs under a UNIQUE index. Retired at unification.
-  slot          Int?     @unique
   aspectW       Int
   aspectH       Int
   bakeLongSide  Int // baked output long side in px (never upscaled beyond source)
@@ -1212,15 +1208,13 @@ model PersonMediaLink {
   mediaItem   MediaItem        @relation(fields: [mediaItemId], references: [id])
   usage       PersonMediaUsage
   isFavorite  Boolean          @default(false)
-  isAvatar    Boolean          @default(false)
   // ADR-0016: the displayed image for a (person, category) framing. At most one
   // per person+category (enforced in the service). The avatar = the representative
-  // of the avatar-source (Headshot) category. Supersedes isAvatar + slot.
+  // of the avatar-source (Headshot) category. Superseded the retired isAvatar + slot.
   isRepresentative Boolean      @default(false)
   sortOrder   Int              @default(0)
   notes       String?
 
-  slot                Int?
   bodyRegion          String?
   bodyRegions         String[]
   bodyMarkId          String?

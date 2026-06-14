@@ -41,7 +41,6 @@ export type MediaItemWithLinks = {
   links: {
     id: string;
     usage: PersonMediaUsage;
-    slot: number | null;
     bodyRegion: string | null;
     bodyRegions: string[];
     bodyMarkId: string | null;
@@ -50,7 +49,6 @@ export type MediaItemWithLinks = {
     categoryId: string | null;
     eraId: string | null;
     isFavorite: boolean;
-    isAvatar: boolean;
     sortOrder: number;
     notes: string | null;
   }[];
@@ -93,7 +91,6 @@ export function toGalleryItem(
     focalY: item.focalY,
     tags: item.tags,
     isFavorite: firstLink?.isFavorite ?? false,
-    isAvatar: firstLink?.isAvatar ?? false,
     sortOrder: firstLink?.sortOrder ?? 0,
     isCover: opts?.coverMediaItemId === item.id,
     links: item.links,

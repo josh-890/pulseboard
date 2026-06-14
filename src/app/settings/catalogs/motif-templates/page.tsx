@@ -2,16 +2,14 @@ export const dynamic = "force-dynamic";
 
 import { withTenantFromHeaders } from "@/lib/tenant-context";
 import { getMotifTemplates } from "@/lib/services/motif-template-service";
-import { getProfileImageLabels } from "@/lib/services/setting-service";
 import { getAllCategoryGroups } from "@/lib/services/category-service";
 import { buildUrl } from "@/lib/media-url";
 import { MotifTemplatesCatalog } from "@/components/settings/motif-templates-catalog";
 
 export default async function MotifTemplatesPage() {
   return withTenantFromHeaders(async () => {
-    const [templates, slotLabels, groups] = await Promise.all([
+    const [templates, groups] = await Promise.all([
       getMotifTemplates(),
-      getProfileImageLabels(),
       getAllCategoryGroups(),
     ]);
     // Locus categories (no entityModel) are the only template-bindable ones (ADR-0014).
@@ -33,14 +31,12 @@ export default async function MotifTemplatesPage() {
           <p className="mt-1 text-sm text-muted-foreground">
             Define standardized motifs — the output aspect and the target keypoint positions
             an aligned image must hit (e.g. eye-line/zoom), so the same motif is framed
-            identically across people. Bind each to a <strong>profile slot</strong> (headshot
-            framings) or a <strong>locus category</strong> (Eyes, a pose…) for comparable
-            detail photos.
+            identically across people. Bind each to a <strong>locus category</strong>
+            (a Profile framing, Eyes, a pose…) for comparable photos.
           </p>
         </div>
         <MotifTemplatesCatalog
           templates={templatesWithUrls}
-          slotLabels={slotLabels.map((l, i) => ({ slot: i + 1, label: l.label }))}
           categories={locusCategories}
         />
       </div>

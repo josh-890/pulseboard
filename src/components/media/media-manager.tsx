@@ -10,11 +10,10 @@ import type { EntityPhotoGroup } from "@/lib/services/media-service";
 import { cn } from "@/lib/utils";
 import type { MediaItemWithLinks } from "@/lib/gallery-mappers";
 import { toGalleryItem } from "@/lib/gallery-mappers";
-import type { ProfileImageLabel } from "@/lib/services/setting-service";
 import type { CollectionSummary } from "@/lib/services/collection-service";
 import type { GalleryItem, PersonMediaLinkSummary } from "@/lib/types";
 import type { CategoryWithGroup } from "@/components/gallery/gallery-info-panel";
-import { assignHeadshotSlot, deleteMediaItemsAction, reorderPersonMediaAction } from "@/lib/actions/media-actions";
+import { deleteMediaItemsAction, reorderPersonMediaAction } from "@/lib/actions/media-actions";
 import { applyGallerySort, GALLERY_SORT_OPTIONS } from "@/lib/gallery-sort";
 import type { GallerySortMode } from "@/lib/gallery-sort";
 import {
@@ -48,7 +47,6 @@ type MediaManagerProps = {
   items: MediaItemWithLinks[];
   personId: string;
   sessionId: string;
-  slotLabels: ProfileImageLabel[];
   collections: CollectionSummary[];
   categories: CategoryWithGroup[];
   bodyMarks: EntityOption[];
@@ -92,7 +90,6 @@ function toEntityGalleryItem(photo: EntityPhotoGroup["photos"][number]): Gallery
     focalY: photo.focalY,
     tags: [],
     isFavorite: false,
-    isAvatar: false,
     sortOrder: 0,
     isCover: false,
   };
@@ -102,7 +99,6 @@ export function MediaManager({
   items: initialItems,
   personId,
   sessionId,
-  slotLabels,
   collections,
   categories,
   bodyMarks,
@@ -178,20 +174,6 @@ export function MediaManager({
     () => filteredItems.map(toGalleryItemLocal),
     [filteredItems],
   );
-
-  // Build slot → thumbnail URL map from all items
-  const allSlotThumbnails = useMemo(() => {
-    const map = new Map<number, string>();
-    for (const item of items) {
-      for (const link of item.links) {
-        if (link.usage === "HEADSHOT" && link.slot != null && !map.has(link.slot)) {
-          const url = item.urls.profile_128 ?? item.urls.gallery_512 ?? item.urls.original;
-          if (url) map.set(link.slot, url);
-        }
-      }
-    }
-    return map;
-  }, [items]);
 
   const handleSelect = useCallback(
     (id: string, e: React.MouseEvent) => {
@@ -272,71 +254,10 @@ export function MediaManager({
         clearSelection();
         return;
       }
-
-      // Slot assignment: only for single selection
-      if (selectedIds.size !== 1) return;
-      const digit = parseInt(e.key, 10);
-      if (isNaN(digit) || digit < 1 || digit > slotLabels.length) return;
-
-      const selectedId = [...selectedIds][0];
-      const item = items.find((it) => it.id === selectedId);
-      if (!item) return;
-
-      e.preventDefault();
-      const headshotLink = item.links.find((l) => l.usage === "HEADSHOT");
-      // Optimistic update: assign slot to selected item + remove HEADSHOT link from old holder
-      setItems((prev) =>
-        prev.map((it) => {
-          if (it.id === selectedId) {
-            if (headshotLink) {
-              // Update existing link's slot
-              return {
-                ...it,
-                links: it.links.map((l) =>
-                  l.usage === "HEADSHOT" ? { ...l, slot: digit } : l,
-                ),
-              };
-            }
-            // Add new HEADSHOT link with slot
-            return {
-              ...it,
-              links: [
-                ...it.links,
-                {
-                  id: `temp-HEADSHOT`,
-                  usage: "HEADSHOT" as const,
-                  slot: digit,
-                  bodyRegion: null,
-                  bodyRegions: [],
-                  bodyMarkId: null,
-                  bodyModificationId: null,
-                  cosmeticProcedureId: null,
-                  categoryId: null,
-                  eraId: null,
-                  isFavorite: false,
-                  isAvatar: false,
-                  sortOrder: 0,
-                  notes: null,
-                },
-              ],
-            };
-          }
-          // Remove HEADSHOT link from any other item that had this slot
-          const hadSlot = it.links.some((l) => l.usage === "HEADSHOT" && l.slot === digit);
-          if (hadSlot) {
-            return {
-              ...it,
-              links: it.links.filter((l) => !(l.usage === "HEADSHOT" && l.slot === digit)),
-            };
-          }
-          return it;
-        }),
-      );
-      assignHeadshotSlot(personId, selectedId, digit);
     }
     document.addEventListener("keydown", handleKey);
     return () => document.removeEventListener("keydown", handleKey);
-  }, [selectedIds, items, slotLabels.length, personId, clearSelection]);
+  }, [selectedIds, clearSelection]);
 
   const handleBatchComplete = useCallback(() => {
     router.refresh();
@@ -454,12 +375,11 @@ export function MediaManager({
       cosmeticProcedures,
       eras,
       skillEvents,
-      allSlotThumbnails,
       onLinksChange: handleLightboxLinksChange,
       onCollectionIdsChange: handleLightboxCollectionIdsChange,
       onSkillEventIdsChange: handleLightboxSkillEventIdsChange,
     }),
-    [personId, sessionId, collections, categories, bodyMarks, bodyModifications, cosmeticProcedures, eras, skillEvents, allSlotThumbnails, handleLightboxLinksChange, handleLightboxCollectionIdsChange, handleLightboxSkillEventIdsChange],
+    [personId, sessionId, collections, categories, bodyMarks, bodyModifications, cosmeticProcedures, eras, skillEvents, handleLightboxLinksChange, handleLightboxCollectionIdsChange, handleLightboxSkillEventIdsChange],
   );
 
   if (items.length === 0) {
@@ -577,10 +497,8 @@ export function MediaManager({
             )}
             <MediaMetadataPanel
               items={selectedItems}
-              allItems={items}
               personId={personId}
               sessionId={sessionId}
-              slotLabels={slotLabels}
               collections={collections}
               categories={categories}
               bodyMarks={bodyMarks}
@@ -694,7 +612,6 @@ export function MediaManager({
             items={selectedItems}
             personId={personId}
             sessionId={sessionId}
-            slotLabels={slotLabels}
             collections={collections}
             categories={categories}
             bodyMarks={bodyMarks}
@@ -715,7 +632,6 @@ export function MediaManager({
           items={galleryItems}
           initialIndex={lightboxIndex}
           onClose={() => setLightboxIndex(null)}
-          profileLabels={slotLabels}
           sessionId={sessionId}
           referenceContext={referenceContext}
         />
@@ -727,7 +643,6 @@ export function MediaManager({
           items={entityLightbox.items}
           initialIndex={entityLightbox.initialIndex}
           onClose={() => setEntityLightbox(null)}
-          profileLabels={slotLabels}
           sessionId={sessionId}
         />
       )}

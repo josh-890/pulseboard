@@ -5,7 +5,7 @@ import { createPortal } from 'react-dom'
 import { Loader2, RotateCcw, Save, X, AlertTriangle, Check } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { computeSimilarityTransform, type Pt } from '@/lib/image/similarity-transform'
-import { assignMotifImageAction, assignAlignedImageAction } from '@/lib/actions/motif-template-actions'
+import { assignAlignedImageAction } from '@/lib/actions/motif-template-actions'
 import type { MotifTemplateRecord } from '@/lib/services/motif-template-service'
 
 type MotifAlignerProps = {
@@ -161,8 +161,7 @@ export function MotifAligner({
   const handleSave = useCallback(async () => {
     const img = imgRef.current
     if (!fit || !img) return
-    const slot = template.slot
-    if (!isCategoryMode && slot == null) { setError('This template is not bound to a profile slot'); return }
+    if (!template.categoryId) { setError('This template is not bound to a category'); return }
     setIsSaving(true)
     setError(null)
     try {
@@ -179,7 +178,7 @@ export function MotifAligner({
 
       const blob: Blob | null = await new Promise((res) => out.toBlob(res, 'image/jpeg', 0.92))
       if (!blob) throw new Error('Failed to render image')
-      const file = new File([blob], `motif-${isCategoryMode ? template.categoryId : slot}-${Date.now()}.jpg`, { type: 'image/jpeg' })
+      const file = new File([blob], `motif-${template.categoryId}-${Date.now()}.jpg`, { type: 'image/jpeg' })
 
       const upload = async (accept?: boolean) => {
         const fd = new FormData()
@@ -199,9 +198,7 @@ export function MotifAligner({
       if (!mediaItemId) throw new Error('Upload failed')
 
       const provenance = { sourceMediaItemId: source.id, points, matrix: fit.matrix }
-      const res = isCategoryMode
-        ? await assignAlignedImageAction(personId, mediaItemId, template.categoryId!, template.id, provenance)
-        : await assignMotifImageAction(personId, mediaItemId, slot!, template.id, provenance)
+      const res = await assignAlignedImageAction(personId, mediaItemId, template.categoryId, template.id, provenance)
       if (!res.success) throw new Error(res.error ?? 'Assign failed')
       onSaved(mediaItemId)
     } catch (err) {
@@ -221,8 +218,8 @@ export function MotifAligner({
           <X size={16} />
         </button>
         <span className="text-sm font-medium text-zinc-200">
-          {isCategoryMode ? 'Align' : 'Standardize'}: {template.name}
-          {isCategoryMode ? (template.categoryName ? ` · ${template.categoryName}` : '') : ` (Slot ${template.slot})`}
+          Align: {template.name}
+          {template.categoryName ? ` · ${template.categoryName}` : ''}
         </span>
         <span className="text-xs text-zinc-400">
           {nextKp ? `Click the ${nextKp.name.replace(/_/g, ' ')}` : 'All points placed — review the preview'}

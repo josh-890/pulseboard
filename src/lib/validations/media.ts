@@ -14,7 +14,6 @@ export const mediaUploadSchema = z.object({
   personId: z.string().optional(),
   setId: z.string().optional(),
   usage: z.enum(personMediaUsageValues).optional(),
-  slot: z.coerce.number().min(1).max(5).optional(),
   sortOrder: z.coerce.number().optional(),
 });
 

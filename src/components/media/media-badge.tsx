@@ -20,12 +20,10 @@ const USAGE_COLORS: Record<PersonMediaUsage, string> = {
 
 type MediaBadgeProps = {
   usage: PersonMediaUsage;
-  slot: number | null;
 };
 
-export function MediaUsageBadge({ usage, slot }: MediaBadgeProps) {
-  const abbrev = USAGE_ABBREV[usage];
-  const label = slot !== null ? `${abbrev}:${slot}` : abbrev;
+export function MediaUsageBadge({ usage }: MediaBadgeProps) {
+  const label = USAGE_ABBREV[usage];
 
   return (
     <span

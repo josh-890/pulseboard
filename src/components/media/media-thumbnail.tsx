@@ -122,7 +122,7 @@ export function MediaThumbnail({
       {/* Badge tray (bottom-right) */}
       <div className="absolute bottom-1.5 right-1.5 z-10 flex items-center gap-0.5">
         {item.links.map((link) => (
-            <MediaUsageBadge key={link.id} usage={link.usage} slot={link.slot} />
+            <MediaUsageBadge key={link.id} usage={link.usage} />
           ))}
         {item.tags.length > 0 && (
           <MediaTagCountBadge count={item.tags.length} />

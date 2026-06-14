@@ -259,13 +259,10 @@ export function ReferenceSessionPage({
                 framings={profileFramings}
               />
             </div>
-            {/* slotLabels=[] hides the redundant slot toggles + keyboard assign in the
-                media manager — the SlotManager above is now the single home. */}
             <MediaManager
               items={items}
               personId={personId}
               sessionId={sessionId}
-              slotLabels={[]}
               collections={collections}
               categories={categories}
               bodyMarks={bodyMarks}

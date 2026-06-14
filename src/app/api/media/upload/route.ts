@@ -50,7 +50,6 @@ export async function POST(request: Request) {
         personId: formData.get("personId") || undefined,
         setId: formData.get("setId") || undefined,
         usage: formData.get("usage") || undefined,
-        slot: formData.get("slot") || undefined,
         sortOrder: formData.get("sortOrder") || undefined,
       };
       const sourceVideoRef = (formData.get("sourceVideoRef") as string | null) || undefined;
@@ -66,7 +65,7 @@ export async function POST(request: Request) {
         );
       }
 
-      const { sessionId, personId, setId, usage, slot, sortOrder } = parsed.data;
+      const { sessionId, personId, setId, usage, sortOrder } = parsed.data;
 
       // Read buffer and compute hashes
       const buffer = Buffer.from(await file.arrayBuffer());
@@ -159,7 +158,6 @@ export async function POST(request: Request) {
         sortOrder,
         personId,
         usage,
-        slot,
         setId,
         hash,
         phash,

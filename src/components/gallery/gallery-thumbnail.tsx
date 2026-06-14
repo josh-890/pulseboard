@@ -41,7 +41,6 @@ export function GalleryThumbnail({
   if (!imgSrc) return null;
 
   const tagCount = item.tags.filter((t) => !t.startsWith("p-img")).length;
-  const hasProfileSlot = item.tags.some((t) => t.startsWith("p-img"));
   const hasEntityLink = item.links?.some(
     (l) => l.bodyMarkId || l.bodyModificationId || l.cosmeticProcedureId,
   );
@@ -146,17 +145,8 @@ export function GalleryThumbnail({
       <div className="absolute bottom-1.5 right-1.5 flex items-center gap-1">
         {/* Usage badges (MediaManager mode) */}
         {item.links?.map((link) => (
-          <MediaUsageBadge key={link.id} usage={link.usage} slot={link.slot} />
+          <MediaUsageBadge key={link.id} usage={link.usage} />
         ))}
-        {/* Profile slot indicator (legacy tag mode) */}
-        {!item.links?.length && hasProfileSlot && (
-          <span
-            className="flex h-5 w-5 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground"
-            aria-label="Has profile slot"
-          >
-            P
-          </span>
-        )}
         <MediaTagCountBadge count={tagCount} />
         {hasEntityLink && <MediaLinkIcon />}
         {hasCollections && <MediaCollectionIcon />}

@@ -19,7 +19,6 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { MediaItemWithLinks } from "@/lib/services/media-service";
-import type { ProfileImageLabel } from "@/lib/services/setting-service";
 import type { CollectionSummary } from "@/lib/services/collection-service";
 import type { PersonMediaUsage } from "@/lib/types";
 import type { CategoryWithGroup } from "@/components/gallery/gallery-info-panel";
@@ -27,8 +26,6 @@ import {
   updatePersonMediaLinkAction,
   upsertPersonMediaLinkAction,
   removePersonMediaLinkAction,
-  assignHeadshotSlot,
-  removeHeadshotSlot,
   setFocalPointAction,
   resetFocalPointAction,
   batchSetUsageAction,
@@ -71,10 +68,8 @@ type EntityOption = { id: string; name: string };
 
 type MediaMetadataPanelProps = {
   items: MediaItemWithLinks[];
-  allItems?: MediaItemWithLinks[];
   personId: string;
   sessionId: string;
-  slotLabels: ProfileImageLabel[];
   collections: CollectionSummary[];
   categories: CategoryWithGroup[];
   bodyMarks: EntityOption[];
@@ -89,10 +84,8 @@ type MediaMetadataPanelProps = {
 
 export function MediaMetadataPanel({
   items,
-  allItems,
   personId,
   sessionId,
-  slotLabels,
   collections,
   categories,
   bodyMarks,
@@ -106,7 +99,7 @@ export function MediaMetadataPanel({
 }: MediaMetadataPanelProps) {
   const [isPending, startTransition] = useTransition();
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
-    new Set(["usage", "slots", "linking", "collections", "info"]),
+    new Set(["usage", "linking", "collections", "info"]),
   );
 
   const isLightbox = variant === "lightbox";
@@ -117,21 +110,6 @@ export function MediaMetadataPanel({
     () => new Set(single?.links.map((l) => l.usage) ?? []),
     [single?.links],
   );
-
-  // Build slot → thumbnail URL map from all items
-  const slotThumbnails = useMemo(() => {
-    const map = new Map<number, string>();
-    const source = allItems ?? items;
-    for (const item of source) {
-      for (const link of item.links) {
-        if (link.usage === "HEADSHOT" && link.slot != null && !map.has(link.slot)) {
-          const url = item.urls.profile_128 ?? item.urls.gallery_512 ?? item.urls.original;
-          if (url) map.set(link.slot, url);
-        }
-      }
-    }
-    return map;
-  }, [allItems, items]);
 
   const toggleSection = useCallback((section: string) => {
     setExpandedSections((prev) => {
@@ -163,7 +141,6 @@ export function MediaMetadataPanel({
             const newLink = {
               id: `temp-${usage}`,
               usage,
-              slot: null,
               bodyRegion: null,
               bodyRegions: [],
               bodyMarkId: null,
@@ -172,7 +149,6 @@ export function MediaMetadataPanel({
               categoryId: null,
               eraId: null,
               isFavorite: false,
-              isAvatar: false,
               sortOrder: 0,
               notes: null,
             };
@@ -220,7 +196,6 @@ export function MediaMetadataPanel({
             const newLink = {
               id: `temp-cat-${categoryId}`,
               usage: "DETAIL" as PersonMediaUsage,
-              slot: null,
               bodyRegion: null,
               bodyRegions: [],
               bodyMarkId: null,
@@ -229,7 +204,6 @@ export function MediaMetadataPanel({
               categoryId,
               eraId: null,
               isFavorite: false,
-              isAvatar: false,
               sortOrder: 0,
               notes: null,
             };
@@ -256,66 +230,6 @@ export function MediaMetadataPanel({
     }
     return Array.from(grouped.values());
   }, [categories]);
-
-  const handleSlotClick = useCallback(
-    (slotNumber: number) => {
-      if (!single) return;
-      const headshotLink = getLinkForUsage("HEADSHOT");
-      const currentSlot = headshotLink?.slot;
-      const isToggleOff = currentSlot === slotNumber;
-
-      startTransition(async () => {
-        if (isToggleOff) {
-          await removeHeadshotSlot(personId, single.id);
-        } else {
-          await assignHeadshotSlot(personId, single.id, slotNumber);
-        }
-        if (onItemsChange) {
-          const updated = items.map((item) => {
-            if (item.id !== single.id) return item;
-            if (isToggleOff) {
-              // Remove the HEADSHOT link entirely
-              return { ...item, links: item.links.filter((l) => l.usage !== "HEADSHOT") };
-            }
-            if (headshotLink) {
-              // Update existing link's slot
-              return {
-                ...item,
-                links: item.links.map((l) =>
-                  l.usage === "HEADSHOT" ? { ...l, slot: slotNumber } : l,
-                ),
-              };
-            }
-            // Add new HEADSHOT link with slot
-            return {
-              ...item,
-              links: [
-                ...item.links,
-                {
-                  id: `temp-HEADSHOT`,
-                  usage: "HEADSHOT" as PersonMediaUsage,
-                  slot: slotNumber,
-                  bodyRegion: null,
-                  bodyRegions: [],
-                  bodyMarkId: null,
-                  bodyModificationId: null,
-                  cosmeticProcedureId: null,
-                  categoryId: null,
-                  eraId: null,
-                  isFavorite: false,
-                  isAvatar: false,
-                  sortOrder: 0,
-                  notes: null,
-                },
-              ],
-            };
-          });
-          onItemsChange(updated);
-        }
-      });
-    },
-    [single, getLinkForUsage, personId, items, onItemsChange],
-  );
 
   const handleEntityLink = useCallback(
     (
@@ -473,63 +387,6 @@ export function MediaMetadataPanel({
         </div>
       )}
 
-      {/* Headshot slot assignment */}
-      {slotLabels.length > 0 && (
-        <>
-          <SectionHeader
-            title="Headshot"
-            icon={<ImageIcon size={14} />}
-            section="slots"
-            expanded={expandedSections.has("slots")}
-            onToggle={toggleSection}
-          />
-          {expandedSections.has("slots") && (
-            <div className="flex flex-wrap gap-1.5 pb-2">
-              {slotLabels.map((sl, i) => {
-                const slotNumber = i + 1;
-                const headshotLink = getLinkForUsage("HEADSHOT");
-                const isActive = headshotLink?.slot === slotNumber;
-                const thumbUrl = slotThumbnails.get(slotNumber);
-                return (
-                  <button
-                    key={sl.slot}
-                    type="button"
-                    disabled={isPending}
-                    onClick={() => handleSlotClick(slotNumber)}
-                    className={cn(
-                      "relative overflow-hidden rounded-md text-xs font-medium transition-all",
-                      "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
-                      thumbUrl ? "h-10 w-14" : "px-2.5 py-1",
-                      isActive
-                        ? "ring-2 ring-primary shadow-sm"
-                        : thumbUrl
-                          ? "opacity-70 hover:opacity-100"
-                          : "bg-muted/60 text-muted-foreground hover:bg-muted/90 hover:text-foreground",
-                    )}
-                    aria-pressed={isActive}
-                  >
-                    {thumbUrl && (
-                      /* eslint-disable-next-line @next/next/no-img-element */
-                      <img
-                        src={thumbUrl}
-                        alt=""
-                        className="absolute inset-0 h-full w-full object-cover"
-                        draggable={false}
-                      />
-                    )}
-                    <span className={cn(
-                      "relative",
-                      thumbUrl && "rounded px-1 py-0.5 text-[10px] bg-black/60 text-white",
-                    )}>
-                      {sl.label}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          )}
-        </>
-      )}
 
       {/* Tags */}
       <SectionHeader
@@ -778,7 +635,6 @@ export function MediaMetadataPanel({
                       <MediaUsageBadge
                         key={link.id}
                         usage={link.usage}
-                        slot={link.slot}
                       />
                     ))}
                 </div>

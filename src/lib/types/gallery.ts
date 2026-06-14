@@ -4,7 +4,6 @@ import type { PersonMediaUsage } from "./media";
 export type PersonMediaLinkSummary = {
   id: string;
   usage: PersonMediaUsage;
-  slot: number | null;
   bodyRegion: string | null;
   bodyRegions: string[];
   bodyMarkId: string | null;
@@ -13,7 +12,6 @@ export type PersonMediaLinkSummary = {
   categoryId: string | null;
   eraId: string | null;
   isFavorite: boolean;
-  isAvatar: boolean;
   sortOrder: number;
   notes: string | null;
 };
@@ -31,7 +29,6 @@ export type GalleryItem = {
   focalY: number | null;
   tags: string[];
   isFavorite: boolean;
-  isAvatar: boolean;
   sortOrder: number;
   isCover: boolean;
   /** Present only in MediaManager contexts */

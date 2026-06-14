@@ -29,9 +29,7 @@ export type SilhouetteTransform = {
 export type MotifTemplateRecord = {
   id: string;
   name: string;
-  /** Profile slot (1..N) for legacy headshot templates; null for category-bound. */
-  slot: number | null;
-  /** Bound locus MediaCategory (ADR-0014); null for profile-slot templates. */
+  /** Bound locus MediaCategory (ADR-0014). */
   categoryId: string | null;
   categoryName: string | null;
   aspectW: number;
@@ -68,7 +66,6 @@ function parseKeypoints(value: unknown): MotifKeypoint[] {
 type Row = {
   id: string;
   name: string;
-  slot: number | null;
   aspectW: number;
   aspectH: number;
   bakeLongSide: number;
@@ -83,7 +80,6 @@ function toRecord(r: Row): MotifTemplateRecord {
   return {
     id: r.id,
     name: r.name,
-    slot: r.slot,
     categoryId: r.category?.id ?? null,
     categoryName: r.category?.name ?? null,
     aspectW: r.aspectW,
@@ -99,7 +95,6 @@ function toRecord(r: Row): MotifTemplateRecord {
 const SELECT = {
   id: true,
   name: true,
-  slot: true,
   aspectW: true,
   aspectH: true,
   bakeLongSide: true,
@@ -111,17 +106,11 @@ const SELECT = {
 } as const;
 
 export async function getMotifTemplates(): Promise<MotifTemplateRecord[]> {
-  // Slot templates first (slot asc), then category-bound (slot null) by name.
   const rows = await prisma.motifTemplate.findMany({
     select: SELECT,
-    orderBy: [{ slot: { sort: "asc", nulls: "last" } }, { name: "asc" }],
+    orderBy: [{ name: "asc" }],
   });
   return rows.map(toRecord);
-}
-
-export async function getMotifTemplateForSlot(slot: number): Promise<MotifTemplateRecord | null> {
-  const row = await prisma.motifTemplate.findUnique({ where: { slot }, select: SELECT });
-  return row ? toRecord(row) : null;
 }
 
 export async function getMotifTemplateById(id: string): Promise<MotifTemplateRecord | null> {
@@ -137,9 +126,7 @@ export async function getMotifTemplateForCategory(categoryId: string): Promise<M
 
 export type MotifTemplateInput = {
   name: string;
-  /** Profile-slot binding. Mutually exclusive with categoryId; null for category templates. */
-  slot?: number | null;
-  /** Locus-category binding (ADR-0014). Mutually exclusive with slot. */
+  /** Locus-category binding (ADR-0014). */
   categoryId?: string | null;
   aspectW: number;
   aspectH: number;
@@ -168,13 +155,10 @@ async function applyCategoryBinding(
 }
 
 export async function createMotifTemplate(input: MotifTemplateInput): Promise<MotifTemplateRecord> {
-  // A category-bound template has no slot (slot XOR category).
-  const slot = input.categoryId ? null : input.slot ?? null;
   return prisma.$transaction(async (tx) => {
     const created = await tx.motifTemplate.create({
       data: {
         name: input.name,
-        slot,
         aspectW: input.aspectW,
         aspectH: input.aspectH,
         bakeLongSide: input.bakeLongSide,
@@ -192,14 +176,11 @@ export async function createMotifTemplate(input: MotifTemplateInput): Promise<Mo
 }
 
 export async function updateMotifTemplate(id: string, input: Partial<MotifTemplateInput>): Promise<MotifTemplateRecord> {
-  const wantsBindingChange = input.slot !== undefined || input.categoryId !== undefined;
-  const slotValue = input.categoryId ? null : input.slot ?? null;
   return prisma.$transaction(async (tx) => {
     await tx.motifTemplate.update({
       where: { id },
       data: {
         ...(input.name !== undefined ? { name: input.name } : {}),
-        ...(wantsBindingChange ? { slot: slotValue } : {}),
         ...(input.aspectW !== undefined ? { aspectW: input.aspectW } : {}),
         ...(input.aspectH !== undefined ? { aspectH: input.aspectH } : {}),
         ...(input.bakeLongSide !== undefined ? { bakeLongSide: input.bakeLongSide } : {}),

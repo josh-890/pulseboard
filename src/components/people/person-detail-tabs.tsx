@@ -70,13 +70,10 @@ import type { SkillGroupWithDefinitions } from "@/lib/services/skill-catalog-ser
 import type { PersonAliasWithChannels } from "@/lib/services/alias-service";
 import type { GalleryItem } from "@/lib/types";
 import type { EntityMediaThumbnail } from "@/lib/services/media-service";
-import type { ProfileImageLabel } from "@/lib/services/setting-service";
 import type { CategoryWithGroup } from "@/components/gallery/gallery-info-panel";
 import type { PhysicalAttributeGroupWithDefinitions } from "@/lib/services/physical-attribute-catalog-service";
 import type { PlausibilityIssue } from "@/lib/services/plausibility-service";
 import {
-  assignHeadshotSlot as assignHeadshotSlotAction,
-  removeHeadshotSlot as removeHeadshotSlotAction,
   setPersonMediaFavoriteAction,
 } from "@/lib/actions/media-actions";
 import { updatePersonBio, updatePersonPgrade, updatePersonRating } from "@/lib/actions/person-actions";
@@ -89,7 +86,6 @@ type PersonData = NonNullable<Awaited<ReturnType<typeof getPersonWithDetails>>>;
 
 type TabId = "overview" | "aliases" | "appearance" | "details" | "skills" | "career" | "network" | "photos" | "research";
 
-type HeadshotSlotEntry = { mediaItemId: string; slot: number; thumbUrl?: string | null };
 
 /** Canonical headshot for the hero lead slide (★ slot, else lowest slot). */
 type HeroLead = { id: string; url: string; focalX: number | null; focalY: number | null };
@@ -101,9 +97,7 @@ type PersonDetailTabsProps = {
   affiliations: PersonAffiliation[];
   connections: PersonConnection[];
   photos: GalleryItem[];
-  profileLabels: ProfileImageLabel[];
   referenceSessionId?: string;
-  headshotSlotEntries?: HeadshotSlotEntry[];
   heroLead?: HeroLead | null;
   categories?: CategoryWithGroup[];
   categoryCounts?: { categoryId: string; count: number }[];
@@ -743,7 +737,6 @@ type HeroSharedProps = {
   person: PersonData;
   currentState: PersonCurrentState;
   photos: GalleryItem[];
-  profileLabels: ProfileImageLabel[];
   kpiCounts: KpiCounts;
   calculatedPgrade?: number | null;
   meanWcp?: number | null;
@@ -753,7 +746,6 @@ type HeroSharedProps = {
   heroAliases: HeroAliasSummary[];
   referenceSessionId?: string;
   refMediaCount?: number;
-  headshotSlotMap?: Map<string, number>;
   earliestSessionYear?: number | null;
   onAliasesBadgeClick?: () => void;
   onAppearanceClick?: () => void;
@@ -980,7 +972,7 @@ function KpiStatsStrip({ kpiCounts }: { kpiCounts: KpiCounts }) {
 function HeroDensityLayout(props: HeroSharedProps) {
   const { layout } = useHeroLayout();
   const cfg = DENSITY_CONFIGS[layout];
-  const { person, currentState, photos, profileLabels, kpiCounts, calculatedPgrade, meanWcp, displayName, initials, age, heroAliases, referenceSessionId, headshotSlotMap, plausibilityCount, onFavoriteToggle, heroLead } = props;
+  const { person, currentState, photos, kpiCounts, calculatedPgrade, meanWcp, displayName, initials, age, heroAliases, referenceSessionId, plausibilityCount, onFavoriteToggle, heroLead } = props;
 
   // Drives the EntityPills strip. Phase G Slice 15: the hero now shows
   // one chip per BODY FEATURE TYPE the person currently has (Tattoo /
@@ -988,20 +980,6 @@ function HeroDensityLayout(props: HeroSharedProps) {
   // is the folded presentBodyFeatureTypes cache — the legacy per-mark
   // heroVisible flags were dropped along with their columns.
   const hasHeroEntities = currentState.presentBodyFeatureTypes.length > 0;
-
-  const handleAssignHeadshot = useCallback(
-    async (mediaItemId: string, slot: number) => {
-      await assignHeadshotSlotAction(person.id, mediaItemId, slot);
-    },
-    [person.id],
-  );
-
-  const handleRemoveHeadshot = useCallback(
-    async (mediaItemId: string) => {
-      await removeHeadshotSlotAction(person.id, mediaItemId);
-    },
-    [person.id],
-  );
 
   const handleFindSimilar = useCallback((mediaItemId: string) => {
     window.open(`/media/similar?id=${mediaItemId}`, "_blank");
@@ -1017,10 +995,6 @@ function HeroDensityLayout(props: HeroSharedProps) {
           width={cfg.photoWidth}
           height={cfg.photoHeight}
           sessionId={referenceSessionId}
-          onAssignHeadshot={handleAssignHeadshot}
-          onRemoveHeadshot={handleRemoveHeadshot}
-          profileLabels={profileLabels}
-          headshotSlotMap={headshotSlotMap}
           onFindSimilar={handleFindSimilar}
           onFavoriteToggle={onFavoriteToggle}
           leadHeadshot={heroLead}
@@ -1157,13 +1131,11 @@ function HeroCard({
   person,
   currentState,
   photos,
-  profileLabels,
   kpiCounts,
   calculatedPgrade,
   meanWcp,
   referenceSessionId,
   refMediaCount,
-  headshotSlotMap,
   earliestSessionYear,
   onAliasesBadgeClick,
   onAppearanceClick,
@@ -1176,13 +1148,11 @@ function HeroCard({
   person: PersonData;
   currentState: PersonCurrentState;
   photos: GalleryItem[];
-  profileLabels: ProfileImageLabel[];
   kpiCounts: KpiCounts;
   calculatedPgrade?: number | null;
   meanWcp?: number | null;
   referenceSessionId?: string;
   refMediaCount?: number;
-  headshotSlotMap?: Map<string, number>;
   earliestSessionYear?: number | null;
   onAliasesBadgeClick?: () => void;
   onAppearanceClick?: () => void;
@@ -1235,7 +1205,6 @@ function HeroCard({
     person,
     currentState,
     photos,
-    profileLabels,
     kpiCounts,
     calculatedPgrade,
     meanWcp,
@@ -1244,7 +1213,6 @@ function HeroCard({
     age,
     referenceSessionId,
     refMediaCount,
-    headshotSlotMap,
     earliestSessionYear,
     heroAliases,
     onAliasesBadgeClick,
@@ -1696,19 +1664,14 @@ function PhotosTab({
   person,
   photos,
   referenceSessionId,
-  profileLabels,
-  headshotSlotEntries,
   productionSessions,
 }: {
   person: PersonData;
   photos: GalleryItem[];
   referenceSessionId?: string;
-  profileLabels: ProfileImageLabel[];
-  headshotSlotEntries?: HeadshotSlotEntry[];
   productionSessions: PersonProductionSession[];
 }) {
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
-  const [slotEntries, setSlotEntries] = useState(headshotSlotEntries ?? []);
   const [isDragOver, setIsDragOver] = useState(false);
   const dragCounterRef = useRef(0);
   const addFilesRef = useRef<((files: FileList | File[]) => void) | null>(null);
@@ -1758,35 +1721,6 @@ function PhotosTab({
   photos.forEach((p, i) => indexMap.set(p.id, i));
 
   const totalProductionCount = productionSessions.reduce((sum, s) => sum + s.mediaCount, 0);
-
-  // Build Map<mediaItemId, slot> from entries
-  const headshotSlotMap = useMemo(() => {
-    const map = new Map<string, number>();
-    for (const entry of slotEntries) {
-      map.set(entry.mediaItemId, entry.slot);
-    }
-    return map;
-  }, [slotEntries]);
-
-  const handleAssignHeadshot = useCallback(
-    async (mediaItemId: string, slot: number) => {
-      // Optimistic update: remove old assignment for this slot, add new one
-      setSlotEntries((prev) => [
-        ...prev.filter((e) => e.slot !== slot && e.mediaItemId !== mediaItemId),
-        { mediaItemId, slot },
-      ]);
-      await assignHeadshotSlotAction(person.id, mediaItemId, slot);
-    },
-    [person.id],
-  );
-
-  const handleRemoveHeadshot = useCallback(
-    async (mediaItemId: string) => {
-      setSlotEntries((prev) => prev.filter((e) => e.mediaItemId !== mediaItemId));
-      await removeHeadshotSlotAction(person.id, mediaItemId);
-    },
-    [person.id],
-  );
 
   const handleFindSimilar = useCallback((mediaItemId: string) => {
     window.open(`/media/similar?id=${mediaItemId}`, "_blank");
@@ -1859,10 +1793,6 @@ function PhotosTab({
           initialIndex={lightboxIndex}
           enableCollections
           onClose={() => setLightboxIndex(null)}
-          onAssignHeadshot={handleAssignHeadshot}
-          onRemoveHeadshot={handleRemoveHeadshot}
-          profileLabels={profileLabels}
-          headshotSlotMap={headshotSlotMap}
           onFindSimilar={handleFindSimilar}
           sessionId={referenceSessionId}
         />
@@ -1893,9 +1823,7 @@ export function PersonDetailTabs({
   affiliations,
   connections,
   photos,
-  profileLabels,
   referenceSessionId,
-  headshotSlotEntries,
   heroLead,
   categories,
   categoryCounts,
@@ -1976,14 +1904,6 @@ export function PersonDetailTabs({
     window.history.replaceState(null, "", url.toString());
   }, []);
 
-  const heroHeadshotSlotMap = useMemo(() => {
-    const map = new Map<string, number>();
-    for (const entry of headshotSlotEntries ?? []) {
-      map.set(entry.mediaItemId, entry.slot);
-    }
-    return map;
-  }, [headshotSlotEntries]);
-
   const aliasCount = person.aliases.length;
 
   const handleAliasesBadgeClick = useCallback(() => {
@@ -2033,10 +1953,8 @@ export function PersonDetailTabs({
         person={person}
         currentState={currentState}
         photos={localPhotos}
-        profileLabels={profileLabels}
         referenceSessionId={referenceSessionId}
         refMediaCount={refMediaCount}
-        headshotSlotMap={heroHeadshotSlotMap}
         calculatedPgrade={calculatedPgrade}
         meanWcp={meanWcp}
         kpiCounts={{
@@ -2227,9 +2145,7 @@ export function PersonDetailTabs({
           <PhotosTab
             person={person}
             photos={photos}
-            profileLabels={profileLabels}
             referenceSessionId={referenceSessionId}
-            headshotSlotEntries={headshotSlotEntries}
             productionSessions={productionSessions ?? []}
           />
         )}

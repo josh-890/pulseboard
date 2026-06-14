@@ -11,9 +11,9 @@ import {
   deriveCurrentState,
   deriveAffiliations,
 } from "@/lib/services/person-service";
-import { getProfileImageLabels, getSkillLevelConfigs } from "@/lib/services/setting-service";
+import { getSkillLevelConfigs } from "@/lib/services/setting-service";
 import { getPersonReferenceSession } from "@/lib/services/session-service";
-import { getPersonHeadshots, getPersonMediaGallery, getPersonEntityMedia, getHeadshotsForPersons } from "@/lib/services/media-service";
+import { getPersonMediaGallery, getPersonEntityMedia, getHeadshotsForPersons } from "@/lib/services/media-service";
 import type { EntityMediaThumbnail } from "@/lib/services/media-service";
 import { getAllCategoryGroups, getPopulatedCategoriesForPerson, ensureEntityCategories, PROFILE_GROUP_ID } from "@/lib/services/category-service";
 import { getAllSkillGroups } from "@/lib/services/skill-catalog-service";
@@ -109,14 +109,12 @@ export default async function PersonDetailPage({ params, searchParams }: PersonD
   // Ensure system entity categories exist before loading category data
   await ensureEntityCategories();
 
-  const [person, workHistory, connections, profileLabels, refSession, headshots, categoryGroups, populatedCounts, skillGroups, skillLevelConfigs, aliasesWithChannels, sessionWorkHistory, productionSessions, entityMediaMap, physicalAttributeGroups, personEntityTags, digitalIdentities, researchEntries, stagingWorkHistory, eraContributionsMap, careerTimeline, careerStats, careerFacetCounts, careerChannels, careerEras] =
+  const [person, workHistory, connections, refSession, categoryGroups, populatedCounts, skillGroups, skillLevelConfigs, aliasesWithChannels, sessionWorkHistory, productionSessions, entityMediaMap, physicalAttributeGroups, personEntityTags, digitalIdentities, researchEntries, stagingWorkHistory, eraContributionsMap, careerTimeline, careerStats, careerFacetCounts, careerChannels, careerEras] =
     await Promise.all([
       getPersonWithDetails(id),
       getPersonWorkHistory(id),
       getPersonConnections(id),
-      getProfileImageLabels(),
       getPersonReferenceSession(id),
-      getPersonHeadshots(id),
       getAllCategoryGroups(),
       getPopulatedCategoriesForPerson(id),
       getAllSkillGroups(),
@@ -218,28 +216,12 @@ export default async function PersonDetailPage({ params, searchParams }: PersonD
   // Serialize entity media map for client components
   const entityMedia: Record<string, EntityMediaThumbnail[]> = Object.fromEntries(entityMediaMap);
 
-  // Build headshot slot entries for the gallery lightbox (serializable array)
-  const headshotSlotEntries = headshots
-    .filter((h) => h.slot !== null)
-    .map((h) => ({
-      mediaItemId: h.mediaItem.id,
-      slot: h.slot as number,
-      // Aspect-preserving thumbnail for the Standardized Slots expander (works
-      // for normalized 2:3 images and raw headshots alike).
-      thumbUrl: h.mediaItem.urls.gallery_512 ?? h.mediaItem.urls.view_1200 ?? h.mediaItem.urls.original ?? null,
-    }));
-
-  // Canonical headshot for the hero lead slide — same resolution as the People browser
-  // (★ slot, else lowest slot; standardized images served aspect-preserving). The id is
-  // the canonical link's media item, used to de-dupe it from the gallery carousel.
+  // Canonical headshot for the hero lead slide — the Profile→Headshot representative
+  // (ADR-0016). The media-item id de-dupes it from the gallery carousel.
   const heroHeadshot = (await getHeadshotsForPersons([id])).get(id) ?? null;
-  const leadLink = [...headshots].sort((a, b) =>
-    a.isAvatar === b.isAvatar ? (a.slot ?? 99) - (b.slot ?? 99) : a.isAvatar ? -1 : 1,
-  )[0];
-  const heroLead =
-    heroHeadshot && leadLink
-      ? { id: leadLink.mediaItem.id, url: heroHeadshot.url, focalX: heroHeadshot.focalX, focalY: heroHeadshot.focalY }
-      : null;
+  const heroLead = heroHeadshot
+    ? { id: heroHeadshot.mediaItemId, url: heroHeadshot.url, focalX: heroHeadshot.focalX, focalY: heroHeadshot.focalY }
+    : null;
 
   return (
     <div className="space-y-6">
@@ -267,10 +249,8 @@ export default async function PersonDetailPage({ params, searchParams }: PersonD
         affiliations={affiliations}
         connections={connections}
         photos={galleryItems}
-        profileLabels={profileLabels}
         referenceSessionId={refSession?.id}
         refMediaCount={refSession?._count.mediaItems ?? 0}
-        headshotSlotEntries={headshotSlotEntries}
         heroLead={heroLead}
         categories={flatCategories}
         categoryCounts={categoryCounts}

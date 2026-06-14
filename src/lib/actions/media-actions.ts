@@ -16,94 +16,6 @@ import { refreshDashboardStats } from "@/lib/services/view-service";
 import type { PersonMediaLinkUpdate } from "@/lib/services/media-service";
 import type { PersonMediaUsage, SimpleActionResult } from "@/lib/types";
 
-export async function assignHeadshotSlot(
-  personId: string,
-  mediaItemId: string,
-  slot: number,
-): Promise<SimpleActionResult> {
-  return withTenantFromHeaders(async () => {
-    try {
-      await prisma.$transaction(async (tx) => {
-        // Carry the ★ avatar over if the image previously in this slot was the avatar.
-        const prev = await tx.personMediaLink.findFirst({
-          where: { personId, usage: "HEADSHOT", slot },
-          select: { isAvatar: true },
-        });
-        const inheritAvatar = prev?.isAvatar ?? false;
-
-        // Remove the HEADSHOT link from whatever image previously held this slot
-        await tx.personMediaLink.deleteMany({
-          where: { personId, usage: "HEADSHOT", slot },
-        });
-
-        // Upsert the link for this person+media+HEADSHOT
-        await tx.personMediaLink.upsert({
-          where: {
-            personId_mediaItemId_usage: {
-              personId,
-              mediaItemId,
-              usage: "HEADSHOT",
-            },
-          },
-          update: { slot, ...(inheritAvatar ? { isAvatar: true } : {}) },
-          create: {
-            personId,
-            mediaItemId,
-            usage: "HEADSHOT",
-            slot,
-            isAvatar: inheritAvatar,
-          },
-        });
-      });
-
-      revalidatePath("/people");
-      revalidatePath(`/people/${personId}`);
-      return { success: true };
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Unexpected error";
-      return { success: false, error: message };
-    }
-
-  });
-}
-
-export async function clearSlotAction(
-  personId: string,
-  slot: number,
-): Promise<SimpleActionResult> {
-  return withTenantFromHeaders(async () => {
-    try {
-      await prisma.personMediaLink.deleteMany({ where: { personId, usage: "HEADSHOT", slot } });
-      revalidatePath("/people");
-      revalidatePath(`/people/${personId}`);
-      return { success: true };
-    } catch (err) {
-      return { success: false, error: err instanceof Error ? err.message : "Failed to clear slot" };
-    }
-  });
-}
-
-export async function removeHeadshotSlot(
-  personId: string,
-  mediaItemId: string,
-): Promise<SimpleActionResult> {
-  return withTenantFromHeaders(async () => {
-    try {
-      await prisma.personMediaLink.deleteMany({
-        where: { personId, mediaItemId, usage: "HEADSHOT" },
-      });
-
-      revalidatePath("/people");
-      revalidatePath(`/people/${personId}`);
-      return { success: true };
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Unexpected error";
-      return { success: false, error: message };
-    }
-
-  });
-}
-
 export async function updatePersonMediaLinkAction(
   linkId: string,
   data: PersonMediaLinkUpdate,
@@ -728,7 +640,6 @@ export async function swapPersonMediaLinkAction(
             sortOrder: old.sortOrder,
             notes: old.notes,
             eraId: old.eraId,
-            slot: old.slot,
             bodyRegion: old.bodyRegion,
             bodyRegions: old.bodyRegions,
           },
@@ -745,28 +656,3 @@ export async function swapPersonMediaLinkAction(
   });
 }
 
-export async function setPersonAvatarAction(
-  personId: string,
-  mediaItemId: string,
-): Promise<SimpleActionResult> {
-  return withTenantFromHeaders(async () => {
-    try {
-      await prisma.$transaction(async (tx) => {
-        await tx.personMediaLink.updateMany({
-          where: { personId, isAvatar: true },
-          data: { isAvatar: false },
-        });
-        await tx.personMediaLink.updateMany({
-          where: { personId, mediaItemId },
-          data: { isAvatar: true },
-        });
-      });
-      revalidatePath("/people");
-      revalidatePath(`/people/${personId}`);
-      return { success: true };
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Unexpected error";
-      return { success: false, error: message };
-    }
-  });
-}

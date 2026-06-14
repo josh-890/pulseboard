@@ -101,7 +101,6 @@ export type MediaItemForGallery = {
   personMediaLinks?: Array<{
     id: string;
     usage: PersonMediaUsage;
-    slot: number | null;
     bodyRegion: string | null;
     bodyRegions: string[];
     bodyMarkId: string | null;
@@ -110,7 +109,6 @@ export type MediaItemForGallery = {
     categoryId: string | null;
     eraId: string | null;
     isFavorite: boolean;
-    isAvatar: boolean;
     sortOrder: number;
     notes: string | null;
   }>;
@@ -159,7 +157,6 @@ export function mapMediaItemToGalleryItem(
     focalY: item.focalY,
     tags: item.tags,
     isFavorite: firstLink?.isFavorite ?? false,
-    isAvatar: firstLink?.isAvatar ?? false,
     sortOrder: firstLink?.sortOrder ?? 0,
     isCover: opts?.coverMediaItemId === item.id,
     // Per-person link surface — present only when caller included
@@ -289,7 +286,6 @@ type CreatePersonMediaItemInput = {
   caption?: string;
   tags?: string[];
   usage?: PersonMediaUsage;
-  slot?: number;
   bodyRegion?: string;
   bodyMarkId?: string;
   bodyModificationId?: string;
@@ -334,7 +330,6 @@ export async function createMediaItemForPerson(
         personId: input.personId,
         mediaItemId,
         usage,
-        slot: input.slot,
         bodyRegion: input.bodyRegion,
         bodyMarkId: input.bodyMarkId,
         bodyModificationId: input.bodyModificationId,
@@ -360,7 +355,6 @@ type CreateMediaItemDirectInput = {
   sortOrder?: number;
   personId?: string;
   usage?: PersonMediaUsage;
-  slot?: number;
   setId?: string;
   hash?: string;
   phash?: string;
@@ -406,7 +400,6 @@ export async function createMediaItemDirect(
           personId: input.personId,
           mediaItemId,
           usage,
-          slot: usage === "HEADSHOT" ? input.slot : undefined,
           sortOrder: input.sortOrder ?? 0,
         },
       });
@@ -469,24 +462,6 @@ export async function createMediaItemDirect(
     filename: input.filename,
     urls: buildPhotoUrls(input.variants),
   };
-}
-
-export async function getFilledHeadshotSlots(
-  personId: string,
-): Promise<number[]> {
-  const links = await prisma.personMediaLink.findMany({
-    where: {
-      personId,
-      usage: "HEADSHOT",
-      slot: { not: null },
-    },
-    select: { slot: true },
-    orderBy: { slot: "asc" },
-  });
-
-  return links
-    .map((l) => l.slot)
-    .filter((s): s is number => s !== null);
 }
 
 // ─── Person media as GalleryItems ────────────────────────────────────────────
@@ -710,7 +685,6 @@ export async function getMediaItemsForSession(
 export type PersonMediaLinkWithItem = {
   id: string;
   usage: PersonMediaUsage;
-  slot: number | null;
   bodyRegion: string | null;
   bodyRegions: string[];
   bodyMarkId: string | null;
@@ -719,7 +693,6 @@ export type PersonMediaLinkWithItem = {
   categoryId: string | null;
   eraId: string | null;
   isFavorite: boolean;
-  isAvatar: boolean;
   sortOrder: number;
   notes: string | null;
   mediaItem: MediaItemWithUrls;
@@ -729,7 +702,6 @@ function toPersonMediaLinkWithItem(
   link: {
     id: string;
     usage: PersonMediaUsage;
-    slot: number | null;
     bodyRegion: string | null;
     bodyRegions?: string[];
     bodyMarkId: string | null;
@@ -738,7 +710,6 @@ function toPersonMediaLinkWithItem(
     categoryId: string | null;
     eraId?: string | null;
     isFavorite: boolean;
-    isAvatar: boolean;
     sortOrder: number;
     notes: string | null;
     mediaItem: MediaItemRow & { fileRef: string | null };
@@ -749,7 +720,6 @@ function toPersonMediaLinkWithItem(
   return {
     id: link.id,
     usage: link.usage,
-    slot: link.slot,
     bodyRegion: link.bodyRegion,
     bodyRegions: link.bodyRegions ?? [],
     bodyMarkId: link.bodyMarkId,
@@ -758,30 +728,10 @@ function toPersonMediaLinkWithItem(
     categoryId: link.categoryId,
     eraId: link.eraId ?? null,
     isFavorite: link.isFavorite,
-    isAvatar: link.isAvatar,
     sortOrder: link.sortOrder,
     notes: link.notes,
     mediaItem,
   };
-}
-
-export async function getPersonHeadshots(
-  personId: string,
-  slot?: number,
-): Promise<PersonMediaLinkWithItem[]> {
-  const links = await prisma.personMediaLink.findMany({
-    where: {
-      personId,
-      usage: "HEADSHOT",
-      ...(slot !== undefined ? { slot } : {}),
-    },
-    include: { mediaItem: true },
-    orderBy: [{ slot: "asc" }, { sortOrder: "asc" }],
-  });
-
-  return links
-    .map((link) => toPersonMediaLinkWithItem(link))
-    .filter((item): item is PersonMediaLinkWithItem => item !== null);
 }
 
 export async function getPersonMediaByUsage(
@@ -800,57 +750,15 @@ export async function getPersonMediaByUsage(
 }
 
 export type HeadshotData = {
+  mediaItemId: string;
   url: string;
   focalX: number | null;
   focalY: number | null;
 };
 
-/** Per-slot state for the Slot Manager: current image + raw/standardized + default(avatar). */
-export type SlotState = {
-  slot: number;
-  mediaItemId: string;
-  thumbUrl: string | null;
-  isStandardized: boolean;
-  isAvatar: boolean;
-  // Focal point for raw slots (null for standardized — already aligned/centered).
-  focalX: number | null;
-  focalY: number | null;
-};
-
-export async function getPersonSlotState(personId: string): Promise<SlotState[]> {
-  const links = await prisma.personMediaLink.findMany({
-    where: { personId, usage: "HEADSHOT", slot: { not: null } },
-    include: { mediaItem: true },
-    orderBy: [{ slot: "asc" }, { sortOrder: "asc" }],
-  });
-  const seen = new Set<number>();
-  const out: SlotState[] = [];
-  for (const l of links) {
-    const slot = l.slot!;
-    if (seen.has(slot)) continue;
-    seen.add(slot);
-    const variants = parsePhotoVariants(l.mediaItem.variants) ?? ({} as PhotoVariants);
-    const urls = buildPhotoUrls(variants, l.mediaItem.fileRef);
-    const isStandardized = !!l.mediaItem.motifTemplateId;
-    out.push({
-      slot,
-      mediaItemId: l.mediaItem.id,
-      // Aspect-preserving thumbnail (works for normalized 2:3 + raw alike).
-      thumbUrl: urls.gallery_512 ?? urls.view_1200 ?? urls.original ?? null,
-      isStandardized,
-      isAvatar: l.isAvatar,
-      // Standardized images are already centered — neutralize focal so the card's
-      // object-cover doesn't shift them; raw slots honour the focal point.
-      focalX: isStandardized ? null : (l.mediaItem.focalX ?? null),
-      focalY: isStandardized ? null : (l.mediaItem.focalY ?? null),
-    });
-  }
-  return out;
-}
-
 function headshotDataFromLink(link: {
   personId: string;
-  mediaItem: { variants: unknown; focalX: number | null; focalY: number | null; fileRef: string | null; motifTemplateId?: string | null };
+  mediaItem: { id: string; variants: unknown; focalX: number | null; focalY: number | null; fileRef: string | null; motifTemplateId?: string | null };
 }): HeadshotData | null {
   const variants = (link.mediaItem.variants ?? {}) as PhotoVariants;
   const isNormalized = !!link.mediaItem.motifTemplateId;
@@ -876,6 +784,7 @@ function headshotDataFromLink(link: {
   // A normalized image is already centered/cropped — neutralize focal point so the
   // card's object-cover doesn't shift it.
   return {
+    mediaItemId: link.mediaItem.id,
     url,
     focalX: isNormalized ? null : (link.mediaItem.focalX ?? null),
     focalY: isNormalized ? null : (link.mediaItem.focalY ?? null),
@@ -1109,7 +1018,6 @@ export async function getMediaItemsWithLinks(
         links: item.personMediaLinks.map((link) => ({
           id: link.id,
           usage: link.usage,
-          slot: link.slot,
           bodyRegion: link.bodyRegion,
           bodyRegions: link.bodyRegions ?? [],
           bodyMarkId: link.bodyMarkId,
@@ -1118,7 +1026,6 @@ export async function getMediaItemsWithLinks(
           categoryId: link.categoryId,
           eraId: link.eraId ?? null,
           isFavorite: link.isFavorite,
-          isAvatar: link.isAvatar,
           sortOrder: link.sortOrder,
           notes: link.notes,
         })),
@@ -1142,7 +1049,6 @@ export async function getMediaItemsWithLinks(
 
 export type PersonMediaLinkUpdate = {
   usage?: PersonMediaUsage;
-  slot?: number | null;
   bodyRegion?: string | null;
   bodyRegions?: string[];
   bodyMarkId?: string | null;

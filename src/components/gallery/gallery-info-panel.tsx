@@ -272,7 +272,6 @@ export function GalleryInfoPanel({
           const newLink: PersonMediaLinkSummary = {
             id: `temp-${usage}`,
             usage,
-            slot: null,
             bodyRegion: null,
             bodyRegions: [],
             bodyMarkId: null,
@@ -281,7 +280,6 @@ export function GalleryInfoPanel({
             categoryId: null,
             eraId: null,
             isFavorite: false,
-            isAvatar: false,
             sortOrder: 0,
             notes: null,
           };
@@ -484,7 +482,6 @@ export function GalleryInfoPanel({
           const newLink: PersonMediaLinkSummary = {
             id: `temp-cat-${categoryId}`,
             usage: "DETAIL",
-            slot: null,
             bodyRegion: null,
             bodyRegions: [],
             bodyMarkId: null,
@@ -493,7 +490,6 @@ export function GalleryInfoPanel({
             categoryId,
             eraId: null,
             isFavorite: false,
-            isAvatar: false,
             sortOrder: 0,
             notes: null,
           };
@@ -1273,7 +1269,6 @@ export function GalleryInfoPanel({
                 <MediaUsageBadge
                   key={link.id}
                   usage={link.usage}
-                  slot={link.slot}
                 />
               ))}
             </div>
