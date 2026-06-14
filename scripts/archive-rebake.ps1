@@ -234,14 +234,21 @@ foreach ($e in $entries) {
         $bytes = Invoke-Bake -Entry $e -Img $img
         if (-not $bytes) { $t.failed++; Write-Warning "FAILED   $($e.alignedMediaItemId): keypoints do not cover the template"; continue }
 
+        # POST via a temp file (-InFile), NOT -Body: Invoke-RestMethod corrupts raw
+        # byte-array bodies, which makes the server reject the JPEG. -InFile streams
+        # the bytes verbatim (like curl --data-binary).
+        $tmpJpg = [System.IO.Path]::Combine($env:TEMP, ([Guid]::NewGuid().ToString() + ".jpg"))
         try {
+            [System.IO.File]::WriteAllBytes($tmpJpg, $bytes)
             Invoke-RestMethod -Uri "$BaseUrl/api/archive/rebake/$($e.alignedMediaItemId)" `
-                -Headers $headers -Method Post -Body $bytes -ContentType 'image/jpeg' | Out-Null
+                -Headers $headers -Method Post -InFile $tmpJpg -ContentType 'image/jpeg' | Out-Null
             $t.rebaked++
             Write-Verbose "OK       $($e.alignedMediaItemId)  <-  $file ($($img.Width)x$($img.Height))"
         } catch {
             $t.failed++
             Write-Warning "FAILED   $($e.alignedMediaItemId): $_"
+        } finally {
+            Remove-Item -LiteralPath $tmpJpg -ErrorAction SilentlyContinue
         }
     } finally {
         $img.Dispose()
