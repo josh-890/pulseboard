@@ -1,6 +1,6 @@
 # Profile slots unify into a Profile category group; avatar = Headshot representative
 
-Decided 2026-06-14 (design review, /grill-with-docs — not yet implemented). Refines ADR-0014 D7.
+Decided 2026-06-14 (design review, /grill-with-docs). **Implemented 2026-06-14** (slices 6a–6e-2 — see Implementation status). Refines ADR-0014 D7.
 
 ## Context
 
@@ -43,3 +43,11 @@ The user's model: slot 1 = Headshot = the person's "ID-card picture" — always 
 - **Migration** (per tenant — pulse has 1 templated slot, xpulse 3/5): seed the Profile group + categories; convert each `HEADSHOT` slot link → a `DETAIL` link to its Profile category + `isRepresentative`; map each person's current ★ avatar → the Headshot category's representative; bind the slot `MotifTemplate`s to the Profile categories.
 - **Hero rewire is the load-bearing step** — `getHeadshotsForPersons` / `headshotDataFromLink` / `getPersonHeadshots` and the Slot Manager move to "the avatar-source category's representative." Mandatory regression on `/people` + person cards. Sequenced last, ideally split: model+seed → data migrate → swap reads (verified) → drop old fields.
 - The Slot Manager becomes Profile-category management (per category: add aligned images, choose representative, standardize). The Atlas gains the Profile categories.
+
+## Implementation status
+
+**Landed 2026-06-14** (slices 6a–6e-2). The model (Profile group `grp_profile`, `cat_profile_slot{N}`, `MediaCategory.isAvatarSource`, `PersonMediaLink.isRepresentative`), the per-tenant seed + backfill (reps + ★→Headshot-rep), the dual-read hero, the `ProfileManager` (replacing the Slot Manager), and the people-browser `ProfileViewSelector` are all in place.
+
+Slice **6e-2** then made `getHeadshotsForPersons` rep-only and dropped the legacy machinery: the `PersonMediaLink.slot`/`isAvatar` and `MotifTemplate.slot` columns, the redundant `HEADSHOT` links, the `p-img%` slot-label settings, and all slot-assign / Slot-Manager UI plus the dead services/actions (`getPersonHeadshots`, `getPersonSlotState`, `getFilledHeadshotSlots`, `assignHeadshotSlot`, `clearSlotAction`, `removeHeadshotSlot`, `setPersonAvatarAction`, `assignMotifImageAction`, `getProfileImageLabels`). Templates are category-bound only.
+
+Migrations: `20260614120000_profile_unification_columns`, `20260614180000_profile_slot_retirement` (drop columns + delete HEADSHOT links), `20260614190000_drop_profile_slot_labels`. **Deploy ordering:** the column-drop migration must run **after** the new code is on the container — an old container still selects the dropped columns. So: rebuild container → run `deploy-migrations.sh`.

@@ -73,7 +73,7 @@ The list page shows all persons as cards with headshot thumbnails, names, ICG-ID
 - **Profile completeness** — Incomplete / Partial / Complete
 - **Hair Color, Ethnicity, Body Region** — attribute filters
 - **Birthdate / Added** — date range filters
-- **Headshot Slot** — Select which profile image slot (1–5) to display on cards
+- **Card photo framing** — pick which **Profile framing** (Headshot, Photo 2, …) representative the person cards show; Headshot is the default. Number keys **1..N** are hotkeys for the chips.
 
 **Sorting:** Name A→Z, Name Z→A, Newest/Oldest, Age, Rating, Profile completeness, Recently updated.
 
@@ -150,27 +150,26 @@ The detail page has two main sections: a **Reference Media Card** at the top and
 
 #### Reference Media Card
 
-Shows a link to the person's reference session (auto-created, one per person). Displays up to 5 headshot slot thumbnails with customizable slot labels. Click to navigate to the reference session for media management.
+Shows a link to the person's reference session (auto-created, one per person), plus a preview of the person's **Profile framings**. Click to navigate to the reference session for media management.
 
-#### Profile slots (Slot Manager)
+#### Profile framings (Profile Manager)
 
-Profile slots are managed in **one place** — the **Slot Manager** on the person's **reference session** (open it from the Reference Media Card). It shows one card per slot, each with its current image and a clear **state**:
+The person's profile photos are organised as a **Profile** group of **framing categories** — **Headshot** plus your other framings (Photo 2, Photo 3, …). They're managed in **one place** — the **Profile Manager** on the person's **reference session** (open it from the Reference Media Card). It shows one card per framing:
 
-- **Standardized** — a template-aligned image (consistent framing across people).
-- **Raw — not aligned** — a plain photo linked directly (shown via the normal crop).
-- **Empty** — no image yet.
+- A framing can hold **many** aligned images; the one currently shown is the **representative**.
+- When a framing has more than one image, a **★ picker** lets you choose which image is the representative.
+- The **Headshot** framing is special: its representative **is the person's avatar** (the ID-card photo shown across the app). Headshot can't be deleted.
 
-Per slot you can:
-- **Standardize** → pick a source photo → the **aligner** opens; click the template's keypoints on the source (headshot: **left eye, right eye, mouth**) → it computes the exact rotate/scale/translate to the template targets, shows a live preview (warns if the source is too small) → **Save** bakes a consistently-framed image and assigns it to the slot.
-- **Link** → assign an existing photo directly (raw, no alignment).
-- **Clear** → empty the slot.
-- **★** → mark that slot as the person's **default** (the image shown on the People-browser card when no slot filter is active).
+Per framing you can:
+- **Standardize** → pick a source photo → the **aligner** opens; click the template's keypoints on the source (headshot: **left eye, right eye, mouth**) → it computes the exact rotate/scale/translate to the template targets, shows a live preview (warns if the source is too small) → **Save** bakes a consistently-framed image into that framing.
+- **Link** → add an existing photo directly (raw, no alignment).
+- **★** → choose which image is the framing's representative (the displayed one; for Headshot, the avatar). With a single image it's the representative by default; otherwise the most recent wins until you pick.
 
-Uploading photos **no longer auto-fills slots** — slot images are always set explicitly here. Templates (output aspect/size + draggable target keypoints) are defined under **Settings → Catalogs → Motif Templates**; add half/full-body motifs there — no code needed. When editing a template you can drop a **reference photo** behind the keypoint canvas as a visual guide (drag to move, scroll to zoom, rotate + opacity sliders) and place the dots over real anatomy — it's a guide only and never changes the saved geometry. **Pin** it to keep that reference (and its position) for next time.
+Uploading photos **doesn't auto-fill framings** — framing images are always set explicitly here. Templates (output aspect/size + draggable target keypoints) are defined under **Settings → Catalogs → Motif Templates**; add half/full-body motifs there — no code needed. When editing a template you can drop a **reference photo** behind the keypoint canvas as a visual guide (drag to move, scroll to zoom, rotate + opacity sliders) and place the dots over real anatomy — it's a guide only and never changes the saved geometry. **Pin** it to keep that reference (and its position) for next time.
 
 #### Aligned detail photos & the Atlas
 
-The same template alignment that standardizes headshots also works for **detail loci** (eyes, a specific pose, …) so they're **comparable across people**. In **Settings → Catalogs → Motif Templates**, set a template's **Bind to** toggle to **Locus category** and pick a category (e.g. *Eyes*) instead of a profile slot.
+The same template alignment that standardizes Profile framings also works for **detail loci** (eyes, a specific pose, …) so they're **comparable across people**. A framing and a locus are both just **categories** with a bound template. In **Settings → Catalogs → Motif Templates**, bind a template to a **locus category** (e.g. *Eyes*).
 
 Once a category has a template, an **Align** button (frame icon) appears next to that category on a person's **Details** tab. Click it → pick a source photo → the same keypoint aligner opens → **Save to category** bakes an **Aligned image** that lands in that category (marked with an *aligned* badge). Aligned images are derived copies kept in the reference session; they're hidden from the raw photo gallery and source pickers so they don't clutter your originals. You can align as many photos per locus as you like.
 
@@ -379,7 +378,7 @@ Click **"Add Session"** to create a production session:
 - **Media Manager** — full-featured media management component with:
   - Grid of all reference media
   - Batch upload zone with duplicate detection
-  - Headshot slot assignment
+  - Profile Manager (per-framing representative + Standardize/Link)
   - Lightbox with reference context (usage toggles, entity linking, collections, categories)
 - No edit/merge/delete buttons (reference sessions are immutable)
 
@@ -759,12 +758,11 @@ The lightbox opens when clicking any media thumbnail in a gallery. It provides f
 
 These additional sections appear when viewing media in a reference session:
 
-- **Usage toggles** — HEADSHOT, PROFILE, PORTFOLIO, DETAIL
-  - HEADSHOT: assigned to a slot (1–5)
+- **Usage toggles** — PROFILE, PORTFOLIO, DETAIL
   - PROFILE: person's display picture
   - PORTFOLIO: general portfolio image
-  - DETAIL: linked to a specific body feature via category
-- **Headshot slot assignment** — dropdown to assign/remove from profile slot (1–5) with custom labels from Settings
+  - DETAIL: linked to a body feature or a Profile/locus category
+- **Profile framings** are set in the **Profile Manager** (reference session), not here — see *Profile framings (Profile Manager)*.
 - **Entity linking** (when usage is DETAIL) — link to a specific Body Mark or Body Modification
 - **Collections** — add/remove the image from any collection
 - **Category assignment** — assign to a media category (used in person Detail tab)
@@ -1159,12 +1157,9 @@ Dropdown to adjust UI spacing across the app: Compact, Normal, or Comfortable.
 
 Controls information density for the person detail hero card: Minimal, Normal, or Detailed.
 
-### Profile Image Slots
+### Profile framings
 
-Customize the display labels for each of the 5 profile image slots. Default labels are "Slot 1" through "Slot 5". Custom labels (e.g. "Headshot", "Profile", "Portfolio") appear in:
-- People list headshot slot selector
-- Person detail reference media card
-- Lightbox headshot slot assignment dropdown
+Profile framings (Headshot, Photo 2, …) are now ordinary **categories** of the **Profile** group — rename or reorder them under **Media Categories** (below). There's no separate "Profile Slots" settings page anymore; their names drive the people-browser **Card photo framing** selector and the **Profile Manager** on each reference session.
 
 ### Media Categories
 
@@ -1231,9 +1226,9 @@ The default reflects history: a fresh person opens with **baseline** preselected
 2. Fill in ICG-ID, display name, and status
 3. After creation, click the **"Reference Media"** card on the person detail page
 4. Upload reference photos via the batch upload zone
-5. Open the lightbox to assign headshot slots (1–5)
+5. Use the **Profile Manager** to set the Headshot framing (Standardize or Link) → its representative becomes the avatar
 6. Set focal points for smart cropping
-7. Assign usage types (Headshot, Profile, Portfolio, Detail)
+7. Assign usage types (Profile, Portfolio, Detail)
 8. For detail shots, assign a media category and link to body features
 9. Add photos to collections for organization
 
