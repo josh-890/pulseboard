@@ -209,10 +209,18 @@ export function PersonDetailsTab({
 
   // Mark a photo as the representative for a Profile framing (ADR-0016).
   const handleSetRepresentative = useCallback(async (categoryId: string, mediaItemId: string) => {
+    // Optimistic: move the ★ instantly so it doesn't feel like a hang.
+    setCategoryMedia((prev) => {
+      const items = prev.get(categoryId);
+      if (!items) return prev;
+      const next = new Map(prev);
+      next.set(categoryId, items.map((it) => ({ ...it, isRepresentative: it.id === mediaItemId })));
+      return next;
+    });
     const res = await setRepresentativeAction(personId, mediaItemId, categoryId);
-    if (res.success) refreshCategory(categoryId);
-    else toast.error(res.error ?? "Failed to set representative");
-  }, [personId, refreshCategory]);
+    if (res.success) router.refresh(); // updates the hero/avatar in the background
+    else { toast.error(res.error ?? "Failed to set representative"); refreshCategory(categoryId); }
+  }, [personId, router, refreshCategory]);
 
   const handleDetailsLightboxDelete = useCallback(async (id: string) => {
     if (!referenceSessionId || !detailsLightbox) return;

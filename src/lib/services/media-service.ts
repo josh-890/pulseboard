@@ -888,18 +888,38 @@ export async function getHeadshotsForPersons(
 ): Promise<Map<string, HeadshotData>> {
   if (personIds.length === 0) return new Map();
 
-  // Category-filter mode (slot filter active) — unchanged behaviour
+  // Slot-filter mode (people browser "show framing N"). Dual-read (ADR-0016): the
+  // Profile category for that slot (cat_profile_slot{N}) representative, falling back
+  // to the legacy HEADSHOT slot link when un-migrated.
   if (slot !== undefined) {
-    const links = await prisma.personMediaLink.findMany({
-      where: { personId: { in: personIds }, usage: "HEADSHOT", slot },
-      include: { mediaItem: true },
-      orderBy: [{ slot: "asc" }, { sortOrder: "asc" }],
-    });
     const result = new Map<string, HeadshotData>();
-    for (const link of links) {
-      if (!result.has(link.personId)) {
-        const data = headshotDataFromLink(link);
-        if (data) result.set(link.personId, data);
+    const catId = `cat_profile_slot${slot}`;
+    const cat = await prisma.mediaCategory.findUnique({ where: { id: catId }, select: { id: true } });
+    if (cat) {
+      const repLinks = await prisma.personMediaLink.findMany({
+        where: { personId: { in: personIds }, usage: "DETAIL", categoryId: catId },
+        include: { mediaItem: true },
+        orderBy: [{ isRepresentative: "desc" }, { createdAt: "desc" }],
+      });
+      for (const link of repLinks) {
+        if (!result.has(link.personId)) {
+          const data = headshotDataFromLink(link);
+          if (data) result.set(link.personId, data);
+        }
+      }
+    }
+    const missing = personIds.filter((id) => !result.has(id));
+    if (missing.length > 0) {
+      const links = await prisma.personMediaLink.findMany({
+        where: { personId: { in: missing }, usage: "HEADSHOT", slot },
+        include: { mediaItem: true },
+        orderBy: [{ slot: "asc" }, { sortOrder: "asc" }],
+      });
+      for (const link of links) {
+        if (!result.has(link.personId)) {
+          const data = headshotDataFromLink(link);
+          if (data) result.set(link.personId, data);
+        }
       }
     }
     return result;
