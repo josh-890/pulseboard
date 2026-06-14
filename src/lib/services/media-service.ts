@@ -905,22 +905,45 @@ export async function getHeadshotsForPersons(
     return result;
   }
 
-  // Avatar mode — Pass 1: the ★ default, constrained to HEADSHOT slots. The avatar is
-  // owned by the Slot Manager (a slot's ★), so a stray isAvatar on a non-slot gallery
-  // photo must NOT win — otherwise standardizing a slot can't update the avatar.
-  const avatarLinks = await prisma.personMediaLink.findMany({
-    where: { personId: { in: personIds }, isAvatar: true, usage: "HEADSHOT" },
-    include: { mediaItem: true },
-  });
+  // Avatar mode (ADR-0016 — dual-read transition). The avatar is the representative
+  // of the avatar-source (Headshot) category. It falls back to the legacy ★ HEADSHOT
+  // slot when a person has no representative yet, so the hero is correct whether or
+  // not the Profile seed/backfill (6a/6c) has run for this tenant.
   const result = new Map<string, HeadshotData>();
-  for (const link of avatarLinks) {
-    if (!result.has(link.personId)) {
-      const data = headshotDataFromLink(link);
-      if (data) result.set(link.personId, data);
+
+  // Pass 0 — Headshot category representative (explicit isRepresentative, else most recent).
+  const avatarCat = await prisma.mediaCategory.findFirst({ where: { isAvatarSource: true }, select: { id: true } });
+  if (avatarCat) {
+    const repLinks = await prisma.personMediaLink.findMany({
+      where: { personId: { in: personIds }, usage: "DETAIL", categoryId: avatarCat.id },
+      include: { mediaItem: true },
+      orderBy: [{ isRepresentative: "desc" }, { createdAt: "desc" }],
+    });
+    for (const link of repLinks) {
+      if (!result.has(link.personId)) {
+        const data = headshotDataFromLink(link);
+        if (data) result.set(link.personId, data);
+      }
     }
   }
 
-  // Pass 2: fallback for persons with no isAvatar set — old slot+sortOrder logic
+  // Pass 1 (fallback) — legacy ★ avatar on a HEADSHOT slot. Constrained to HEADSHOT
+  // so a stray isAvatar on a gallery photo can't win.
+  const missing1 = personIds.filter((id) => !result.has(id));
+  if (missing1.length > 0) {
+    const avatarLinks = await prisma.personMediaLink.findMany({
+      where: { personId: { in: missing1 }, isAvatar: true, usage: "HEADSHOT" },
+      include: { mediaItem: true },
+    });
+    for (const link of avatarLinks) {
+      if (!result.has(link.personId)) {
+        const data = headshotDataFromLink(link);
+        if (data) result.set(link.personId, data);
+      }
+    }
+  }
+
+  // Pass 2 (fallback) — any HEADSHOT slot by slot+sortOrder.
   const missing = personIds.filter((id) => !result.has(id));
   if (missing.length > 0) {
     const fallbackLinks = await prisma.personMediaLink.findMany({
