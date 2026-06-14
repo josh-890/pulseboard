@@ -33,4 +33,11 @@ Add an **HD re-bake**: replay an Aligned image's alignment against its **archive
 
 ## Status
 
-Implemented 2026-06-14 (slices 1–5).
+Implemented 2026-06-14 (slices 1–5). Follow-up: a **pure-PowerShell agent**
+(`scripts/archive-rebake.ts`'s sibling `scripts/archive-rebake.ps1`) baking with
+`System.Drawing` (GDI+ `Matrix` shares the canvas `(a,b,c,d,e,f)` convention, so the
+similarity transform + bake math is a direct port of `lib/image/bake-geometry.ts`) —
+so the re-bake needs no Node on the archive host, matching the pure-PowerShell
+`archive-scan.ps1`. The re-bake endpoint also accepts a **raw image body** (not just
+multipart) for the PowerShell client. `archive-scan.ps1 -Rebake` chains the re-bake
+after a scan so the archive paths are freshly verified first.

@@ -181,10 +181,13 @@ To save space, Pulseboard stores a downscaled (≤4000px) version of each photo,
 
 If the photo came from your archive, you can refine that aligned image from the **full-resolution original** — same framing, sharper pixels — without re-doing any clicking:
 
-1. On the **machine that holds the archive** (where you run the scan), run the re-bake agent:
-   `npx tsx scripts/archive-rebake.ts --base-url <app> --api-key <key> --tenant <tenants>`
-   (add `--dry-run` to preview, `--person`/`--session` to scope, `--force` to redo).
-2. It finds every aligned image whose original is reachable, reads the original off disk, replays the exact alignment at full resolution, and replaces the image in place. The multi-GB originals never leave your machine — only the small refined result is uploaded.
+1. On the **machine that holds the archive** (where you run the scan), run the re-bake agent — the same way you run `archive-scan.ps1`:
+   `.\archive-rebake.ps1 -BaseUrl <app> -ApiKey <key> -Tenant <tenant>`
+   (add `-DryRun` to preview, `-PersonId`/`-SessionId` to scope, `-Force` to redo). It's pure PowerShell — no Node needed.
+2. Or **chain it onto a scan** so the archive paths are freshly verified first: `archive-scan.ps1 … -Rebake` (add `-RebakeForce` to redo). A normal scan also prints how many images are eligible.
+3. The agent finds every aligned image whose original is reachable, reads the original off disk, replays the exact alignment at full resolution, and replaces the image in place. The multi-GB originals never leave your machine — only the small refined result is uploaded.
+
+(A cross-platform Node equivalent, `scripts/archive-rebake.ts`, is also available if you prefer it.)
 
 Refined images carry an **HD** badge (Profile Manager, Details tab). **Maintenance** shows an *"HD re-bake eligible"* count — how many aligned images could still be sharpened — and a normal scan run prints the same nudge when there's anything to do. Photos you uploaded directly (no archive original) simply aren't eligible — their stored copy is already the best that exists.
 

@@ -157,7 +157,9 @@ param(
     [int]$BatchSize        = 200,
     [switch]$NoSidecarPrompt,  # skip interactive sidecar-write prompt after Full scan (for automation)
     [switch]$DryRun,
-    [switch]$SkipChanCache   # retained for backward compatibility; no longer has any effect
+    [switch]$SkipChanCache,  # retained for backward compatibility; no longer has any effect
+    [switch]$Rebake,         # after the scan, run archive-rebake.ps1 (HD re-bake, ADR-0017) — paths are freshly verified
+    [switch]$RebakeForce     # pass -Force to the re-bake pass (redo even when not higher-res)
 )
 
 $ErrorActionPreference = "Stop"
@@ -1096,4 +1098,21 @@ Write-Host ""
 switch ($Mode) {
     'Targeted' { Run-TargetedScan }
     'Full'     { Run-FullScan }
+}
+
+# ── Optional: HD re-bake pass (ADR-0017) ───────────────────────────────────────
+# Run after the scan so the archive paths it reads are freshly verified.
+if ($Rebake) {
+    Write-Host ""
+    Write-Host "── HD re-bake (post-scan) ──────────────────────────────────"
+    $rebakeScript = Join-Path $PSScriptRoot "archive-rebake.ps1"
+    if (-not (Test-Path -LiteralPath $rebakeScript -PathType Leaf)) {
+        Write-Warning "archive-rebake.ps1 not found next to this script — skipping re-bake."
+    } else {
+        $rebakeArgs = @{ BaseUrl = $BaseUrl; ApiKey = $ApiKey }
+        if ($Tenant)      { $rebakeArgs["Tenant"] = $Tenant }
+        if ($DryRun)      { $rebakeArgs["DryRun"] = $true }
+        if ($RebakeForce) { $rebakeArgs["Force"]  = $true }
+        & $rebakeScript @rebakeArgs
+    }
 }

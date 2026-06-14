@@ -32,12 +32,24 @@ export async function POST(
   }
   const { id } = await params
 
-  const form = await request.formData()
-  const file = form.get('file')
-  if (!(file instanceof File)) {
-    return NextResponse.json({ error: 'Missing file' }, { status: 400 })
+  // Accept either multipart (`file` field — the Node agent) or a raw image body
+  // (octet-stream/jpeg — the PowerShell agent, which can't easily build multipart).
+  let buffer: Buffer
+  const contentType = request.headers.get('content-type') ?? ''
+  if (contentType.includes('multipart/form-data')) {
+    const form = await request.formData()
+    const file = form.get('file')
+    if (!(file instanceof File)) {
+      return NextResponse.json({ error: 'Missing file' }, { status: 400 })
+    }
+    buffer = Buffer.from(await file.arrayBuffer())
+  } else {
+    const ab = await request.arrayBuffer()
+    if (ab.byteLength === 0) {
+      return NextResponse.json({ error: 'Empty body' }, { status: 400 })
+    }
+    buffer = Buffer.from(ab)
   }
-  const buffer = Buffer.from(await file.arrayBuffer())
 
   const tenantId = resolveTenant(request)
   return runWithTenant(tenantId, async () => {
