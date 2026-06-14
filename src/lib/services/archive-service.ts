@@ -1048,9 +1048,30 @@ export function isSkippableEmptyLeaf(item: {
   contentSignature: string | null
   fileCount: number | null
   sidecarKey?: string | null
+  isVideo?: boolean
+  videoPresent?: boolean | null
+  videoFiles?: unknown
 }): boolean {
+  // A videoset whose video file is present is NOT empty — its content is the video,
+  // not images. The photo-style fileCount/signature come from the (often absent)
+  // frames\ subfolder, so a video-only folder would otherwise look empty and be
+  // skipped. Don't skip it.
+  if (item.isVideo && (item.videoPresent === true || hasVideoFiles(item.videoFiles))) return false
   const isEmpty = item.contentSignature === 'empty' || item.fileCount === 0
   return isEmpty && !item.sidecarKey
+}
+
+function hasVideoFiles(v: unknown): boolean {
+  if (Array.isArray(v)) return v.length > 0
+  if (typeof v === 'string') {
+    try {
+      const parsed = JSON.parse(v)
+      return Array.isArray(parsed) && parsed.length > 0
+    } catch {
+      return v.trim().length > 0
+    }
+  }
+  return false
 }
 
 /**

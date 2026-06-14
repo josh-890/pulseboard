@@ -32,6 +32,18 @@ describe("isSkippableEmptyLeaf", () => {
   it("does NOT treat an unreadable leaf (fileCount null, signature not 'empty') as empty", () => {
     expect(isSkippableEmptyLeaf({ contentSignature: null, fileCount: null })).toBe(false);
   });
+
+  it("does NOT skip a videoset whose video is present (no extracted frames yet)", () => {
+    // frames\ drives fileCount/signature, so a video-only folder looks 'empty'.
+    expect(isSkippableEmptyLeaf({ contentSignature: "empty", fileCount: 0, isVideo: true, videoPresent: true })).toBe(false);
+    // videoPresent false but a video file is listed → still not empty.
+    expect(isSkippableEmptyLeaf({ contentSignature: "empty", fileCount: 0, isVideo: true, videoPresent: false, videoFiles: ["clip.mp4"] })).toBe(false);
+    expect(isSkippableEmptyLeaf({ contentSignature: "empty", fileCount: 0, isVideo: true, videoFiles: '["clip.mp4"]' })).toBe(false);
+  });
+
+  it("still skips a videoset folder with no video and no frames", () => {
+    expect(isSkippableEmptyLeaf({ contentSignature: "empty", fileCount: 0, isVideo: true, videoPresent: false, videoFiles: [] })).toBe(true);
+  });
 });
 
 describe("shouldSkipEmptyUpdate", () => {
