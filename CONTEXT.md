@@ -85,6 +85,15 @@ _Avoid_: "normalized image" (legacy code term — same thing); **"annotation"** 
 **MediaCategoryGroup** vs **MediaCategory** (sharpened 2026-06-12):
 A **Group** is a broad theme drawer (Physical Features, Body Marks, Poses, Profile) — purely organisational, **never** a unit of comparison. A **Category** is a **single comparable locus** (Eyes, "standing pose front", a headshot framing) — *the* unit of the cross-person grid, carrying **at most one** Alignment Template. Two kinds: **locus categories** (a single anatomical place — alignable, opt into a template) and **entity-collection categories** (`entityModel` set: Tattoos, Scars, Piercings — many distinct objects, template-less plain buckets). Multiplicity of framings within a theme lives at the **Group** level (many pose categories under one "Poses" group), never as multiple templates on one category.
 
+**Profile category group** (planned, ADR-0016):
+The person's **normalized framings** (Headshot, Half-body, Full-body, …) modelled as an ordinary MediaCategory group — *not* a separate "slot" mechanism. Categories hold **many** aligned images per person (like detail-loci); they show in the person browser and are Atlas-comparable. The **Headshot** category is a system, undeletable category and the **avatar source**. Supersedes the legacy 5 "profile slots" (`PersonMediaLink.usage=HEADSHOT` + `slot`, `MotifTemplate.slot`, `p-img0*` settings), which are retired on unification. _Avoid_: "slot" (the legacy term — it's a Profile category now).
+
+**Representative**:
+Per **(person, MediaCategory)**, the one aligned image displayed for that framing in the browser (`PersonMediaLink.isRepresentative`, ≤1 per person+category). Default when unmarked: the **most recent** image.
+
+**Avatar** (revised by ADR-0016):
+A person's ID-card picture, shown on cards and the hero. **Defined as the representative of the Headshot category** — not an independently-settable flag. Changing the avatar = changing the Headshot representative. (Retires `PersonMediaLink.isAvatar`.)
+
 **Atlas**:
 The automatic **cross-person comparison** surface (`/atlas`). Pick a locus category → see every person's Aligned image in that locus side by side. Generated from the alignment data, not curated. Distinct from a **Collection** (hand-curated) and from the per-person **Details tab** (one person's loci). _Avoid_: "Compare" / "Details" as the surface name — the latter collides with the Details tab.
 
