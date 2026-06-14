@@ -1213,6 +1213,10 @@ model PersonMediaLink {
   usage       PersonMediaUsage
   isFavorite  Boolean          @default(false)
   isAvatar    Boolean          @default(false)
+  // ADR-0016: the displayed image for a (person, category) framing. At most one
+  // per person+category (enforced in the service). The avatar = the representative
+  // of the avatar-source (Headshot) category. Supersedes isAvatar + slot.
+  isRepresentative Boolean      @default(false)
   sortOrder   Int              @default(0)
   notes       String?
 
@@ -1342,6 +1346,9 @@ model MediaCategory {
   slug        String             @unique
   entityModel String?
   sortOrder   Int                @default(0)
+  // ADR-0016: the system Headshot category — undeletable, the avatar source.
+  // A person's avatar is the representative image of the (single) avatar-source category.
+  isAvatarSource Boolean         @default(false)
   createdAt   DateTime           @default(now())
 
   // Alignment Template binding (ADR-0014), 0:1. A locus category (Eyes, a pose,
