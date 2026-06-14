@@ -543,6 +543,37 @@ export async function linkMediaToDetailCategoryAction(
   });
 }
 
+/**
+ * Mark one image as the representative for a (person, category) framing (ADR-0016).
+ * ≤1 per person+category — clears the others in the same category first. The avatar
+ * is the representative of the avatar-source (Headshot) category.
+ */
+export async function setRepresentativeAction(
+  personId: string,
+  mediaItemId: string,
+  categoryId: string,
+): Promise<SimpleActionResult> {
+  return withTenantFromHeaders(async () => {
+    try {
+      await prisma.$transaction(async (tx) => {
+        await tx.personMediaLink.updateMany({
+          where: { personId, categoryId, isRepresentative: true },
+          data: { isRepresentative: false },
+        });
+        await tx.personMediaLink.updateMany({
+          where: { personId, mediaItemId, categoryId },
+          data: { isRepresentative: true },
+        });
+      });
+      revalidatePath("/people");
+      revalidatePath(`/people/${personId}`);
+      return { success: true };
+    } catch (err) {
+      return { success: false, error: err instanceof Error ? err.message : "Failed to set representative" };
+    }
+  });
+}
+
 export async function unlinkMediaFromDetailCategoryAction(
   personId: string,
   mediaItemIds: string[],

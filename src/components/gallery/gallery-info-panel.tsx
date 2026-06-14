@@ -97,6 +97,8 @@ export type CategoryWithGroup = {
   entityModel: string | null;
   /** Bound Alignment Template (ADR-0014); null = not an alignable locus. */
   alignmentTemplateId?: string | null;
+  /** Profile framing (ADR-0016) — gets a "representative" picker. */
+  isProfileFraming?: boolean;
 };
 
 export type CollectionContext = {

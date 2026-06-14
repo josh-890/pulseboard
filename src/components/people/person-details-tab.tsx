@@ -4,7 +4,7 @@ import { useCallback, useMemo, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { ChevronDown, ChevronRight, Frame, ImageIcon, Layers, Plus, ScanSearch, Upload } from "lucide-react";
+import { ChevronDown, ChevronRight, Frame, ImageIcon, Layers, Plus, ScanSearch, Star, Upload } from "lucide-react";
 import { cn, focalStyle } from "@/lib/utils";
 import type { CategoryWithGroup } from "@/components/gallery/gallery-info-panel";
 import type { GalleryItem, PersonCurrentState } from "@/lib/types";
@@ -16,7 +16,7 @@ import { getAlignmentTemplateForCategoryAction } from "@/lib/actions/motif-templ
 import type { MotifTemplateRecord } from "@/lib/services/motif-template-service";
 import { StagePhotoDialog } from "@/components/media/stage-photo-dialog";
 import { GalleryLightbox } from "@/components/gallery/gallery-lightbox";
-import { linkMediaToDetailCategoryAction, copyMediaItemToReferenceAction, deleteMediaItemsAction } from "@/lib/actions/media-actions";
+import { linkMediaToDetailCategoryAction, copyMediaItemToReferenceAction, deleteMediaItemsAction, setRepresentativeAction } from "@/lib/actions/media-actions";
 
 type CategoryCount = {
   categoryId: string;
@@ -32,6 +32,7 @@ type CategoryMediaItem = {
   focalX: number | null;
   focalY: number | null;
   isAligned?: boolean;
+  isRepresentative?: boolean;
 };
 
 function categoryItemToGalleryItem(item: CategoryMediaItem): GalleryItem {
@@ -205,6 +206,13 @@ export function PersonDetailsTab({
     });
     router.refresh();
   }, [router]);
+
+  // Mark a photo as the representative for a Profile framing (ADR-0016).
+  const handleSetRepresentative = useCallback(async (categoryId: string, mediaItemId: string) => {
+    const res = await setRepresentativeAction(personId, mediaItemId, categoryId);
+    if (res.success) refreshCategory(categoryId);
+    else toast.error(res.error ?? "Failed to set representative");
+  }, [personId, refreshCategory]);
 
   const handleDetailsLightboxDelete = useCallback(async (id: string) => {
     if (!referenceSessionId || !detailsLightbox) return;
@@ -536,43 +544,58 @@ export function PersonDetailsTab({
                           {media.map((item, idx) => {
                             const thumbUrl = item.urls.gallery_512 ?? item.urls.original;
                             return (
-                              <button
+                              <div
                                 key={item.id}
-                                type="button"
-                                onClick={() => {
-                                  const galleryItems = media.map(categoryItemToGalleryItem);
-                                  setDetailsLightbox({
-                                    categoryId: cat.id,
-                                    items: galleryItems,
-                                    initialIndex: idx,
-                                  });
-                                }}
-                                className="group relative aspect-square overflow-hidden rounded-lg border border-white/10 bg-muted/30 transition-colors hover:border-amber-500/40 cursor-pointer"
+                                className="group relative aspect-square overflow-hidden rounded-lg border border-white/10 bg-muted/30 transition-colors hover:border-amber-500/40"
                               >
-                                {thumbUrl ? (
-                                  <Image
-                                    src={thumbUrl}
-                                    alt={item.filename}
-                                    width={item.originalWidth}
-                                    height={item.originalHeight}
-                                    unoptimized
-                                    className="h-full w-full object-cover transition-transform group-hover:scale-105"
-                                    style={focalStyle(item.focalX, item.focalY)}
-                                  />
-                                ) : (
-                                  <div className="flex h-full w-full items-center justify-center">
-                                    <ImageIcon size={20} className="text-muted-foreground/40" />
-                                  </div>
-                                )}
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const galleryItems = media.map(categoryItemToGalleryItem);
+                                    setDetailsLightbox({ categoryId: cat.id, items: galleryItems, initialIndex: idx });
+                                  }}
+                                  className="absolute inset-0 cursor-pointer"
+                                  aria-label={`Open ${item.filename}`}
+                                >
+                                  {thumbUrl ? (
+                                    <Image
+                                      src={thumbUrl}
+                                      alt={item.filename}
+                                      width={item.originalWidth}
+                                      height={item.originalHeight}
+                                      unoptimized
+                                      className="h-full w-full object-cover transition-transform group-hover:scale-105"
+                                      style={focalStyle(item.focalX, item.focalY)}
+                                    />
+                                  ) : (
+                                    <div className="flex h-full w-full items-center justify-center">
+                                      <ImageIcon size={20} className="text-muted-foreground/40" />
+                                    </div>
+                                  )}
+                                </button>
                                 {item.isAligned && (
                                   <span
-                                    className="absolute left-1 top-1 flex items-center gap-0.5 rounded bg-amber-500/85 px-1 py-0.5 text-[9px] font-medium text-black"
+                                    className="pointer-events-none absolute left-1 top-1 flex items-center gap-0.5 rounded bg-amber-500/85 px-1 py-0.5 text-[9px] font-medium text-black"
                                     title="Aligned to the category template"
                                   >
                                     <Frame size={9} /> aligned
                                   </span>
                                 )}
-                              </button>
+                                {cat.isProfileFraming && (
+                                  <button
+                                    type="button"
+                                    onClick={() => void handleSetRepresentative(cat.id, item.id)}
+                                    title={item.isRepresentative ? "Representative (shown for this framing / avatar if Headshot)" : "Set as representative"}
+                                    aria-label={item.isRepresentative ? "Representative" : "Set as representative"}
+                                    className={cn(
+                                      "absolute right-1 top-1 z-10 rounded-full p-1 transition-colors",
+                                      item.isRepresentative ? "bg-amber-400 text-black" : "bg-black/55 text-white/80 hover:text-amber-300",
+                                    )}
+                                  >
+                                    <Star size={11} className={item.isRepresentative ? "fill-current" : ""} />
+                                  </button>
+                                )}
+                              </div>
                             );
                           })}
                         </div>

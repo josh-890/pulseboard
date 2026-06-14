@@ -44,6 +44,8 @@ export async function GET(
         focalY: mi.focalY ?? null,
         // Aligned image (ADR-0013) — baked to the category's template; shown with a badge.
         isAligned: mi.motifTemplateId != null,
+        // Representative for this (person, category) framing (ADR-0016).
+        isRepresentative: link.isRepresentative,
       };
     });
 

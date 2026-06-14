@@ -1,5 +1,9 @@
 import { prisma } from "@/lib/db";
 
+// The Profile category group (ADR-0016) — the person's normalized framings
+// (Headshot, …). Seeded with this fixed id by scripts/seed-profile-categories.ts.
+export const PROFILE_GROUP_ID = "grp_profile";
+
 function slugify(name: string): string {
   return name
     .toLowerCase()

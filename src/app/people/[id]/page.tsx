@@ -15,7 +15,7 @@ import { getProfileImageLabels, getSkillLevelConfigs } from "@/lib/services/sett
 import { getPersonReferenceSession } from "@/lib/services/session-service";
 import { getPersonHeadshots, getPersonMediaGallery, getPersonEntityMedia, getHeadshotsForPersons } from "@/lib/services/media-service";
 import type { EntityMediaThumbnail } from "@/lib/services/media-service";
-import { getAllCategoryGroups, getPopulatedCategoriesForPerson, ensureEntityCategories } from "@/lib/services/category-service";
+import { getAllCategoryGroups, getPopulatedCategoriesForPerson, ensureEntityCategories, PROFILE_GROUP_ID } from "@/lib/services/category-service";
 import { getAllSkillGroups } from "@/lib/services/skill-catalog-service";
 import { getAllPhysicalAttributeGroups } from "@/lib/services/physical-attribute-catalog-service";
 import { getPersonAliases } from "@/lib/services/alias-service";
@@ -206,6 +206,7 @@ export default async function PersonDetailPage({ params, searchParams }: PersonD
       groupName: g.name,
       entityModel: c.entityModel,
       alignmentTemplateId: c.alignmentTemplateId,
+      isProfileFraming: g.id === PROFILE_GROUP_ID,
     })),
   );
 
