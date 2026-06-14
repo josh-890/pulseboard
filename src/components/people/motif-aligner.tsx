@@ -16,7 +16,8 @@ type MotifAlignerProps = {
   referenceSessionId: string
   /** Re-open: previously clicked source-pixel points keyed by keypoint name. */
   initialPoints?: Record<string, Pt>
-  onSaved: () => void
+  /** Called after a successful bake+assign with the new (baked) MediaItem id. */
+  onSaved: (mediaItemId?: string) => void
   onCancel: () => void
 }
 
@@ -202,7 +203,7 @@ export function MotifAligner({
         ? await assignAlignedImageAction(personId, mediaItemId, template.categoryId!, template.id, provenance)
         : await assignMotifImageAction(personId, mediaItemId, slot!, template.id, provenance)
       if (!res.success) throw new Error(res.error ?? 'Assign failed')
-      onSaved()
+      onSaved(mediaItemId)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Save failed')
     } finally {

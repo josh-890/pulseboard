@@ -10,6 +10,7 @@ import { getProjects } from "@/lib/services/project-service";
 import { getSessionMediaGallery, getMediaItemsWithLinks, getCoverPhotosForSessions, getHeadshotsForPersons, getPersonSlotState } from "@/lib/services/media-service";
 import { getProfileImageLabels, getHeroBackdropEnabled } from "@/lib/services/setting-service";
 import { getMotifTemplates } from "@/lib/services/motif-template-service";
+import { getPersonProfileFramings } from "@/lib/services/profile-service";
 import { getCollectionsForPerson } from "@/lib/services/collection-service";
 import { getAllCategoryGroups } from "@/lib/services/category-service";
 import { getSessionContributions, getContributionSkillMediaMap, getContributorsWithEntities } from "@/lib/services/contribution-service";
@@ -124,6 +125,7 @@ export default async function SessionDetailPage({ params, searchParams }: Sessio
     skillEvents: { id: string; skillName: string; eventType: string; date: string | null }[];
     motifTemplates: Awaited<ReturnType<typeof getMotifTemplates>>;
     slotState: Awaited<ReturnType<typeof getPersonSlotState>>;
+    profileFramings: Awaited<ReturnType<typeof getPersonProfileFramings>>;
   } | null = null;
 
   if (isReference && session.personId) {
@@ -169,11 +171,13 @@ export default async function SessionDetailPage({ params, searchParams }: Sessio
         getMotifTemplates(),
         getPersonSlotState(personId),
       ]);
+    const profileFramings = await getPersonProfileFramings(personId);
     mediaManagerData = {
       items: itemsWithLinks,
       slotLabels,
       motifTemplates,
       slotState,
+      profileFramings,
       collections,
       categories: categoryGroups.flatMap((g) =>
         g.categories.map((c) => ({
@@ -231,6 +235,7 @@ export default async function SessionDetailPage({ params, searchParams }: Sessio
         slotLabels={mediaManagerData.slotLabels}
         motifTemplates={mediaManagerData.motifTemplates}
         slotState={mediaManagerData.slotState}
+        profileFramings={mediaManagerData.profileFramings}
         collections={mediaManagerData.collections}
         categories={mediaManagerData.categories}
         bodyMarks={mediaManagerData.bodyMarks}
