@@ -888,50 +888,27 @@ export async function getHeadshotsForPersons(
 ): Promise<Map<string, HeadshotData>> {
   if (personIds.length === 0) return new Map();
 
-  // Slot-filter mode (people browser "show framing N"). Dual-read (ADR-0016): the
-  // Profile category for that slot (cat_profile_slot{N}) representative, falling back
-  // to the legacy HEADSHOT slot link when un-migrated.
+  // Slot-filter mode (people browser "show framing N") — the Profile category for
+  // that slot (cat_profile_slot{N}) representative (ADR-0016).
   if (slot !== undefined) {
     const result = new Map<string, HeadshotData>();
-    const catId = `cat_profile_slot${slot}`;
-    const cat = await prisma.mediaCategory.findUnique({ where: { id: catId }, select: { id: true } });
-    if (cat) {
-      const repLinks = await prisma.personMediaLink.findMany({
-        where: { personId: { in: personIds }, usage: "DETAIL", categoryId: catId },
-        include: { mediaItem: true },
-        orderBy: [{ isRepresentative: "desc" }, { createdAt: "desc" }],
-      });
-      for (const link of repLinks) {
-        if (!result.has(link.personId)) {
-          const data = headshotDataFromLink(link);
-          if (data) result.set(link.personId, data);
-        }
-      }
-    }
-    const missing = personIds.filter((id) => !result.has(id));
-    if (missing.length > 0) {
-      const links = await prisma.personMediaLink.findMany({
-        where: { personId: { in: missing }, usage: "HEADSHOT", slot },
-        include: { mediaItem: true },
-        orderBy: [{ slot: "asc" }, { sortOrder: "asc" }],
-      });
-      for (const link of links) {
-        if (!result.has(link.personId)) {
-          const data = headshotDataFromLink(link);
-          if (data) result.set(link.personId, data);
-        }
+    const repLinks = await prisma.personMediaLink.findMany({
+      where: { personId: { in: personIds }, usage: "DETAIL", categoryId: `cat_profile_slot${slot}` },
+      include: { mediaItem: true },
+      orderBy: [{ isRepresentative: "desc" }, { createdAt: "desc" }],
+    });
+    for (const link of repLinks) {
+      if (!result.has(link.personId)) {
+        const data = headshotDataFromLink(link);
+        if (data) result.set(link.personId, data);
       }
     }
     return result;
   }
 
-  // Avatar mode (ADR-0016 — dual-read transition). The avatar is the representative
-  // of the avatar-source (Headshot) category. It falls back to the legacy ★ HEADSHOT
-  // slot when a person has no representative yet, so the hero is correct whether or
-  // not the Profile seed/backfill (6a/6c) has run for this tenant.
+  // Avatar mode — the avatar is the representative of the avatar-source (Headshot)
+  // category (ADR-0016). Explicit isRepresentative, else most recent.
   const result = new Map<string, HeadshotData>();
-
-  // Pass 0 — Headshot category representative (explicit isRepresentative, else most recent).
   const avatarCat = await prisma.mediaCategory.findFirst({ where: { isAvatarSource: true }, select: { id: true } });
   if (avatarCat) {
     const repLinks = await prisma.personMediaLink.findMany({
@@ -946,39 +923,6 @@ export async function getHeadshotsForPersons(
       }
     }
   }
-
-  // Pass 1 (fallback) — legacy ★ avatar on a HEADSHOT slot. Constrained to HEADSHOT
-  // so a stray isAvatar on a gallery photo can't win.
-  const missing1 = personIds.filter((id) => !result.has(id));
-  if (missing1.length > 0) {
-    const avatarLinks = await prisma.personMediaLink.findMany({
-      where: { personId: { in: missing1 }, isAvatar: true, usage: "HEADSHOT" },
-      include: { mediaItem: true },
-    });
-    for (const link of avatarLinks) {
-      if (!result.has(link.personId)) {
-        const data = headshotDataFromLink(link);
-        if (data) result.set(link.personId, data);
-      }
-    }
-  }
-
-  // Pass 2 (fallback) — any HEADSHOT slot by slot+sortOrder.
-  const missing = personIds.filter((id) => !result.has(id));
-  if (missing.length > 0) {
-    const fallbackLinks = await prisma.personMediaLink.findMany({
-      where: { personId: { in: missing }, usage: "HEADSHOT" },
-      include: { mediaItem: true },
-      orderBy: [{ slot: "asc" }, { sortOrder: "asc" }],
-    });
-    for (const link of fallbackLinks) {
-      if (!result.has(link.personId)) {
-        const data = headshotDataFromLink(link);
-        if (data) result.set(link.personId, data);
-      }
-    }
-  }
-
   return result;
 }
 

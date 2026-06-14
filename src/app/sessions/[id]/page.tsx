@@ -7,9 +7,8 @@ import { SessionBrowseNavBar, SessionBrowseBackLink } from "@/components/session
 import { getSessionById } from "@/lib/services/session-service";
 import { getLabels } from "@/lib/services/label-service";
 import { getProjects } from "@/lib/services/project-service";
-import { getSessionMediaGallery, getMediaItemsWithLinks, getCoverPhotosForSessions, getHeadshotsForPersons, getPersonSlotState } from "@/lib/services/media-service";
-import { getProfileImageLabels, getHeroBackdropEnabled } from "@/lib/services/setting-service";
-import { getMotifTemplates } from "@/lib/services/motif-template-service";
+import { getSessionMediaGallery, getMediaItemsWithLinks, getCoverPhotosForSessions, getHeadshotsForPersons } from "@/lib/services/media-service";
+import { getHeroBackdropEnabled } from "@/lib/services/setting-service";
 import { getPersonProfileFramings } from "@/lib/services/profile-service";
 import { getCollectionsForPerson } from "@/lib/services/collection-service";
 import { getAllCategoryGroups } from "@/lib/services/category-service";
@@ -115,7 +114,6 @@ export default async function SessionDetailPage({ params, searchParams }: Sessio
   let mediaItems: Awaited<ReturnType<typeof getSessionMediaGallery>> = [];
   let mediaManagerData: {
     items: Awaited<ReturnType<typeof getMediaItemsWithLinks>>;
-    slotLabels: Awaited<ReturnType<typeof getProfileImageLabels>>;
     collections: Awaited<ReturnType<typeof getCollectionsForPerson>>;
     categories: { id: string; name: string; slug: string; groupId: string; groupName: string; entityModel: string | null }[];
     bodyMarks: { id: string; name: string }[];
@@ -123,17 +121,14 @@ export default async function SessionDetailPage({ params, searchParams }: Sessio
     cosmeticProcedures: { id: string; name: string }[];
     eras: { id: string; label: string; date: string | null }[];
     skillEvents: { id: string; skillName: string; eventType: string; date: string | null }[];
-    motifTemplates: Awaited<ReturnType<typeof getMotifTemplates>>;
-    slotState: Awaited<ReturnType<typeof getPersonSlotState>>;
     profileFramings: Awaited<ReturnType<typeof getPersonProfileFramings>>;
   } | null = null;
 
   if (isReference && session.personId) {
     const personId = session.personId;
-    const [itemsWithLinks, slotLabels, collections, categoryGroups, bodyMarks, bodyMods, cosmetics, eras, skillEventsRaw, motifTemplates, slotState] =
+    const [itemsWithLinks, collections, categoryGroups, bodyMarks, bodyMods, cosmetics, eras, skillEventsRaw] =
       await Promise.all([
         getMediaItemsWithLinks(id, personId),
-        getProfileImageLabels(),
         getCollectionsForPerson(personId),
         getAllCategoryGroups(),
         prisma.bodyMark.findMany({
@@ -168,15 +163,10 @@ export default async function SessionDetailPage({ params, searchParams }: Sessio
           },
           orderBy: { date: "desc" },
         }),
-        getMotifTemplates(),
-        getPersonSlotState(personId),
       ]);
     const profileFramings = await getPersonProfileFramings(personId);
     mediaManagerData = {
       items: itemsWithLinks,
-      slotLabels,
-      motifTemplates,
-      slotState,
       profileFramings,
       collections,
       categories: categoryGroups.flatMap((g) =>
@@ -232,9 +222,6 @@ export default async function SessionDetailPage({ params, searchParams }: Sessio
           ...rest,
           createdAt: createdAt.toISOString() as unknown as Date,
         }))}
-        slotLabels={mediaManagerData.slotLabels}
-        motifTemplates={mediaManagerData.motifTemplates}
-        slotState={mediaManagerData.slotState}
         profileFramings={mediaManagerData.profileFramings}
         collections={mediaManagerData.collections}
         categories={mediaManagerData.categories}

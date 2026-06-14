@@ -8,12 +8,9 @@ import { cn, getInitialsFromName, focalStyle } from "@/lib/utils";
 import { MediaManager } from "@/components/media/media-manager";
 import { BatchUploadZone } from "@/components/media/batch-upload-zone";
 import type { MediaItemWithLinks } from "@/lib/services/media-service";
-import type { ProfileImageLabel } from "@/lib/services/setting-service";
 import type { CollectionSummary } from "@/lib/services/collection-service";
 import type { CategoryWithGroup } from "@/components/gallery/gallery-info-panel";
 import { ProfileManager } from "@/components/people/profile-manager";
-import type { MotifTemplateRecord } from "@/lib/services/motif-template-service";
-import type { SlotState } from "@/lib/services/media-service";
 import type { ProfileFraming } from "@/lib/services/profile-service";
 
 type EntityOption = { id: string; name: string };
@@ -31,9 +28,6 @@ type ReferenceSessionPageProps = {
   sessionId: string;
   mediaCount: number;
   items: MediaItemWithLinks[];
-  slotLabels: ProfileImageLabel[];
-  motifTemplates: MotifTemplateRecord[];
-  slotState: SlotState[];
   profileFramings: ProfileFraming[];
   collections: CollectionSummary[];
   categories: CategoryWithGroup[];
