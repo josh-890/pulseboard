@@ -175,6 +175,19 @@ Once a category has a template, an **Align** button (frame icon) appears next to
 
 The **Atlas** (sidebar) is the pay-off: pick a locus and see **every person's aligned image side by side** — automatically comparable because they share the template's framing. Filter the grid by person; click a tile to jump to that person. (This is the *automatic* counterpart to **Collections**, which are hand-curated.)
 
+#### Sharper aligned images from the originals (HD re-bake)
+
+To save space, Pulseboard stores a downscaled (≤4000px) version of each photo, not the original. That's fine normally — but when a template **zooms into a small locus** (eyes especially), the aligned image can look a touch soft, because it was cropped from the downscaled copy.
+
+If the photo came from your archive, you can refine that aligned image from the **full-resolution original** — same framing, sharper pixels — without re-doing any clicking:
+
+1. On the **machine that holds the archive** (where you run the scan), run the re-bake agent:
+   `npx tsx scripts/archive-rebake.ts --base-url <app> --api-key <key> --tenant <tenants>`
+   (add `--dry-run` to preview, `--person`/`--session` to scope, `--force` to redo).
+2. It finds every aligned image whose original is reachable, reads the original off disk, replays the exact alignment at full resolution, and replaces the image in place. The multi-GB originals never leave your machine — only the small refined result is uploaded.
+
+Refined images carry an **HD** badge (Profile Manager, Details tab). **Maintenance** shows an *"HD re-bake eligible"* count — how many aligned images could still be sharpened — and a normal scan run prints the same nudge when there's anything to do. Photos you uploaded directly (no archive original) simply aren't eligible — their stored copy is already the best that exists.
+
 #### Choosing an image (big-preview picker)
 
 Whenever you pick a photo for a task — a source to standardize a slot, a photo for a tattoo/piercing, or media to add to a set/collection/skill-event — the picker opens as a **full-screen split view**: the thumbnail grid on the left, a **large live preview (loupe)** on the right.

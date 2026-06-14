@@ -184,6 +184,17 @@ async function main() {
   if (counts.missing > 0)    console.log(`  Missing:    ${counts.missing}`)
   if (counts.error > 0)      console.log(`  Errors:     ${counts.error}`)
   console.log('────────────────────────────────────────────────')
+
+  // Best-effort nudge: how many Aligned images could be sharpened from originals (ADR-0017).
+  try {
+    const wl = await fetch(`${BASE_URL}/api/archive/rebake-worklist`, { headers: { 'x-archive-key': API_KEY } })
+    if (wl.ok) {
+      const { count } = (await wl.json()) as { count: number }
+      if (count > 0) console.log(`\n  ${count} aligned image(s) eligible for HD re-bake — run: npx tsx scripts/archive-rebake.ts`)
+    }
+  } catch {
+    // ignore — the nudge is non-essential
+  }
 }
 
 main().catch((err) => {

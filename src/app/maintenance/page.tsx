@@ -5,6 +5,7 @@ import {
   getBaselineGapsByPerson,
   getBaselineGapTotals,
 } from "@/lib/services/maintenance-service";
+import { getHdRebakeEligibleCount } from "@/lib/services/hd-rebake-service";
 import { BaselineGapsByAttributeTable } from "@/components/maintenance/baseline-gaps-by-attribute-table";
 import { BaselineGapsByPersonTable } from "@/components/maintenance/baseline-gaps-by-person-table";
 import { MaintenanceTabs } from "@/components/maintenance/maintenance-tabs";
@@ -20,10 +21,11 @@ export default async function MaintenancePage({ searchParams }: MaintenancePageP
     const { view: viewParam } = await searchParams;
     const view = viewParam === "by-person" ? "by-person" : "by-attribute";
 
-    const [totals, byAttribute, byPerson] = await Promise.all([
+    const [totals, byAttribute, byPerson, hdEligible] = await Promise.all([
       getBaselineGapTotals(),
       view === "by-attribute" ? getBaselineGapsByAttribute() : Promise.resolve([]),
       view === "by-person" ? getBaselineGapsByPerson() : Promise.resolve([]),
+      getHdRebakeEligibleCount(),
     ]);
 
     return (
@@ -44,7 +46,7 @@ export default async function MaintenancePage({ searchParams }: MaintenancePageP
         </div>
 
         {/* Top metrics */}
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
           <MetricCard
             label="Tier 1 warnings"
             value={totals.tier1PersonsWithGaps}
@@ -63,6 +65,12 @@ export default async function MaintenancePage({ searchParams }: MaintenancePageP
             value={totals.tier1AttrsTotal + totals.tier2AttrsTotal}
             suffix={`(T1: ${totals.tier1AttrsTotal} · T2: ${totals.tier2AttrsTotal})`}
             hint="Tier-1 and Tier-2 catalog attrs plus Person identity fields."
+          />
+          <MetricCard
+            label="HD re-bake eligible"
+            value={hdEligible}
+            tone={hdEligible > 0 ? "hint" : undefined}
+            hint="Aligned images still sampled from the master whose archive original is reachable — run scripts/archive-rebake.ts on the archive machine to refine them (ADR-0017)."
           />
         </div>
 

@@ -32,6 +32,7 @@ type CategoryMediaItem = {
   focalX: number | null;
   focalY: number | null;
   isAligned?: boolean;
+  isHd?: boolean;
   isRepresentative?: boolean;
 };
 
@@ -586,6 +587,14 @@ export function PersonDetailsTab({
                                     title="Aligned to the category template"
                                   >
                                     <Frame size={9} /> aligned
+                                  </span>
+                                )}
+                                {item.isHd && (
+                                  <span
+                                    className="pointer-events-none absolute right-1 top-1 rounded bg-sky-500/90 px-1 py-0.5 text-[9px] font-semibold text-white"
+                                    title="Sampled from the full-resolution archive original (ADR-0017)"
+                                  >
+                                    HD
                                   </span>
                                 )}
                                 {cat.isProfileFraming && (

@@ -101,6 +101,14 @@ export function ProfileManager({
                     <IdCard size={9} /> Avatar
                   </span>
                 )}
+                {rep?.isHd && (
+                  <span
+                    className="absolute right-1 top-1 inline-flex items-center rounded bg-sky-500/90 px-1 py-0.5 text-[9px] font-semibold text-white"
+                    title="Sampled from the full-resolution archive original (ADR-0017)"
+                  >
+                    HD
+                  </span>
+                )}
               </div>
 
               <span className="truncate text-xs font-medium" title={fr.name}>{fr.name}</span>

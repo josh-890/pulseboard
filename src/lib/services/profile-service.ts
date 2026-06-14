@@ -19,6 +19,7 @@ export type ProfileFramingImage = {
   mediaItemId: string;
   thumbUrl: string | null;
   isAligned: boolean;
+  isHd: boolean;
   isRepresentative: boolean;
   focalX: number | null;
   focalY: number | null;
@@ -55,7 +56,7 @@ export async function getPersonProfileFramings(personId: string): Promise<Profil
     select: {
       categoryId: true,
       isRepresentative: true,
-      mediaItem: { select: { id: true, variants: true, fileRef: true, motifTemplateId: true, focalX: true, focalY: true } },
+      mediaItem: { select: { id: true, variants: true, fileRef: true, motifTemplateId: true, bakeSource: true, focalX: true, focalY: true } },
     },
   });
 
@@ -67,6 +68,7 @@ export async function getPersonProfileFramings(personId: string): Promise<Profil
       mediaItemId: l.mediaItem.id,
       thumbUrl: thumbUrl(l.mediaItem.variants, l.mediaItem.fileRef),
       isAligned: l.mediaItem.motifTemplateId != null,
+      isHd: l.mediaItem.bakeSource === "ORIGINAL",
       isRepresentative: l.isRepresentative,
       focalX: l.mediaItem.focalX,
       focalY: l.mediaItem.focalY,

@@ -44,6 +44,8 @@ export async function GET(
         focalY: mi.focalY ?? null,
         // Aligned image (ADR-0013) — baked to the category's template; shown with a badge.
         isAligned: mi.motifTemplateId != null,
+        // Sampled from the full-res archive original (ADR-0017) vs the master.
+        isHd: mi.bakeSource === "ORIGINAL",
         // Representative for this (person, category) framing (ADR-0016).
         isRepresentative: link.isRepresentative,
       };
