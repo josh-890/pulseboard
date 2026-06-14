@@ -55,3 +55,7 @@ next-env.d.ts
 
 # import source data files
 docs/2026-*
+
+# Claude Code scheduler runtime artifacts
+.claude/scheduled_tasks.lock
+.claude/scheduled_tasks.json

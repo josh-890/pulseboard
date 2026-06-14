@@ -111,6 +111,15 @@ The one Comparison member (user-chosen, default first, independent of everything
 **Stitched comparison** (deferred):
 A flattened single-JPEG **export** of a Comparison for **external** use. Not a `MediaItem` and not session-bound (a comparison can be cross-person/global, with no honest session); when built, an on-demand canvas stitch optionally cached as a raw object (`exportRef`, like `MotifTemplate.silhouetteRef`). Out of scope until the Comparison entity + viewer exist.
 
+**Bake source** (added 2026-06-14):
+Which resolution an Aligned image was sampled from. **Master-derived** (the default) bakes from the in-app `master_4000` — a proportional ≤4000px downscale of the original. **HD / original-sampled** bakes from the **archive original** (full resolution on disk). Same template, same keypoints, **same output size** (`bakeLongSide`) — the only difference is pixel density, so a template that zooms into a small locus (eyes) is sharp instead of soft. An Aligned image's bake source is a refinable attribute, not part of its identity. See ADR-0017.
+
+**HD re-bake** (added 2026-06-14):
+The operation that **replays** an Aligned image's existing alignment (same keypoints, recomputed transform) against the **archive original** and **overwrites it in place** — same `MediaItem` id, refreshed pixels, flipped to bake-source = original. A silent replay (no re-clicking — the master is a pure downscale, so the geometry is identical). **Deterministic + repeatable**, so no version history is kept (re-bake-from-master is the "revert"). Eligible only when the source traces to an archive file (`SetMediaItem → ArchiveLink → ArchiveFolder.fullPath` + `filename`, present on disk, higher-res than the master); reference-only-upload Aligned images are **ineligible** (no original exists). See ADR-0017.
+
+**Archive re-bake agent** (added 2026-06-14):
+The local Node agent that performs HD re-bakes — the **same pattern as `scripts/archive-scan.ts`**: runs on the Windows machine that holds the archive, authenticated by API key, reads originals off the local filesystem (which the Unraid app server cannot). It pulls the app's **eligible worklist**, reads `{fullPath}\{filename}`, integrity-checks it, bakes at full resolution locally, and **POSTs back only the small baked result** (the multi-MB original never leaves the machine). Manual/batch (whole-library or scoped; `--dry-run`, `--force`), not auto-triggered. See ADR-0017.
+
 ### Watchlist scan workflow (added 2026-06-10)
 
 **Scrape source** (code model & DB table: `ScrapeSource`):

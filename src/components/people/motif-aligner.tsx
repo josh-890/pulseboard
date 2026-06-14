@@ -197,7 +197,13 @@ export function MotifAligner({
       const mediaItemId = json.mediaItem?.id
       if (!mediaItemId) throw new Error('Upload failed')
 
-      const provenance = { sourceMediaItemId: source.id, points, matrix: fit.matrix }
+      // Store keypoints as 0..1 source fractions (ADR-0017): resolution-independent,
+      // so an HD re-bake can replay the exact alignment against the archive original.
+      const keypoints: Record<string, Pt> = {}
+      for (const [name, p] of Object.entries(points)) {
+        keypoints[name] = { x: p.x / img.naturalWidth, y: p.y / img.naturalHeight }
+      }
+      const provenance = { version: 2, sourceMediaItemId: source.id, keypoints }
       const res = await assignAlignedImageAction(personId, mediaItemId, template.categoryId, template.id, provenance)
       if (!res.success) throw new Error(res.error ?? 'Assign failed')
       onSaved(mediaItemId)

@@ -35,7 +35,9 @@ export async function assignAlignedImageAction(
       await prisma.$transaction(async (tx) => {
         await tx.mediaItem.update({
           where: { id: mediaItemId },
-          data: { motifTemplateId: templateId, motifProvenance: provenance as object },
+          // Client-side bakes always sample the master_4000 (ADR-0017) → MASTER;
+          // an HD re-bake later flips this to ORIGINAL.
+          data: { motifTemplateId: templateId, motifProvenance: provenance as object, bakeSource: "MASTER" },
         });
         // One DETAIL link per person+media (@@unique on personId+mediaItemId+usage).
         const existing = await tx.personMediaLink.findFirst({

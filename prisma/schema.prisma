@@ -1041,7 +1041,12 @@ model MediaItem {
   // = { sourceMediaItemId, points, matrix } so it can be re-opened and re-baked.
   motifTemplateId String?
   motifTemplate   MotifTemplate? @relation(fields: [motifTemplateId], references: [id], onDelete: SetNull)
+  // Aligned-image bake provenance (ADR-0013/0017): { sourceMediaItemId,
+  // keypoints (name → {x,y} as 0..1 source fractions), version }. Legacy v1
+  // rows hold pixel-space `points` + a master-space `matrix`.
   motifProvenance Json?
+  // Which resolution the bake sampled (ADR-0017). Null = not an Aligned image.
+  bakeSource      BakeSource?
 
   // Provenance for the "copy production image → person reference session"
   // feature. Self-FK; null for direct uploads / imports / annotations.
@@ -1273,6 +1278,15 @@ model MediaCollection {
 enum ComparisonFitMode {
   COVER
   CONTAIN
+}
+
+// Which source resolution an Aligned image was baked from (ADR-0017). MASTER =
+// the in-app master_4000 downscale (default for client-side bakes); ORIGINAL =
+// the full-resolution archive original (after an HD re-bake). Null = not an
+// Aligned image. Drives the HD-re-bake eligibility worklist.
+enum BakeSource {
+  MASTER
+  ORIGINAL
 }
 
 model Comparison {
