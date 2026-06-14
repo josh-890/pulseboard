@@ -181,6 +181,7 @@ if ($Tenant) { Write-Host "Tenant: $Tenant" }
 $qs = @()
 if ($PersonId)  { $qs += "personId=$PersonId" }
 if ($SessionId) { $qs += "sessionId=$SessionId" }
+if ($Force)     { $qs += "includeHd=1" }  # -Force also redoes already-HD images (e.g. fix a bad bake)
 $wlUrl = "$BaseUrl/api/archive/rebake-worklist"
 if ($qs.Count -gt 0) { $wlUrl += "?" + ($qs -join "&") }
 

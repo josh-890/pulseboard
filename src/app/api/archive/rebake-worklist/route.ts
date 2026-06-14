@@ -28,10 +28,11 @@ export async function GET(request: Request) {
   const url = new URL(request.url)
   const personId = url.searchParams.get('personId') ?? undefined
   const sessionId = url.searchParams.get('sessionId') ?? undefined
+  const includeHd = url.searchParams.get('includeHd') === '1'
 
   const tenantId = resolveTenant(request)
   return runWithTenant(tenantId, async () => {
-    const entries = await getHdRebakeWorklist({ personId, sessionId })
+    const entries = await getHdRebakeWorklist({ personId, sessionId, includeHd })
     return NextResponse.json({ count: entries.length, entries })
   })
 }

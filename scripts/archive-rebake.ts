@@ -87,6 +87,7 @@ async function processTenant(tenant: string | null): Promise<void> {
   const qs = new URLSearchParams()
   if (PERSON) qs.set('personId', PERSON)
   if (SESSION) qs.set('sessionId', SESSION)
+  if (FORCE) qs.set('includeHd', '1') // -Force also redoes already-HD images (e.g. fix a bad bake)
   const url = `${BASE_URL}/api/archive/rebake-worklist${qs.toString() ? `?${qs}` : ''}`
 
   const resp = await fetch(url, { headers })

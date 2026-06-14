@@ -120,13 +120,15 @@ function sourceIdOf(provenance: unknown): string | null {
   return typeof v === "string" ? v : null;
 }
 
-export type HdRebakeScope = { personId?: string; sessionId?: string };
+export type HdRebakeScope = { personId?: string; sessionId?: string; includeHd?: boolean };
 
 export async function getHdRebakeWorklist(scope: HdRebakeScope = {}): Promise<HdRebakeEntry[]> {
   const aligneds = await prisma.mediaItem.findMany({
     where: {
       motifTemplateId: { not: null },
-      bakeSource: "MASTER",
+      // Default: only master-derived images. includeHd also lists already-HD ones,
+      // so a forced run can redo a bad bake (ADR-0017).
+      bakeSource: scope.includeHd ? { in: ["MASTER", "ORIGINAL"] } : "MASTER",
       ...(scope.sessionId ? { sessionId: scope.sessionId } : {}),
       ...(scope.personId ? { personMediaLinks: { some: { personId: scope.personId } } } : {}),
     },
