@@ -184,6 +184,15 @@ export async function getHdRebakeWorklist(scope: HdRebakeScope = {}): Promise<Hd
     const keypoints = normalizeKeypoints(a.motifProvenance, source.originalWidth, source.originalHeight);
     if (!keypoints) continue;
 
+    // The provenance keypoints must cover the template's CURRENT keypoints —
+    // otherwise the template's keypoints were redefined after this image was
+    // aligned and the alignment can't be replayed. Exclude (a manual re-align is
+    // the only fix); don't surface it as a re-bakeable "failure".
+    const tplNames = (Array.isArray(a.motifTemplate.keypoints) ? a.motifTemplate.keypoints : [])
+      .map((k) => (k && typeof k === "object" ? String((k as { name?: unknown }).name) : ""))
+      .filter(Boolean);
+    if (tplNames.length < 2 || !tplNames.every((n) => n in keypoints)) continue;
+
     out.push({
       alignedMediaItemId: a.id,
       templateId: a.motifTemplateId,
