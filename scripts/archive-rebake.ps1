@@ -144,7 +144,12 @@ function Invoke-Bake {
         # GDI+ Matrix(m11,m12,m21,m22,dx,dy) == canvas setTransform(a,b,c,d,e,f).
         $mtx = New-Object System.Drawing.Drawing2D.Matrix($m.a, $m.b, $m.c, $m.d, $m.e, $m.f)
         $g.Transform = $mtx
-        $g.DrawImage($Img, 0, 0)
+        # Map source PIXELS 1:1 into world space, then the transform. The 2-arg
+        # DrawImage($img,0,0) instead draws at the image's DPI-based physical size,
+        # silently rescaling it (e.g. 96/300) and wrecking the framing — the explicit
+        # source-rectangle (in Pixel units) overload avoids that.
+        $destRect = New-Object System.Drawing.Rectangle(0, 0, $Img.Width, $Img.Height)
+        $g.DrawImage($Img, $destRect, 0, 0, $Img.Width, $Img.Height, [System.Drawing.GraphicsUnit]::Pixel)
         $mtx.Dispose()
 
         $codec = [System.Drawing.Imaging.ImageCodecInfo]::GetImageEncoders() | Where-Object { $_.MimeType -eq 'image/jpeg' } | Select-Object -First 1
