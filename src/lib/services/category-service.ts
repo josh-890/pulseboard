@@ -28,6 +28,26 @@ export type CategoryGroupWithCategories = Awaited<
   ReturnType<typeof getAllCategoryGroups>
 >[number];
 
+/**
+ * The Profile group's categories as display-framing options for the people browser
+ * (ADR-0016). `slot` is the cat_profile_slot{N} ordinal — the value passed to
+ * getHeadshotsForPersons to switch which framing's representative the cards show.
+ * The avatar-source (Headshot) is the default framing.
+ */
+export type ProfileFramingOption = { slot: number; name: string; isAvatarSource: boolean };
+
+export async function getProfileCategories(): Promise<ProfileFramingOption[]> {
+  const cats = await prisma.mediaCategory.findMany({
+    where: { groupId: PROFILE_GROUP_ID },
+    orderBy: { sortOrder: "asc" },
+    select: { id: true, name: true, isAvatarSource: true },
+  });
+  return cats.flatMap((c) => {
+    const m = c.id.match(/cat_profile_slot(\d+)$/);
+    return m ? [{ slot: Number(m[1]), name: c.name, isAvatarSource: c.isAvatarSource }] : [];
+  });
+}
+
 export async function createCategoryGroup(data: {
   name: string;
   sortOrder?: number;

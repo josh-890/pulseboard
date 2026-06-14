@@ -29,7 +29,6 @@ import {
 } from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
 import type { GalleryItem } from "@/lib/types";
-import type { ProfileImageLabel } from "@/lib/services/setting-service";
 import { ZoomableImage } from "@/components/media/zoomable-image";
 import { GalleryFilmstrip } from "./gallery-filmstrip";
 import { GalleryInfoPanel } from "./gallery-info-panel";
@@ -51,10 +50,6 @@ type GalleryLightboxProps = {
     tags: string[],
   ) => Promise<{ success: boolean }>;
   // Person headshot context
-  onAssignHeadshot?: (mediaItemId: string, slot: number) => void;
-  onRemoveHeadshot?: (mediaItemId: string) => void;
-  profileLabels?: ProfileImageLabel[];
-  headshotSlotMap?: Map<string, number>;
   // Find similar
   onFindSimilar?: (mediaItemId: string) => void;
   // Focal point
@@ -109,10 +104,6 @@ function SimpleLightbox({
   coverMediaItemId,
   onTagsChanged,
   onUpdateTags,
-  onAssignHeadshot,
-  onRemoveHeadshot,
-  profileLabels,
-  headshotSlotMap,
   onFindSimilar,
   sessionId,
   referenceContext,
@@ -389,10 +380,6 @@ function SimpleLightbox({
     item,
     onSetCover,
     coverMediaItemId,
-    onAssignHeadshot,
-    onRemoveHeadshot,
-    profileLabels,
-    headshotSlotMap,
     onFavoriteToggle,
     onUpdateTags,
     onTagsChanged,

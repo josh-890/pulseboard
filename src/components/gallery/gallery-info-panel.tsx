@@ -21,7 +21,6 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { GalleryItem, PersonMediaUsage, PersonMediaLinkSummary } from "@/lib/types";
-import type { ProfileImageLabel } from "@/lib/services/setting-service";
 import type { CollectionSummary } from "@/lib/services/collection-service";
 import {
   setFocalPointAction,
@@ -123,7 +122,6 @@ export type ReferenceContext = {
   categories: CategoryWithGroup[];
   eras: EraOption[];
   skillEvents: SkillEventOption[];
-  allSlotThumbnails?: Map<number, string>;
   onLinksChange?: (itemId: string, links: PersonMediaLinkSummary[]) => void;
   onCollectionIdsChange?: (itemId: string, collectionIds: string[]) => void;
   onSkillEventIdsChange?: (itemId: string, skillEventIds: string[]) => void;
@@ -148,11 +146,6 @@ type GalleryInfoPanelProps = {
   // Set context
   onSetCover?: (mediaItemId: string | null) => void;
   coverMediaItemId?: string | null;
-  // Person headshot context
-  onAssignHeadshot?: (mediaItemId: string, slot: number) => void;
-  onRemoveHeadshot?: (mediaItemId: string) => void;
-  profileLabels?: ProfileImageLabel[];
-  headshotSlotMap?: Map<string, number>;
   // Common actions
   onFavoriteToggle?: (itemId: string) => void;
   onUpdateTags?: (

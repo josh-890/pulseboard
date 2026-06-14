@@ -4,7 +4,6 @@ import { useState } from "react";
 import Image from "next/image";
 import { ChevronLeft, ChevronRight, ImageIcon } from "lucide-react";
 import type { GalleryItem } from "@/lib/types";
-import type { ProfileImageLabel } from "@/lib/services/setting-service";
 import { GalleryLightbox } from "./gallery-lightbox";
 
 /** Canonical headshot shown as the first slide (★ slot, else lowest slot). */
@@ -23,10 +22,6 @@ type CarouselHeaderProps = {
   height?: number;
   // Pass-through to GalleryLightbox
   sessionId?: string;
-  onAssignHeadshot?: (mediaItemId: string, slot: number) => void;
-  onRemoveHeadshot?: (mediaItemId: string) => void;
-  profileLabels?: ProfileImageLabel[];
-  headshotSlotMap?: Map<string, number>;
   onFindSimilar?: (mediaItemId: string) => void;
   /** Canonical headshot — rendered as slide 0, deduped from the gallery items. */
   leadHeadshot?: LeadHeadshot | null;
@@ -46,10 +41,6 @@ export function CarouselHeader({
   width = 200,
   height = 250,
   sessionId,
-  onAssignHeadshot,
-  onRemoveHeadshot,
-  profileLabels,
-  headshotSlotMap,
   onFindSimilar,
   leadHeadshot,
 }: CarouselHeaderProps) {
@@ -168,10 +159,6 @@ export function CarouselHeader({
           onSetCover={onSetCover}
           coverMediaItemId={coverMediaItemId}
           sessionId={sessionId}
-          onAssignHeadshot={onAssignHeadshot}
-          onRemoveHeadshot={onRemoveHeadshot}
-          profileLabels={profileLabels}
-          headshotSlotMap={headshotSlotMap}
           onFindSimilar={onFindSimilar}
           enableCollections
         />

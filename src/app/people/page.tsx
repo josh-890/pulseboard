@@ -12,13 +12,13 @@ import {
 import type { PersonSort } from "@/lib/services/person-service";
 import { getHeadshotsForPersons } from "@/lib/services/media-service";
 import { getAllPhysicalAttributeGroups } from "@/lib/services/physical-attribute-catalog-service";
-import { getProfileImageLabels } from "@/lib/services/setting-service";
+import { getProfileCategories } from "@/lib/services/category-service";
 import type { PersonStatus } from "@/lib/types";
 import { PersonList } from "@/components/people/person-list";
 import { BrowserToolbar } from "@/components/shared/browser-toolbar";
 import type { BrowserToolbarConfig, FilterGroup } from "@/components/shared/browser-toolbar";
 import { SavedViewsBar } from "@/components/shared/saved-views-bar";
-import { HeadshotSlotSelector } from "@/components/people/headshot-slot-selector";
+import { ProfileViewSelector } from "@/components/people/profile-view-selector";
 import { BodyRegionFilterWrapper } from "@/components/people/body-region-filter-wrapper";
 import { AddPersonSheet } from "@/components/people/add-person-sheet";
 import { PeopleSearchPage } from "@/components/people/people-search-page";
@@ -170,17 +170,21 @@ export default async function PeoplePage({ searchParams }: PeoplePageProps) {
   };
 
   const parsedSlot = slotParam ? parseInt(slotParam, 10) : undefined;
-  const slot = parsedSlot && parsedSlot >= 1 && parsedSlot <= 5 ? parsedSlot : undefined;
 
-  const [paginated, hairColors, bodyTypes, ethnicities, slotLabels, facetCounts, attributeGroups] = await Promise.all([
+  const [paginated, hairColors, bodyTypes, ethnicities, profileFramings, facetCounts, attributeGroups] = await Promise.all([
     getPersonsPaginated(filters, undefined, limit),
     getDistinctNaturalHairColors(),
     getDistinctBodyTypes(),
     getDistinctEthnicities(),
-    getProfileImageLabels(),
+    getProfileCategories(),
     getPersonFacetCounts(filters),
     getAllPhysicalAttributeGroups(),
   ]);
+
+  // A non-default (non-avatar-source) Profile framing selected for the card photos;
+  // a stale or avatar-source slot falls back to the default Headshot avatar.
+  const selectableSlots = new Set(profileFramings.filter((f) => !f.isAvatarSource).map((f) => f.slot));
+  const slot = parsedSlot && selectableSlots.has(parsedSlot) ? parsedSlot : undefined;
 
   // Batch-load profile photos for visible persons (MediaItem-only)
   const personIds = paginated.items.map((p) => p.id);
@@ -338,7 +342,7 @@ export default async function PeoplePage({ searchParams }: PeoplePageProps) {
       <Suspense>
         <BrowserToolbar config={toolbarConfig}>
           <BodyRegionFilterWrapper />
-          <HeadshotSlotSelector slotLabels={slotLabels} />
+          <ProfileViewSelector framings={profileFramings} />
         </BrowserToolbar>
       </Suspense>
 

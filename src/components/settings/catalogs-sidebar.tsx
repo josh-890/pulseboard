@@ -7,7 +7,6 @@ import { cn } from "@/lib/utils";
 const CATALOG_ITEMS = [
   { href: "/settings/catalogs/media", label: "Media Categories" },
   { href: "/settings/catalogs/roles", label: "Contribution Roles" },
-  { href: "/settings/catalogs/profile-slots", label: "Profile Slots" },
   { href: "/settings/catalogs/motif-templates", label: "Motif Templates" },
   { href: "/settings/catalogs/attributes", label: "Attributes" },
   { href: "/settings/catalogs/colors", label: "Colors" },
