@@ -1,0 +1,330 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - complementary [ref=e3]:
+      - button "Expand sidebar" [ref=e463]:
+        - img [ref=e464]
+      - generic [ref=e467]: P
+      - navigation [ref=e10]:
+        - link "Dashboard" [ref=e11] [cursor=pointer]:
+          - /url: /
+          - img [ref=e12]
+        - link "Sessions" [ref=e18] [cursor=pointer]:
+          - /url: /sessions
+          - img [ref=e19]
+        - link "Sets" [ref=e25] [cursor=pointer]:
+          - /url: /sets
+          - img [ref=e26]
+        - link "Collections" [ref=e31] [cursor=pointer]:
+          - /url: /collections
+          - img [ref=e32]
+        - link "Atlas" [ref=e35] [cursor=pointer]:
+          - /url: /atlas
+          - img [ref=e36]
+        - link "People" [ref=e42] [cursor=pointer]:
+          - /url: /people
+          - img [ref=e43]
+        - link "Watchlist" [ref=e49] [cursor=pointer]:
+          - /url: /watchlist
+          - img [ref=e50]
+        - link "Projects" [ref=e54] [cursor=pointer]:
+          - /url: /projects
+          - img [ref=e55]
+        - link "Labels" [ref=e58] [cursor=pointer]:
+          - /url: /labels
+          - img [ref=e59]
+        - link "Channels" [ref=e64] [cursor=pointer]:
+          - /url: /channels
+          - img [ref=e65]
+        - link "Artists" [ref=e72] [cursor=pointer]:
+          - /url: /artists
+          - img [ref=e73]
+        - link "Networks" [ref=e80] [cursor=pointer]:
+          - /url: /networks
+          - img [ref=e81]
+        - link "Import" [ref=e87] [cursor=pointer]:
+          - /url: /import
+          - img [ref=e88]
+        - link "Staging Sets" [ref=e92] [cursor=pointer]:
+          - /url: /staging-sets
+          - img [ref=e93]
+        - link "Shopping List" [ref=e98] [cursor=pointer]:
+          - /url: /shopping-list
+          - img [ref=e99]
+        - link "Archive" [ref=e102] [cursor=pointer]:
+          - /url: /archive
+          - img [ref=e103]
+        - link "Maintenance" [ref=e108] [cursor=pointer]:
+          - /url: /maintenance
+          - img [ref=e109]
+        - link "Settings" [ref=e112] [cursor=pointer]:
+          - /url: /settings
+          - img [ref=e113]
+      - button "Sign out" [ref=e118]:
+        - img [ref=e119]
+    - main [ref=e124]:
+      - generic [ref=e125]:
+        - generic [ref=e126]:
+          - link "Back to People" [ref=e128] [cursor=pointer]:
+            - /url: /people
+            - generic [ref=e129]: ←
+            - text: Back to People
+          - generic [ref=e469]:
+            - img [ref=e471]
+            - generic [ref=e473]: 1 / 7
+            - link "Corinna" [ref=e474] [cursor=pointer]:
+              - /url: /people/cmnhggqqy000401n5ossv78zi
+              - generic [ref=e475]: Corinna
+              - img [ref=e476]
+          - generic [ref=e130]:
+            - button "Edit" [ref=e131]:
+              - img
+              - text: Edit
+            - button "More actions" [ref=e132]:
+              - img
+        - generic [ref=e133]:
+          - generic [ref=e134]:
+            - generic [ref=e135]:
+              - generic [ref=e136]:
+                - button "View photo fullscreen" [ref=e137]:
+                  - img "Profile photo" [ref=e138]
+                - button "Next photo" [ref=e139]:
+                  - img [ref=e140]
+                - generic [ref=e142]: 1/21
+              - generic [ref=e143]:
+                - generic [ref=e145]:
+                  - generic [ref=e146]:
+                    - heading "Nancy A" [level=1] [ref=e147]
+                    - button "Add to watchlist" [ref=e148]:
+                      - img [ref=e149]
+                  - generic [ref=e152]:
+                    - paragraph [ref=e153]: NA-00YC
+                    - link "21" [ref=e154] [cursor=pointer]:
+                      - /url: /sessions/cmnh97hpv001501qfabdf174a
+                      - img [ref=e155]
+                      - generic [ref=e158]: "21"
+                - generic [ref=e159]:
+                  - generic [ref=e160]:
+                    - generic [ref=e161]: Physique
+                    - button "Edit appearance" [ref=e162]:
+                      - img [ref=e163]
+                  - generic [ref=e166]:
+                    - generic [ref=e167]:
+                      - term [ref=e168]: Height
+                      - definition [ref=e169]: 165 cm
+                    - generic [ref=e170]:
+                      - term [ref=e171]: Weight
+                      - definition [ref=e172]: 45 kg
+                    - generic [ref=e173]:
+                      - term [ref=e174]: Measurements
+                      - definition [ref=e175]: —
+                  - generic [ref=e176]:
+                    - generic [ref=e177]:
+                      - term [ref=e178]: Eye color
+                      - definition [ref=e179]: Blue
+                    - generic [ref=e180]:
+                      - term [ref=e181]: Hair color
+                      - definition [ref=e182]: Blonde
+                    - generic [ref=e183]:
+                      - term [ref=e184]: Breast size
+                      - definition [ref=e185]: Unknown
+                    - generic [ref=e186]:
+                      - term [ref=e187]: Breast status
+                      - definition [ref=e188]: natural
+                    - generic [ref=e189]:
+                      - term [ref=e190]: Build
+                      - definition [ref=e191]: Slim
+                - generic [ref=e193]:
+                  - generic [ref=e194]:
+                    - text: Anastasiya Shubeyko
+                    - generic [ref=e195]:
+                      - text: ·
+                      - 'generic "Used on: FemJoy" [ref=e196]':
+                        - text: Allie
+                        - generic [ref=e197]: (1)
+                    - generic [ref=e198]:
+                      - text: ·
+                      - 'generic "Used on: FemJoy" [ref=e199]':
+                        - text: Jane F
+                        - generic [ref=e200]: (1)
+                    - generic [ref=e201]: · Nancy Ace
+                  - generic [ref=e202]:
+                    - generic [ref=e203]:
+                      - img "Flag of UKR" [ref=e204]
+                      - text: Ukraine
+                    - generic [ref=e205]: ♀
+                    - generic [ref=e206]: 17/11/1994
+                  - generic [ref=e207]:
+                    - generic [ref=e208]: 31 yrs
+                    - generic [ref=e209]: Active
+                  - generic "Career timeline" [ref=e211]:
+                    - generic [ref=e212]:
+                      - generic [ref=e213]: ~20
+                      - generic [ref=e215]: "2014"
+                    - generic [ref=e218]: ~12 yrs
+                    - generic [ref=e219]:
+                      - generic [ref=e220]: .
+                      - generic [ref=e222]: .
+              - generic [ref=e225]:
+                - generic [ref=e226]:
+                  - generic [ref=e227]:
+                    - img [ref=e229]
+                    - generic [ref=e231]: "2"
+                    - generic [ref=e232]: Sets
+                  - generic [ref=e233]:
+                    - img [ref=e235]
+                    - generic [ref=e239]: "2"
+                    - generic [ref=e240]: Labels
+                  - generic [ref=e241]:
+                    - img [ref=e243]
+                    - generic [ref=e247]: "106"
+                    - generic [ref=e248]: Photos
+                  - generic [ref=e249]:
+                    - img [ref=e251]
+                    - generic [ref=e254]: "0"
+                    - generic [ref=e255]: Conn.
+                - generic [ref=e257]:
+                  - generic "Performance Grade — overall subjective rating (1-10 scale). Click to set." [ref=e258]:
+                    - generic [ref=e259]:
+                      - generic [ref=e260]: PGRADE
+                      - generic [ref=e261]: —
+                    - slider "Set PGRADE" [ref=e262] [cursor=pointer]:
+                      - button "Set PGRADE to 1" [ref=e263]
+                      - button "Set PGRADE to 2" [ref=e264]
+                      - button "Set PGRADE to 3" [ref=e265]
+                      - button "Set PGRADE to 4" [ref=e266]
+                      - button "Set PGRADE to 5" [ref=e267]
+                      - button "Set PGRADE to 6" [ref=e268]
+                      - button "Set PGRADE to 7" [ref=e269]
+                      - button "Set PGRADE to 8" [ref=e270]
+                      - button "Set PGRADE to 9" [ref=e271]
+                      - button "Set PGRADE to 10" [ref=e272]
+                  - generic "Cumulative Points — weighted aggregate of set participation scores" [ref=e273]:
+                    - generic [ref=e274]:
+                      - generic [ref=e275]: CP
+                      - generic [ref=e276]: —
+                  - generic [ref=e289]:
+                    - generic [ref=e290]:
+                      - generic [ref=e291]: RATING
+                      - generic [ref=e292]: "5"
+                    - slider "Set rating" [ref=e293] [cursor=pointer]:
+                      - button "Set rating to 1" [ref=e294]:
+                        - img [ref=e295]
+                      - button "Set rating to 2" [ref=e297]:
+                        - img [ref=e298]
+                      - button "Set rating to 3" [ref=e300]:
+                        - img [ref=e301]
+                      - button "Set rating to 4" [ref=e303]:
+                        - img [ref=e304]
+                      - button "Set rating to 5" [ref=e306]:
+                        - img [ref=e307]
+            - button "Body feature types" [ref=e310]:
+              - generic [ref=e311]: tattoo
+          - tablist "Person details" [ref=e312]:
+            - tab "Overview" [selected] [ref=e313]:
+              - img [ref=e315]
+              - text: Overview
+            - tab "Aliases 5" [ref=e320]:
+              - img [ref=e322]
+              - text: Aliases
+              - generic [ref=e326]: "5"
+            - tab "Appearance 1" [ref=e327]:
+              - img [ref=e329]
+              - text: Appearance
+              - generic [ref=e332]: "1"
+            - tab "Details 5" [ref=e333]:
+              - img [ref=e335]
+              - text: Details
+              - generic [ref=e340]: "5"
+            - tab "Skills" [ref=e341]:
+              - img [ref=e343]
+              - text: Skills
+            - tab "Career 2" [ref=e345]:
+              - img [ref=e347]
+              - text: Career
+              - generic [ref=e350]: "2"
+            - tab "Network" [ref=e351]:
+              - img [ref=e353]
+              - text: Network
+            - tab "Photos 106" [ref=e358]:
+              - img [ref=e360]
+              - text: Photos
+              - generic [ref=e364]: "106"
+            - tab "Research" [ref=e365]:
+              - img [ref=e367]
+              - text: Research
+          - tabpanel "Overview" [ref=e370]:
+            - generic [ref=e371]:
+              - generic [ref=e372]:
+                - generic [ref=e373]:
+                  - img [ref=e375]
+                  - heading "About Nancy A" [level=2] [ref=e377]
+                  - button "Edit" [ref=e379]:
+                    - img [ref=e380]
+                    - text: Edit
+                - button "Add a bio..." [ref=e383]
+              - generic [ref=e384]:
+                - generic [ref=e385]:
+                  - img [ref=e387]
+                  - heading "Recent Work" [level=2] [ref=e389]
+                  - generic [ref=e390]: "2"
+                - generic [ref=e391]:
+                  - link "I Need A Shower MetArtX · April 6, 2018" [ref=e392] [cursor=pointer]:
+                    - /url: /sessions/cmnv4gsqj002a01o3sg6tn5ia
+                    - generic [ref=e394]:
+                      - paragraph [ref=e395]: I Need A Shower
+                      - paragraph [ref=e396]:
+                        - text: MetArtX
+                        - generic [ref=e397]: · April 6, 2018
+                  - link "Presenting Nancy A MetArt · January 28, 2014" [ref=e398] [cursor=pointer]:
+                    - /url: /sessions/cmnml45tz000201n95mrieao7
+                    - generic [ref=e400]:
+                      - paragraph [ref=e401]: Presenting Nancy A
+                      - paragraph [ref=e402]:
+                        - text: MetArt
+                        - generic [ref=e403]: · January 28, 2014
+              - generic [ref=e404]:
+                - generic [ref=e405]:
+                  - img [ref=e407]
+                  - heading "Recent Photos" [level=2] [ref=e411]
+                  - generic [ref=e412]: "8"
+                - generic [ref=e413]:
+                  - button [ref=e414]
+                  - button [ref=e415]
+                  - button [ref=e416]
+                  - button [ref=e417]
+                  - button [ref=e418]
+                  - button [ref=e419]
+                  - button [ref=e420]
+                  - button [ref=e421]
+              - generic [ref=e422]:
+                - generic [ref=e423]:
+                  - img [ref=e425]
+                  - heading "History" [level=2] [ref=e430]
+                  - generic [ref=e431]: "3"
+                - generic [ref=e433]:
+                  - button "Show timeline (3)" [ref=e434]:
+                    - img [ref=e435]
+                    - text: Show timeline (3)
+                  - button "New Era" [ref=e437]:
+                    - img [ref=e438]
+                    - text: New Era
+              - generic [ref=e439]:
+                - generic [ref=e440]:
+                  - img [ref=e442]
+                  - heading "Notes & Tags" [level=2] [ref=e445]
+                - generic [ref=e449]:
+                  - img [ref=e450]
+                  - textbox "Add tags…" [ref=e453]
+  - region "Notifications alt+T"
+  - generic [ref=e458] [cursor=pointer]:
+    - button "Open Next.js Dev Tools" [ref=e459]:
+      - img [ref=e460]
+    - generic [ref=e478]:
+      - button "Open issues overlay" [ref=e479]:
+        - generic [ref=e480]:
+          - generic [ref=e481]: "0"
+          - generic [ref=e482]: "1"
+        - generic [ref=e483]: Issue
+      - button "Collapse issues badge" [ref=e484]:
+        - img [ref=e485]
+  - alert [ref=e487]

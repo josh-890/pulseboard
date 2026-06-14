@@ -29,8 +29,6 @@ import {
   upsertPersonMediaLinkAction,
   removePersonMediaLinkAction,
   updatePersonMediaLinkAction,
-  assignHeadshotSlot,
-  removeHeadshotSlot,
   linkMediaToDetailCategoryAction,
 } from "@/lib/actions/media-actions";
 import {
@@ -181,10 +179,6 @@ export function GalleryInfoPanel({
   item,
   onSetCover,
   coverMediaItemId,
-  onAssignHeadshot,
-  onRemoveHeadshot,
-  profileLabels,
-  headshotSlotMap,
   onFavoriteToggle,
   onUpdateTags,
   onTagsChanged,
@@ -217,7 +211,6 @@ export function GalleryInfoPanel({
   }, []);
 
   const isCover = coverMediaItemId === item.id;
-  const currentSlot = headshotSlotMap?.get(item.id) ?? null;
   const hasTags = onUpdateTags && onTagsChanged;
   const showTags = hasTags || item.tags.length > 0;
 
@@ -418,54 +411,6 @@ export function GalleryInfoPanel({
       });
     },
     [referenceContext, skillEventIds, item.id],
-  );
-
-  const handleRefSlotClick = useCallback(
-    (slotNumber: number) => {
-      if (!referenceContext) return;
-      const { personId, onLinksChange } = referenceContext;
-      const headshotLink = getLinkForUsage("HEADSHOT");
-      const isToggleOff = headshotLink?.slot === slotNumber;
-
-      // Optimistic
-      if (onLinksChange) {
-        if (isToggleOff) {
-          onLinksChange(item.id, links.filter((l) => l.usage !== "HEADSHOT"));
-        } else if (headshotLink) {
-          onLinksChange(
-            item.id,
-            links.map((l) => (l.usage === "HEADSHOT" ? { ...l, slot: slotNumber } : l)),
-          );
-        } else {
-          const newLink: PersonMediaLinkSummary = {
-            id: "temp-HEADSHOT",
-            usage: "HEADSHOT",
-            slot: slotNumber,
-            bodyRegion: null,
-            bodyRegions: [],
-            bodyMarkId: null,
-            bodyModificationId: null,
-            cosmeticProcedureId: null,
-            categoryId: null,
-            eraId: null,
-            isFavorite: false,
-            isAvatar: false,
-            sortOrder: 0,
-            notes: null,
-          };
-          onLinksChange(item.id, [...links, newLink]);
-        }
-      }
-
-      startTransition(async () => {
-        if (isToggleOff) {
-          await removeHeadshotSlot(personId, item.id);
-        } else {
-          await assignHeadshotSlot(personId, item.id, slotNumber);
-        }
-      });
-    },
-    [referenceContext, getLinkForUsage, links, item.id],
   );
 
   // Merge collections from referenceContext and standalone collectionContext
@@ -674,108 +619,6 @@ export function GalleryInfoPanel({
               >
                 {isCover ? "Cover image" : "Set as cover"}
               </button>
-            </div>
-          )}
-        </>
-      )}
-
-      {/* Headshot slot assignment (person context — non-reference) */}
-      {!referenceContext && profileLabels && profileLabels.length > 0 && onAssignHeadshot && (
-        <>
-          <SectionHeader
-            title="Headshot"
-            icon={<ImageIcon size={14} />}
-            section="headshot"
-            expanded={expandedSections.has("headshot")}
-            onToggle={toggleSection}
-          />
-          {expandedSections.has("headshot") && (
-            <div className="flex flex-wrap gap-1.5 pb-2">
-              {profileLabels.map((sl, i) => {
-                const slotNumber = i + 1;
-                const isActive = currentSlot === slotNumber;
-                return (
-                  <button
-                    key={sl.slot}
-                    type="button"
-                    onClick={() => {
-                      if (isActive && onRemoveHeadshot) {
-                        onRemoveHeadshot(item.id);
-                      } else {
-                        onAssignHeadshot(item.id, slotNumber);
-                      }
-                    }}
-                    className={cn(
-                      "rounded-md px-2.5 py-1 text-xs font-medium transition-all",
-                      "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
-                      isActive
-                        ? "ring-2 ring-amber-500 bg-amber-500/20 text-amber-400"
-                        : "bg-white/5 text-white/60 hover:bg-white/10 hover:text-white",
-                    )}
-                    aria-pressed={isActive}
-                  >
-                    {sl.label}
-                  </button>
-                );
-              })}
-            </div>
-          )}
-        </>
-      )}
-
-      {/* Headshot slot assignment (reference context — with thumbnails) */}
-      {referenceContext && profileLabels && profileLabels.length > 0 && (
-        <>
-          <SectionHeader
-            title="Headshot"
-            icon={<ImageIcon size={14} />}
-            section="headshot"
-            expanded={expandedSections.has("headshot")}
-            onToggle={toggleSection}
-          />
-          {expandedSections.has("headshot") && (
-            <div className="flex flex-wrap gap-1.5 pb-2">
-              {profileLabels.map((sl, i) => {
-                const slotNumber = i + 1;
-                const headshotLink = getLinkForUsage("HEADSHOT");
-                const isActive = headshotLink?.slot === slotNumber;
-                const thumbUrl = referenceContext.allSlotThumbnails?.get(slotNumber);
-                return (
-                  <button
-                    key={sl.slot}
-                    type="button"
-                    disabled={isPending}
-                    onClick={() => handleRefSlotClick(slotNumber)}
-                    className={cn(
-                      "relative overflow-hidden rounded-md text-xs font-medium transition-all",
-                      "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
-                      thumbUrl ? "h-10 w-14" : "px-2.5 py-1",
-                      isActive
-                        ? "ring-2 ring-amber-500 shadow-sm"
-                        : thumbUrl
-                          ? "opacity-70 hover:opacity-100"
-                          : "bg-white/5 text-white/60 hover:bg-white/10 hover:text-white",
-                    )}
-                    aria-pressed={isActive}
-                  >
-                    {thumbUrl && (
-                      /* eslint-disable-next-line @next/next/no-img-element */
-                      <img
-                        src={thumbUrl}
-                        alt=""
-                        className="absolute inset-0 h-full w-full object-cover"
-                        draggable={false}
-                      />
-                    )}
-                    <span className={cn(
-                      "relative",
-                      thumbUrl && "rounded px-1 py-0.5 text-[10px] bg-black/60 text-white",
-                    )}>
-                      {sl.label}
-                    </span>
-                  </button>
-                );
-              })}
             </div>
           )}
         </>
