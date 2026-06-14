@@ -2,8 +2,7 @@
 
 import { useState } from "react";
 import Image from "next/image";
-import { ChevronLeft, ChevronRight, ImageIcon, Star } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { ChevronLeft, ChevronRight, ImageIcon } from "lucide-react";
 import type { GalleryItem } from "@/lib/types";
 import type { ProfileImageLabel } from "@/lib/services/setting-service";
 import { GalleryLightbox } from "./gallery-lightbox";
@@ -156,26 +155,6 @@ export function CarouselHeader({
           </span>
         )}
 
-        {/* Favorite toggle (gallery slides only). The avatar/hero cover is the Headshot
-            category representative, set in the Profile Manager / Details ★ (ADR-0016). */}
-        {onFavoriteToggle && current.item && (
-          <div className="absolute right-1.5 top-1.5 flex gap-1 opacity-0 transition-opacity duration-150 group-hover:opacity-100">
-            <button
-              type="button"
-              onClick={(e) => { e.stopPropagation(); onFavoriteToggle(current.item!.id); }}
-              aria-label={current.item.isFavorite ? "Remove favorite" : "Mark as favorite"}
-              title={current.item.isFavorite ? "Remove favorite" : "Mark as favorite"}
-              className={cn(
-                "rounded-full p-1 transition-colors",
-                current.item.isFavorite
-                  ? "bg-amber-500/80 text-white"
-                  : "bg-black/40 text-white/70 hover:bg-black/60 hover:text-white",
-              )}
-            >
-              <Star size={14} />
-            </button>
-          </div>
-        )}
       </div>
 
       {lightboxIndex !== null && (
