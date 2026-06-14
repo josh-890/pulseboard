@@ -214,7 +214,11 @@ foreach ($e in $entries) {
             continue
         }
 
-        $gain = [Math]::Max($img.Width, $img.Height) -gt [Math]::Max([int]$e.sourceWidth, [int]$e.sourceHeight)
+        # The current bake sampled the master_4000 (long side capped at 4000), so a
+        # gain means the original is longer than that cap — even when it equals the
+        # stored source dims (which may themselves exceed 4000).
+        $masterCeil = [Math]::Min(4000, [Math]::Max([int]$e.sourceWidth, [int]$e.sourceHeight))
+        $gain = [Math]::Max($img.Width, $img.Height) -gt $masterCeil
         if (-not $gain -and -not $Force) {
             $t.noGain++
             Write-Verbose "NO-GAIN  $file ($($img.Width)x$($img.Height))"

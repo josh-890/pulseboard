@@ -126,8 +126,12 @@ async function processTenant(tenant: string | null): Promise<void> {
       continue
     }
 
-    // Skip when the original gives no resolution win over the master.
-    const gain = Math.max(img.width, img.height) > Math.max(e.sourceWidth, e.sourceHeight)
+    // Skip when the original gives no resolution win over the master. The bake
+    // sampled the master_4000 (long side capped at 4000), so the gain ceiling is
+    // min(4000, stored source long side) — NOT the raw stored dims, which may exceed
+    // 4000 yet were still downscaled to the master the bake actually used.
+    const masterCeil = Math.min(4000, Math.max(e.sourceWidth, e.sourceHeight))
+    const gain = Math.max(img.width, img.height) > masterCeil
     if (!gain && !FORCE) {
       tally.noGain++
       if (VERBOSE) console.log(`  NO-GAIN  ${file} (${img.width}x${img.height})`)
