@@ -156,14 +156,15 @@ export function CarouselHeader({
           </span>
         )}
 
-        {/* Favorite (gallery slides only — the lead headshot is the avatar, set in the Slot Manager). */}
+        {/* Favorite toggle (gallery slides only). The avatar/hero cover is the Headshot
+            category representative, set in the Profile Manager / Details ★ (ADR-0016). */}
         {onFavoriteToggle && current.item && (
           <div className="absolute right-1.5 top-1.5 flex gap-1 opacity-0 transition-opacity duration-150 group-hover:opacity-100">
             <button
               type="button"
               onClick={(e) => { e.stopPropagation(); onFavoriteToggle(current.item!.id); }}
-              aria-label="Set as hero cover"
-              title="Set as hero cover"
+              aria-label={current.item.isFavorite ? "Remove favorite" : "Mark as favorite"}
+              title={current.item.isFavorite ? "Remove favorite" : "Mark as favorite"}
               className={cn(
                 "rounded-full p-1 transition-colors",
                 current.item.isFavorite
