@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { Camera, Film, AlertTriangle, Copy, Star, Link2Off } from "lucide-react";
+import { Camera, Film, AlertTriangle, Copy, Star, Link2Off, ChevronDown } from "lucide-react";
 import { cn, focalStyle, formatPartialDateISO, getInitialsFromName, computeProductionAge } from "@/lib/utils";
 import { useDensity } from "@/components/layout/density-provider";
 import { useBrowserLayout } from "@/components/layout/browser-layout-provider";
@@ -89,11 +89,12 @@ function CoverBadges({
               <button
                 type="button"
                 onClick={(e) => { e.preventDefault(); e.stopPropagation(); setDupOpen((o) => !o); }}
-                className="flex items-center rounded bg-orange-500/80 px-0.5 py-px transition-colors hover:bg-orange-500"
+                className="flex cursor-pointer items-center gap-0.5 rounded bg-orange-500/90 px-1.5 py-0.5 shadow-sm ring-1 ring-white/30 transition-colors hover:bg-orange-500"
                 aria-label="Potential duplicate — options"
-                title="Potential duplicate"
+                title="Potential duplicate — click for options"
               >
-                <Copy size={8} className="text-white" />
+                <Copy size={11} className="text-white" />
+                <ChevronDown size={10} className="text-white/90" />
               </button>
             </PopoverTrigger>
             <PopoverContent align="end" className="w-44 p-1" onClick={(e) => e.stopPropagation()}>
