@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { Camera, Film, AlertTriangle, Copy, Star, Link2Off } from "lucide-react";
@@ -12,6 +13,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import type { getSets } from "@/lib/services/set-service";
 import type { SuggestedFolderInfo } from "@/lib/services/archive-service";
 
@@ -36,6 +38,10 @@ type SetCardProps = {
   unresolvedCreditCount?: number;
   suggestedArchiveFolder?: SuggestedFolderInfo | null;
   isPotentialDuplicate?: boolean;
+  /** The partner set in the flagged pair (present in the Duplicates filter view). */
+  duplicatePartnerId?: string;
+  /** Dismiss the pair as "not a duplicate". */
+  onDismissDuplicate?: (setId: string, partnerId: string) => void;
   isStarred?: boolean;
   onToggleStar?: (id: string) => void;
 };
@@ -57,21 +63,57 @@ function CoverBadges({
   unresolvedCreditCount,
   noArchive,
   suggestedArchiveFolder,
+  setId,
+  duplicatePartnerId,
+  onDismissDuplicate,
 }: {
   isPotentialDuplicate: boolean;
   unresolvedCreditCount: number;
   noArchive: boolean;
   suggestedArchiveFolder: SuggestedFolderInfo | null | undefined;
+  setId: string;
+  duplicatePartnerId?: string;
+  onDismissDuplicate?: (setId: string, partnerId: string) => void;
 }) {
+  const dismissable = isPotentialDuplicate && !!duplicatePartnerId && !!onDismissDuplicate;
+  const [dupOpen, setDupOpen] = useState(false);
   return (
     <div className="absolute top-1 right-1 flex flex-col gap-0.5 items-end">
       {isPotentialDuplicate && (
-        <div
-          className="flex items-center rounded bg-orange-500/80 px-0.5 py-px"
-          title="Potential duplicate — open set to merge"
-        >
-          <Copy size={8} className="text-white" />
-        </div>
+        dismissable ? (
+          // Controlled: the badge sits inside the card <Link>, so the click must
+          // preventDefault (stop the anchor nav) — which also stops Radix's auto-toggle,
+          // hence we drive `open` ourselves.
+          <Popover open={dupOpen} onOpenChange={setDupOpen}>
+            <PopoverTrigger asChild>
+              <button
+                type="button"
+                onClick={(e) => { e.preventDefault(); e.stopPropagation(); setDupOpen((o) => !o); }}
+                className="flex items-center rounded bg-orange-500/80 px-0.5 py-px transition-colors hover:bg-orange-500"
+                aria-label="Potential duplicate — options"
+                title="Potential duplicate"
+              >
+                <Copy size={8} className="text-white" />
+              </button>
+            </PopoverTrigger>
+            <PopoverContent align="end" className="w-44 p-1" onClick={(e) => e.stopPropagation()}>
+              <button
+                type="button"
+                onClick={(e) => { e.preventDefault(); e.stopPropagation(); setDupOpen(false); onDismissDuplicate!(setId, duplicatePartnerId!); }}
+                className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-xs text-foreground transition-colors hover:bg-muted"
+              >
+                <Copy size={12} className="text-muted-foreground" /> Not a duplicate
+              </button>
+            </PopoverContent>
+          </Popover>
+        ) : (
+          <div
+            className="flex items-center rounded bg-orange-500/80 px-0.5 py-px"
+            title="Potential duplicate — open set to merge"
+          >
+            <Copy size={8} className="text-white" />
+          </div>
+        )
       )}
       {!isPotentialDuplicate && unresolvedCreditCount > 0 && (
         <div
@@ -244,6 +286,8 @@ export function SetCard({
   unresolvedCreditCount = 0,
   suggestedArchiveFolder,
   isPotentialDuplicate,
+  duplicatePartnerId,
+  onDismissDuplicate,
   isStarred = false,
   onToggleStar,
 }: SetCardProps) {
@@ -286,6 +330,9 @@ export function SetCard({
     unresolvedCreditCount,
     noArchive,
     suggestedArchiveFolder,
+    setId: set.id,
+    duplicatePartnerId,
+    onDismissDuplicate,
   };
   const avatarRowProps = {
     avatarParticipants,

@@ -6,6 +6,8 @@ import {
   getBaselineGapTotals,
 } from "@/lib/services/maintenance-service";
 import { getHdRebakeEligibleCount } from "@/lib/services/hd-rebake-service";
+import { getDismissedSetDuplicates } from "@/lib/services/set-merge-service";
+import { DismissedDuplicatesList } from "@/components/maintenance/dismissed-duplicates-list";
 import { BaselineGapsByAttributeTable } from "@/components/maintenance/baseline-gaps-by-attribute-table";
 import { BaselineGapsByPersonTable } from "@/components/maintenance/baseline-gaps-by-person-table";
 import { MaintenanceTabs } from "@/components/maintenance/maintenance-tabs";
@@ -21,11 +23,12 @@ export default async function MaintenancePage({ searchParams }: MaintenancePageP
     const { view: viewParam } = await searchParams;
     const view = viewParam === "by-person" ? "by-person" : "by-attribute";
 
-    const [totals, byAttribute, byPerson, hdEligible] = await Promise.all([
+    const [totals, byAttribute, byPerson, hdEligible, dismissedDuplicates] = await Promise.all([
       getBaselineGapTotals(),
       view === "by-attribute" ? getBaselineGapsByAttribute() : Promise.resolve([]),
       view === "by-person" ? getBaselineGapsByPerson() : Promise.resolve([]),
       getHdRebakeEligibleCount(),
+      getDismissedSetDuplicates(),
     ]);
 
     return (
@@ -82,6 +85,10 @@ export default async function MaintenancePage({ searchParams }: MaintenancePageP
           <BaselineGapsByAttributeTable rows={byAttribute} />
         ) : (
           <BaselineGapsByPersonTable rows={byPerson} />
+        )}
+
+        {dismissedDuplicates.length > 0 && (
+          <DismissedDuplicatesList pairs={dismissedDuplicates} />
         )}
       </div>
     );

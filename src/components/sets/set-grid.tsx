@@ -11,7 +11,8 @@ import { GroupHeader } from "@/components/shared/group-header";
 import { cn } from "@/lib/utils";
 import { computeAgeAtEvent } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { loadMoreSets } from "@/lib/actions/set-actions";
+import { loadMoreSets, dismissSetDuplicateAction } from "@/lib/actions/set-actions";
+import { useRouter } from "next/navigation";
 import type { getSets } from "@/lib/services/set-service";
 import type { SetFilters } from "@/lib/services/set-service";
 import { useBulkSelection } from "@/hooks/use-bulk-selection";
@@ -272,6 +273,11 @@ export function SetGrid({
     setStarredIds(getStarred("sets"));
   }
 
+  const router = useRouter();
+  function handleDismissDuplicate(setId: string, partnerId: string) {
+    void dismissSetDuplicateAction(setId, partnerId).then(() => router.refresh());
+  }
+
   const filtersActive = hasActiveFilters(filters);
 
   const starredItems = useMemo(
@@ -414,6 +420,8 @@ export function SetGrid({
                                     unresolvedCreditCount={set._count.creditsRaw}
                                     suggestedArchiveFolder={suggestionsMap[set.id] ?? null}
                                     isPotentialDuplicate={!!duplicatePairMap?.[set.id]}
+                                    duplicatePartnerId={duplicatePairMap?.[set.id]}
+                                    onDismissDuplicate={handleDismissDuplicate}
                                     isStarred={starredIds.includes(set.id)}
                                     onToggleStar={handleToggleStar}
                                   />
@@ -449,6 +457,8 @@ export function SetGrid({
                         unresolvedCreditCount={set._count.creditsRaw}
                         suggestedArchiveFolder={suggestionsMap[set.id] ?? null}
                         isPotentialDuplicate={!!duplicatePairMap?.[set.id]}
+                        duplicatePartnerId={duplicatePairMap?.[set.id]}
+                        onDismissDuplicate={handleDismissDuplicate}
                         isStarred={starredIds.includes(set.id)}
                         onToggleStar={handleToggleStar}
                       />
@@ -520,6 +530,8 @@ export function SetGrid({
                   unresolvedCreditCount={set._count.creditsRaw}
                   suggestedArchiveFolder={suggestionsMap[set.id] ?? null}
                   isPotentialDuplicate={!!duplicatePairMap?.[set.id]}
+                  duplicatePartnerId={duplicatePairMap?.[set.id]}
+                  onDismissDuplicate={handleDismissDuplicate}
                   isStarred={starredIds.includes(set.id)}
                   onToggleStar={handleToggleStar}
                 />

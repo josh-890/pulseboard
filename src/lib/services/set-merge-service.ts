@@ -318,6 +318,10 @@ export async function getPotentialDuplicatePairs(): Promise<
       AND s1."releaseDate" = s2."releaseDate"
       AND similarity(s1."titleNorm", s2."titleNorm") > 0.6
     LEFT JOIN "Channel" c ON c.id = s1."channelId"
+    WHERE NOT EXISTS (
+      SELECT 1 FROM "DismissedSetDuplicate" d
+      WHERE d."setIdA" = s1.id AND d."setIdB" = s2.id
+    )
     ORDER BY sim DESC
   `
 
@@ -329,5 +333,51 @@ export async function getPotentialDuplicatePairs(): Promise<
     similarity: Number(r.sim),
     channelName: r.channel_name,
     releaseDate: r.release_date,
+  }))
+}
+
+/** Order a pair lexicographically to match the detector's `s1.id < s2.id`. */
+function orderPair(a: string, b: string): [string, string] {
+  return a < b ? [a, b] : [b, a]
+}
+
+/** Mark a potential-duplicate pair "not a duplicate" so it stops being flagged. */
+export async function dismissSetDuplicate(setIdA: string, setIdB: string): Promise<void> {
+  if (setIdA === setIdB) return
+  const [a, b] = orderPair(setIdA, setIdB)
+  await prisma.dismissedSetDuplicate.upsert({
+    where: { setIdA_setIdB: { setIdA: a, setIdB: b } },
+    update: {},
+    create: { setIdA: a, setIdB: b },
+  })
+}
+
+/** Undo a dismissal — the pair can be flagged as a potential duplicate again. */
+export async function undismissSetDuplicate(id: string): Promise<void> {
+  await prisma.dismissedSetDuplicate.deleteMany({ where: { id } })
+}
+
+/** Dismissed pairs with both set titles, for the Maintenance review list. */
+export async function getDismissedSetDuplicates(): Promise<
+  Array<{ id: string; setIdA: string; titleA: string; setIdB: string; titleB: string; dismissedAt: Date }>
+> {
+  const rows = await prisma.dismissedSetDuplicate.findMany({
+    orderBy: { dismissedAt: 'desc' },
+    select: {
+      id: true,
+      setIdA: true,
+      setIdB: true,
+      dismissedAt: true,
+      setA: { select: { title: true } },
+      setB: { select: { title: true } },
+    },
+  })
+  return rows.map((r) => ({
+    id: r.id,
+    setIdA: r.setIdA,
+    titleA: r.setA.title,
+    setIdB: r.setIdB,
+    titleB: r.setB.title,
+    dismissedAt: r.dismissedAt,
   }))
 }

@@ -31,7 +31,7 @@ import {
   reassignSetPrimarySession,
   splitMediaToSession,
 } from "@/lib/services/set-service";
-import { mergeSetRecords, getSetMergeCandidates } from "@/lib/services/set-merge-service";
+import { mergeSetRecords, getSetMergeCandidates, dismissSetDuplicate, undismissSetDuplicate } from "@/lib/services/set-merge-service";
 import type { SetFilters } from "@/lib/services/set-service";
 import { getCoverPhotosForSets, getSkillEventMediaConstraints, getHeadshotsForPersons } from "@/lib/services/media-service";
 import { cascadeHardDeleteMediaItems } from "@/lib/services/cascade-helpers";
@@ -641,6 +641,34 @@ export async function updateSetRating(
       return { success: true };
     } catch {
       return { success: false, error: "Failed to update rating" };
+    }
+  });
+}
+
+/** Mark a potential-duplicate pair "not a duplicate" so it stops being flagged. */
+export async function dismissSetDuplicateAction(setIdA: string, setIdB: string): Promise<SimpleActionResult> {
+  return withTenantFromHeaders(async () => {
+    try {
+      await dismissSetDuplicate(setIdA, setIdB);
+      revalidatePath("/sets");
+      revalidatePath("/maintenance");
+      return { success: true };
+    } catch (err) {
+      return { success: false, error: err instanceof Error ? err.message : "Failed to dismiss duplicate" };
+    }
+  });
+}
+
+/** Undo a duplicate dismissal (from the Maintenance review list). */
+export async function undismissSetDuplicateAction(id: string): Promise<SimpleActionResult> {
+  return withTenantFromHeaders(async () => {
+    try {
+      await undismissSetDuplicate(id);
+      revalidatePath("/sets");
+      revalidatePath("/maintenance");
+      return { success: true };
+    } catch (err) {
+      return { success: false, error: err instanceof Error ? err.message : "Failed to undo dismissal" };
     }
   });
 }

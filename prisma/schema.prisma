@@ -991,6 +991,8 @@ model Set {
   stagingPromotions StagingSet[]          @relation("StagingSetPromoted")
   coherenceSnapshot SetCoherenceSnapshot?
   archiveLinks      ArchiveLink[]
+  dismissedDupA     DismissedSetDuplicate[] @relation("DismissedDupA")
+  dismissedDupB     DismissedSetDuplicate[] @relation("DismissedDupB")
 
   @@index([channelId])
   @@index([type])
@@ -998,6 +1000,21 @@ model Set {
   @@index([titleNorm])
   @@index([coverMediaItemId])
   @@index([mediaQueueAt])
+}
+
+// A potential-duplicate pair the user marked "not a duplicate" (ADR-/sets-dedupe).
+// Excluded from getPotentialDuplicatePairs. setIdA < setIdB (lexicographic) to match
+// the detector's s1.id < s2.id ordering and keep one row per unordered pair.
+model DismissedSetDuplicate {
+  id          String   @id @default(cuid())
+  setIdA      String
+  setIdB      String
+  setA        Set      @relation("DismissedDupA", fields: [setIdA], references: [id], onDelete: Cascade)
+  setB        Set      @relation("DismissedDupB", fields: [setIdB], references: [id], onDelete: Cascade)
+  dismissedAt DateTime @default(now())
+
+  @@unique([setIdA, setIdB])
+  @@index([setIdB])
 }
 
 // ─── Media ───────────────────────────────────────────────────────────────────
