@@ -275,6 +275,10 @@ export function SetGrid({
 
   const router = useRouter();
   function handleDismissDuplicate(setId: string, partnerId: string) {
+    // Optimistic: drop both sets of the pair from the grid immediately so the click
+    // has instant feedback; the server action + refresh reconcile (and self-correct
+    // if it failed, since the refresh re-seeds from the server).
+    setSets((prev) => prev.filter((s) => s.id !== setId && s.id !== partnerId));
     void dismissSetDuplicateAction(setId, partnerId).then(() => router.refresh());
   }
 
