@@ -14,6 +14,7 @@ import type { BrowserToolbarConfig, FilterGroup } from "@/components/shared/brow
 import { SavedViewsBar } from "@/components/shared/saved-views-bar";
 import { AddSetSheet } from "@/components/sets/add-set-sheet";
 import { ratingFilterOptions } from "@/components/shared/rating-filter-options";
+import { parsePartialDateBound } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
@@ -36,8 +37,6 @@ type SetsPageProps = {
     duplicates?: string;
     releaseDateFrom?: string;
     releaseDateTo?: string;
-    createdFrom?: string;
-    createdTo?: string;
     rating?: string;
     groupBy?: string;
   }>;
@@ -82,12 +81,6 @@ const SORT_OPTIONS = [
   { value: "rating-asc", label: "Lowest rated" },
 ];
 
-function parseDate(value: string | undefined): Date | undefined {
-  if (!value) return undefined;
-  const d = new Date(value);
-  return isNaN(d.getTime()) ? undefined : d;
-}
-
 export default async function SetsPage({ searchParams }: SetsPageProps) {
   return withTenantFromHeaders(async () => {
     const {
@@ -100,8 +93,6 @@ export default async function SetsPage({ searchParams }: SetsPageProps) {
       duplicates: duplicatesParam,
       releaseDateFrom: releaseDateFromParam,
       releaseDateTo: releaseDateToParam,
-      createdFrom: createdFromParam,
-      createdTo: createdToParam,
       rating: ratingParam,
       groupBy: groupByParam,
     } = await searchParams;
@@ -112,7 +103,9 @@ export default async function SetsPage({ searchParams }: SetsPageProps) {
     ? MAX_LOADED
     : Math.min(Math.max(PAGE_SIZE, parseInt(loaded ?? "", 10) || PAGE_SIZE), MAX_LOADED);
 
-  const resolvedType = type && isSetType(type) ? type : undefined;
+  // Default to photosets: absent type → "photo"; explicit "all" → no type filter.
+  const resolvedType: SetType | "all" =
+    type === "all" ? "all" : type && isSetType(type) ? type : "photo";
   const resolvedSort = sortParam && isSetSort(sortParam) ? sortParam : undefined;
 
   const VALID_ARCHIVE_FILTERS = new Set(['noArchive', 'verified', 'changed', 'missing', 'notImported'])
@@ -121,10 +114,9 @@ export default async function SetsPage({ searchParams }: SetsPageProps) {
     : undefined
 
   const duplicatesOnly = duplicatesParam === 'true';
-  const releaseDateFrom = parseDate(releaseDateFromParam);
-  const releaseDateTo = parseDate(releaseDateToParam);
-  const createdFrom = parseDate(createdFromParam);
-  const createdTo = parseDate(createdToParam);
+  // Year-granular: "2016" → Jan 1 (from) / Dec 31 (to); full date kept as-is.
+  const releaseDateFrom = parsePartialDateBound(releaseDateFromParam, "start");
+  const releaseDateTo = parsePartialDateBound(releaseDateToParam, "end");
 
   // When filtering by duplicates, get the pairs first to obtain the set IDs
   const duplicatePairs = duplicatesOnly ? await getPotentialDuplicatePairs() : [];
@@ -144,7 +136,7 @@ export default async function SetsPage({ searchParams }: SetsPageProps) {
 
   const filters: SetFilters = {
     q: q?.trim() || undefined,
-    type: resolvedType ?? ("all" as const),
+    type: resolvedType,
     labelId: labelId || undefined,
     channelId: channelId || undefined,
     personId: personId || undefined,
@@ -156,8 +148,6 @@ export default async function SetsPage({ searchParams }: SetsPageProps) {
     ratings: resolvedRatings,
     releaseDateFrom,
     releaseDateTo,
-    createdFrom,
-    createdTo,
   };
 
   const [paginated, channels, recentChannelIds, lastType, roleGroups] = await Promise.all([
@@ -211,10 +201,11 @@ export default async function SetsPage({ searchParams }: SetsPageProps) {
       type: "pill",
       param: "type",
       label: "Type",
+      defaultValue: "photo", // default browse = photosets
       options: [
-        { value: "all", label: "All" },
         { value: "photo", label: "Photos", count: facetCounts.type["photo"] },
         { value: "video", label: "Videos", count: facetCounts.type["video"] },
+        { value: "all", label: "All" },
       ],
     },
     {
@@ -229,12 +220,7 @@ export default async function SetsPage({ searchParams }: SetsPageProps) {
       paramFrom: "releaseDateFrom",
       paramTo: "releaseDateTo",
       label: "Release Date",
-    },
-    {
-      type: "daterange",
-      paramFrom: "createdFrom",
-      paramTo: "createdTo",
-      label: "Added",
+      allowPartial: true, // year-granular (e.g. 2016 → 2020)
     },
     {
       type: "multifacet",
@@ -244,6 +230,9 @@ export default async function SetsPage({ searchParams }: SetsPageProps) {
       options: ratingFilterOptions(facetCounts.rating ?? {}),
     },
   ];
+
+  // Housekeeping filters live behind the "Advanced" expander.
+  const advancedFilterGroups: FilterGroup[] = [];
 
   if (channelOptions.length > 0) {
     filterGroups.push({
@@ -271,13 +260,13 @@ export default async function SetsPage({ searchParams }: SetsPageProps) {
     });
   }
 
-  filterGroups.push({
+  advancedFilterGroups.push({
     type: "toggle",
     param: "hasMedia",
     label: "Has media",
   });
 
-  filterGroups.push({
+  advancedFilterGroups.push({
     type: "toggle",
     param: "noArchiveLink",
     label: "Unlinked only",
@@ -286,14 +275,14 @@ export default async function SetsPage({ searchParams }: SetsPageProps) {
   // Potential duplicates filter — load count eagerly only when not already active
   const dupCount = duplicatesOnly ? duplicatePairs.length : await getPotentialDuplicatePairs().then((p) => p.length);
   if (dupCount > 0) {
-    filterGroups.push({
+    advancedFilterGroups.push({
       type: "toggle",
       param: "duplicates",
       label: `Duplicates (${dupCount})`,
     });
   }
 
-  filterGroups.push({
+  advancedFilterGroups.push({
     type: "pill",
     param: "archiveFilter",
     label: "Archive",
@@ -308,6 +297,7 @@ export default async function SetsPage({ searchParams }: SetsPageProps) {
 
   const toolbarConfig: BrowserToolbarConfig = {
     basePath: "/sets",
+    advancedFilterGroups,
     searchPlaceholder: "Search sets…",
     sortOptions: SORT_OPTIONS,
     defaultSort: "date-desc",

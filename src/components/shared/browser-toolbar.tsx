@@ -42,6 +42,8 @@ type PillFilter = {
   type: "pill";
   param: string;
   label: string;
+  /** Value treated as the default (active when no param; clears the param on click). Defaults to "all". */
+  defaultValue?: string;
   options: { value: string; label: string; count?: number }[];
 };
 
@@ -86,6 +88,8 @@ type DateRangeFilter = {
   paramFrom: string;
   paramTo: string;
   label: string;
+  /** Allow partial entry (yyyy / yyyy-mm); the page expands to a full bound. */
+  allowPartial?: boolean;
 };
 
 type TypeaheadFilter = {
@@ -109,6 +113,8 @@ type BrowserToolbarConfig = {
   sortOptions: SortOption[];
   defaultSort: string;
   filterGroups: FilterGroup[];
+  /** Secondary/maintenance filters, revealed behind an "Advanced" expander. */
+  advancedFilterGroups?: FilterGroup[];
   resultCount: number;
   totalCount: number;
   /** sessionStorage key for the browse context — used to clear it on filter reset */
@@ -147,10 +153,12 @@ export function BrowserToolbar({ config, children }: BrowserToolbarProps) {
     filterGroups,
     browseContextKey,
   } = config;
+  const advancedFilterGroups = config.advancedFilterGroups ?? [];
 
   const router = useRouter();
   const searchParams = useSearchParams();
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
 
   // Search state
   const [searchValue, setSearchValue] = useState(
@@ -273,9 +281,10 @@ export function BrowserToolbar({ config, children }: BrowserToolbarProps) {
     });
   }
 
-  function handlePillSelect(param: string, value: string) {
+  function handlePillSelect(param: string, value: string, defaultValue?: string) {
+    const clearValue = defaultValue ?? "all";
     updateParams((params) => {
-      if (value === "all") {
+      if (value === clearValue) {
         params.delete(param);
       } else {
         params.set(param, value);
@@ -348,10 +357,11 @@ export function BrowserToolbar({ config, children }: BrowserToolbarProps) {
     params: string[];
     replacementValue?: string;
   }[] = [];
-  for (const group of filterGroups) {
+  for (const group of [...filterGroups, ...advancedFilterGroups]) {
     if (group.type === "pill" || group.type === "facet") {
       const paramValue = searchParams.get(group.param);
-      if (!paramValue || paramValue === "all") continue;
+      const skipValue = group.type === "pill" ? (group.defaultValue ?? "all") : "all";
+      if (!paramValue || paramValue === skipValue) continue;
       const opt = group.options.find((o) => o.value === paramValue);
       if (opt) {
         activeChips.push({
@@ -439,6 +449,134 @@ export function BrowserToolbar({ config, children }: BrowserToolbarProps) {
   const currentSortLabel =
     sortOptions.find((o) => o.value === currentSort)?.label ?? "Sort";
 
+  // Count active advanced filters (for the "Advanced" expander badge).
+  const advancedActiveCount = advancedFilterGroups.reduce((n, g) => {
+    if (g.type === "daterange") return n + (searchParams.get(g.paramFrom) || searchParams.get(g.paramTo) ? 1 : 0);
+    if (g.type === "toggle") return n + (searchParams.get(g.param) === "true" ? 1 : 0);
+    if (g.type === "multifacet") return n + (searchParams.get(g.param) ? 1 : 0);
+    if (g.type === "pill") {
+      const v = searchParams.get(g.param);
+      return n + (v && v !== (g.defaultValue ?? "all") ? 1 : 0);
+    }
+    return n + (searchParams.get(g.param) ? 1 : 0);
+  }, 0);
+
+  const renderGroup = (group: FilterGroup): React.ReactNode => {
+    if (group.type === "pill") {
+      const current = searchParams.get(group.param) ?? group.defaultValue ?? "all";
+      return (
+        <div key={group.param} className="flex flex-wrap gap-1.5" role="group" aria-label={`Filter by ${group.label}`}>
+          {group.options.map((option) => {
+            const isActive = current === option.value;
+            return (
+              <button
+                key={option.value}
+                type="button"
+                onClick={() => handlePillSelect(group.param, option.value, group.defaultValue)}
+                aria-pressed={isActive}
+                className={cn(
+                  "rounded-full border px-3 py-1 text-xs font-medium transition-all duration-150",
+                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+                  isActive
+                    ? "border-primary bg-primary text-primary-foreground shadow-sm"
+                    : "border-white/20 bg-card/50 text-muted-foreground hover:border-white/30 hover:bg-card/80 hover:text-foreground",
+                )}
+              >
+                {option.label}
+                {option.count !== undefined && !isActive && (
+                  <span className="ml-1 opacity-60">{option.count}</span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      );
+    }
+
+    if (group.type === "facet") {
+      const current = searchParams.get(group.param);
+      return (
+        <FacetDropdown
+          key={group.param}
+          filter={group}
+          currentValue={current ?? undefined}
+          onChange={(v) => handleFacetSelect(group.param, v)}
+        />
+      );
+    }
+
+    if (group.type === "multifacet") {
+      const current = searchParams.get(group.param);
+      const selected = current ? current.split(",").filter(Boolean) : [];
+      return (
+        <MultiFacetDropdown
+          key={group.param}
+          filter={group}
+          selected={selected}
+          onToggle={(v) => handleMultiFacetToggle(group.param, v)}
+        />
+      );
+    }
+
+    if (group.type === "toggle") {
+      const isActive = searchParams.get(group.param) === "true";
+      return (
+        <button
+          key={group.param}
+          type="button"
+          onClick={() => handleToggle(group.param)}
+          aria-pressed={isActive}
+          className={cn(
+            "rounded-full border px-3 py-1 text-xs font-medium transition-all duration-150",
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+            isActive
+              ? "border-primary bg-primary text-primary-foreground shadow-sm"
+              : "border-white/20 bg-card/50 text-muted-foreground hover:border-white/30 hover:bg-card/80 hover:text-foreground",
+          )}
+        >
+          {group.label}
+        </button>
+      );
+    }
+
+    if (group.type === "daterange") {
+      const fromVal = searchParams.get(group.paramFrom) ?? "";
+      const toVal = searchParams.get(group.paramTo) ?? "";
+      const isActive = !!(fromVal || toVal);
+      return (
+        <DateRangeDropdown
+          key={`${group.paramFrom}-${group.paramTo}`}
+          label={group.label}
+          fromValue={fromVal}
+          toValue={toVal}
+          isActive={isActive}
+          allowPartial={group.allowPartial}
+          onChange={(from, to) => handleDateRangeChange(group.paramFrom, group.paramTo, from, to)}
+        />
+      );
+    }
+
+    if (group.type === "typeahead") {
+      const currentId = searchParams.get(group.param);
+      const currentDisplay = group.displayParam
+        ? (searchParams.get(group.displayParam) ?? undefined)
+        : undefined;
+      return (
+        <TypeaheadDropdown
+          key={group.param}
+          label={group.label}
+          apiPath={group.apiPath}
+          currentId={currentId ?? undefined}
+          currentDisplay={currentDisplay}
+          onSelect={(id, name) => handleTypeaheadSelect(group.param, group.displayParam, id, name)}
+          onClear={() => handleTypeaheadSelect(group.param, group.displayParam, "", "")}
+        />
+      );
+    }
+
+    return null;
+  };
+
   return (
     <div className="space-y-3">
       {/* Main toolbar row */}
@@ -497,131 +635,40 @@ export function BrowserToolbar({ config, children }: BrowserToolbarProps) {
         )}
 
         {/* Filter groups */}
-        {filterGroups.map((group) => {
-          if (group.type === "pill") {
-            const current = searchParams.get(group.param) ?? "all";
-            return (
-              <div key={group.param} className="flex flex-wrap gap-1.5" role="group" aria-label={`Filter by ${group.label}`}>
-                {group.options.map((option) => {
-                  const isActive =
-                    option.value === "all"
-                      ? current === "all"
-                      : current === option.value;
-                  return (
-                    <button
-                      key={option.value}
-                      type="button"
-                      onClick={() => handlePillSelect(group.param, option.value)}
-                      aria-pressed={isActive}
-                      className={cn(
-                        "rounded-full border px-3 py-1 text-xs font-medium transition-all duration-150",
-                        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
-                        isActive
-                          ? "border-primary bg-primary text-primary-foreground shadow-sm"
-                          : "border-white/20 bg-card/50 text-muted-foreground hover:border-white/30 hover:bg-card/80 hover:text-foreground",
-                      )}
-                    >
-                      {option.label}
-                      {option.count !== undefined && !isActive && (
-                        <span className="ml-1 opacity-60">{option.count}</span>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-            );
-          }
+        {filterGroups.map(renderGroup)}
 
-          if (group.type === "facet") {
-            const current = searchParams.get(group.param);
-            return (
-              <FacetDropdown
-                key={group.param}
-                filter={group}
-                currentValue={current ?? undefined}
-                onChange={(v) => handleFacetSelect(group.param, v)}
-              />
-            );
-          }
-
-          if (group.type === "multifacet") {
-            const current = searchParams.get(group.param);
-            const selected = current ? current.split(",").filter(Boolean) : [];
-            return (
-              <MultiFacetDropdown
-                key={group.param}
-                filter={group}
-                selected={selected}
-                onToggle={(v) => handleMultiFacetToggle(group.param, v)}
-              />
-            );
-          }
-
-          if (group.type === "toggle") {
-            const isActive = searchParams.get(group.param) === "true";
-            return (
-              <button
-                key={group.param}
-                type="button"
-                onClick={() => handleToggle(group.param)}
-                aria-pressed={isActive}
-                className={cn(
-                  "rounded-full border px-3 py-1 text-xs font-medium transition-all duration-150",
-                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
-                  isActive
-                    ? "border-primary bg-primary text-primary-foreground shadow-sm"
-                    : "border-white/20 bg-card/50 text-muted-foreground hover:border-white/30 hover:bg-card/80 hover:text-foreground",
-                )}
-              >
-                {group.label}
-              </button>
-            );
-          }
-
-          if (group.type === "daterange") {
-            const fromVal = searchParams.get(group.paramFrom) ?? "";
-            const toVal = searchParams.get(group.paramTo) ?? "";
-            const isActive = !!(fromVal || toVal);
-            return (
-              <DateRangeDropdown
-                key={`${group.paramFrom}-${group.paramTo}`}
-                label={group.label}
-                fromValue={fromVal}
-                toValue={toVal}
-                isActive={isActive}
-                onChange={(from, to) => handleDateRangeChange(group.paramFrom, group.paramTo, from, to)}
-              />
-            );
-          }
-
-          if (group.type === "typeahead") {
-            const currentId = searchParams.get(group.param);
-            const currentDisplay = group.displayParam
-              ? (searchParams.get(group.displayParam) ?? undefined)
-              : undefined;
-            return (
-              <TypeaheadDropdown
-                key={group.param}
-                label={group.label}
-                apiPath={group.apiPath}
-                currentId={currentId ?? undefined}
-                currentDisplay={currentDisplay}
-                onSelect={(id, name) =>
-                  handleTypeaheadSelect(group.param, group.displayParam, id, name)
-                }
-                onClear={() =>
-                  handleTypeaheadSelect(group.param, group.displayParam, "", "")
-                }
-              />
-            );
-          }
-
-          return null;
-        })}
+        {/* Advanced (maintenance) filters — revealed behind an expander */}
+        {advancedFilterGroups.length > 0 && (
+          <button
+            type="button"
+            onClick={() => setAdvancedOpen((o) => !o)}
+            aria-expanded={advancedOpen}
+            className={cn(
+              "inline-flex items-center gap-1 rounded-full border px-3 py-1 text-xs font-medium transition-all duration-150",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+              advancedActiveCount > 0
+                ? "border-primary/30 bg-primary/10 text-primary hover:bg-primary/20"
+                : "border-white/20 bg-card/50 text-muted-foreground hover:border-white/30 hover:bg-card/80 hover:text-foreground",
+            )}
+          >
+            Advanced
+            {advancedActiveCount > 0 && (
+              <span className="rounded-full bg-primary/20 px-1.5 text-[10px]">{advancedActiveCount}</span>
+            )}
+            <ChevronDown size={12} className={cn("transition-transform", advancedOpen && "rotate-180")} />
+          </button>
+        )}
 
         {/* Extra children (e.g., headshot slot selector) */}
         {children}
       </div>
+
+      {/* Advanced filter row (collapsible) */}
+      {advancedFilterGroups.length > 0 && advancedOpen && (
+        <div className="flex flex-wrap items-center gap-3 rounded-lg border border-white/10 bg-card/30 px-3 py-2">
+          {advancedFilterGroups.map(renderGroup)}
+        </div>
+      )}
 
       {/* Active filter banner */}
       {hasActiveFilters && (
@@ -888,12 +935,14 @@ function DateRangeDropdown({
   fromValue,
   toValue,
   isActive,
+  allowPartial,
   onChange,
 }: {
   label: string;
   fromValue: string;
   toValue: string;
   isActive: boolean;
+  allowPartial?: boolean;
   onChange: (from: string, to: string) => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -936,20 +985,24 @@ function DateRangeDropdown({
             <div className="space-y-1">
               <label className="text-[10px] text-muted-foreground">From</label>
               <input
-                type="date"
+                type="text"
+                inputMode="numeric"
+                placeholder={allowPartial ? "yyyy" : "yyyy-mm-dd"}
                 value={localFrom}
                 onChange={(e) => setLocalFrom(e.target.value)}
-                onBlur={() => commit(localFrom, localTo)}
+                onBlur={() => commit(localFrom.trim(), localTo.trim())}
                 className="w-full rounded-md border border-input bg-background px-2 py-1 text-xs ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               />
             </div>
             <div className="space-y-1">
               <label className="text-[10px] text-muted-foreground">To</label>
               <input
-                type="date"
+                type="text"
+                inputMode="numeric"
+                placeholder={allowPartial ? "yyyy" : "yyyy-mm-dd"}
                 value={localTo}
                 onChange={(e) => setLocalTo(e.target.value)}
-                onBlur={() => commit(localFrom, localTo)}
+                onBlur={() => commit(localFrom.trim(), localTo.trim())}
                 className="w-full rounded-md border border-input bg-background px-2 py-1 text-xs ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               />
             </div>

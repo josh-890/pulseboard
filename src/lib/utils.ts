@@ -69,6 +69,41 @@ export function formatPartialDateISO(date: Date | null | undefined, precision: s
   return `${y}-${m}-${d}`;
 }
 
+/**
+ * Parse a partial yyyy / yyyy-mm / yyyy-mm-dd string into a UTC range bound.
+ * `start` → first instant of the period (year→Jan 1, month→day 1); `end` → last
+ * instant (year→Dec 31, month→last day), end-of-day so an `lte` range includes the
+ * whole day. Returns undefined for empty/malformed input. Used by the date-range
+ * filters so a year-only entry ("2016") covers the whole year.
+ */
+export function parsePartialDateBound(
+  value: string | undefined,
+  bound: "start" | "end",
+): Date | undefined {
+  const v = value?.trim();
+  if (!v) return undefined;
+  const m = /^(\d{4})(?:-(\d{2}))?(?:-(\d{2}))?$/.exec(v);
+  if (!m) return undefined;
+  const year = Number(m[1]);
+  const month = m[2] !== undefined ? Number(m[2]) : undefined; // 1-12
+  const day = m[3] !== undefined ? Number(m[3]) : undefined;
+  if (month !== undefined && (month < 1 || month > 12)) return undefined;
+
+  const monthIdx = (month ?? (bound === "start" ? 1 : 12)) - 1;
+  let dayNum: number;
+  if (day !== undefined) dayNum = day;
+  else if (bound === "start") dayNum = 1;
+  else dayNum = new Date(Date.UTC(year, monthIdx + 1, 0)).getUTCDate(); // last day of month
+
+  const dt =
+    bound === "start"
+      ? new Date(Date.UTC(year, monthIdx, dayNum, 0, 0, 0, 0))
+      : new Date(Date.UTC(year, monthIdx, dayNum, 23, 59, 59, 999));
+  // Reject impossible explicit days (e.g. 2016-02-30 rolled over to March).
+  if (day !== undefined && dt.getUTCDate() !== day) return undefined;
+  return dt;
+}
+
 /** Computes age from a partial birthdate. Returns "~29" for imprecise dates, "29" for exact. */
 export function computeAgeFromPartialDate(
   birthdate: Date | null,
