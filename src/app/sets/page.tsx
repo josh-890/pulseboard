@@ -234,28 +234,30 @@ export default async function SetsPage({ searchParams }: SetsPageProps) {
   // Housekeeping filters live behind the "Advanced" expander.
   const advancedFilterGroups: FilterGroup[] = [];
 
-  if (channelOptions.length > 0) {
+  // Only show channels/labels that have matching sets (count > 0) under the current
+  // filters — plus the currently-selected one, so an active filter stays visible.
+  const channelFacetOptions = channelOptions
+    .map((c) => ({ ...c, count: facetCounts.channelId[c.value] ?? 0 }))
+    .filter((c) => c.count > 0 || c.value === channelId);
+  if (channelFacetOptions.length > 0) {
     filterGroups.push({
       type: "facet",
       param: "channel",
       label: "Channel",
-      options: channelOptions.map((c) => ({
-        ...c,
-        count: facetCounts.channelId[c.value],
-      })),
+      options: channelFacetOptions,
       searchable: true,
     });
   }
 
-  if (labelOptions.length > 0) {
+  const labelFacetOptions = labelOptions
+    .map((l) => ({ ...l, count: facetCounts.labelId[l.value] ?? 0 }))
+    .filter((l) => l.count > 0 || l.value === labelId);
+  if (labelFacetOptions.length > 0) {
     filterGroups.push({
       type: "facet",
       param: "label",
       label: "Label",
-      options: labelOptions.map((l) => ({
-        ...l,
-        count: facetCounts.labelId[l.value],
-      })),
+      options: labelFacetOptions,
       searchable: true,
     });
   }
