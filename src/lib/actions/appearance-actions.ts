@@ -886,7 +886,6 @@ type PhysicalChangeData = {
   weight?: number;
   build?: string;
   breastSize?: string;
-  breastStatus?: string; // accepted for compatibility — status is derived, not stored
   breastDescription?: string;
   // Slice 16 follow-up: `isVerifiedUnknown` records "user confirmed there's no
   // value" for this attribute. Forces stored value to "" so the catalog

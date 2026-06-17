@@ -56,10 +56,3 @@ export const BREAST_SIZE_OPTIONS = [
   "E (extra full)",
   "F (very large)",
 ] as const;
-
-export const BREAST_STATUS_OPTIONS = [
-  "Natural",
-  "Enhanced",
-  "Reduced",
-  "Unknown",
-] as const;

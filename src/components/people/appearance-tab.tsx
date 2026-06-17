@@ -78,7 +78,6 @@ type PhysicalChangeItem = {
   weight: number | null;
   build: string | null;
   breastSize: string | null;
-  breastStatus: string | null;
   breastDescription: string | null;
   attributes: PhysicalAttributeItem[];
 };
@@ -339,7 +338,6 @@ export function AppearanceTab({
           weight: weightVal ? Number(weightVal) : null,
           build: deltaFor("cattr-build")?.value ?? null,
           breastSize: breastDelta?.value ?? null,
-          breastStatus: null,
           breastDescription: breastDelta?.notes ?? null,
           hairColorUnknown: unknownFor("cattr-hair-color"),
           weightUnknown: unknownFor("cattr-weight"),
@@ -766,7 +764,6 @@ export function AppearanceTab({
                         if (item.weight !== null) fields.push(`Weight: ${item.weight} kg`);
                         if (item.build) fields.push(`Build: ${splitOptionLabel(item.build).label}`);
                         if (item.breastSize) fields.push(`Breasts: ${splitOptionLabel(item.breastSize).label}`);
-                        if (item.breastStatus) fields.push(`Breast status: ${item.breastStatus}`);
                         if (item.breastDescription) fields.push(`Breast desc: ${item.breastDescription}`);
                         for (const attr of item.attributes) {
                           fields.push(`${attr.name}: ${splitOptionLabel(attr.value).label}${attr.unit ? ` ${attr.unit}` : ""}`);

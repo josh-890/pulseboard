@@ -10,7 +10,7 @@ import type { PhysicalAttributeGroupWithDefinitions } from "@/lib/services/physi
 import { SelectWithOther } from "@/components/shared/select-with-other";
 import { TypedAttributeInput } from "@/components/people/typed-attribute-input";
 import { CoreFieldRow } from "@/components/people/core-field-row";
-import { BREAST_SIZE_OPTIONS, BREAST_STATUS_OPTIONS, CORE_PHYSICAL_ATTR_IDS } from "@/lib/constants/appearance";
+import { BREAST_SIZE_OPTIONS, CORE_PHYSICAL_ATTR_IDS } from "@/lib/constants/appearance";
 
 type PhysicalAttributeItem = {
   definitionId: string;
@@ -30,7 +30,6 @@ type PhysicalChangeItem = {
   weight: number | null;
   build: string | null;
   breastSize: string | null;
-  breastStatus: string | null;
   breastDescription: string | null;
   // Slice 16 follow-up: verified-unknown flags per core field on this Era.
   hairColorUnknown?: boolean;
@@ -80,7 +79,6 @@ export function EditPhysicalChangeSheet({ personId, item, attributeGroups, onClo
   const [weight, setWeight] = useState(item.weight !== null ? String(item.weight) : "");
   const [build, setBuild] = useState(item.build ?? "");
   const [breastSize, setBreastSize] = useState(item.breastSize ?? "");
-  const [breastStatus, setBreastStatus] = useState(item.breastStatus ?? "");
   const [breastDescription, setBreastDescription] = useState(item.breastDescription ?? "");
   // Slice 16 follow-up: verified-unknown flags for the 4 core fields.
   const [hairColorUnknown, setHairColorUnknown] = useState(item.hairColorUnknown ?? false);
@@ -127,7 +125,6 @@ export function EditPhysicalChangeSheet({ personId, item, attributeGroups, onClo
     weight.trim() ||
     build.trim() ||
     breastSize.trim() ||
-    breastStatus.trim() ||
     breastDescription.trim() ||
     hairColorUnknown ||
     weightUnknown ||
@@ -197,7 +194,6 @@ export function EditPhysicalChangeSheet({ personId, item, attributeGroups, onClo
         weight: weightUnknown ? undefined : (weight.trim() ? parseFloat(weight) : undefined),
         build: buildUnknown ? "" : (build.trim() || undefined),
         breastSize: breastSizeUnknown ? "" : (breastSize.trim() || undefined),
-        breastStatus: breastStatus.trim() || undefined,
         breastDescription: breastDescription.trim() || undefined,
         attributes: attributes.length > 0 ? attributes : undefined,
         cause,
@@ -217,7 +213,7 @@ export function EditPhysicalChangeSheet({ personId, item, attributeGroups, onClo
       }
       onClose();
     });
-  }, [item.eraId, personId, date, datePrecision, intent, currentHairColor, weight, build, breastSize, breastStatus, breastDescription, attrValues, attrUnknown, hairColorUnknown, weightUnknown, buildUnknown, breastSizeUnknown, hasAnyField, cause, onClose]);
+  }, [item.eraId, personId, date, datePrecision, intent, currentHairColor, weight, build, breastSize, breastDescription, attrValues, attrUnknown, hairColorUnknown, weightUnknown, buildUnknown, breastSizeUnknown, hasAnyField, cause, onClose]);
 
   return (
     <div role="dialog" aria-modal="true" className="fixed inset-0 z-50 flex justify-end">
@@ -350,16 +346,6 @@ export function EditPhysicalChangeSheet({ personId, item, attributeGroups, onClo
               placeholder="Select cup size…"
             />
           </CoreFieldRow>
-
-          <div>
-            <label className="mb-1.5 block text-sm font-medium">Breast Status</label>
-            <SelectWithOther
-              options={BREAST_STATUS_OPTIONS}
-              value={breastStatus || undefined}
-              onChange={(v) => setBreastStatus(v ?? "")}
-              placeholder="Select status…"
-            />
-          </div>
 
           <div>
             <label className="mb-1.5 block text-sm font-medium">Breast Description</label>

@@ -9,7 +9,6 @@ export const recordPhysicalChangeSchema = z
     weight: z.coerce.number().positive().optional(),
     build: z.string().optional(),
     breastSize: z.string().optional(),
-    breastStatus: z.string().optional(),
     breastDescription: z.string().optional(),
   })
   .refine(
@@ -18,7 +17,6 @@ export const recordPhysicalChangeSchema = z
       data.weight !== undefined ||
       data.build ||
       data.breastSize ||
-      data.breastStatus ||
       data.breastDescription,
     { message: "At least one physical field is required." },
   );
