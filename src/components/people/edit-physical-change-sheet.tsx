@@ -31,6 +31,7 @@ type PhysicalChangeItem = {
   build: string | null;
   breastSize: string | null;
   breastDescription: string | null;
+  cause: "NATURAL" | "SURGICAL" | "OTHER";
   // Slice 16 follow-up: verified-unknown flags per core field on this Era.
   hairColorUnknown?: boolean;
   weightUnknown?: boolean;
@@ -71,10 +72,11 @@ export function EditPhysicalChangeSheet({ personId, item, attributeGroups, onClo
   const [intent, setIntent] = useState<"on-date" | "dateless" | "baseline">(initIntent);
   const [date, setDate] = useState(initDate);
   const [datePrecision, setDatePrecision] = useState(initPrec);
-  // Phase G Slice 4 / ADR-0007: the edit sheet doesn't know the existing
-  // delta's cause without an extra service call, so default it to NATURAL.
-  // Selecting SURGICAL here will tag the (re-written) deltas accordingly.
-  const [cause, setCause] = useState<"NATURAL" | "SURGICAL" | "OTHER">("NATURAL");
+  // Phase G Slice 4 / ADR-0007: pre-load the Era's existing cause (threaded in
+  // via the item) so editing an Enhanced change for an unrelated reason doesn't
+  // silently reset its status to Natural. Selecting a different value here
+  // re-tags the re-written deltas accordingly.
+  const [cause, setCause] = useState<"NATURAL" | "SURGICAL" | "OTHER">(item.cause);
   const [currentHairColor, setCurrentHairColor] = useState(item.currentHairColor ?? "");
   const [weight, setWeight] = useState(item.weight !== null ? String(item.weight) : "");
   const [build, setBuild] = useState(item.build ?? "");

@@ -79,6 +79,9 @@ type PhysicalChangeItem = {
   build: string | null;
   breastSize: string | null;
   breastDescription: string | null;
+  // ADR-0007: the Era's status-bearing cause, so the edit sheet can pre-load
+  // it instead of silently resetting to NATURAL on an unrelated edit.
+  cause: "NATURAL" | "SURGICAL" | "OTHER";
   attributes: PhysicalAttributeItem[];
 };
 
@@ -339,6 +342,13 @@ export function AppearanceTab({
           build: deltaFor("cattr-build")?.value ?? null,
           breastSize: breastDelta?.value ?? null,
           breastDescription: breastDelta?.notes ?? null,
+          // The whole-Era edit sheet applies one cause to all rewritten deltas;
+          // seed the picker from the Era's first non-NATURAL delta (a recorded
+          // change set shares one cause), else NATURAL.
+          cause: (p.scalarDeltas.find((d) => d.cause !== "NATURAL")?.cause ?? "NATURAL") as
+            | "NATURAL"
+            | "SURGICAL"
+            | "OTHER",
           hairColorUnknown: unknownFor("cattr-hair-color"),
           weightUnknown: unknownFor("cattr-weight"),
           buildUnknown: unknownFor("cattr-build"),
