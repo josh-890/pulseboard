@@ -287,12 +287,24 @@ function PhysicalDescriptive({
       } labelWidth={labelWidth} />
       {(currentState.breastSize || currentState.coreAttrUnknown.breastSize) && (
         <InfoRow
-          label="Breast size"
-          value={currentState.coreAttrUnknown.breastSize ? <UnknownPill /> : splitOptionLabel(currentState.breastSize ?? "").label}
+          label="Breast"
+          value={
+            currentState.coreAttrUnknown.breastSize ? (
+              <UnknownPill />
+            ) : (
+              <span>
+                {splitOptionLabel(currentState.breastSize ?? "").label}
+                {currentState.breastStatus && (
+                  <span className="ml-1 capitalize text-muted-foreground">
+                    ({currentState.breastStatus})
+                  </span>
+                )}
+              </span>
+            )
+          }
           labelWidth={labelWidth}
         />
       )}
-      {currentState.breastStatus && <InfoRow label="Breast status" value={<span className="capitalize">{currentState.breastStatus}</span>} labelWidth={labelWidth} />}
       <InfoRow label="Build" value={
         currentState.coreAttrUnknown.build
           ? <UnknownPill />
