@@ -69,20 +69,56 @@ describe("AttributeStatus derivation from cause (ADR-0007)", () => {
     expect(folded["cattr-weight"]?.cause).toBe("NATURAL");
   });
 
-  it("ENHANCED: winning delta has cause=SURGICAL", async () => {
+  it("ENHANCED: winning delta has cause=AUGMENTATION", async () => {
     const { personId, baselineEraId } = await createPersonWithBaseline(`${PERSON_NAME_PREFIX}enhanced`);
     await prisma.scalarDelta.create({
       data: { eraId: baselineEraId, attributeDefinitionId: "cattr-breast-size", value: "B", cause: "NATURAL" },
     });
     const era2 = await createDatedEra(personId, "2020 surgery", new Date("2020-06-01"));
     await prisma.scalarDelta.create({
-      data: { eraId: era2, attributeDefinitionId: "cattr-breast-size", value: "D", date: new Date("2020-06-01"), datePrecision: "DAY", cause: "SURGICAL" },
+      data: { eraId: era2, attributeDefinitionId: "cattr-breast-size", value: "D", date: new Date("2020-06-01"), datePrecision: "DAY", cause: "AUGMENTATION" },
     });
 
     const eras = await loadErasForFold(personId);
     const folded = foldScalarDeltas(eras);
     expect(folded["cattr-breast-size"]?.value).toBe("D");
-    expect(folded["cattr-breast-size"]?.cause).toBe("SURGICAL");
+    expect(folded["cattr-breast-size"]?.cause).toBe("AUGMENTATION");
+  });
+
+  it("REDUCED: winning delta has cause=REDUCTION", async () => {
+    const { personId, baselineEraId } = await createPersonWithBaseline(`${PERSON_NAME_PREFIX}reduced`);
+    await prisma.scalarDelta.create({
+      data: { eraId: baselineEraId, attributeDefinitionId: "cattr-breast-size", value: "D", cause: "NATURAL" },
+    });
+    const era2 = await createDatedEra(personId, "2021 reduction", new Date("2021-06-01"));
+    await prisma.scalarDelta.create({
+      data: { eraId: era2, attributeDefinitionId: "cattr-breast-size", value: "B", date: new Date("2021-06-01"), datePrecision: "DAY", cause: "REDUCTION" },
+    });
+
+    const eras = await loadErasForFold(personId);
+    const folded = foldScalarDeltas(eras);
+    expect(folded["cattr-breast-size"]?.value).toBe("B");
+    expect(folded["cattr-breast-size"]?.cause).toBe("REDUCTION");
+  });
+
+  it("RESTORED via REVERSAL: explant winning delta", async () => {
+    const { personId, baselineEraId } = await createPersonWithBaseline(`${PERSON_NAME_PREFIX}reversal`);
+    await prisma.scalarDelta.create({
+      data: { eraId: baselineEraId, attributeDefinitionId: "cattr-breast-size", value: "B", cause: "NATURAL" },
+    });
+    const era2 = await createDatedEra(personId, "2020 augmentation", new Date("2020-06-01"));
+    await prisma.scalarDelta.create({
+      data: { eraId: era2, attributeDefinitionId: "cattr-breast-size", value: "D", date: new Date("2020-06-01"), datePrecision: "DAY", cause: "AUGMENTATION" },
+    });
+    const era3 = await createDatedEra(personId, "2024 explant", new Date("2024-03-01"));
+    await prisma.scalarDelta.create({
+      data: { eraId: era3, attributeDefinitionId: "cattr-breast-size", value: "B", date: new Date("2024-03-01"), datePrecision: "DAY", cause: "REVERSAL" },
+    });
+
+    const eras = await loadErasForFold(personId);
+    const folded = foldScalarDeltas(eras);
+    expect(folded["cattr-breast-size"]?.value).toBe("B");
+    expect(folded["cattr-breast-size"]?.cause).toBe("REVERSAL");
   });
 
   it("RESTORED: SURGICAL in history but a later non-SURGICAL delta overrode it", async () => {

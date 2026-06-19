@@ -6,7 +6,8 @@ import {
   type DueLevel,
 } from "@/lib/services/scan-service";
 import { getAllScrapeSources } from "@/lib/services/scrape-source-service";
-import type { WatchPriority } from "@/generated/prisma/client";
+import type { WatchPriority, DeltaCause } from "@/generated/prisma/client";
+import type { AttributeStatus } from "@/lib/types";
 import type {
   PersonWithCommonAlias,
   PersonWorkHistoryItem,
@@ -984,6 +985,39 @@ export function foldScalarDeltas<E extends FoldableEra>(
   return folded;
 }
 
+// Surgical-kind causes (ADR-0018). Any of these in an attribute's history means
+// an intervention occurred; the winning delta's kind decides the displayed status.
+export const SURGICAL_KINDS: ReadonlySet<DeltaCause> = new Set<DeltaCause>([
+  "SURGICAL",
+  "AUGMENTATION",
+  "REDUCTION",
+  "REVERSAL",
+]);
+
+// Single source of truth for the cause → AttributeStatus mapping (ADR-0018).
+// Mirrored by the SQL fold in app_recompute_person_current_state — keep both
+// in lockstep.
+//   AUGMENTATION | SURGICAL (legacy) → ENHANCED
+//   REDUCTION                        → REDUCED
+//   REVERSAL                         → RESTORED
+//   else, a surgical kind exists in history but the winner is natural → RESTORED
+//   NATURAL / OTHER / none           → NATURAL
+export function attributeStatusFromCause(
+  winnerCause: DeltaCause | undefined,
+  hasInterventionHistory: boolean,
+): AttributeStatus {
+  switch (winnerCause) {
+    case "AUGMENTATION":
+    case "SURGICAL":
+      return "ENHANCED";
+    case "REDUCTION":
+      return "REDUCED";
+    case "REVERSAL":
+      return "RESTORED";
+  }
+  return hasInterventionHistory ? "RESTORED" : "NATURAL";
+}
+
 /**
  * Appearance-at-shoot snapshot — the scalar fold up to a point in time.
  * Used by participant cards on session/set detail pages to show "this is what
@@ -1300,26 +1334,28 @@ export function deriveCurrentState(
     });
   }
 
-  // Derive AttributeStatus from delta `cause` (ADR-0007 / Phase G Slice 4).
-  // Replaces the previous CosmeticProcedure-presence rule.
-  //   NATURAL  — no delta in this attribute's history has cause=SURGICAL.
-  //   ENHANCED — the winning delta has cause=SURGICAL.
-  //   RESTORED — a SURGICAL delta exists in history but the winning delta
-  //              does not (a later non-SURGICAL delta overrode it).
+  // Derive AttributeStatus from the delta's change-kind `cause`
+  // (ADR-0007, refined by ADR-0018). Kept in lockstep with the SQL fold in
+  // app_recompute_person_current_state.
+  //   NATURAL  — no surgical-kind delta in this attribute's history.
+  //   ENHANCED — winning delta is AUGMENTATION (or legacy SURGICAL).
+  //   REDUCED  — winning delta is REDUCTION.
+  //   RESTORED — winning delta is REVERSAL, OR a surgical kind exists in history
+  //              but a later natural delta overrode it.
   //
-  // Build a per-attribute "has any SURGICAL in history" set + a baseline-value
-  // map (for Pattern Y progression rendering) by walking all eras once.
+  // Build a per-attribute "has any surgical kind in history" set + a baseline-
+  // value map (for Pattern Y progression rendering) by walking all eras once.
   // Baseline picking is resilient to duplicates: when an attribute has multiple
   // baseline deltas (data anomaly from old imports), prefer the one whose value
   // *differs* from the current fold winner — that's the value Pattern Y needs
   // to show progression. Falls back to the first baseline delta otherwise.
-  const surgicalHistory = new Set<string>();
+  const interventionHistory = new Set<string>();
   const baselineCandidates = new Map<string, string[]>();
   for (const era of person.eras) {
     for (const d of era.scalarDeltas) {
       if (d.value.trim() === "") continue;
-      if (d.cause === "SURGICAL") {
-        surgicalHistory.add(d.attributeDefinitionId);
+      if (SURGICAL_KINDS.has(d.cause)) {
+        interventionHistory.add(d.attributeDefinitionId);
       }
       if (era.isBaseline) {
         const arr = baselineCandidates.get(d.attributeDefinitionId) ?? [];
@@ -1335,12 +1371,8 @@ export function deriveCurrentState(
     baselineValues.set(defId, differing ?? candidates[0]);
   }
 
-  const deriveStatus = (defId: string): import("@/lib/types").AttributeStatus => {
-    const winner = folded[defId];
-    if (winner?.cause === "SURGICAL") return "ENHANCED";
-    if (surgicalHistory.has(defId)) return "RESTORED";
-    return "NATURAL";
-  };
+  const deriveStatus = (defId: string): AttributeStatus =>
+    attributeStatusFromCause(folded[defId]?.cause, interventionHistory.has(defId));
 
   // Apply to extensible attributes — set status + baseline value for Pattern Y.
   for (const defId of Object.keys(extensibleAttributes)) {
@@ -1348,13 +1380,10 @@ export function deriveCurrentState(
     extensibleAttributes[defId].baselineValue = baselineValues.get(defId) ?? null;
   }
 
-  // breast_size is a core scalar — its status surfaces as breastStatus.
-  const breastDerived = deriveStatus(CORE_ATTR.breastSize);
+  // breast_size is a core scalar — its status surfaces as breastStatus, the
+  // lowercased derived status ("enhanced" | "reduced" | "restored" | "natural").
   if (breastSize !== null) {
-    breastStatus =
-      breastDerived === "ENHANCED" ? "enhanced" :
-      breastDerived === "RESTORED" ? "natural" :  // restored back to baseline natural
-      "natural";
+    breastStatus = deriveStatus(CORE_ATTR.breastSize).toLowerCase();
   }
 
   // Phase G Slice 15: union of distinct mark + modification types where the

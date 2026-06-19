@@ -493,7 +493,9 @@ export async function importPerson(item: ImportItem): Promise<ImportResult> {
             eraId: draftEra.id,
             attributeDefinitionId: 'cattr-breast-size',
             value: canonicaliseBreastCup(cupAny) ?? '',
-            cause: 'SURGICAL',
+            // ADR-0018: imported "enhanced/fake" breasts are augmentations.
+            // (No source vocabulary distinguishes reductions today.)
+            cause: 'AUGMENTATION',
             datePrecision: 'UNKNOWN',
             dateSource: 'import-enhanced',
             notes: `import: "${breastParsed.raw}"`,

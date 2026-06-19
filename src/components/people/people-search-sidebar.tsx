@@ -301,6 +301,7 @@ function AttributeControl({
         <option value="">Any</option>
         <option value="NATURAL">Natural</option>
         <option value="ENHANCED">Enhanced</option>
+        <option value="REDUCED">Reduced</option>
         <option value="RESTORED">Restored</option>
       </select>
     </div>

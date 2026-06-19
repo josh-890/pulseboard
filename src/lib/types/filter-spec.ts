@@ -35,7 +35,7 @@ export type TextFilter = {
   fuzzy: boolean;
 };
 
-export type AttributeStatusFilter = "NATURAL" | "ENHANCED" | "RESTORED";
+export type AttributeStatusFilter = "NATURAL" | "ENHANCED" | "REDUCED" | "RESTORED";
 
 export type AttributeBaselinePresence = "has" | "missing";
 
@@ -350,7 +350,7 @@ export function specFromUrlParams(params: ReadableParams): FilterSpec {
         const n = Number(value);
         if (Number.isFinite(n)) entry.max = n;
       } else if (kind === "status") {
-        if (value === "NATURAL" || value === "ENHANCED" || value === "RESTORED") {
+        if (value === "NATURAL" || value === "ENHANCED" || value === "REDUCED" || value === "RESTORED") {
           entry.status = value;
         }
       } else if (kind === "baseline") {

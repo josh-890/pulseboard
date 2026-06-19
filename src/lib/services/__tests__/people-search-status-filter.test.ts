@@ -34,6 +34,13 @@ describe("AttributeStatus filter URL round-trip", () => {
     expect(spec.attribute[0]?.values).toEqual([]);
   });
 
+  it("parses the REDUCED status (ADR-0018)", () => {
+    const spec = specFromUrlParams(paramsFrom({
+      "attr.cattr-breast-size.status": "REDUCED",
+    }));
+    expect(spec.attribute[0]?.status).toBe("REDUCED");
+  });
+
   it("parses combined values + status", () => {
     const spec = specFromUrlParams(paramsFrom({
       "attr.cattr-breast-size": "B,C",

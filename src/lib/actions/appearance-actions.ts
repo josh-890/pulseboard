@@ -7,6 +7,7 @@ import { ensureCatalogEntry } from "@/lib/services/color-catalog-service";
 import type {
   Prisma,
   DatePrecision,
+  DeltaCause,
   BodyMarkType,
   BodyMarkStatus,
   BodyMarkEventType,
@@ -891,7 +892,7 @@ type PhysicalChangeData = {
   // value" for this attribute. Forces stored value to "" so the catalog
   // value-shape invariant holds; the fold writes the sentinel
   // `"__UNKNOWN__"` into PersonCurrentState.baselineAttributes.
-  attributes?: { definitionId: string; value: string; isVerifiedUnknown?: boolean }[];
+  attributes?: { definitionId: string; value: string; isVerifiedUnknown?: boolean; cause?: DeltaCause }[];
   // Slice 16 follow-up: verified-unknown flags for the 4 core scalar attrs
   // (Hair Color, Weight, Build, Breast Size) that have hardcoded UI in the
   // record-change sheet. When set, the matching core field's delta is
@@ -903,10 +904,12 @@ type PhysicalChangeData = {
     build?: boolean;
     breastSize?: boolean;
   };
-  // Phase G Slice 4 / ADR-0007: optional cause for the whole change set.
-  // Stored on each ScalarDelta this change creates; drives the AttributeStatus
-  // derivation (NATURAL / ENHANCED / RESTORED). Defaults to NATURAL.
-  cause?: "NATURAL" | "SURGICAL" | "OTHER";
+  // ADR-0018: per-attribute change-kind for the status-bearing breast_size
+  // delta only (Natural/Augmentation/Reduction/Reversal/Other). Drives the
+  // AttributeStatus derivation; applied ONLY to the cattr-breast-size delta —
+  // never bled onto hair/weight/build. Defaults to NATURAL. Per-attribute kinds
+  // for extensible status-bearing attrs ride on `attributes[].cause`.
+  breastKind?: DeltaCause;
   // Phase G Slice 7 / ADR-0006: where the delta lands.
   //  - 'on-date'  → auto-cluster into a draft Era around `date` (±N months)
   //  - 'dateless' → land in the person's dateless draft Era ("I don't know when")
@@ -920,6 +923,9 @@ type ScalarDeltaItem = {
   value: string;
   notes?: string | null;
   isVerifiedUnknown?: boolean;
+  // ADR-0018: change-kind for THIS delta. Only status-bearing attrs carry a
+  // non-NATURAL kind; everything else stays NATURAL (no cause-bleed).
+  cause?: DeltaCause;
 };
 
 // Map a physical-change form payload to ScalarDelta items.
@@ -950,12 +956,14 @@ function buildPhysicalDeltaItems(data: PhysicalChangeData): ScalarDeltaItem[] {
       value: u.breastSize ? "" : (data.breastSize ?? ""),
       notes: data.breastDescription ?? null,
       isVerifiedUnknown: u.breastSize ?? false,
+      cause: data.breastKind ?? "NATURAL",
     });
   for (const a of data.attributes ?? [])
     items.push({
       attributeDefinitionId: a.definitionId,
       value: a.value,
       isVerifiedUnknown: a.isVerifiedUnknown ?? false,
+      cause: a.cause ?? "NATURAL",
     });
   return items;
 }
@@ -967,9 +975,11 @@ async function replaceEraScalarDeltas(
   items: ScalarDeltaItem[],
   date: Date | null,
   datePrecision: DatePrecision,
-  cause: "NATURAL" | "SURGICAL" | "OTHER" = "NATURAL",
 ) {
   for (const item of items) {
+    // ADR-0018: cause is per-item (status-bearing attrs only); never a
+    // change-set-wide value bled onto unrelated deltas.
+    const cause = item.cause ?? "NATURAL";
     await tx.scalarDelta.deleteMany({
       where: { eraId, attributeDefinitionId: item.attributeDefinitionId },
     });
@@ -1037,7 +1047,6 @@ export async function recordPhysicalChangeAction(
           buildPhysicalDeltaItems(data),
           deltaDate,
           deltaPrecision as DatePrecision,
-          data.cause ?? "NATURAL",
         );
         await recomputePersonCurrentState(tx, personId);
       });
@@ -1125,7 +1134,6 @@ export async function updatePhysicalChangeAction(
           buildPhysicalDeltaItems(data),
           deltaDate,
           deltaPrecision as DatePrecision,
-          data.cause ?? "NATURAL",
         );
 
         // If we just emptied the source draft Era, garbage-collect it.
@@ -1156,7 +1164,7 @@ export type ScalarDeltaEdit = {
   date?: string | null;
   datePrecision?: string;
   intent?: "on-date" | "dateless" | "baseline";
-  cause?: "NATURAL" | "SURGICAL" | "OTHER";
+  cause?: DeltaCause;
   notes?: string | null;
 };
 

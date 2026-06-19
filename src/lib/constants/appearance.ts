@@ -1,3 +1,5 @@
+import type { AttributeStatus } from "@/lib/types";
+
 // Hair, eye, and skin colors are catalog-driven via color_catalog.
 // Per ADR-0010 (Slice 16E), the catalog definitions for those three slugs
 // carry `colorCategory` and the canonical edit path is <TypedAttributeInput
@@ -56,3 +58,30 @@ export const BREAST_SIZE_OPTIONS = [
   "E (extra full)",
   "F (very large)",
 ] as const;
+
+// Per-attribute change-kind (ADR-0018). The inline "Kind" picker on a
+// status-bearing scalar (breast_size today) writes this to ScalarDelta.cause
+// and drives the AttributeStatus derivation. NATURAL / OTHER produce no badge.
+// Mirrors the DeltaCause enum (schema.prisma). SURGICAL is intentionally NOT an
+// authoring option — it survives only as a legacy/body-event value.
+export const CHANGE_KIND_OPTIONS = [
+  { value: "NATURAL", label: "Natural — no intervention / usual drift" },
+  { value: "AUGMENTATION", label: "Augmentation — surgically enlarged" },
+  { value: "REDUCTION", label: "Reduction — surgically reduced" },
+  { value: "REVERSAL", label: "Reversal — implants removed (back toward natural)" },
+  { value: "OTHER", label: "Other" },
+] as const;
+
+export type ChangeKind = (typeof CHANGE_KIND_OPTIONS)[number]["value"];
+
+// Display label + Tailwind tint for each non-NATURAL AttributeStatus, consumed
+// by AttributeStatusProgression and the hero/search surfaces so the wording and
+// colors live in one place (ADR-0018).
+export const ATTRIBUTE_STATUS_DISPLAY: Record<
+  Exclude<AttributeStatus, "NATURAL">,
+  { label: string; tint: string }
+> = {
+  ENHANCED: { label: "Enhanced", tint: "bg-purple-500/15 text-purple-400" },
+  REDUCED: { label: "Reduced", tint: "bg-amber-500/15 text-amber-400" },
+  RESTORED: { label: "Restored", tint: "bg-emerald-500/15 text-emerald-400" },
+};

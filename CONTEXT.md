@@ -51,15 +51,18 @@ One delta in the lifecycle of an identity-bearing changing attribute (`added` / 
 **Attribute definition**:
 A catalog entry (admin-configurable) describing one trackable scalar attribute — its name, value type (numeric, single-select, etc.), unit, and allowed values. Every scalar delta targets an Attribute definition; the catalog is the single registry of what scalar attributes exist.
 
-**Attribute status** (revised 2026-05-24):
-A *derived* property of a changing attribute — `NATURAL`, `ENHANCED`, or `RESTORED`. Derived from each delta's `cause` flag (`NATURAL` / `SURGICAL` / `OTHER`) via the Fold:
-- `NATURAL` — no delta with `cause = SURGICAL` in the attribute's history.
-- `ENHANCED` — the winning delta has `cause = SURGICAL`.
-- `RESTORED` — a SURGICAL delta exists in history but a later non-SURGICAL delta has overridden it.
+**Attribute status** (revised 2026-06-19, ADR-0018):
+A *derived* property of a changing attribute — `NATURAL`, `ENHANCED`, `REDUCED`, or `RESTORED`. Derived from the **change-kind** stored per delta in `cause` (`NATURAL` / `AUGMENTATION` / `REDUCTION` / `REVERSAL` / `OTHER`; legacy `SURGICAL` survives for body events) via the Fold:
+- `NATURAL` — no surgical-kind delta in the attribute's history.
+- `ENHANCED` — the winning delta is `AUGMENTATION` (or legacy `SURGICAL`).
+- `REDUCED` — the winning delta is `REDUCTION`.
+- `RESTORED` — the winning delta is `REVERSAL` (explant), or a surgical kind exists in history but a later natural delta overrode it.
 
-Cached per attribute in `PersonCurrentState.attributeStatuses` for query (filter: "all persons with natural breast status"). Hero/grid display: `NATURAL` renders as plain value; `ENHANCED` / `RESTORED` render as `B (Natural) → D (Enhanced)` with a status label per value pill.
+Change-kind is a **per-attribute** property (PROV/CQRS/EMR: semantics belong on the specific change, not the change-set). It is authored via an **inline "Kind" picker** on the status-bearing field (breast size), never a change-set-wide control, and applies only to that delta — never bled onto unrelated attributes.
 
-**Status is gated by `PhysicalAttributeDefinition.statusBearing`** (Boolean, default `FALSE`). The ENHANCED/RESTORED vocabulary only makes semantic sense for attributes that can be the target of a cosmetic procedure (breast size; potentially face attrs). For non-status-bearing attrs (weight, hair color, build, all body measurements, etc.) the UI surfaces — Pattern Y, status sub-filter in the sidebar, the Cause picker in the record-change sheet — are hidden. The `cause` column on `ScalarDelta` and the fold-derived `attributeStatuses` cache column remain populated uniformly; gating is a UI/UX policy, not a data constraint (same pattern as `mutability` per ADR-0005). See `docs/adr/0007` amendment block and `project_status_bearing_eligibility.md`.
+Cached per attribute in `PersonCurrentState.attributeStatuses` for query (filter: "all persons with reduced breast status"). Hero/grid display: `NATURAL` renders as plain value; the others render as `B (Natural) → D (Enhanced)` / `D (Natural) → B (Reduced)` with a status label per value pill.
+
+**Status is gated by `PhysicalAttributeDefinition.statusBearing`** (Boolean, default `FALSE`). The status vocabulary only makes semantic sense for attributes that can be surgically altered (breast size; potentially face attrs). For non-status-bearing attrs (weight, hair color, build, all body measurements, etc.) the UI surfaces — Pattern Y, status sub-filter in the sidebar, the inline Kind picker — are hidden. The `cause` column on `ScalarDelta` and the fold-derived `attributeStatuses` cache column remain populated uniformly; gating is a UI/UX policy, not a data constraint (same pattern as `mutability` per ADR-0005). See `docs/adr/0007` + `docs/adr/0018` and `project_status_bearing_eligibility.md`.
 
 _Historical note_: until 2026-05-24, status was derived from the presence of a `CosmeticProcedure` record targeting the attribute. ADR-0007 dropped the `CosmeticProcedure` entity and moved causation onto the delta itself.
 

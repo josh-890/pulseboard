@@ -33,7 +33,10 @@ relevant to the data model:
   `date`/`datePrecision`. Auto-created eras start with `isDraft: true` until
   a user curates them. *Eras are folders, not date ranges* — see ADR-0001.
 - **ScalarDelta** — One typed scalar change to a Person attribute, filed into
-  an Era. Carries its own date. Replaces the legacy `PersonaPhysical` table.
+  an Era. Carries its own date and a per-delta **change-kind** (`cause`:
+  NATURAL / AUGMENTATION / REDUCTION / REVERSAL / OTHER) that drives the derived
+  `AttributeStatus` (NATURAL / ENHANCED / REDUCED / RESTORED) for status-bearing
+  attrs — ADR-0007/0018. Replaces the legacy `PersonaPhysical` table.
 - **Event** — A dated, typed log entry on a status-bearing entity
   (`BodyMarkEvent`, `BodyModificationEvent`, `CosmeticProcedureEvent`,
   `DigitalIdentityEvent`, `InterestEvent`, `PersonSkillEvent`,

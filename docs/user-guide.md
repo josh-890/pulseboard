@@ -266,13 +266,13 @@ Only photos from the person's reference session can be embedded — external URL
 
 **Appearance**
 - Current physical state (height, weight, body type, ethnicity, hair color)
-- Extensible physical attributes with Natural/Enhanced/Restored status badges
+- Extensible physical attributes with Natural/Enhanced/Reduced/Restored status badges
 - **Body Features** (Phase G Slice 11) — one unified card replaces the separate Body Marks + Body Modifications cards. Subsections (● Body Marks / ● Body Modifications) only render when there's at least one entry of that type — empty categories disappear. The footer `+ Add body feature` opens a type-picker popover (Tattoo / Scar / Mark / Burn / Deformity / Other for marks; Piercing / Stretching / Branding / Scarification / Implant / Teeth / Jewelry / Other for modifications); clicking a type opens the matching add sheet pre-selected.
 - **Expanded row view** (Phase G Slice 12) — clicking a body feature row expands it into a 4-section panel: an action toolbar (pin / photos / edit / delete) plus a prominent **Status pill** (● Present / ▲ Modified / ○ Removed / ◐ Overgrown) at the top-right; then labelled **PROPERTIES** (folded current values from the event log — motif / colors / size / description for marks; material / gauge / description for modifications), **PHOTOS** (thumbnail strip — the **first photo is the cover** shown on the body-map hover; hover any other thumbnail and click its ★ to **Set as cover**, also available in the photo lightbox), and **LIFECYCLE** (dot-line event timeline plus a textual `+ Record event` button). Sections with no content are hidden entirely.
 - **Body map Level-2 interactivity** (Phase G Slice 13) — the right-column body map is now linked to the Body Features list. **Click a region** to filter the list to features in that region (a `Region: <name> ×` chip appears at the top of the Body Features card; click the × to clear). **Hover a region** to glow the matching list rows; **hover a list row** to highlight its region on the map. The map's region tooltip distinguishes removed features (outlined dot, strikethrough label) from present ones (filled dot).
 - **Region hover tooltip with image** (Phase G Slice 14) — hover a body region for ~300ms and a bounded tooltip appears with a focal-cropped thumbnail + type pill + region + description for each feature at that region. **Click a feature in the tooltip** and the page scrolls to its row and briefly highlights it. Regions with no attached photo show a quiet "no photo" placeholder.
 - **Hero body-feature chips** (Phase G Slice 15) — the hero panel surfaces one subtle pill per distinct body-feature type the person currently has (e.g. `tattoo`, `piercing`). Three tattoos = one `Tattoo` chip — purely binary presence, no count. Amber for marks, teal for modifications. Driven by a derived cache column so a chip appears the moment the first instance is added and disappears when the last one is removed. Clicking the chip group jumps to the Appearance tab.
-- Surgical changes to scalar attributes are captured as deltas with `cause=SURGICAL`, driving the Enhanced status badge (ADR-0007)
+- Surgical changes to a status-bearing scalar attribute carry a per-delta **Kind** (Augmentation / Reduction / Reversal), driving the Enhanced / Reduced / Restored status badge (ADR-0007/0018)
 - Folded chronologically from era history (latest delta wins per attribute — see the History panel for the full timeline)
 
 **Details**
@@ -1209,7 +1209,7 @@ Define custom physical attributes for tracking measurements over time. An accord
 - Unit (optional, e.g. "cm", "cup size")
 - Sort order (drag to reorder)
 
-These definitions are used in **Recording physical changes** — extensible attribute inputs appear in the Record/Edit Physical Change sheets below the 5 fixed fields. The record-change sheet has a **Cause** field (default `Natural`); setting it to `Surgical` drives the derived **Enhanced** status badge.
+These definitions are used in **Recording physical changes** — extensible attribute inputs appear in the Record/Edit Physical Change sheets below the 5 fixed fields. For a **status-bearing** attribute (breast size), an inline **Kind** picker sits directly under the field (default `Natural`); choosing `Augmentation` / `Reduction` / `Reversal` drives the derived status badge (ADR-0018). The Kind belongs to that one attribute — it is never a change-set-wide control and never affects unrelated fields.
 
 **When did this change? (Phase G Slice 7 / ADR-0006).** The Record sheet no longer has an Era picker. Instead you pick one of three intents:
 
@@ -1225,10 +1225,11 @@ The default reflects history: a fresh person opens with **baseline** preselected
 
 **Curation nudge & promotion.** When a draft Era accumulates ≥3 populated changes, a soft inline prompt appears on the Era card: *"N changes saved here — Name this phase?"*. Clicking opens an **inline promotion editor**: enter a name + a checkbox list of the member deltas (all checked by default). Save promotes the Era from draft → curated; **unchecked rows split out** into their own draft Eras (clustered by date). At least one change must stay in the source Era. Dismissing the nudge (×) hides it for 7 days. The aggregate count of nudge-eligible drafts also surfaces as a badge on the **Overview tab label** itself.
 
-**Attribute status** (derived automatically per ADR-0007, shown as badges in the Appearance tab; only attributes with `statusBearing=true` surface a badge):
-- **Natural** — no delta on this attribute has `cause=SURGICAL`
-- **Enhanced** (purple badge) — the winning delta of the fold has `cause=SURGICAL`
-- **Restored** (green badge) — a SURGICAL delta exists in history but a later non-SURGICAL delta overrode it
+**Attribute status** (derived automatically per ADR-0007/0018 from each delta's **Kind**, shown as badges in the Appearance tab; only attributes with `statusBearing=true` surface a badge):
+- **Natural** — no surgical-kind delta on this attribute
+- **Enhanced** (purple badge) — the winning delta is `Augmentation`
+- **Reduced** (amber badge) — the winning delta is `Reduction`
+- **Restored** (green badge) — the winning delta is `Reversal` (explant), or a surgical kind exists in history but a later natural delta overrode it
 
 **Operations:** Add group, add definition to group, edit definition, delete definition (blocked if in use), reorder.
 

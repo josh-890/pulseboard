@@ -127,14 +127,23 @@ enum CosmeticProcedureEventType {
   reversed
 }
 
-// Causation flag on deltas + identity-bearing entity events (ADR-0007).
-// Drives the NATURAL / ENHANCED / RESTORED derivation: any winning delta with
-// cause=SURGICAL flips status to ENHANCED; a subsequent non-SURGICAL delta
-// overriding it flips to RESTORED. Default NATURAL.
+// Change-kind on deltas + identity-bearing entity events (ADR-0007, refined by
+// ADR-0018). On a status-bearing scalar (breast_size) the kind is the per-attribute
+// nature of the change and drives the status derivation:
+//   AUGMENTATION | SURGICAL (legacy) -> ENHANCED
+//   REDUCTION                        -> REDUCED
+//   REVERSAL                         -> RESTORED (explant; back toward natural)
+//   else, a prior non-NATURAL/OTHER kind overridden by a natural delta -> RESTORED
+//   NATURAL / OTHER                  -> no status badge
+// SURGICAL is retained for BodyMarkEvent/BodyModificationEvent (a surgical scar,
+// a laser-removed tattoo) and as a legacy scalar fallback. Default NATURAL.
 enum DeltaCause {
   NATURAL
   SURGICAL
   OTHER
+  AUGMENTATION
+  REDUCTION
+  REVERSAL
 }
 
 enum DigitalIdentityStatus {

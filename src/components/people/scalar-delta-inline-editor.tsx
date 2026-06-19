@@ -4,6 +4,8 @@ import { useCallback, useState, useTransition } from "react";
 import { PartialDateInput } from "@/components/shared/partial-date-input";
 import { TypedAttributeInput } from "@/components/people/typed-attribute-input";
 import { editScalarDeltaAction } from "@/lib/actions/appearance-actions";
+import { CHANGE_KIND_OPTIONS, type ChangeKind } from "@/lib/constants/appearance";
+import type { DeltaCause } from "@/generated/prisma/client";
 
 // Phase G Slice 9 / ADR-0006: inline editor for a single ScalarDelta.
 // Lives within the Undated drawer and (in the future) any timeline row that
@@ -15,7 +17,7 @@ type DeltaForEdit = {
   value: string;
   date: Date | null;
   datePrecision: string;
-  cause: "NATURAL" | "SURGICAL" | "OTHER";
+  cause: DeltaCause;
   attributeDefinition: {
     id: string;
     name: string;
@@ -46,7 +48,10 @@ export function ScalarDeltaInlineEditor({ delta, personId, initialIntent, onClos
     : "";
   const [date, setDate] = useState(initDate);
   const [datePrecision, setDatePrecision] = useState(delta.datePrecision ?? "UNKNOWN");
-  const [cause, setCause] = useState<"NATURAL" | "SURGICAL" | "OTHER">(delta.cause);
+  // ADR-0018: directional change-kind picker (legacy SURGICAL → AUGMENTATION).
+  const [cause, setCause] = useState<ChangeKind>(
+    delta.cause === "SURGICAL" ? "AUGMENTATION" : delta.cause,
+  );
   const [error, setError] = useState<string | null>(null);
 
   const handleSave = useCallback(() => {
@@ -136,15 +141,15 @@ export function ScalarDeltaInlineEditor({ delta, personId, initialIntent, onClos
 
       {delta.attributeDefinition.statusBearing && (
         <div>
-          <label className="mb-1 block text-xs font-medium text-muted-foreground">Cause</label>
+          <label className="mb-1 block text-xs font-medium text-muted-foreground">Kind</label>
           <select
             value={cause}
-            onChange={(e) => setCause(e.target.value as "NATURAL" | "SURGICAL" | "OTHER")}
+            onChange={(e) => setCause(e.target.value as ChangeKind)}
             className="w-full rounded-lg border border-white/15 bg-muted/30 px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
           >
-            <option value="NATURAL">Natural</option>
-            <option value="SURGICAL">Surgical</option>
-            <option value="OTHER">Other</option>
+            {CHANGE_KIND_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>{o.label}</option>
+            ))}
           </select>
         </div>
       )}

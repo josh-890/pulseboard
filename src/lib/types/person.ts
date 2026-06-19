@@ -196,7 +196,7 @@ export type CosmeticProcedureEventItem = {
   unit: string | null;
 };
 
-export type AttributeStatus = "NATURAL" | "ENHANCED" | "RESTORED";
+export type AttributeStatus = "NATURAL" | "ENHANCED" | "REDUCED" | "RESTORED";
 
 export type CosmeticProcedureWithEvents = {
   id: string;

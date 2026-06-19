@@ -8,7 +8,7 @@ import type {
   BodyMarkWithEvents,
   BodyModificationWithEvents,
 } from "@/lib/types";
-import type { BodyMarkType, BodyModificationType } from "@/generated/prisma/client";
+import type { BodyMarkType, BodyModificationType, DeltaCause } from "@/generated/prisma/client";
 import { MutabilityPrimitive } from "@/components/people/mutability-primitive";
 import { AttributeStatusProgression } from "@/components/people/attribute-status-progression";
 import { AddAttributePicker } from "@/components/people/add-attribute-picker";
@@ -79,9 +79,9 @@ type PhysicalChangeItem = {
   build: string | null;
   breastSize: string | null;
   breastDescription: string | null;
-  // ADR-0007: the Era's status-bearing cause, so the edit sheet can pre-load
-  // it instead of silently resetting to NATURAL on an unrelated edit.
-  cause: "NATURAL" | "SURGICAL" | "OTHER";
+  // ADR-0007/0018: the Era's status-bearing change-kind, so the edit sheet can
+  // pre-load it instead of silently resetting to NATURAL on an unrelated edit.
+  cause: DeltaCause;
   attributes: PhysicalAttributeItem[];
 };
 
@@ -260,11 +260,12 @@ export function AppearanceTab({
     return differing ?? candidates[0];
   }, [person.eras, currentState.breastSize]);
 
-  // Map currentState.breastStatus (legacy string) to AttributeStatus for the
-  // progression component. "enhanced" / "natural" / "restored" → uppercase.
+  // Map currentState.breastStatus (lowercase derived string) to AttributeStatus
+  // for the progression component (ADR-0018).
   const breastAttrStatus = useMemo<import("@/lib/types").AttributeStatus>(() => {
     const s = (currentState.breastStatus ?? "").toLowerCase();
     if (s === "enhanced") return "ENHANCED";
+    if (s === "reduced") return "REDUCED";
     if (s === "restored") return "RESTORED";
     return "NATURAL";
   }, [currentState.breastStatus]);
@@ -342,13 +343,14 @@ export function AppearanceTab({
           build: deltaFor("cattr-build")?.value ?? null,
           breastSize: breastDelta?.value ?? null,
           breastDescription: breastDelta?.notes ?? null,
-          // The whole-Era edit sheet applies one cause to all rewritten deltas;
-          // seed the picker from the Era's first non-NATURAL delta (a recorded
-          // change set shares one cause), else NATURAL.
-          cause: (p.scalarDeltas.find((d) => d.cause !== "NATURAL")?.cause ?? "NATURAL") as
-            | "NATURAL"
-            | "SURGICAL"
-            | "OTHER",
+          // Seed the inline Kind picker from the Era's breast-size delta kind
+          // (falling back to the first non-NATURAL delta in the Era), else NATURAL.
+          cause:
+            p.scalarDeltas.find(
+              (d) => d.attributeDefinitionId === "cattr-breast-size" && d.cause !== "NATURAL",
+            )?.cause ??
+            p.scalarDeltas.find((d) => d.cause !== "NATURAL")?.cause ??
+            "NATURAL",
           hairColorUnknown: unknownFor("cattr-hair-color"),
           weightUnknown: unknownFor("cattr-weight"),
           buildUnknown: unknownFor("cattr-build"),

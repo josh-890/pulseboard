@@ -2,6 +2,7 @@
 
 import { cn, splitOptionLabel } from "@/lib/utils";
 import type { AttributeStatus } from "@/lib/types";
+import { ATTRIBUTE_STATUS_DISPLAY } from "@/lib/constants/appearance";
 
 type AttributeStatusProgressionProps = {
   baselineValue: string | null;
@@ -17,14 +18,16 @@ type AttributeStatusProgressionProps = {
   statusBearing?: boolean;
 };
 
-// Pattern Y rendering per ADR-0007.
-//   NATURAL                            → plain value, no badge.
-//   ENHANCED/RESTORED, distinct values → full progression `B (Natural) → D (Enhanced)`.
-//   ENHANCED/RESTORED, equal values    → plain value + status badge ("D · Enhanced").
+// Pattern Y rendering per ADR-0007 / ADR-0018.
+//   NATURAL                               → plain value, no badge.
+//   non-NATURAL, distinct values          → full progression `B (Natural) → D (Enhanced)`
+//                                            / `D (Natural) → B (Reduced)`.
+//   non-NATURAL, equal values             → plain value + status badge ("D · Enhanced").
 //     (covers cases like a breast lift / implant replacement that didn't
 //     change the cup size — surgery still happened, status still applies,
 //     but there's no progression arrow to draw.)
-//   statusBearing === false            → plain value, ignore status entirely.
+//   statusBearing === false               → plain value, ignore status entirely.
+//   Labels + tints come from ATTRIBUTE_STATUS_DISPLAY (constants/appearance).
 export function AttributeStatusProgression({
   baselineValue,
   currentValue,
@@ -44,11 +47,7 @@ export function AttributeStatusProgression({
     return <span>{fmt(currentValue)}</span>;
   }
 
-  const currentLabel = status === "ENHANCED" ? "Enhanced" : "Restored";
-  const currentTint =
-    status === "ENHANCED"
-      ? "bg-purple-500/15 text-purple-400"
-      : "bg-emerald-500/15 text-emerald-400";
+  const { label: currentLabel, tint: currentTint } = ATTRIBUTE_STATUS_DISPLAY[status];
 
   // Status applies but no distinct baseline → render value + badge only.
   const showProgression = baselineValue && baselineValue !== currentValue;

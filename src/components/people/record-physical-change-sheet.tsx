@@ -10,7 +10,7 @@ import type { PhysicalAttributeGroupWithDefinitions } from "@/lib/services/physi
 import type { PersonCurrentState } from "@/lib/types";
 import { SelectWithOther } from "@/components/shared/select-with-other";
 import { TypedAttributeInput } from "@/components/people/typed-attribute-input";
-import { BUILD_OPTIONS, BREAST_SIZE_OPTIONS, CORE_PHYSICAL_ATTR_IDS } from "@/lib/constants/appearance";
+import { BUILD_OPTIONS, BREAST_SIZE_OPTIONS, CORE_PHYSICAL_ATTR_IDS, CHANGE_KIND_OPTIONS, type ChangeKind } from "@/lib/constants/appearance";
 import { CoreFieldRow } from "@/components/people/core-field-row";
 
 type RecordPhysicalChangeSheetProps = {
@@ -39,7 +39,9 @@ export function RecordPhysicalChangeSheet({ personId, currentState, attributeGro
   );
   const [date, setDate] = useState("");
   const [datePrecision, setDatePrecision] = useState("UNKNOWN");
-  const [cause, setCause] = useState<"NATURAL" | "SURGICAL" | "OTHER">("NATURAL");
+  // ADR-0018: per-attribute change-kind for the (status-bearing) breast-size
+  // delta. Rendered inline under the Breast Size field, not as a change-set header.
+  const [breastKind, setBreastKind] = useState<ChangeKind>("NATURAL");
 
   // Pre-fill with current state values
   const initialHairColor = currentState?.currentHairColor ?? "";
@@ -118,34 +120,16 @@ export function RecordPhysicalChangeSheet({ personId, currentState, attributeGro
     );
   const hasAnyChange = hairChanged || weightChanged || buildChanged || breastSizeChanged || breastDescChanged || attrChanged;
 
-  // Phase G Slice 6½ / ADR-0007 amendment: the Cause picker is rendered only
-  // when at least one status-bearing attribute is being changed in this save.
-  // Look up status-bearing IDs from attributeGroups, then check the in-flight
-  // change set. The 5 core attrs (hair-color, weight, build, breast-size,
-  // measurements) are status-bearing only if explicitly flagged in the catalog;
-  // today only breast_size is.
-  const statusBearingDefIds = useMemo(() => {
-    const ids = new Set<string>();
+  // ADR-0018: breast_size carries an inline change-kind picker iff it's flagged
+  // status-bearing in the catalog (the only such core attr today).
+  const breastIsStatusBearing = useMemo(() => {
     for (const g of attributeGroups ?? []) {
       for (const d of g.definitions) {
-        if (d.statusBearing) ids.add(d.id);
-      }
-    }
-    return ids;
-  }, [attributeGroups]);
-
-  const anyStatusBearingChanged = useMemo(() => {
-    if (breastSizeChanged && statusBearingDefIds.has("cattr-breast-size")) return true;
-    if (hairChanged && statusBearingDefIds.has("cattr-hair-color")) return true;
-    if (weightChanged && statusBearingDefIds.has("cattr-weight")) return true;
-    if (buildChanged && statusBearingDefIds.has("cattr-build")) return true;
-    for (const [id, v] of Object.entries(attrValues)) {
-      if (v.trim() !== (initialAttrValues[id] ?? "") && statusBearingDefIds.has(id)) {
-        return true;
+        if (d.id === "cattr-breast-size") return d.statusBearing;
       }
     }
     return false;
-  }, [breastSizeChanged, hairChanged, weightChanged, buildChanged, attrValues, initialAttrValues, statusBearingDefIds]);
+  }, [attributeGroups]);
 
   const handleSubmit = useCallback(() => {
     if (!hasAnyChange) {
@@ -185,7 +169,7 @@ export function RecordPhysicalChangeSheet({ personId, currentState, attributeGro
         breastSize: breastSizeChanged ? (breastSizeUnknown ? "" : breastSize.trim() || undefined) : undefined,
         breastDescription: breastDescChanged && breastDescription.trim() ? breastDescription.trim() : undefined,
         attributes: attributes.length > 0 ? attributes : undefined,
-        cause,
+        breastKind: breastSizeChanged ? breastKind : undefined,
         coreAttrUnknown:
           hairColorUnknown || weightUnknown || buildUnknown || breastSizeUnknown
             ? {
@@ -202,7 +186,7 @@ export function RecordPhysicalChangeSheet({ personId, currentState, attributeGro
       }
       onClose();
     });
-  }, [personId, date, datePrecision, intent, cause, currentHairColor, weight, build, breastSize, breastDescription, attrValues, attrUnknown, hasAnyChange, hairChanged, weightChanged, buildChanged, breastSizeChanged, breastDescChanged, initialAttrValues, initialAttrUnknown, hairColorUnknown, weightUnknown, buildUnknown, breastSizeUnknown, onClose]);
+  }, [personId, date, datePrecision, intent, breastKind, currentHairColor, weight, build, breastSize, breastDescription, attrValues, attrUnknown, hasAnyChange, hairChanged, weightChanged, buildChanged, breastSizeChanged, breastDescChanged, initialAttrValues, initialAttrUnknown, hairColorUnknown, weightUnknown, buildUnknown, breastSizeUnknown, onClose]);
 
   return (
     <div role="dialog" aria-modal="true" className="fixed inset-0 z-50 flex justify-end">
@@ -279,25 +263,6 @@ export function RecordPhysicalChangeSheet({ personId, currentState, attributeGro
               : "Added to baseline — applies as far back as records go."}
           </p>
 
-          {/* Phase G Slice 4 / ADR-0007: optional Cause for this change set.
-              Defaults NATURAL. SURGICAL flips attribute status to ENHANCED.
-              Gated on at least one status-bearing attr being changed
-              (ADR-0007 amendment / Slice 6½). */}
-          {anyStatusBearingChanged && (
-            <div>
-              <label className="mb-1.5 block text-sm font-medium">Cause</label>
-              <select
-                value={cause}
-                onChange={(e) => setCause(e.target.value as "NATURAL" | "SURGICAL" | "OTHER")}
-                className="w-full rounded-lg border border-white/15 bg-muted/30 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
-              >
-                <option value="NATURAL">Natural — usual drift / no intervention</option>
-                <option value="SURGICAL">Surgical — cosmetic procedure caused this change</option>
-                <option value="OTHER">Other</option>
-              </select>
-            </div>
-          )}
-
           <CoreFieldRow label="Hair Color" unknown={hairColorUnknown} onUnknownChange={(v) => { setHairColorUnknown(v); if (v) setCurrentHairColor(""); }}>
             {hairColorDef && (
               <TypedAttributeInput
@@ -337,6 +302,24 @@ export function RecordPhysicalChangeSheet({ personId, currentState, attributeGro
               placeholder="Select cup size…"
             />
           </CoreFieldRow>
+
+          {/* ADR-0018: change-kind for the breast-size delta — inline, so it
+              reads as a property of this attribute, not the whole change-set.
+              Surgical kinds (Augmentation/Reduction/Reversal) drive the status. */}
+          {breastIsStatusBearing && !breastSizeUnknown && (
+            <div className="-mt-1 pl-3">
+              <label className="mb-1 block text-xs font-medium text-muted-foreground">Kind</label>
+              <select
+                value={breastKind}
+                onChange={(e) => setBreastKind(e.target.value as ChangeKind)}
+                className="w-full rounded-lg border border-white/15 bg-muted/30 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+              >
+                {CHANGE_KIND_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
+              </select>
+            </div>
+          )}
 
           <div>
             <label className="mb-1.5 block text-sm font-medium">Breast Description</label>
