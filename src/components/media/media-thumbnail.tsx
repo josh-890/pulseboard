@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { Check } from "lucide-react";
+import { Check, Heart } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { MediaItemWithLinks } from "@/lib/services/media-service";
 import {
@@ -129,6 +129,9 @@ export function MediaThumbnail({
         )}
         {hasEntityLink && <MediaLinkIcon />}
         {item.collectionIds.length > 0 && <MediaCollectionIcon />}
+        {item.isFavorite && (
+          <Heart size={11} className="text-red-500" fill="currentColor" aria-label="Favorite" />
+        )}
       </div>
     </div>
   );

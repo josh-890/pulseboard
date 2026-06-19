@@ -74,7 +74,7 @@ import type { CategoryWithGroup } from "@/components/gallery/gallery-info-panel"
 import type { PhysicalAttributeGroupWithDefinitions } from "@/lib/services/physical-attribute-catalog-service";
 import type { PlausibilityIssue } from "@/lib/services/plausibility-service";
 import {
-  setPersonMediaFavoriteAction,
+  setMediaFavoriteAction,
 } from "@/lib/actions/media-actions";
 import { updatePersonBio, updatePersonPgrade, updatePersonRating } from "@/lib/actions/person-actions";
 import { setEntityTagsAction } from "@/lib/actions/tag-actions";
@@ -1897,9 +1897,9 @@ export function PersonDetailTabs({
       prev.map((p) => (p.id === itemId ? { ...p, isFavorite: newFavorite } : p)),
     );
     startPhotoTransition(async () => {
-      await setPersonMediaFavoriteAction(person.id, itemId, newFavorite);
+      await setMediaFavoriteAction(itemId, newFavorite);
     });
-  }, [localPhotos, person.id]);
+  }, [localPhotos]);
 
   // The avatar (★) is owned by the reference-session Slot Manager; the hero shows the
   // canonical headshot via `heroLead`. No gallery "set as avatar" here.

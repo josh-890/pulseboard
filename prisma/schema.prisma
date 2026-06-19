@@ -1060,6 +1060,10 @@ model MediaItem {
   tags         String[]
   notes        String?
   isAnnotation Boolean  @default(false) // Derived/edited photos — hidden from main gallery
+  // Global per-image favorite (ADR-0019). One app-wide flag feeding /favorites;
+  // toggled by the heart everywhere. Supersedes the per-person
+  // PersonMediaLink.isFavorite (migrated up; that column is now deprecated).
+  isFavorite   Boolean  @default(false)
 
   // Motif normalization: when set, this MediaItem is a baked, template-aligned
   // "standardized motif" image (e.g. a headshot). The headshot/card path displays
@@ -1101,6 +1105,7 @@ model MediaItem {
   @@index([tags], type: Gin)
   @@index([copiedFromMediaItemId])
   @@index([motifTemplateId])
+  @@index([isFavorite])
 }
 
 // A "standardized motif" definition for a profile slot: the output geometry +

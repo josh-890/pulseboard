@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { Check, Frame } from "lucide-react";
+import { Check, Frame, Heart } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { GalleryItem } from "@/lib/types";
 import {
@@ -131,6 +131,16 @@ export function GalleryThumbnail({
           aria-label="Cover image"
         >
           <Frame size={10} />
+        </span>
+      )}
+
+      {/* Favorite badge (top-right) — ADR-0019 global favorite */}
+      {item.isFavorite && (
+        <span
+          className="absolute top-1.5 right-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-red-500/90 text-white pointer-events-none"
+          aria-label="Favorite"
+        >
+          <Heart size={10} fill="currentColor" />
         </span>
       )}
 

@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { setMediaFavoriteAction } from "@/lib/actions/media-actions";
 import { createPortal } from "react-dom";
 import { toast } from "sonner";
 import {
@@ -8,6 +9,7 @@ import {
   ChevronRight,
   Copy,
   Crosshair,
+  Heart,
   Loader2,
   PanelRight,
   PanelRightClose,
@@ -135,6 +137,10 @@ function SimpleLightbox({
   const [localCollectionIdsMap, setLocalCollectionIdsMap] = useState<
     Map<string, string[]>
   >(new Map());
+  // ADR-0019: optimistic global-favorite override + self-handled toggle so the
+  // heart works in every lightbox without per-page plumbing.
+  const [localFavoriteMap, setLocalFavoriteMap] = useState<Map<string, boolean>>(new Map());
+  const [, startFavTransition] = useTransition();
   const touchStartX = useRef<number | null>(null);
   // Zoom/pan is owned by <ZoomableImage>; we only track whether it's zoomed so
   // single-finger swipe-navigation is suppressed while the image is zoomed.
@@ -148,16 +154,36 @@ function SimpleLightbox({
           const focalOverride = localFocalPoints.get(it.id);
           const linksOverride = localLinksMap.get(it.id);
           const collOverride = localCollectionIdsMap.get(it.id);
+          const favOverride = localFavoriteMap.get(it.id);
           let result = it;
           if (focalOverride) result = { ...result, focalX: focalOverride.focalX, focalY: focalOverride.focalY };
           if (linksOverride !== undefined) result = { ...result, links: linksOverride };
           if (collOverride !== undefined) result = { ...result, collectionIds: collOverride };
+          if (favOverride !== undefined) result = { ...result, isFavorite: favOverride };
           return result;
         }),
-    [items, deletedIds, localFocalPoints, localLinksMap, localCollectionIdsMap],
+    [items, deletedIds, localFocalPoints, localLinksMap, localCollectionIdsMap, localFavoriteMap],
   );
 
   const item = localItems[currentIndex];
+
+  // ADR-0019: toggle the global favorite. Optimistic local override + either the
+  // parent's handler (keeps its own state in sync) or a self-handled persist.
+  const handleFavorite = useCallback(
+    (id: string) => {
+      const cur = localItems.find((p) => p.id === id);
+      const next = !(cur?.isFavorite ?? false);
+      setLocalFavoriteMap((m) => new Map(m).set(id, next));
+      if (onFavoriteToggle) {
+        onFavoriteToggle(id);
+      } else {
+        startFavTransition(async () => {
+          await setMediaFavoriteAction(id, next);
+        });
+      }
+    },
+    [localItems, onFavoriteToggle],
+  );
 
   // ── Copy to reference session ──
   // The lightbox owns the picker state + dispatch so the parent doesn't have
@@ -341,11 +367,18 @@ function SimpleLightbox({
             handleCopyTrigger();
           }
           break;
+        case ".":
+          // ADR-0019: toggle global favorite on the current image.
+          if (item) {
+            e.preventDefault();
+            handleFavorite(item.id);
+          }
+          break;
       }
     }
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [onClose, goNext, goPrev, handleToggleInfoPanel, hasFocalPointSupport, canCopyToReference, handleCopyTrigger]);
+  }, [onClose, goNext, goPrev, handleToggleInfoPanel, hasFocalPointSupport, canCopyToReference, handleCopyTrigger, handleFavorite, item]);
 
   useEffect(() => {
     const original = document.body.style.overflow;
@@ -380,7 +413,7 @@ function SimpleLightbox({
     item,
     onSetCover,
     coverMediaItemId,
-    onFavoriteToggle,
+    onFavoriteToggle: handleFavorite,
     onUpdateTags,
     onTagsChanged,
     onFindSimilar,
@@ -442,6 +475,20 @@ function SimpleLightbox({
               title="Filmstrip (T)"
             >
               <Rows3 size={16} />
+            </button>
+          )}
+          {item && (
+            <button
+              type="button"
+              onClick={() => handleFavorite(item.id)}
+              className={cn(
+                "rounded-full p-2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50",
+                item.isFavorite ? "bg-red-500/90 text-white" : "bg-white/10 text-white/70 hover:bg-white/20 hover:text-white",
+              )}
+              aria-label={item.isFavorite ? "Remove from favorites" : "Add to favorites"}
+              title="Favorite (.)"
+            >
+              <Heart size={16} fill={item.isFavorite ? "currentColor" : "none"} />
             </button>
           )}
           {item && (

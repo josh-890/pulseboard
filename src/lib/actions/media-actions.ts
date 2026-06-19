@@ -248,6 +248,28 @@ export async function setEntityMediaCoverAction(
   });
 }
 
+// ADR-0019: global per-image favorite. Toggles MediaItem.isFavorite (app-wide),
+// superseding the per-person setPersonMediaFavoriteAction. Feeds /favorites.
+export async function setMediaFavoriteAction(
+  mediaItemId: string,
+  isFavorite: boolean,
+): Promise<SimpleActionResult> {
+  return withTenantFromHeaders(async () => {
+    try {
+      await prisma.mediaItem.update({
+        where: { id: mediaItemId },
+        data: { isFavorite },
+      });
+      revalidatePath("/favorites");
+      return { success: true };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unexpected error";
+      return { success: false, error: message };
+    }
+  });
+}
+
+// Deprecated (ADR-0019): per-person favorite. Retained until callers are gone.
 export async function setPersonMediaFavoriteAction(
   personId: string,
   mediaItemId: string,

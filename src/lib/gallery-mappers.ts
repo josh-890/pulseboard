@@ -38,6 +38,9 @@ export type MediaItemWithLinks = {
   focalY: number | null;
   focalSource: string | null;
   focalStatus: string | null;
+  // Global per-image favorite (ADR-0019). The per-link `isFavorite` below is
+  // deprecated; GalleryItem.isFavorite is sourced from this top-level flag.
+  isFavorite: boolean;
   links: {
     id: string;
     usage: PersonMediaUsage;
@@ -90,7 +93,7 @@ export function toGalleryItem(
     focalX: item.focalX,
     focalY: item.focalY,
     tags: item.tags,
-    isFavorite: firstLink?.isFavorite ?? false,
+    isFavorite: item.isFavorite,
     sortOrder: firstLink?.sortOrder ?? 0,
     isCover: opts?.coverMediaItemId === item.id,
     links: item.links,

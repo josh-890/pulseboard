@@ -96,6 +96,7 @@ export type MediaItemForGallery = {
   sessionId: string;
   sourceVideoRef: string | null;
   sourceTimecodeMs: number | null;
+  isFavorite: boolean; // global per-image favorite (ADR-0019)
 
   // Optional relation slots — each maps to a single GalleryItem field.
   personMediaLinks?: Array<{
@@ -156,7 +157,7 @@ export function mapMediaItemToGalleryItem(
     focalX: item.focalX,
     focalY: item.focalY,
     tags: item.tags,
-    isFavorite: firstLink?.isFavorite ?? false,
+    isFavorite: item.isFavorite,
     sortOrder: firstLink?.sortOrder ?? 0,
     isCover: opts?.coverMediaItemId === item.id,
     // Per-person link surface — present only when caller included
@@ -1015,6 +1016,7 @@ export async function getMediaItemsWithLinks(
         focalY: item.focalY ?? null,
         focalSource: item.focalSource ?? null,
         focalStatus: item.focalStatus ?? null,
+        isFavorite: item.isFavorite,
         links: item.personMediaLinks.map((link) => ({
           id: link.id,
           usage: link.usage,
