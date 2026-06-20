@@ -2089,7 +2089,7 @@ export async function getPersonsPaginated(
   cursor?: string,
   limit = 50,
 ): Promise<PaginatedPersons> {
-  const { q, status, watching, naturalHairColor, bodyType, ethnicity, bodyRegions, ratings, sort, birthdateFrom, birthdateTo, createdFrom, createdTo } = filters;
+  const { q, status, watching, favorite, naturalHairColor, bodyType, ethnicity, bodyRegions, ratings, sort, birthdateFrom, birthdateTo, createdFrom, createdTo } = filters;
 
   const where: Prisma.PersonWhereInput = {};
 
@@ -2099,6 +2099,10 @@ export async function getPersonsPaginated(
 
   if (watching) {
     where.watching = true;
+  }
+
+  if (favorite) {
+    where.isFavorite = true;
   }
 
   // Multi-select rating filter. Buckets: 1..5 (exact match) + "unrated"
