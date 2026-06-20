@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { Search, ImageIcon } from "lucide-react";
+import { GalleryLightbox } from "@/components/gallery/gallery-lightbox";
 import type { AtlasTile } from "@/lib/services/atlas-service";
 
 type AtlasGridProps = {
@@ -14,12 +15,15 @@ type AtlasGridProps = {
 
 export function AtlasGrid({ tiles, aspectW, aspectH }: AtlasGridProps) {
   const [query, setQuery] = useState("");
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return tiles;
     return tiles.filter((t) => t.personName.toLowerCase().includes(q));
   }, [tiles, query]);
+
+  const lightboxItems = useMemo(() => filtered.map((t) => t.item), [filtered]);
 
   if (tiles.length === 0) {
     return (
@@ -48,14 +52,13 @@ export function AtlasGrid({ tiles, aspectW, aspectH }: AtlasGridProps) {
         <p className="text-sm text-muted-foreground italic">No people match &ldquo;{query}&rdquo;.</p>
       ) : (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
-          {filtered.map((t) => (
-            <Link
-              key={t.mediaItemId}
-              href={`/people/${t.personId}`}
-              className="group flex flex-col gap-1.5"
-            >
-              <div
-                className="relative overflow-hidden rounded-lg border border-white/10 bg-muted/30 transition-colors group-hover:border-amber-500/40"
+          {filtered.map((t, i) => (
+            <div key={t.mediaItemId} className="group flex flex-col gap-1.5">
+              <button
+                type="button"
+                onClick={() => setLightboxIndex(i)}
+                aria-label={`View ${t.personName}`}
+                className="relative block w-full cursor-zoom-in overflow-hidden rounded-lg border border-white/10 bg-muted/30 transition-colors group-hover:border-amber-500/40 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                 style={{ aspectRatio: `${aspectW} / ${aspectH}` }}
               >
                 {t.thumbUrl ? (
@@ -65,13 +68,25 @@ export function AtlasGrid({ tiles, aspectW, aspectH }: AtlasGridProps) {
                     <ImageIcon size={20} className="text-muted-foreground/40" />
                   </div>
                 )}
-              </div>
-              <span className="truncate text-xs text-muted-foreground group-hover:text-foreground" title={t.personName}>
+              </button>
+              <Link
+                href={`/people/${t.personId}`}
+                className="truncate text-xs text-muted-foreground hover:text-foreground hover:underline"
+                title={`Go to ${t.personName}`}
+              >
                 {t.personName}
-              </span>
-            </Link>
+              </Link>
+            </div>
           ))}
         </div>
+      )}
+
+      {lightboxIndex !== null && lightboxItems[lightboxIndex] && (
+        <GalleryLightbox
+          items={lightboxItems}
+          initialIndex={lightboxIndex}
+          onClose={() => setLightboxIndex(null)}
+        />
       )}
     </div>
   );

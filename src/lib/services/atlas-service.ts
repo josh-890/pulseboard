@@ -11,7 +11,8 @@
 import { prisma } from "@/lib/db";
 import { buildUrl } from "@/lib/media-url";
 import { getDisplayName } from "@/lib/utils";
-import type { PhotoVariants } from "@/lib/types";
+import { mapMediaItemToGalleryItem } from "@/lib/services/media-service";
+import type { GalleryItem, PhotoVariants } from "@/lib/types";
 
 const ALIGNED_LINK_WHERE = {
   usage: "DETAIL",
@@ -83,6 +84,9 @@ export type AtlasTile = {
   personId: string;
   personName: string;
   thumbUrl: string | null;
+  // Full gallery item for the lightbox (normalized aligned crop). The mapper
+  // builds `urls` from variants — no raw variants JSON crosses to the client.
+  item: GalleryItem;
 };
 
 export type AtlasGrid = {
@@ -106,7 +110,27 @@ export async function getAtlasGridForCategory(categoryId: string): Promise<Atlas
   const links = await prisma.personMediaLink.findMany({
     where: { ...ALIGNED_LINK_WHERE, categoryId },
     select: {
-      mediaItem: { select: { id: true, variants: true } },
+      mediaItem: {
+        select: {
+          id: true,
+          filename: true,
+          mimeType: true,
+          originalWidth: true,
+          originalHeight: true,
+          caption: true,
+          createdAt: true,
+          variants: true,
+          fileRef: true,
+          focalX: true,
+          focalY: true,
+          tags: true,
+          sessionId: true,
+          sourceVideoRef: true,
+          sourceTimecodeMs: true,
+          isFavorite: true,
+          collectionItems: { select: { collectionId: true } },
+        },
+      },
       person: {
         select: {
           id: true,
@@ -117,12 +141,18 @@ export async function getAtlasGridForCategory(categoryId: string): Promise<Atlas
     },
   });
 
-  const tiles: AtlasTile[] = links.map((l) => ({
-    mediaItemId: l.mediaItem.id,
-    personId: l.person.id,
-    personName: getDisplayName(l.person.aliases[0]?.name ?? null, l.person.icgId),
-    thumbUrl: bestThumb(l.mediaItem.variants),
-  }));
+  const tiles: AtlasTile[] = [];
+  for (const l of links) {
+    const item = mapMediaItemToGalleryItem(l.mediaItem);
+    if (!item) continue;
+    tiles.push({
+      mediaItemId: l.mediaItem.id,
+      personId: l.person.id,
+      personName: getDisplayName(l.person.aliases[0]?.name ?? null, l.person.icgId),
+      thumbUrl: bestThumb(l.mediaItem.variants),
+      item,
+    });
+  }
   tiles.sort((a, b) => a.personName.localeCompare(b.personName));
 
   return {
