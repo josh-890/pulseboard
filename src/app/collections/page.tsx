@@ -1,126 +1,222 @@
-import { withTenantFromHeaders } from "@/lib/tenant-context";
+import { Suspense } from "react";
 import Link from "next/link";
-import Image from "next/image";
-import { Library, ImageIcon, User, Globe, Columns2 } from "lucide-react";
-import { getAllCollections } from "@/lib/services/collection-service";
+import { Library, Heart, Star, ImageIcon } from "lucide-react";
+import { withTenantFromHeaders } from "@/lib/tenant-context";
+import { getAllCollections, type CollectionSummary } from "@/lib/services/collection-service";
+import { countFavoriteMediaItems } from "@/lib/services/media-service";
 import { AddCollectionDialog } from "@/components/collections/add-collection-dialog";
+import { CollectionCard } from "@/components/collections/collection-card";
+import { BrowserToolbar, type BrowserToolbarConfig, type FilterGroup } from "@/components/shared/browser-toolbar";
 
 export const dynamic = "force-dynamic";
 
-export default async function CollectionsPage() {
+type Filters = { q?: string; type?: string; layout?: string; person?: string; nonEmpty?: boolean };
+
+function applyFilters(
+  list: CollectionSummary[],
+  f: Filters,
+  exclude?: "type" | "layout" | "person",
+): CollectionSummary[] {
+  return list.filter((c) => {
+    if (f.q && !c.name.toLowerCase().includes(f.q.toLowerCase())) return false;
+    if (exclude !== "type" && f.type === "global" && c.personId) return false;
+    if (exclude !== "type" && f.type === "person" && !c.personId) return false;
+    if (exclude !== "layout" && f.layout === "grid" && c.layout !== "GRID") return false;
+    if (exclude !== "layout" && f.layout === "before-after" && c.layout !== "SIDE_BY_SIDE") return false;
+    if (exclude !== "person" && f.person && c.personId !== f.person) return false;
+    if (f.nonEmpty && c.itemCount === 0) return false;
+    return true;
+  });
+}
+
+const SORT_OPTIONS = [
+  { value: "updated", label: "Recently updated" },
+  { value: "created", label: "Recently created" },
+  { value: "name-asc", label: "Name (A–Z)" },
+  { value: "items-desc", label: "Most items" },
+];
+
+function sortCollections(list: CollectionSummary[], sort: string): CollectionSummary[] {
+  const out = [...list];
+  switch (sort) {
+    case "created":
+      out.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+      break;
+    case "name-asc":
+      out.sort((a, b) => a.name.localeCompare(b.name));
+      break;
+    case "items-desc":
+      out.sort((a, b) => b.itemCount - a.itemCount);
+      break;
+    default: // "updated"
+      out.sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
+  }
+  return out;
+}
+
+type CollectionsPageProps = {
+  searchParams: Promise<{
+    q?: string;
+    sort?: string;
+    type?: string;
+    layout?: string;
+    person?: string;
+    nonEmpty?: string;
+  }>;
+};
+
+export default async function CollectionsPage({ searchParams }: CollectionsPageProps) {
   return withTenantFromHeaders(async () => {
-    const collections = await getAllCollections();
+    const sp = await searchParams;
+    const f: Filters = {
+      q: sp.q?.trim() || undefined,
+      type: sp.type,
+      layout: sp.layout,
+      person: sp.person,
+      nonEmpty: sp.nonEmpty === "true" || undefined,
+    };
+    const sort = sp.sort || "updated";
 
-  const globalCount = collections.filter((c) => !c.personId).length;
-  const personCount = collections.filter((c) => c.personId).length;
+    const [all, favoriteCount] = await Promise.all([
+      getAllCollections(),
+      countFavoriteMediaItems(),
+    ]);
 
-  return (
-    <div className="space-y-6">
-      {/* Page header */}
-      <div className="flex items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-entity-collection/15">
-            <Library size={20} className="text-entity-collection" />
+    const target = all.find((c) => c.isTarget) ?? null;
+
+    // Filter + sort (in-memory; collections are a small set).
+    const filtered = sortCollections(applyFilters(all, f), sort);
+    // The target is surfaced in the smart row, not the grid.
+    const gridItems = filtered.filter((c) => !c.isTarget);
+
+    // Person facet options + counts (over the set filtered by everything except person).
+    const personBase = applyFilters(all, f, "person");
+    const personCounts = new Map<string, { name: string; count: number }>();
+    for (const c of personBase) {
+      if (!c.personId) continue;
+      const entry = personCounts.get(c.personId) ?? { name: c.personName ?? "Unknown", count: 0 };
+      entry.count += 1;
+      personCounts.set(c.personId, entry);
+    }
+
+    const filterGroups: FilterGroup[] = [
+      {
+        type: "pill",
+        param: "type",
+        label: "Type",
+        defaultValue: "all",
+        options: [
+          { value: "all", label: "All" },
+          { value: "global", label: "Global" },
+          { value: "person", label: "Person" },
+        ],
+      },
+      {
+        type: "pill",
+        param: "layout",
+        label: "Layout",
+        defaultValue: "all",
+        options: [
+          { value: "all", label: "All" },
+          { value: "grid", label: "Grid" },
+          { value: "before-after", label: "Before/after" },
+        ],
+      },
+      {
+        type: "facet",
+        param: "person",
+        label: "Person",
+        searchable: true,
+        options: Array.from(personCounts.entries())
+          .map(([id, { name, count }]) => ({ value: id, label: name, count }))
+          .sort((a, b) => a.label.localeCompare(b.label)),
+      },
+      { type: "toggle", param: "nonEmpty", label: "Non-empty" },
+    ];
+
+    const toolbarConfig: BrowserToolbarConfig = {
+      basePath: "/collections",
+      searchPlaceholder: "Search collections…",
+      sortOptions: SORT_OPTIONS,
+      defaultSort: "updated",
+      filterGroups,
+      resultCount: gridItems.length,
+      totalCount: all.length,
+    };
+
+    return (
+      <div className="space-y-6">
+        {/* Page header */}
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-entity-collection/15">
+              <Library size={20} className="text-entity-collection" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold leading-tight">Collections</h1>
+              <p className="text-sm text-muted-foreground">
+                {all.length} collection{all.length !== 1 ? "s" : ""}
+              </p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-2xl font-bold leading-tight">Collections</h1>
-            <p className="text-sm text-muted-foreground">
-              {collections.length} collection{collections.length !== 1 ? "s" : ""}
-              {globalCount > 0 && ` · ${globalCount} global`}
-              {personCount > 0 && ` · ${personCount} per-person`}
-            </p>
-          </div>
+          <AddCollectionDialog />
         </div>
-        <AddCollectionDialog />
-      </div>
 
-      {/* Collection grid */}
-      {collections.length === 0 ? (
-        <div className="rounded-2xl border border-white/20 bg-card/70 p-12 text-center shadow-md backdrop-blur-sm">
-          <Library size={32} className="mx-auto mb-3 text-muted-foreground" />
-          <p className="text-sm text-muted-foreground">
-            No collections yet. Create one to curate media across sessions and people.
-          </p>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {collections.map((collection) => (
+        {/* Smart row — Favorites virtual album + ★ target collection */}
+        <div className="flex flex-wrap gap-3">
+          <Link
+            href="/favorites"
+            className="group flex items-center gap-3 rounded-xl border border-red-500/20 bg-red-500/5 px-4 py-3 transition-colors hover:border-red-500/40"
+          >
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-red-500/15">
+              <Heart size={16} className="text-red-400" fill="currentColor" />
+            </div>
+            <div>
+              <div className="text-sm font-semibold leading-tight group-hover:text-primary">Favorites</div>
+              <div className="text-xs text-muted-foreground">{favoriteCount} image{favoriteCount !== 1 ? "s" : ""}</div>
+            </div>
+          </Link>
+          {target && (
             <Link
-              key={collection.id}
-              href={`/collections/${collection.id}`}
-              className="group rounded-2xl border border-white/20 bg-card/70 shadow-md backdrop-blur-sm transition-all hover:border-white/30 hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              href={`/collections/${target.id}`}
+              className="group flex items-center gap-3 rounded-xl border border-amber-400/30 bg-amber-400/5 px-4 py-3 transition-colors hover:border-amber-400/50"
             >
-              {/* Thumbnail */}
-              <div className="relative aspect-[4/3] overflow-hidden rounded-t-2xl bg-muted">
-                {collection.thumbnailUrl ? (
-                  <Image
-                    src={collection.thumbnailUrl}
-                    alt={collection.name}
-                    fill
-                    className="object-cover transition-transform group-hover:scale-105"
-                    unoptimized
-                  />
-                ) : (
-                  <div className="flex h-full w-full items-center justify-center">
-                    <ImageIcon size={32} className="text-muted-foreground/40" />
-                  </div>
-                )}
-
-                {/* Type badge */}
-                <div className="absolute left-2 top-2">
-                  {collection.personId ? (
-                    <span className="inline-flex items-center gap-1 rounded-full border border-sky-500/30 bg-sky-500/15 px-2 py-0.5 text-[10px] font-medium text-sky-600 backdrop-blur-sm dark:text-sky-400">
-                      <User size={10} />
-                      Person
-                    </span>
-                  ) : (
-                    <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-500/15 px-2 py-0.5 text-[10px] font-medium text-emerald-600 backdrop-blur-sm dark:text-emerald-400">
-                      <Globe size={10} />
-                      Global
-                    </span>
-                  )}
-                </div>
-
-                {/* Before/after badge */}
-                {collection.layout === "SIDE_BY_SIDE" && (
-                  <div className="absolute right-2 top-2">
-                    <span className="inline-flex items-center gap-1 rounded-full border border-amber-500/30 bg-amber-500/15 px-2 py-0.5 text-[10px] font-medium text-amber-600 backdrop-blur-sm dark:text-amber-400">
-                      <Columns2 size={10} />
-                      Before / after
-                    </span>
-                  </div>
-                )}
-
-                {/* Item count */}
-                <div className="absolute bottom-2 right-2">
-                  <span className="inline-flex items-center gap-1 rounded bg-black/50 px-1.5 py-0.5 text-[10px] font-medium text-white backdrop-blur-sm">
-                    <ImageIcon size={10} />
-                    {collection.itemCount}
-                  </span>
-                </div>
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-amber-400/15">
+                <Star size={16} className="text-amber-400" fill="currentColor" />
               </div>
-
-              {/* Info */}
-              <div className="p-4">
-                <h3 className="font-semibold leading-tight group-hover:text-primary transition-colors">
-                  {collection.name}
-                </h3>
-                {collection.description && (
-                  <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">
-                    {collection.description}
-                  </p>
-                )}
-                {collection.personName && (
-                  <p className="mt-1.5 text-xs text-muted-foreground">
-                    {collection.personName}
-                  </p>
-                )}
+              <div>
+                <div className="text-sm font-semibold leading-tight group-hover:text-primary">{target.name}</div>
+                <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                  <ImageIcon size={11} /> {target.itemCount} · quick-add target
+                </div>
               </div>
             </Link>
-          ))}
+          )}
         </div>
-      )}
-    </div>
+
+        {/* Toolbar */}
+        <Suspense>
+          <BrowserToolbar config={toolbarConfig} />
+        </Suspense>
+
+        {/* Grid */}
+        {gridItems.length === 0 ? (
+          <div className="rounded-2xl border border-white/20 bg-card/70 p-12 text-center shadow-md backdrop-blur-sm">
+            <Library size={32} className="mx-auto mb-3 text-muted-foreground" />
+            <p className="text-sm text-muted-foreground">
+              {all.length === 0
+                ? "No collections yet. Create one to curate media across sessions and people."
+                : "No collections match your filters."}
+            </p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {gridItems.map((c) => (
+              <CollectionCard key={c.id} collection={c} />
+            ))}
+          </div>
+        )}
+      </div>
     );
   });
 }

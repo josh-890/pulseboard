@@ -15,6 +15,15 @@ export default function CollectionsLoading() {
         <Skeleton className="h-9 w-32 rounded-md" />
       </div>
 
+      {/* Smart row */}
+      <div className="flex flex-wrap gap-3">
+        <Skeleton className="h-[60px] w-44 rounded-xl" />
+        <Skeleton className="h-[60px] w-44 rounded-xl" />
+      </div>
+
+      {/* Toolbar */}
+      <Skeleton className="h-10 w-full rounded-lg" />
+
       {/* Collection grid */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         {Array.from({ length: 8 }).map((_, i) => (

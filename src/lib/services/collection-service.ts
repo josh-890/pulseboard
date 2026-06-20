@@ -14,6 +14,10 @@ export type CollectionSummary = {
   itemCount: number;
   thumbnailUrl: string | null;
   personName: string | null;
+  // Landing-page refresh (ADR-0019 follow-up): sort + target-pin support.
+  isTarget: boolean;
+  createdAt: Date;
+  updatedAt: Date;
 };
 
 
@@ -75,6 +79,9 @@ export async function getAllCollections(filters: {
       itemCount: isSxs ? c._count.comparisons : c._count.items,
       thumbnailUrl: thumbKey ? buildUrl(thumbKey) : null,
       personName: c.person?.aliases[0]?.name ?? null,
+      isTarget: c.isTarget,
+      createdAt: c.createdAt,
+      updatedAt: c.updatedAt,
     };
   });
 }
@@ -136,6 +143,9 @@ export async function getCollectionsForPerson(
       itemCount: isSxs ? c._count.comparisons : c._count.items,
       thumbnailUrl: thumbKey ? buildUrl(thumbKey) : null,
       personName: null, // caller already has person context
+      isTarget: c.isTarget,
+      createdAt: c.createdAt,
+      updatedAt: c.updatedAt,
     };
   });
 }

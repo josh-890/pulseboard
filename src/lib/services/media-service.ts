@@ -681,6 +681,11 @@ export async function getFavoriteMediaItems(
   return results;
 }
 
+// Total number of globally-favorited images (smart-row badge on /collections).
+export async function countFavoriteMediaItems(): Promise<number> {
+  return prisma.mediaItem.count({ where: { isFavorite: true } });
+}
+
 // Persons who have at least one favorited image — the person-filter options for
 // the favorites gallery.
 export async function getPersonsWithFavoriteMedia(): Promise<{ id: string; name: string }[]> {
