@@ -310,6 +310,7 @@ model Person {
   status              PersonStatus  @default(active)
   rating              Int?
   pgrade              Int?
+  isFavorite          Boolean       @default(false) // ADR-0019: favorite person (★) — filter facet
   notes               String?
   bio                 String?
   tags                String[]
@@ -368,6 +369,7 @@ model Person {
 
   @@index([status])
   @@index([watching])
+  @@index([isFavorite])
 }
 
 model PersonAlias {
@@ -1293,6 +1295,9 @@ model MediaCollection {
   layout      CollectionLayout      @default(GRID)
   personId    String?
   person      Person?               @relation(fields: [personId], references: [id])
+  // ADR-0019: the single "target" collection for one-key quick-add. The action
+  // enforces at most one TRUE (sets this, unsets all others).
+  isTarget    Boolean               @default(false)
   items       MediaCollectionItem[]
   comparisons Comparison[]
   createdAt   DateTime              @default(now())

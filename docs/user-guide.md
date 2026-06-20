@@ -548,6 +548,29 @@ Read-only display of the set's tags.
 
 Collections are user-curated albums of media items. They can be **global** (cross-person) or **per-person** (scoped to a single person's media).
 
+### Favorites (ADR-0019)
+
+**Route:** `/favorites`
+
+A **favorite** is a single global per-image flag, separate from collections:
+
+- **One-click heart** — tap the ♥ in the image viewer toolbar, or press <kbd>.</kbd> in the
+  viewer. A filled-heart badge appears on favorited grid tiles. The `/favorites` page is the
+  gallery of all favorites, with a **Person** filter and a **Favorite persons** toggle.
+- **Favorite persons** — the ★ on a person (detail hero) marks a favorite person; the People
+  browser has a **Favorite** filter pill.
+
+### Fast collection assignment (ADR-0019)
+
+In the image viewer:
+
+- **Quick-add palette** — press <kbd>B</kbd> (or the folder-plus toolbar button) to open a
+  fuzzy palette; type a collection name and press Enter to toggle the current image's membership.
+- **Target collection** — on any collection, the ★ "Set as quick-add target" marks it as the
+  one-key destination; press <kbd>G</kbd> in the viewer to add the current image to it.
+- **Convert to favorites** — a collection's ♥ button marks all its images as favorites (used to
+  retire a hand-made "FAV" collection, which you can then delete).
+
 ### Collections List
 
 A card grid showing all collections with:

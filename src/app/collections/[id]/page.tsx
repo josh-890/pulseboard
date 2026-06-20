@@ -48,6 +48,7 @@ export default async function CollectionDetailPage({ params }: CollectionDetailP
           name={collection.name}
           description={collection.description}
           layout={collection.layout}
+          isTarget={collection.isTarget}
         />
       </div>
 

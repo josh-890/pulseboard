@@ -119,6 +119,7 @@ export type PersonFilters = {
   q?: string;
   status?: PersonStatus | "all";
   watching?: boolean;
+  favorite?: boolean;
   naturalHairColor?: string;
   bodyType?: string;
   ethnicity?: string;
@@ -147,6 +148,10 @@ export async function getPersons(filters: PersonFilters = {}): Promise<PersonWit
 
   if (filters.watching) {
     where.watching = true;
+  }
+
+  if (filters.favorite) {
+    where.isFavorite = true;
   }
 
   const currentStateWhere: Prisma.PersonCurrentStateWhereInput = {};
@@ -198,6 +203,7 @@ export async function getPersons(filters: PersonFilters = {}): Promise<PersonWit
     icgId: p.icgId,
     status: p.status,
     watching: p.watching,
+    isFavorite: p.isFavorite,
     rating: p.rating,
     tags: p.tags,
     naturalHairColor: p.currentState?.currentHairColor ?? null,
@@ -2200,6 +2206,7 @@ export async function getPersonsPaginated(
       icgId: p.icgId,
       status: p.status,
       watching: p.watching,
+      isFavorite: p.isFavorite,
       rating: p.rating,
       tags: p.tags,
       naturalHairColor: p.currentState?.currentHairColor ?? null,

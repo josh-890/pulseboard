@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Pencil, Loader2 } from "lucide-react";
+import { Pencil, Loader2, Star, Heart } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,7 +16,10 @@ import { DeleteButton } from "@/components/shared/delete-button";
 import {
   updateCollectionAction,
   deleteCollectionAction,
+  setTargetCollectionAction,
+  convertCollectionToFavoritesAction,
 } from "@/lib/actions/collection-actions";
+import { cn } from "@/lib/utils";
 import type { CollectionLayout } from "@/lib/services/collection-service";
 import { CollectionLayoutPicker } from "@/components/collections/collection-layout-picker";
 
@@ -25,6 +28,7 @@ type CollectionActionsProps = {
   name: string;
   description: string | null;
   layout: CollectionLayout;
+  isTarget?: boolean;
 };
 
 export function CollectionActions({
@@ -32,6 +36,7 @@ export function CollectionActions({
   name: initialName,
   description: initialDescription,
   layout: initialLayout,
+  isTarget = false,
 }: CollectionActionsProps) {
   const router = useRouter();
   const [editOpen, setEditOpen] = useState(false);
@@ -39,6 +44,31 @@ export function CollectionActions({
   const [description, setDescription] = useState(initialDescription ?? "");
   const [layout, setLayout] = useState<CollectionLayout>(initialLayout);
   const [saving, setSaving] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  async function handleToggleTarget() {
+    setBusy(true);
+    const result = await setTargetCollectionAction(isTarget ? null : collectionId);
+    setBusy(false);
+    if (result.success) {
+      toast.success(isTarget ? "Cleared quick-add target" : "Set as quick-add target");
+      router.refresh();
+    } else {
+      toast.error(result.error ?? "Failed");
+    }
+  }
+
+  async function handleConvertToFavorites() {
+    setBusy(true);
+    const result = await convertCollectionToFavoritesAction(collectionId);
+    setBusy(false);
+    if (result.success) {
+      toast.success(`Marked ${result.count ?? 0} image(s) as favorite`);
+      router.refresh();
+    } else {
+      toast.error(result.error ?? "Failed");
+    }
+  }
 
   async function handleSave() {
     if (!name.trim()) return;
@@ -61,6 +91,26 @@ export function CollectionActions({
 
   return (
     <div className="flex items-center gap-2">
+      <Button
+        variant="ghost"
+        size="icon"
+        className={cn("h-8 w-8", isTarget && "text-amber-400")}
+        disabled={busy}
+        onClick={handleToggleTarget}
+        title={isTarget ? "Clear quick-add target" : "Set as quick-add target (one-key add destination)"}
+      >
+        <Star size={14} fill={isTarget ? "currentColor" : "none"} />
+      </Button>
+      <Button
+        variant="ghost"
+        size="icon"
+        className="h-8 w-8"
+        disabled={busy}
+        onClick={handleConvertToFavorites}
+        title="Mark all images in this collection as favorites"
+      >
+        <Heart size={14} />
+      </Button>
       <Button
         variant="ghost"
         size="icon"

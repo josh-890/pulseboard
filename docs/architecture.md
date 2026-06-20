@@ -57,6 +57,7 @@ Media path:
 | `/artists` | `getArtists()` | `ArtistCard`, `ArtistSearch`, `AddArtistButton` |
 | `/networks` | `getNetworks()` | `NetworkList`, `NetworkCard`, `AddNetworkSheet` |
 | `/collections` | `getAllCollections()` | `CollectionList`, `AddCollectionDialog` |
+| `/favorites` | `getFavoriteMediaItems()`, `getPersonsWithFavoriteMedia()` | `FavoritesGallery`, `FavoritesPersonFilter` — global per-image favorites (`MediaItem.isFavorite`, ADR-0019), person + favorite-persons filters |
 | `/atlas` | `getAtlasLocusCategories()` | Cross-person comparison index — locus categories that have an Alignment Template, with aligned-image counts + sample thumbs (ADR-0014) |
 | `/settings` | `getAllSkillGroups()`, `getAllCategoryGroups()`, `getAllContributionRoleGroups()` | `SkillCatalogManager`, `MediaCategoryManager`, `ContributionRoleManager` |
 | `/import` | `getAllBatches()` | `ImportUploadZone`, `ImportBatchList` |

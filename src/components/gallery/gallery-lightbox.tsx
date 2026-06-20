@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { setMediaFavoriteAction } from "@/lib/actions/media-actions";
+import { addToCollectionAction } from "@/lib/actions/collection-actions";
+import { CollectionQuickAddPalette } from "@/components/collections/collection-quick-add-palette";
 import { createPortal } from "react-dom";
 import { toast } from "sonner";
 import {
@@ -9,6 +11,7 @@ import {
   ChevronRight,
   Copy,
   Crosshair,
+  FolderPlus,
   Heart,
   Loader2,
   PanelRight,
@@ -141,6 +144,12 @@ function SimpleLightbox({
   // heart works in every lightbox without per-page plumbing.
   const [localFavoriteMap, setLocalFavoriteMap] = useState<Map<string, boolean>>(new Map());
   const [, startFavTransition] = useTransition();
+  // ADR-0019: quick-add palette + target collection.
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  const [paletteCollections, setPaletteCollections] = useState<
+    { id: string; name: string; isTarget?: boolean }[]
+  >([]);
+  const [, startCollTransition] = useTransition();
   const touchStartX = useRef<number | null>(null);
   // Zoom/pan is owned by <ZoomableImage>; we only track whether it's zoomed so
   // single-finger swipe-navigation is suppressed while the image is zoomed.
@@ -184,6 +193,43 @@ function SimpleLightbox({
     },
     [localItems, onFavoriteToggle],
   );
+
+  // ADR-0019: quick-add palette data + optimistic collection membership.
+  useEffect(() => {
+    fetch("/api/collections/palette")
+      .then((r) => r.json())
+      .then((data: { id: string; name: string; isTarget?: boolean }[]) => setPaletteCollections(data))
+      .catch(() => {});
+  }, []);
+
+  const handlePaletteMembership = useCallback(
+    (collectionId: string, isIn: boolean) => {
+      if (!item) return;
+      const cur = item.collectionIds ?? [];
+      const next = isIn ? [...cur, collectionId] : cur.filter((c) => c !== collectionId);
+      setLocalCollectionIdsMap((m) => new Map(m).set(item.id, next));
+    },
+    [item],
+  );
+
+  const addToTarget = useCallback(() => {
+    if (!item) return;
+    const target = paletteCollections.find((c) => c.isTarget);
+    if (!target) {
+      toast.message("No target collection set — set one with the ★ on a collection.");
+      return;
+    }
+    if ((item.collectionIds ?? []).includes(target.id)) {
+      toast.message(`Already in ${target.name}`);
+      return;
+    }
+    setLocalCollectionIdsMap((m) => new Map(m).set(item.id, [...(item.collectionIds ?? []), target.id]));
+    startCollTransition(async () => {
+      const res = await addToCollectionAction(target.id, [item.id]);
+      if (res.success) toast.success(`Added to ${target.name}`);
+      else toast.error(res.error ?? "Failed");
+    });
+  }, [item, paletteCollections]);
 
   // ── Copy to reference session ──
   // The lightbox owns the picker state + dispatch so the parent doesn't have
@@ -374,11 +420,27 @@ function SimpleLightbox({
             handleFavorite(item.id);
           }
           break;
+        case "b":
+        case "B":
+          // ADR-0019: open the collection quick-add palette.
+          if (item) {
+            e.preventDefault();
+            setPaletteOpen(true);
+          }
+          break;
+        case "g":
+        case "G":
+          // ADR-0019: one-key add to the target collection.
+          if (item) {
+            e.preventDefault();
+            addToTarget();
+          }
+          break;
       }
     }
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [onClose, goNext, goPrev, handleToggleInfoPanel, hasFocalPointSupport, canCopyToReference, handleCopyTrigger, handleFavorite, item]);
+  }, [onClose, goNext, goPrev, handleToggleInfoPanel, hasFocalPointSupport, canCopyToReference, handleCopyTrigger, handleFavorite, addToTarget, item]);
 
   useEffect(() => {
     const original = document.body.style.overflow;
@@ -489,6 +551,17 @@ function SimpleLightbox({
               title="Favorite (.)"
             >
               <Heart size={16} fill={item.isFavorite ? "currentColor" : "none"} />
+            </button>
+          )}
+          {item && (
+            <button
+              type="button"
+              onClick={() => setPaletteOpen(true)}
+              className="rounded-full p-2 bg-white/10 text-white/70 transition-colors hover:bg-white/20 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50"
+              aria-label="Add to collection"
+              title="Add to collection (B)"
+            >
+              <FolderPlus size={16} />
             </button>
           )}
           {item && (
@@ -710,6 +783,16 @@ function SimpleLightbox({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* ADR-0019: collection quick-add palette (hotkey b / toolbar) */}
+      <CollectionQuickAddPalette
+        open={paletteOpen}
+        onOpenChange={setPaletteOpen}
+        mediaItemId={item?.id ?? null}
+        collectionIds={item?.collectionIds ?? []}
+        collections={paletteCollections}
+        onMembershipChange={handlePaletteMembership}
+      />
     </div>,
     document.body,
   );

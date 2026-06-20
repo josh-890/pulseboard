@@ -22,6 +22,7 @@ import {
   FolderSearch,
   Wrench,
   Eye,
+  Heart,
 } from "lucide-react";
 import { NavLink } from "./nav-link";
 import { useSidebar } from "./sidebar-provider";
@@ -34,6 +35,7 @@ const navItems = [
   { href: "/sessions", icon: <Clapperboard size={20} />, label: "Sessions" },
   { href: "/sets", icon: <ImageIcon size={20} />, label: "Sets" },
   { href: "/collections", icon: <Library size={20} />, label: "Collections" },
+  { href: "/favorites", icon: <Heart size={20} />, label: "Favorites" },
   { href: "/atlas", icon: <LayoutGrid size={20} />, label: "Atlas" },
   { href: "/people", icon: <Users size={20} />, label: "People", resolveHref: getBrowseReturnUrl },
   { href: "/watchlist", icon: <Eye size={20} />, label: "Watchlist" },

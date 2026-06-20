@@ -66,6 +66,7 @@ import type { PersonResearchItem } from "@/lib/services/research-service";
 import { CareerTab } from "@/components/people/career-tab";
 import { ProductionPhotoList } from "@/components/people/production-photo-list";
 import { WatchToggle } from "@/components/people/watch-toggle";
+import { PersonFavoriteStar } from "@/components/people/person-favorite-star";
 import type { SkillGroupWithDefinitions } from "@/lib/services/skill-catalog-service";
 import type { PersonAliasWithChannels } from "@/lib/services/alias-service";
 import type { GalleryItem } from "@/lib/types";
@@ -841,6 +842,7 @@ function IdentityBlock({ person, displayName, age, heroAliases, onAliasesBadgeCl
           personId={person.id}
           watching={person.watching}
         />
+        <PersonFavoriteStar personId={person.id} isFavorite={person.isFavorite} />
       </div>
       {displayName !== person.icgId && (
         <div className="mt-0.5 flex items-center gap-2">

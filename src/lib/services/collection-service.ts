@@ -297,3 +297,57 @@ export async function getCollectionIdsForMediaItems(
   }
   return map;
 }
+
+// ─── Favorites + target collection (ADR-0019) ────────────────────────────────
+
+// Mark every member of a collection as a global favorite (used to retire a
+// hand-made "FAV" collection). Returns the number of items converted.
+export async function convertCollectionToFavorites(collectionId: string): Promise<number> {
+  const items = await prisma.mediaCollectionItem.findMany({
+    where: { collectionId },
+    select: { mediaItemId: true },
+  });
+  const ids = items.map((i) => i.mediaItemId);
+  if (ids.length === 0) return 0;
+  await prisma.mediaItem.updateMany({
+    where: { id: { in: ids } },
+    data: { isFavorite: true },
+  });
+  return ids.length;
+}
+
+// The single "target" collection for one-key quick-add (Lightroom-style).
+export async function getTargetCollection(): Promise<{ id: string; name: string } | null> {
+  return prisma.mediaCollection.findFirst({
+    where: { isTarget: true },
+    select: { id: true, name: true },
+  });
+}
+
+// Set (or clear) the target collection — enforces at most one TRUE.
+export async function setTargetCollection(collectionId: string | null): Promise<void> {
+  await prisma.$transaction(async (tx) => {
+    await tx.mediaCollection.updateMany({
+      where: { isTarget: true },
+      data: { isTarget: false },
+    });
+    if (collectionId) {
+      await tx.mediaCollection.update({
+        where: { id: collectionId },
+        data: { isTarget: true },
+      });
+    }
+  });
+}
+
+// GRID collections for the quick-add palette (excludes SIDE_BY_SIDE comparison
+// containers), with the target flagged.
+export async function getGridCollectionsForPalette(): Promise<
+  { id: string; name: string; isTarget: boolean }[]
+> {
+  return prisma.mediaCollection.findMany({
+    where: { layout: "GRID" },
+    select: { id: true, name: true, isTarget: true },
+    orderBy: { name: "asc" },
+  });
+}

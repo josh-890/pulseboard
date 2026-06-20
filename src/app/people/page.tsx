@@ -41,6 +41,7 @@ type PeoplePageProps = {
     q?: string;
     status?: string;
     watching?: string;
+    favorite?: string;
     hairColor?: string;
     bodyType?: string;
     ethnicity?: string;
@@ -114,7 +115,7 @@ export default async function PeoplePage({ searchParams }: PeoplePageProps) {
       return <PeopleSearchPage searchParams={raw as Record<string, string>} />;
     }
     const {
-      q, status, watching: watchingParam, hairColor, bodyType, ethnicity, bodyRegions: bodyRegionsParam,
+      q, status, watching: watchingParam, favorite: favoriteParam, hairColor, bodyType, ethnicity, bodyRegions: bodyRegionsParam,
       bodyRegionMatch: bodyRegionMatchParam, loaded,
       slot: slotParam, sort: sortParam, completeness: completenessParam,
       birthdateFrom: birthdateFromParam, birthdateTo: birthdateToParam,
@@ -155,6 +156,7 @@ export default async function PeoplePage({ searchParams }: PeoplePageProps) {
     q: q?.trim() || undefined,
     status: resolvedStatus ?? ("all" as const),
     watching: watchingParam === "true" || undefined,
+    favorite: favoriteParam === "true" || undefined,
     naturalHairColor: hairColor || undefined,
     bodyType: bodyType || undefined,
     ethnicity: ethnicity || undefined,
@@ -218,6 +220,12 @@ export default async function PeoplePage({ searchParams }: PeoplePageProps) {
     type: "toggle",
     param: "watching",
     label: "Watching",
+  });
+
+  filterGroups.push({
+    type: "toggle",
+    param: "favorite",
+    label: "Favorite",
   });
 
   filterGroups.push({

@@ -649,6 +649,50 @@ export async function getSetMediaGallery(
   return results;
 }
 
+// ─── Favorites (ADR-0019) ─────────────────────────────────────────────────────
+
+// Global Favorite Images gallery. Optional person filter (images linked to that
+// person via PersonMediaLink). `favoritePersonsOnly` (slice 4) scopes to images
+// linked to at least one favorited Person.
+export async function getFavoriteMediaItems(
+  filters?: { personId?: string; favoritePersonsOnly?: boolean },
+): Promise<GalleryItem[]> {
+  const items = await prisma.mediaItem.findMany({
+    where: {
+      isFavorite: true,
+      ...(filters?.personId
+        ? { personMediaLinks: { some: { personId: filters.personId } } }
+        : {}),
+      ...(filters?.favoritePersonsOnly
+        ? { personMediaLinks: { some: { person: { isFavorite: true } } } }
+        : {}),
+    },
+    include: {
+      session: { select: { id: true, name: true } },
+      collectionItems: { select: { collectionId: true } },
+    },
+    orderBy: { createdAt: "desc" },
+  });
+  const results: GalleryItem[] = [];
+  for (const it of items) {
+    const base = mapMediaItemToGalleryItem(it);
+    if (base) results.push(base);
+  }
+  return results;
+}
+
+// Persons who have at least one favorited image — the person-filter options for
+// the favorites gallery.
+export async function getPersonsWithFavoriteMedia(): Promise<{ id: string; name: string }[]> {
+  const persons = await prisma.person.findMany({
+    where: { personMediaLinks: { some: { mediaItem: { isFavorite: true } } } },
+    select: { id: true, aliases: { where: { isCommon: true }, take: 1, select: { name: true } } },
+  });
+  return persons
+    .map((p) => ({ id: p.id, name: p.aliases[0]?.name ?? "Unknown" }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
 // ─── Skill event media constraint check ──────────────────────────────────────
 
 export async function getSkillEventMediaConstraints(

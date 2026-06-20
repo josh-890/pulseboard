@@ -9,11 +9,47 @@ import {
   addToCollection,
   removeFromCollection,
   reorderCollection,
+  convertCollectionToFavorites,
+  setTargetCollection,
   type CollectionLayout,
 } from "@/lib/services/collection-service";
 import type { SimpleActionResult } from "@/lib/types";
 
 type ActionResultWithId = SimpleActionResult & { id?: string };
+
+// ADR-0019: mark every image in a collection as a global favorite (to retire a
+// hand-made FAV collection). Returns the converted count via `id` is not apt; use a count field.
+export async function convertCollectionToFavoritesAction(
+  collectionId: string,
+): Promise<SimpleActionResult & { count?: number }> {
+  return withTenantFromHeaders(async () => {
+    try {
+      const count = await convertCollectionToFavorites(collectionId);
+      revalidatePath("/favorites");
+      revalidatePath(`/collections/${collectionId}`);
+      return { success: true, count };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unexpected error";
+      return { success: false, error: message };
+    }
+  });
+}
+
+// ADR-0019: designate (or clear) the one-key quick-add target collection.
+export async function setTargetCollectionAction(
+  collectionId: string | null,
+): Promise<SimpleActionResult> {
+  return withTenantFromHeaders(async () => {
+    try {
+      await setTargetCollection(collectionId);
+      revalidatePath("/collections");
+      return { success: true };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unexpected error";
+      return { success: false, error: message };
+    }
+  });
+}
 
 export async function createCollectionAction(
   personId: string | null,

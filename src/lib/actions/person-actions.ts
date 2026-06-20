@@ -16,6 +16,29 @@ import { getHeadshotsForPersons } from "@/lib/services/media-service";
 import { prisma } from "@/lib/db";
 import type { CrudActionResult, SimpleActionResult } from "@/lib/types";
 
+// ADR-0019: favorite-person flag (★). Filters the people browser + scopes the
+// favorites gallery.
+export async function setPersonFavoriteAction(
+  personId: string,
+  isFavorite: boolean,
+): Promise<SimpleActionResult> {
+  return withTenantFromHeaders(async () => {
+    try {
+      await prisma.person.update({
+        where: { id: personId },
+        data: { isFavorite },
+      });
+      revalidatePath("/people");
+      revalidatePath(`/people/${personId}`);
+      revalidatePath("/favorites");
+      return { success: true };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unexpected error";
+      return { success: false, error: message };
+    }
+  });
+}
+
 export async function createPerson(raw: unknown): Promise<CrudActionResult> {
   return withTenantFromHeaders(async () => {
     const parsed = createPersonSchema.safeParse(raw);
