@@ -3,9 +3,10 @@
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
-import { ArrowLeft, ArrowRight, Columns2, FolderSearch, ImageIcon, Plus, SlidersHorizontal } from "lucide-react";
+import { ArrowLeft, ArrowRight, ArrowUpDown, Check, Columns2, FolderSearch, ImageIcon, Plus, SlidersHorizontal } from "lucide-react";
 import { toast } from "sonner";
 import { JustifiedGrid } from "@/components/gallery/justified-grid";
+import { SortableGallery } from "@/components/gallery/sortable-gallery";
 import { GalleryLightbox } from "@/components/gallery/gallery-lightbox";
 import type { CollectionContext } from "@/components/gallery/gallery-lightbox";
 import {
@@ -37,6 +38,17 @@ export function CollectionDetailGallery({
   const router = useRouter();
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
+  // Reorder mode (GRID): toggle the grid into drag-to-reorder. `order` is the
+  // optimistic local order so a drag reflects before the server round-trip.
+  const [reordering, setReordering] = useState(false);
+  const [order, setOrder] = useState(items);
+  // Re-sync optimistic order when the server sends a fresh items list — the
+  // "adjust state during render" pattern (avoids a set-state-in-effect).
+  const [prevItems, setPrevItems] = useState(items);
+  if (items !== prevItems) {
+    setPrevItems(items);
+    setOrder(items);
+  }
   const [collections, setCollections] = useState<{ id: string; name: string }[]>([]);
   const [dragOver, setDragOver] = useState(false);
   // Before/after pairs can switch between side-by-side cells and a reveal slider.
@@ -66,9 +78,24 @@ export function CollectionDetailGallery({
 
   const indexMap = useMemo(() => {
     const map = new Map<string, number>();
-    items.forEach((item, i) => map.set(item.id, i));
+    order.forEach((item, i) => map.set(item.id, i));
     return map;
-  }, [items]);
+  }, [order]);
+
+  const handleReorder = useCallback(
+    (orderedIds: string[]) => {
+      const byId = new Map(order.map((it) => [it.id, it]));
+      const next = orderedIds.map((id) => byId.get(id)).filter((it): it is GalleryItem => !!it);
+      setOrder(next); // optimistic
+      reorderCollectionAction(collectionId, orderedIds).then((res) => {
+        if (!res.success) {
+          toast.error(res.error ?? "Failed to reorder");
+          setOrder(items); // revert
+        }
+      });
+    },
+    [order, items, collectionId],
+  );
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     if (!e.dataTransfer.types.includes("application/x-media-id")) return;
@@ -200,8 +227,15 @@ export function CollectionDetailGallery({
     <div className="space-y-4">
       {layout === "SIDE_BY_SIDE" ? (
         sideBySide
+      ) : reordering ? (
+        <div className="space-y-2">
+          <p className="text-xs text-muted-foreground">
+            Drag to reorder — the first image is the collection cover.
+          </p>
+          <SortableGallery items={order} onOpen={openLightbox} onReorder={handleReorder} />
+        </div>
       ) : (
-        <JustifiedGrid items={items} onOpen={openLightbox} />
+        <JustifiedGrid items={order} onOpen={openLightbox} />
       )}
       {!pickerOpen && (
         <div className="flex flex-wrap items-center gap-2">
@@ -214,6 +248,17 @@ export function CollectionDetailGallery({
             <FolderSearch size={14} />
             Browse & Add
           </Button>
+          {layout !== "SIDE_BY_SIDE" && order.length > 1 && (
+            <Button
+              variant={reordering ? "default" : "outline"}
+              size="sm"
+              className="gap-1.5"
+              onClick={() => setReordering((r) => !r)}
+            >
+              {reordering ? <Check size={14} /> : <ArrowUpDown size={14} />}
+              {reordering ? "Done" : "Reorder"}
+            </Button>
+          )}
         </div>
       )}
     </div>
@@ -284,7 +329,7 @@ export function CollectionDetailGallery({
 
       {lightboxIndex !== null && (
         <GalleryLightbox
-          items={items}
+          items={order}
           initialIndex={lightboxIndex}
           onClose={() => setLightboxIndex(null)}
           collectionContext={collectionContext}
