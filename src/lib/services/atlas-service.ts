@@ -145,10 +145,15 @@ export async function getAtlasGridForCategory(categoryId: string): Promise<Atlas
   for (const l of links) {
     const item = mapMediaItemToGalleryItem(l.mediaItem);
     if (!item) continue;
+    const aliasName = l.person.aliases[0]?.name ?? null;
+    const personName = getDisplayName(aliasName, l.person.icgId);
+    // Aligned-motif filenames are generic; surface the person instead as the
+    // lightbox title ("Name (ICG-ID)", or just the ICG-ID when no alias).
+    item.filename = aliasName ? `${aliasName} (${l.person.icgId})` : l.person.icgId;
     tiles.push({
       mediaItemId: l.mediaItem.id,
       personId: l.person.id,
-      personName: getDisplayName(l.person.aliases[0]?.name ?? null, l.person.icgId),
+      personName,
       thumbUrl: bestThumb(l.mediaItem.variants),
       item,
     });

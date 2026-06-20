@@ -23,6 +23,7 @@ type GalleryThumbnailProps = {
   onSelect?: (id: string, e: React.MouseEvent) => void;
   onToggleSelect?: (id: string) => void;
   onOpen: (id: string) => void;
+  showFavoriteBadge?: boolean;
 };
 
 export function GalleryThumbnail({
@@ -36,6 +37,7 @@ export function GalleryThumbnail({
   onSelect,
   onToggleSelect,
   onOpen,
+  showFavoriteBadge = true,
 }: GalleryThumbnailProps) {
   const imgSrc = item.urls.gallery_512 ?? item.urls.original;
   if (!imgSrc) return null;
@@ -135,7 +137,7 @@ export function GalleryThumbnail({
       )}
 
       {/* Favorite badge (top-right) — ADR-0019 global favorite */}
-      {item.isFavorite && (
+      {showFavoriteBadge && item.isFavorite && (
         <span
           className="absolute top-1.5 right-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-red-500/90 text-white pointer-events-none"
           aria-label="Favorite"

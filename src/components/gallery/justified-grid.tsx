@@ -20,6 +20,8 @@ type JustifiedGridProps = {
   onSelect?: (id: string, e: React.MouseEvent) => void;
   onToggleSelect?: (id: string) => void;
   onOpen: (id: string) => void;
+  /** Show the per-tile favorite heart badge (default true). */
+  showFavoriteBadge?: boolean;
 };
 
 export function JustifiedGrid({
@@ -30,6 +32,7 @@ export function JustifiedGrid({
   onSelect,
   onToggleSelect,
   onOpen,
+  showFavoriteBadge = true,
 }: JustifiedGridProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [containerWidth, setContainerWidth] = useState(0);
@@ -82,6 +85,7 @@ export function JustifiedGrid({
                 onSelect={onSelect}
                 onToggleSelect={onToggleSelect}
                 onOpen={onOpen}
+                showFavoriteBadge={showFavoriteBadge}
               />
             );
           })}

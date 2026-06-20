@@ -20,7 +20,7 @@ export function FavoritesGallery({ items }: { items: GalleryItem[] }) {
 
   return (
     <>
-      <JustifiedGrid items={items} onOpen={openById} />
+      <JustifiedGrid items={items} onOpen={openById} showFavoriteBadge={false} />
       {lightboxIndex !== null && (
         <GalleryLightbox
           items={items}
