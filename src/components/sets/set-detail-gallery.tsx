@@ -928,6 +928,11 @@ export function SetDetailGallery({
           sessionId={primarySessionId}
           productionContext={productionContext}
           collectionContext={collectionContext}
+          detailAssignContext={
+            copyToReferenceTargets && copyToReferenceTargets.length > 0
+              ? { restrictTo: copyToReferenceTargets.map((t) => ({ id: t.personId, name: t.name })) }
+              : undefined
+          }
           copyToReferenceTargets={copyToReferenceTargets}
           onCopyToReference={async (target: ReferenceCopyTarget, sourceMediaItemId: string) => {
             const result = await copyMediaItemToReferenceAction(
