@@ -763,6 +763,8 @@ export function StagingSetsWorkspace() {
               onToggleCheck={toggleCheck}
               onQueueToggle={handleQueueToggle}
               onArchiveChange={() => fetchDataPreservingScroll()}
+              onStatusChange={handleStatusChange}
+              onPromote={handlePromote}
               onLoadMore={handleLoadMore}
               hasMore={!!data && data.items.length < data.total}
               isLoadingMore={isLoadingMore}

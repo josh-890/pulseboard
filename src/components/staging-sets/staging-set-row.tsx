@@ -12,6 +12,7 @@ import { confirmArchiveFolderLinkAction, rejectArchiveSuggestionAction } from '@
 import { acceptDateSuggestionAction, dismissDateSuggestionAction } from '@/lib/actions/staging-set-actions'
 import { ArchiveFolderPicker } from './archive-folder-picker'
 import { StagingSetCoverUpload } from './staging-set-cover-upload'
+import { StagingSetStatusMenu } from './staging-set-status-menu'
 
 // ─── Constants ─────────────────────────────────────────────────────────────
 
@@ -96,6 +97,8 @@ type StagingSetRowProps = {
   onToggleCheck: (id: string) => void
   onQueueToggle?: (id: string) => void
   onArchiveChange?: () => void
+  onStatusChange?: (id: string, status: StagingSetStatus) => void | Promise<void>
+  onPromote?: (id: string) => void | Promise<void>
   inlineCoverMode?: InlineCoverMode
 }
 
@@ -260,6 +263,8 @@ export const StagingSetRow = memo(function StagingSetRow({
   onToggleCheck,
   onQueueToggle,
   onArchiveChange,
+  onStatusChange,
+  onPromote,
   inlineCoverMode,
 }: StagingSetRowProps) {
   const [imgError, setImgError] = useState(false)
@@ -671,10 +676,21 @@ export const StagingSetRow = memo(function StagingSetRow({
             />
           )}
 
-          {/* Status badge */}
-          <span className={cn('rounded-full px-2 py-0.5 text-[10px] font-medium', badge.className)}>
-            {badge.label}
-          </span>
+          {/* Status badge — clickable quick-status menu when handlers are wired */}
+          {onStatusChange && onPromote ? (
+            <StagingSetStatusMenu
+              id={ss.id}
+              status={ss.status}
+              badgeLabel={badge.label}
+              badgeClassName={badge.className}
+              onStatusChange={onStatusChange}
+              onPromote={onPromote}
+            />
+          ) : (
+            <span className={cn('rounded-full px-2 py-0.5 text-[10px] font-medium', badge.className)}>
+              {badge.label}
+            </span>
+          )}
 
           {/* Priority dot */}
           {ss.priority && PRIORITY_DOT[ss.priority] && (

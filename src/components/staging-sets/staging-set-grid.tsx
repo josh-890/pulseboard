@@ -6,6 +6,7 @@ import { ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown, ImageIcon, L
 import { cn } from '@/lib/utils'
 import { StagingSetRow } from './staging-set-row'
 import type { StagingSetWithRelations } from '@/lib/services/import/staging-set-service'
+import type { StagingSetStatus } from '@/generated/prisma/client'
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
@@ -27,6 +28,8 @@ type StagingSetGridProps = {
   onToggleCheck: (id: string) => void
   onQueueToggle?: (id: string) => void
   onArchiveChange?: () => void
+  onStatusChange?: (id: string, status: StagingSetStatus) => void | Promise<void>
+  onPromote?: (id: string) => void | Promise<void>
   onLoadMore: () => void
   hasMore: boolean
   isLoadingMore: boolean
@@ -191,6 +194,8 @@ export function StagingSetGrid({
   onToggleCheck,
   onQueueToggle,
   onArchiveChange,
+  onStatusChange,
+  onPromote,
   onLoadMore,
   hasMore,
   isLoadingMore,
@@ -532,6 +537,8 @@ export function StagingSetGrid({
                     onToggleCheck={onToggleCheck}
                     onQueueToggle={onQueueToggle}
                     onArchiveChange={onArchiveChange}
+                    onStatusChange={onStatusChange}
+                    onPromote={onPromote}
                     inlineCoverMode={inlineCoverUpload ? {
                       overrideCoverUrl: inlineCoverUpload.uploadedCovers.get(entry.data.id),
                       isAccepted: inlineCoverUpload.acceptedCovers.has(entry.data.id),
