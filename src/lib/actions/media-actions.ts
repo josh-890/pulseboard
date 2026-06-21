@@ -9,6 +9,8 @@ import {
   batchSetUsage,
   batchRemoveUsage,
   setEntityMediaCover,
+  ensureReferenceSession,
+  copyMediaToReferenceSession,
   type EntityMediaModel,
 } from "@/lib/services/media-service";
 import { cascadeHardDeleteMediaItems } from "@/lib/services/cascade-helpers";
@@ -366,59 +368,93 @@ export async function copyMediaItemToReferenceAction(
         };
       }
 
-      const source = await prisma.mediaItem.findUnique({
-        where: { id: sourceMediaItemId },
-        select: {
-          filename: true,
-          fileRef: true,
-          mimeType: true,
-          size: true,
-          originalWidth: true,
-          originalHeight: true,
-          variants: true,
-          hash: true,
-          phash: true,
-        },
-      });
-      if (!source) return { success: false, error: "Source media item not found", code: "SOURCE_NOT_FOUND" };
-
-      const { copyMediaFilesToReference } = await import("@/lib/media-upload");
-      const { variants: newVariants, fileRef: newFileRef } = await copyMediaFilesToReference(
-        (source.variants ?? {}) as import("@/lib/types").PhotoVariants,
-        source.fileRef,
-        destRefSessionId,
-      );
-
-      const newItem = await prisma.mediaItem.create({
-        data: {
-          sessionId: destRefSessionId,
-          mediaType: "PHOTO",
-          filename: source.filename,
-          fileRef: newFileRef,
-          mimeType: source.mimeType,
-          size: source.size,
-          originalWidth: source.originalWidth,
-          originalHeight: source.originalHeight,
-          variants: newVariants as Record<string, string>,
-          tags: [],
-          // Preserve dedup hashes so existing similarity / duplicate queries
-          // see the copy too. Variants point at fresh MinIO keys so the
-          // bytes are duplicated, but content-identity is preserved.
-          hash: source.hash,
-          phash: source.phash,
-          isAnnotation: false,
-          copiedFromMediaItemId: sourceMediaItemId,
-        },
-        select: { id: true },
-      });
+      const newMediaItemId = await copyMediaToReferenceSession(sourceMediaItemId, destRefSessionId);
 
       revalidatePath(`/people/${personId}`);
       return {
         success: true,
-        newMediaItemId: newItem.id,
+        newMediaItemId,
         personName: person.aliases[0]?.name ?? "Unknown",
         referenceSessionId: destRefSessionId,
       };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unexpected error";
+      return { success: false, error: message };
+    }
+  });
+}
+
+// ADR follow-up — reverse "assign photo → person's detail category" (always-copy).
+// Copies the source into the person's reference session (auto-creating it if
+// needed), then creates the DETAIL link on the copy. If the source is ALREADY in
+// the person's reference session, links it directly (the only case a MOVE can
+// occur, given @@unique([personId, mediaItemId, usage])).
+export type AssignToDetailResult =
+  | {
+      success: true;
+      assignedMediaItemId: string;
+      copied: boolean;
+      moved: boolean;
+      movedFromCategoryId: string | null;
+      personName: string;
+    }
+  | { success: false; error: string };
+
+export async function assignMediaToDetailCategoryAction(
+  sourceMediaItemId: string,
+  personId: string,
+  categoryId: string,
+): Promise<AssignToDetailResult> {
+  return withTenantFromHeaders(async () => {
+    try {
+      const person = await prisma.person.findUnique({
+        where: { id: personId },
+        select: {
+          icgId: true,
+          referenceSession: { select: { id: true } },
+          aliases: { where: { isCommon: true }, take: 1, select: { name: true } },
+        },
+      });
+      if (!person) return { success: false, error: "Person not found" };
+      const personName = person.aliases[0]?.name ?? person.icgId;
+
+      const refSessionId = person.referenceSession?.id ?? (await ensureReferenceSession(personId));
+
+      const source = await prisma.mediaItem.findUnique({
+        where: { id: sourceMediaItemId },
+        select: { sessionId: true },
+      });
+      if (!source) return { success: false, error: "Source image not found" };
+
+      let assignedMediaItemId = sourceMediaItemId;
+      let copied = false;
+      if (source.sessionId !== refSessionId) {
+        assignedMediaItemId = await copyMediaToReferenceSession(sourceMediaItemId, refSessionId);
+        copied = true;
+      }
+
+      // Upsert the DETAIL link on the assigned item (copy = always new; direct =
+      // may move an existing assignment to a different category).
+      let moved = false;
+      let movedFromCategoryId: string | null = null;
+      const existing = await prisma.personMediaLink.findFirst({
+        where: { personId, mediaItemId: assignedMediaItemId, usage: "DETAIL" },
+        select: { id: true, categoryId: true },
+      });
+      if (existing) {
+        if (existing.categoryId && existing.categoryId !== categoryId) {
+          moved = true;
+          movedFromCategoryId = existing.categoryId;
+        }
+        await prisma.personMediaLink.update({ where: { id: existing.id }, data: { categoryId } });
+      } else {
+        await prisma.personMediaLink.create({
+          data: { personId, mediaItemId: assignedMediaItemId, usage: "DETAIL", categoryId },
+        });
+      }
+
+      revalidatePath(`/people/${personId}`);
+      return { success: true, assignedMediaItemId, copied, moved, movedFromCategoryId, personName };
     } catch (err) {
       const message = err instanceof Error ? err.message : "Unexpected error";
       return { success: false, error: message };

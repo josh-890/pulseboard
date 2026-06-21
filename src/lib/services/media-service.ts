@@ -686,6 +686,78 @@ export async function countFavoriteMediaItems(): Promise<number> {
   return prisma.mediaItem.count({ where: { isFavorite: true } });
 }
 
+// Return the person's REFERENCE session id, creating one if absent. Persons
+// normally get a reference session at creation (person-service); this is the
+// fallback for the "assign to detail" workflow (always-copy needs a target).
+export async function ensureReferenceSession(personId: string): Promise<string> {
+  const person = await prisma.person.findUnique({
+    where: { id: personId },
+    select: {
+      icgId: true,
+      referenceSession: { select: { id: true } },
+      aliases: { where: { isCommon: true }, take: 1, select: { name: true } },
+    },
+  });
+  if (!person) throw new Error("Person not found");
+  if (person.referenceSession) return person.referenceSession.id;
+  const { normalizeForSearch } = await import("@/lib/normalize");
+  const displayName = person.aliases[0]?.name ?? person.icgId;
+  const session = await prisma.session.create({
+    data: {
+      name: displayName,
+      nameNorm: normalizeForSearch(displayName),
+      type: "REFERENCE",
+      status: "CONFIRMED",
+      personId,
+    },
+    select: { id: true },
+  });
+  return session.id;
+}
+
+// Copy a source MediaItem's bytes into a reference session as a NEW MediaItem
+// (fresh MinIO keys; hashes + copiedFrom provenance preserved). Returns the new
+// MediaItem id. Shared by copyMediaItemToReferenceAction + the assign-to-detail flow.
+export async function copyMediaToReferenceSession(
+  sourceMediaItemId: string,
+  refSessionId: string,
+): Promise<string> {
+  const source = await prisma.mediaItem.findUnique({
+    where: { id: sourceMediaItemId },
+    select: {
+      filename: true, fileRef: true, mimeType: true, size: true,
+      originalWidth: true, originalHeight: true, variants: true, hash: true, phash: true,
+    },
+  });
+  if (!source) throw new Error("Source media item not found");
+  const { copyMediaFilesToReference } = await import("@/lib/media-upload");
+  const { variants: newVariants, fileRef: newFileRef } = await copyMediaFilesToReference(
+    (source.variants ?? {}) as PhotoVariants,
+    source.fileRef,
+    refSessionId,
+  );
+  const newItem = await prisma.mediaItem.create({
+    data: {
+      sessionId: refSessionId,
+      mediaType: "PHOTO",
+      filename: source.filename,
+      fileRef: newFileRef,
+      mimeType: source.mimeType,
+      size: source.size,
+      originalWidth: source.originalWidth,
+      originalHeight: source.originalHeight,
+      variants: newVariants as Record<string, string>,
+      tags: [],
+      hash: source.hash,
+      phash: source.phash,
+      isAnnotation: false,
+      copiedFromMediaItemId: sourceMediaItemId,
+    },
+    select: { id: true },
+  });
+  return newItem.id;
+}
+
 // Persons who have at least one favorited image — the person-filter options for
 // the favorites gallery.
 export async function getPersonsWithFavoriteMedia(): Promise<{ id: string; name: string }[]> {

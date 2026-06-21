@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from
 import { setMediaFavoriteAction } from "@/lib/actions/media-actions";
 import { addToCollectionAction } from "@/lib/actions/collection-actions";
 import { CollectionQuickAddPalette } from "@/components/collections/collection-quick-add-palette";
+import { DetailAssignSheet, type AssignPerson } from "@/components/people/detail-assign-sheet";
 import { createPortal } from "react-dom";
 import { toast } from "sonner";
 import {
@@ -13,6 +14,7 @@ import {
   Crosshair,
   FolderPlus,
   Heart,
+  ImagePlus,
   Loader2,
   PanelRight,
   PanelRightClose,
@@ -46,6 +48,9 @@ type GalleryLightboxProps = {
   items: GalleryItem[];
   initialIndex: number;
   onClose: () => void;
+  // Reverse "assign to detail category" (always-copy). Always available; the
+  // context just seeds the person (current person / set contributors).
+  detailAssignContext?: { defaultPerson?: AssignPerson | null; suggestedPeople?: AssignPerson[] };
   onFavoriteToggle?: (itemId: string) => void;
   onSetCover?: (mediaItemId: string | null) => void;
   coverMediaItemId?: string | null;
@@ -104,6 +109,7 @@ function SimpleLightbox({
   items,
   initialIndex,
   onClose,
+  detailAssignContext,
   onFavoriteToggle,
   onSetCover,
   coverMediaItemId,
@@ -146,6 +152,7 @@ function SimpleLightbox({
   const [, startFavTransition] = useTransition();
   // ADR-0019: quick-add palette + target collection.
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [assignOpen, setAssignOpen] = useState(false);
   const [paletteCollections, setPaletteCollections] = useState<
     { id: string; name: string; isTarget?: boolean }[]
   >([]);
@@ -436,6 +443,14 @@ function SimpleLightbox({
             addToTarget();
           }
           break;
+        case "d":
+        case "D":
+          // Reverse "assign to detail category".
+          if (item) {
+            e.preventDefault();
+            setAssignOpen(true);
+          }
+          break;
       }
     }
     document.addEventListener("keydown", handleKeyDown);
@@ -562,6 +577,17 @@ function SimpleLightbox({
               title="Add to collection (B)"
             >
               <FolderPlus size={16} />
+            </button>
+          )}
+          {item && (
+            <button
+              type="button"
+              onClick={() => setAssignOpen(true)}
+              className="rounded-full p-2 bg-white/10 text-white/70 transition-colors hover:bg-white/20 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50"
+              aria-label="Assign to detail category"
+              title="Assign to a person's detail category (D)"
+            >
+              <ImagePlus size={16} />
             </button>
           )}
           {item && (
@@ -793,6 +819,17 @@ function SimpleLightbox({
         collections={paletteCollections}
         onMembershipChange={handlePaletteMembership}
       />
+
+      {/* Reverse assign-to-detail (hotkey d / toolbar) — mount only when open */}
+      {assignOpen && item && (
+        <DetailAssignSheet
+          open
+          onOpenChange={setAssignOpen}
+          mediaItemId={item.id}
+          defaultPerson={detailAssignContext?.defaultPerson ?? null}
+          suggestedPeople={detailAssignContext?.suggestedPeople ?? []}
+        />
+      )}
     </div>,
     document.body,
   );

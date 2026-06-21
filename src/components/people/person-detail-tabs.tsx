@@ -1564,6 +1564,7 @@ function OverviewTab({
               items={recentPhotos}
               initialIndex={lightboxIndex}
               enableCollections
+              detailAssignContext={{ defaultPerson: { id: person.id, name: person.aliases.find((a) => a.isCommon)?.name ?? person.icgId } }}
               onClose={() => setLightboxIndex(null)}
             />
           )}
@@ -1806,6 +1807,7 @@ function PhotosTab({
           items={photos}
           initialIndex={lightboxIndex}
           enableCollections
+          detailAssignContext={{ defaultPerson: { id: person.id, name: person.aliases.find((a) => a.isCommon)?.name ?? person.icgId } }}
           onClose={() => setLightboxIndex(null)}
           onFindSimilar={handleFindSimilar}
           sessionId={referenceSessionId}
