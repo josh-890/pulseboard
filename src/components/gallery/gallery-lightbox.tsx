@@ -49,8 +49,9 @@ type GalleryLightboxProps = {
   initialIndex: number;
   onClose: () => void;
   // Reverse "assign to detail category" (always-copy). Always available; the
-  // context just seeds the person (current person / set contributors).
-  detailAssignContext?: { defaultPerson?: AssignPerson | null; suggestedPeople?: AssignPerson[] };
+  // context seeds the current person. Set/session participants are derived from
+  // productionContext to CONSTRAIN the picker.
+  detailAssignContext?: { defaultPerson?: AssignPerson | null };
   onFavoriteToggle?: (itemId: string) => void;
   onSetCover?: (mediaItemId: string | null) => void;
   coverMediaItemId?: string | null;
@@ -828,7 +829,7 @@ function SimpleLightbox({
           mediaItemId={item.id}
           mediaItemUrl={item.urls.original ?? item.urls.full_2400 ?? item.urls.view_1200 ?? displayUrl}
           defaultPerson={detailAssignContext?.defaultPerson ?? null}
-          suggestedPeople={detailAssignContext?.suggestedPeople ?? []}
+          restrictTo={productionContext?.contributors.map((c) => ({ id: c.personId, name: c.personName }))}
         />
       )}
     </div>,

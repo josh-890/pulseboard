@@ -34,16 +34,22 @@ export function DetailAssignSheet({
   mediaItemId,
   mediaItemUrl,
   defaultPerson,
-  suggestedPeople = [],
+  restrictTo,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   mediaItemId: string;
   mediaItemUrl: string;
   defaultPerson?: AssignPerson | null;
-  suggestedPeople?: AssignPerson[];
+  // When set (e.g. a set/session's participants), the person MUST be one of
+  // these — no free search. 1 entry → auto-selected + locked.
+  restrictTo?: AssignPerson[];
 }) {
-  const [person, setPerson] = useState<AssignPerson | null>(defaultPerson ?? null);
+  const restricted = !!(restrictTo && restrictTo.length > 0);
+  const locked = restricted && restrictTo!.length === 1;
+  const [person, setPerson] = useState<AssignPerson | null>(
+    defaultPerson ?? (locked ? restrictTo![0] : null),
+  );
   const [q, setQ] = useState("");
   const [results, setResults] = useState<AssignPerson[]>([]);
   const [groups, setGroups] = useState<CatGroup[]>([]);
@@ -64,9 +70,9 @@ export function DetailAssignSheet({
       .catch(() => {});
   }, []);
 
-  // Debounced person search (only when no person is chosen yet).
+  // Debounced person search (only when no person is chosen yet + not restricted).
   useEffect(() => {
-    if (person) return;
+    if (person || restricted) return;
     const handle = setTimeout(() => {
       if (q.trim().length < 1) {
         setResults([]);
@@ -80,7 +86,7 @@ export function DetailAssignSheet({
         .catch(() => {});
     }, 250);
     return () => clearTimeout(handle);
-  }, [q, person]);
+  }, [q, person, restricted]);
 
   function assign() {
     if (!person || !categoryId) return;
@@ -160,7 +166,9 @@ export function DetailAssignSheet({
             {person ? (
               <div className="flex items-center justify-between rounded-lg border border-white/15 bg-muted/30 px-3 py-2 text-sm">
                 <span>{person.name}</span>
-                {!defaultPerson && (
+                {/* Allow changing only when there's a real choice (not a locked
+                    single participant, not the implicit current person). */}
+                {!defaultPerson && !locked && (
                   <button
                     type="button"
                     onClick={() => { setPerson(null); setQ(""); }}
@@ -170,6 +178,20 @@ export function DetailAssignSheet({
                     <X size={14} />
                   </button>
                 )}
+              </div>
+            ) : restricted ? (
+              // Constrained to the set/session participants — choose one, no search.
+              <div className="flex flex-wrap gap-1.5">
+                {restrictTo!.map((p) => (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => setPerson(p)}
+                    className="rounded-full border border-white/15 bg-white/5 px-2.5 py-1 text-sm hover:bg-white/10"
+                  >
+                    {p.name}
+                  </button>
+                ))}
               </div>
             ) : (
               <div className="space-y-2">
@@ -183,20 +205,6 @@ export function DetailAssignSheet({
                     className="w-full rounded-lg border border-white/15 bg-muted/30 py-1.5 pl-8 pr-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
                   />
                 </div>
-                {suggestedPeople.length > 0 && q.trim().length === 0 && (
-                  <div className="flex flex-wrap gap-1.5">
-                    {suggestedPeople.map((p) => (
-                      <button
-                        key={p.id}
-                        type="button"
-                        onClick={() => setPerson(p)}
-                        className="rounded-full border border-white/15 bg-white/5 px-2.5 py-1 text-xs hover:bg-white/10"
-                      >
-                        {p.name}
-                      </button>
-                    ))}
-                  </div>
-                )}
                 {results.length > 0 && (
                   <ul className="max-h-40 overflow-y-auto rounded-lg border border-white/10">
                     {results.map((p) => (
