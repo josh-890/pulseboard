@@ -400,6 +400,21 @@ export type AssignToDetailResult =
     }
   | { success: false; error: string };
 
+// Resolve the person's reference session id (creating it if absent) — used by
+// the "Align" path of the assign flow, which needs a destination session.
+export async function ensureReferenceSessionAction(
+  personId: string,
+): Promise<{ success: boolean; referenceSessionId?: string; error?: string }> {
+  return withTenantFromHeaders(async () => {
+    try {
+      const referenceSessionId = await ensureReferenceSession(personId);
+      return { success: true, referenceSessionId };
+    } catch (err) {
+      return { success: false, error: err instanceof Error ? err.message : "Failed" };
+    }
+  });
+}
+
 export async function assignMediaToDetailCategoryAction(
   sourceMediaItemId: string,
   personId: string,

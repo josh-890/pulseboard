@@ -11,7 +11,13 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { assignMediaToDetailCategoryAction } from "@/lib/actions/media-actions";
+import {
+  assignMediaToDetailCategoryAction,
+  ensureReferenceSessionAction,
+} from "@/lib/actions/media-actions";
+import { getAlignmentTemplateForCategoryAction } from "@/lib/actions/motif-template-actions";
+import { MotifAligner } from "@/components/people/motif-aligner";
+import type { MotifTemplateRecord } from "@/lib/services/motif-template-service";
 
 export type AssignPerson = { id: string; name: string };
 type CatGroup = {
@@ -26,12 +32,14 @@ export function DetailAssignSheet({
   open,
   onOpenChange,
   mediaItemId,
+  mediaItemUrl,
   defaultPerson,
   suggestedPeople = [],
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   mediaItemId: string;
+  mediaItemUrl: string;
   defaultPerson?: AssignPerson | null;
   suggestedPeople?: AssignPerson[];
 }) {
@@ -41,6 +49,12 @@ export function DetailAssignSheet({
   const [groups, setGroups] = useState<CatGroup[]>([]);
   const [categoryId, setCategoryId] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  // Slice 2: align path. When set, swap the dialog for the MotifAligner.
+  const [aligner, setAligner] = useState<{ template: MotifTemplateRecord; referenceSessionId: string } | null>(null);
+  const [preparingAlign, setPreparingAlign] = useState(false);
+
+  const selectedCategory = groups.flatMap((g) => g.categories).find((c) => c.id === categoryId) ?? null;
+  const isAlignable = !!selectedCategory?.alignmentTemplateId;
 
   // Categories (grouped) for the picker.
   useEffect(() => {
@@ -87,6 +101,49 @@ export function DetailAssignSheet({
       }
       onOpenChange(false);
     });
+  }
+
+  function startAlign() {
+    if (!person || !categoryId || !isAlignable) return;
+    setPreparingAlign(true);
+    void (async () => {
+      try {
+        const [template, ref] = await Promise.all([
+          getAlignmentTemplateForCategoryAction(categoryId),
+          ensureReferenceSessionAction(person.id),
+        ]);
+        if (!template) {
+          toast.error("No alignment template bound to this category");
+          return;
+        }
+        if (!ref.success || !ref.referenceSessionId) {
+          toast.error(ref.error ?? "Could not resolve reference session");
+          return;
+        }
+        setAligner({ template, referenceSessionId: ref.referenceSessionId });
+      } finally {
+        setPreparingAlign(false);
+      }
+    })();
+  }
+
+  // Slice 2: aligner takes over (full-screen portal) — bakes a normalized crop
+  // from the source and links it as the aligned detail (assignAlignedImageAction).
+  if (aligner && person) {
+    return (
+      <MotifAligner
+        source={{ id: mediaItemId, url: mediaItemUrl }}
+        template={aligner.template}
+        personId={person.id}
+        referenceSessionId={aligner.referenceSessionId}
+        onSaved={() => {
+          toast.success(`Aligned & added to ${person.name}'s ${selectedCategory?.name ?? "category"}`);
+          setAligner(null);
+          onOpenChange(false);
+        }}
+        onCancel={() => setAligner(null)}
+      />
+    );
   }
 
   return (
@@ -204,9 +261,21 @@ export function DetailAssignSheet({
             <Button variant="ghost" size="sm" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
+            {isAlignable && (
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={!person || !categoryId || preparingAlign}
+                onClick={startAlign}
+                title="Open the aligner to bake a normalized crop"
+              >
+                {preparingAlign ? <Loader2 size={14} className="mr-1 animate-spin" /> : <Frame size={13} className="mr-1" />}
+                Align
+              </Button>
+            )}
             <Button size="sm" disabled={!person || !categoryId || pending} onClick={assign}>
               {pending && <Loader2 size={14} className="mr-1 animate-spin" />}
-              Assign
+              {isAlignable ? "Add as-is" : "Assign"}
             </Button>
           </div>
         </div>

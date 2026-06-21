@@ -826,6 +826,7 @@ function SimpleLightbox({
           open
           onOpenChange={setAssignOpen}
           mediaItemId={item.id}
+          mediaItemUrl={item.urls.original ?? item.urls.full_2400 ?? item.urls.view_1200 ?? displayUrl}
           defaultPerson={detailAssignContext?.defaultPerson ?? null}
           suggestedPeople={detailAssignContext?.suggestedPeople ?? []}
         />
