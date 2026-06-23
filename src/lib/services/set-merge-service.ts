@@ -3,6 +3,32 @@ import { cascadeDeleteSet } from './cascade-helpers'
 import { mergeSessionsInTx } from './session-service'
 import { normalizeForSearch } from '@/lib/normalize'
 
+/**
+ * Identity-conflict guard for merging two Sets (ADR-0020 Phase 0 characterisation).
+ *
+ * A merge asserts "these two rows are the same entity", so any identity column
+ * populated on both sides must agree. Returns a human error message when the merge
+ * must be blocked, else `null`. Extracted as a pure rule so its current behaviour
+ * is pinned before Phase 4 re-keys the channel check onto the owning Label + SetType
+ * (block cross-label / block cross-SetType siblings / allow same-label+type with
+ * confirmation). See `docs/channel-label-archive-plan.md`.
+ */
+export type SetMergeIdentity = {
+  externalId: string | null
+  channelId: string | null
+  title: string
+}
+
+export function setMergeBlockReason(a: SetMergeIdentity, b: SetMergeIdentity): string | null {
+  if (a.externalId && b.externalId && a.externalId !== b.externalId) {
+    return `Refusing to merge sets with conflicting externalId ("${a.externalId}" vs "${b.externalId}"). External IDs are stable identifiers — if both are set and they differ, these are not the same entity. Clear one externalId manually if you're sure this merge is intended.`
+  }
+  if (a.channelId && b.channelId && a.channelId !== b.channelId) {
+    return `Refusing to merge sets from different channels ("${a.title}" / channel ${a.channelId} vs "${b.title}" / channel ${b.channelId}). A set belongs to exactly one production channel; cross-channel merges are almost always a wrong-target accident.`
+  }
+  return null
+}
+
 export type MergeStats = {
   survivingId: string
   absorbedId: string
@@ -102,16 +128,8 @@ export async function mergeSetRecords(setIdA: string, setIdB: string): Promise<M
   // (xpulse 2026-05-26: a Slim Babe Set was merged into Pink Heart Set,
   // silently rewiring the Slim Babe staging set's promotedSetId via the
   // staging_set UPDATE below). Block here instead.
-  if (setA.externalId && setB.externalId && setA.externalId !== setB.externalId) {
-    throw new Error(
-      `Refusing to merge sets with conflicting externalId ("${setA.externalId}" vs "${setB.externalId}"). External IDs are stable identifiers — if both are set and they differ, these are not the same entity. Clear one externalId manually if you're sure this merge is intended.`,
-    )
-  }
-  if (setA.channelId && setB.channelId && setA.channelId !== setB.channelId) {
-    throw new Error(
-      `Refusing to merge sets from different channels ("${setA.title}" / channel ${setA.channelId} vs "${setB.title}" / channel ${setB.channelId}). A set belongs to exactly one production channel; cross-channel merges are almost always a wrong-target accident.`,
-    )
-  }
+  const identityBlock = setMergeBlockReason(setA, setB)
+  if (identityBlock) throw new Error(identityBlock)
 
   // Guard: both sets have CONFIRMED archive links on different folders
   const aConfirmed = setA.archiveLinks.find((l) => l.status === 'CONFIRMED')

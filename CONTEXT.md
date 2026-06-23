@@ -75,6 +75,31 @@ The result of the Fold as of *now* — a Person's present hair color, weight, ac
 **Era-linked participation**:
 A person's participation in a shoot (`SessionContribution`) optionally references the **Era** the person was in at that time. This anchors their *appearance at the shoot* — the Fold computed `asOf` that Era — and lets an Era list the sessions and sets that occurred during it.
 
+### Production & publication (added 2026-06-23)
+
+The ladder runs **Channel → Label → Network**, and it separates **production** (where media is *generated*) from **publication** (where media is *released*). The pivot fact: **a Session produces; a Set publishes.**
+
+**Session** (code model & DB table: `Session`):
+The **production unit** — one shoot, a point in space and time, which *owns* the media generated there. Production-level. Ties to its producing **Label** via `Session.labelId`. A session's media can be published many different ways (see **Set**). A session published through a channel *outside* its producing label is a **co-production** (it then belongs to more than one Label — e.g. a photographer shoots under his own label, later sells publication rights to another label's channel).
+
+**Set** (code model & DB table: `Set`):
+A **publication** — a *packaged subset* of a Session's media, released via **one Channel** on a publication date. **Publication-level, not production-level.** One Session → many Sets: different subsets on different dates, subsets via different channels of the same label, or *the same subset* via different channels. Carries its publication Channel as a hard FK (`Set.channelId`). Because the underlying media is owned by the Session, two Sets publishing the same subset are two *publications* of **one** body of production media — not duplicated media.
+_Avoid_: treating a Set as the production object (that is the Session); equating "two channel releases of the same shoot" with "two productions".
+
+**Channel** (code model & DB table: `Channel`):
+A **publication frontend** — the distribution site/imprint a Set is *released through*, named at the source platform's granularity (HANDSONHARDCORE, DDFBusty). Fine-grained, **publication truth**, and the only attribution that comes free from import files. Crucially it is **the one hard, leaf-resolvable signal**: coming up from the published media, the Channel is the *first* thing known (the first entry and first sort key). One Channel is *part of* one Label.
+_Avoid_: "label"/"studio"/"producer" (those are the Label) — a Channel is a storefront, not a maker.
+
+**Label** (code model & DB table: `Label`):
+The **production entity** — the studio/brand whose Sessions generate the media (DDF), grouping the Channels it publishes through. **Emergent, like an Era**: a brand-new Channel **spawns a stub Label** (1:1, provisional — the analogue of a *draft* Era), and channel↔label groupings are **discovered over time**; consolidating several Channels under one Label is the analogue of **promoting a draft Era to a curated one**. This single mechanism covers both "new channel = its own umbrella" (early) and "many channels = one umbrella" (mature).
+_Avoid_: "channel" (that is the publication frontend); "network" (the tier above).
+
+**Network** (code model & DB table: `Network`):
+A grouping **above Labels** — a parent running several topic-specialised Labels, or a collaboration between Labels. Pure grouping for browsing/affiliation.
+
+**Evidence vs. hard link** (production attribution is soft):
+Publication is hard-wired onto the Set (`Set.channelId`); **production grouping is not**. Channel↔Label is `ChannelLabelMap` (M:N, `confidence`) and Set↔Label is `SetLabelEvidence` (M:N, `confidence`, `EvidenceType`); the only *hard* production link is `Session.labelId`. There is no hard `Set.labelId`. Any feature needing *one deterministic* Label per Channel/Set (e.g. archive-folder resolution) must reconcile against this emergent, M:N evidence shape.
+
 ### Imagery & alignment (added 2026-06-12)
 
 **Alignment Template** (concept; code model & DB table: `MotifTemplate`):

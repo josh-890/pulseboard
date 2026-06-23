@@ -17,6 +17,7 @@ import { rebuildSetParticipantsFromContributions } from '@/lib/services/contribu
 import { recomputePersonCurrentStateStandalone } from '@/lib/services/current-state-service'
 import { markItemImported, computeDependencies } from './staging-service'
 import { markStagingSetPromoted } from './staging-set-service'
+import { pickOwnerLabelId } from '@/lib/services/label-resolution'
 import type { ParticipantStatus } from './staging-set-service'
 import { parseBreastDescription, extractCupFromMeasurements, chooseNaturalCup, canonicaliseBreastCup } from './import-utils'
 import { parseClaimedStats } from './parse-claimed-stats'
@@ -1012,11 +1013,12 @@ async function createNewSet(
     }
 
     const result = await prisma.$transaction(async (tx) => {
-      const channelLabel = await tx.channelLabelMap.findFirst({
+      // Owning label = highest-confidence ChannelLabelMap (ADR-0020, shared rule).
+      const channelMaps = await tx.channelLabelMap.findMany({
         where: { channelId },
-        orderBy: { confidence: 'desc' },
-        select: { labelId: true },
+        select: { labelId: true, confidence: true },
       })
+      const ownerLabelId = pickOwnerLabelId(channelMaps)
 
       const title = data.title as string
       const session = await tx.session.create({
@@ -1026,7 +1028,7 @@ async function createNewSet(
           status: 'DRAFT',
           date: dateStr ? new Date(dateStr) : undefined,
           datePrecision: releaseDatePrecision,
-          labelId: channelLabel?.labelId ?? undefined,
+          labelId: ownerLabelId,
         },
       })
 
@@ -1313,11 +1315,12 @@ export async function promoteManualStagingSet(stagingSetId: string): Promise<Imp
     }
 
     const result = await prisma.$transaction(async (tx) => {
-      const channelLabel = await tx.channelLabelMap.findFirst({
+      // Owning label = highest-confidence ChannelLabelMap (ADR-0020, shared rule).
+      const channelMaps = await tx.channelLabelMap.findMany({
         where: { channelId: stagingSet.channelId! },
-        orderBy: { confidence: 'desc' },
-        select: { labelId: true },
+        select: { labelId: true, confidence: true },
       })
+      const ownerLabelId = pickOwnerLabelId(channelMaps)
 
       const title = stagingSet.title
       const session = await tx.session.create({
@@ -1327,7 +1330,7 @@ export async function promoteManualStagingSet(stagingSetId: string): Promise<Imp
           status: 'DRAFT',
           date: stagingSet.releaseDate ?? undefined,
           datePrecision: stagingSet.releaseDatePrecision,
-          labelId: channelLabel?.labelId ?? undefined,
+          labelId: ownerLabelId,
         },
       })
 
