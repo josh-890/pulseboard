@@ -1191,6 +1191,7 @@ export async function promoteManualStagingSet(stagingSetId: string): Promise<Imp
       releaseDatePrecision: true,
       isVideo: true,
       description: true,
+      notes: true,
       imageCount: true,
       externalId: true,
       artist: true,
@@ -1280,11 +1281,12 @@ export async function promoteManualStagingSet(stagingSetId: string): Promise<Imp
         // view promised. externalId is @unique → only claim it if unheld.
         const existingSet = await tx.set.findUnique({
           where: { id: setId },
-          select: { description: true, imageCount: true, externalId: true },
+          select: { description: true, notes: true, imageCount: true, externalId: true },
         })
         if (existingSet) {
           const updates: Record<string, unknown> = {}
           if (!existingSet.description && stagingSet.description) updates.description = stagingSet.description
+          if (!existingSet.notes && stagingSet.notes) updates.notes = stagingSet.notes
           if (existingSet.imageCount == null && stagingSet.imageCount != null) updates.imageCount = stagingSet.imageCount
           if (!existingSet.externalId && stagingSet.externalId) {
             const clash = await tx.set.findFirst({
@@ -1342,6 +1344,7 @@ export async function promoteManualStagingSet(stagingSetId: string): Promise<Imp
           titleNorm: normalizeForSearch(title),
           channelId: stagingSet.channelId!,
           description: stagingSet.description ?? undefined,
+          notes: stagingSet.notes ?? undefined,
           releaseDate: stagingSet.releaseDate ?? undefined,
           releaseDatePrecision: stagingSet.releaseDatePrecision,
           imageCount: stagingSet.imageCount,
