@@ -1013,12 +1013,21 @@ async function createNewSet(
     }
 
     const result = await prisma.$transaction(async (tx) => {
-      // Owning label = highest-confidence ChannelLabelMap (ADR-0020, shared rule).
-      const channelMaps = await tx.channelLabelMap.findMany({
-        where: { channelId },
-        select: { labelId: true, confidence: true },
+      // Owning label: Channel.labelId FK is authoritative (ADR-0020 Phase 2);
+      // fall back to the highest-confidence map only when the FK is unset
+      // (pre-dual-write channels). Fallback removed in Phase 5.
+      const channelRow = await tx.channel.findUnique({
+        where: { id: channelId },
+        select: { labelId: true },
       })
-      const ownerLabelId = pickOwnerLabelId(channelMaps)
+      let ownerLabelId = channelRow?.labelId ?? undefined
+      if (!ownerLabelId) {
+        const channelMaps = await tx.channelLabelMap.findMany({
+          where: { channelId },
+          select: { labelId: true, confidence: true },
+        })
+        ownerLabelId = pickOwnerLabelId(channelMaps)
+      }
 
       const title = data.title as string
       const session = await tx.session.create({
@@ -1315,12 +1324,21 @@ export async function promoteManualStagingSet(stagingSetId: string): Promise<Imp
     }
 
     const result = await prisma.$transaction(async (tx) => {
-      // Owning label = highest-confidence ChannelLabelMap (ADR-0020, shared rule).
-      const channelMaps = await tx.channelLabelMap.findMany({
-        where: { channelId: stagingSet.channelId! },
-        select: { labelId: true, confidence: true },
+      // Owning label: Channel.labelId FK is authoritative (ADR-0020 Phase 2);
+      // fall back to the highest-confidence map only when the FK is unset
+      // (pre-dual-write channels). Fallback removed in Phase 5.
+      const channelRow = await tx.channel.findUnique({
+        where: { id: stagingSet.channelId! },
+        select: { labelId: true },
       })
-      const ownerLabelId = pickOwnerLabelId(channelMaps)
+      let ownerLabelId = channelRow?.labelId ?? undefined
+      if (!ownerLabelId) {
+        const channelMaps = await tx.channelLabelMap.findMany({
+          where: { channelId: stagingSet.channelId! },
+          select: { labelId: true, confidence: true },
+        })
+        ownerLabelId = pickOwnerLabelId(channelMaps)
+      }
 
       const title = stagingSet.title
       const session = await tx.session.create({

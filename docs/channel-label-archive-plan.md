@@ -83,9 +83,17 @@ reader uses `labelId` yet** — zero behavioural change.
 
 ---
 
-## Phase 2 — Migrate the load-bearing reader: set-import → Session label
+## Phase 2 — Migrate the load-bearing reader: set-import → Session label ✅ DONE (2026-06-23)
 
 The highest-value, lowest-risk swap (backfill guarantees identical output).
+**Status:** both `import-executor.ts` blocks now read `Channel.labelId` first
+(via `tx.channel.findUnique`), with a **lazy** map fallback (`findMany` +
+`pickOwnerLabelId`) only when the FK is null. Rule extracted + tested as
+`resolveOwnerLabelId(channelLabelId, maps)`. Result is identical to Phase 1 for
+every channel (invariant holds), so a live import wasn't needed to confirm the
+happy path; the fallback covers only the migration-window edge (FK null + map
+present), which no current dev/prod channel hits (all have FKs). Gate: tsc ·
+eslint · build clean · 15/15 pure tests (Phase 0 tests unchanged + 4 new).
 
 1. In `import-executor.ts` (lines ~1015 and ~1316), replace
    `channelLabelMap.findFirst(...)` with a read of `channel.labelId`.
