@@ -3,6 +3,7 @@ import type { Prisma, ChannelTier } from "@/generated/prisma/client";
 import { normalizeForSearch } from "@/lib/normalize";
 import { generateChannelShortName } from "@/lib/utils";
 import { refreshPersonAffiliations } from "@/lib/services/view-service";
+import { pickOwnerLabelId } from "@/lib/services/label-resolution";
 
 export async function getChannels(filters?: { q?: string; labelId?: string; tier?: ChannelTier[] }) {
   const where: Prisma.ChannelWhereInput = {};
@@ -79,6 +80,9 @@ export async function createChannelRecord(data: {
         platform: data.platform,
         url: data.url,
         tier: data.tier,
+        // ADR-0020 dual-write: the owning-label FK alongside the map. At create
+        // time there is exactly one map, so labelId == data.labelId.
+        labelId: data.labelId || null,
       },
     });
 
@@ -94,6 +98,27 @@ export async function createChannelRecord(data: {
     }
 
     return channel;
+  });
+}
+
+/**
+ * Recompute and persist a channel's owning-label FK from its current
+ * ChannelLabelMap rows (ADR-0020 dual-write safety net). Call after any map
+ * mutation that could change the owner. Uses the shared `pickOwnerLabelId` rule
+ * with a deterministic `labelId ASC` tiebreak matching the backfill SQL.
+ */
+export async function syncChannelOwnerLabel(
+  tx: Prisma.TransactionClient,
+  channelId: string,
+): Promise<void> {
+  const maps = await tx.channelLabelMap.findMany({
+    where: { channelId },
+    select: { labelId: true, confidence: true },
+    orderBy: [{ confidence: "desc" }, { labelId: "asc" }],
+  });
+  await tx.channel.update({
+    where: { id: channelId },
+    data: { labelId: pickOwnerLabelId(maps) ?? null },
   });
 }
 
@@ -141,6 +166,10 @@ export async function updateChannelRecord(
           data: { channelId: id, labelId: newLabelId, confidence: 1.0 },
         });
       }
+
+      // ADR-0020 dual-write: keep the owning-label FK in lockstep. After the
+      // replace there is at most one map (newLabelId), so the owner is newLabelId.
+      await tx.channel.update({ where: { id }, data: { labelId: newLabelId } });
 
       if (oldLabelId !== newLabelId) {
         labelActuallyChanged = true;

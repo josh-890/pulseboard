@@ -40,9 +40,27 @@ tests green. No behavioural change (refactor only).
 
 ---
 
-## Phase 1 — Add `Channel.labelId`, backfill, dual-write (no reader changes)
+## Phase 1 — Add `Channel.labelId`, backfill, dual-write ✅ DONE on dev (2026-06-23) · prod deploy PENDING
 
 The schema add + a backfill that makes `labelId` identical to today's resolution.
+**Status:** code + migration landed; applied + verified on `pulseboard_dev`
+(67/67 channels backfilled, 0 invariant mismatches). **Prod (pulse + xpulse)
+migration deploy + invariant re-run is the remaining gated step.**
+
+Done:
+- `Channel.labelId` FK + `@@index([labelId])` (`schema.prisma`); migration
+  `20260623120000_channel_owning_label` (column + FK `ON DELETE SET NULL` +
+  backfill `DISTINCT ON (channelId) … ORDER BY confidence DESC, labelId ASC`).
+- Dual-write: `createChannelRecord` (FK on create), `updateChannelRecord` (FK on
+  label replace), `deleteLabelRecord` (recompute affected owners via new
+  `syncChannelOwnerLabel`). `deleteChannelRecord` needs nothing (row removed).
+- Invariant script `scripts/check-channel-owner-invariant.ts` (reuses
+  `pickOwnerLabelId`); run per tenant with `DATABASE_URL` pointed at it.
+- Gate: tsc clean · eslint clean · `npm run build` clean · 11/11 pure tests ·
+  dev invariant 0 mismatches. (DB-integration vitest skipped to avoid mutating
+  shared remote dev DB; the invariant script is this phase's DB verification.)
+
+Original step list (for reference):
 
 1. **Migration** `…_channel_owning_label`: add nullable
    `Channel.labelId String?` + FK to `Label` + `@@index([labelId])`.

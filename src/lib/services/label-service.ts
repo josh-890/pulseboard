@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import { normalizeForSearch } from "@/lib/normalize";
+import { syncChannelOwnerLabel } from "@/lib/services/channel-service";
 
 export async function getLabels(q?: string) {
   return prisma.label.findMany({
@@ -103,14 +104,29 @@ export async function deleteLabelRecord(id: string) {
       data: { labelId: null },
     });
 
+    // ADR-0020: capture channels mapped to this label so we can recompute their
+    // owning-label FK after the maps are gone (a surviving secondary map becomes
+    // the new owner; the FK's ON DELETE SET NULL only covers the no-map case).
+    const affected = await tx.channelLabelMap.findMany({
+      where: { labelId: id },
+      select: { channelId: true },
+    });
+    const affectedChannelIds = [...new Set(affected.map((m) => m.channelId))];
+
     await tx.channelLabelMap.deleteMany({ where: { labelId: id } });
     await tx.setLabelEvidence.deleteMany({ where: { labelId: id } });
     await tx.labelNetworkLink.deleteMany({ where: { labelId: id } });
     await tx.projectLabel.deleteMany({ where: { labelId: id } });
 
-    return tx.label.delete({
+    const deleted = await tx.label.delete({
       where: { id },
     });
+
+    for (const channelId of affectedChannelIds) {
+      await syncChannelOwnerLabel(tx, channelId);
+    }
+
+    return deleted;
   });
 }
 

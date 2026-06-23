@@ -817,6 +817,7 @@ model Label {
   primaryProjects Project[]          @relation("PrimaryLabel")
   sessions        Session[]
   channelMaps     ChannelLabelMap[]
+  ownedChannels   Channel[]          @relation("ChannelOwningLabel")
   labelEvidence   SetLabelEvidence[]
 
   @@index([name])
@@ -846,12 +847,19 @@ model Channel {
   tier          ChannelTier @default(NORMAL)
   channelFolder String?
 
+  // Owning production Label (ADR-0020). Single hard FK — the deterministic
+  // formalization of the highest-confidence ChannelLabelMap. ChannelLabelMap is
+  // retained as the dual-written safety net + cross-label evidence during migration.
+  labelId String?
+  label   Label?  @relation("ChannelOwningLabel", fields: [labelId], references: [id])
+
   sets        Set[]
   labelMaps   ChannelLabelMap[]
   aliasLinks  PersonAliasChannel[]
   stagingSets StagingSet[]
 
   @@index([nameNorm])
+  @@index([labelId])
 }
 
 // ─── Evidence Layer ──────────────────────────────────────────────────────────
