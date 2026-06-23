@@ -38,6 +38,9 @@ export function MergeSetSheet({ setId, setTitle, setType, open, onOpenChange }: 
   const [candidates, setCandidates] = useState<Candidate[] | null>(null);
   const [selected, setSelected] = useState<Candidate | null>(null);
   const [merging, setMerging] = useState(false);
+  // Set when the server asks for explicit confirmation of a same-label
+  // cross-channel merge (ADR-0020). Holds the human-readable reason.
+  const [crossChannelPrompt, setCrossChannelPrompt] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -50,22 +53,25 @@ export function MergeSetSheet({ setId, setTitle, setType, open, onOpenChange }: 
     if (!next) {
       setSelected(null);
       setCandidates(null);
+      setCrossChannelPrompt(null);
     }
     onOpenChange(next);
   }
 
   const loading = candidates === null;
 
-  async function handleMerge() {
+  async function handleMerge(confirmCrossChannel = false) {
     if (!selected) return;
     setMerging(true);
-    const result = await mergeSetAction(setId, selected.id);
+    const result = await mergeSetAction(setId, selected.id, confirmCrossChannel);
     setMerging(false);
     if (result.success) {
       toast.success(result.message);
       onOpenChange(false);
       router.push(`/sets/${result.survivingId}`);
       router.refresh();
+    } else if ("needsConfirmation" in result && result.needsConfirmation) {
+      setCrossChannelPrompt(result.error);
     } else {
       toast.error(result.error);
     }
@@ -132,12 +138,24 @@ export function MergeSetSheet({ setId, setTitle, setType, open, onOpenChange }: 
               be deduplicated, sessions merged, and staging references updated.
             </p>
 
+            {crossChannelPrompt && (
+              <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm">
+                <div className="flex gap-2">
+                  <AlertTriangle size={15} className="mt-0.5 shrink-0 text-amber-500" />
+                  <p className="text-amber-600 dark:text-amber-400">{crossChannelPrompt}</p>
+                </div>
+              </div>
+            )}
+
             <div className="flex gap-2 pt-2">
               <Button
                 variant="ghost"
                 size="sm"
                 className="flex-1"
-                onClick={() => setSelected(null)}
+                onClick={() => {
+                  setCrossChannelPrompt(null);
+                  setSelected(null);
+                }}
                 disabled={merging}
               >
                 Back
@@ -146,10 +164,10 @@ export function MergeSetSheet({ setId, setTitle, setType, open, onOpenChange }: 
                 size="sm"
                 className="flex-1"
                 disabled={merging}
-                onClick={handleMerge}
+                onClick={() => handleMerge(crossChannelPrompt !== null)}
               >
                 {merging && <Loader2 size={14} className="mr-1.5 animate-spin" />}
-                Confirm Merge
+                {crossChannelPrompt ? "Merge across channels" : "Confirm Merge"}
               </Button>
             </div>
           </div>

@@ -134,25 +134,31 @@ re-key) goes next** — load-bearing behaviour ahead of cosmetic join cleanup.
 
 ---
 
-## Phase 4 — Re-key the merge guard (the one real behavioural change)
+## Phase 4 — Re-key the merge guard ✅ DONE (2026-06-23)
 
-1. `set-merge-service.ts` — replace the `channelId`-equality guard (line ~110):
-   - **Block** different **owning Label** (resolve each set's
-     `channel.labelId`; null-label ⇒ fall back to channel identity, never matches
-     another null).
-   - **Block** different **`SetType`** (photo/video siblings).
-   - **Allow** same owning Label **and** same `SetType` across channels — surface an
-     **explicit confirmation** in the merge UI naming both channels + the shared
-     label.
-2. Widen the duplicate-candidate query (`getDuplicateCandidates`) to group by owning
-   Label + SetType + release window, **keeping** the existing sibling exclusion
-   (`siblingId`).
-3. Update Phase-0 merge-guard tests to the new matrix; add a test that a photo Set
-   and its video sibling are **never** offered as a merge.
+The one real behavioural change. App-code only (no migration).
 
-**Gate:** full vitest (merge service + cascade) + lint; Playwright: attempt an
-import-born vs archive-born same-label cross-channel merge (should prompt + succeed)
-and a cross-label merge (should block); confirm photo/video sibling never offered.
+Done:
+- `set-merge-service.ts` — `setMergeBlockReason` → **`setMergeDecision(a, b)`**
+  returning `block | confirm | allow`: block conflicting externalId / different
+  `SetType` (photo-video siblings) / different owning Label; **confirm** same Label +
+  same type across different channels; allow otherwise. **Null owning label falls
+  back to the legacy channel-identity rule** (never treats two nulls as a shared
+  label). `mergeSetRecords(a, b, { confirmCrossChannel })` throws
+  **`MergeConfirmationRequiredError`** on the confirm case.
+- `mergeSetAction(a, b, confirmCrossChannel?)` returns a `needsConfirmation` variant;
+  `merge-set-sheet.tsx` shows an amber confirm prompt → "Merge across channels"
+  re-invokes with confirmation.
+- `getPotentialDuplicatePairs` widened: pairs across channels of the **same non-null
+  owning label** (union with same-channel, so strictly widened) **and** requires
+  equal `SetType` (photo/video siblings never paired).
+- Tests: `set-merge-decision.test.ts` (9 cases — full block/confirm/allow matrix +
+  null fallback + sibling block). Old `set-merge-block-reason.test.ts` removed.
+
+**Gate:** tsc · eslint · `npm run build` clean · 18/18 pure tests · detector SQL
+smoke-tested read-only on dev + xpulse (executes, 0 pairs). Live merge Playwright
+left optional (the decision matrix is exhaustively unit-tested; no current dup pairs
+to exercise without fabricating data).
 
 ---
 

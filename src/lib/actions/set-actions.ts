@@ -31,7 +31,7 @@ import {
   reassignSetPrimarySession,
   splitMediaToSession,
 } from "@/lib/services/set-service";
-import { mergeSetRecords, getSetMergeCandidates, dismissSetDuplicate, undismissSetDuplicate } from "@/lib/services/set-merge-service";
+import { mergeSetRecords, getSetMergeCandidates, dismissSetDuplicate, undismissSetDuplicate, MergeConfirmationRequiredError } from "@/lib/services/set-merge-service";
 import type { SetFilters } from "@/lib/services/set-service";
 import { getCoverPhotosForSets, getSkillEventMediaConstraints, getHeadshotsForPersons } from "@/lib/services/media-service";
 import { cascadeHardDeleteMediaItems } from "@/lib/services/cascade-helpers";
@@ -604,10 +604,15 @@ export async function getSetMergeCandidatesAction(setId: string) {
 export async function mergeSetAction(
   setIdA: string,
   setIdB: string,
-): Promise<{ success: true; survivingId: string; message: string } | { success: false; error: string }> {
+  confirmCrossChannel = false,
+): Promise<
+  | { success: true; survivingId: string; message: string }
+  | { success: false; needsConfirmation: true; error: string }
+  | { success: false; error: string }
+> {
   return withTenantFromHeaders(async () => {
     try {
-      const stats = await mergeSetRecords(setIdA, setIdB);
+      const stats = await mergeSetRecords(setIdA, setIdB, { confirmCrossChannel });
       revalidatePath("/sets");
       revalidatePath(`/sets/${stats.survivingId}`);
       revalidatePath(`/sets/${stats.absorbedId}`);
@@ -617,6 +622,10 @@ export async function mergeSetAction(
         message: `Merged "${stats.absorbedTitle}" into "${stats.survivingTitle}". ${stats.mediaTransferred} media transferred, ${stats.creditsTransferred} credits moved, ${stats.creditsDeduped} credits deduplicated.`,
       };
     } catch (err) {
+      // Same-label cross-channel merges (ADR-0020) need explicit operator confirmation.
+      if (err instanceof MergeConfirmationRequiredError) {
+        return { success: false, needsConfirmation: true, error: err.message };
+      }
       return { success: false, error: String(err) };
     }
   });

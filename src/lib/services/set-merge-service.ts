@@ -2,31 +2,83 @@ import { prisma } from '@/lib/db'
 import { cascadeDeleteSet } from './cascade-helpers'
 import { mergeSessionsInTx } from './session-service'
 import { normalizeForSearch } from '@/lib/normalize'
+import type { SetType } from '@/generated/prisma/client'
 
 /**
- * Identity-conflict guard for merging two Sets (ADR-0020 Phase 0 characterisation).
+ * Merge-eligibility decision for two Sets (ADR-0020 Phase 4).
  *
- * A merge asserts "these two rows are the same entity", so any identity column
- * populated on both sides must agree. Returns a human error message when the merge
- * must be blocked, else `null`. Extracted as a pure rule so its current behaviour
- * is pinned before Phase 4 re-keys the channel check onto the owning Label + SetType
- * (block cross-label / block cross-SetType siblings / allow same-label+type with
- * confirmation). See `docs/channel-label-archive-plan.md`.
+ * A merge asserts "these two rows are the same publication". The guard re-keys
+ * from raw channel equality onto the **owning production Label** (`Channel.labelId`)
+ * and `SetType`:
+ *   - `block`   — conflicting externalId; different SetType (photo/video siblings
+ *                 of one session, never duplicates); different owning Label
+ *                 (cross-producer). Null owning label on either side falls back to
+ *                 the legacy channel-identity rule (never treats two nulls as same).
+ *   - `confirm` — same owning Label, same SetType, *different* channels: the
+ *                 import-born vs archive-born same-publication case. Allowed only
+ *                 with explicit operator confirmation.
+ *   - `allow`   — no conflict (incl. same channel).
+ * Pure + exhaustively tested. See `docs/channel-label-archive-plan.md`.
  */
 export type SetMergeIdentity = {
   externalId: string | null
   channelId: string | null
+  channelLabelId: string | null
+  type: SetType
   title: string
 }
 
-export function setMergeBlockReason(a: SetMergeIdentity, b: SetMergeIdentity): string | null {
+export type SetMergeDecision =
+  | { kind: 'block'; reason: string }
+  | { kind: 'confirm'; reason: string }
+  | { kind: 'allow' }
+
+export function setMergeDecision(a: SetMergeIdentity, b: SetMergeIdentity): SetMergeDecision {
   if (a.externalId && b.externalId && a.externalId !== b.externalId) {
-    return `Refusing to merge sets with conflicting externalId ("${a.externalId}" vs "${b.externalId}"). External IDs are stable identifiers — if both are set and they differ, these are not the same entity. Clear one externalId manually if you're sure this merge is intended.`
+    return {
+      kind: 'block',
+      reason: `Refusing to merge sets with conflicting externalId ("${a.externalId}" vs "${b.externalId}"). External IDs are stable identifiers — if both are set and they differ, these are not the same entity. Clear one externalId manually if you're sure this merge is intended.`,
+    }
   }
+  if (a.type !== b.type) {
+    return {
+      kind: 'block',
+      reason: `Refusing to merge a ${a.type} set with a ${b.type} set ("${a.title}" vs "${b.title}"). Photo and video are split siblings of one session, never duplicates of each other.`,
+    }
+  }
+  const aLabel = a.channelLabelId
+  const bLabel = b.channelLabelId
+  if (aLabel && bLabel) {
+    if (aLabel !== bLabel) {
+      return {
+        kind: 'block',
+        reason: `Refusing to merge sets from different production labels ("${a.title}" vs "${b.title}"). Cross-label merges are almost always a wrong-target accident.`,
+      }
+    }
+    if (a.channelId && b.channelId && a.channelId !== b.channelId) {
+      return {
+        kind: 'confirm',
+        reason: `"${a.title}" and "${b.title}" are published on different channels but share one production label. Confirm you want to merge across channels.`,
+      }
+    }
+    return { kind: 'allow' }
+  }
+  // Null owning label on either side → legacy channel-identity rule.
   if (a.channelId && b.channelId && a.channelId !== b.channelId) {
-    return `Refusing to merge sets from different channels ("${a.title}" / channel ${a.channelId} vs "${b.title}" / channel ${b.channelId}). A set belongs to exactly one production channel; cross-channel merges are almost always a wrong-target accident.`
+    return {
+      kind: 'block',
+      reason: `Refusing to merge sets from different channels ("${a.title}" vs "${b.title}") with no shared production label. Cross-channel merges are almost always a wrong-target accident.`,
+    }
   }
-  return null
+  return { kind: 'allow' }
+}
+
+/** Thrown by `mergeSetRecords` when a same-label cross-channel merge needs operator confirmation. */
+export class MergeConfirmationRequiredError extends Error {
+  constructor(reason: string) {
+    super(reason)
+    this.name = 'MergeConfirmationRequiredError'
+  }
 }
 
 export type MergeStats = {
@@ -97,14 +149,19 @@ export async function getSetMergeCandidates(setId: string) {
   }))
 }
 
-export async function mergeSetRecords(setIdA: string, setIdB: string): Promise<MergeStats> {
+export async function mergeSetRecords(
+  setIdA: string,
+  setIdB: string,
+  opts?: { confirmCrossChannel?: boolean },
+): Promise<MergeStats> {
   if (setIdA === setIdB) throw new Error('Cannot merge a set with itself')
 
   const [setA, setB] = await Promise.all([
     prisma.set.findUniqueOrThrow({
       where: { id: setIdA },
       select: {
-        id: true, title: true, externalId: true, channelId: true, isComplete: true, coverMediaItemId: true,
+        id: true, title: true, externalId: true, channelId: true, type: true, isComplete: true, coverMediaItemId: true,
+        channel: { select: { labelId: true } },
         _count: { select: { setMediaItems: true } },
         archiveLinks: { select: { status: true, archivePath: true } },
         sessionLinks: { where: { isPrimary: true }, select: { sessionId: true } },
@@ -113,7 +170,8 @@ export async function mergeSetRecords(setIdA: string, setIdB: string): Promise<M
     prisma.set.findUniqueOrThrow({
       where: { id: setIdB },
       select: {
-        id: true, title: true, externalId: true, channelId: true, isComplete: true, coverMediaItemId: true,
+        id: true, title: true, externalId: true, channelId: true, type: true, isComplete: true, coverMediaItemId: true,
+        channel: { select: { labelId: true } },
         _count: { select: { setMediaItems: true } },
         archiveLinks: { select: { status: true, archivePath: true } },
         sessionLinks: { where: { isPrimary: true }, select: { sessionId: true } },
@@ -121,15 +179,19 @@ export async function mergeSetRecords(setIdA: string, setIdB: string): Promise<M
     }),
   ])
 
-  // Guard: a merge means "these two rows represent the same entity", so any
-  // identity column populated on both sides must agree. externalId is a stable
-  // source-of-truth identifier; channelId is the production source. If either
-  // disagrees, the operator is almost certainly merging the wrong target
-  // (xpulse 2026-05-26: a Slim Babe Set was merged into Pink Heart Set,
-  // silently rewiring the Slim Babe staging set's promotedSetId via the
-  // staging_set UPDATE below). Block here instead.
-  const identityBlock = setMergeBlockReason(setA, setB)
-  if (identityBlock) throw new Error(identityBlock)
+  // Guard (ADR-0020 Phase 4): a merge means "these two rows are the same
+  // publication", so identity must agree. Keyed on the owning production Label +
+  // SetType rather than raw channel (xpulse 2026-05-26: a Slim Babe Set was merged
+  // into Pink Heart Set, silently rewiring promotedSetId). Cross-channel merges
+  // within one label are allowed only with explicit confirmation.
+  const decision = setMergeDecision(
+    { externalId: setA.externalId, channelId: setA.channelId, channelLabelId: setA.channel?.labelId ?? null, type: setA.type, title: setA.title },
+    { externalId: setB.externalId, channelId: setB.channelId, channelLabelId: setB.channel?.labelId ?? null, type: setB.type, title: setB.title },
+  )
+  if (decision.kind === 'block') throw new Error(decision.reason)
+  if (decision.kind === 'confirm' && !opts?.confirmCrossChannel) {
+    throw new MergeConfirmationRequiredError(decision.reason)
+  }
 
   // Guard: both sets have CONFIRMED archive links on different folders
   const aConfirmed = setA.archiveLinks.find((l) => l.status === 'CONFIRMED')
@@ -327,15 +389,20 @@ export async function getPotentialDuplicatePairs(): Promise<
       s1.id AS id_a, s1.title AS title_a,
       s2.id AS id_b, s2.title AS title_b,
       similarity(s1."titleNorm", s2."titleNorm") AS sim,
-      c.name AS channel_name,
+      c1.name AS channel_name,
       s1."releaseDate" AS release_date
     FROM "Set" s1
+    JOIN "Channel" c1 ON c1.id = s1."channelId"
     JOIN "Set" s2
       ON s1.id < s2.id
-      AND s1."channelId" = s2."channelId"
+      AND s1."type" = s2."type"
       AND s1."releaseDate" = s2."releaseDate"
       AND similarity(s1."titleNorm", s2."titleNorm") > 0.6
-    LEFT JOIN "Channel" c ON c.id = s1."channelId"
+    JOIN "Channel" c2 ON c2.id = s2."channelId"
+      AND (
+        s1."channelId" = s2."channelId"
+        OR (c1."labelId" IS NOT NULL AND c1."labelId" = c2."labelId")
+      )
     WHERE NOT EXISTS (
       SELECT 1 FROM "DismissedSetDuplicate" d
       WHERE d."setIdA" = s1.id AND d."setIdB" = s2.id
