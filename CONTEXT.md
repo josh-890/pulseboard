@@ -97,8 +97,8 @@ _Avoid_: "channel" (that is the publication frontend); "network" (the tier above
 **Network** (code model & DB table: `Network`):
 A grouping **above Labels** — a parent running several topic-specialised Labels, or a collaboration between Labels. Pure grouping for browsing/affiliation.
 
-**Evidence vs. hard link** (production attribution is soft):
-Publication is hard-wired onto the Set (`Set.channelId`); **production grouping is not**. Channel↔Label is `ChannelLabelMap` (M:N, `confidence`) and Set↔Label is `SetLabelEvidence` (M:N, `confidence`, `EvidenceType`); the only *hard* production link is `Session.labelId`. There is no hard `Set.labelId`. Any feature needing *one deterministic* Label per Channel/Set (e.g. archive-folder resolution) must reconcile against this emergent, M:N evidence shape.
+**Evidence vs. hard link** (production attribution is soft, with one denormalized owner):
+Publication is hard-wired onto the Set (`Set.channelId`); **production grouping is softer**. A Channel's **owning Label** is the denormalized FK **`Channel.labelId`** (ADR-0020) — the deterministic owner used by archive matching, dedup, and the set-merge guard. Behind it, `ChannelLabelMap` (M:N, `confidence`) is the full channel↔label association table (owner row at conf 1.0 + any secondary/cross-label evidence); Set↔Label is `SetLabelEvidence` (M:N, `confidence`, `EvidenceType`); the only *hard* production link is `Session.labelId`. There is no hard `Set.labelId` — a Set's producing Label is reached via its Channel's owner FK or its Session.
 
 ### Imagery & alignment (added 2026-06-12)
 

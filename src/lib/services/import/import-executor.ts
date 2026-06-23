@@ -17,7 +17,6 @@ import { rebuildSetParticipantsFromContributions } from '@/lib/services/contribu
 import { recomputePersonCurrentStateStandalone } from '@/lib/services/current-state-service'
 import { markItemImported, computeDependencies } from './staging-service'
 import { markStagingSetPromoted } from './staging-set-service'
-import { pickOwnerLabelId } from '@/lib/services/label-resolution'
 import type { ParticipantStatus } from './staging-set-service'
 import { parseBreastDescription, extractCupFromMeasurements, chooseNaturalCup, canonicaliseBreastCup } from './import-utils'
 import { parseClaimedStats } from './parse-claimed-stats'
@@ -1013,21 +1012,13 @@ async function createNewSet(
     }
 
     const result = await prisma.$transaction(async (tx) => {
-      // Owning label: Channel.labelId FK is authoritative (ADR-0020 Phase 2);
-      // fall back to the highest-confidence map only when the FK is unset
-      // (pre-dual-write channels). Fallback removed in Phase 5.
+      // Owning label = Channel.labelId (ADR-0020). The authoritative, dual-written
+      // owner pointer; every channel with a label has it set.
       const channelRow = await tx.channel.findUnique({
         where: { id: channelId },
         select: { labelId: true },
       })
-      let ownerLabelId = channelRow?.labelId ?? undefined
-      if (!ownerLabelId) {
-        const channelMaps = await tx.channelLabelMap.findMany({
-          where: { channelId },
-          select: { labelId: true, confidence: true },
-        })
-        ownerLabelId = pickOwnerLabelId(channelMaps)
-      }
+      const ownerLabelId = channelRow?.labelId ?? undefined
 
       const title = data.title as string
       const session = await tx.session.create({
@@ -1324,21 +1315,13 @@ export async function promoteManualStagingSet(stagingSetId: string): Promise<Imp
     }
 
     const result = await prisma.$transaction(async (tx) => {
-      // Owning label: Channel.labelId FK is authoritative (ADR-0020 Phase 2);
-      // fall back to the highest-confidence map only when the FK is unset
-      // (pre-dual-write channels). Fallback removed in Phase 5.
+      // Owning label = Channel.labelId (ADR-0020). The authoritative, dual-written
+      // owner pointer; every channel with a label has it set.
       const channelRow = await tx.channel.findUnique({
         where: { id: stagingSet.channelId! },
         select: { labelId: true },
       })
-      let ownerLabelId = channelRow?.labelId ?? undefined
-      if (!ownerLabelId) {
-        const channelMaps = await tx.channelLabelMap.findMany({
-          where: { channelId: stagingSet.channelId! },
-          select: { labelId: true, confidence: true },
-        })
-        ownerLabelId = pickOwnerLabelId(channelMaps)
-      }
+      const ownerLabelId = channelRow?.labelId ?? undefined
 
       const title = stagingSet.title
       const session = await tx.session.create({

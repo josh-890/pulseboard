@@ -26,19 +26,3 @@ export function pickOwnerLabelId(maps: ChannelLabelMapLike[]): string | undefine
   }
   return best?.labelId;
 }
-
-/**
- * Owner-label resolution for set import (ADR-0020 Phase 2): the `Channel.labelId`
- * FK is authoritative; fall back to the highest-confidence map only when the FK is
- * unset — channels created on prod between the DB migration and the app rebuild
- * have a map but no FK yet. The fallback is removed in Phase 5.
- *
- * Call sites realise this lazily (fetch maps only when the FK is null) — when the
- * FK is set, `maps` is never read, so passing `[]` is equivalent.
- */
-export function resolveOwnerLabelId(
-  channelLabelId: string | null | undefined,
-  maps: ChannelLabelMapLike[],
-): string | undefined {
-  return channelLabelId ?? pickOwnerLabelId(maps);
-}

@@ -72,11 +72,12 @@ Network ──< LabelNetwork >── Label
 ```
 
 - **Channel.labelId** (nullable FK, ADR-0020) — a Channel's single **owning
-  production Label**. Backfilled from, and dual-written alongside, the
-  highest-confidence `ChannelLabelMap`; it is the deterministic formalization of
-  the old `findFirst(confidence desc)`. `ChannelLabelMap` is retained as the
-  dual-write safety net during migration and, long-term, holds only
-  secondary/cross-label evidence. The owner FK is the join key for archive
+  production Label** and the **denormalized authoritative owner pointer**.
+  Backfilled from, and dual-written alongside, the highest-confidence
+  `ChannelLabelMap`; the deterministic formalization of the old
+  `findFirst(confidence desc)`. `ChannelLabelMap` is **kept as the full channel↔label
+  association table** (owner row at `confidence 1.0` + any secondary/cross-label
+  evidence) — *not* demoted to evidence-only. The owner FK is the join key for archive
   matching, dedup, and the set-merge guard (see `docs/channel-label-archive-plan.md`).
 - **Session** (`SessionType`: REFERENCE / PRODUCTION; `SessionStatus`: DRAFT /
   CONFIRMED). REFERENCE sessions are auto-created per person via the

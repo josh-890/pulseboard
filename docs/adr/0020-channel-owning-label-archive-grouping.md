@@ -57,11 +57,12 @@ Physical path identity stays on the Channel; the Label is logical.
   folder name) and the channel is the only signal resolvable from media. The Label
   gets **no** archive-path fields — a single `Label.shortCode` would desync from a
   frozen disk whose folders carry heterogeneous per-channel codes.
-- `ChannelLabelMap` is **retained**. During migration it is dual-written and is the
-  live safety net for every unmigrated reader. Long-term it holds only *secondary /
-  cross-label* evidence (co-productions, a channel that historically carried
-  another label's content); the `confidence 1.0` "owner" semantics move to
-  `Channel.labelId`.
+- `ChannelLabelMap` is **retained as the full channel↔label association table** —
+  dual-written with `Channel.labelId` (owner row at `confidence 1.0`) and the home for
+  any *secondary / cross-label* evidence (co-productions, a channel that historically
+  carried another label's content). `Channel.labelId` is its denormalized,
+  authoritative owner pointer. (See **Final state** — the evidence-only demotion was
+  considered and rejected.)
 
 ### Behaviour
 
@@ -125,11 +126,23 @@ root-agnostic, so both presences resolve to one Label while staying separate row
 - Two derivation paths for "a set's label" exist during migration (the live
   `ChannelLabelMap` and the new `Channel.labelId`); they are dual-written and must
   agree until every reader is switched. See the phased plan.
-- `ChannelLabelMap`'s meaning shifts from "owner (conf 1.0) + evidence" to
-  "secondary/cross-label evidence" only — *after* the reader migration completes,
-  not in the schema-add step.
+- `ChannelLabelMap` is **kept as the full channel↔label association table** (owner
+  row at `confidence 1.0` + any secondary/cross-label evidence). `Channel.labelId`
+  is its denormalized, authoritative owner pointer, dual-written in lockstep.
 - The merge guard becomes Label-aware and SetType-aware; its candidate query widens,
   so the photo/video sibling exclusion is now load-bearing and must be tested.
 - A channel with no owning label (legacy / unlinked) yields a null `labelId`; the
   matcher and merge guard must treat null-label as "no grouping" (fall back to
   channel identity), never as "matches other null-label channels".
+
+## Final state (Phase 5, 2026-06-23) — Option A, non-destructive
+
+Implemented in five additive phases (see `docs/channel-label-archive-plan.md`).
+Phase 5 chose **Option A**: keep `ChannelLabelMap` as a full association table with
+`Channel.labelId` as the denormalized authoritative owner. The originally-sketched
+"evidence-only" demotion (stop writing owner rows + a **destructive** owner-row
+deletion + reworking all-maps consumers) was **considered and rejected** — it is
+destructive churn for no present gain, since there is currently no secondary evidence
+to separate out. Owner-map writes therefore continue (dual-write), and owner *display*
+reads keep using `ChannelLabelMap` where convenient. The archive-folder physical
+re-organization and forward umbrella-naming remain out of scope (disk frozen).

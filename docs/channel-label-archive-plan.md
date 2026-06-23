@@ -162,23 +162,32 @@ to exercise without fabricating data).
 
 ---
 
-## Phase 5 — Demote `ChannelLabelMap` to evidence-only + remove fallbacks
+## Phase 5 — Wind-down ✅ DONE (2026-06-23) — **Option A (non-destructive)**
 
-Only after **every** reader is on `Channel.labelId`.
+Decision (2026-06-23): keep `ChannelLabelMap` as a **full association table** (owner
+row at `confidence 1.0` + any future secondary/cross-label evidence), with
+`Channel.labelId` as the **denormalized authoritative owner**. The original
+"evidence-only" demotion (stop writing owner rows + a destructive row-deletion +
+reworking all-maps consumers) was **considered and rejected** — destructive churn for
+no present gain, since there is currently zero secondary evidence to separate out.
 
-1. Remove the `findFirst` fallback added in Phase 2.
-2. Stop writing the `confidence 1.0` owner map in `createChannelRecord` /
-   link routes (the FK is now the owner). `ChannelLabelMap` writes remain only for
-   genuine secondary/cross-label evidence (confidence < 1.0).
-3. `getChannelsWithLabelMaps` / `suggest` route — reframe as *evidence* surfaces, or
-   retire if unused after Phase 3 (verify usages first).
-4. Decide the owner-map rows' fate: leave historical `confidence 1.0` rows as
-   redundant-but-harmless, **or** a one-off cleanup migration deleting owner-rows
-   that exactly duplicate `Channel.labelId` (destructive — grill + explicit go per
-   `feedback_grill_before_destructive_cleanup`).
+Done:
+- Removed the now-dead Phase-2 import fallback: both `import-executor` set-import
+  blocks read `channel.labelId` directly (every channel with a label has it set —
+  verified 0 nulls on dev/pulse/xpulse). Dropped the orphaned `resolveOwnerLabelId`
+  helper + its tests; `pickOwnerLabelId` stays (used by `syncChannelOwnerLabel`,
+  the backfill rule, and the invariant script).
 
-**Gate:** full vitest + `npm run build`; deploy to all tenants; re-run the Phase-1
-invariant (now: every set's label resolves via `Channel.labelId` alone).
+Intentionally **not** done (Option A):
+- Owner-map writes continue (dual-write keeps FK + map in lockstep).
+- Owner *display* reads (`labelMaps[0].label`) and all-maps surfaces (channel
+  detail, suggested-labels, alias `labelNames`) keep reading `ChannelLabelMap` —
+  correct under Option A. No row deletion. No consumer rework.
+
+**Gate:** tsc · eslint · `npm run build` clean · pure tests green.
+
+**Steady state:** `Channel.labelId` = authoritative owner (reads/filters/merge);
+`ChannelLabelMap` = full association table incl. future co-production evidence.
 
 ---
 
@@ -196,10 +205,13 @@ invariant (now: every set's label resolves via `Channel.labelId` alone).
 ## Doc-keeping checklist (per ADR-0020 + project conventions)
 
 - [x] `CONTEXT.md` — Production & publication section (Channel/Label/Network/Set/
-      Session, emergent-label, evidence-vs-hard-link). Landed during grilling.
-- [ ] `docs/data-model.md` — note `Channel.labelId` as the owning FK; clarify
-      `ChannelLabelMap` is secondary evidence post-migration.
-- [ ] `docs/architecture.md` — merge-guard re-key + set-import label-resolution
-      change, once Phase 2/4 land.
-- [ ] `docs/user-guide.md` — if the merge-confirmation UX becomes user-visible.
-- [ ] `loading.tsx` skeletons — none affected (no layout change).
+      Session, emergent-label, evidence-vs-hard-link) + `Channel.labelId` owner FK.
+- [x] `docs/data-model.md` — `Channel.labelId` as the owning FK; `ChannelLabelMap`
+      kept as the full association table (Option A).
+- [x] `docs/adr/0020` — final-state note: Option A (association table + denormalized
+      owner FK), evidence-only demotion rejected.
+- [ ] `docs/architecture.md` — `set-merge-service` was never documented at function
+      level; merge model lives in ADR-0020 + data-model.md + CONTEXT.md. No edit.
+- [ ] `docs/user-guide.md` — merge-confirmation UX: minor; cross-channel merge prompt
+      is self-explanatory. Note if a fuller merge-docs section is added later.
+- [x] `loading.tsx` skeletons — none affected (no layout change).
