@@ -7,7 +7,7 @@
 
 import { prisma } from '@/lib/db'
 import { Prisma } from '@/generated/prisma/client'
-import type { ImportBatch, ImportItem, ImportItemStatus, ImportItemType } from '@/generated/prisma/client'
+import type { ImportBatch, ImportItem, ImportItemStatus, ImportItemType, StagingSetStatus } from '@/generated/prisma/client'
 import {
   parseImportFile,
   parseFilename,
@@ -22,6 +22,32 @@ import { runMatchingForPerson } from './cover-basket-service'
 import { buildImportItemDecisions } from './build-decisions'
 import { isEmptyDiff, type ImportItemDecisions } from './diff'
 import { resolvePlatformFromUrl } from '@/lib/services/scrape-source-service'
+
+/**
+ * Find an existing staging set that is a *probable* duplicate of an incoming one:
+ * same channel + release date + **same SetType** (`isVideo`), but a different
+ * externalId. The isVideo match is essential — a photo and a video set of one
+ * session share a channel/date/title but are split **siblings**, never duplicates
+ * (the user's case A: same import row → siblings share externalId; case B: two
+ * distinct import rows, different externalIds, one photo one video). Scoping by
+ * type stops those false "POSSIBLE DUP" warnings.
+ */
+async function findProbableStagingDuplicate(
+  channelId: string,
+  releaseDate: Date,
+  externalId: string | null,
+  isVideo: boolean,
+): Promise<{ id: string; status: StagingSetStatus } | null> {
+  return prisma.stagingSet.findFirst({
+    where: {
+      channelId,
+      releaseDate,
+      isVideo,
+      ...(externalId ? { externalId: { not: externalId } } : {}),
+    },
+    select: { id: true, status: true },
+  })
+}
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -490,34 +516,40 @@ async function createStagingSetsForBatch(
       }
     }
 
-    // Probable staging duplicate: same channel + release date (different externalId).
-    // Catches the same set appearing in two different import files (e.g. Naiads from
-    // Corinna's file already imported; Anna-Leah's file references the same set under a
-    // different or absent externalId). Still add the set so the user can review it, but
-    // mark isDuplicate=true so it shows an amber "POSSIBLE DUP" warning.
-    // Exception: if the matching entry is already SKIPPED (user resolved it), omit entirely.
-    let isProbableDuplicate = false
-    if (channelId && safeDate) {
-      const probableExisting = await prisma.stagingSet.findFirst({
-        where: {
-          channelId,
-          releaseDate: safeDate,
-          ...(set.externalId ? { externalId: { not: set.externalId } } : {}),
-        },
-        select: { id: true, status: true },
-      })
-      if (probableExisting) {
-        if (probableExisting.status === 'SKIPPED') {
-          summary.skipped++
-          continue
-        }
-        isProbableDuplicate = true
+    // Probable staging duplicate: same channel + release date + SAME SetType
+    // (different externalId). Catches the same set appearing in two import files.
+    // Scoped by isVideo so photo↔video pairs of one session (split siblings) never
+    // flag each other. A split import row (Video:True + Imagenumber>0) becomes both a
+    // photo and a video staging set, so each is checked against its own type.
+    // Exception: if a same-type match is already SKIPPED (user resolved it), omit.
+    const needsSplit = set.isVideo && (set.imageCount ?? 0) > 0
+
+    async function probableDupStatus(isVid: boolean): Promise<'skip' | 'dup' | 'none'> {
+      if (!channelId || !safeDate) return 'none'
+      const existing = await findProbableStagingDuplicate(channelId, safeDate, set.externalId || null, isVid)
+      if (!existing) return 'none'
+      if (existing.status === 'SKIPPED') return 'skip'
+      // Flag the existing entry too — both sides must appear in the duplicates filter.
+      await prisma.stagingSet.update({ where: { id: existing.id }, data: { isDuplicate: true } })
+      return 'dup'
+    }
+
+    let photoDup = false
+    let videoDup = false
+    if (needsSplit) {
+      photoDup = (await probableDupStatus(false)) === 'dup'
+      videoDup = (await probableDupStatus(true)) === 'dup'
+      if (photoDup || videoDup) summary.duplicated++
+    } else {
+      const status = await probableDupStatus(set.isVideo)
+      if (status === 'skip') {
+        summary.skipped++
+        continue
+      }
+      if (status === 'dup') {
         summary.duplicated++
-        // Flag the existing entry too — both sides must appear in the duplicates filter
-        await prisma.stagingSet.update({
-          where: { id: probableExisting.id },
-          data: { isDuplicate: true },
-        })
+        if (set.isVideo) videoDup = true
+        else photoDup = true
       }
     }
 
@@ -562,23 +594,23 @@ async function createStagingSetsForBatch(
       importItemId: importItem.id,
       subjectPersonId: person?.id ?? null,
       subjectIcgId,
-      isDuplicate: isProbableDuplicate,
       status: 'PENDING' as const,
     }
 
     // When the import entry has BOTH Video:True AND Imagenumber>0 the set genuinely has
     // a photo gallery component AND a video component. Create two staging sets so each
     // can be matched, archived, and promoted to the correct Set type independently.
-    const needsSplit = set.isVideo && (set.imageCount ?? 0) > 0
+    // Each carries its own type-scoped duplicate flag (photoDup / videoDup).
     if (needsSplit) {
       // Photo staging set — keeps the image count, no sibling yet
       const photoStaging = await prisma.stagingSet.create({
-        data: { ...commonData, isVideo: false, imageCount: set.imageCount },
+        data: { ...commonData, isDuplicate: photoDup, isVideo: false, imageCount: set.imageCount },
       })
       // Video staging set — no image count, points to photo sibling; inherits any video match
       await prisma.stagingSet.create({
         data: {
           ...commonData,
+          isDuplicate: videoDup,
           isVideo: true,
           imageCount: null,
           siblingId: photoStaging.id,
@@ -592,6 +624,7 @@ async function createStagingSetsForBatch(
       await prisma.stagingSet.create({
         data: {
           ...commonData,
+          isDuplicate: set.isVideo ? videoDup : photoDup,
           isVideo: set.isVideo,
           imageCount: set.imageCount,
           matchedSetId: setMatch?.matchedEntityId ?? null,

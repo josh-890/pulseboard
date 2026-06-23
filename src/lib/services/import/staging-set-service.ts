@@ -414,15 +414,16 @@ function _participantDisplayNames(participants: unknown): string[] {
 /**
  * The staging set(s) that triggered this set's duplicate warning, so the user can
  * verify rather than guess. Confirmed: same duplicateGroupId. Probable: same
- * channel + release date AND flagged isDuplicate — mirroring
- * resolveStagingSetDuplicate, which also excludes the split photo/video sibling
- * (it shares the same externalId and is therefore never flagged isDuplicate).
- * Both exclude self and SKIPPED. Returns [] when the set carries no duplicate flag.
+ * channel + release date + **same SetType** (`isVideo`) AND flagged isDuplicate —
+ * mirroring resolveStagingSetDuplicate. Photo↔video pairs of one session are split
+ * siblings, never duplicates, so the type match excludes them (in addition to the
+ * same-externalId split sibling never being flagged). Both exclude self and SKIPPED.
+ * Returns [] when the set carries no duplicate flag.
  */
 export async function getDuplicateCandidates(id: string): Promise<DuplicateCandidate[]> {
   const self = await prisma.stagingSet.findUnique({
     where: { id },
-    select: { duplicateGroupId: true, channelId: true, releaseDate: true },
+    select: { duplicateGroupId: true, channelId: true, releaseDate: true, isVideo: true },
   })
   if (!self) return []
 
@@ -464,6 +465,7 @@ export async function getDuplicateCandidates(id: string): Promise<DuplicateCandi
       where: {
         channelId: self.channelId,
         releaseDate: self.releaseDate,
+        isVideo: self.isVideo,
         isDuplicate: true,
         id: { not: id },
         status: { not: 'SKIPPED' },
@@ -513,7 +515,7 @@ export async function resolveStagingSetDuplicate(id: string): Promise<StagingSet
   return prisma.$transaction(async (tx) => {
     const entry = await tx.stagingSet.findUniqueOrThrow({
       where: { id },
-      select: { duplicateGroupId: true, channelId: true, releaseDate: true },
+      select: { duplicateGroupId: true, channelId: true, releaseDate: true, isVideo: true },
     })
     const groupId = entry.duplicateGroupId
 
@@ -548,6 +550,7 @@ export async function resolveStagingSetDuplicate(id: string): Promise<StagingSet
         where: {
           channelId: entry.channelId,
           releaseDate: entry.releaseDate,
+          isVideo: entry.isVideo,
           isDuplicate: true,
           id: { not: id },
           status: { not: 'SKIPPED' },
