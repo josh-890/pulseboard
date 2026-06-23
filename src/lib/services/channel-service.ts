@@ -12,7 +12,7 @@ export async function getChannels(filters?: { q?: string; labelId?: string; tier
     where.name = { contains: filters.q, mode: "insensitive" };
   }
   if (filters?.labelId) {
-    where.labelMaps = { some: { labelId: filters.labelId } };
+    where.labelId = filters.labelId;
   }
   if (filters?.tier?.length) {
     where.tier = { in: filters.tier };

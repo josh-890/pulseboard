@@ -135,7 +135,7 @@ function buildPromotedWhere(
   }
   if (filters.labelIds && filters.labelIds.length > 0) {
     whereSet.channel = {
-      labelMaps: { some: { labelId: { in: filters.labelIds } } },
+      labelId: { in: filters.labelIds },
     };
   }
   if (filters.ratings && filters.ratings.length > 0) {
@@ -199,7 +199,7 @@ function buildStagedWhere(
   }
   if (filters.labelIds && filters.labelIds.length > 0) {
     whereStaging.channel = {
-      labelMaps: { some: { labelId: { in: filters.labelIds } } },
+      labelId: { in: filters.labelIds },
     };
   }
   if (filters.archiveStatuses && filters.archiveStatuses.length > 0) {

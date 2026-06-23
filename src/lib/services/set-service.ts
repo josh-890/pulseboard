@@ -54,7 +54,7 @@ export async function getSets(filters: SetFilters = {}) {
   }
 
   if (labelId) {
-    where.channel = { labelMaps: { some: { labelId } } };
+    where.channel = { labelId };
   }
 
   return prisma.set.findMany({
@@ -170,7 +170,7 @@ export async function getSetsPaginated(
   }
 
   if (labelId) {
-    where.channel = { labelMaps: { some: { labelId } } };
+    where.channel = { labelId };
   }
 
   if (channelId) {
@@ -434,7 +434,7 @@ export async function getSetFacetCounts(
     if (merged.type && merged.type !== "all") w.type = merged.type;
     if (filters.q) w.title = { contains: filters.q, mode: "insensitive" };
     if (merged.channelId) w.channelId = merged.channelId;
-    if (merged.labelId) w.channel = { labelMaps: { some: { labelId: merged.labelId } } };
+    if (merged.labelId) w.channel = { labelId: merged.labelId };
     if (filters.personId) w.participants = { some: { personId: filters.personId } };
     if (filters.hasMedia) w.setMediaItems = { some: {} };
     if (filters.noArchiveLink) w.archiveLinks = { none: { status: ArchiveLinkStatus.CONFIRMED } };
@@ -467,7 +467,7 @@ export async function getSetFacetCounts(
     prisma.set.groupBy({ by: ["channelId"], where: buildBase({ channelId: undefined }), _count: { _all: true } }),
     prisma.set.groupBy({ by: ["rating"], where: buildBase({ ratings: undefined }), _count: { _all: true } }),
     ...labelIds.map((id) =>
-      prisma.set.count({ where: { ...buildBase({ labelId: undefined }), channel: { labelMaps: { some: { labelId: id } } } } })
+      prisma.set.count({ where: { ...buildBase({ labelId: undefined }), channel: { labelId: id } } })
         .then((count) => [id, count] as [string, number]),
     ),
   ]);

@@ -106,26 +106,31 @@ on a non-default tenant; confirm Session label unchanged.
 
 ---
 
-## Phase 3 — Migrate query/aggregation readers (one at a time)
+## Phase 3 — Migrate query/aggregation readers
 
-Each is an independent, separately-verifiable swap from
-`channel.labelMaps.some({ labelId })` → `channel.labelId`. Dual-write keeps the map
-valid throughout, so these can land in any order, individually.
+Swap `channel.labelMaps.some({ labelId })` → `channel.labelId`. Dual-write keeps the
+map valid throughout, so readers land individually.
 
-| Reader | Location | Swap |
-|---|---|---|
-| `/sets` label filter | `set-service.ts:57,173,437` | `where.channel = { labelId }` |
-| Set label KPI/counts | `set-service.ts:419-469` | group by `channel.labelId` |
-| Career-tab affiliation pills | `career-service.ts` (`deriveAffiliations`) | resolve via `channel.labelId` |
-| Set hero / grid / channel card label display | `set-hero.tsx`, `set-grid.tsx`, `channel-card.tsx` | include `channel.label` directly |
-| person / label / session service label reads | respective services | `channel.labelId` |
+### Phase 3a — label *filters* ✅ DONE (2026-06-23)
 
-For each: update the query, update the matching Phase-0/fixture test, verify the
-affected route in Playwright (`/sets` filter + counts; `/people/[id]` Career tab;
-`/channels/[id]`).
+The load-bearing, isolated `where`-clause swaps (no shape/consumer changes):
+- `set-service.ts` — `/sets` label filter (×2) + facet KPI counts (×2)
+- `career-service.ts` — career-tab label filter (sets + staging)
+- `channel-service.ts` — channel browser label filter
 
-**Gate per reader:** targeted vitest + lint + Playwright on the touched route. Batch
-the `npm run build` gate when a client/server-boundary file is in the set.
+**Verify:** tsc · lint · build clean. Read-only data check: **pulse 0 / xpulse 0
+multi-map channels → filter swap byte-identical on prod**; dev has 1 test artifact
+where the FK filter correctly returns owner-only (the intended ADR-0020 semantics).
+
+### Phase 3b — *display* reads → DEFERRED to Phase 5
+
+The remaining `channel.labelMaps[0].label` → `channel.label` reads (set-hero,
+set-grid, channel-card, channel detail, person work-history, staging-set service,
+suggest route) are **not load-bearing** — dual-write keeps `labelMaps[0]` valid, so
+they render correctly as-is. Folded into the Phase 5 cleanup, where `ChannelLabelMap`
+is demoted anyway. Genuine all-maps consumers (suggested-labels multi-select, alias
+`labelNames`) stay on `labelMaps` as the evidence layer. **Phase 4 (merge-guard
+re-key) goes next** — load-bearing behaviour ahead of cosmetic join cleanup.
 
 ---
 
