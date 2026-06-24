@@ -95,6 +95,7 @@ export default async function SetDetailPage({ params }: SetDetailPageProps) {
       id: c.id,
       roleDefinitionId: c.roleDefinitionId ?? null,
       roleName: c.roleDefinition?.name ?? null,
+      roleGroupName: c.roleDefinition?.group?.name ?? null,
       rawName: c.rawName,
       resolutionStatus: c.resolutionStatus,
       resolvedPerson: c.resolvedPerson

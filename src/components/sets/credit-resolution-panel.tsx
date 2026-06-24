@@ -22,6 +22,7 @@ import {
 } from "@/lib/actions/set-actions";
 import { CreatePersonSheet } from "@/components/people/create-person-sheet";
 import { CreateArtistSheet } from "@/components/artists/create-artist-sheet";
+import { contributorKindForRoleGroup } from "@/lib/services/session-contributors";
 
 type PersonResult = {
   id: string;
@@ -40,6 +41,7 @@ type CreditRawItem = {
   id: string;
   roleDefinitionId: string | null;
   roleName: string | null;
+  roleGroupName: string | null;
   rawName: string;
   resolutionStatus: "UNRESOLVED" | "RESOLVED" | "IGNORED";
   resolvedPerson: {
@@ -281,9 +283,10 @@ export function CreditResolutionPanel({ setId, credits: initialCredits, channelI
     setArtistSearchResults([]);
     setShowDropdown(false);
 
-    // Default mode: credits with no role → artist, credits with role → person
+    // Resolve kind is fixed by the credit's role group (ADR-0021):
+    // On-Camera → Person, Behind-Camera → Artist. No user toggle.
     const credit = credits.find((c) => c.id === creditId);
-    const defaultMode = credit?.roleDefinitionId ? "person" : "artist";
+    const defaultMode = contributorKindForRoleGroup(credit?.roleGroupName ?? "");
     setResolveMode(defaultMode);
 
     // Load suggestions based on mode
@@ -346,7 +349,6 @@ export function CreditResolutionPanel({ setId, credits: initialCredits, channelI
               credit={credit}
               isResolving={resolvingCreditId === credit.id}
               resolveMode={resolveMode}
-              onResolveModeChange={setResolveMode}
               actionLoading={actionLoading}
               searchQuery={searchQuery}
               searchResults={searchResults}
@@ -398,7 +400,6 @@ type CreditRowProps = {
   credit: CreditRawItem;
   isResolving: boolean;
   resolveMode: "person" | "artist";
-  onResolveModeChange: (mode: "person" | "artist") => void;
   actionLoading: string | null;
   searchQuery: string;
   searchResults: PersonResult[];
@@ -429,7 +430,6 @@ function CreditRow({
   credit,
   isResolving,
   resolveMode,
-  onResolveModeChange,
   actionLoading,
   searchQuery,
   searchResults,
@@ -619,30 +619,9 @@ function CreditRow({
       {/* Inline resolve search */}
       {isResolving && (
         <div className="space-y-2 pt-1">
-          {/* Person / Artist mode toggle */}
-          <div className="flex items-center gap-1">
-            <button
-              type="button"
-              onClick={() => { onResolveModeChange("person"); onSearchChange(""); }}
-              className={`rounded-full px-2.5 py-0.5 text-xs font-medium transition-colors ${
-                resolveMode === "person"
-                  ? "bg-primary text-primary-foreground"
-                  : "bg-muted text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              Person
-            </button>
-            <button
-              type="button"
-              onClick={() => { onResolveModeChange("artist"); onSearchChange(""); }}
-              className={`rounded-full px-2.5 py-0.5 text-xs font-medium transition-colors ${
-                resolveMode === "artist"
-                  ? "bg-primary text-primary-foreground"
-                  : "bg-muted text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              Artist
-            </button>
+          {/* Resolve kind is fixed by the credit's role group (ADR-0021) */}
+          <div className="text-xs text-muted-foreground">
+            Resolving as {resolveMode === "artist" ? "Artist (behind camera)" : "Person (on camera)"}
           </div>
 
           {/* Suggestion pills */}

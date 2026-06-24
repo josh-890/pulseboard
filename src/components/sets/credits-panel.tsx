@@ -12,6 +12,7 @@ type CreditItem = {
   id: string;
   roleDefinitionId: string | null;
   roleName: string | null;
+  roleGroupName: string | null;
   rawName: string;
   resolutionStatus: "UNRESOLVED" | "RESOLVED" | "IGNORED";
   resolvedPerson: {

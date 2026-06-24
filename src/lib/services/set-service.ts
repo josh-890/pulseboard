@@ -7,6 +7,7 @@ import type { TxClient } from "./cascade-helpers";
 import { mergeSessionsRecord } from "./session-service";
 import { rebuildSetParticipantsFromContributions } from "./contribution-service";
 import { refreshPersonAffiliations } from "./view-service";
+import { contributorKindForRoleGroup } from "./session-contributors";
 
 export type SetSort =
   | "date-desc"
@@ -828,6 +829,15 @@ export async function resolveCreditRaw(
   personId: string,
 ): Promise<{ suggestNewAlias: boolean; rawName: string }> {
   return prisma.$transaction(async (tx) => {
+    // ADR-0021: behind-camera credits resolve to an Artist, never a Person.
+    const before = await tx.setCreditRaw.findUniqueOrThrow({
+      where: { id: creditId },
+      select: { roleDefinition: { select: { group: { select: { name: true } } } } },
+    });
+    if (before.roleDefinition && contributorKindForRoleGroup(before.roleDefinition.group.name) === "artist") {
+      throw new Error("Behind-camera credits resolve to an Artist, not a Person (ADR-0021).");
+    }
+
     const credit = await tx.setCreditRaw.update({
       where: { id: creditId },
       data: {
@@ -898,6 +908,14 @@ export async function ignoreCreditRaw(creditId: string) {
 }
 
 export async function resolveCreditAsArtistRaw(creditId: string, artistId: string) {
+  // ADR-0021: on-camera credits resolve to a Person, never an Artist.
+  const before = await prisma.setCreditRaw.findUniqueOrThrow({
+    where: { id: creditId },
+    select: { roleDefinition: { select: { group: { select: { name: true } } } } },
+  });
+  if (before.roleDefinition && contributorKindForRoleGroup(before.roleDefinition.group.name) === "person") {
+    throw new Error("On-camera credits resolve to a Person, not an Artist (ADR-0021).");
+  }
   return prisma.setCreditRaw.update({
     where: { id: creditId },
     data: {

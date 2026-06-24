@@ -73,20 +73,21 @@ running here; the row is thin + build-validated).
 
 ---
 
-## Phase 4 — Resolution-path cleanup (remove the dual-path)
+## Phase 4 — Resolution-path cleanup (remove the dual-path) ✅ DONE (2026-06-24)
 
-1. `credit-resolution-panel.tsx`: the resolve **kind is fixed by the credit's role
-   group** — Behind-Camera credit → Artist search/create only; On-Camera → Person only.
-   Remove the person/artist toggle and the `roleDefinitionId ? person : artist`
-   role-less default (after Phase 2+backfill there are no role-less credits).
-2. Optional service guard: `resolveCreditRaw` refuses a Behind-Camera credit (defence in
-   depth), `resolveCreditAsArtistRaw` refuses an On-Camera credit. Low-risk; keeps the
-   invariant even if a caller is missed.
-3. Resolve the Phase-1 Behind-Camera→Person leaks (re-resolve as Artist), grilled if the
-   count is non-trivial per `feedback_grill_before_destructive_cleanup`.
+1. `credit-resolution-panel.tsx`: resolve **kind fixed by the credit's role group** via
+   `contributorKindForRoleGroup(credit.roleGroupName)`. The person/artist toggle is
+   removed (replaced by a static "Resolving as Person/Artist" indicator), the
+   `roleDefinitionId ? person : artist` role-less default is gone, and the
+   `onResolveModeChange` prop is dropped. `roleGroupName` threaded through both credit
+   feeds (`sets/[id]/page` mapping + `credits-panel` `CreditItem`).
+2. Service guards (defence in depth): `resolveCreditRaw` throws on a Behind-Camera
+   credit; `resolveCreditAsArtistRaw` throws on an On-Camera credit.
+3. Behind-Camera→Person leaks: **0 on prod** → no-op (the single dev seed leak is test
+   data).
 
-**Gate:** tsc + lint + build; Playwright: a photographer credit offers only Artist
-resolution, a model credit only Person.
+**Gate:** tsc · eslint · build clean · 9/9 helper tests. (Live Playwright deferred to the
+app rebuild; the kind is now deterministic + build-validated.)
 
 ---
 
