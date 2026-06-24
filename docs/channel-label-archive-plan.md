@@ -122,15 +122,20 @@ The load-bearing, isolated `where`-clause swaps (no shape/consumer changes):
 multi-map channels → filter swap byte-identical on prod**; dev has 1 test artifact
 where the FK filter correctly returns owner-only (the intended ADR-0020 semantics).
 
-### Phase 3b — *display* reads → DEFERRED to Phase 5
+### Phase 3b — *display* reads ✅ DONE (2026-06-24)
 
-The remaining `channel.labelMaps[0].label` → `channel.label` reads (set-hero,
-set-grid, channel-card, channel detail, person work-history, staging-set service,
-suggest route) are **not load-bearing** — dual-write keeps `labelMaps[0]` valid, so
-they render correctly as-is. Folded into the Phase 5 cleanup, where `ChannelLabelMap`
-is demoted anyway. Genuine all-maps consumers (suggested-labels multi-select, alias
-`labelNames`) stay on `labelMaps` as the evidence layer. **Phase 4 (merge-guard
-re-key) goes next** — load-bearing behaviour ahead of cosmetic join cleanup.
+Initially deferred (not load-bearing — dual-write keeps `labelMaps[0]` valid), then
+completed when a channel-detail label-source bug prompted a full codebase sweep. All
+owner-label reads now use the `Channel.labelId` / `channel.label` FK instead of the
+unordered `labelMaps[0]`: set grid/hero, channel card, channel detail, import-suggest
+route, `/sets` label-filter options, person work-history, **person affiliations**
+(now count toward the owning label only — no double-count on multi-map channels),
+staging-set affiliation, alias `labelNames`. Each feeding query gained the direct
+`label` relation. Correct today on single-label channels, and future-proof for
+co-production *secondary* maps. **Left on `labelMaps`** (genuine evidence): the
+`add-set-sheet` label multi-select and the `getChannelsWithLabelMaps` array feeding
+it. Gate: tsc · eslint · build clean. (Channel-detail edit/display fix: commit
+`cc6938f`; full sweep: `03f0213`.)
 
 ---
 
@@ -179,10 +184,12 @@ Done:
   the backfill rule, and the invariant script).
 
 Intentionally **not** done (Option A):
-- Owner-map writes continue (dual-write keeps FK + map in lockstep).
-- Owner *display* reads (`labelMaps[0].label`) and all-maps surfaces (channel
-  detail, suggested-labels, alias `labelNames`) keep reading `ChannelLabelMap` —
-  correct under Option A. No row deletion. No consumer rework.
+- Owner-map writes continue (dual-write keeps FK + map in lockstep). No owner-row
+  deletion, no destructive cleanup.
+
+(Note: owner *display* reads were later migrated to the FK anyway — see Phase 3b
+done 2026-06-24. Only the genuine evidence surfaces — `add-set-sheet` multi-select
+and the array feeding it — still read `ChannelLabelMap`.)
 
 **Gate:** tsc · eslint · `npm run build` clean · pure tests green.
 
