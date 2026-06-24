@@ -1,7 +1,9 @@
 import { withTenantFromHeaders } from "@/lib/tenant-context";
 import { Suspense } from "react";
+import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Tag } from "lucide-react";
+import { Tag, Clapperboard } from "lucide-react";
+import { formatPartialDateISO } from "@/lib/utils";
 import { SetBrowseNavBar, SetBrowseBackLink } from "@/components/sets/set-browse-nav-bar";
 import { getSetById, getChannelsForSelect, getSetParticipantEraMap } from "@/lib/services/set-service";
 import { getSetMediaGallery, getCoverPhotosForSets, getHeadshotsForPersons } from "@/lib/services/media-service";
@@ -236,6 +238,43 @@ export default async function SetDetailPage({ params }: SetDetailPageProps) {
               labelEvidence={labelEvidence}
               roleDefinitions={roleDefinitions}
             />
+
+            {/* Linked session(s) — mirrors the session detail's "Linked Sets" */}
+            {setData.sessionLinks && setData.sessionLinks.length > 0 && (
+              <div className="rounded-2xl border border-white/20 bg-card/70 p-4 shadow-md backdrop-blur-sm">
+                <div className="mb-3 flex items-center gap-2">
+                  <Clapperboard size={14} className="text-muted-foreground" aria-hidden="true" />
+                  <h2 className="text-sm font-semibold">
+                    {setData.sessionLinks.length === 1 ? "Session" : `Sessions (${setData.sessionLinks.length})`}
+                  </h2>
+                </div>
+                <div className="space-y-2">
+                  {setData.sessionLinks.map((l) => (
+                    <Link
+                      key={l.sessionId}
+                      href={`/sessions/${l.sessionId}`}
+                      className="group flex items-center justify-between rounded-xl border border-white/15 bg-card/40 px-3 py-2.5 transition-all hover:border-white/25 hover:bg-card/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    >
+                      <span className="block min-w-0 truncate text-sm font-medium transition-colors group-hover:text-entity-session">
+                        {l.session.name}
+                      </span>
+                      <div className="ml-2 flex shrink-0 items-center gap-2">
+                        {l.isPrimary && (
+                          <span className="rounded-full border border-entity-session/20 bg-entity-session/10 px-2 py-0.5 text-xs font-medium text-entity-session">
+                            Primary
+                          </span>
+                        )}
+                        {l.session.date && (
+                          <span className="text-xs text-muted-foreground">
+                            {formatPartialDateISO(l.session.date, l.session.datePrecision)}
+                          </span>
+                        )}
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {setData.tags.length > 0 && (
               <div className="rounded-2xl border border-white/20 bg-card/70 p-4 shadow-md backdrop-blur-sm">
