@@ -12,18 +12,18 @@ Role taxonomy (both tenants): group **On-Camera** = `model`, **Behind Camera** =
 
 ---
 
-## Phase 0 — Characterise the contributor-kind rule (pure)
+## Phase 0 — Characterise the contributor-kind rule (pure) ✅ DONE (2026-06-24)
 
-Pin the role-group → kind mapping as a pure, tested helper before changing readers.
+Pure, tested helpers in `src/lib/services/session-contributors.ts`:
+- `contributorKindForRoleGroup(groupName)` → Behind Camera → `artist`, else `person`
+  (`BEHIND_CAMERA_GROUP` constant).
+- `mergeSessionContributors(personContribs, behindCameraCredits)` → Persons first,
+  then behind-camera Artists de-duped per role by `artistId` (resolved) or normalized
+  raw name (unresolved); `displayName = resolvedArtistName ?? rawName`.
 
-1. `contributorKindForRoleGroup(groupName): "person" | "artist"` (Behind Camera →
-   artist, else person) in a small module. Unit-test it.
-2. Characterise the session-contributor **union shape** as a pure merge:
-   `mergeSessionContributors(personContribs, behindCameraCredits)` → deduped list with
-   a `kind` discriminator and `displayName = resolvedArtist?.name ?? rawName`. Unit-test
-   dedup + raw-name fallback + always-show-behind-camera / resolved-only-on-camera.
-
-**Gate:** tsc + new vitest + lint. No behaviour change.
+Tests (`__tests__/session-contributors.test.ts`, 9): kind mapping, person-first order,
+resolved-by-name, **unresolved-shows-by-raw-name**, dedup (resolved + raw), no cross-role
+merge, resolved-vs-raw distinctness. Gate: tsc · eslint · 9/9 tests. No behaviour change.
 
 ---
 
