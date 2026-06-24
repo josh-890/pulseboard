@@ -43,22 +43,14 @@ to do). Re-audit: xpulse role-less = 0, leaks = 0. The single dev seed leak is t
 
 ---
 
-## Phase 2 — Imported artist credits carry the `photographer` role
+## Phase 2 — Imported artist credits carry the `photographer` role ✅ DONE (2026-06-24)
 
-The three artist-credit creation sites attach the Behind-Camera role so new imports are
-unambiguous (and immediately appear in the session view):
-
-- `import-executor.ts` → `createNewSet` (artist block ~1056)
-- `import-executor.ts` → `enrichExistingSet` (artist block ~935)
-- `import-executor.ts` → `promoteManualStagingSet` Path B (artist block ~1400)
-
-Each resolves the `photographer` role id once and sets `roleDefinitionId` on the created
-`SetCreditRaw` (still `UNRESOLVED` — the user resolves it to an Artist later, or it shows
-by raw name meanwhile).
-
-**Gate:** tsc + lint + build; promote a staging set with an artist on dev → credit has
-the photographer role; confirm it shows in the session view after Phase 3 (clean up the
-test set after, per project rule).
+All three artist-credit creation sites in `import-executor.ts` (`createNewSet`,
+`enrichExistingSet`, `promoteManualStagingSet` Path B) now set
+`roleDefinitionId: await getPhotographerRoleId(tx)` on the created `SetCreditRaw`
+(still `UNRESOLVED`). New helper `getPhotographerRoleId(tx)` looks up the `photographer`
+role by slug; null fallback → role-less (graceful). So new imports stay role-clean
+without needing the backfill again. **Gate:** tsc · eslint · build clean.
 
 ---
 

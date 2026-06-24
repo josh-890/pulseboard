@@ -23,6 +23,19 @@ import { parseClaimedStats } from './parse-claimed-stats'
 import { transferStagingCoverToSet } from './cover-transfer'
 import { autoClusterDeltaIntoDraftEra, getBaselineEraId } from '@/lib/services/era-service'
 
+/**
+ * The behind-camera `photographer` role (ADR-0021). Imported `artist` credits carry it
+ * so contributor kind is role-driven and they surface in the session view. Returns null
+ * if the role is missing (credit is then created role-less — graceful fallback).
+ */
+async function getPhotographerRoleId(tx: Prisma.TransactionClient): Promise<string | null> {
+  const role = await tx.contributionRoleDefinition.findFirst({
+    where: { slug: 'photographer' },
+    select: { id: true },
+  })
+  return role?.id ?? null
+}
+
 // ─── Types ──────────────────────────────────────────────────────────────────
 
 export type ImportResult = {
@@ -945,6 +958,7 @@ async function enrichExistingSet(
               rawName: artist,
               nameNorm: normalizeForSearch(artist),
               resolutionStatus: 'UNRESOLVED',
+              roleDefinitionId: await getPhotographerRoleId(tx),
             },
           })
         }
@@ -1050,7 +1064,7 @@ async function createNewSet(
         data: { setId: set.id, sessionId: session.id, isPrimary: true },
       })
 
-      // Artist credit
+      // Artist credit (behind-camera → photographer role, ADR-0021)
       const artist = data.artist as string | null
       if (artist) {
         await tx.setCreditRaw.create({
@@ -1059,6 +1073,7 @@ async function createNewSet(
             rawName: artist,
             nameNorm: normalizeForSearch(artist),
             resolutionStatus: 'UNRESOLVED',
+            roleDefinitionId: await getPhotographerRoleId(tx),
           },
         })
       }
@@ -1403,6 +1418,7 @@ export async function promoteManualStagingSet(stagingSetId: string): Promise<Imp
             rawName: stagingSet.artist,
             nameNorm: normalizeForSearch(stagingSet.artist),
             resolutionStatus: 'UNRESOLVED',
+            roleDefinitionId: await getPhotographerRoleId(tx),
           },
         })
       }
