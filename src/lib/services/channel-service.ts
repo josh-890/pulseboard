@@ -36,6 +36,7 @@ export async function getChannelById(id: string) {
   return prisma.channel.findUnique({
     where: { id },
     include: {
+      label: true, // owning Label (ADR-0020 FK) — authoritative for display + edit
       labelMaps: { include: { label: true } },
       sets: {
         orderBy: { releaseDate: "desc" },

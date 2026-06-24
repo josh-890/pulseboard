@@ -90,7 +90,7 @@ export default async function ChannelDetailPage({
               name: channel.name,
               shortName: channel.shortName,
               channelFolder: channel.channelFolder,
-              labelId: channel.labelMaps[0]?.label.id ?? null,
+              labelId: channel.labelId,
               platform: channel.platform,
               url: channel.url,
               tier: channel.tier,
@@ -141,13 +141,13 @@ export default async function ChannelDetailPage({
                   </span>
                 ) : null;
               })()}
-              {channel.labelMaps[0]?.label && (
+              {channel.label && (
                 <Link
-                  href={`/labels/${channel.labelMaps[0].label.id}`}
+                  href={`/labels/${channel.label.id}`}
                   className="inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-muted/50 px-3 py-1 text-sm font-medium transition-colors hover:bg-muted hover:text-primary"
                 >
                   <Building2 size={12} />
-                  {channel.labelMaps[0].label.name}
+                  {channel.label.name}
                 </Link>
               )}
               {channel.platform && (
