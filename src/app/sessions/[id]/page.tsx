@@ -12,7 +12,8 @@ import { getHeroBackdropEnabled } from "@/lib/services/setting-service";
 import { getPersonProfileFramings } from "@/lib/services/profile-service";
 import { getCollectionsForPerson } from "@/lib/services/collection-service";
 import { getAllCategoryGroups } from "@/lib/services/category-service";
-import { getSessionContributions, getContributionSkillMediaMap, getContributorsWithEntities } from "@/lib/services/contribution-service";
+import { getSessionContributions, getContributionSkillMediaMap, getContributorsWithEntities, getSessionBehindCameraCredits } from "@/lib/services/contribution-service";
+import { mergeSessionContributors, type SessionContributor } from "@/lib/services/session-contributors";
 import { getAllSkillGroups } from "@/lib/services/skill-catalog-service";
 import { getAllContributionRoleGroups } from "@/lib/services/contribution-role-service";
 import { getEntityTags } from "@/lib/services/entity-tag-service";
@@ -22,6 +23,7 @@ import { EditSessionSheet } from "@/components/sessions/edit-session-sheet";
 import { deleteSession } from "@/lib/actions/session-actions";
 import { SessionActionsMenu } from "@/components/sessions/session-actions-menu";
 import { ContributionParticipantRow } from "@/components/sessions/contribution-participant-row";
+import { BehindCameraContributorRow } from "@/components/sessions/behind-camera-contributor-row";
 import { SessionHero } from "@/components/sessions/session-hero";
 import { SessionTagSection } from "@/components/sessions/session-tag-section";
 import { SessionProductionGallery, SessionUploadButton } from "@/components/sessions/session-production-gallery";
@@ -240,6 +242,13 @@ export default async function SessionDetailPage({ params, searchParams }: Sessio
     ? await Promise.all([getSessionContributions(id), getAllSkillGroups(), getContributionSkillMediaMap(id), getContributorsWithEntities(id), getAllCategoryGroups(), getAllContributionRoleGroups()])
     : [[], [], new Map<string, { id: string; thumbUrl: string }[]>(), [], [], []];
 
+  // ADR-0021: behind-camera Artist credits from this session's sets, deduped, shown
+  // read-only alongside the Person contributions.
+  const behindCameraCredits = !isReference ? await getSessionBehindCameraCredits(id) : [];
+  const behindCameraContributors = mergeSessionContributors([], behindCameraCredits).filter(
+    (c): c is Extract<SessionContributor, { kind: "artist" }> => c.kind === "artist",
+  );
+
   const roleDefinitions = (contributionRoleGroups as Awaited<ReturnType<typeof getAllContributionRoleGroups>>).flatMap((g) =>
     g.definitions.map((d) => ({ id: d.id, name: d.name, groupName: g.name })),
   );
@@ -383,11 +392,11 @@ export default async function SessionDetailPage({ params, searchParams }: Sessio
           {/* Right sidebar: contributors + linked sets + tags */}
           <div className="space-y-6">
             <SectionCard
-              title={`Contributors (${contributionCount})`}
+              title={`Contributors (${contributionCount + behindCameraContributors.length})`}
               icon={<Users size={18} />}
               action={<AddContributorSheet sessionId={id} sessionDate={session.date} roleDefinitions={roleDefinitions} />}
             >
-              {session.contributions.length === 0 ? (
+              {session.contributions.length === 0 && behindCameraContributors.length === 0 ? (
                 <EmptyState message="No contributors in this session." />
               ) : (
                 <ul className="space-y-0.5">
@@ -401,6 +410,14 @@ export default async function SessionDetailPage({ params, searchParams }: Sessio
                       era={contribution.era}
                       person={contribution.person}
                       sessionDate={session.date}
+                    />
+                  ))}
+                  {behindCameraContributors.map((c, i) => (
+                    <BehindCameraContributorRow
+                      key={`bc-${c.artistId ?? c.displayName}-${i}`}
+                      artistId={c.artistId}
+                      name={c.displayName}
+                      roleName={c.roleName}
                     />
                   ))}
                 </ul>

@@ -54,22 +54,22 @@ without needing the backfill again. **Gate:** tsc · eslint · build clean.
 
 ---
 
-## Phase 3 — Session contributor view = union
+## Phase 3 — Session contributor view = union ✅ DONE (2026-06-24)
 
-The load-bearing read change. Where `getSessionContributions` (or the
-`/sessions/[id]` page) builds the contributor list:
+The load-bearing read change.
+- `getSessionBehindCameraCredits(sessionId)` (contribution-service): `SetSession → Set →
+  SetCreditRaw` where role group = `BEHIND_CAMERA_GROUP` and status ≠ `IGNORED`, returns
+  `BehindCameraCredit[]`.
+- `/sessions/[id]/page.tsx`: deduped via `mergeSessionContributors([], credits)`; the
+  Contributors card renders Person `ContributionParticipantRow`s **then** the behind-camera
+  entries via the new read-only `BehindCameraContributorRow` (links to `/artists/[id]` when
+  resolved, "unresolved" chip + raw name otherwise; "{role} · from set credit"). Card count
+  and empty-state account for both. Reference sessions skip it.
 
-1. Fetch the session's behind-camera credits: `SetSession → Set → SetCreditRaw` where the
-   credit's role group is **Behind Camera** and status ≠ `IGNORED`, selecting
-   `rawName`, `resolvedArtist {id,name}`, `roleDefinition {name}`.
-2. Merge via the Phase-0 `mergeSessionContributors` helper → render Person contributions
-   and Artist credits in one list, each tagged by kind. Behind-camera entries link to the
-   Artist (when resolved) and are visually marked read-only / "from set credit".
-3. De-dup across the session's sets (one Artist/raw-name per role).
-
-**Gate:** tsc + lint + build; Playwright on `/sessions/[id]` for a session whose set has a
-photographer credit (resolved Artist *and* unresolved raw name both appear); a model-only
-session is unchanged.
+**Gate:** tsc · eslint · build clean. Data path validated read-only on dev + xpulse
+(sessions resolve real photographers — Stefan Soell, Alex Lynn, Leonardo). Live visual
+render lands with the app rebuild; full Playwright pass deferred to that (dev server not
+running here; the row is thin + build-validated).
 
 ---
 

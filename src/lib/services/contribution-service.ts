@@ -5,6 +5,7 @@ import { SKILL_LEVEL_VALUE } from "@/lib/constants/skill";
 import { CONFIDENCE_RANK } from "@/lib/constants/confidence";
 import { buildUrl } from "@/lib/media-url";
 import type { TxClient } from "./cascade-helpers";
+import { BEHIND_CAMERA_GROUP, type BehindCameraCredit } from "./session-contributors";
 
 // ─── Session Contributions ──────────────────────────────────────────────────
 
@@ -36,6 +37,43 @@ export async function getSessionContributions(sessionId: string) {
 export type EnrichedContribution = Awaited<
   ReturnType<typeof getSessionContributions>
 >[number];
+
+/**
+ * Behind-camera credits on this session's sets (ADR-0021). The session contributor
+ * list unions these (read-only) with the Person `SessionContribution`s. A credit is
+ * behind-camera when its role's group is `BEHIND_CAMERA_GROUP`; ignored credits are
+ * excluded. Shown whether resolved to an Artist or still raw.
+ */
+export async function getSessionBehindCameraCredits(
+  sessionId: string,
+): Promise<BehindCameraCredit[]> {
+  const links = await prisma.setSession.findMany({
+    where: { sessionId },
+    select: { setId: true },
+  });
+  const setIds = links.map((l) => l.setId);
+  if (setIds.length === 0) return [];
+
+  const credits = await prisma.setCreditRaw.findMany({
+    where: {
+      setId: { in: setIds },
+      resolutionStatus: { not: "IGNORED" },
+      roleDefinition: { group: { name: BEHIND_CAMERA_GROUP } },
+    },
+    select: {
+      rawName: true,
+      resolvedArtist: { select: { id: true, name: true } },
+      roleDefinition: { select: { name: true } },
+    },
+  });
+
+  return credits.map((c) => ({
+    artistId: c.resolvedArtist?.id ?? null,
+    resolvedArtistName: c.resolvedArtist?.name ?? null,
+    rawName: c.rawName,
+    roleName: c.roleDefinition?.name ?? "Photographer",
+  }));
+}
 
 export async function addSessionContribution(
   sessionId: string,
