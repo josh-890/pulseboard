@@ -100,6 +100,24 @@ A grouping **above Labels** — a parent running several topic-specialised Label
 **Evidence vs. hard link** (production attribution is soft, with one denormalized owner):
 Publication is hard-wired onto the Set (`Set.channelId`); **production grouping is softer**. A Channel's **owning Label** is the denormalized FK **`Channel.labelId`** (ADR-0020) — the deterministic owner used by archive matching, dedup, and the set-merge guard. Behind it, `ChannelLabelMap` (M:N, `confidence`) is the full channel↔label association table (owner row at conf 1.0 + any secondary/cross-label evidence); Set↔Label is `SetLabelEvidence` (M:N, `confidence`, `EvidenceType`); the only *hard* production link is `Session.labelId`. There is no hard `Set.labelId` — a Set's producing Label is reached via its Channel's owner FK or its Session.
 
+### Credits & contributors (added 2026-06-24)
+
+**Credit** (code model & DB table: `SetCreditRaw`):
+A single raw name credited on a **Set**, as it appears in the source, optionally carrying a **role**. A credit is *resolved* to exactly one of two contributor **kinds** — a **Person** (on-camera) or an **Artist** (behind-camera) — or left unresolved / ignored. The credit list is the per-set record of who was involved.
+
+**On-camera / behind-camera split** (the contributor-kind rule):
+Roles live in two groups that determine the contributor *kind*, **by design**:
+- **On-Camera** (e.g. `model`) → resolves to a **Person** — the deep, fully-tracked subject (date-of-birth floor, Eras, delta-fold, appearance, body map, work history).
+- **Behind-Camera** (e.g. `photographer`) → resolves to an **Artist** — a deliberately **lightweight** contributor. Behind-camera creators are **never** tracked with the depth of on-camera subjects; the separation is intentional.
+_Avoid_: treating "photographer" as a Person role — a behind-camera credit is an **Artist**, a different entity kind.
+
+**Artist** (code model & DB table: `Artist`):
+A lightweight behind-camera **contributor** — name, nationality, bio — credited on Sets via `SetCreditRaw.resolvedArtistId`. **Not a Person**: it carries none of the temporal/appearance machinery (no DOB floor, Eras, deltas, body features). Has its own browse/profile surface (`/artists`) with a credit-derived career view.
+_Avoid_: "model" / "performer" / "subject" (those are on-camera Persons); folding Artist into Person.
+
+**Contribution** (code model & DB table: `SessionContribution`) / **Participant** (`SetParticipant`):
+The link of an **on-camera Person** to a **Session** (one shoot) / **Set**, with a role. Created when a credit resolves to a Person; `SetParticipant` is the derived per-set cache. Optionally carries the **Era** the person was in at the shoot (appearance-at-shoot) — meaningful only for Persons. Behind-camera Artists are credited on the Set, not stored here.
+
 ### Imagery & alignment (added 2026-06-12)
 
 **Alignment Template** (concept; code model & DB table: `MotifTemplate`):
