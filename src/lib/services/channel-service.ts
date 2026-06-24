@@ -21,6 +21,7 @@ export async function getChannels(filters?: { q?: string; labelId?: string; tier
   return prisma.channel.findMany({
     where,
     include: {
+      label: true, // owning Label (ADR-0020 FK) — authoritative for display
       labelMaps: { include: { label: true } },
       _count: {
         select: {
@@ -276,10 +277,7 @@ export async function searchChannelsForResolution(query: string) {
     select: {
       id: true,
       name: true,
-      labelMaps: {
-        select: { label: { select: { name: true } } },
-        take: 1,
-      },
+      label: { select: { name: true } }, // owning Label (ADR-0020 FK)
     },
     take: 20,
     orderBy: { name: 'asc' },

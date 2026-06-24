@@ -45,11 +45,7 @@ export async function getPersonAliases(
         include: {
           channel: {
             include: {
-              labelMaps: {
-                include: {
-                  label: { select: { name: true } },
-                },
-              },
+              label: { select: { name: true } }, // owning Label (ADR-0020 FK)
             },
           },
         },
@@ -77,7 +73,7 @@ export async function getPersonAliases(
       channelName: cl.channel.name,
       isPrimary: cl.isPrimary,
       notes: cl.notes,
-      labelNames: cl.channel.labelMaps.map((lm) => lm.label.name),
+      labelNames: cl.channel.label ? [cl.channel.label.name] : [],
     })),
   }));
 }
@@ -94,11 +90,7 @@ export async function getChannelAliases(
             include: {
               channel: {
                 include: {
-                  labelMaps: {
-                    include: {
-                      label: { select: { name: true } },
-                    },
-                  },
+                  label: { select: { name: true } }, // owning Label (ADR-0020 FK)
                 },
               },
             },
@@ -121,7 +113,7 @@ export async function getChannelAliases(
       channelName: cl.channel.name,
       isPrimary: cl.isPrimary,
       notes: cl.notes,
-      labelNames: cl.channel.labelMaps.map((lm) => lm.label.name),
+      labelNames: cl.channel.label ? [cl.channel.label.name] : [],
     })),
   }));
 }

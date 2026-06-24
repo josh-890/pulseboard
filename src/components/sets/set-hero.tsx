@@ -193,7 +193,7 @@ export function SetHero({
 }: SetHeroProps) {
   const typeConfig = SET_TYPE_CONFIG[set.type] ?? SET_TYPE_CONFIG.photo;
   const participantCount = set.participants.length;
-  const primaryLabel = set.channel?.labelMaps[0]?.label;
+  const primaryLabel = set.channel?.label;
   const primarySession = set.sessionLinks.find((l) => l.isPrimary)?.session ?? set.sessionLinks[0]?.session ?? null;
 
   // Build map: personId → rawName (only when rawName differs from common alias)

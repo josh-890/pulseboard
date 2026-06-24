@@ -22,7 +22,7 @@ export async function GET(request: Request) {
         channels.map((c) => ({
           id: c.id,
           name: c.name,
-          label: c.labelMaps[0]?.label.name ?? null,
+          label: c.label?.name ?? null,
         })),
       )
     }

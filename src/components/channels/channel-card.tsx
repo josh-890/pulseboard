@@ -60,9 +60,9 @@ export function ChannelCard({ channel }: ChannelCardProps) {
                 {tierConfig.letter}
               </span>
             )}
-            {channel.labelMaps[0]?.label && (
+            {channel.label && (
               <span className="inline-flex items-center rounded-md border border-border/50 bg-muted/40 px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
-                {channel.labelMaps[0].label.name}
+                {channel.label.name}
               </span>
             )}
             {channel.platform && (

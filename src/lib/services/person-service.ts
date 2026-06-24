@@ -651,7 +651,7 @@ export async function getPersonWorkHistory(personId: string): Promise<PersonWork
       set: {
         include: {
           channel: {
-            include: { labelMaps: { include: { label: true } } },
+            include: { label: true }, // owning Label (ADR-0020 FK)
           },
         },
       },
@@ -672,8 +672,8 @@ export async function getPersonWorkHistory(personId: string): Promise<PersonWork
       releaseDate: p.set.releaseDate,
       releaseDatePrecision: p.set.releaseDatePrecision,
       channelName: p.set.channel?.name ?? null,
-      labelId: p.set.channel?.labelMaps[0]?.label.id ?? null,
-      labelName: p.set.channel?.labelMaps[0]?.label.name ?? null,
+      labelId: p.set.channel?.label?.id ?? null,
+      labelName: p.set.channel?.label?.name ?? null,
       confidence: p.confidence,
       confidenceSource: p.confidenceSource,
     }));
@@ -1481,32 +1481,32 @@ export async function getPersonAffiliations(personId: string): Promise<PersonAff
     include: {
       set: {
         include: {
-          channel: { include: { labelMaps: { include: { label: true } } } },
+          channel: { include: { label: true } }, // owning Label (ADR-0020 FK)
         },
       },
     },
   });
 
+  // Affiliate each set to its channel's OWNING label (ADR-0020), not every
+  // evidence map the channel carries.
   const labelMap = new Map<string, PersonAffiliation>();
   for (const p of participants) {
-    const labelMaps = p.set.channel?.labelMaps ?? [];
+    const label = p.set.channel?.label;
+    if (!label) continue;
     const isVideo = p.set.type === "video";
-    for (const lm of labelMaps) {
-      const label = lm.label;
-      const existing = labelMap.get(label.id);
-      if (existing) {
-        existing.setCount += 1;
-        if (isVideo) existing.videoCount += 1;
-        else existing.photoCount += 1;
-      } else {
-        labelMap.set(label.id, {
-          labelId: label.id,
-          labelName: label.name,
-          setCount: 1,
-          photoCount: isVideo ? 0 : 1,
-          videoCount: isVideo ? 1 : 0,
-        });
-      }
+    const existing = labelMap.get(label.id);
+    if (existing) {
+      existing.setCount += 1;
+      if (isVideo) existing.videoCount += 1;
+      else existing.photoCount += 1;
+    } else {
+      labelMap.set(label.id, {
+        labelId: label.id,
+        labelName: label.name,
+        setCount: 1,
+        photoCount: isVideo ? 0 : 1,
+        videoCount: isVideo ? 1 : 0,
+      });
     }
   }
 

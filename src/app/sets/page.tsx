@@ -179,12 +179,12 @@ export default async function SetsPage({ searchParams }: SetsPageProps) {
   }));
 
   // Collect unique labels from channel label maps
+  // Filter options are the distinct OWNING labels (ADR-0020), matching the
+  // set-service label filter which keys on Channel.labelId.
   const labelMap = new Map<string, string>();
   for (const ch of channels) {
-    for (const lm of ch.labelMaps) {
-      if (lm.labelId && lm.labelName && !labelMap.has(lm.labelId)) {
-        labelMap.set(lm.labelId, lm.labelName);
-      }
+    if (ch.labelId && ch.labelName && !labelMap.has(ch.labelId)) {
+      labelMap.set(ch.labelId, ch.labelName);
     }
   }
   const labelOptions = Array.from(labelMap.entries()).map(([id, name]) => ({

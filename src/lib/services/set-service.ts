@@ -61,7 +61,7 @@ export async function getSets(filters: SetFilters = {}) {
     where,
     include: {
       channel: {
-        include: { labelMaps: { include: { label: true } } },
+        include: { label: true, labelMaps: { include: { label: true } } },
       },
       coherenceSnapshot: {
         select: { hasMediaInApp: true },
@@ -222,7 +222,7 @@ export async function getSetsPaginated(
       where,
       include: {
         channel: {
-          include: { labelMaps: { include: { label: true } } },
+          include: { label: true, labelMaps: { include: { label: true } } },
         },
         coherenceSnapshot: {
           select: { hasMediaInApp: true },
@@ -353,7 +353,7 @@ export async function getSetById(id: string) {
     where: { id },
     include: {
       channel: {
-        include: { labelMaps: { include: { label: true } } },
+        include: { label: true, labelMaps: { include: { label: true } } },
       },
       creditsRaw: {
         include: {
@@ -663,21 +663,22 @@ export async function deleteSetRecord(id: string) {
 export async function getChannelsForSelect() {
   const channels = await prisma.channel.findMany({
     include: {
-      labelMaps: { include: { label: { select: { id: true, name: true } } } },
+      label: { select: { id: true, name: true } }, // owning Label (ADR-0020 FK)
     },
     orderBy: { name: "asc" },
   });
   return channels.map((c) => ({
     id: c.id,
     name: c.name,
-    labelName: c.labelMaps[0]?.label.name ?? null,
-    labelId: c.labelMaps[0]?.label.id ?? null,
+    labelName: c.label?.name ?? null,
+    labelId: c.label?.id ?? null,
   }));
 }
 
 export async function getChannelsWithLabelMaps() {
   const channels = await prisma.channel.findMany({
     include: {
+      label: { select: { id: true, name: true } }, // owning Label (ADR-0020 FK)
       labelMaps: {
         include: { label: { select: { id: true, name: true } } },
       },
@@ -687,8 +688,8 @@ export async function getChannelsWithLabelMaps() {
   return channels.map((c) => ({
     id: c.id,
     name: c.name,
-    labelName: c.labelMaps[0]?.label.name ?? null,
-    labelId: c.labelMaps[0]?.label.id ?? null,
+    labelName: c.label?.name ?? null,
+    labelId: c.label?.id ?? null,
     labelMaps: c.labelMaps.map((m) => ({
       labelId: m.labelId,
       labelName: m.label.name,

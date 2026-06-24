@@ -89,7 +89,7 @@ function getSetGroupKey(set: SetItem, groupBy: SetsGroupBy): string {
       return set.channel?.name ?? "No Channel";
 
     case "label": {
-      const labelName = set.channel?.labelMaps[0]?.label?.name;
+      const labelName = set.channel?.label?.name;
       return labelName ?? "No Label";
     }
 

@@ -80,9 +80,9 @@ export type StagingWorkHistoryItem = {
   isVideo: boolean;
   externalId: string | null;
   coverImageUrl: string | null;
-  // Label info denormalised from channel.labelMaps[0]. Mirrors the
-  // shape of `PersonWorkHistoryItem` so affiliation derivation can
-  // treat promoted + staged items uniformly.
+  // Label info denormalised from the channel's owning Label (channel.label,
+  // ADR-0020 FK). Mirrors the shape of `PersonWorkHistoryItem` so affiliation
+  // derivation can treat promoted + staged items uniformly.
   labelId: string | null;
   labelName: string | null;
   archiveStatus: import("@/generated/prisma/client").ArchiveStatus | null;

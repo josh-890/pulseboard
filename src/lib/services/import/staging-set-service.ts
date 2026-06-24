@@ -165,15 +165,11 @@ export async function getStagingWorkHistoryForPerson(personId: string): Promise<
       isVideo: true,
       externalId: true,
       coverImageUrl: true,
-      // Pull label info via the channel's labelMaps so the staging
-      // contribution counts toward the same per-label affiliation that
-      // promoted sets do (deriveAffiliations consumes both arrays).
+      // Owning label (ADR-0020 FK) so the staging contribution counts toward the
+      // same per-label affiliation that promoted sets do.
       channel: {
         select: {
-          labelMaps: {
-            take: 1,
-            select: { label: { select: { id: true, name: true } } },
-          },
+          label: { select: { id: true, name: true } },
         },
       },
       archiveLinks: {
@@ -184,7 +180,7 @@ export async function getStagingWorkHistoryForPerson(personId: string): Promise<
   })
 
   return stagingSets.map((s) => {
-    const labelRow = s.channel?.labelMaps[0]?.label ?? null
+    const labelRow = s.channel?.label ?? null
     const confirmed = s.archiveLinks.find((l) => l.status === 'CONFIRMED')
     const hasSuggestion = !confirmed && s.archiveLinks.some((l) => l.status === 'SUGGESTED')
     return {
