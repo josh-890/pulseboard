@@ -27,21 +27,19 @@ merge, resolved-vs-raw distinctness. Gate: tsc · eslint · 9/9 tests. No behavi
 
 ---
 
-## Phase 1 — Data audit + backfill (per tenant, dry-run first)
+## Phase 1 — Data audit + backfill ✅ DONE (2026-06-24)
 
-1. **Audit script** `scripts/audit-credit-kinds.ts` (read-only): report
-   - role-less `SetCreditRaw` (no `roleDefinitionId`), split by resolved Person /
-     resolved Artist / unresolved;
-   - Behind-Camera credits with `resolvedPersonId` set (old dual-path leak);
-   - On-Camera credits with `resolvedArtistId` set (shouldn't exist).
-2. **Backfill** `scripts/backfill-credit-roles.ts` (`--apply`): role-less credits that
-   are resolved-as-Artist **or** unresolved-from-import → set `photographer` role.
-   Leave role-less resolved-Person credits for manual review (surfaced by the audit).
-3. The Behind-Camera-resolved-to-Person leaks: **report only** this phase; decide
-   handling in Phase 4 (likely re-resolve as Artist, grilled if non-trivial counts).
+`scripts/audit-credit-kinds.ts` (read-only) + `scripts/backfill-credit-roles.ts`
+(role-less, non-Person, non-ignored credits → `photographer` role; dry-run/`--apply`).
 
-**Gate:** run audit on dev + pulse + xpulse; apply backfill per tenant after dry-run
-review. Re-run audit → role-less import artists = 0.
+Audit (before): dev 19 role-less · pulse 0 · **xpulse 197** (192 resolved-artist + 5
+unresolved); **0** role-less-resolved-Person anywhere; Behind-Camera→Person leaks: 0
+on prod, 1 on dev (seed `M. Reed`); On-Camera→Artist anomalies: 0. So the backfill was
+unambiguous and the old dual-path was never used on prod.
+
+Applied: dev 19, **xpulse 197** credits given the photographer role; pulse 0 (nothing
+to do). Re-audit: xpulse role-less = 0, leaks = 0. The single dev seed leak is test data
+(no prod action). **Gate met:** role-less import artists = 0 on prod.
 
 ---
 
