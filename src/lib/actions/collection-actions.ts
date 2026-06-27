@@ -79,6 +79,33 @@ export async function createCollectionAction(
   });
 }
 
+// Create a new collection and seed it with one media item in a single round-trip.
+// Used by the lightbox "create new collection" affordances. `personId` defaults to
+// null (a global collection, like the New Collection button).
+export async function createCollectionWithItemAction(
+  name: string,
+  mediaItemId: string,
+  personId: string | null = null,
+): Promise<ActionResultWithId & { name?: string }> {
+  return withTenantFromHeaders(async () => {
+    try {
+      const trimmed = name.trim();
+      if (!trimmed) return { success: false, error: "Name is required" };
+      const id = await createCollection({ name: trimmed, personId: personId ?? undefined, layout: "GRID" });
+      await addToCollection(id, [mediaItemId]);
+      revalidatePath("/collections");
+      if (personId) {
+        revalidatePath("/people");
+        revalidatePath(`/people/${personId}`);
+      }
+      return { success: true, id, name: trimmed };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unexpected error";
+      return { success: false, error: message };
+    }
+  });
+}
+
 export async function updateCollectionAction(
   collectionId: string,
   data: { name?: string; description?: string; layout?: CollectionLayout },

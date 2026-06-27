@@ -157,6 +157,10 @@ function SimpleLightbox({
   const [paletteCollections, setPaletteCollections] = useState<
     { id: string; name: string; isTarget?: boolean }[]
   >([]);
+  // Collections created in-session from the lightbox (ADR-0019 create-on-the-fly).
+  // Merged into both the palette + info-panel lists so a just-made collection is
+  // immediately present + toggleable regardless of where its list came from.
+  const [createdCollections, setCreatedCollections] = useState<{ id: string; name: string }[]>([]);
   const [, startCollTransition] = useTransition();
   const touchStartX = useRef<number | null>(null);
   // Zoom/pan is owned by <ZoomableImage>; we only track whether it's zoomed so
@@ -218,6 +222,24 @@ function SimpleLightbox({
       setLocalCollectionIdsMap((m) => new Map(m).set(item.id, next));
     },
     [item],
+  );
+
+  // A new collection was created from the palette/info panel for the current image:
+  // surface it in both lists and mark the current image a member (server already added it).
+  const handleCollectionCreated = useCallback(
+    (collection: { id: string; name: string }) => {
+      setCreatedCollections((prev) => (prev.some((c) => c.id === collection.id) ? prev : [...prev, collection]));
+      handlePaletteMembership(collection.id, true);
+    },
+    [handlePaletteMembership],
+  );
+
+  const mergedPaletteCollections = useMemo(
+    () => [
+      ...paletteCollections,
+      ...createdCollections.filter((cc) => !paletteCollections.some((p) => p.id === cc.id)),
+    ],
+    [paletteCollections, createdCollections],
   );
 
   const addToTarget = useCallback(() => {
@@ -343,10 +365,16 @@ function SimpleLightbox({
   // Build standalone collectionContext with local-state-aware callback. Falls back
   // to the self-fetched list so add-to-collection works in any lightbox.
   const augmentedCollectionContext = useMemo(() => {
-    const base = collectionContext ?? (fetchedCollections.length > 0 ? { collections: fetchedCollections } : undefined);
-    if (!base) return undefined;
+    const baseColls = collectionContext?.collections ?? fetchedCollections;
+    const collections = [
+      ...baseColls,
+      ...createdCollections.filter((cc) => !baseColls.some((b) => b.id === cc.id)),
+    ];
+    if (!collectionContext && collections.length === 0) return undefined;
+    const base = collectionContext ?? { collections };
     return {
       ...base,
+      collections,
       onCollectionIdsChange: (itemId: string, collIds: string[]) => {
         setLocalCollectionIdsMap((prev) => {
           const next = new Map(prev);
@@ -356,7 +384,7 @@ function SimpleLightbox({
         base.onCollectionIdsChange?.(itemId, collIds);
       },
     };
-  }, [collectionContext, fetchedCollections]);
+  }, [collectionContext, fetchedCollections, createdCollections]);
 
   const goNext = useCallback(() => {
     setCurrentIndex((i) => Math.min(items.length - 1, i + 1));
@@ -502,6 +530,7 @@ function SimpleLightbox({
     referenceContext: augmentedReferenceContext,
     productionContext,
     collectionContext: augmentedCollectionContext,
+    onCollectionCreated: enableCollections || collectionContext ? handleCollectionCreated : undefined,
   };
 
   return createPortal(
@@ -817,8 +846,9 @@ function SimpleLightbox({
         onOpenChange={setPaletteOpen}
         mediaItemId={item?.id ?? null}
         collectionIds={item?.collectionIds ?? []}
-        collections={paletteCollections}
+        collections={mergedPaletteCollections}
         onMembershipChange={handlePaletteMembership}
+        onCollectionCreated={handleCollectionCreated}
       />
 
       {/* Reverse assign-to-detail (hotkey d / toolbar) — mount only when open */}

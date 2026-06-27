@@ -1,7 +1,7 @@
 "use client";
 
-import { useTransition } from "react";
-import { Check, Star } from "lucide-react";
+import { useState, useTransition } from "react";
+import { Check, Star, Plus } from "lucide-react";
 import { toast } from "sonner";
 import {
   CommandDialog,
@@ -14,6 +14,7 @@ import {
 import {
   addToCollectionAction,
   removeFromCollectionAction,
+  createCollectionWithItemAction,
 } from "@/lib/actions/collection-actions";
 import { cn } from "@/lib/utils";
 
@@ -21,7 +22,8 @@ export type PaletteCollection = { id: string; name: string; isTarget?: boolean }
 
 // ADR-0019: cmdk quick-add palette. Hotkey opens it; type to fuzzy-find a GRID
 // collection; Enter toggles membership of the current image. The ★ marks the
-// one-key target collection.
+// one-key target collection. Typing a new name offers an inline "Create" item that
+// creates a global GRID collection and adds the current image to it.
 export function CollectionQuickAddPalette({
   open,
   onOpenChange,
@@ -29,6 +31,7 @@ export function CollectionQuickAddPalette({
   collectionIds,
   collections,
   onMembershipChange,
+  onCollectionCreated,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -36,14 +39,21 @@ export function CollectionQuickAddPalette({
   collectionIds: string[];
   collections: PaletteCollection[];
   onMembershipChange?: (collectionId: string, isIn: boolean) => void;
+  onCollectionCreated?: (collection: { id: string; name: string }) => void;
 }) {
   const [, startTransition] = useTransition();
+  const [query, setQuery] = useState("");
+
+  function handleOpenChange(next: boolean) {
+    if (!next) setQuery("");
+    onOpenChange(next);
+  }
 
   function toggle(c: PaletteCollection) {
     if (!mediaItemId) return;
     const isIn = collectionIds.includes(c.id);
     onMembershipChange?.(c.id, !isIn);
-    onOpenChange(false);
+    handleOpenChange(false);
     startTransition(async () => {
       const res = isIn
         ? await removeFromCollectionAction(c.id, [mediaItemId])
@@ -53,9 +63,28 @@ export function CollectionQuickAddPalette({
     });
   }
 
+  function createAndAdd() {
+    const name = query.trim();
+    if (!mediaItemId || !name) return;
+    handleOpenChange(false);
+    startTransition(async () => {
+      const res = await createCollectionWithItemAction(name, mediaItemId);
+      if (res.success && res.id) {
+        onCollectionCreated?.({ id: res.id, name: res.name ?? name });
+        toast.success(`Created “${res.name ?? name}” & added`);
+      } else {
+        toast.error(res.error ?? "Failed to create collection");
+      }
+    });
+  }
+
+  const trimmed = query.trim();
+  const exactMatch = collections.some((c) => c.name.toLowerCase() === trimmed.toLowerCase());
+  const showCreate = trimmed.length > 0 && !exactMatch;
+
   return (
-    <CommandDialog open={open} onOpenChange={onOpenChange} title="Add to collection">
-      <CommandInput placeholder="Add to collection…" />
+    <CommandDialog open={open} onOpenChange={handleOpenChange} title="Add to collection">
+      <CommandInput placeholder="Add to or create a collection…" value={query} onValueChange={setQuery} />
       <CommandList>
         <CommandEmpty>No collections found.</CommandEmpty>
         <CommandGroup>
@@ -72,6 +101,16 @@ export function CollectionQuickAddPalette({
             );
           })}
         </CommandGroup>
+        {showCreate && (
+          <CommandGroup heading="Create">
+            <CommandItem key="__create__" value={`__create__ ${trimmed}`} forceMount onSelect={createAndAdd}>
+              <Plus className="mr-2 h-4 w-4" />
+              <span className="flex-1">
+                Create “<span className="font-medium">{trimmed}</span>”
+              </span>
+            </CommandItem>
+          </CommandGroup>
+        )}
       </CommandList>
     </CommandDialog>
   );

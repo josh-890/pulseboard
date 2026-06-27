@@ -14,11 +14,13 @@ import {
   Info,
   Link2,
   MapPin,
+  Plus,
   RotateCcw,
   Search,
   Tag,
   User,
 } from "lucide-react";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import type { GalleryItem, PersonMediaUsage, PersonMediaLinkSummary } from "@/lib/types";
 import type { CollectionSummary } from "@/lib/services/collection-service";
@@ -33,6 +35,7 @@ import {
 import {
   addToCollectionAction,
   removeFromCollectionAction,
+  createCollectionWithItemAction,
 } from "@/lib/actions/collection-actions";
 import {
   assignCategoryAction,
@@ -166,6 +169,8 @@ type GalleryInfoPanelProps = {
   productionContext?: ProductionContext;
   // Standalone collection context (optional — renders collections section without full reference context)
   collectionContext?: CollectionContext;
+  // When set, enables the "+ New collection" affordance in the collections section.
+  onCollectionCreated?: (collection: { id: string; name: string }) => void;
 };
 
 export function GalleryInfoPanel({
@@ -183,6 +188,7 @@ export function GalleryInfoPanel({
   referenceContext,
   productionContext,
   collectionContext,
+  onCollectionCreated,
 }: GalleryInfoPanelProps) {
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
     new Set(["cover", "headshot", "favorite", "usage", "tags", "structuredTags", "focal", "info", "source"]),
@@ -440,6 +446,26 @@ export function GalleryInfoPanel({
     [referenceContext?.onCollectionIdsChange, collectionContext?.onCollectionIdsChange, collectionIds, item.id],
   );
 
+  // Inline "+ New collection" (ADR-0019 create-on-the-fly). Creates a global GRID
+  // collection seeded with the current image; the parent surfaces it + marks membership.
+  const [creatingColl, setCreatingColl] = useState(false);
+  const [newCollName, setNewCollName] = useState("");
+  const handleCreateCollection = useCallback(() => {
+    const name = newCollName.trim();
+    if (!name) return;
+    setCreatingColl(false);
+    setNewCollName("");
+    startTransition(async () => {
+      const res = await createCollectionWithItemAction(name, item.id);
+      if (res.success && res.id) {
+        onCollectionCreated?.({ id: res.id, name: res.name ?? name });
+        toast.success(`Created “${res.name ?? name}” & added`);
+      } else {
+        toast.error(res.error ?? "Failed to create collection");
+      }
+    });
+  }, [newCollName, item.id, onCollectionCreated]);
+
   const handleNotesChange = useCallback(
     (linkId: string, notes: string) => {
       if (!referenceContext) return;
@@ -557,6 +583,7 @@ export function GalleryInfoPanel({
     (referenceContext != null && links.length > 0) ||
     (referenceContext != null && referenceContext.skillEvents.length > 0) ||
     mergedCollections.length > 0 ||
+    onCollectionCreated != null ||
     item.copiedFrom != null;
 
   const handleProdEntityLink = useCallback(() => {
@@ -978,7 +1005,7 @@ export function GalleryInfoPanel({
       )}
 
       {/* Collections (reference context or standalone collection context) */}
-      {mergedCollections.length > 0 && (
+      {(mergedCollections.length > 0 || onCollectionCreated) && (
         <>
           <SectionHeader
             title="Collections"
@@ -988,7 +1015,7 @@ export function GalleryInfoPanel({
             onToggle={toggleSection}
           />
           {expandedSections.has("collections") && (
-            <div className="flex flex-wrap gap-1 pb-2">
+            <div className="flex flex-wrap items-center gap-1 pb-2">
               {mergedCollections.map((coll) => {
                 const isIn = collectionIds.includes(coll.id);
                 return (
@@ -1009,6 +1036,35 @@ export function GalleryInfoPanel({
                   </button>
                 );
               })}
+              {onCollectionCreated &&
+                (creatingColl ? (
+                  <input
+                    autoFocus
+                    value={newCollName}
+                    onChange={(e) => setNewCollName(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") handleCreateCollection();
+                      else if (e.key === "Escape") {
+                        setCreatingColl(false);
+                        setNewCollName("");
+                      }
+                    }}
+                    onBlur={() => {
+                      if (!newCollName.trim()) setCreatingColl(false);
+                    }}
+                    placeholder="New collection…"
+                    className="rounded-full border border-white/15 bg-white/5 px-2 py-0.5 text-xs text-white placeholder:text-white/40 focus:outline-none focus:ring-1 focus:ring-ring"
+                  />
+                ) : (
+                  <button
+                    type="button"
+                    disabled={isPending}
+                    onClick={() => setCreatingColl(true)}
+                    className="inline-flex items-center gap-0.5 rounded-full border border-dashed border-white/20 px-2 py-0.5 text-xs font-medium text-white/60 transition-all hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  >
+                    <Plus size={11} /> New
+                  </button>
+                ))}
             </div>
           )}
         </>
