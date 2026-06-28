@@ -103,25 +103,27 @@ When grouping is active, up to 500 persons are loaded at once. Each section head
 
 **Pagination:** 50 persons per page in ungrouped mode. Click "Load more" to fetch additional results (up to 500).
 
-### References (people not yet added)
+### Contacts (people not yet added)
 
 Import files list co-models (people the subject has worked with) and staged sets list their
 participants — often people who **aren't in your database yet**. Rather than forcing you to
-create a full profile for each, Pulseboard records them as lightweight **References** (the
-"ghost" register), keyed by ICG-ID.
+create a full profile for each, Pulseboard records them as lightweight **Contacts** (the
+"ghost" register), keyed by ICG-ID. ("Contacts", deliberately not "References" — that word
+already means the per-person Reference Session.)
 
-- **Where:** the **References** link (with a count) on the `/people` header → `/people/references`.
-- **Each row** shows the name, ICG-ID, how many times the person is referenced, and who
-  references them (e.g. "with Cara Mell").
-- **Resolve a reference:**
-  - **Add as Person** — creates a real Person from the reference (prefilled by ICG-ID); the
-    reference is then absorbed automatically and any recorded links repoint to the new person.
-    (Only available when the reference has an ICG-ID.)
-  - **Link…** — attach the reference to an **existing** person (for a name-only contact, or
-    when the reference is really someone you already have).
-  - **Ignore** — hide a reference you don't intend to add (reversible via **Show ignored** → Restore).
+- **Where:** the **Contacts** entry in the sidebar (BookUser icon), or the **Contacts** link
+  (with a count) on the `/people` header → `/people/contacts`.
+- **Each row** shows the name, ICG-ID, how many times the person is mentioned, and who
+  mentions them (e.g. "with Cara Mell").
+- **Resolve a contact:**
+  - **Add as Person** — creates a real Person from the contact (prefilled by ICG-ID); the
+    contact is then absorbed automatically and any recorded links repoint to the new person.
+    (Only available when the contact has an ICG-ID.)
+  - **Link…** — attach the contact to an **existing** person (for a name-only contact, or
+    when the contact is really someone you already have).
+  - **Ignore** — hide a contact you don't intend to add (reversible via **Show ignored** → Restore).
 - **Automatic absorption:** whenever you add or import a person whose ICG-ID matches a
-  reference, that reference is retired and its links move onto the real person — no manual step.
+  contact, that contact is retired and its links move onto the real person — no manual step.
 
 ### Watchlist
 
@@ -366,17 +368,17 @@ Only photos from the person's reference session can be embedded — external URL
 How this person relates to others, in three sections:
 - **Personal relationships** — hand-recorded ties (sister, spouse, partner, friend, mentor…).
   Click **Add**, pick a role and the other person (search existing people, or type a name to
-  add a **new contact** as a reference), optionally a note. The role's **inverse** shows on the
+  add a **new contact**), optionally a note. The role's **inverse** shows on the
   other person's page (e.g. Parent here → Child there). Remove with the trash icon on hover.
 - **Work — held together** — people who actually share a set with this person, ranked by shared-set
   count (computed automatically; nothing to maintain).
 - **Claimed collaborations** — "worked with" assertions pulled from import files, even when you
-  hold no set proving it. People not yet added show as outlined **reference** chips.
+  hold no set proving it. People not yet added show as outlined **contact** chips.
 
 Use the **Lists | Graph** toggle (top-right) to switch to a **graph view** — the person sits at
 the centre with everyone they're connected to around them. Edge colour shows the kind of tie
 (familial / personal / professional / work / claimed), work edges get thicker with more shared
-sets, and not-yet-added people appear as outlined "reference" circles. Click any node to jump to
+sets, and not-yet-added people appear as outlined "contact" circles. Click any node to jump to
 that person.
 
 (Not to be confused with the sidebar **Networks**, which groups Labels — a different concept.)

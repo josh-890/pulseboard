@@ -596,7 +596,7 @@ model PersonRelationship {
   toPersonId String?
   toPerson   Person?            @relation("RelationshipTo", fields: [toPersonId], references: [id], onDelete: Cascade)
   toRefId    String?
-  toRef      PersonRef?         @relation(fields: [toRefId], references: [id], onDelete: Cascade)
+  toRef      Contact?           @relation(fields: [toRefId], references: [id], onDelete: Cascade)
   roleId     String
   role       RelationshipRole   @relation(fields: [roleId], references: [id])
   source     RelationshipSource @default(manual)
@@ -631,12 +631,14 @@ model RelationshipRole {
   @@index([category])
 }
 
-// A person referenced (by ICG-ID + name) but not yet curated as a full Person —
-// the "ghost" register. Mentions (co-models, staged participants) resolve here;
-// when a Person appears with a matching icgId the ref's edges repoint and the
-// ref is retired (see reconcilePersonRefs). icgId is optional so non-industry
-// personal contacts (e.g. a sister) can be name-only refs, linked manually.
-model PersonRef {
+// A Contact — a person mentioned (by ICG-ID + name) but not yet curated as a
+// full Person (the "ghost" register, ADR-0022). Distinct from a Reference
+// Session. Mentions (co-models, staged participants) resolve here; when a Person
+// appears with a matching icgId the contact's edges repoint and it is retired
+// (see reconcileContacts). icgId is optional so non-industry personal contacts
+// (e.g. a sister) can be name-only, linked manually. The DB table keeps its
+// original name `PersonRef` via @@map to avoid a data migration.
+model Contact {
   id        String          @id @default(cuid())
   icgId     String?         @unique
   name      String
@@ -653,10 +655,11 @@ model PersonRef {
 
   @@index([nameNorm])
   @@index([ignoredAt])
+  @@map("PersonRef")
 }
 
 // Stored "worked-with" evidence asserted by an import file: subject Person
-// claims a collaboration with a counterpart (a Person, or a PersonRef when not
+// claims a collaboration with a counterpart (a Person, or a Contact when not
 // yet curated). Rebuildable from imports; kept apart from curated relationships.
 model ClaimedCollaboration {
   id                  String     @id @default(cuid())
@@ -665,7 +668,7 @@ model ClaimedCollaboration {
   counterpartPersonId String?
   counterpartPerson   Person?    @relation("ClaimCounterpart", fields: [counterpartPersonId], references: [id], onDelete: Cascade)
   counterpartRefId    String?
-  counterpartRef      PersonRef? @relation("ClaimCounterpartRef", fields: [counterpartRefId], references: [id], onDelete: Cascade)
+  counterpartRef      Contact?   @relation("ClaimCounterpartRef", fields: [counterpartRefId], references: [id], onDelete: Cascade)
   sourceLabel         String?
   firstSeenAt         DateTime   @default(now())
   createdAt           DateTime   @default(now())

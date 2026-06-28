@@ -178,7 +178,7 @@ export type CreateRelationshipInput = {
   /** Exactly one of these three identifies the counterpart. */
   counterpartPersonId?: string;
   counterpartRefId?: string;
-  newRefName?: string; // create a name-only PersonRef (e.g. a non-industry contact)
+  newRefName?: string; // create a name-only Contact (e.g. a non-industry contact)
   note?: string;
 };
 
@@ -189,7 +189,7 @@ export async function createRelationship(input: CreateRelationshipInput): Promis
 
     if (!toPersonId && !toRefId && input.newRefName?.trim()) {
       const name = input.newRefName.trim();
-      const ref = await tx.personRef.create({
+      const ref = await tx.contact.create({
         data: { name, nameNorm: normalizeForSearch(name), source: "manual" },
       });
       toRefId = ref.id;
@@ -220,9 +220,9 @@ export async function deleteRelationship(id: string): Promise<void> {
   });
 }
 
-// ── References register ──────────────────────────────────────────────────────
+// ── Contacts register ────────────────────────────────────────────────────────
 
-export type PersonReferenceRow = {
+export type ContactRow = {
   id: string;
   icgId: string | null;
   name: string;
@@ -231,19 +231,19 @@ export type PersonReferenceRow = {
   ignoredAt: Date | null;
   claimCount: number;
   relationshipCount: number;
-  referenceCount: number;
-  subjects: string[]; // sample of subjects who reference this person
+  mentionCount: number;
+  subjects: string[]; // sample of subjects who mention this person
 };
 
-export type ReferenceSort = "count" | "name" | "recent";
+export type ContactSort = "count" | "name" | "recent";
 
-export async function getPersonReferences(opts: {
+export async function getContacts(opts: {
   q?: string;
   includeIgnored?: boolean;
-  sort?: ReferenceSort;
-} = {}): Promise<PersonReferenceRow[]> {
+  sort?: ContactSort;
+} = {}): Promise<ContactRow[]> {
   const q = opts.q?.trim();
-  const refs = await prisma.personRef.findMany({
+  const refs = await prisma.contact.findMany({
     where: {
       ...(opts.includeIgnored ? {} : { ignoredAt: null }),
       ...(q
@@ -268,7 +268,7 @@ export async function getPersonReferences(opts: {
     },
   });
 
-  const rows: PersonReferenceRow[] = refs.map((r) => ({
+  const rows: ContactRow[] = refs.map((r) => ({
     id: r.id,
     icgId: r.icgId,
     name: r.name,
@@ -277,7 +277,7 @@ export async function getPersonReferences(opts: {
     ignoredAt: r.ignoredAt,
     claimCount: r._count.claims,
     relationshipCount: r._count.relationshipsTo,
-    referenceCount: r._count.claims + r._count.relationshipsTo,
+    mentionCount: r._count.claims + r._count.relationshipsTo,
     subjects: r.claims
       .map((c) => c.subjectPerson.aliases[0]?.name)
       .filter((n): n is string => !!n),
@@ -286,58 +286,58 @@ export async function getPersonReferences(opts: {
   const sort = opts.sort ?? "count";
   rows.sort((a, b) => {
     if (sort === "name") return a.name.localeCompare(b.name);
-    if (sort === "count") return b.referenceCount - a.referenceCount || a.name.localeCompare(b.name);
+    if (sort === "count") return b.mentionCount - a.mentionCount || a.name.localeCompare(b.name);
     return 0; // "recent" handled by query order below
   });
   return rows;
 }
 
-export async function countActivePersonReferences(): Promise<number> {
-  return prisma.personRef.count({ where: { ignoredAt: null } });
+export async function countActiveContacts(): Promise<number> {
+  return prisma.contact.count({ where: { ignoredAt: null } });
 }
 
-export async function setReferenceIgnored(refId: string, ignored: boolean): Promise<void> {
-  await prisma.personRef.update({
+export async function setContactIgnored(refId: string, ignored: boolean): Promise<void> {
+  await prisma.contact.update({
     where: { id: refId },
     data: { ignoredAt: ignored ? new Date() : null },
   });
 }
 
 // ── Reconciliation ──────────────────────────────────────────────────────────
-// When a Person gains an ICG-ID matching a PersonRef (import or manual add), the
+// When a Person gains an ICG-ID matching a Contact (import or manual add), the
 // ref's edges repoint to the Person and the ref is retired. Deterministic —
 // keyed by the canonical ICG-ID, never fuzzy. Must run inside a transaction.
 
 export type ReconcileResult = { reconciled: boolean; refId?: string };
 
-// Retire a PersonRef by ICG-ID: when a curated Person appears with the ref's
+// Retire a Contact by ICG-ID: when a curated Person appears with the ref's
 // ICG-ID, repoint its edges and delete it. Exact-match only.
-export async function reconcilePersonRefs(
+export async function reconcileContacts(
   tx: TxClient,
   icgId: string,
   personId: string,
 ): Promise<ReconcileResult> {
   if (!icgId) return { reconciled: false };
-  const ref = await tx.personRef.findUnique({ where: { icgId } });
+  const ref = await tx.contact.findUnique({ where: { icgId } });
   if (!ref) return { reconciled: false };
-  await repointRefToPerson(tx, ref.id, personId);
+  await repointContactToPerson(tx, ref.id, personId);
   return { reconciled: true, refId: ref.id };
 }
 
 // Manual variant: link a specific ref (e.g. a name-only one, or a mismatch) to
 // a user-chosen Person, repointing its edges and deleting it.
-export async function linkReferenceToPerson(
+export async function linkContactToPerson(
   tx: TxClient,
   refId: string,
   personId: string,
 ): Promise<ReconcileResult> {
-  const ref = await tx.personRef.findUnique({ where: { id: refId } });
+  const ref = await tx.contact.findUnique({ where: { id: refId } });
   if (!ref) return { reconciled: false };
-  await repointRefToPerson(tx, ref.id, personId);
+  await repointContactToPerson(tx, ref.id, personId);
   return { reconciled: true, refId: ref.id };
 }
 
-async function repointRefToPerson(tx: TxClient, refId: string, personId: string): Promise<void> {
+async function repointContactToPerson(tx: TxClient, refId: string, personId: string): Promise<void> {
   // Repoint claimed collaborations (subject ↔ ref) → (subject ↔ person),
   // dropping self-claims and merging into any pre-existing person-keyed claim.
   const claims = await tx.claimedCollaboration.findMany({ where: { counterpartRefId: refId } });
@@ -391,5 +391,5 @@ async function repointRefToPerson(tx: TxClient, refId: string, personId: string)
   }
 
   // No edges reference the ref any more — retire it.
-  await tx.personRef.delete({ where: { id: refId } });
+  await tx.contact.delete({ where: { id: refId } });
 }

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { getEntityKeyForPath } from "@/lib/constants/entity-theme";
+import { navItems } from "./nav-items";
 
 type NavLinkProps = {
   href: string;
@@ -30,7 +31,20 @@ const ENTITY_ACTIVE_CLASSES: Record<string, string> = {
 export function NavLink({ href, resolveHref, icon, label, collapsed, onClick }: NavLinkProps) {
   const pathname = usePathname();
   const router = useRouter();
-  const isActive = href === "/" ? pathname === "/" : pathname.startsWith(href);
+  // Active when the path is (under) this item's href — but not when a more
+  // specific nav item also matches (e.g. /people/references highlights
+  // "References", not its parent "People").
+  const isActive = (() => {
+    if (href === "/") return pathname === "/";
+    if (pathname !== href && !pathname.startsWith(href + "/")) return false;
+    const moreSpecific = navItems.some(
+      (i) =>
+        i.href !== href &&
+        i.href.startsWith(href + "/") &&
+        (pathname === i.href || pathname.startsWith(i.href + "/")),
+    );
+    return !moreSpecific;
+  })();
 
   const entityKey = getEntityKeyForPath(href);
   const activeClass = entityKey

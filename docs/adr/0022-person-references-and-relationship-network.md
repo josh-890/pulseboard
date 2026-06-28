@@ -1,8 +1,14 @@
-# Inter-person network: a PersonRef ghost register, polymorphic edges, lazy ICG-ID reconciliation
+# Inter-person network: a Contact ghost register, polymorphic edges, lazy ICG-ID reconciliation
 
-Decided 2026-06-28 (design review, /grill-with-docs). Implementation in progress —
-Slice 1 (data model + backfill + import wiring + reconcile) landed; see
-`~/.claude/plans/be-my-senior-software-scalable-puffin.md`.
+Decided 2026-06-28 (design review, /grill-with-docs). Implemented in 4 slices
+(data model + backfill + import wiring + reconcile; Contacts register; Connections
+tab; ego graph). See `~/.claude/plans/be-my-senior-software-scalable-puffin.md`.
+
+> **Terminology (2026-06-28):** the ghost concept was first shipped as "Reference"
+> (model `PersonRef`). That collided with the **Reference Session** (`Session.type =
+> REFERENCE`), so it was renamed to **Contact** (code model `Contact`; the DB table
+> keeps its original name `PersonRef` via `@@map`, so no data migration). This ADR
+> uses "Contact"; any lingering "Reference"/`PersonRef` mentions mean the same thing.
 
 ## Context
 
@@ -27,19 +33,19 @@ stable key.
 
 ## Decision
 
-1. **`PersonRef` ghost register.** A new canonical table for referenced-but-not-curated
+1. **`Contact` ghost register.** A new canonical table for referenced-but-not-curated
    people: cuid PK, **optional unique `icgId`**, name, thumb, note, source. Import refs
    carry their ICG-ID; a non-industry contact can be a name-only ref. The curated
    `Person` space stays industry-only regardless of reference volume.
 
 2. **Polymorphic edges; at least one endpoint is a `Person`.** Curated relationships
    (`PersonRelationship`) and stored claims (`ClaimedCollaboration`) have a counterpart
-   that is **either** a `Person` **or** a `PersonRef` (exactly one FK set, enforced in
+   that is **either** a `Person` **or** a `Contact` (exactly one FK set, enforced in
    the service layer). You always assert from a real person's page, so ghost↔ghost edges
    are disallowed.
 
 3. **Lazy reconciliation by ICG-ID.** When a `Person` appears with a ref's ICG-ID
-   (import or manual create), `reconcilePersonRefs` repoints the ref's claims/relationships
+   (import or manual create), `reconcileContacts` repoints the ref's claims/relationships
    to the Person (merging on conflict, dropping self-edges) and **deletes the ref**.
    Deterministic, exact-match-only — never fuzzy (honours the existing import invariant).
 
@@ -67,7 +73,7 @@ stable key.
 
 ## Consequences
 
-- New tables `PersonRef`, `ClaimedCollaboration`, `RelationshipRole`; `PersonRelationship`
+- New tables `Contact`, `ClaimedCollaboration`, `RelationshipRole`; `PersonRelationship`
   reworked from `personA/personB` + `type` to `personId` + `toPerson?`/`toRef?` + `roleId`
   (tables were empty — no data migrated).
 - Edges carry two nullable counterpart FKs; "exactly one set" is a service-layer invariant,

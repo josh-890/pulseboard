@@ -1,9 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
-import { reconcilePersonRefs } from "@/lib/services/relationship-service";
+import { reconcileContacts } from "@/lib/services/relationship-service";
 import type { TxClient } from "@/lib/services/cascade-helpers";
 
 // Build a mock transaction client that records the calls reconcile makes. Only
-// the methods reconcilePersonRefs touches are implemented.
+// the methods reconcileContacts touches are implemented.
 function makeTx(opts: {
   ref: { id: string } | null;
   claims?: { id: string; subjectPersonId: string }[];
@@ -19,7 +19,7 @@ function makeTx(opts: {
     refDelete: vi.fn(),
   };
   const tx = {
-    personRef: {
+    contact: {
       findUnique: vi.fn().mockResolvedValue(opts.ref),
       delete: calls.refDelete,
     },
@@ -39,10 +39,10 @@ function makeTx(opts: {
   return { tx, calls };
 }
 
-describe("reconcilePersonRefs", () => {
+describe("reconcileContacts", () => {
   it("is a no-op when no ref matches the ICG-ID", async () => {
     const { tx, calls } = makeTx({ ref: null });
-    const res = await reconcilePersonRefs(tx, "ICG-1", "person-1");
+    const res = await reconcileContacts(tx, "ICG-1", "person-1");
     expect(res.reconciled).toBe(false);
     expect(calls.refDelete).not.toHaveBeenCalled();
   });
@@ -52,7 +52,7 @@ describe("reconcilePersonRefs", () => {
       ref: { id: "ref-1" },
       claims: [{ id: "claim-1", subjectPersonId: "subject-1" }],
     });
-    const res = await reconcilePersonRefs(tx, "ICG-1", "person-1");
+    const res = await reconcileContacts(tx, "ICG-1", "person-1");
     expect(res).toEqual({ reconciled: true, refId: "ref-1" });
     expect(calls.claimUpdate).toHaveBeenCalledWith({
       where: { id: "claim-1" },
@@ -68,7 +68,7 @@ describe("reconcilePersonRefs", () => {
       claims: [{ id: "claim-1", subjectPersonId: "subject-1" }],
       existingClaim: true,
     });
-    await reconcilePersonRefs(tx, "ICG-1", "person-1");
+    await reconcileContacts(tx, "ICG-1", "person-1");
     expect(calls.claimDelete).toHaveBeenCalledWith({ where: { id: "claim-1" } });
     expect(calls.claimUpdate).not.toHaveBeenCalled();
   });
@@ -78,7 +78,7 @@ describe("reconcilePersonRefs", () => {
       ref: { id: "ref-1" },
       claims: [{ id: "claim-1", subjectPersonId: "person-1" }],
     });
-    await reconcilePersonRefs(tx, "ICG-1", "person-1");
+    await reconcileContacts(tx, "ICG-1", "person-1");
     expect(calls.claimDelete).toHaveBeenCalledWith({ where: { id: "claim-1" } });
     expect(calls.claimUpdate).not.toHaveBeenCalled();
   });
@@ -88,7 +88,7 @@ describe("reconcilePersonRefs", () => {
       ref: { id: "ref-1" },
       rels: [{ id: "rel-1", personId: "subject-1", roleId: "role-1" }],
     });
-    await reconcilePersonRefs(tx, "ICG-1", "person-1");
+    await reconcileContacts(tx, "ICG-1", "person-1");
     expect(calls.relUpdate).toHaveBeenCalledWith({
       where: { id: "rel-1" },
       data: { toRefId: null, toPersonId: "person-1" },

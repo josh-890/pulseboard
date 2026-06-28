@@ -3,11 +3,11 @@ import { PrismaClient } from "../src/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { normalizeForSearch } from "../src/lib/normalize";
 
-// Backfill the References register (PersonRef) + ClaimedCollaboration from the
+// Backfill the Contacts register (Contact) + ClaimedCollaboration from the
 // raw mentions that already exist in the DB:
-//   1. ImportItem CO_MODEL  → PersonRef (if unmatched) + ClaimedCollaboration
+//   1. ImportItem CO_MODEL  → Contact (if unmatched) + ClaimedCollaboration
 //      from the batch's subject Person.
-//   2. StagingSet participants not resolved to a Person → PersonRef only
+//   2. StagingSet participants not resolved to a Person → Contact only
 //      (staged co-occurrence is computed, not stored as claims).
 // Idempotent: refs upsert by icgId, claims upsert by their unique pair.
 
@@ -19,7 +19,7 @@ type CoModelData = { name?: string; icgId?: string; thumbUrl?: string | null };
 type ParticipantStatus = { name?: string; icgId?: string; status?: string; personId?: string };
 
 async function upsertRef(icgId: string, name: string, thumbUrl: string | null) {
-  return prisma.personRef.upsert({
+  return prisma.contact.upsert({
     where: { icgId },
     create: { icgId, name, nameNorm: normalizeForSearch(name), thumbUrl, source: "import" },
     update: { name, nameNorm: normalizeForSearch(name), thumbUrl: thumbUrl ?? undefined },
@@ -91,11 +91,11 @@ async function main() {
     }
   }
 
-  const refCount = await prisma.personRef.count();
+  const refCount = await prisma.contact.count();
   const claimCount = await prisma.claimedCollaboration.count();
   console.log(`Processed ${coModels.length} co-models, ${stagingSets.length} staged sets.`);
   console.log(`Upserts: refs touched ${refs}, claims touched ${claims}.`);
-  console.log(`Totals now: PersonRef ${refCount}, ClaimedCollaboration ${claimCount}.`);
+  console.log(`Totals now: Contact ${refCount}, ClaimedCollaboration ${claimCount}.`);
 }
 
 main()

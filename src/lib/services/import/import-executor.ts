@@ -7,7 +7,7 @@
 
 import { prisma } from '@/lib/db'
 import { normalizeForSearch } from '@/lib/normalize'
-import { reconcilePersonRefs } from '@/lib/services/relationship-service'
+import { reconcileContacts } from '@/lib/services/relationship-service'
 import type { ImportItem, Prisma } from '@/generated/prisma/client'
 import { createLabelRecord } from '@/lib/services/label-service'
 import { createChannelRecord } from '@/lib/services/channel-service'
@@ -337,11 +337,11 @@ export async function importPerson(item: ImportItem): Promise<ImportResult> {
       }
       await recomputePersonCurrentStateStandalone(item.matchedEntityId)
       await markItemImported(item.id, item.matchedEntityId)
-      // Retire any PersonRef ghost that shares this person's ICG-ID (a new ref
+      // Retire any Contact ghost that shares this person's ICG-ID (a new ref
       // may have appeared via another import since the last reconcile).
       if (data.icgId) {
         await prisma.$transaction((tx) =>
-          reconcilePersonRefs(tx, data.icgId as string, item.matchedEntityId as string),
+          reconcileContacts(tx, data.icgId as string, item.matchedEntityId as string),
         )
       }
       // Co-models ride along with the person import (no separate Co-Models step).
@@ -530,9 +530,9 @@ export async function importPerson(item: ImportItem): Promise<ImportResult> {
     await recomputePersonCurrentStateStandalone(person.id)
     await markItemImported(item.id, person.id)
     // A newly-curated Person retires its ghost: repoint others' claims/edges
-    // that referenced this ICG-ID, then delete the PersonRef.
+    // that referenced this ICG-ID, then delete the Contact.
     if (person.icgId) {
-      await prisma.$transaction((tx) => reconcilePersonRefs(tx, person.icgId as string, person.id))
+      await prisma.$transaction((tx) => reconcileContacts(tx, person.icgId as string, person.id))
     }
     // Co-models ride along with the person import (no separate Co-Models step).
     await autoImportBatchCoModels(item.batchId)
@@ -1472,10 +1472,10 @@ export async function promoteManualStagingSet(stagingSetId: string): Promise<Imp
 //
 // A co-model is a "worked-with" assertion from the subject's import file. We no
 // longer require the counterpart to already exist: if it is a curated Person we
-// link to it, otherwise we record a PersonRef ghost (keyed by ICG-ID). Either
+// link to it, otherwise we record a Contact ghost (keyed by ICG-ID). Either
 // way we store a ClaimedCollaboration from the subject so the work network and
-// References register are populated. The ghost is retired automatically when the
-// counterpart is later imported/added (see reconcilePersonRefs).
+// Contacts register are populated. The ghost is retired automatically when the
+// counterpart is later imported/added (see reconcileContacts).
 export async function importCoModel(item: ImportItem): Promise<ImportResult> {
   try {
     const data = (item.editedData ?? item.data) as ItemData
@@ -1512,9 +1512,9 @@ export async function importCoModel(item: ImportItem): Promise<ImportResult> {
         })
         return
       }
-      // No curated Person — record/refresh a PersonRef ghost, then the claim.
+      // No curated Person — record/refresh a Contact ghost, then the claim.
       if (!icgId) return // nothing addressable to record
-      const ref = await tx.personRef.upsert({
+      const ref = await tx.contact.upsert({
         where: { icgId },
         create: { icgId, name, nameNorm: normalizeForSearch(name), thumbUrl, source: 'import' },
         update: { name, nameNorm: normalizeForSearch(name), thumbUrl: thumbUrl ?? undefined },
@@ -1542,7 +1542,7 @@ export async function importCoModel(item: ImportItem): Promise<ImportResult> {
 
 // Import every not-yet-imported co-model in the batch. Called automatically at
 // the end of person import so co-models need no manual step — matched co-models
-// record a claim to the existing person; unmatched ones become References. Each
+// record a claim to the existing person; unmatched ones become Contacts. Each
 // importCoModel is self-contained (re-looks-up the subject person), so a single
 // failure is logged and skipped rather than aborting the person import.
 async function autoImportBatchCoModels(batchId: string): Promise<void> {

@@ -119,8 +119,8 @@ function Avatar({ counterpart, dashed }: { counterpart: ConnectionCounterpart; d
   );
 }
 
-// A person counterpart links to its page; a ref counterpart is an outlined chip
-// linking to the References register.
+// A person counterpart links to its page; a contact counterpart is an outlined
+// chip linking to the Contacts register.
 function CounterpartName({ counterpart }: { counterpart: ConnectionCounterpart }) {
   if (counterpart.kind === "person") {
     return (
@@ -133,10 +133,10 @@ function CounterpartName({ counterpart }: { counterpart: ConnectionCounterpart }
     );
   }
   return (
-    <Link href="/people/references" className="truncate text-sm font-medium hover:text-foreground">
+    <Link href="/people/contacts" className="truncate text-sm font-medium hover:text-foreground">
       {counterpart.name}
       <span className="ml-1.5 rounded border border-dashed border-white/30 px-1 py-0.5 text-[9px] uppercase tracking-wide text-muted-foreground">
-        reference
+        contact
       </span>
     </Link>
   );

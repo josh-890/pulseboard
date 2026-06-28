@@ -60,7 +60,7 @@ import { refreshStatusesForIcgId } from "@/lib/services/import/participant-statu
 import { ensureCatalogEntry } from "@/lib/services/color-catalog-service";
 import { deriveInterval } from "@/lib/utils/event-interval";
 import { recomputePersonCurrentState } from "@/lib/services/current-state-service";
-import { reconcilePersonRefs } from "@/lib/services/relationship-service";
+import { reconcileContacts } from "@/lib/services/relationship-service";
 import {
   cascadeDeleteSession,
   cascadeDeleteBodyModifications,
@@ -1534,7 +1534,7 @@ export async function getPersonConnections(personId: string): Promise<PersonConn
     .map((r): PersonConnection | null => {
       const isFrom = r.personId === personId;
       const other = isFrom ? r.toPerson : r.person;
-      if (!other) return null; // counterpart is a PersonRef — surfaced in the Connections tab
+      if (!other) return null; // counterpart is a Contact — surfaced in the Connections tab
       const roleLabel = isFrom ? r.role.name : r.role.inverseName;
       return {
         personId: other.id,
@@ -1651,10 +1651,10 @@ export async function createPersonRecord(data: CreatePersonInput) {
     });
 
     await recomputePersonCurrentState(tx, person.id);
-    // A newly-curated Person retires its PersonRef ghost (if any): repoint
+    // A newly-curated Person retires its Contact ghost (if any): repoint
     // others' claims/relationships that referenced this ICG-ID, delete the ref.
     if (data.icgId) {
-      await reconcilePersonRefs(tx, data.icgId, person.id);
+      await reconcileContacts(tx, data.icgId, person.id);
     }
     return person;
   });

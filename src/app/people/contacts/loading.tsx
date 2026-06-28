@@ -1,6 +1,6 @@
 import { Skeleton } from "@/components/ui/skeleton";
 
-export default function ReferencesLoading() {
+export default function ContactsLoading() {
   return (
     <div className="space-y-6">
       {/* Page header */}
@@ -19,7 +19,7 @@ export default function ReferencesLoading() {
         <Skeleton className="h-7 w-28 rounded-full" />
       </div>
 
-      {/* Reference rows */}
+      {/* Contact rows */}
       <div className="space-y-2">
         {Array.from({ length: 8 }).map((_, i) => (
           <div

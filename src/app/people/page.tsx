@@ -1,7 +1,7 @@
 import { withTenantFromHeaders } from "@/lib/tenant-context";
 import { Suspense } from "react";
 import Link from "next/link";
-import { Sparkles, Users, Users2 } from "lucide-react";
+import { Sparkles, Users, BookUser } from "lucide-react";
 import {
   getPersonsPaginated,
   getDistinctNaturalHairColors,
@@ -13,7 +13,7 @@ import type { PersonSort } from "@/lib/services/person-service";
 import { getHeadshotsForPersons } from "@/lib/services/media-service";
 import { getAllPhysicalAttributeGroups } from "@/lib/services/physical-attribute-catalog-service";
 import { getProfileCategories } from "@/lib/services/category-service";
-import { countActivePersonReferences } from "@/lib/services/relationship-service";
+import { countActiveContacts } from "@/lib/services/relationship-service";
 import type { PersonStatus } from "@/lib/types";
 import { PersonList } from "@/components/people/person-list";
 import { BrowserToolbar } from "@/components/shared/browser-toolbar";
@@ -174,7 +174,7 @@ export default async function PeoplePage({ searchParams }: PeoplePageProps) {
 
   const parsedSlot = slotParam ? parseInt(slotParam, 10) : undefined;
 
-  const [paginated, hairColors, bodyTypes, ethnicities, profileFramings, facetCounts, attributeGroups, referenceCount] = await Promise.all([
+  const [paginated, hairColors, bodyTypes, ethnicities, profileFramings, facetCounts, attributeGroups, contactCount] = await Promise.all([
     getPersonsPaginated(filters, undefined, limit),
     getDistinctNaturalHairColors(),
     getDistinctBodyTypes(),
@@ -182,7 +182,7 @@ export default async function PeoplePage({ searchParams }: PeoplePageProps) {
     getProfileCategories(),
     getPersonFacetCounts(filters),
     getAllPhysicalAttributeGroups(),
-    countActivePersonReferences(),
+    countActiveContacts(),
   ]);
 
   // A non-default (non-avatar-source) Profile framing selected for the card photos;
@@ -333,14 +333,14 @@ export default async function PeoplePage({ searchParams }: PeoplePageProps) {
         </div>
         <div className="flex items-center gap-2">
           <Link
-            href="/people/references"
+            href="/people/contacts"
             className="inline-flex items-center gap-1 rounded-md border border-white/20 bg-card/50 px-3 py-1.5 text-xs text-muted-foreground hover:bg-card/80 hover:text-foreground"
           >
-            <Users2 size={12} />
-            References
-            {referenceCount > 0 && (
+            <BookUser size={12} />
+            Contacts
+            {contactCount > 0 && (
               <span className="ml-0.5 rounded-full bg-muted/70 px-1.5 text-[10px] font-medium tabular-nums">
-                {referenceCount}
+                {contactCount}
               </span>
             )}
           </Link>

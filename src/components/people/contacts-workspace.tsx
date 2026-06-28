@@ -7,20 +7,20 @@ import { UserPlus, Link2, EyeOff, Eye, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
-import type { PersonReferenceRow } from "@/lib/services/relationship-service";
+import type { ContactRow } from "@/lib/services/relationship-service";
 import {
-  addPersonFromReferenceAction,
-  linkReferenceAction,
-  ignoreReferenceAction,
-} from "@/lib/actions/reference-actions";
+  addPersonFromContactAction,
+  linkContactAction,
+  ignoreContactAction,
+} from "@/lib/actions/contact-actions";
 
-type ReferencesWorkspaceProps = { rows: PersonReferenceRow[] };
+type ContactsWorkspaceProps = { rows: ContactRow[] };
 
-export function ReferencesWorkspace({ rows }: ReferencesWorkspaceProps) {
+export function ContactsWorkspace({ rows }: ContactsWorkspaceProps) {
   if (rows.length === 0) {
     return (
       <div className="rounded-xl border border-white/15 bg-card/40 p-10 text-center text-sm text-muted-foreground">
-        No references. People mentioned on imports or staged sets but not yet added will appear here.
+        No contacts. People mentioned on imports or staged sets but not yet added will appear here.
       </div>
     );
   }
@@ -28,20 +28,20 @@ export function ReferencesWorkspace({ rows }: ReferencesWorkspaceProps) {
   return (
     <ul className="space-y-2">
       {rows.map((row) => (
-        <ReferenceRow key={row.id} row={row} />
+        <ContactRowItem key={row.id} row={row} />
       ))}
     </ul>
   );
 }
 
-function ReferenceRow({ row }: { row: PersonReferenceRow }) {
+function ContactRowItem({ row }: { row: ContactRow }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const initials = row.name.charAt(0).toUpperCase();
 
   function handleAdd() {
     startTransition(async () => {
-      const res = await addPersonFromReferenceAction(row.id);
+      const res = await addPersonFromContactAction(row.id);
       if (res.success) {
         toast.success(`Added ${row.name} as a person`);
         router.push(`/people/${res.id}`);
@@ -57,7 +57,7 @@ function ReferenceRow({ row }: { row: PersonReferenceRow }) {
 
   function handleLink(personId: string) {
     startTransition(async () => {
-      const res = await linkReferenceAction(row.id, personId);
+      const res = await linkContactAction(row.id, personId);
       if (res.success) {
         toast.success(`Linked ${row.name}`);
         router.refresh();
@@ -69,9 +69,9 @@ function ReferenceRow({ row }: { row: PersonReferenceRow }) {
 
   function handleIgnore(ignored: boolean) {
     startTransition(async () => {
-      const res = await ignoreReferenceAction(row.id, ignored);
+      const res = await ignoreContactAction(row.id, ignored);
       if (res.success) {
-        toast.success(ignored ? "Reference ignored" : "Reference restored");
+        toast.success(ignored ? "Contact ignored" : "Contact restored");
         router.refresh();
       } else {
         toast.error(res.error ?? "Could not update");
@@ -102,7 +102,7 @@ function ReferenceRow({ row }: { row: PersonReferenceRow }) {
           )}
         </div>
         <p className="truncate text-xs text-muted-foreground">
-          {row.referenceCount} {row.referenceCount === 1 ? "reference" : "references"}
+          {row.mentionCount} {row.mentionCount === 1 ? "mention" : "mentions"}
           {row.claimCount > 0 && ` · ${row.claimCount} claimed`}
           {row.relationshipCount > 0 && ` · ${row.relationshipCount} relationship${row.relationshipCount === 1 ? "" : "s"}`}
           {row.subjects.length > 0 && ` · with ${row.subjects.slice(0, 3).join(", ")}`}

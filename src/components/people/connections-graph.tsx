@@ -157,7 +157,7 @@ export function ConnectionsGraph({
 
   function handleClick(n: GraphNode) {
     if (n.type === "person" && n.navId) router.push(`/people/${n.navId}`);
-    else if (n.type === "ref") router.push("/people/references");
+    else if (n.type === "ref") router.push("/people/contacts");
   }
 
   const nodeById = new Map(nodes.map((n) => [n.id, n] as const));
@@ -235,7 +235,7 @@ export function ConnectionsGraph({
         <Legend color={WORK_COLOR} label="Work (held)" />
         <Legend color={CLAIMED_COLOR} label="Claimed" dashed />
         <span className="inline-flex items-center gap-1">
-          <span className="inline-block h-2.5 w-2.5 rounded-full border border-dashed border-slate-400" /> Reference
+          <span className="inline-block h-2.5 w-2.5 rounded-full border border-dashed border-slate-400" /> Contact
         </span>
         {truncated > 0 && <span className="ml-auto">+{truncated} more (see Lists)</span>}
       </div>

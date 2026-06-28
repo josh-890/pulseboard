@@ -100,14 +100,14 @@ _Avoid_: using "Network" for person-to-person ties — those are **Connections**
 
 ### Connections & relationships (added 2026-06-28)
 
-**Reference** (code model & DB table: `PersonRef`):
-A person **referenced but not yet curated** as a full `Person` — the "ghost" register. Carries a name, optional thumbnail, and an **optional unique ICG-ID** (import co-models have one; a non-industry personal contact, e.g. a sister, may be name-only). Mentions (import co-models, staged-set participants) resolve to a Reference; when a `Person` later appears with the ref's ICG-ID the ref's edges **repoint and the ref is retired** (`reconcilePersonRefs`, keyed by exact ICG-ID — never fuzzy). Keeps the curated `Person` space industry-only despite high reference volume.
-_Avoid_: "stub person" / treating a Reference as a `Person`; "candidate" (that means a duplicate/archive match).
+**Contact** (code model `Contact`; DB table `PersonRef` via `@@map`):
+A person **mentioned but not yet curated** as a full `Person` — the "ghost" register. Carries a name, optional thumbnail, and an **optional unique ICG-ID** (import co-models have one; a non-industry personal contact, e.g. a sister, may be name-only). Mentions (import co-models, staged-set participants) resolve to a Contact; when a `Person` later appears with the contact's ICG-ID its edges **repoint and the contact is retired** (`reconcileContacts`, keyed by exact ICG-ID — never fuzzy). Keeps the curated `Person` space industry-only despite high mention volume.
+_Avoid_: the word **"Reference"** for this (collides with the **Reference Session**); "stub person" / treating a Contact as a `Person`; "candidate" (that means a duplicate/archive match). The DB table keeps its legacy name `PersonRef` (mapped) — that's storage, not the domain term.
 
 **Connection** (the person detail **tab**; data spans three sources):
 How a Person relates to others. Three distinct kinds, deliberately modelled apart:
 - **Held co-occurrence** — people who actually share a held Set/Session. **Computed** live (not stored), ranked by shared-set count.
-- **Claimed collaboration** (code model & DB table: `ClaimedCollaboration`): a **stored "worked-with" assertion** from an import file (subject Person → a Person or a Reference), surviving even when no held Set proves it (the claimed-vs-held gap, mirroring the Career tab).
+- **Claimed collaboration** (code model & DB table: `ClaimedCollaboration`): a **stored "worked-with" assertion** from an import file (subject Person → a Person or a Contact), surviving even when no held Set proves it (the claimed-vs-held gap, mirroring the Career tab).
 - **Relationship** (code model & DB table: `PersonRelationship`): a **hand-asserted, curated** personal/professional tie (sister, spouse, mentor), typed by a `RelationshipRole`.
 _Avoid_: storing co-occurrence as rows (it's derived); folding claims into curated Relationships.
 

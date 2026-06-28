@@ -1,38 +1,38 @@
 import { withTenantFromHeaders } from "@/lib/tenant-context";
 import { Suspense } from "react";
-import { Users2 } from "lucide-react";
+import { BookUser } from "lucide-react";
 import {
-  getPersonReferences,
-  type ReferenceSort,
+  getContacts,
+  type ContactSort,
 } from "@/lib/services/relationship-service";
 import {
   BrowserToolbar,
   type BrowserToolbarConfig,
 } from "@/components/shared/browser-toolbar";
-import { ReferencesWorkspace } from "@/components/people/references-workspace";
+import { ContactsWorkspace } from "@/components/people/contacts-workspace";
 
 export const dynamic = "force-dynamic";
 
 const VALID_SORTS = new Set<string>(["count", "name"]);
 
-type ReferencesPageProps = {
+type ContactsPageProps = {
   searchParams: Promise<{ q?: string; sort?: string; ignored?: string }>;
 };
 
-export default async function ReferencesPage({ searchParams }: ReferencesPageProps) {
+export default async function ContactsPage({ searchParams }: ContactsPageProps) {
   return withTenantFromHeaders(async () => {
     const sp = await searchParams;
     const q = sp.q?.trim() || undefined;
     const includeIgnored = sp.ignored === "true";
-    const sort = (sp.sort && VALID_SORTS.has(sp.sort) ? sp.sort : "count") as ReferenceSort;
+    const sort = (sp.sort && VALID_SORTS.has(sp.sort) ? sp.sort : "count") as ContactSort;
 
-    const rows = await getPersonReferences({ q, includeIgnored, sort });
+    const rows = await getContacts({ q, includeIgnored, sort });
 
     const toolbarConfig: BrowserToolbarConfig = {
-      basePath: "/people/references",
-      searchPlaceholder: "Search references…",
+      basePath: "/people/contacts",
+      searchPlaceholder: "Search contacts…",
       sortOptions: [
-        { value: "count", label: "Most referenced" },
+        { value: "count", label: "Most mentioned" },
         { value: "name", label: "Name A–Z" },
       ],
       defaultSort: "count",
@@ -45,12 +45,12 @@ export default async function ReferencesPage({ searchParams }: ReferencesPagePro
       <div className="space-y-6">
         <div className="flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-entity-person/15">
-            <Users2 size={20} className="text-entity-person" />
+            <BookUser size={20} className="text-entity-person" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold leading-tight">References</h1>
+            <h1 className="text-2xl font-bold leading-tight">Contacts</h1>
             <p className="text-sm text-muted-foreground">
-              People referenced but not yet added — resolve them into Persons or link to existing ones
+              People mentioned on imports or sets but not yet added — resolve them into Persons or link to existing ones
             </p>
           </div>
         </div>
@@ -59,7 +59,7 @@ export default async function ReferencesPage({ searchParams }: ReferencesPagePro
           <BrowserToolbar config={toolbarConfig} />
         </Suspense>
 
-        <ReferencesWorkspace rows={rows} />
+        <ContactsWorkspace rows={rows} />
       </div>
     );
   });
