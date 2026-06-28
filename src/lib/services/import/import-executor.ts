@@ -344,6 +344,8 @@ export async function importPerson(item: ImportItem): Promise<ImportResult> {
           reconcilePersonRefs(tx, data.icgId as string, item.matchedEntityId as string),
         )
       }
+      // Co-models ride along with the person import (no separate Co-Models step).
+      await autoImportBatchCoModels(item.batchId)
       await computeDependencies(item.batchId)
       return { success: true, entityId: item.matchedEntityId, error: null }
     }
@@ -532,6 +534,8 @@ export async function importPerson(item: ImportItem): Promise<ImportResult> {
     if (person.icgId) {
       await prisma.$transaction((tx) => reconcilePersonRefs(tx, person.icgId as string, person.id))
     }
+    // Co-models ride along with the person import (no separate Co-Models step).
+    await autoImportBatchCoModels(item.batchId)
     await computeDependencies(item.batchId)
 
     return { success: true, entityId: person.id, error: null }
@@ -1533,6 +1537,23 @@ export async function importCoModel(item: ImportItem): Promise<ImportResult> {
     return { success: true, entityId: counterpartPersonId, error: null }
   } catch (err) {
     return { success: false, entityId: null, error: String(err) }
+  }
+}
+
+// Import every not-yet-imported co-model in the batch. Called automatically at
+// the end of person import so co-models need no manual step — matched co-models
+// record a claim to the existing person; unmatched ones become References. Each
+// importCoModel is self-contained (re-looks-up the subject person), so a single
+// failure is logged and skipped rather than aborting the person import.
+async function autoImportBatchCoModels(batchId: string): Promise<void> {
+  const coModels = await prisma.importItem.findMany({
+    where: { batchId, type: 'CO_MODEL', status: { not: 'IMPORTED' } },
+  })
+  for (const cm of coModels) {
+    const res = await importCoModel(cm)
+    if (!res.success) {
+      console.error(`autoImportBatchCoModels: co-model ${cm.id} failed: ${res.error}`)
+    }
   }
 }
 
