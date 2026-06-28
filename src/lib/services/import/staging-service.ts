@@ -638,6 +638,29 @@ async function createStagingSetsForBatch(
     else if (!safeDate) summary.noDate++
   }
 
+  // Auto-populate Contacts (ADR-0022) from staged-set participants who aren't a
+  // curated Person yet — so the Contacts register stays current from sets, not
+  // just import co-models. ICG-ID keyed (the canonical, reconcilable identity);
+  // name-only participants are skipped, and a malformed/HTML-polluted icgId is
+  // rejected by the ICG-ID shape guard. No claim is created here — staged
+  // co-occurrence is derived, not stored.
+  const ICG_ID_RE = /^[A-Z]{2}-[0-9]{2}[A-Z0-9@][A-Z0-9]+$/
+  const contactByIcg = new Map<string, string>() // icgId → display name (first seen)
+  for (const set of parsedSets) {
+    for (const m of set.modelsList) {
+      if (!m.icgId || !ICG_ID_RE.test(m.icgId)) continue
+      if (personByIcgId.has(m.icgId)) continue // already a curated Person
+      if (!contactByIcg.has(m.icgId)) contactByIcg.set(m.icgId, m.name || m.icgId)
+    }
+  }
+  for (const [icgId, name] of contactByIcg) {
+    await prisma.contact.upsert({
+      where: { icgId },
+      create: { icgId, name, nameNorm: normalizeForSearch(name), source: 'import' },
+      update: { name, nameNorm: normalizeForSearch(name) },
+    })
+  }
+
   // Store summary on the batch for quick display
   await prisma.importBatch.update({
     where: { id: batchId },
