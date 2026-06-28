@@ -271,7 +271,7 @@ All actions in `src/lib/actions/`. Each validates input with Zod, calls services
 
 ```
 components/
-├── layout/           # AppShell, Sidebar, MobileDrawer, providers (theme, palette, density, hero, sidebar)
+├── layout/           # AppShell, Sidebar, TopBar, MobileDrawer, BackToTop, nav-items (shared nav list + getSectionLabel), providers (theme, palette, density, hero, sidebar)
 ├── dashboard/        # KpiGrid, KpiCard, ActivityFeed, QuickActions
 ├── gallery/          # GalleryLightbox, GalleryInfoPanel, GalleryFilmstrip, JustifiedGrid, CarouselHeader
 ├── media/            # MediaManager, MediaGrid, BatchUploadZone, DuplicateReviewDialog
@@ -289,6 +289,16 @@ components/
 ├── shared/           # TagInput, TagPicker, TagChips, PartialDateInput (supports modifier+source props), CountryPicker, EntityCombobox, DeleteButton, BrowserToolbar (+ GroupBy dropdown), BodyRegionPicker, FlagImage, GroupHeader (collapsible section header, level 1 + 2)
 └── ui/               # shadcn/ui primitives (auto-generated, do not edit)
 ```
+
+### App Shell & Scrolling (invariant)
+
+`AppShell` (`components/layout/app-shell.tsx`) uses **independent scroll regions**, not document scrolling. The outer row is `flex h-screen overflow-hidden`; the chrome — `Sidebar` (left, `h-screen`, internal `overflow-y-auto` nav) and `TopBar` (top, persistent, shows the route's section label via `getSectionLabel()` + the mobile drawer trigger) — never moves. **Only `<main id="app-scroll">` scrolls** (`overflow-y-auto overflow-x-hidden`, no top padding so the sticky filter toolbar can stick flush under the top bar).
+
+Invariants:
+- The window does **not** scroll (`window.scrollY` is always 0). Use `getAppScrollEl()` (`lib/scroll-container.ts`) for any scroll read/write. Browse scroll-restoration (`person-list`, `set-grid`, `session-grid`) and the career year-jump all target the container's `scrollTop`.
+- Because `<main>` is the scroll container, it is the containing block for `position: sticky` descendants. `BrowserToolbar` is `sticky top-0` and publishes its measured height to the `--toolbar-h` CSS var (ResizeObserver); nested sticky headers (`GroupHeader` level 1, career year headers) offset beneath it via `top-[var(--toolbar-h,0px)]`.
+- `BackToTop` is rendered once in the shell, watches `#app-scroll`, and fades in past 600px.
+- Nav items live in one place (`layout/nav-items.tsx`) consumed by `Sidebar`, `MobileDrawer`, and `TopBar` — do not redeclare them.
 
 ### Key Component Relationships
 

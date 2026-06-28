@@ -23,6 +23,7 @@ import {
   truncateName,
   filtersMatch,
 } from "@/lib/browse-context";
+import { getAppScrollEl } from "@/lib/scroll-container";
 import { useBulkSelection } from "@/hooks/use-bulk-selection";
 import { BulkSelectionBar } from "@/components/shared/bulk-selection-bar";
 import { computeGroups, sortGroupKeys } from "@/lib/grouping";
@@ -205,7 +206,7 @@ export function PersonList({
     if (!ctx) return;
     if (!filtersMatch(filtersToRecord(filters, groupBy), ctx.filters)) return;
     if (ctx.scrollY > 0) {
-      requestAnimationFrame(() => { window.scrollTo(0, ctx.scrollY); });
+      requestAnimationFrame(() => { getAppScrollEl()?.scrollTo(0, ctx.scrollY); });
     }
   }, [filters, groupBy]);
 
@@ -236,7 +237,7 @@ export function PersonList({
   }, [orderedPersons, cursor, saveBrowseContextFromState, filters, groupBy]);
 
   function handleCardClick() {
-    updateBrowseScrollY(window.scrollY);
+    updateBrowseScrollY(getAppScrollEl()?.scrollTop ?? 0);
   }
 
   function handleToggleStar(id: string) {

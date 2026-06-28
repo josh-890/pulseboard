@@ -4,6 +4,18 @@ Pulseboard is a personal information management tool for tracking people in art/
 
 ---
 
+## Navigating the app
+
+The app uses a fixed layout so navigation is always within reach, no matter how far you scroll:
+
+- **Sidebar** (left) — always visible; lists every section. Collapse it to icons with the chevron tab on its edge. If the list is taller than the window, it scrolls on its own.
+- **Top bar** — always visible; shows the name of the section you're in (e.g. "People", "Sets"). On phones/tablets it also holds the **menu (☰)** button that opens the navigation drawer.
+- **Filter toolbar** — on list pages (People, Sets, Sessions, …) the search/filter/sort bar **sticks to the top** as you scroll, so you can refine the list at any time. Section headers (when grouping is on) stick just beneath it.
+- **Back to top** — a round ↑ button appears at the bottom-right once you've scrolled down; click it to jump back to the top.
+- Returning from a detail page (browser Back) restores both your filters **and your scroll position** in the list.
+
+---
+
 ## Table of Contents
 
 1. [Dashboard](#1-dashboard)

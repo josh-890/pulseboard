@@ -22,6 +22,7 @@ import {
   filtersMatch,
   SESSION_BROWSE_KEY,
 } from "@/lib/browse-context";
+import { getAppScrollEl } from "@/lib/scroll-container";
 
 type SessionItem = Awaited<ReturnType<typeof getSessions>>[number];
 
@@ -113,7 +114,7 @@ export function SessionGrid({
     if (!ctx) return;
     if (!filtersMatch(filtersToRecord(filters), ctx.filters)) return;
     if (ctx.scrollY > 0) {
-      requestAnimationFrame(() => { window.scrollTo(0, ctx.scrollY); });
+      requestAnimationFrame(() => { getAppScrollEl()?.scrollTo(0, ctx.scrollY); });
     }
   }, [filters]);
 
@@ -146,7 +147,7 @@ export function SessionGrid({
   }, [sessions, cursor, saveBrowseContextFromState, filters]);
 
   function handleCardClick() {
-    updateBrowseScrollY(window.scrollY, SESSION_BROWSE_KEY);
+    updateBrowseScrollY(getAppScrollEl()?.scrollTop ?? 0, SESSION_BROWSE_KEY);
   }
 
   function handleToggleStar(id: string) {

@@ -158,7 +158,25 @@ export function BrowserToolbar({ config, children }: BrowserToolbarProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const toolbarRef = useRef<HTMLDivElement>(null);
   const [advancedOpen, setAdvancedOpen] = useState(false);
+
+  // Publish the toolbar's measured height to a CSS var so nested sticky
+  // headers (group headers, year headers) can offset beneath the now-sticky
+  // toolbar. Height varies as filters wrap / the active-filter banner shows.
+  useEffect(() => {
+    const el = toolbarRef.current;
+    if (!el) return;
+    const root = document.documentElement;
+    const setVar = () => root.style.setProperty("--toolbar-h", `${el.offsetHeight}px`);
+    setVar();
+    const ro = new ResizeObserver(setVar);
+    ro.observe(el);
+    return () => {
+      ro.disconnect();
+      root.style.setProperty("--toolbar-h", "0px");
+    };
+  }, []);
 
   // Search state
   const [searchValue, setSearchValue] = useState(
@@ -578,7 +596,10 @@ export function BrowserToolbar({ config, children }: BrowserToolbarProps) {
   };
 
   return (
-    <div className="space-y-3">
+    <div
+      ref={toolbarRef}
+      className="sticky top-0 z-30 -mx-4 space-y-3 border-b border-white/10 bg-background/80 px-4 py-3 backdrop-blur-md md:-mx-8 md:px-8"
+    >
       {/* Main toolbar row */}
       <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-3">
         {/* Search */}

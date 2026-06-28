@@ -26,6 +26,7 @@ import {
   filtersMatch,
   SET_BROWSE_KEY,
 } from "@/lib/browse-context";
+import { getAppScrollEl } from "@/lib/scroll-container";
 import { computeGroups, buildNestedGroups, sortGroupKeys } from "@/lib/grouping";
 import { useCollapseState } from "@/hooks/use-collapse-state";
 
@@ -232,7 +233,7 @@ export function SetGrid({
     if (!ctx) return;
     if (!filtersMatch(filtersToRecord(filters), ctx.filters)) return;
     if (ctx.scrollY > 0) {
-      requestAnimationFrame(() => { window.scrollTo(0, ctx.scrollY); });
+      requestAnimationFrame(() => { getAppScrollEl()?.scrollTo(0, ctx.scrollY); });
     }
   }, [filters]);
 
@@ -265,7 +266,7 @@ export function SetGrid({
   }, [sets, cursor, saveBrowseContextFromState, filters]);
 
   function handleCardClick() {
-    updateBrowseScrollY(window.scrollY, SET_BROWSE_KEY);
+    updateBrowseScrollY(getAppScrollEl()?.scrollTop ?? 0, SET_BROWSE_KEY);
   }
 
   function handleToggleStar(id: string) {

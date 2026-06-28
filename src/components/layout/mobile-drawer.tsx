@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Menu, LayoutDashboard, FolderKanban, Users, ImageIcon, Building2, Radio, Network, Settings, Clapperboard, Layers, Upload, Palette, Wrench, Eye, Heart } from "lucide-react";
+import { Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
@@ -11,25 +11,7 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { NavLink } from "./nav-link";
-import { getBrowseReturnUrl } from "@/lib/browse-context";
-
-const navItems = [
-  { href: "/", icon: <LayoutDashboard size={20} />, label: "Dashboard" },
-  { href: "/sessions", icon: <Clapperboard size={20} />, label: "Sessions" },
-  { href: "/sets", icon: <ImageIcon size={20} />, label: "Sets" },
-  { href: "/favorites", icon: <Heart size={20} />, label: "Favorites" },
-  { href: "/people", icon: <Users size={20} />, label: "People", resolveHref: getBrowseReturnUrl },
-  { href: "/watchlist", icon: <Eye size={20} />, label: "Watchlist" },
-  { href: "/projects", icon: <FolderKanban size={20} />, label: "Projects" },
-  { href: "/labels", icon: <Building2 size={20} />, label: "Labels" },
-  { href: "/channels", icon: <Radio size={20} />, label: "Channels" },
-  { href: "/artists", icon: <Palette size={20} />, label: "Artists" },
-  { href: "/networks", icon: <Network size={20} />, label: "Networks" },
-  { href: "/import", icon: <Upload size={20} />, label: "Import" },
-  { href: "/staging-sets", icon: <Layers size={20} />, label: "Staging Sets" },
-  { href: "/maintenance", icon: <Wrench size={20} />, label: "Maintenance" },
-  { href: "/settings", icon: <Settings size={20} />, label: "Settings" },
-];
+import { navItems } from "./nav-items";
 
 export function MobileDrawer() {
   const [open, setOpen] = useState(false);
@@ -50,7 +32,7 @@ export function MobileDrawer() {
         <SheetHeader>
           <SheetTitle className="text-xl font-bold">Pulseboard</SheetTitle>
         </SheetHeader>
-        <nav className="flex flex-col gap-1 px-3 pt-4">
+        <nav className="flex flex-col gap-1 overflow-y-auto px-3 pt-4">
           {navItems.map((item) => (
             <NavLink
               key={item.href}

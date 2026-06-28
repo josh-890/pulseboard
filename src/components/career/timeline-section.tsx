@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
+import { getAppScrollEl } from "@/lib/scroll-container";
 import { TimelineSetRow } from "./timeline-set-row";
 import { SetHoverPreview, SET_HOVER_PREVIEW_DIMS } from "./set-hover-preview";
 import { YearScrubber, type YearScrubberEntry } from "./year-scrubber";
@@ -106,9 +107,16 @@ export function TimelineSection({
 
   const handleYearJump = (year: number) => {
     const el = yearRefs.current.get(year);
-    if (!el) return;
-    const top = el.getBoundingClientRect().top + window.scrollY - 80;
-    window.scrollTo({ top, behavior: "smooth" });
+    const container = getAppScrollEl();
+    if (!el || !container) return;
+    // Position relative to the content scroll container (the window no
+    // longer scrolls); -8 leaves a hair of room above the sticky header.
+    const top =
+      el.getBoundingClientRect().top -
+      container.getBoundingClientRect().top +
+      container.scrollTop -
+      8;
+    container.scrollTo({ top, behavior: "smooth" });
   };
 
   // Called by TimelineSetRow when the user hovers a cover. `coverRect`
@@ -164,7 +172,7 @@ export function TimelineSection({
               }}
               data-year={group.year}
               className={cn(
-                "sticky top-16 z-10 -mx-1 flex items-center gap-2 rounded-md bg-background/85 px-2 py-1.5",
+                "sticky top-[var(--toolbar-h,0px)] z-10 -mx-1 flex items-center gap-2 rounded-md bg-background/85 px-2 py-1.5",
                 "border-b border-white/10 backdrop-blur-md",
                 "text-xs font-semibold uppercase tracking-wider text-muted-foreground",
               )}

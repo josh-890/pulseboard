@@ -2,7 +2,9 @@
 
 import { usePathname } from "next/navigation";
 import { Sidebar } from "./sidebar";
-import { MobileDrawer } from "./mobile-drawer";
+import { TopBar } from "./top-bar";
+import { BackToTop } from "./back-to-top";
+import { APP_SCROLL_ID } from "@/lib/scroll-container";
 
 // Routes that render without the app shell (sidebar, header)
 const SHELL_EXCLUDED_PATHS = ["/login"];
@@ -18,25 +20,32 @@ export function AppShell({ children }: AppShellProps) {
     return <>{children}</>;
   }
 
+  // App-shell with independent scroll regions: the outer row is locked to
+  // the viewport height and the chrome (sidebar + top bar) never moves.
+  // Only <main id="app-scroll"> scrolls — it is the single scroll
+  // container for all page content (see lib/scroll-container.ts). Because
+  // it has `overflow-y: auto`, it is also the containing block for
+  // `position: sticky` descendants (toolbar, group/year headers), which
+  // now stick relative to the content region top.
   return (
-    <div className="flex min-h-screen">
+    <div className="flex h-screen overflow-hidden">
       <Sidebar />
-      <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex items-center gap-2 border-b border-white/20 px-4 py-3 md:hidden">
-          <MobileDrawer />
-          <span className="text-lg font-bold">Pulseboard</span>
-        </header>
+      <div className="relative flex min-w-0 flex-1 flex-col">
+        <TopBar />
         {/*
-          `overflow-x: clip` (not `hidden`) prevents horizontal bleed
-          without turning <main> into a CSS scroll container. Per CSS spec,
-          `overflow-x: hidden` implicitly sets `overflow-y: auto`, which
-          would make <main> the containing block for `position: sticky`
-          descendants — breaking sticky year headers etc. since the actual
-          scroll happens on the document.
+          No top padding: the sticky filter toolbar must be able to stick
+          flush against the top bar. Any top padding here would leave a band
+          above the stuck toolbar where scrolling content peeks through.
+          Breathing room above the first content element comes from the top
+          bar's border; the toolbar itself carries vertical padding.
         */}
-        <main className="w-full flex-1 overflow-x-clip px-4 py-6 md:px-8 md:py-8">
+        <main
+          id={APP_SCROLL_ID}
+          className="w-full flex-1 overflow-y-auto overflow-x-hidden px-4 pb-6 md:px-8 md:pb-8"
+        >
           {children}
         </main>
+        <BackToTop />
       </div>
     </div>
   );

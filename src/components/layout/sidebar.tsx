@@ -1,56 +1,11 @@
 "use client";
 
-import {
-  LayoutDashboard,
-  FolderKanban,
-  Users,
-  ImageIcon,
-  Building2,
-  Radio,
-  Network,
-  Settings,
-  ChevronsLeft,
-  ChevronsRight,
-  Clapperboard,
-  Library,
-  LayoutGrid,
-  Layers,
-  LogOut,
-  Upload,
-  Palette,
-  HardDrive,
-  FolderSearch,
-  Wrench,
-  Eye,
-  Heart,
-} from "lucide-react";
+import { ChevronsLeft, ChevronsRight, LogOut } from "lucide-react";
 import { NavLink } from "./nav-link";
+import { navItems } from "./nav-items";
 import { useSidebar } from "./sidebar-provider";
 import { cn } from "@/lib/utils";
-import { getBrowseReturnUrl } from "@/lib/browse-context";
 import { logoutAction } from "@/lib/actions/auth-actions";
-
-const navItems = [
-  { href: "/", icon: <LayoutDashboard size={20} />, label: "Dashboard" },
-  { href: "/sessions", icon: <Clapperboard size={20} />, label: "Sessions" },
-  { href: "/sets", icon: <ImageIcon size={20} />, label: "Sets" },
-  { href: "/collections", icon: <Library size={20} />, label: "Collections" },
-  { href: "/favorites", icon: <Heart size={20} />, label: "Favorites" },
-  { href: "/atlas", icon: <LayoutGrid size={20} />, label: "Atlas" },
-  { href: "/people", icon: <Users size={20} />, label: "People", resolveHref: getBrowseReturnUrl },
-  { href: "/watchlist", icon: <Eye size={20} />, label: "Watchlist" },
-  { href: "/projects", icon: <FolderKanban size={20} />, label: "Projects" },
-  { href: "/labels", icon: <Building2 size={20} />, label: "Labels" },
-  { href: "/channels", icon: <Radio size={20} />, label: "Channels" },
-  { href: "/artists", icon: <Palette size={20} />, label: "Artists" },
-  { href: "/networks", icon: <Network size={20} />, label: "Networks" },
-  { href: "/import", icon: <Upload size={20} />, label: "Import" },
-  { href: "/staging-sets", icon: <Layers size={20} />, label: "Staging Sets" },
-  { href: "/shopping-list", icon: <HardDrive size={20} />, label: "Shopping List" },
-  { href: "/archive", icon: <FolderSearch size={20} />, label: "Archive" },
-  { href: "/maintenance", icon: <Wrench size={20} />, label: "Maintenance" },
-  { href: "/settings", icon: <Settings size={20} />, label: "Settings" },
-];
 
 export function Sidebar() {
   const { collapsed, toggleCollapsed } = useSidebar();
@@ -78,7 +33,7 @@ export function Sidebar() {
         )}
       </div>
 
-      <nav className={cn("flex flex-1 flex-col gap-1", collapsed ? "px-2" : "px-3")}>
+      <nav className={cn("flex flex-1 flex-col gap-1 overflow-y-auto", collapsed ? "px-2" : "px-3")}>
         {navItems.map((item) => (
           <NavLink key={item.href} {...item} collapsed={collapsed} />
         ))}

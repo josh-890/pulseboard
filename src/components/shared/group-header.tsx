@@ -54,7 +54,9 @@ export function GroupHeader({
       className={cn(
         "flex w-full items-center gap-2.5 rounded-lg border border-white/8 px-3 py-2.5 text-left",
         "bg-card/60 backdrop-blur-sm transition-colors hover:bg-card/80",
-        "sticky top-0 z-10",
+        // Stick below the sticky filter toolbar (its measured height is
+        // published as --toolbar-h; falls back to 0 where no toolbar mounts).
+        "sticky top-[var(--toolbar-h,0px)] z-10",
         className,
       )}
     >
