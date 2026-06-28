@@ -2088,7 +2088,12 @@ export function PersonDetailTabs({
         hidden={activeTab !== "network"}
       >
         {activeTab === "network" && (
-          <ConnectionsTab data={connections} personId={person.id} roles={relationshipRoles} />
+          <ConnectionsTab
+            data={connections}
+            personId={person.id}
+            personName={person.aliases.find((a) => a.isCommon)?.name ?? person.icgId}
+            roles={relationshipRoles}
+          />
         )}
       </div>
       <div

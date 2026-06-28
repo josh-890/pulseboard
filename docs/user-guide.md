@@ -373,6 +373,12 @@ How this person relates to others, in three sections:
 - **Claimed collaborations** — "worked with" assertions pulled from import files, even when you
   hold no set proving it. People not yet added show as outlined **reference** chips.
 
+Use the **Lists | Graph** toggle (top-right) to switch to a **graph view** — the person sits at
+the centre with everyone they're connected to around them. Edge colour shows the kind of tie
+(familial / personal / professional / work / claimed), work edges get thicker with more shared
+sets, and not-yet-added people appear as outlined "reference" circles. Click any node to jump to
+that person.
+
 (Not to be confused with the sidebar **Networks**, which groups Labels — a different concept.)
 
 **Photos**

@@ -4,7 +4,7 @@ import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
-import { Users, Briefcase, FileText, Plus, Trash2, Search, Check } from "lucide-react";
+import { Users, Briefcase, FileText, Plus, Trash2, Search, Check, List, Share2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
@@ -20,19 +20,56 @@ import {
   createRelationshipAction,
   deleteRelationshipAction,
 } from "@/lib/actions/relationship-actions";
+import { ConnectionsGraph } from "@/components/people/connections-graph";
 
 type ConnectionsTabProps = {
   data: ConnectionsData;
   personId: string;
+  personName: string;
   roles: RelationshipRole[];
 };
 
-export function ConnectionsTab({ data, personId, roles }: ConnectionsTabProps) {
+export function ConnectionsTab({ data, personId, personName, roles }: ConnectionsTabProps) {
+  const [view, setView] = useState<"lists" | "graph">("lists");
+  const total = data.personal.length + data.workHeld.length + data.claimed.length;
+
   return (
-    <div className="space-y-6">
-      <PersonalSection personId={personId} rows={data.personal} roles={roles} />
-      <WorkHeldSection rows={data.workHeld} />
-      <ClaimedSection rows={data.claimed} />
+    <div className="space-y-4">
+      <div className="flex justify-end">
+        <div className="inline-flex rounded-lg border border-white/15 bg-card/50 p-0.5">
+          {(["lists", "graph"] as const).map((v) => (
+            <button
+              key={v}
+              type="button"
+              onClick={() => setView(v)}
+              aria-pressed={view === v}
+              className={cn(
+                "inline-flex items-center gap-1.5 rounded-md px-3 py-1 text-xs font-medium transition-colors",
+                view === v ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              {v === "lists" ? <List size={13} /> : <Share2 size={13} />}
+              {v === "lists" ? "Lists" : "Graph"}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {view === "graph" ? (
+        total === 0 ? (
+          <div className="rounded-2xl border border-white/15 bg-card/40 p-10 text-center text-sm text-muted-foreground">
+            No connections to graph yet.
+          </div>
+        ) : (
+          <ConnectionsGraph data={data} personName={personName} />
+        )
+      ) : (
+        <div className="space-y-6">
+          <PersonalSection personId={personId} rows={data.personal} roles={roles} />
+          <WorkHeldSection rows={data.workHeld} />
+          <ClaimedSection rows={data.claimed} />
+        </div>
+      )}
     </div>
   );
 }
