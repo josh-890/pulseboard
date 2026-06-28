@@ -37,12 +37,15 @@ async function findProbableStagingDuplicate(
   releaseDate: Date,
   externalId: string | null,
   isVideo: boolean,
+  titleNorm: string,
 ): Promise<{ id: string; status: StagingSetStatus } | null> {
+  if (!titleNorm) return null
   return prisma.stagingSet.findFirst({
     where: {
       channelId,
       releaseDate,
       isVideo,
+      titleNorm,
       ...(externalId ? { externalId: { not: externalId } } : {}),
     },
     select: { id: true, status: true },
@@ -516,17 +519,19 @@ async function createStagingSetsForBatch(
       }
     }
 
-    // Probable staging duplicate: same channel + release date + SAME SetType
-    // (different externalId). Catches the same set appearing in two import files.
-    // Scoped by isVideo so photo↔video pairs of one session (split siblings) never
-    // flag each other. A split import row (Video:True + Imagenumber>0) becomes both a
-    // photo and a video staging set, so each is checked against its own type.
+    // Probable staging duplicate: same channel + release date + SAME SetType +
+    // SAME normalized title (different externalId). Catches the same set appearing
+    // in two import files (a re-scrape with a new external id). Title is required
+    // because a channel routinely releases several *different* sets on one date —
+    // channel+date+type alone is not a duplicate signal. Scoped by isVideo so
+    // photo↔video split siblings never flag each other.
     // Exception: if a same-type match is already SKIPPED (user resolved it), omit.
+    const titleNorm = normalizeForSearch(set.title)
     const needsSplit = set.isVideo && (set.imageCount ?? 0) > 0
 
     async function probableDupStatus(isVid: boolean): Promise<'skip' | 'dup' | 'none'> {
-      if (!channelId || !safeDate) return 'none'
-      const existing = await findProbableStagingDuplicate(channelId, safeDate, set.externalId || null, isVid)
+      if (!channelId || !safeDate || !titleNorm) return 'none'
+      const existing = await findProbableStagingDuplicate(channelId, safeDate, set.externalId || null, isVid, titleNorm)
       if (!existing) return 'none'
       if (existing.status === 'SKIPPED') return 'skip'
       // Flag the existing entry too — both sides must appear in the duplicates filter.

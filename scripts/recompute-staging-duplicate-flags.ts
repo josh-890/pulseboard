@@ -1,16 +1,16 @@
 /**
- * Recompute probable staging-duplicate flags under the type-aware rule.
+ * Recompute probable staging-duplicate flags under the title-aware rule.
  *
- * Background: the "POSSIBLE DUP" detector used to match on channel + release date
- * only, so a photo set and a video set of one session (split siblings) wrongly
- * flagged each other. The fix scopes the match by SetType (`isVideo`). This script
- * re-derives `isDuplicate` for existing PROBABLE duplicates and clears the
- * now-false ones.
+ * Background: the "POSSIBLE DUP" detector matched on channel + release date +
+ * SetType only — but a channel routinely releases several *different* sets on one
+ * date, so genuinely-different sets were mass-flagged. The rule now also requires
+ * the SAME normalized title (a re-scrape keeps its title). This script re-derives
+ * `isDuplicate` for existing PROBABLE duplicates and clears the now-false ones.
  *
  * Scope: only PROBABLE duplicates (`duplicateGroupId IS NULL`) — user-confirmed
  * groups (with a groupId) are left untouched. A set keeps `isDuplicate=true` only
  * if a non-skipped counterpart exists with the SAME channel + release date +
- * isVideo and a different externalId.
+ * isVideo + titleNorm and a different externalId.
  *
  * Read-only except for clearing false flags. Run per tenant:
  *   DATABASE_URL=... npx tsx scripts/recompute-staging-duplicate-flags.ts
@@ -27,12 +27,12 @@ const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString: proc
 async function main() {
   const flagged = await prisma.stagingSet.findMany({
     where: { isDuplicate: true, duplicateGroupId: null },
-    select: { id: true, channelId: true, releaseDate: true, isVideo: true, externalId: true, title: true, status: true },
+    select: { id: true, channelId: true, releaseDate: true, isVideo: true, externalId: true, title: true, titleNorm: true, status: true },
   })
 
   const toClear: { id: string; title: string; isVideo: boolean }[] = []
   for (const s of flagged) {
-    if (!s.channelId || !s.releaseDate) {
+    if (!s.channelId || !s.releaseDate || !s.titleNorm) {
       toClear.push({ id: s.id, title: s.title, isVideo: s.isVideo })
       continue
     }
@@ -41,6 +41,7 @@ async function main() {
         channelId: s.channelId,
         releaseDate: s.releaseDate,
         isVideo: s.isVideo,
+        titleNorm: s.titleNorm,
         id: { not: s.id },
         status: { not: 'SKIPPED' },
         ...(s.externalId ? { externalId: { not: s.externalId } } : {}),
