@@ -46,7 +46,8 @@ Media path:
 | Route | Services Called | Key Components |
 |-------|----------------|----------------|
 | `/` | `getDashboardStats()`, `getRecentActivities()` | `KpiGrid`, `DashboardActivity`, `QuickActions` |
-| `/people` | `getPersonsPaginated()`, `getHeadshotsForPersons()`, `getDistinct*()` | `PersonList`, `BrowserToolbar`, `AddPersonSheet`. `StatusFilter` carries a `watching=true` toggle (orthogonal to `status`) → `PersonFilters.watching` |
+| `/people` | `getPersonsPaginated()`, `getHeadshotsForPersons()`, `getDistinct*()`, `countActivePersonReferences()` | `PersonList`, `BrowserToolbar`, `AddPersonSheet`, header **References** link (count badge). `StatusFilter` carries a `watching=true` toggle (orthogonal to `status`) → `PersonFilters.watching` |
+| `/people/references` | `getPersonReferences()` (`relationship-service`) | `ReferencesWorkspace` + `BrowserToolbar`. The "ghost" register (ADR-0022): rows are `PersonRef`s with claim/relationship counts; actions **Add as Person** (`addPersonFromReferenceAction` → auto-reconcile by ICG-ID), **Link…** (`linkReferenceAction` → manual reconcile), **Ignore** (`ignoreReferenceAction`). Sort `count`/`name`, `ignored` toggle |
 | `/watchlist` | `getWatchlist()` | `WatchlistClient` — watched persons (needs-rescan → worst-due → priority → oldest-scan sort) with the claimed−recorded gap, due/overdue badges, needs-rescan flag, per-page scan selection (expand row), Mark-checked (`markPersonChecked`), and a sticky **Generate scan files** bar → `POST /api/scan-round/export` |
 | `/settings/scanning` | `getAllScrapeSources()`, `getScanCadenceDays()` | `ScanSettingsClient` — scrape-source registry editor (scannable, fileName, lineFormat, domains) + per-priority scan cadence |
 | `/sets` | `getSetsPaginated()`, `getCoverPhotosForSets()`, `getHeadshotsForPersons()`, `getSuggestedFoldersForSets()`, `getChannelsWithLabelMaps()` | `SetGrid`, `SetCard`, `BrowserToolbar`, `AddSetSheet` |
@@ -100,6 +101,7 @@ All services in `src/lib/services/`. All functions are async, return Promises. S
 
 ### Domain Services
 
+**`relationship-service.ts`** (ADR-0022) — Inter-person network. `getPersonCoOccurrence(personId)` (held co-occurrence, computed from `SetParticipant`); `getPersonReferences()` / `countActivePersonReferences()` / `setReferenceIgnored()` (the `PersonRef` ghost register); `reconcilePersonRefs(tx, icgId, personId)` (auto-retire a ghost by exact ICG-ID) and `linkReferenceToPerson(tx, refId, personId)` (manual), sharing `repointRefToPerson` (repoint `ClaimedCollaboration` + `PersonRelationship` edges, then delete the ref). Reconcile is invoked from `createPersonRecord` and both `importPerson` paths; claims/ghosts are written by `importCoModel` (import-executor). Wrapped by `reference-actions.ts`. `getPersonConnections` (in `person-service.ts`) reads curated `PersonRelationship` person-counterparts.
 **`alias-service.ts`** — Alias CRUD, channel linking, bulk import, merge. `getPersonAliases()` returns `creditCount` (combined `SetCreditRaw` + `SessionContribution` usages via `resolvedAliasId`). `createAlias()` also accepts `channelIds` to link at creation time and triggers participant-status refresh.
 **`skill-service.ts`** — PersonSkill/SkillEvent CRUD, timeline, event media
 **`skill-catalog-service.ts`** — SkillGroup/SkillDefinition catalog CRUD

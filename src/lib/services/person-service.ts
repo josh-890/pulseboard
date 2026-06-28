@@ -60,6 +60,7 @@ import { refreshStatusesForIcgId } from "@/lib/services/import/participant-statu
 import { ensureCatalogEntry } from "@/lib/services/color-catalog-service";
 import { deriveInterval } from "@/lib/utils/event-interval";
 import { recomputePersonCurrentState } from "@/lib/services/current-state-service";
+import { reconcilePersonRefs } from "@/lib/services/relationship-service";
 import {
   cascadeDeleteSession,
   cascadeDeleteBodyModifications,
@@ -1513,38 +1514,38 @@ export async function getPersonAffiliations(personId: string): Promise<PersonAff
   return Array.from(labelMap.values()).sort((a, b) => b.setCount - a.setCount);
 }
 
+// Manual/personal relationships whose counterpart is a full Person. Ref
+// counterparts and work co-occurrence are surfaced by the Connections tab
+// (getPersonCoOccurrence / relationship-service); this keeps the legacy panel
+// compiling and showing person-to-person relationships with their role label.
 export async function getPersonConnections(personId: string): Promise<PersonConnection[]> {
   const relationships = await prisma.personRelationship.findMany({
     where: {
-      OR: [{ personAId: personId }, { personBId: personId }],
+      OR: [{ personId }, { toPersonId: personId }],
     },
     include: {
-      personA: {
-        include: {
-          aliases: { where: { isCommon: true }, take: 1 },
-        },
-      },
-      personB: {
-        include: {
-          aliases: { where: { isCommon: true }, take: 1 },
-        },
-      },
+      person: { include: { aliases: { where: { isCommon: true }, take: 1 } } },
+      toPerson: { include: { aliases: { where: { isCommon: true }, take: 1 } } },
+      role: true,
     },
-    orderBy: { sharedSetCount: "desc" },
   });
 
   return relationships
-    .map((r) => {
-      const other = r.personAId === personId ? r.personB : r.personA;
+    .map((r): PersonConnection | null => {
+      const isFrom = r.personId === personId;
+      const other = isFrom ? r.toPerson : r.person;
+      if (!other) return null; // counterpart is a PersonRef — surfaced in the Connections tab
+      const roleLabel = isFrom ? r.role.name : r.role.inverseName;
       return {
         personId: other.id,
         icgId: other.icgId,
         commonAlias: other.aliases[0]?.name ?? null,
-        sharedSetCount: r.sharedSetCount,
+        sharedSetCount: 0,
         source: r.source,
-        label: r.label,
+        label: r.label ?? roleLabel,
       };
-    });
+    })
+    .filter((x): x is PersonConnection => x !== null);
 }
 
 export async function countPersons(): Promise<number> {
@@ -1650,6 +1651,11 @@ export async function createPersonRecord(data: CreatePersonInput) {
     });
 
     await recomputePersonCurrentState(tx, person.id);
+    // A newly-curated Person retires its PersonRef ghost (if any): repoint
+    // others' claims/relationships that referenced this ICG-ID, delete the ref.
+    if (data.icgId) {
+      await reconcilePersonRefs(tx, data.icgId, person.id);
+    }
     return person;
   });
 
@@ -1998,7 +2004,7 @@ export async function deletePersonRecord(id: string): Promise<PhotoVariants[]> {
     await cascadeDeleteRelationshipEvents(tx, id);
     await tx.personRelationship.deleteMany({
       where: {
-        OR: [{ personAId: id }, { personBId: id }],
+        OR: [{ personId: id }, { toPersonId: id }],
       },
     });
 

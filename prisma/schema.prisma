@@ -46,6 +46,11 @@ enum RelationshipSource {
   manual
 }
 
+enum PersonRefSource {
+  import
+  manual
+}
+
 enum ProjectStatus {
   active
   paused
@@ -341,8 +346,10 @@ model Person {
 
   aliases              PersonAlias[]
   eras                 Era[]
-  relationships        PersonRelationship[]    @relation("PersonA")
-  relatedTo            PersonRelationship[]    @relation("PersonB")
+  relationships        PersonRelationship[]    @relation("RelationshipFrom")
+  relatedTo            PersonRelationship[]    @relation("RelationshipTo")
+  claimsAsSubject      ClaimedCollaboration[]  @relation("ClaimSubject")
+  claimsAsCounterpart  ClaimedCollaboration[]  @relation("ClaimCounterpart")
   bodyMarks            BodyMark[]
   digitalIdentities    PersonDigitalIdentity[]
   skills               PersonSkill[]
@@ -578,23 +585,96 @@ model PersonSkill {
   @@index([skillDefinitionId])
 }
 
+// Curated, hand-asserted relationship between a Person ("from") and either
+// another Person or a not-yet-curated PersonRef ("to"). Work co-occurrence is
+// NOT stored here (it is computed); import "worked-with" evidence lives in
+// ClaimedCollaboration. The role's inverse renders on the counterpart's page.
 model PersonRelationship {
-  id             String             @id @default(cuid())
-  personAId      String
-  personA        Person             @relation("PersonA", fields: [personAId], references: [id])
-  personBId      String
-  personB        Person             @relation("PersonB", fields: [personBId], references: [id])
-  source         RelationshipSource @default(derived)
-  type           RelationshipType?
-  label          String?
-  sharedSetCount Int                @default(0)
-  context        String?
+  id         String             @id @default(cuid())
+  personId   String
+  person     Person             @relation("RelationshipFrom", fields: [personId], references: [id], onDelete: Cascade)
+  toPersonId String?
+  toPerson   Person?            @relation("RelationshipTo", fields: [toPersonId], references: [id], onDelete: Cascade)
+  toRefId    String?
+  toRef      PersonRef?         @relation(fields: [toRefId], references: [id], onDelete: Cascade)
+  roleId     String
+  role       RelationshipRole   @relation(fields: [roleId], references: [id])
+  source     RelationshipSource @default(manual)
+  label      String?
+  context    String?
 
   events RelationshipEvent[]
 
-  @@unique([personAId, personBId])
-  @@index([personAId])
-  @@index([personBId])
+  // Exactly one of toPersonId / toRefId is set (enforced in the service layer).
+  @@unique([personId, toPersonId, roleId])
+  @@unique([personId, toRefId, roleId])
+  @@index([personId])
+  @@index([toPersonId])
+  @@index([toRefId])
+  @@index([roleId])
+}
+
+// Controlled vocabulary of relationship roles, with the inverse label shown on
+// the counterpart's page and a symmetry flag (Sibling vs Parent/Child).
+model RelationshipRole {
+  id          String           @id @default(cuid())
+  name        String
+  slug        String           @unique
+  inverseName String
+  isSymmetric Boolean          @default(false)
+  category    RelationshipType @default(other)
+  sortOrder   Int              @default(0)
+  createdAt   DateTime         @default(now())
+
+  relationships PersonRelationship[]
+
+  @@index([category])
+}
+
+// A person referenced (by ICG-ID + name) but not yet curated as a full Person —
+// the "ghost" register. Mentions (co-models, staged participants) resolve here;
+// when a Person appears with a matching icgId the ref's edges repoint and the
+// ref is retired (see reconcilePersonRefs). icgId is optional so non-industry
+// personal contacts (e.g. a sister) can be name-only refs, linked manually.
+model PersonRef {
+  id        String          @id @default(cuid())
+  icgId     String?         @unique
+  name      String
+  nameNorm  String?
+  thumbUrl  String?
+  note      String?
+  source    PersonRefSource @default(import)
+  ignoredAt DateTime?
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+
+  relationshipsTo PersonRelationship[]
+  claims          ClaimedCollaboration[] @relation("ClaimCounterpartRef")
+
+  @@index([nameNorm])
+  @@index([ignoredAt])
+}
+
+// Stored "worked-with" evidence asserted by an import file: subject Person
+// claims a collaboration with a counterpart (a Person, or a PersonRef when not
+// yet curated). Rebuildable from imports; kept apart from curated relationships.
+model ClaimedCollaboration {
+  id                  String     @id @default(cuid())
+  subjectPersonId     String
+  subjectPerson       Person     @relation("ClaimSubject", fields: [subjectPersonId], references: [id], onDelete: Cascade)
+  counterpartPersonId String?
+  counterpartPerson   Person?    @relation("ClaimCounterpart", fields: [counterpartPersonId], references: [id], onDelete: Cascade)
+  counterpartRefId    String?
+  counterpartRef      PersonRef? @relation("ClaimCounterpartRef", fields: [counterpartRefId], references: [id], onDelete: Cascade)
+  sourceLabel         String?
+  firstSeenAt         DateTime   @default(now())
+  createdAt           DateTime   @default(now())
+
+  @@unique([subjectPersonId, counterpartPersonId])
+  @@unique([subjectPersonId, counterpartRefId])
+  @@index([subjectPersonId])
+  @@index([counterpartPersonId])
+  @@index([counterpartRefId])
 }
 
 // ─── Body Modifications ──────────────────────────────────────────────────────

@@ -7,6 +7,7 @@
 
 import { prisma } from '@/lib/db'
 import { normalizeForSearch } from '@/lib/normalize'
+import { reconcilePersonRefs } from '@/lib/services/relationship-service'
 import type { ImportItem, Prisma } from '@/generated/prisma/client'
 import { createLabelRecord } from '@/lib/services/label-service'
 import { createChannelRecord } from '@/lib/services/channel-service'
@@ -336,6 +337,13 @@ export async function importPerson(item: ImportItem): Promise<ImportResult> {
       }
       await recomputePersonCurrentStateStandalone(item.matchedEntityId)
       await markItemImported(item.id, item.matchedEntityId)
+      // Retire any PersonRef ghost that shares this person's ICG-ID (a new ref
+      // may have appeared via another import since the last reconcile).
+      if (data.icgId) {
+        await prisma.$transaction((tx) =>
+          reconcilePersonRefs(tx, data.icgId as string, item.matchedEntityId as string),
+        )
+      }
       await computeDependencies(item.batchId)
       return { success: true, entityId: item.matchedEntityId, error: null }
     }
@@ -519,6 +527,11 @@ export async function importPerson(item: ImportItem): Promise<ImportResult> {
 
     await recomputePersonCurrentStateStandalone(person.id)
     await markItemImported(item.id, person.id)
+    // A newly-curated Person retires its ghost: repoint others' claims/edges
+    // that referenced this ICG-ID, then delete the PersonRef.
+    if (person.icgId) {
+      await prisma.$transaction((tx) => reconcilePersonRefs(tx, person.icgId as string, person.id))
+    }
     await computeDependencies(item.batchId)
 
     return { success: true, entityId: person.id, error: null }
@@ -1451,6 +1464,78 @@ export async function promoteManualStagingSet(stagingSetId: string): Promise<Imp
 
 // ─── Import dispatcher ──────────────────────────────────────────────────────
 
+// ─── Import: Co-model (relationship/network) ────────────────────────────────
+//
+// A co-model is a "worked-with" assertion from the subject's import file. We no
+// longer require the counterpart to already exist: if it is a curated Person we
+// link to it, otherwise we record a PersonRef ghost (keyed by ICG-ID). Either
+// way we store a ClaimedCollaboration from the subject so the work network and
+// References register are populated. The ghost is retired automatically when the
+// counterpart is later imported/added (see reconcilePersonRefs).
+export async function importCoModel(item: ImportItem): Promise<ImportResult> {
+  try {
+    const data = (item.editedData ?? item.data) as ItemData
+    const icgId = (data.icgId as string) || null
+    const name = (data.name as string) || icgId || 'Unknown'
+    const thumbUrl = (data.thumbUrl as string) || null
+
+    // Subject = the batch's PERSON (imported first via dependency ordering).
+    const personItem = await prisma.importItem.findFirst({
+      where: { batchId: item.batchId, type: 'PERSON' },
+      select: { matchedEntityId: true },
+    })
+    const subjectPersonId = personItem?.matchedEntityId
+    if (!subjectPersonId) {
+      return { success: false, entityId: null, error: 'Subject person not yet imported' }
+    }
+
+    const counterpartPersonId = item.matchedEntityId ?? null
+
+    // Self-reference (the import parser already skips the subject, but guard).
+    if (counterpartPersonId && counterpartPersonId === subjectPersonId) {
+      await markItemImported(item.id, counterpartPersonId)
+      return { success: true, entityId: counterpartPersonId, error: null }
+    }
+
+    await prisma.$transaction(async (tx) => {
+      if (counterpartPersonId) {
+        await tx.claimedCollaboration.upsert({
+          where: {
+            subjectPersonId_counterpartPersonId: { subjectPersonId, counterpartPersonId },
+          },
+          create: { subjectPersonId, counterpartPersonId, sourceLabel: 'import' },
+          update: {},
+        })
+        return
+      }
+      // No curated Person — record/refresh a PersonRef ghost, then the claim.
+      if (!icgId) return // nothing addressable to record
+      const ref = await tx.personRef.upsert({
+        where: { icgId },
+        create: { icgId, name, nameNorm: normalizeForSearch(name), thumbUrl, source: 'import' },
+        update: { name, nameNorm: normalizeForSearch(name), thumbUrl: thumbUrl ?? undefined },
+      })
+      await tx.claimedCollaboration.upsert({
+        where: { subjectPersonId_counterpartRefId: { subjectPersonId, counterpartRefId: ref.id } },
+        create: { subjectPersonId, counterpartRefId: ref.id, sourceLabel: 'import' },
+        update: {},
+      })
+    })
+
+    // Mark handled. Curated counterpart carries its Person id; a ref-only
+    // co-model has no entity id but is still "imported" (recorded as evidence).
+    if (counterpartPersonId) {
+      await markItemImported(item.id, counterpartPersonId)
+    } else {
+      await prisma.importItem.update({ where: { id: item.id }, data: { status: 'IMPORTED' } })
+    }
+    await computeDependencies(item.batchId)
+    return { success: true, entityId: counterpartPersonId, error: null }
+  } catch (err) {
+    return { success: false, entityId: null, error: String(err) }
+  }
+}
+
 export async function importItem(item: ImportItem): Promise<ImportResult> {
   switch (item.type) {
     case 'LABEL':
@@ -1466,12 +1551,7 @@ export async function importItem(item: ImportItem): Promise<ImportResult> {
     case 'SET':
       return importSet(item)
     case 'CO_MODEL':
-      // Co-models are informational only — they must already exist in DB
-      if (item.matchedEntityId) {
-        await markItemImported(item.id, item.matchedEntityId)
-        return { success: true, entityId: item.matchedEntityId, error: null }
-      }
-      return { success: false, entityId: null, error: 'Co-model person does not exist in DB. Create them first via their own import file or manually.' }
+      return importCoModel(item)
     case 'CREDIT':
       // Credits are created as part of set import, not independently
       return { success: true, entityId: null, error: null }

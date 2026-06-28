@@ -128,7 +128,7 @@ export async function cascadeDeleteRelationshipEvents(
 ) {
   const relationships = await tx.personRelationship.findMany({
     where: {
-      OR: [{ personAId: personId }, { personBId: personId }],
+      OR: [{ personId }, { toPersonId: personId }],
     },
     select: { id: true },
   });

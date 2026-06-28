@@ -96,6 +96,23 @@ _Avoid_: "channel" (that is the publication frontend); "network" (the tier above
 
 **Network** (code model & DB table: `Network`):
 A grouping **above Labels** — a parent running several topic-specialised Labels, or a collaboration between Labels. Pure grouping for browsing/affiliation.
+_Avoid_: using "Network" for person-to-person ties — those are **Connections** (see below). The person detail tab is "Connections", not "Network".
+
+### Connections & relationships (added 2026-06-28)
+
+**Reference** (code model & DB table: `PersonRef`):
+A person **referenced but not yet curated** as a full `Person` — the "ghost" register. Carries a name, optional thumbnail, and an **optional unique ICG-ID** (import co-models have one; a non-industry personal contact, e.g. a sister, may be name-only). Mentions (import co-models, staged-set participants) resolve to a Reference; when a `Person` later appears with the ref's ICG-ID the ref's edges **repoint and the ref is retired** (`reconcilePersonRefs`, keyed by exact ICG-ID — never fuzzy). Keeps the curated `Person` space industry-only despite high reference volume.
+_Avoid_: "stub person" / treating a Reference as a `Person`; "candidate" (that means a duplicate/archive match).
+
+**Connection** (the person detail **tab**; data spans three sources):
+How a Person relates to others. Three distinct kinds, deliberately modelled apart:
+- **Held co-occurrence** — people who actually share a held Set/Session. **Computed** live (not stored), ranked by shared-set count.
+- **Claimed collaboration** (code model & DB table: `ClaimedCollaboration`): a **stored "worked-with" assertion** from an import file (subject Person → a Person or a Reference), surviving even when no held Set proves it (the claimed-vs-held gap, mirroring the Career tab).
+- **Relationship** (code model & DB table: `PersonRelationship`): a **hand-asserted, curated** personal/professional tie (sister, spouse, mentor), typed by a `RelationshipRole`.
+_Avoid_: storing co-occurrence as rows (it's derived); folding claims into curated Relationships.
+
+**Relationship role** (code model & DB table: `RelationshipRole`):
+The controlled vocabulary for curated Relationships: `name`, `inverseName`, `isSymmetric`, `category`. The role is stored once on the directed edge (`personId → toPerson`/`toRef`); the **inverse** renders on the counterpart's page (Parent↔Child, Sibling↔Sibling, Mentor↔Mentee). Time-bound via `RelationshipEvent`.
 
 **Evidence vs. hard link** (production attribution is soft, with one denormalized owner):
 Publication is hard-wired onto the Set (`Set.channelId`); **production grouping is softer**. A Channel's **owning Label** is the denormalized FK **`Channel.labelId`** (ADR-0020) — the deterministic owner used by archive matching, dedup, and the set-merge guard. Behind it, `ChannelLabelMap` (M:N, `confidence`) is the full channel↔label association table (owner row at conf 1.0 + any secondary/cross-label evidence); Set↔Label is `SetLabelEvidence` (M:N, `confidence`, `EvidenceType`); the only *hard* production link is `Session.labelId`. There is no hard `Set.labelId` — a Set's producing Label is reached via its Channel's owner FK or its Session.

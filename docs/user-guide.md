@@ -103,6 +103,26 @@ When grouping is active, up to 500 persons are loaded at once. Each section head
 
 **Pagination:** 50 persons per page in ungrouped mode. Click "Load more" to fetch additional results (up to 500).
 
+### References (people not yet added)
+
+Import files list co-models (people the subject has worked with) and staged sets list their
+participants — often people who **aren't in your database yet**. Rather than forcing you to
+create a full profile for each, Pulseboard records them as lightweight **References** (the
+"ghost" register), keyed by ICG-ID.
+
+- **Where:** the **References** link (with a count) on the `/people` header → `/people/references`.
+- **Each row** shows the name, ICG-ID, how many times the person is referenced, and who
+  references them (e.g. "with Cara Mell").
+- **Resolve a reference:**
+  - **Add as Person** — creates a real Person from the reference (prefilled by ICG-ID); the
+    reference is then absorbed automatically and any recorded links repoint to the new person.
+    (Only available when the reference has an ICG-ID.)
+  - **Link…** — attach the reference to an **existing** person (for a name-only contact, or
+    when the reference is really someone you already have).
+  - **Ignore** — hide a reference you don't intend to add (reversible via **Show ignored** → Restore).
+- **Automatic absorption:** whenever you add or import a person whose ICG-ID matches a
+  reference, that reference is retired and its links move onto the real person — no manual step.
+
 ### Watchlist
 
 Mark people you need to **actively monitor for new sets to import**. This is independent of

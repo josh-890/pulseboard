@@ -1,7 +1,7 @@
 import { withTenantFromHeaders } from "@/lib/tenant-context";
 import { Suspense } from "react";
 import Link from "next/link";
-import { Sparkles, Users } from "lucide-react";
+import { Sparkles, Users, Users2 } from "lucide-react";
 import {
   getPersonsPaginated,
   getDistinctNaturalHairColors,
@@ -13,6 +13,7 @@ import type { PersonSort } from "@/lib/services/person-service";
 import { getHeadshotsForPersons } from "@/lib/services/media-service";
 import { getAllPhysicalAttributeGroups } from "@/lib/services/physical-attribute-catalog-service";
 import { getProfileCategories } from "@/lib/services/category-service";
+import { countActivePersonReferences } from "@/lib/services/relationship-service";
 import type { PersonStatus } from "@/lib/types";
 import { PersonList } from "@/components/people/person-list";
 import { BrowserToolbar } from "@/components/shared/browser-toolbar";
@@ -173,7 +174,7 @@ export default async function PeoplePage({ searchParams }: PeoplePageProps) {
 
   const parsedSlot = slotParam ? parseInt(slotParam, 10) : undefined;
 
-  const [paginated, hairColors, bodyTypes, ethnicities, profileFramings, facetCounts, attributeGroups] = await Promise.all([
+  const [paginated, hairColors, bodyTypes, ethnicities, profileFramings, facetCounts, attributeGroups, referenceCount] = await Promise.all([
     getPersonsPaginated(filters, undefined, limit),
     getDistinctNaturalHairColors(),
     getDistinctBodyTypes(),
@@ -181,6 +182,7 @@ export default async function PeoplePage({ searchParams }: PeoplePageProps) {
     getProfileCategories(),
     getPersonFacetCounts(filters),
     getAllPhysicalAttributeGroups(),
+    countActivePersonReferences(),
   ]);
 
   // A non-default (non-avatar-source) Profile framing selected for the card photos;
@@ -330,6 +332,18 @@ export default async function PeoplePage({ searchParams }: PeoplePageProps) {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <Link
+            href="/people/references"
+            className="inline-flex items-center gap-1 rounded-md border border-white/20 bg-card/50 px-3 py-1.5 text-xs text-muted-foreground hover:bg-card/80 hover:text-foreground"
+          >
+            <Users2 size={12} />
+            References
+            {referenceCount > 0 && (
+              <span className="ml-0.5 rounded-full bg-muted/70 px-1.5 text-[10px] font-medium tabular-nums">
+                {referenceCount}
+              </span>
+            )}
+          </Link>
           <Link
             href="/people?mode=advanced"
             className="inline-flex items-center gap-1 rounded-md border border-blue-500/30 bg-blue-500/10 px-3 py-1.5 text-xs text-blue-700 dark:text-blue-300 hover:bg-blue-500/20"

@@ -1,0 +1,218 @@
+"use client";
+
+import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
+import { UserPlus, Link2, EyeOff, Eye, Search } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
+import type { PersonReferenceRow } from "@/lib/services/relationship-service";
+import {
+  addPersonFromReferenceAction,
+  linkReferenceAction,
+  ignoreReferenceAction,
+} from "@/lib/actions/reference-actions";
+
+type ReferencesWorkspaceProps = { rows: PersonReferenceRow[] };
+
+export function ReferencesWorkspace({ rows }: ReferencesWorkspaceProps) {
+  if (rows.length === 0) {
+    return (
+      <div className="rounded-xl border border-white/15 bg-card/40 p-10 text-center text-sm text-muted-foreground">
+        No references. People mentioned on imports or staged sets but not yet added will appear here.
+      </div>
+    );
+  }
+
+  return (
+    <ul className="space-y-2">
+      {rows.map((row) => (
+        <ReferenceRow key={row.id} row={row} />
+      ))}
+    </ul>
+  );
+}
+
+function ReferenceRow({ row }: { row: PersonReferenceRow }) {
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
+  const initials = row.name.charAt(0).toUpperCase();
+
+  function handleAdd() {
+    startTransition(async () => {
+      const res = await addPersonFromReferenceAction(row.id);
+      if (res.success) {
+        toast.success(`Added ${row.name} as a person`);
+        router.push(`/people/${res.id}`);
+      } else {
+        const msg =
+          typeof res.error === "string"
+            ? res.error
+            : Object.values(res.error.fieldErrors ?? {})[0]?.[0] ?? "Could not add person";
+        toast.error(msg);
+      }
+    });
+  }
+
+  function handleLink(personId: string) {
+    startTransition(async () => {
+      const res = await linkReferenceAction(row.id, personId);
+      if (res.success) {
+        toast.success(`Linked ${row.name}`);
+        router.refresh();
+      } else {
+        toast.error(res.error ?? "Could not link");
+      }
+    });
+  }
+
+  function handleIgnore(ignored: boolean) {
+    startTransition(async () => {
+      const res = await ignoreReferenceAction(row.id, ignored);
+      if (res.success) {
+        toast.success(ignored ? "Reference ignored" : "Reference restored");
+        router.refresh();
+      } else {
+        toast.error(res.error ?? "Could not update");
+      }
+    });
+  }
+
+  return (
+    <li
+      className={cn(
+        "flex items-center gap-3 rounded-xl border border-dashed border-white/25 bg-card/30 p-3 transition-opacity",
+        row.ignoredAt && "opacity-50",
+        isPending && "pointer-events-none opacity-60",
+      )}
+    >
+      {/* Outlined avatar signals "ghost / not yet a Person" */}
+      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-dashed border-white/30 text-sm font-bold text-muted-foreground">
+        {initials}
+      </div>
+
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2">
+          <p className="truncate text-sm font-medium">{row.name}</p>
+          {row.icgId && (
+            <span className="shrink-0 rounded bg-muted/50 px-1.5 py-0.5 text-[10px] font-mono text-muted-foreground">
+              {row.icgId}
+            </span>
+          )}
+        </div>
+        <p className="truncate text-xs text-muted-foreground">
+          {row.referenceCount} {row.referenceCount === 1 ? "reference" : "references"}
+          {row.claimCount > 0 && ` · ${row.claimCount} claimed`}
+          {row.relationshipCount > 0 && ` · ${row.relationshipCount} relationship${row.relationshipCount === 1 ? "" : "s"}`}
+          {row.subjects.length > 0 && ` · with ${row.subjects.slice(0, 3).join(", ")}`}
+        </p>
+      </div>
+
+      <div className="flex shrink-0 items-center gap-1.5">
+        {row.icgId && (
+          <Button size="sm" variant="outline" className="h-8 gap-1.5 text-xs" onClick={handleAdd} disabled={isPending}>
+            <UserPlus size={13} /> Add as Person
+          </Button>
+        )}
+        <LinkPicker onPick={handleLink} disabled={isPending} />
+        {row.ignoredAt ? (
+          <Button size="sm" variant="ghost" className="h-8 gap-1.5 text-xs" onClick={() => handleIgnore(false)} disabled={isPending}>
+            <Eye size={13} /> Restore
+          </Button>
+        ) : (
+          <Button size="sm" variant="ghost" className="h-8 gap-1.5 text-xs text-muted-foreground" onClick={() => handleIgnore(true)} disabled={isPending}>
+            <EyeOff size={13} /> Ignore
+          </Button>
+        )}
+      </div>
+    </li>
+  );
+}
+
+type PersonHit = { id: string; displayName: string; icgId: string; matchedAlias: string | null };
+
+function LinkPicker({ onPick, disabled }: { onPick: (personId: string) => void; disabled?: boolean }) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState<PersonHit[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  async function runSearch(q: string) {
+    setQuery(q);
+    if (!q.trim()) {
+      setResults([]);
+      return;
+    }
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/people/search?q=${encodeURIComponent(q.trim())}`);
+      const data = (await res.json()) as PersonHit[];
+      setResults(Array.isArray(data) ? data : []);
+    } catch {
+      setResults([]);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <Popover
+      open={open}
+      onOpenChange={(v) => {
+        setOpen(v);
+        if (!v) {
+          setQuery("");
+          setResults([]);
+        }
+      }}
+    >
+      <PopoverTrigger asChild>
+        <Button size="sm" variant="outline" className="h-8 gap-1.5 text-xs" disabled={disabled}>
+          <Link2 size={13} /> Link…
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-[280px] p-0" align="end">
+        <div className="border-b p-2">
+          <div className="relative">
+            <Search size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <input
+              autoFocus
+              type="text"
+              value={query}
+              onChange={(e) => runSearch(e.target.value)}
+              placeholder="Search existing people…"
+              className="w-full rounded-md border border-input bg-background py-1.5 pl-7 pr-2 text-xs ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            />
+          </div>
+        </div>
+        <div className="max-h-[220px] overflow-y-auto">
+          {loading && <p className="px-3 py-2 text-xs text-muted-foreground">Searching…</p>}
+          {!loading && query && results.length === 0 && (
+            <p className="px-3 py-2 text-xs text-muted-foreground">No people found.</p>
+          )}
+          {!loading && !query && (
+            <p className="px-3 py-2 text-xs text-muted-foreground">Type to search…</p>
+          )}
+          {results.map((r) => (
+            <button
+              key={r.id}
+              type="button"
+              onClick={() => {
+                onPick(r.id);
+                setOpen(false);
+              }}
+              className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs transition-colors hover:bg-muted/50"
+            >
+              <span className="flex-1 truncate">
+                {r.displayName}
+                {r.matchedAlias && <span className="text-muted-foreground"> (a.k.a. {r.matchedAlias})</span>}
+              </span>
+              <span className="shrink-0 font-mono text-[10px] text-muted-foreground">{r.icgId}</span>
+            </button>
+          ))}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
