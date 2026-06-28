@@ -1,4 +1,6 @@
 import { prisma } from "@/lib/db";
+import { normalizeForSearch } from "@/lib/normalize";
+import type { RelationshipType } from "@/generated/prisma/client";
 import type { TxClient } from "./cascade-helpers";
 
 // ── Held work co-occurrence ─────────────────────────────────────────────────
@@ -62,6 +64,160 @@ export async function getPersonCoOccurrence(personId: string): Promise<PersonCoO
       sharedSetCount: e.sets.size,
     }))
     .sort((a, b) => b.sharedSetCount - a.sharedSetCount);
+}
+
+// ── Connections tab data ─────────────────────────────────────────────────────
+
+export type ConnectionCounterpart =
+  | { kind: "person"; id: string; name: string; icgId: string | null }
+  | { kind: "ref"; id: string; name: string; icgId: string | null };
+
+export type PersonalRelationshipRow = {
+  id: string;
+  roleLabel: string; // role.name from this person's side, role.inverseName from the other
+  category: RelationshipType;
+  counterpart: ConnectionCounterpart;
+  note: string | null;
+};
+
+export type ClaimedRow = {
+  id: string;
+  counterpart: ConnectionCounterpart;
+  direction: "outgoing" | "incoming"; // this person claimed it / someone claimed it about them
+};
+
+export type ConnectionsData = {
+  personal: PersonalRelationshipRow[];
+  workHeld: PersonCoOccurrence[];
+  claimed: ClaimedRow[];
+};
+
+type PersonLite = {
+  id: string;
+  icgId: string;
+  aliases: { name: string }[];
+};
+function personCounterpart(p: PersonLite): ConnectionCounterpart {
+  return { kind: "person", id: p.id, name: p.aliases[0]?.name ?? p.icgId, icgId: p.icgId };
+}
+function refCounterpart(r: { id: string; name: string; icgId: string | null }): ConnectionCounterpart {
+  return { kind: "ref", id: r.id, name: r.name, icgId: r.icgId };
+}
+
+export async function getConnectionsForPerson(personId: string): Promise<ConnectionsData> {
+  const personSelect = {
+    id: true,
+    icgId: true,
+    aliases: { where: { isCommon: true }, take: 1, select: { name: true } },
+  } as const;
+
+  const [rels, claimsOut, claimsIn, workHeld] = await Promise.all([
+    prisma.personRelationship.findMany({
+      where: { OR: [{ personId }, { toPersonId: personId }] },
+      include: {
+        role: true,
+        person: { select: personSelect },
+        toPerson: { select: personSelect },
+        toRef: { select: { id: true, name: true, icgId: true } },
+      },
+    }),
+    prisma.claimedCollaboration.findMany({
+      where: { subjectPersonId: personId },
+      include: { counterpartPerson: { select: personSelect }, counterpartRef: { select: { id: true, name: true, icgId: true } } },
+    }),
+    prisma.claimedCollaboration.findMany({
+      where: { counterpartPersonId: personId },
+      include: { subjectPerson: { select: personSelect } },
+    }),
+    getPersonCoOccurrence(personId),
+  ]);
+
+  const personal: PersonalRelationshipRow[] = rels.map((r) => {
+    const isFrom = r.personId === personId;
+    const counterpart: ConnectionCounterpart = isFrom
+      ? r.toPerson
+        ? personCounterpart(r.toPerson)
+        : refCounterpart(r.toRef!)
+      : personCounterpart(r.person);
+    return {
+      id: r.id,
+      roleLabel: isFrom ? r.role.name : r.role.inverseName,
+      category: r.role.category,
+      counterpart,
+      note: r.label ?? r.context,
+    };
+  });
+
+  const claimed: ClaimedRow[] = [
+    ...claimsOut.map((c): ClaimedRow => ({
+      id: c.id,
+      direction: "outgoing",
+      counterpart: c.counterpartPerson
+        ? personCounterpart(c.counterpartPerson)
+        : refCounterpart(c.counterpartRef!),
+    })),
+    ...claimsIn.map((c): ClaimedRow => ({
+      id: c.id,
+      direction: "incoming",
+      counterpart: personCounterpart(c.subjectPerson),
+    })),
+  ];
+
+  return { personal, workHeld, claimed };
+}
+
+export async function getRelationshipRoles() {
+  return prisma.relationshipRole.findMany({ orderBy: { sortOrder: "asc" } });
+}
+
+// ── Relationship authoring ───────────────────────────────────────────────────
+
+export type CreateRelationshipInput = {
+  personId: string;
+  roleId: string;
+  /** Exactly one of these three identifies the counterpart. */
+  counterpartPersonId?: string;
+  counterpartRefId?: string;
+  newRefName?: string; // create a name-only PersonRef (e.g. a non-industry contact)
+  note?: string;
+};
+
+export async function createRelationship(input: CreateRelationshipInput): Promise<{ id: string }> {
+  return prisma.$transaction(async (tx) => {
+    const toPersonId = input.counterpartPersonId ?? null;
+    let toRefId = input.counterpartRefId ?? null;
+
+    if (!toPersonId && !toRefId && input.newRefName?.trim()) {
+      const name = input.newRefName.trim();
+      const ref = await tx.personRef.create({
+        data: { name, nameNorm: normalizeForSearch(name), source: "manual" },
+      });
+      toRefId = ref.id;
+    }
+    if (!toPersonId && !toRefId) throw new Error("No counterpart specified");
+    if (toPersonId && toPersonId === input.personId) {
+      throw new Error("A person cannot be related to themselves");
+    }
+
+    const rel = await tx.personRelationship.create({
+      data: {
+        personId: input.personId,
+        toPersonId,
+        toRefId,
+        roleId: input.roleId,
+        source: "manual",
+        label: input.note?.trim() || null,
+      },
+    });
+    return { id: rel.id };
+  });
+}
+
+export async function deleteRelationship(id: string): Promise<void> {
+  await prisma.$transaction(async (tx) => {
+    await tx.relationshipEvent.deleteMany({ where: { relationshipId: id } });
+    await tx.personRelationship.delete({ where: { id } });
+  });
 }
 
 // ── References register ──────────────────────────────────────────────────────

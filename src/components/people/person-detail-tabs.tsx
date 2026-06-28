@@ -8,14 +8,15 @@ import type {
   PersonCurrentState,
   PersonWorkHistoryItem,
   PersonAffiliation,
-  PersonConnection,
   PersonSessionWorkEntry,
   PersonProductionSession,
   PersonDigitalIdentityItem,
   PersonStatus,
-  RelationshipSource,
   StagingWorkHistoryItem,
 } from "@/lib/types";
+import type { ConnectionsData } from "@/lib/services/relationship-service";
+import type { RelationshipRole } from "@/generated/prisma/client";
+import { ConnectionsTab } from "@/components/people/connections-tab";
 import { useHeroLayout, type HeroLayout } from "@/components/layout/hero-layout-provider";
 import { FlagImage } from "@/components/shared/flag-image";
 import { findCountryByCode } from "@/lib/constants/countries";
@@ -30,7 +31,6 @@ import {
   BookUser,
   Users,
   Film,
-  MapPin,
   Tag,
   Building2,
   Camera,
@@ -96,7 +96,8 @@ type PersonDetailTabsProps = {
   currentState: PersonCurrentState;
   workHistory: PersonWorkHistoryItem[];
   affiliations: PersonAffiliation[];
-  connections: PersonConnection[];
+  connections: ConnectionsData;
+  relationshipRoles: RelationshipRole[];
   photos: GalleryItem[];
   referenceSessionId?: string;
   heroLead?: HeroLead | null;
@@ -160,11 +161,6 @@ type HeroAliasSummary = {
   isBirth: boolean;
   usageCount: number;
   channelNames: string[];
-};
-
-const SOURCE_STYLES: Record<RelationshipSource, string> = {
-  derived: "bg-slate-500/15 text-slate-500 border-slate-500/30",
-  manual: "bg-primary/15 text-primary border-primary/30",
 };
 
 // ── Sub-components ──────────────────────────────────────────────────────────
@@ -1614,65 +1610,6 @@ function OverviewTab({
 // Staged Sets as separate sections); the new unified-timeline design lives
 // in the dedicated module so it can be co-evolved without bloating this file.
 
-// ── Network Tab ──────────────────────────────────────────────────────────────
-
-function NetworkTab({ connections }: { connections: PersonConnection[] }) {
-  return (
-    <SectionCard
-      title="Connections"
-      icon={<MapPin size={18} />}
-      badge={connections.length}
-    >
-      {connections.length === 0 ? (
-        <EmptyState message="No connections recorded." />
-      ) : (
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-          {connections.map((conn) => {
-            const displayName = conn.commonAlias ?? conn.icgId;
-            const initials = conn.commonAlias
-              ? conn.commonAlias.charAt(0).toUpperCase()
-              : conn.icgId.charAt(0).toUpperCase();
-            return (
-              <Link
-                key={conn.personId}
-                href={`/people/${conn.personId}`}
-                className="group flex items-center gap-3 rounded-xl border border-white/15 bg-card/40 p-3 transition-all hover:border-white/25 hover:bg-card/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              >
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
-                  {initials}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium group-hover:text-primary">
-                    {displayName}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    {conn.sharedSetCount} shared {conn.sharedSetCount === 1 ? "set" : "sets"}
-                  </p>
-                </div>
-                <div className="flex flex-col items-end gap-1">
-                  <span
-                    className={cn(
-                      "inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium",
-                      SOURCE_STYLES[conn.source],
-                    )}
-                  >
-                    {conn.source}
-                  </span>
-                  {conn.label && (
-                    <span className="text-xs text-muted-foreground/70 italic">
-                      {conn.label}
-                    </span>
-                  )}
-                </div>
-              </Link>
-            );
-          })}
-        </div>
-      )}
-    </SectionCard>
-  );
-}
-
 // ── Photos Tab ───────────────────────────────────────────────────────────────
 
 function PhotosTab({
@@ -1838,6 +1775,7 @@ export function PersonDetailTabs({
   workHistory,
   affiliations,
   connections,
+  relationshipRoles,
   photos,
   referenceSessionId,
   heroLead,
@@ -1957,7 +1895,7 @@ export function PersonDetailTabs({
       : []),
     { id: "skills" as TabId, label: "Skills", badge: currentState.activeSkills.length || undefined, icon: <Zap size={14} /> },
     { id: "career", label: "Career", badge: ((sessionWorkHistory?.length ?? workHistory.length) + stagingWorkHistory.length) || undefined, icon: <Briefcase size={14} /> },
-    { id: "network", label: "Network", badge: connections.length || undefined, icon: <Users size={14} /> },
+    { id: "network", label: "Connections", badge: (connections.personal.length + connections.workHeld.length + connections.claimed.length) || undefined, icon: <Users size={14} /> },
     { id: "photos", label: "Photos", badge: (photos.length + (productionSessions?.reduce((sum, s) => sum + s.mediaCount, 0) ?? 0)) || undefined, icon: <ImageIcon size={14} /> },
     { id: "research" as TabId, label: "Research", badge: researchEntries.length || undefined, icon: <ScrollText size={14} /> },
   ];
@@ -1977,7 +1915,7 @@ export function PersonDetailTabs({
           sets: sessionWorkHistory?.length ?? workHistory.length,
           labels: affiliations.length,
           photos: photos.length + (productionSessions?.reduce((sum, s) => sum + s.mediaCount, 0) ?? 0),
-          connections: connections.length,
+          connections: connections.personal.length + connections.workHeld.length + connections.claimed.length,
         }}
         earliestSessionYear={earliestSessionYear}
         onAliasesBadgeClick={handleAliasesBadgeClick}
@@ -2149,7 +2087,9 @@ export function PersonDetailTabs({
         aria-labelledby="tab-network"
         hidden={activeTab !== "network"}
       >
-        {activeTab === "network" && <NetworkTab connections={connections} />}
+        {activeTab === "network" && (
+          <ConnectionsTab data={connections} personId={person.id} roles={relationshipRoles} />
+        )}
       </div>
       <div
         id="tabpanel-photos"

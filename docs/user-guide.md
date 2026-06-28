@@ -362,10 +362,18 @@ Only photos from the person's reference session can be embedded — external URL
   searchParams (`channel`, `crating`, `era`, `archive`, `clabel`,
   `csort`)
 
-**Network**
-- Relationships with other people
-- Types: professional, personal, familial, other
-- Events timeline (started, married, separated, etc.)
+**Connections** (formerly "Network")
+How this person relates to others, in three sections:
+- **Personal relationships** — hand-recorded ties (sister, spouse, partner, friend, mentor…).
+  Click **Add**, pick a role and the other person (search existing people, or type a name to
+  add a **new contact** as a reference), optionally a note. The role's **inverse** shows on the
+  other person's page (e.g. Parent here → Child there). Remove with the trash icon on hover.
+- **Work — held together** — people who actually share a set with this person, ranked by shared-set
+  count (computed automatically; nothing to maintain).
+- **Claimed collaborations** — "worked with" assertions pulled from import files, even when you
+  hold no set proving it. People not yet added show as outlined **reference** chips.
+
+(Not to be confused with the sidebar **Networks**, which groups Labels — a different concept.)
 
 **Photos**
 - Justified grid gallery of all reference media

@@ -5,7 +5,6 @@ import { BrowseNavBar, BrowseBackLink } from "@/components/people/browse-nav-bar
 import {
   getPersonWithDetails,
   getPersonWorkHistory,
-  getPersonConnections,
   getPersonSessionWorkHistory,
   getPersonProductionSessions,
   deriveCurrentState,
@@ -34,6 +33,7 @@ import {
   type CareerArchiveStatusBucket,
 } from "@/lib/services/career-service";
 import { PersonDetailTabs } from "@/components/people/person-detail-tabs";
+import { getConnectionsForPerson, getRelationshipRoles } from "@/lib/services/relationship-service";
 import { computePlausibilityIssues } from "@/lib/services/plausibility-service";
 import { EditPersonSheet } from "@/components/people/edit-person-sheet";
 import { PersonActionsMenu } from "@/components/people/person-actions-menu";
@@ -109,11 +109,12 @@ export default async function PersonDetailPage({ params, searchParams }: PersonD
   // Ensure system entity categories exist before loading category data
   await ensureEntityCategories();
 
-  const [person, workHistory, connections, refSession, categoryGroups, populatedCounts, skillGroups, skillLevelConfigs, aliasesWithChannels, sessionWorkHistory, productionSessions, entityMediaMap, physicalAttributeGroups, personEntityTags, digitalIdentities, researchEntries, stagingWorkHistory, eraContributionsMap, careerTimeline, careerStats, careerFacetCounts, careerChannels, careerEras] =
+  const [person, workHistory, connectionsData, relationshipRoles, refSession, categoryGroups, populatedCounts, skillGroups, skillLevelConfigs, aliasesWithChannels, sessionWorkHistory, productionSessions, entityMediaMap, physicalAttributeGroups, personEntityTags, digitalIdentities, researchEntries, stagingWorkHistory, eraContributionsMap, careerTimeline, careerStats, careerFacetCounts, careerChannels, careerEras] =
     await Promise.all([
       getPersonWithDetails(id),
       getPersonWorkHistory(id),
-      getPersonConnections(id),
+      getConnectionsForPerson(id),
+      getRelationshipRoles(),
       getPersonReferenceSession(id),
       getAllCategoryGroups(),
       getPopulatedCategoriesForPerson(id),
@@ -247,7 +248,8 @@ export default async function PersonDetailPage({ params, searchParams }: PersonD
         currentState={currentState}
         workHistory={workHistory}
         affiliations={affiliations}
-        connections={connections}
+        connections={connectionsData}
+        relationshipRoles={relationshipRoles}
         photos={galleryItems}
         referenceSessionId={refSession?.id}
         refMediaCount={refSession?._count.mediaItems ?? 0}
