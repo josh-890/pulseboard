@@ -1540,12 +1540,14 @@ export async function importCoModel(item: ImportItem): Promise<ImportResult> {
   }
 }
 
-// Import every not-yet-imported co-model in the batch. Called automatically at
-// the end of person import so co-models need no manual step — matched co-models
-// record a claim to the existing person; unmatched ones become Contacts. Each
+// Import every not-yet-imported co-model in the batch — matched co-models record
+// a claim to the existing person; unmatched ones become Contacts. Each
 // importCoModel is self-contained (re-looks-up the subject person), so a single
-// failure is logged and skipped rather than aborting the person import.
-async function autoImportBatchCoModels(batchId: string): Promise<void> {
+// failure is logged and skipped. Called two ways: automatically at the end of
+// person import (ride-along for a brand-new subject), and at parse time from the
+// upload route when the subject Person already exists (re-imports) so co-model
+// Contacts + claims populate immediately, ungated by the attribute review.
+export async function autoImportBatchCoModels(batchId: string): Promise<void> {
   const coModels = await prisma.importItem.findMany({
     where: { batchId, type: 'CO_MODEL', status: { not: 'IMPORTED' } },
   })

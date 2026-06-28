@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { withTenantFromHeaders } from '@/lib/tenant-context'
+import { prisma } from '@/lib/db'
 import { createBatch } from '@/lib/services/import/staging-service'
+import { autoImportBatchCoModels } from '@/lib/services/import/import-executor'
 
 export async function POST(request: Request) {
   return withTenantFromHeaders(async () => {
@@ -24,6 +26,20 @@ export async function POST(request: Request) {
       }
 
       const batch = await createBatch(file.name, rawContent)
+
+      // Co-models (Contacts + claimed collaborations) populate at parse time when
+      // the subject Person already exists — i.e. every re-import — so they are not
+      // gated behind the ADR-0009 attribute review. For a brand-new subject the
+      // person doesn't exist yet, so co-models ride along with the person import
+      // instead (handled inside importPerson). Idempotent: a later person import
+      // re-runs this and skips already-imported co-models.
+      if (batch.subjectIcgId) {
+        const subject = await prisma.person.findUnique({
+          where: { icgId: batch.subjectIcgId },
+          select: { id: true },
+        })
+        if (subject) await autoImportBatchCoModels(batch.id)
+      }
 
       return NextResponse.json({
         id: batch.id,
