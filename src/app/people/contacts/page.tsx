@@ -13,7 +13,7 @@ import { ContactsWorkspace } from "@/components/people/contacts-workspace";
 
 export const dynamic = "force-dynamic";
 
-const VALID_SORTS = new Set<string>(["count", "name"]);
+const VALID_SORTS = new Set<string>(["unlocks", "count", "name"]);
 
 type ContactsPageProps = {
   searchParams: Promise<{ q?: string; sort?: string; ignored?: string }>;
@@ -24,7 +24,7 @@ export default async function ContactsPage({ searchParams }: ContactsPageProps) 
     const sp = await searchParams;
     const q = sp.q?.trim() || undefined;
     const includeIgnored = sp.ignored === "true";
-    const sort = (sp.sort && VALID_SORTS.has(sp.sort) ? sp.sort : "count") as ContactSort;
+    const sort = (sp.sort && VALID_SORTS.has(sp.sort) ? sp.sort : "unlocks") as ContactSort;
 
     const rows = await getContacts({ q, includeIgnored, sort });
 
@@ -32,10 +32,11 @@ export default async function ContactsPage({ searchParams }: ContactsPageProps) 
       basePath: "/people/contacts",
       searchPlaceholder: "Search contacts…",
       sortOptions: [
+        { value: "unlocks", label: "Unlocks most sets" },
         { value: "count", label: "Most mentioned" },
         { value: "name", label: "Name A–Z" },
       ],
-      defaultSort: "count",
+      defaultSort: "unlocks",
       filterGroups: [{ type: "toggle", param: "ignored", label: "Show ignored" }],
       resultCount: rows.length,
       totalCount: rows.length,

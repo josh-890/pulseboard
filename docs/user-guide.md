@@ -115,6 +115,10 @@ already means the per-person Reference Session.)
   (with a count) on the `/people` header → `/people/contacts`.
 - **Each row** shows the name, ICG-ID, how many times the person is mentioned, and who
   mentions them (e.g. "with Cara Mell").
+- **Prioritise by what they unlock:** the default sort is **"Unlocks most sets"**. A green
+  **"unlocks N sets"** badge counts the **APPROVED, archive-linked** staging sets in which this
+  contact is the **only** participant not yet a Person — i.e. adding them lets you promote that
+  many sets immediately. (Other sorts: Most mentioned, Name A–Z.)
 - **Resolve a contact:**
   - **Add as Person** — creates a real Person from the contact (prefilled by ICG-ID); the
     contact is then absorbed automatically and any recorded links repoint to the new person.

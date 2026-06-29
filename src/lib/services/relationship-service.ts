@@ -232,10 +232,41 @@ export type ContactRow = {
   claimCount: number;
   relationshipCount: number;
   mentionCount: number;
+  // Approved, archive-linked staging sets where THIS contact is the only
+  // not-yet-curated participant — adding it unlocks that many sets for promotion.
+  unlocksSetCount: number;
   subjects: string[]; // sample of subjects who mention this person
 };
 
-export type ContactSort = "count" | "name" | "recent";
+export type ContactSort = "unlocks" | "count" | "name" | "recent";
+
+// Map icgId → number of APPROVED, CONFIRMED-archive-linked staging sets where
+// that icgId is the single participant without a curated Person (the sole
+// blocker to promotion). Participant "known-ness" is derived live from Person,
+// not the (possibly stale) participantStatuses cache.
+async function computeUnlockCounts(): Promise<Map<string, number>> {
+  const sets = await prisma.stagingSet.findMany({
+    where: { status: "APPROVED", archiveLinks: { some: { status: "CONFIRMED" } } },
+    select: { participantIcgIds: true },
+  });
+  if (sets.length === 0) return new Map();
+
+  const allIcgs = [...new Set(sets.flatMap((s) => s.participantIcgIds).filter(Boolean))];
+  const known = new Set(
+    (await prisma.person.findMany({ where: { icgId: { in: allIcgs } }, select: { icgId: true } })).map(
+      (p) => p.icgId,
+    ),
+  );
+
+  const counts = new Map<string, number>();
+  for (const s of sets) {
+    const unknown = [...new Set(s.participantIcgIds.filter(Boolean))].filter((icg) => !known.has(icg));
+    if (unknown.length === 1) {
+      counts.set(unknown[0], (counts.get(unknown[0]) ?? 0) + 1);
+    }
+  }
+  return counts;
+}
 
 export async function getContacts(opts: {
   q?: string;
@@ -282,6 +313,8 @@ export async function getContacts(opts: {
       )
     : new Set<string>();
 
+  const unlockCounts = await computeUnlockCounts();
+
   const rows: ContactRow[] = refs
     .filter((r) => !(r.icgId && takenIcgIds.has(r.icgId)))
     .map((r) => ({
@@ -294,16 +327,22 @@ export async function getContacts(opts: {
       claimCount: r._count.claims,
       relationshipCount: r._count.relationshipsTo,
       mentionCount: r._count.claims + r._count.relationshipsTo,
+      unlocksSetCount: r.icgId ? (unlockCounts.get(r.icgId) ?? 0) : 0,
       subjects: r.claims
         .map((c) => c.subjectPerson.aliases[0]?.name)
         .filter((n): n is string => !!n),
     }));
 
-  const sort = opts.sort ?? "count";
+  const sort = opts.sort ?? "unlocks";
   rows.sort((a, b) => {
     if (sort === "name") return a.name.localeCompare(b.name);
     if (sort === "count") return b.mentionCount - a.mentionCount || a.name.localeCompare(b.name);
-    return 0; // "recent" handled by query order below
+    // "unlocks" (default): sole-blocker sets first, then mentions, then name.
+    return (
+      b.unlocksSetCount - a.unlocksSetCount ||
+      b.mentionCount - a.mentionCount ||
+      a.name.localeCompare(b.name)
+    );
   });
   return rows;
 }
