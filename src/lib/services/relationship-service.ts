@@ -268,20 +268,36 @@ export async function getContacts(opts: {
     },
   });
 
-  const rows: ContactRow[] = refs.map((r) => ({
-    id: r.id,
-    icgId: r.icgId,
-    name: r.name,
-    thumbUrl: r.thumbUrl,
-    note: r.note,
-    ignoredAt: r.ignoredAt,
-    claimCount: r._count.claims,
-    relationshipCount: r._count.relationshipsTo,
-    mentionCount: r._count.claims + r._count.relationshipsTo,
-    subjects: r.claims
-      .map((c) => c.subjectPerson.aliases[0]?.name)
-      .filter((n): n is string => !!n),
-  }));
+  // Defensive: never show a contact whose ICG-ID already belongs to a curated
+  // Person (it should have been reconciled away). Such a row is stale — e.g. a
+  // contact created from staged data before that person was added. Excluding it
+  // here keeps the register clean even if a stray row exists; the reconcile
+  // cleanup (scripts/reconcile-orphan-contacts.ts) removes them for real.
+  const icgIds = refs.map((r) => r.icgId).filter((v): v is string => !!v);
+  const takenIcgIds = icgIds.length
+    ? new Set(
+        (await prisma.person.findMany({ where: { icgId: { in: icgIds } }, select: { icgId: true } })).map(
+          (p) => p.icgId,
+        ),
+      )
+    : new Set<string>();
+
+  const rows: ContactRow[] = refs
+    .filter((r) => !(r.icgId && takenIcgIds.has(r.icgId)))
+    .map((r) => ({
+      id: r.id,
+      icgId: r.icgId,
+      name: r.name,
+      thumbUrl: r.thumbUrl,
+      note: r.note,
+      ignoredAt: r.ignoredAt,
+      claimCount: r._count.claims,
+      relationshipCount: r._count.relationshipsTo,
+      mentionCount: r._count.claims + r._count.relationshipsTo,
+      subjects: r.claims
+        .map((c) => c.subjectPerson.aliases[0]?.name)
+        .filter((n): n is string => !!n),
+    }));
 
   const sort = opts.sort ?? "count";
   rows.sort((a, b) => {
