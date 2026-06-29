@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { UserPlus, Link2, EyeOff, Eye, Search, Unlock } from "lucide-react";
+import { UserPlus, Link2, EyeOff, Eye, Search, Unlock, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
@@ -12,12 +12,54 @@ import {
   addPersonFromContactAction,
   linkContactAction,
   ignoreContactAction,
+  loadMoreContactsAction,
 } from "@/lib/actions/contact-actions";
 
-type ContactsWorkspaceProps = { rows: ContactRow[] };
+type ContactsWorkspaceProps = {
+  head: ContactRow[]; // priority: contacts that unlock approved sets, ranked
+  tail: ContactRow[]; // first page of the name-sorted remainder
+  tailNextOffset: number | null;
+  headIds: string[]; // excluded from the tail; passed back to "load more"
+  q?: string;
+  includeIgnored: boolean;
+};
 
-export function ContactsWorkspace({ rows }: ContactsWorkspaceProps) {
-  if (rows.length === 0) {
+export function ContactsWorkspace({ head, tail, tailNextOffset, headIds, q, includeIgnored }: ContactsWorkspaceProps) {
+  const [tailRows, setTailRows] = useState<ContactRow[]>(tail);
+  const [nextOffset, setNextOffset] = useState<number | null>(tailNextOffset);
+  const [isLoading, startLoad] = useTransition();
+  const sentinelRef = useRef<HTMLDivElement>(null);
+
+  // Re-seed when the server re-renders (e.g. router.refresh after a row action):
+  // collapse back to the fresh first page. (Filter/search changes remount via key.)
+  useEffect(() => { setTailRows(tail); }, [tail]);
+  useEffect(() => { setNextOffset(tailNextOffset); }, [tailNextOffset]);
+
+  const loadMore = useCallback(() => {
+    if (nextOffset == null || isLoading) return;
+    startLoad(async () => {
+      const res = await loadMoreContactsAction({ q, includeIgnored, offset: nextOffset, excludeIds: headIds });
+      setTailRows((prev) => [...prev, ...res.rows]);
+      setNextOffset(res.nextOffset);
+    });
+  }, [nextOffset, isLoading, q, includeIgnored, headIds]);
+
+  // Infinite scroll: load the next page when the sentinel scrolls into view.
+  const loadMoreRef = useRef(loadMore);
+  useEffect(() => {
+    loadMoreRef.current = loadMore;
+  });
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el) return;
+    const obs = new IntersectionObserver((entries) => {
+      if (entries[0].isIntersecting) loadMoreRef.current();
+    });
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, []);
+
+  if (head.length === 0 && tailRows.length === 0) {
     return (
       <div className="rounded-xl border border-white/15 bg-card/40 p-10 text-center text-sm text-muted-foreground">
         No contacts. People mentioned on imports or staged sets but not yet added will appear here.
@@ -26,11 +68,45 @@ export function ContactsWorkspace({ rows }: ContactsWorkspaceProps) {
   }
 
   return (
-    <ul className="space-y-2">
-      {rows.map((row) => (
-        <ContactRowItem key={row.id} row={row} />
-      ))}
-    </ul>
+    <div className="space-y-6">
+      {head.length > 0 && (
+        <section className="space-y-2">
+          <div className="flex items-center gap-2 px-1">
+            <Unlock size={13} className="text-emerald-500" />
+            <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Unlocks approved sets
+            </h2>
+            <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium text-emerald-600 tabular-nums dark:text-emerald-400">
+              {head.length}
+            </span>
+          </div>
+          <ul className="space-y-2">
+            {head.map((row) => (
+              <ContactRowItem key={row.id} row={row} />
+            ))}
+          </ul>
+        </section>
+      )}
+
+      <section className="space-y-2">
+        {head.length > 0 && (
+          <h2 className="px-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">All contacts</h2>
+        )}
+        <ul className="space-y-2">
+          {tailRows.map((row) => (
+            <ContactRowItem key={row.id} row={row} />
+          ))}
+        </ul>
+        {nextOffset != null && (
+          <div ref={sentinelRef} className="flex justify-center py-3">
+            <Button variant="outline" size="sm" className="gap-1.5 text-xs" onClick={loadMore} disabled={isLoading}>
+              {isLoading ? <Loader2 size={13} className="animate-spin" /> : null}
+              Load more
+            </Button>
+          </div>
+        )}
+      </section>
+    </div>
   );
 }
 

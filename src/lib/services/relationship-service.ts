@@ -292,8 +292,6 @@ export type ContactRow = {
   subjects: string[]; // sample of subjects who mention this person
 };
 
-export type ContactSort = "unlocks" | "count" | "name" | "recent";
-
 // Map icgId → number of APPROVED, CONFIRMED-archive-linked staging sets where
 // that icgId is the single participant without a curated Person (the sole
 // blocker to promotion). Participant "known-ness" is derived live from Person,
@@ -322,83 +320,122 @@ async function computeUnlockCounts(): Promise<Map<string, number>> {
   return counts;
 }
 
-export async function getContacts(opts: {
+export const CONTACTS_PAGE_SIZE = 50;
+
+const contactInclude = {
+  _count: { select: { claims: true, relationshipsTo: true } },
+  claims: {
+    take: 3,
+    include: {
+      subjectPerson: { select: { aliases: { where: { isCommon: true }, take: 1, select: { name: true } } } },
+    },
+  },
+} as const;
+
+type ContactWithCounts = {
+  id: string;
+  icgId: string | null;
+  name: string;
+  thumbUrl: string | null;
+  note: string | null;
+  ignoredAt: Date | null;
+  _count: { claims: number; relationshipsTo: number };
+  claims: { subjectPerson: { aliases: { name: string }[] } }[];
+};
+
+function buildContactRow(r: ContactWithCounts, unlock: number): ContactRow {
+  return {
+    id: r.id,
+    icgId: r.icgId,
+    name: r.name,
+    thumbUrl: r.thumbUrl,
+    note: r.note,
+    ignoredAt: r.ignoredAt,
+    claimCount: r._count.claims,
+    relationshipCount: r._count.relationshipsTo,
+    mentionCount: r._count.claims + r._count.relationshipsTo,
+    unlocksSetCount: unlock,
+    subjects: r.claims.map((c) => c.subjectPerson.aliases[0]?.name).filter((n): n is string => !!n),
+  };
+}
+
+// Defensive: drop any contact whose ICG-ID already belongs to a curated Person
+// (a stale orphan that should have been reconciled away). Bounded by the page.
+async function takenIcgIdSet(refs: { icgId: string | null }[]): Promise<Set<string>> {
+  const icgIds = refs.map((r) => r.icgId).filter((v): v is string => !!v);
+  if (!icgIds.length) return new Set();
+  return new Set(
+    (await prisma.person.findMany({ where: { icgId: { in: icgIds } }, select: { icgId: true } })).map((p) => p.icgId),
+  );
+}
+
+function contactSearchWhere(q?: string, includeIgnored?: boolean) {
+  const t = q?.trim();
+  return {
+    ...(includeIgnored ? {} : { ignoredAt: null }),
+    ...(t
+      ? {
+          OR: [
+            { name: { contains: t, mode: "insensitive" as const } },
+            { icgId: { contains: t, mode: "insensitive" as const } },
+          ],
+        }
+      : {}),
+  };
+}
+
+// Priority head: contacts that unlock ≥1 approved+archive set, ranked by impact.
+// Bounded by the staging sets (small), independent of total contact count.
+export async function getUnlockingContacts(opts: { q?: string; includeIgnored?: boolean } = {}): Promise<ContactRow[]> {
+  const unlock = await computeUnlockCounts();
+  if (unlock.size === 0) return [];
+  const refs = await prisma.contact.findMany({
+    where: { ...contactSearchWhere(opts.q, opts.includeIgnored), icgId: { in: [...unlock.keys()] } },
+    include: contactInclude,
+  });
+  const taken = await takenIcgIdSet(refs);
+  return refs
+    .filter((r) => !(r.icgId && taken.has(r.icgId)))
+    .map((r) => buildContactRow(r, r.icgId ? (unlock.get(r.icgId) ?? 0) : 0))
+    .sort(
+      (a, b) =>
+        b.unlocksSetCount - a.unlocksSetCount ||
+        b.mentionCount - a.mentionCount ||
+        a.name.localeCompare(b.name),
+    );
+}
+
+// Paginated tail: all other contacts, name-sorted, server-paginated by offset.
+// `excludeIds` is the priority-head contact ids (excluded by id so name-only
+// contacts — null icgId — are not dropped by an icgId filter).
+export async function getContactsPage(opts: {
   q?: string;
   includeIgnored?: boolean;
-  sort?: ContactSort;
-} = {}): Promise<ContactRow[]> {
-  const q = opts.q?.trim();
-  const refs = await prisma.contact.findMany({
-    where: {
-      ...(opts.includeIgnored ? {} : { ignoredAt: null }),
-      ...(q
-        ? {
-            OR: [
-              { name: { contains: q, mode: "insensitive" } },
-              { icgId: { contains: q, mode: "insensitive" } },
-            ],
-          }
-        : {}),
-    },
-    include: {
-      _count: { select: { claims: true, relationshipsTo: true } },
-      claims: {
-        take: 3,
-        include: {
-          subjectPerson: {
-            select: { aliases: { where: { isCommon: true }, take: 1, select: { name: true } } },
-          },
-        },
-      },
-    },
-  });
-
-  // Defensive: never show a contact whose ICG-ID already belongs to a curated
-  // Person (it should have been reconciled away). Such a row is stale — e.g. a
-  // contact created from staged data before that person was added. Excluding it
-  // here keeps the register clean even if a stray row exists; the reconcile
-  // cleanup (scripts/reconcile-orphan-contacts.ts) removes them for real.
-  const icgIds = refs.map((r) => r.icgId).filter((v): v is string => !!v);
-  const takenIcgIds = icgIds.length
-    ? new Set(
-        (await prisma.person.findMany({ where: { icgId: { in: icgIds } }, select: { icgId: true } })).map(
-          (p) => p.icgId,
-        ),
-      )
-    : new Set<string>();
-
-  const unlockCounts = await computeUnlockCounts();
-
-  const rows: ContactRow[] = refs
-    .filter((r) => !(r.icgId && takenIcgIds.has(r.icgId)))
-    .map((r) => ({
-      id: r.id,
-      icgId: r.icgId,
-      name: r.name,
-      thumbUrl: r.thumbUrl,
-      note: r.note,
-      ignoredAt: r.ignoredAt,
-      claimCount: r._count.claims,
-      relationshipCount: r._count.relationshipsTo,
-      mentionCount: r._count.claims + r._count.relationshipsTo,
-      unlocksSetCount: r.icgId ? (unlockCounts.get(r.icgId) ?? 0) : 0,
-      subjects: r.claims
-        .map((c) => c.subjectPerson.aliases[0]?.name)
-        .filter((n): n is string => !!n),
-    }));
-
-  const sort = opts.sort ?? "unlocks";
-  rows.sort((a, b) => {
-    if (sort === "name") return a.name.localeCompare(b.name);
-    if (sort === "count") return b.mentionCount - a.mentionCount || a.name.localeCompare(b.name);
-    // "unlocks" (default): sole-blocker sets first, then mentions, then name.
-    return (
-      b.unlocksSetCount - a.unlocksSetCount ||
-      b.mentionCount - a.mentionCount ||
-      a.name.localeCompare(b.name)
-    );
-  });
-  return rows;
+  offset?: number;
+  limit?: number;
+  excludeIds?: string[];
+}): Promise<{ rows: ContactRow[]; nextOffset: number | null; total: number }> {
+  const offset = opts.offset ?? 0;
+  const limit = opts.limit ?? CONTACTS_PAGE_SIZE;
+  const where = {
+    ...contactSearchWhere(opts.q, opts.includeIgnored),
+    ...(opts.excludeIds?.length ? { id: { notIn: opts.excludeIds } } : {}),
+  };
+  const [refs, total] = await Promise.all([
+    prisma.contact.findMany({
+      where,
+      include: contactInclude,
+      orderBy: [{ nameNorm: "asc" }, { id: "asc" }],
+      skip: offset,
+      take: limit + 1,
+    }),
+    prisma.contact.count({ where }),
+  ]);
+  const hasMore = refs.length > limit;
+  const pageRefs = hasMore ? refs.slice(0, limit) : refs;
+  const taken = await takenIcgIdSet(pageRefs);
+  const rows = pageRefs.filter((r) => !(r.icgId && taken.has(r.icgId))).map((r) => buildContactRow(r, 0));
+  return { rows, nextOffset: hasMore ? offset + limit : null, total };
 }
 
 export async function countActiveContacts(): Promise<number> {

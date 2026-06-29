@@ -2,8 +2,9 @@ import { withTenantFromHeaders } from "@/lib/tenant-context";
 import { Suspense } from "react";
 import { BookUser } from "lucide-react";
 import {
-  getContacts,
-  type ContactSort,
+  getUnlockingContacts,
+  getContactsPage,
+  CONTACTS_PAGE_SIZE,
 } from "@/lib/services/relationship-service";
 import {
   BrowserToolbar,
@@ -13,10 +14,8 @@ import { ContactsWorkspace } from "@/components/people/contacts-workspace";
 
 export const dynamic = "force-dynamic";
 
-const VALID_SORTS = new Set<string>(["unlocks", "count", "name"]);
-
 type ContactsPageProps = {
-  searchParams: Promise<{ q?: string; sort?: string; ignored?: string }>;
+  searchParams: Promise<{ q?: string; ignored?: string }>;
 };
 
 export default async function ContactsPage({ searchParams }: ContactsPageProps) {
@@ -24,22 +23,21 @@ export default async function ContactsPage({ searchParams }: ContactsPageProps) 
     const sp = await searchParams;
     const q = sp.q?.trim() || undefined;
     const includeIgnored = sp.ignored === "true";
-    const sort = (sp.sort && VALID_SORTS.has(sp.sort) ? sp.sort : "unlocks") as ContactSort;
 
-    const rows = await getContacts({ q, includeIgnored, sort });
+    // Priority head (small, ranked by sets unlocked) + paginated name-sorted tail.
+    const head = await getUnlockingContacts({ q, includeIgnored });
+    const headIds = head.map((r) => r.id);
+    const tail = await getContactsPage({ q, includeIgnored, offset: 0, limit: CONTACTS_PAGE_SIZE, excludeIds: headIds });
+    const total = head.length + tail.total;
 
     const toolbarConfig: BrowserToolbarConfig = {
       basePath: "/people/contacts",
       searchPlaceholder: "Search contacts…",
-      sortOptions: [
-        { value: "unlocks", label: "Unlocks most sets" },
-        { value: "count", label: "Most mentioned" },
-        { value: "name", label: "Name A–Z" },
-      ],
-      defaultSort: "unlocks",
+      sortOptions: [{ value: "name", label: "Name A–Z" }],
+      defaultSort: "name",
       filterGroups: [{ type: "toggle", param: "ignored", label: "Show ignored" }],
-      resultCount: rows.length,
-      totalCount: rows.length,
+      resultCount: head.length + tail.rows.length,
+      totalCount: total,
     };
 
     return (
@@ -51,8 +49,8 @@ export default async function ContactsPage({ searchParams }: ContactsPageProps) 
           <div>
             <h1 className="text-2xl font-bold leading-tight">Contacts</h1>
             <p className="text-sm text-muted-foreground">
-              <span className="font-medium text-foreground tabular-nums">{rows.length}</span>{" "}
-              {rows.length === 1 ? "contact" : "contacts"} — mentioned on imports or sets but not yet added; resolve into Persons or link to existing ones
+              <span className="font-medium text-foreground tabular-nums">{total}</span>{" "}
+              {total === 1 ? "contact" : "contacts"} — mentioned on imports or sets but not yet added; resolve into Persons or link to existing ones
             </p>
           </div>
         </div>
@@ -61,7 +59,15 @@ export default async function ContactsPage({ searchParams }: ContactsPageProps) 
           <BrowserToolbar config={toolbarConfig} />
         </Suspense>
 
-        <ContactsWorkspace rows={rows} />
+        <ContactsWorkspace
+          key={`${q ?? ""}|${includeIgnored}`}
+          head={head}
+          tail={tail.rows}
+          tailNextOffset={tail.nextOffset}
+          headIds={headIds}
+          q={q}
+          includeIgnored={includeIgnored}
+        />
       </div>
     );
   });

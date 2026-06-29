@@ -5,8 +5,25 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { createPersonSchema } from "@/lib/validations/person";
 import { createPersonRecord } from "@/lib/services/person-service";
-import { linkContactToPerson, setContactIgnored } from "@/lib/services/relationship-service";
+import { linkContactToPerson, setContactIgnored, getContactsPage } from "@/lib/services/relationship-service";
 import type { CrudActionResult, SimpleActionResult } from "@/lib/types";
+
+// Infinite-scroll "load more" for the paginated tail of the Contacts register.
+export async function loadMoreContactsAction(input: {
+  q?: string;
+  includeIgnored?: boolean;
+  offset: number;
+  excludeIds: string[];
+}) {
+  return withTenantFromHeaders(() =>
+    getContactsPage({
+      q: input.q,
+      includeIgnored: input.includeIgnored,
+      offset: input.offset,
+      excludeIds: input.excludeIds,
+    }),
+  );
+}
 
 function revalidateContacts() {
   revalidatePath("/people/contacts");
