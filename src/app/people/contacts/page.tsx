@@ -50,7 +50,8 @@ export default async function ContactsPage({ searchParams }: ContactsPageProps) 
           <div>
             <h1 className="text-2xl font-bold leading-tight">Contacts</h1>
             <p className="text-sm text-muted-foreground">
-              People mentioned on imports or sets but not yet added — resolve them into Persons or link to existing ones
+              <span className="font-medium text-foreground tabular-nums">{rows.length}</span>{" "}
+              {rows.length === 1 ? "contact" : "contacts"} — mentioned on imports or sets but not yet added; resolve into Persons or link to existing ones
             </p>
           </div>
         </div>
