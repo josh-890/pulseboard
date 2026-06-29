@@ -105,6 +105,23 @@ function SectionShell({
 }
 
 function Avatar({ counterpart, dashed }: { counterpart: ConnectionCounterpart; dashed?: boolean }) {
+  if (counterpart.kind === "person" && counterpart.avatarUrl) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={counterpart.avatarUrl}
+        alt=""
+        loading="lazy"
+        className="h-9 w-9 shrink-0 rounded-full object-cover"
+        style={{
+          objectPosition:
+            counterpart.focalX != null && counterpart.focalY != null
+              ? `${counterpart.focalX * 100}% ${counterpart.focalY * 100}%`
+              : "center",
+        }}
+      />
+    );
+  }
   return (
     <div
       className={cn(

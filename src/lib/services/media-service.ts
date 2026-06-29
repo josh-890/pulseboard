@@ -874,6 +874,8 @@ export async function getPersonMediaByUsage(
 export type HeadshotData = {
   mediaItemId: string;
   url: string;
+  /** Smallest available variant — for tiny renders (avatars, graph nodes). Falls back to `url`. */
+  thumbUrl: string;
   focalX: number | null;
   focalY: number | null;
 };
@@ -903,11 +905,18 @@ function headshotDataFromLink(link: {
       : null);
   if (!url) return null;
 
+  // Smallest variant for tiny renders (Connections avatars, graph nodes).
+  const thumbRef = isNormalized
+    ? (variants.gallery_512 ?? variants.view_1200 ?? variants.master_4000 ?? variants.original ?? link.mediaItem.fileRef)
+    : (variants.profile_128 ?? variants.profile_256 ?? variants.profile_512 ?? variants.original ?? link.mediaItem.fileRef);
+  const thumbUrl = thumbRef ? buildUrl(thumbRef) : url;
+
   // A normalized image is already centered/cropped — neutralize focal point so the
   // card's object-cover doesn't shift it.
   return {
     mediaItemId: link.mediaItem.id,
     url,
+    thumbUrl,
     focalX: isNormalized ? null : (link.mediaItem.focalX ?? null),
     focalY: isNormalized ? null : (link.mediaItem.focalY ?? null),
   };

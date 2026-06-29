@@ -24,6 +24,7 @@ type GraphNode = SimulationNodeDatum & {
   roleLabel?: string;
   category?: string;
   weight: number; // for work edge width / ranking
+  avatarUrl?: string | null;
 };
 
 type GraphLink = { source: string | GraphNode; target: string | GraphNode; edge: EdgeKind; weight: number };
@@ -48,6 +49,7 @@ type Agg = {
   personal?: { roleLabel: string; category: string };
   sharedSets: number;
   claimed: boolean;
+  avatarUrl?: string | null;
 };
 
 function keyFor(kind: "person" | "ref", id: string) {
@@ -81,15 +83,18 @@ export function ConnectionsGraph({
       const c = r.counterpart;
       const a = ensure(c.kind, c.id, c.name, c.kind === "person" ? c.id : undefined);
       a.personal = { roleLabel: r.roleLabel, category: r.category };
+      if (c.kind === "person" && c.avatarUrl) a.avatarUrl = c.avatarUrl;
     }
     for (const w of data.workHeld) {
       const a = ensure("person", w.personId, w.commonAlias ?? w.icgId, w.personId);
       a.sharedSets = Math.max(a.sharedSets, w.sharedSetCount);
+      if (w.avatarUrl) a.avatarUrl = w.avatarUrl;
     }
     for (const cl of data.claimed) {
       const c = cl.counterpart;
       const a = ensure(c.kind, c.id, c.name, c.kind === "person" ? c.id : undefined);
       a.claimed = true;
+      if (c.kind === "person" && c.avatarUrl) a.avatarUrl = c.avatarUrl;
     }
 
     // Rank: personal first, then by shared sets, then claimed-only.
@@ -118,6 +123,7 @@ export function ConnectionsGraph({
         roleLabel: a.personal?.roleLabel,
         category: a.personal?.category,
         weight: a.sharedSets,
+        avatarUrl: a.avatarUrl,
       });
       links.push({ source: "self", target: a.id, edge, weight: a.sharedSets });
     }
@@ -165,6 +171,11 @@ export function ConnectionsGraph({
   return (
     <div className="rounded-2xl border border-white/15 bg-card/40 p-2">
       <svg viewBox={viewBox} className="h-[480px] w-full" role="img" aria-label="Connections graph">
+        <defs>
+          <clipPath id="cgAvatarClip">
+            <circle r={9} />
+          </clipPath>
+        </defs>
         {/* edges */}
         {links.map((l, i) => {
           const t = typeof l.target === "string" ? nodeById.get(l.target) : l.target;
@@ -206,13 +217,28 @@ export function ConnectionsGraph({
                 {n.label}
                 {n.roleLabel ? ` · ${n.roleLabel}` : n.edge === "work" ? ` · ${n.weight} shared sets` : n.edge === "claimed" ? " · claimed" : ""}
               </title>
-              <circle
-                r={r}
-                fill={fill}
-                stroke={n.type === "ref" ? "#94a3b8" : edgeColor(n)}
-                strokeWidth={n.type === "ref" ? 1.5 : 2}
-                strokeDasharray={n.type === "ref" ? "3 2" : undefined}
-              />
+              {n.avatarUrl ? (
+                <>
+                  <image
+                    href={n.avatarUrl}
+                    x={-r}
+                    y={-r}
+                    width={r * 2}
+                    height={r * 2}
+                    clipPath="url(#cgAvatarClip)"
+                    preserveAspectRatio="xMidYMid slice"
+                  />
+                  <circle r={r} fill="none" stroke={edgeColor(n)} strokeWidth={2} />
+                </>
+              ) : (
+                <circle
+                  r={r}
+                  fill={fill}
+                  stroke={n.type === "ref" ? "#94a3b8" : edgeColor(n)}
+                  strokeWidth={n.type === "ref" ? 1.5 : 2}
+                  strokeDasharray={n.type === "ref" ? "3 2" : undefined}
+                />
+              )}
               <text
                 y={r + 9}
                 textAnchor="middle"

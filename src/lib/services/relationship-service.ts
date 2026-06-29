@@ -87,7 +87,7 @@ export async function getPersonCoOccurrence(personId: string): Promise<PersonCoO
         promotedCount: e.promoted.size,
         stagedCount: e.staged.size,
         sharedSetCount: e.promoted.size + e.staged.size,
-        avatarUrl: h?.url ?? null,
+        avatarUrl: h?.thumbUrl ?? null,
         focalX: h?.focalX ?? null,
         focalY: h?.focalY ?? null,
       };
@@ -98,7 +98,7 @@ export async function getPersonCoOccurrence(personId: string): Promise<PersonCoO
 // ── Connections tab data ─────────────────────────────────────────────────────
 
 export type ConnectionCounterpart =
-  | { kind: "person"; id: string; name: string; icgId: string | null }
+  | { kind: "person"; id: string; name: string; icgId: string | null; avatarUrl: string | null; focalX: number | null; focalY: number | null }
   | { kind: "ref"; id: string; name: string; icgId: string | null };
 
 export type PersonalRelationshipRow = {
@@ -126,8 +126,18 @@ type PersonLite = {
   icgId: string;
   aliases: { name: string }[];
 };
-function personCounterpart(p: PersonLite): ConnectionCounterpart {
-  return { kind: "person", id: p.id, name: p.aliases[0]?.name ?? p.icgId, icgId: p.icgId };
+type HeadshotLite = { thumbUrl: string; focalX: number | null; focalY: number | null };
+function personCounterpart(p: PersonLite, headshots: Map<string, HeadshotLite>): ConnectionCounterpart {
+  const h = headshots.get(p.id);
+  return {
+    kind: "person",
+    id: p.id,
+    name: p.aliases[0]?.name ?? p.icgId,
+    icgId: p.icgId,
+    avatarUrl: h?.thumbUrl ?? null,
+    focalX: h?.focalX ?? null,
+    focalY: h?.focalY ?? null,
+  };
 }
 function refCounterpart(r: { id: string; name: string; icgId: string | null }): ConnectionCounterpart {
   return { kind: "ref", id: r.id, name: r.name, icgId: r.icgId };
@@ -161,13 +171,25 @@ export async function getConnectionsForPerson(personId: string): Promise<Connect
     getPersonCoOccurrence(personId),
   ]);
 
+  // Avatars (Headshot representative) for every Person counterpart across all
+  // three sections, so "Personal", "Mentioned" and the graph can show real images.
+  const counterpartIds = new Set<string>();
+  for (const r of rels) {
+    counterpartIds.add(r.personId);
+    if (r.toPersonId) counterpartIds.add(r.toPersonId);
+  }
+  for (const c of claimsOut) if (c.counterpartPersonId) counterpartIds.add(c.counterpartPersonId);
+  for (const c of claimsIn) counterpartIds.add(c.subjectPersonId);
+  counterpartIds.delete(personId);
+  const cpHeadshots = await getHeadshotsForPersons([...counterpartIds]);
+
   const personal: PersonalRelationshipRow[] = rels.map((r) => {
     const isFrom = r.personId === personId;
     const counterpart: ConnectionCounterpart = isFrom
       ? r.toPerson
-        ? personCounterpart(r.toPerson)
+        ? personCounterpart(r.toPerson, cpHeadshots)
         : refCounterpart(r.toRef!)
-      : personCounterpart(r.person);
+      : personCounterpart(r.person, cpHeadshots);
     return {
       id: r.id,
       roleLabel: isFrom ? r.role.name : r.role.inverseName,
@@ -188,10 +210,10 @@ export async function getConnectionsForPerson(personId: string): Promise<Connect
     if (!claimedByKey.has(key)) claimedByKey.set(key, { id, direction, counterpart });
   };
   for (const c of claimsOut) {
-    addClaim(c.id, "outgoing", c.counterpartPerson ? personCounterpart(c.counterpartPerson) : refCounterpart(c.counterpartRef!));
+    addClaim(c.id, "outgoing", c.counterpartPerson ? personCounterpart(c.counterpartPerson, cpHeadshots) : refCounterpart(c.counterpartRef!));
   }
   for (const c of claimsIn) {
-    addClaim(c.id, "incoming", personCounterpart(c.subjectPerson));
+    addClaim(c.id, "incoming", personCounterpart(c.subjectPerson, cpHeadshots));
   }
   const claimed: ClaimedRow[] = [...claimedByKey.values()];
 
