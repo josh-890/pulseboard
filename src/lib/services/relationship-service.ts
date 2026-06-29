@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import { normalizeForSearch } from "@/lib/normalize";
+import { getHeadshotsForPersons } from "@/lib/services/media-service";
 import type { RelationshipType } from "@/generated/prisma/client";
 import type { TxClient } from "./cascade-helpers";
 
@@ -17,6 +18,9 @@ export type PersonCoOccurrence = {
   sharedSetCount: number; // promoted + staged
   promotedCount: number;
   stagedCount: number;
+  avatarUrl: string | null;
+  focalX: number | null;
+  focalY: number | null;
 };
 
 export async function getPersonCoOccurrence(personId: string): Promise<PersonCoOccurrence[]> {
@@ -69,15 +73,25 @@ export async function getPersonCoOccurrence(personId: string): Promise<PersonCoO
     }
   }
 
+  // Real avatar (Headshot representative, ADR-0016) for each co-person — falls
+  // back to a letter avatar in the UI when a person has none.
+  const headshots = await getHeadshotsForPersons([...byPerson.keys()]);
+
   return [...byPerson.values()]
-    .map((e) => ({
-      personId: e.id,
-      icgId: e.icgId,
-      commonAlias: e.commonAlias,
-      promotedCount: e.promoted.size,
-      stagedCount: e.staged.size,
-      sharedSetCount: e.promoted.size + e.staged.size,
-    }))
+    .map((e) => {
+      const h = headshots.get(e.id);
+      return {
+        personId: e.id,
+        icgId: e.icgId,
+        commonAlias: e.commonAlias,
+        promotedCount: e.promoted.size,
+        stagedCount: e.staged.size,
+        sharedSetCount: e.promoted.size + e.staged.size,
+        avatarUrl: h?.url ?? null,
+        focalX: h?.focalX ?? null,
+        focalY: h?.focalY ?? null,
+      };
+    })
     .sort((a, b) => b.sharedSetCount - a.sharedSetCount);
 }
 

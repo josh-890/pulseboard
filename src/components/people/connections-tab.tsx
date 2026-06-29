@@ -404,9 +404,23 @@ function WorkHeldSection({ rows }: { rows: PersonCoOccurrence[] }) {
         <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
           {rows.map((r) => (
             <li key={r.personId} className="flex items-center gap-3 rounded-xl border border-white/15 bg-card/40 p-3">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
-                {(r.commonAlias ?? r.icgId).charAt(0).toUpperCase()}
-              </div>
+              {r.avatarUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={r.avatarUrl}
+                  alt=""
+                  loading="lazy"
+                  className="h-9 w-9 shrink-0 rounded-full object-cover"
+                  style={{
+                    objectPosition:
+                      r.focalX != null && r.focalY != null ? `${r.focalX * 100}% ${r.focalY * 100}%` : "center",
+                  }}
+                />
+              ) : (
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
+                  {(r.commonAlias ?? r.icgId).charAt(0).toUpperCase()}
+                </div>
+              )}
               <div className="min-w-0 flex-1">
                 <Link href={`/people/${r.personId}`} className="truncate text-sm font-medium hover:text-primary">
                   {r.commonAlias ?? r.icgId}
