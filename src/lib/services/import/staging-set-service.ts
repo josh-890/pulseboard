@@ -742,14 +742,18 @@ export async function getStagingSetsFiltered(filters: StagingSetFilters): Promis
     const confirmed = ArchiveLinkStatus.CONFIRMED
     conditions.push({ status: 'APPROVED' })
     conditions.push({ archiveLinks: { some: { status: confirmed, archivePath: { not: null } } } })
-    // All participants must be 'known' (or no participants listed)
+    // "All participants known" derived LIVE: every non-empty participantIcgId
+    // resolves to a curated Person. (Not the participantStatuses cache, which goes
+    // stale when a participant is added as a Person after staging — that made this
+    // filter under-report.) Scoped to APPROVED to bound the scan.
     const knownRows = await prisma.$queryRaw<{ id: string }[]>`
-      SELECT id FROM "staging_set"
-      WHERE "participantStatuses" IS NULL
-         OR NOT EXISTS (
-           SELECT 1 FROM jsonb_array_elements("participantStatuses"::jsonb) AS ps
-           WHERE ps->>'status' != 'known'
-         )
+      SELECT ss.id FROM "staging_set" ss
+      WHERE ss.status::text = 'APPROVED'
+        AND NOT EXISTS (
+          SELECT 1 FROM unnest(ss."participantIcgIds") AS icg
+          WHERE icg <> ''
+            AND NOT EXISTS (SELECT 1 FROM "Person" p WHERE p."icgId" = icg)
+        )
     `
     conditions.push({ id: { in: knownRows.map((r) => r.id) } })
   }
