@@ -121,20 +121,24 @@ function Avatar({ counterpart, dashed }: { counterpart: ConnectionCounterpart; d
 
 // A person counterpart links to its page; a contact counterpart is an outlined
 // chip linking to the Contacts register.
+function IcgTag({ icgId }: { icgId: string | null }) {
+  if (!icgId) return null;
+  return <span className="ml-1.5 font-mono text-[10px] text-muted-foreground">({icgId})</span>;
+}
+
 function CounterpartName({ counterpart }: { counterpart: ConnectionCounterpart }) {
   if (counterpart.kind === "person") {
     return (
-      <Link
-        href={`/people/${counterpart.id}`}
-        className="truncate text-sm font-medium hover:text-primary"
-      >
+      <Link href={`/people/${counterpart.id}`} className="truncate text-sm font-medium hover:text-primary">
         {counterpart.name}
+        <IcgTag icgId={counterpart.icgId} />
       </Link>
     );
   }
   return (
     <Link href="/people/contacts" className="truncate text-sm font-medium hover:text-foreground">
       {counterpart.name}
+      <IcgTag icgId={counterpart.icgId} />
       <span className="ml-1.5 rounded border border-dashed border-white/30 px-1 py-0.5 text-[9px] uppercase tracking-wide text-muted-foreground">
         contact
       </span>
@@ -393,7 +397,7 @@ function AddRelationship({ personId, roles }: { personId: string; roles: Relatio
 
 function WorkHeldSection({ rows }: { rows: PersonCoOccurrence[] }) {
   return (
-    <SectionShell title="Work — held together" icon={<Briefcase size={16} />} count={rows.length}>
+    <SectionShell title="Worked with" icon={<Briefcase size={16} />} count={rows.length}>
       {rows.length === 0 ? (
         <EmptyRow message="No shared sets yet." />
       ) : (
@@ -406,9 +410,12 @@ function WorkHeldSection({ rows }: { rows: PersonCoOccurrence[] }) {
               <div className="min-w-0 flex-1">
                 <Link href={`/people/${r.personId}`} className="truncate text-sm font-medium hover:text-primary">
                   {r.commonAlias ?? r.icgId}
+                  <IcgTag icgId={r.icgId} />
                 </Link>
                 <p className="text-xs text-muted-foreground">
                   {r.sharedSetCount} shared {r.sharedSetCount === 1 ? "set" : "sets"}
+                  {r.stagedCount > 0 &&
+                    ` · ${r.promotedCount} promoted, ${r.stagedCount} staged`}
                 </p>
               </div>
             </li>
@@ -423,9 +430,9 @@ function WorkHeldSection({ rows }: { rows: PersonCoOccurrence[] }) {
 
 function ClaimedSection({ rows }: { rows: ClaimedRow[] }) {
   return (
-    <SectionShell title="Claimed collaborations" icon={<FileText size={16} />} count={rows.length}>
+    <SectionShell title="Mentioned" icon={<FileText size={16} />} count={rows.length}>
       {rows.length === 0 ? (
-        <EmptyRow message="No claimed collaborations from imports." />
+        <EmptyRow message="Nobody mentioned in imports (without a shared set)." />
       ) : (
         <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
           {rows.map((r) => (
@@ -434,7 +441,7 @@ function ClaimedSection({ rows }: { rows: ClaimedRow[] }) {
               <div className="min-w-0 flex-1">
                 <CounterpartName counterpart={r.counterpart} />
                 <p className="text-xs text-muted-foreground">
-                  {r.direction === "outgoing" ? "claimed worked with" : "claims working together"}
+                  {r.direction === "outgoing" ? "named as co-model in import" : "named this person in their import"}
                 </p>
               </div>
             </li>

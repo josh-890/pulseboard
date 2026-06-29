@@ -374,10 +374,14 @@ How this person relates to others, in three sections:
   Click **Add**, pick a role and the other person (search existing people, or type a name to
   add a **new contact**), optionally a note. The role's **inverse** shows on the
   other person's page (e.g. Parent here → Child there). Remove with the trash icon on hover.
-- **Work — held together** — people who actually share a set with this person, ranked by shared-set
-  count (computed automatically; nothing to maintain).
-- **Claimed collaborations** — "worked with" assertions pulled from import files, even when you
-  hold no set proving it. People not yet added show as outlined **contact** chips.
+- **Worked with** — people who actually share a set with this person — **proven by the set**.
+  Includes promoted sets **and** not-yet-promoted staged sets (shown as e.g. "5 shared sets · 1 promoted, 4 staged"),
+  ranked by shared-set count (computed automatically; nothing to maintain).
+- **Mentioned** — people merely **named** as a co-model in an import, with **no shared set** to prove it
+  (a set-proven partner appears under "Worked with" instead, not here). People not yet added show as
+  outlined **contact** chips. Each entry is shown once (no duplicate when mentioned both ways).
+
+Every counterpart is shown as **Name (ICG-ID)** so you can tell same-named people apart.
 
 Use the **Lists | Graph** toggle (top-right) to switch to a **graph view** — the person sits at
 the centre with everyone they're connected to around them. Edge colour shows the kind of tie

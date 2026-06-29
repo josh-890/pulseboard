@@ -4,56 +4,69 @@ import type { RelationshipType } from "@/generated/prisma/client";
 import type { TxClient } from "./cascade-helpers";
 
 // ── Held work co-occurrence ─────────────────────────────────────────────────
-// Computed (not stored): people who actually share a promoted Set with the
-// subject, ranked by shared-set count. Staged co-occurrence (via
-// StagingSet.participantIcgIds, which may resolve to PersonRefs) is layered in
-// with the Connections tab in a later slice.
+// Computed (not stored): people who actually share a Set with the subject —
+// **proven by the set, not a co-model list**. Includes both promoted Sets
+// (SetParticipant) and not-yet-promoted staged Sets (StagingSet.participantIcgIds,
+// resolved to Persons). Staged co-participants who aren't curated Persons yet are
+// not shown here (they live in the Contacts register).
 
 export type PersonCoOccurrence = {
   personId: string;
   commonAlias: string | null;
   icgId: string;
-  sharedSetCount: number;
+  sharedSetCount: number; // promoted + staged
+  promotedCount: number;
+  stagedCount: number;
 };
 
 export async function getPersonCoOccurrence(personId: string): Promise<PersonCoOccurrence[]> {
-  const mine = await prisma.setParticipant.findMany({
-    where: { personId },
-    select: { setId: true },
-  });
-  const setIds = [...new Set(mine.map((m) => m.setId))];
-  if (setIds.length === 0) return [];
+  const personSel = {
+    id: true,
+    icgId: true,
+    aliases: { where: { isCommon: true }, take: 1, select: { name: true } },
+  } as const;
 
-  const others = await prisma.setParticipant.findMany({
-    where: { setId: { in: setIds }, personId: { not: personId } },
-    select: {
-      setId: true,
-      person: {
-        select: {
-          id: true,
-          icgId: true,
-          aliases: { where: { isCommon: true }, take: 1, select: { name: true } },
-        },
-      },
-    },
-  });
-
-  const byPerson = new Map<
-    string,
-    { id: string; icgId: string; commonAlias: string | null; sets: Set<string> }
-  >();
-  for (const o of others) {
-    let entry = byPerson.get(o.person.id);
-    if (!entry) {
-      entry = {
-        id: o.person.id,
-        icgId: o.person.icgId,
-        commonAlias: o.person.aliases[0]?.name ?? null,
-        sets: new Set(),
-      };
-      byPerson.set(o.person.id, entry);
+  type Entry = { id: string; icgId: string; commonAlias: string | null; promoted: Set<string>; staged: Set<string> };
+  const byPerson = new Map<string, Entry>();
+  const ensure = (p: { id: string; icgId: string; aliases: { name: string }[] }): Entry => {
+    let e = byPerson.get(p.id);
+    if (!e) {
+      e = { id: p.id, icgId: p.icgId, commonAlias: p.aliases[0]?.name ?? null, promoted: new Set(), staged: new Set() };
+      byPerson.set(p.id, e);
     }
-    entry.sets.add(o.setId);
+    return e;
+  };
+
+  // Promoted Sets (real SetParticipant rows).
+  const mine = await prisma.setParticipant.findMany({ where: { personId }, select: { setId: true } });
+  const setIds = [...new Set(mine.map((m) => m.setId))];
+  if (setIds.length > 0) {
+    const others = await prisma.setParticipant.findMany({
+      where: { setId: { in: setIds }, personId: { not: personId } },
+      select: { setId: true, person: { select: personSel } },
+    });
+    for (const o of others) ensure(o.person).promoted.add(o.setId);
+  }
+
+  // Staged Sets (not yet promoted) — co-occurrence is proven by the staged set.
+  const self = await prisma.person.findUnique({ where: { id: personId }, select: { icgId: true } });
+  if (self?.icgId) {
+    const staged = await prisma.stagingSet.findMany({
+      where: { participantIcgIds: { has: self.icgId }, status: { in: ["PENDING", "REVIEWING", "APPROVED"] } },
+      select: { id: true, participantIcgIds: true },
+    });
+    const otherIcgs = [...new Set(staged.flatMap((s) => s.participantIcgIds).filter((i) => i && i !== self.icgId))];
+    if (otherIcgs.length > 0) {
+      const persons = await prisma.person.findMany({ where: { icgId: { in: otherIcgs } }, select: personSel });
+      const personByIcg = new Map(persons.map((p) => [p.icgId, p]));
+      for (const s of staged) {
+        for (const icg of new Set(s.participantIcgIds)) {
+          if (!icg || icg === self.icgId) continue;
+          const p = personByIcg.get(icg);
+          if (p) ensure(p).staged.add(s.id);
+        }
+      }
+    }
   }
 
   return [...byPerson.values()]
@@ -61,7 +74,9 @@ export async function getPersonCoOccurrence(personId: string): Promise<PersonCoO
       personId: e.id,
       icgId: e.icgId,
       commonAlias: e.commonAlias,
-      sharedSetCount: e.sets.size,
+      promotedCount: e.promoted.size,
+      stagedCount: e.staged.size,
+      sharedSetCount: e.promoted.size + e.staged.size,
     }))
     .sort((a, b) => b.sharedSetCount - a.sharedSetCount);
 }
@@ -148,20 +163,23 @@ export async function getConnectionsForPerson(personId: string): Promise<Connect
     };
   });
 
-  const claimed: ClaimedRow[] = [
-    ...claimsOut.map((c): ClaimedRow => ({
-      id: c.id,
-      direction: "outgoing",
-      counterpart: c.counterpartPerson
-        ? personCounterpart(c.counterpartPerson)
-        : refCounterpart(c.counterpartRef!),
-    })),
-    ...claimsIn.map((c): ClaimedRow => ({
-      id: c.id,
-      direction: "incoming",
-      counterpart: personCounterpart(c.subjectPerson),
-    })),
-  ];
+  // Claimed = "worked-with" assertions NOT already proven by a held/staged set.
+  // A counterpart who shares a real set (workHeld) is shown under Work instead, and
+  // each counterpart appears once even if claimed reciprocally (A→B and B→A).
+  const heldPersonIds = new Set(workHeld.map((w) => w.personId));
+  const claimedByKey = new Map<string, ClaimedRow>();
+  const addClaim = (id: string, direction: "outgoing" | "incoming", counterpart: ConnectionCounterpart) => {
+    if (counterpart.kind === "person" && heldPersonIds.has(counterpart.id)) return; // proven → Work
+    const key = `${counterpart.kind}:${counterpart.id}`;
+    if (!claimedByKey.has(key)) claimedByKey.set(key, { id, direction, counterpart });
+  };
+  for (const c of claimsOut) {
+    addClaim(c.id, "outgoing", c.counterpartPerson ? personCounterpart(c.counterpartPerson) : refCounterpart(c.counterpartRef!));
+  }
+  for (const c of claimsIn) {
+    addClaim(c.id, "incoming", personCounterpart(c.subjectPerson));
+  }
+  const claimed: ClaimedRow[] = [...claimedByKey.values()];
 
   return { personal, workHeld, claimed };
 }

@@ -105,11 +105,11 @@ A person **mentioned but not yet curated** as a full `Person` — the "ghost" re
 _Avoid_: the word **"Reference"** for this (collides with the **Reference Session**); "stub person" / treating a Contact as a `Person`; "candidate" (that means a duplicate/archive match). The DB table keeps its legacy name `PersonRef` (mapped) — that's storage, not the domain term.
 
 **Connection** (the person detail **tab**; data spans three sources):
-How a Person relates to others. Three distinct kinds, deliberately modelled apart:
-- **Held co-occurrence** — people who actually share a held Set/Session. **Computed** live (not stored), ranked by shared-set count.
-- **Claimed collaboration** (code model & DB table: `ClaimedCollaboration`): a **stored "worked-with" assertion** from an import file (subject Person → a Person or a Contact), surviving even when no held Set proves it (the claimed-vs-held gap, mirroring the Career tab).
-- **Relationship** (code model & DB table: `PersonRelationship`): a **hand-asserted, curated** personal/professional tie (sister, spouse, mentor), typed by a `RelationshipRole`.
-_Avoid_: storing co-occurrence as rows (it's derived); folding claims into curated Relationships.
+How a Person relates to others. Three distinct kinds, deliberately modelled apart (UI tab sections: **Personal relationships** / **Worked with** / **Mentioned**):
+- **Held co-occurrence** (UI: "Worked with") — people who actually share a **Set** with the subject, **proven by the set**: promoted Sets (`SetParticipant`) **and** not-yet-promoted staged Sets (`StagingSet.participantIcgIds`, resolved to Persons). **Computed** live (not stored), ranked by shared-set count.
+- **Claimed collaboration** (UI: "Mentioned"; code model & DB table: `ClaimedCollaboration`): a **stored "worked-with" assertion** from an import co-model list (subject Person → a Person or a Contact), surviving even when no set proves it. On the tab it is **deduped by counterpart and excludes anyone already shown under "Worked with"** (a set-proven partner is not also "Mentioned").
+- **Relationship** (UI: "Personal relationships"; code model & DB table: `PersonRelationship`): a **hand-asserted, curated** personal/professional tie (sister, spouse, mentor), typed by a `RelationshipRole`.
+_Avoid_: storing co-occurrence as rows (it's derived); folding claims into curated Relationships; showing a set-proven partner as merely "Mentioned".
 
 **Relationship role** (code model & DB table: `RelationshipRole`):
 The controlled vocabulary for curated Relationships: `name`, `inverseName`, `isSymmetric`, `category`. The role is stored once on the directed edge (`personId → toPerson`/`toRef`); the **inverse** renders on the counterpart's page (Parent↔Child, Sibling↔Sibling, Mentor↔Mentee). Time-bound via `RelationshipEvent`.
