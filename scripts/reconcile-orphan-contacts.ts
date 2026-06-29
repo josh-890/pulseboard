@@ -14,8 +14,13 @@
  */
 
 import "dotenv/config";
-import { prisma } from "@/lib/db";
-import { reconcileContacts } from "@/lib/services/relationship-service";
+import { PrismaClient } from "../src/generated/prisma/client";
+import { PrismaPg } from "@prisma/adapter-pg";
+import { reconcileContacts } from "../src/lib/services/relationship-service";
+
+// Own client bound to the explicit DATABASE_URL — NOT the @/lib/db tenant proxy,
+// which routes by request context and would hit the wrong DB from a script.
+const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL! }) });
 
 const apply = process.argv.includes("--apply");
 
