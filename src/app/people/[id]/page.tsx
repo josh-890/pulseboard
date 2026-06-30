@@ -21,6 +21,7 @@ import { getPersonAliases } from "@/lib/services/alias-service";
 import { getPersonDigitalIdentities } from "@/lib/services/digital-identity-service";
 import { getPersonResearch } from "@/lib/services/research-service";
 import { getStagingWorkHistoryForPerson } from "@/lib/services/import/staging-set-service";
+import { getImportHistoryForPerson } from "@/lib/services/import/staging-service";
 import { getEntityTags } from "@/lib/services/entity-tag-service";
 import { getPersonEraContributions } from "@/lib/services/era-service";
 import {
@@ -109,7 +110,7 @@ export default async function PersonDetailPage({ params, searchParams }: PersonD
   // Ensure system entity categories exist before loading category data
   await ensureEntityCategories();
 
-  const [person, workHistory, connectionsData, relationshipRoles, refSession, categoryGroups, populatedCounts, skillGroups, skillLevelConfigs, aliasesWithChannels, sessionWorkHistory, productionSessions, entityMediaMap, physicalAttributeGroups, personEntityTags, digitalIdentities, researchEntries, stagingWorkHistory, eraContributionsMap, careerTimeline, careerStats, careerFacetCounts, careerChannels, careerEras] =
+  const [person, workHistory, connectionsData, relationshipRoles, refSession, categoryGroups, populatedCounts, skillGroups, skillLevelConfigs, aliasesWithChannels, sessionWorkHistory, productionSessions, entityMediaMap, physicalAttributeGroups, personEntityTags, digitalIdentities, researchEntries, stagingWorkHistory, eraContributionsMap, careerTimeline, careerStats, careerFacetCounts, careerChannels, careerEras, importHistory] =
     await Promise.all([
       getPersonWithDetails(id),
       getPersonWorkHistory(id),
@@ -135,6 +136,7 @@ export default async function PersonDetailPage({ params, searchParams }: PersonD
       getCareerFacetCounts(id, careerFilters),
       getCareerChannelsForPerson(id),
       getCareerErasForPerson(id),
+      getImportHistoryForPerson(id),
     ]);
 
   // Flatten Map → Record for client-component serialization.
@@ -267,6 +269,7 @@ export default async function PersonDetailPage({ params, searchParams }: PersonD
         plausibilityIssues={plausibilityIssues}
         digitalIdentities={digitalIdentities}
         researchEntries={researchEntries}
+        importHistory={importHistory}
         stagingWorkHistory={stagingWorkHistory}
         careerTimeline={careerTimeline}
         careerStats={careerStats}

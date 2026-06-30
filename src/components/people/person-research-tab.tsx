@@ -1,10 +1,28 @@
 "use client";
 
 import { useRef, useState, useTransition } from "react";
-import { BookOpen, Plus, Trash2, X } from "lucide-react";
+import Link from "next/link";
+import {
+  BookOpen,
+  Plus,
+  Trash2,
+  X,
+  FileText,
+  ChevronDown,
+  ChevronRight,
+  Layers,
+  Users,
+  History,
+  CornerUpLeft,
+} from "lucide-react";
 import ReactMarkdown from "react-markdown";
-import { cn } from "@/lib/utils";
+import { cn, formatRelativeTime } from "@/lib/utils";
 import type { PersonResearchItem } from "@/lib/services/research-service";
+import type {
+  PersonImportHistory,
+  PersonImportEvent,
+} from "@/lib/services/import/staging-service";
+import { ImportStatusBadge } from "@/components/import/import-status-badge";
 import {
   createResearchEntry,
   updateResearchEntry,
@@ -14,9 +32,10 @@ import {
 type Props = {
   personId: string;
   initialEntries: PersonResearchItem[];
+  importHistory?: PersonImportHistory;
 };
 
-export function PersonResearchTab({ personId, initialEntries }: Props) {
+export function PersonResearchTab({ personId, initialEntries, importHistory }: Props) {
   const [entries, setEntries] = useState<PersonResearchItem[]>(initialEntries);
   const [selectedId, setSelectedId] = useState<string | null>(initialEntries[0]?.id ?? null);
 
@@ -82,7 +101,10 @@ export function PersonResearchTab({ personId, initialEntries }: Props) {
   }
 
   return (
-    <div className="flex flex-col gap-4 sm:flex-row sm:gap-0 rounded-2xl border border-white/20 bg-card/70 shadow-md backdrop-blur-sm overflow-hidden min-h-[420px]">
+    <div className="space-y-4">
+      {importHistory && <ImportHistorySection history={importHistory} />}
+
+      <div className="flex flex-col gap-4 sm:flex-row sm:gap-0 rounded-2xl border border-white/20 bg-card/70 shadow-md backdrop-blur-sm overflow-hidden min-h-[420px]">
       {/* ── Left panel: entry list ── */}
       <div className="w-full sm:w-64 shrink-0 flex flex-col border-b border-white/10 sm:border-b-0 sm:border-r sm:border-white/10">
         {/* Add button */}
@@ -187,7 +209,161 @@ export function PersonResearchTab({ personId, initialEntries }: Props) {
           </div>
         )}
       </div>
+      </div>
     </div>
+  );
+}
+
+// ── Import history section ────────────────────────────────────────────────────
+
+function ImportHistorySection({ history }: { history: PersonImportHistory }) {
+  const [open, setOpen] = useState(true);
+  const { batches, declines, removals } = history;
+
+  // Nothing imported and no decision memory → render nothing (hide for
+  // manually-created persons), matching the conditional-tab pattern.
+  if (batches.length === 0 && declines.length === 0 && removals.length === 0) {
+    return null;
+  }
+
+  return (
+    <section className="rounded-2xl border border-white/20 bg-card/70 shadow-md backdrop-blur-sm overflow-hidden">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        className="flex w-full items-center gap-2 px-4 py-3 text-left transition-colors hover:bg-muted/20"
+      >
+        <History size={15} className="text-muted-foreground" />
+        <span className="text-sm font-semibold">Import history</span>
+        {batches.length > 0 && (
+          <span className="rounded-full bg-muted/60 px-2 py-0.5 text-[10px] font-medium text-muted-foreground tabular-nums">
+            {batches.length} {batches.length === 1 ? "import" : "imports"}
+          </span>
+        )}
+        <ChevronDown
+          size={16}
+          className={cn(
+            "ml-auto text-muted-foreground transition-transform",
+            open && "rotate-180",
+          )}
+        />
+      </button>
+
+      {open && (
+        <div className="space-y-3 border-t border-white/10 p-4">
+          {batches.length === 0 ? (
+            <p className="text-xs text-muted-foreground/60 italic">
+              No import files for this person — only re-import decisions are recorded below.
+            </p>
+          ) : (
+            <ul className="space-y-2">
+              {batches.map((b) => (
+                <ImportEventRow key={b.id} event={b} />
+              ))}
+            </ul>
+          )}
+
+          {(declines.length > 0 || removals.length > 0) && (
+            <div className="rounded-lg border border-white/10 bg-muted/20 p-3">
+              <p className="mb-2 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground/70">
+                <CornerUpLeft size={11} />
+                Re-import decisions
+              </p>
+              <ul className="space-y-1 text-xs text-muted-foreground">
+                {declines.map((d) => (
+                  <li key={d.id} className="flex items-center gap-2">
+                    <span className="rounded bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-medium text-amber-600 dark:text-amber-400">
+                      declined
+                    </span>
+                    <span className="font-mono text-[11px]">{d.kind}</span>
+                    <span className="truncate">{d.itemKey}</span>
+                    <span className="ml-auto shrink-0 text-muted-foreground/60">
+                      {formatRelativeTime(d.declinedAt)}
+                    </span>
+                  </li>
+                ))}
+                {removals.map((r) => (
+                  <li key={r.id} className="flex items-center gap-2">
+                    <span className="rounded bg-destructive/10 px-1.5 py-0.5 text-[10px] font-medium text-destructive">
+                      removed
+                    </span>
+                    <span className="font-mono text-[11px]">{r.kind}</span>
+                    <span className="truncate">{r.itemKey}</span>
+                    <span className="ml-auto shrink-0 text-muted-foreground/60">
+                      {formatRelativeTime(r.deletedAt)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function ImportEventRow({ event }: { event: PersonImportEvent }) {
+  let summary: string;
+  switch (event.state) {
+    case "DONE":
+      summary = event.reviewableTotal > 0 ? "Imported" : "Nothing to review";
+      break;
+    case "NEEDS_REVIEW":
+      summary = `${event.reviewablePending} to review`;
+      break;
+    case "BLOCKED":
+      summary = `${event.blocked} blocked`;
+      break;
+    case "FAILED":
+      summary = "Failed";
+      break;
+  }
+
+  return (
+    <li>
+      <Link
+        href={`/import/${event.id}`}
+        className="group flex items-center gap-3 rounded-lg border border-white/10 bg-card/40 p-2.5 transition-colors hover:bg-card/70"
+      >
+        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-muted">
+          <FileText size={15} className="text-muted-foreground" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <span className="shrink-0 rounded-full border border-white/15 bg-muted/60 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground tabular-nums">
+              v{event.version}
+            </span>
+            <ImportStatusBadge status={event.state} />
+            <span className="truncate text-xs text-muted-foreground/70">
+              {event.extractionDate
+                ? `Extracted ${event.extractionDate.toLocaleDateString()}`
+                : formatRelativeTime(event.createdAt)}
+            </span>
+          </div>
+          <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground">
+            <span>{summary}</span>
+            {event.setStagedCount > 0 && (
+              <span className="inline-flex items-center gap-1">
+                <Layers size={10} className="opacity-60" />
+                {event.setStagedCount} {event.setStagedCount === 1 ? "set" : "sets"} staged
+              </span>
+            )}
+            {event.coModelCount > 0 && (
+              <span className="inline-flex items-center gap-1">
+                <Users size={10} className="opacity-60" />
+                {event.coModelCount} co-{event.coModelCount === 1 ? "model" : "models"}
+              </span>
+            )}
+          </div>
+        </div>
+        <ChevronRight
+          size={15}
+          className="shrink-0 text-muted-foreground/40 transition-colors group-hover:text-foreground"
+        />
+      </Link>
+    </li>
   );
 }
 

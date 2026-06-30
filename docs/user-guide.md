@@ -976,6 +976,17 @@ Blocked items show which dependencies are missing (e.g., "Waiting for: CHANNEL:F
 
 When uploading a newer file for the same person (same ICG-ID), the system links batches via `previousBatchId` for history tracking.
 
+### Per-person Import History
+
+A person's complete import provenance is shown on their detail page, under the
+**Research tab** (imports are treated as a research resource). A collapsible **Import
+history** card lists the full re-import chain — each import with its `vN` version, state,
+extraction date, and an at-a-glance summary (imported / to review · sets staged ·
+co-models), linking back to that import's workspace. Below the chain, a **Re-import
+decisions** panel records relation deltas you **declined** and aliases / digital identities
+you manually **removed** (ADR-0009 decision memory). The card is hidden for persons that
+were never imported.
+
 ---
 
 ## 12. Staging Sets

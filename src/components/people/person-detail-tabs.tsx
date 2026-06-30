@@ -63,6 +63,7 @@ import { PersonSkillsTab } from "@/components/people/person-skills-tab";
 import { PersonAliasesTab } from "@/components/people/person-aliases-tab";
 import { PersonResearchTab } from "@/components/people/person-research-tab";
 import type { PersonResearchItem } from "@/lib/services/research-service";
+import type { PersonImportHistory } from "@/lib/services/import/staging-service";
 import { CareerTab } from "@/components/people/career-tab";
 import { ProductionPhotoList } from "@/components/people/production-photo-list";
 import { WatchToggle } from "@/components/people/watch-toggle";
@@ -117,6 +118,7 @@ type PersonDetailTabsProps = {
   initialTab?: string;
   entityTags?: { id: string; name: string; group: { name: string; color: string } }[];
   researchEntries?: PersonResearchItem[];
+  importHistory?: PersonImportHistory;
   stagingWorkHistory?: StagingWorkHistoryItem[];
   // Career-tab unified timeline data (ADR-0011 forthcoming + plan
   // `we-keep-freckles-scalar-twinkly-squirrel.md`). Loaded by the page
@@ -1795,6 +1797,7 @@ export function PersonDetailTabs({
   initialTab,
   entityTags = [],
   researchEntries = [],
+  importHistory,
   stagingWorkHistory = [],
   careerTimeline = [],
   careerStats = {
@@ -2121,6 +2124,7 @@ export function PersonDetailTabs({
           <PersonResearchTab
             personId={person.id}
             initialEntries={researchEntries}
+            importHistory={importHistory}
           />
         )}
       </div>

@@ -1327,6 +1327,77 @@ export async function getImportInbox(opts: {
   }
 }
 
+// ─── Per-person import history (Phase 3) ──────────────────────────────────────
+
+export type PersonImportEvent = ImportBatchSummary & { version: number }
+
+export type PersonImportDecline = {
+  id: string
+  kind: string
+  itemKey: string
+  declinedAt: Date
+}
+
+export type PersonImportRemoval = {
+  id: string
+  kind: string
+  itemKey: string
+  deletedAt: Date
+}
+
+export type PersonImportHistory = {
+  /** Batch chain, newest first; `version` is 1 for the oldest import. */
+  batches: PersonImportEvent[]
+  /** Relation deltas the user declined during re-import review (ADR-0009). */
+  declines: PersonImportDecline[]
+  /** Aliases / digital identities manually removed (ADR-0009 tombstones). */
+  removals: PersonImportRemoval[]
+}
+
+/**
+ * Import provenance for one person, keyed on their ICG-ID (the link between
+ * `ImportBatch.subjectIcgId` and `Person.icgId`). Returns the full re-import chain
+ * plus the per-person decline / deletion memory. Empty when the person has no
+ * ICG-ID or was never imported.
+ */
+export async function getImportHistoryForPerson(personId: string): Promise<PersonImportHistory> {
+  const person = await prisma.person.findUnique({
+    where: { id: personId },
+    select: { icgId: true },
+  })
+
+  const empty: PersonImportHistory = { batches: [], declines: [], removals: [] }
+  if (!person?.icgId) return empty
+
+  const [batches, declines, removals] = await Promise.all([
+    prisma.importBatch.findMany({
+      where: { subjectIcgId: person.icgId },
+      orderBy: { createdAt: 'asc' },
+      include: {
+        items: { select: { status: true, type: true } },
+        _count: { select: { stagingSets: true } },
+      },
+    }),
+    prisma.importDeclineLog.findMany({
+      where: { personId },
+      orderBy: { declinedAt: 'desc' },
+      select: { id: true, kind: true, itemKey: true, declinedAt: true },
+    }),
+    prisma.itemDeletionTombstone.findMany({
+      where: { personId },
+      orderBy: { deletedAt: 'desc' },
+      select: { id: true, kind: true, itemKey: true, deletedAt: true },
+    }),
+  ])
+
+  // Number ascending (v1 = oldest), then present newest first.
+  const events: PersonImportEvent[] = batches
+    .map((b, i) => ({ ...summarizeBatch(b), version: i + 1 }))
+    .reverse()
+
+  return { batches: events, declines, removals }
+}
+
 /** "Load more" page of the inbox's Done section (mirrors loadMoreContactsAction). */
 export async function getImportDonePage(opts: {
   q?: string
