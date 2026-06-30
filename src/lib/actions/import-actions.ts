@@ -7,6 +7,8 @@ import {
   deleteBatch,
   updateItemStatus,
   refreshBatchMatches,
+  getImportDonePage,
+  type ImportDoneSort,
 } from '@/lib/services/import/staging-service'
 import { prisma } from '@/lib/db'
 import { importItem } from '@/lib/services/import/import-executor'
@@ -18,6 +20,17 @@ export async function getImportBatchesAction() {
   return withTenantFromHeaders(async () => {
     return getAllBatches()
   })
+}
+
+// Infinite-scroll "load more" for the Done section of the import triage inbox.
+export async function loadMoreImportInboxAction(input: {
+  q?: string
+  sort?: ImportDoneSort
+  offset: number
+}) {
+  return withTenantFromHeaders(() =>
+    getImportDonePage({ q: input.q, sort: input.sort, offset: input.offset }),
+  )
 }
 
 export async function deleteImportBatchAction(batchId: string): Promise<SimpleResult> {

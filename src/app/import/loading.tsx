@@ -13,8 +13,15 @@ export default function ImportLoading() {
       {/* Upload zone skeleton */}
       <div className="h-28 animate-pulse rounded-xl border-2 border-dashed border-border/30 bg-muted/20" />
 
-      {/* Batch list skeleton */}
+      {/* Toolbar skeleton */}
+      <div className="flex items-center gap-3">
+        <div className="h-9 w-full max-w-xs animate-pulse rounded-md bg-muted" />
+        <div className="h-8 w-28 animate-pulse rounded-md bg-muted" />
+      </div>
+
+      {/* Section header + batch list skeleton */}
       <div className="space-y-2">
+        <div className="h-3 w-24 animate-pulse rounded bg-muted" />
         {[1, 2, 3].map((i) => (
           <div
             key={i}

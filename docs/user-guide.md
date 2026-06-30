@@ -893,7 +893,17 @@ The import pipeline enables semi-automatic data ingestion from structured text f
 
 ### Import List & Batch Status
 
-The Import page lists every batch with an honest **state pill**:
+The Import page is a **triage inbox**, grouped by person and split into two sections:
+
+- **Needs review** — people whose latest import still has actionable work (shown in full).
+- **Done** — completed imports, sorted by name (or "Recently imported"), with infinite-scroll
+  pagination + a "Load more" button.
+
+Use the **search** box to filter by name or ICG-ID. Re-imports of the same person (matched by
+ICG-ID) **collapse into one row** carrying a `vN` badge; expand it to see the earlier imports
+in the chain, each linking to its own workspace.
+
+Each row carries an honest **state pill**:
 
 | State | Meaning |
 |-------|---------|

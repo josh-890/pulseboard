@@ -1208,6 +1208,140 @@ export async function deleteBatch(batchId: string): Promise<void> {
   await prisma.importBatch.delete({ where: { id: batchId } })
 }
 
+// ─── Import Inbox (triage) ────────────────────────────────────────────────────
+
+export const DONE_PAGE_SIZE = 50
+
+export type ImportDoneSort = 'name' | 'recent'
+
+/**
+ * One person's import activity: the latest batch is the representative row; older
+ * re-imports (ADR-0009 `previousBatchId` chain) are carried as `history`, newest first.
+ */
+export type ImportInboxGroup = {
+  /** subjectIcgId (or the batch id when no ICG-ID) — stable React key. */
+  key: string
+  subjectName: string
+  subjectIcgId: string
+  state: BatchState
+  /** Total number of batches imported for this person. */
+  version: number
+  latest: ImportBatchSummary
+  /** Older batches, newest first (excludes `latest`). */
+  history: ImportBatchSummary[]
+}
+
+export type ImportInbox = {
+  needsReview: ImportInboxGroup[]
+  done: ImportInboxGroup[]
+  doneNextOffset: number | null
+  doneTotal: number
+  /** Total distinct persons (groups) matching the query. */
+  totalGroups: number
+}
+
+function compareGroupsByName(a: ImportInboxGroup, b: ImportInboxGroup): number {
+  return (
+    a.subjectName.localeCompare(b.subjectName, undefined, { sensitivity: 'base' }) ||
+    a.subjectIcgId.localeCompare(b.subjectIcgId)
+  )
+}
+
+/**
+ * Build the import triage inbox: batches grouped **per person** (by `subjectIcgId`),
+ * split into an actionable `needsReview` head (always returned in full) and a
+ * name-sorted, offset-paginated `done` tail. Mirrors the Contacts page's
+ * priority-head + paginated-tail shape.
+ *
+ * `q` filters by subject name / ICG-ID at the DB level; because every batch in a
+ * person's chain shares those fields, the full re-import chain is preserved for any
+ * matching person.
+ */
+export async function getImportInbox(opts: {
+  q?: string
+  sort?: ImportDoneSort
+  doneOffset?: number
+  doneLimit?: number
+} = {}): Promise<ImportInbox> {
+  const { q, sort = 'name', doneOffset = 0, doneLimit = DONE_PAGE_SIZE } = opts
+
+  const where = q
+    ? {
+        OR: [
+          { subjectName: { contains: q, mode: Prisma.QueryMode.insensitive } },
+          { subjectIcgId: { contains: q, mode: Prisma.QueryMode.insensitive } },
+        ],
+      }
+    : {}
+
+  const batches = await prisma.importBatch.findMany({
+    where,
+    orderBy: { createdAt: 'desc' },
+    include: {
+      items: { select: { status: true, type: true } },
+      _count: { select: { stagingSets: true } },
+    },
+  })
+
+  // Group by person; representative = most recent batch (list is already desc).
+  const groups = new Map<string, ImportInboxGroup>()
+  for (const b of batches) {
+    const summary = summarizeBatch(b)
+    const key = b.subjectIcgId || b.id
+    const existing = groups.get(key)
+    if (!existing) {
+      groups.set(key, {
+        key,
+        subjectName: summary.subjectName,
+        subjectIcgId: summary.subjectIcgId,
+        state: summary.state,
+        version: 1,
+        latest: summary,
+        history: [],
+      })
+    } else {
+      existing.version++
+      existing.history.push(summary)
+    }
+  }
+
+  const all = [...groups.values()]
+  const needsReview = all
+    .filter((g) => g.state !== 'DONE')
+    .sort((a, b) => b.latest.createdAt.getTime() - a.latest.createdAt.getTime())
+  const doneAll = all.filter((g) => g.state === 'DONE')
+  doneAll.sort(
+    sort === 'recent'
+      ? (a, b) => b.latest.createdAt.getTime() - a.latest.createdAt.getTime()
+      : compareGroupsByName,
+  )
+
+  const doneSlice = doneAll.slice(doneOffset, doneOffset + doneLimit)
+  const nextOffset = doneOffset + doneSlice.length
+  return {
+    needsReview,
+    done: doneSlice,
+    doneNextOffset: nextOffset < doneAll.length ? nextOffset : null,
+    doneTotal: doneAll.length,
+    totalGroups: all.length,
+  }
+}
+
+/** "Load more" page of the inbox's Done section (mirrors loadMoreContactsAction). */
+export async function getImportDonePage(opts: {
+  q?: string
+  sort?: ImportDoneSort
+  offset: number
+}): Promise<{ rows: ImportInboxGroup[]; nextOffset: number | null }> {
+  const inbox = await getImportInbox({
+    q: opts.q,
+    sort: opts.sort,
+    doneOffset: opts.offset,
+    doneLimit: DONE_PAGE_SIZE,
+  })
+  return { rows: inbox.done, nextOffset: inbox.doneNextOffset }
+}
+
 // ─── Import Queue ───────────────────────────────────────────────────────────
 
 export function getImportQueue(items: ImportItem[]): ImportItem[] {
