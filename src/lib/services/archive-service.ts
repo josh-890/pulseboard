@@ -1176,6 +1176,10 @@ export async function upsertArchiveFolders(
             data: {
               fullPath: item.fullPath,
               relativePath: newRelative,
+              // A folder can move ACROSS the photo/video boundary (e.g. a set staged
+              // under the videoset root before its video exists). The walk knows the
+              // correct type from which root it walked — keep the record in sync.
+              isVideo: item.isVideo,
               folderName: item.folderName,
               parsedDate,
               parsedShortName: item.parsedShortName,
@@ -1290,6 +1294,7 @@ export async function upsertArchiveFolders(
         where: targetId ? { id: targetId } : { fullPath: item.fullPath },
         data: {
           ...(targetId ? { fullPath: item.fullPath } : {}),  // fix case when updating by id
+          isVideo: item.isVideo,  // heal photo↔video moves (record type follows the walked root)
           fileCount: item.fileCount,
           videoPresent: item.videoPresent,
           videoFiles: item.videoFiles != null ? JSON.stringify(item.videoFiles) : undefined,
@@ -1430,6 +1435,7 @@ export async function upsertArchiveFolders(
         where: targetId ? { id: targetId } : { fullPath: item.fullPath },
         data: {
           ...(targetId ? { fullPath: item.fullPath } : {}),  // fix case when updating by id
+          isVideo: item.isVideo,  // heal photo↔video moves even on an unchanged (mtime-skip) leaf
           folderName: item.folderName,  // keep DB in sync with actual folder name on disk
           yearDirModifiedAt,
           chanFolderModifiedAt,
