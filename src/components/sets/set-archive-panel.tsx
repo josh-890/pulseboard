@@ -347,7 +347,7 @@ export function SetArchivePanel(props: SetArchivePanelProps) {
                       {archiveVideoFilename ?? 'Video file present'}
                     </div>
                   )
-                  : archiveVideoFiles && archiveVideoFiles.length > 0
+                  : Array.isArray(archiveVideoFiles) && archiveVideoFiles.length > 0
                     ? (
                       <div className="space-y-1.5">
                         <p className="text-xs text-amber-500">

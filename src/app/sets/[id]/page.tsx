@@ -19,7 +19,7 @@ import { SetArchivePanel } from "@/components/sets/set-archive-panel";
 import { SetArchiveChipSheet } from "@/components/sets/set-archive-chip-sheet";
 import { SetAboutCard } from "@/components/sets/set-about-card";
 import { CreditsPanel } from "@/components/sets/credits-panel";
-import { getArchiveSuggestionsForSet } from "@/lib/services/archive-service";
+import { getArchiveSuggestionsForSet, parseVideoFiles } from "@/lib/services/archive-service";
 import { prisma } from "@/lib/db";
 
 
@@ -194,7 +194,7 @@ export default async function SetDetailPage({ params }: SetDetailPageProps) {
               archiveFileCount={al.archiveFileCount ?? null}
               archiveFileCountPrev={al.archiveFileCountPrev ?? null}
               archiveVideoPresent={al.archiveVideoPresent ?? null}
-              archiveVideoFiles={al.archiveVideoFiles ? (JSON.parse(al.archiveVideoFiles) as string[]) : null}
+              archiveVideoFiles={parseVideoFiles(al.archiveVideoFiles)}
               archiveVideoFilename={al.archiveVideoFilename ?? null}
               mediaPriority={setData.mediaPriority ?? null}
               mediaQueueAt={setData.mediaQueueAt ?? null}
@@ -307,7 +307,7 @@ export default async function SetDetailPage({ params }: SetDetailPageProps) {
                 archiveFileCount={al?.archiveFileCount ?? null}
                 archiveFileCountPrev={al?.archiveFileCountPrev ?? null}
                 archiveVideoPresent={al?.archiveVideoPresent ?? null}
-                archiveVideoFiles={al?.archiveVideoFiles ? (JSON.parse(al.archiveVideoFiles) as string[]) : null}
+                archiveVideoFiles={parseVideoFiles(al?.archiveVideoFiles)}
                 archiveVideoFilename={al?.archiveVideoFilename ?? null}
                 mediaPriority={setData.mediaPriority ?? null}
                 mediaQueueAt={setData.mediaQueueAt ?? null}

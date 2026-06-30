@@ -245,6 +245,38 @@ export function parseRoots(value: string | null): string[] {
   return [trimmed]
 }
 
+/**
+ * Coerce a scanner-provided `videoFiles` value into a clean `string[] | null`.
+ *
+ * The PowerShell scanner serializes its results with `ConvertTo-Json`, which
+ * collapses a **single-element array into a scalar** — so a folder with exactly
+ * one video file arrives as `"clip.mp4"` instead of `["clip.mp4"]`. Left as-is
+ * that scalar gets stored and later `.map()`-ed in the UI, throwing
+ * "x.map is not a function". Normalising at the ingest boundary keeps every
+ * downstream consumer (status derivation, presence check, storage) array-safe.
+ */
+export function coerceVideoFiles(value: unknown): string[] | null {
+  if (value == null) return null
+  const arr = Array.isArray(value) ? value : [value]
+  const files = arr.filter((v): v is string => typeof v === 'string' && v.length > 0)
+  return files.length > 0 ? files : null
+}
+
+/**
+ * Parse a stored `archiveVideoFiles` / `videoFiles` JSON column back into a
+ * `string[]`, tolerating legacy rows that were persisted as a scalar (see
+ * {@link coerceVideoFiles}) or as a bare unquoted filename.
+ */
+export function parseVideoFiles(raw: string | null | undefined): string[] | null {
+  if (raw == null) return null
+  try {
+    return coerceVideoFiles(JSON.parse(raw) as unknown)
+  } catch {
+    // Legacy/garbled value — treat the raw text as a single filename.
+    return raw ? [raw] : null
+  }
+}
+
 // ─── Path Construction ────────────────────────────────────────────────────────
 
 /**
@@ -501,6 +533,9 @@ export async function ingestScanResults(results: ScanResult[]): Promise<void> {
   const counts = { ok: 0, changed: 0, missing: 0, incomplete: 0, errors: 0 }
 
   for (const r of results) {
+    // Normalise the PowerShell single-element-array quirk before any consumer
+    // (status derivation, presence check, JSON store) touches videoFiles.
+    r.videoFiles = coerceVideoFiles(r.videoFiles)
     const status = _deriveStatus(r)
 
     // Count for summary
@@ -1105,6 +1140,9 @@ export async function upsertArchiveFolders(
 
   for (const item of items) {
     try {
+    // Normalise the PowerShell single-element-array quirk (videoFiles may arrive
+    // as a scalar) before any consumer touches it.
+    item.videoFiles = coerceVideoFiles(item.videoFiles)
     const parsedDate = item.parsedDate ? new Date(item.parsedDate) : null
     const leafDirModifiedAt = new Date(item.leafDirModifiedAt)
     const yearDirModifiedAt = new Date(item.yearDirModifiedAt)
