@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { formatRelativeTime } from '@/lib/utils'
-import { Trash2, ChevronRight, FileText } from 'lucide-react'
+import { Trash2, ChevronRight, FileText, Layers, Users } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { deleteImportBatchAction } from '@/lib/actions/import-actions'
 import { ImportStatusBadge } from './import-status-badge'
@@ -30,30 +30,22 @@ export function ImportBatchList({ batches }: ImportBatchListProps) {
   return (
     <div className="space-y-2">
       {batches.map((batch) => {
-        const imported = batch.itemCounts.IMPORTED || 0
-        const skipped = batch.itemCounts.SKIPPED || 0
-        const total = batch.totalItems
-        const processed = imported + skipped
-        const ready = (batch.itemCounts.NEW || 0) + (batch.itemCounts.MATCHED || 0) + (batch.itemCounts.PROBABLE || 0)
-
-        // Derive a human-readable status
+        // Honest status — measured over reviewable items only. Auto-flow sets/
+        // co-models/credits are surfaced as informational chips, never as work.
         let statusLabel: string
-        let statusBadge: string
-        if (batch.status === 'COMPLETED' || processed === total) {
-          statusLabel = 'Completed'
-          statusBadge = 'IMPORTED'
-        } else if (batch.status === 'FAILED') {
-          statusLabel = 'Failed'
-          statusBadge = 'FAILED'
-        } else if (imported > 0) {
-          statusLabel = `${imported} of ${total} imported`
-          statusBadge = 'PARTIAL'
-        } else if (ready > 0) {
-          statusLabel = 'Ready to review'
-          statusBadge = 'NEW'
-        } else {
-          statusLabel = 'Ready to review'
-          statusBadge = 'NEW'
+        switch (batch.state) {
+          case 'DONE':
+            statusLabel = batch.reviewableTotal > 0 ? 'Imported' : 'Nothing to review'
+            break
+          case 'NEEDS_REVIEW':
+            statusLabel = `${batch.reviewablePending} to review`
+            break
+          case 'BLOCKED':
+            statusLabel = `${batch.blocked} blocked`
+            break
+          case 'FAILED':
+            statusLabel = 'Failed'
+            break
         }
 
         return (
@@ -74,26 +66,28 @@ export function ImportBatchList({ batches }: ImportBatchListProps) {
                 <span className="shrink-0 text-xs text-muted-foreground">
                   ({batch.subjectIcgId})
                 </span>
-                <ImportStatusBadge status={statusBadge} />
+                <ImportStatusBadge status={batch.state} />
               </div>
-              <div className="mt-0.5 flex items-center gap-3 text-xs text-muted-foreground">
+              <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
                 <span>{statusLabel}</span>
-                {batch.extractionDate && (
-                  <span>
-                    Extracted {batch.extractionDate.toLocaleDateString()}
+                {/* Auto-flow info chips — informational, never gate completeness */}
+                {batch.setStagedCount > 0 && (
+                  <span className="inline-flex items-center gap-1">
+                    <Layers size={11} className="opacity-60" />
+                    {batch.setStagedCount} {batch.setStagedCount === 1 ? 'set' : 'sets'} staged
                   </span>
+                )}
+                {batch.coModelCount > 0 && (
+                  <span className="inline-flex items-center gap-1">
+                    <Users size={11} className="opacity-60" />
+                    {batch.coModelCount} co-{batch.coModelCount === 1 ? 'model' : 'models'}
+                  </span>
+                )}
+                {batch.extractionDate && (
+                  <span>Extracted {batch.extractionDate.toLocaleDateString()}</span>
                 )}
                 <span>{formatRelativeTime(batch.createdAt)}</span>
               </div>
-              {/* Progress bar for partially imported batches */}
-              {imported > 0 && processed < total && (
-                <div className="mt-1.5 h-1 w-full max-w-48 overflow-hidden rounded-full bg-muted">
-                  <div
-                    className="h-full rounded-full bg-emerald-500 transition-all"
-                    style={{ width: `${Math.round((processed / total) * 100)}%` }}
-                  />
-                </div>
-              )}
             </div>
 
             <div className="flex items-center gap-2">

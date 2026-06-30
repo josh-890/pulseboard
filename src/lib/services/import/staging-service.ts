@@ -58,6 +58,59 @@ export type ImportBatchWithItems = ImportBatch & {
   items: ImportItem[]
 }
 
+/**
+ * Item types that represent **human-actionable** import work (the person record
+ * and its dependent details). Completeness is measured over these only.
+ */
+export const REVIEWABLE_ITEM_TYPES: ImportItemType[] = [
+  'PERSON',
+  'PERSON_ALIAS',
+  'DIGITAL_IDENTITY',
+  'CHANNEL',
+  'LABEL',
+]
+
+/**
+ * Item types that are **auto-processed at upload time** and never transition to a
+ * terminal `ImportItem.status`: SET → staging sets (`createStagingSetsForBatch`),
+ * CO_MODEL → Contacts/ClaimedCollaboration (`autoImportBatchCoModels`), CREDIT →
+ * session credits. They must NOT count toward batch completeness — surfacing them in
+ * the denominator is exactly what made the old progress bar unable to reach 100%.
+ */
+export const AUTO_FLOW_ITEM_TYPES: ImportItemType[] = ['SET', 'CO_MODEL', 'CREDIT']
+
+/** Reviewable-item statuses that still need the user's attention. */
+const REVIEWABLE_PENDING_STATUSES: ImportItemStatus[] = [
+  'NEW',
+  'PROBABLE',
+  'PENDING_ATTRIBUTE_REVIEW',
+  'READY_TO_IMPORT',
+  'QUEUED',
+  'IMPORTING',
+]
+
+/** Reviewable-item statuses that are settled (imported, skipped, or a matched no-op). */
+const REVIEWABLE_DONE_STATUSES: ImportItemStatus[] = ['IMPORTED', 'SKIPPED', 'MATCHED']
+
+/** The honest, user-facing state of an import batch. */
+export type BatchState = 'NEEDS_REVIEW' | 'DONE' | 'BLOCKED' | 'FAILED'
+
+/**
+ * Derive a batch's state from its reviewable-item tallies. Pure + exported so the
+ * index list, the per-person grouping (Phase 2), and unit tests share one source of
+ * truth. Auto-flow items (sets/co-models/credits) are intentionally not considered.
+ */
+export function deriveBatchState(input: {
+  batchStatus: ImportBatch['status']
+  reviewablePending: number
+  blocked: number
+}): BatchState {
+  if (input.batchStatus === 'FAILED') return 'FAILED'
+  if (input.reviewablePending > 0) return 'NEEDS_REVIEW'
+  if (input.blocked > 0) return 'BLOCKED'
+  return 'DONE'
+}
+
 export type ImportBatchSummary = {
   id: string
   filename: string
@@ -68,6 +121,16 @@ export type ImportBatchSummary = {
   createdAt: Date
   itemCounts: Record<ImportItemStatus, number>
   totalItems: number
+  // Honest completeness — reviewable items only (see REVIEWABLE_ITEM_TYPES).
+  reviewableTotal: number
+  reviewableDone: number
+  reviewablePending: number
+  blocked: number
+  state: BatchState
+  // Informational auto-flow counts (chips, never gate completeness).
+  setStagedCount: number
+  coModelCount: number
+  creditCount: number
 }
 
 // ─── Create Batch ───────────────────────────────────────────────────────────
@@ -1073,29 +1136,72 @@ export async function getAllBatches(): Promise<ImportBatchSummary[]> {
     orderBy: { createdAt: 'desc' },
     include: {
       items: {
-        select: { status: true },
+        select: { status: true, type: true },
       },
+      _count: { select: { stagingSets: true } },
     },
   })
 
-  return batches.map((b) => {
-    const counts: Record<string, number> = {}
-    for (const item of b.items) {
-      counts[item.status] = (counts[item.status] || 0) + 1
-    }
+  return batches.map((b) => summarizeBatch(b))
+}
 
-    return {
-      id: b.id,
-      filename: b.filename,
-      subjectName: b.subjectName,
-      subjectIcgId: b.subjectIcgId,
-      status: b.status,
-      extractionDate: b.extractionDate,
-      createdAt: b.createdAt,
-      itemCounts: counts as Record<ImportItemStatus, number>,
-      totalItems: b.items.length,
+/**
+ * Build an {@link ImportBatchSummary} from a batch row that includes its items'
+ * `{ status, type }` and a `_count.stagingSets`. Shared by `getAllBatches` and the
+ * Phase 2 inbox grouping.
+ */
+function summarizeBatch(b: {
+  id: string
+  filename: string
+  subjectName: string
+  subjectIcgId: string
+  status: ImportBatch['status']
+  extractionDate: Date | null
+  createdAt: Date
+  items: { status: ImportItemStatus; type: ImportItemType }[]
+  _count: { stagingSets: number }
+}): ImportBatchSummary {
+  const counts: Record<string, number> = {}
+  let reviewableTotal = 0
+  let reviewableDone = 0
+  let reviewablePending = 0
+  let blocked = 0
+  let coModelCount = 0
+  let creditCount = 0
+
+  for (const item of b.items) {
+    counts[item.status] = (counts[item.status] || 0) + 1
+
+    if (item.type === 'CO_MODEL') coModelCount++
+    if (item.type === 'CREDIT') creditCount++
+
+    if (REVIEWABLE_ITEM_TYPES.includes(item.type)) {
+      reviewableTotal++
+      if (item.status === 'BLOCKED') blocked++
+      else if (REVIEWABLE_PENDING_STATUSES.includes(item.status)) reviewablePending++
+      else if (REVIEWABLE_DONE_STATUSES.includes(item.status)) reviewableDone++
     }
-  })
+  }
+
+  return {
+    id: b.id,
+    filename: b.filename,
+    subjectName: b.subjectName,
+    subjectIcgId: b.subjectIcgId,
+    status: b.status,
+    extractionDate: b.extractionDate,
+    createdAt: b.createdAt,
+    itemCounts: counts as Record<ImportItemStatus, number>,
+    totalItems: b.items.length,
+    reviewableTotal,
+    reviewableDone,
+    reviewablePending,
+    blocked,
+    state: deriveBatchState({ batchStatus: b.status, reviewablePending, blocked }),
+    setStagedCount: b._count.stagingSets,
+    coModelCount,
+    creditCount,
+  }
 }
 
 export async function deleteBatch(batchId: string): Promise<void> {

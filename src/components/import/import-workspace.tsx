@@ -85,8 +85,10 @@ export function ImportWorkspace({ batch }: ImportWorkspaceProps) {
     const result: Record<string, { ready: number; blocked: number; done: number }> = {}
     for (const item of batch.items) {
       if (!result[item.type]) result[item.type] = { ready: 0, blocked: 0, done: 0 }
-      // SET items are always sent to staging workspace on batch creation — treat as done
-      if (item.type === 'SET') {
+      // Auto-flow types (SET → staging, CO_MODEL → contacts, CREDIT → session
+      // credits) are processed at upload time and never need per-item review —
+      // treat as done so the workspace matches the index's honest completeness.
+      if (item.type === 'SET' || item.type === 'CO_MODEL' || item.type === 'CREDIT') {
         result[item.type].done++
       } else if (
         item.status === 'NEW' ||

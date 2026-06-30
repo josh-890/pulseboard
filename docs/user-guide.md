@@ -891,6 +891,23 @@ The import pipeline enables semi-automatic data ingestion from structured text f
 
 **Filename format:** `YYYY-MM-DD_Name_(ICG-ID).txt` — the date is used as the extraction date for versioning.
 
+### Import List & Batch Status
+
+The Import page lists every batch with an honest **state pill**:
+
+| State | Meaning |
+|-------|---------|
+| **Needs review** | One or more *reviewable* items still need your attention (`N to review`) |
+| **Done** | All reviewable items are imported, skipped, or matched no-ops |
+| **Blocked** | Reviewable items are blocked on missing dependencies |
+| **Failed** | The batch itself failed |
+
+Completeness is measured over **reviewable items only** — the person record and its
+dependent details (aliases, digital identities, channels, labels). Sets, co-models, and
+credits are **auto-processed at upload time** (sets → staging sets, co-models → contacts)
+and are shown as informational chips (`N sets staged`, `N co-models`); they never gate the
+"Done" state. This is why a batch with hundreds of staged sets can still read **Done**.
+
 ### Import Workspace
 
 The workspace has a split-panel layout:
