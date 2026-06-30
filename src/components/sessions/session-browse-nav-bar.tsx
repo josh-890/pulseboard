@@ -146,11 +146,15 @@ export function SessionBrowseNavBar({ sessionId }: SessionBrowseNavBarProps) {
 
 /** Context-aware back link — restores session browser filters from browse context */
 export function SessionBrowseBackLink() {
-  const [href] = useState(() =>
-    typeof window === "undefined"
-      ? "/sessions"
-      : getBrowseReturnUrl("/sessions", SESSION_BROWSE_KEY),
-  );
+  // Render the default href on the server and on the first client render so the
+  // hydrated markup matches; upgrade to the context-aware URL (read from
+  // sessionStorage) after mount. Avoids an href hydration mismatch.
+  const [href, setHref] = useState("/sessions");
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setHref(getBrowseReturnUrl("/sessions", SESSION_BROWSE_KEY));
+  }, []);
 
   return (
     <Link

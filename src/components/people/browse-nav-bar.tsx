@@ -167,9 +167,15 @@ export function BrowseNavBar({ personId }: BrowseNavBarProps) {
 
 /** Context-aware back link — restores filters + loaded count from browse context */
 export function BrowseBackLink() {
-  const [href] = useState(() =>
-    typeof window === "undefined" ? "/people" : getBrowseReturnUrl()
-  );
+  // Render the default href on the server and on the first client render so the
+  // hydrated markup matches; upgrade to the context-aware URL (read from
+  // sessionStorage) after mount. Avoids an href hydration mismatch.
+  const [href, setHref] = useState("/people");
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setHref(getBrowseReturnUrl());
+  }, []);
 
   return (
     <Link

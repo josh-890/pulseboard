@@ -145,11 +145,15 @@ export function SetBrowseNavBar({ setId }: SetBrowseNavBarProps) {
 
 /** Context-aware back link — restores set browser filters from browse context */
 export function SetBrowseBackLink() {
-  const [href] = useState(() =>
-    typeof window === "undefined"
-      ? "/sets"
-      : getBrowseReturnUrl("/sets", SET_BROWSE_KEY),
-  );
+  // Render the default href on the server and on the first client render so the
+  // hydrated markup matches; upgrade to the context-aware URL (read from
+  // sessionStorage) after mount. Avoids an href hydration mismatch.
+  const [href, setHref] = useState("/sets");
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setHref(getBrowseReturnUrl("/sets", SET_BROWSE_KEY));
+  }, []);
 
   return (
     <Link
