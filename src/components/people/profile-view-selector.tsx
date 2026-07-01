@@ -24,18 +24,23 @@ export function ProfileViewSelector({ framings }: ProfileViewSelectorProps) {
 
   const select = useCallback(
     (framing: ProfileFramingOption) => {
-      const params = new URLSearchParams(searchParams.toString());
+      // Read the LIVE URL, not useSearchParams: infinite-scroll updates `loaded`
+      // via history.replaceState, and we must preserve it. A framing swap is a
+      // view toggle (which photo the cards show), NOT a filter — so the loaded
+      // window and scroll position must stay put; only the slot param changes.
+      const params = new URLSearchParams(window.location.search);
       // The default (Headshot) framing carries no param to keep URLs clean.
       if (framing.isAvatarSource) {
         params.delete("slot");
       } else {
         params.set("slot", String(framing.slot));
       }
-      params.delete("loaded"); // reset the load-more cursor when the framing changes
       const qs = params.toString();
-      router.push(qs ? `${pathname}?${qs}` : pathname);
+      // scroll:false keeps the current scroll position (App Router otherwise
+      // jumps to the top on navigation).
+      router.push(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
     },
-    [searchParams, router, pathname],
+    [router, pathname],
   );
 
   // Number-key hotkeys: digit d → the d-th framing chip (1-indexed).
