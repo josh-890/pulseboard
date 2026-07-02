@@ -192,6 +192,11 @@ export async function cascadeHardDeleteMediaItems(
     where: { mediaItemId: { in: mediaItemIds } },
   });
 
+  // 4c. Hard-delete per-image appearance exclusions (ADR-0023)
+  await tx.mediaItemHiddenPerson.deleteMany({
+    where: { mediaItemId: { in: mediaItemIds } },
+  });
+
   // 5. Fetch variants JSON for MinIO cleanup before deleting
   const toDelete = await tx.mediaItem.findMany({
     where: { id: { in: mediaItemIds } },

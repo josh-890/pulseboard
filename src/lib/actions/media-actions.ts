@@ -14,6 +14,11 @@ import {
   type EntityMediaModel,
 } from "@/lib/services/media-service";
 import { cascadeHardDeleteMediaItems } from "@/lib/services/cascade-helpers";
+import {
+  setHiddenPersons,
+  bulkHidePersons,
+  bulkShowPersons,
+} from "@/lib/services/appearance-service";
 import { refreshDashboardStats } from "@/lib/services/view-service";
 import type { PersonMediaLinkUpdate } from "@/lib/services/media-service";
 import type { PersonMediaUsage, SimpleActionResult } from "@/lib/types";
@@ -263,6 +268,41 @@ export async function setMediaFavoriteAction(
         data: { isFavorite },
       });
       revalidatePath("/favorites");
+      return { success: true };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unexpected error";
+      return { success: false, error: message };
+    }
+  });
+}
+
+// ── Per-image appearance ("people shown", ADR-0023) ──────────────────────────
+// Stored as exclusions: `hiddenPersonIds` = the cast members NOT shown in this image.
+export async function setMediaShownPeopleAction(
+  mediaItemId: string,
+  hiddenPersonIds: string[],
+): Promise<SimpleActionResult> {
+  return withTenantFromHeaders(async () => {
+    try {
+      await setHiddenPersons(mediaItemId, hiddenPersonIds);
+      return { success: true };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unexpected error";
+      return { success: false, error: message };
+    }
+  });
+}
+
+// Bulk hide/show people across many selected images (add/remove exclusions).
+export async function bulkSetShownPeopleAction(
+  mediaItemIds: string[],
+  personIds: string[],
+  mode: "hide" | "show",
+): Promise<SimpleActionResult> {
+  return withTenantFromHeaders(async () => {
+    try {
+      if (mode === "hide") await bulkHidePersons(mediaItemIds, personIds);
+      else await bulkShowPersons(mediaItemIds, personIds);
       return { success: true };
     } catch (err) {
       const message = err instanceof Error ? err.message : "Unexpected error";

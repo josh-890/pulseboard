@@ -7,7 +7,7 @@ import { SessionBrowseNavBar, SessionBrowseBackLink } from "@/components/session
 import { getSessionById } from "@/lib/services/session-service";
 import { getLabels } from "@/lib/services/label-service";
 import { getProjects } from "@/lib/services/project-service";
-import { getSessionMediaGallery, getMediaItemsWithLinks, getCoverPhotosForSessions, getHeadshotsForPersons } from "@/lib/services/media-service";
+import { getSessionMediaGallery, getMediaItemsWithLinks, getCoverPhotosForSessions, getHeadshotsForPersons, getGalleryCastDirectory } from "@/lib/services/media-service";
 import { getHeroBackdropEnabled } from "@/lib/services/setting-service";
 import { getPersonProfileFramings } from "@/lib/services/profile-service";
 import { getCollectionsForPerson } from "@/lib/services/collection-service";
@@ -249,6 +249,11 @@ export default async function SessionDetailPage({ params, searchParams }: Sessio
     (c): c is Extract<SessionContributor, { kind: "artist" }> => c.kind === "artist",
   );
 
+  // Per-image "people shown" cast directory (ADR-0023) — the session's on-camera contributors.
+  const castDirectory = !isReference
+    ? await getGalleryCastDirectory(contributorsWithEntities.map((c) => c.personId))
+    : [];
+
   const roleDefinitions = (contributionRoleGroups as Awaited<ReturnType<typeof getAllContributionRoleGroups>>).flatMap((g) =>
     g.definitions.map((d) => ({ id: d.id, name: d.name, groupName: g.name })),
   );
@@ -362,6 +367,7 @@ export default async function SessionDetailPage({ params, searchParams }: Sessio
                 sessionId={id}
                 coverMediaItemId={session.coverMediaItemId ?? null}
                 productionContext={productionContext}
+                cast={castDirectory}
               />
             </SectionCard>
 

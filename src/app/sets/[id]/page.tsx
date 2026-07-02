@@ -6,7 +6,7 @@ import { Tag, Clapperboard } from "lucide-react";
 import { formatPartialDateISO } from "@/lib/utils";
 import { SetBrowseNavBar, SetBrowseBackLink } from "@/components/sets/set-browse-nav-bar";
 import { getSetById, getChannelsForSelect, getSetParticipantEraMap } from "@/lib/services/set-service";
-import { getSetMediaGallery, getCoverPhotosForSets, getHeadshotsForPersons } from "@/lib/services/media-service";
+import { getSetMediaGallery, getCoverPhotosForSets, getHeadshotsForPersons, getGalleryCastDirectory } from "@/lib/services/media-service";
 import { getHeroBackdropEnabled } from "@/lib/services/setting-service";
 import { getAllContributionRoleGroups } from "@/lib/services/contribution-role-service";
 import { SetDetailGallery } from "@/components/sets/set-detail-gallery";
@@ -54,7 +54,7 @@ export default async function SetDetailPage({ params }: SetDetailPageProps) {
     const participants = set.participants;
 
     const participantIds = participants.map((p) => p.personId);
-    const [galleryItems, coverPhotoMap, headshotMap, participantEraMap, referenceTargets] = await Promise.all([
+    const [galleryItems, coverPhotoMap, headshotMap, participantEraMap, referenceTargets, castDirectory] = await Promise.all([
       getSetMediaGallery(id, setData.coverMediaItemId),
       getCoverPhotosForSets([id]),
       getHeadshotsForPersons(participantIds),
@@ -72,6 +72,9 @@ export default async function SetDetailPage({ params }: SetDetailPageProps) {
             },
           })
         : Promise.resolve([] as Array<{ id: string; referenceSession: { id: string } | null; aliases: Array<{ name: string }> }>),
+      // Per-image "people shown" cast directory (ADR-0023) — the set's on-camera
+      // participants (union across sessions); covers any image's session cast.
+      getGalleryCastDirectory(participantIds),
     ]);
     const copyToReferenceTargets = referenceTargets.map((p) => ({
       personId: p.id,
@@ -227,6 +230,7 @@ export default async function SetDetailPage({ params }: SetDetailPageProps) {
               isPrimary: l.isPrimary,
             }))}
             copyToReferenceTargets={copyToReferenceTargets}
+            cast={castDirectory}
           />
 
           {/* Right sidebar: credits + tags + archive (when needed) */}

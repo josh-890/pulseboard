@@ -4,6 +4,8 @@ import type { PhotoVariants } from "@/lib/types";
 import { parsePhotoVariants } from "@/lib/types";
 import type { MediaItemWithUrls, PersonMediaUsage } from "@/lib/types";
 import type { GalleryItem, DuplicateMatch, SimilarMatch } from "@/lib/types";
+import type { GalleryCastMember } from "@/lib/types/gallery";
+import { getOnCameraCastForSessions, getHiddenPersonsForMedia } from "./appearance-service";
 import type { PersonMediaLink } from "@/generated/prisma/client";
 import { hammingDistance } from "@/lib/image-hash";
 import { buildUrl, buildPhotoUrls } from "@/lib/media-url";
@@ -219,8 +221,12 @@ export async function getSessionMediaGallery(sessionId: string): Promise<Gallery
   const results: GalleryItem[] = [];
   for (const item of items) {
     const gi = mapMediaItemToGalleryItem(item);
-    if (gi) results.push(gi);
+    if (gi) {
+      gi.sessionId = sessionId; // needed for appearance lookup (all items share this session)
+      results.push(gi);
+    }
   }
+  await attachAppearance(results, [sessionId]);
   return results;
 }
 
@@ -637,16 +643,69 @@ export async function getSetMediaGallery(
   // SetMediaItem bridge. Same idea applies for any future builder that
   // sits on a join table.
   const results: GalleryItem[] = [];
+  const sessionIds = new Set<string>();
   for (const link of links) {
     const base = mapMediaItemToGalleryItem(link.mediaItem, { coverMediaItemId });
     if (!base) continue;
+    const sid = link.mediaItem.session.id;
+    sessionIds.add(sid);
     results.push({
       ...base,
+      sessionId: sid,
       caption: link.caption ?? base.caption,
       sortOrder: link.sortOrder,
     });
   }
+  await attachAppearance(results, [...sessionIds]);
   return results;
+}
+
+/**
+ * Attach per-image appearance (ADR-0023) to gallery items in place: each item's
+ * session on-camera cast (`sessionCastIds`) + its exclusions (`hiddenPersonIds`).
+ */
+async function attachAppearance(items: GalleryItem[], sessionIds: string[]): Promise<void> {
+  if (items.length === 0) return;
+  const [castMap, hiddenMap] = await Promise.all([
+    getOnCameraCastForSessions(sessionIds),
+    getHiddenPersonsForMedia(items.map((i) => i.id)),
+  ]);
+  for (const it of items) {
+    it.sessionCastIds = it.sessionId ? (castMap.get(it.sessionId) ?? []) : [];
+    it.hiddenPersonIds = hiddenMap.get(it.id) ?? [];
+  }
+}
+
+/**
+ * Cast directory for the per-image "people shown" UI: id → name + avatar, for the
+ * union of a gallery's cast. Sorted by name for stable chip ordering.
+ */
+export async function getGalleryCastDirectory(personIds: string[]): Promise<GalleryCastMember[]> {
+  const ids = [...new Set(personIds)];
+  if (ids.length === 0) return [];
+  const [persons, headshots] = await Promise.all([
+    prisma.person.findMany({
+      where: { id: { in: ids } },
+      select: {
+        id: true,
+        icgId: true,
+        aliases: { where: { isCommon: true }, take: 1, select: { name: true } },
+      },
+    }),
+    getHeadshotsForPersons(ids),
+  ]);
+  return persons
+    .map((p): GalleryCastMember => {
+      const h = headshots.get(p.id);
+      return {
+        id: p.id,
+        name: p.aliases[0]?.name ?? p.icgId,
+        avatarUrl: h?.thumbUrl ?? null,
+        focalX: h?.focalX ?? null,
+        focalY: h?.focalY ?? null,
+      };
+    })
+    .sort((a, b) => a.name.localeCompare(b.name));
 }
 
 // ─── Favorites (ADR-0019) ─────────────────────────────────────────────────────

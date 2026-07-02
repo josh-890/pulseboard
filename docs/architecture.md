@@ -97,6 +97,8 @@ All services in `src/lib/services/`. All functions are async, return Promises. S
 
 **`session-service.ts`** (~450 lines) — Session CRUD, merging, reference session management (auto-created per-person, type=REFERENCE)
 
+**`appearance-service.ts`** (ADR-0023) — Per-image "people shown". Appearance is a property of the MediaItem, stored as **exclusions** in `MediaItemHiddenPerson (mediaItemId, personId)`: `shown(image) = onCameraCast(image.session) \ hidden(image)`, where the default cast = the image's session's on-camera `SessionContribution` Persons (excludes the `Behind Camera` group). Functions: `getOnCameraCastForSessions`, `getHiddenPersonsForMedia`, `setHiddenPersons` (replace), `bulkHide/ShowPersons` (add/remove), pure `computeShownIds`. Gallery reads (`getSetMediaGallery`/`getSessionMediaGallery` in media-service) attach `sessionCastIds` + `hiddenPersonIds` per item + a `getGalleryCastDirectory` (id→name/avatar); the lightbox `GalleryInfoPanel` renders a "People shown" chip section, `GalleryThumbnail` a subset badge (only when hidden>0), and both set/session galleries add a person filter + `BulkPeopleShownControl`. Actions: `setMediaShownPeopleAction`, `bulkSetShownPeopleAction`. Cleanup in `cascadeHardDeleteMediaItems` + Person delete. No cache (derived like SetParticipant); no backfill (empty = all shown).
+
 **`contribution-service.ts`** (~500 lines) — Session contributions (person+role), contribution skills with auto PersonSkill/DEMONSTRATED event creation, skill media mapping, SetParticipant rebuild. `addSessionContribution()` auto-matches `creditNameOverride` to `PersonAlias.nameNorm` and sets `resolvedAliasId`.
 
 ### Domain Services

@@ -16,6 +16,15 @@ export type PersonMediaLinkSummary = {
   notes: string | null;
 };
 
+/** A cast member for the per-image "people shown" UI (chips, subset badge). */
+export type GalleryCastMember = {
+  id: string;
+  name: string;
+  avatarUrl: string | null;
+  focalX: number | null;
+  focalY: number | null;
+};
+
 export type GalleryItem = {
   id: string;
   filename: string;
@@ -49,6 +58,14 @@ export type GalleryItem = {
   sessionName?: string;
   /** Sets this item belongs to — populated in session gallery context */
   setLinks?: { setId: string; setTitle: string }[];
+  /**
+   * Per-image appearance (ADR-0023), populated in set/session production galleries.
+   * `sessionCastIds` = the default cast for this image's session (on-camera Persons);
+   * `hiddenPersonIds` = the exclusions. shown = sessionCastIds \ hiddenPersonIds.
+   * The subset badge shows only when hiddenPersonIds is non-empty.
+   */
+  sessionCastIds?: string[];
+  hiddenPersonIds?: string[];
   /**
    * Provenance for "copy production image → reference session" copies
    * (ADR-0009 follow-up). Populated by reference-session galleries; lets

@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { Check, Frame, Heart } from "lucide-react";
+import { Check, Frame, Heart, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { GalleryItem } from "@/lib/types";
 import {
@@ -47,6 +47,16 @@ export function GalleryThumbnail({
     (l) => l.bodyMarkId || l.bodyModificationId || l.cosmeticProcedureId,
   );
   const hasCollections = (item.collectionIds?.length ?? 0) > 0;
+
+  // Per-image appearance (ADR-0023): show a subset badge ONLY when this image
+  // doesn't show its full session cast (i.e. someone was deselected).
+  const sessionCastCount = item.sessionCastIds?.length ?? 0;
+  const castSet = item.sessionCastIds ? new Set(item.sessionCastIds) : null;
+  const hiddenCount = castSet
+    ? (item.hiddenPersonIds ?? []).filter((id) => castSet.has(id)).length
+    : 0;
+  const isSubset = sessionCastCount > 0 && hiddenCount > 0;
+  const shownCount = sessionCastCount - hiddenCount;
 
   function handleClick(e: React.MouseEvent) {
     if (selectable && onSelect) {
@@ -155,6 +165,16 @@ export function GalleryThumbnail({
 
       {/* Badge tray */}
       <div className="absolute bottom-1.5 right-1.5 flex items-center gap-1">
+        {/* Subset badge — only when not all of the session cast is shown (ADR-0023) */}
+        {isSubset && (
+          <span
+            className="pointer-events-none inline-flex items-center gap-0.5 rounded-full bg-black/65 px-1.5 py-0.5 text-[10px] font-medium text-white"
+            title={`${shownCount} of ${sessionCastCount} people shown`}
+            aria-label={`${shownCount} of ${sessionCastCount} people shown`}
+          >
+            <Users size={9} /> {shownCount}/{sessionCastCount}
+          </span>
+        )}
         {/* Usage badges (MediaManager mode) */}
         {item.links?.map((link) => (
           <MediaUsageBadge key={link.id} usage={link.usage} />

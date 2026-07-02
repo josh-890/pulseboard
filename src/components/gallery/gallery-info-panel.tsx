@@ -19,10 +19,12 @@ import {
   Search,
   Tag,
   User,
+  Users,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import type { GalleryItem, PersonMediaUsage, PersonMediaLinkSummary } from "@/lib/types";
+import type { GalleryCastMember } from "@/lib/types/gallery";
 import type { CollectionSummary } from "@/lib/services/collection-service";
 import {
   setFocalPointAction,
@@ -171,6 +173,11 @@ type GalleryInfoPanelProps = {
   collectionContext?: CollectionContext;
   // When set, enables the "+ New collection" affordance in the collections section.
   onCollectionCreated?: (collection: { id: string; name: string }) => void;
+  // Per-image "people shown" (ADR-0023). `cast` = the gallery's cast directory;
+  // the section lists this image's session cast, all pressed by default, deselect
+  // to exclude. `onSetHiddenPersons` persists the new hidden set.
+  cast?: GalleryCastMember[];
+  onSetHiddenPersons?: (itemId: string, hiddenPersonIds: string[]) => void;
 };
 
 export function GalleryInfoPanel({
@@ -189,9 +196,11 @@ export function GalleryInfoPanel({
   productionContext,
   collectionContext,
   onCollectionCreated,
+  cast,
+  onSetHiddenPersons,
 }: GalleryInfoPanelProps) {
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
-    new Set(["cover", "headshot", "favorite", "usage", "tags", "structuredTags", "focal", "info", "source"]),
+    new Set(["cover", "headshot", "favorite", "usage", "people-shown", "tags", "structuredTags", "focal", "info", "source"]),
   );
   const [isPending, startTransition] = useTransition();
   const [isFocalPending, startFocalTransition] = useTransition();
@@ -964,6 +973,57 @@ export function GalleryInfoPanel({
           )}
         </>
       )}
+
+      {/* People shown (ADR-0023) — set/production galleries; default all-shown, deselect the absent */}
+      {cast && cast.length > 0 && (item.sessionCastIds?.length ?? 0) > 0 && (() => {
+        const hidden = new Set(item.hiddenPersonIds ?? []);
+        const castById = new Map(cast.map((c) => [c.id, c]));
+        const sessionCast = (item.sessionCastIds ?? []).filter((id) => castById.has(id));
+        if (sessionCast.length === 0) return null;
+        const shownCount = sessionCast.filter((id) => !hidden.has(id)).length;
+        return (
+          <>
+            <SectionHeader
+              title={`People shown (${shownCount}/${sessionCast.length})`}
+              icon={<Users size={14} />}
+              section="people-shown"
+              expanded={expandedSections.has("people-shown")}
+              onToggle={toggleSection}
+            />
+            {expandedSections.has("people-shown") && (
+              <div className="flex flex-wrap gap-1 pb-2">
+                {sessionCast.map((pid) => {
+                  const member = castById.get(pid)!;
+                  const isShown = !hidden.has(pid);
+                  return (
+                    <button
+                      key={pid}
+                      type="button"
+                      onClick={() => {
+                        const next = new Set(hidden);
+                        if (isShown) next.add(pid);
+                        else next.delete(pid);
+                        onSetHiddenPersons?.(item.id, [...next]);
+                      }}
+                      className={cn(
+                        "inline-flex items-center gap-1.5 rounded-full border px-2 py-1 text-xs font-medium transition-all",
+                        "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
+                        isShown
+                          ? "border-emerald-400/40 bg-emerald-400/15 text-emerald-100"
+                          : "border-transparent bg-white/5 text-white/40 line-through hover:bg-white/10 hover:text-white/70",
+                      )}
+                      aria-pressed={isShown}
+                      title={isShown ? `${member.name} — shown (click to mark absent)` : `${member.name} — not shown (click to include)`}
+                    >
+                      {member.name}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </>
+        );
+      })()}
 
       {/* Skill Events (reference context only, when skill events exist) */}
       {referenceContext && referenceContext.skillEvents.length > 0 && (

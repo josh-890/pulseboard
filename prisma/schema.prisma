@@ -371,6 +371,7 @@ model Person {
   currentState         PersonCurrentState?
   importDeclines       ImportDeclineLog[]
   deletionTombstones   ItemDeletionTombstone[]
+  hiddenInMedia        MediaItemHiddenPerson[]
 
   createdAt DateTime @default(now())
 
@@ -1190,6 +1191,7 @@ model MediaItem {
   comparisonItems  ComparisonItem[]
   skillEventMedia  SkillEventMedia[]
   mediaItemTags    MediaItemTag[]
+  hiddenPersons    MediaItemHiddenPerson[]
 
   @@index([sessionId])
   @@index([hash])
@@ -1905,6 +1907,24 @@ model MediaItemTag {
   @@id([mediaItemId, tagDefinitionId])
   @@index([tagDefinitionId])
   @@map("media_item_tag")
+}
+
+// Per-image "people shown" appearance, stored as EXCLUSIONS (ADR-0023).
+// The default cast shown in an image = its session's on-camera SessionContribution
+// Persons; a row here marks a cast member who is NOT shown in that image.
+// shown(image) = onCameraCast(image.session) \ hidden(image). Absence of rows =
+// all cast shown, so the default self-follows the live cast (no backfill).
+model MediaItemHiddenPerson {
+  mediaItemId String
+  personId    String
+  source      TagSource @default(MANUAL)
+  createdAt   DateTime  @default(now())
+  mediaItem   MediaItem @relation(fields: [mediaItemId], references: [id])
+  person      Person    @relation(fields: [personId], references: [id])
+
+  @@id([mediaItemId, personId])
+  @@index([personId])
+  @@map("media_item_hidden_person")
 }
 
 model SetTag {

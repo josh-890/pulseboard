@@ -864,6 +864,30 @@ These additional sections appear when viewing media in a reference session:
 
 Active elements in the info panel use **amber-500** color accents.
 
+### People shown per image (set & production galleries)
+
+A set or production session can involve several people, but a given photo may show only
+some of them. The **People shown** info-panel section (visible in set and production-session
+galleries with 2+ cast) lets you record this **per image**:
+
+- Every cast member is a chip, **selected (shown) by default** — Pulseboard already knows the
+  cast from the credits, so you only **deselect the people who are *not* in that photo**.
+- The default cast for an image is **its own session's on-camera contributors** (behind-camera
+  crew are excluded), which matters for sets built from multiple sessions.
+- Nothing is stored until you deselect someone (only the exclusions are saved), so adding a
+  contributor to the credits later automatically shows them in every image by default.
+
+**Where you see it:**
+- **Thumbnail badge** — a small `shown/total` people badge appears **only on images that
+  aren't showing the full cast** (a subset). Full-cast images stay clean.
+- **Filter** — a "Shows:" chip row above the grid filters to *only the images showing* a
+  chosen person.
+- **Bulk** — select several images, then **People shown** in the action bar to Show/Hide a
+  person across all of them at once (e.g. "these 20 frames show only Person A").
+
+Note: v1 is deselect-only. If someone appears who isn't credited, add them to the session's
+credits first.
+
 ### Find Similar Images
 
 **Route:** `/media/similar?id=[mediaItemId]`

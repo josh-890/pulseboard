@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
-import { setMediaFavoriteAction } from "@/lib/actions/media-actions";
+import { setMediaFavoriteAction, setMediaShownPeopleAction } from "@/lib/actions/media-actions";
 import { addToCollectionAction } from "@/lib/actions/collection-actions";
 import { CollectionQuickAddPalette } from "@/components/collections/collection-quick-add-palette";
 import { DetailAssignSheet, type AssignPerson } from "@/components/people/detail-assign-sheet";
@@ -36,6 +36,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
 import type { GalleryItem } from "@/lib/types";
+import type { GalleryCastMember } from "@/lib/types/gallery";
 import { ZoomableImage } from "@/components/media/zoomable-image";
 import { GalleryFilmstrip } from "./gallery-filmstrip";
 import { GalleryInfoPanel } from "./gallery-info-panel";
@@ -69,6 +70,12 @@ type GalleryLightboxProps = {
   referenceContext?: ReferenceContext;
   // Production context (optional — forwarded to GalleryInfoPanel for entity linking)
   productionContext?: ProductionContext;
+  // Per-image "people shown" cast directory (ADR-0023). When provided, the info
+  // panel shows a "People shown" chip section (default all-shown, deselect absent).
+  cast?: GalleryCastMember[];
+  // Notifies the parent gallery when an image's hidden set changes, so the grid's
+  // subset badge updates live (without a reload).
+  onHiddenPersonsChange?: (itemId: string, hiddenPersonIds: string[]) => void;
   // Standalone collection context (optional — forwarded to GalleryInfoPanel)
   collectionContext?: CollectionContext;
   // When true and no collectionContext is supplied, the lightbox self-fetches the
@@ -121,6 +128,8 @@ function SimpleLightbox({
   referenceContext,
   productionContext,
   collectionContext,
+  cast,
+  onHiddenPersonsChange,
   enableCollections,
   onDelete,
   onEdit,
@@ -151,6 +160,9 @@ function SimpleLightbox({
   // heart works in every lightbox without per-page plumbing.
   const [localFavoriteMap, setLocalFavoriteMap] = useState<Map<string, boolean>>(new Map());
   const [, startFavTransition] = useTransition();
+  // ADR-0023: optimistic per-image "people shown" override (hidden person ids).
+  const [localHiddenMap, setLocalHiddenMap] = useState<Map<string, string[]>>(new Map());
+  const [, startHiddenTransition] = useTransition();
   // ADR-0019: quick-add palette + target collection.
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [assignOpen, setAssignOpen] = useState(false);
@@ -176,14 +188,16 @@ function SimpleLightbox({
           const linksOverride = localLinksMap.get(it.id);
           const collOverride = localCollectionIdsMap.get(it.id);
           const favOverride = localFavoriteMap.get(it.id);
+          const hiddenOverride = localHiddenMap.get(it.id);
           let result = it;
           if (focalOverride) result = { ...result, focalX: focalOverride.focalX, focalY: focalOverride.focalY };
           if (linksOverride !== undefined) result = { ...result, links: linksOverride };
           if (collOverride !== undefined) result = { ...result, collectionIds: collOverride };
           if (favOverride !== undefined) result = { ...result, isFavorite: favOverride };
+          if (hiddenOverride !== undefined) result = { ...result, hiddenPersonIds: hiddenOverride };
           return result;
         }),
-    [items, deletedIds, localFocalPoints, localLinksMap, localCollectionIdsMap, localFavoriteMap],
+    [items, deletedIds, localFocalPoints, localLinksMap, localCollectionIdsMap, localFavoriteMap, localHiddenMap],
   );
 
   const item = localItems[currentIndex];
@@ -205,6 +219,15 @@ function SimpleLightbox({
     },
     [localItems, onFavoriteToggle],
   );
+
+  // ADR-0023: set the per-image "people shown" (persist the hidden set). Optimistic.
+  const handleSetHidden = useCallback((id: string, hiddenIds: string[]) => {
+    setLocalHiddenMap((m) => new Map(m).set(id, hiddenIds));
+    onHiddenPersonsChange?.(id, hiddenIds);
+    startHiddenTransition(async () => {
+      await setMediaShownPeopleAction(id, hiddenIds);
+    });
+  }, [onHiddenPersonsChange]);
 
   // ADR-0019: quick-add palette data + optimistic collection membership.
   useEffect(() => {
@@ -531,6 +554,8 @@ function SimpleLightbox({
     productionContext,
     collectionContext: augmentedCollectionContext,
     onCollectionCreated: enableCollections || collectionContext ? handleCollectionCreated : undefined,
+    cast,
+    onSetHiddenPersons: handleSetHidden,
   };
 
   return createPortal(

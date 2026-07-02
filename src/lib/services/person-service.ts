@@ -2046,6 +2046,11 @@ export async function deletePersonRecord(id: string): Promise<PhotoVariants[]> {
       where: { personId: id },
     });
 
+    // Delete per-image appearance exclusions referencing this person (ADR-0023)
+    await tx.mediaItemHiddenPerson.deleteMany({
+      where: { personId: id },
+    });
+
     // Delete the person
     await tx.person.delete({
       where: { id },
