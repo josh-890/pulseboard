@@ -991,34 +991,74 @@ export function GalleryInfoPanel({
               onToggle={toggleSection}
             />
             {expandedSections.has("people-shown") && (
-              <div className="flex flex-wrap gap-1 pb-2">
-                {sessionCast.map((pid) => {
-                  const member = castById.get(pid)!;
-                  const isShown = !hidden.has(pid);
-                  return (
+              <div className="space-y-1.5 pb-2">
+                {/* Quick actions — a fast path when only 1–2 of a large cast are shown */}
+                {sessionCast.length > 2 && (
+                  <div className="flex items-center gap-2 px-0.5 text-[11px] text-white/50">
                     <button
-                      key={pid}
                       type="button"
-                      onClick={() => {
-                        const next = new Set(hidden);
-                        if (isShown) next.add(pid);
-                        else next.delete(pid);
-                        onSetHiddenPersons?.(item.id, [...next]);
-                      }}
-                      className={cn(
-                        "inline-flex items-center gap-1.5 rounded-full border px-2 py-1 text-xs font-medium transition-all",
-                        "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
-                        isShown
-                          ? "border-emerald-400/40 bg-emerald-400/15 text-emerald-100"
-                          : "border-transparent bg-white/5 text-white/40 line-through hover:bg-white/10 hover:text-white/70",
-                      )}
-                      aria-pressed={isShown}
-                      title={isShown ? `${member.name} — shown (click to mark absent)` : `${member.name} — not shown (click to include)`}
+                      onClick={() => onSetHiddenPersons?.(item.id, [])}
+                      className="transition-colors hover:text-white"
                     >
-                      {member.name}
+                      Select all
                     </button>
-                  );
-                })}
+                    <span className="text-white/20">·</span>
+                    <button
+                      type="button"
+                      onClick={() => onSetHiddenPersons?.(item.id, [...sessionCast])}
+                      className="transition-colors hover:text-white"
+                    >
+                      Deselect all
+                    </button>
+                  </div>
+                )}
+                <div className="flex flex-wrap gap-1">
+                  {sessionCast.map((pid) => {
+                    const member = castById.get(pid)!;
+                    const isShown = !hidden.has(pid);
+                    return (
+                      <span
+                        key={pid}
+                        className={cn(
+                          "group/chip inline-flex items-center overflow-hidden rounded-full border text-xs font-medium transition-all",
+                          isShown
+                            ? "border-emerald-400/40 bg-emerald-400/15 text-emerald-100"
+                            : "border-transparent bg-white/5 text-white/40 hover:bg-white/10 hover:text-white/70",
+                        )}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const next = new Set(hidden);
+                            if (isShown) next.add(pid);
+                            else next.delete(pid);
+                            onSetHiddenPersons?.(item.id, [...next]);
+                          }}
+                          className={cn(
+                            "px-2 py-1 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
+                            !isShown && "line-through",
+                          )}
+                          aria-pressed={isShown}
+                          title={isShown ? `${member.name} — shown (click to mark absent)` : `${member.name} — not shown (click to include)`}
+                        >
+                          {member.name}
+                        </button>
+                        {/* "Only this one" — sets the shown set to just this person */}
+                        {sessionCast.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => onSetHiddenPersons?.(item.id, sessionCast.filter((id) => id !== pid))}
+                            className="border-l border-white/15 px-1.5 py-1 text-[10px] uppercase tracking-wide text-white/40 opacity-0 transition-opacity hover:text-white group-hover/chip:opacity-100"
+                            title={`Show only ${member.name}`}
+                            aria-label={`Show only ${member.name}`}
+                          >
+                            only
+                          </button>
+                        )}
+                      </span>
+                    );
+                  })}
+                </div>
               </div>
             )}
           </>
