@@ -85,9 +85,10 @@ export function CreditAliasPicker({
     );
   }
 
-  // Suggestions = channel aliases other than the common name (the common name is
-  // the "no alias" baseline, offered via "use common name").
-  const suggestions = (aliases ?? []).filter((a) => !a.isCommon);
+  // Options = every alias registered on this channel — INCLUDING the common name
+  // when it's itself a channel alias, so the user can confirm "credited under the
+  // common name on this channel" (ADR-0024). Common name first.
+  const options = aliases ?? [];
 
   return (
     <div className="pl-2 flex flex-wrap items-center gap-1.5">
@@ -97,7 +98,7 @@ export function CreditAliasPicker({
         <Loader2 size={12} className="animate-spin text-muted-foreground" />
       ) : (
         <>
-          {suggestions.map((a) => {
+          {options.map((a) => {
             const selected = a.id === currentAliasId;
             return (
               <button
@@ -111,10 +112,17 @@ export function CreditAliasPicker({
                     ? "border-primary/40 bg-primary/15 text-primary"
                     : "border-white/15 bg-muted/40 text-foreground hover:border-white/30",
                 )}
-                title={selected ? "Currently credited as this" : `Credit as ${a.name}`}
+                title={
+                  a.isCommon
+                    ? "Common name — also this channel's alias"
+                    : selected
+                      ? "Currently credited as this"
+                      : `Credit as ${a.name}`
+                }
               >
                 {selected && <Check size={10} />}
                 {a.name}
+                {a.isCommon && <span className="text-[9px] opacity-60">common</span>}
               </button>
             );
           })}
