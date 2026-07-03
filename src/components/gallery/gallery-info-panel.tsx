@@ -1048,7 +1048,7 @@ export function GalleryInfoPanel({
                           <button
                             type="button"
                             onClick={() => onSetHiddenPersons?.(item.id, sessionCast.filter((id) => id !== pid))}
-                            className="border-l border-white/15 px-1.5 py-1 text-[10px] uppercase tracking-wide text-white/40 opacity-0 transition-opacity hover:text-white group-hover/chip:opacity-100"
+                            className="border-l border-white/15 px-1.5 py-1 text-[10px] uppercase tracking-wide text-white/40 transition-colors hover:bg-white/10 hover:text-white"
                             title={`Show only ${member.name}`}
                             aria-label={`Show only ${member.name}`}
                           >

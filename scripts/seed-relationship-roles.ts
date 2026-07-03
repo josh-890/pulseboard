@@ -16,6 +16,7 @@ const ROLES: {
   isSymmetric: boolean;
   category: "familial" | "personal" | "professional" | "other";
 }[] = [
+  { slug: "twin", name: "Twin", inverseName: "Twin", isSymmetric: true, category: "familial" },
   { slug: "sibling", name: "Sibling", inverseName: "Sibling", isSymmetric: true, category: "familial" },
   { slug: "parent", name: "Parent", inverseName: "Child", isSymmetric: false, category: "familial" },
   { slug: "child", name: "Child", inverseName: "Parent", isSymmetric: false, category: "familial" },
