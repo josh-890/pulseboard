@@ -8,6 +8,7 @@ import { SetRating } from "@/components/sets/set-rating";
 import type { getSetById } from "@/lib/services/set-service";
 import type { CoverPhotoData, HeadshotData } from "@/lib/services/media-service";
 import type { ArchiveStatus } from "@/generated/prisma/client";
+import { resolveCreditedAs } from "@/lib/sets/credited-as";
 
 type SetData = NonNullable<Awaited<ReturnType<typeof getSetById>>>;
 type Participant = SetData["participants"][number];
@@ -196,16 +197,16 @@ export function SetHero({
   const primaryLabel = set.channel?.label;
   const primarySession = set.sessionLinks.find((l) => l.isPrimary)?.session ?? set.sessionLinks[0]?.session ?? null;
 
-  // Build map: personId → rawName (only when rawName differs from common alias)
+  // Build map: personId → the alias they were credited as on this set.
+  // Precedence (ADR-0024): pinned alias → raw string → nothing. See resolveCreditedAs.
   const creditedAsMap = new Map<string, string>();
   for (const credit of set.creditsRaw) {
     if (!credit.resolvedPersonId || credit.resolutionStatus !== "RESOLVED") continue;
     const participant = set.participants.find((p) => p.personId === credit.resolvedPersonId);
     if (!participant) continue;
     const commonName = participant.person.aliases[0]?.name ?? null;
-    if (credit.rawName && credit.rawName !== commonName) {
-      creditedAsMap.set(credit.resolvedPersonId, credit.rawName);
-    }
+    const creditedAs = resolveCreditedAs(credit, commonName);
+    if (creditedAs) creditedAsMap.set(credit.resolvedPersonId, creditedAs);
   }
 
   const coverPanel = coverPhoto ? (

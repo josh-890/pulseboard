@@ -134,6 +134,21 @@ _Avoid_: "model" / "performer" / "subject" (those are on-camera Persons); foldin
 
 **Contribution** (code model & DB table: `SessionContribution`) / **Participant** (`SetParticipant`):
 The link of an **on-camera Person** to a **Session** (one shoot) / **Set**, with a role. Created when a credit resolves to a Person; `SetParticipant` is the derived per-set cache. Optionally carries the **Era** the person was in at the shoot (appearance-at-shoot) — meaningful only for Persons. Behind-camera Artists are credited on the Set, not stored here.
+_Note_: `SetParticipant` deliberately carries **no** alias — the name a person appeared under is **evidence** on the Credit, read from `set.creditsRaw`, never from this cache (ADR-0024).
+
+### Aliases in sets (added 2026-07-03, ADR-0024)
+
+**Alias** (code model & DB table: `PersonAlias`; channel scoping: `PersonAliasChannel`):
+A name a Person is known by — the **registry truth**. Stage names live here (not "Persona" — that's an Era). An alias is **channel-scoped**: `PersonAliasChannel` records that "Wiska = Mila **on channel X**", with `isPrimary` marking the default when a channel carries several. Multiple aliases per (person, channel) is **normal**. One alias is flagged `isCommon` — the common name every view leads with.
+_Avoid_: treating the alias-in-a-set as the truth (the set is *evidence*); "Persona"/"stage identity" for the temporal concept (that's an **Era**).
+
+**Used-name / credited-as** (per-set **evidence**; `SetCreditRaw.rawName` + `SetCreditRaw.resolvedAliasId`):
+The name a person appeared under **in one specific set** — the IMDb "(as …)" fact. The frozen `rawName` is the observed string; `resolvedAlias` is the pin to a registry Alias. Display precedence: pinned alias's current name → raw string → nothing; never derived from the channel mapping (evidence-only). Surfaced as the hero "as: …" line, the credits panel, and the person's career list.
+_Avoid_: storing the used-name on `SetParticipant`; auto-painting an alias onto sets that recorded the common name.
+
+**Alias promotion** (service `getAliasPromotionQueue` / `promoteAliasFromQueue`; dismissals: `AliasPromotionDismissal`):
+Turning a captured **used-name** into a registered, channel-scoped **Alias**. The queue is **derived** from `SetCreditRaw` (not a stored candidate), corroborated by a set count; confirming creates the alias + channel link + back-fills the pins. Rejections are stored as a channel-scoped dismissal marker (mirrors the `ItemDeletionTombstone` pattern, ADR-0009).
+_Avoid_: silent auto-promotion — the channel mapping is a **suggestion engine**, confirmation is mandatory (multi-person folder names are positional-unsafe).
 
 ### Imagery & alignment (added 2026-06-12)
 

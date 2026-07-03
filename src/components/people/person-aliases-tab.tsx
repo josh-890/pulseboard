@@ -16,7 +16,7 @@ import {
   X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { PersonAliasWithChannels } from "@/lib/services/alias-service";
+import type { PersonAliasWithChannels, AliasPromotionCandidate } from "@/lib/services/alias-service";
 import type { AliasSource } from "@/generated/prisma/client";
 import {
   deleteAliasAction,
@@ -26,6 +26,7 @@ import {
 import { AddAliasSheet } from "./add-alias-sheet";
 import { AliasImportDialog } from "./alias-import-dialog";
 import { AliasMergeDialog } from "./alias-merge-dialog";
+import { AliasPromotionSuggestions } from "./alias-promotion-suggestions";
 import { DigitalIdentitySection } from "./digital-identity-section";
 import type { PersonDigitalIdentityItem } from "@/lib/types";
 
@@ -66,12 +67,13 @@ type SortMode = "default" | "links";
 type PersonAliasesTabProps = {
   personId: string;
   aliases: PersonAliasWithChannels[];
+  promotionQueue?: AliasPromotionCandidate[];
   digitalIdentities: PersonDigitalIdentityItem[];
 };
 
 // ── Main Component ──────────────────────────────────────────────────────────
 
-export function PersonAliasesTab({ personId, aliases, digitalIdentities }: PersonAliasesTabProps) {
+export function PersonAliasesTab({ personId, aliases, promotionQueue = [], digitalIdentities }: PersonAliasesTabProps) {
   const [viewMode, setViewMode] = useState<ViewMode>("by-alias");
   const [sortMode, setSortMode] = useState<SortMode>("links");
   const [searchQuery, setSearchQuery] = useState("");
@@ -196,6 +198,9 @@ export function PersonAliasesTab({ personId, aliases, digitalIdentities }: Perso
 
   return (
     <div className="space-y-4">
+      {/* Suggested from sets (ADR-0024) — promote used-names into the registry */}
+      <AliasPromotionSuggestions personId={personId} candidates={promotionQueue} />
+
       {/* Summary bar */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
@@ -446,6 +451,16 @@ function ChannelChip({
       </button>
 
       <span className="max-w-[160px] truncate">{cl.channelName}</span>
+
+      {/* Corroboration: sets on this channel credited under this alias (ADR-0024) */}
+      {cl.setCount > 0 && (
+        <span
+          className="shrink-0 rounded-full bg-white/10 px-1 text-[10px] tabular-nums text-muted-foreground"
+          title={`${cl.setCount} ${cl.setCount === 1 ? "set" : "sets"} on ${cl.channelName} credited under this alias`}
+        >
+          {cl.setCount}
+        </span>
+      )}
 
       {/* Unlink */}
       <button

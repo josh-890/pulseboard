@@ -237,6 +237,14 @@ export function TimelineSetRow({
           <span className="min-w-0 truncate text-sm font-semibold text-foreground">
             {row.title}
           </span>
+          {row.viewerUsedName && (
+            <span
+              className="shrink-0 text-xs italic text-muted-foreground/70"
+              title="The name this person was credited under in this set"
+            >
+              as {row.viewerUsedName}
+            </span>
+          )}
           <StatusPill status={status} />
           <ArchivePill
             archiveStatus={row.archiveStatus}

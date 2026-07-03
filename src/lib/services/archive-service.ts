@@ -48,6 +48,19 @@ export function parseFolderParticipant(folderName: string): string | null {
   return norm || null
 }
 
+/**
+ * Like {@link parseFolderParticipant} but returns the RAW (un-normalized) person
+ * segment, for pre-filling the editable "used name" field on a set's participant
+ * (ADR-0024). The raw string is a hint the user can accept, fix (archive typos),
+ * or replace — it is never the authority. Returns null when not in canonical form.
+ */
+export function parseFolderParticipantRaw(folderName: string): string | null {
+  const m = folderName.match(/^\d{4}-\d{2}-\d{2}-[A-Za-z0-9]+\s+(.+?)\s+[-–—]\s+.+$/)
+  if (!m || !m[1]) return null
+  const raw = m[1].trim()
+  return raw || null
+}
+
 function _nameTokens(s: string): string[] {
   return s.split(/[^a-z0-9]+/i).filter(Boolean)
 }
@@ -2149,7 +2162,7 @@ export async function getArchiveWorkspace(filters: WorkspaceFilters): Promise<Wo
         parsedDate: r.parsedDate,
         parsedShortName: r.parsedShortName,
         parsedTitle: r.parsedTitle,
-        parsedParticipant: parseFolderParticipant(r.folderName),
+        parsedParticipant: parseFolderParticipantRaw(r.folderName),
         linkedSetId,
         linkedStagingId,
         suggestedSetId,
@@ -2300,7 +2313,7 @@ export async function getArchiveWorkspace(filters: WorkspaceFilters): Promise<Wo
         parsedDate: r.parsedDate,
         parsedShortName: r.parsedShortName,
         parsedTitle: r.parsedTitle,
-        parsedParticipant: parseFolderParticipant(r.folderName),
+        parsedParticipant: parseFolderParticipantRaw(r.folderName),
         linkedSetId,
         linkedStagingId,
         suggestedSetId,
@@ -2376,7 +2389,7 @@ export async function getArchiveWorkspace(filters: WorkspaceFilters): Promise<Wo
         parsedDate: r.parsedDate,
         parsedShortName: r.parsedShortName,
         parsedTitle: r.parsedTitle,
-        parsedParticipant: parseFolderParticipant(r.folderName),
+        parsedParticipant: parseFolderParticipantRaw(r.folderName),
         linkedSetId,
         linkedStagingId,
         suggestedSetId: null,
@@ -2802,6 +2815,90 @@ export async function reparseFolderNames(tenant: string): Promise<{ updated: num
         parsedTitle: parsed.parsedTitle,
         nameFormatOk: parsed.nameFormatOk,
         chanFolderName: extractChanFolderName(folder.fullPath),
+      },
+    })
+    updated++
+  }
+
+  return { updated }
+}
+
+/**
+ * On-demand backfill (ADR-0024): re-parse CONFIRMED archive-folder names and,
+ * for single-participant sets whose sole resolved credit is still stored under
+ * the common name, capture the folder's used-name onto SetCreditRaw.rawName
+ * (auto-pinning to an existing alias on the channel when one matches). Multi-
+ * participant / ambiguous folders are skipped — their alignment is positional-
+ * unsafe and must be done by hand. Once a used-name is captured it surfaces in
+ * the derived promotion queue on the person's alias tab.
+ */
+export async function scanArchiveForAliases(tenant: string): Promise<{ updated: number }> {
+  const links = await prisma.archiveLink.findMany({
+    where: { status: 'CONFIRMED', setId: { not: null }, archiveFolder: { tenant } },
+    select: {
+      archiveFolder: { select: { folderName: true } },
+      set: {
+        select: {
+          channelId: true,
+          creditsRaw: {
+            where: { resolvedPersonId: { not: null } },
+            select: {
+              id: true,
+              nameNorm: true,
+              resolvedPersonId: true,
+              resolvedAliasId: true,
+              resolvedPerson: {
+                select: { aliases: { where: { isCommon: true }, select: { name: true, nameNorm: true }, take: 1 } },
+              },
+            },
+          },
+        },
+      },
+    },
+  })
+
+  let updated = 0
+  for (const link of links) {
+    const folderName = link.archiveFolder?.folderName
+    const set = link.set
+    if (!folderName || !set) continue
+
+    const parsedRaw = parseFolderParticipantRaw(folderName)
+    if (!parsedRaw) continue
+    const parsedNorm = normalizeForSearch(parsedRaw)
+    if (!parsedNorm) continue
+
+    // Positional safety: only single-participant sets are auto-aligned.
+    if (set.creditsRaw.length !== 1) continue
+    const credit = set.creditsRaw[0]
+
+    const commonAlias = credit.resolvedPerson?.aliases[0]
+    const commonNorm = commonAlias?.nameNorm ?? (commonAlias?.name ? normalizeForSearch(commonAlias.name) : null)
+    if (parsedNorm === commonNorm) continue // credited under the common name
+
+    // Don't clobber a used-name that was already captured.
+    if (credit.nameNorm && credit.nameNorm !== commonNorm) continue
+
+    // Auto-pin to an existing alias on this channel when one matches.
+    let resolvedAliasId = credit.resolvedAliasId
+    if (!resolvedAliasId && set.channelId && credit.resolvedPersonId) {
+      const alias = await prisma.personAlias.findFirst({
+        where: {
+          personId: credit.resolvedPersonId,
+          nameNorm: parsedNorm,
+          channelLinks: { some: { channelId: set.channelId } },
+        },
+        select: { id: true },
+      })
+      resolvedAliasId = alias?.id ?? null
+    }
+
+    await prisma.setCreditRaw.update({
+      where: { id: credit.id },
+      data: {
+        rawName: parsedRaw,
+        nameNorm: parsedNorm,
+        ...(resolvedAliasId ? { resolvedAliasId } : {}),
       },
     })
     updated++

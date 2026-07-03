@@ -59,6 +59,13 @@ export type ParticipantStatus = {
   status: 'known' | 'candidate' | 'new'
   personId?: string
   thumbnailUrl?: string
+  /**
+   * The alias the person appeared under in this set (ADR-0024), distinct from
+   * their identity `name`. Captured from the archive folder name (editable) or
+   * typed by the user. Becomes `SetCreditRaw.rawName` at promotion; absent →
+   * falls back to `name` (i.e. credited under the common name).
+   */
+  usedName?: string
 }
 
 type ParticipantInfo = {

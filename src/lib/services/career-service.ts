@@ -16,6 +16,7 @@ import type {
   Prisma,
 } from "@/generated/prisma/client";
 import { getCoverPhotosForSets } from "@/lib/services/media-service";
+import { resolveCreditedAs } from "@/lib/sets/credited-as";
 import { buildUrl } from "@/lib/media-url";
 import type { PhotoVariants } from "@/lib/types/photo";
 
@@ -82,6 +83,9 @@ type CareerTimelineRowBase = {
   hasArchiveLink: boolean;
   itemCount: number | null;
   eraId: string | null;
+  // The alias the VIEWED person was credited under in this set (ADR-0024), when
+  // it differs from their common name. Null for staged rows (pre-promotion).
+  viewerUsedName: string | null;
   participants: CareerRowParticipant[];
   extraParticipantCount: number;
   // Up to 4 sample thumbnails. Populated for promoted photo sets only —
@@ -312,6 +316,10 @@ async function getPromotedRowsForPerson(
   const photoSetIds = sets.filter((s) => s.type === "photo").map((s) => s.id);
   const sampleThumbsBySetId = await fetchSampleThumbsForSets(photoSetIds);
 
+  // Step 6: the viewed person's used-name per set (ADR-0024), when it differs
+  // from their common name.
+  const viewerUsedNameBySetId = await fetchViewerUsedNames(personId, setIds);
+
   return sets.map((s) => {
     const participantInfo = participantsBySetId.get(s.id) ?? {
       participants: [],
@@ -332,11 +340,43 @@ async function getPromotedRowsForPerson(
       archiveStatus: s.archiveLinks[0]?.archiveStatus ?? null,
       hasArchiveLink: !!s.archiveLinks[0],
       eraId: eraBySetId.get(s.id) ?? null,
+      viewerUsedName: viewerUsedNameBySetId.get(s.id) ?? null,
       participants: participantInfo.participants,
       extraParticipantCount: participantInfo.extraParticipantCount,
       sampleThumbnails: sampleThumbsBySetId.get(s.id) ?? [],
     };
   });
+}
+
+// The viewed person's credited used-name per set (ADR-0024), keyed by setId.
+// Only entries that differ from the person's common name are returned; reuses
+// the shared display precedence (pinned alias → raw string).
+async function fetchViewerUsedNames(
+  personId: string,
+  setIds: string[],
+): Promise<Map<string, string>> {
+  const map = new Map<string, string>();
+  if (setIds.length === 0) return map;
+
+  const person = await prisma.person.findUnique({
+    where: { id: personId },
+    select: { aliases: { where: { isCommon: true }, select: { name: true }, take: 1 } },
+  });
+  const commonName = person?.aliases[0]?.name ?? null;
+
+  const credits = await prisma.setCreditRaw.findMany({
+    where: { setId: { in: setIds }, resolvedPersonId: personId },
+    select: {
+      setId: true,
+      rawName: true,
+      resolvedAlias: { select: { name: true } },
+    },
+  });
+  for (const c of credits) {
+    const as = resolveCreditedAs({ rawName: c.rawName, resolvedAlias: c.resolvedAlias }, commonName);
+    if (as) map.set(c.setId, as);
+  }
+  return map;
 }
 
 // Batched sample-thumbnail fetch. Walks SetMediaItem ordered by sortOrder
@@ -535,6 +575,7 @@ async function getStagedRowsForPerson(
       archiveStatus: s.archiveLinks[0]?.archiveStatus ?? null,
       hasArchiveLink: !!s.archiveLinks[0],
       eraId: null,
+      viewerUsedName: null,
       participants: visible,
       extraParticipantCount: overflow,
       sampleThumbnails: [],

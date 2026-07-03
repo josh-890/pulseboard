@@ -23,6 +23,7 @@ import {
 import { CreatePersonSheet } from "@/components/people/create-person-sheet";
 import { CreateArtistSheet } from "@/components/artists/create-artist-sheet";
 import { contributorKindForRoleGroup } from "@/lib/services/session-contributors";
+import { resolveCreditedAs } from "@/lib/sets/credited-as";
 
 type PersonResult = {
   id: string;
@@ -44,6 +45,7 @@ type CreditRawItem = {
   roleGroupName: string | null;
   rawName: string;
   resolutionStatus: "UNRESOLVED" | "RESOLVED" | "IGNORED";
+  resolvedAlias: { id: string; name: string } | null;
   resolvedPerson: {
     id: string;
     icgId: string;
@@ -456,10 +458,10 @@ function CreditRow({
   onSkipAlias,
 }: CreditRowProps) {
   const isLoading = actionLoading === credit.id;
-  const resolvedName =
-    credit.resolvedPerson?.aliases?.find((a) => a.isCommon)?.name ??
-    credit.resolvedPerson?.icgId ??
-    null;
+  const commonName = credit.resolvedPerson?.aliases?.find((a) => a.isCommon)?.name ?? null;
+  const resolvedName = commonName ?? credit.resolvedPerson?.icgId ?? null;
+  // "as X" evidence for an already-pinned credit (ADR-0024 precedence).
+  const creditedAs = credit.resolvedPerson ? resolveCreditedAs(credit, commonName) : null;
 
   return (
     <div className="rounded-lg border border-white/15 bg-card/60 p-3 space-y-2">
@@ -566,6 +568,9 @@ function CreditRow({
             {resolvedName}
           </Link>
           <span className="ml-1.5 text-[10px] text-muted-foreground">({credit.resolvedPerson.icgId})</span>
+          {creditedAs && (
+            <span className="ml-1.5 text-xs italic text-muted-foreground/70">as {creditedAs}</span>
+          )}
         </div>
       )}
 

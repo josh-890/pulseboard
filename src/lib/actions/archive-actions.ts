@@ -14,6 +14,7 @@ import {
   getArchiveWorkspace,
   getArchiveChannelSummaries,
   reparseFolderNames,
+  scanArchiveForAliases,
   deleteArchiveFolder,
   confirmVideoFile,
   unlinkArchiveFolder,
@@ -183,6 +184,19 @@ export async function reparseFolderNamesAction(): Promise<{ success: boolean; up
       return { success: true, updated }
     } catch {
       return { success: false, error: 'Failed to re-parse folder names' }
+    }
+  })
+}
+
+export async function scanArchiveForAliasesAction(): Promise<{ success: boolean; updated?: number; error?: string }> {
+  return withTenantFromHeaders(async () => {
+    try {
+      const tenant = getCurrentTenantId()
+      const { updated } = await scanArchiveForAliases(tenant)
+      revalidatePath('/archive')
+      return { success: true, updated }
+    } catch {
+      return { success: false, error: 'Failed to scan archive for aliases' }
     }
   })
 }

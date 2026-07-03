@@ -102,6 +102,8 @@ type ManualParticipantInput = {
   name: string
   icgId?: string
   personId?: string
+  /** Alias used in this set (ADR-0024) — distinct from the identity `name`. */
+  usedName?: string
 }
 
 type CreateManualStagingSetInput = {
@@ -135,6 +137,7 @@ export async function createManualStagingSetAction(
       icgId: p.icgId ?? '',
       status: p.personId ? ('known' as const) : ('candidate' as const),
       ...(p.personId ? { personId: p.personId } : {}),
+      ...(p.usedName && p.usedName !== p.name ? { usedName: p.usedName } : {}),
     }))
 
     const stagingSet = await prisma.stagingSet.create({

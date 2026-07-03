@@ -6,6 +6,7 @@ import { FileText, ChevronDown, ChevronUp } from "lucide-react";
 import { AddCreditInline } from "@/components/sets/add-credit-inline";
 import { LabelEvidenceManager } from "@/components/sets/label-evidence-manager";
 import { CreditResolutionPanel } from "@/components/sets/credit-resolution-panel";
+import { resolveCreditedAs } from "@/lib/sets/credited-as";
 import { cn } from "@/lib/utils";
 
 type CreditItem = {
@@ -15,6 +16,7 @@ type CreditItem = {
   roleGroupName: string | null;
   rawName: string;
   resolutionStatus: "UNRESOLVED" | "RESOLVED" | "IGNORED";
+  resolvedAlias: { id: string; name: string } | null;
   resolvedPerson: {
     id: string;
     icgId: string;
@@ -47,9 +49,13 @@ type CreditsPanelProps = {
 function CreditRow({ credit }: { credit: CreditItem }) {
   const isUnresolved = credit.resolutionStatus === "UNRESOLVED";
   const personId = credit.resolvedPerson?.id;
+  const commonName = credit.resolvedPerson?.aliases.find((a) => a.isCommon)?.name ?? null;
   const displayName = credit.resolvedPerson
-    ? (credit.resolvedPerson.aliases.find((a) => a.isCommon)?.name ?? credit.resolvedPerson.icgId)
+    ? (commonName ?? credit.resolvedPerson.icgId)
     : credit.resolvedArtist?.name ?? credit.rawName;
+
+  // "as X" evidence line — only for resolved persons (ADR-0024 precedence).
+  const creditedAs = credit.resolvedPerson ? resolveCreditedAs(credit, commonName) : null;
 
   const roleLabel = credit.roleName ?? (credit.resolvedArtist ? "Artist" : null);
 
@@ -70,6 +76,11 @@ function CreditRow({ credit }: { credit: CreditItem }) {
       >
         {displayName}
       </span>
+      {creditedAs && (
+        <span className="shrink-0 text-xs italic text-muted-foreground/70">
+          as {creditedAs}
+        </span>
+      )}
     </>
   );
 

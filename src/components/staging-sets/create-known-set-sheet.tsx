@@ -35,6 +35,9 @@ type ParticipantEntry = {
   name: string;
   icgId?: string;
   personId?: string;
+  // The alias this person appeared under in THIS set (ADR-0024), distinct from
+  // their identity `name`. Pre-filled from the archive folder name, editable.
+  usedName?: string;
 };
 
 type DatePrecision = "YEAR" | "MONTH" | "DAY" | "UNKNOWN";
@@ -163,12 +166,12 @@ export function CreateKnownSetSheet({
         const exact = data.find((p) => p.displayName?.toLowerCase() === name.toLowerCase());
         setParticipants(
           exact
-            ? [{ key: exact.id, name: exact.displayName, icgId: exact.icgId, personId: exact.id }]
-            : [{ key: `cand-${name}`, name }],
+            ? [{ key: exact.id, name: exact.displayName, icgId: exact.icgId, personId: exact.id, usedName: name }]
+            : [{ key: `cand-${name}`, name, usedName: name }],
         );
       })
       .catch(() => {
-        if (!cancelled) setParticipants([{ key: `cand-${name}`, name }]);
+        if (!cancelled) setParticipants([{ key: `cand-${name}`, name, usedName: name }]);
       });
     return () => { cancelled = true; };
   }, [open, initialParticipantName]);
@@ -197,14 +200,36 @@ export function CreateKnownSetSheet({
 
   function addKnownParticipant(person: PersonSearchResult) {
     if (participants.some((p) => p.personId === person.id)) return;
-    setParticipants((prev) => [
-      // Drop an unresolved candidate with the same name (e.g. the one parsed from the
-      // folder) so resolving it doesn't leave a duplicate.
-      ...prev.filter((p) => p.personId || p.name.toLowerCase() !== person.displayName.toLowerCase()),
-      { key: person.id, name: person.displayName, icgId: person.icgId, personId: person.id },
-    ]);
+    setParticipants((prev) => {
+      // When resolving a lone unresolved candidate (typically the folder-parsed
+      // name), carry its used-name onto the resolved row so the alias survives
+      // (ADR-0024). With multiple candidates we don't guess — keep them.
+      const candidates = prev.filter((p) => !p.personId);
+      const carriedUsedName =
+        candidates.length === 1 ? (candidates[0].usedName ?? candidates[0].name) : undefined;
+      const kept =
+        candidates.length === 1
+          ? prev.filter((p) => p.personId)
+          : prev.filter(
+              (p) => p.personId || p.name.toLowerCase() !== person.displayName.toLowerCase(),
+            );
+      return [
+        ...kept,
+        {
+          key: person.id,
+          name: person.displayName,
+          icgId: person.icgId,
+          personId: person.id,
+          usedName: carriedUsedName,
+        },
+      ];
+    });
     setPersonQuery("");
     setPersonResults([]);
+  }
+
+  function updateUsedName(key: string, value: string) {
+    setParticipants((prev) => prev.map((p) => (p.key === key ? { ...p, usedName: value } : p)));
   }
 
   function addManualParticipant() {
@@ -245,6 +270,7 @@ export function CreateKnownSetSheet({
           name: p.name,
           icgId: p.icgId,
           personId: p.personId,
+          usedName: p.usedName?.trim() || undefined,
         })),
         archiveFolderId,
       });
@@ -353,25 +379,40 @@ export function CreateKnownSetSheet({
                 {participants.map((p) => (
                   <li
                     key={p.key}
-                    className="flex items-center justify-between gap-2 rounded-lg border border-white/15 bg-muted/20 px-3 py-2 text-sm"
+                    className="rounded-lg border border-white/15 bg-muted/20 px-3 py-2 text-sm"
                   >
-                    <div className="min-w-0">
-                      <span className="truncate font-medium">{p.name}</span>
-                      {p.icgId && (
-                        <span className="ml-1.5 text-xs text-muted-foreground">{p.icgId}</span>
-                      )}
-                      {!p.personId && (
-                        <span className="ml-1.5 text-xs text-amber-500/80">unresolved</span>
-                      )}
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="min-w-0">
+                        <span className="truncate font-medium">{p.name}</span>
+                        {p.icgId && (
+                          <span className="ml-1.5 text-xs text-muted-foreground">{p.icgId}</span>
+                        )}
+                        {!p.personId && (
+                          <span className="ml-1.5 text-xs text-amber-500/80">unresolved</span>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => removeParticipant(p.key)}
+                        className="shrink-0 rounded-md p-0.5 text-muted-foreground hover:text-foreground"
+                        aria-label={`Remove ${p.name}`}
+                      >
+                        <X size={14} />
+                      </button>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => removeParticipant(p.key)}
-                      className="shrink-0 rounded-md p-0.5 text-muted-foreground hover:text-foreground"
-                      aria-label={`Remove ${p.name}`}
-                    >
-                      <X size={14} />
-                    </button>
+                    {/* Credited-as / used-name (ADR-0024) — only meaningful once the
+                        identity is resolved; for candidates the name above IS the credit. */}
+                    {p.personId && (
+                      <div className="mt-1.5 flex items-center gap-2">
+                        <span className="shrink-0 text-xs text-muted-foreground">Credited as</span>
+                        <Input
+                          value={p.usedName ?? ""}
+                          onChange={(e) => updateUsedName(p.key, e.target.value)}
+                          placeholder={p.name}
+                          className="h-7 text-xs"
+                        />
+                      </div>
+                    )}
                   </li>
                 ))}
               </ul>

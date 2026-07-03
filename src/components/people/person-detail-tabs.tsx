@@ -69,7 +69,7 @@ import { ProductionPhotoList } from "@/components/people/production-photo-list";
 import { WatchToggle } from "@/components/people/watch-toggle";
 import { PersonFavoriteStar } from "@/components/people/person-favorite-star";
 import type { SkillGroupWithDefinitions } from "@/lib/services/skill-catalog-service";
-import type { PersonAliasWithChannels } from "@/lib/services/alias-service";
+import type { PersonAliasWithChannels, AliasPromotionCandidate } from "@/lib/services/alias-service";
 import type { GalleryItem } from "@/lib/types";
 import type { EntityMediaThumbnail } from "@/lib/services/media-service";
 import type { CategoryWithGroup } from "@/components/gallery/gallery-info-panel";
@@ -109,6 +109,7 @@ type PersonDetailTabsProps = {
   calculatedPgrade?: number | null;
   meanWcp?: number | null;
   aliasesWithChannels?: PersonAliasWithChannels[];
+  aliasPromotionQueue?: AliasPromotionCandidate[];
   sessionWorkHistory?: PersonSessionWorkEntry[];
   productionSessions?: PersonProductionSession[];
   entityMedia?: Record<string, EntityMediaThumbnail[]>;
@@ -1788,6 +1789,7 @@ export function PersonDetailTabs({
   calculatedPgrade,
   meanWcp,
   aliasesWithChannels,
+  aliasPromotionQueue,
   sessionWorkHistory,
   productionSessions,
   entityMedia,
@@ -2001,6 +2003,7 @@ export function PersonDetailTabs({
           <PersonAliasesTab
             personId={person.id}
             aliases={aliasesWithChannels ?? []}
+            promotionQueue={aliasPromotionQueue ?? []}
             digitalIdentities={digitalIdentities ?? []}
           />
         )}

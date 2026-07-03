@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   parseFolderParticipant,
+  parseFolderParticipantRaw,
   folderPersonMatches,
   scoreArchiveMatch,
   pickBestArchiveCandidate,
@@ -21,6 +22,23 @@ describe("parseFolderParticipant", () => {
   it("returns null for non-canonical names (no ' - ' person/title separator)", () => {
     expect(parseFolderParticipant("2005-08-28-MA Bonjour")).toBeNull();
     expect(parseFolderParticipant("random folder")).toBeNull();
+  });
+});
+
+describe("parseFolderParticipantRaw", () => {
+  it("returns the raw (un-normalized) person segment for prefill", () => {
+    expect(parseFolderParticipantRaw("2005-08-28-MA Anna Y - Bonjour")).toBe("Anna Y");
+    expect(parseFolderParticipantRaw("2006-01-16-BIM Anna-Leah — Serious Red")).toBe("Anna-Leah");
+  });
+
+  it("preserves original casing (unlike the normalized parser)", () => {
+    const folder = "2005-10-24-BIM Corinna - These boots are made for gawkin'";
+    expect(parseFolderParticipantRaw(folder)).toBe("Corinna");
+    expect(parseFolderParticipant(folder)).toBe("corinna");
+  });
+
+  it("returns null for non-canonical names", () => {
+    expect(parseFolderParticipantRaw("random folder")).toBeNull();
   });
 });
 

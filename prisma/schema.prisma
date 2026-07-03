@@ -372,6 +372,7 @@ model Person {
   importDeclines       ImportDeclineLog[]
   deletionTombstones   ItemDeletionTombstone[]
   hiddenInMedia        MediaItemHiddenPerson[]
+  aliasPromotionDismissals AliasPromotionDismissal[]
 
   createdAt DateTime @default(now())
 
@@ -941,6 +942,7 @@ model Channel {
   labelMaps   ChannelLabelMap[]
   aliasLinks  PersonAliasChannel[]
   stagingSets StagingSet[]
+  aliasPromotionDismissals AliasPromotionDismissal[]
 
   @@index([nameNorm])
   @@index([labelId])
@@ -2100,6 +2102,26 @@ model ItemDeletionTombstone {
   @@index([personId, kind])
   @@index([deletedAt])
   @@map("item_deletion_tombstone")
+}
+
+// ADR-0024: a rejected alias-promotion candidate. The promotion queue is derived
+// from SetCreditRaw (used-names not yet registered as aliases); this table records
+// the (person, channel, nameNorm) tuples the user has dismissed, so they don't
+// resurface. Channel-scoped: the same used-name may still be worth promoting on a
+// different channel. Mirrors ItemDeletionTombstone (ADR-0009).
+model AliasPromotionDismissal {
+  id          String   @id @default(cuid())
+  personId    String
+  person      Person   @relation(fields: [personId], references: [id], onDelete: Cascade)
+  channelId   String
+  channel     Channel  @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  nameNorm    String
+  dismissedAt DateTime @default(now())
+
+  @@unique([personId, channelId, nameNorm])
+  @@index([personId])
+  @@index([channelId])
+  @@map("alias_promotion_dismissal")
 }
 
 // ─── Staging Sets ─────────────────────────────────────────────────────────────

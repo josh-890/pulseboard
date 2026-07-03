@@ -45,6 +45,8 @@ export function AddAliasSheet({
     type: "common" | "birth";
     conflictName: string;
   } | null>(null);
+  // Rename-in-use guard (ADR-0024): when renaming an alias already used in sets.
+  const [renameConfirm, setRenameConfirm] = useState<{ creditCount: number } | null>(null);
 
   // Load channels on mount
   useEffect(() => {
@@ -97,46 +99,69 @@ export function AddAliasSheet({
     setPendingConfirm(null);
   }, [pendingConfirm]);
 
+  // Edit path — mode resolves an in-use rename (ADR-0024).
+  const runEditUpdate = useCallback(
+    (mode?: "rename-in-place" | "branch-new") => {
+      if (!editingAlias) return;
+      startTransition(async () => {
+        setError(null);
+        const result = await updateAliasAction(
+          editingAlias.id,
+          personId,
+          { name: name.trim(), isCommon, isBirth, notes: notes.trim() || null },
+          mode,
+        );
+        if (result.needsRenameConfirm) {
+          setRenameConfirm({ creditCount: result.creditCount ?? 0 });
+          return;
+        }
+        if (!result.success) {
+          setError(result.error ?? "Failed to update alias.");
+          return;
+        }
+        // Branching created a NEW alias that copies the source's channels; the
+        // in-sheet channel edits apply only to a normal / in-place update.
+        if (mode !== "branch-new") {
+          const existingChannelIds = new Set(editingAlias.channelLinks.map((cl) => cl.channelId));
+          const newChannelIds = [...selectedChannelIds].filter((id) => !existingChannelIds.has(id));
+          if (newChannelIds.length > 0) {
+            await linkAliasChannelsAction(editingAlias.id, personId, newChannelIds);
+          }
+        }
+        setRenameConfirm(null);
+        onClose();
+      });
+    },
+    [editingAlias, name, isCommon, isBirth, notes, selectedChannelIds, personId, onClose],
+  );
+
   const handleSubmit = useCallback(() => {
     if (!name.trim()) {
       setError("Name is required.");
       return;
     }
 
+    if (editingAlias) {
+      runEditUpdate();
+      return;
+    }
+
     startTransition(async () => {
       setError(null);
-      if (editingAlias) {
-        const result = await updateAliasAction(editingAlias.id, personId, {
-          name: name.trim(),
-          isCommon,
-          isBirth,
-          notes: notes.trim() || null,
-        });
-        if (!result.success) {
-          setError(result.error ?? "Failed to update alias.");
-          return;
-        }
-        const existingChannelIds = new Set(editingAlias.channelLinks.map((cl) => cl.channelId));
-        const newChannelIds = [...selectedChannelIds].filter((id) => !existingChannelIds.has(id));
-        if (newChannelIds.length > 0) {
-          await linkAliasChannelsAction(editingAlias.id, personId, newChannelIds);
-        }
-      } else {
-        const result = await createAliasAction(personId, {
-          name: name.trim(),
-          isCommon,
-          isBirth,
-          notes: notes.trim() || null,
-          channelIds: [...selectedChannelIds],
-        });
-        if (!result.success) {
-          setError(result.error ?? "Failed to create alias.");
-          return;
-        }
+      const result = await createAliasAction(personId, {
+        name: name.trim(),
+        isCommon,
+        isBirth,
+        notes: notes.trim() || null,
+        channelIds: [...selectedChannelIds],
+      });
+      if (!result.success) {
+        setError(result.error ?? "Failed to create alias.");
+        return;
       }
       onClose();
     });
-  }, [editingAlias, name, isCommon, isBirth, notes, selectedChannelIds, personId, onClose]);
+  }, [editingAlias, runEditUpdate, name, isCommon, isBirth, notes, selectedChannelIds, personId, onClose]);
 
   return (
     <div role="dialog" aria-modal="true" className="fixed inset-0 z-50 flex justify-end">
@@ -333,6 +358,54 @@ export function AddAliasSheet({
                 className="rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
               >
                 Confirm
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Rename-in-use guard (ADR-0024) — offer branch-to-new over in-place rename */}
+      {renameConfirm && (
+        <div className="absolute inset-0 z-60 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60" onClick={() => setRenameConfirm(null)} />
+          <div className="relative w-full max-w-sm rounded-xl border border-white/15 bg-background p-6 shadow-2xl">
+            <div className="flex items-start gap-3">
+              <AlertTriangle size={18} className="mt-0.5 shrink-0 text-amber-500" />
+              <div>
+                <p className="text-sm font-medium">This alias is used in sets</p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  <span className="font-medium text-foreground">{editingAlias?.name}</span>{" "}
+                  is credited on {renameConfirm.creditCount}{" "}
+                  {renameConfirm.creditCount === 1 ? "set/session" : "sets/sessions"}. Renaming it
+                  changes how those appearances display. Prefer adding{" "}
+                  <span className="font-medium text-foreground">{name.trim()}</span> as a new alias —
+                  the existing sets keep their credited name.
+                </p>
+              </div>
+            </div>
+            <div className="mt-4 flex flex-col gap-2">
+              <button
+                type="button"
+                onClick={() => runEditUpdate("branch-new")}
+                disabled={isPending}
+                className="w-full rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
+              >
+                Create &ldquo;{name.trim()}&rdquo; as a new alias
+              </button>
+              <button
+                type="button"
+                onClick={() => runEditUpdate("rename-in-place")}
+                disabled={isPending}
+                className="w-full rounded-lg border border-amber-500/30 px-3 py-2 text-sm text-amber-600 dark:text-amber-400 hover:bg-amber-500/10 transition-colors disabled:opacity-50"
+              >
+                Rename in place (updates {renameConfirm.creditCount} appearances)
+              </button>
+              <button
+                type="button"
+                onClick={() => setRenameConfirm(null)}
+                className="w-full rounded-lg border border-white/15 px-3 py-2 text-sm hover:bg-muted/40 transition-colors"
+              >
+                Cancel
               </button>
             </div>
           </div>

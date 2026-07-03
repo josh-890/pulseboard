@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useWindowVirtualizer } from '@tanstack/react-virtual'
 import { FolderSearch, Camera, Film, ChevronDown, Search, ChevronsDownUp, ChevronsUpDown, RefreshCw } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { getArchiveItemsAction, getArchiveChannelSummariesAction, reparseFolderNamesAction } from '@/lib/actions/archive-actions'
+import { getArchiveItemsAction, getArchiveChannelSummariesAction, reparseFolderNamesAction, scanArchiveForAliasesAction } from '@/lib/actions/archive-actions'
 import { ArchiveOrphanRow } from './archive-orphan-row'
 import { ArchiveLinkedRow } from './archive-linked-row'
 import { ArchivePhantomRow } from './archive-phantom-row'
@@ -623,6 +623,18 @@ export function ArchiveWorkspaceClient({
     setTimeout(() => setReparseMsg(null), 4000)
   }
 
+  // ── Scan archive for aliases (ADR-0024) ────────────────────────────────────
+  const [scanningAliases, setScanningAliases] = useState(false)
+
+  async function handleScanAliases() {
+    setScanningAliases(true)
+    setReparseMsg(null)
+    const result = await scanArchiveForAliasesAction()
+    setScanningAliases(false)
+    setReparseMsg(result.success ? `Captured ${result.updated} aliases` : 'Alias scan failed')
+    setTimeout(() => setReparseMsg(null), 4000)
+  }
+
   // ── Re-run matching pass ───────────────────────────────────────────────────
   const [rematching, setRematching] = useState(false)
   const [rematchMsg, setRematchMsg] = useState<string | null>(null)
@@ -830,6 +842,15 @@ export function ArchiveWorkspaceClient({
                     >
                       <RefreshCw size={11} className={cn(reparsing && 'animate-spin')} />
                       Re-parse names
+                    </button>
+                    <button
+                      onClick={handleScanAliases}
+                      disabled={scanningAliases}
+                      title="Scan confirmed archive folders for used-names and capture them onto single-participant sets (ADR-0024)"
+                      className="flex items-center gap-1 rounded-full border border-border/50 bg-muted/30 px-2.5 py-0.5 text-xs text-muted-foreground hover:text-foreground transition-colors disabled:opacity-40"
+                    >
+                      <RefreshCw size={11} className={cn(scanningAliases && 'animate-spin')} />
+                      Scan aliases
                     </button>
                   </div>
                 )}

@@ -1295,11 +1295,14 @@ export async function promoteManualStagingSet(stagingSetId: string): Promise<Imp
             select: { id: true },
           })
           if (!existingCredit) {
+            // ADR-0024: preserve the alias used in this set (usedName) as the raw
+            // credit, distinct from the resolved person's identity.
+            const credited = p.usedName ?? p.name
             await tx.setCreditRaw.create({
               data: {
                 setId,
-                rawName: p.name,
-                nameNorm: normalizeForSearch(p.name),
+                rawName: credited,
+                nameNorm: normalizeForSearch(credited),
                 roleDefinitionId: modelRole.id,
                 resolutionStatus: 'RESOLVED',
                 resolvedPersonId: p.personId!,
@@ -1404,11 +1407,13 @@ export async function promoteManualStagingSet(stagingSetId: string): Promise<Imp
               confidenceSource: 'MANUAL',
             },
           })
+          // ADR-0024: preserve the alias used in this set (usedName) as the raw credit.
+          const credited = p.usedName ?? p.name
           await tx.setCreditRaw.create({
             data: {
               setId: set.id,
-              rawName: p.name,
-              nameNorm: normalizeForSearch(p.name),
+              rawName: credited,
+              nameNorm: normalizeForSearch(credited),
               roleDefinitionId: modelRole.id,
               resolutionStatus: 'RESOLVED',
               resolvedPersonId: p.personId!,

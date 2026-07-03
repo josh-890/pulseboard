@@ -6,12 +6,15 @@ import type { AliasSource } from "@/generated/prisma/client";
 import {
   createAlias,
   updateAlias,
+  branchAliasToNew,
   deleteAlias,
   linkAliasToChannels,
   unlinkAliasFromChannel,
   setAliasChannelPrimary,
   bulkImportAliases,
   mergeAliases,
+  promoteAliasFromQueue,
+  dismissAliasPromotion,
 } from "@/lib/services/alias-service";
 import type { SimpleActionResult } from "@/lib/types";
 
@@ -51,6 +54,11 @@ export async function createAliasAction(
   });
 }
 
+export type UpdateAliasActionResult = SimpleActionResult & {
+  needsRenameConfirm?: boolean;
+  creditCount?: number;
+};
+
 export async function updateAliasAction(
   aliasId: string,
   personId: string,
@@ -60,10 +68,25 @@ export async function updateAliasAction(
     isBirth?: boolean;
     notes?: string | null;
   },
-): Promise<SimpleActionResult> {
+  // How to resolve an in-use rename (ADR-0024). Omitted → guard may ask.
+  mode?: "rename-in-place" | "branch-new",
+): Promise<UpdateAliasActionResult> {
   return withTenantFromHeaders(async () => {
     try {
-      await updateAlias(aliasId, data);
+      // Branch to a new alias instead of renaming the in-use one.
+      if (mode === "branch-new") {
+        if (!data.name?.trim()) return { success: false, error: "Name is required." };
+        await branchAliasToNew(aliasId, data.name.trim());
+        revalidatePath(`/people/${personId}`);
+        return { success: true };
+      }
+
+      const res = await updateAlias(aliasId, data, {
+        confirmRenameInPlace: mode === "rename-in-place",
+      });
+      if (res.needsRenameConfirm) {
+        return { success: false, needsRenameConfirm: true, creditCount: res.creditCount };
+      }
       revalidatePath(`/people/${personId}`);
       return { success: true };
     } catch (err) {
@@ -158,6 +181,41 @@ export async function bulkImportAliasesAction(
       return { success: false, error: err instanceof Error ? err.message : "Unexpected error" };
     }
 
+  });
+}
+
+// ─── Promotion queue (ADR-0024) ─────────────────────────────────────────────
+
+export async function promoteAliasFromQueueAction(
+  personId: string,
+  channelId: string,
+  name: string,
+): Promise<SimpleActionResult> {
+  return withTenantFromHeaders(async () => {
+    try {
+      if (!name.trim()) return { success: false, error: "Name is required." };
+      await promoteAliasFromQueue(personId, channelId, name.trim());
+      revalidatePath(`/people/${personId}`);
+      return { success: true };
+    } catch (err) {
+      return { success: false, error: err instanceof Error ? err.message : "Unexpected error" };
+    }
+  });
+}
+
+export async function dismissAliasPromotionAction(
+  personId: string,
+  channelId: string,
+  name: string,
+): Promise<SimpleActionResult> {
+  return withTenantFromHeaders(async () => {
+    try {
+      await dismissAliasPromotion(personId, channelId, name);
+      revalidatePath(`/people/${personId}`);
+      return { success: true };
+    } catch (err) {
+      return { success: false, error: err instanceof Error ? err.message : "Unexpected error" };
+    }
   });
 }
 

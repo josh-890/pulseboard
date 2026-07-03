@@ -363,6 +363,7 @@ export async function getSetById(id: string) {
               aliases: { where: { isCommon: true }, take: 1 },
             },
           },
+          resolvedAlias: { select: { id: true, name: true } },
           resolvedArtist: true,
           roleDefinition: { include: { group: true } },
         },

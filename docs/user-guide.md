@@ -1138,7 +1138,7 @@ HIGH suggestions show amber; MEDIUM suggestions show dimmer amber.
 An **orphan** folder is one the scan found but that isn't linked to any Set or Staging Set. Each orphan row offers:
 
 - **Confirm** — accept the suggested Set/Staging match (when one is shown).
-- **+ Create** — open the **Add Known Set** sheet **pre-filled from the folder** (title, channel, release date, photo/video, and the **participant parsed from the folder name** — exact alias match → known, otherwise an *unresolved* candidate you resolve via person search). Saving creates a staging set **and links the folder** to it; you then promote it to a full Set (the archive link carries over). This is the canonical "make a set from an archive folder" path.
+- **+ Create** — open the **Add Known Set** sheet **pre-filled from the folder** (title, channel, release date, photo/video, and the **participant parsed from the folder name** — exact alias match → known, otherwise an *unresolved* candidate you resolve via person search). Once a participant is resolved to a person, a **"Credited as"** field appears (pre-filled with the folder name) capturing the alias they appeared under in *this* set — editable, so you can fix an archive typo before it becomes an alias (ADR-0024). Saving creates a staging set **and links the folder** to it; you then promote it to a full Set (the archive link carries over). This is the canonical "make a set from an archive folder" path.
 - **Link to existing set/staging** — search and attach the folder to a record that already exists.
 - **Delete** — remove the scan record (safe; a rescan recreates it).
 

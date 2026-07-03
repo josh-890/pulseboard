@@ -17,7 +17,7 @@ import type { EntityMediaThumbnail } from "@/lib/services/media-service";
 import { getAllCategoryGroups, getPopulatedCategoriesForPerson, ensureEntityCategories, PROFILE_GROUP_ID } from "@/lib/services/category-service";
 import { getAllSkillGroups } from "@/lib/services/skill-catalog-service";
 import { getAllPhysicalAttributeGroups } from "@/lib/services/physical-attribute-catalog-service";
-import { getPersonAliases } from "@/lib/services/alias-service";
+import { getPersonAliases, getAliasPromotionQueue } from "@/lib/services/alias-service";
 import { getPersonDigitalIdentities } from "@/lib/services/digital-identity-service";
 import { getPersonResearch } from "@/lib/services/research-service";
 import { getStagingWorkHistoryForPerson } from "@/lib/services/import/staging-set-service";
@@ -110,7 +110,7 @@ export default async function PersonDetailPage({ params, searchParams }: PersonD
   // Ensure system entity categories exist before loading category data
   await ensureEntityCategories();
 
-  const [person, workHistory, connectionsData, relationshipRoles, refSession, categoryGroups, populatedCounts, skillGroups, skillLevelConfigs, aliasesWithChannels, sessionWorkHistory, productionSessions, entityMediaMap, physicalAttributeGroups, personEntityTags, digitalIdentities, researchEntries, stagingWorkHistory, eraContributionsMap, careerTimeline, careerStats, careerFacetCounts, careerChannels, careerEras, importHistory] =
+  const [person, workHistory, connectionsData, relationshipRoles, refSession, categoryGroups, populatedCounts, skillGroups, skillLevelConfigs, aliasesWithChannels, sessionWorkHistory, productionSessions, entityMediaMap, physicalAttributeGroups, personEntityTags, digitalIdentities, researchEntries, stagingWorkHistory, eraContributionsMap, careerTimeline, careerStats, careerFacetCounts, careerChannels, careerEras, importHistory, aliasPromotionQueue] =
     await Promise.all([
       getPersonWithDetails(id),
       getPersonWorkHistory(id),
@@ -137,6 +137,7 @@ export default async function PersonDetailPage({ params, searchParams }: PersonD
       getCareerChannelsForPerson(id),
       getCareerErasForPerson(id),
       getImportHistoryForPerson(id),
+      getAliasPromotionQueue(id),
     ]);
 
   // Flatten Map → Record for client-component serialization.
@@ -263,6 +264,7 @@ export default async function PersonDetailPage({ params, searchParams }: PersonD
         calculatedPgrade={calculatedPgrade}
         meanWcp={meanWcp}
         aliasesWithChannels={aliasesWithChannels}
+        aliasPromotionQueue={aliasPromotionQueue}
         sessionWorkHistory={sessionWorkHistory}
         productionSessions={productionSessions}
         entityMedia={entityMedia}
