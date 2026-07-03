@@ -100,6 +100,10 @@ export function CreditAliasPicker({
         <>
           {options.map((a) => {
             const selected = a.id === currentAliasId;
+            // Until a credit is pinned, its suggestions are a pending decision —
+            // give them an attention color so they're not missed. Once one is
+            // picked, the alternates fall back to neutral.
+            const unresolved = !currentAliasId;
             return (
               <button
                 key={a.id}
@@ -110,7 +114,9 @@ export function CreditAliasPicker({
                   "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs transition-colors disabled:opacity-50",
                   selected
                     ? "border-primary/40 bg-primary/15 text-primary"
-                    : "border-white/15 bg-muted/40 text-foreground hover:border-white/30",
+                    : unresolved
+                      ? "border-amber-500/40 bg-amber-500/15 text-amber-700 hover:bg-amber-500/25 dark:text-amber-300"
+                      : "border-white/15 bg-muted/40 text-foreground hover:border-white/30",
                 )}
                 title={
                   a.isCommon
