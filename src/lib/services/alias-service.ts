@@ -97,6 +97,22 @@ export async function getPersonAliases(
   }));
 }
 
+/**
+ * The aliases a person has registered on a specific channel (ADR-0024) — powers
+ * the per-set "Credited as" picker: 0 = offer add-new, 1 = suggest to accept,
+ * many = pick one. Common alias first, then alphabetical.
+ */
+export async function getPersonChannelAliases(
+  personId: string,
+  channelId: string,
+): Promise<{ id: string; name: string; isCommon: boolean }[]> {
+  return prisma.personAlias.findMany({
+    where: { personId, channelLinks: { some: { channelId } } },
+    select: { id: true, name: true, isCommon: true },
+    orderBy: [{ isCommon: "desc" }, { name: "asc" }],
+  });
+}
+
 export async function getChannelAliases(
   channelId: string,
 ): Promise<PersonAliasWithChannels[]> {

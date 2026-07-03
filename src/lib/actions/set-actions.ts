@@ -18,6 +18,7 @@ import {
   createSetLabelEvidence,
   resolveCreditRaw,
   setCreditUsedName,
+  pinCreditAlias,
   ignoreCreditRaw,
   unresolveCreditRaw,
   resolveCreditAsArtistRaw,
@@ -40,7 +41,8 @@ import { searchArtists, getSuggestedArtists } from "@/lib/services/artist-servic
 import { refreshDashboardStats } from "@/lib/services/view-service";
 import { onMediaImportChanged } from "@/lib/services/coherence-service";
 import { getLabels } from "@/lib/services/label-service";
-import { createAlias } from "@/lib/services/alias-service";
+import { createAlias, getPersonChannelAliases } from "@/lib/services/alias-service";
+import { normalizeForSearch } from "@/lib/normalize";
 import { prisma } from "@/lib/db";
 import { z } from "zod";
 import type { CrudActionResult, SimpleActionResult } from "@/lib/types";
@@ -322,9 +324,10 @@ export async function createAliasFromCreditAction(
         null,
         channelId ? [channelId] : [],
       );
+      // Pin the new alias AND set it as the credited name (ADR-0024).
       await prisma.setCreditRaw.update({
         where: { id: creditId },
-        data: { resolvedAliasId: alias.id },
+        data: { resolvedAliasId: alias.id, rawName: name, nameNorm: normalizeForSearch(name) },
       });
       revalidatePath(`/people/${personId}`);
       revalidatePath(`/sets/${setId}`);
@@ -343,6 +346,28 @@ export async function setCreditUsedNameAction(
   return withTenantFromHeaders(async () => {
     try {
       await setCreditUsedName(creditId, usedName);
+      revalidatePath(`/sets/${setId}`);
+      return { success: true };
+    } catch (err) {
+      return { success: false, error: err instanceof Error ? err.message : "Unexpected error" };
+    }
+  });
+}
+
+export async function getPersonChannelAliasesAction(personId: string, channelId: string) {
+  return withTenantFromHeaders(async () => {
+    return getPersonChannelAliases(personId, channelId);
+  });
+}
+
+export async function pinCreditAliasAction(
+  creditId: string,
+  aliasId: string,
+  setId: string,
+): Promise<SimpleActionResult> {
+  return withTenantFromHeaders(async () => {
+    try {
+      await pinCreditAlias(creditId, aliasId);
       revalidatePath(`/sets/${setId}`);
       return { success: true };
     } catch (err) {

@@ -857,6 +857,21 @@ export async function setCreditUsedName(creditId: string, usedName: string) {
   });
 }
 
+/**
+ * Pin an existing registered alias as the credited name on this set (ADR-0024).
+ * Sets both rawName (display evidence) and resolvedAliasId (the registry pin).
+ */
+export async function pinCreditAlias(creditId: string, aliasId: string) {
+  const alias = await prisma.personAlias.findUniqueOrThrow({
+    where: { id: aliasId },
+    select: { name: true },
+  });
+  await prisma.setCreditRaw.update({
+    where: { id: creditId },
+    data: { rawName: alias.name, nameNorm: normalizeForSearch(alias.name), resolvedAliasId: aliasId },
+  });
+}
+
 export async function createSetLabelEvidence(
   setId: string,
   evidence: { labelId: string; evidenceType: "CHANNEL_MAP" | "MANUAL"; confidence: number }[],
