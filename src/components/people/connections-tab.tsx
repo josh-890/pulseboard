@@ -215,9 +215,15 @@ function PersonalSection({
               <Avatar counterpart={r.counterpart} dashed={r.counterpart.kind === "ref"} />
               <div className="min-w-0 flex-1">
                 <CounterpartName counterpart={r.counterpart} />
-                <p className="text-xs text-muted-foreground">
-                  {r.roleLabel}
-                  {r.note && ` · ${r.note}`}
+                <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  {r.roleSlug === "twin" ? (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-500">
+                      <Users size={10} /> {r.roleLabel}
+                    </span>
+                  ) : (
+                    <span>{r.roleLabel}</span>
+                  )}
+                  {r.note && <span className="truncate">· {r.note}</span>}
                 </p>
               </div>
               <button

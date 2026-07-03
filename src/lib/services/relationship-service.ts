@@ -104,6 +104,7 @@ export type ConnectionCounterpart =
 export type PersonalRelationshipRow = {
   id: string;
   roleLabel: string; // role.name from this person's side, role.inverseName from the other
+  roleSlug: string; // stable role identity for distinct rendering (e.g. "twin" vs "sibling")
   category: RelationshipType;
   counterpart: ConnectionCounterpart;
   note: string | null;
@@ -193,6 +194,7 @@ export async function getConnectionsForPerson(personId: string): Promise<Connect
     return {
       id: r.id,
       roleLabel: isFrom ? r.role.name : r.role.inverseName,
+      roleSlug: r.role.slug,
       category: r.role.category,
       counterpart,
       note: r.label ?? r.context,

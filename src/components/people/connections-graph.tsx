@@ -22,6 +22,7 @@ type GraphNode = SimulationNodeDatum & {
   navId?: string; // person id for navigation
   edge: EdgeKind;
   roleLabel?: string;
+  roleSlug?: string;
   category?: string;
   weight: number; // for work edge width / ranking
   avatarUrl?: string | null;
@@ -46,7 +47,7 @@ type Agg = {
   label: string;
   type: "person" | "ref";
   navId?: string;
-  personal?: { roleLabel: string; category: string };
+  personal?: { roleLabel: string; roleSlug: string; category: string };
   sharedSets: number;
   claimed: boolean;
   avatarUrl?: string | null;
@@ -82,7 +83,7 @@ export function ConnectionsGraph({
     for (const r of data.personal) {
       const c = r.counterpart;
       const a = ensure(c.kind, c.id, c.name, c.kind === "person" ? c.id : undefined);
-      a.personal = { roleLabel: r.roleLabel, category: r.category };
+      a.personal = { roleLabel: r.roleLabel, roleSlug: r.roleSlug, category: r.category };
       if (c.kind === "person" && c.avatarUrl) a.avatarUrl = c.avatarUrl;
     }
     for (const w of data.workHeld) {
@@ -121,6 +122,7 @@ export function ConnectionsGraph({
         navId: a.navId,
         edge,
         roleLabel: a.personal?.roleLabel,
+        roleSlug: a.personal?.roleSlug,
         category: a.personal?.category,
         weight: a.sharedSets,
         avatarUrl: a.avatarUrl,
@@ -183,17 +185,35 @@ export function ConnectionsGraph({
           const color = edgeColor(t);
           const width = t.edge === "work" ? Math.min(1 + t.weight * 0.4, 4) : 1;
           const dim = hovered && hovered !== t.id;
+          const opacity = dim ? 0.12 : 0.5;
+          const tx = t.x ?? 0;
+          const ty = t.y ?? 0;
+
+          // Twin: a chemistry-style double bond — two parallel strokes — so it
+          // reads as a stronger tie than a single-line Sibling edge.
+          if (t.roleSlug === "twin") {
+            const len = Math.hypot(tx, ty) || 1;
+            const ox = (-ty / len) * 1.8;
+            const oy = (tx / len) * 1.8;
+            return (
+              <g key={i} opacity={opacity}>
+                <line x1={ox} y1={oy} x2={tx + ox} y2={ty + oy} stroke={color} strokeWidth={1.5} />
+                <line x1={-ox} y1={-oy} x2={tx - ox} y2={ty - oy} stroke={color} strokeWidth={1.5} />
+              </g>
+            );
+          }
+
           return (
             <line
               key={i}
               x1={0}
               y1={0}
-              x2={t.x ?? 0}
-              y2={t.y ?? 0}
+              x2={tx}
+              y2={ty}
               stroke={color}
               strokeWidth={width}
               strokeDasharray={t.edge === "claimed" ? "3 3" : undefined}
-              opacity={dim ? 0.12 : 0.5}
+              opacity={opacity}
             />
           );
         })}
