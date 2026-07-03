@@ -19,6 +19,7 @@ import {
   getSuggestionsAction,
   getSuggestedArtistsAction,
   createAliasFromCreditAction,
+  setCreditUsedNameAction,
 } from "@/lib/actions/set-actions";
 import { CreatePersonSheet } from "@/components/people/create-person-sheet";
 import { CreateArtistSheet } from "@/components/artists/create-artist-sheet";
@@ -179,6 +180,17 @@ export function CreditResolutionPanel({ setId, credits: initialCredits, channelI
       router.refresh();
     } else {
       toast.error(result.error ?? "Failed to resolve");
+    }
+    setActionLoading(null);
+  }
+
+  async function handleSetUsedName(creditId: string, usedName: string) {
+    setActionLoading(creditId);
+    const result = await setCreditUsedNameAction(creditId, setId, usedName);
+    if (result.success) {
+      router.refresh();
+    } else {
+      toast.error(result.error ?? "Failed to set credited name");
     }
     setActionLoading(null);
   }
@@ -377,6 +389,7 @@ export function CreditResolutionPanel({ setId, credits: initialCredits, channelI
               onShowCreateArtistSheet={() => setShowCreateArtistSheet(true)}
               onAddAlias={(rawName, personId) => handleAddAlias(credit.id, rawName, personId, channelId)}
               onSkipAlias={() => setPendingAliasSuggestion(null)}
+              onSetUsedName={(usedName) => handleSetUsedName(credit.id, usedName)}
             />
           ))}
         </div>
@@ -426,6 +439,7 @@ type CreditRowProps = {
   onShowCreateArtistSheet: () => void;
   onAddAlias: (rawName: string, personId: string) => void;
   onSkipAlias: () => void;
+  onSetUsedName: (usedName: string) => void;
 };
 
 function CreditRow({
@@ -456,12 +470,27 @@ function CreditRow({
   onShowCreateArtistSheet,
   onAddAlias,
   onSkipAlias,
+  onSetUsedName,
 }: CreditRowProps) {
   const isLoading = actionLoading === credit.id;
   const commonName = credit.resolvedPerson?.aliases?.find((a) => a.isCommon)?.name ?? null;
   const resolvedName = commonName ?? credit.resolvedPerson?.icgId ?? null;
   // "as X" evidence for an already-pinned credit (ADR-0024 precedence).
   const creditedAs = credit.resolvedPerson ? resolveCreditedAs(credit, commonName) : null;
+
+  // Editable "Credited as" (ADR-0024) — the per-set used-name for a resolved person.
+  // Re-sync the draft from server data (after a save/refresh) via the endorsed
+  // adjust-state-during-render pattern rather than an effect.
+  const [usedNameDraft, setUsedNameDraft] = useState(creditedAs ?? "");
+  const [syncedFrom, setSyncedFrom] = useState(creditedAs ?? "");
+  if ((creditedAs ?? "") !== syncedFrom) {
+    setSyncedFrom(creditedAs ?? "");
+    setUsedNameDraft(creditedAs ?? "");
+  }
+  function commitUsedName() {
+    if ((usedNameDraft.trim() || null) === (creditedAs ?? null)) return; // unchanged
+    onSetUsedName(usedNameDraft.trim());
+  }
 
   return (
     <div className="rounded-lg border border-white/15 bg-card/60 p-3 space-y-2">
@@ -568,9 +597,30 @@ function CreditRow({
             {resolvedName}
           </Link>
           <span className="ml-1.5 text-[10px] text-muted-foreground">({credit.resolvedPerson.icgId})</span>
-          {creditedAs && (
-            <span className="ml-1.5 text-xs italic text-muted-foreground/70">as {creditedAs}</span>
-          )}
+        </div>
+      )}
+
+      {/* Editable "Credited as" — the alias this person used on THIS set (ADR-0024).
+          Blank = credited under the common name. Auto-pins to a matching alias on
+          the channel; otherwise it surfaces in the person's "Suggested from sets". */}
+      {credit.resolutionStatus === "RESOLVED" && credit.resolvedPerson && (
+        <div className="pl-2 flex items-center gap-1.5">
+          <span className="shrink-0 text-[11px] text-muted-foreground">Credited as</span>
+          <Input
+            value={usedNameDraft}
+            onChange={(e) => setUsedNameDraft(e.target.value)}
+            onBlur={commitUsedName}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                (e.target as HTMLInputElement).blur();
+              }
+            }}
+            placeholder={commonName ?? "common name"}
+            disabled={isLoading}
+            className="h-6 max-w-[200px] text-xs"
+          />
+          {isLoading && <Loader2 size={12} className="shrink-0 animate-spin text-muted-foreground" />}
         </div>
       )}
 

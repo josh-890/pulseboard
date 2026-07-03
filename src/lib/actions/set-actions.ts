@@ -17,6 +17,7 @@ import {
   createSetCreditsRaw,
   createSetLabelEvidence,
   resolveCreditRaw,
+  setCreditUsedName,
   ignoreCreditRaw,
   unresolveCreditRaw,
   resolveCreditAsArtistRaw,
@@ -326,6 +327,22 @@ export async function createAliasFromCreditAction(
         data: { resolvedAliasId: alias.id },
       });
       revalidatePath(`/people/${personId}`);
+      revalidatePath(`/sets/${setId}`);
+      return { success: true };
+    } catch (err) {
+      return { success: false, error: err instanceof Error ? err.message : "Unexpected error" };
+    }
+  });
+}
+
+export async function setCreditUsedNameAction(
+  creditId: string,
+  setId: string,
+  usedName: string,
+): Promise<SimpleActionResult> {
+  return withTenantFromHeaders(async () => {
+    try {
+      await setCreditUsedName(creditId, usedName);
       revalidatePath(`/sets/${setId}`);
       return { success: true };
     } catch (err) {

@@ -809,6 +809,54 @@ export async function createSetCreditsRaw(
   });
 }
 
+/**
+ * Set the alias a person was credited under on this set (ADR-0024) — the manual
+ * per-set "Credited as" editor for promoted sets. Writes `SetCreditRaw.rawName`
+ * (the display evidence) and auto-pins `resolvedAliasId` when a registered alias
+ * on the set's channel matches; clears the pin otherwise. An empty value resets
+ * to the common name (no "as" line). The used-name then surfaces in the person's
+ * "Suggested from sets" queue for promotion into the registry.
+ */
+export async function setCreditUsedName(creditId: string, usedName: string) {
+  const credit = await prisma.setCreditRaw.findUnique({
+    where: { id: creditId },
+    select: {
+      resolvedPersonId: true,
+      set: { select: { channelId: true } },
+      resolvedPerson: {
+        select: { aliases: { where: { isCommon: true }, select: { name: true }, take: 1 } },
+      },
+    },
+  });
+  if (!credit) throw new Error("Credit not found");
+
+  const commonName = credit.resolvedPerson?.aliases[0]?.name ?? null;
+  const trimmed = usedName.trim();
+  // Empty → reset to the common name (suppresses the "as" line).
+  const effective = trimmed || commonName || "";
+  const nameNorm = normalizeForSearch(effective);
+  const commonNorm = commonName ? normalizeForSearch(commonName) : null;
+
+  // Auto-pin to an existing alias on this channel when the used-name matches one.
+  let resolvedAliasId: string | null = null;
+  if (credit.resolvedPersonId && credit.set?.channelId && nameNorm && nameNorm !== commonNorm) {
+    const alias = await prisma.personAlias.findFirst({
+      where: {
+        personId: credit.resolvedPersonId,
+        nameNorm,
+        channelLinks: { some: { channelId: credit.set.channelId } },
+      },
+      select: { id: true },
+    });
+    resolvedAliasId = alias?.id ?? null;
+  }
+
+  await prisma.setCreditRaw.update({
+    where: { id: creditId },
+    data: { rawName: effective, nameNorm, resolvedAliasId },
+  });
+}
+
 export async function createSetLabelEvidence(
   setId: string,
   evidence: { labelId: string; evidenceType: "CHANNEL_MAP" | "MANUAL"; confidence: number }[],
