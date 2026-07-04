@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, Check, Plus, X } from "lucide-react";
+import { Loader2, Check, Pencil, X } from "lucide-react";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -148,10 +148,10 @@ export function CreditAliasPicker({
                     setNewName("");
                   }
                 }}
-                placeholder="New alias"
+                placeholder="Name used here…"
                 disabled={busy}
                 autoFocus
-                className="h-6 w-32 text-xs"
+                className="h-6 w-36 text-xs"
               />
               <button
                 type="button"
@@ -179,9 +179,10 @@ export function CreditAliasPicker({
               type="button"
               disabled={busy}
               onClick={() => setAdding(true)}
-              className="inline-flex items-center gap-0.5 rounded-full border border-dashed border-white/20 px-2 py-0.5 text-xs text-muted-foreground transition-colors hover:border-white/40 hover:text-foreground disabled:opacity-50"
+              title="Enter a different name used in this set (it's added to this person's aliases)"
+              className="inline-flex items-center gap-1 rounded-full border border-dashed border-white/20 px-2 py-0.5 text-xs text-muted-foreground transition-colors hover:border-white/40 hover:text-foreground disabled:opacity-50"
             >
-              <Plus size={10} /> New alias
+              <Pencil size={9} /> Other name…
             </button>
           )}
 
