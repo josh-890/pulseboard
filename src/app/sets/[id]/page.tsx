@@ -1,9 +1,7 @@
 import { withTenantFromHeaders } from "@/lib/tenant-context";
 import { Suspense } from "react";
-import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Tag, Clapperboard } from "lucide-react";
-import { formatPartialDateISO } from "@/lib/utils";
+import { Tag } from "lucide-react";
 import { SetBrowseNavBar, SetBrowseBackLink } from "@/components/sets/set-browse-nav-bar";
 import { getSetById, getChannelsForSelect, getSetParticipantEraMap } from "@/lib/services/set-service";
 import { getSetMediaGallery, getCoverPhotosForSets, getHeadshotsForPersons, getGalleryCastDirectory } from "@/lib/services/media-service";
@@ -19,6 +17,7 @@ import { SetArchivePanel } from "@/components/sets/set-archive-panel";
 import { SetArchiveChipSheet } from "@/components/sets/set-archive-chip-sheet";
 import { SetAboutCard } from "@/components/sets/set-about-card";
 import { CreditsPanel } from "@/components/sets/credits-panel";
+import { ProductionPanel } from "@/components/sets/production-panel";
 import { getArchiveSuggestionsForSet, parseVideoFiles } from "@/lib/services/archive-service";
 import { prisma } from "@/lib/db";
 
@@ -117,13 +116,6 @@ export default async function SetDetailPage({ params }: SetDetailPageProps) {
       resolvedArtist: c.resolvedArtist
         ? { id: c.resolvedArtist.id, name: c.resolvedArtist.name }
         : null,
-    }));
-
-    const labelEvidence = set.labelEvidence.map((ev) => ({
-      setId: ev.setId,
-      labelId: ev.labelId,
-      evidenceType: ev.evidenceType,
-      label: { id: ev.label.id, name: ev.label.name },
     }));
 
     return (
@@ -239,48 +231,23 @@ export default async function SetDetailPage({ params }: SetDetailPageProps) {
             <CreditsPanel
               setId={id}
               channelId={setData.channelId}
-              channelLabel={setData.channel?.label ? { id: setData.channel.label.id, name: setData.channel.label.name } : null}
               credits={credits}
-              labelEvidence={labelEvidence}
               roleDefinitions={roleDefinitions}
             />
 
-            {/* Linked session(s) — mirrors the session detail's "Linked Sets" */}
-            {setData.sessionLinks && setData.sessionLinks.length > 0 && (
-              <div className="rounded-2xl border border-white/20 bg-card/70 p-4 shadow-md backdrop-blur-sm">
-                <div className="mb-3 flex items-center gap-2">
-                  <Clapperboard size={14} className="text-muted-foreground" aria-hidden="true" />
-                  <h2 className="text-sm font-semibold">
-                    {setData.sessionLinks.length === 1 ? "Session" : `Sessions (${setData.sessionLinks.length})`}
-                  </h2>
-                </div>
-                <div className="space-y-2">
-                  {setData.sessionLinks.map((l) => (
-                    <Link
-                      key={l.sessionId}
-                      href={`/sessions/${l.sessionId}`}
-                      className="group flex items-center justify-between rounded-xl border border-white/15 bg-card/40 px-3 py-2.5 transition-all hover:border-white/25 hover:bg-card/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                    >
-                      <span className="block min-w-0 truncate text-sm font-medium transition-colors group-hover:text-entity-session">
-                        {l.session.name}
-                      </span>
-                      <div className="ml-2 flex shrink-0 items-center gap-2">
-                        {l.isPrimary && (
-                          <span className="rounded-full border border-entity-session/20 bg-entity-session/10 px-2 py-0.5 text-xs font-medium text-entity-session">
-                            Primary
-                          </span>
-                        )}
-                        {l.session.date && (
-                          <span className="text-xs text-muted-foreground">
-                            {formatPartialDateISO(l.session.date, l.session.datePrecision)}
-                          </span>
-                        )}
-                      </div>
-                    </Link>
-                  ))}
-                </div>
-              </div>
-            )}
+            {/* Production (ADR-0025): session(s) + producer label, and the
+                publisher (channel owner) when it diverges. */}
+            <ProductionPanel
+              sessions={(setData.sessionLinks ?? []).map((l) => ({
+                sessionId: l.sessionId,
+                name: l.session.name,
+                date: l.session.date,
+                datePrecision: l.session.datePrecision,
+                isPrimary: l.isPrimary,
+                producerLabel: l.session.label ? { id: l.session.label.id, name: l.session.label.name } : null,
+              }))}
+              publisherLabel={setData.channel?.label ? { id: setData.channel.label.id, name: setData.channel.label.name } : null}
+            />
 
             {setData.tags.length > 0 && (
               <div className="rounded-2xl border border-white/20 bg-card/70 p-4 shadow-md backdrop-blur-sm">

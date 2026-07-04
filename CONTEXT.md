@@ -80,7 +80,16 @@ A person's participation in a shoot (`SessionContribution`) optionally reference
 The ladder runs **Channel → Label → Network**, and it separates **production** (where media is *generated*) from **publication** (where media is *released*). The pivot fact: **a Session produces; a Set publishes.**
 
 **Session** (code model & DB table: `Session`):
-The **production unit** — one shoot, a point in space and time, which *owns* the media generated there. Production-level. Ties to its producing **Label** via `Session.labelId`. A session's media can be published many different ways (see **Set**). A session published through a channel *outside* its producing label is a **co-production** (it then belongs to more than one Label — e.g. a photographer shoots under his own label, later sells publication rights to another label's channel).
+The **production unit** — one shoot, a point in space and time, which *owns* the media generated there. Production-level. Ties to its **Producer** — exactly **one** producing Label — via `Session.labelId` (singular; **there is no co-production**). A session's media can be published many different ways (see **Set**).
+_Snapshot semantics (2026-07-04):_ `Session.labelId` is **seeded** from the channel's owning Label when the session is generated (the bottom-up set→channel→session flow), then becomes an **independent, hand-correctable production fact**. It is a snapshot, not a live reference — re-pointing the channel's owner later (see **Label**) does **not** rewrite it.
+
+**Producer vs Publisher** (added 2026-07-04):
+Two orthogonal axes, deliberately not synced:
+- **Producer** — *who made it.* The Session's single Label (`Session.labelId`). Production truth.
+- **Publisher** — *who released it, and where.* Reached from the Set via its Channel's current owner (`Set → Channel → Channel.labelId`); **derived, never stored on the Set**.
+In the normal case they coincide (the set is published through a channel owned by its producer). When they **diverge** — a producer's session published through *another* Label's channel — that is **cross-label publication** (a publication/licensing fact), surfaced as **"Produced by X · Published via Y"**. It is **never** modelled as co-production; the two labels stay truthfully separate (producer via the session, publisher via the channel).
+_Avoid_: "co-production" (retired — there is one producer per session); fabricating a production link to represent a cross-label *publication*.
+_Retired:_ `SetLabelEvidence` — a set's labels are fully derivable (producer via session, publisher via channel), so the soft Set→Label evidence table is no longer used.
 
 **Set** (code model & DB table: `Set`):
 A **publication** — a *packaged subset* of a Session's media, released via **one Channel** on a publication date. **Publication-level, not production-level.** One Session → many Sets: different subsets on different dates, subsets via different channels of the same label, or *the same subset* via different channels. Carries its publication Channel as a hard FK (`Set.channelId`). Because the underlying media is owned by the Session, two Sets publishing the same subset are two *publications* of **one** body of production media — not duplicated media.
@@ -92,6 +101,7 @@ _Avoid_: "label"/"studio"/"producer" (those are the Label) — a Channel is a st
 
 **Label** (code model & DB table: `Label`):
 The **production entity** — the studio/brand whose Sessions generate the media (DDF), grouping the Channels it publishes through. **Emergent, like an Era**: a brand-new Channel **spawns a stub Label** (1:1, provisional — the analogue of a *draft* Era), and channel↔label groupings are **discovered over time**; consolidating several Channels under one Label is the analogue of **promoting a draft Era to a curated one**. This single mechanism covers both "new channel = its own umbrella" (early) and "many channels = one umbrella" (mature).
+_Lifecycle (2026-07-04):_ a Label is referenced by two independent things — the **channels it owns** *and* the **sessions it produces** (`Session.labelId`, a snapshot that outlives any channel re-assignment). It is deletable only when **both** are zero; an emergent stub retires only when fully unreferenced, not merely when it loses its last channel. Re-pointing a channel's owner (`Channel.labelId`) never auto-deletes the old Label and never rewrites past sessions — it may **offer** to re-point sessions still holding the old *inherited* label (`session.labelId == oldChannelLabelId`), a correction-vs-history choice (the analogue of the alias rename/branch guard).
 _Avoid_: "channel" (that is the publication frontend); "network" (the tier above).
 
 **Network** (code model & DB table: `Network`):
@@ -115,7 +125,7 @@ _Avoid_: storing co-occurrence as rows (it's derived); folding claims into curat
 The controlled vocabulary for curated Relationships: `name`, `inverseName`, `isSymmetric`, `category`. The role is stored once on the directed edge (`personId → toPerson`/`toRef`); the **inverse** renders on the counterpart's page (Parent↔Child, Sibling↔Sibling, Mentor↔Mentee). Time-bound via `RelationshipEvent`.
 
 **Evidence vs. hard link** (production attribution is soft, with one denormalized owner):
-Publication is hard-wired onto the Set (`Set.channelId`); **production grouping is softer**. A Channel's **owning Label** is the denormalized FK **`Channel.labelId`** (ADR-0020) — the deterministic owner used by archive matching, dedup, and the set-merge guard. Behind it, `ChannelLabelMap` (M:N, `confidence`) is the full channel↔label association table (owner row at conf 1.0 + any secondary/cross-label evidence); Set↔Label is `SetLabelEvidence` (M:N, `confidence`, `EvidenceType`); the only *hard* production link is `Session.labelId`. There is no hard `Set.labelId` — a Set's producing Label is reached via its Channel's owner FK or its Session.
+Publication is hard-wired onto the Set (`Set.channelId`); **production grouping is softer**. A Channel's **owning Label** is the denormalized FK **`Channel.labelId`** (ADR-0020) — the deterministic owner used by archive matching, dedup, and the set-merge guard. Behind it, `ChannelLabelMap` (M:N, `confidence`) is the full channel↔label association table (owner row at conf 1.0 + any secondary/cross-label evidence); the only *hard* production link is `Session.labelId` (singular Producer). There is no hard `Set.labelId` — a Set's **Producer** is reached via its Session (`Session.labelId`) and its **Publisher** via its Channel's owner FK (see **Producer vs Publisher**). `SetLabelEvidence` is **retired** (ADR-0025) — the set's labels are fully derivable, so the soft Set→Label table is no longer used.
 
 ### Credits & contributors (added 2026-06-24)
 

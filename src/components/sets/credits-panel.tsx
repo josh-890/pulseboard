@@ -4,7 +4,6 @@ import { useState } from "react";
 import Link from "next/link";
 import { FileText, ChevronDown, ChevronUp } from "lucide-react";
 import { AddCreditInline } from "@/components/sets/add-credit-inline";
-import { LabelEvidenceManager } from "@/components/sets/label-evidence-manager";
 import { CreditResolutionPanel } from "@/components/sets/credit-resolution-panel";
 import { resolveCreditedAs } from "@/lib/sets/credited-as";
 import { cn } from "@/lib/utils";
@@ -25,13 +24,6 @@ type CreditItem = {
   resolvedArtist: { id: string; name: string } | null;
 };
 
-type LabelEvidenceItem = {
-  setId: string;
-  labelId: string;
-  evidenceType: string;
-  label: { id: string; name: string };
-};
-
 type RoleDefinitionOption = {
   id: string;
   name: string;
@@ -41,11 +33,7 @@ type RoleDefinitionOption = {
 type CreditsPanelProps = {
   setId: string;
   channelId: string | null;
-  // The set's channel's owning Label (ADR-0020) — shown implicitly so every set
-  // displays its production label, not just those with explicit evidence rows.
-  channelLabel: { id: string; name: string } | null;
   credits: CreditItem[];
-  labelEvidence: LabelEvidenceItem[];
   roleDefinitions: RoleDefinitionOption[];
 };
 
@@ -108,9 +96,7 @@ function CreditRow({ credit }: { credit: CreditItem }) {
 export function CreditsPanel({
   setId,
   channelId,
-  channelLabel,
   credits,
-  labelEvidence,
   roleDefinitions,
 }: CreditsPanelProps) {
   const [expanded, setExpanded] = useState(false);
@@ -159,7 +145,6 @@ export function CreditsPanel({
 
       {/* Management tools */}
       <div className={cn("px-4 pb-4 space-y-4", visibleCredits.length > 0 ? "pt-3 border-t border-white/10" : "pt-4")}>
-        <LabelEvidenceManager setId={setId} channelLabel={channelLabel} evidence={labelEvidence} />
         <AddCreditInline setId={setId} roleDefinitions={roleDefinitions} />
 
         {!hasCredits && (

@@ -379,14 +379,14 @@ export async function getSetById(id: string) {
           roleDefinition: { include: { group: true } },
         },
       },
-      labelEvidence: {
-        include: { label: true },
-        orderBy: { createdAt: "asc" },
-      },
       sessionLinks: {
         include: {
           session: {
-            select: { id: true, name: true, status: true, date: true, datePrecision: true, dateIsConfirmed: true },
+            select: {
+              id: true, name: true, status: true, date: true, datePrecision: true, dateIsConfirmed: true,
+              // Producer (ADR-0025): the session's single owning Label.
+              label: { select: { id: true, name: true } },
+            },
           },
         },
         orderBy: { isPrimary: "desc" },
