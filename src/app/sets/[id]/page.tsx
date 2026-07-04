@@ -239,6 +239,7 @@ export default async function SetDetailPage({ params }: SetDetailPageProps) {
             <CreditsPanel
               setId={id}
               channelId={setData.channelId}
+              channelLabel={setData.channel?.label ? { id: setData.channel.label.id, name: setData.channel.label.name } : null}
               credits={credits}
               labelEvidence={labelEvidence}
               roleDefinitions={roleDefinitions}

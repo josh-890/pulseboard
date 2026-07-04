@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, X, Loader2, Search } from "lucide-react";
 import { toast } from "sonner";
@@ -39,10 +39,13 @@ type LabelResult = {
 
 type LabelEvidenceManagerProps = {
   setId: string;
+  // The channel's owning Label (ADR-0020), shown implicitly so every set displays
+  // its production label even without an explicit evidence row.
+  channelLabel: { id: string; name: string } | null;
   evidence: LabelEvidenceItem[];
 };
 
-export function LabelEvidenceManager({ setId, evidence: initialEvidence }: LabelEvidenceManagerProps) {
+export function LabelEvidenceManager({ setId, channelLabel, evidence: initialEvidence }: LabelEvidenceManagerProps) {
   const router = useRouter();
   const [evidence, setEvidence] = useState(initialEvidence);
   const [isAdding, setIsAdding] = useState(false);
@@ -122,53 +125,83 @@ export function LabelEvidenceManager({ setId, evidence: initialEvidence }: Label
     setIsSubmitting(false);
   }
 
+  // Merge the channel's owning label (implicit) with the explicit evidence rows,
+  // deduped by labelId. Source drives the tag/color; only explicit rows are
+  // removable (the channel-derived label is changed via the channel, not here).
+  const displayLabels = useMemo(() => {
+    const map = new Map<
+      string,
+      { labelId: string; name: string; source: "channel" | "manual"; removable: boolean; evidenceType?: string }
+    >();
+    if (channelLabel) {
+      map.set(channelLabel.id, { labelId: channelLabel.id, name: channelLabel.name, source: "channel", removable: false });
+    }
+    for (const ev of evidence) {
+      if (map.has(ev.labelId)) continue; // already shown via the channel-owning label
+      map.set(ev.labelId, {
+        labelId: ev.labelId,
+        name: ev.label.name,
+        source: ev.evidenceType === "MANUAL" ? "manual" : "channel",
+        removable: true,
+        evidenceType: ev.evidenceType,
+      });
+    }
+    return [...map.values()];
+  }, [channelLabel, evidence]);
+
+  // Only surface where each label came from when there's more than one — with a
+  // single label the provenance is just noise.
+  const showSource = displayLabels.length > 1;
+
   return (
     <div className="space-y-2">
-      {/* Evidence badges with remove */}
-      {evidence.length > 0 && (
+      {/* Label pills (channel-owning label + any extra evidence) */}
+      {displayLabels.length > 0 && (
         <div className="flex flex-wrap gap-1.5">
-          {evidence.map((ev) => (
+          {displayLabels.map((dl) => (
             <Badge
-              key={`${ev.setId}-${ev.labelId}-${ev.evidenceType}`}
+              key={dl.labelId}
               variant="outline"
               className={cn(
                 "text-xs gap-1",
-                ev.evidenceType === "CHANNEL_MAP"
-                  ? "border-sky-500/30 bg-sky-500/10 text-sky-600 dark:text-sky-400"
-                  : "border-purple-500/30 bg-purple-500/10 text-purple-600 dark:text-purple-400",
+                !showSource
+                  ? "border-white/15 bg-muted/40 text-foreground"
+                  : dl.source === "channel"
+                    ? "border-sky-500/30 bg-sky-500/10 text-sky-600 dark:text-sky-400"
+                    : "border-purple-500/30 bg-purple-500/10 text-purple-600 dark:text-purple-400",
               )}
             >
-              {ev.label.name}
-              <span className="opacity-60">
-                {ev.evidenceType === "CHANNEL_MAP" ? "channel" : "manual"}
-              </span>
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <button
-                    type="button"
-                    className="ml-0.5 rounded-full opacity-60 hover:opacity-100 transition-opacity"
-                    aria-label={`Remove ${ev.label.name}`}
-                  >
-                    <X size={10} />
-                  </button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>Remove label evidence?</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      Remove &ldquo;{ev.label.name}&rdquo; ({ev.evidenceType === "CHANNEL_MAP" ? "channel map" : "manual"}) from this set?
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction
-                      onClick={() => handleRemoveLabel(ev.labelId, ev.evidenceType)}
+              {dl.name}
+              {showSource && (
+                <span className="opacity-60">{dl.source === "channel" ? "via channel" : "manual"}</span>
+              )}
+              {dl.removable && dl.evidenceType && (
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <button
+                      type="button"
+                      className="ml-0.5 rounded-full opacity-60 hover:opacity-100 transition-opacity"
+                      aria-label={`Remove ${dl.name}`}
                     >
-                      Remove
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
+                      <X size={10} />
+                    </button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Remove label?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Remove &ldquo;{dl.name}&rdquo; from this set?
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction onClick={() => handleRemoveLabel(dl.labelId, dl.evidenceType!)}>
+                        Remove
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              )}
             </Badge>
           ))}
         </div>
