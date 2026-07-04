@@ -50,6 +50,7 @@ export async function updateChannel(raw: unknown): Promise<CrudActionResult> {
         channelFolder: parsed.data.channelFolder || null,
         url: parsed.data.url || null,
         platform: parsed.data.platform || null,
+        repointSessions: parsed.data.repointSessions,
       });
       revalidatePath("/channels");
       revalidatePath(`/channels/${parsed.data.id}`);

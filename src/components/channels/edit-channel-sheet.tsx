@@ -76,6 +76,7 @@ export function EditChannelSheet({ channel, labels }: EditChannelSheetProps) {
       platform: channel.platform ?? "",
       url: channel.url ?? "",
       tier: channel.tier ?? "NORMAL",
+      repointSessions: true,
     },
   });
 
@@ -83,6 +84,11 @@ export function EditChannelSheet({ channel, labels }: EditChannelSheetProps) {
   const shortNameValue = form.watch("shortName");
   const watchedLabelId = form.watch("labelId");
   const labelIsChanging = !!watchedLabelId && watchedLabelId !== (channel.labelId ?? "");
+  const repoint = form.watch("repointSessions") ?? true;
+  const oldLabelName = channel.labelId
+    ? labels.find((l) => l.id === channel.labelId)?.name ?? "the old label"
+    : "the old label";
+  const newLabelName = labels.find((l) => l.id === watchedLabelId)?.name ?? "the new label";
 
   // Check availability when shortName changes
   useEffect(() => {
@@ -215,9 +221,30 @@ export function EditChannelSheet({ channel, labels }: EditChannelSheetProps) {
                           </FormControl>
                           <FormMessage />
                           {labelIsChanging && (channel.setCount ?? 0) > 0 && (
-                            <p className="text-[11px] text-amber-600 dark:text-amber-400">
-                              {channel.setCount} set{channel.setCount === 1 ? "" : "s"} in this channel — their label affiliations and sessions will be updated on save.
-                            </p>
+                            <div className="mt-1.5 space-y-1.5 rounded-md border border-amber-500/20 bg-amber-500/[0.06] p-2">
+                              <p className="text-[11px] text-amber-700 dark:text-amber-300">
+                                {channel.setCount} set{channel.setCount === 1 ? "" : "s"} here inherited{" "}
+                                <span className="font-medium">{oldLabelName}</span> from this channel. Their sessions produced by it —
+                              </p>
+                              <label className="flex cursor-pointer items-start gap-2 text-[11px] text-foreground">
+                                <input
+                                  type="radio"
+                                  className="mt-0.5 accent-primary"
+                                  checked={repoint === true}
+                                  onChange={() => form.setValue("repointSessions", true, { shouldDirty: true })}
+                                />
+                                <span>Move to <span className="font-medium">{newLabelName}</span> (correction — the channel was mis-assigned)</span>
+                              </label>
+                              <label className="flex cursor-pointer items-start gap-2 text-[11px] text-foreground">
+                                <input
+                                  type="radio"
+                                  className="mt-0.5 accent-primary"
+                                  checked={repoint === false}
+                                  onChange={() => form.setValue("repointSessions", false, { shouldDirty: true })}
+                                />
+                                <span>Leave under <span className="font-medium">{oldLabelName}</span> (history — it really produced them)</span>
+                              </label>
+                            </div>
                           )}
                         </FormItem>
                       )}

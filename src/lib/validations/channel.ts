@@ -21,6 +21,10 @@ export const updateChannelSchema = z.object({
   platform: z.string().optional(),
   url: z.string().url("Must be a valid URL").optional().or(z.literal("")),
   tier: z.enum(channelTierValues).optional(),
+  // ADR-0025: when the owning Label changes, whether to re-point the sessions that
+  // inherited the old label from this channel (correction) or leave them (history).
+  // Default true preserves prior behaviour for callers that don't set it.
+  repointSessions: z.boolean().optional(),
 });
 
 export type CreateChannelFormValues = z.input<typeof createChannelSchema>;

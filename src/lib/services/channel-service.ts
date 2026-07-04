@@ -134,6 +134,9 @@ export async function updateChannelRecord(
     url?: string | null;
     labelId?: string;
     tier?: ChannelTier;
+    // ADR-0025: re-point inherited sessions to the new label (correction) when true
+    // or undefined (default), or leave them under the old label (history) when false.
+    repointSessions?: boolean;
   },
 ) {
   let labelActuallyChanged = false;
@@ -209,7 +212,9 @@ export async function updateChannelRecord(
               .filter(([, sids]) => sids.every((sid) => channelSetIds.has(sid)))
               .map(([sessionId]) => sessionId);
 
-            if (pureSessionIds.length > 0) {
+            // ADR-0025: re-point only when the caller opted in (default true).
+            // `false` = leave the inherited sessions under the old label (history).
+            if (pureSessionIds.length > 0 && data.repointSessions !== false) {
               await tx.session.updateMany({
                 where: { id: { in: pureSessionIds }, labelId: oldLabelId },
                 data: { labelId: newLabelId },
