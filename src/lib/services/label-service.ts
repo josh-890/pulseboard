@@ -94,12 +94,25 @@ export async function updateLabelRecord(id: string, data: {
 
 export async function deleteLabelRecord(id: string) {
   return prisma.$transaction(async (tx) => {
-    // NULL primary label ref on projects and sessions (no schema cascade)
+    // ADR-0025 lifecycle guard: a Label is deletable only when it neither owns any
+    // channel nor produces any session. Otherwise deleting it would silently orphan
+    // those sessions' Producer link. Block with a clear, actionable message instead.
+    const [ownedChannels, producedSessions] = await Promise.all([
+      tx.channel.count({ where: { labelId: id } }),
+      tx.session.count({ where: { labelId: id } }),
+    ]);
+    if (ownedChannels > 0 || producedSessions > 0) {
+      const parts: string[] = [];
+      if (ownedChannels > 0) parts.push(`owns ${ownedChannels} channel${ownedChannels === 1 ? "" : "s"}`);
+      if (producedSessions > 0) parts.push(`produces ${producedSessions} session${producedSessions === 1 ? "" : "s"}`);
+      throw new Error(
+        `Cannot delete this label: it ${parts.join(" and ")}. Reassign or re-point them first.`,
+      );
+    }
+
+    // NULL primary label ref on projects (not part of the producer model; sessions
+    // are guarded above so none remain to null).
     await tx.project.updateMany({
-      where: { labelId: id },
-      data: { labelId: null },
-    });
-    await tx.session.updateMany({
       where: { labelId: id },
       data: { labelId: null },
     });

@@ -60,8 +60,9 @@ export async function deleteLabel(id: string): Promise<SimpleActionResult> {
       revalidatePath("/labels");
       revalidatePath("/channels");
       return { success: true };
-    } catch {
-      return { success: false, error: "Failed to delete label" };
+    } catch (err) {
+      // Surface the lifecycle-guard message (ADR-0025) rather than a generic string.
+      return { success: false, error: err instanceof Error ? err.message : "Failed to delete label" };
     }
 
   });
