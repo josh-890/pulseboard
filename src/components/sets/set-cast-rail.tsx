@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/tooltip";
 
 const HOVER_SIZE = 64;
-const AVATAR_SIZE = 52;
+const AVATAR_SIZE = 64;
 
 type HeadshotData = { url: string; focalX: number | null; focalY: number | null };
 
@@ -36,7 +36,7 @@ export function SetCastRail({ cast }: { cast: CastMember[] }) {
 
   return (
     <TooltipProvider delayDuration={200}>
-      <div className="flex gap-2 overflow-x-auto pb-1 snap-x">
+      <div className="flex gap-3 overflow-x-auto pb-1 snap-x">
         {cast.map((m) => {
           const initials = getInitialsFromName(m.name);
           return (
@@ -44,7 +44,7 @@ export function SetCastRail({ cast }: { cast: CastMember[] }) {
               <TooltipTrigger asChild>
                 <Link
                   href={`/people/${m.personId}`}
-                  className="group flex w-[184px] shrink-0 snap-start items-center gap-2.5 rounded-xl border border-white/10 bg-white/5 p-2 transition-colors hover:border-white/25 hover:bg-white/10"
+                  className="group flex w-[116px] shrink-0 snap-start flex-col items-center gap-1 rounded-xl border border-white/15 bg-card/80 p-2.5 shadow-sm transition-colors hover:border-white/30 hover:bg-card"
                 >
                   <div
                     className="relative shrink-0 overflow-hidden rounded-full border-2 border-card bg-muted/60"
@@ -67,12 +67,12 @@ export function SetCastRail({ cast }: { cast: CastMember[] }) {
                     )}
                   </div>
 
-                  <div className="min-w-0 flex-1">
-                    <p className="line-clamp-2 text-sm font-medium leading-tight text-foreground">
+                  <div className="mt-0.5 w-full text-center">
+                    <p className="line-clamp-2 text-sm font-medium leading-tight text-foreground [overflow-wrap:anywhere]">
                       {m.name}
                     </p>
                     {m.creditedAs && (
-                      <p className="truncate text-xs italic leading-tight text-muted-foreground/70">
+                      <p className="line-clamp-1 text-xs italic leading-tight text-muted-foreground/70">
                         as {m.creditedAs}
                       </p>
                     )}

@@ -32,13 +32,13 @@ export default function SetDetailLoading() {
             </div>
             <div className="my-3 border-t border-white/10" />
             {/* Cast rail */}
-            <div className="flex gap-2">
+            <div className="flex gap-3">
               {Array.from({ length: 3 }).map((_, i) => (
-                <div key={i} className="flex w-[184px] items-center gap-2.5 rounded-xl border border-white/10 bg-white/5 p-2">
-                  <Skeleton className="h-[52px] w-[52px] shrink-0 rounded-full" />
-                  <div className="flex-1 space-y-1.5">
-                    <Skeleton className="h-3.5 w-full" />
-                    <Skeleton className="h-3 w-2/3" />
+                <div key={i} className="flex w-[116px] flex-col items-center gap-2 rounded-xl border border-white/15 bg-card/80 p-2.5 shadow-sm">
+                  <Skeleton className="h-16 w-16 shrink-0 rounded-full" />
+                  <div className="w-full space-y-1.5">
+                    <Skeleton className="mx-auto h-3.5 w-4/5" />
+                    <Skeleton className="mx-auto h-3 w-1/2" />
                   </div>
                 </div>
               ))}
