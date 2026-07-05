@@ -4,7 +4,7 @@ import { ImageIcon } from "lucide-react";
 import { getSetsPaginated, getChannelsWithLabelMaps, getRecentChannels, getLastUsedSetType, getSetFacetCounts } from "@/lib/services/set-service";
 import { getSuggestedFoldersForSets } from "@/lib/services/archive-service";
 import { getPotentialDuplicatePairs } from "@/lib/services/set-merge-service";
-import type { SetSort, SetFilters } from "@/lib/services/set-service";
+import type { SetSort, SetFilters, CastCountBucket } from "@/lib/services/set-service";
 import { getCoverPhotosForSets, getHeadshotsForPersons } from "@/lib/services/media-service";
 import { getAllContributionRoleGroups } from "@/lib/services/contribution-role-service";
 import type { SetType } from "@/lib/types";
@@ -31,6 +31,7 @@ type SetsPageProps = {
     label?: string;
     personId?: string;
     personName?: string;
+    castCount?: string;
     hasMedia?: string;
     archiveFilter?: string;
     noArchiveLink?: string;
@@ -43,6 +44,7 @@ type SetsPageProps = {
 };
 
 const VALID_TYPES = new Set<string>(["photo", "video"]);
+const VALID_CAST_COUNTS = new Set<string>(["1", "2", "3", "4", "5plus"]);
 const VALID_SORTS = new Set<string>([
   "date-desc", "date-asc", "title-asc", "title-desc", "newest", "media-desc", "updated",
   "rating-desc", "rating-asc",
@@ -87,6 +89,7 @@ export default async function SetsPage({ searchParams }: SetsPageProps) {
       q, type, loaded, sort: sortParam,
       channel: channelId, label: labelId,
       personId,
+      castCount: castCountParam,
       hasMedia: hasMediaParam,
       archiveFilter: archiveFilterParam,
       noArchiveLink: noArchiveLinkParam,
@@ -134,12 +137,17 @@ export default async function SetsPage({ searchParams }: SetsPageProps) {
         .filter((v): v is number | "unrated" => v === "unrated" || (typeof v === "number" && v >= 1 && v <= 5 && !isNaN(v)))
     : undefined;
 
+  const castCount = castCountParam && VALID_CAST_COUNTS.has(castCountParam)
+    ? (castCountParam as CastCountBucket)
+    : undefined;
+
   const filters: SetFilters = {
     q: q?.trim() || undefined,
     type: resolvedType,
     labelId: labelId || undefined,
     channelId: channelId || undefined,
     personId: personId || undefined,
+    castCount,
     hasMedia: hasMediaParam === "true" ? true : undefined,
     sort: resolvedSort,
     archiveFilter,
@@ -206,6 +214,19 @@ export default async function SetsPage({ searchParams }: SetsPageProps) {
         { value: "photo", label: "Photos", count: facetCounts.type["photo"] },
         { value: "video", label: "Videos", count: facetCounts.type["video"] },
         { value: "all", label: "All" },
+      ],
+    },
+    {
+      type: "facet",
+      param: "castCount",
+      label: "Cast",
+      searchable: false,
+      options: [
+        { value: "1", label: "1" },
+        { value: "2", label: "2" },
+        { value: "3", label: "3" },
+        { value: "4", label: "4" },
+        { value: "5plus", label: "5+" },
       ],
     },
     {

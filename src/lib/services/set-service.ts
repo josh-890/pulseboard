@@ -20,12 +20,17 @@ export type SetSort =
   | "rating-desc"
   | "rating-asc";
 
+// Cast-size buckets for the /sets browser filter. "5plus" means ≥5 distinct
+// persons; the "+" is avoided in the value to sidestep URL-encoding pitfalls.
+export type CastCountBucket = "1" | "2" | "3" | "4" | "5plus";
+
 export type SetFilters = {
   q?: string;
   type?: SetType | "all";
   labelId?: string;
   channelId?: string;
   personId?: string;
+  castCount?: CastCountBucket;
   hasMedia?: boolean;
   sort?: SetSort;
   archiveFilter?: 'noArchive' | 'verified' | 'changed' | 'missing' | 'notImported'
@@ -137,17 +142,42 @@ function getSetOrderBy(sort?: SetSort): Prisma.SetOrderByWithRelationInput[] {
   }
 }
 
+/**
+ * Set IDs whose cast (distinct persons — a person with multiple roles counts
+ * once) matches a size bucket. Prisma can't filter by relation count in a
+ * `where`, so we aggregate SetParticipant here and intersect the IDs into the
+ * query (same shape as the `ids` duplicates filter).
+ */
+async function setIdsByCastCount(bucket: CastCountBucket): Promise<string[]> {
+  const pairs = await prisma.setParticipant.groupBy({ by: ["setId", "personId"] });
+  const counts = new Map<string, number>();
+  for (const p of pairs) counts.set(p.setId, (counts.get(p.setId) ?? 0) + 1);
+  const matches = (n: number) => (bucket === "5plus" ? n >= 5 : n === Number(bucket));
+  const ids: string[] = [];
+  for (const [setId, n] of counts) if (matches(n)) ids.push(setId);
+  return ids;
+}
+
+/** Normalise `where.AND` to an array and append a clause. */
+function andClause(where: Prisma.SetWhereInput, clause: Prisma.SetWhereInput) {
+  where.AND = [...(Array.isArray(where.AND) ? where.AND : where.AND ? [where.AND] : []), clause];
+}
+
 export async function getSetsPaginated(
   filters: SetFilters = {},
   cursor?: string,
   limit = 50,
 ): Promise<PaginatedSets> {
-  const { q, type, labelId, channelId, personId, hasMedia, sort, archiveFilter, noArchiveLink, ids, ratings, releaseDateFrom, releaseDateTo, createdFrom, createdTo } = filters;
+  const { q, type, labelId, channelId, personId, castCount, hasMedia, sort, archiveFilter, noArchiveLink, ids, ratings, releaseDateFrom, releaseDateTo, createdFrom, createdTo } = filters;
 
   const where: Prisma.SetWhereInput = {};
 
   if (ids && ids.length > 0) {
     where.id = { in: ids };
+  }
+
+  if (castCount) {
+    andClause(where, { id: { in: await setIdsByCastCount(castCount) } });
   }
 
   // Multi-select rating: same shape as PersonFilters. Numeric buckets
@@ -429,10 +459,13 @@ export async function getSetFacetCounts(
   filters: Omit<SetFilters, "sort">,
   labelIds: string[] = [],
 ): Promise<SetFacetCounts> {
+  const castIds = filters.castCount ? await setIdsByCastCount(filters.castCount) : null;
+
   function buildBase(overrides: Partial<Pick<SetFilters, "type" | "channelId" | "labelId" | "ratings">> = {}): Prisma.SetWhereInput {
     const merged = { ...filters, ...overrides };
     const w: Prisma.SetWhereInput = {};
     if (filters.ids && filters.ids.length > 0) w.id = { in: filters.ids };
+    if (castIds) andClause(w, { id: { in: castIds } });
     if (merged.type && merged.type !== "all") w.type = merged.type;
     if (filters.q) w.title = { contains: filters.q, mode: "insensitive" };
     if (merged.channelId) w.channelId = merged.channelId;
