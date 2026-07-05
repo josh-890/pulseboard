@@ -8,12 +8,15 @@ import { updateSetRating } from "@/lib/actions/set-actions";
 type SetRatingProps = {
   setId: string;
   initialRating: number | null;
+  // Compact hero variant: drops the "RATING" label + numeric value and shows
+  // stars only, with larger tap targets. Used on the set hero title row.
+  compact?: boolean;
 };
 
 // 5-star clickable widget mirroring the Person hero rating row. Same
 // click-the-same-star-twice-to-clear behaviour. Optimistic local state +
 // startTransition for the server write.
-export function SetRating({ setId, initialRating }: SetRatingProps) {
+export function SetRating({ setId, initialRating, compact = false }: SetRatingProps) {
   const [localRating, setLocalRating] = useState<number | null>(initialRating);
   const [, startTransition] = useTransition();
 
@@ -28,19 +31,23 @@ export function SetRating({ setId, initialRating }: SetRatingProps) {
 
   return (
     <div className="flex items-center gap-2">
-      <span className="text-[10px] font-semibold tracking-wide text-muted-foreground">
-        RATING
-      </span>
-      <span
-        className={cn(
-          "text-sm font-semibold tabular-nums",
-          localRating ? "" : "text-muted-foreground/40",
-        )}
-      >
-        {localRating ?? "—"}
-      </span>
+      {!compact && (
+        <>
+          <span className="text-[10px] font-semibold tracking-wide text-muted-foreground">
+            RATING
+          </span>
+          <span
+            className={cn(
+              "text-sm font-semibold tabular-nums",
+              localRating ? "" : "text-muted-foreground/40",
+            )}
+          >
+            {localRating ?? "—"}
+          </span>
+        </>
+      )}
       <div
-        className="flex items-center gap-0.5 cursor-pointer"
+        className={cn("flex items-center cursor-pointer", compact ? "gap-0 sm:gap-0.5" : "gap-0.5")}
         role="slider"
         aria-label="Set rating"
         aria-valuemin={1}
@@ -55,8 +62,10 @@ export function SetRating({ setId, initialRating }: SetRatingProps) {
               key={i}
               type="button"
               onClick={() => handleClick(i)}
-              className="transition-colors hover:scale-110"
+              // Larger tap target on touch in compact mode (§6 touch targets).
+              className={cn("transition-colors hover:scale-110", compact && "p-2 sm:p-0.5")}
               title={`Set rating to ${i + 1}`}
+              aria-label={`Set rating to ${i + 1}`}
             >
               {filled ? (
                 <Star size={16} className="fill-amber-400 text-amber-400" />

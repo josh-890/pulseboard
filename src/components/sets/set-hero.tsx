@@ -1,158 +1,17 @@
 import Image from "next/image";
 import Link from "next/link";
 import { Camera, Film, FolderCheck, FolderOpen, FolderX } from "lucide-react";
-import { cn, focalStyle, formatPartialDateISO, getInitialsFromName, computeProductionAge } from "@/lib/utils";
+import { focalStyle, formatPartialDateISO, computeProductionAge } from "@/lib/utils";
 import { SetInlineTitle } from "@/components/sets/set-detail-header";
 import { SetCompleteBadge } from "@/components/sets/set-complete-badge";
 import { SetRating } from "@/components/sets/set-rating";
+import { SetCastRail, type CastMember } from "@/components/sets/set-cast-rail";
 import type { getSetById } from "@/lib/services/set-service";
 import type { CoverPhotoData, HeadshotData } from "@/lib/services/media-service";
 import type { ArchiveStatus } from "@/generated/prisma/client";
 import { resolveCreditedAs } from "@/lib/sets/credited-as";
 
 type SetData = NonNullable<Awaited<ReturnType<typeof getSetById>>>;
-type Participant = SetData["participants"][number];
-
-type SetTypeConfig = {
-  icon: React.ReactNode;
-  label: string;
-  className: string;
-};
-
-const SET_TYPE_CONFIG: Record<string, SetTypeConfig> = {
-  photo: {
-    icon: <Camera size={12} />,
-    label: "Photo",
-    className: "border-sky-500/30 bg-sky-500/15 text-sky-600 dark:text-sky-400",
-  },
-  video: {
-    icon: <Film size={12} />,
-    label: "Video",
-    className: "border-violet-500/30 bg-violet-500/15 text-violet-600 dark:text-violet-400",
-  },
-};
-
-type ProductionDateInfo = {
-  date: Date | null;
-  datePrecision: string;
-  dateIsConfirmed: boolean;
-};
-
-function ParticipantAvatars({
-  participants,
-  headshotMap,
-  productionDate,
-  fallbackDate,
-  fallbackPrecision,
-  creditedAsMap,
-  eraMap,
-}: {
-  participants: Participant[];
-  headshotMap: Map<string, HeadshotData>;
-  productionDate: ProductionDateInfo | null;
-  fallbackDate: Date | null;
-  fallbackPrecision: string;
-  creditedAsMap: Map<string, string>;
-  eraMap?: Record<string, SetParticipantEraInfo>;
-}) {
-  if (participants.length === 0) return null;
-
-  const MAX_VISIBLE = 5;
-  const visible = participants.slice(0, MAX_VISIBLE);
-  const overflow = participants.length - MAX_VISIBLE;
-
-  return (
-    <div className="flex flex-wrap items-start gap-2">
-      {visible.map((p) => {
-        const name = p.person.aliases[0]?.name ?? p.person.icgId ?? "";
-        const firstName = name.split(" ")[0];
-        const initials = getInitialsFromName(name);
-        const headshot = headshotMap.get(p.personId) ?? null;
-        const photoUrl = headshot?.url ?? null;
-        const creditedAs = creditedAsMap.get(p.personId) ?? null;
-        const age = computeProductionAge(
-          p.person.birthdate,
-          p.person.birthdatePrecision,
-          productionDate?.date ?? null,
-          productionDate?.datePrecision ?? "UNKNOWN",
-          productionDate?.dateIsConfirmed ?? false,
-          fallbackDate,
-          fallbackPrecision,
-        );
-        const eraInfo = eraMap?.[p.personId];
-        const eraSuffix = eraInfo
-          ? eraInfo.eraCount > 1
-            ? ` · across ${eraInfo.eraCount} eras`
-            : eraInfo.eraLabel
-              ? ` · ${eraInfo.isBaseline ? "Baseline" : eraInfo.eraLabel}`
-              : ""
-          : "";
-        const title = (creditedAs ? `${name} (credited as: ${creditedAs})` : name) + eraSuffix;
-        return (
-          <Link
-            key={p.personId}
-            href={`/people/${p.personId}`}
-            className="flex flex-col items-center gap-0.5 transition-transform hover:scale-105"
-            style={{ width: 56 }}
-            title={title}
-          >
-            {photoUrl ? (
-              <Image
-                src={photoUrl}
-                alt={name}
-                width={48}
-                height={48}
-                className="h-12 w-12 rounded-full border-2 border-card object-cover"
-                style={focalStyle(headshot?.focalX ?? null, headshot?.focalY ?? null)}
-                unoptimized
-              />
-            ) : (
-              <div className="flex h-12 w-12 items-center justify-center rounded-full border-2 border-card bg-muted text-sm font-semibold text-muted-foreground">
-                {initials}
-              </div>
-            )}
-            <span className="w-full truncate text-center text-[9px] leading-tight text-muted-foreground">
-              {firstName}
-            </span>
-            {creditedAs && (
-              <span className="w-full truncate text-center text-[8px] leading-none text-muted-foreground/50 italic">
-                as: {creditedAs.split(" ")[0]}
-              </span>
-            )}
-            {age && (
-              <span className="text-[9px] leading-none text-muted-foreground/60">
-                {age}
-              </span>
-            )}
-            {eraInfo && eraInfo.eraCount > 0 && (
-              <span
-                className={
-                  eraInfo.eraCount > 1
-                    ? "w-full truncate text-center text-[8px] leading-none text-muted-foreground/50 italic"
-                    : "w-full truncate text-center text-[8px] leading-none text-amber-600/80 dark:text-amber-400/80"
-                }
-                title={eraInfo.eraCount > 1 ? "Multiple eras across this set's sessions" : "Linked Era"}
-              >
-                {eraInfo.eraCount > 1
-                  ? `${eraInfo.eraCount} eras`
-                  : eraInfo.isBaseline
-                    ? "Baseline"
-                    : eraInfo.eraLabel}
-              </span>
-            )}
-          </Link>
-        );
-      })}
-      {overflow > 0 && (
-        <div className="flex flex-col items-center gap-0.5" style={{ width: 56 }}>
-          <div className="flex h-12 w-12 items-center justify-center rounded-full border-2 border-card bg-muted text-xs text-muted-foreground">
-            +{overflow}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
 
 // ADR-0004: per-Set participant Era resolution. Single-era set → label + a
 // "baseline" flag for styling; compilation set with multiple eras → eraCount > 1
@@ -192,7 +51,7 @@ export function SetHero({
   hasSuggestion = false,
   archiveOkChip,
 }: SetHeroProps) {
-  const typeConfig = SET_TYPE_CONFIG[set.type] ?? SET_TYPE_CONFIG.photo;
+  const typeLabel = set.type === "video" ? "Video" : "Photo";
   const participantCount = set.participants.length;
   const primaryLabel = set.channel?.label;
   const primarySession = set.sessionLinks.find((l) => l.isPrimary)?.session ?? set.sessionLinks[0]?.session ?? null;
@@ -209,8 +68,43 @@ export function SetHero({
     if (creditedAs) creditedAsMap.set(credit.resolvedPersonId, creditedAs);
   }
 
+  // Cast for the hero rail — age-at-shoot from the primary session (release-date
+  // fallback). Plain serialisable shape so the client rail can render it.
+  const productionDate = primarySession
+    ? {
+        date: primarySession.date,
+        datePrecision: primarySession.datePrecision,
+        dateIsConfirmed: primarySession.dateIsConfirmed,
+      }
+    : null;
+  const cast: CastMember[] = set.participants.map((p) => {
+    const name = p.person.aliases[0]?.name ?? p.person.icgId ?? "";
+    const headshot = headshotMap.get(p.personId) ?? null;
+    const eraInfo = participantEraMap?.[p.personId];
+    return {
+      personId: p.personId,
+      name,
+      creditedAs: creditedAsMap.get(p.personId) ?? null,
+      age: computeProductionAge(
+        p.person.birthdate,
+        p.person.birthdatePrecision,
+        productionDate?.date ?? null,
+        productionDate?.datePrecision ?? "UNKNOWN",
+        productionDate?.dateIsConfirmed ?? false,
+        set.releaseDate,
+        set.releaseDatePrecision,
+      ),
+      headshot: headshot
+        ? { url: headshot.url, focalX: headshot.focalX, focalY: headshot.focalY }
+        : null,
+      era: eraInfo
+        ? { label: eraInfo.eraLabel, isBaseline: eraInfo.isBaseline, count: eraInfo.eraCount }
+        : null,
+    };
+  });
+
   const coverPanel = coverPhoto ? (
-    <div className="relative h-[250px] w-[180px] shrink-0 overflow-hidden rounded-xl">
+    <div className="relative mx-auto h-[250px] w-[180px] shrink-0 overflow-hidden rounded-xl sm:mx-0">
       <Image
         src={coverPhoto.url}
         alt=""
@@ -222,19 +116,29 @@ export function SetHero({
       />
     </div>
   ) : (
-    <div className="flex h-[250px] w-[180px] shrink-0 items-center justify-center overflow-hidden rounded-xl bg-gradient-to-br from-entity-set/20 to-entity-set/5">
+    <div className="mx-auto flex h-[250px] w-[180px] shrink-0 items-center justify-center overflow-hidden rounded-xl bg-gradient-to-br from-entity-set/20 to-entity-set/5 sm:mx-0">
       <Film size={40} className="text-entity-set/40" />
     </div>
   );
 
   const cardContent = (
-    <div className="flex gap-5">
+    <div className="flex flex-col gap-5 sm:flex-row">
       {coverPanel}
 
       {/* Metadata */}
-      <div className="min-w-0 flex-1 flex flex-col">
-        {/* Line 1: Date · Channel · Type pill */}
-        <div className="flex flex-wrap items-center gap-1.5 text-sm text-muted-foreground">
+      <div className="flex min-w-0 flex-1 flex-col">
+        {/* Title + rating */}
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <SetInlineTitle setId={set.id} title={set.title} />
+          </div>
+          <div className="shrink-0 pt-0.5">
+            <SetRating setId={set.id} initialRating={set.rating} compact />
+          </div>
+        </div>
+
+        {/* Metadata line: Date · Channel · Type icon */}
+        <div className="mt-1 flex flex-wrap items-center gap-1.5 text-sm text-muted-foreground">
           {set.releaseDate && (
             <span>{formatPartialDateISO(set.releaseDate, set.releaseDatePrecision)}</span>
           )}
@@ -249,39 +153,21 @@ export function SetHero({
               </Link>
             </>
           )}
+          {(set.releaseDate || set.channel) && <span>·</span>}
           <span
-            className={cn(
-              "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium",
-              typeConfig.className,
-            )}
+            className="inline-flex items-center text-muted-foreground/80"
+            title={`${typeLabel} set`}
+            aria-label={`${typeLabel} set`}
           >
-            {typeConfig.icon}
-            {typeConfig.label}
+            {set.type === "video" ? <Film size={15} /> : <Camera size={15} />}
           </span>
-        </div>
-
-        {/* Line 2: Title */}
-        <div className="mt-1">
-          <SetInlineTitle setId={set.id} title={set.title} />
         </div>
 
         {/* Separator */}
         <hr className="my-3 border-white/10" />
 
-        {/* People block */}
-        <ParticipantAvatars
-          participants={set.participants}
-          headshotMap={headshotMap}
-          productionDate={primarySession ? {
-            date: primarySession.date,
-            datePrecision: primarySession.datePrecision,
-            dateIsConfirmed: primarySession.dateIsConfirmed,
-          } : null}
-          fallbackDate={set.releaseDate}
-          fallbackPrecision={set.releaseDatePrecision}
-          creditedAsMap={creditedAsMap}
-          eraMap={participantEraMap}
-        />
+        {/* Cast rail */}
+        <SetCastRail cast={cast} />
         {participantCount === 0 && (
           <p className="text-xs text-muted-foreground/50 italic">No participants</p>
         )}
@@ -289,8 +175,8 @@ export function SetHero({
         {/* Separator */}
         <hr className="my-3 border-white/10" />
 
-        {/* Meta row */}
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
+        {/* Meta row — pushed to the bottom, quieter */}
+        <div className="mt-auto flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground/80">
           <span>{mediaCount} media</span>
           {set.imageCount != null && (
             <>
@@ -359,11 +245,6 @@ export function SetHero({
               <span className="text-muted-foreground/70 font-mono text-xs">ID: {set.externalId}</span>
             </>
           )}
-        </div>
-
-        {/* Subjective star rating — mirrors Person.rating UI */}
-        <div className="mt-auto pt-3">
-          <SetRating setId={set.id} initialRating={set.rating} />
         </div>
       </div>
     </div>

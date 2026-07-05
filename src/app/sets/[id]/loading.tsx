@@ -16,27 +16,38 @@ export default function SetDetailLoading() {
 
       {/* Hero card */}
       <div className="rounded-2xl border border-white/20 bg-card/70 p-6 shadow-md backdrop-blur-sm">
-        <div className="flex gap-5">
-          <Skeleton className="h-[250px] w-[180px] shrink-0 rounded-xl" />
+        <div className="flex flex-col gap-5 sm:flex-row">
+          <Skeleton className="mx-auto h-[250px] w-[180px] shrink-0 rounded-xl sm:mx-0" />
           <div className="flex-1 space-y-3">
+            {/* Title + rating */}
+            <div className="flex items-start justify-between gap-3">
+              <Skeleton className="h-7 w-56" />
+              <Skeleton className="h-4 w-24" />
+            </div>
+            {/* Metadata line */}
             <div className="flex items-center gap-2">
               <Skeleton className="h-4 w-24" />
-              <Skeleton className="h-5 w-16 rounded-full" />
+              <Skeleton className="h-4 w-20" />
+              <Skeleton className="h-4 w-4 rounded-full" />
             </div>
-            <Skeleton className="h-7 w-56" />
             <div className="my-3 border-t border-white/10" />
-            <div className="flex gap-3">
+            {/* Cast rail */}
+            <div className="flex gap-2">
               {Array.from({ length: 3 }).map((_, i) => (
-                <div key={i} className="flex flex-col items-center gap-1">
-                  <Skeleton className="h-12 w-12 rounded-full" />
-                  <Skeleton className="h-3 w-10" />
+                <div key={i} className="flex w-[184px] items-center gap-2.5 rounded-xl border border-white/10 bg-white/5 p-2">
+                  <Skeleton className="h-[52px] w-[52px] shrink-0 rounded-full" />
+                  <div className="flex-1 space-y-1.5">
+                    <Skeleton className="h-3.5 w-full" />
+                    <Skeleton className="h-3 w-2/3" />
+                  </div>
                 </div>
               ))}
             </div>
             <div className="my-3 border-t border-white/10" />
+            {/* Info line */}
             <div className="flex items-center gap-3">
-              <Skeleton className="h-4 w-20" />
-              <Skeleton className="h-4 w-28" />
+              <Skeleton className="h-3.5 w-20" />
+              <Skeleton className="h-3.5 w-28" />
               <Skeleton className="h-5 w-16 rounded-full" />
             </div>
           </div>
