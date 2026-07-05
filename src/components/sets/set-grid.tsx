@@ -15,6 +15,7 @@ import { loadMoreSets, dismissSetDuplicateAction } from "@/lib/actions/set-actio
 import { useRouter } from "next/navigation";
 import type { getSets } from "@/lib/services/set-service";
 import type { SetFilters } from "@/lib/services/set-service";
+import { setFiltersToParams } from "@/lib/sets/set-browse-filters";
 import { useBulkSelection } from "@/hooks/use-bulk-selection";
 import { BulkSelectionBar } from "@/components/shared/bulk-selection-bar";
 import type { SuggestedFolderInfo } from "@/lib/services/archive-service";
@@ -31,21 +32,6 @@ import { computeGroups, buildNestedGroups, sortGroupKeys } from "@/lib/grouping"
 import { useCollapseState } from "@/hooks/use-collapse-state";
 
 type SetItem = Awaited<ReturnType<typeof getSets>>[number];
-
-function filtersToRecord(filters: SetFilters): Record<string, string> {
-  const r: Record<string, string> = {};
-  if (filters.q) r.q = filters.q;
-  if (filters.type && filters.type !== "all") r.type = filters.type;
-  if (filters.channelId) r.channel = filters.channelId;
-  if (filters.labelId) r.label = filters.labelId;
-  if (filters.personId) r.personId = filters.personId;
-  if (filters.sort) r.sort = filters.sort;
-  if (filters.releaseDateFrom) r.releaseDateFrom = filters.releaseDateFrom.toISOString().split("T")[0];
-  if (filters.releaseDateTo) r.releaseDateTo = filters.releaseDateTo.toISOString().split("T")[0];
-  if (filters.createdFrom) r.createdFrom = filters.createdFrom.toISOString().split("T")[0];
-  if (filters.createdTo) r.createdTo = filters.createdTo.toISOString().split("T")[0];
-  return r;
-}
 
 type CoverPhotoData = {
   url: string;
@@ -152,6 +138,11 @@ function hasActiveFilters(filters: SetFilters): boolean {
     filters.channelId ||
     filters.labelId ||
     filters.personId ||
+    filters.castCount ||
+    (filters.ratings && filters.ratings.length > 0) ||
+    filters.hasMedia ||
+    filters.archiveFilter ||
+    filters.noArchiveLink ||
     filters.releaseDateFrom ||
     filters.releaseDateTo ||
     filters.createdFrom ||
@@ -231,7 +222,7 @@ export function SetGrid({
     hasRestoredScroll.current = true;
     const ctx = loadBrowseContext(SET_BROWSE_KEY);
     if (!ctx) return;
-    if (!filtersMatch(filtersToRecord(filters), ctx.filters)) return;
+    if (!filtersMatch(setFiltersToParams(filters), ctx.filters)) return;
     if (ctx.scrollY > 0) {
       requestAnimationFrame(() => { getAppScrollEl()?.scrollTo(0, ctx.scrollY); });
     }
@@ -245,7 +236,7 @@ export function SetGrid({
           names: current.map((s) => truncateName(s.title)),
           nextCursor: cur,
           totalCount,
-          filters: filtersToRecord(filters),
+          filters: setFiltersToParams(filters),
           scrollY: 0,
         },
         SET_BROWSE_KEY,
@@ -258,7 +249,7 @@ export function SetGrid({
     if (isInitialMount.current) {
       isInitialMount.current = false;
       const ctx = loadBrowseContext(SET_BROWSE_KEY);
-      if (ctx && filtersMatch(filtersToRecord(filters), ctx.filters) && ctx.ids.length > sets.length) {
+      if (ctx && filtersMatch(setFiltersToParams(filters), ctx.filters) && ctx.ids.length > sets.length) {
         return;
       }
     }

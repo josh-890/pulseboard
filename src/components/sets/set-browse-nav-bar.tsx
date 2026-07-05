@@ -13,7 +13,7 @@ import {
   SET_BROWSE_KEY,
 } from "@/lib/browse-context";
 import { loadMoreSets } from "@/lib/actions/set-actions";
-import type { SetFilters } from "@/lib/services/set-service";
+import { paramsToSetFilters } from "@/lib/sets/set-browse-filters";
 import type { BrowseNav } from "@/lib/browse-context";
 
 type SetBrowseNavBarProps = {
@@ -42,19 +42,7 @@ export function SetBrowseNavBar({ setId }: SetBrowseNavBarProps) {
     if (!ctx?.nextCursor) return;
 
     startTransition(async () => {
-      const s = ctx.filters;
-      const filters: SetFilters = {
-        q: s.q,
-        type: (s.type as SetFilters["type"]) ?? "all",
-        channelId: s.channel,
-        labelId: s.label,
-        personId: s.personId,
-        sort: s.sort as SetFilters["sort"],
-        releaseDateFrom: s.releaseDateFrom ? new Date(s.releaseDateFrom) : undefined,
-        releaseDateTo: s.releaseDateTo ? new Date(s.releaseDateTo) : undefined,
-        createdFrom: s.createdFrom ? new Date(s.createdFrom) : undefined,
-        createdTo: s.createdTo ? new Date(s.createdTo) : undefined,
-      };
+      const filters = paramsToSetFilters(ctx.filters);
       const result = await loadMoreSets(filters, ctx.nextCursor!);
       const newIds = result.items.map((s) => s.id);
       const newNames = result.items.map((s) => truncateName(s.title));
