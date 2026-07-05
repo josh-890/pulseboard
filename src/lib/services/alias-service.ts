@@ -165,34 +165,51 @@ export async function createAlias(
   notes?: string | null,
   channelIds?: string[],
 ) {
+  const nameNorm = normalizeForSearch(name);
+
   const result = await prisma.$transaction(async (tx) => {
-    const alias = await tx.personAlias.create({
-      data: {
-        personId,
-        name,
-        isCommon,
-        isBirth,
-        source,
-        notes: notes ?? null,
-        nameNorm: normalizeForSearch(name),
-      },
+    // Reuse an existing alias with the same nameNorm for this person rather than
+    // minting a duplicate (mirrors promoteAliasFromQueue). When reusing, we leave
+    // the existing row's name/isCommon/isBirth/notes untouched — the caller's
+    // flags must not clobber the canonical row (and could collide with the
+    // partial-unique one-common / one-birth indexes).
+    let alias = await tx.personAlias.findFirst({
+      where: { personId, nameNorm },
     });
+    if (!alias) {
+      alias = await tx.personAlias.create({
+        data: {
+          personId,
+          name,
+          isCommon,
+          isBirth,
+          source,
+          notes: notes ?? null,
+          nameNorm,
+        },
+      });
+    }
 
     if (channelIds && channelIds.length > 0) {
-      await tx.personAliasChannel.createMany({
-        data: channelIds.map((channelId) => ({
-          aliasId: alias.id,
-          channelId,
-        })),
-        skipDuplicates: true,
-      });
+      for (const channelId of channelIds) {
+        // First alias for this person on this channel becomes primary.
+        const existingOnChannel = await tx.personAliasChannel.findFirst({
+          where: { channelId, alias: { personId } },
+          select: { aliasId: true },
+        });
+        await tx.personAliasChannel.upsert({
+          where: { aliasId_channelId: { aliasId: alias.id, channelId } },
+          create: { aliasId: alias.id, channelId, isPrimary: !existingOnChannel },
+          update: {},
+        });
+      }
     }
 
     return alias;
   });
 
   // Refresh participant statuses on staging sets that match this alias name
-  refreshStatusesForNameNorm(normalizeForSearch(name)).catch(() => {});
+  refreshStatusesForNameNorm(nameNorm).catch(() => {});
 
   return result;
 }
@@ -454,6 +471,17 @@ export async function mergeAliases(
         });
         for (const l of newLinks) existingChannelIds.add(l.channelId);
       }
+
+      // Re-point credit/session pins onto the target before deleting the source.
+      // The FK is onDelete: SetNull, so skipping this would silently null the pins.
+      await tx.setCreditRaw.updateMany({
+        where: { resolvedAliasId: sourceId },
+        data: { resolvedAliasId: targetAliasId },
+      });
+      await tx.sessionContribution.updateMany({
+        where: { resolvedAliasId: sourceId },
+        data: { resolvedAliasId: targetAliasId },
+      });
 
       // Delete source channel links then alias
       await tx.personAliasChannel.deleteMany({ where: { aliasId: sourceId } });

@@ -324,10 +324,16 @@ export async function createAliasFromCreditAction(
         null,
         channelId ? [channelId] : [],
       );
-      // Pin the new alias AND set it as the credited name (ADR-0024).
+      // Pin the alias AND set it as the credited name (ADR-0024). createAlias may
+      // have reused an existing alias, so use its canonical stored name/casing
+      // rather than the user-typed variant.
       await prisma.setCreditRaw.update({
         where: { id: creditId },
-        data: { resolvedAliasId: alias.id, rawName: name, nameNorm: normalizeForSearch(name) },
+        data: {
+          resolvedAliasId: alias.id,
+          rawName: alias.name,
+          nameNorm: normalizeForSearch(alias.name),
+        },
       });
       revalidatePath(`/people/${personId}`);
       revalidatePath(`/sets/${setId}`);
