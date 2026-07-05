@@ -1,5 +1,6 @@
 "use client";
 
+import { useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { cn, focalStyle, getInitialsFromName } from "@/lib/utils";
@@ -25,18 +26,44 @@ export type CastMember = {
 };
 
 /**
- * Horizontal, scroll-snap rail of cast cards for the set hero. Each card is a
- * link to the person: circular avatar on the left, a vertical text stack
- * (common name wrapping to 2 lines / "as <alias>" / age) on the right. The card
- * is width-capped so long names wrap instead of stretching; the full name and
- * credited-as are always available via the hover tooltip (64px headshot).
+ * Horizontal, scroll-snap rail of cast "poster" chips for the set hero: a
+ * circular avatar on top with the common name / "as <alias>" / age centered
+ * beneath, full name/credited-as on the hover tooltip (64px headshot). When the
+ * chips overflow the width the rail scrolls; edge fades cue that there's more.
  */
 export function SetCastRail({ cast }: { cast: CastMember[] }) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [fade, setFade] = useState({ left: false, right: false });
+
+  const updateFades = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const { scrollLeft, scrollWidth, clientWidth } = el;
+    setFade({
+      left: scrollLeft > 1,
+      right: scrollLeft + clientWidth < scrollWidth - 1,
+    });
+  }, []);
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const observer = new ResizeObserver(() => updateFades());
+    observer.observe(el);
+    updateFades();
+    return () => observer.disconnect();
+  }, [updateFades, cast.length]);
+
   if (cast.length === 0) return null;
 
   return (
     <TooltipProvider delayDuration={200}>
-      <div className="flex gap-3 overflow-x-auto pb-1 snap-x">
+      <div className="relative">
+        <div
+          ref={scrollRef}
+          onScroll={updateFades}
+          className="flex gap-3 overflow-x-auto pb-1 snap-x"
+        >
         {cast.map((m) => {
           const initials = getInitialsFromName(m.name);
           return (
@@ -133,6 +160,15 @@ export function SetCastRail({ cast }: { cast: CastMember[] }) {
             </Tooltip>
           );
         })}
+        </div>
+
+        {/* Edge fades — only when the rail overflows, cueing more off-screen */}
+        {fade.left && (
+          <div className="pointer-events-none absolute inset-y-0 left-0 w-8 bg-gradient-to-r from-card to-transparent" />
+        )}
+        {fade.right && (
+          <div className="pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-card to-transparent" />
+        )}
       </div>
     </TooltipProvider>
   );
