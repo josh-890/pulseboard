@@ -34,7 +34,7 @@ export default function SetDetailLoading() {
             {/* Cast rail */}
             <div className="flex gap-2">
               {Array.from({ length: 3 }).map((_, i) => (
-                <div key={i} className="flex w-[100px] flex-col items-center gap-2 rounded-xl border border-white/15 bg-card/80 p-2.5 shadow-sm">
+                <div key={i} className="flex w-[100px] flex-col items-center gap-2 rounded-xl border border-white/15 bg-card/80 p-2 shadow-sm">
                   <Skeleton className="h-16 w-16 shrink-0 rounded-full" />
                   <div className="w-full space-y-1.5">
                     <Skeleton className="mx-auto h-3.5 w-4/5" />
