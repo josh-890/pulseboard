@@ -319,7 +319,6 @@ export function PersonAliasesTab({ personId, aliases, promotionQueue = [], digit
           onEdit={(a) => { setEditingAlias(a); setAddSheetOpen(true); }}
           onDelete={handleDelete}
           onUnlink={handleUnlink}
-          onTogglePrimary={handleTogglePrimary}
         />
       ) : (
         <ByChannelView
@@ -414,42 +413,22 @@ function ChannelChip({
   cl,
   isPending,
   onUnlink,
-  onTogglePrimary,
 }: {
   aliasId: string;
   cl: PersonAliasWithChannels["channelLinks"][number];
   isPending: boolean;
   onUnlink: (aliasId: string, channelId: string) => void;
-  onTogglePrimary: (aliasId: string, channelId: string, current: boolean) => void;
 }) {
   const tooltip = cl.labelNames.length > 0 ? cl.labelNames.join(", ") : undefined;
 
+  // The primary/preferred-alias marker is only meaningful when a channel has a
+  // choice of names, so it lives exclusively in the By-Channel view. Here (a
+  // single alias's channels) chips are plain.
   return (
     <span
-      className={cn(
-        "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs transition-colors",
-        cl.isPrimary
-          ? "border-primary/30 bg-primary/10 text-primary"
-          : "border-white/10 bg-white/5 text-muted-foreground hover:border-white/20",
-      )}
+      className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-xs text-muted-foreground transition-colors hover:border-white/20"
       title={tooltip}
     >
-      {/* Star — visual-only for primary, promote action for others */}
-      <button
-        type="button"
-        onClick={cl.isPrimary ? undefined : () => onTogglePrimary(aliasId, cl.channelId, cl.isPrimary)}
-        className={cn(
-          "shrink-0 transition-colors",
-          cl.isPrimary
-            ? "cursor-default text-amber-400"
-            : "cursor-pointer text-muted-foreground/30 hover:text-amber-400",
-        )}
-        title={cl.isPrimary ? "Primary channel" : "Set as primary"}
-        tabIndex={cl.isPrimary ? -1 : 0}
-      >
-        <Star size={10} fill={cl.isPrimary ? "currentColor" : "none"} />
-      </button>
-
       <span className="max-w-[160px] truncate">{cl.channelName}</span>
 
       {/* Corroboration: sets on this channel credited under this alias (ADR-0024) */}
@@ -486,7 +465,6 @@ function ByAliasView({
   onEdit,
   onDelete,
   onUnlink,
-  onTogglePrimary,
 }: {
   aliases: PersonAliasWithChannels[];
   selectedIds: Set<string>;
@@ -495,18 +473,16 @@ function ByAliasView({
   onEdit: (alias: PersonAliasWithChannels) => void;
   onDelete: (id: string) => void;
   onUnlink: (aliasId: string, channelId: string) => void;
-  onTogglePrimary: (aliasId: string, channelId: string, current: boolean) => void;
 }) {
   return (
     <div className="space-y-2">
       {aliases.map((alias) => {
         const isSelected = selectedIds.has(alias.id);
 
-        // Sort: primary first, then alphabetical
-        const sortedLinks = [...alias.channelLinks].sort((a, b) => {
-          if (a.isPrimary !== b.isPrimary) return a.isPrimary ? -1 : 1;
-          return a.channelName.localeCompare(b.channelName);
-        });
+        // Sort alphabetically (primary is not surfaced in this view).
+        const sortedLinks = [...alias.channelLinks].sort((a, b) =>
+          a.channelName.localeCompare(b.channelName),
+        );
 
         return (
           <div
@@ -605,7 +581,6 @@ function ByAliasView({
                   cl={cl}
                   isPending={isPending}
                   onUnlink={onUnlink}
-                  onTogglePrimary={onTogglePrimary}
                 />
               ))}
               {/* + link CTA */}
@@ -631,6 +606,7 @@ function ByAliasView({
 function AliasChip({
   alias,
   channelId,
+  channelAliasCount,
   isPending,
   onEdit,
   onUnlink,
@@ -638,6 +614,7 @@ function AliasChip({
 }: {
   alias: PersonAliasWithChannels & { isPrimary: boolean };
   channelId: string;
+  channelAliasCount: number;
   isPending: boolean;
   onEdit: (alias: PersonAliasWithChannels) => void;
   onUnlink: (aliasId: string, channelId: string) => void;
@@ -646,31 +623,39 @@ function AliasChip({
   const typeLabel = getAliasTagLabels(alias)[0];
   const typeStyle = getAliasTagStyles(alias)[0];
 
+  // "Primary" only means something when there's a choice: >1 alias on this
+  // channel. With a single alias the marker is noise, so hide the star and the
+  // emphasis entirely.
+  const showPrimary = channelAliasCount > 1;
+  const primary = showPrimary && alias.isPrimary;
+
   return (
     <span
       className={cn(
         "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs transition-colors",
-        alias.isPrimary
+        primary
           ? "border-primary/30 bg-primary/10 text-primary"
           : "border-white/10 bg-white/5 text-muted-foreground hover:border-white/20",
       )}
       title={typeLabel}
     >
-      {/* Star — visual-only for primary, promote for others */}
-      <button
-        type="button"
-        onClick={alias.isPrimary ? undefined : () => onTogglePrimary(alias.id, channelId, alias.isPrimary)}
-        className={cn(
-          "shrink-0 transition-colors",
-          alias.isPrimary
-            ? "cursor-default text-amber-400"
-            : "cursor-pointer text-muted-foreground/30 hover:text-amber-400",
-        )}
-        title={alias.isPrimary ? "Primary alias" : "Set as primary"}
-        tabIndex={alias.isPrimary ? -1 : 0}
-      >
-        <Star size={10} fill={alias.isPrimary ? "currentColor" : "none"} />
-      </button>
+      {/* Star — pick the preferred name when a channel has multiple aliases */}
+      {showPrimary && (
+        <button
+          type="button"
+          onClick={primary ? undefined : () => onTogglePrimary(alias.id, channelId, alias.isPrimary)}
+          className={cn(
+            "shrink-0 transition-colors",
+            primary
+              ? "cursor-default text-amber-400"
+              : "cursor-pointer text-muted-foreground/30 hover:text-amber-400",
+          )}
+          title={primary ? "Primary alias" : "Set as primary"}
+          tabIndex={primary ? -1 : 0}
+        >
+          <Star size={10} fill={primary ? "currentColor" : "none"} />
+        </button>
+      )}
 
       <span className={cn("max-w-[140px] truncate", getAliasNameColor(alias))}>{alias.name}</span>
 
@@ -799,6 +784,7 @@ function ByChannelView({
                   key={alias.id}
                   alias={alias}
                   channelId={channelId}
+                  channelAliasCount={group.aliases.length}
                   isPending={isPending}
                   onEdit={onEdit}
                   onUnlink={onUnlink}
