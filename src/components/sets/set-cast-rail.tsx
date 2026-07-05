@@ -62,7 +62,7 @@ export function SetCastRail({ cast }: { cast: CastMember[] }) {
         <div
           ref={scrollRef}
           onScroll={updateFades}
-          className="flex gap-3 overflow-x-auto pb-1 snap-x"
+          className="flex gap-2 overflow-x-auto pb-1 snap-x"
         >
         {cast.map((m) => {
           const initials = getInitialsFromName(m.name);
@@ -71,7 +71,7 @@ export function SetCastRail({ cast }: { cast: CastMember[] }) {
               <TooltipTrigger asChild>
                 <Link
                   href={`/people/${m.personId}`}
-                  className="group flex w-[116px] shrink-0 snap-start flex-col items-center gap-1 rounded-xl border border-white/15 bg-card/80 p-2.5 shadow-sm transition-colors hover:border-white/30 hover:bg-card"
+                  className="group flex w-[100px] shrink-0 snap-start flex-col items-center gap-1 rounded-xl border border-white/15 bg-card/80 p-2.5 shadow-sm transition-colors hover:border-white/30 hover:bg-card"
                 >
                   <div
                     className="relative shrink-0 overflow-hidden rounded-full border-2 border-card bg-muted/60"
