@@ -87,7 +87,7 @@ export default async function SetsPage({ searchParams }: SetsPageProps) {
   return withTenantFromHeaders(async () => {
     const {
       q, type, loaded, sort: sortParam,
-      channel: channelId, label: labelId,
+      channel: channelParam, label: labelParam,
       personId,
       castCount: castCountParam,
       hasMedia: hasMediaParam,
@@ -141,11 +141,15 @@ export default async function SetsPage({ searchParams }: SetsPageProps) {
     ? castCountParam.split(",").filter((v): v is CastCountBucket => VALID_CAST_COUNTS.has(v))
     : [];
 
+  // Channel / Label are multi-select: comma-separated id lists.
+  const selectedChannelIds = channelParam ? channelParam.split(",").filter(Boolean) : [];
+  const selectedLabelIds = labelParam ? labelParam.split(",").filter(Boolean) : [];
+
   const filters: SetFilters = {
     q: q?.trim() || undefined,
     type: resolvedType,
-    labelId: labelId || undefined,
-    channelId: channelId || undefined,
+    labelIds: selectedLabelIds.length > 0 ? selectedLabelIds : undefined,
+    channelIds: selectedChannelIds.length > 0 ? selectedChannelIds : undefined,
     personId: personId || undefined,
     castCounts: castCounts.length > 0 ? castCounts : undefined,
     hasMedia: hasMediaParam === "true" ? true : undefined,
@@ -256,30 +260,32 @@ export default async function SetsPage({ searchParams }: SetsPageProps) {
   const advancedFilterGroups: FilterGroup[] = [];
 
   // Only show channels/labels that have matching sets (count > 0) under the current
-  // filters — plus the currently-selected one, so an active filter stays visible.
+  // filters — plus the currently-selected ones, so active filters stay visible.
   const channelFacetOptions = channelOptions
     .map((c) => ({ ...c, count: facetCounts.channelId[c.value] ?? 0 }))
-    .filter((c) => c.count > 0 || c.value === channelId);
+    .filter((c) => c.count > 0 || selectedChannelIds.includes(c.value));
   if (channelFacetOptions.length > 0) {
     filterGroups.push({
-      type: "facet",
+      type: "multifacet",
       param: "channel",
       label: "Channel",
       options: channelFacetOptions,
       searchable: true,
+      sortSelectedFirst: true,
     });
   }
 
   const labelFacetOptions = labelOptions
     .map((l) => ({ ...l, count: facetCounts.labelId[l.value] ?? 0 }))
-    .filter((l) => l.count > 0 || l.value === labelId);
+    .filter((l) => l.count > 0 || selectedLabelIds.includes(l.value));
   if (labelFacetOptions.length > 0) {
     filterGroups.push({
-      type: "facet",
+      type: "multifacet",
       param: "label",
       label: "Label",
       options: labelFacetOptions,
       searchable: true,
+      sortSelectedFirst: true,
     });
   }
 

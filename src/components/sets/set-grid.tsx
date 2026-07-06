@@ -135,8 +135,8 @@ function hasActiveFilters(filters: SetFilters): boolean {
   return !!(
     filters.q ||
     (filters.type && filters.type !== "all") ||
-    filters.channelId ||
-    filters.labelId ||
+    (filters.channelIds && filters.channelIds.length > 0) ||
+    (filters.labelIds && filters.labelIds.length > 0) ||
     filters.personId ||
     (filters.castCounts && filters.castCounts.length > 0) ||
     (filters.ratings && filters.ratings.length > 0) ||

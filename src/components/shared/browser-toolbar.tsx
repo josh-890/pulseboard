@@ -75,6 +75,9 @@ type MultiFacetFilter = {
     count?: number;
   }[];
   searchable?: boolean;
+  /** Show currently-selected options at the top of the list (frozen while the
+   *  dropdown is open) so they're easy to find and unselect. For long lists. */
+  sortSelectedFirst?: boolean;
 };
 
 type ToggleFilter = {
@@ -813,10 +816,19 @@ export function MultiFacetDropdown({
   onToggle: (value: string) => void;
 }) {
   const [open, setOpen] = useState(false);
+  // Selection snapshot taken when the dropdown opens, so selected-first ordering
+  // stays stable while the user toggles (items don't jump under the cursor).
+  const [pinned, setPinned] = useState<string[]>(selected);
   const activeCount = selected.length;
 
+  const orderedOptions = filter.sortSelectedFirst
+    ? [...filter.options].sort(
+        (a, b) => Number(pinned.includes(b.value)) - Number(pinned.includes(a.value)),
+      )
+    : filter.options;
+
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover open={open} onOpenChange={(o) => { if (o) setPinned(selected); setOpen(o); }}>
       <PopoverTrigger asChild>
         <Button
           variant="outline"
@@ -840,7 +852,7 @@ export function MultiFacetDropdown({
           <CommandList>
             <CommandEmpty>No results.</CommandEmpty>
             <CommandGroup>
-              {filter.options.map((option) => {
+              {orderedOptions.map((option) => {
                 const isSelected = selected.includes(option.value);
                 return (
                   <CommandItem

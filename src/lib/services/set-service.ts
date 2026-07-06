@@ -27,8 +27,9 @@ export type CastCountBucket = "1" | "2" | "3" | "4" | "5plus";
 export type SetFilters = {
   q?: string;
   type?: SetType | "all";
-  labelId?: string;
-  channelId?: string;
+  // Multi-select: a set matches if its owning label / channel is ANY of these.
+  labelIds?: string[];
+  channelIds?: string[];
   personId?: string;
   // Multi-select cast-size buckets: a set matches if its distinct-person count
   // falls in ANY selected bucket ("5plus" = ≥5). Empty/absent = no filter.
@@ -49,7 +50,7 @@ export type SetFilters = {
 };
 
 export async function getSets(filters: SetFilters = {}) {
-  const { q, type, labelId } = filters;
+  const { q, type, labelIds } = filters;
 
   const where: Prisma.SetWhereInput = {};
 
@@ -61,8 +62,8 @@ export async function getSets(filters: SetFilters = {}) {
     where.title = { contains: q, mode: "insensitive" };
   }
 
-  if (labelId) {
-    where.channel = { labelId };
+  if (labelIds && labelIds.length > 0) {
+    where.channel = { labelId: { in: labelIds } };
   }
 
   return prisma.set.findMany({
@@ -171,7 +172,7 @@ export async function getSetsPaginated(
   cursor?: string,
   limit = 50,
 ): Promise<PaginatedSets> {
-  const { q, type, labelId, channelId, personId, castCounts, hasMedia, sort, archiveFilter, noArchiveLink, ids, ratings, releaseDateFrom, releaseDateTo, createdFrom, createdTo } = filters;
+  const { q, type, labelIds, channelIds, personId, castCounts, hasMedia, sort, archiveFilter, noArchiveLink, ids, ratings, releaseDateFrom, releaseDateTo, createdFrom, createdTo } = filters;
 
   const where: Prisma.SetWhereInput = {};
 
@@ -203,12 +204,12 @@ export async function getSetsPaginated(
     where.title = { contains: q, mode: "insensitive" };
   }
 
-  if (labelId) {
-    where.channel = { labelId };
+  if (labelIds && labelIds.length > 0) {
+    where.channel = { labelId: { in: labelIds } };
   }
 
-  if (channelId) {
-    where.channelId = channelId;
+  if (channelIds && channelIds.length > 0) {
+    where.channelId = { in: channelIds };
   }
 
   if (personId) {
@@ -466,15 +467,15 @@ export async function getSetFacetCounts(
     ? await setIdsByCastCounts(filters.castCounts)
     : null;
 
-  function buildBase(overrides: Partial<Pick<SetFilters, "type" | "channelId" | "labelId" | "ratings">> = {}): Prisma.SetWhereInput {
+  function buildBase(overrides: Partial<Pick<SetFilters, "type" | "channelIds" | "labelIds" | "ratings">> = {}): Prisma.SetWhereInput {
     const merged = { ...filters, ...overrides };
     const w: Prisma.SetWhereInput = {};
     if (filters.ids && filters.ids.length > 0) w.id = { in: filters.ids };
     if (castIds) andClause(w, { id: { in: castIds } });
     if (merged.type && merged.type !== "all") w.type = merged.type;
     if (filters.q) w.title = { contains: filters.q, mode: "insensitive" };
-    if (merged.channelId) w.channelId = merged.channelId;
-    if (merged.labelId) w.channel = { labelId: merged.labelId };
+    if (merged.channelIds && merged.channelIds.length > 0) w.channelId = { in: merged.channelIds };
+    if (merged.labelIds && merged.labelIds.length > 0) w.channel = { labelId: { in: merged.labelIds } };
     if (filters.personId) w.participants = { some: { personId: filters.personId } };
     if (filters.hasMedia) w.setMediaItems = { some: {} };
     if (filters.noArchiveLink) w.archiveLinks = { none: { status: ArchiveLinkStatus.CONFIRMED } };
@@ -504,10 +505,10 @@ export async function getSetFacetCounts(
 
   const [typeGroups, channelGroups, ratingGroups, ...labelCounts] = await Promise.all([
     prisma.set.groupBy({ by: ["type"], where: buildBase({ type: undefined }), _count: { _all: true } }),
-    prisma.set.groupBy({ by: ["channelId"], where: buildBase({ channelId: undefined }), _count: { _all: true } }),
+    prisma.set.groupBy({ by: ["channelId"], where: buildBase({ channelIds: undefined }), _count: { _all: true } }),
     prisma.set.groupBy({ by: ["rating"], where: buildBase({ ratings: undefined }), _count: { _all: true } }),
     ...labelIds.map((id) =>
-      prisma.set.count({ where: { ...buildBase({ labelId: undefined }), channel: { labelId: id } } })
+      prisma.set.count({ where: { ...buildBase({ labelIds: undefined }), channel: { labelId: id } } })
         .then((count) => [id, count] as [string, number]),
     ),
   ]);

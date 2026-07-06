@@ -28,8 +28,8 @@ export function setFiltersToParams(filters: SetFilters): Record<string, string> 
   const r: Record<string, string> = {};
   if (filters.q) r.q = filters.q;
   if (filters.type && filters.type !== "all") r.type = filters.type;
-  if (filters.channelId) r.channel = filters.channelId;
-  if (filters.labelId) r.label = filters.labelId;
+  if (filters.channelIds && filters.channelIds.length > 0) r.channel = filters.channelIds.join(",");
+  if (filters.labelIds && filters.labelIds.length > 0) r.label = filters.labelIds.join(",");
   if (filters.personId) r.personId = filters.personId;
   if (filters.castCounts && filters.castCounts.length > 0) r.castCount = filters.castCounts.join(",");
   if (filters.ratings && filters.ratings.length > 0) r.rating = filters.ratings.map(String).join(",");
@@ -62,8 +62,8 @@ export function paramsToSetFilters(s: Record<string, string>): SetFilters {
   return {
     q: s.q || undefined,
     type: s.type === "photo" || s.type === "video" ? s.type : "all",
-    channelId: s.channel || undefined,
-    labelId: s.label || undefined,
+    channelIds: s.channel ? s.channel.split(",").filter(Boolean) : undefined,
+    labelIds: s.label ? s.label.split(",").filter(Boolean) : undefined,
     personId: s.personId || undefined,
     castCounts: s.castCount ? parseCastCounts(s.castCount) : undefined,
     ratings: s.rating ? parseRatings(s.rating) : undefined,
