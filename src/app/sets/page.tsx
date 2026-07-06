@@ -239,6 +239,7 @@ export default async function SetsPage({ searchParams }: SetsPageProps) {
       displayParam: "personName",
       label: "Person",
       apiPath: "/api/people/search",
+      inline: true,
     },
     {
       type: "daterange",

@@ -101,6 +101,9 @@ type TypeaheadFilter = {
   label: string;
   apiPath: string;
   displayParam?: string;
+  /** Render as an always-visible inline input (beside the search field) instead
+   *  of a button that opens a popover. */
+  inline?: boolean;
 };
 
 type FilterGroup = PillFilter | FacetFilter | MultiFacetFilter | ToggleFilter | DateRangeFilter | TypeaheadFilter;
@@ -429,7 +432,9 @@ export function BrowserToolbar({ config, children }: BrowserToolbarProps) {
         });
       }
     } else if (group.type === "typeahead") {
-      const paramValue = searchParams.get(group.param);
+      // Inline typeaheads show the current selection in their own field, so no
+      // separate active chip is needed.
+      const paramValue = group.inline ? null : searchParams.get(group.param);
       if (paramValue) {
         const displayValue = group.displayParam
           ? (searchParams.get(group.displayParam) ?? paramValue)
@@ -641,6 +646,26 @@ export function BrowserToolbar({ config, children }: BrowserToolbarProps) {
           </div>
         </div>
 
+        {/* Inline typeaheads (e.g. Person) — always visible beside the search */}
+        {filterGroups.map((group) => {
+          if (group.type !== "typeahead" || !group.inline) return null;
+          const currentId = searchParams.get(group.param);
+          const currentDisplay = group.displayParam
+            ? (searchParams.get(group.displayParam) ?? undefined)
+            : undefined;
+          return (
+            <InlineTypeahead
+              key={group.param}
+              label={group.label}
+              apiPath={group.apiPath}
+              currentId={currentId ?? undefined}
+              currentDisplay={currentDisplay}
+              onSelect={(id, name) => handleTypeaheadSelect(group.param, group.displayParam, id, name)}
+              onClear={() => handleTypeaheadSelect(group.param, group.displayParam, "", "")}
+            />
+          );
+        })}
+
         {/* Sort dropdown */}
         <SortDropdown
           options={sortOptions}
@@ -658,8 +683,10 @@ export function BrowserToolbar({ config, children }: BrowserToolbarProps) {
           />
         )}
 
-        {/* Filter groups */}
-        {filterGroups.map(renderGroup)}
+        {/* Filter groups (inline typeaheads are rendered beside the search above) */}
+        {filterGroups.map((group) =>
+          group.type === "typeahead" && group.inline ? null : renderGroup(group),
+        )}
 
         {/* Advanced (maintenance) filters — revealed behind an expander */}
         {advancedFilterGroups.length > 0 && (
@@ -1251,5 +1278,114 @@ function TypeaheadDropdown({
         </div>
       </PopoverContent>
     </Popover>
+  );
+}
+
+// Always-visible variant of TypeaheadDropdown: an inline input (beside the main
+// search) with a results dropdown while typing. When a value is selected the
+// input shows it read-only with a clear button (mirrors the staging-sets bar).
+function InlineTypeahead({
+  label,
+  apiPath,
+  currentId,
+  currentDisplay,
+  onSelect,
+  onClear,
+}: {
+  label: string;
+  apiPath: string;
+  currentId?: string;
+  currentDisplay?: string;
+  onSelect: (id: string, name: string) => void;
+  onClear: () => void;
+}) {
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState<TypeaheadResult[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [open, setOpen] = useState(false);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const selected = !!currentId;
+
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    if (selected || !query.trim()) { setResults([]); return; }
+    debounceRef.current = setTimeout(async () => {
+      setLoading(true);
+      try {
+        const res = await fetch(`${apiPath}?q=${encodeURIComponent(query.trim())}`);
+        const data = await res.json();
+        setResults(Array.isArray(data) ? data : []);
+        setOpen(true);
+      } catch {
+        setResults([]);
+      } finally {
+        setLoading(false);
+      }
+    }, 300);
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+  }, [query, apiPath, selected]);
+
+  useEffect(() => {
+    function onDocClick(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", onDocClick);
+    return () => document.removeEventListener("mousedown", onDocClick);
+  }, []);
+
+  return (
+    <div ref={containerRef} className="relative w-full sm:w-56">
+      <User size={14} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+      <input
+        type="text"
+        placeholder={`Filter by ${label.toLowerCase()}…`}
+        value={selected ? (currentDisplay ?? "") : query}
+        readOnly={selected}
+        onChange={(e) => { if (!selected) setQuery(e.target.value); }}
+        onFocus={() => { if (!selected && results.length > 0) setOpen(true); }}
+        className={cn(
+          "h-8 w-full rounded-md border pl-8 pr-8 text-xs ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+          selected
+            ? "border-primary/30 bg-primary/10 text-primary"
+            : "border-white/20 bg-card/50 text-foreground",
+        )}
+        aria-label={`Filter by ${label.toLowerCase()}`}
+      />
+      {(selected || query) && (
+        <button
+          type="button"
+          aria-label={`Clear ${label} filter`}
+          onClick={() => { if (selected) onClear(); setQuery(""); setResults([]); setOpen(false); }}
+          className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5 text-muted-foreground transition-colors hover:text-foreground"
+        >
+          <X size={12} />
+        </button>
+      )}
+      {open && !selected && (query.trim() || loading) && (
+        <div className="absolute left-0 top-full z-40 mt-1 max-h-[220px] w-[260px] overflow-y-auto rounded-md border border-white/15 bg-card p-1 shadow-xl">
+          {loading && <p className="px-3 py-2 text-xs text-muted-foreground">Searching…</p>}
+          {!loading && results.length === 0 && (
+            <p className="px-3 py-2 text-xs text-muted-foreground">No results.</p>
+          )}
+          {results.map((r) => (
+            <button
+              key={r.id}
+              type="button"
+              onClick={() => { onSelect(r.id, r.displayName); setQuery(""); setResults([]); setOpen(false); }}
+              className="flex w-full items-center gap-2 rounded px-3 py-2 text-left text-xs transition-colors hover:bg-muted/50"
+            >
+              <span className="min-w-0 flex-1 truncate">
+                {r.displayName}
+                {r.matchedAlias && (
+                  <span className="font-normal text-muted-foreground"> (a.k.a. {r.matchedAlias})</span>
+                )}
+              </span>
+              {r.icgId && <span className="shrink-0 text-[10px] text-muted-foreground">{r.icgId}</span>}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
