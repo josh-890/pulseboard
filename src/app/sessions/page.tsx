@@ -139,6 +139,7 @@ export default async function SessionsPage({ searchParams }: SessionsPageProps) 
       displayParam: "personName",
       label: "Person",
       apiPath: "/api/people/search",
+      inline: true,
     },
     {
       type: "daterange",
