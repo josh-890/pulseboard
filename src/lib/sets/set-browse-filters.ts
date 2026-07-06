@@ -31,7 +31,7 @@ export function setFiltersToParams(filters: SetFilters): Record<string, string> 
   if (filters.channelId) r.channel = filters.channelId;
   if (filters.labelId) r.label = filters.labelId;
   if (filters.personId) r.personId = filters.personId;
-  if (filters.castCount) r.castCount = filters.castCount;
+  if (filters.castCounts && filters.castCounts.length > 0) r.castCount = filters.castCounts.join(",");
   if (filters.ratings && filters.ratings.length > 0) r.rating = filters.ratings.map(String).join(",");
   if (filters.hasMedia) r.hasMedia = "true";
   if (filters.archiveFilter) r.archiveFilter = filters.archiveFilter;
@@ -42,6 +42,11 @@ export function setFiltersToParams(filters: SetFilters): Record<string, string> 
   if (filters.createdFrom) r.createdFrom = isoDate(filters.createdFrom);
   if (filters.createdTo) r.createdTo = isoDate(filters.createdTo);
   return r;
+}
+
+function parseCastCounts(v: string): CastCountBucket[] | undefined {
+  const out = v.split(",").filter((x): x is CastCountBucket => VALID_CAST.has(x));
+  return out.length > 0 ? out : undefined;
 }
 
 function parseRatings(v: string): (number | "unrated")[] | undefined {
@@ -60,7 +65,7 @@ export function paramsToSetFilters(s: Record<string, string>): SetFilters {
     channelId: s.channel || undefined,
     labelId: s.label || undefined,
     personId: s.personId || undefined,
-    castCount: VALID_CAST.has(s.castCount) ? (s.castCount as CastCountBucket) : undefined,
+    castCounts: s.castCount ? parseCastCounts(s.castCount) : undefined,
     ratings: s.rating ? parseRatings(s.rating) : undefined,
     hasMedia: s.hasMedia === "true" ? true : undefined,
     archiveFilter: VALID_ARCHIVE.has(s.archiveFilter) ? (s.archiveFilter as SetFilters["archiveFilter"]) : undefined,

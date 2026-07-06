@@ -30,7 +30,9 @@ export type SetFilters = {
   labelId?: string;
   channelId?: string;
   personId?: string;
-  castCount?: CastCountBucket;
+  // Multi-select cast-size buckets: a set matches if its distinct-person count
+  // falls in ANY selected bucket ("5plus" = ≥5). Empty/absent = no filter.
+  castCounts?: CastCountBucket[];
   hasMedia?: boolean;
   sort?: SetSort;
   archiveFilter?: 'noArchive' | 'verified' | 'changed' | 'missing' | 'notImported'
@@ -148,13 +150,14 @@ function getSetOrderBy(sort?: SetSort): Prisma.SetOrderByWithRelationInput[] {
  * `where`, so we aggregate SetParticipant here and intersect the IDs into the
  * query (same shape as the `ids` duplicates filter).
  */
-async function setIdsByCastCount(bucket: CastCountBucket): Promise<string[]> {
+async function setIdsByCastCounts(buckets: CastCountBucket[]): Promise<string[]> {
   const pairs = await prisma.setParticipant.groupBy({ by: ["setId", "personId"] });
   const counts = new Map<string, number>();
   for (const p of pairs) counts.set(p.setId, (counts.get(p.setId) ?? 0) + 1);
-  const matches = (n: number) => (bucket === "5plus" ? n >= 5 : n === Number(bucket));
+  const want5plus = buckets.includes("5plus");
+  const exact = new Set(buckets.filter((b) => b !== "5plus").map(Number));
   const ids: string[] = [];
-  for (const [setId, n] of counts) if (matches(n)) ids.push(setId);
+  for (const [setId, n] of counts) if (exact.has(n) || (want5plus && n >= 5)) ids.push(setId);
   return ids;
 }
 
@@ -168,7 +171,7 @@ export async function getSetsPaginated(
   cursor?: string,
   limit = 50,
 ): Promise<PaginatedSets> {
-  const { q, type, labelId, channelId, personId, castCount, hasMedia, sort, archiveFilter, noArchiveLink, ids, ratings, releaseDateFrom, releaseDateTo, createdFrom, createdTo } = filters;
+  const { q, type, labelId, channelId, personId, castCounts, hasMedia, sort, archiveFilter, noArchiveLink, ids, ratings, releaseDateFrom, releaseDateTo, createdFrom, createdTo } = filters;
 
   const where: Prisma.SetWhereInput = {};
 
@@ -176,8 +179,8 @@ export async function getSetsPaginated(
     where.id = { in: ids };
   }
 
-  if (castCount) {
-    andClause(where, { id: { in: await setIdsByCastCount(castCount) } });
+  if (castCounts && castCounts.length > 0) {
+    andClause(where, { id: { in: await setIdsByCastCounts(castCounts) } });
   }
 
   // Multi-select rating: same shape as PersonFilters. Numeric buckets
@@ -459,7 +462,9 @@ export async function getSetFacetCounts(
   filters: Omit<SetFilters, "sort">,
   labelIds: string[] = [],
 ): Promise<SetFacetCounts> {
-  const castIds = filters.castCount ? await setIdsByCastCount(filters.castCount) : null;
+  const castIds = filters.castCounts && filters.castCounts.length > 0
+    ? await setIdsByCastCounts(filters.castCounts)
+    : null;
 
   function buildBase(overrides: Partial<Pick<SetFilters, "type" | "channelId" | "labelId" | "ratings">> = {}): Prisma.SetWhereInput {
     const merged = { ...filters, ...overrides };

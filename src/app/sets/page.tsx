@@ -137,9 +137,9 @@ export default async function SetsPage({ searchParams }: SetsPageProps) {
         .filter((v): v is number | "unrated" => v === "unrated" || (typeof v === "number" && v >= 1 && v <= 5 && !isNaN(v)))
     : undefined;
 
-  const castCount = castCountParam && VALID_CAST_COUNTS.has(castCountParam)
-    ? (castCountParam as CastCountBucket)
-    : undefined;
+  const castCounts = castCountParam
+    ? castCountParam.split(",").filter((v): v is CastCountBucket => VALID_CAST_COUNTS.has(v))
+    : [];
 
   const filters: SetFilters = {
     q: q?.trim() || undefined,
@@ -147,7 +147,7 @@ export default async function SetsPage({ searchParams }: SetsPageProps) {
     labelId: labelId || undefined,
     channelId: channelId || undefined,
     personId: personId || undefined,
-    castCount,
+    castCounts: castCounts.length > 0 ? castCounts : undefined,
     hasMedia: hasMediaParam === "true" ? true : undefined,
     sort: resolvedSort,
     archiveFilter,
@@ -217,7 +217,7 @@ export default async function SetsPage({ searchParams }: SetsPageProps) {
       ],
     },
     {
-      type: "facet",
+      type: "multifacet",
       param: "castCount",
       label: "Cast",
       searchable: false,

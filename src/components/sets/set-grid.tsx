@@ -138,7 +138,7 @@ function hasActiveFilters(filters: SetFilters): boolean {
     filters.channelId ||
     filters.labelId ||
     filters.personId ||
-    filters.castCount ||
+    (filters.castCounts && filters.castCounts.length > 0) ||
     (filters.ratings && filters.ratings.length > 0) ||
     filters.hasMedia ||
     filters.archiveFilter ||
