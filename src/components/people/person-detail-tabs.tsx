@@ -135,6 +135,7 @@ type PersonDetailTabsProps = {
   careerActiveEraIds?: string[];
   careerActiveArchiveStatuses?: string[];
   careerActiveLabelIds?: string[];
+  careerActiveStatuses?: string[];
   careerActiveSort?: import("@/lib/services/career-service").CareerSort;
   // ADR-0004 — eraContributions: per-era list of sessions filed into it.
   // Keyed by era id. Loaded by the page via `getPersonEraContributions`.
@@ -1806,8 +1807,9 @@ export function PersonDetailTabs({
     claimed: { photosets: null, videos: null, covers: null, note: null },
     promoted: { photos: 0, videos: 0, covers: 0 },
     staged: { photos: 0, videos: 0, covers: 0 },
+    stagedVerified: { photos: 0, videos: 0, covers: 0 },
   },
-  careerFacetCounts = { channel: {}, rating: {}, era: {}, archiveStatus: {} },
+  careerFacetCounts = { channel: {}, rating: {}, era: {}, archiveStatus: {}, status: {} },
   careerChannels = [],
   careerEras = [],
   careerActiveType = "photo",
@@ -1816,6 +1818,7 @@ export function PersonDetailTabs({
   careerActiveEraIds = [],
   careerActiveArchiveStatuses = [],
   careerActiveLabelIds = [],
+  careerActiveStatuses = [],
   careerActiveSort = "date-desc",
   eraContributions,
 }: PersonDetailTabsProps) {
@@ -2082,6 +2085,7 @@ export function PersonDetailTabs({
             activeEraIds={careerActiveEraIds}
             activeArchiveStatuses={careerActiveArchiveStatuses}
             activeLabelIds={careerActiveLabelIds}
+            activeStatuses={careerActiveStatuses}
             activeSort={careerActiveSort}
             withTint={true}
           />

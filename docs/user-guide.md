@@ -320,34 +320,37 @@ Only photos from the person's reference session can be embedded — external URL
 - Click to expand and view a gallery for that category
 
 **Career**
-- **Catalogue stats strip** (top of the tab) — a gap/completeness view
-  comparing what the biography *claims* against what you actually hold.
-  Three rows — Photosets · Videos · Covers (covers = photosets + videos,
-  always derived) — each showing **Have / Claimed** (with the
-  promoted + staged breakdown, e.g. `35/50 (30+5)`), a completeness bar
-  (solid = promoted, lighter = staged), the completeness %, and the
-  **Missing** count. The bar caps at 100% and flags any overage (`+2`);
-  when there's no claimed figure the bar is hidden and only the raw
-  counts show. The Photos / Videos type tabs also carry a `have/claimed`
-  badge.
+- **Catalogue stats strip** (top of the tab, collapsed by default) — a
+  gap/completeness view comparing what the biography *claims* against
+  what you actually hold. The collapsed header shows the covers total
+  (`Have / Claimed covers · %`); expand it for a table with three rows —
+  Photosets · Videos · Covers (covers = photosets + videos, always
+  derived) — across the columns **Claimed · Promoted · In pipeline ·
+  Verified · Recorded · Missing**. *Recorded* = Promoted + In pipeline
+  (matches the timeline length); *Missing* = Claimed − Recorded (0 shows
+  green, any shortfall amber). The Photos / Videos type tabs also carry a
+  `have/claimed` badge.
   - *Claimed* figures are auto-parsed from the imported biography line
     ("… Y photosets, Z videos") into editable fields on the person
     (**Edit ▸ Claimed photosets / Claimed videos**, with a free-text
     **Claimed figures — source** note for where the numbers came from —
     shown under the table). Once you edit any of them by hand they're
-    protected — a later re-import won't overwrite your values. *Staged*
-    counts only active-pipeline staging sets (PENDING/REVIEWING/APPROVED)
-    that aren't already matched to an existing Set **and have a confirmed
-    archive link** — i.e. staged sets you actually hold on disk, never
-    double-counting a shoot already promoted.
-- Unified chronological timeline that blends Promoted Sets and Staged
-  StagingSets per the type tab (Photos / Videos — defaults to Photos,
-  remembered per person)
+    protected — a later re-import won't overwrite your values. *In
+    pipeline* counts active-pipeline staging sets (PENDING/REVIEWING/
+    APPROVED) that aren't already matched to an existing Set — the same
+    rows the timeline shows, never double-counting a shoot already
+    promoted. *Verified* is the subset of those whose archive folder is
+    confirmed on disk (so Verified ≤ In pipeline).
+- Unified chronological timeline that blends Promoted Sets and the full
+  in-pipeline set of Staged StagingSets (PENDING · REVIEWING · APPROVED,
+  excluding shoots already matched to a promoted Set) per the type tab
+  (Photos / Videos — defaults to Photos, remembered per person)
 - Each row: cover thumbnail · `yyyy-mm-dd · channel · count · age` ·
-  **title** + status pill (`PROMOTED` emerald / `STAGED` amber) +
-  archive pill (green `In archive` / slate `Linked` / red specific
-  issue) + rating stars. Multi-cast sets show a 3rd line listing the
-  other participants (the viewer themselves is omitted)
+  **title** + a confidence-graded status pill (`PROMOTED` emerald /
+  `APPROVED` cyan / `IN REVIEW` amber / `PENDING` blue) + archive pill
+  (green `In archive` / slate `Linked` / red specific issue) + rating
+  stars. Multi-cast sets show a 3rd line listing the other participants
+  (the viewer themselves is omitted)
 - Promoted photo rows display up to 4 sample thumbnails on the right
   (cover counts as the first frame for videos and staged sets, so
   those rows skip the strip)
@@ -358,15 +361,23 @@ Only photos from the person's reference session can be embedded — external URL
   + set count) and a narrow right-edge year scrubber whose row
   background fill encodes that year's density relative to the
   busiest
-- **Label affiliation chips** (FemJoy 43/3, VipNudes 2/0, …) act as
-  multi-select filters — click a chip to filter the timeline to sets
-  in that label; the active chip is highlighted. The `n/m` indicator
-  on each chip splits photo sets (n) from video sets (m)
-- Filters in the toolbar — Channel · Rating · Era (when defined) ·
-  Archive · Sort. Channel dropdown only lists channels with > 0
-  matching sets in the current view. URL-driven via comma-separated
-  searchParams (`channel`, `crating`, `era`, `archive`, `clabel`,
-  `csort`)
+- **Status quick-filter pills** (Promoted · Approved · In review ·
+  Pending, each with a live count and a colour dot matching the row
+  pill) — click to filter the timeline to those pipeline states; no
+  selection means all states show
+- Filters in the toolbar — Channel · Label (when the person has label
+  affiliations) · Rating · Era (when defined) · Archive · Sort. Channel
+  and Label dropdowns only list values with > 0 matching sets in the
+  current view. Filter/sort/status state is URL-driven via
+  comma-separated searchParams (`channel`, `clabel`, `crating`, `era`,
+  `archive`, `cstatus`, `csort`)
+- **Grouping** (Year / Status / Channel → Year) and **density** (Full
+  cover cards ⇄ Compact single-line rows) toggles. Group sections and,
+  under Channel → Year, their nested year sub-sections all collapse
+  individually, with **Collapse all / Expand all** shortcuts. In Compact
+  density each row is one line (date · channel · title + status), with a
+  chevron to expand just that row to its full card. Grouping, density and
+  collapse state are remembered per person
 
 **Connections** (formerly "Network")
 How this person relates to others, in three sections:

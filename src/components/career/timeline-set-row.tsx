@@ -8,7 +8,6 @@ import {
   StatusPill,
   STATUS_STRIPE_CLASS,
   STATUS_TINT_CLASS,
-  type SetStatus,
 } from "@/components/shared/status-pill";
 import type { CareerTimelineRow } from "@/lib/services/career-service";
 import type { ArchiveStatus } from "@/generated/prisma/client";
@@ -19,11 +18,6 @@ import type { ArchiveStatus } from "@/generated/prisma/client";
 // stripe + pill (+ optional row background tint when withTint=true).
 // Click navigates: promoted → /sets/[id]; staged → /staging-sets focused
 // on that staging-set id.
-
-const STATUS_BY_KIND: Record<CareerTimelineRow["kind"], SetStatus> = {
-  promoted: "promoted",
-  staged: "staged",
-};
 
 function formatIsoDate(date: Date | null): string {
   if (!date) return "????-??-??";
@@ -124,6 +118,10 @@ export type TimelineSetRowProps = {
   row: CareerTimelineRow;
   withTint: boolean;
   ageAtShoot?: string | null;
+  // "full" (default) renders the cover + sample-thumbnail card; "compact"
+  // renders a single-line row (no cover / thumbnails) — date · channel ·
+  // title + status. Density is chosen at the timeline level.
+  variant?: "full" | "compact";
   // Cover-hover events. The row attaches these to the cover thumbnail
   // ONLY (not the whole row), so the popover preview only triggers when
   // the user explicitly indicates intent ("I want to see this image
@@ -136,10 +134,11 @@ export function TimelineSetRow({
   row,
   withTint,
   ageAtShoot,
+  variant = "full",
   onCoverEnter,
   onCoverLeave,
 }: TimelineSetRowProps) {
-  const status = STATUS_BY_KIND[row.kind];
+  const status = row.rowStatus;
   const isVideo = row.type === "video";
   const href =
     row.kind === "promoted"
@@ -154,6 +153,52 @@ export function TimelineSetRow({
     segments.push(`${row.itemCount} ${isVideo ? "frames" : "photos"}`);
   }
   if (ageAtShoot) segments.push(`age ${ageAtShoot}`);
+
+  // Compact single-line variant: date · channel · title + status/archive/
+  // rating, no cover or sample thumbnails. The whole line stays a
+  // navigation link (clicking opens the set); the expand affordance lives
+  // on the wrapping container in the timeline.
+  if (variant === "compact") {
+    return (
+      <Link
+        href={href}
+        className={cn(
+          "group flex min-h-0 items-center gap-2 rounded border border-l-4 border-white/10 px-2 py-1",
+          "text-xs transition-colors hover:bg-white/[0.03]",
+          STATUS_STRIPE_CLASS[status],
+          withTint && STATUS_TINT_CLASS[status],
+        )}
+      >
+        {isVideo ? (
+          <Film size={11} className="shrink-0 text-muted-foreground" />
+        ) : (
+          <Camera size={11} className="shrink-0 text-muted-foreground" />
+        )}
+        <span className="shrink-0 font-mono tabular-nums text-muted-foreground">
+          {formatIsoDate(row.releaseDate)}
+        </span>
+        {row.channelName && (
+          <>
+            <span className="opacity-40">·</span>
+            <span className="shrink-0 max-w-[10rem] truncate text-muted-foreground">
+              {row.channelName}
+            </span>
+          </>
+        )}
+        <span className="min-w-0 flex-1 truncate font-medium text-foreground">
+          {row.title}
+          {row.viewerUsedName && (
+            <span className="ml-1.5 italic text-muted-foreground/70">
+              as {row.viewerUsedName}
+            </span>
+          )}
+        </span>
+        <StatusPill status={status} />
+        <ArchivePill archiveStatus={row.archiveStatus} hasArchiveLink={row.hasArchiveLink} />
+        <StarsCompact rating={row.rating} />
+      </Link>
+    );
+  }
 
   // Cover dimensions: portrait for photos, landscape for videos.
   const coverW = isVideo ? 80 : 60;

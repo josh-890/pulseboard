@@ -13,6 +13,7 @@ import { prisma } from "@/lib/db";
 import type {
   ArchiveStatus,
   SetType,
+  StagingSetStatus,
   Prisma,
 } from "@/generated/prisma/client";
 import { getCoverPhotosForSets } from "@/lib/services/media-service";
@@ -34,6 +35,11 @@ export type CareerSort =
   | "rating-desc"
   | "rating-asc";
 
+// Per-row pipeline state, ordered by confidence toward canonical. "promoted"
+// is a canonical Set; the other three are staged StagingSet lifecycle states
+// still in the pipeline. Drives the row pill/stripe/tint and the Status facet.
+export type CareerRowStatus = "promoted" | "approved" | "reviewing" | "pending";
+
 export type CareerTimelineFilters = {
   type?: SetType; // "photo" | "video" — when undefined, both included
   channelIds?: string[];
@@ -43,8 +49,46 @@ export type CareerTimelineFilters = {
   // Filter to sets whose channel is mapped to any of these label IDs.
   // Channels relate to Labels via the ChannelLabelMap join (M:M).
   labelIds?: string[];
+  // Pipeline states to include. When undefined/empty, all four are shown.
+  statuses?: CareerRowStatus[];
   sort?: CareerSort;
 };
+
+// ─── Status filter helpers ───────────────────────────────────────────────
+
+// Whether promoted (canonical) rows are included given the status filter.
+// An empty/absent filter means "all"; otherwise promoted must be explicitly
+// selected.
+function promotedIncluded(statuses?: CareerRowStatus[]): boolean {
+  return !statuses || statuses.length === 0 || statuses.includes("promoted");
+}
+
+// The StagingSet enum statuses to query given the status filter, restricted to
+// the active pipeline (PENDING/REVIEWING/APPROVED). Empty/absent filter → all
+// three. Returns [] when the filter selects no staged state (e.g. only
+// "promoted"), which callers treat as "exclude staged entirely".
+function stagedEnumStatuses(statuses?: CareerRowStatus[]): StagingSetStatus[] {
+  const map: Record<string, StagingSetStatus> = {
+    pending: "PENDING",
+    reviewing: "REVIEWING",
+    approved: "APPROVED",
+  };
+  if (!statuses || statuses.length === 0) {
+    return ["PENDING", "REVIEWING", "APPROVED"];
+  }
+  return statuses
+    .map((s) => map[s])
+    .filter((s): s is StagingSetStatus => s !== undefined);
+}
+
+// Map a StagingSet enum status to its Career row status.
+function rowStatusFromStaging(status: StagingSetStatus): CareerRowStatus {
+  return status === "APPROVED"
+    ? "approved"
+    : status === "REVIEWING"
+      ? "reviewing"
+      : "pending";
+}
 
 // ─── Row shape ───────────────────────────────────────────────────────────
 
@@ -78,6 +122,7 @@ type CareerTimelineRowBase = {
   channelId: string | null;
   channelName: string | null;
   type: SetType;
+  rowStatus: CareerRowStatus;
   coverUrl: string | null;
   archiveStatus: ArchiveStatus | null;
   hasArchiveLink: boolean;
@@ -176,9 +221,12 @@ function buildPromotedWhere(
   return whereSet;
 }
 
-// APPROVED staged sets matched to the person. Returns null when the active
-// filters exclude staged rows entirely — staged sets are unrated and era-less,
-// so an era filter (any) or a rating filter that omits "unrated" yields none.
+// Active-pipeline staged sets matched to the person. Returns null when the
+// active filters exclude staged rows entirely — staged sets are unrated and
+// era-less, so an era filter (any) or a rating filter that omits "unrated"
+// yields none; likewise a status filter that selects no staged state.
+// `matchedSetId: null` drops staged sets already deduped to a promoted Set so
+// the same shoot never appears twice in the timeline.
 function buildStagedWhere(
   icgId: string,
   filters: CareerTimelineFilters,
@@ -191,10 +239,13 @@ function buildStagedWhere(
   ) {
     return null;
   }
+  const stagedStatuses = stagedEnumStatuses(filters.statuses);
+  if (stagedStatuses.length === 0) return null;
 
   const whereStaging: Prisma.StagingSetWhereInput = {
     participantIcgIds: { has: icgId },
-    status: "APPROVED",
+    status: { in: stagedStatuses },
+    matchedSetId: null,
   };
   if (filters.type === "photo") whereStaging.isVideo = false;
   else if (filters.type === "video") whereStaging.isVideo = true;
@@ -270,6 +321,7 @@ async function getPromotedRowsForPerson(
   personId: string,
   filters: CareerTimelineFilters,
 ): Promise<CareerTimelineRow[]> {
+  if (!promotedIncluded(filters.statuses)) return [];
   const whereSet = buildPromotedWhere(personId, filters);
 
   // Step 1: flat scalar query (no nested variant include — avoids type
@@ -327,6 +379,7 @@ async function getPromotedRowsForPerson(
     };
     return {
       kind: "promoted" as const,
+      rowStatus: "promoted" as const,
       setId: s.id,
       title: s.title,
       type: s.type,
@@ -502,6 +555,7 @@ async function getStagedRowsForPerson(
     select: {
       id: true,
       title: true,
+      status: true,
       channelName: true,
       channelId: true,
       releaseDate: true,
@@ -561,6 +615,7 @@ async function getStagedRowsForPerson(
     const overflow = Math.max(0, resolved.length - MAX_VISIBLE_PARTICIPANTS);
     return {
       kind: "staged" as const,
+      rowStatus: rowStatusFromStaging(s.status),
       stagingSetId: s.id,
       title: s.title,
       type: s.isVideo ? ("video" as const) : ("photo" as const),
@@ -631,6 +686,7 @@ export type CareerFacetCounts = {
   rating: Record<string, number>;
   era: Record<string, number>;
   archiveStatus: Record<string, number>;
+  status: Record<string, number>;
 };
 
 // Lean per-row facet data — only the scalar fields the counts bucket on. This
@@ -642,6 +698,7 @@ type CareerFacetRow = {
   eraId: string | null;
   hasArchiveLink: boolean;
   archiveStatus: ArchiveStatus | null;
+  rowStatus: CareerRowStatus;
 };
 
 async function getCareerFacetRows(
@@ -650,26 +707,41 @@ async function getCareerFacetRows(
   filters: CareerTimelineFilters,
 ): Promise<CareerFacetRow[]> {
   const stagedWhere = icgId ? buildStagedWhere(icgId, filters) : null;
+  const includePromoted = promotedIncluded(filters.statuses);
   const [sets, stagingRows] = await Promise.all([
-    prisma.set.findMany({
-      where: buildPromotedWhere(personId, filters),
-      select: {
-        id: true,
-        rating: true,
-        channelId: true,
-        archiveLinks: { where: { status: "CONFIRMED" }, select: { archiveStatus: true }, take: 1 },
-      },
-    }),
-    stagedWhere
-      ? prisma.stagingSet.findMany({
-          where: stagedWhere,
+    includePromoted
+      ? prisma.set.findMany({
+          where: buildPromotedWhere(personId, filters),
           select: {
+            id: true,
+            rating: true,
             channelId: true,
             archiveLinks: { where: { status: "CONFIRMED" }, select: { archiveStatus: true }, take: 1 },
           },
         })
       : Promise.resolve(
-          [] as { channelId: string | null; archiveLinks: { archiveStatus: ArchiveStatus }[] }[],
+          [] as {
+            id: string;
+            rating: number | null;
+            channelId: string | null;
+            archiveLinks: { archiveStatus: ArchiveStatus }[];
+          }[],
+        ),
+    stagedWhere
+      ? prisma.stagingSet.findMany({
+          where: stagedWhere,
+          select: {
+            status: true,
+            channelId: true,
+            archiveLinks: { where: { status: "CONFIRMED" }, select: { archiveStatus: true }, take: 1 },
+          },
+        })
+      : Promise.resolve(
+          [] as {
+            status: StagingSetStatus;
+            channelId: string | null;
+            archiveLinks: { archiveStatus: ArchiveStatus }[];
+          }[],
         ),
   ]);
 
@@ -681,6 +753,7 @@ async function getCareerFacetRows(
     eraId: eraBySetId.get(s.id) ?? null,
     hasArchiveLink: !!s.archiveLinks[0],
     archiveStatus: s.archiveLinks[0]?.archiveStatus ?? null,
+    rowStatus: "promoted",
   }));
   const staged: CareerFacetRow[] = stagingRows.map((s) => ({
     channelId: s.channelId,
@@ -688,6 +761,7 @@ async function getCareerFacetRows(
     eraId: null,
     hasArchiveLink: !!s.archiveLinks[0],
     archiveStatus: s.archiveLinks[0]?.archiveStatus ?? null,
+    rowStatus: rowStatusFromStaging(s.status),
   }));
   return [...promoted, ...staged];
 }
@@ -708,7 +782,15 @@ export async function getCareerFacetCounts(
 
   const cache = new Map<string, Promise<CareerFacetRow[]>>();
   const rowsFor = (f: CareerTimelineFilters): Promise<CareerFacetRow[]> => {
-    const key = JSON.stringify([f.type, f.channelIds, f.ratings, f.eraIds, f.archiveStatuses, f.labelIds]);
+    const key = JSON.stringify([
+      f.type,
+      f.channelIds,
+      f.ratings,
+      f.eraIds,
+      f.archiveStatuses,
+      f.labelIds,
+      f.statuses,
+    ]);
     let p = cache.get(key);
     if (!p) {
       p = getCareerFacetRows(personId, icgId, f);
@@ -717,11 +799,12 @@ export async function getCareerFacetCounts(
     return p;
   };
 
-  const [channelRows, ratingRows, eraRows, archiveRows] = await Promise.all([
+  const [channelRows, ratingRows, eraRows, archiveRows, statusRows] = await Promise.all([
     rowsFor({ ...filters, channelIds: undefined }),
     rowsFor({ ...filters, ratings: undefined }),
     rowsFor({ ...filters, eraIds: undefined }),
     rowsFor({ ...filters, archiveStatuses: undefined }),
+    rowsFor({ ...filters, statuses: undefined }),
   ]);
 
   const channelCounts: Record<string, number> = {};
@@ -744,12 +827,17 @@ export async function getCareerFacetCounts(
     else if (r.archiveStatus === "CHANGED") archiveCounts.changed = (archiveCounts.changed ?? 0) + 1;
     else archiveCounts.linked = (archiveCounts.linked ?? 0) + 1;
   }
+  const statusCounts: Record<string, number> = {};
+  for (const r of statusRows) {
+    statusCounts[r.rowStatus] = (statusCounts[r.rowStatus] ?? 0) + 1;
+  }
 
   return {
     channel: channelCounts,
     rating: ratingCounts,
     era: eraCounts,
     archiveStatus: archiveCounts,
+    status: statusCounts,
   };
 }
 
@@ -769,7 +857,11 @@ export type CareerStats = {
     note: string | null;
   };
   promoted: CareerStatTriple;
+  // In-pipeline staged sets we hold (matchedSetId null), regardless of archive
+  // link — matches the rows the timeline shows.
   staged: CareerStatTriple;
+  // The subset of `staged` whose archive folder is linked + confirmed on disk.
+  stagedVerified: CareerStatTriple;
 };
 
 // Statuses that count as "in the pipeline toward complete". PROMOTED rows are
@@ -799,7 +891,7 @@ export async function getCareerStats(personId: string): Promise<CareerStats> {
   // One grouped count per source instead of one per (source × type). Both group
   // queries are index-driven: SessionContribution.personId + SetSession.sessionId
   // for promoted; the participantIcgIds GIN index for staged.
-  const [promotedGroups, stagedGroups] = await Promise.all([
+  const [promotedGroups, stagedGroups, stagedVerifiedGroups] = await Promise.all([
     // Distinct Sets credited to the person (same reach as getPromotedRowsForPerson).
     prisma.set.groupBy({
       by: ["type"],
@@ -808,8 +900,21 @@ export async function getCareerStats(personId: string): Promise<CareerStats> {
       },
       _count: true,
     }),
-    // Active-pipeline staged sets we actually hold: dedup'd against existing Sets
-    // (matchedSetId null) and gated on a CONFIRMED archive link (folder on disk).
+    // In-pipeline staged sets we hold: dedup'd against existing Sets
+    // (matchedSetId null). No archive gate — matches the timeline rows.
+    icgId
+      ? prisma.stagingSet.groupBy({
+          by: ["isVideo"],
+          where: {
+            matchedSetId: null,
+            status: { in: [...STAGED_PIPELINE_STATUSES] },
+            participantIcgIds: { has: icgId },
+          },
+          _count: true,
+        })
+      : Promise.resolve([] as { isVideo: boolean; _count: number }[]),
+    // Archive-verified subset: the above, gated on a CONFIRMED archive link
+    // (folder present on disk).
     icgId
       ? prisma.stagingSet.groupBy({
           by: ["isVideo"],
@@ -828,6 +933,8 @@ export async function getCareerStats(personId: string): Promise<CareerStats> {
   const promVideos = promotedGroups.find((g) => g.type === "video")?._count ?? 0;
   const stagedPhotos = stagedGroups.find((g) => !g.isVideo)?._count ?? 0;
   const stagedVideos = stagedGroups.find((g) => g.isVideo)?._count ?? 0;
+  const stagedVerifiedPhotos = stagedVerifiedGroups.find((g) => !g.isVideo)?._count ?? 0;
+  const stagedVerifiedVideos = stagedVerifiedGroups.find((g) => g.isVideo)?._count ?? 0;
 
   return {
     claimed: {
@@ -838,6 +945,11 @@ export async function getCareerStats(personId: string): Promise<CareerStats> {
     },
     promoted: { photos: promPhotos, videos: promVideos, covers: promPhotos + promVideos },
     staged: { photos: stagedPhotos, videos: stagedVideos, covers: stagedPhotos + stagedVideos },
+    stagedVerified: {
+      photos: stagedVerifiedPhotos,
+      videos: stagedVerifiedVideos,
+      covers: stagedVerifiedPhotos + stagedVerifiedVideos,
+    },
   };
 }
 
@@ -869,7 +981,8 @@ export async function getCareerChannelsForPerson(
     prisma.stagingSet.findMany({
       where: {
         participantIcgIds: { has: person.icgId },
-        status: "APPROVED",
+        status: { in: [...STAGED_PIPELINE_STATUSES] },
+        matchedSetId: null,
         channelId: { not: null },
       },
       select: { channelId: true, channelName: true },

@@ -32,6 +32,7 @@ import {
   getCareerErasForPerson,
   type CareerSort,
   type CareerArchiveStatusBucket,
+  type CareerRowStatus,
 } from "@/lib/services/career-service";
 import { PersonDetailTabs } from "@/components/people/person-detail-tabs";
 import { getConnectionsForPerson, getRelationshipRoles } from "@/lib/services/relationship-service";
@@ -53,6 +54,7 @@ type PersonDetailPageProps = {
     archive?: string;
     clabel?: string;
     csort?: string;
+    cstatus?: string;
   }>;
 };
 
@@ -68,6 +70,13 @@ const VALID_ARCHIVE_BUCKETS = new Set<CareerArchiveStatusBucket>([
   "unlinked",
   "missing",
   "changed",
+]);
+
+const VALID_CAREER_STATUSES = new Set<CareerRowStatus>([
+  "promoted",
+  "approved",
+  "reviewing",
+  "pending",
 ]);
 
 export default async function PersonDetailPage({ params, searchParams }: PersonDetailPageProps) {
@@ -96,6 +105,11 @@ export default async function PersonDetailPage({ params, searchParams }: PersonD
       sp.csort && VALID_CAREER_SORTS.has(sp.csort as CareerSort)
         ? (sp.csort as CareerSort)
         : "date-desc";
+    const activeStatuses = sp.cstatus
+      ? (sp.cstatus.split(",").filter(Boolean) as CareerRowStatus[]).filter((v) =>
+          VALID_CAREER_STATUSES.has(v),
+        )
+      : [];
 
     const careerFilters = {
       type: ctype as "photo" | "video",
@@ -104,6 +118,7 @@ export default async function PersonDetailPage({ params, searchParams }: PersonD
       eraIds: eraIds.length > 0 ? eraIds : undefined,
       archiveStatuses: archiveStatuses.length > 0 ? archiveStatuses : undefined,
       labelIds: labelIds.length > 0 ? labelIds : undefined,
+      statuses: activeStatuses.length > 0 ? activeStatuses : undefined,
       sort: careerSort,
     };
 
@@ -284,6 +299,7 @@ export default async function PersonDetailPage({ params, searchParams }: PersonD
         careerActiveEraIds={eraIds}
         careerActiveArchiveStatuses={archiveStatuses}
         careerActiveLabelIds={labelIds}
+        careerActiveStatuses={activeStatuses}
         careerActiveSort={careerSort}
         eraContributions={eraContributions}
         entityTags={personEntityTags.map((t) => ({

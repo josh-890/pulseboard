@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
-import { Briefcase, Building2, Camera, Film, Plus, X } from "lucide-react";
+import { Briefcase, Camera, Film, List, Plus, Rows3, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -13,7 +13,11 @@ import {
 import { cn } from "@/lib/utils";
 import { MultiFacetDropdown } from "@/components/shared/browser-toolbar";
 import { ratingFilterOptions } from "@/components/shared/rating-filter-options";
-import { TimelineSection } from "@/components/career/timeline-section";
+import {
+  TimelineSection,
+  type CareerGroupBy,
+  type CareerDensity,
+} from "@/components/career/timeline-section";
 import { CreateKnownSetSheet } from "@/components/staging-sets/create-known-set-sheet";
 import { CareerStatsStrip } from "@/components/people/career-stats-strip";
 import type {
@@ -54,6 +58,7 @@ export type CareerTabProps = {
   activeEraIds: string[];
   activeArchiveStatuses: string[];
   activeLabelIds: string[];
+  activeStatuses: string[];
   activeSort: CareerSort;
   withTint: boolean;
 };
@@ -66,11 +71,33 @@ const SORT_LABELS: Record<CareerSort, string> = {
 };
 
 const ARCHIVE_STATUS_OPTIONS = [
-  { value: "linked", label: "Has linked folder" },
+  { value: "linked", label: "Linked / in archive" },
   { value: "unlinked", label: "Unlinked" },
   { value: "missing", label: "Missing on disk" },
   { value: "changed", label: "Archive changed" },
 ];
+
+// Pipeline-status filter options, ordered by confidence toward canonical.
+const STATUS_FILTER_OPTIONS = [
+  { value: "promoted", label: "Promoted" },
+  { value: "approved", label: "Approved" },
+  { value: "reviewing", label: "In review" },
+  { value: "pending", label: "Pending" },
+];
+
+// Dot colour per status — mirrors the row pill/stripe palette.
+const STATUS_DOT_CLASS: Record<string, string> = {
+  promoted: "bg-emerald-500",
+  approved: "bg-cyan-500",
+  reviewing: "bg-amber-500",
+  pending: "bg-blue-500",
+};
+
+const GROUP_BY_LABELS: Record<CareerGroupBy, string> = {
+  year: "Year",
+  status: "Status",
+  channelYear: "Channel → Year",
+};
 
 function formatIsoYM(d: Date | null, precision: string): string {
   if (!d) return "—";
@@ -94,6 +121,7 @@ export function CareerTab({
   activeEraIds,
   activeArchiveStatuses,
   activeLabelIds,
+  activeStatuses,
   activeSort,
   withTint,
 }: CareerTabProps) {
@@ -101,6 +129,48 @@ export function CareerTab({
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [createKnownSetOpen, setCreateKnownSetOpen] = useState(false);
+
+  // Group-by mode is a pure client display preference (does not refetch), so
+  // it lives in local state + localStorage rather than the URL. Restored after
+  // mount to avoid a hydration mismatch.
+  const [groupBy, setGroupBy] = useState<CareerGroupBy>("year");
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const stored = window.localStorage.getItem(`career.groupBy.${person.id}`);
+    if (stored === "year" || stored === "status") {
+      // Hydration-safe restore (default on first paint, upgrade after mount).
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setGroupBy(stored);
+    }
+  }, [person.id]);
+
+  const handleGroupByChange = (next: CareerGroupBy) => {
+    setGroupBy(next);
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(`career.groupBy.${person.id}`, next);
+    }
+  };
+
+  // Row density (full cover cards vs compact single-line rows) — a client
+  // display preference, persisted to localStorage, restored after mount.
+  const [density, setDensity] = useState<CareerDensity>("full");
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const stored = window.localStorage.getItem(`career.density.${person.id}`);
+    if (stored === "full" || stored === "compact") {
+      // Hydration-safe restore (default on first paint, upgrade after mount).
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setDensity(stored);
+    }
+  }, [person.id]);
+
+  const toggleDensity = () => {
+    const next: CareerDensity = density === "full" ? "compact" : "full";
+    setDensity(next);
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(`career.density.${person.id}`, next);
+    }
+  };
 
   // Type tab persistence: when URL has no explicit `ctype`, read from
   // localStorage and route. Once URL has it, sync to localStorage.
@@ -162,6 +232,7 @@ export function CareerTab({
       sp.delete("era");
       sp.delete("archive");
       sp.delete("clabel");
+      sp.delete("cstatus");
     });
   };
 
@@ -218,12 +289,38 @@ export function CareerTab({
     [facetCounts.archiveStatus],
   );
 
+  const statusOptions = useMemo(
+    () =>
+      STATUS_FILTER_OPTIONS.map((o) => ({
+        value: o.value,
+        label: o.label,
+        count: facetCounts.status?.[o.value] ?? 0,
+      })),
+    [facetCounts.status],
+  );
+
+  // Label filter options — derived from the person's affiliations (labelId /
+  // name + per-type counts). Filtered to the active type with a non-zero
+  // count, mirroring the Channel dropdown's behaviour.
+  const labelOptions = useMemo(
+    () =>
+      derivedAffiliations
+        .map((a) => ({
+          value: a.labelId,
+          label: a.labelName,
+          count: activeType === "photo" ? a.photoCount : a.videoCount,
+        }))
+        .filter((o) => o.count > 0),
+    [derivedAffiliations, activeType],
+  );
+
   const anyFilterActive =
     activeChannelIds.length > 0 ||
     activeRatings.length > 0 ||
     activeEraIds.length > 0 ||
     activeArchiveStatuses.length > 0 ||
-    activeLabelIds.length > 0;
+    activeLabelIds.length > 0 ||
+    activeStatuses.length > 0;
 
   return (
     <div className="space-y-4">
@@ -262,44 +359,40 @@ export function CareerTab({
       {/* Catalogue stats: claimed vs promoted vs staged (collapsed by default) */}
       <CareerStatsStrip stats={careerStats} />
 
-      {/* Label Affiliations chips — act as multi-select filters. Click
-          a chip to toggle filtering the timeline to sets in that label;
-          active chips get the primary accent. */}
-      {derivedAffiliations.length > 0 && (
-        <div className="flex flex-wrap items-center gap-1.5 text-xs">
-          <span className="flex items-center gap-1.5 text-muted-foreground">
-            <Building2 size={12} />
-            <span className="uppercase tracking-wider opacity-70">Labels</span>
-          </span>
-          {derivedAffiliations.map((aff) => {
-            const isActive = activeLabelIds.includes(aff.labelId);
-            return (
-              <button
-                key={aff.labelId}
-                type="button"
-                onClick={() => handleMultifacetToggle("clabel", aff.labelId)}
-                aria-pressed={isActive}
-                title={`${aff.labelName}: ${aff.photoCount} photo set${aff.photoCount === 1 ? "" : "s"}, ${aff.videoCount} video set${aff.videoCount === 1 ? "" : "s"}${
-                  isActive ? " — click to remove filter" : " — click to filter"
-                }`}
-                className={cn(
-                  "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 transition-colors",
-                  isActive
-                    ? "border-primary/50 bg-primary/15 text-primary"
-                    : "border-white/15 bg-muted/40 hover:bg-muted/60",
-                )}
-              >
-                <span>{aff.labelName}</span>
-                <span className="text-[10px] tabular-nums opacity-60">
-                  {aff.photoCount}
-                  <span className="opacity-40">/</span>
-                  {aff.videoCount}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-      )}
+      {/* Status quick-filter pills — toggle which pipeline states appear.
+          Empty selection = all shown; an active pill filters to (only) the
+          selected states. Dot colour matches the row pill/stripe palette. */}
+      <div className="flex flex-wrap items-center gap-1.5 text-xs">
+        <span className="uppercase tracking-wider text-muted-foreground opacity-70">
+          Status
+        </span>
+        {statusOptions.map((o) => {
+          const isActive = activeStatuses.includes(o.value);
+          return (
+            <button
+              key={o.value}
+              type="button"
+              onClick={() => handleMultifacetToggle("cstatus", o.value)}
+              aria-pressed={isActive}
+              title={
+                isActive
+                  ? `${o.label} — click to remove from filter`
+                  : `${o.label} — click to filter`
+              }
+              className={cn(
+                "inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 transition-colors",
+                isActive
+                  ? "border-primary/50 bg-primary/15 text-primary"
+                  : "border-white/15 bg-muted/40 hover:bg-muted/60",
+              )}
+            >
+              <span className={cn("h-1.5 w-1.5 rounded-full", STATUS_DOT_CLASS[o.value])} />
+              <span>{o.label}</span>
+              <span className="text-[10px] tabular-nums opacity-60">{o.count}</span>
+            </button>
+          );
+        })}
+      </div>
 
       {/* Filter / sort bar */}
       <div className="flex flex-wrap items-center gap-2">
@@ -314,6 +407,19 @@ export function CareerTab({
           selected={activeChannelIds}
           onToggle={(v) => handleMultifacetToggle("channel", v)}
         />
+        {labelOptions.length > 0 && (
+          <MultiFacetDropdown
+            filter={{
+              type: "multifacet",
+              param: "clabel",
+              label: "Label",
+              options: labelOptions,
+              searchable: true,
+            }}
+            selected={activeLabelIds}
+            onToggle={(v) => handleMultifacetToggle("clabel", v)}
+          />
+        )}
         <MultiFacetDropdown
           filter={{
             type: "multifacet",
@@ -362,6 +468,38 @@ export function CareerTab({
             ))}
           </DropdownMenuContent>
         </DropdownMenu>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" size="sm" className="h-8 gap-1 text-xs">
+              Group: {GROUP_BY_LABELS[groupBy]}
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            {(Object.keys(GROUP_BY_LABELS) as CareerGroupBy[]).map((g) => (
+              <DropdownMenuItem key={g} onSelect={() => handleGroupByChange(g)}>
+                {GROUP_BY_LABELS[g]}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={toggleDensity}
+          aria-pressed={density === "compact"}
+          title={
+            density === "compact"
+              ? "Compact rows — click for full cover cards"
+              : "Full cover cards — click for compact rows"
+          }
+          className={cn(
+            "h-8 gap-1 text-xs",
+            density === "compact" && "border-primary/50 bg-primary/10 text-primary",
+          )}
+        >
+          {density === "compact" ? <List size={12} /> : <Rows3 size={12} />}
+          {density === "compact" ? "Compact" : "Full"}
+        </Button>
         {anyFilterActive && (
           <button
             type="button"
@@ -417,7 +555,13 @@ export function CareerTab({
           onAddSet={() => setCreateKnownSetOpen(true)}
         />
       ) : (
-        <TimelineSection rows={careerTimeline} withTint={withTint} />
+        <TimelineSection
+          rows={careerTimeline}
+          withTint={withTint}
+          groupBy={groupBy}
+          density={density}
+          collapseStorageKey={`career.collapse.${person.id}`}
+        />
       )}
 
       <CreateKnownSetSheet

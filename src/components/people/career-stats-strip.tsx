@@ -14,7 +14,10 @@ type MetricRow = {
   label: string;
   claimed: number | null;
   promoted: number;
+  // In-pipeline staged (matches the timeline rows).
   staged: number;
+  // Archive-verified subset of `staged` (folder confirmed on disk).
+  stagedVerified: number;
 };
 
 // Compact, collapsed-by-default "claimed vs promoted vs staged" gap table.
@@ -29,6 +32,7 @@ export function CareerStatsStrip({ stats }: CareerStatsStripProps) {
       claimed: stats.claimed.photosets,
       promoted: stats.promoted.photos,
       staged: stats.staged.photos,
+      stagedVerified: stats.stagedVerified.photos,
     },
     {
       key: "videos",
@@ -36,6 +40,7 @@ export function CareerStatsStrip({ stats }: CareerStatsStripProps) {
       claimed: stats.claimed.videos,
       promoted: stats.promoted.videos,
       staged: stats.staged.videos,
+      stagedVerified: stats.stagedVerified.videos,
     },
     {
       key: "covers",
@@ -43,6 +48,7 @@ export function CareerStatsStrip({ stats }: CareerStatsStripProps) {
       claimed: stats.claimed.covers,
       promoted: stats.promoted.covers,
       staged: stats.staged.covers,
+      stagedVerified: stats.stagedVerified.covers,
     },
   ];
 
@@ -77,11 +83,16 @@ export function CareerStatsStrip({ stats }: CareerStatsStripProps) {
 
       {open && (
         <div className="border-t border-white/10 px-3 py-2">
-          <div className="grid w-fit grid-cols-[auto_repeat(5,3.5rem)] gap-x-5 gap-y-1">
+          <div className="grid w-fit grid-cols-[auto_repeat(6,3.5rem)] gap-x-5 gap-y-1">
             <span />
             <HeaderCell>Claimed</HeaderCell>
             <HeaderCell>Promoted</HeaderCell>
-            <HeaderCell>Staged</HeaderCell>
+            <HeaderCell title="Staged sets in the pipeline (matches the timeline)">
+              In&nbsp;pipeline
+            </HeaderCell>
+            <HeaderCell title="Subset of in-pipeline sets whose archive folder is confirmed on disk">
+              Verified
+            </HeaderCell>
             <HeaderCell>Recorded</HeaderCell>
             <HeaderCell>Missing</HeaderCell>
             {rows.map((r) => (
@@ -99,9 +110,18 @@ export function CareerStatsStrip({ stats }: CareerStatsStripProps) {
   );
 }
 
-function HeaderCell({ children }: { children: React.ReactNode }) {
+function HeaderCell({
+  children,
+  title,
+}: {
+  children: React.ReactNode;
+  title?: string;
+}) {
   return (
-    <span className="text-right text-[10px] font-medium uppercase tracking-wider text-muted-foreground/50">
+    <span
+      title={title}
+      className="text-right text-[10px] font-medium uppercase tracking-wider text-muted-foreground/50"
+    >
       {children}
     </span>
   );
@@ -125,6 +145,12 @@ function StatRow({ row, total }: { row: MetricRow; total: boolean }) {
       </span>
       <span className={cn(cell, border)}>{row.promoted}</span>
       <span className={cn(cell, border)}>{row.staged}</span>
+      <span
+        className={cn(cell, border, "text-muted-foreground/70")}
+        title="Archive-verified subset of in-pipeline staged sets"
+      >
+        {row.stagedVerified}
+      </span>
       <span className={cn(cell, border, "font-semibold text-foreground")}>{have}</span>
       <span
         className={cn(
