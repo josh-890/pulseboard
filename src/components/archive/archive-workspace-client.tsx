@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
-import { useWindowVirtualizer } from '@tanstack/react-virtual'
+import { useVirtualizer } from '@tanstack/react-virtual'
+import { getAppScrollEl } from '@/lib/scroll-container'
 import { FolderSearch, Camera, Film, ChevronDown, Search, ChevronsDownUp, ChevronsUpDown, RefreshCw } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { getArchiveItemsAction, getArchiveChannelSummariesAction, reparseFolderNamesAction, scanArchiveForAliasesAction } from '@/lib/actions/archive-actions'
@@ -463,9 +464,39 @@ export function ArchiveWorkspaceClient({
     return rows
   }, [isTreeMode, isFolderTab, channelSummaries, channelLeaves, folderItems, flatItems, groupBy, collapseModel, hasMore, tab])
 
-  // ── Window virtualizer ─────────────────────────────────────────────────────
-  const virtualizer = useWindowVirtualizer({
+  // ── Element virtualizer bound to the app scroll container ────────────────────
+  // The window itself never scrolls in this app — `<main id="app-scroll">` is the
+  // single scroll container (see lib/scroll-container.ts). A window virtualizer
+  // therefore froze at scrollY=0 and never advanced the rendered window, so rows
+  // scrolled into blank space and infinite-scroll never fired. Bind to
+  // `#app-scroll` instead, with `scrollMargin` = the list's offset *within* that
+  // container (measured — the list's offsetParent is not #app-scroll, so
+  // `offsetTop` is wrong here).
+  const [scrollMargin, setScrollMargin] = useState(0)
+  useEffect(() => {
+    const scrollEl = getAppScrollEl()
+    const listEl = listRef.current
+    if (!scrollEl || !listEl) return
+    const measure = () => {
+      const m =
+        listEl.getBoundingClientRect().top -
+        scrollEl.getBoundingClientRect().top +
+        scrollEl.scrollTop
+      setScrollMargin((prev) => (Math.abs(prev - m) > 1 ? m : prev))
+    }
+    // Re-measure on viewport / list / toolbar height changes (not on scroll,
+    // since the computed offset is scroll-invariant). ResizeObserver fires an
+    // initial callback on observe, so no synchronous measure() is needed.
+    const ro = new ResizeObserver(measure)
+    ro.observe(scrollEl)
+    ro.observe(listEl)
+    if (listEl.previousElementSibling) ro.observe(listEl.previousElementSibling)
+    return () => ro.disconnect()
+  }, [])
+
+  const virtualizer = useVirtualizer({
     count: virtualRows.length,
+    getScrollElement: () => getAppScrollEl(),
     estimateSize: (i) => {
       const row = virtualRows[i]
       if (!row) return ORPHAN_H
@@ -485,7 +516,7 @@ export function ArchiveWorkspaceClient({
     },
     measureElement: (el) => el.getBoundingClientRect().height,
     overscan: 10,
-    scrollMargin: listRef.current?.offsetTop ?? 0,
+    scrollMargin,
   })
 
   // ── Highlight: scroll to item on first render ──────────────────────────────
