@@ -4,7 +4,7 @@ import { memo, useState, useRef, useCallback, useTransition } from 'react'
 import { createPortal } from 'react-dom'
 import Image from 'next/image'
 import Link from 'next/link'
-import { AlertTriangle, CalendarClock, Camera, CheckSquare, Clock, Copy, ExternalLink, Film, Flag, FolderOpen, FolderSearch, FolderX, Check, Loader2, RotateCcw, X } from 'lucide-react'
+import { AlertTriangle, CalendarClock, Camera, CheckSquare, CheckCheck, Clock, Copy, ExternalLink, Film, Flag, FolderOpen, FolderSearch, FolderX, Check, Loader2, RotateCcw, X } from 'lucide-react'
 import { cn, getInitialsFromName } from '@/lib/utils'
 import type { StagingSetWithRelations, ParticipantStatus } from '@/lib/services/import/staging-set-service'
 import type { StagingSetStatus } from '@/generated/prisma/client'
@@ -790,7 +790,29 @@ export const StagingSetRow = memo(function StagingSetRow({
               · {suggestion.fileCount} files
             </span>
           )}
-          <span className="flex-1" />
+          <span className="w-3 shrink-0" />
+          {onStatusChange && ss.status !== 'APPROVED' && (
+            <button
+              type="button"
+              disabled={isConfirming || isRejecting}
+              onClick={(e) => {
+                e.stopPropagation()
+                startConfirm(async () => {
+                  await confirmArchiveFolderLinkAction(suggestion.folderId, ss.id, 'staging')
+                  await onStatusChange?.(ss.id, 'APPROVED')
+                  onArchiveChange?.()
+                })
+              }}
+              className={cn(
+                'flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium transition-colors',
+                'bg-green-600 text-white hover:bg-green-700',
+                'disabled:pointer-events-none disabled:opacity-40',
+              )}
+            >
+              <CheckCheck size={10} />
+              Confirm &amp; Approve
+            </button>
+          )}
           <button
             type="button"
             disabled={isConfirming || isRejecting}
@@ -837,7 +859,7 @@ export const StagingSetRow = memo(function StagingSetRow({
           <AlertTriangle size={11} className="shrink-0 text-amber-500" />
           <span className="shrink-0 text-xs font-medium text-amber-600 dark:text-amber-400">Folder taken</span>
           <span className="shrink-0 text-xs text-muted-foreground/60">· linked to another set</span>
-          <span className="flex-1" />
+          <span className="w-3 shrink-0" />
           <button
             type="button"
             onClick={(e) => {
@@ -865,7 +887,7 @@ export const StagingSetRow = memo(function StagingSetRow({
               · Expected: {expectedRelativePath}
             </span>
           )}
-          <span className="flex-1" />
+          <span className="w-3 shrink-0" />
           <button
             type="button"
             onClick={(e) => {
