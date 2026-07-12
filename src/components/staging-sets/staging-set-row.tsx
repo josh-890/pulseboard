@@ -393,12 +393,20 @@ export const StagingSetRow = memo(function StagingSetRow({
         </button>
       )}
 
-      {/* Row button */}
-      <button
-        type="button"
+      {/* Row button — a div (not <button>) so the inline action buttons it
+          contains are valid HTML (button-in-button is a hydration error). */}
+      <div
+        role="button"
+        tabIndex={0}
         onClick={() => onSelect(ss.id)}
+        onKeyDown={(e) => {
+          if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) {
+            e.preventDefault()
+            onSelect(ss.id)
+          }
+        }}
         className={cn(
-          'group flex w-full items-center gap-3 overflow-hidden rounded-xl border px-3 py-2 shadow-sm backdrop-blur-sm',
+          'group flex w-full cursor-pointer items-center gap-3 overflow-hidden rounded-xl border px-3 py-2 shadow-sm backdrop-blur-sm',
           'text-left transition-all duration-150',
           'active:scale-[0.995]',
           'border-l-4',
@@ -700,7 +708,7 @@ export const StagingSetRow = memo(function StagingSetRow({
             />
           )}
         </div>
-      </button>
+      </div>
       </div>{/* end flex items-center */}
 
       {/* ── Archive section ──────────────────────────────────────────────── */}
