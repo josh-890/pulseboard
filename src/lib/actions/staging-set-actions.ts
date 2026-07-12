@@ -13,6 +13,7 @@ import {
   refreshMatchesIfStale,
 } from '@/lib/services/import/match-refresh-service'
 import { confirmArchiveFolderLink } from '@/lib/services/archive-service'
+import { updateStagingSetStatus } from '@/lib/services/import/staging-set-service'
 import type { DatePrecision } from '@/generated/prisma/client'
 
 export async function refreshParticipantStatusesAction(): Promise<{ updated: number }> {
@@ -64,6 +65,34 @@ export async function autoRefreshStagingDataAction(): Promise<{ statuses: number
 // ─── Date Suggestion Actions ─────────────────────────────────────────────────
 
 export type SimpleActionResult = { success: boolean; error?: string }
+
+/**
+ * Confirm a suggested archive folder link AND approve the staging set in one
+ * server round-trip. Doing both server-side (instead of the client chaining a
+ * confirm action + an optimistic status PATCH + a refetch) keeps the archive
+ * link and the APPROVED status atomic from the client's perspective: the caller
+ * runs a single authoritative refetch afterwards, so the archive link can't be
+ * left invisible by an optimistic status write clobbering a racing refetch.
+ */
+export async function confirmAndApproveStagingSetAction(
+  folderId: string,
+  stagingSetId: string,
+): Promise<SimpleActionResult> {
+  return withTenantFromHeaders(async () => {
+    try {
+      await confirmArchiveFolderLink(folderId, stagingSetId, 'staging')
+      await updateStagingSetStatus(stagingSetId, 'APPROVED')
+      revalidatePath('/archive')
+      revalidatePath('/import')
+      revalidatePath('/staging-sets')
+      revalidatePath('/sets')
+      revalidatePath('/shopping-list')
+      return { success: true }
+    } catch {
+      return { success: false, error: 'Failed to confirm & approve' }
+    }
+  })
+}
 
 /** Accept the suggested date: set it as the confirmed releaseDate and clear the suggestion. */
 export async function acceptDateSuggestionAction(id: string): Promise<SimpleActionResult> {

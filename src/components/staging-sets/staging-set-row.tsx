@@ -9,7 +9,7 @@ import { cn, getInitialsFromName } from '@/lib/utils'
 import type { StagingSetWithRelations, ParticipantStatus } from '@/lib/services/import/staging-set-service'
 import type { StagingSetStatus } from '@/generated/prisma/client'
 import { confirmArchiveFolderLinkAction, rejectArchiveSuggestionAction } from '@/lib/actions/archive-actions'
-import { acceptDateSuggestionAction, dismissDateSuggestionAction } from '@/lib/actions/staging-set-actions'
+import { acceptDateSuggestionAction, dismissDateSuggestionAction, confirmAndApproveStagingSetAction } from '@/lib/actions/staging-set-actions'
 import { ArchiveFolderPicker } from './archive-folder-picker'
 import { StagingSetCoverUpload } from './staging-set-cover-upload'
 import { StagingSetStatusMenu } from './staging-set-status-menu'
@@ -806,8 +806,11 @@ export const StagingSetRow = memo(function StagingSetRow({
               onClick={(e) => {
                 e.stopPropagation()
                 startConfirm(async () => {
-                  await confirmArchiveFolderLinkAction(suggestion.folderId, ss.id, 'staging')
-                  await onStatusChange?.(ss.id, 'APPROVED')
+                  // Confirm the link AND approve in one server round-trip, then a
+                  // single authoritative refetch. Avoids the optimistic status
+                  // write racing/clobbering the archive-link refetch (which left
+                  // the link invisible until a manual page refresh).
+                  await confirmAndApproveStagingSetAction(suggestion.folderId, ss.id)
                   onArchiveChange?.()
                 })
               }}
