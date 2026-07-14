@@ -682,71 +682,145 @@ export async function importDigitalIdentity(item: ImportItem): Promise<ImportRes
 type MatchValidationOutcome =
   | { kind: 'enrich'; matchedSetId: string; matchedTitle: string }
   | { kind: 'create-new' }
-  | { kind: 'error'; error: string }
+
+/** Inputs to the pure promote-match decision (all already fetched). */
+export type PromoteMatchInputs = {
+  /** Whether the cached matched Set still exists. */
+  matchedExists: boolean
+  stagingExternalId: string | null
+  matchedExternalId: string | null
+  /** Owning Label of the staging set's channel (null when unresolved). */
+  stagingLabelId: string | null
+  /** Owning Label of the matched Set's channel (null when unresolved). */
+  matchedLabelId: string | null
+  cachedConfidence: number | null
+}
+
+/**
+ * `enrich` merges into the cached Set; `create-new` promotes as a fresh Set.
+ * `clearCache` asks the caller to null the stale match on the staging row so a
+ * definitively-wrong match (deleted / drifted / cross-label) stops reappearing.
+ * A fuzzy-but-plausible same-label match is left intact as a suggestion.
+ */
+export type PromoteMatchDecision =
+  | { kind: 'enrich' }
+  | { kind: 'create-new'; clearCache: boolean }
+
+/**
+ * Pure guard logic for whether a promote may enrich its cached match. Kept
+ * side-effect-free so it can be exhaustively unit-tested; the IO wrapper
+ * (validateCachedMatchForPromote) fetches the inputs and applies clearCache.
+ *
+ * Guards, in order — every failure yields create-new, never a silent enrich:
+ *   1. matched Set still exists                     (else clear)
+ *   2. externalIds agree when both present          (else clear — drift)
+ *   3. owning Labels agree when both resolve         (else clear — cross-site)
+ *   4. confidence is exactly 1.0                      (else keep suggestion)
+ */
+export function decidePromoteMatch(input: PromoteMatchInputs): PromoteMatchDecision {
+  // Guard 1: matched Set still exists
+  if (!input.matchedExists) return { kind: 'create-new', clearCache: true }
+
+  // Guard 2: externalId still agrees (when both sides have one)
+  if (
+    input.stagingExternalId &&
+    input.matchedExternalId &&
+    input.stagingExternalId !== input.matchedExternalId
+  ) {
+    return { kind: 'create-new', clearCache: true }
+  }
+
+  // Guard 3: owning-label agreement (only enforced when both labels resolve)
+  if (
+    input.stagingLabelId &&
+    input.matchedLabelId &&
+    input.stagingLabelId !== input.matchedLabelId
+  ) {
+    return { kind: 'create-new', clearCache: true }
+  }
+
+  // Guard 4: enrich only on an exact (1.0) match; keep a fuzzy suggestion.
+  if (input.cachedConfidence !== 1.0) return { kind: 'create-new', clearCache: false }
+
+  return { kind: 'enrich' }
+}
 
 /**
  * Validates a staging set's cached `matchedSetId` against current data
- * before promotion enriches the matched Set. Three guards in order:
+ * before promotion enriches the matched Set. Four guards, all fail-safe to
+ * `create-new` (never a silent enrich):
  *
  *   1. The matched Set still exists.
  *   2. If both sides have an externalId, they still agree (catches
  *      data-correction drift where the cache was set at a moment when
  *      externalIds collided).
- *   3. The cached match confidence is 1.0 (exact externalId match at
- *      cache time). Anything below requires explicit user confirmation —
- *      we refuse to silently merge into a fuzzy-matched Set.
+ *   3. Owning-label agreement (ADR-0020). When both the staging set's channel
+ *      and the matched Set's channel resolve to a Label, those Labels must be
+ *      the same. A staging set must NEVER enrich a Set under a different label,
+ *      no matter what the cache says — different label = different site =
+ *      different set. This is the belt-and-braces guard for the 2026-07-14
+ *      "Good Morning → EuroNudes Set 1" cross-label mis-merge, where a stale
+ *      0.7 title match was laundered into an enrich (AmourAngels → Aphroditas).
+ *   4. The cached match confidence is exactly 1.0. Anything else (null, or a
+ *      fuzzy <1.0 score) is only a *suggestion*, not an identity assertion, so
+ *      we create a new Set rather than silently merge. A genuine duplicate is
+ *      caught later by the dedup flow (recoverable); a wrong merge is not.
  *
- * Failure modes:
- *   - Guard 1 or 2 fails → cached match is stale. Clear it on the
- *     staging row and tell the caller to take Path B (create new Set).
- *   - Guard 3 fails → match was always fuzzy. Refuse with a structured
- *     error so the UI can surface "please clear or confirm the match
- *     in the staging panel before promoting."
+ * On any guard failure the cached match is treated as non-authoritative and
+ * the caller takes Path B (create a new Set). Guards 1 & 2 also clear the
+ * stale cache on the staging row so it stops reappearing.
  *
- * Ships with the 2026-06-02 "Attached → Grecian Sirens" fix. See
- * docs/adr/0011 (forthcoming) for the design rationale.
+ * Ships with the 2026-06-02 "Attached → Grecian Sirens" fix and the
+ * 2026-07-14 cross-label hardening.
  */
 async function validateCachedMatchForPromote(
   stagingSetId: string,
   cachedMatchId: string,
   cachedConfidence: number | null,
   stagingExternalId: string | null,
+  stagingChannelId: string | null,
 ): Promise<MatchValidationOutcome> {
   const matched = await prisma.set.findUnique({
     where: { id: cachedMatchId },
-    select: { id: true, externalId: true, title: true },
+    select: {
+      id: true,
+      externalId: true,
+      title: true,
+      channel: { select: { labelId: true } },
+    },
   })
 
-  // Guard 1: matched Set still exists
-  if (!matched) {
+  // Resolve the staging set's owning Label (skip when its channel is
+  // unresolved — rare pre-resolution rows fall back to the confidence guard).
+  let stagingLabelId: string | null = null
+  if (stagingChannelId) {
+    const stagingChannel = await prisma.channel.findUnique({
+      where: { id: stagingChannelId },
+      select: { labelId: true },
+    })
+    stagingLabelId = stagingChannel?.labelId ?? null
+  }
+
+  const decision = decidePromoteMatch({
+    matchedExists: !!matched,
+    stagingExternalId,
+    matchedExternalId: matched?.externalId ?? null,
+    stagingLabelId,
+    matchedLabelId: matched?.channel?.labelId ?? null,
+    cachedConfidence,
+  })
+
+  if (decision.kind === 'enrich' && matched) {
+    return { kind: 'enrich', matchedSetId: matched.id, matchedTitle: matched.title }
+  }
+
+  if (decision.kind === 'create-new' && decision.clearCache) {
     await prisma.stagingSet.update({
       where: { id: stagingSetId },
       data: { matchedSetId: null, matchConfidence: null, matchDetails: null },
     })
-    return { kind: 'create-new' }
   }
-
-  // Guard 2: externalId still agrees (when both sides have one)
-  if (stagingExternalId && matched.externalId && stagingExternalId !== matched.externalId) {
-    await prisma.stagingSet.update({
-      where: { id: stagingSetId },
-      data: { matchedSetId: null, matchConfidence: null, matchDetails: null },
-    })
-    return { kind: 'create-new' }
-  }
-
-  // Guard 3: confidence must be 1.0 (exact). Anything fuzzy requires
-  // explicit user resolution — fail loud.
-  if (cachedConfidence !== null && cachedConfidence < 1.0) {
-    return {
-      kind: 'error',
-      error:
-        `Refusing to merge into existing Set "${matched.title}" — match confidence is ${cachedConfidence.toFixed(2)} (not exact). ` +
-        `Please confirm the match or clear it in the staging panel before promoting.`,
-    }
-  }
-
-  return { kind: 'enrich', matchedSetId: matched.id, matchedTitle: matched.title }
+  return { kind: 'create-new' }
 }
 
 // ─── Import: Set ────────────────────────────────────────────────────────────
@@ -774,40 +848,39 @@ export async function importSet(item: ImportItem): Promise<ImportResult> {
         }
       : (item.editedData ?? item.data) as ItemData
 
-    // Path A: Enrich existing set (matched by externalId or user-confirmed).
-    // Three guards (validateCachedMatchForPromote) prevent the
-    // "Attached → Grecian Sirens" bug class: stale-match, externalId
-    // drift, fuzzy-confidence merge. See helper above for details.
-    const cachedMatchId = stagingSet?.matchedSetId ?? item.matchedEntityId
-    const cachedConfidence = stagingSet?.matchConfidence ?? null
-    if (cachedMatchId && stagingSet) {
-      const verdict = await validateCachedMatchForPromote(
-        stagingSet.id,
-        cachedMatchId,
-        cachedConfidence,
-        stagingSet.externalId,
-      )
-      if (verdict.kind === 'error') {
-        return { success: false, entityId: null, error: verdict.error }
-      }
-      if (verdict.kind === 'enrich') {
-        const enrichResult = await enrichExistingSet(item, verdict.matchedSetId, data)
-        await markStagingSetPromoted(stagingSet.id, verdict.matchedSetId)
-        if (stagingSet.coverImageUrl) {
-          transferStagingCoverToSet(stagingSet.coverImageUrl, verdict.matchedSetId).catch((err) =>
-            console.error('Cover transfer failed (enrich):', err),
-          )
+    // Path A: Enrich existing set (matched by exact externalId or user-confirmed).
+    // The guarded match comes ONLY from the staging row's freshly-recomputed
+    // fields (the promote route calls recomputeMatchForStagingSet first). We do
+    // NOT fall back to item.matchedEntityId here: recompute never refreshes the
+    // ImportItem, so its cached match can be arbitrarily stale — that stale
+    // fallback (paired with a hard-null confidence) is exactly what laundered
+    // a 0.7 title match into the 2026-07-14 "Good Morning → EuroNudes" merge.
+    if (stagingSet) {
+      if (stagingSet.matchedSetId) {
+        const verdict = await validateCachedMatchForPromote(
+          stagingSet.id,
+          stagingSet.matchedSetId,
+          stagingSet.matchConfidence,
+          stagingSet.externalId,
+          stagingSet.channelId,
+        )
+        if (verdict.kind === 'enrich') {
+          const enrichResult = await enrichExistingSet(item, verdict.matchedSetId, data)
+          await markStagingSetPromoted(stagingSet.id, verdict.matchedSetId)
+          if (stagingSet.coverImageUrl) {
+            transferStagingCoverToSet(stagingSet.coverImageUrl, verdict.matchedSetId).catch((err) =>
+              console.error('Cover transfer failed (enrich):', err),
+            )
+          }
+          return enrichResult
         }
-        return enrichResult
+        // verdict.kind === 'create-new' → fall through to Path B below
       }
-      // verdict.kind === 'create-new' → fall through to Path B below
-    } else if (cachedMatchId && !stagingSet) {
-      // No staging set wrapper (older import-only path). Conservative:
-      // require exact match — if `item.matchedEntityId` was the source,
-      // we don't have a staging row to validate against, so just enrich
-      // (this branch predates the staging-set workflow and only fires
-      // for legacy ImportItem-only imports).
-      const enrichResult = await enrichExistingSet(item, cachedMatchId, data)
+    } else if (item.matchedEntityId) {
+      // Legacy no-staging path (predates the staging-set workflow, only fires
+      // for ImportItem-only imports). No staging row to recompute/validate
+      // against, so enrich directly on the item's match as before.
+      const enrichResult = await enrichExistingSet(item, item.matchedEntityId, data)
       return enrichResult
     }
 
@@ -981,29 +1054,21 @@ async function enrichExistingSet(
         }
       }
 
-      // Fill empty fields on the Set
+      // Fill empty non-identity fields on the Set. We deliberately do NOT
+      // backfill externalId here: after the promote-guard hardening, enrich
+      // only fires on an exact (1.0) externalId match, so the target already
+      // holds the same externalId — the backfill is a redundant no-op whose
+      // only real effect was copying a source ID onto a set that never had one
+      // (the mechanism that propagated 588458 onto EuroNudes "Set 1" on
+      // 2026-07-14). externalId is a @unique source primary key; never infer it.
       const existingSet = await tx.set.findUnique({
         where: { id: setId },
-        select: { description: true, imageCount: true, externalId: true },
+        select: { description: true, imageCount: true },
       })
       if (existingSet) {
         const updates: Record<string, unknown> = {}
         if (!existingSet.description && data.description) updates.description = data.description
         if (existingSet.imageCount == null && data.imageCount != null) updates.imageCount = data.imageCount
-        // Backfill externalId when the matched Set has none. createNewSet (Path B)
-        // sets it on create, but this enrich path previously skipped it, so a
-        // confirmed merge silently dropped the external ID the comparison view
-        // promised ("will add … External-ID"). externalId is @unique — only claim
-        // it if no other Set holds it, so a stray duplicate can't abort the whole
-        // promote transaction.
-        const incomingExternalId = (data.externalId as string | null | undefined) ?? null
-        if (!existingSet.externalId && incomingExternalId) {
-          const clash = await tx.set.findFirst({
-            where: { externalId: incomingExternalId, id: { not: setId } },
-            select: { id: true },
-          })
-          if (!clash) updates.externalId = incomingExternalId
-        }
         if (Object.keys(updates).length > 0) {
           await tx.set.update({ where: { id: setId }, data: updates })
         }
@@ -1251,10 +1316,8 @@ export async function promoteManualStagingSet(stagingSetId: string): Promise<Imp
         stagingSet.matchedSetId,
         stagingSet.matchConfidence,
         stagingSet.externalId,
+        stagingSet.channelId,
       )
-      if (verdict.kind === 'error') {
-        return { success: false, entityId: null, error: verdict.error }
-      }
       // verdict.kind === 'create-new' → fall through to Path B below
       if (verdict.kind === 'enrich') {
         const setId = verdict.matchedSetId
@@ -1311,25 +1374,20 @@ export async function promoteManualStagingSet(stagingSetId: string): Promise<Imp
           }
         }
 
-        // Fill empty fields on the matched Set — mirror enrichExistingSet so a
-        // manual promote backfills the same data (esp. externalId) the comparison
-        // view promised. externalId is @unique → only claim it if unheld.
+        // Fill empty non-identity fields on the matched Set — mirror
+        // enrichExistingSet. externalId is deliberately NOT backfilled (see the
+        // rationale there): a 1.0 enrich already agrees on externalId, and
+        // inferring a @unique source primary key is the path that propagated a
+        // wrong ID cross-site on 2026-07-14.
         const existingSet = await tx.set.findUnique({
           where: { id: setId },
-          select: { description: true, notes: true, imageCount: true, externalId: true },
+          select: { description: true, notes: true, imageCount: true },
         })
         if (existingSet) {
           const updates: Record<string, unknown> = {}
           if (!existingSet.description && stagingSet.description) updates.description = stagingSet.description
           if (!existingSet.notes && stagingSet.notes) updates.notes = stagingSet.notes
           if (existingSet.imageCount == null && stagingSet.imageCount != null) updates.imageCount = stagingSet.imageCount
-          if (!existingSet.externalId && stagingSet.externalId) {
-            const clash = await tx.set.findFirst({
-              where: { externalId: stagingSet.externalId, id: { not: setId } },
-              select: { id: true },
-            })
-            if (!clash) updates.externalId = stagingSet.externalId
-          }
           if (Object.keys(updates).length > 0) {
             await tx.set.update({ where: { id: setId }, data: updates })
           }
