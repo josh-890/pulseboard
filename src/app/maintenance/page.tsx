@@ -4,10 +4,12 @@ import {
   getBaselineGapsByAttribute,
   getBaselineGapsByPerson,
   getBaselineGapTotals,
+  getCrossLabelMisMerges,
 } from "@/lib/services/maintenance-service";
 import { getHdRebakeEligibleCount } from "@/lib/services/hd-rebake-service";
 import { getDismissedSetDuplicates } from "@/lib/services/set-merge-service";
 import { DismissedDuplicatesList } from "@/components/maintenance/dismissed-duplicates-list";
+import { CrossLabelMisMergesList } from "@/components/maintenance/cross-label-mismerges-list";
 import { BaselineGapsByAttributeTable } from "@/components/maintenance/baseline-gaps-by-attribute-table";
 import { BaselineGapsByPersonTable } from "@/components/maintenance/baseline-gaps-by-person-table";
 import { MaintenanceTabs } from "@/components/maintenance/maintenance-tabs";
@@ -23,12 +25,13 @@ export default async function MaintenancePage({ searchParams }: MaintenancePageP
     const { view: viewParam } = await searchParams;
     const view = viewParam === "by-person" ? "by-person" : "by-attribute";
 
-    const [totals, byAttribute, byPerson, hdEligible, dismissedDuplicates] = await Promise.all([
+    const [totals, byAttribute, byPerson, hdEligible, dismissedDuplicates, crossLabelMisMerges] = await Promise.all([
       getBaselineGapTotals(),
       view === "by-attribute" ? getBaselineGapsByAttribute() : Promise.resolve([]),
       view === "by-person" ? getBaselineGapsByPerson() : Promise.resolve([]),
       getHdRebakeEligibleCount(),
       getDismissedSetDuplicates(),
+      getCrossLabelMisMerges(),
     ]);
 
     return (
@@ -49,7 +52,7 @@ export default async function MaintenancePage({ searchParams }: MaintenancePageP
         </div>
 
         {/* Top metrics */}
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-6">
           <MetricCard
             label="Tier 1 warnings"
             value={totals.tier1PersonsWithGaps}
@@ -75,6 +78,12 @@ export default async function MaintenancePage({ searchParams }: MaintenancePageP
             tone={hdEligible > 0 ? "hint" : undefined}
             hint="Aligned images still sampled from the master whose archive original is reachable — run scripts/archive-rebake.ts on the archive machine to refine them (ADR-0017)."
           />
+          <MetricCard
+            label="Cross-label merges"
+            value={crossLabelMisMerges.length}
+            tone={crossLabelMisMerges.length > 0 ? "warn" : undefined}
+            hint="Staging sets wrongly promoted into a Set under a different owning label (ADR-0020). Should be 0 — any row needs a manual un-merge."
+          />
         </div>
 
         {/* Tab toggle */}
@@ -85,6 +94,10 @@ export default async function MaintenancePage({ searchParams }: MaintenancePageP
           <BaselineGapsByAttributeTable rows={byAttribute} />
         ) : (
           <BaselineGapsByPersonTable rows={byPerson} />
+        )}
+
+        {crossLabelMisMerges.length > 0 && (
+          <CrossLabelMisMergesList rows={crossLabelMisMerges} />
         )}
 
         {dismissedDuplicates.length > 0 && (

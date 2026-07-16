@@ -413,3 +413,48 @@ export async function getBaselineGapTotals(): Promise<BaselineGapTotals> {
     tier2AttrsTotal: r ? Number(r.tier2AttrsTotal) : 0,
   };
 }
+
+// ─── Cross-label mis-merge detector ─────────────────────────────────────────
+//
+// A staging set must never be promoted INTO an existing Set under a different
+// owning Label (ADR-0020) — different label = different site = different set.
+// The promote-guard (decidePromoteMatch) enforces this going forward; this
+// audit surfaces any historical victim so it can be un-merged. Ships with the
+// 2026-07-14 "Good Morning → EuroNudes Set 1" fix; healthy state is zero rows.
+
+export type CrossLabelMisMerge = {
+  stagingSetId: string;
+  stagingTitle: string;
+  stagingLabel: string | null;
+  setId: string;
+  setTitle: string;
+  setLabel: string | null;
+  promotedAt: Date;
+};
+
+export async function getCrossLabelMisMerges(): Promise<CrossLabelMisMerge[]> {
+  // Raw query: joins reach both the staging channel's Label and the promoted
+  // Set's channel's Label. Flag only when BOTH resolve and differ — mirrors the
+  // guard, which never refuses on an unresolved label. staging_set is @@map'd.
+  return prisma.$queryRaw<CrossLabelMisMerge[]>`
+    SELECT ss.id            AS "stagingSetId",
+           ss.title         AS "stagingTitle",
+           sl.name          AS "stagingLabel",
+           s.id             AS "setId",
+           s.title          AS "setTitle",
+           tl.name          AS "setLabel",
+           ss."updatedAt"   AS "promotedAt"
+    FROM staging_set ss
+    JOIN "Set" s ON s.id = ss."promotedSetId"
+    LEFT JOIN "Channel" sc ON sc.id = ss."channelId"
+    LEFT JOIN "Label" sl ON sl.id = sc."labelId"
+    LEFT JOIN "Channel" tc ON tc.id = s."channelId"
+    LEFT JOIN "Label" tl ON tl.id = tc."labelId"
+    WHERE ss.status = 'PROMOTED'
+      AND ss."promotedSetId" IS NOT NULL
+      AND sl.id IS NOT NULL
+      AND tl.id IS NOT NULL
+      AND sl.id <> tl.id
+    ORDER BY ss."updatedAt" DESC
+  `;
+}
