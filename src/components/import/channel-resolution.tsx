@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { Search, Link2, Check, Loader2, Plus } from 'lucide-react'
+import { Search, Link2, Check, Loader2, Plus, Unlink2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import type { ImportItem } from '@/generated/prisma/client'
@@ -33,6 +33,7 @@ export function ChannelResolution({ item, onResolved }: ChannelResolutionProps) 
   const [searchQuery, setSearchQuery] = useState('')
   const [isLoading, setIsLoading] = useState(true)
   const [isLinking, setIsLinking] = useState<string | null>(null)
+  const [isUnlinking, setIsUnlinking] = useState(false)
   const [isSearching, setIsSearching] = useState(false)
 
   // Create new channel state
@@ -153,6 +154,22 @@ export function ChannelResolution({ item, onResolved }: ChannelResolutionProps) 
     [item.id, channelName, onResolved],
   )
 
+  // Unlink handler — clears the match + removes the added alias, returning the
+  // item to the resolution picker so a different channel can be chosen.
+  const handleUnlink = useCallback(async () => {
+    setIsUnlinking(true)
+    try {
+      await fetch('/api/import/channels/unlink', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ itemId: item.id }),
+      })
+      onResolved()
+    } finally {
+      setIsUnlinking(false)
+    }
+  }, [item.id, onResolved])
+
   // Create + link handler
   const handleCreateAndLink = useCallback(async () => {
     if (!newChannelName.trim() || !newChannelLabelId) return
@@ -192,6 +209,25 @@ export function ChannelResolution({ item, onResolved }: ChannelResolutionProps) 
             Resolved — linked to existing channel
           </span>
         </div>
+        {/* Unlink is only meaningful before import. For an exact-name match the
+            auto-matcher re-derives the link on the next refresh (see route note). */}
+        {item.status === 'MATCHED' && (
+          <div>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={handleUnlink}
+              disabled={isUnlinking}
+            >
+              {isUnlinking ? (
+                <Loader2 size={12} className="animate-spin" />
+              ) : (
+                <Unlink2 size={12} />
+              )}
+              Unlink / choose a different channel
+            </Button>
+          </div>
+        )}
       </div>
     )
   }
