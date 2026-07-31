@@ -44,16 +44,25 @@ export async function addPersonFromContactAction(refId: string): Promise<CrudAct
         error: { fieldErrors: { icgId: ["This contact has no ICG-ID — link it to an existing person instead."] } },
       };
     }
-    const parsed = createPersonSchema.safeParse({ icgId: ref.icgId, commonName: ref.name });
+    // A contact's ICG-ID was harvested from an import, so it is external by
+    // construction (ADR-0026) — validating it as such also rejects the
+    // malformed/HTML-polluted values the parser can let through.
+    const parsed = createPersonSchema.safeParse({
+      icgId: ref.icgId,
+      idOrigin: "external",
+      commonName: ref.name,
+    });
     if (!parsed.success) return { success: false, error: parsed.error.flatten() };
     try {
       const person = await createPersonRecord(parsed.data);
       revalidateContacts();
       return { success: true, id: person.id };
     } catch (err) {
-      if (err instanceof Error && err.message.includes("P2002")) {
+      // Prisma surfaces the unique violation via the error CODE, not the message.
+      if (err && typeof err === "object" && (err as { code?: string }).code === "P2002") {
         return { success: false, error: { fieldErrors: { icgId: ["ICG-ID already exists"] } } };
       }
+      console.error("addPersonFromContactAction failed", err);
       return { success: false, error: "Unexpected error" };
     }
   });

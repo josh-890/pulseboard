@@ -416,6 +416,8 @@ export async function importPerson(item: ImportItem): Promise<ImportResult> {
 
     const person = await createPersonRecord({
       icgId: data.icgId as string,
+      // Every imported ICG-ID comes from the external database (ADR-0026).
+      idOrigin: 'external',
       commonName: data.name as string,
       status: 'active',
       birthdate,

@@ -22,6 +22,7 @@ import { runMatchingForPerson } from './cover-basket-service'
 import { buildImportItemDecisions } from './build-decisions'
 import { isEmptyDiff, type ImportItemDecisions } from './diff'
 import { resolvePlatformFromUrl } from '@/lib/services/scrape-source-service'
+import { ICG_ID_EXTERNAL_RE } from '@/lib/icg-id'
 
 /**
  * Find an existing staging set that is a *probable* duplicate of an incoming one:
@@ -712,11 +713,14 @@ async function createStagingSetsForBatch(
   // name-only participants are skipped, and a malformed/HTML-polluted icgId is
   // rejected by the ICG-ID shape guard. No claim is created here — staged
   // co-occurrence is derived, not stored.
-  const ICG_ID_RE = /^[A-Z]{2}-[0-9]{2}[A-Z0-9@][A-Z0-9]+$/
+  //
+  // The guard is the *external* shape (ADR-0026): every participant ICG-ID here
+  // came from an outside source, so one bearing the reserved local marker is by
+  // definition malformed and must not become a Contact.
   const contactByIcg = new Map<string, string>() // icgId → display name (first seen)
   for (const set of parsedSets) {
     for (const m of set.modelsList) {
-      if (!m.icgId || !ICG_ID_RE.test(m.icgId)) continue
+      if (!m.icgId || !ICG_ID_EXTERNAL_RE.test(m.icgId)) continue
       if (personByIcgId.has(m.icgId)) continue // already a curated Person
       if (!contactByIcg.has(m.icgId)) contactByIcg.set(m.icgId, m.name || m.icgId)
     }

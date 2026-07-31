@@ -13,6 +13,7 @@ import {
   fixImportedNationalityCodes,
   rebuildCurrentStateCache,
   checkCurrentStateIntegrity,
+  auditIcgIdOrigins,
 } from "@/lib/services/database-maintenance-service";
 
 type MaintenanceActionResult = {
@@ -136,6 +137,19 @@ export async function reconcileStagingSetParticipantsAction(): Promise<Maintenan
       const result = await reconcileStagingSetParticipants();
       revalidatePath("/staging-sets");
       revalidatePath("/settings");
+      return { success: true, ...result };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unexpected error";
+      return { success: false, error: message };
+    }
+  });
+}
+
+export async function auditIcgIdOriginsAction(): Promise<MaintenanceActionResult> {
+  return withTenantFromHeaders(async () => {
+    try {
+      // Read-only — nothing to revalidate.
+      const result = await auditIcgIdOrigins();
       return { success: true, ...result };
     } catch (err) {
       const message = err instanceof Error ? err.message : "Unexpected error";

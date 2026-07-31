@@ -1,7 +1,6 @@
 "use client";
-/* eslint-disable react-hooks/incompatible-library */
 
-import { useMemo, useState, useRef, useEffect } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { ChevronDown, RefreshCw } from "lucide-react";
@@ -38,7 +37,8 @@ import { SelectWithOther } from "@/components/shared/select-with-other";
 import { TypedAttributeInput } from "@/components/people/typed-attribute-input";
 import type { PhysicalAttributeGroupWithDefinitions } from "@/lib/services/physical-attribute-catalog-service";
 import { PartialDateInput } from "@/components/shared/partial-date-input";
-import { generateIcgId, cn } from "@/lib/utils";
+import { cn } from "@/lib/utils";
+import { mintIcgIdAction } from "@/lib/actions/person-actions";
 
 function SectionHeader({ children }: { children: React.ReactNode }) {
   return (
@@ -60,7 +60,7 @@ type PersonFormProps = {
 
 export function PersonForm({ onSubmit, submitLabel = "Create Person", onCancel, attributeGroups }: PersonFormProps) {
   const [showAppearance, setShowAppearance] = useState(false);
-  const userEditedIcgId = useRef(false);
+  const [minting, setMinting] = useState(false);
 
   // Slice 16E: hair_color catalog def for TypedAttributeInput. Looked up
   // from attributeGroups when available; otherwise falls back to a synthetic
@@ -92,6 +92,7 @@ export function PersonForm({ onSubmit, submitLabel = "Create Person", onCancel, 
     resolver: zodResolver(createPersonSchema),
     defaultValues: {
       icgId: "",
+      idOrigin: "self",
       commonName: "",
       status: "active",
     },
@@ -99,27 +100,45 @@ export function PersonForm({ onSubmit, submitLabel = "Create Person", onCancel, 
 
   const { isSubmitting } = form.formState;
 
-  const watchedName = form.watch("commonName");
-  const watchedBirthdate = form.watch("birthdate");
+  const idOrigin = form.watch("idOrigin") ?? "self";
+  const isSelfAssigned = idOrigin === "self";
 
-  // Auto-generate ICG-ID when name or birthdate changes
-  useEffect(() => {
-    if (userEditedIcgId.current) return;
-    if (!watchedName?.trim()) {
+  // ADR-0026: minting is a server round-trip because the candidate is probed
+  // against both Person and Contact ICG-IDs. So it fires on discrete events —
+  // name blur, mode switch, explicit regenerate — never on every keystroke as
+  // the old client-side generator did. That also keeps the displayed ID stable
+  // and actually reserved, rather than a fresh random string per character.
+  const mintIcgId = useCallback(async () => {
+    const name = form.getValues("commonName");
+    if (!name?.trim()) {
       form.setValue("icgId", "");
       return;
     }
-    const id = generateIcgId(watchedName, watchedBirthdate);
-    form.setValue("icgId", id);
-  }, [watchedName, watchedBirthdate, form]);
-
-  function handleRegenerateIcgId() {
-    userEditedIcgId.current = false;
-    const name = form.getValues("commonName");
-    const birthdate = form.getValues("birthdate");
-    if (name?.trim()) {
-      form.setValue("icgId", generateIcgId(name, birthdate));
+    setMinting(true);
+    try {
+      const result = await mintIcgIdAction(name, form.getValues("birthdate"));
+      if ("icgId" in result) {
+        form.setValue("icgId", result.icgId, { shouldValidate: true });
+      } else {
+        form.setError("icgId", { message: result.error });
+      }
+    } finally {
+      setMinting(false);
     }
+  }, [form]);
+
+  function handleNameBlur() {
+    // Only fill a slot the user isn't managing themselves.
+    if (isSelfAssigned && !form.getValues("icgId")) void mintIcgId();
+  }
+
+  function handleOriginChange(next: "external" | "self") {
+    form.setValue("idOrigin", next);
+    // The two namespaces are disjoint, so a value carried across modes is
+    // always invalid — clear rather than leave a guaranteed error on screen.
+    form.setValue("icgId", "");
+    form.clearErrors("icgId");
+    if (next === "self") void mintIcgId();
   }
 
   async function handleSubmit(values: CreatePersonInput) {
@@ -137,7 +156,6 @@ export function PersonForm({ onSubmit, submitLabel = "Create Person", onCancel, 
     // Success — reset form
     form.reset();
     setShowAppearance(false);
-    userEditedIcgId.current = false;
   }
 
   return (
@@ -161,7 +179,14 @@ export function PersonForm({ onSubmit, submitLabel = "Create Person", onCancel, 
                     <FormItem className="col-span-2">
                       <FormLabel>Display Name <span className="text-destructive">*</span></FormLabel>
                       <FormControl>
-                        <Input placeholder="Common alias / display name" {...field} />
+                        <Input
+                          placeholder="Common alias / display name"
+                          {...field}
+                          onBlur={() => {
+                            field.onBlur();
+                            handleNameBlur();
+                          }}
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -173,35 +198,79 @@ export function PersonForm({ onSubmit, submitLabel = "Create Person", onCancel, 
                   name="icgId"
                   render={({ field }) => (
                     <FormItem className="col-span-2">
-                      <FormLabel className="flex items-center gap-2">
+                      <FormLabel htmlFor="icgId">
                         ICG-ID <span className="text-destructive">*</span>
-                        {!userEditedIcgId.current && (
-                          <span className="text-[10px] font-normal text-muted-foreground/70 bg-muted px-1.5 py-0.5 rounded">auto</span>
-                        )}
                       </FormLabel>
+
+                      {/* ADR-0026: which namespace this ID belongs to. External IDs
+                          mirror the outside database and are typed in; everyone
+                          absent from it gets one minted here. */}
+                      <div
+                        role="radiogroup"
+                        aria-label="ICG-ID origin"
+                        className="flex flex-wrap gap-1.5"
+                      >
+                        {([
+                          { value: "self", label: "Not in external DB" },
+                          { value: "external", label: "Has an external ICG-ID" },
+                        ] as const).map((opt) => (
+                          <button
+                            key={opt.value}
+                            type="button"
+                            role="radio"
+                            aria-checked={idOrigin === opt.value}
+                            onClick={() => handleOriginChange(opt.value)}
+                            className={cn(
+                              "rounded-full border px-2.5 py-1 text-xs transition-colors duration-150",
+                              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                              idOrigin === opt.value
+                                ? "border-primary bg-primary/10 text-foreground"
+                                : "border-transparent bg-muted text-muted-foreground hover:bg-muted/70",
+                            )}
+                          >
+                            {opt.label}
+                          </button>
+                        ))}
+                      </div>
+
                       <div className="flex gap-1.5">
                         <FormControl>
                           <Input
-                            placeholder="e.g. JD-95@K7R"
+                            id="icgId"
+                            placeholder={
+                              isSelfAssigned
+                                ? minting
+                                  ? "Minting…"
+                                  : "Filled in from the display name"
+                                : "e.g. CX-82HO"
+                            }
                             className="font-mono"
+                            readOnly={isSelfAssigned}
+                            aria-readonly={isSelfAssigned}
                             {...field}
-                            onChange={(e) => {
-                              userEditedIcgId.current = true;
-                              field.onChange(e.target.value.toUpperCase());
-                            }}
+                            onChange={(e) => field.onChange(e.target.value.toUpperCase())}
                           />
                         </FormControl>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          className="shrink-0 h-9 w-9"
-                          onClick={handleRegenerateIcgId}
-                          title="Regenerate ICG-ID"
-                        >
-                          <RefreshCw size={14} />
-                        </Button>
+                        {isSelfAssigned && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="shrink-0 h-9 w-9"
+                            onClick={() => void mintIcgId()}
+                            disabled={minting}
+                            title="Mint a new ICG-ID"
+                            aria-label="Mint a new ICG-ID"
+                          >
+                            <RefreshCw size={14} className={cn(minting && "animate-spin")} />
+                          </Button>
+                        )}
                       </div>
+                      <p className="text-[11px] text-muted-foreground">
+                        {isSelfAssigned
+                          ? "Minted here and checked for collisions. The @ marks it as self-assigned."
+                          : "Copy the ID from the external database exactly."}
+                      </p>
                       <FormMessage />
                     </FormItem>
                   )}

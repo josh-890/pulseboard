@@ -121,13 +121,36 @@ export function ImportItemDetail({
         )}
       </div>
 
-      {/* Match info */}
+      {/* Match info. Green only when something actually matched — ADR-0026 also
+          routes advisory hints (e.g. a same-named person holding a self-assigned
+          ICG-ID) through matchDetails with no matched entity, and a warning
+          dressed as a confirmation is worse than no warning. */}
       {item.matchDetails && (
-        <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-3">
+        <div
+          className={cn(
+            "rounded-lg border p-3",
+            item.matchedEntityId
+              ? "border-emerald-500/20 bg-emerald-500/5"
+              : "border-amber-500/20 bg-amber-500/5",
+          )}
+        >
           <div className="flex items-start gap-2">
-            <Info size={14} className="mt-0.5 shrink-0 text-emerald-500" />
+            <Info
+              size={14}
+              className={cn(
+                "mt-0.5 shrink-0",
+                item.matchedEntityId ? "text-emerald-500" : "text-amber-500",
+              )}
+            />
             <div>
-              <p className="text-sm font-medium text-emerald-700 dark:text-emerald-400">
+              <p
+                className={cn(
+                  "text-sm font-medium",
+                  item.matchedEntityId
+                    ? "text-emerald-700 dark:text-emerald-400"
+                    : "text-amber-700 dark:text-amber-400",
+                )}
+              >
                 {item.matchDetails}
               </p>
               {item.matchConfidence && (

@@ -14,6 +14,7 @@ import {
 import type { PersonFilters } from "@/lib/services/person-service";
 import { getHeadshotsForPersons } from "@/lib/services/media-service";
 import { prisma } from "@/lib/db";
+import { icgIdPrefix, mintLocalIcgIdCandidate } from "@/lib/icg-id";
 import type { CrudActionResult, SimpleActionResult } from "@/lib/types";
 
 // ADR-0019: favorite-person flag (★). Filters the people browser + scopes the
@@ -39,6 +40,48 @@ export async function setPersonFavoriteAction(
   });
 }
 
+/** True when an ICG-ID is already claimed by a Person or an uncurated Contact. */
+async function isIcgIdTaken(icgId: string): Promise<boolean> {
+  // Contacts matter as much as Persons here: a Contact is a person harvested
+  // from an import but not yet curated, so its ICG-ID is spoken for even though
+  // the user has never seen it. Minting over one would collide the moment the
+  // contact is promoted (ADR-0022 reconciliation is keyed on exact ICG-ID).
+  const [person, contact] = await Promise.all([
+    prisma.person.findUnique({ where: { icgId }, select: { id: true } }),
+    prisma.contact.findUnique({ where: { icgId }, select: { id: true } }),
+  ]);
+  return person !== null || contact !== null;
+}
+
+const MINT_ATTEMPTS = 8;
+
+/**
+ * Mints a locally minted ICG-ID for a person absent from the external database
+ * (ADR-0026). The suffix is random, so each candidate is probed before it is
+ * offered; `createPerson` re-mints once more on a P2002 to close the race
+ * between minting and submitting.
+ */
+export async function mintIcgIdAction(
+  name: string,
+  birthdate?: string,
+): Promise<{ icgId: string } | { error: string }> {
+  return withTenantFromHeaders(() => mintIcgId(name, birthdate));
+}
+
+/** Tenant context is the caller's responsibility — see `mintIcgIdAction`. */
+async function mintIcgId(
+  name: string,
+  birthdate?: string,
+): Promise<{ icgId: string } | { error: string }> {
+  if (!name.trim()) return { error: "A display name is needed to mint an ICG-ID" };
+  const prefix = icgIdPrefix(name, birthdate);
+  for (let i = 0; i < MINT_ATTEMPTS; i++) {
+    const candidate = mintLocalIcgIdCandidate(prefix);
+    if (!(await isIcgIdTaken(candidate))) return { icgId: candidate };
+  }
+  return { error: "Could not mint a free ICG-ID — enter one manually" };
+}
+
 export async function createPerson(raw: unknown): Promise<CrudActionResult> {
   return withTenantFromHeaders(async () => {
     const parsed = createPersonSchema.safeParse(raw);
@@ -46,18 +89,38 @@ export async function createPerson(raw: unknown): Promise<CrudActionResult> {
       return { success: false, error: parsed.error.flatten() };
     }
 
+    const data = parsed.data;
     try {
-      const person = await createPersonRecord(parsed.data);
+      const person = await createPersonRecord(data);
       revalidatePath("/people");
       return { success: true, id: person.id };
     } catch (err) {
-      if (err instanceof Error && err.message.includes("P2002")) {
-        return {
-          success: false,
-          error: { fieldErrors: { icgId: ["ICG-ID already exists"] } },
-        };
+      // Prisma surfaces the unique violation via the error CODE, not the message.
+      const isDuplicate =
+        err && typeof err === "object" && (err as { code?: string }).code === "P2002";
+      if (!isDuplicate) {
+        console.error("createPerson failed", err);
+        return { success: false, error: "Unexpected error" };
       }
-      return { success: false, error: "Unexpected error" };
+      // A minted ID lost a race between the uniqueness probe and this insert —
+      // that's ours to resolve, not the user's, so re-mint and retry once. An
+      // ID the user typed is theirs to correct, so it surfaces as a field error.
+      if (data.idOrigin === "self") {
+        const reminted = await mintIcgId(data.commonName, data.birthdate);
+        if ("icgId" in reminted) {
+          try {
+            const person = await createPersonRecord({ ...data, icgId: reminted.icgId });
+            revalidatePath("/people");
+            return { success: true, id: person.id };
+          } catch (retryErr) {
+            console.error("createPerson re-mint retry failed", retryErr);
+          }
+        }
+      }
+      return {
+        success: false,
+        error: { fieldErrors: { icgId: ["ICG-ID already exists"] } },
+      };
     }
 
   });

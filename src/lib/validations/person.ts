@@ -1,17 +1,24 @@
 import { z } from "zod";
+import {
+  ICG_ID_RE,
+  ICG_ID_EXTERNAL_RE,
+  ICG_ID_LOCAL_RE,
+  ICG_ID_FORMAT_HINT,
+  ICG_ID_ORIGINS_TUPLE,
+} from "@/lib/icg-id";
 
 const datePrecisionEnum = z.enum(["UNKNOWN", "YEAR", "MONTH", "DAY"]).default("UNKNOWN");
 const dateModifierEnum = z.enum(["EXACT", "APPROXIMATE", "ESTIMATED", "BEFORE", "AFTER"]).default("EXACT");
 
 export const createPersonSchema = z.object({
   // Required
-  icgId: z
-    .string()
-    .min(1, "ICG-ID is required")
-    .regex(
-      /^[A-Z]{2}-[0-9]{2}[A-Z0-9@][A-Z0-9]+$/,
-      'Format: XX-00XXX  e.g. JD-96ABF',
-    ),
+  icgId: z.string().min(1, "ICG-ID is required").regex(ICG_ID_RE, ICG_ID_FORMAT_HINT),
+  // ADR-0026: which namespace the ICG-ID comes from. Form-only — the origin is
+  // readable from the ID itself (the reserved marker), so nothing is persisted.
+  // It exists so the shape rules below can be enforced per namespace: an ID the
+  // user claims is external must not squat on the reserved marker, and a minted
+  // one must be exactly what the minter produces.
+  idOrigin: z.enum(ICG_ID_ORIGINS_TUPLE).default("self"),
   commonName: z.string().min(1, "Display name is required"),
   // Status
   status: z.enum(["active", "inactive", "wishlist", "archived"]).default("active"),
@@ -44,6 +51,22 @@ export const createPersonSchema = z.object({
   // Bust/Waist/Hips per ADR-0008 (low-stakes TEXT pass-through).
   measurements: z.string().optional(),
   hairLength: z.string().optional(),
+}).superRefine((data, ctx) => {
+  // ADR-0026: the two ICG-ID namespaces are kept disjoint here. Rejecting the
+  // marker on external IDs is what guarantees no ID the external database can
+  // ever issue collides with one minted locally — and it keeps the derived
+  // "self-assigned" filter honest.
+  const ok = data.idOrigin === "external"
+    ? ICG_ID_EXTERNAL_RE.test(data.icgId)
+    : ICG_ID_LOCAL_RE.test(data.icgId);
+  if (ok) return;
+  ctx.addIssue({
+    code: z.ZodIssueCode.custom,
+    path: ["icgId"],
+    message: data.idOrigin === "external"
+      ? "External ICG-IDs cannot contain '@' — that character is reserved for self-assigned IDs. Format: XX-00XX e.g. CX-82HO"
+      : "Self-assigned ICG-IDs must look like XX-00@XXX — use Regenerate to mint one.",
+  });
 });
 
 // Input type (form values — defaults may be undefined before zod applies them)
@@ -103,10 +126,10 @@ export type UpdatePersonInput = z.output<typeof updatePersonSchema>;
 
 export const icgIdChangeSchema = z.object({
   id: z.string().min(1),
-  icgId: z
-    .string()
-    .min(1, "ICG-ID is required")
-    .regex(/^[A-Z]{2}-[0-9]{2}[A-Z0-9@][A-Z0-9]+$/, 'Format: XX-00XXX  e.g. JD-96ABF'),
+  // Permissive on purpose: this dialog is also the escape hatch for replacing a
+  // locally minted ID with the real external one once a person turns up in the
+  // external database, so it must accept both namespaces.
+  icgId: z.string().min(1, "ICG-ID is required").regex(ICG_ID_RE, ICG_ID_FORMAT_HINT),
 });
 export type IcgIdChangeInput = z.infer<typeof icgIdChangeSchema>;
 

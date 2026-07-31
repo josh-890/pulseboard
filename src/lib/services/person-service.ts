@@ -54,6 +54,7 @@ export function ethnicityBroadFromFilterValue(v: string): string {
   return idx >= 0 ? v.slice(0, idx).trim() : v.trim();
 }
 import { expandRegionFilter } from "@/lib/constants/body-regions";
+import { ICG_LOCAL_MARKER, type IcgIdOrigin } from "@/lib/icg-id";
 import type { CreatePersonInput, UpdatePersonInput } from "@/lib/validations/person";
 import { batchComputeCompleteness } from "@/lib/services/completeness-service";
 import { refreshStatusesForIcgId } from "@/lib/services/import/participant-status-service";
@@ -130,6 +131,9 @@ export type PersonFilters = {
   // exactly that many stars. The sentinel string "unrated" selects
   // Persons with rating IS NULL. Empty array (or undefined) = no filter.
   ratings?: (number | "unrated")[];
+  // ADR-0026: which ICG-ID namespace a person's key belongs to. "self" =
+  // minted here because they are absent from the external database.
+  idOrigin?: IcgIdOrigin;
   sort?: PersonSort;
   completeness?: "low" | "medium" | "high";
   birthdateFrom?: Date;
@@ -137,6 +141,18 @@ export type PersonFilters = {
   createdFrom?: Date;
   createdTo?: Date;
 };
+
+/**
+ * ADR-0026: origin is read straight off the ID — a locally minted one carries
+ * the reserved marker, an external one provably cannot. Deriving it beats a
+ * stored column, which would have to be kept in step every time an ICG-ID is
+ * corrected. Returns null for "no filter".
+ */
+function idOriginWhere(idOrigin: IcgIdOrigin | undefined): Prisma.PersonWhereInput | null {
+  if (idOrigin === "self") return { icgId: { contains: ICG_LOCAL_MARKER } };
+  if (idOrigin === "external") return { icgId: { not: { contains: ICG_LOCAL_MARKER } } };
+  return null;
+}
 
 export async function getPersons(filters: PersonFilters = {}): Promise<PersonWithCommonAlias[]> {
   const { q, status, naturalHairColor, bodyType, ethnicity } = filters;
@@ -154,6 +170,8 @@ export async function getPersons(filters: PersonFilters = {}): Promise<PersonWit
   if (filters.favorite) {
     where.isFavorite = true;
   }
+
+  Object.assign(where, idOriginWhere(filters.idOrigin) ?? {});
 
   const currentStateWhere: Prisma.PersonCurrentStateWhereInput = {};
   if (naturalHairColor) {
@@ -2116,6 +2134,8 @@ export async function getPersonsPaginated(
     where.isFavorite = true;
   }
 
+  Object.assign(where, idOriginWhere(filters.idOrigin) ?? {});
+
   // Multi-select rating filter. Buckets: 1..5 (exact match) + "unrated"
   // (IS NULL). Translates to `rating IN (...) OR rating IS NULL`
   // depending on which sentinels are selected.
@@ -2413,13 +2433,16 @@ export type PersonFacetCounts = {
   // (per the facet-counts pattern: each facet excludes its own selection
   // so the user always sees what they'd get if they added/removed a bucket).
   rating: Record<string, number>;
+  // ADR-0026: keyed "external" / "self".
+  idOrigin: Record<string, number>;
 };
 
 export async function getPersonFacetCounts(filters: Omit<PersonFilters, "sort" | "bodyRegions" | "bodyRegionMatch" | "completeness">): Promise<PersonFacetCounts> {
-  function buildBase(overrides: Partial<Pick<PersonFilters, "status" | "naturalHairColor" | "bodyType" | "ethnicity" | "ratings">> = {}): Prisma.PersonWhereInput {
+  function buildBase(overrides: Partial<Pick<PersonFilters, "status" | "naturalHairColor" | "bodyType" | "ethnicity" | "ratings" | "idOrigin">> = {}): Prisma.PersonWhereInput {
     const merged = { ...filters, ...overrides };
     const w: Prisma.PersonWhereInput = {};
     if (merged.status && merged.status !== "all") w.status = merged.status;
+    Object.assign(w, idOriginWhere(merged.idOrigin) ?? {});
     const cs: Prisma.PersonCurrentStateWhereInput = {};
     if (merged.naturalHairColor) cs.currentHairColor = { equals: merged.naturalHairColor, mode: "insensitive" };
     if (merged.bodyType) cs.currentBuild = { equals: merged.bodyType, mode: "insensitive" };
@@ -2464,7 +2487,11 @@ export async function getPersonFacetCounts(filters: Omit<PersonFilters, "sort" |
   // Slice 16C T2: ethnicity facet counts by broad value via ScalarDelta on
   // 'cattr-ethnicity-broad'. The Era→Person join carries the other filters
   // through the existing buildBase() Prisma where on the underlying Person.
-  const [statusGroups, hairGroups, bodyTypeGroups, ethnicityRows, ratingGroups] = await Promise.all([
+  // ADR-0026: origin is a string predicate rather than a column, so it can't be
+  // grouped — two counts under the other filters, per the facet-count pattern
+  // where each facet ignores its own selection.
+  const originBase = buildBase({ idOrigin: undefined });
+  const [statusGroups, hairGroups, bodyTypeGroups, ethnicityRows, ratingGroups, selfAssignedCount, externalCount] = await Promise.all([
     prisma.person.groupBy({ by: ["status"], where: buildBase({ status: undefined }), _count: { _all: true } }),
     prisma.personCurrentState.groupBy({ by: ["currentHairColor"], where: { person: buildBase({ naturalHairColor: undefined }) }, _count: { _all: true } }),
     prisma.personCurrentState.groupBy({ by: ["currentBuild"], where: { person: buildBase({ bodyType: undefined }) }, _count: { _all: true } }),
@@ -2478,6 +2505,8 @@ export async function getPersonFacetCounts(filters: Omit<PersonFilters, "sort" |
       _count: { _all: true },
     }),
     prisma.person.groupBy({ by: ["rating"], where: buildBase({ ratings: undefined }), _count: { _all: true } }),
+    prisma.person.count({ where: { ...originBase, ...idOriginWhere("self") } }),
+    prisma.person.count({ where: { ...originBase, ...idOriginWhere("external") } }),
   ]);
 
   return {
@@ -2488,5 +2517,6 @@ export async function getPersonFacetCounts(filters: Omit<PersonFilters, "sort" |
     rating: Object.fromEntries(
       ratingGroups.map((r) => [r.rating === null ? "unrated" : String(r.rating), r._count._all]),
     ),
+    idOrigin: { self: selfAssignedCount, external: externalCount },
   };
 }

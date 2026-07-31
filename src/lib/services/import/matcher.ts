@@ -12,6 +12,8 @@ import type {
   ParsedSet,
 } from './parser'
 import { normaliseDigitalIdentityKey, deriveHandleFromUrl } from './diff'
+import { normalizeForSearch } from '@/lib/normalize'
+import { ICG_LOCAL_MARKER } from '@/lib/icg-id'
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -45,7 +47,41 @@ function normalizeForMatch(name: string): string {
 
 // ─── Person Matching ────────────────────────────────────────────────────────
 
-export async function matchPerson(icgId: string, _name: string): Promise<PersonMatchResult> {
+/**
+ * ADR-0026: a person minted a local ICG-ID (because they were absent from the
+ * external database) will not match when they later turn up in an import
+ * carrying their real external ID — the two IDs differ, and matching is
+ * exact-only. Left alone that silently creates a duplicate. So on a miss we
+ * look for a same-named person holding a self-assigned ID and surface it as a
+ * *hint*.
+ *
+ * A hint is never a match: the caller still gets `matchedEntityId: null`, so
+ * `importPerson`'s auto-merge is untouched and the operator resolves it by
+ * swapping in the real ID via the change-ICG-ID dialog. Name equality is far
+ * too weak to merge on — that is exactly the mistake the removed fuzzy tier
+ * made — but it is strong enough to point at.
+ */
+async function findSelfAssignedNamesake(name: string): Promise<string | null> {
+  // normalizeForSearch, not the local normalizeForMatch: this compares against
+  // the stored PersonAlias.nameNorm column, so it must use the same function
+  // that wrote it.
+  const nameNorm = normalizeForSearch(name)
+  if (!nameNorm) return null
+
+  const candidate = await prisma.person.findFirst({
+    where: {
+      icgId: { contains: ICG_LOCAL_MARKER },
+      aliases: { some: { isCommon: true, nameNorm } },
+    },
+    select: { icgId: true, aliases: { where: { isCommon: true }, select: { name: true }, take: 1 } },
+  })
+  if (!candidate) return null
+
+  const displayName = candidate.aliases[0]?.name ?? name
+  return `Possible match: ${displayName} (${candidate.icgId}) — self-assigned ID, not a match. Correct their ICG-ID first if this is the same person.`
+}
+
+export async function matchPerson(icgId: string, name: string): Promise<PersonMatchResult> {
   // ICG-ID is the canonical person identifier — exact match only.
   // The previous tier 2 (fuzzy name match via pg_trgm >0.6) was removed
   // 2026-05-26: it silently merged different real people whose names
@@ -75,8 +111,13 @@ export async function matchPerson(icgId: string, _name: string): Promise<PersonM
 
   // No fallback. Different ICG-ID = different person. If the user truly
   // wants to merge two records, that's a manual merge action, not an
-  // auto-decision at import time.
-  return { matchedEntityId: null, matchConfidence: null, matchDetails: null }
+  // auto-decision at import time. The hint below is advisory only — it leaves
+  // matchedEntityId null, so nothing downstream treats it as a match.
+  return {
+    matchedEntityId: null,
+    matchConfidence: null,
+    matchDetails: await findSelfAssignedNamesake(name),
+  }
 }
 
 // ─── Channel Matching ───────────────────────────────────────────────────────

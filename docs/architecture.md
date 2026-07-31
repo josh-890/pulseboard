@@ -46,7 +46,7 @@ Media path:
 | Route | Services Called | Key Components |
 |-------|----------------|----------------|
 | `/` | `getDashboardStats()`, `getRecentActivities()` | `KpiGrid`, `DashboardActivity`, `QuickActions` |
-| `/people` | `getPersonsPaginated()`, `getHeadshotsForPersons()`, `getDistinct*()`, `countActiveContacts()` | `PersonList`, `BrowserToolbar`, `AddPersonSheet`, header **Contacts** link (count badge). `StatusFilter` carries a `watching=true` toggle (orthogonal to `status`) → `PersonFilters.watching` |
+| `/people` | `getPersonsPaginated()`, `getHeadshotsForPersons()`, `getDistinct*()`, `countActiveContacts()` | `PersonList`, `BrowserToolbar`, `AddPersonSheet`, header **Contacts** link (count badge). `StatusFilter` carries a `watching=true` toggle (orthogonal to `status`) → `PersonFilters.watching`. An **ICG-ID** pill (`?idOrigin=external\|self`) → `PersonFilters.idOrigin`, a string predicate on the reserved marker (ADR-0026) with facet counts from `getPersonFacetCounts` |
 | `/people/contacts` | `getContacts()` (`relationship-service`) | `ContactsWorkspace` + `BrowserToolbar`. The "ghost" register (ADR-0022): rows are `Contact`s with claim/relationship counts; actions **Add as Person** (`addPersonFromContactAction` → auto-reconcile by ICG-ID), **Link…** (`linkContactAction` → manual reconcile), **Ignore** (`ignoreContactAction`). Sort `count`/`name`, `ignored` toggle |
 | `/watchlist` | `getWatchlist()` | `WatchlistClient` — watched persons (needs-rescan → worst-due → priority → oldest-scan sort) with the claimed−recorded gap, due/overdue badges, needs-rescan flag, per-page scan selection (expand row), Mark-checked (`markPersonChecked`), and a sticky **Generate scan files** bar → `POST /api/scan-round/export` |
 | `/settings/scanning` | `getAllScrapeSources()`, `getScanCadenceDays()` | `ScanSettingsClient` — scrape-source registry editor (scannable, fileName, lineFormat, domains) + per-priority scan cadence |
@@ -155,7 +155,7 @@ All import services in `src/lib/services/import/`.
 
 **`parser.ts`** — Pure function: raw file text → `ParsedImportData` (person profile, digital identities, channel appearances, sets with co-model references, co-model directory). Handles edge cases (PowerShell artifacts, em-dash nulls, duplicate detection).
 
-**`matcher.ts`** — Tiered DB matching: exact ID → fuzzy name (pg_trgm). Functions: `matchPerson`, `matchChannel`, `matchLabel`, `matchSet`, `matchAllEntities`. Returns confidence scores (0.0–1.0).
+**`matcher.ts`** — Tiered DB matching: exact ID → fuzzy name (pg_trgm), **except for persons**. Functions: `matchPerson`, `matchChannel`, `matchLabel`, `matchSet`, `matchAllEntities`. Returns confidence scores (0.0–1.0). `matchPerson` is **exact-ICG-ID only** — the fuzzy tier was removed 2026-05-26 after it silently merged different people with similar names. On a miss it runs `findSelfAssignedNamesake` (ADR-0026) and reports a same-named self-assigned-ID person through `matchDetails` while leaving `matchedEntityId` null: an advisory pointer, never a match. `ImportItemDetail` renders `matchDetails` amber when nothing matched, green when it did.
 
 **`staging-service.ts`** — Batch lifecycle: `createBatch` (parse + match + stage), `refreshBatchMatches` (re-run on every page load), `computeDependencies` (block/unblock items), `getAllBatches`, `updateItemStatus`, `markItemImported`. Creates StagingSet records during batch creation with re-import dedup (skips existing by externalId + subjectIcgId). **Completeness** is measured over reviewable item types only (`REVIEWABLE_ITEM_TYPES`) — sets/co-models/credits (`AUTO_FLOW_ITEM_TYPES`) are auto-processed at upload and surfaced as info chips, never gating "Done"; `deriveBatchState` (pure, unit-tested) + `summarizeBatch` produce the enriched `ImportBatchSummary`. **`getImportInbox({ q, sort, doneOffset })`** groups batches per person (by `subjectIcgId`; latest = representative, older = `history` chain) into a `needsReview` head + name/recent-sorted paginated `done` tail; `getImportDonePage` backs `loadMoreImportInboxAction`. **`getImportHistoryForPerson(personId)`** returns a person's import provenance (re-import chain via `subjectIcgId` + `importDeclines`/`deletionTombstones`) for the Research tab's Import History card (`PersonImportHistory`).
 
@@ -192,7 +192,7 @@ All import services in `src/lib/services/import/`.
 **`activity-service.ts`** — Activity feed queries
 **`setting-service.ts`** — App settings (profile image labels, skill level configs)
 **`cascade-helpers.ts`** — Transaction-based cascade delete helpers (`TxClient` type)
-**`database-maintenance-service.ts`** — Orphan cleanup, duplicate detection, view refresh
+**`database-maintenance-service.ts`** — Orphan cleanup, duplicate detection, view refresh, `auditIcgIdOrigins()` (ADR-0026 — read-only: external/self split, IDs matching neither shape, contacts carrying the reserved marker)
 
 ---
 
@@ -226,7 +226,7 @@ All actions in `src/lib/actions/`. Each validates input with Zod, calls services
 | `label-actions.ts`, `network-actions.ts`, `channel-actions.ts`, `project-actions.ts` | Entity CRUD |
 | `import-actions.ts` | `getImportBatchesAction`, `deleteImportBatchAction`, `updateImportItemStatusAction`, `importSingleItemAction`, `refreshBatchMatchesAction` |
 | `archive-actions.ts` | `recordArchivePathAction`, `clearArchivePathAction`, `confirmArchiveFolderLinkAction` (generates archiveKey, revalidates `/archive`+`/import`+`/sets`), `rejectArchiveSuggestionAction` (revalidates same), `getArchiveItemsAction`, `createStagingSetFromOrphanAction`, `reparseFolderNamesAction`, `deleteArchiveFolderAction`, `toggleMediaQueueAction`, `updateMediaPriorityAction` |
-| `database-maintenance-actions.ts` | Orphan/duplicate cleanup, view refresh |
+| `database-maintenance-actions.ts` | Orphan/duplicate cleanup, view refresh, `auditIcgIdOriginsAction` |
 
 ---
 
@@ -446,7 +446,7 @@ MediaItem ──┬── PersonMediaLink[] (usage: PROFILE/HEADSHOT/DETAIL/PORT
 - **ArchiveFolder**: `archiveKey` (**required**, unique, `@default(uuid())`) — stable folder identity UUID generated at first scan time; independent of Set/StagingSet link status; enables sidecar-based lookup for cross-drive folder move detection; `suggestedConfidence` (`'HIGH'` | `'MEDIUM'` | null) — set by `runMatchingPass`
 - **ImportBatch**: `subjectIcgId`, `rawContent`, `status` (PARSING→REVIEW→IMPORTING→COMPLETED), `previousBatchId` (self-relation for versioning)
 - **ImportItem**: `type` (PERSON/PERSON_ALIAS/DIGITAL_IDENTITY/CHANNEL/LABEL/SET/CO_MODEL/CREDIT), `status` (NEW/MATCHED/PROBABLE/BLOCKED/IMPORTED/SKIPPED/FAILED), `data` (JSON), `editedData` (JSON), `dependsOn` (String[]), `matchedEntityId`, `matchConfidence`
-- **Person**: `icgId` (unique, mandatory), `status` (active/inactive/wishlist/archived), `rating`, `pgrade`
+- **Person**: `icgId` (unique, mandatory), `status` (active/inactive/wishlist/archived), `rating`, `pgrade`. ADR-0026: `icgId` is either **external** (mirrors the outside database) or **self-assigned** (minted here, marked by a reserved `@`). There is no origin column — it is derived from the ID, so replacing a minted ID with a real one via `updatePersonIcgId` reclassifies the person for free
 - **PersonAlias**: `type` (common/birth/alias), `nameNorm` for search. One `common` alias = display name
 - **Era**: `isBaseline` (one per person, **dateless** — see ADR-0001), `isDraft` (auto-created via `findOrCreateEraForDate`; cleared by `updateEra` on any edit), `date` + `datePrecision` + `dateModifier` for non-baseline
 - **ScalarDelta**: one row per attribute change, filed into an Era; has `attributeDefinitionId` + `value` + own `date`/`datePrecision`/`dateModifier`. Folded into `PersonCurrentState` via `app_recompute_person_current_state` SQL function (mirrors TS `foldScalarDeltas`)
@@ -527,16 +527,26 @@ All searchable entities have `nameNorm`/`titleNorm` fields with `pg_trgm` trigra
 
 19. **Undated drawer (ADR-0006, Slice 9)** — The dateless draft Era (one per person, `date IS NULL && isDraft`) renders as an **"Undated changes"** card with soft-amber treatment. Each member delta gets an inline `Set date` affordance opening `ScalarDeltaInlineEditor` — a per-delta mini-form with value + 3-way intent radio + date + cause (if status-bearing). Saving via `editScalarDeltaAction` re-clusters the delta into a dated draft per Slice 8's routing.
 
+20. **`@` is reserved in ICG-IDs (ADR-0026)** — An ICG-ID is either **external** (mirrors the outside database, `[A-Z0-9]` only) or **self-assigned** (minted here, marked by `@` at a fixed offset). The two namespaces are disjoint *by enforcement*: `createPersonSchema.superRefine` rejects the marker on an ID entered as external, and `createStagingSetsForBatch` validates harvested participant IDs against `ICG_ID_EXTERNAL_RE` before creating a `Contact`. That disjointness is the whole guarantee — no ID the external database can issue in future can collide with a minted one. Origin is **derived** from the string (`isSelfAssignedIcgId`), never stored, so an ID correction reclassifies a person for free. Minting is server-side, probed against **both** `Person.icgId` and `Contact.icgId`, and mints once — never re-derived from a later-learned name or birth year.
+
 ---
 
 ## 10. Data Flow Examples
 
 ### Creating a Person
 ```
-AddPersonSheet (form submit)
+AddPersonSheet
+  → PersonForm: idOrigin = "self" (default) → name blur
+      → mintIcgIdAction(name, birthdate)   [ADR-0026]
+      → icgIdPrefix + random suffix, probed against Person.icgId AND
+        Contact.icgId, up to 8 attempts
+      (idOrigin = "external" → user types the ID; the marker is rejected)
+  → form submit
   → createPerson(raw) server action
-  → createPersonSchema.safeParse(raw)
+  → createPersonSchema.safeParse(raw)   (superRefine enforces the per-namespace shape)
   → createPersonRecord(data) service
+     ↳ P2002 + idOrigin="self" → re-mint once and retry (lost probe race);
+       P2002 on a typed ID → field error
   → Creates Person + common alias + baseline Era (dateless) + Reference Session
   → revalidatePath("/people")
   → Returns { success: true, id }
@@ -619,6 +629,15 @@ External scan script visits a folder on a different drive than before:
 - `computeAge()`, `computeAgeFromPartialDate()`, `computeAgeAtEvent()`
 - `computeAgeWithModifier(birthdate, precision, modifier)` → "~29" (incorporates modifier uncertainty into display)
 - `focalStyle(focalX, focalY)` → `{ objectPosition: "X% Y%" }`
+
+### `lib/icg-id.ts` (ADR-0026)
+The single definition of the ICG-ID shape — replaced three copies of the same regex literal.
+- `ICG_ID_RE` (either namespace) / `ICG_ID_EXTERNAL_RE` (marker rejected) / `ICG_ID_LOCAL_RE` (`XX-NN@RRR`)
+- `ICG_LOCAL_MARKER` = `"@"` — reserved; external IDs provably never contain it, which is what keeps the namespaces disjoint
+- `isSelfAssignedIcgId(icgId)` — origin is **derived from the ID**, never stored
+- `icgIdPrefix(name, birthdate?)` → `"JD-95"` (accent-folded initials + birth-year digits, `00` when unknown)
+- `mintLocalIcgIdCandidate(prefix)` → one unprobed candidate; callers must check uniqueness
+- `ICG_ID_ORIGINS_TUPLE` / `IcgIdOrigin` — the `external | self` discriminator used by `createPersonSchema` and the `/people` filter
 
 ### `lib/media-url.ts`
 - `buildUrl(key)` → MinIO URL from variant key

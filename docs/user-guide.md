@@ -82,6 +82,7 @@ The list page shows all persons as cards with headshot thumbnails, names, ICG-ID
 **Filters:**
 - **Status** — Active, Inactive, Wishlist, Archived
 - **Watching** — a toggle (independent of status) to show only people on your watchlist
+- **ICG-ID** — All / **External** / **Self-assigned**. "Self-assigned" is everyone whose ICG-ID was minted here because they aren't in the external database. Use it to see who still lacks a real external ID; once you replace one via **Change ICG-ID**, they move to "External" automatically.
 - **Profile completeness** — Incomplete / Partial / Complete
 - **Hair Color, Ethnicity, Body Region** — attribute filters
 - **Birthdate / Added** — date range filters
@@ -174,13 +175,24 @@ Click **"Add Person"** to open the creation form:
 
 | Field | Required | Notes |
 |-------|----------|-------|
-| ICG-ID | Yes | Unique identifier (e.g. `AB-12CDE`) |
+| ICG-ID | Yes | See **ICG-ID: external vs self-assigned** below |
 | Display Name | Yes | Common alias used throughout the app |
 | Status | Yes | Active, Inactive, Wishlist, or Archived |
 | Sex at Birth | No | |
 | Birthdate | No | With precision (Unknown/Year/Month/Day), modifier, and source |
 | Birth Place | No | |
 | Natural Hair Color | No | |
+
+#### ICG-ID: external vs self-assigned
+
+The ICG-ID is the key everything else hangs off — imports, staged sets and the Contacts register all match on it exactly. Above the field you choose which kind you're entering:
+
+- **Not in external DB** (the default). Type the display name, click away, and an ID is minted for you — checked against every person *and* every uncurated contact before it's offered. It looks like `JD-95@K7R`: the **`@` marks it as self-assigned**. Press the ↻ button for a different one. The field is read-only in this mode.
+- **Has an external ICG-ID**. Copy the ID from the external database exactly, e.g. `CX-82HO`. The `@` character is **rejected** here — it's reserved, which is what guarantees a minted ID can never clash with one the external database issues later.
+
+The ID is minted from what you know at the time and is never recalculated, so a `00` in the year position stays `00` even after you fill in the birthdate later. That's expected — don't try to read a birth year out of an existing ID.
+
+**When they later turn up in the external database:** open the person, **Edit → Change ICG-ID**, and paste the real ID. Everything that references the old one (staged sets, import batches) is updated with it, and the person moves out of the "Self-assigned" filter on its own.
 
 ### Person Detail
 
@@ -978,7 +990,7 @@ The workspace has a split-panel layout:
 
 Matching runs automatically on every page load (dynamic sync). If you create an entity in the regular app, refreshing the import page will detect it.
 
-- **Person/Co-Model**: Exact ICG-ID match, then fuzzy name via trigram similarity (>0.6)
+- **Person/Co-Model**: **Exact ICG-ID only** — a different ICG-ID means a different person. There is no name fallback; the trigram tier was removed after it silently merged different people whose names looked alike. When nothing matches, an unmatched person is shown in **amber** with a *possible match* note if someone with a self-assigned ICG-ID shares the name — that's a pointer, not a match. Fix it by correcting that person's ICG-ID (Edit → Change ICG-ID) and refreshing, not by importing over them.
 - **Channel**: Exact normalized name, then trigram (>0.7)
 - **Set**: Exact external ID, then title + channel + date (within 30 days), then title-only (>0.8)
 - **Label**: Exact normalized name only
@@ -1392,7 +1404,7 @@ The default reflects history: a fresh person opens with **baseline** preselected
 ### Documenting a New Person
 
 1. Go to `/people` and click **"Add Person"**
-2. Fill in ICG-ID, display name, and status
+2. Fill in the display name and status. If they're in the external database, switch the ICG-ID to **"Has an external ICG-ID"** and paste it; otherwise leave the default and one is minted for you
 3. After creation, click the **"Reference Media"** card on the person detail page
 4. Upload reference photos via the batch upload zone
 5. Use the **Profile Manager** to set the Headshot framing (Standardize or Link) → its representative becomes the avatar

@@ -24,11 +24,14 @@ test.describe("People CRUD", () => {
     // Sheet opens
     await expect(page.getByRole("dialog")).toBeVisible();
 
-    // Fill in fields
+    // ADR-0026: the default mode is "Not in external DB", so the ICG-ID is
+    // minted server-side once the display name loses focus.
     const ts = Date.now();
     const name = `Test Person ${ts}`;
-    await page.getByLabel("ICG-ID").fill(`TS-${String(ts).slice(-5)}A`);
+    const icgIdField = page.getByLabel("ICG-ID");
     await page.getByLabel("Display Name").fill(name);
+    await icgIdField.click(); // blur the name field
+    await expect(icgIdField).toHaveValue(/^[A-Z]{2}-[0-9]{2}@[A-Z0-9]{3}$/);
 
     await page.getByRole("button", { name: /create person/i }).click();
 
@@ -37,6 +40,28 @@ test.describe("People CRUD", () => {
     // Navigate to list and confirm person appears
     await page.goto("/people");
     await expect(page.getByText(name, { exact: false })).toBeVisible();
+  });
+
+  test("create person with an external ICG-ID rejects the reserved marker", async ({ page }) => {
+    await page.goto("/people");
+    await page.getByRole("button", { name: /add person/i }).click();
+    await expect(page.getByRole("dialog")).toBeVisible();
+
+    const ts = Date.now();
+    const name = `Test External ${ts}`;
+    await page.getByLabel("Display Name").fill(name);
+    await page.getByRole("radio", { name: "Has an external ICG-ID" }).click();
+
+    const icgIdField = page.getByLabel("ICG-ID");
+    // '@' is reserved for self-assigned IDs — an external one must be refused.
+    await icgIdField.fill("AB-12@XY");
+    await page.getByRole("button", { name: /create person/i }).click();
+    await expect(page.getByText(/reserved for self-assigned/i)).toBeVisible();
+
+    // The same ID without the marker is accepted.
+    await icgIdField.fill(`TS-${String(ts).slice(-5)}A`);
+    await page.getByRole("button", { name: /create person/i }).click();
+    await waitForToast(page, "Person created");
   });
 
   test("detail page has Edit + Delete buttons", async ({ page }) => {

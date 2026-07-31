@@ -12,6 +12,7 @@ import { rebuildAllCurrentState, verifyCurrentStateIntegrity } from "@/lib/servi
 import { normalizeForSearch } from "@/lib/normalize";
 import { refreshAllParticipantStatuses } from "@/lib/services/import/participant-status-service";
 import { resolveNationalityToIoc } from "@/lib/constants/countries";
+import { ICG_ID_EXTERNAL_RE, ICG_ID_LOCAL_RE, isSelfAssignedIcgId } from "@/lib/icg-id";
 
 export type MaintenanceResult = {
   found: number;
@@ -438,6 +439,60 @@ export async function checkCurrentStateIntegrity(): Promise<MaintenanceResult> {
             ...mismatches.slice(0, 20).map((id) => `drifted: ${id}`),
           ],
   };
+}
+
+/**
+ * ADR-0026 audit. Read-only — reports, never rewrites. Every finding needs a
+ * human decision: whether an odd-shaped ID is a typo or a legacy value worth
+ * keeping is not something a script can judge, and rewriting an ICG-ID has to
+ * go through updatePersonIcgId so the ImportBatch/StagingSet cascades run.
+ */
+export async function auditIcgIdOrigins(): Promise<MaintenanceResult> {
+  const [persons, contacts] = await Promise.all([
+    prisma.person.findMany({
+      select: { icgId: true, aliases: { where: { isCommon: true }, select: { name: true }, take: 1 } },
+    }),
+    prisma.contact.findMany({
+      where: { icgId: { not: null } },
+      select: { icgId: true, name: true },
+    }),
+  ]);
+
+  const details: string[] = [];
+  const selfAssigned = persons.filter((p) => isSelfAssignedIcgId(p.icgId));
+  details.push(
+    `${persons.length} person(s): ${persons.length - selfAssigned.length} external, ${selfAssigned.length} self-assigned.`,
+  );
+
+  const isWellFormed = (icgId: string) =>
+    ICG_ID_EXTERNAL_RE.test(icgId) || ICG_ID_LOCAL_RE.test(icgId);
+
+  // Malformed = matches neither namespace. Catches the marker at a wrong
+  // offset, and the HTML-polluted values the import parser can let through
+  // (it captures whatever sits in the filename parentheses, unvalidated).
+  const malformedPersons = persons.filter((p) => !isWellFormed(p.icgId));
+  const malformedContacts = contacts.filter((c) => c.icgId && !isWellFormed(c.icgId));
+
+  // A contact is a person harvested from an external source, so one carrying
+  // the reserved local marker means the convention has been violated upstream.
+  const markedContacts = contacts.filter((c) => c.icgId && isSelfAssignedIcgId(c.icgId));
+
+  for (const p of malformedPersons) {
+    details.push(`malformed person ICG-ID: ${p.icgId} (${p.aliases[0]?.name ?? "no common alias"})`);
+  }
+  for (const c of markedContacts) {
+    details.push(`contact carries the reserved '@' marker: ${c.icgId} (${c.name})`);
+  }
+  for (const c of malformedContacts) {
+    if (markedContacts.includes(c)) continue; // already reported above
+    details.push(`malformed contact ICG-ID: ${c.icgId} (${c.name})`);
+  }
+
+  const found = malformedPersons.length + malformedContacts.length + markedContacts.length;
+  if (found === 0) details.push("All ICG-IDs match either the external or the self-assigned shape.");
+  else details.push("Nothing was changed — correct a person's ICG-ID via the Change ICG-ID dialog.");
+
+  return { found, fixed: 0, details };
 }
 
 type ParticipantEntry = { name: string; icgId: string; url?: string };

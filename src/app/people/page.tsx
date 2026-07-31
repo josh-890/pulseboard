@@ -15,6 +15,7 @@ import { getAllPhysicalAttributeGroups } from "@/lib/services/physical-attribute
 import { getProfileCategories } from "@/lib/services/category-service";
 import { countActiveContacts } from "@/lib/services/relationship-service";
 import type { PersonStatus } from "@/lib/types";
+import { ICG_ID_ORIGINS, type IcgIdOrigin } from "@/lib/icg-id";
 import { PersonList } from "@/components/people/person-list";
 import { BrowserToolbar } from "@/components/shared/browser-toolbar";
 import type { BrowserToolbarConfig, FilterGroup } from "@/components/shared/browser-toolbar";
@@ -43,6 +44,7 @@ type PeoplePageProps = {
     status?: string;
     watching?: string;
     favorite?: string;
+    idOrigin?: string;
     hairColor?: string;
     bodyType?: string;
     ethnicity?: string;
@@ -89,6 +91,10 @@ function isPersonSort(value: string): value is PersonSort {
   return VALID_SORTS.has(value);
 }
 
+function isIcgIdOrigin(value: string | undefined): value is IcgIdOrigin {
+  return value != null && (ICG_ID_ORIGINS as readonly string[]).includes(value);
+}
+
 const SORT_OPTIONS = [
   { value: "name-asc", label: "Name A→Z" },
   { value: "name-desc", label: "Name Z→A" },
@@ -116,7 +122,8 @@ export default async function PeoplePage({ searchParams }: PeoplePageProps) {
       return <PeopleSearchPage searchParams={raw as Record<string, string>} />;
     }
     const {
-      q, status, watching: watchingParam, favorite: favoriteParam, hairColor, bodyType, ethnicity, bodyRegions: bodyRegionsParam,
+      q, status, watching: watchingParam, favorite: favoriteParam, idOrigin: idOriginParam,
+      hairColor, bodyType, ethnicity, bodyRegions: bodyRegionsParam,
       bodyRegionMatch: bodyRegionMatchParam, loaded,
       slot: slotParam, sort: sortParam, completeness: completenessParam,
       birthdateFrom: birthdateFromParam, birthdateTo: birthdateToParam,
@@ -142,6 +149,7 @@ export default async function PeoplePage({ searchParams }: PeoplePageProps) {
     completenessParam && VALID_COMPLETENESS.has(completenessParam)
       ? (completenessParam as "low" | "medium" | "high")
       : undefined;
+  const resolvedIdOrigin = isIcgIdOrigin(idOriginParam) ? idOriginParam : undefined;
   const birthdateFrom = parseDate(birthdateFromParam);
   const birthdateTo = parseDate(birthdateToParam);
   const createdFrom = parseDate(createdFromParam);
@@ -158,6 +166,7 @@ export default async function PeoplePage({ searchParams }: PeoplePageProps) {
     status: resolvedStatus ?? ("all" as const),
     watching: watchingParam === "true" || undefined,
     favorite: favoriteParam === "true" || undefined,
+    idOrigin: resolvedIdOrigin,
     naturalHairColor: hairColor || undefined,
     bodyType: bodyType || undefined,
     ethnicity: ethnicity || undefined,
@@ -228,6 +237,19 @@ export default async function PeoplePage({ searchParams }: PeoplePageProps) {
     type: "toggle",
     param: "favorite",
     label: "Favorite",
+  });
+
+  // ADR-0026: "Self-assigned" = the person is absent from the external
+  // database, so their ICG-ID was minted here. Derived from the ID itself.
+  filterGroups.push({
+    type: "pill",
+    param: "idOrigin",
+    label: "ICG-ID",
+    options: [
+      { value: "all", label: "All" },
+      { value: "external", label: "External", count: facetCounts.idOrigin["external"] },
+      { value: "self", label: "Self-assigned", count: facetCounts.idOrigin["self"] },
+    ],
   });
 
   filterGroups.push({

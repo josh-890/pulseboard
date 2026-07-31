@@ -55,7 +55,8 @@ export function AddPersonSheet({ attributeGroups }: AddPersonSheetProps = {}) {
         <SheetHeader className="border-b pb-4 px-4">
           <SheetTitle className="text-lg font-semibold">Add Person</SheetTitle>
           <SheetDescription className="text-xs text-muted-foreground">
-            Only Display Name is required. ICG-ID is auto-generated.
+            Only Display Name is required. Not in the external database? An
+            ICG-ID is minted for you.
           </SheetDescription>
         </SheetHeader>
 

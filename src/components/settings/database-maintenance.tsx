@@ -17,6 +17,7 @@ import {
   Flag,
   Database,
   ShieldCheck,
+  Fingerprint,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -30,6 +31,7 @@ import {
   fixImportedNationalityCodesAction,
   rebuildCurrentStateCacheAction,
   checkCurrentStateIntegrityAction,
+  auditIcgIdOriginsAction,
 } from "@/lib/actions/database-maintenance-actions";
 
 type ActionResult = {
@@ -118,6 +120,13 @@ const actions: ActionConfig[] = [
     icon: <Users className="h-5 w-5 text-muted-foreground" />,
     action: reconcileStagingSetParticipantsAction,
   },
+  {
+    title: "ICG-ID Origins",
+    description:
+      "Report how many people carry an external ICG-ID versus one self-assigned here (marked by '@'), and flag any ICG-ID matching neither shape — a marker in the wrong position, or an import-polluted value. Also flags contacts carrying the reserved marker, which should be impossible. Read-only: fix anything it finds via the Change ICG-ID dialog so the staging cascades run.",
+    icon: <Fingerprint className="h-5 w-5 text-muted-foreground" />,
+    action: auditIcgIdOriginsAction,
+  },
 ];
 
 function ActionCard({ config }: { config: ActionConfig }) {
@@ -172,6 +181,22 @@ function ActionCard({ config }: { config: ActionConfig }) {
             <div className="rounded-lg bg-green-500/10 px-3 py-2 text-sm text-green-400">
               <CheckCircle2 className="mr-1.5 inline-block h-4 w-4" />
               No issues found
+              {/* Read-only audits (e.g. ICG-ID Origins) report their findings in
+                  `details` even when nothing is wrong — the split IS the output,
+                  so it must stay reachable on a clean run. */}
+              {result.details && result.details.length > 0 && (
+                <button
+                  onClick={() => setExpanded(!expanded)}
+                  className="ml-2 inline-flex items-center text-xs underline underline-offset-2 hover:no-underline"
+                >
+                  {expanded ? (
+                    <ChevronDown className="mr-0.5 h-3 w-3" />
+                  ) : (
+                    <ChevronRight className="mr-0.5 h-3 w-3" />
+                  )}
+                  Details
+                </button>
+              )}
             </div>
           ) : (
             <div className="rounded-lg bg-amber-500/10 px-3 py-2 text-sm text-amber-400">

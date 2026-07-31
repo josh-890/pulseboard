@@ -11,6 +11,14 @@ The real human being. Owns only **core identity fields** that are structurally w
 _Avoid_: model, talent, subject (when the Person entity is meant).
 _Migration in flight_: `Person.eyeColor` and `Person.height` are slated to move off the Person row into the delta spine — they were modeled as static columns historically but conceptually belong in the catalog. The schema still carries them as columns today.
 
+**ICG-ID** (`Person.icgId`, unique + mandatory; also `Contact.icgId`, optional):
+The canonical person key, and the **only** thing the import matcher matches on — exact, never fuzzy. Two kinds share one shape (ADR-0026):
+- **External ICG-ID** (`XX-NN<S>`, e.g. `CX-82HO`) — mirrors an outside database, so it is a free guaranteed-unique join key. Every imported ID is one of these.
+- **Self-assigned ICG-ID** (`XX-NN@RRR`, e.g. `JD-95@K7R`) — minted here for a person **absent from the external database**, marked by a reserved `@`. Because that database only ever emits `[A-Z0-9]`, the two namespaces are provably disjoint: no ID it can issue in future can collide with one minted here.
+
+Prefix = initials of the first two words of the common name (`X` for a missing second word); digits = last two of the birth year, `00` when unknown. Both are **minted once from what was known at first sighting and never re-derived** — `AX-0025` belongs to Anna-Leah (b. 1985) and `CX-00L3` to Katya Clover (renamed since). Origin is read off the ID, never stored, so replacing a minted ID with the real external one moves the person between buckets automatically.
+_Avoid_: "generated ICG-ID" for the self-assigned kind (every ICG-ID is generated somewhere — the distinction is *by whom*); treating `@` as decorative; deriving a birth year from an existing ID (the `00` sentinel persists after the year is learned).
+
 **Era** (code model & DB table: `Era`):
 A **phase** of a Person's development. Eras are **emergent**, not pre-planned — the user records changes first, and Eras are named retrospectively as labels for clusters of related changes ("2019 — went blonde, added sleeve tattoo"). Two states:
 - **Draft** — auto-assigned by the system from incoming deltas (clustered by date proximity). Membership is **non-sticky**: editing a delta's date may re-cluster it into a different draft Era.
