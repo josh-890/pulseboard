@@ -23,7 +23,7 @@ import fs from 'fs'
 import path from 'path'
 import crypto from 'crypto'
 import { createCanvas, loadImage } from '@napi-rs/canvas'
-import { bakeDimensions, computeBakeMatrix, parseTemplateKeypoints } from '../src/lib/image/bake-geometry'
+import { bakeDimensions, computeBakeMatrix, parseTemplateKeypoints, visibleSourceRect } from '../src/lib/image/bake-geometry'
 
 const args = process.argv.slice(2)
 const getArg = (flag: string): string | null => {
@@ -74,7 +74,11 @@ async function bake(origBuffer: Buffer, entry: Entry): Promise<Buffer> {
   ctx.fillStyle = '#ffffff'
   ctx.fillRect(0, 0, bakeW, bakeH)
   ctx.setTransform(m.a, m.b, m.c, m.d, m.e, m.f)
-  ctx.drawImage(img, 0, 0)
+  // Draw only the part of the source that survives the clip. Identical output —
+  // everything outside is discarded anyway — but it stops the renderer resampling
+  // tens of megapixels to produce a few. See visibleSourceRect.
+  const r = visibleSourceRect(m, bakeW, bakeH, img.width, img.height)
+  ctx.drawImage(img, r.x, r.y, r.w, r.h, r.x, r.y, r.w, r.h)
   ctx.setTransform(1, 0, 0, 1, 0, 0)
   return canvas.toBuffer('image/jpeg', JPEG_QUALITY)
 }

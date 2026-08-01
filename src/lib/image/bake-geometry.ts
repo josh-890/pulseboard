@@ -56,3 +56,68 @@ export function computeBakeMatrix(
   if (src.length < 2) return null;
   return computeSimilarityTransform(src, dst).matrix;
 }
+
+export type SourceRect = { x: number; y: number; w: number; h: number };
+
+/**
+ * The sub-rectangle of the source that actually lands inside the bake canvas.
+ *
+ * A bake typically crops hard into a locus, so most of the source is transformed
+ * and then thrown away by the clip. Renderers are not all smart about that: GDI+
+ * with HighQualityBicubic degrades catastrophically when handed a 47-megapixel
+ * source for a 1365x2048 output, to the point of appearing to hang. Restricting
+ * the draw to this rect is exact — everything outside it is clipped anyway — and
+ * on real archive originals cuts the work by 2-14x.
+ *
+ * Derived by mapping the four output corners back through the inverse matrix and
+ * taking the bounding box, padded so edge pixels still have the neighbours the
+ * interpolation kernel samples. Returns the full image when the matrix is
+ * singular or the result would be degenerate.
+ */
+export function visibleSourceRect(
+  m: AffineMatrix,
+  bakeW: number,
+  bakeH: number,
+  srcW: number,
+  srcH: number,
+): SourceRect {
+  const whole: SourceRect = { x: 0, y: 0, w: srcW, h: srcH };
+  const det = m.a * m.d - m.b * m.c;
+  if (!Number.isFinite(det) || det === 0) return whole;
+
+  // Inverse of [a c e; b d f] in canvas convention.
+  const invA = m.d / det;
+  const invB = -m.b / det;
+  const invC = -m.c / det;
+  const invD = m.a / det;
+  const invE = (m.c * m.f - m.d * m.e) / det;
+  const invF = (m.b * m.e - m.a * m.f) / det;
+
+  let x0 = Infinity;
+  let y0 = Infinity;
+  let x1 = -Infinity;
+  let y1 = -Infinity;
+  for (const [X, Y] of [[0, 0], [bakeW, 0], [0, bakeH], [bakeW, bakeH]]) {
+    const x = invA * X + invC * Y + invE;
+    const y = invB * X + invD * Y + invF;
+    x0 = Math.min(x0, x);
+    y0 = Math.min(y0, y);
+    x1 = Math.max(x1, x);
+    y1 = Math.max(y1, y);
+  }
+  if (!Number.isFinite(x0) || !Number.isFinite(y0) || !Number.isFinite(x1) || !Number.isFinite(y1)) return whole;
+
+  // Kernel margin, in SOURCE pixels: when the bake downscales, one output pixel
+  // samples several source pixels, so the padding has to grow accordingly.
+  const scale = Math.hypot(m.a, m.b);
+  const margin = Math.ceil(4 / Math.min(1, scale || 1)) + 4;
+
+  const cx0 = Math.max(0, Math.floor(x0) - margin);
+  const cy0 = Math.max(0, Math.floor(y0) - margin);
+  const cx1 = Math.min(srcW, Math.ceil(x1) + margin);
+  const cy1 = Math.min(srcH, Math.ceil(y1) + margin);
+  const w = cx1 - cx0;
+  const h = cy1 - cy0;
+  if (w <= 0 || h <= 0) return whole;
+  return { x: cx0, y: cy0, w, h };
+}

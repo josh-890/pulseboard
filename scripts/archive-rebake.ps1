@@ -120,6 +120,50 @@ function Get-SimilarityMatrix {
     return @{ a = $a; b = $b; c = $c; d = $d; e = $e; f = $f }
 }
 
+# Ports visibleSourceRect() from src/lib/image/bake-geometry.ts (unit-tested there).
+# The sub-rectangle of the source that actually lands inside the bake canvas: map the
+# four output corners back through the inverse matrix, take the bounding box, pad for
+# the interpolation kernel, clamp. Falls back to the whole image if anything is off.
+function Get-VisibleSourceRect {
+    param($M, [int]$BakeW, [int]$BakeH, [int]$SrcW, [int]$SrcH)
+    $whole = @{ x = 0; y = 0; w = $SrcW; h = $SrcH }
+    $det = $M.a * $M.d - $M.b * $M.c
+    if ($det -eq 0 -or [double]::IsNaN($det) -or [double]::IsInfinity($det)) { return $whole }
+
+    $invA =  $M.d / $det; $invB = -$M.b / $det
+    $invC = -$M.c / $det; $invD =  $M.a / $det
+    $invE = ($M.c * $M.f - $M.d * $M.e) / $det
+    $invF = ($M.b * $M.e - $M.a * $M.f) / $det
+
+    $x0 = [double]::PositiveInfinity; $y0 = [double]::PositiveInfinity
+    $x1 = [double]::NegativeInfinity; $y1 = [double]::NegativeInfinity
+    foreach ($c in @(@(0,0), @($BakeW,0), @(0,$BakeH), @($BakeW,$BakeH))) {
+        $x = $invA * $c[0] + $invC * $c[1] + $invE
+        $y = $invB * $c[0] + $invD * $c[1] + $invF
+        if ($x -lt $x0) { $x0 = $x }; if ($y -lt $y0) { $y0 = $y }
+        if ($x -gt $x1) { $x1 = $x }; if ($y -gt $y1) { $y1 = $y }
+    }
+    foreach ($v in @($x0, $y0, $x1, $y1)) {
+        if ([double]::IsNaN($v) -or [double]::IsInfinity($v)) { return $whole }
+    }
+
+    # Kernel margin in SOURCE pixels: a downscaling bake samples several source
+    # pixels per output pixel, so the padding has to grow accordingly.
+    # Every argument is explicitly [double]: [Math]::Min/Max overload resolution on
+    # mixed int/double arguments is ambiguous in PowerShell.
+    $scale = [Math]::Sqrt($M.a * $M.a + $M.b * $M.b)
+    if ($scale -le 0) { $scale = 1.0 }
+    $margin = [double]([Math]::Ceiling(4.0 / [Math]::Min(1.0, [double]$scale)) + 4.0)
+
+    $cx0 = [int][Math]::Max(0.0, [double]([Math]::Floor($x0) - $margin))
+    $cy0 = [int][Math]::Max(0.0, [double]([Math]::Floor($y0) - $margin))
+    $cx1 = [int][Math]::Min([double]$SrcW, [double]([Math]::Ceiling($x1) + $margin))
+    $cy1 = [int][Math]::Min([double]$SrcH, [double]([Math]::Ceiling($y1) + $margin))
+    $w = $cx1 - $cx0; $h = $cy1 - $cy0
+    if ($w -le 0 -or $h -le 0) { return $whole }
+    return @{ x = $cx0; y = $cy0; w = $w; h = $h }
+}
+
 function Invoke-Bake {
     param($Entry, [System.Drawing.Image]$Img)
     $dims = Get-BakeDimensions $Entry.template.aspectW $Entry.template.aspectH $Entry.template.bakeLongSide
@@ -148,8 +192,16 @@ function Invoke-Bake {
         # DrawImage($img,0,0) instead draws at the image's DPI-based physical size,
         # silently rescaling it (e.g. 96/300) and wrecking the framing — the explicit
         # source-rectangle (in Pixel units) overload avoids that.
-        $destRect = New-Object System.Drawing.Rectangle(0, 0, $Img.Width, $Img.Height)
-        $g.DrawImage($Img, $destRect, 0, 0, $Img.Width, $Img.Height, [System.Drawing.GraphicsUnit]::Pixel)
+        #
+        # Restrict BOTH rects to the region that survives the clip. Passing the whole
+        # image makes GDI+ push every source pixel through HighQualityBicubic before
+        # throwing ~93% of the result away; on a 47-megapixel original that stops
+        # looking like slowness and starts looking like a hang. Source and dest rect
+        # are the same rectangle because source pixels map 1:1 into world space, so
+        # the framing is bit-identical to drawing the whole image.
+        $r = Get-VisibleSourceRect $m $bw $bh $Img.Width $Img.Height
+        $destRect = New-Object System.Drawing.Rectangle($r.x, $r.y, $r.w, $r.h)
+        $g.DrawImage($Img, $destRect, $r.x, $r.y, $r.w, $r.h, [System.Drawing.GraphicsUnit]::Pixel)
         $mtx.Dispose()
 
         $codec = [System.Drawing.Imaging.ImageCodecInfo]::GetImageEncoders() | Where-Object { $_.MimeType -eq 'image/jpeg' } | Select-Object -First 1
