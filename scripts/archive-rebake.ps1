@@ -196,8 +196,16 @@ Write-Host ""
 
 $t = @{ rebaked = 0; would = 0; noGain = 0; missing = 0; mismatch = 0; failed = 0 }
 
+$idx = 0
 foreach ($e in $entries) {
+    $idx++
     $file = Join-Path $e.fullPath $e.filename
+    # Announce BEFORE the expensive part, by default (not under -Verbose). A
+    # 47-megapixel original costs seconds-to-minutes in GDI+ HighQualityBicubic
+    # with no output of its own, which reads as a hang; and if the decode dies or
+    # wedges, this line is the only record of WHICH file did it.
+    Write-Host ("[{0}/{1}] {2}" -f $idx, $entries.Count, $file)
+    $sw = [System.Diagnostics.Stopwatch]::StartNew()
     if (-not (Test-Path -LiteralPath $file -PathType Leaf)) {
         # Not Write-Verbose: MediaItem.filename is frozen at upload time and no scan
         # ever rewrites it, so a file renamed in the archive after upload is missing
@@ -224,17 +232,19 @@ foreach ($e in $entries) {
         # The residual risk is a different photo with the same aspect ratio sitting at
         # the expected name. Aspect alone cannot tell that apart from a re-render —
         # only a perceptual hash could. Left as-is deliberately; see ADR-0017.
-        $hashOk = $false
-        if ($e.sourceHash) { $hashOk = (Get-Sha256Hex $file) -eq $e.sourceHash }
+        # Aspect is checked FIRST because it is free — the dimensions are already
+        # loaded — whereas the hash reads the whole multi-MB file off disk. Since the
+        # test is hash-OR-aspect, an aspect hit means the hash is never needed.
         $srcAspect = [double]$e.sourceWidth / [double]$e.sourceHeight
         $aspectOk = ($srcAspect -gt 0) -and ([Math]::Abs(($img.Width / $img.Height) - $srcAspect) / $srcAspect -le $ASPECT_TOL)
-        if (-not $hashOk -and -not $aspectOk) {
-            $t.mismatch++
-            Write-Warning "MISMATCH $($e.alignedMediaItemId)  <-  $file ($($img.Width)x$($img.Height) vs source $($e.sourceWidth)x$($e.sourceHeight)): neither hash nor aspect matches"
-            continue
-        }
-        if (-not $hashOk) {
-            Write-Verbose "RE-RENDER $file ($($img.Width)x$($img.Height) vs uploaded $($e.sourceWidth)x$($e.sourceHeight)) - same aspect, different encoding"
+        if (-not $aspectOk) {
+            $hashOk = $false
+            if ($e.sourceHash) { $hashOk = (Get-Sha256Hex $file) -eq $e.sourceHash }
+            if (-not $hashOk) {
+                $t.mismatch++
+                Write-Warning "MISMATCH $($e.alignedMediaItemId)  <-  $file ($($img.Width)x$($img.Height) vs source $($e.sourceWidth)x$($e.sourceHeight)): neither hash nor aspect matches"
+                continue
+            }
         }
 
         # The current bake sampled the master_4000 (long side capped at 4000), so a
@@ -276,7 +286,8 @@ foreach ($e in $entries) {
             Invoke-RestMethod -Uri "$BaseUrl/api/archive/rebake/$($e.alignedMediaItemId)" `
                 -Headers $headers -Method Post -InFile $tmpJpg -ContentType 'image/jpeg' | Out-Null
             $t.rebaked++
-            Write-Verbose "OK       $($e.alignedMediaItemId)  <-  $file ($($img.Width)x$($img.Height))"
+            # Timing by default: a pathologically slow original stands out immediately.
+            Write-Host ("         OK  {0}x{1}  {2:n1}s" -f $img.Width, $img.Height, $sw.Elapsed.TotalSeconds)
         } catch {
             $t.failed++
             # Always name the file — the id alone can't be traced back to a path on disk.

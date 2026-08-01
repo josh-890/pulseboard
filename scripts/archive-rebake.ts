@@ -100,8 +100,16 @@ async function processTenant(tenant: string | null): Promise<void> {
 
   const tally = { rebaked: 0, wouldRebake: 0, noGain: 0, missing: 0, mismatch: 0, failed: 0 }
 
+  let idx = 0
   for (const e of entries) {
+    idx++
     const file = path.join(e.fullPath, e.filename)
+    // Announce BEFORE the expensive part, unconditionally. A 47-megapixel original
+    // costs seconds-to-minutes to decode and resample with no output of its own,
+    // which reads as a hang; and if the decode dies, this line is the only record
+    // of WHICH file did it.
+    console.log(`[${idx}/${entries.length}] ${file}`)
+    const startedAt = Date.now()
     if (!fs.existsSync(file)) {
       // Not gated on VERBOSE: MediaItem.filename is frozen at upload time and no
       // scan ever rewrites it, so a file renamed in the archive after upload is
@@ -132,15 +140,17 @@ async function processTenant(tenant: string | null): Promise<void> {
     // The residual risk is a different photo with the same aspect ratio sitting at
     // the expected name. Aspect alone cannot tell that apart from a re-render — only
     // a perceptual hash could. Left as-is deliberately; see ADR-0017.
-    const hashOk = e.sourceHash != null && crypto.createHash('sha256').update(buf).digest('hex') === e.sourceHash
+    // Aspect is checked FIRST because it is free — the dimensions are already
+    // loaded — whereas the hash digests the whole multi-MB buffer. Since the test is
+    // hash-OR-aspect, an aspect hit means the hash is never needed.
     const aspectOk = aspectClose(img.width / img.height, e.sourceWidth / e.sourceHeight)
-    if (!hashOk && !aspectOk) {
-      tally.mismatch++
-      console.warn(`  MISMATCH ${e.alignedMediaItemId}  ←  ${file} (${img.width}x${img.height} vs source ${e.sourceWidth}x${e.sourceHeight}): neither hash nor aspect matches`)
-      continue
-    }
-    if (!hashOk && VERBOSE) {
-      console.log(`  RE-RENDER ${file} (${img.width}x${img.height} vs uploaded ${e.sourceWidth}x${e.sourceHeight}) — same aspect, different encoding`)
+    if (!aspectOk) {
+      const hashOk = e.sourceHash != null && crypto.createHash('sha256').update(buf).digest('hex') === e.sourceHash
+      if (!hashOk) {
+        tally.mismatch++
+        console.warn(`  MISMATCH ${e.alignedMediaItemId}  ←  ${file} (${img.width}x${img.height} vs source ${e.sourceWidth}x${e.sourceHeight}): neither hash nor aspect matches`)
+        continue
+      }
     }
 
     // Skip when the original gives no resolution win over the master. The bake
@@ -168,7 +178,8 @@ async function processTenant(tenant: string | null): Promise<void> {
       const post = await fetch(`${BASE_URL}/api/archive/rebake/${e.alignedMediaItemId}`, { method: 'POST', headers, body: fd })
       if (!post.ok) throw new Error(`${post.status} ${await post.text()}`)
       tally.rebaked++
-      if (VERBOSE) console.log(`  OK       ${e.alignedMediaItemId}  ←  ${file} (${img.width}x${img.height})`)
+      // Timing by default: a pathologically slow original stands out immediately.
+      console.log(`         OK  ${img.width}x${img.height}  ${((Date.now() - startedAt) / 1000).toFixed(1)}s`)
     } catch (err) {
       tally.failed++
       // Always name the file — the id alone can't be traced back to a path on disk.
