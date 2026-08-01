@@ -199,8 +199,12 @@ $t = @{ rebaked = 0; would = 0; noGain = 0; missing = 0; mismatch = 0; failed = 
 foreach ($e in $entries) {
     $file = Join-Path $e.fullPath $e.filename
     if (-not (Test-Path -LiteralPath $file -PathType Leaf)) {
+        # Not Write-Verbose: MediaItem.filename is frozen at upload time and no scan
+        # ever rewrites it, so a file renamed in the archive after upload is missing
+        # here *permanently* — a rescan does not repair it. That needs to be visible
+        # by default, not behind -Verbose.
         $t.missing++
-        Write-Verbose "MISSING  $file"
+        Write-Warning "MISSING  $($e.alignedMediaItemId)  <-  $file"
         continue
     }
 
@@ -209,14 +213,24 @@ foreach ($e in $entries) {
     catch { $t.mismatch++; Write-Verbose "UNREADABLE  $file"; continue }
 
     try {
-        # Integrity: exact hash, else aspect (guards renamed/edited files).
-        $hashOk = $false
-        if ($e.sourceHash) { $hashOk = (Get-Sha256Hex $file) -eq $e.sourceHash }
+        # Integrity. The hash is authoritative WHEN WE HAVE ONE: aspect is only the
+        # fallback for entries with no stored hash. It used to be hash-OR-aspect,
+        # which is unsafe once files have been renamed in the archive — a different
+        # file sitting at the expected name fails the hash but almost always passes
+        # the aspect check (same camera, same orientation), and the bake then
+        # overwrites a correct aligned image in place with the wrong photo. A
+        # missed re-bake is recoverable; a silently wrong one is not.
         $srcAspect = [double]$e.sourceWidth / [double]$e.sourceHeight
-        $aspectOk = ($srcAspect -gt 0) -and ([Math]::Abs(($img.Width / $img.Height) - $srcAspect) / $srcAspect -le $ASPECT_TOL)
-        if (-not $hashOk -and -not $aspectOk) {
+        if ($e.sourceHash) {
+            $ok = (Get-Sha256Hex $file) -eq $e.sourceHash
+            $why = "hash mismatch - the file at this path is not the one that was uploaded"
+        } else {
+            $ok = ($srcAspect -gt 0) -and ([Math]::Abs(($img.Width / $img.Height) - $srcAspect) / $srcAspect -le $ASPECT_TOL)
+            $why = "aspect mismatch (no stored hash to check against)"
+        }
+        if (-not $ok) {
             $t.mismatch++
-            Write-Verbose "MISMATCH $file ($($img.Width)x$($img.Height) vs source $($e.sourceWidth)x$($e.sourceHeight))"
+            Write-Warning "MISMATCH $($e.alignedMediaItemId)  <-  $file ($($img.Width)x$($img.Height) vs source $($e.sourceWidth)x$($e.sourceHeight)): $why"
             continue
         }
 
@@ -237,14 +251,24 @@ foreach ($e in $entries) {
             continue
         }
 
-        $bytes = Invoke-Bake -Entry $e -Img $img
-        if (-not $bytes) { $t.failed++; Write-Warning "FAILED   $($e.alignedMediaItemId): keypoints do not cover the template"; continue }
-
-        # POST via a temp file (-InFile), NOT -Body: Invoke-RestMethod corrupts raw
-        # byte-array bodies, which makes the server reject the JPEG. -InFile streams
-        # the bytes verbatim (like curl --data-binary).
-        $tmpJpg = [System.IO.Path]::Combine($env:TEMP, ([Guid]::NewGuid().ToString() + ".jpg"))
+        # The bake MUST sit inside the try (mirrors the .ts agent, ADR-0017). GDI+
+        # decodes JPEG pixels lazily — FromFile only reads the header, so a corrupt
+        # or truncated original first blows up here, in DrawImage. With
+        # $ErrorActionPreference = "Stop" and the bake outside the catch, that one
+        # bad file used to terminate the entire run and never name itself.
+        $tmpJpg = $null
         try {
+            $bytes = Invoke-Bake -Entry $e -Img $img
+            if (-not $bytes) {
+                $t.failed++
+                Write-Warning "FAILED   $($e.alignedMediaItemId): keypoints do not cover the template  <-  $file"
+                continue
+            }
+
+            # POST via a temp file (-InFile), NOT -Body: Invoke-RestMethod corrupts raw
+            # byte-array bodies, which makes the server reject the JPEG. -InFile streams
+            # the bytes verbatim (like curl --data-binary).
+            $tmpJpg = [System.IO.Path]::Combine($env:TEMP, ([Guid]::NewGuid().ToString() + ".jpg"))
             [System.IO.File]::WriteAllBytes($tmpJpg, $bytes)
             Invoke-RestMethod -Uri "$BaseUrl/api/archive/rebake/$($e.alignedMediaItemId)" `
                 -Headers $headers -Method Post -InFile $tmpJpg -ContentType 'image/jpeg' | Out-Null
@@ -252,9 +276,10 @@ foreach ($e in $entries) {
             Write-Verbose "OK       $($e.alignedMediaItemId)  <-  $file ($($img.Width)x$($img.Height))"
         } catch {
             $t.failed++
-            Write-Warning "FAILED   $($e.alignedMediaItemId): $_"
+            # Always name the file — the id alone can't be traced back to a path on disk.
+            Write-Warning "FAILED   $($e.alignedMediaItemId)  <-  $file ($($img.Width)x$($img.Height)): $_"
         } finally {
-            Remove-Item -LiteralPath $tmpJpg -ErrorAction SilentlyContinue
+            if ($tmpJpg) { Remove-Item -LiteralPath $tmpJpg -ErrorAction SilentlyContinue }
         }
     } finally {
         $img.Dispose()

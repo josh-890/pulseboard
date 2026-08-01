@@ -103,8 +103,11 @@ async function processTenant(tenant: string | null): Promise<void> {
   for (const e of entries) {
     const file = path.join(e.fullPath, e.filename)
     if (!fs.existsSync(file)) {
+      // Not gated on VERBOSE: MediaItem.filename is frozen at upload time and no
+      // scan ever rewrites it, so a file renamed in the archive after upload is
+      // missing here *permanently* — a rescan does not repair it.
       tally.missing++
-      if (VERBOSE) console.log(`  MISSING  ${file}`)
+      console.warn(`  MISSING  ${e.alignedMediaItemId}  ←  ${file}`)
       continue
     }
     const buf = fs.readFileSync(file)
@@ -118,12 +121,22 @@ async function processTenant(tenant: string | null): Promise<void> {
       continue
     }
 
-    // Integrity: exact hash match, else aspect must match (guards renamed/edited files).
-    const hashOk = e.sourceHash != null && crypto.createHash('sha256').update(buf).digest('hex') === e.sourceHash
-    const aspectOk = aspectClose(img.width / img.height, e.sourceWidth / e.sourceHeight)
-    if (!hashOk && !aspectOk) {
+    // Integrity. The hash is authoritative WHEN WE HAVE ONE: aspect is only the
+    // fallback for entries with no stored hash. It used to be hash-OR-aspect, which
+    // is unsafe once files have been renamed in the archive — a different file
+    // sitting at the expected name fails the hash but almost always passes the
+    // aspect check (same camera, same orientation), and the bake then overwrites a
+    // correct aligned image in place with the wrong photo. A missed re-bake is
+    // recoverable; a silently wrong one is not.
+    const ok = e.sourceHash != null
+      ? crypto.createHash('sha256').update(buf).digest('hex') === e.sourceHash
+      : aspectClose(img.width / img.height, e.sourceWidth / e.sourceHeight)
+    if (!ok) {
+      const why = e.sourceHash != null
+        ? 'hash mismatch — the file at this path is not the one that was uploaded'
+        : 'aspect mismatch (no stored hash to check against)'
       tally.mismatch++
-      if (VERBOSE) console.log(`  MISMATCH ${file} (${img.width}x${img.height} vs source ${e.sourceWidth}x${e.sourceHeight})`)
+      console.warn(`  MISMATCH ${e.alignedMediaItemId}  ←  ${file} (${img.width}x${img.height} vs source ${e.sourceWidth}x${e.sourceHeight}): ${why}`)
       continue
     }
 
@@ -155,7 +168,8 @@ async function processTenant(tenant: string | null): Promise<void> {
       if (VERBOSE) console.log(`  OK       ${e.alignedMediaItemId}  ←  ${file} (${img.width}x${img.height})`)
     } catch (err) {
       tally.failed++
-      console.error(`  FAILED   ${e.alignedMediaItemId}: ${err instanceof Error ? err.message : err}`)
+      // Always name the file — the id alone can't be traced back to a path on disk.
+      console.error(`  FAILED   ${e.alignedMediaItemId}  ←  ${file} (${img.width}x${img.height}): ${err instanceof Error ? err.message : err}`)
     }
   }
 
