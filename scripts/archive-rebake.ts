@@ -121,23 +121,26 @@ async function processTenant(tenant: string | null): Promise<void> {
       continue
     }
 
-    // Integrity. The hash is authoritative WHEN WE HAVE ONE: aspect is only the
-    // fallback for entries with no stored hash. It used to be hash-OR-aspect, which
-    // is unsafe once files have been renamed in the archive — a different file
-    // sitting at the expected name fails the hash but almost always passes the
-    // aspect check (same camera, same orientation), and the bake then overwrites a
-    // correct aligned image in place with the wrong photo. A missed re-bake is
-    // recoverable; a silently wrong one is not.
-    const ok = e.sourceHash != null
-      ? crypto.createHash('sha256').update(buf).digest('hex') === e.sourceHash
-      : aspectClose(img.width / img.height, e.sourceWidth / e.sourceHeight)
-    if (!ok) {
-      const why = e.sourceHash != null
-        ? 'hash mismatch — the file at this path is not the one that was uploaded'
-        : 'aspect mismatch (no stored hash to check against)'
+    // Integrity: exact hash, ELSE aspect. The aspect fallback is not a loophole, it
+    // is the main path — the whole point of the re-bake is that the archive holds a
+    // HIGHER-RESOLUTION rendition than the one that was uploaded (e.g. uploaded
+    // 3000x2000, archive 4324x2883). Those are the same photograph and will never
+    // share a byte hash; an exact hash match usually means "same file, no gain".
+    // Requiring the hash therefore rejects precisely the images this script exists
+    // to sharpen.
+    //
+    // The residual risk is a different photo with the same aspect ratio sitting at
+    // the expected name. Aspect alone cannot tell that apart from a re-render — only
+    // a perceptual hash could. Left as-is deliberately; see ADR-0017.
+    const hashOk = e.sourceHash != null && crypto.createHash('sha256').update(buf).digest('hex') === e.sourceHash
+    const aspectOk = aspectClose(img.width / img.height, e.sourceWidth / e.sourceHeight)
+    if (!hashOk && !aspectOk) {
       tally.mismatch++
-      console.warn(`  MISMATCH ${e.alignedMediaItemId}  ←  ${file} (${img.width}x${img.height} vs source ${e.sourceWidth}x${e.sourceHeight}): ${why}`)
+      console.warn(`  MISMATCH ${e.alignedMediaItemId}  ←  ${file} (${img.width}x${img.height} vs source ${e.sourceWidth}x${e.sourceHeight}): neither hash nor aspect matches`)
       continue
+    }
+    if (!hashOk && VERBOSE) {
+      console.log(`  RE-RENDER ${file} (${img.width}x${img.height} vs uploaded ${e.sourceWidth}x${e.sourceHeight}) — same aspect, different encoding`)
     }
 
     // Skip when the original gives no resolution win over the master. The bake

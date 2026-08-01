@@ -213,25 +213,28 @@ foreach ($e in $entries) {
     catch { $t.mismatch++; Write-Verbose "UNREADABLE  $file"; continue }
 
     try {
-        # Integrity. The hash is authoritative WHEN WE HAVE ONE: aspect is only the
-        # fallback for entries with no stored hash. It used to be hash-OR-aspect,
-        # which is unsafe once files have been renamed in the archive — a different
-        # file sitting at the expected name fails the hash but almost always passes
-        # the aspect check (same camera, same orientation), and the bake then
-        # overwrites a correct aligned image in place with the wrong photo. A
-        # missed re-bake is recoverable; a silently wrong one is not.
+        # Integrity: exact hash, ELSE aspect. The aspect fallback is not a loophole,
+        # it is the main path — the whole point of the re-bake is that the archive
+        # holds a HIGHER-RESOLUTION rendition than the one that was uploaded (e.g.
+        # uploaded 3000x2000, archive 4324x2883). Those are the same photograph and
+        # will never share a byte hash; an exact hash match usually means "same file,
+        # no gain". Requiring the hash therefore rejects precisely the images this
+        # script exists to sharpen.
+        #
+        # The residual risk is a different photo with the same aspect ratio sitting at
+        # the expected name. Aspect alone cannot tell that apart from a re-render —
+        # only a perceptual hash could. Left as-is deliberately; see ADR-0017.
+        $hashOk = $false
+        if ($e.sourceHash) { $hashOk = (Get-Sha256Hex $file) -eq $e.sourceHash }
         $srcAspect = [double]$e.sourceWidth / [double]$e.sourceHeight
-        if ($e.sourceHash) {
-            $ok = (Get-Sha256Hex $file) -eq $e.sourceHash
-            $why = "hash mismatch - the file at this path is not the one that was uploaded"
-        } else {
-            $ok = ($srcAspect -gt 0) -and ([Math]::Abs(($img.Width / $img.Height) - $srcAspect) / $srcAspect -le $ASPECT_TOL)
-            $why = "aspect mismatch (no stored hash to check against)"
-        }
-        if (-not $ok) {
+        $aspectOk = ($srcAspect -gt 0) -and ([Math]::Abs(($img.Width / $img.Height) - $srcAspect) / $srcAspect -le $ASPECT_TOL)
+        if (-not $hashOk -and -not $aspectOk) {
             $t.mismatch++
-            Write-Warning "MISMATCH $($e.alignedMediaItemId)  <-  $file ($($img.Width)x$($img.Height) vs source $($e.sourceWidth)x$($e.sourceHeight)): $why"
+            Write-Warning "MISMATCH $($e.alignedMediaItemId)  <-  $file ($($img.Width)x$($img.Height) vs source $($e.sourceWidth)x$($e.sourceHeight)): neither hash nor aspect matches"
             continue
+        }
+        if (-not $hashOk) {
+            Write-Verbose "RE-RENDER $file ($($img.Width)x$($img.Height) vs uploaded $($e.sourceWidth)x$($e.sourceHeight)) - same aspect, different encoding"
         }
 
         # The current bake sampled the master_4000 (long side capped at 4000), so a
