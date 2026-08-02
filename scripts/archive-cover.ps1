@@ -24,7 +24,8 @@
       - the path is printed BEFORE the decode, because a native GDI+ hang throws nothing and
         the last printed line is then the only evidence
       - failures are POSTed to the app and stored on the folder, so they are individually
-        visible and fixable in the workspace
+        visible and fixable: listed with reasons under Settings > System >
+        "Archive Cover Coverage", and marked amber in the archive tree
       - the worklist only returns folders with no cover, so a re-run resumes
 
 .PARAMETER Path
@@ -264,8 +265,9 @@ Write-Host "    designated -c marker : $($t.designated)"
 Write-Host "    first image fallback : $($t.firstImage)"
 if ($t.failed -gt 0 -or $t.noImage -gt 0) {
     Write-Host ""
-    Write-Host "  Failures are recorded per folder — filter the archive workspace by"
-    Write-Host "  'cover failed' to see and fix them individually. Re-run with"
-    Write-Host "  -RetryFailed once the underlying files are repaired."
+    Write-Host "  Failures are recorded per folder. See the full list with reasons under"
+    Write-Host "  Settings > System > 'Archive Cover Coverage' (Run Check > Details)."
+    Write-Host "  In the archive tree a failed folder shows an amber marker instead of a"
+    Write-Host "  thumbnail. Once the underlying files are fixed, re-run with -RetryFailed."
 }
 Write-Host "-----------------------------------------------"

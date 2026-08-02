@@ -521,7 +521,14 @@ export async function auditArchiveCovers(): Promise<MaintenanceResult> {
         : "Every folder on disk has a cover.",
     );
   } else {
-    details.push("Clean or re-encode the listed files, then re-run archive-cover.ps1 -RetryFailed.");
+    // Two distinct causes need two distinct remedies, and "re-encode" is useless
+    // advice for a folder that simply has no image in it.
+    details.push(
+      'Folders reading "No image file found" hold no picture at all — typically a videoset ' +
+        "whose frames were never extracted; extract one or drop a cover file in. Any other " +
+        "reason is a damaged image: clean or re-encode it.",
+    );
+    details.push("Then re-run archive-cover.ps1 -RetryFailed, or delete the cover in the archive tree.");
   }
   return { found: stats.failed, fixed: 0, details };
 }
