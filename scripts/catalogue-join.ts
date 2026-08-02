@@ -32,8 +32,6 @@
  *     npm run build:agent          # produces dist-agents/catalogue-join.mjs
  *     node catalogue-join.mjs --catalogue "H:\Models\thenude" ...
  *
- *   npx tsx scripts/catalogue-join.ts --catalogue "D:\Persons" --base-url http://10.66.20.65:3000 --tenant xpulse
- *
  * Flags:
  *   --catalogue DIR  Root of the person catalogue (required)
  *   --base-url URL   App base URL
