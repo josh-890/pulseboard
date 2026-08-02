@@ -59,3 +59,6 @@ docs/2026-*
 # Claude Code scheduler runtime artifacts
 .claude/scheduled_tasks.lock
 .claude/scheduled_tasks.json
+
+# Bundled standalone agents — build with `npm run build:agent`
+dist-agents/

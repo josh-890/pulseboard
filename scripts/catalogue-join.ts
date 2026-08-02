@@ -22,7 +22,16 @@
  *                 distribution that decides whether confirmation is tractable.
  *   4. DATA QUALITY — unusable dates, unparseable filenames, channel-naming gaps.
  *
- * Usage (Windows):
+ * This file is NOT standalone — it imports the shared, unit-tested join logic
+ * from src/lib/services/catalogue-join.ts. Two ways to run it:
+ *
+ *   From a repo checkout (run from the repo ROOT, not from scripts/):
+ *     npx tsx scripts/catalogue-join.ts --catalogue "H:\Models\thenude" ...
+ *
+ *   As a single copyable file, for a machine with no checkout:
+ *     npm run build:agent          # produces dist-agents/catalogue-join.mjs
+ *     node catalogue-join.mjs --catalogue "H:\Models\thenude" ...
+ *
  *   npx tsx scripts/catalogue-join.ts --catalogue "D:\Persons" --base-url http://10.66.20.65:3000 --tenant xpulse
  *
  * Flags:
