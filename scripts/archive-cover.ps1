@@ -10,9 +10,13 @@
     as the HD re-bake agent (ADR-0017).
 
     Cover selection, in order:
-      1. a file matching *-c.jpg  — if present, that IS the cover
+      1. a designated cover — a stem ending in a lone "c" after any non-alphanumeric
+         separator, so BOTH "Title-c.jpg" and "Title - c.jpg" count
       2. otherwise the first image by name
     For videosets the same rule is applied to the frames\ subfolder.
+
+    Every line reports which of the two rules fired, and the summary totals them — run
+    with -DryRun first to see how often the marker is actually found in your archive.
 
     Robustness is the point of this script, not a nicety. A corrupt image must fail exactly
     ONE folder, must say WHICH one, and must not force a full redo afterwards:
@@ -84,6 +88,14 @@ if ($Tenant) { $headers["x-tenant-id"] = $Tenant }
 $THUMB_MAX_PX  = 512
 $IMAGE_PATTERN = '\.(jpe?g|png|webp|bmp)$'
 
+# The designated-cover marker: a stem ending in a lone "c", after ANY non-alphanumeric
+# separator. Both "Title-c.jpg" and "Title - c.jpg" are in real use — a check against
+# 43,085 stored filenames found 14 of the former and 16 of the latter, so a pattern
+# anchored on "-c" alone would miss over half of them. Requiring a non-alphanumeric
+# character before the "c" is what stops it matching ordinary words ending in c.
+# PowerShell's -match is case-insensitive, so ".JPG" is covered.
+$COVER_PATTERN = '(^|[^a-z0-9])c\.(jpe?g|png|webp)$'
+
 # ── Cover selection ───────────────────────────────────────────────────────────
 
 # `*-c.jpg` wins outright; otherwise the first image by name. Videosets carry
@@ -102,10 +114,11 @@ function Select-CoverFile {
                    Where-Object { $_.Name -match $IMAGE_PATTERN })
         if ($files.Count -eq 0) { continue }
 
-        $designated = @($files | Where-Object { $_.Name -match '-c\.jpe?g$' } | Sort-Object Name)
-        if ($designated.Count -gt 0) { return $designated[0].FullName }
-
-        return ($files | Sort-Object Name)[0].FullName
+        $designated = @($files | Where-Object { $_.Name -match $COVER_PATTERN } | Sort-Object Name)
+        if ($designated.Count -gt 0) {
+            return @{ path = $designated[0].FullName; designated = $true }
+        }
+        return @{ path = ($files | Sort-Object Name)[0].FullName; designated = $false }
     }
     return $null
 }
@@ -182,7 +195,7 @@ Write-Host ("Folders needing a cover: {0}   (archive: {1} total, {2} with cover,
     $wl.count, $wl.stats.total, $wl.stats.withCover, $wl.stats.failed)
 Write-Host ""
 
-$t = @{ uploaded = 0; noImage = 0; failed = 0; skipped = 0 }
+$t = @{ uploaded = 0; noImage = 0; failed = 0; skipped = 0; designated = 0; firstImage = 0 }
 $idx = 0
 
 foreach ($e in $entries) {
@@ -199,18 +212,22 @@ foreach ($e in $entries) {
             continue
         }
 
-        $coverFile = Select-CoverFile -FolderPath $folder -IsVideo ([bool]$e.isVideo)
-        if (-not $coverFile) {
+        $pick = Select-CoverFile -FolderPath $folder -IsVideo ([bool]$e.isVideo)
+        if (-not $pick) {
             $t.noImage++
             Write-Warning "         no image found in this folder"
             Send-CoverError -ArchiveKey $e.archiveKey -Message "No image file found in the folder"
             continue
         }
 
+        $coverFile = [string]$pick.path
+        if ($pick.designated) { $t.designated++ } else { $t.firstImage++ }
+        $how = if ($pick.designated) { 'designated -c' } else { 'FIRST IMAGE (no -c marker)' }
+
         $bytes = New-Thumbnail -ImagePath $coverFile -MaxPx $THUMB_MAX_PX
 
         if ($DryRun) {
-            Write-Host ("         would upload {0} ({1:n0} KB thumbnail)" -f (Split-Path $coverFile -Leaf), ($bytes.Length / 1KB))
+            Write-Host ("         [{0}] {1}  ({2:n0} KB thumbnail)" -f $how, (Split-Path $coverFile -Leaf), ($bytes.Length / 1KB))
             continue
         }
 
@@ -221,7 +238,7 @@ foreach ($e in $entries) {
             Invoke-RestMethod -Uri "$BaseUrl/api/archive/cover/$($e.archiveKey)" `
                 -Headers $headers -Method Post -InFile $tmp -ContentType 'image/jpeg' | Out-Null
             $t.uploaded++
-            Write-Host ("         OK  {0}" -f (Split-Path $coverFile -Leaf))
+            Write-Host ("         OK  [{0}] {1}" -f $how, (Split-Path $coverFile -Leaf))
         } finally {
             Remove-Item -LiteralPath $tmp -ErrorAction SilentlyContinue
         }
@@ -241,6 +258,10 @@ Write-Host "  Uploaded:      $($t.uploaded)"
 Write-Host "  No image:      $($t.noImage)"
 Write-Host "  Not on disk:   $($t.skipped)"
 Write-Host "  Failed:        $($t.failed)"
+Write-Host ""
+Write-Host "  Cover chosen by rule:"
+Write-Host "    designated -c marker : $($t.designated)"
+Write-Host "    first image fallback : $($t.firstImage)"
 if ($t.failed -gt 0 -or $t.noImage -gt 0) {
     Write-Host ""
     Write-Host "  Failures are recorded per folder — filter the archive workspace by"
