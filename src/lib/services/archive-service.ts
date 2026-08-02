@@ -13,6 +13,7 @@ import { prisma } from '@/lib/db'
 import { getSetting, setSetting } from '@/lib/services/setting-service'
 import { normalizeForSearch } from '@/lib/normalize'
 import { buildUrl } from '@/lib/media-url'
+import { escapeLike } from '@/lib/prisma-like'
 import { ArchiveLinkStatus, Prisma } from '@/generated/prisma/client'
 import type { ArchiveStatus } from '@/generated/prisma/client'
 
@@ -1859,7 +1860,8 @@ export async function searchArchiveFolders(
         {
           OR: [
             { folderName: { contains: query, mode: 'insensitive' } },
-            { fullPath: { contains: query, mode: 'insensitive' } },
+            // Windows path: LIKE eats backslashes unless they are escaped.
+            { fullPath: { contains: escapeLike(query), mode: 'insensitive' } },
             { parsedTitle: { contains: query, mode: 'insensitive' } },
           ],
         },

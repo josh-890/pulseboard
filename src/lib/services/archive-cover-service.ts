@@ -15,6 +15,7 @@ import sharp from 'sharp'
 import { PutObjectCommand } from '@aws-sdk/client-s3'
 import { minioClient, getMinioBucket } from '@/lib/minio'
 import { prisma } from '@/lib/db'
+import { escapeLike } from '@/lib/prisma-like'
 
 /** Long edge of the stored thumbnail. Enough for a tree row plus a hover preview. */
 const COVER_MAX_PX = 512
@@ -45,7 +46,9 @@ export async function getCoverWorklist(opts: {
       // Default skips folders that already failed, so a plain re-run does not
       // grind through known-bad images every time. --retry-failed opts in.
       ...(opts.retryFailed ? {} : { coverError: null }),
-      ...(opts.pathPrefix ? { fullPath: { startsWith: opts.pathPrefix } } : {}),
+      // escapeLike is mandatory here: fullPath is a Windows path and LIKE treats
+      // the backslash as its escape character, so the raw prefix matches nothing.
+      ...(opts.pathPrefix ? { fullPath: { startsWith: escapeLike(opts.pathPrefix) } } : {}),
     },
     select: { archiveKey: true, fullPath: true, isVideo: true, coverError: true },
     orderBy: { fullPath: 'asc' },
