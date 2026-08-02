@@ -21,7 +21,7 @@ import {
 // below is a real value observed in the production data or the 6-person sample.
 
 function cat(over: Partial<CatalogueSet> & Pick<CatalogueSet, "date" | "title">): CatalogueSet {
-  return {
+  const base = {
     icgId: "NA-00YC",
     personName: "Nancy A",
     channel: "METART",
@@ -29,6 +29,7 @@ function cat(over: Partial<CatalogueSet> & Pick<CatalogueSet, "date" | "title">)
     isVideo: false,
     ...over,
   };
+  return { participantIcgIds: [base.icgId], ...base };
 }
 
 function folder(over: Partial<ArchiveFolderRow>): ArchiveFolderRow {

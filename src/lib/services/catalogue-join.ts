@@ -11,11 +11,25 @@
  * filed under where it was published vs where it is kept).
  */
 
-/** One set as recorded by a cover filename in the person catalogue. */
+/**
+ * One set as recorded in a person's import file.
+ *
+ * Read from the `YYYY-MM-DD_Name_(ICG-ID)` file rather than from cover
+ * filenames, because that file states the set's participants outright:
+ *
+ *   ModelsList : Nancy A_(NA-00YC)[...], Sybil A_(SA-00UW)[...]
+ *
+ * Cover filenames only ever say "this set belongs to the person whose folder it
+ * sits in", so a two-person set needed both folders present to be seen whole.
+ * (`ModelsShort` in the same file is known-wrong — the repo's own parser skips
+ * it as buggy. `ModelsList` is authoritative.)
+ */
 export type CatalogueSet = {
-  /** Owning person's ICG-ID, from the `<Name_(ICG-ID)>` folder. */
+  /** The person whose file this came from — provenance, not the full cast. */
   icgId: string
   personName: string
+  /** Every participant's ICG-ID, from ModelsList. Includes `icgId`. */
+  participantIcgIds: string[]
   /** ISO `YYYY-MM-DD`; `0000-00-00` in the source means "no usable date". */
   date: string
   channel: string
@@ -137,6 +151,13 @@ export type FolderMatch = {
  */
 export function distinctPersons(match: FolderMatch): number {
   return new Set(match.candidates.map((c) => c.icgId)).size
+}
+
+/** Everyone the winning candidates name — the actual suggestion for a folder. */
+export function suggestedParticipants(match: FolderMatch): string[] {
+  const out = new Set<string>()
+  for (const c of match.candidates) for (const p of c.participantIcgIds) out.add(p)
+  return [...out]
 }
 
 export function isAmbiguous(match: FolderMatch): boolean {

@@ -48,6 +48,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { parseFilename, parseImportFile } from '../src/lib/services/import/parser'
 import {
   NO_DATE,
   buildCatalogueIndex,
@@ -56,8 +57,8 @@ import {
   aliasTokenLooksMulti,
   isAmbiguous,
   matchFolder,
+  suggestedParticipants,
   normalizeTitle,
-  parseCoverFilename,
   parsePersonDir,
   titleSimilarity,
   type CatalogueSet,
@@ -142,15 +143,21 @@ type WorklistTruth = {
 
 // ── Catalogue walk ───────────────────────────────────────────────────────────
 
-type WalkStats = { personDirs: number; unparsedPersonDirs: number; files: number; unparsedFiles: number }
+type WalkStats = {
+  personDirs: number
+  unparsedPersonDirs: number
+  personsWithoutImportFile: number
+  importFiles: number
+  setsWithoutDate: number
+}
 
 /**
  * Progress, throttled to one line every couple of seconds.
  *
- * The walk touches >100k directories on a spinning or networked drive and can
- * run for many minutes. Printing nothing until it finishes is indistinguishable
- * from a hang — the same mistake that made an earlier agent look wedged — and
- * the current bucket also names where a genuine stall happened.
+ * The walk reads one multi-hundred-KB import file per person across ~39k
+ * folders and can run for many minutes. Printing nothing until it finishes is
+ * indistinguishable from a hang, and the current folder also names where a
+ * genuine stall happened.
  */
 function makeTicker(intervalMs = 2000) {
   let last = 0
@@ -162,11 +169,34 @@ function makeTicker(intervalMs = 2000) {
   }
 }
 
-function readCatalogue(root: string, stats: WalkStats, unparsedExamples: string[]): CatalogueSet[] {
+/**
+ * The newest import file in a person's `_meta` folder.
+ *
+ * Files are named `YYYY-MM-DD_Name_(ICG-ID)` with the SCAN date, so several may
+ * exist; the newest wins. Only the extension-less ones are import files —
+ * `_Bios.txt`, `_Cowork_*.csv` and the avatar `.jpg` share the folder.
+ */
+function newestImportFile(metaDir: string): string | null {
+  let best: { date: string; file: string } | null = null
+  let entries: string[]
+  try {
+    entries = fs.readdirSync(metaDir)
+  } catch {
+    return null
+  }
+  for (const entry of entries) {
+    if (path.extname(entry)) continue
+    const meta = parseFilename(entry)
+    if (!meta.extractionDate || !meta.icgId) continue
+    if (!best || meta.extractionDate > best.date) best = { date: meta.extractionDate, file: entry }
+  }
+  return best ? path.join(metaDir, best.file) : null
+}
+
+function readCatalogue(root: string, stats: WalkStats, problems: string[]): CatalogueSet[] {
   const out: CatalogueSet[] = []
   const tick = makeTicker()
-  const buckets = fs.readdirSync(root)
-  for (const bucket of buckets) {
+  for (const bucket of fs.readdirSync(root)) {
     const bucketPath = path.join(root, bucket)
     let bucketStat: fs.Stats
     try {
@@ -177,44 +207,55 @@ function readCatalogue(root: string, stats: WalkStats, unparsedExamples: string[
     if (!bucketStat.isDirectory()) continue
 
     for (const personDir of fs.readdirSync(bucketPath)) {
-      tick(
-        `  [${bucket}]  ${stats.personDirs.toLocaleString()} persons, ` +
-          `${out.length.toLocaleString()} sets  —  ${personDir}`,
-      )
       const person = parsePersonDir(personDir)
       if (!person) {
         stats.unparsedPersonDirs++
         continue
       }
       stats.personDirs++
+      tick(
+        `  [${bucket}]  ${stats.personDirs.toLocaleString()} persons, ` +
+          `${out.length.toLocaleString()} sets  —  ${personDir}`,
+      )
 
-      for (const [sub, isVideo] of [['_Cover', false], ['_Videos', true]] as const) {
-        const dir = path.join(bucketPath, personDir, '_meta', sub)
-        if (!fs.existsSync(dir)) continue
-        for (const file of fs.readdirSync(dir)) {
-          stats.files++
-          const parsed = parseCoverFilename(file)
-          if (!parsed) {
-            stats.unparsedFiles++
-            // Keep a sample: 7% of a million rows is a lot to lose silently, and
-            // the shape of what fails decides whether the parser needs widening.
-            if (unparsedExamples.length < 25) unparsedExamples.push(file)
-            continue
-          }
-          out.push({
-            icgId: person.icgId,
-            personName: person.name,
-            date: parsed.date,
-            channel: parsed.channel,
-            externalId: parsed.externalId,
-            title: parsed.title,
-            isVideo,
-          })
+      const file = newestImportFile(path.join(bucketPath, personDir, '_meta'))
+      if (!file) {
+        stats.personsWithoutImportFile++
+        if (problems.length < 25) problems.push(`no import file: ${personDir}`)
+        continue
+      }
+
+      let parsed
+      try {
+        parsed = parseImportFile(fs.readFileSync(file, 'utf8'))
+      } catch (err) {
+        // One unreadable file must cost one person, not the run.
+        if (problems.length < 25) {
+          problems.push(`unreadable: ${personDir} — ${err instanceof Error ? err.message : err}`)
         }
+        continue
+      }
+      stats.importFiles++
+
+      for (const set of parsed.sets) {
+        const date = set.date && /^\d{4}-\d{2}-\d{2}$/.test(set.date) ? set.date : NO_DATE
+        if (date === NO_DATE) stats.setsWithoutDate++
+        // ModelsList is the authority on the cast; fall back to the folder owner
+        // when a set lists nobody at all.
+        const participants = set.modelsList.map((m) => m.icgId).filter(Boolean)
+        out.push({
+          icgId: person.icgId,
+          personName: person.name,
+          participantIcgIds: participants.length ? [...new Set(participants)] : [person.icgId],
+          date,
+          channel: set.channelName,
+          externalId: set.externalId,
+          title: set.title,
+          isVideo: set.isVideo,
+        })
       }
     }
   }
-  // Clear the progress line so it does not sit above the report.
   process.stdout.write(`\r${' '.repeat(78)}\r`)
   return out
 }
@@ -231,21 +272,27 @@ async function main() {
   console.log(`  catalogue : ${CATALOGUE}`)
   console.log(`  app       : ${BASE_URL}${TENANT ? `  [${TENANT}]` : ''}`)
 
-  let stats: WalkStats = { personDirs: 0, unparsedPersonDirs: 0, files: 0, unparsedFiles: 0 }
+  let stats: WalkStats = {
+    personDirs: 0,
+    unparsedPersonDirs: 0,
+    personsWithoutImportFile: 0,
+    importFiles: 0,
+    setsWithoutDate: 0,
+  }
   let sets: CatalogueSet[]
-  let unparsedExamples: string[] = []
+  let problems: string[] = []
 
   const cached = CACHE && !REWALK && fs.existsSync(CACHE)
   if (cached) {
     const started = Date.now()
     const blob = JSON.parse(fs.readFileSync(CACHE, 'utf8')) as {
       stats: WalkStats
-      unparsedExamples: string[]
+      problems: string[]
       sets: CatalogueSet[]
     }
     stats = blob.stats
     sets = blob.sets
-    unparsedExamples = blob.unparsedExamples ?? []
+    problems = blob.problems ?? []
     console.log(
       `\nRead ${sets.length.toLocaleString()} set row(s) from the cache in ` +
         `${((Date.now() - started) / 1000).toFixed(1)}s  (${CACHE})`,
@@ -255,13 +302,14 @@ async function main() {
     console.log(`\nWalking the catalogue — this is the slow part (>100k directories).`)
     console.log(`Ctrl+C is safe at any point: this agent writes nothing except --cache.\n`)
     const started = Date.now()
-    sets = readCatalogue(CATALOGUE, stats, unparsedExamples)
+    sets = readCatalogue(CATALOGUE, stats, problems)
+    process.stdout.write('\n')
     console.log(
       `Walked ${stats.personDirs.toLocaleString()} person folder(s) and read ` +
         `${sets.length.toLocaleString()} set row(s) in ${((Date.now() - started) / 1000).toFixed(1)}s`,
     )
     if (CACHE) {
-      fs.writeFileSync(CACHE, JSON.stringify({ stats, unparsedExamples, sets }))
+      fs.writeFileSync(CACHE, JSON.stringify({ stats, problems, sets }))
       console.log(`Cached to ${CACHE} — later runs reuse it in seconds.`)
     } else {
       console.log(`Tip: pass --cache catalogue.json to skip this walk next time.`)
@@ -295,16 +343,21 @@ async function main() {
   // ── 0. Catalogue shape ─────────────────────────────────────────────────────
   heading('0. CATALOGUE')
   const noDate = sets.filter((s) => s.date === NO_DATE).length
-  console.log(`  persons                                ${String(stats.personDirs).padStart(7)}`)
+  console.log(`  person folders                         ${String(stats.personDirs).padStart(7)}`)
+  console.log(`  import files parsed                    ${String(stats.importFiles).padStart(7)}`)
   console.log(`  set rows read                          ${String(sets.length).padStart(7)}`)
   row('unusable date (0000-00-00)', noDate, sets.length)
-  row('filenames that did not parse', stats.unparsedFiles, stats.files)
-  if (unparsedExamples.length) {
-    console.log(`  examples of filenames that did not parse:`)
-    unparsedExamples.slice(0, EXAMPLES).forEach((f) => console.log(`     ${f}`))
+  if (stats.personsWithoutImportFile) {
+    row('persons with NO import file', stats.personsWithoutImportFile, stats.personDirs)
   }
   if (stats.unparsedPersonDirs) {
-    console.log(`  person dirs that did not parse         ${String(stats.unparsedPersonDirs).padStart(7)}`)
+    console.log(`  folders that are not a person          ${String(stats.unparsedPersonDirs).padStart(7)}`)
+  }
+  const multi = sets.filter((s) => s.participantIcgIds.length > 1).length
+  row('sets naming >1 participant', multi, sets.length)
+  if (problems.length) {
+    console.log(`  problems:`)
+    problems.slice(0, EXAMPLES).forEach((f) => console.log(`     ${f}`))
   }
 
   const index = buildCatalogueIndex(sets)
@@ -321,8 +374,11 @@ async function main() {
     }
     // Restrict to the participants the app knows — that is what makes this
     // ground truth rather than another unverified hit rate.
+    // Match on the whole cast, not the file's owner: ModelsList means a set is
+    // reachable through any of its participants, which is the point of reading
+    // the import file instead of cover filenames.
     const owned = (index.get(gt.parsedDate) ?? []).filter((c) =>
-      gt.participantIcgIds.includes(c.icgId),
+      c.participantIcgIds.some((p) => gt.participantIcgIds.includes(p)),
     )
     if (owned.length === 0) {
       recall.missNoCatalogueRow++
@@ -393,9 +449,11 @@ async function main() {
         }
       }
     }
-    if (m.best) {
-      suggestedPersons.add(m.best.icgId)
-      entry.votes.set(m.best.icgId, (entry.votes.get(m.best.icgId) ?? 0) + 1)
+    // A folder's suggestion is everyone the winning catalogue rows name — a
+    // two-person set suggests both, which is what the confirmation UI needs.
+    for (const p of suggestedParticipants(m)) {
+      suggestedPersons.add(p)
+      entry.votes.set(p, (entry.votes.get(p) ?? 0) + 1)
     }
   }
 
@@ -467,7 +525,9 @@ async function main() {
   for (const gt of groundTruth) {
     const short = gt.channelShortName ?? gt.parsedShortName
     if (!short || !gt.parsedDate) continue
-    const owned = (index.get(gt.parsedDate) ?? []).filter((c) => gt.participantIcgIds.includes(c.icgId))
+    const owned = (index.get(gt.parsedDate) ?? []).filter((c) =>
+      c.participantIcgIds.some((p) => gt.participantIcgIds.includes(p)),
+    )
     for (const c of owned) {
       if (channelLooselyMatches(c.channel, short)) {
         agree++
