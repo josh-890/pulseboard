@@ -42,6 +42,7 @@
  */
 import fs from 'node:fs'
 import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 import {
   NO_DATE,
   buildCatalogueIndex,
@@ -62,6 +63,36 @@ const getArg = (flag: string): string | null => {
   const i = args.indexOf(flag)
   return i !== -1 && args[i + 1] ? args[i + 1] : null
 }
+
+/**
+ * Read a `.env` sitting next to the script, then one in the working directory —
+ * the same convention (and the same tolerant parsing: leading whitespace,
+ * comments, optional quotes) as the .ps1 agents' loader. Without this the .ts
+ * agents demand credentials on the command line while their PowerShell siblings
+ * pick them up silently, which is a difference nobody should have to discover.
+ * Existing environment variables always win.
+ */
+function loadDotEnv(): void {
+  const here = path.dirname(fileURLToPath(import.meta.url))
+  for (const candidate of [path.join(here, '.env'), path.resolve(process.cwd(), '.env')]) {
+    let raw: string
+    try {
+      raw = fs.readFileSync(candidate, 'utf8')
+    } catch {
+      continue
+    }
+    for (const line of raw.split(/\r?\n/)) {
+      const trimmed = line.trim()
+      if (!trimmed || trimmed.startsWith('#')) continue
+      const eq = trimmed.indexOf('=')
+      if (eq <= 0) continue
+      const key = trimmed.slice(0, eq).trim()
+      const value = trimmed.slice(eq + 1).trim().replace(/^["']|["']$/g, '')
+      if (!(key in process.env)) process.env[key] = value
+    }
+  }
+}
+loadDotEnv()
 
 const CATALOGUE = getArg('--catalogue') || process.env.PERSON_CATALOGUE_ROOT || ''
 const BASE_URL = (getArg('--base-url') || process.env.ARCHIVE_BASE_URL || 'http://localhost:3000').replace(/\/$/, '')
