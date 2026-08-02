@@ -66,6 +66,22 @@
 .PARAMETER BatchSize
     Number of folders to send per POST in Full mode. Default: 200.
 
+.PARAMETER Path
+    Full mode only. Restrict the walk to this subtree — a channel folder, a year
+    folder, or a single leaf. Everything outside is not listed at all, so a scan of
+    one channel takes seconds instead of walking tens of thousands of folders.
+
+    IMPORTANT: a scoped scan SKIPS ghost detection. mark-ghosts flags every folder
+    it did not see as missing on disk, which for a scoped run would be the entire
+    rest of the archive. Deletions are therefore only detected by an unrestricted
+    Full scan.
+
+.PARAMETER Force
+    Full mode only. Re-read every leaf, ignoring the leaf-mtime skip. Needed because
+    NTFS does not bump a directory's mtime when a file inside it is edited — only
+    when an entry is added, removed or renamed. Editing a file in place is thus
+    invisible to the skip, and -Force is the only way to pick it up.
+
 .PARAMETER NoSidecarPrompt
     Skip the interactive prompt after a Full scan that asks whether to write missing
     sidecar files. Use this in automated/scheduled runs. When omitted the script
@@ -95,6 +111,12 @@
     .\archive-scan.ps1 -Mode Full -PhotosetRoot "X:\Sites\" -NoSidecarPrompt
 
     Full scan + write _pulseboard.json into all folders without a sidecar, without prompting.
+
+.EXAMPLE
+    .\archive-scan.ps1 -Mode Full -PhotosetRoot "X:\Sites\" -Path "X:\Sites\FTV-FTV" -Force
+
+    Re-read one channel folder completely, ignoring mtime. Use after editing files
+    inside existing folders. Ghost detection is skipped.
 
 .EXAMPLE
     .\archive-scan.ps1 -Mode Full -PhotosetRoot "X:\Sites\" -DryRun
@@ -155,6 +177,8 @@ param(
     [string]$PhotosetRoot  = ($env:ARCHIVE_PHOTOSET_ROOT  ?? ""),
     [string]$VideosetRoot  = ($env:ARCHIVE_VIDEOSET_ROOT  ?? ""),
     [int]$BatchSize        = 200,
+    [string]$Path          = "",  # Full mode: restrict the walk to this subtree (channel folder, year, or a single leaf)
+    [switch]$Force,               # Full mode: re-read every leaf, ignoring the leaf-mtime skip
     [switch]$NoSidecarPrompt,  # skip interactive sidecar-write prompt after Full scan (for automation)
     [switch]$DryRun,
     [switch]$SkipChanCache,  # retained for backward compatibility; no longer has any effect
@@ -556,8 +580,19 @@ function Load-KnownFolders {
 
 # ── FULL MODE — Walk ──────────────────────────────────────────────────────────
 
+# -Path scoping. A directory is in scope when it is the scope itself, an ANCESTOR
+# of it (we must descend through it to reach the scope) or a DESCENDANT of it (it
+# is inside the scope). Comparing normalised paths keeps this separator- and
+# case-insensitive, matching Normalize-Path used everywhere else.
+function Test-InScope {
+    param([string]$DirPath, [string]$ScopeNorm)
+    if (-not $ScopeNorm) { return $true }
+    $d = Normalize-Path $DirPath
+    return $d.StartsWith($ScopeNorm) -or $ScopeNorm.StartsWith($d)
+}
+
 function Walk-Root {
-    param([string]$Root, [bool]$IsVideo, [hashtable]$ByPath, [hashtable]$BySig)
+    param([string]$Root, [bool]$IsVideo, [hashtable]$ByPath, [hashtable]$BySig, [string]$ScopeNorm = "")
 
     $rootLabel = if ($IsVideo) { "videoset" } else { "photoset" }
     Write-Host "  Walking $rootLabel root: $Root"
@@ -574,6 +609,10 @@ function Walk-Root {
     $channelFolders = Get-ChildItem -LiteralPath $Root -Directory -ErrorAction SilentlyContinue
 
     foreach ($cf in $channelFolders) {
+        # Prune as early as possible: an out-of-scope channel folder costs one
+        # string comparison instead of a full recursive listing.
+        if (-not (Test-InScope $cf.FullName $ScopeNorm)) { continue }
+
         # Always use UTC for mtime comparisons — the server stores/returns UTC timestamps.
         # LastWriteTime is local time; LastWriteTimeUtc is always UTC regardless of timezone.
         $cfMtime = $cf.LastWriteTimeUtc
@@ -581,11 +620,13 @@ function Walk-Root {
         $yearDirs = Get-ChildItem -LiteralPath $cf.FullName -Directory -ErrorAction SilentlyContinue
 
         foreach ($yf in $yearDirs) {
+            if (-not (Test-InScope $yf.FullName $ScopeNorm)) { continue }
             $yrMtime = $yf.LastWriteTimeUtc
 
             $leafDirs = Get-ChildItem -LiteralPath $yf.FullName -Directory -ErrorAction SilentlyContinue
 
             foreach ($lf in $leafDirs) {
+                if (-not (Test-InScope $lf.FullName $ScopeNorm)) { continue }
                 $lfMtime   = $lf.LastWriteTimeUtc
                 $normPath  = Normalize-Path $lf.FullName
                 $folderName = $lf.Name
@@ -613,7 +654,12 @@ function Walk-Root {
                 }
 
                 # ── Level 3 skip: leaf mtime unchanged ──────────────────────
-                if ($existing -and $existing.leafDirModifiedAt) {
+                # -Force disables it. Needed because NTFS does NOT bump a
+                # directory's mtime when a file INSIDE it is edited — only when an
+                # entry is added, removed or renamed. So a hand-edited file in an
+                # otherwise untouched folder is invisible to the skip, and the only
+                # way to pick it up is to re-read regardless.
+                if (-not $Force -and $existing -and $existing.leafDirModifiedAt) {
                     $storedLfMtime = To-UtcDateTime $existing.leafDirModifiedAt
                     if ([Math]::Abs(($lfMtime - $storedLfMtime).TotalSeconds) -lt 2) {
                         # Still need to update parent mtimes if they changed.
@@ -880,17 +926,21 @@ function Run-FullScan {
     $photoRoots = Parse-Roots $PhotosetRoot
     $videoRoots = Parse-Roots $VideosetRoot
 
+    $scopeNorm = if ($Path) { Normalize-Path ($Path.TrimEnd("/\")) } else { "" }
+
     foreach ($root in $photoRoots) {
         $r = $root.TrimEnd("/\")
+        if (-not (Test-InScope $r $scopeNorm)) { Write-Host "  [Photo] Skipping (out of scope): $r"; continue }
         Write-Host "  [Photo] Walking: $r"
-        $found = Walk-Root -Root $r -IsVideo $false -ByPath $byPath -BySig $bySig
+        $found = Walk-Root -Root $r -IsVideo $false -ByPath $byPath -BySig $bySig -ScopeNorm $scopeNorm
         foreach ($f in $found) { [void]$allDelta.Add($f) }
     }
 
     foreach ($root in $videoRoots) {
         $r = $root.TrimEnd("/\")
+        if (-not (Test-InScope $r $scopeNorm)) { Write-Host "  [Video] Skipping (out of scope): $r"; continue }
         Write-Host "  [Video] Walking: $r"
-        $found = Walk-Root -Root $r -IsVideo $true -ByPath $byPath -BySig $bySig
+        $found = Walk-Root -Root $r -IsVideo $true -ByPath $byPath -BySig $bySig -ScopeNorm $scopeNorm
         foreach ($f in $found) { [void]$allDelta.Add($f) }
     }
 
@@ -1022,7 +1072,17 @@ function Run-FullScan {
     }
 
     # ── Step 4: Mark ghost folders (not seen this scan) ─────────────────────
+    # HARD SAFETY GATE. mark-ghosts flags EVERY folder whose scannedAt predates
+    # this run as missingOnDisk — it assumes the walk covered the whole archive.
+    # A -Path run covers a subtree, so calling it would mark the tens of thousands
+    # of folders outside the scope as missing, which in turn makes them ineligible
+    # for the HD re-bake and hides them in the workspace. A scoped scan makes no
+    # claim about anything outside its scope, so it must not run this step.
     Write-Host ""
+    if ($Path) {
+        Write-Host "Skipping ghost detection — scan was restricted to: $Path"
+        Write-Host "  (deletions are only detected by an unrestricted Full scan)"
+    } else {
     Write-Host "Marking ghost folders..."
     try {
         $ghostBody = ConvertTo-Json @{ scanStartedAt = $scanStartedAt } -Compress
@@ -1035,6 +1095,7 @@ function Run-FullScan {
         Write-Host "  Marked $($ghostResp.marked) ghost folder(s) as missing on disk."
     } catch {
         Write-Warning "mark-ghosts call failed: $_"
+    }
     }
 
     # ── Step 5: Write sidecar files ─────────────────────────────────────────

@@ -119,7 +119,7 @@ _Avoid_: using "Network" for person-to-person ties — those are **Connections**
 ### Connections & relationships (added 2026-06-28)
 
 **Contact** (code model `Contact`; DB table `PersonRef` via `@@map`):
-A person **mentioned but not yet curated** as a full `Person` — the "ghost" register. Carries a name, optional thumbnail, and an **optional unique ICG-ID** (import co-models have one; a non-industry personal contact, e.g. a sister, may be name-only). Mentions (import co-models, staged-set participants) resolve to a Contact; when a `Person` later appears with the contact's ICG-ID its edges **repoint and the contact is retired** (`reconcileContacts`, keyed by exact ICG-ID — never fuzzy). Keeps the curated `Person` space industry-only despite high mention volume.
+A person **mentioned but not yet curated** as a full `Person` — the "ghost" register. Carries a name, optional thumbnail, and an **optional unique ICG-ID** (import co-models have one; a non-industry personal contact, e.g. a sister, may be name-only). Mentions (import co-models, staged-set participants) resolve to a Contact; when a `Person` later appears with the contact's ICG-ID its edges **repoint and the contact is retired** (`reconcileContacts`, keyed by exact ICG-ID — never fuzzy). Keeps the curated `Person` space industry-only despite high mention volume. A Contact is also what an **unresolved set credit holds on to**: promoting a set whose participant has a known ICG-ID but no curated Person points the credit at the Contact rather than degrading it to a bare name — so the unique key survives promotion and the credit repoints by itself once the Person exists. A Contact is never a **participant**: it carries no career, so it produces no `SessionContribution` and no `SetParticipant`.
 _Avoid_: the word **"Reference"** for this (collides with the **Reference Session**); "stub person" / treating a Contact as a `Person`; "candidate" (that means a duplicate/archive match). The DB table keeps its legacy name `PersonRef` (mapped) — that's storage, not the domain term.
 
 **Connection** (the person detail **tab**; data spans three sources):
@@ -215,6 +215,37 @@ The operation that **replays** an Aligned image's existing alignment (same keypo
 
 **Archive re-bake agent** (added 2026-06-14):
 The local Node agent that performs HD re-bakes — the **same pattern as `scripts/archive-scan.ts`**: runs on the Windows machine that holds the archive, authenticated by API key, reads originals off the local filesystem (which the Unraid app server cannot). It pulls the app's **eligible worklist**, reads `{fullPath}\{filename}`, integrity-checks it, bakes at full resolution locally, and **POSTs back only the small baked result** (the multi-MB original never leaves the machine). Manual/batch (whole-library or scoped; `--dry-run`, `--force`), not auto-triggered. See ADR-0017.
+
+### Archive (added 2026-08-02)
+
+**Archive**:
+The **physical reality** — the Sets (photo or video) actually owned, on disk, filed by **publishing Channel and publication date** (`{root}\{channelFolder}\{year}\{folderName}`). It is a *view of the same world as the app, from the other side*: the app reasons from the **Person** outward (career → Sessions → Sets), the archive from the **Set** inward (what do I actually hold). Neither view is complete, and their overlap is only a subset: import files omit whole Channels/Labels entirely, many app-known Sets exist only as metadata, and a Set may sit under a different Channel in the app than in the archive. Multiple roots are normal.
+_Avoid_: treating the archive as a backup or a cache of the app (it is neither — it holds things the app has never heard of); assuming archive Channel == app Channel for a given Set.
+
+**Archive folder** (code model & DB table: `ArchiveFolder`):
+One leaf directory = one candidate Set. Identified by a stable **`archiveKey`** UUID that survives renames and cross-drive moves, mirrored into the folder's **sidecar** so a moved folder can re-attach itself. Carries what the filesystem can tell us (file count, video presence, leaf mtime) plus what the folder *name* parses to (date, channel short name, title) — the parse is a **suggestion**, never an identification.
+_Avoid_: "archive set" (a folder is a candidate; the Set lives in the app); treating `fullPath` as identity (that is `archiveKey`'s job).
+
+**Sidecar** (`_pulseboard.json`, one per archive folder):
+The app's own file inside an archive folder. Today it carries only the `archiveKey`, which is what makes a moved or renamed folder recognisable. It is the archive's only app-written artifact.
+
+**Person catalogue** (external, on the archive host):
+The second, **person-centric** catalogue: a `<Common_Name_(ICG-ID)>` folder per externally-known person, each holding CSVs of the Sets that person worked on (photosets and videosets separately). Irregularly updated. It is the source the per-person import files come from, and it is **vastly larger than anything the app should hold** — ~40k persons, most of whom will never be curated. Its channel↔alias data is known-unreliable (missing or ambiguous aliases, unnormalised characters), and a Set listed under its first-publication channel may sit under a different channel in the archive. Therefore **date + title are the load-bearing join keys; channel is corroboration, never a gate.**
+_Avoid_: "import source" (says what it's used for, not what it is); treating its channel attribution as authoritative.
+
+**Archive coverage as the relevance filter** (principle):
+Physical possession is the yardstick for what deserves to exist in the app. If a Set is in the **archive**, its participants are worth knowing — sooner or later they become curated Persons. If it is only in the **person catalogue**, it is not. This is what keeps the app from inflating to catalogue scale: the two catalogues are joined, but only the **intersection** is materialised.
+_Avoid_: bulk-importing the person catalogue "because we have it".
+
+**Folder attribution** (`_people.txt` in an archive folder):
+The owner's **direct assertion** of who is in a set — one `Common Name (ICG-ID)` per line, hand-written while working the folder. Distinct in rank from everything else that proposes people: the **person catalogue** and the app's alias/contact registry produce *suggestions* that need confirming; a folder attribution is a *statement* and outranks them. Deliberately a separate, plain-text file rather than a field in the app-written **sidecar** — so a hand-edit can never corrupt the sidecar and the app can never overwrite the hand-edit.
+_Avoid_: putting ICG-IDs in the folder *name* (multi-participant sets don't fit, and renaming breaks links).
+
+**Archive scan** (`scripts/archive-scan.ps1`):
+The filesystem walk that keeps `ArchiveFolder` current — which folders exist, what they hold, what moved. Runs on the machine that owns the archive (the app server cannot reach it), authenticated by API key. Two modes: **Targeted** (re-check only folders behind confirmed links) and **Full** (walk the roots, detect renames and deletions). Full skips unchanged leaves by directory mtime, which is why editing a file *inside* an untouched folder needs a forced re-read.
+_Note_: unlike the **re-bake agent**, the `.ps1` and `.ts` scan scripts are **not** feature-identical — `archive-scan.ts` implements Targeted mode only and has no walk, ghost detection or sidecar handling. The Full mode lives solely in PowerShell.
+_Avoid_: assuming a scoped Full scan can detect deletions — it deliberately cannot, because "not seen" is indistinguishable from "not looked at".
+_Avoid_: plain **"scan"** unqualified — this project has two unrelated scans. The other is the **Scan round** (below), which selects external identity pages for scraping and touches no filesystem. Say "archive scan" or "scan round", never just "scan".
 
 ### Watchlist scan workflow (added 2026-06-10)
 
