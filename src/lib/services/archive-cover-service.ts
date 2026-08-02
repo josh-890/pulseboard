@@ -21,6 +21,16 @@ import { escapeLike } from '@/lib/prisma-like'
 const COVER_MAX_PX = 512
 const COVER_QUALITY = 80
 
+/**
+ * Mirror of archive-scan.ps1's Normalize-Path: trim trailing separators and fold
+ * forward slashes to backslashes. The two scripts share a -Path argument, so they
+ * have to agree on what a scope means — otherwise the same string scopes one and
+ * silently matches nothing in the other.
+ */
+function normalizeScopePath(p: string): string {
+  return p.replace(/[/\\]+$/, '').replace(/\//g, '\\')
+}
+
 export type CoverWorklistEntry = {
   archiveKey: string
   fullPath: string
@@ -46,9 +56,21 @@ export async function getCoverWorklist(opts: {
       // Default skips folders that already failed, so a plain re-run does not
       // grind through known-bad images every time. --retry-failed opts in.
       ...(opts.retryFailed ? {} : { coverError: null }),
-      // escapeLike is mandatory here: fullPath is a Windows path and LIKE treats
-      // the backslash as its escape character, so the raw prefix matches nothing.
-      ...(opts.pathPrefix ? { fullPath: { startsWith: escapeLike(opts.pathPrefix) } } : {}),
+      // Two things are mandatory here, and both fail the same silent way — an
+      // empty result that looks like "nothing to do":
+      //   escapeLike — fullPath is a Windows path and LIKE treats the backslash
+      //     as its escape character, so the raw prefix matches nothing at all.
+      //   insensitive — archive-scan.ps1's -Path compares through Normalize-Path
+      //     (lower-cased), so the same argument must be case-insensitive here or
+      //     the two scripts would disagree about what a scope means.
+      ...(opts.pathPrefix
+        ? {
+            fullPath: {
+              startsWith: escapeLike(normalizeScopePath(opts.pathPrefix)),
+              mode: 'insensitive' as const,
+            },
+          }
+        : {}),
     },
     select: { archiveKey: true, fullPath: true, isVideo: true, coverError: true },
     orderBy: { fullPath: 'asc' },
