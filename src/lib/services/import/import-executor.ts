@@ -1483,12 +1483,33 @@ export async function promoteManualStagingSet(stagingSetId: string): Promise<Imp
       }
 
       for (const p of unknownParticipants) {
+        // Plan slice 2: a participant we cannot resolve to a Person may still be
+        // known by ICG-ID. Pin the credit to a Contact (ADR-0022) so the
+        // canonical key survives promotion instead of decaying to a bare name —
+        // later resolution would otherwise fall back to ambiguous name matching,
+        // exactly what ADR-0026 exists to prevent. Name-only participants keep
+        // the previous behaviour: there is nothing to hold on to.
+        let resolvedContactId: string | null = null
+        if (p.icgId) {
+          const contact = await tx.contact.upsert({
+            where: { icgId: p.icgId },
+            create: {
+              icgId: p.icgId,
+              name: p.name,
+              nameNorm: normalizeForSearch(p.name),
+              source: 'import',
+            },
+            update: { name: p.name, nameNorm: normalizeForSearch(p.name) },
+          })
+          resolvedContactId = contact.id
+        }
         await tx.setCreditRaw.create({
           data: {
             setId: set.id,
-            rawName: p.name,
-            nameNorm: normalizeForSearch(p.name),
+            rawName: p.usedName ?? p.name,
+            nameNorm: normalizeForSearch(p.usedName ?? p.name),
             resolutionStatus: 'UNRESOLVED',
+            resolvedContactId,
           },
         })
       }

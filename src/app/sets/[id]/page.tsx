@@ -116,6 +116,9 @@ export default async function SetDetailPage({ params }: SetDetailPageProps) {
       resolvedArtist: c.resolvedArtist
         ? { id: c.resolvedArtist.id, name: c.resolvedArtist.name }
         : null,
+      resolvedContact: c.resolvedContact
+        ? { id: c.resolvedContact.id, name: c.resolvedContact.name, icgId: c.resolvedContact.icgId }
+        : null,
     }));
 
     return (

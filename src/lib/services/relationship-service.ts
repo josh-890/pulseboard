@@ -538,6 +538,18 @@ async function repointContactToPerson(tx: TxClient, refId: string, personId: str
     }
   }
 
+  // Repoint set credits (plan slice 2). A credit pinned to this contact carried
+  // the ICG-ID through promotion precisely so this moment could resolve it — the
+  // person now exists, so the credit becomes a resolved person credit.
+  //
+  // This MUST run before the delete below. The FK is onDelete: SetNull, so
+  // skipping it would not fail loudly; it would silently strip the credit back to
+  // a bare name — reintroducing the exact bug this slice removes.
+  await tx.setCreditRaw.updateMany({
+    where: { resolvedContactId: refId },
+    data: { resolvedContactId: null, resolvedPersonId: personId, resolutionStatus: "RESOLVED" },
+  });
+
   // No edges reference the ref any more — retire it.
   await tx.contact.delete({ where: { id: refId } });
 }

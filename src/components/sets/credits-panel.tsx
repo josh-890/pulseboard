@@ -22,6 +22,12 @@ type CreditItem = {
     aliases: { name: string; isCommon: boolean }[];
   } | null;
   resolvedArtist: { id: string; name: string } | null;
+  /**
+   * Plan slice 2: the participant is known by ICG-ID but not curated yet. Shown
+   * as "Name (ICG-ID)" so the canonical key stays visible instead of the credit
+   * reading as an anonymous raw string.
+   */
+  resolvedContact: { id: string; name: string; icgId: string | null } | null;
 };
 
 type RoleDefinitionOption = {
@@ -41,9 +47,12 @@ function CreditRow({ credit }: { credit: CreditItem }) {
   const isUnresolved = credit.resolutionStatus === "UNRESOLVED";
   const personId = credit.resolvedPerson?.id;
   const commonName = credit.resolvedPerson?.aliases.find((a) => a.isCommon)?.name ?? null;
+  const contact = credit.resolvedContact;
   const displayName = credit.resolvedPerson
     ? (commonName ?? credit.resolvedPerson.icgId)
-    : credit.resolvedArtist?.name ?? credit.rawName;
+    : credit.resolvedArtist?.name
+      ?? (contact?.icgId ? `${contact.name} (${contact.icgId})` : null)
+      ?? credit.rawName;
 
   // "as X" evidence line — only for resolved persons (ADR-0024 precedence).
   const creditedAs = credit.resolvedPerson ? resolveCreditedAs(credit, commonName) : null;
@@ -70,6 +79,14 @@ function CreditRow({ credit }: { credit: CreditItem }) {
       {creditedAs && (
         <span className="shrink-0 text-xs italic text-muted-foreground/70">
           as {creditedAs}
+        </span>
+      )}
+      {contact && !credit.resolvedPerson && (
+        <span
+          className="shrink-0 rounded-full bg-muted/50 px-1.5 py-0.5 text-[10px] text-muted-foreground/70"
+          title="Known by ICG-ID; becomes a linked credit as soon as the person is created"
+        >
+          not yet curated
         </span>
       )}
     </>

@@ -654,6 +654,7 @@ model Contact {
 
   relationshipsTo PersonRelationship[]
   claims          ClaimedCollaboration[] @relation("ClaimCounterpartRef")
+  credits         SetCreditRaw[]         @relation("CreditContact")
 
   @@index([nameNorm])
   @@index([ignoredAt])
@@ -1324,12 +1325,21 @@ model SetCreditRaw {
   resolvedAliasId  String?
   resolvedAlias    PersonAlias? @relation("CreditAlias", fields: [resolvedAliasId], references: [id], onDelete: SetNull)
 
+  // ADR-0026 + plan slice 2: a participant whose ICG-ID is known but who has no
+  // curated Person yet. Without this the ICG-ID was dropped at promote time and
+  // the credit decayed to a bare name — re-resolvable only by ambiguous name
+  // matching. reconcileContacts repoints these onto resolvedPersonId once the
+  // Person appears (see repointContactToPerson).
+  resolvedContactId String?
+  resolvedContact   Contact? @relation("CreditContact", fields: [resolvedContactId], references: [id], onDelete: SetNull)
+
   @@index([setId])
   @@index([resolutionStatus])
   @@index([nameNorm])
   @@index([resolvedPersonId])
   @@index([resolvedArtistId])
   @@index([resolvedAliasId])
+  @@index([resolvedContactId])
   @@index([roleDefinitionId])
 }
 

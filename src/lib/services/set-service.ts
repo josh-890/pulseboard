@@ -399,6 +399,8 @@ export async function getSetById(id: string) {
           },
           resolvedAlias: { select: { id: true, name: true } },
           resolvedArtist: true,
+          // Plan slice 2: a credit whose ICG-ID is known but who has no Person yet.
+          resolvedContact: { select: { id: true, name: true, icgId: true } },
           roleDefinition: { include: { group: true } },
         },
         orderBy: { createdAt: "asc" },
