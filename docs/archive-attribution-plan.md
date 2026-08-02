@@ -89,6 +89,18 @@ re-bake run and named no file. Rules, all of them non-negotiable:
 **Scope.** All 34,662 folders in one full run (~1.4 GB at 512 px), then incremental via the
 existing mtime logic. Linked folders included — the workspace should not be half-blind.
 
+**Presentation — thumbnail in the tree row, not a staging-style grid.** The archive workspace
+is a virtualised tree (channel → year → leaf, default collapsed) with five row kinds;
+`/staging-sets` is a flat filterable grid. They are shaped differently on purpose: channel +
+date is literally how the archive is filed, and at 34,662 leaves the collapsed hierarchy is
+what makes it navigable. Flattening it into cards would trade the only orientation the view
+has for a nicer picture. So: a small thumbnail on the left of each leaf row, larger on hover;
+the tree and its collapse model stay untouched. Note the orphan row already carries a
+suggestion with title, date, channel and participants (`archive-orphan-row.tsx:33-40`) — the
+image is the missing piece, not a redesign.
+
+Virtualisation constraint: bind to `#app-scroll`, never `useWindowVirtualizer`.
+
 **Verify.** Deliberately place a truncated JPEG in a test folder: the run must complete, that
 one folder must show as a cover failure with its path, and the rest must have thumbnails.
 Then re-run: only the failed folder is retried.
@@ -185,6 +197,10 @@ risk — useful on its own for spot lookups.
 - `/archive/attribution` — groups sorted by leverage (folder count), showing the suggested
   person with vote counts and dissent, member folders with thumbnails, and per group:
   **confirm** · **not a person** · **split** · **skip**.
+  **This is where the staging-style grid belongs.** Unlike the archive browser, here you are
+  judging one coherent set of folders against each other ("are these all the same person?"),
+  and a contact sheet of covers is the right format for that question. The archive tree
+  answers a different one and stays a tree.
   "Not a person" is mandatory, not polish — the single largest group in the archive is
   `W4B | w4b magazine` with 204 folders, and it is a magazine title.
 - Confirm → for each member folder: `createStagingSetFromOrphan` (exists), then
