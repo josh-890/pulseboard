@@ -9,7 +9,7 @@ import { normalizeForSearch } from "@/lib/normalize";
 // loudly — it would silently strip the credit back to a bare name, which is the
 // exact bug this slice removes. That silence is why this test exists.
 //
-// Requires a reachable Postgres (see vitest env note); throwaway data is
+// Runs against the DEV database (vitest.config.ts loads .env); throwaway data is
 // prefixed and wiped in afterEach.
 
 const PREFIX = "CCR-TEST";

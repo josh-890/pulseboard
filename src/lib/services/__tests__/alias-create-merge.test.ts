@@ -4,8 +4,11 @@ import { createAlias, mergeAliases } from "@/lib/services/alias-service";
 import { normalizeForSearch } from "@/lib/normalize";
 
 // DB-integration tests for the alias find-or-reuse fix and the mergeAliases
-// pin re-point fix. Throwaway data is prefixed and wiped in afterEach. Requires
-// a local Postgres on 127.0.0.1:5432 (skipped/failing on connection in WSL).
+// pin re-point fix. Throwaway data is prefixed and wiped in afterEach.
+//
+// Runs against the DEV database: vitest.config.ts loads .env, so DATABASE_URL is
+// set. (These used to fail on 127.0.0.1 — that was the missing env load, not a
+// missing local Postgres.)
 
 const ICG_PREFIX = "TACM-";
 const NAME_PREFIX = "TACM_";

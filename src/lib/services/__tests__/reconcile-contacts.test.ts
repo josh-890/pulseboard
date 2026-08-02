@@ -17,6 +17,7 @@ function makeTx(opts: {
     relUpdate: vi.fn(),
     relDelete: vi.fn(),
     refDelete: vi.fn(),
+    creditUpdateMany: vi.fn(),
   };
   const tx = {
     contact: {
@@ -34,6 +35,11 @@ function makeTx(opts: {
       findUnique: vi.fn().mockResolvedValue(opts.existingRel ? { id: "existing" } : null),
       update: calls.relUpdate,
       delete: calls.relDelete,
+    },
+    // Plan slice 2: credits pinned to the contact are repointed onto the person
+    // before the contact row is retired.
+    setCreditRaw: {
+      updateMany: calls.creditUpdateMany,
     },
   } as unknown as TxClient;
   return { tx, calls };
@@ -81,6 +87,20 @@ describe("reconcileContacts", () => {
     await reconcileContacts(tx, "ICG-1", "person-1");
     expect(calls.claimDelete).toHaveBeenCalledWith({ where: { id: "claim-1" } });
     expect(calls.claimUpdate).not.toHaveBeenCalled();
+  });
+
+  it("repoints contact-pinned set credits onto the person before retiring the ref", async () => {
+    const { tx, calls } = makeTx({ ref: { id: "ref-1" } });
+    await reconcileContacts(tx, "ICG-1", "person-1");
+
+    expect(calls.creditUpdateMany).toHaveBeenCalledWith({
+      where: { resolvedContactId: "ref-1" },
+      data: { resolvedContactId: null, resolvedPersonId: "person-1", resolutionStatus: "RESOLVED" },
+    });
+    // Ordering matters: the FK is onDelete SetNull, so repointing after the
+    // delete would silently strip the key instead of moving it.
+    expect(calls.creditUpdateMany.mock.invocationCallOrder[0])
+      .toBeLessThan(calls.refDelete.mock.invocationCallOrder[0]);
   });
 
   it("repoints a manual relationship's ref endpoint to the person", async () => {
