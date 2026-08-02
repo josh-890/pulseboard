@@ -144,6 +144,24 @@ export function isAmbiguous(match: FolderMatch): boolean {
 }
 
 /**
+ * Does the folder name announce more than one participant?
+ *
+ * `FJ Michelle & Rebecca - Angels` matching two catalogue rows is not an
+ * ambiguity — it is both participants being found. Counting those as ambiguous
+ * turns the design's best behaviour into evidence against it, which matters
+ * because that figure drives the ADR-0027 decision gate.
+ */
+export function aliasTokenLooksMulti(aliasToken: string | null): boolean {
+  if (!aliasToken) return false
+  return /\s(&|and|\+)\s|,/i.test(aliasToken)
+}
+
+/** Ambiguity worth reviewing: several persons where the folder names only one. */
+export function isUnexplainedAmbiguity(match: FolderMatch, aliasToken: string | null): boolean {
+  return isAmbiguous(match) && !aliasTokenLooksMulti(aliasToken)
+}
+
+/**
  * Match one archive folder against the catalogue.
  *
  * Ties are broken by channel when possible — the only role channel plays. If a

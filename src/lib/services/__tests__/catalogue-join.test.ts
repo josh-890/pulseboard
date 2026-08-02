@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest";
 import {
   buildCatalogueIndex,
   channelLooselyMatches,
+  aliasTokenLooksMulti,
   distinctPersons,
   isAmbiguous,
+  isUnexplainedAmbiguity,
   matchFolder,
   normalizeTitle,
   parseCoverFilename,
@@ -197,6 +199,33 @@ describe("matchFolder", () => {
   it("never indexes catalogue rows with the unusable-date sentinel", () => {
     const idx = buildCatalogueIndex([cat({ date: "0000-00-00", title: "X" })]);
     expect(idx.size).toBe(0);
+  });
+});
+
+describe("multi-participant folders", () => {
+  it("recognises the shapes real folder names use", () => {
+    expect(aliasTokenLooksMulti("Michelle & Rebecca")).toBe(true);
+    expect(aliasTokenLooksMulti("Evia & Irina F & Kata A & Milli")).toBe(true);
+    expect(aliasTokenLooksMulti("Nancy A, Foxi")).toBe(true);
+    expect(aliasTokenLooksMulti("Michelle and Rebecca")).toBe(true);
+    expect(aliasTokenLooksMulti("Nancy A")).toBe(false);
+    expect(aliasTokenLooksMulti(null)).toBe(false);
+  });
+
+  it("does not treat a two-person set as ambiguous", () => {
+    // Two participants, two matching catalogue rows: the design working, not a
+    // decision the operator has to make.
+    const idx = buildCatalogueIndex([
+      cat({ date: "2004-12-24", title: "Angels", icgId: "MX-0017" }),
+      cat({ date: "2004-12-24", title: "Angels", icgId: "RB-8472" }),
+    ]);
+    const m = matchFolder(
+      folder({ parsedDate: "2004-12-24", parsedTitle: "Angels", parsedShortName: "FJ" }),
+      idx,
+    );
+    expect(isAmbiguous(m)).toBe(true);
+    expect(isUnexplainedAmbiguity(m, "Michelle & Rebecca")).toBe(false);
+    expect(isUnexplainedAmbiguity(m, "Michelle")).toBe(true);
   });
 });
 

@@ -38,6 +38,11 @@
  *   --api-key KEY    Defaults to ARCHIVE_API_KEY
  *   --tenant ID      Tenant to measure
  *   --limit N        Cap the number of orphans fetched (a quick first look)
+ *   --cache FILE     Reuse the parsed catalogue instead of re-walking. Written on
+ *                    the first run, read on every later one. The walk takes ~30
+ *                    minutes over 39k person folders; every metric below can be
+ *                    recomputed from the cache in seconds.
+ *   --rewalk         Force a fresh walk even when --cache exists
  *   --examples N     How many example lines to print per section (default 8)
  */
 import fs from 'node:fs'
@@ -48,7 +53,7 @@ import {
   buildCatalogueIndex,
   channelLooselyMatches,
   groupKey,
-  distinctPersons,
+  aliasTokenLooksMulti,
   isAmbiguous,
   matchFolder,
   normalizeTitle,
@@ -99,6 +104,8 @@ const BASE_URL = (getArg('--base-url') || process.env.ARCHIVE_BASE_URL || 'http:
 const API_KEY = getArg('--api-key') || process.env.ARCHIVE_API_KEY || ''
 const TENANT = getArg('--tenant') || process.env.ARCHIVE_TENANT || ''
 const LIMIT = Number(getArg('--limit')) || 0
+const CACHE = getArg('--cache') || ''
+const REWALK = args.includes('--rewalk')
 const EXAMPLES = Number(getArg('--examples')) || 8
 
 if (!CATALOGUE) {
@@ -137,9 +144,29 @@ type WorklistTruth = {
 
 type WalkStats = { personDirs: number; unparsedPersonDirs: number; files: number; unparsedFiles: number }
 
-function readCatalogue(root: string, stats: WalkStats): CatalogueSet[] {
+/**
+ * Progress, throttled to one line every couple of seconds.
+ *
+ * The walk touches >100k directories on a spinning or networked drive and can
+ * run for many minutes. Printing nothing until it finishes is indistinguishable
+ * from a hang — the same mistake that made an earlier agent look wedged — and
+ * the current bucket also names where a genuine stall happened.
+ */
+function makeTicker(intervalMs = 2000) {
+  let last = 0
+  return (line: string, force = false) => {
+    const now = Date.now()
+    if (!force && now - last < intervalMs) return
+    last = now
+    process.stdout.write(`\r${line.padEnd(78).slice(0, 78)}`)
+  }
+}
+
+function readCatalogue(root: string, stats: WalkStats, unparsedExamples: string[]): CatalogueSet[] {
   const out: CatalogueSet[] = []
-  for (const bucket of fs.readdirSync(root)) {
+  const tick = makeTicker()
+  const buckets = fs.readdirSync(root)
+  for (const bucket of buckets) {
     const bucketPath = path.join(root, bucket)
     let bucketStat: fs.Stats
     try {
@@ -150,6 +177,10 @@ function readCatalogue(root: string, stats: WalkStats): CatalogueSet[] {
     if (!bucketStat.isDirectory()) continue
 
     for (const personDir of fs.readdirSync(bucketPath)) {
+      tick(
+        `  [${bucket}]  ${stats.personDirs.toLocaleString()} persons, ` +
+          `${out.length.toLocaleString()} sets  —  ${personDir}`,
+      )
       const person = parsePersonDir(personDir)
       if (!person) {
         stats.unparsedPersonDirs++
@@ -165,6 +196,9 @@ function readCatalogue(root: string, stats: WalkStats): CatalogueSet[] {
           const parsed = parseCoverFilename(file)
           if (!parsed) {
             stats.unparsedFiles++
+            // Keep a sample: 7% of a million rows is a lot to lose silently, and
+            // the shape of what fails decides whether the parser needs widening.
+            if (unparsedExamples.length < 25) unparsedExamples.push(file)
             continue
           }
           out.push({
@@ -180,6 +214,8 @@ function readCatalogue(root: string, stats: WalkStats): CatalogueSet[] {
       }
     }
   }
+  // Clear the progress line so it does not sit above the report.
+  process.stdout.write(`\r${' '.repeat(78)}\r`)
   return out
 }
 
@@ -195,23 +231,66 @@ async function main() {
   console.log(`  catalogue : ${CATALOGUE}`)
   console.log(`  app       : ${BASE_URL}${TENANT ? `  [${TENANT}]` : ''}`)
 
-  const stats: WalkStats = { personDirs: 0, unparsedPersonDirs: 0, files: 0, unparsedFiles: 0 }
-  const started = Date.now()
-  const sets = readCatalogue(CATALOGUE, stats)
-  console.log(`\nWalked the catalogue in ${((Date.now() - started) / 1000).toFixed(1)}s`)
+  let stats: WalkStats = { personDirs: 0, unparsedPersonDirs: 0, files: 0, unparsedFiles: 0 }
+  let sets: CatalogueSet[]
+  let unparsedExamples: string[] = []
+
+  const cached = CACHE && !REWALK && fs.existsSync(CACHE)
+  if (cached) {
+    const started = Date.now()
+    const blob = JSON.parse(fs.readFileSync(CACHE, 'utf8')) as {
+      stats: WalkStats
+      unparsedExamples: string[]
+      sets: CatalogueSet[]
+    }
+    stats = blob.stats
+    sets = blob.sets
+    unparsedExamples = blob.unparsedExamples ?? []
+    console.log(
+      `\nRead ${sets.length.toLocaleString()} set row(s) from the cache in ` +
+        `${((Date.now() - started) / 1000).toFixed(1)}s  (${CACHE})`,
+    )
+    console.log(`Pass --rewalk to re-read the catalogue from disk.`)
+  } else {
+    console.log(`\nWalking the catalogue — this is the slow part (>100k directories).`)
+    console.log(`Ctrl+C is safe at any point: this agent writes nothing except --cache.\n`)
+    const started = Date.now()
+    sets = readCatalogue(CATALOGUE, stats, unparsedExamples)
+    console.log(
+      `Walked ${stats.personDirs.toLocaleString()} person folder(s) and read ` +
+        `${sets.length.toLocaleString()} set row(s) in ${((Date.now() - started) / 1000).toFixed(1)}s`,
+    )
+    if (CACHE) {
+      fs.writeFileSync(CACHE, JSON.stringify({ stats, unparsedExamples, sets }))
+      console.log(`Cached to ${CACHE} — later runs reuse it in seconds.`)
+    } else {
+      console.log(`Tip: pass --cache catalogue.json to skip this walk next time.`)
+    }
+  }
 
   const headers: Record<string, string> = { 'x-archive-key': API_KEY }
   if (TENANT) headers['x-tenant-id'] = TENANT
   const url = `${BASE_URL}/api/archive/attribution-worklist${LIMIT ? `?limit=${LIMIT}` : ''}`
+  process.stdout.write(`Fetching the archive worklist from the app… `)
+  const fetchStarted = Date.now()
   const resp = await fetch(url, { headers })
   if (!resp.ok) {
     console.error(`worklist fetch failed: ${resp.status} ${await resp.text()}`)
     process.exit(1)
   }
-  const { orphans, groundTruth } = (await resp.json()) as {
+  const { orphans, groundTruth, channels } = (await resp.json()) as {
     orphans: WorklistOrphan[]
     groundTruth: WorklistTruth[]
+    channels: { name: string; shortName: string | null; labelName: string | null }[]
   }
+  console.log(
+    `${orphans.length.toLocaleString()} orphan(s), ${groundTruth.length.toLocaleString()} ` +
+      `ground-truth folder(s) in ${((Date.now() - fetchStarted) / 1000).toFixed(1)}s`,
+  )
+  process.stdout.write(`Joining… `)
+  const joinStarted = Date.now()
+
+  console.log(`done in ${((Date.now() - joinStarted) / 1000).toFixed(1)}s`)
 
   // ── 0. Catalogue shape ─────────────────────────────────────────────────────
   heading('0. CATALOGUE')
@@ -220,6 +299,10 @@ async function main() {
   console.log(`  set rows read                          ${String(sets.length).padStart(7)}`)
   row('unusable date (0000-00-00)', noDate, sets.length)
   row('filenames that did not parse', stats.unparsedFiles, stats.files)
+  if (unparsedExamples.length) {
+    console.log(`  examples of filenames that did not parse:`)
+    unparsedExamples.slice(0, EXAMPLES).forEach((f) => console.log(`     ${f}`))
+  }
   if (stats.unparsedPersonDirs) {
     console.log(`  person dirs that did not parse         ${String(stats.unparsedPersonDirs).padStart(7)}`)
   }
@@ -276,7 +359,7 @@ async function main() {
 
   // ── 2. Coverage + ambiguity over the orphans ───────────────────────────────
   heading('2. ORPHANS — coverage and ambiguity')
-  const tally = { exact: 0, strong: 0, weak: 0, none: 0, ambiguous: 0 }
+  const tally = { exact: 0, strong: 0, weak: 0, none: 0, multiParticipant: 0, ambiguous: 0 }
   const suggestedPersons = new Set<string>()
   const groups = new Map<string, { folders: number; votes: Map<string, number> }>()
   const ambiguityExamples: string[] = []
@@ -294,12 +377,20 @@ async function main() {
     }
     tally[m.tier]++
     if (isAmbiguous(m)) {
-      tally.ambiguous++
-      if (ambiguityExamples.length < EXAMPLES) {
-        ambiguityExamples.push(
-          `     ${o.folderName}  ->  ${distinctPersons(m)} persons: ` +
-            m.candidates.slice(0, 3).map((c) => `${c.personName} (${c.icgId}) / ${c.channel}`).join('  |  '),
-        )
+      if (aliasTokenLooksMulti(o.aliasToken)) {
+        tally.multiParticipant++
+      } else {
+        tally.ambiguous++
+        if (ambiguityExamples.length < EXAMPLES) {
+          // List DISTINCT persons — showing the first N candidates prints the
+          // same person repeatedly and makes a clean match look conflicted.
+          const seen = new Map<string, string>()
+          for (const c of m.candidates) if (!seen.has(c.icgId)) seen.set(c.icgId, `${c.personName} (${c.icgId})`)
+          ambiguityExamples.push(
+            `     ${o.folderName}\n        alias "${o.aliasToken ?? '?'}"  ->  ` +
+              [...seen.values()].join('  |  '),
+          )
+        }
       }
     }
     if (m.best) {
@@ -315,7 +406,10 @@ async function main() {
   const suggested = tally.exact + tally.strong + tally.weak
   console.log(`  ${'—'.repeat(38)}`)
   row('ANY suggestion', suggested, orphans.length)
-  row('  of those, AMBIGUOUS (>1 person)', tally.ambiguous, suggested)
+  row('  of those, multi-participant folder', tally.multiParticipant, suggested)
+  row('  of those, UNEXPLAINED ambiguity', tally.ambiguous, suggested)
+  console.log(`\n  A folder named "A & B" matching two people is the design working, not a`)
+  console.log(`  doubt to resolve — only the unexplained row is a precision risk.`)
   console.log(`  distinct persons suggested             ${String(suggestedPersons.size).padStart(7)}`)
   if (ambiguityExamples.length) {
     console.log(`\n  ambiguity examples:`)
@@ -351,36 +445,67 @@ async function main() {
   console.log(`  person is genuinely involved, or where the alias is reused.`)
 
   // ── 4. Channel naming ──────────────────────────────────────────────────────
-  heading('4. CHANNEL NAMING — corroboration quality')
+  heading('4. CHANNEL — corroboration, and a false-positive probe')
+  // A catalogue channel and an app channel that disagree are not all the same
+  // thing. Two channels of the SAME owning label (ADR-0020) genuinely share sets;
+  // a disagreement ACROSS labels means the join almost certainly landed on a
+  // different set that happens to share a date and a title. The second kind is a
+  // precision problem and is counted separately.
+  const labelOfChannel = (candidate: string): string | null => {
+    for (const c of channels) {
+      if (c.shortName && channelLooselyMatches(candidate, c.shortName)) return c.labelName
+      if (channelLooselyMatches(candidate, c.name)) return c.labelName
+    }
+    return null
+  }
+
   let agree = 0
-  let differ = 0
-  const differExamples = new Set<string>()
+  let sameLabel = 0
+  let crossLabel = 0
+  let unknownLabel = 0
+  const crossExamples = new Set<string>()
   for (const gt of groundTruth) {
     const short = gt.channelShortName ?? gt.parsedShortName
     if (!short || !gt.parsedDate) continue
     const owned = (index.get(gt.parsedDate) ?? []).filter((c) => gt.participantIcgIds.includes(c.icgId))
     for (const c of owned) {
-      if (channelLooselyMatches(c.channel, short)) agree++
-      else {
-        differ++
-        if (differExamples.size < EXAMPLES) {
-          differExamples.add(`     catalogue "${c.channel}"  vs app "${gt.channelName ?? '?'}" (${short})`)
+      if (channelLooselyMatches(c.channel, short)) {
+        agree++
+        continue
+      }
+      const catLabel = labelOfChannel(c.channel)
+      const appLabel = channels.find((x) => x.shortName === short || x.name === gt.channelName)?.labelName ?? null
+      if (catLabel && appLabel && catLabel === appLabel) {
+        sameLabel++
+      } else if (catLabel && appLabel) {
+        crossLabel++
+        if (crossExamples.size < EXAMPLES) {
+          crossExamples.add(
+            `     "${c.channel}" [${catLabel}]  vs app "${gt.channelName ?? '?'}" [${appLabel}]  —  ${gt.parsedDate} "${gt.setTitle}"`,
+          )
         }
+      } else {
+        unknownLabel++
       }
     }
   }
-  row('channel agrees', agree, agree + differ)
-  row('channel differs', differ, agree + differ)
-  if (differExamples.size) {
-    console.log(`\n  examples (mostly spelling, some genuine cross-publication):`)
-    differExamples.forEach((m) => console.log(m))
+  const totalChan = agree + sameLabel + crossLabel + unknownLabel
+  row('channel agrees', agree, totalChan)
+  row('differs, SAME label (expected)', sameLabel, totalChan)
+  row('differs, CROSS label (suspicious)', crossLabel, totalChan)
+  row('differs, label unknown', unknownLabel, totalChan)
+  if (crossExamples.size) {
+    console.log(`\n  cross-label matches — check these, they are the likeliest false positives:`)
+    crossExamples.forEach((m) => console.log(m))
   }
 
   heading('VERDICT INPUTS')
   console.log(`  Compare against the 6-person probe that produced ADR-0027:`)
   console.log(`    exact recall 91.3%, join-key ambiguity 0.29%, catalogue channel coverage 98%.`)
-  console.log(`  If ambiguity here is far above ~1% or recall far below ~90%, the`)
-  console.log(`  design in ADR-0027 needs revisiting before slices 4-6 are built.`)
+  console.log(`  Use the UNEXPLAINED ambiguity row, not the raw one: multi-participant`)
+  console.log(`  folders legitimately match several people and are not a decision.`)
+  console.log(`  If unexplained ambiguity is far above ~1% or exact recall far below`)
+  console.log(`  ~80%, ADR-0027 needs revisiting before slices 4-6 are built.`)
   console.log()
 }
 

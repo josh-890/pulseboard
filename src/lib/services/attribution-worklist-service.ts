@@ -36,10 +36,24 @@ export type AttributionGroundTruth = {
   participantIcgIds: string[]
 }
 
+/**
+ * Channel → owning Label (ADR-0020). The agent needs this to tell a benign
+ * channel disagreement from a suspicious one: two channels of the SAME label
+ * genuinely share sets (MetModels / Erotic Beauty), whereas a match spanning two
+ * labels (Hegre / FemJoy) is almost certainly the join landing on a different
+ * set that happens to share a date and title.
+ */
+export type AttributionChannel = {
+  name: string
+  shortName: string | null
+  labelName: string | null
+}
+
 export type AttributionWorklist = {
   counts: { orphans: number; groundTruth: number }
   orphans: AttributionOrphan[]
   groundTruth: AttributionGroundTruth[]
+  channels: AttributionChannel[]
 }
 
 const isoDay = (d: Date | null): string | null => (d ? d.toISOString().slice(0, 10) : null)
@@ -89,8 +103,18 @@ export async function getAttributionWorklist(
     orderBy: { folderName: 'asc' },
   })
 
+  const channelRows = await prisma.channel.findMany({
+    select: { name: true, shortName: true, label: { select: { name: true } } },
+    orderBy: { name: 'asc' },
+  })
+
   return {
     counts: { orphans: orphanRows.length, groundTruth: truthRows.length },
+    channels: channelRows.map((c) => ({
+      name: c.name,
+      shortName: c.shortName,
+      labelName: c.label?.name ?? null,
+    })),
     orphans: orphanRows.map((r) => ({
       archiveKey: r.archiveKey,
       folderName: r.folderName,
