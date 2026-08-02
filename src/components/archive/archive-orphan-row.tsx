@@ -2,8 +2,9 @@
 
 import { useState, useTransition } from 'react'
 import Link from 'next/link'
-import { Camera, Film, Check, X, Plus, ExternalLink, TriangleAlert, Trash2, Link2 } from 'lucide-react'
+import { Check, X, Plus, ExternalLink, TriangleAlert, Trash2, Link2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { ArchiveCoverThumb } from './archive-cover-thumb'
 import type { ArchiveFolderEntry } from '@/lib/services/archive-service'
 import {
   confirmArchiveFolderLinkAction,
@@ -88,10 +89,13 @@ export function ArchiveOrphanRow({ item, onRemoved }: Props) {
     )}>
       {/* Main row */}
       <div className="flex items-center gap-3 min-w-0">
-        {/* Type icon */}
-        <span className="shrink-0 text-muted-foreground/60">
-          {item.isVideo ? <Film size={14} /> : <Camera size={14} />}
-        </span>
+        {/* Cover thumbnail — same slot the bare type icon used to occupy */}
+        <ArchiveCoverThumb
+          coverUrl={item.coverUrl}
+          coverError={item.coverError}
+          isVideo={item.isVideo}
+          folderName={item.folderName}
+        />
 
         {/* Parsed date */}
         {dateStr && (

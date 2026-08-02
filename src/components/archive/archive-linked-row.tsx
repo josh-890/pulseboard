@@ -3,8 +3,9 @@
 import { useTransition } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Camera, Film, ExternalLink, CheckCircle2, TriangleAlert, Trash2 } from 'lucide-react'
+import { ExternalLink, CheckCircle2, TriangleAlert, Trash2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { ArchiveCoverThumb } from './archive-cover-thumb'
 import type { ArchiveFolderEntry } from '@/lib/services/archive-service'
 import { deleteArchiveFolderAction } from '@/lib/actions/archive-actions'
 
@@ -61,10 +62,13 @@ export function ArchiveLinkedRow({ item }: Props) {
       {/* Linked indicator */}
       <CheckCircle2 size={14} className="shrink-0 text-green-500" />
 
-      {/* Type icon */}
-      <span className="shrink-0 text-muted-foreground/60">
-        {item.isVideo ? <Film size={14} /> : <Camera size={14} />}
-      </span>
+      {/* Cover thumbnail — same slot the bare type icon used to occupy */}
+      <ArchiveCoverThumb
+        coverUrl={item.coverUrl}
+        coverError={item.coverError}
+        isVideo={item.isVideo}
+        folderName={item.folderName}
+      />
 
       {/* Date */}
       {dateStr && (

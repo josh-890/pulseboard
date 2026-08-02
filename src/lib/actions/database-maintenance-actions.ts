@@ -14,6 +14,7 @@ import {
   rebuildCurrentStateCache,
   checkCurrentStateIntegrity,
   auditIcgIdOrigins,
+  auditArchiveCovers,
 } from "@/lib/services/database-maintenance-service";
 
 type MaintenanceActionResult = {
@@ -150,6 +151,19 @@ export async function auditIcgIdOriginsAction(): Promise<MaintenanceActionResult
     try {
       // Read-only — nothing to revalidate.
       const result = await auditIcgIdOrigins();
+      return { success: true, ...result };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unexpected error";
+      return { success: false, error: message };
+    }
+  });
+}
+
+export async function auditArchiveCoversAction(): Promise<MaintenanceActionResult> {
+  return withTenantFromHeaders(async () => {
+    try {
+      // Read-only — nothing to revalidate.
+      const result = await auditArchiveCovers();
       return { success: true, ...result };
     } catch (err) {
       const message = err instanceof Error ? err.message : "Unexpected error";

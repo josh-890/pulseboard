@@ -13,6 +13,7 @@ import { normalizeForSearch } from "@/lib/normalize";
 import { refreshAllParticipantStatuses } from "@/lib/services/import/participant-status-service";
 import { resolveNationalityToIoc } from "@/lib/constants/countries";
 import { ICG_ID_EXTERNAL_RE, ICG_ID_LOCAL_RE, isSelfAssignedIcgId } from "@/lib/icg-id";
+import { getCoverStats, listCoverFailures } from "@/lib/services/archive-cover-service";
 
 export type MaintenanceResult = {
   found: number;
@@ -493,6 +494,36 @@ export async function auditIcgIdOrigins(): Promise<MaintenanceResult> {
   else details.push("Nothing was changed — correct a person's ICG-ID via the Change ICG-ID dialog.");
 
   return { found, fixed: 0, details };
+}
+
+/**
+ * Archive cover coverage + the per-folder defect list. Read-only.
+ *
+ * The cover agent deliberately fails one folder at a time and records why, so a
+ * single corrupt image can never derail a 34k-folder run. This is where those
+ * failures become actionable: each line names the folder and the reason, so the
+ * offending file can be cleaned or re-encoded and the agent re-run with
+ * -RetryFailed. Nothing is fixed here — a damaged source needs a human.
+ */
+export async function auditArchiveCovers(): Promise<MaintenanceResult> {
+  const [stats, failures] = await Promise.all([getCoverStats(), listCoverFailures()]);
+  const details: string[] = [
+    `${stats.total} folder(s) on disk: ${stats.withCover} with a cover, ${stats.pending} not yet attempted, ${stats.failed} failed.`,
+  ];
+  for (const f of failures) details.push(`${f.fullPath} — ${f.error}`);
+  if (stats.failed > failures.length) {
+    details.push(`(… ${stats.failed - failures.length} more not listed)`);
+  }
+  if (stats.failed === 0) {
+    details.push(
+      stats.pending > 0
+        ? "No failures. Run scripts/archive-cover.ps1 to cover the remaining folders."
+        : "Every folder on disk has a cover.",
+    );
+  } else {
+    details.push("Clean or re-encode the listed files, then re-run archive-cover.ps1 -RetryFailed.");
+  }
+  return { found: stats.failed, fixed: 0, details };
 }
 
 type ParticipantEntry = { name: string; icgId: string; url?: string };

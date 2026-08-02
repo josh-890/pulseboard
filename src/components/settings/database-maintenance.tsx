@@ -18,6 +18,7 @@ import {
   Database,
   ShieldCheck,
   Fingerprint,
+  ImageOff as ImageOffIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -32,6 +33,7 @@ import {
   rebuildCurrentStateCacheAction,
   checkCurrentStateIntegrityAction,
   auditIcgIdOriginsAction,
+  auditArchiveCoversAction,
 } from "@/lib/actions/database-maintenance-actions";
 
 type ActionResult = {
@@ -126,6 +128,13 @@ const actions: ActionConfig[] = [
       "Report how many people carry an external ICG-ID versus one self-assigned here (marked by '@'), and flag any ICG-ID matching neither shape — a marker in the wrong position, or an import-polluted value. Also flags contacts carrying the reserved marker, which should be impossible. Read-only: fix anything it finds via the Change ICG-ID dialog so the staging cascades run.",
     icon: <Fingerprint className="h-5 w-5 text-muted-foreground" />,
     action: auditIcgIdOriginsAction,
+  },
+  {
+    title: "Archive Cover Coverage",
+    description:
+      "How many archive folders have a cover thumbnail, and which ones failed. The cover agent fails one folder at a time and records why, so a single corrupt image never derails a full run \u2014 this is where those failures become actionable. Read-only: clean or re-encode the listed files, then re-run archive-cover.ps1 -RetryFailed.",
+    icon: <ImageOffIcon className="h-5 w-5 text-muted-foreground" />,
+    action: auditArchiveCoversAction,
   },
 ];
 

@@ -2284,6 +2284,14 @@ model ArchiveFolder {
   nameFormatOk         Boolean   @default(true) // false = folder name deviates from canonical format
   chanFolderName       String? // channel folder name (e.g. "RA-RylskyArt") — 3rd-from-last path segment
 
+  // Cover thumbnail (plan slice 1). The agent picks `*-c.jpg` (else the first
+  // image), downscales locally and POSTs only the thumbnail. coverError records a
+  // per-folder failure so one undecodable image is individually visible and
+  // fixable instead of derailing a 34k-folder run.
+  coverKey             String? // MinIO key, archive/{archiveKey}/cover-{ts}.jpg
+  coverError           String? // last failure reason; null once a cover succeeds
+  coverCheckedAt       DateTime? // last attempt, success or failure
+
   @@index([folderName])
   @@index([chanFolderName])
   @@index([parsedDate, parsedShortName])

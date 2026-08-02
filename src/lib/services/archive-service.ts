@@ -12,6 +12,7 @@ import { randomUUID } from 'crypto'
 import { prisma } from '@/lib/db'
 import { getSetting, setSetting } from '@/lib/services/setting-service'
 import { normalizeForSearch } from '@/lib/normalize'
+import { buildUrl } from '@/lib/media-url'
 import { ArchiveLinkStatus, Prisma } from '@/generated/prisma/client'
 import type { ArchiveStatus } from '@/generated/prisma/client'
 
@@ -943,6 +944,14 @@ export type ArchiveFolderEntry = {
   nameFormatOk: boolean
   chanFolderName: string | null
   suggestedConfidence: string | null   // 'HIGH' | 'MEDIUM' | null
+  /**
+   * Cover thumbnail (plan slice 1). A ready MinIO URL, built HERE rather than in
+   * the row component: buildUrl resolves the tenant bucket through AsyncLocalStorage,
+   * so it is server-only — importing it into a client component drags node:async_hooks
+   * into the browser bundle. coverError is the per-folder defect record.
+   */
+  coverUrl: string | null
+  coverError: string | null
 }
 
 export type PhantomEntry = {
@@ -2059,6 +2068,8 @@ export async function getArchiveWorkspace(filters: WorkspaceFilters): Promise<Wo
     lastRenamedFrom: true,
     nameFormatOk: true,
     chanFolderName: true,
+    coverKey: true,
+    coverError: true,
   } satisfies Prisma.ArchiveFolderSelect
 
   // Helper to map archiveLink fields to ArchiveFolderEntry link fields
@@ -2183,6 +2194,8 @@ export async function getArchiveWorkspace(filters: WorkspaceFilters): Promise<Wo
           ? ss.participants.map((p) => p.person.aliases[0]?.name).filter(Boolean) as string[]
           : [],
         suggestedStagingParticipants: sg?.artist ? [sg.artist] : [],
+        coverUrl: r.coverKey ? buildUrl(r.coverKey) : null,
+        coverError: r.coverError,
       }
     })
 
@@ -2334,6 +2347,8 @@ export async function getArchiveWorkspace(filters: WorkspaceFilters): Promise<Wo
           ? ss.participants.map((p) => p.person.aliases[0]?.name).filter(Boolean) as string[]
           : [],
         suggestedStagingParticipants: sg?.artist ? [sg.artist] : [],
+        coverUrl: r.coverKey ? buildUrl(r.coverKey) : null,
+        coverError: r.coverError,
       }
     })
 
@@ -2407,6 +2422,8 @@ export async function getArchiveWorkspace(filters: WorkspaceFilters): Promise<Wo
         suggestedSetChannel: null,
         suggestedStagingChannel: null,
         suggestedSetParticipants: [],
+        coverUrl: r.coverKey ? buildUrl(r.coverKey) : null,
+        coverError: r.coverError,
         suggestedStagingParticipants: [],
       }
     })
