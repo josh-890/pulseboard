@@ -1,20 +1,23 @@
 # Archive attribution — implementation plan
 
-Execution plan for ADR-0027. Six slices, each independently valuable and each leaving the
+Execution plan for ADR-0027. Seven slices, each independently valuable and each leaving the
 system coherent, so work can stop after any of them.
 
-The ordering is deliberate: the two cheapest slices pay off on **today's** imports without
-any catalogue machinery, and the measurement slice retires the plan's biggest unknown before
-anything is built on top of it.
+The ordering is deliberate: the measurement slice retires the plan's biggest unknown before
+anything is built on top of it, and slices 1–3 pay off on **today's** archive and imports
+without any catalogue machinery at all.
 
 | # | Slice | Depends on | Value if you stop here |
 |---|---|---|---|
 | 0 | Catalogue reader, report-only | — | Real numbers at full scale; no code to maintain |
-| 1 | Credit → Contact | — | ICG-IDs survive promotion on every normal import |
-| 2 | Exact-date tier in `matchSet` | — | Import matching stops missing cross-channel sets |
-| 3 | Suggestion pipeline | 0 | Suggestions exist and are inspectable; nothing materialises |
-| 4 | Group confirmation + materialisation | 1, 3 | The actual workflow |
-| 5 | Folder attribution (`_people.txt`) | 4 | Hand-written assertions feed the same pipeline |
+| 1 | Archive covers | — | The archive becomes visually browsable — on its own merit |
+| 2 | Credit → Contact | — | ICG-IDs survive promotion on every normal import |
+| 3 | Exact-date tier in `matchSet` | — | Import matching stops missing cross-channel sets |
+| 4 | Suggestion pipeline | 0 | Suggestions exist and are inspectable; nothing materialises |
+| 5 | Group confirmation + materialisation | 1, 2, 4 | The actual workflow |
+| 6 | Folder attribution (`_people.txt`) | 5 | Hand-written assertions feed the same pipeline |
+
+Slices 0–3 are mutually independent and can be reordered freely.
 
 ---
 
@@ -45,7 +48,57 @@ below, stop and revisit ADR-0027 rather than continuing.
 
 ---
 
-## Slice 1 — Credit → Contact
+## Slice 1 — Archive covers
+
+**Why.** Judging a folder from a text row is guesswork. There is no thumbnail machinery in
+the archive at all today — the workspace is text-only — so this is new regardless of the
+attribution work, and it pays off immediately: 32,053 orphans become visually siftable
+*before* any automation runs. Slice 5's group UI is unusable without it.
+
+Note the starting point: import-born staging sets are already at **100 % cover coverage**
+(28,109 of 28,118, from the import file). The gap is archive-born sets —
+`createStagingSetFromOrphan` sets no cover at all.
+
+**Cover selection.** A file matching `*-c.jpg` in the folder **is** the cover. Otherwise the
+first image by name. Videosets follow the same rule against their `frames\` contents.
+
+**Build.** Extend the archive scan (or a sibling agent — same host, same API key). Per folder:
+pick the cover, **downscale locally to ~512 px**, POST only the thumbnail to
+`POST /api/archive/cover/{archiveKey}` streamed as `image/jpeg` (use `-InFile`, not `-Body` —
+`Invoke-RestMethod` corrupts raw byte arrays, as the re-bake agent already documents).
+Keyed on `archiveKey`, not path, so a thumbnail survives folder renames and moves.
+
+- `ArchiveFolder.coverKey String?` — MinIO key, `archive/{archiveKey}/cover.jpg`
+- `ArchiveFolder.coverError String?` + `coverCheckedAt DateTime?` — the defect record
+
+**Corrupt files must not derail the run.** This is a hard requirement, and it is the failure
+mode this project has hit twice in one week: an undecodable original aborted a 79-image
+re-bake run and named no file. Rules, all of them non-negotiable:
+
+- Every folder is processed inside its own try/catch. One bad image fails **one** folder.
+- Print `[i/n] <path>` **before** the decode. A native image-library hang throws nothing, so
+  the last printed line is the only record of which file caused it.
+- The failure is **stored**, not just logged: `coverError` on the folder, surfaced as a
+  filter in the archive workspace so it is individually visible and fixable.
+- Re-running only retries folders with no `coverKey` or a set `coverError` — fixing one file
+  and re-running must not redo 34,662 folders.
+- Do **not** loosen decoder strictness to make corrupt files pass. The established rule is to
+  clean or re-encode the offending source; a silently mangled thumbnail is worse than a
+  reported failure.
+
+**Scope.** All 34,662 folders in one full run (~1.4 GB at 512 px), then incremental via the
+existing mtime logic. Linked folders included — the workspace should not be half-blind.
+
+**Verify.** Deliberately place a truncated JPEG in a test folder: the run must complete, that
+one folder must show as a cover failure with its path, and the rest must have thumbnails.
+Then re-run: only the failed folder is retried.
+
+**Stop here and** you have a browsable archive — worth having even if the attribution work
+never happens.
+
+---
+
+## Slice 2 — Credit → Contact
 
 **Why.** Independent of everything above. Today `promoteManualStagingSet` writes unknown
 participants as `SetCreditRaw { rawName, resolutionStatus: 'UNRESOLVED' }` and silently drops
@@ -79,7 +132,7 @@ by itself. Both tenants (`withTenantFromHeaders`).
 
 ---
 
-## Slice 2 — Exact-date tier in `matchSet`
+## Slice 3 — Exact-date tier in `matchSet`
 
 **Why.** `matchSet` Tier 2 (`matcher.ts:253`) hard-ANDs `c."nameNorm" = channelNorm`, so a
 set published under a different channel than it is filed under can never match.
@@ -99,7 +152,7 @@ outcomes — no previously-correct match may change.
 
 ---
 
-## Slice 3 — Suggestion pipeline
+## Slice 4 — Suggestion pipeline
 
 **Why.** Turns slice 0's report into stored, inspectable suggestions. Still materialises
 nothing.
@@ -124,7 +177,7 @@ risk — useful on its own for spot lookups.
 
 ---
 
-## Slice 4 — Group confirmation + materialisation
+## Slice 5 — Group confirmation + materialisation
 
 **Why.** The actual workflow. This is the only slice that writes person data.
 
@@ -154,10 +207,10 @@ per-group confirm only — no "confirm all visible" button until the error rate 
 
 ---
 
-## Slice 5 — Folder attribution (`_people.txt`)
+## Slice 6 — Folder attribution (`_people.txt`)
 
 **Why.** The hand-written escape hatch, and the highest-ranked source. Last because it is
-only useful once slices 3–4 exist to consume it.
+only useful once slices 4–5 exist to consume it.
 
 **Changes.**
 - `archive-scan.ps1`: read `_people.txt` per leaf, parse `Common Name (ICG-ID)` per line
@@ -181,13 +234,13 @@ silently dropped — that is how HTML-polluted ICG-IDs got into the data before.
 scan-side work. A new `catalogue-join` agent should be written in **one** language
 (PowerShell, where the data lives) unless there is a concrete reason for two.
 
-**Migrations.** Two hand-written migrations (slices 1 and 3), both through
+**Migrations.** Three hand-written migrations (slices 1, 2 and 4), all through
 `scripts/deploy-migrations.sh` so `pulse` and `xpulse` stay in step.
 
-**Docs.** `docs/architecture.md` after slices 1, 3 and 4 (new model, action, route, page);
-`docs/user-guide.md` after slice 4 (the workflow) and 5 (the file format). `CONTEXT.md` only
+**Docs.** `docs/architecture.md` after slices 1, 2, 4 and 5 (new fields, model, action, route,
+page); `docs/user-guide.md` after slices 1 (covers), 5 (the workflow) and 6 (the file format). `CONTEXT.md` only
 if a new domain term appears — the vocabulary is already recorded.
 
-**Scale check before slice 4.** Full coverage means ~30k Sets against today's 478. Re-check
+**Scale check before slice 5.** Full coverage means ~30k Sets against today's 478. Re-check
 `/sets` and `/people` list performance against a realistic row count before turning the
 workflow loose, not after.
