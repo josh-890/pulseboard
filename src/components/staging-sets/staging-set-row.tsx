@@ -1,11 +1,11 @@
 'use client'
 
-import { memo, useState, useRef, useCallback, useTransition } from 'react'
-import { createPortal } from 'react-dom'
+import { memo, useState, useCallback, useTransition } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { AlertTriangle, CalendarClock, Camera, CheckSquare, CheckCheck, Clock, Copy, ExternalLink, Film, Flag, FolderOpen, FolderSearch, FolderX, Check, Loader2, RotateCcw, X } from 'lucide-react'
 import { cn, getInitialsFromName } from '@/lib/utils'
+import { useHoverImagePreview, HoverImagePreview } from '@/components/shared/hover-image-preview'
 import type { StagingSetWithRelations, ParticipantStatus } from '@/lib/services/import/staging-set-service'
 import type { StagingSetStatus } from '@/generated/prisma/client'
 import { confirmArchiveFolderLinkAction, rejectArchiveSuggestionAction } from '@/lib/actions/archive-actions'
@@ -121,21 +121,10 @@ function CoverThumbnail({
   stagingSetId?: string
   onRotated?: (newUrl: string) => void
 }) {
-  const thumbRef = useRef<HTMLDivElement>(null)
-  const [hover, setHover] = useState(false)
-  const [pos, setPos] = useState<{ top: number; left: number } | null>(null)
+  // Shared with the archive tree's cover thumbnail so the two behave identically.
+  const { ref: thumbRef, hover, pos, show: showPreview, hide: hidePreview } =
+    useHoverImagePreview(coverImageUrl)
   const [isRotating, setIsRotating] = useState(false)
-
-  const showPreview = useCallback(() => {
-    if (!thumbRef.current || !coverImageUrl) return
-    const rect = thumbRef.current.getBoundingClientRect()
-    // Clamp top so preview doesn't overflow below viewport (max preview height ~400px)
-    const maxTop = window.innerHeight - 420
-    setPos({ top: Math.min(rect.top, Math.max(8, maxTop)), left: rect.right + 8 })
-    setHover(true)
-  }, [coverImageUrl])
-
-  const hidePreview = useCallback(() => setHover(false), [])
 
   const handleRotate = useCallback(async (e: React.MouseEvent) => {
     e.stopPropagation()
@@ -172,20 +161,7 @@ function CoverThumbnail({
             sizes="56px"
             onError={onImgError}
           />
-          {hover && pos && createPortal(
-            <div
-              className="pointer-events-none fixed z-[100] overflow-hidden rounded-lg border border-border bg-background shadow-xl"
-              style={{ top: pos.top, left: pos.left }}
-            >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={coverImageUrl}
-                alt={title}
-                className="block max-h-[400px] max-w-[300px]"
-              />
-            </div>,
-            document.body,
-          )}
+          {hover && pos && <HoverImagePreview url={coverImageUrl} alt={title} pos={pos} />}
           {/* Rotate overlay — lives on the thumbnail itself so mouse never leaves */}
           {hover && stagingSetId && onRotated && (
             <div className="absolute inset-x-0 bottom-0 flex justify-center bg-black/50 py-1">

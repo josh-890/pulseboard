@@ -2,10 +2,9 @@
 
 import Link from "next/link";
 import NextImage from "next/image";
-import { useCallback, useRef, useState } from "react";
-import { createPortal } from "react-dom";
 import { Film, FolderCheck, FolderOpen, FolderX, Image as ImageIcon } from "lucide-react";
 import { formatPartialDate } from "@/lib/utils";
+import { useHoverImagePreview, HoverImagePreview } from "@/components/shared/hover-image-preview";
 import type { StagingWorkHistoryItem } from "@/lib/types";
 import type { ArchiveStatus } from "@/generated/prisma/client";
 
@@ -68,19 +67,10 @@ type StagingWorkCardProps = {
 };
 
 export function StagingWorkCard({ entry, personId, personLabel }: StagingWorkCardProps) {
-  const thumbRef = useRef<HTMLDivElement>(null);
-  const [hover, setHover] = useState(false);
-  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
-
-  const showPreview = useCallback(() => {
-    if (!thumbRef.current || !entry.coverImageUrl) return;
-    const rect = thumbRef.current.getBoundingClientRect();
-    const maxTop = window.innerHeight - 420;
-    setPos({ top: Math.min(rect.top, Math.max(8, maxTop)), left: rect.right + 8 });
-    setHover(true);
-  }, [entry.coverImageUrl]);
-
-  const hidePreview = useCallback(() => setHover(false), []);
+  // Shared with the staging-set row and the archive tree — one implementation so
+  // the hover behaves the same everywhere a cover is shown.
+  const { ref: thumbRef, hover, pos, show: showPreview, hide: hidePreview } =
+    useHoverImagePreview(entry.coverImageUrl);
 
   const dateLabel = entry.releaseDate
     ? formatPartialDate(entry.releaseDate, entry.releaseDatePrecision)
@@ -121,19 +111,8 @@ export function StagingWorkCard({ entry, personId, personLabel }: StagingWorkCar
                 unoptimized
                 className="object-cover"
               />
-              {hover && pos && createPortal(
-                <div
-                  className="pointer-events-none fixed z-[100] overflow-hidden rounded-lg border border-border bg-background shadow-xl"
-                  style={{ top: pos.top, left: pos.left }}
-                >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={entry.coverImageUrl}
-                    alt={entry.title}
-                    className="block max-h-[400px] max-w-[300px]"
-                  />
-                </div>,
-                document.body,
+              {hover && pos && (
+                <HoverImagePreview url={entry.coverImageUrl} alt={entry.title} pos={pos} />
               )}
             </>
           ) : (

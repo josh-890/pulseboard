@@ -2,6 +2,7 @@
 
 import { Camera, Film, ImageOff } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useHoverImagePreview, HoverImagePreview } from '@/components/shared/hover-image-preview'
 
 type ArchiveCoverThumbProps = {
   coverUrl: string | null
@@ -30,6 +31,8 @@ export function ArchiveCoverThumb({
   folderName,
   className,
 }: ArchiveCoverThumbProps) {
+  const { ref, hover, pos, show, hide } = useHoverImagePreview(coverUrl)
+
   const box = cn(
     'relative flex h-10 w-14 shrink-0 items-center justify-center overflow-hidden rounded-md',
     className,
@@ -37,7 +40,10 @@ export function ArchiveCoverThumb({
 
   if (coverUrl) {
     return (
-      <span className={cn(box, 'bg-muted/40 ring-1 ring-border/40')}>
+      <div ref={ref} className={cn(box, 'bg-muted/40 ring-1 ring-border/40')}
+        onMouseEnter={show}
+        onMouseLeave={hide}
+      >
         {/* Plain <img> (repo convention for MinIO-served media): the key is served
             directly and these are already 512px thumbnails, so next/image would add
             a loader without adding anything. */}
@@ -54,7 +60,8 @@ export function ArchiveCoverThumb({
             <Film size={9} />
           </span>
         )}
-      </span>
+        {hover && pos && <HoverImagePreview url={coverUrl} alt={folderName} pos={pos} />}
+      </div>
     )
   }
 
