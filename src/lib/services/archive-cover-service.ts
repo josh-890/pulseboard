@@ -12,7 +12,7 @@
  * 34,662-folder run, and fixing it must not force a full redo.
  */
 import sharp from 'sharp'
-import { PutObjectCommand } from '@aws-sdk/client-s3'
+import { PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3'
 import { minioClient, getMinioBucket } from '@/lib/minio'
 import { prisma } from '@/lib/db'
 import { escapeLike } from '@/lib/prisma-like'
@@ -125,6 +125,45 @@ export async function setArchiveFolderCover(
   })
 
   return { coverKey, width: processed.info.width, height: processed.info.height }
+}
+
+/**
+ * Drop a folder's cover so the agent picks it up again.
+ *
+ * This is the whole "refresh a cover" story, and deliberately so: the worklist
+ * invariant is "folders without a cover", and a deleted cover simply satisfies
+ * it. No agent flag, no special case — and therefore no way to trigger a
+ * 34k-image re-upload by mistake.
+ *
+ * Clears coverError too, so a folder that previously failed returns to plain
+ * pending rather than staying in the defect list.
+ */
+export async function clearArchiveFolderCover(folderId: string): Promise<void> {
+  // Keyed on the folder id, not the archiveKey: this is the in-app path and the
+  // workspace rows already carry the id. archiveKey stays the agent's currency.
+  const folder = await prisma.archiveFolder.findUnique({
+    where: { id: folderId },
+    select: { coverKey: true },
+  })
+  if (!folder) throw new Error('Archive folder not found')
+
+  // Best-effort object removal: a stale blob is harmless (the key is timestamped,
+  // so nothing can serve it once the column is null), and failing to delete it
+  // must not stop the folder from being re-covered.
+  if (folder.coverKey) {
+    try {
+      await minioClient.send(
+        new DeleteObjectCommand({ Bucket: getMinioBucket(), Key: folder.coverKey }),
+      )
+    } catch (err) {
+      console.error('[archive-cover] could not delete the MinIO object', folder.coverKey, err)
+    }
+  }
+
+  await prisma.archiveFolder.update({
+    where: { id: folderId },
+    data: { coverKey: null, coverError: null, coverCheckedAt: null },
+  })
 }
 
 /** Record a per-folder failure. Leaves any existing cover in place. */

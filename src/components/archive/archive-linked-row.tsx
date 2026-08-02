@@ -64,6 +64,7 @@ export function ArchiveLinkedRow({ item }: Props) {
 
       {/* Cover thumbnail — same slot the bare type icon used to occupy */}
       <ArchiveCoverThumb
+        folderId={item.id}
         coverUrl={item.coverUrl}
         coverError={item.coverError}
         isVideo={item.isVideo}

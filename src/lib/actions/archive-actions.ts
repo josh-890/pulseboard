@@ -22,7 +22,27 @@ import {
   searchArchiveFolders,
 } from '@/lib/services/archive-service'
 import type { WorkspaceFilters, WorkspacePage, ChannelSummary, WorkspaceCounts, SearchFolderResult } from '@/lib/services/archive-service'
+import { clearArchiveFolderCover } from '@/lib/services/archive-cover-service'
 import type { SimpleActionResult } from '@/lib/types'
+
+/**
+ * Drop a folder's cover thumbnail. The folder then satisfies the cover
+ * worklist's "no cover" condition again, so the next archive-cover.ps1 run picks
+ * it up — that is the entire refresh mechanism, and why the agent needs no
+ * force flag that could re-upload the whole archive by accident.
+ */
+export async function clearArchiveCoverAction(folderId: string): Promise<SimpleActionResult> {
+  return withTenantFromHeaders(async () => {
+    try {
+      await clearArchiveFolderCover(folderId)
+      revalidatePath('/archive')
+      return { success: true }
+    } catch (err) {
+      console.error('clearArchiveCoverAction failed', err)
+      return { success: false, error: err instanceof Error ? err.message : 'Failed to clear the cover' }
+    }
+  })
+}
 
 // ─── Archive Workspace Data ───────────────────────────────────────────────────
 
