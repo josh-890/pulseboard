@@ -182,6 +182,7 @@ folders whose answer the app already knows.
 | Unexplained ambiguity | 0.29 % | **0.6 %** | ~1 % |
 | Exact recall (ground truth) | 91.3 % | **80.5 %** | ~80 % |
 | Matching failures (title disagrees) | 0 % | 5.8 % | — |
+| Precision, join run blind | — | **100 % (388/388)** | — |
 | Groups with a unanimous suggestion | — | 75.0 % | — |
 | Groups with conflicting suggestions | — | 3.8 % | — |
 
@@ -192,6 +193,31 @@ catalogue, and it survived contact with the real data.
 Recall came in 11 points below the probe, as the probe's stated bias predicted.
 It sits just above the gate, and the failures split evenly between a coverage
 limit (6.0 % — the catalogue has no row) and genuine matching failure (5.8 %).
+
+### Precision — the join run blind
+
+Coverage and recall were measured first; precision was not, and precision is what
+an operator experiences. Recall restricts candidates to the participants the app
+already records, so it *cannot* produce a wrong answer — it only shows that the
+right row is findable. An orphan has no such restriction.
+
+Re-running the same ground-truth folders **blind** against all 1,081,639
+catalogue rows: **388 exact matches, 388 correct, 0 wrong.**
+
+The sample is hand-curated and therefore the clean end of the population, so this
+was designed to be able to falsify the design rather than bless it. Two things
+nonetheless make it more than reassurance:
+
+- **It stayed silent when it should have.** 55 of 443 folders produced no blind
+  exact match, and among them are the 29 whose set the catalogue does not contain
+  at all. That is precisely the situation that manufactures a false positive —
+  the real set absent, a different one sharing a date — and the join declined to
+  answer instead of inventing one.
+- **A messy title costs recall, not precision.** A wrong exact match requires an
+  exact title collision on the same date, and that frequency is a property of the
+  catalogue rather than of the folder: measured separately at 0.29 % of keys.
+  Orphans being untidier should therefore lower how often we answer, not how
+  often the answer is wrong.
 
 ### Change 1 — read the import file, not cover filenames
 
