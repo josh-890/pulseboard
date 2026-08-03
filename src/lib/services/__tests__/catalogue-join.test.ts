@@ -6,6 +6,7 @@ import {
   distinctPersons,
   isAmbiguous,
   isUnexplainedAmbiguity,
+  participantMatchingAlias,
   matchFolder,
   normalizeTitle,
   parseCoverFilename,
@@ -14,6 +15,7 @@ import {
   titleSimilarity,
   type ArchiveFolderRow,
   type CatalogueSet,
+  type FolderMatch,
 } from "@/lib/services/catalogue-join";
 
 // Slice 0 exists to produce numbers a design decision rests on (ADR-0027), so the
@@ -227,6 +229,46 @@ describe("multi-participant folders", () => {
     expect(isAmbiguous(m)).toBe(true);
     expect(isUnexplainedAmbiguity(m, "Michelle & Rebecca")).toBe(false);
     expect(isUnexplainedAmbiguity(m, "Michelle")).toBe(true);
+  });
+});
+
+describe("participantMatchingAlias", () => {
+  const names: Record<string, string> = {
+    "EX-004E": "Elina",
+    "SS-82UW": "Susana Spears",
+    "LD-87L0": "Luba D",
+    "SX-816G": "Svetlana",
+  };
+  const nameOf = (id: string) => names[id];
+
+  function matchOf(participants: string[][]): FolderMatch {
+    return {
+      tier: "exact",
+      score: 1,
+      best: null,
+      candidates: participants.map((ps) =>
+        cat({ date: "2006-05-25", title: "Cliff", participantIcgIds: ps }),
+      ),
+    };
+  }
+
+  it("picks the participant the folder is named after", () => {
+    expect(participantMatchingAlias(matchOf([["EX-004E"], ["SS-82UW"]]), "Elina", nameOf)).toBe("EX-004E");
+  });
+
+  it("matches a leading-part name — folder 'Luba', person 'Luba D'", () => {
+    expect(participantMatchingAlias(matchOf([["LD-87L0"], ["SX-816G"]]), "Luba", nameOf)).toBe("LD-87L0");
+  });
+
+  it("gives up rather than guess when the alias names nobody", () => {
+    expect(participantMatchingAlias(matchOf([["SS-82UW"], ["SX-816G"]]), "Paige", nameOf)).toBeNull();
+  });
+
+  it("gives up when the alias matches more than one", () => {
+    const two: Record<string, string> = { ...names, "XX-0001": "Elina" };
+    expect(
+      participantMatchingAlias(matchOf([["EX-004E"], ["XX-0001"]]), "Elina", (id) => two[id]),
+    ).toBeNull();
   });
 });
 

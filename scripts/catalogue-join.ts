@@ -55,8 +55,10 @@ import {
   channelLooselyMatches,
   groupKey,
   aliasTokenLooksMulti,
+  distinctPersons,
   isAmbiguous,
   matchFolder,
+  participantMatchingAlias,
   suggestedParticipants,
   normalizeTitle,
   parsePersonDir,
@@ -415,7 +417,12 @@ async function main() {
 
   // ── 2. Coverage + ambiguity over the orphans ───────────────────────────────
   heading('2. ORPHANS — coverage and ambiguity')
-  const tally = { exact: 0, strong: 0, weak: 0, none: 0, multiParticipant: 0, ambiguous: 0 }
+  // ICG-ID -> person name, from the catalogue's own folder names.
+  const nameOfIcgId = new Map<string, string>()
+  for (const set of sets) if (!nameOfIcgId.has(set.icgId)) nameOfIcgId.set(set.icgId, set.personName)
+  const lookupName = (icgId: string) => nameOfIcgId.get(icgId)
+
+  const tally = { exact: 0, strong: 0, weak: 0, none: 0, multiParticipant: 0, ambiguous: 0, aliasResolved: 0 }
   const suggestedPersons = new Set<string>()
   const groups = new Map<string, { folders: number; votes: Map<string, number> }>()
   const ambiguityExamples: string[] = []
@@ -432,9 +439,14 @@ async function main() {
       continue
     }
     tally[m.tier]++
+    const aliasPick = participantMatchingAlias(m, o.aliasToken, lookupName)
+
     if (isAmbiguous(m)) {
       if (aliasTokenLooksMulti(o.aliasToken)) {
         tally.multiParticipant++
+      } else if (aliasPick) {
+        // The folder names one of the candidates outright — resolved, not doubtful.
+        tally.aliasResolved++
       } else {
         tally.ambiguous++
         if (ambiguityExamples.length < EXAMPLES) {
@@ -449,12 +461,12 @@ async function main() {
         }
       }
     }
-    // A folder's suggestion is everyone the winning catalogue rows name — a
-    // two-person set suggests both, which is what the confirmation UI needs.
-    for (const p of suggestedParticipants(m)) {
-      suggestedPersons.add(p)
-      entry.votes.set(p, (entry.votes.get(p) ?? 0) + 1)
-    }
+    // The SET suggests everyone in it; the GROUP's vote is only about who the
+    // alias is. Voting for every participant made every multi-person set look
+    // like a disagreement about the alias, which it is not.
+    for (const p of suggestedParticipants(m)) suggestedPersons.add(p)
+    const votesFor = aliasPick ?? (distinctPersons(m) === 1 ? m.best?.participantIcgIds[0] : null)
+    if (votesFor) entry.votes.set(votesFor, (entry.votes.get(votesFor) ?? 0) + 1)
   }
 
   row('exact', tally.exact, orphans.length)
@@ -465,6 +477,7 @@ async function main() {
   console.log(`  ${'—'.repeat(38)}`)
   row('ANY suggestion', suggested, orphans.length)
   row('  of those, multi-participant folder', tally.multiParticipant, suggested)
+  row('  of those, resolved by the alias', tally.aliasResolved, suggested)
   row('  of those, UNEXPLAINED ambiguity', tally.ambiguous, suggested)
   console.log(`\n  A folder named "A & B" matching two people is the design working, not a`)
   console.log(`  doubt to resolve — only the unexplained row is a precision risk.`)
@@ -509,12 +522,24 @@ async function main() {
   // a disagreement ACROSS labels means the join almost certainly landed on a
   // different set that happens to share a date and a title. The second kind is a
   // precision problem and is counted separately.
+  // Resolve a catalogue channel name to the app's owning label. Order matters:
+  // the loose subsequence rule that is fine as a TIEBREAKER is far too eager
+  // here — almost any short code is a subsequence of a long name like
+  // "EROTICBEAUTY", so taking the first loose hit attributed it to whichever
+  // channel happened to sort first. Exact name match first, then short code,
+  // and only then the loose rule.
+  const norm = (v: string) => v.toLowerCase().replace(/[^a-z0-9]/g, '')
+  const byName = new Map(channels.map((c) => [norm(c.name), c]))
+  const byShort = new Map(channels.filter((c) => c.shortName).map((c) => [norm(c.shortName!), c]))
   const labelOfChannel = (candidate: string): string | null => {
-    for (const c of channels) {
-      if (c.shortName && channelLooselyMatches(candidate, c.shortName)) return c.labelName
-      if (channelLooselyMatches(candidate, c.name)) return c.labelName
-    }
-    return null
+    const key = norm(candidate)
+    const exact = byName.get(key) ?? byShort.get(key)
+    if (exact) return exact.labelName
+    const loose = channels.filter(
+      (c) => channelLooselyMatches(candidate, c.name) || (c.shortName && channelLooselyMatches(candidate, c.shortName)),
+    )
+    // Only trust the loose rule when it is unambiguous.
+    return loose.length === 1 ? loose[0].labelName : null
   }
 
   let agree = 0
@@ -534,7 +559,10 @@ async function main() {
         continue
       }
       const catLabel = labelOfChannel(c.channel)
-      const appLabel = channels.find((x) => x.shortName === short || x.name === gt.channelName)?.labelName ?? null
+      const appLabel =
+        (gt.channelName ? byName.get(norm(gt.channelName))?.labelName : undefined) ??
+        byShort.get(norm(short))?.labelName ??
+        null
       if (catLabel && appLabel && catLabel === appLabel) {
         sameLabel++
       } else if (catLabel && appLabel) {

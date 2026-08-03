@@ -153,6 +153,38 @@ export function distinctPersons(match: FolderMatch): number {
   return new Set(match.candidates.map((c) => c.icgId)).size
 }
 
+/**
+ * Which participant is the folder named after?
+ *
+ * A group is keyed on (channel, alias), so its vote must be about who that ALIAS
+ * is — not about everyone who happens to be in the set. When several candidates
+ * survive date+title, the folder's own token usually names one of them outright:
+ *
+ *   alias "Elina"  ->  Elina (EX-004E) | Susana Spears
+ *
+ * This is not fuzzy person matching, which the project forbids: the SET is
+ * already pinned by date and title, and this only reads which of its known cast
+ * the folder is labelled with. Same standing as the channel tiebreaker.
+ */
+export function participantMatchingAlias(
+  match: FolderMatch,
+  aliasToken: string | null,
+  nameOfIcgId: (icgId: string) => string | undefined,
+): string | null {
+  const token = normalizeTitle(aliasToken ?? '')
+  if (!token) return null
+  const hits = new Set<string>()
+  for (const c of match.candidates) {
+    for (const p of c.participantIcgIds) {
+      const name = normalizeTitle(nameOfIcgId(p) ?? '')
+      if (!name) continue
+      // Exact, or the token is the leading part of the name ("Luba" / "Luba D").
+      if (name === token || name.startsWith(`${token} `)) hits.add(p)
+    }
+  }
+  return hits.size === 1 ? [...hits][0] : null
+}
+
 /** Everyone the winning candidates name — the actual suggestion for a folder. */
 export function suggestedParticipants(match: FolderMatch): string[] {
   const out = new Set<string>()
