@@ -18,6 +18,9 @@ export default async function AttributionPage({ searchParams }: { searchParams: 
     // will not be reached in one sitting.
     const queue = await getAttributionQueue({ limit: 200, view })
 
-    return <AttributionQueueClient initialQueue={queue} view={view} />
+    // Keyed on the view so switching tabs remounts: the per-session "dismissed"
+    // set belongs to one view, and carrying it across would hide a group in the
+    // Decided list purely because it was confirmed in the Open list.
+    return <AttributionQueueClient key={view} initialQueue={queue} view={view} />
   })
 }

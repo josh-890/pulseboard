@@ -40,7 +40,14 @@ const VIEWS = [
 export function AttributionQueueClient({ initialQueue, view }: AttributionQueueClientProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const [groups, setGroups] = useState(initialQueue.groups)
+  // The list is DERIVED from props, never seeded into state. Switching views is a
+  // client-side navigation: the component instance survives, so a `useState`
+  // seeded from props would keep showing the previous view's groups while the
+  // counters — read straight from props — updated. `dismissed` only hides what
+  // this session just decided, so the row disappears immediately instead of
+  // waiting for router.refresh() to land.
+  const [dismissed, setDismissed] = useState<ReadonlySet<string>>(new Set())
+  const groups = initialQueue.groups.filter((g) => !dismissed.has(g.key))
   const [expanded, setExpanded] = useState<string | null>(null)
   const [folders, setFolders] = useState<Record<string, GroupFolder[]>>({})
   const [loadingFolders, setLoadingFolders] = useState<string | null>(null)
@@ -78,7 +85,7 @@ export function AttributionQueueClient({ initialQueue, view }: AttributionQueueC
 
   const afterDecision = (key: string, text: string) => {
     setFlash({ key, text, tone: 'ok' })
-    setGroups((gs) => gs.filter((g) => g.key !== key))
+    setDismissed((d) => new Set(d).add(key))
     setExpanded(null)
     startTransition(() => router.refresh())
   }
