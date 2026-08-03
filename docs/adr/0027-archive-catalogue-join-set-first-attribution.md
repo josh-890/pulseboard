@@ -162,3 +162,92 @@ an edited attribution is otherwise invisible to the scan.
   ADR-0026 (ICG-ID exact-only, self-assigned IDs).
 - Glossary: **Archive**, **Person catalogue**, **Folder attribution**,
   **Archive coverage as the relevance filter** in `CONTEXT.md`.
+
+---
+
+## Addendum, 2026-08-03 — measured at full scale (plan slice 0)
+
+The decision above rested on 69 pairs from 6 already-curated persons, and said so.
+The report-only agent has now run against the whole catalogue — 39,090 person
+folders, 1,081,639 set rows — joined against 29,322 archive orphans and 482
+folders whose answer the app already knows.
+
+**The design holds. Two rules change.**
+
+### What the numbers say
+
+| | probe (6 persons) | full scale | gate |
+|---|---|---|---|
+| Orphans receiving a suggestion | — | **91.5 %** | registry alone: 23.4 % |
+| Unexplained ambiguity | 0.29 % | **0.6 %** | ~1 % |
+| Exact recall (ground truth) | 91.3 % | **80.5 %** | ~80 % |
+| Matching failures (title disagrees) | 0 % | 5.8 % | — |
+| Groups with a unanimous suggestion | — | 75.0 % | — |
+| Groups with conflicting suggestions | — | 3.8 % | — |
+
+Coverage is the decisive figure: **91.5 % against the 23.4 % the app's own
+registry manages**. That gap is the entire justification for reading the
+catalogue, and it survived contact with the real data.
+
+Recall came in 11 points below the probe, as the probe's stated bias predicted.
+It sits just above the gate, and the failures split evenly between a coverage
+limit (6.0 % — the catalogue has no row) and genuine matching failure (5.8 %).
+
+### Change 1 — read the import file, not cover filenames
+
+The person folder holds a `YYYY-MM-DD_Name_(ICG-ID)` import file whose
+`ModelsList` names **every** participant of a set. Cover filenames only ever said
+"this set belongs to whoever's folder it sits in", so a multi-person set was seen
+whole only if every participant's folder happened to exist — and **22.2 % of
+catalogue sets name more than one participant**. The app's existing import parser
+reads this format already, including its knowledge that the neighbouring
+`ModelsShort` field is unreliable.
+
+### Change 2 — the alias resolves ties; a cross-label channel demotes
+
+Two adjustments the measurements forced:
+
+**The folder's alias token breaks ambiguity.** Most ambiguous folders name their
+own answer (`alias "Elina"` against `Elina (EX-004E) | Susana Spears`). The set is
+already pinned by date and title; reading which of its *known cast* the folder is
+labelled with is not the fuzzy person matching this project forbids — it has the
+same standing as the channel tiebreaker. Worth 0.3 % of suggestions.
+
+**A cross-label channel demotes an exact match into review.** Channel remains no
+part of the key. But a match whose channel belongs to a *different owning Label*
+(ADR-0020) is the likeliest false positive — Hegre and FemJoy do not share sets,
+whereas two channels of one label do. This affects **46 exact matches (0.2 %)**:
+a negligible cost that removes an entire class of wrong answer. Channel is
+therefore: never a filter, a tiebreaker when candidates are equal, and a
+**demotion signal** when it contradicts across labels.
+
+### Rejected — widening the date window
+
+Archive folder dates are typed by hand and drift: off by a day, occasionally with
+transposed digits. A real case is `2015-05-20 MPLSTUDIOS - Candy` in the app
+against `2015-05-21-MPL Kailena - Candy` on disk.
+
+Measured, the phenomenon is real but **small**: retrying every unmatched folder
+against plausible slips (±2 days, transposed day digits, month/day swap) with an
+exact title rescues **78 folders — 3.1 % of the unmatched, 0.27 % of all
+orphans**. Mostly ±1 day (49 of 78); only 6 are transposed digits.
+
+That does not pay for relaxing the key. Exact date is what makes generic titles
+usable at all — "Presenting" appears 757 times in the archive yet collides on a
+date in under 1 % of its keys — so the window stays closed. Date-variant hits may
+be offered as a **review-tier suggestion**, never as an automatic one, and a
+relaxed date must always be paired with an *exact* title: two weakened
+constraints at once is how false positives are manufactured.
+
+### Still open
+
+The alias tiebreaker compares the folder's token against the catalogue's person
+*name*, so a channel-scoped alias defeats it — the archive's `MPL Kailena` is
+Sybil A, which the app knows via `PersonAliasChannel` (ADR-0024) and the agent
+does not. Feeding that registry into the worklist would resolve a further slice
+of the residual 0.6 %.
+
+### Evidence
+
+`scripts/catalogue-join.ts` (report-only; `--cache` makes re-analysis instant),
+logic and thresholds in `src/lib/services/catalogue-join.ts` with 37 unit tests.
