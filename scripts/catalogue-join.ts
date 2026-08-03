@@ -44,6 +44,10 @@
  *                    recomputed from the cache in seconds.
  *   --rewalk         Force a fresh walk even when --cache exists
  *   --examples N     How many example lines to print per section (default 8)
+ *   --post           Write the suggestions back (default: report only). Even then
+ *                    nothing is materialised — suggestions are a queue an operator
+ *                    confirms, never a set, participant or contact.
+ *   --post-batch N   Suggestions per POST request (default 500)
  */
 import fs from 'node:fs'
 import path from 'node:path'
@@ -111,6 +115,13 @@ const LIMIT = Number(getArg('--limit')) || 0
 const CACHE = getArg('--cache') || ''
 const REWALK = args.includes('--rewalk')
 const EXAMPLES = Number(getArg('--examples')) || 8
+/**
+ * Off by default, and that default is load-bearing: every earlier run of this
+ * agent was report-only, and a flag that writes by default would turn a
+ * measurement into a mutation the operator never asked for.
+ */
+const POST = args.includes('--post')
+const POST_BATCH = Number(getArg('--post-batch')) || 500
 
 if (!CATALOGUE) {
   console.error('Error: --catalogue (or PERSON_CATALOGUE_ROOT) is required')
@@ -119,6 +130,16 @@ if (!CATALOGUE) {
 if (!API_KEY) {
   console.error('Error: --api-key or ARCHIVE_API_KEY is required')
   process.exit(1)
+}
+
+type PostSuggestion = {
+  archiveKey: string
+  icgId: string
+  name: string
+  tier: 'EXACT' | 'STRONG' | 'WEAK'
+  score: number
+  demotions: string[]
+  evidence: unknown
 }
 
 type WorklistOrphan = {
@@ -513,6 +534,10 @@ async function main() {
   const suggestedPersons = new Set<string>()
   const groups = new Map<string, { folders: number; votes: Map<string, number> }>()
   const ambiguityExamples: string[] = []
+  // Built on every run, posted only under --post. Building it unconditionally
+  // keeps the report and the write in lockstep: whatever the numbers below
+  // describe is exactly what a --post run would store.
+  const postable: PostSuggestion[] = []
 
   for (const o of orphans) {
     const g = groupKey(o.parsedShortName, o.aliasToken)
@@ -531,13 +556,13 @@ async function main() {
     // Would a cross-label channel demote this out of the auto-suggest tier?
     // Counted only on exact matches, since those are the ones a rule would
     // otherwise wave through without review.
-    if (m.tier === 'exact' && m.best && o.parsedShortName) {
-      if (!channelLooselyMatches(m.best.channel, o.parsedShortName)) {
-        const catLabel = labelOfChannel(m.best.channel)
-        const appLabel = byShort.get(norm(o.parsedShortName))?.labelName ?? null
-        if (catLabel && appLabel && catLabel !== appLabel) tally.exactCrossLabel++
-      }
+    let crossLabel = false
+    if (m.best && o.parsedShortName && !channelLooselyMatches(m.best.channel, o.parsedShortName)) {
+      const catLabel = labelOfChannel(m.best.channel)
+      const appLabel = byShort.get(norm(o.parsedShortName))?.labelName ?? null
+      crossLabel = !!(catLabel && appLabel && catLabel !== appLabel)
     }
+    if (m.tier === 'exact' && crossLabel) tally.exactCrossLabel++
 
     if (isAmbiguous(m)) {
       if (aliasTokenLooksMulti(o.aliasToken)) {
@@ -570,6 +595,33 @@ async function main() {
     const all = suggestedParticipants(m)
     const votesFor = aliasPick ?? (all.length === 1 ? all[0] : null)
     if (votesFor) entry.votes.set(votesFor, (entry.votes.get(votesFor) ?? 0) + 1)
+
+    // The suggestion carries WHY it is doubtful, not just how strong it is. A
+    // score of 0.9 tells an operator nothing about whether the doubt is a
+    // label-foreign channel or an alias two people share; the demotions do.
+    const unexplained = isAmbiguous(m) && !aliasTokenLooksMulti(o.aliasToken) && !aliasPick
+    const demotions: string[] = []
+    if (crossLabel) demotions.push('CROSS_LABEL')
+    if (unexplained) demotions.push('AMBIGUOUS')
+    for (const icgId of all) {
+      postable.push({
+        archiveKey: o.archiveKey,
+        icgId,
+        name: lookupName(icgId) ?? icgId,
+        tier: m.tier.toUpperCase() as PostSuggestion['tier'],
+        score: m.score,
+        demotions,
+        evidence: {
+          folderName: o.folderName,
+          aliasToken: o.aliasToken,
+          matchedTitle: m.best?.title ?? null,
+          matchedChannel: m.best?.channel ?? null,
+          matchedDate: m.best?.date ?? null,
+          namedByAlias: aliasPick === icgId,
+          candidates: distinctPersons(m),
+        },
+      })
+    }
   }
 
   row('exact', tally.exact, orphans.length)
@@ -729,6 +781,57 @@ async function main() {
   console.log(`  If unexplained ambiguity is far above ~1% or exact recall far below`)
   console.log(`  ~80%, ADR-0027 needs revisiting before slices 4-6 are built.`)
   console.log()
+
+  // ── 6. Write-back (opt-in) ────────────────────────────────────────────────
+  heading('6. WRITE-BACK')
+  if (!POST) {
+    console.log(`  Report only. Pass --post to store these ${postable.length.toLocaleString()} suggestion(s).`)
+    console.log(`  Storing them still creates nothing — they queue for confirmation.`)
+    console.log()
+    return
+  }
+  await postSuggestions(postable, headers)
+  console.log()
+}
+
+/**
+ * Post in batches, and let a failed batch stop the run.
+ *
+ * Continuing past a failure would leave the archive half-updated with no record
+ * of where the gap is — and because the endpoint replaces a folder's suggestions
+ * rather than merging them, the folders in a lost batch would silently keep
+ * whatever a previous run left behind.
+ */
+async function postSuggestions(
+  suggestions: PostSuggestion[],
+  headers: Record<string, string>,
+): Promise<void> {
+  const url = `${BASE_URL}/api/archive/attribution-suggestions`
+  const total = suggestions.length
+  let sent = 0
+  const started = Date.now()
+  for (let i = 0; i < total; i += POST_BATCH) {
+    const batch = suggestions.slice(i, i + POST_BATCH)
+    const resp = await fetch(url, {
+      method: 'POST',
+      headers: { ...headers, 'content-type': 'application/json' },
+      body: JSON.stringify({ source: 'CATALOGUE', suggestions: batch }),
+    })
+    if (!resp.ok) {
+      console.error(`\n  batch at offset ${i} failed: ${resp.status} ${await resp.text()}`)
+      console.error(`  ${sent.toLocaleString()} of ${total.toLocaleString()} suggestion(s) were stored.`)
+      process.exit(1)
+    }
+    const body = (await resp.json()) as { unknownFolders?: number }
+    if (body.unknownFolders) {
+      console.log(`\n  ${body.unknownFolders} folder(s) in this batch are no longer in the archive — skipped.`)
+    }
+    sent += batch.length
+    process.stdout.write(`\r  posted ${sent.toLocaleString()} / ${total.toLocaleString()}`)
+  }
+  process.stdout.write('\n')
+  console.log(`  Stored in ${((Date.now() - started) / 1000).toFixed(1)}s. Nothing was materialised —`)
+  console.log(`  every suggestion waits for an operator to confirm its (channel, alias) group.`)
 }
 
 main().catch((err) => {

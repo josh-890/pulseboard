@@ -2298,6 +2298,8 @@ model ArchiveFolder {
   // image), downscales locally and POSTs only the thumbnail. coverError records a
   // per-folder failure so one undecodable image is individually visible and
   // fixable instead of derailing a 34k-folder run.
+  suggestions          ArchiveFolderSuggestion[]
+
   coverKey             String? // MinIO key, archive/{archiveKey}/cover-{ts}.jpg
   coverError           String? // last failure reason; null once a cover succeeds
   coverCheckedAt       DateTime? // last attempt, success or failure
@@ -2308,6 +2310,57 @@ model ArchiveFolder {
   @@index([tenant])
   @@index([contentSignature])
   @@map("archive_folder")
+}
+
+/// Where a suggestion came from. Ranked: a hand-written folder attribution is an
+/// assertion by the archive's owner and outranks anything derived (ADR-0027).
+enum SuggestionSource {
+  CATALOGUE
+  REGISTRY
+  FOLDER_ATTRIBUTION
+}
+
+/// How well the evidence fits. Only EXACT may ever be offered without review.
+enum SuggestionTier {
+  EXACT
+  STRONG
+  WEAK
+}
+
+/// A proposed person for an archive folder (ADR-0027, plan slice 4).
+///
+/// Suggestions materialise NOTHING — no Set, no participant, no Contact. They are
+/// a queryable, explainable layer between the join and the operator, and the
+/// confirmation step is the only door into the database.
+///
+/// `demotions` is why an otherwise-strong suggestion should still be reviewed:
+/// CROSS_LABEL (the channel belongs to another owning Label — 0.2% of exact
+/// matches, the likeliest false positives), AMBIGUOUS (several persons fit and
+/// neither channel nor alias resolved it), DATE_VARIANT (matched on a plausible
+/// hand-typing slip rather than the stated date). Carried per suggestion rather
+/// than recomputed, because the evidence that produced it is not reproducible
+/// from the app alone — the catalogue lives on another machine.
+model ArchiveFolderSuggestion {
+  id              String           @id @default(cuid())
+  archiveFolderId String
+  archiveFolder   ArchiveFolder    @relation(fields: [archiveFolderId], references: [id], onDelete: Cascade)
+  /// The suggested person, canonical per ADR-0026. May have no Person row yet.
+  icgId           String
+  /// Display name as the source knew it — provenance, not a lookup key.
+  name            String
+  source          SuggestionSource
+  tier            SuggestionTier
+  score           Float
+  demotions       String[]
+  /// What matched: date, title, channel, external id, and the slip if any.
+  evidence        Json?
+  createdAt       DateTime         @default(now())
+
+  @@unique([archiveFolderId, icgId, source])
+  @@index([archiveFolderId])
+  @@index([icgId])
+  @@index([source, tier])
+  @@map("archive_folder_suggestion")
 }
 
 // ─── Coherence ──────────────────────────────────────────────────────────────

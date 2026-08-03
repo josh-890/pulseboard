@@ -49,11 +49,26 @@ export type AttributionChannel = {
   labelName: string | null
 }
 
+/**
+ * Channel-scoped aliases (ADR-0024). The archive names a person by the alias they
+ * appeared under on that channel — `MPL Kailena` is Sybil A — so without this the
+ * agent's alias tiebreaker compares a channel alias against a catalogue *name*
+ * and fails. Only aliases that are actually pinned to a channel are sent; a
+ * global alias would reintroduce exactly the cross-channel name collisions the
+ * project removed in 2026-05-26.
+ */
+export type AttributionAlias = {
+  nameNorm: string
+  channelShortName: string | null
+  icgId: string
+}
+
 export type AttributionWorklist = {
   counts: { orphans: number; groundTruth: number }
   orphans: AttributionOrphan[]
   groundTruth: AttributionGroundTruth[]
   channels: AttributionChannel[]
+  aliases: AttributionAlias[]
 }
 
 const isoDay = (d: Date | null): string | null => (d ? d.toISOString().slice(0, 10) : null)
@@ -108,8 +123,26 @@ export async function getAttributionWorklist(
     orderBy: { name: 'asc' },
   })
 
+  const aliasRows = await prisma.personAliasChannel.findMany({
+    select: {
+      channel: { select: { shortName: true } },
+      alias: { select: { nameNorm: true, person: { select: { icgId: true } } } },
+    },
+  })
+
   return {
     counts: { orphans: orphanRows.length, groundTruth: truthRows.length },
+    aliases: aliasRows.flatMap((a) =>
+      a.alias?.nameNorm && a.alias.person?.icgId
+        ? [
+            {
+              nameNorm: a.alias.nameNorm,
+              channelShortName: a.channel?.shortName ?? null,
+              icgId: a.alias.person.icgId,
+            },
+          ]
+        : [],
+    ),
     channels: channelRows.map((c) => ({
       name: c.name,
       shortName: c.shortName,

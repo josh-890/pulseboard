@@ -187,6 +187,39 @@ suggestion.
 **Stop here and** you have a queryable "who is probably in this folder" layer with nothing at
 risk — useful on its own for spot lookups.
 
+### Landed (2026-08-03)
+
+Two additions beyond the plan above, both about carrying *why* rather than only *how much*:
+
+- **`tier` + `demotions[]` on the suggestion**, not just a score. A score of 0.9 does not tell
+  an operator whether the doubt is a label-foreign channel or an alias two people share.
+  `demotions` ∈ `CROSS_LABEL | AMBIGUOUS | DATE_VARIANT`; `DATE_VARIANT` is reserved for
+  slice 3 and never emitted yet.
+- **Channel-scoped aliases in the worklist** (ADR-0024), so the agent's alias tiebreaker
+  compares like with like. Global aliases are deliberately not sent — that would reintroduce
+  the cross-channel name collisions removed in 2026-05-26.
+
+| Piece | Where |
+|---|---|
+| Model + enums | `prisma/schema.prisma`, migration `20260803120000_archive_folder_suggestion` |
+| Ingest, stats, group folding | `src/lib/services/attribution-suggestion-service.ts` |
+| Endpoint | `POST /api/archive/attribution-suggestions` |
+| Agent write-back | `scripts/catalogue-join.ts --post [--post-batch N]` |
+| Tests | `src/lib/services/__tests__/attribution-suggestion-service.test.ts` (15) |
+
+Two design points worth keeping:
+
+- **Ingest replaces per `(folder, source)`, inside one transaction per folder.** A re-run
+  converges instead of accumulating, and other sources survive — a hand-written folder
+  attribution is not erased by a catalogue re-run.
+- **A bad entry rejects the whole batch.** Because ingest replaces rather than merges, a
+  half-applied batch leaves folders holding stale rows with no record of the gap. The agent
+  stops on the first failed batch and reports how many suggestions were stored.
+
+`aggregateAttributionGroups` is pure and separated from its query, so the folding rules — one
+vote per folder per person, demotion carried up to the group, silent groups kept — are tested
+without a database.
+
 ---
 
 ## Slice 5 — Group confirmation + materialisation
