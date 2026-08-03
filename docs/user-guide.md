@@ -1156,6 +1156,37 @@ The matching system runs two tiers:
 
 HIGH suggestions show amber; MEDIUM suggestions show dimmer amber.
 
+### Attribution queue
+
+**Archive → Attribution queue** answers "who is in this folder" for folders that never came
+from a person's import file. Folders are grouped by **channel + the name the folder carries**,
+and each group is one decision. Groups are ordered by size, because that is what makes ~8,900
+groups finite — the largest thousand cover about half the archive.
+
+Per group:
+
+| Action | What it does |
+|---|---|
+| **Confirm** | Writes the attribution onto the folders and registers unknown people as **contacts**. Creates no sets. |
+| **Not a person** | For aliases that are not people at all — `W4B \| w4b magazine` is a magazine title across 204 folders, `MPL \| mpl studios` is the channel's own name. |
+| **Skip** | Park it; it leaves the open queue and stays under **Decided**. |
+| **Undo** | Removes the verdict and every attribution it wrote. Contacts are kept. |
+
+Expand a group to see its folders as a contact sheet with covers. A folder whose suggestion
+disagrees with the group is outlined in amber — either the alias is shared by two people, or
+that one match is wrong, and both are worth seeing before you confirm.
+
+**Confirming never touches a disagreeing folder.** If 80 folders say Nata and 3 say someone
+else, confirming Nata attributes exactly those 80; the other 3 stay open for individual review.
+When a group is genuinely split, use the **Confirm only one** chips inside it to settle one
+person at a time.
+
+**Confirmation does not create sets.** Most suggested people are not yet in the app at all, so
+confirming registers who they are, not what they made. Sets still come from your normal path —
+curate the person, import their file, promote. The difference is that the archive then already
+knows which folders belong to them, and when you later create that person from their contact,
+the attributions follow.
+
 ### Why channel definitions matter
 
 Define every channel you meet **with its short code and its owning label**. Both tiers above

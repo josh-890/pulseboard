@@ -287,6 +287,53 @@ Both tenants. Then the usual cleanup question before finishing.
 **Risk.** This is the first slice that can create wrong data at volume. Ship it behind a
 per-group confirm only — no "confirm all visible" button until the error rate is known.
 
+### Landed (2026-08-03) — and it does NOT materialise
+
+The plan's open question ("lingering StagingSet or straight to a Set?") was decided by
+measuring the posted data rather than by taste, and the answer turned out to be **neither**:
+
+| | |
+|---|---:|
+| Suggestion rows pointing at a Person the app already has | **476 of 28,377 — 1.7 %** |
+| Distinct suggested persons | 4,976 |
+| …unknown as both Person and Contact | **4,218 — 84.8 %** |
+| App at the time | 121 persons · 487 sets · 28,120 staging sets |
+
+Confirming in bulk is therefore not *linking* — it is **identity registration**, 35× the
+existing person count, and materialising every unanimous group would have doubled the staging
+list with ~25,000 rows nobody asked for. So:
+
+- **Confirm writes attribution and contacts. Nothing else.** `ArchiveFolderAttribution` per
+  (folder, person); a ghost `Contact` (ADR-0022) for an unknown ICG-ID; no Set, no StagingSet,
+  no Person. Materialisation stays the curated per-person import path — which now arrives
+  already knowing which archive folders are that person's.
+- **Person creation stays deliberate.** `repointContactToPerson` pulls the attributions across
+  when the person is eventually curated. That repoint is not optional: the FK is
+  `onDelete: SetNull`, so omitting it would silently orphan the link — the identical trap
+  slice 2 hit with `SetCreditRaw.resolvedContactId`.
+
+**The safety rule**, pure and unit-tested in `planAttributions`: *a folder is attributed to
+exactly the confirmed people it itself suggested* — never to the group's verdict. `MPL | nata`
+has 80 folders naming Nata and 3 naming someone else; the 3 are counted as dissent and left
+for individual review. Sweeping them along is the one way this feature could put a person into
+a career they were never part of.
+
+`NOT_A_PERSON` proved mandatory exactly as predicted: the two largest groups in the queue are
+`W4B | w4b magazine` (204 folders, 113+ distinct people voted) and `MPL | mpl studios` (57) —
+a magazine title and a channel name.
+
+| Piece | Where |
+|---|---|
+| Models + enum | `ArchiveFolderAttribution`, `AttributionGroupDecision`, `AttributionDecision`; migration `20260803200000_archive_folder_attribution` |
+| Service | `src/lib/services/attribution-confirm-service.ts` |
+| Actions | `src/lib/actions/attribution-actions.ts` |
+| UI | `/archive/attribution` → `AttributionQueueClient`, `AttributionGroupFolders` |
+| Repoint | `relationship-service.ts` `repointContactToPerson` |
+| Tests | `attribution-confirm-service.test.ts` (10) |
+
+Queue shape on the real data: 8,906 groups, 7,967 with a suggestion — **6,571 unanimous
+single-person (one click each)**, 966 unanimous multi-person, 430 conflicted, 939 silent.
+
 ---
 
 ## Slice 6 — Folder attribution (`_people.txt`)

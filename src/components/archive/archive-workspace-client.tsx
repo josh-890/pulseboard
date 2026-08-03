@@ -1,5 +1,7 @@
 'use client'
 
+import Link from 'next/link'
+
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { getAppScrollEl } from '@/lib/scroll-container'
@@ -705,6 +707,12 @@ export function ArchiveWorkspaceClient({
         <span className="rounded-full bg-muted/60 px-2 py-0.5 text-xs text-muted-foreground">
           {displayTotal.toLocaleString()} total
         </span>
+        <Link
+          href="/archive/attribution"
+          className="ml-auto rounded-md px-2.5 py-1.5 text-sm text-muted-foreground transition-colors duration-150 hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          Attribution queue
+        </Link>
       </div>
 
       <div className="rounded-2xl border border-white/30 bg-card/70 shadow-lg backdrop-blur-md dark:border-white/10">

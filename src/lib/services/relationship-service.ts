@@ -550,6 +550,16 @@ async function repointContactToPerson(tx: TxClient, refId: string, personId: str
     data: { resolvedContactId: null, resolvedPersonId: personId, resolutionStatus: "RESOLVED" },
   });
 
+  // Repoint archive attributions (plan slice 5), for exactly the same reason and
+  // with exactly the same trap: the FK is onDelete: SetNull, so omitting this
+  // would not fail — it would quietly leave the attribution pointing at nobody
+  // while its ICG-ID still says who it is. This is the moment the archive's
+  // "which folders are whose" becomes person-keyed.
+  await tx.archiveFolderAttribution.updateMany({
+    where: { contactId: refId },
+    data: { contactId: null, personId },
+  });
+
   // No edges reference the ref any more — retire it.
   await tx.contact.delete({ where: { id: refId } });
 }

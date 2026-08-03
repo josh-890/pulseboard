@@ -18,6 +18,7 @@ function makeTx(opts: {
     relDelete: vi.fn(),
     refDelete: vi.fn(),
     creditUpdateMany: vi.fn(),
+    attributionUpdateMany: vi.fn(),
   };
   const tx = {
     contact: {
@@ -40,6 +41,11 @@ function makeTx(opts: {
     // before the contact row is retired.
     setCreditRaw: {
       updateMany: calls.creditUpdateMany,
+    },
+    // Plan slice 5: archive attributions pinned to the contact move to the person
+    // for the same reason, and with the same onDelete: SetNull trap.
+    archiveFolderAttribution: {
+      updateMany: calls.attributionUpdateMany,
     },
   } as unknown as TxClient;
   return { tx, calls };
@@ -100,6 +106,21 @@ describe("reconcileContacts", () => {
     // Ordering matters: the FK is onDelete SetNull, so repointing after the
     // delete would silently strip the key instead of moving it.
     expect(calls.creditUpdateMany.mock.invocationCallOrder[0])
+      .toBeLessThan(calls.refDelete.mock.invocationCallOrder[0]);
+  });
+
+  it("repoints archive attributions onto the person before retiring the ref", async () => {
+    const { tx, calls } = makeTx({ ref: { id: "ref-1" } });
+    await reconcileContacts(tx, "ICG-1", "person-1");
+
+    expect(calls.attributionUpdateMany).toHaveBeenCalledWith({
+      where: { contactId: "ref-1" },
+      data: { contactId: null, personId: "person-1" },
+    });
+    // Same trap as the credits above: onDelete SetNull means repointing after the
+    // delete would not fail, it would quietly leave the attribution pointing at
+    // nobody while its ICG-ID still says who it is.
+    expect(calls.attributionUpdateMany.mock.invocationCallOrder[0])
       .toBeLessThan(calls.refDelete.mock.invocationCallOrder[0]);
   });
 

@@ -283,95 +283,96 @@ enum ChannelTier {
 // ─── Person & Aliases ─────────────────────────────────────────────────────────
 
 model Person {
-  id                  String        @id @default(cuid())
-  icgId               String        @unique
-  birthdate           DateTime?
-  birthdatePrecision  DatePrecision @default(UNKNOWN)
-  birthdateModifier   DateModifier  @default(EXACT)
-  birthdateSource     String?
+  id                   String        @id @default(cuid())
+  icgId                String        @unique
+  birthdate            DateTime?
+  birthdatePrecision   DatePrecision @default(UNKNOWN)
+  birthdateModifier    DateModifier  @default(EXACT)
+  birthdateSource      String?
   // Slice 16 follow-up: verified-unknown flags for the two Tier 1 Person
   // columns. true = user explicitly confirmed there's no value to record;
   // distinguishes "verified unknown" from "haven't checked yet".
-  birthdateUnknown    Boolean       @default(false)
-  sexAtBirth          String?
-  birthPlace          String?
-  nationality         String?
-  nationalityUnknown  Boolean       @default(false)
-  ethnicity           String?
-  location            String?
+  birthdateUnknown     Boolean       @default(false)
+  sexAtBirth           String?
+  birthPlace           String?
+  nationality          String?
+  nationalityUnknown   Boolean       @default(false)
+  ethnicity            String?
+  location             String?
   // Person.height + Person.eyeColor were dropped in the catalog data quality
   // cleanup (2026-05-31). Both now live as baseline ScalarDeltas under the
   // cattr-height / cattr-eye-color slugs; everything reads from there.
-  activeFrom          DateTime?
-  activeFromPrecision DatePrecision @default(UNKNOWN)
-  activeFromModifier  DateModifier  @default(EXACT)
-  activeFromSource    String?
-  retiredAt           DateTime?
-  retiredAtPrecision  DatePrecision @default(UNKNOWN)
-  retiredAtModifier   DateModifier  @default(EXACT)
-  retiredAtSource     String?
-  birthMarks          String?
-  specialization      String?
-  status              PersonStatus  @default(active)
-  rating              Int?
-  pgrade              Int?
-  isFavorite          Boolean       @default(false) // ADR-0019: favorite person (★) — filter facet
-  notes               String?
-  bio                 String?
-  tags                String[]
+  activeFrom           DateTime?
+  activeFromPrecision  DatePrecision @default(UNKNOWN)
+  activeFromModifier   DateModifier  @default(EXACT)
+  activeFromSource     String?
+  retiredAt            DateTime?
+  retiredAtPrecision   DatePrecision @default(UNKNOWN)
+  retiredAtModifier    DateModifier  @default(EXACT)
+  retiredAtSource      String?
+  birthMarks           String?
+  specialization       String?
+  status               PersonStatus  @default(active)
+  rating               Int?
+  pgrade               Int?
+  isFavorite           Boolean       @default(false) // ADR-0019: favorite person (★) — filter facet
+  notes                String?
+  bio                  String?
+  tags                 String[]
   // Claimed catalogue size from the imported biography ("… Y photosets, Z videos").
   // Covers (= photosets + videos) is always derived, never stored. The Career-tab
   // stats strip compares these to promoted + staged counts. claimedStatsUserSet is
   // flipped true by a manual edit so later re-imports stop overwriting the values.
-  claimedPhotosets    Int?
-  claimedVideos       Int?
-  claimedStatsUserSet Boolean       @default(false)
+  claimedPhotosets     Int?
+  claimedVideos        Int?
+  claimedStatsUserSet  Boolean       @default(false)
   // Free-text provenance for manually-entered claimed figures (e.g. which
   // bio/site they came from). Shown on the Career-tab catalogue panel.
-  claimedStatsNote    String?
+  claimedStatsNote     String?
   // Watchlist: monitor this person for new sets to import. Orthogonal to
   // `status` (a watched person is usually still active). watchCheckedAt is the
   // manual "last looked for new releases" stamp; "last set landed" is derived
   // (max Set.createdAt), not stored. Source links reuse digitalIdentities plus
   // this freeform watchSourceUrl. Surfaced on the /watchlist page + hero toggle.
-  watching            Boolean       @default(false)
-  watchPriority       WatchPriority @default(NORMAL)
-  watchNote           String?
-  watchSourceUrl      String?
-  watchCheckedAt      DateTime?
+  watching             Boolean       @default(false)
+  watchPriority        WatchPriority @default(NORMAL)
+  watchNote            String?
+  watchSourceUrl       String?
+  watchCheckedAt       DateTime?
   // Per-person pinned attribute slugs (Phase G Slice 2). PhysicalAttributeDefinition
   // slugs the user wants always-visible on the Appearance grid even with no delta.
   // Augments the system-default pinned set in `lib/constants/appearance`.
   pinnedAttributeSlugs String[]      @default([])
 
-  aliases              PersonAlias[]
-  eras                 Era[]
-  relationships        PersonRelationship[]    @relation("RelationshipFrom")
-  relatedTo            PersonRelationship[]    @relation("RelationshipTo")
-  claimsAsSubject      ClaimedCollaboration[]  @relation("ClaimSubject")
-  claimsAsCounterpart  ClaimedCollaboration[]  @relation("ClaimCounterpart")
-  bodyMarks            BodyMark[]
-  digitalIdentities    PersonDigitalIdentity[]
-  skills               PersonSkill[]
-  bodyModifications    BodyModification[]
-  cosmeticProcedures   CosmeticProcedure[]
-  education            PersonEducation[]
-  awards               PersonAward[]
-  interests            PersonInterest[]
-  contributions        SessionContribution[]
-  setParticipants      SetParticipant[]
-  resolvedCredits      SetCreditRaw[]
-  personMediaLinks     PersonMediaLink[]
-  referenceSession     Session?                @relation("ReferenceSession")
-  mediaCollections     MediaCollection[]
-  personTags           PersonTag[]
-  stagingSetsAsSubject StagingSet[]            @relation("StagingSetSubject")
-  research             PersonResearch[]
-  coverBaskets         CoverBasket[]           @relation("PersonCoverBaskets")
-  currentState         PersonCurrentState?
-  importDeclines       ImportDeclineLog[]
-  deletionTombstones   ItemDeletionTombstone[]
-  hiddenInMedia        MediaItemHiddenPerson[]
+  aliases                  PersonAlias[]
+  eras                     Era[]
+  relationships            PersonRelationship[]       @relation("RelationshipFrom")
+  relatedTo                PersonRelationship[]       @relation("RelationshipTo")
+  claimsAsSubject          ClaimedCollaboration[]     @relation("ClaimSubject")
+  claimsAsCounterpart      ClaimedCollaboration[]     @relation("ClaimCounterpart")
+  bodyMarks                BodyMark[]
+  digitalIdentities        PersonDigitalIdentity[]
+  skills                   PersonSkill[]
+  bodyModifications        BodyModification[]
+  cosmeticProcedures       CosmeticProcedure[]
+  education                PersonEducation[]
+  awards                   PersonAward[]
+  interests                PersonInterest[]
+  contributions            SessionContribution[]
+  setParticipants          SetParticipant[]
+  resolvedCredits          SetCreditRaw[]
+  archiveAttributions      ArchiveFolderAttribution[]
+  personMediaLinks         PersonMediaLink[]
+  referenceSession         Session?                   @relation("ReferenceSession")
+  mediaCollections         MediaCollection[]
+  personTags               PersonTag[]
+  stagingSetsAsSubject     StagingSet[]               @relation("StagingSetSubject")
+  research                 PersonResearch[]
+  coverBaskets             CoverBasket[]              @relation("PersonCoverBaskets")
+  currentState             PersonCurrentState?
+  importDeclines           ImportDeclineLog[]
+  deletionTombstones       ItemDeletionTombstone[]
+  hiddenInMedia            MediaItemHiddenPerson[]
   aliasPromotionDismissals AliasPromotionDismissal[]
 
   createdAt DateTime @default(now())
@@ -498,22 +499,22 @@ model BodyMarkEvent {
 }
 
 model PersonDigitalIdentity {
-  id       String                @id @default(cuid())
-  personId String
-  person   Person                @relation(fields: [personId], references: [id])
-  eraId    String?
-  era      Era?                  @relation(fields: [eraId], references: [id])
-  platform String
-  handle   String?
-  url      String?
-  status   DigitalIdentityStatus @default(active)
+  id               String                @id @default(cuid())
+  personId         String
+  person           Person                @relation(fields: [personId], references: [id])
+  eraId            String?
+  era              Era?                  @relation(fields: [eraId], references: [id])
+  platform         String
+  handle           String?
+  url              String?
+  status           DigitalIdentityStatus @default(active)
   // Watchlist scan workflow: when an import landed from this page, content is
   // current through here (= the file's extractionDate, advanced monotonically).
   // null = never scanned. excludeFromScan drops a dead/irrelevant page from
   // scan rounds without removing the identity. Scannability is otherwise a
   // property of the page's platform via the ScrapeSource registry.
   scannedThroughAt DateTime?
-  excludeFromScan  Boolean   @default(false)
+  excludeFromScan  Boolean               @default(false)
 
   events DigitalIdentityEvent[]
 
@@ -653,8 +654,9 @@ model Contact {
   updatedAt DateTime        @updatedAt
 
   relationshipsTo PersonRelationship[]
-  claims          ClaimedCollaboration[] @relation("ClaimCounterpartRef")
-  credits         SetCreditRaw[]         @relation("CreditContact")
+  claims          ClaimedCollaboration[]     @relation("ClaimCounterpartRef")
+  credits         SetCreditRaw[]             @relation("CreditContact")
+  attributions    ArchiveFolderAttribution[]
 
   @@index([nameNorm])
   @@index([ignoredAt])
@@ -665,16 +667,16 @@ model Contact {
 // claims a collaboration with a counterpart (a Person, or a Contact when not
 // yet curated). Rebuildable from imports; kept apart from curated relationships.
 model ClaimedCollaboration {
-  id                  String     @id @default(cuid())
+  id                  String   @id @default(cuid())
   subjectPersonId     String
-  subjectPerson       Person     @relation("ClaimSubject", fields: [subjectPersonId], references: [id], onDelete: Cascade)
+  subjectPerson       Person   @relation("ClaimSubject", fields: [subjectPersonId], references: [id], onDelete: Cascade)
   counterpartPersonId String?
-  counterpartPerson   Person?    @relation("ClaimCounterpart", fields: [counterpartPersonId], references: [id], onDelete: Cascade)
+  counterpartPerson   Person?  @relation("ClaimCounterpart", fields: [counterpartPersonId], references: [id], onDelete: Cascade)
   counterpartRefId    String?
-  counterpartRef      Contact?   @relation("ClaimCounterpartRef", fields: [counterpartRefId], references: [id], onDelete: Cascade)
+  counterpartRef      Contact? @relation("ClaimCounterpartRef", fields: [counterpartRefId], references: [id], onDelete: Cascade)
   sourceLabel         String?
-  firstSeenAt         DateTime   @default(now())
-  createdAt           DateTime   @default(now())
+  firstSeenAt         DateTime @default(now())
+  createdAt           DateTime @default(now())
 
   @@unique([subjectPersonId, counterpartPersonId])
   @@unique([subjectPersonId, counterpartRefId])
@@ -939,10 +941,10 @@ model Channel {
   labelId String?
   label   Label?  @relation("ChannelOwningLabel", fields: [labelId], references: [id])
 
-  sets        Set[]
-  labelMaps   ChannelLabelMap[]
-  aliasLinks  PersonAliasChannel[]
-  stagingSets StagingSet[]
+  sets                     Set[]
+  labelMaps                ChannelLabelMap[]
+  aliasLinks               PersonAliasChannel[]
+  stagingSets              StagingSet[]
   aliasPromotionDismissals AliasPromotionDismissal[]
 
   @@index([nameNorm])
@@ -1081,7 +1083,7 @@ model Set {
   // Subjective star rating (1-5, nullable = unrated). Mirrors Person.rating.
   // Surfaced as a 5-star widget on the set detail page hero and as a
   // multi-select filter on the /sets browser.
-  rating               Int?
+  rating Int?
 
   // Media queue
   mediaPriority Int?
@@ -1093,8 +1095,8 @@ model Set {
   labelEvidence     SetLabelEvidence[]
   sessionLinks      SetSession[]
   setTags           SetTag[]
-  stagingMatches    StagingSet[]          @relation("StagingSetMatch")
-  stagingPromotions StagingSet[]          @relation("StagingSetPromoted")
+  stagingMatches    StagingSet[]            @relation("StagingSetMatch")
+  stagingPromotions StagingSet[]            @relation("StagingSetPromoted")
   coherenceSnapshot SetCoherenceSnapshot?
   archiveLinks      ArchiveLink[]
   dismissedDupA     DismissedSetDuplicate[] @relation("DismissedDupA")
@@ -1188,8 +1190,8 @@ model MediaItem {
 
   setMediaItems    SetMediaItem[]
   personMediaLinks PersonMediaLink[]
-  coverForSets     Set[]                 @relation("SetCoverMedia")
-  coverForSessions Session[]             @relation("SessionCoverMedia")
+  coverForSets     Set[]                   @relation("SetCoverMedia")
+  coverForSessions Session[]               @relation("SessionCoverMedia")
   collectionItems  MediaCollectionItem[]
   comparisonItems  ComparisonItem[]
   skillEventMedia  SkillEventMedia[]
@@ -1211,17 +1213,17 @@ model MediaItem {
 // (e.g. headshot eye-line/zoom) is framed identically across people. Authored in
 // the Motif Templates catalog; consumed by the Motif Aligner. One per slot.
 model MotifTemplate {
-  id            String   @id @default(cuid())
-  name          String
-  aspectW       Int
-  aspectH       Int
-  bakeLongSide  Int // baked output long side in px (never upscaled beyond source)
-  keypoints     Json // [{ name, x, y }] target positions as 0..1 frame fractions
-  silhouetteRef String? // optional overlay image (MinIO key) shown while aligning
+  id                  String   @id @default(cuid())
+  name                String
+  aspectW             Int
+  aspectH             Int
+  bakeLongSide        Int // baked output long side in px (never upscaled beyond source)
+  keypoints           Json // [{ name, x, y }] target positions as 0..1 frame fractions
+  silhouetteRef       String? // optional overlay image (MinIO key) shown while aligning
   silhouetteTransform Json? // {offsetXFrac,offsetYFrac,scale,rotationDeg,opacity} for the editor underlay
-  minSourcePx   Int? // warn-but-allow threshold for the aligned region
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  minSourcePx         Int? // warn-but-allow threshold for the aligned region
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
 
   normalizedImages MediaItem[]
 
@@ -1344,19 +1346,19 @@ model SetCreditRaw {
 }
 
 model PersonMediaLink {
-  id          String           @id @default(cuid())
-  personId    String
-  person      Person           @relation(fields: [personId], references: [id])
-  mediaItemId String
-  mediaItem   MediaItem        @relation(fields: [mediaItemId], references: [id])
-  usage       PersonMediaUsage
-  isFavorite  Boolean          @default(false)
+  id               String           @id @default(cuid())
+  personId         String
+  person           Person           @relation(fields: [personId], references: [id])
+  mediaItemId      String
+  mediaItem        MediaItem        @relation(fields: [mediaItemId], references: [id])
+  usage            PersonMediaUsage
+  isFavorite       Boolean          @default(false)
   // ADR-0016: the displayed image for a (person, category) framing. At most one
   // per person+category (enforced in the service). The avatar = the representative
   // of the avatar-source (Headshot) category. Superseded the retired isAvatar + slot.
-  isRepresentative Boolean      @default(false)
-  sortOrder   Int              @default(0)
-  notes       String?
+  isRepresentative Boolean          @default(false)
+  sortOrder        Int              @default(0)
+  notes            String?
 
   bodyRegion          String?
   bodyRegions         String[]
@@ -1488,17 +1490,17 @@ model MediaCategoryGroup {
 }
 
 model MediaCategory {
-  id          String             @id @default(cuid())
-  groupId     String
-  group       MediaCategoryGroup @relation(fields: [groupId], references: [id])
-  name        String
-  slug        String             @unique
-  entityModel String?
-  sortOrder   Int                @default(0)
+  id             String             @id @default(cuid())
+  groupId        String
+  group          MediaCategoryGroup @relation(fields: [groupId], references: [id])
+  name           String
+  slug           String             @unique
+  entityModel    String?
+  sortOrder      Int                @default(0)
   // ADR-0016: the system Headshot category — undeletable, the avatar source.
   // A person's avatar is the representative image of the (single) avatar-source category.
-  isAvatarSource Boolean         @default(false)
-  createdAt   DateTime           @default(now())
+  isAvatarSource Boolean            @default(false)
+  createdAt      DateTime           @default(now())
 
   // Alignment Template binding (ADR-0014), 0:1. A locus category (Eyes, a pose,
   // a headshot framing) opts into exactly one template → alignable + Atlas grid.
@@ -2020,21 +2022,21 @@ model Artist {
 }
 
 model ImportBatch {
-  id              String            @id @default(cuid())
+  id              String             @id @default(cuid())
   filename        String
   subjectName     String
   subjectIcgId    String
-  status          ImportBatchStatus @default(PARSING)
+  status          ImportBatchStatus  @default(PARSING)
   rawContent      String
   parsedAt        DateTime?
   notes           String?
   extractionDate  DateTime?
   previousBatchId String?
-  previousBatch   ImportBatch?      @relation("BatchHistory", fields: [previousBatchId], references: [id])
-  nextBatches     ImportBatch[]     @relation("BatchHistory")
+  previousBatch   ImportBatch?       @relation("BatchHistory", fields: [previousBatchId], references: [id])
+  nextBatches     ImportBatch[]      @relation("BatchHistory")
   stagingSummary  Json?
-  createdAt       DateTime          @default(now())
-  updatedAt       DateTime          @updatedAt
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
   items           ImportItem[]
   stagingSets     StagingSet[]
   declineLog      ImportDeclineLog[]
@@ -2192,10 +2194,10 @@ model StagingSet {
   subjectIcgId    String?
 
   // Matching
-  matchedSetId    String?
-  matchedSet      Set?    @relation("StagingSetMatch", fields: [matchedSetId], references: [id])
-  matchConfidence Float?
-  matchDetails    String?
+  matchedSetId        String?
+  matchedSet          Set?     @relation("StagingSetMatch", fields: [matchedSetId], references: [id])
+  matchConfidence     Float?
+  matchDetails        String?
   // Set ids the user explicitly rejected as a match ("Wrong Match"). The matcher skips
   // these so a fuzzy auto-match (e.g. series "Part 2" → "Part 1") won't keep reappearing.
   rejectedMatchSetIds String[] @default([])
@@ -2298,11 +2300,12 @@ model ArchiveFolder {
   // image), downscales locally and POSTs only the thumbnail. coverError records a
   // per-folder failure so one undecodable image is individually visible and
   // fixable instead of derailing a 34k-folder run.
-  suggestions          ArchiveFolderSuggestion[]
+  suggestions  ArchiveFolderSuggestion[]
+  attributions ArchiveFolderAttribution[]
 
-  coverKey             String? // MinIO key, archive/{archiveKey}/cover-{ts}.jpg
-  coverError           String? // last failure reason; null once a cover succeeds
-  coverCheckedAt       DateTime? // last attempt, success or failure
+  coverKey       String? // MinIO key, archive/{archiveKey}/cover-{ts}.jpg
+  coverError     String? // last failure reason; null once a cover succeeds
+  coverCheckedAt DateTime? // last attempt, success or failure
 
   @@index([folderName])
   @@index([chanFolderName])
@@ -2340,6 +2343,66 @@ enum SuggestionTier {
 /// hand-typing slip rather than the stated date). Carried per suggestion rather
 /// than recomputed, because the evidence that produced it is not reproducible
 /// from the app alone — the catalogue lives on another machine.
+enum AttributionDecision {
+  CONFIRMED
+  NOT_A_PERSON
+  SKIPPED
+}
+
+/// A confirmed answer to "who is in this archive folder" (ADR-0027, plan slice 5).
+///
+/// This is the ONLY thing group confirmation writes about a folder. It creates no
+/// Set and no StagingSet: only 1.7% of suggestions point at a Person the app
+/// already knows, so confirming in bulk would be an act of mass identity creation
+/// rather than of linking. Materialisation stays the curated per-person import
+/// path; this table is what lets that path already know which folders are whose.
+///
+/// `personId` when the ICG-ID is a curated Person, otherwise `contactId` — the
+/// ghost register of ADR-0022. Exactly one is set; `icgId` is authoritative and
+/// survives either.
+model ArchiveFolderAttribution {
+  id              String        @id @default(cuid())
+  archiveFolderId String
+  archiveFolder   ArchiveFolder @relation(fields: [archiveFolderId], references: [id], onDelete: Cascade)
+  icgId           String
+  name            String
+  personId        String?
+  person          Person?       @relation(fields: [personId], references: [id], onDelete: SetNull)
+  contactId       String?
+  contact         Contact?      @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  /// The (channel, alias) group this came from — the unit of undo.
+  groupKey        String?
+  confirmedAt     DateTime      @default(now())
+
+  @@unique([archiveFolderId, icgId])
+  @@index([icgId])
+  @@index([personId])
+  @@index([contactId])
+  @@index([groupKey])
+  @@map("archive_folder_attribution")
+}
+
+/// An operator's verdict on a (channel, alias) group.
+///
+/// Kept separately from the attributions because a decision must survive a
+/// catalogue re-run — the agent rewrites suggestions wholesale, and a group ruled
+/// "not a person" (the largest group in the archive is `W4B | w4b magazine`, a
+/// magazine title across 204 folders) must not return on the next pass.
+model AttributionGroupDecision {
+  id              String              @id @default(cuid())
+  groupKey        String              @unique
+  decision        AttributionDecision
+  /// Who the group was confirmed as. Several for a genuine multi-person alias.
+  icgIds          String[]
+  folderCount     Int
+  attributedCount Int                 @default(0)
+  note            String?
+  decidedAt       DateTime            @default(now())
+
+  @@index([decision])
+  @@map("attribution_group_decision")
+}
+
 model ArchiveFolderSuggestion {
   id              String           @id @default(cuid())
   archiveFolderId String
