@@ -7,6 +7,7 @@ import {
   isAmbiguous,
   isUnexplainedAmbiguity,
   participantMatchingAlias,
+  plausibleDateVariants,
   matchFolder,
   normalizeTitle,
   parseCoverFilename,
@@ -269,6 +270,38 @@ describe("participantMatchingAlias", () => {
     expect(
       participantMatchingAlias(matchOf([["EX-004E"], ["XX-0001"]]), "Elina", (id) => two[id]),
     ).toBeNull();
+  });
+});
+
+describe("plausibleDateVariants", () => {
+  it("offers the neighbouring days, nearest first", () => {
+    const v = plausibleDateVariants("2015-05-20", 2);
+    expect(v.slice(0, 4)).toEqual(["2015-05-19", "2015-05-21", "2015-05-18", "2015-05-22"]);
+  });
+
+  it("covers the real case: archive says the 21st, the set is the 20th", () => {
+    expect(plausibleDateVariants("2015-05-21")).toContain("2015-05-20");
+  });
+
+  it("offers transposed day digits", () => {
+    expect(plausibleDateVariants("2015-05-21")).toContain("2015-05-12");
+  });
+
+  it("offers a month/day swap when both stay valid", () => {
+    expect(plausibleDateVariants("2015-05-12")).toContain("2015-12-05");
+    // 20 is not a month, so no swap is offered.
+    expect(plausibleDateVariants("2015-05-20")).not.toContain("2015-20-05");
+  });
+
+  it("crosses month and year boundaries correctly", () => {
+    expect(plausibleDateVariants("2015-03-01", 1)).toContain("2015-02-28");
+    expect(plausibleDateVariants("2016-01-01", 1)).toContain("2015-12-31");
+  });
+
+  it("never offers the date itself, and rejects rubbish", () => {
+    expect(plausibleDateVariants("2015-05-20")).not.toContain("2015-05-20");
+    expect(plausibleDateVariants("0000-00-00")).toEqual([]);
+    expect(plausibleDateVariants("nonsense")).toEqual([]);
   });
 });
 

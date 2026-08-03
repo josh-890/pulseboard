@@ -55,9 +55,11 @@ import {
   channelLooselyMatches,
   groupKey,
   aliasTokenLooksMulti,
+  distinctPersons,
   isAmbiguous,
   matchFolder,
   participantMatchingAlias,
+  plausibleDateVariants,
   suggestedParticipants,
   normalizeTitle,
   parsePersonDir,
@@ -606,6 +608,56 @@ async function main() {
   if (crossExamples.size) {
     console.log(`\n  cross-label matches — check these, they are the likeliest false positives:`)
     crossExamples.forEach((m) => console.log(m))
+  }
+
+  // ── 5. Date tolerance — what a relaxed key would buy, and cost ─────────────
+  heading('5. DATE TOLERANCE — archive dates are typed by hand')
+  console.log(`  The archive's folder dates are set manually and drift: off by a day, or`)
+  console.log(`  with the day digits transposed. Exact date is currently required, so`)
+  console.log(`  those folders match nothing. This measures the trade WITHOUT taking it.\n`)
+
+  const probe = { rescued: 0, rescuedUnique: 0, rescuedAmbiguous: 0 }
+  const rescuedExamples: string[] = []
+  const byOffset = new Map<string, number>()
+  for (const o of orphans) {
+    if (matchFolder(o, index).tier !== 'none') continue
+    if (!o.parsedDate) continue
+    for (const variant of plausibleDateVariants(o.parsedDate)) {
+      // Only an EXACT title counts here: a relaxed date plus a fuzzy title is
+      // two weakened constraints at once, which is how false positives are made.
+      const alt = matchFolder({ ...o, parsedDate: variant }, index)
+      if (alt.tier !== 'exact') continue
+      probe.rescued++
+      const persons = distinctPersons(alt)
+      if (persons === 1) probe.rescuedUnique++
+      else probe.rescuedAmbiguous++
+      const days = Math.round(
+        (Date.parse(`${variant}T00:00:00Z`) - Date.parse(`${o.parsedDate}T00:00:00Z`)) / 86_400_000,
+      )
+      const kind = Math.abs(days) <= 3 ? `${days > 0 ? '+' : ''}${days} day(s)` : 'transposed digits'
+      byOffset.set(kind, (byOffset.get(kind) ?? 0) + 1)
+      if (rescuedExamples.length < EXAMPLES) {
+        rescuedExamples.push(
+          `     ${o.folderName}\n        archive ${o.parsedDate} -> catalogue ${variant} (${kind}) ` +
+            `"${alt.best?.title ?? ''}"`,
+        )
+      }
+      break // first plausible variant wins; they are ordered nearest-first
+    }
+  }
+  row('currently unmatched folders', tally.none, orphans.length)
+  row('  rescued by a plausible date', probe.rescued, tally.none)
+  row('    of those, unambiguous', probe.rescuedUnique, probe.rescued)
+  row('    of those, several persons', probe.rescuedAmbiguous, probe.rescued)
+  if (byOffset.size) {
+    console.log(`\n  by kind of slip:`)
+    for (const [k, n] of [...byOffset.entries()].sort((a, b) => b[1] - a[1])) {
+      console.log(`     ${String(n).padStart(6)}  ${k}`)
+    }
+  }
+  if (rescuedExamples.length) {
+    console.log(`\n  examples:`)
+    rescuedExamples.forEach((m) => console.log(m))
   }
 
   heading('VERDICT INPUTS')

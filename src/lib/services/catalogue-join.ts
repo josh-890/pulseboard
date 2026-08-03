@@ -119,6 +119,48 @@ export function tierFor(score: number): MatchTier {
   return 'none'
 }
 
+/**
+ * Dates a hand-typed archive folder might carry for a set actually released on
+ * `iso`. The archive's dates are set manually, so they drift: off by a day, or
+ * with the day digits transposed (21 for 12). Ordered by how likely the slip is,
+ * nearest first.
+ *
+ * Deliberately narrow. Exact date is what makes generic titles safe — "Presenting"
+ * appears 757 times in the archive but collides on a date in under 1% of its
+ * keys — so widening the window trades precision for recall, and the trade has
+ * to be measured before it is taken.
+ */
+export function plausibleDateVariants(iso: string, dayWindow = 2): string[] {
+  const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+  if (!m) return []
+  const [, y, mo, d] = m
+  const out: string[] = []
+  const push = (value: string) => {
+    if (value !== iso && !out.includes(value) && /^\d{4}-\d{2}-\d{2}$/.test(value)) out.push(value)
+  }
+
+  const base = new Date(`${iso}T00:00:00Z`)
+  if (!Number.isNaN(base.getTime())) {
+    for (let delta = 1; delta <= dayWindow; delta++) {
+      for (const sign of [-1, 1]) {
+        const shifted = new Date(base.getTime() + sign * delta * 86_400_000)
+        push(shifted.toISOString().slice(0, 10))
+      }
+    }
+  }
+
+  // Transposed day digits: 21 <-> 12. Only when it stays a real day.
+  const swappedDay = `${d[1]}${d[0]}`
+  if (swappedDay !== d && Number(swappedDay) >= 1 && Number(swappedDay) <= 31) {
+    push(`${y}-${mo}-${swappedDay}`)
+  }
+  // Month and day swapped outright: 2015-05-12 <-> 2015-12-05.
+  if (Number(d) >= 1 && Number(d) <= 12 && Number(mo) >= 1 && Number(mo) <= 31) {
+    push(`${y}-${d}-${mo}`)
+  }
+  return out
+}
+
 /** Catalogue sets bucketed by exact date — the outer half of the join key. */
 export type CatalogueIndex = Map<string, CatalogueSet[]>
 
