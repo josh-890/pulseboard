@@ -437,6 +437,67 @@ async function main() {
     recallMisses.forEach((m) => console.log(m))
   }
 
+  // ── 1b. PRECISION — the same join, run blind ───────────────────────────────
+  heading('1b. PRECISION — how often an unprompted suggestion is simply WRONG')
+  console.log(`  Section 1 restricts candidates to the participants the app already`)
+  console.log(`  knows, so it cannot produce a wrong answer — it measures "can we find`)
+  console.log(`  the right one when we look for it". On an orphan there is no such`)
+  console.log(`  restriction: the join runs blind against every catalogue row.`)
+  console.log(`  Here the SAME ground-truth folders are matched blind, then checked.\n`)
+  console.log(`  Read this asymmetrically. These folders were curated BY HAND, so they`)
+  console.log(`  are the clean, easy end of the population: a result near 100% is only`)
+  console.log(`  mildly reassuring and does NOT generalise to the 29k orphans. A result`)
+  console.log(`  below 100% is damning — it means the join errs even on the tidiest`)
+  console.log(`  data available. The test can falsify the design; it cannot bless it.\n`)
+
+  const prec = { checked: 0, right: 0, wrong: 0, noMatch: 0, wrongCrossLabel: 0 }
+  const wrongExamples: string[] = []
+  for (const gt of groundTruth) {
+    if (!gt.parsedDate || gt.participantIcgIds.length === 0) continue
+    const blind = matchFolder(
+      {
+        archiveKey: gt.archiveKey,
+        folderName: gt.folderName,
+        parsedDate: gt.parsedDate,
+        parsedShortName: gt.parsedShortName,
+        parsedTitle: gt.parsedTitle,
+      },
+      index,
+    )
+    if (blind.tier !== 'exact') {
+      if (blind.tier === 'none') prec.noMatch++
+      continue
+    }
+    prec.checked++
+    // Right = the winning rows name at least one participant the app records
+    // for this set. Anything else is a suggestion that would have been wrong.
+    const named = suggestedParticipants(blind)
+    if (named.some((p) => gt.participantIcgIds.includes(p))) {
+      prec.right++
+      continue
+    }
+    prec.wrong++
+    const catLabel = blind.best ? labelOfChannel(blind.best.channel) : null
+    const appLabel = gt.channelName ? (byName.get(norm(gt.channelName))?.labelName ?? null) : null
+    if (catLabel && appLabel && catLabel !== appLabel) prec.wrongCrossLabel++
+    if (wrongExamples.length < EXAMPLES) {
+      wrongExamples.push(
+        `     ${gt.folderName}\n        app says: ${gt.participantIcgIds.join(', ')}` +
+          `\n        join says: ${named.join(', ')}  via "${blind.best?.channel ?? '?'}" "${blind.best?.title ?? ''}"`,
+      )
+    }
+  }
+  row('exact matches produced blind', prec.checked, prec.checked + prec.noMatch)
+  row('  RIGHT (names a known participant)', prec.right, prec.checked)
+  row('  WRONG', prec.wrong, prec.checked)
+  row('    of the wrong ones, cross-label', prec.wrongCrossLabel, prec.wrong)
+  if (wrongExamples.length) {
+    console.log(`\n  wrong suggestions:`)
+    wrongExamples.forEach((m) => console.log(m))
+  }
+  console.log(`\n  This is the figure an operator experiences. A wrong suggestion that is`)
+  console.log(`  confirmed puts a person into a career they were never part of.`)
+
   // ── 2. Coverage + ambiguity over the orphans ───────────────────────────────
   heading('2. ORPHANS — coverage and ambiguity')
   // ICG-ID -> person name, from the catalogue's own folder names.
