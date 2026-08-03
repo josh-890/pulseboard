@@ -3,6 +3,7 @@
 import { AlertTriangle, Camera, Film } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useHoverImagePreview, HoverImagePreview } from '@/components/shared/hover-image-preview'
+import { PersonIdentity } from '@/components/shared/person-identity'
 
 export type GroupFolder = {
   id: string
@@ -60,7 +61,8 @@ export function AttributionGroupFolders({ folders, votes, onConfirmOne, busy }: 
                 'disabled:cursor-not-allowed disabled:opacity-50',
               )}
             >
-              {v.name} <span className="tabular-nums opacity-70">{v.folders}</span>
+              <PersonIdentity name={v.name} icgId={v.icgId} />{' '}
+              <span className="tabular-nums opacity-70">{v.folders}</span>
             </button>
           ))}
           {dissenting.length > 0 && (
@@ -120,11 +122,17 @@ function FolderCard({ folder, majority }: { folder: GroupFolder; majority: strin
         <p className="truncate text-xs" title={folder.fullPath}>
           {folder.folderName}
         </p>
-        <p className={cn('mt-0.5 truncate text-xs', agrees ? 'text-muted-foreground' : 'text-amber-600 dark:text-amber-400')}>
-          {folder.suggestions.length === 0
-            ? 'no suggestion'
-            : folder.suggestions.map((s) => s.name).join(', ')}
-        </p>
+        {/* The suggested person, always with the ICG-ID: many people are called
+            "Alisa", and only Name (ICG-ID) says which one this folder means. */}
+        <div className={cn('mt-0.5 flex flex-col gap-0.5 text-xs', agrees ? 'text-muted-foreground' : 'text-amber-600 dark:text-amber-400')}>
+          {folder.suggestions.length === 0 ? (
+            <span>no suggestion</span>
+          ) : (
+            folder.suggestions.map((s) => (
+              <PersonIdentity key={s.icgId} name={s.name} icgId={s.icgId} className="min-w-0" />
+            ))
+          )}
+        </div>
       </div>
       {hover && pos && folder.coverUrl && (
         <HoverImagePreview url={folder.coverUrl} alt={folder.folderName} pos={pos} />

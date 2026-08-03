@@ -14,6 +14,7 @@ import {
   undoAttributionGroupAction,
 } from '@/lib/actions/attribution-actions'
 import { AttributionGroupFolders, type GroupFolder } from './attribution-group-folders'
+import { PersonIdentity } from '@/components/shared/person-identity'
 
 type AttributionQueueClientProps = {
   initialQueue: AttributionQueue
@@ -211,7 +212,11 @@ export function AttributionQueueClient({ initialQueue, view }: AttributionQueueC
                       <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
                     )}
                     <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 font-mono text-xs">{short}</span>
-                    <span className="truncate font-medium">{g.aliasToken || <em className="text-muted-foreground">no name in folder</em>}</span>
+                    {/* The group's label is the ALIAS the folders carry, not a person.
+                        Which person it resolves to is the vote chips' job, and they
+                        always carry the ICG-ID. */}
+                    <span className="shrink-0 text-xs text-muted-foreground">alias</span>
+                    <span className="truncate font-medium">{g.aliasToken || <em className="text-muted-foreground">none in folder name</em>}</span>
                     <span className="shrink-0 text-sm tabular-nums text-muted-foreground">
                       {g.folders} folder{g.folders === 1 ? '' : 's'}
                     </span>
@@ -239,9 +244,8 @@ export function AttributionQueueClient({ initialQueue, view }: AttributionQueueC
                               ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400'
                               : 'bg-muted text-muted-foreground',
                           )}
-                          title={v.icgId}
                         >
-                          {v.name}
+                          <PersonIdentity name={v.name} icgId={v.icgId} />
                           <span className="tabular-nums opacity-70">{v.folders}</span>
                         </span>
                       ))

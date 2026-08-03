@@ -1172,6 +1172,12 @@ Per group:
 | **Skip** | Park it; it leaves the open queue and stays under **Decided**. |
 | **Undo** | Removes the verdict and every attribution it wrote. Contacts are kept. |
 
+**A person is always named `Name (ICG-ID)`, never by name alone.** The archive is full of
+aliases and there are many people called "Alisa"; the folder alias `FJ | Alisa I` belongs to
+exactly one of them. The group's own label is the **alias the folders carry** — marked as such
+in the header — while the chips beside it are the *people* that alias might resolve to, each
+with its unique key. Whenever you are choosing which person to attach, the key is on screen.
+
 Expand a group to see its folders as a contact sheet with covers. A folder whose suggestion
 disagrees with the group is outlined in amber — either the alias is shared by two people, or
 that one match is wrong, and both are worth seeing before you confirm.
