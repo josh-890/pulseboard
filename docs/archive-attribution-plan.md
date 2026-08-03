@@ -220,6 +220,15 @@ Two design points worth keeping:
 vote per folder per person, demotion carried up to the group, silent groups kept — are tested
 without a database.
 
+**A group is `unanimous` when every *suggested* folder names every voted person.** Found on the
+first live `--post` run: three groups looked "conflicted" and were all multi-participant folders
+(`FJ Michelle & Rebecca`, `Danielle & Alexandra`, `Evia & Irina F & Kata A & Milli`) whose
+folders each named *all* participants — total agreement, read as dispute. `votes.length > 1`
+cannot tell the two apart, and with 22.2 % of catalogue sets naming more than one participant
+that reading would have filled the queue with false alarms. Unanimity is measured over
+`votedFolders` (folders carrying a suggestion), so a silent folder — unresolved either way —
+does not break an otherwise clean group.
+
 ### Channel definitions are a guard, not a coverage input (2026-08-03)
 
 The join keys on **date + title**; the channel is only a tiebreaker and the input to the

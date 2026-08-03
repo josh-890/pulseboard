@@ -292,7 +292,15 @@ const row = (label: string, n: number, of: number) =>
 const heading = (s: string) => console.log(`\n${s}\n${'─'.repeat(s.length)}`)
 
 async function main() {
-  console.log(`Catalogue join — REPORT ONLY (nothing is written)`)
+  // State the mode in the first line. An older copy of this bundle ignores
+  // --post silently — unknown flags simply fall through — so a run that was
+  // meant to write looks identical to one that was not. The banner is the
+  // cheapest place to make that visible before the report scrolls past.
+  console.log(
+    POST
+      ? `Catalogue join — WRITE-BACK ENABLED (--post): suggestions will be stored, nothing materialised`
+      : `Catalogue join — REPORT ONLY (nothing is written; pass --post to store suggestions)`,
+  )
   console.log(`  catalogue : ${CATALOGUE}`)
   console.log(`  app       : ${BASE_URL}${TENANT ? `  [${TENANT}]` : ''}`)
 

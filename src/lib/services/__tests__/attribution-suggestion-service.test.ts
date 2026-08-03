@@ -109,6 +109,52 @@ describe('aggregateAttributionGroups', () => {
       { icgId: 'SX-01', name: 'Sybil A', folders: 2 },
       { icgId: 'ZX-02', name: 'Zoe', folders: 1 },
     ])
+    expect(groups[0].unanimous).toBe(false)
+  })
+
+  // The distinction the queue turns on: several votes are only a conflict when
+  // the folders DISAGREE. `FJ Michelle & Rebecca` yields two votes because both
+  // people are in it, and every folder names both — one decision, not a dispute.
+  // 22.2% of catalogue sets name more than one participant, so getting this
+  // wrong would fill the queue with false alarms.
+  it('calls a multi-person group unanimous when every folder names everyone', () => {
+    const both = [
+      { icgId: 'MX-01', name: 'Michelle' },
+      { icgId: 'RX-02', name: 'Rebecca' },
+    ]
+    const groups = aggregateAttributionGroups([
+      folder('2004-12-24 FJ - Michelle & Rebecca - Angels', 'FJ', both),
+      folder('2004-12-28 FJ - Michelle & Rebecca - Angels Part II', 'FJ', both),
+    ])
+    expect(groups[0].votes).toHaveLength(2)
+    expect(groups[0].unanimous).toBe(true)
+  })
+
+  it('calls a single-person group unanimous', () => {
+    const groups = aggregateAttributionGroups([
+      folder('2015-05-20 MPL - Candy', 'MPL', [{ icgId: 'SX-01', name: 'Sybil A' }]),
+      folder('2016-05-20 MPL - Candy', 'MPL', [{ icgId: 'SX-01', name: 'Sybil A' }]),
+    ])
+    expect(groups[0].unanimous).toBe(true)
+  })
+
+  // Unanimity is measured over the folders that HAVE a suggestion. A silent
+  // folder is unresolved either way, and letting it break unanimity would make
+  // a clean group look disputed for a reason confirmation cannot act on.
+  it('ignores silent folders when judging unanimity, but still counts them', () => {
+    const groups = aggregateAttributionGroups([
+      folder('2015-05-20 MPL - Candy', 'MPL', [{ icgId: 'SX-01', name: 'Sybil A' }]),
+      folder('2016-05-20 MPL - Candy', 'MPL'),
+    ])
+    expect(groups[0].folders).toBe(2)
+    expect(groups[0].votedFolders).toBe(1)
+    expect(groups[0].unanimous).toBe(true)
+  })
+
+  it('never calls a group with no suggestion at all unanimous', () => {
+    const groups = aggregateAttributionGroups([folder('2015-05-20 MPL - Candy', 'MPL')])
+    expect(groups[0].votedFolders).toBe(0)
+    expect(groups[0].unanimous).toBe(false)
   })
 
   it('counts one folder once per person even with suggestions from two sources', () => {

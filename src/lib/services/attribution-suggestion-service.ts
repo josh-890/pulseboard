@@ -180,8 +180,21 @@ export type AttributionGroup = {
   channelShortName: string | null
   aliasToken: string | null
   folders: number
-  /** Votes for who the ALIAS is, highest first. */
+  /** Folders carrying at least one suggestion — the ones a vote could come from. */
+  votedFolders: number
+  /** Who the group's folders point at, highest first. */
   votes: { icgId: string; name: string; folders: number }[]
+  /**
+   * Every suggested folder names every person in `votes`.
+   *
+   * `votes.length > 1` alone cannot tell a disagreement from a multi-person set:
+   * `FJ Michelle & Rebecca` yields two votes because the folder genuinely holds
+   * two people, and each of its folders names both. That is the design working,
+   * not a decision — and with 22.2 % of catalogue sets naming more than one
+   * participant, reading it as conflict would drown the queue in false alarms.
+   * A real conflict is a vote that spans only SOME of the suggested folders.
+   */
+  unanimous: boolean
   /** Folders in the group carrying at least one demoted suggestion. */
   demotedFolders: number
 }
@@ -208,7 +221,7 @@ export function aggregateAttributionGroups(
 ): AttributionGroup[] {
   const groups = new Map<
     string,
-    Omit<AttributionGroup, 'votes'> & { voteMap: Map<string, { name: string; n: number }> }
+    Omit<AttributionGroup, 'votes' | 'unanimous'> & { voteMap: Map<string, { name: string; n: number }> }
   >()
 
   for (const r of rows) {
@@ -221,12 +234,14 @@ export function aggregateAttributionGroups(
         channelShortName: r.parsedShortName,
         aliasToken,
         folders: 0,
+        votedFolders: 0,
         demotedFolders: 0,
         voteMap: new Map(),
       }
       groups.set(key, g)
     }
     g.folders++
+    if (r.suggestions.length > 0) g.votedFolders++
     if (r.suggestions.some((s) => s.demotions.length > 0)) g.demotedFolders++
     // One vote per folder per person: a folder carrying the same person from two
     // sources is one folder agreeing, not two.
@@ -242,12 +257,16 @@ export function aggregateAttributionGroups(
 
   const out = [...groups.values()]
     .filter((g) => g.folders >= (opts.minFolders ?? 1))
-    .map(({ voteMap, ...g }) => ({
-      ...g,
-      votes: [...voteMap.entries()]
+    .map(({ voteMap, ...g }) => {
+      const votes = [...voteMap.entries()]
         .map(([icgId, v]) => ({ icgId, name: v.name, folders: v.n }))
-        .sort((a, b) => b.folders - a.folders || a.icgId.localeCompare(b.icgId)),
-    }))
+        .sort((a, b) => b.folders - a.folders || a.icgId.localeCompare(b.icgId))
+      return {
+        ...g,
+        votes,
+        unanimous: votes.length > 0 && votes.every((v) => v.folders === g.votedFolders),
+      }
+    })
     .sort((a, b) => b.folders - a.folders || a.key.localeCompare(b.key))
 
   return opts.limit ? out.slice(0, opts.limit) : out
