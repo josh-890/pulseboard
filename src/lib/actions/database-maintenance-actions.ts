@@ -15,6 +15,7 @@ import {
   checkCurrentStateIntegrity,
   auditIcgIdOrigins,
   auditArchiveCovers,
+  checkUndefinedArchiveChannels,
 } from "@/lib/services/database-maintenance-service";
 
 type MaintenanceActionResult = {
@@ -164,6 +165,19 @@ export async function auditArchiveCoversAction(): Promise<MaintenanceActionResul
     try {
       // Read-only — nothing to revalidate.
       const result = await auditArchiveCovers();
+      return { success: true, ...result };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unexpected error";
+      return { success: false, error: message };
+    }
+  });
+}
+
+export async function checkUndefinedArchiveChannelsAction(): Promise<MaintenanceActionResult> {
+  return withTenantFromHeaders(async () => {
+    try {
+      // Read-only — nothing to revalidate.
+      const result = await checkUndefinedArchiveChannels();
       return { success: true, ...result };
     } catch (err) {
       const message = err instanceof Error ? err.message : "Unexpected error";

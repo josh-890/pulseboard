@@ -56,6 +56,17 @@ describe('parseSuggestionBatch', () => {
     expect(r).toMatchObject({ suggestions: [{ demotions: ['CROSS_LABEL', 'AMBIGUOUS'] }] })
   })
 
+  // The fail-closed counterpart of CROSS_LABEL: the folder's short code resolves
+  // to no Channel, so the cross-label check could not run. Dropping this reason
+  // would make an unchecked suggestion look exactly like one that passed.
+  it('keeps UNKNOWN_CHANNEL', () => {
+    const r = parseSuggestionBatch({
+      source: 'CATALOGUE',
+      suggestions: [{ ...ok, demotions: ['UNKNOWN_CHANNEL'] }],
+    })
+    expect(r).toMatchObject({ suggestions: [{ demotions: ['UNKNOWN_CHANNEL'] }] })
+  })
+
   it('falls back to the ICG-ID when no name is supplied', () => {
     const r = parseSuggestionBatch({ source: 'CATALOGUE', suggestions: [{ ...ok, name: undefined }] })
     expect(r).toMatchObject({ suggestions: [{ name: 'CX-82HO' }] })
@@ -118,6 +129,15 @@ describe('aggregateAttributionGroups', () => {
       ]),
     ])
     expect(groups[0].votes.map((v) => v.icgId).sort()).toEqual(['MX-01', 'RX-02'])
+  })
+
+  it('treats any demotion reason as demoting the group, not only CROSS_LABEL', () => {
+    const groups = aggregateAttributionGroups([
+      folder('2015-05-20 AMK - Candy', 'AMK', [
+        { icgId: 'SX-01', name: 'Sybil A', demotions: ['UNKNOWN_CHANNEL'] },
+      ]),
+    ])
+    expect(groups[0].demotedFolders).toBe(1)
   })
 
   it('carries a demotion up to the group so review is visible before opening it', () => {

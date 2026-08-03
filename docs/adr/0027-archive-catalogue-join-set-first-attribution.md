@@ -270,10 +270,41 @@ constraints at once is how false positives are manufactured.
 The alias tiebreaker compares the folder's token against the catalogue's person
 *name*, so a channel-scoped alias defeats it — the archive's `MPL Kailena` is
 Sybil A, which the app knows via `PersonAliasChannel` (ADR-0024) and the agent
-does not. Feeding that registry into the worklist would resolve a further slice
-of the residual 0.6 %.
+does not. The registry now ships in the worklist payload (slice 4); wiring it
+into the tiebreaker would resolve a further slice of the residual 0.6 %.
 
 ### Evidence
 
 `scripts/catalogue-join.ts` (report-only; `--cache` makes re-analysis instant),
 logic and thresholds in `src/lib/services/catalogue-join.ts` with 37 unit tests.
+
+## Addendum, 2026-08-03 — the cross-label demotion must fail closed
+
+The demotion above needs **both** labels: the catalogue-side one from the matched
+set's channel, and the app-side one from the folder's short code. Where that short
+code is not a defined `Channel`, there is no app-side label, the comparison cannot
+run — and the suggestion came out looking exactly like one that had passed the
+check. A guard that is silent when it cannot run is worse than no guard, because
+it is indistinguishable from a guard that ran.
+
+This is *not* a coverage question. The key is date + title; an undefined channel
+costs no suggestions at all. It costs only the check.
+
+Measured on xpulse: of 170 distinct short codes across 34,668 folders on disk, 13
+resolve to no Channel, covering **64 folders (0.2 %)** — all still unlinked.
+Careful per-import channel curation is why that number is small; it is not a
+number that stays small on its own as the archive grows.
+
+Two changes:
+
+- **`UNKNOWN_CHANNEL` joins the demotion vocabulary**, emitted when the channel
+  disagrees *and* the app-side label cannot be resolved. It never overlaps
+  `CROSS_LABEL`: one says the check failed, the other says it ran and objected.
+- **`checkUndefinedArchiveChannels()`** (maintenance) names the offending codes,
+  and also flags channels with no short code — an archive folder can never resolve
+  to those — and channels with no owning Label, which fail open identically while
+  looking defined.
+
+The consequence to keep in view: the demotion is only as good as the channel
+registry behind it, so the registry's completeness is now itself audited rather
+than assumed.

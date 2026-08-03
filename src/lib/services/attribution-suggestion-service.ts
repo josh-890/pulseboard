@@ -31,8 +31,20 @@ export type IngestResult = {
 
 export const SUGGESTION_SOURCES = ['CATALOGUE', 'REGISTRY', 'FOLDER_ATTRIBUTION'] as const
 export const SUGGESTION_TIERS = ['EXACT', 'STRONG', 'WEAK'] as const
-/** Why a suggestion still wants a human look. Unknown reasons are dropped, not stored. */
-export const SUGGESTION_DEMOTIONS = ['CROSS_LABEL', 'AMBIGUOUS', 'DATE_VARIANT'] as const
+/**
+ * Why a suggestion still wants a human look. Unknown reasons are dropped, not stored.
+ *
+ * `UNKNOWN_CHANNEL` is the fail-closed counterpart of `CROSS_LABEL`: the folder's
+ * short code resolves to no Channel, so the cross-label check had nothing to
+ * compare against and could not fire. Without it an unchecked suggestion is
+ * indistinguishable from one that passed the check.
+ */
+export const SUGGESTION_DEMOTIONS = [
+  'CROSS_LABEL',
+  'UNKNOWN_CHANNEL',
+  'AMBIGUOUS',
+  'DATE_VARIANT',
+] as const
 
 /**
  * Validate a posted batch whole, before any of it is written.

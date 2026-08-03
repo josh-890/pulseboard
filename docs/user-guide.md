@@ -1156,6 +1156,22 @@ The matching system runs two tiers:
 
 HIGH suggestions show amber; MEDIUM suggestions show dimmer amber.
 
+### Why channel definitions matter
+
+Define every channel you meet **with its short code and its owning label**. Both tiers above
+match on the short code, so a channel that has none can never be suggested for a folder.
+
+For the catalogue-based attribution suggestions the stake is different but sharper. Those match
+on **date + title**, so an undefined channel costs you no suggestions — but it disables the
+safety check that rejects a match landing on a *different label* (the Hegre-versus-FemJoy
+class). Where the check cannot run, the suggestion is marked **UNKNOWN_CHANNEL** rather than
+passed off as clean.
+
+Run **Settings → Database Maintenance → Undefined Archive Channels** to see which short codes
+in the archive have no channel behind them, and which channels are missing a short code or an
+owning label. It is read-only: define what it lists, then re-run the catalogue-join agent to
+clear the marks.
+
 ### Linking an orphan folder
 
 An **orphan** folder is one the scan found but that isn't linked to any Set or Staging Set. Each orphan row offers:

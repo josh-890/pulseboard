@@ -183,7 +183,7 @@ All import services in `src/lib/services/import/`.
 
 **`attribution-worklist-service.ts`** — Read-only archive side of the catalogue join (ADR-0027). Serves **orphans** (what the join must explain) *and* **groundTruth** (folders already linked to a set with known participants), because a hit rate with nothing to check it against is not a measurement. Also ships channel→owning-label and **channel-scoped** aliases (ADR-0024) so the agent's tiebreakers compare like with like.
 
-**`attribution-suggestion-service.ts`** — Stores what the join proposes and folds it into the unit an operator decides on (ADR-0027, plan slice 4). `parseSuggestionBatch` (pure; all-or-nothing validation), `ingestSuggestions` (replaces per `(folder, source)` in a transaction per folder — idempotent re-runs, other sources untouched), `getSuggestionStats`, `aggregateAttributionGroups` (**pure**: `(channel, alias)` groups, one vote per folder per person, demotions carried up, silent groups kept) + its query wrapper `getAttributionGroups`. Suggestions carry `tier` (`EXACT|STRONG|WEAK`) and `demotions[]` (`CROSS_LABEL|AMBIGUOUS|DATE_VARIANT`) — *why* it is doubtful, not just how much. Nothing here materialises a Set, participant or Contact. Agent: `scripts/catalogue-join.ts --post`.
+**`attribution-suggestion-service.ts`** — Stores what the join proposes and folds it into the unit an operator decides on (ADR-0027, plan slice 4). `parseSuggestionBatch` (pure; all-or-nothing validation), `ingestSuggestions` (replaces per `(folder, source)` in a transaction per folder — idempotent re-runs, other sources untouched), `getSuggestionStats`, `aggregateAttributionGroups` (**pure**: `(channel, alias)` groups, one vote per folder per person, demotions carried up, silent groups kept) + its query wrapper `getAttributionGroups`. Suggestions carry `tier` (`EXACT|STRONG|WEAK`) and `demotions[]` (`CROSS_LABEL|UNKNOWN_CHANNEL|AMBIGUOUS|DATE_VARIANT`) — *why* it is doubtful, not just how much. Nothing here materialises a Set, participant or Contact. Agent: `scripts/catalogue-join.ts --post`.
 
 **`coherence-service.ts`** — Maintains `SetCoherenceSnapshot` cross-cutting state. Fire-and-forget helpers:
 - `onSetPromoted(stagingSetId, setId)` — creates snapshot for newly promoted Set
@@ -198,7 +198,7 @@ All import services in `src/lib/services/import/`.
 **`activity-service.ts`** — Activity feed queries
 **`setting-service.ts`** — App settings (profile image labels, skill level configs)
 **`cascade-helpers.ts`** — Transaction-based cascade delete helpers (`TxClient` type)
-**`database-maintenance-service.ts`** — Orphan cleanup, duplicate detection, view refresh, `auditIcgIdOrigins()` (ADR-0026 — read-only: external/self split, IDs matching neither shape, contacts carrying the reserved marker)
+**`database-maintenance-service.ts`** — Orphan cleanup, duplicate detection, view refresh, `auditIcgIdOrigins()` (ADR-0026 — read-only: external/self split, IDs matching neither shape, contacts carrying the reserved marker), `checkUndefinedArchiveChannels()` (read-only: archive short codes with no Channel behind them, plus channels missing a short code or an owning Label — all three make the join's cross-label guard fail open)
 
 ---
 

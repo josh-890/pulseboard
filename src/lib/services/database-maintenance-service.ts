@@ -533,6 +533,104 @@ export async function auditArchiveCovers(): Promise<MaintenanceResult> {
   return { found: stats.failed, fixed: 0, details };
 }
 
+/**
+ * Archive short codes that are not defined as a Channel (read-only).
+ *
+ * Not a coverage problem — the catalogue join keys on date + title, so an
+ * undefined channel still gets its suggestions. It is a **guard** problem: the
+ * cross-label demotion in the join resolves the folder's short code to a Channel
+ * to find its owning Label (ADR-0020), and an unresolvable code makes that check
+ * fail open. A suggestion that was never compared against a label then looks
+ * exactly like one that passed. `UNKNOWN_CHANNEL` marks those at the suggestion
+ * level; this check is the other half — it names the codes so the gap can be
+ * closed at the source instead of being carried on every suggestion.
+ *
+ * Channel-scoped aliases (ADR-0024) need a Channel row too, and confirmation
+ * (slice 5) cannot promote a set on a channel that does not exist.
+ */
+export async function checkUndefinedArchiveChannels(): Promise<MaintenanceResult> {
+  const [channels, folders] = await Promise.all([
+    prisma.channel.findMany({ select: { name: true, shortName: true, labelId: true } }),
+    prisma.archiveFolder.findMany({
+      where: { missingOnDisk: false },
+      select: { parsedShortName: true, archiveLink: { select: { setId: true } } },
+    }),
+  ]);
+
+  // A short code is "known" under either its code or its full name — the archive
+  // folder names use the code, but hand-made folders sometimes spell it out.
+  const known = new Set<string>();
+  for (const c of channels) {
+    known.add(normalizeForSearch(c.name));
+    if (c.shortName) known.add(normalizeForSearch(c.shortName));
+  }
+
+  const byCode = new Map<string, { total: number; orphan: number }>();
+  let noCode = 0;
+  for (const f of folders) {
+    if (!f.parsedShortName) {
+      noCode++;
+      continue;
+    }
+    const code = f.parsedShortName.toUpperCase();
+    const entry = byCode.get(code) ?? { total: 0, orphan: 0 };
+    entry.total++;
+    if (!f.archiveLink?.setId) entry.orphan++;
+    byCode.set(code, entry);
+  }
+
+  const undefinedCodes = [...byCode.entries()]
+    .filter(([code]) => !known.has(normalizeForSearch(code)))
+    .sort((a, b) => b[1].total - a[1].total);
+  const affected = undefinedCodes.reduce((sum, [, e]) => sum + e.total, 0);
+
+  const details: string[] = [
+    `${folders.length.toLocaleString()} archive folder(s) on disk across ${byCode.size} short code(s); ` +
+      `${channels.length} channel(s) defined.`,
+  ];
+  for (const [code, e] of undefinedCodes.slice(0, 40)) {
+    details.push(`${code} — ${e.total} folder(s), ${e.orphan} still unlinked`);
+  }
+  if (undefinedCodes.length > 40) {
+    details.push(`(… ${undefinedCodes.length - 40} more codes not listed)`);
+  }
+  if (undefinedCodes.length === 0) {
+    details.push("Every short code in the archive resolves to a defined Channel.");
+  } else {
+    details.push(
+      `${affected.toLocaleString()} folder(s) sit behind an undefined channel. Their attribution ` +
+        "suggestions carry UNKNOWN_CHANNEL because the cross-label check had nothing to compare " +
+        "against — define the channel (with its short code and owning Label) and re-run " +
+        "scripts/catalogue-join.ts --post to clear it.",
+    );
+  }
+  if (noCode > 0) {
+    details.push(`${noCode} folder(s) carry no short code at all — their names do not follow the canonical pattern.`);
+  }
+
+  // Two shapes that break the same guards even when the Channel exists.
+  const missingShort = channels.filter((c) => !c.shortName);
+  const missingLabel = channels.filter((c) => !c.labelId);
+  if (missingShort.length > 0) {
+    details.push(
+      `${missingShort.length} channel(s) have no short code, so an archive folder can never resolve to them: ` +
+        missingShort.slice(0, 15).map((c) => c.name).join(", "),
+    );
+  }
+  if (missingLabel.length > 0) {
+    details.push(
+      `${missingLabel.length} channel(s) have no owning Label, so the cross-label check fails open for them too: ` +
+        missingLabel.slice(0, 15).map((c) => c.shortName ?? c.name).join(", "),
+    );
+  }
+
+  return {
+    found: undefinedCodes.length + missingShort.length + missingLabel.length,
+    fixed: 0,
+    details,
+  };
+}
+
 type ParticipantEntry = { name: string; icgId: string; url?: string };
 type ParticipantStatus = { name: string; icgId: string; status: string };
 

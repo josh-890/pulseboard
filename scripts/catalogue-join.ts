@@ -529,7 +529,7 @@ async function main() {
   const tally = {
     exact: 0, strong: 0, weak: 0, none: 0,
     multiParticipant: 0, ambiguous: 0, aliasResolved: 0,
-    exactCrossLabel: 0,
+    exactCrossLabel: 0, exactUnknownChannel: 0,
   }
   const suggestedPersons = new Set<string>()
   const groups = new Map<string, { folders: number; votes: Map<string, number> }>()
@@ -556,13 +556,22 @@ async function main() {
     // Would a cross-label channel demote this out of the auto-suggest tier?
     // Counted only on exact matches, since those are the ones a rule would
     // otherwise wave through without review.
+    //
+    // The check needs BOTH labels. When the folder's short code is not a defined
+    // Channel there is no app-side label, so the check cannot fire — and an
+    // unchecked suggestion would be indistinguishable from one that passed.
+    // That case is recorded as UNKNOWN_CHANNEL rather than treated as clean.
     let crossLabel = false
+    let unknownChannel = false
     if (m.best && o.parsedShortName && !channelLooselyMatches(m.best.channel, o.parsedShortName)) {
       const catLabel = labelOfChannel(m.best.channel)
-      const appLabel = byShort.get(norm(o.parsedShortName))?.labelName ?? null
+      const appChannel = byShort.get(norm(o.parsedShortName))
+      const appLabel = appChannel?.labelName ?? null
       crossLabel = !!(catLabel && appLabel && catLabel !== appLabel)
+      unknownChannel = !crossLabel && (!appChannel || !appLabel)
     }
     if (m.tier === 'exact' && crossLabel) tally.exactCrossLabel++
+    if (m.tier === 'exact' && unknownChannel) tally.exactUnknownChannel++
 
     if (isAmbiguous(m)) {
       if (aliasTokenLooksMulti(o.aliasToken)) {
@@ -602,6 +611,7 @@ async function main() {
     const unexplained = isAmbiguous(m) && !aliasTokenLooksMulti(o.aliasToken) && !aliasPick
     const demotions: string[] = []
     if (crossLabel) demotions.push('CROSS_LABEL')
+    if (unknownChannel) demotions.push('UNKNOWN_CHANNEL')
     if (unexplained) demotions.push('AMBIGUOUS')
     for (const icgId of all) {
       postable.push({
@@ -635,6 +645,7 @@ async function main() {
   row('  of those, resolved by the alias', tally.aliasResolved, suggested)
   row('  of those, UNEXPLAINED ambiguity', tally.ambiguous, suggested)
   row('  exact matches on a CROSS-LABEL channel', tally.exactCrossLabel, tally.exact)
+  row('  exact matches on an UNDEFINED channel', tally.exactUnknownChannel, tally.exact)
   console.log(`\n  A folder named "A & B" matching two people is the design working, not a`)
   console.log(`  doubt to resolve — only the unexplained row is a precision risk.`)
   console.log(`  distinct persons suggested             ${String(suggestedPersons.size).padStart(7)}`)

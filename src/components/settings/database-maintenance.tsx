@@ -19,6 +19,7 @@ import {
   ShieldCheck,
   Fingerprint,
   ImageOff as ImageOffIcon,
+  RadioTower,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -34,6 +35,7 @@ import {
   checkCurrentStateIntegrityAction,
   auditIcgIdOriginsAction,
   auditArchiveCoversAction,
+  checkUndefinedArchiveChannelsAction,
 } from "@/lib/actions/database-maintenance-actions";
 
 type ActionResult = {
@@ -135,6 +137,13 @@ const actions: ActionConfig[] = [
       "How many archive folders have a cover thumbnail, and which ones failed. The cover agent fails one folder at a time and records why, so a single corrupt image never derails a full run \u2014 this is where those failures become actionable. Read-only: clean or re-encode the listed files, then re-run archive-cover.ps1 -RetryFailed.",
     icon: <ImageOffIcon className="h-5 w-5 text-muted-foreground" />,
     action: auditArchiveCoversAction,
+  },
+  {
+    title: "Undefined Archive Channels",
+    description:
+      "Which archive short codes have no Channel behind them. This is not a coverage gap — the catalogue join keys on date and title, so those folders still get suggestions. It is a guard gap: the cross-label check resolves the code to a Channel to find its owning Label, and an unresolvable code makes that check pass silently. Also flags channels missing a short code or an owning Label, which break the same guard. Read-only: define the channel, then re-run catalogue-join.ts --post.",
+    icon: <RadioTower className="h-5 w-5 text-muted-foreground" />,
+    action: checkUndefinedArchiveChannelsAction,
   },
 ];
 

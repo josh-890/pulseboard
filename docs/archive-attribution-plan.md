@@ -193,8 +193,8 @@ Two additions beyond the plan above, both about carrying *why* rather than only 
 
 - **`tier` + `demotions[]` on the suggestion**, not just a score. A score of 0.9 does not tell
   an operator whether the doubt is a label-foreign channel or an alias two people share.
-  `demotions` ∈ `CROSS_LABEL | AMBIGUOUS | DATE_VARIANT`; `DATE_VARIANT` is reserved for
-  slice 3 and never emitted yet.
+  `demotions` ∈ `CROSS_LABEL | UNKNOWN_CHANNEL | AMBIGUOUS | DATE_VARIANT`; `DATE_VARIANT` is
+  reserved for slice 3 and never emitted yet.
 - **Channel-scoped aliases in the worklist** (ADR-0024), so the agent's alias tiebreaker
   compares like with like. Global aliases are deliberately not sent — that would reintroduce
   the cross-channel name collisions removed in 2026-05-26.
@@ -219,6 +219,30 @@ Two design points worth keeping:
 `aggregateAttributionGroups` is pure and separated from its query, so the folding rules — one
 vote per folder per person, demotion carried up to the group, silent groups kept — are tested
 without a database.
+
+### Channel definitions are a guard, not a coverage input (2026-08-03)
+
+The join keys on **date + title**; the channel is only a tiebreaker and the input to the
+cross-label demotion. So a folder whose short code has no `Channel` behind it still gets its
+suggestions — nothing is lost. What *is* lost is the check: `crossLabel` needs both the
+catalogue-side and the app-side label, and an unresolvable short code yields no app-side label,
+so the guard **fails open** and the suggestion looks exactly as clean as one that passed.
+
+Measured on xpulse (2026-08-03): 445 channels, all with a short code and an owning label;
+170 distinct short codes across 34,668 folders on disk; **13 codes undefined, 64 folders
+(0.2 %)** behind them, all still unlinked. Largest: `AMK` (20), `SLV` (17), `TIG` (6). 15
+folders carry no short code at all.
+
+Two fixes, both shipped:
+
+- **`UNKNOWN_CHANNEL` demotion** — makes the guard fail closed. Emitted when the channel
+  disagrees *and* the app-side label cannot be resolved, so it never overlaps `CROSS_LABEL`.
+- **`checkUndefinedArchiveChannels()`** maintenance check — names the codes, and also flags
+  channels missing a short code (an archive folder can never resolve to them) or an owning
+  Label (same fail-open, with the Channel present). Turns "keep an overview" into a query.
+
+Curating channels per person-import remains the right discipline — this only removes the need
+to hold the whole picture in your head, and makes the gap self-announcing where it matters.
 
 ---
 
