@@ -373,3 +373,37 @@ if a new domain term appears — the vocabulary is already recorded.
 **Scale check before slice 5.** Full coverage means ~30k Sets against today's 478. Re-check
 `/sets` and `/people` list performance against a realistic row count before turning the
 workflow loose, not after.
+
+---
+
+## Slice 6 — Per-set decisions in two stages (2026-08-04)
+
+Slice 5's group-level confirm was the wrong unit and use proved it: `AA | Anna` holds several
+genuinely different people under one folder alias.
+
+Researched against five systems solving the same problem. They converge: **the group organises,
+the item commits.** [FamilySearch](https://www.familysearch.org/en/help/helpcenter/article/how-do-i-attach-record-hints-in-family-tree)
+offers no bulk accept at all and advises against working many hints at once;
+[Apple Photos](https://discussions.apple.com/thread/255165333) documents batch confirm merging
+two people into one album; [digiKam](https://docs.digikam.org/en/left_sidebar/people_view.html)
+models "unconfirmed" as a state and warns one wrong confirm breeds many;
+[Picard](https://picard-docs.musicbrainz.org/en/latest/workflows/workflow_album.html) lets the
+cluster propose and never commit. And [annotation research](https://explosion.ai/blog/optimizing-annotation-workflows)
+measured **>10x throughput** from near-binary, one-question-per-pass review with keyboard
+shortcuts — which is where the speed the bulk button promised actually comes from.
+
+**Stage 1** (`/archive/attribution`): contact sheet + keyboard (`J/K` `A` `X` `Space` `U` `1…9`
+`S`). Group keeps only `Not a person` / `Skip`. Multi-confirm exists but only over a hand-built
+selection — nothing is pre-selected, which is precisely the difference from Apple's failure.
+
+**Stage 2** (`/archive/develop`, new): confirmed folders with no staging set, grouped by person.
+`E` develops via `createStagingSetFromOrphan` + `addStagingSetParticipant`; `W` parks.
+
+**State**: `ArchiveFolderReview { identity, develop }`, written with the attributions in one
+transaction. The migration **backfills** `CONFIRMED` for folders that already had attributions
+(49 on prod) and `DEVELOPED` where a staging link already exists — otherwise finished work
+reappears as untouched.
+
+Also landed: `archiveFolderCount` in the contacts register, so a contact created purely by
+archive confirmation no longer reads as an empty "0 mentions" row.
+

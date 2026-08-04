@@ -186,6 +186,12 @@ function ContactRowItem({ row }: { row: ContactRow }) {
           )}
         </div>
         <p className="truncate text-xs text-muted-foreground">
+          {row.archiveFolderCount > 0 && (
+            <>
+              {row.archiveFolderCount} archive {row.archiveFolderCount === 1 ? "folder" : "folders"}
+              {" · "}
+            </>
+          )}
           {row.mentionCount} {row.mentionCount === 1 ? "mention" : "mentions"}
           {row.claimCount > 0 && ` · ${row.claimCount} claimed`}
           {row.relationshipCount > 0 && ` · ${row.relationshipCount} relationship${row.relationshipCount === 1 ? "" : "s"}`}

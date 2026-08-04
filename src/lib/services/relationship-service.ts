@@ -288,6 +288,8 @@ export type ContactRow = {
   claimCount: number;
   relationshipCount: number;
   mentionCount: number;
+  /** Archive folders confirmed as this person — evidence the register would otherwise miss. */
+  archiveFolderCount: number;
   // Approved, archive-linked staging sets where THIS contact is the only
   // not-yet-curated participant — adding it unlocks that many sets for promotion.
   unlocksSetCount: number;
@@ -325,7 +327,11 @@ async function computeUnlockCounts(): Promise<Map<string, number>> {
 export const CONTACTS_PAGE_SIZE = 50;
 
 const contactInclude = {
-  _count: { select: { claims: true, relationshipsTo: true } },
+  // `attributions` counts archive folders confirmed as this person (plan slice 5/6).
+  // Without it a contact created purely by archive confirmation reads as "0
+  // mentions" — an empty row with no visible reason to exist, even when it is one
+  // of the best-evidenced identities in the register.
+  _count: { select: { claims: true, relationshipsTo: true, attributions: true } },
   claims: {
     take: 3,
     include: {
@@ -341,7 +347,7 @@ type ContactWithCounts = {
   thumbUrl: string | null;
   note: string | null;
   ignoredAt: Date | null;
-  _count: { claims: number; relationshipsTo: number };
+  _count: { claims: number; relationshipsTo: number; attributions: number };
   claims: { subjectPerson: { aliases: { name: string }[] } }[];
 };
 
@@ -356,6 +362,7 @@ function buildContactRow(r: ContactWithCounts, unlock: number): ContactRow {
     claimCount: r._count.claims,
     relationshipCount: r._count.relationshipsTo,
     mentionCount: r._count.claims + r._count.relationshipsTo,
+    archiveFolderCount: r._count.attributions,
     unlocksSetCount: unlock,
     subjects: r.claims.map((c) => c.subjectPerson.aliases[0]?.name).filter((n): n is string => !!n),
   };
@@ -403,6 +410,7 @@ export async function getUnlockingContacts(opts: { q?: string; includeIgnored?: 
       (a, b) =>
         b.unlocksSetCount - a.unlocksSetCount ||
         b.mentionCount - a.mentionCount ||
+        b.archiveFolderCount - a.archiveFolderCount ||
         a.name.localeCompare(b.name),
     );
 }

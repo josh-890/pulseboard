@@ -5,11 +5,13 @@ import {
   type GroupableFolder,
 } from '@/lib/services/attribution-suggestion-service'
 
+let folderSeq = 0
 const folder = (
   folderName: string,
   parsedShortName: string | null,
   suggestions: { icgId: string; name: string; demotions?: string[] }[] = [],
 ): GroupableFolder => ({
+  id: `f${++folderSeq}`,
   folderName,
   parsedShortName,
   suggestions: suggestions.map((s) => ({ ...s, demotions: s.demotions ?? [] })),

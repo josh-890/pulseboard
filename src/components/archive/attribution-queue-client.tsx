@@ -7,11 +7,15 @@ import { AlertTriangle, Check, ChevronDown, ChevronRight, Loader2, Undo2, UserX,
 import { cn } from '@/lib/utils'
 import type { AttributionQueue, AttributionQueueGroup } from '@/lib/services/attribution-confirm-service'
 import {
-  confirmAttributionGroupAction,
+  confirmFolderAction,
+  confirmFoldersAction,
   getGroupFoldersAction,
   markGroupNotAPersonAction,
+  rejectFolderAction,
+  skipFolderAction,
   skipGroupAction,
   undoAttributionGroupAction,
+  undoFolderAction,
 } from '@/lib/actions/attribution-actions'
 import { AttributionGroupFolders, type GroupFolder } from './attribution-group-folders'
 import { PersonIdentity } from '@/components/shared/person-identity'
@@ -91,21 +95,30 @@ export function AttributionQueueClient({ initialQueue, view }: AttributionQueueC
     startTransition(() => router.refresh())
   }
 
-  const confirm = async (g: AttributionQueueGroup, icgIds: string[]) => {
-    setBusy(g.key)
-    const res = await confirmAttributionGroupAction(g.key, icgIds)
-    setBusy(null)
+  // Per-folder decisions. The group no longer commits anything: `AA | Anna` holds
+  // several distinct people under one alias, so a group-wide confirm could attach
+  // the wrong person to dozens of sets at once.
+  const [folderBusy, setFolderBusy] = useState<string | null>(null)
+
+  const reloadFolders = async (key: string) => {
+    const res = await getGroupFoldersAction(key)
+    if (res.success) setFolders((f) => ({ ...f, [key]: res.data }))
+    startTransition(() => router.refresh())
+  }
+
+  const folderOp = async (
+    groupKey: string,
+    folderId: string,
+    op: () => Promise<{ success: true } | { success: false; error: string }>,
+  ) => {
+    setFolderBusy(folderId)
+    const res = await op()
+    setFolderBusy(null)
     if (!res.success) {
-      setFlash({ key: g.key, text: res.error, tone: 'err' })
+      setFlash({ key: groupKey, text: res.error, tone: 'err' })
       return
     }
-    const d = res.data
-    afterDecision(
-      g.key,
-      `${d.attributedFolders} folder(s) attributed` +
-        (d.contactsCreated ? `, ${d.contactsCreated} contact(s) created` : '') +
-        (d.dissentingFolders ? `, ${d.dissentingFolders} left for review` : ''),
-    )
+    await reloadFolders(groupKey)
   }
 
   const notAPerson = async (g: AttributionQueueGroup) => {
@@ -144,14 +157,19 @@ export function AttributionQueueClient({ initialQueue, view }: AttributionQueueC
               creates no sets.{' '}
               <Link href="/archive" className="underline underline-offset-2 hover:text-foreground">
                 Back to the archive
+              </Link>{' '}
+              ·{' '}
+              <Link href="/archive/develop" className="underline underline-offset-2 hover:text-foreground">
+                Develop confirmed sets
               </Link>
             </p>
           </div>
         </div>
 
-        <dl className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-5">
+        <dl className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-6">
           {[
-            { label: 'Open', value: counts.open },
+            { label: 'Open groups', value: counts.open },
+            { label: 'Folders left', value: counts.openFolders },
             { label: 'Unanimous', value: counts.unanimous },
             { label: 'Needs a decision', value: counts.conflicted },
             { label: 'No suggestion', value: counts.silent },
@@ -219,6 +237,7 @@ export function AttributionQueueClient({ initialQueue, view }: AttributionQueueC
                     <span className="truncate font-medium">{g.aliasToken || <em className="text-muted-foreground">none in folder name</em>}</span>
                     <span className="shrink-0 text-sm tabular-nums text-muted-foreground">
                       {g.folders} folder{g.folders === 1 ? '' : 's'}
+                      {g.openFolders < g.folders && ` · ${g.openFolders} open`}
                     </span>
                     {g.demotedFolders > 0 && (
                       <span
@@ -269,14 +288,10 @@ export function AttributionQueueClient({ initialQueue, view }: AttributionQueueC
                       </>
                     ) : (
                       <>
-                        <ActionButton
-                          onClick={() => confirm(g, g.votes.map((v) => v.icgId))}
-                          busy={isBusy}
-                          disabled={g.votes.length === 0}
-                          label={g.unanimous ? 'Confirm' : 'Confirm all'}
-                          icon={Check}
-                          tone="primary"
-                        />
+                        {/* No group-level Confirm. Identity is decided per folder,
+                            inside the group — see AttributionGroupFolders. What
+                            remains here are the two verdicts that really are about
+                            the whole group. */}
                         <ActionButton onClick={() => notAPerson(g)} busy={isBusy} label="Not a person" icon={UserX} />
                         <ActionButton onClick={() => skip(g)} busy={isBusy} label="Skip" icon={X} />
                       </>
@@ -306,8 +321,16 @@ export function AttributionQueueClient({ initialQueue, view }: AttributionQueueC
                       <AttributionGroupFolders
                         folders={folders[g.key] ?? []}
                         votes={g.votes}
-                        onConfirmOne={(icgId) => confirm(g, [icgId])}
-                        busy={isBusy}
+                        busy={folderBusy}
+                        onConfirm={(folderId, icgIds, names) =>
+                          folderOp(g.key, folderId, () => confirmFolderAction(folderId, icgIds, names))
+                        }
+                        onConfirmMany={(folderIds, icgIds, names) =>
+                          folderOp(g.key, folderIds[0], () => confirmFoldersAction(folderIds, icgIds, names))
+                        }
+                        onReject={(folderId) => folderOp(g.key, folderId, () => rejectFolderAction(folderId))}
+                        onSkip={(folderId) => folderOp(g.key, folderId, () => skipFolderAction(folderId))}
+                        onUndo={(folderId) => folderOp(g.key, folderId, () => undoFolderAction(folderId))}
                       />
                     )}
                   </div>

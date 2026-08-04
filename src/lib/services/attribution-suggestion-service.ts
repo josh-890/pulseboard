@@ -180,6 +180,8 @@ export type AttributionGroup = {
   channelShortName: string | null
   aliasToken: string | null
   folders: number
+  /** Member folder ids — the queue reports per-folder progress, not a group verdict. */
+  folderIds: string[]
   /** Folders carrying at least one suggestion — the ones a vote could come from. */
   votedFolders: number
   /** Who the group's folders point at, highest first. */
@@ -200,6 +202,7 @@ export type AttributionGroup = {
 }
 
 export type GroupableFolder = {
+  id: string
   folderName: string
   parsedShortName: string | null
   suggestions: { icgId: string; name: string; demotions: string[] }[]
@@ -234,6 +237,7 @@ export function aggregateAttributionGroups(
         channelShortName: r.parsedShortName,
         aliasToken,
         folders: 0,
+        folderIds: [],
         votedFolders: 0,
         demotedFolders: 0,
         voteMap: new Map(),
@@ -241,6 +245,7 @@ export function aggregateAttributionGroups(
       groups.set(key, g)
     }
     g.folders++
+    g.folderIds.push(r.id)
     if (r.suggestions.length > 0) g.votedFolders++
     if (r.suggestions.some((s) => s.demotions.length > 0)) g.demotedFolders++
     // One vote per folder per person: a folder carrying the same person from two
@@ -279,6 +284,7 @@ export async function getAttributionGroups(
   const rows = await prisma.archiveFolder.findMany({
     where: { missingOnDisk: false, archiveLink: null },
     select: {
+      id: true,
       folderName: true,
       parsedShortName: true,
       suggestions: { select: { icgId: true, name: true, demotions: true } },

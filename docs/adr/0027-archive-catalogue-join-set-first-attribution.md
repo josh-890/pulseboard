@@ -308,3 +308,40 @@ Two changes:
 The consequence to keep in view: the demotion is only as good as the channel
 registry behind it, so the registry's completeness is now itself audited rather
 than assumed.
+
+## Addendum, 2026-08-04 — the group is not the unit of decision
+
+Slice 5 made the (channel, alias) group the thing you confirm. Use disproved it
+within days: `AA | Anna` collects folders that share an alias, not folders that
+share a person, and one click could have attached the wrong woman to dozens of
+sets. The operator's own conclusion is the sharper argument — a bulk button over
+a large group saves nothing, because the visual check it requires *is* the
+per-item work, only now performed without a per-item commit to record it.
+
+Five systems solving "does this record belong to this identity?" agree, and none
+of them were consulted when slice 5 was designed:
+
+- **FamilySearch** record hints: per-record confirm against side-by-side evidence,
+  **no bulk accept exists**, and the published guidance is explicitly not to
+  resolve many hints at once.
+- **Apple Photos**: batch confirm pulls in look-alike faces and, unnoticed,
+  **merges two people into one album** — this failure, in a flagship product.
+- **digiKam**: "unconfirmed" is a first-class state; one wrong confirm breeds many
+  wrong suggestions. Its users' standing complaint is the missing undo.
+- **MusicBrainz Picard**: the cluster proposes, the track commits; per-item
+  confidence and per-item correction before anything is written.
+- **Prodigy / Label Studio**: near-binary questions, one label per pass, keyboard
+  shortcuts — a measured **>10x** throughput gain over compound review.
+
+**Decision.** The folder is the unit of decision. The group survives as *context*
+— it is what puts two Annas next to each other where they can be told apart — and
+retains only the verdicts that are genuinely about a group: `NOT_A_PERSON` (the
+largest group in the archive is a magazine title across 204 folders) and `SKIPPED`.
+
+Speed comes from the keyboard, not from breadth: `a a a x a` is faster than any
+sweep that must be visually pre-verified, and it cannot go wrong at scale.
+
+**Consequence.** Identity and development become two passes over the same folders,
+which is the split the annotation evidence recommends and which the user had
+already reached independently. `ArchiveFolderReview` carries both states so a
+folder's position in either pass is explicit rather than inferred.

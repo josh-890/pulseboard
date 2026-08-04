@@ -2302,6 +2302,7 @@ model ArchiveFolder {
   // fixable instead of derailing a 34k-folder run.
   suggestions  ArchiveFolderSuggestion[]
   attributions ArchiveFolderAttribution[]
+  review       ArchiveFolderReview?
 
   coverKey       String? // MinIO key, archive/{archiveKey}/cover-{ts}.jpg
   coverError     String? // last failure reason; null once a cover succeeds
@@ -2343,6 +2344,50 @@ enum SuggestionTier {
 /// hand-typing slip rather than the stated date). Carried per suggestion rather
 /// than recomputed, because the evidence that produced it is not reproducible
 /// from the app alone — the catalogue lives on another machine.
+/// Per-folder identity state (ADR-0027, plan slice 6).
+///
+/// The (channel, alias) group turned out to be the wrong unit of decision: `AA |
+/// Anna` holds several genuinely different people under one folder alias, so a
+/// group-level confirm can attach the wrong person to dozens of sets at once.
+/// The same failure is documented in Apple Photos, where confirming one face
+/// pulls in look-alikes and merges two people into one album.
+///
+/// So the commit is per folder and the group only organises. `OPEN` is also the
+/// implicit state — a folder with no review row has not been looked at.
+enum FolderIdentityStatus {
+  OPEN
+  CONFIRMED
+  REJECTED
+  SKIPPED
+}
+
+/// Whether a folder should become a StagingSet, asked as a SEPARATE pass.
+///
+/// "Who is in this set" and "do I want this set in the app yet" are different
+/// questions with different criteria and different timing. Annotation research
+/// (Prodigy) measured >10x throughput from splitting compound questions into
+/// single-question passes; the user reached the same conclusion from use.
+enum FolderDevelopStatus {
+  PENDING
+  DEVELOPED
+  WAITING
+}
+
+model ArchiveFolderReview {
+  id              String               @id @default(cuid())
+  archiveFolderId String               @unique
+  archiveFolder   ArchiveFolder        @relation(fields: [archiveFolderId], references: [id], onDelete: Cascade)
+  identity        FolderIdentityStatus @default(OPEN)
+  develop         FolderDevelopStatus  @default(PENDING)
+  identityAt      DateTime?
+  developAt       DateTime?
+  updatedAt       DateTime             @updatedAt
+
+  @@index([identity])
+  @@index([develop])
+  @@map("archive_folder_review")
+}
+
 enum AttributionDecision {
   CONFIRMED
   NOT_A_PERSON

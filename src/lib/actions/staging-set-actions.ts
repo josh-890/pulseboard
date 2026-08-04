@@ -1,5 +1,6 @@
 'use server'
 
+import { addStagingSetParticipant } from '@/lib/services/staging-set-participants'
 import { revalidatePath } from 'next/cache'
 import { withTenantFromHeaders } from '@/lib/tenant-context'
 import { prisma } from '@/lib/db'
@@ -255,38 +256,8 @@ export async function addStagingSetParticipantAction(
 ): Promise<SimpleActionResult> {
   return withTenantFromHeaders(async () => {
     try {
-      const ss = await prisma.stagingSet.findUnique({
-        where: { id: stagingSetId },
-        select: { participants: true, participantStatuses: true },
-      })
-      if (!ss) return { success: false, error: 'Staging set not found' }
-
-      const participants = (ss.participants as { name: string; icgId: string }[]) ?? []
-      const statuses = (ss.participantStatuses as { name: string; icgId?: string; status?: string; personId?: string }[]) ?? []
-      const icg = participant.icgId ?? ''
-
-      const dup = participant.personId
-        ? statuses.some((p) => p.personId === participant.personId)
-        : participants.some((p) => p.name === participant.name && (p.icgId ?? '') === icg)
-      if (dup) return { success: true }
-
-      const newParticipants = [...participants, { name: participant.name, icgId: icg }]
-      const newStatuses = [
-        ...statuses,
-        {
-          name: participant.name,
-          icgId: icg,
-          status: participant.personId ? ('known' as const) : ('candidate' as const),
-          ...(participant.personId ? { personId: participant.personId } : {}),
-        },
-      ]
-      const participantIcgIds = newParticipants.filter((p) => p.icgId).map((p) => p.icgId)
-      const participantNamesNorm = newParticipants.map((p) => normalizeForSearch(p.name)).join(' ')
-
-      await prisma.stagingSet.update({
-        where: { id: stagingSetId },
-        data: { participants: newParticipants, participantStatuses: newStatuses, participantIcgIds, participantNamesNorm },
-      })
+      const res = await addStagingSetParticipant(stagingSetId, participant)
+      if (!res.added && res.reason === 'not-found') return { success: false, error: 'Staging set not found' }
       revalidatePath('/staging-sets')
       if (participant.personId) revalidatePath(`/people/${participant.personId}`)
       return { success: true }

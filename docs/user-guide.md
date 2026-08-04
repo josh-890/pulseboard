@@ -1159,39 +1159,54 @@ HIGH suggestions show amber; MEDIUM suggestions show dimmer amber.
 ### Attribution queue
 
 **Archive → Attribution queue** answers "who is in this folder" for folders that never came
-from a person's import file. Folders are grouped by **channel + the name the folder carries**,
-and each group is one decision. Groups are ordered by size, because that is what makes ~8,900
-groups finite — the largest thousand cover about half the archive.
+from a person's import file. It is a two-stage workflow, and the two stages are deliberately
+separate passes: deciding **who is in a set** and deciding **whether to develop that set** are
+different questions with different criteria.
 
-Per group:
+#### Stage 1 — who is in it
 
-| Action | What it does |
+Folders are grouped by **channel + the name the folder carries**, and that grouping is context,
+not a decision. One alias can hide several people: `AA | Anna` covers genuinely different
+women, so **every folder is confirmed individually**. Expand a group and you get a contact sheet
+of its folders with covers — seeing them side by side is what reveals a collision.
+
+Work it from the keyboard; that is where the speed is:
+
+| Key | Action |
 |---|---|
-| **Confirm** | Writes the attribution onto the folders and registers unknown people as **contacts**. Creates no sets. |
-| **Not a person** | For aliases that are not people at all — `W4B \| w4b magazine` is a magazine title across 204 folders, `MPL \| mpl studios` is the channel's own name. |
-| **Skip** | Park it; it leaves the open queue and stays under **Decided**. |
-| **Undo** | Removes the verdict and every attribution it wrote. Contacts are kept. |
+| `J` / `K` | move the focus |
+| `A` | confirm the folder's suggested person |
+| `X` | not this person — no attribution is written |
+| `Space` | skip for now |
+| `U` | undo this folder's decision |
+| `1`…`9` | confirm as the n-th person in the candidate strip |
+| `S` | add the folder to a selection |
 
-**A person is always named `Name (ICG-ID)`, never by name alone.** The archive is full of
-aliases and there are many people called "Alisa"; the folder alias `FJ | Alisa I` belongs to
-exactly one of them. The group's own label is the **alias the folders carry** — marked as such
-in the header — while the chips beside it are the *people* that alias might resolve to, each
-with its unique key. Whenever you are choosing which person to attach, the key is on screen.
+The candidate strip above the grid shows who the focused folder could be: its own suggestions
+first, then people the rest of the group points at. `2` on a folder whose suggestion is wrong is
+how you settle the second Anna without touching the first.
 
-Expand a group to see its folders as a contact sheet with covers. A folder whose suggestion
-disagrees with the group is outlined in amber — either the alias is shared by two people, or
-that one match is wrong, and both are worth seeing before you confirm.
+**A person is always named `Name (ICG-ID)`, never by name alone.** There are many people called
+"Alisa"; only the key says which one. The group's own label is the **alias the folders carry**
+— marked as such — while the chips beside it are the *people* that alias might resolve to.
 
-**Confirming never touches a disagreeing folder.** If 80 folders say Nata and 3 say someone
-else, confirming Nata attributes exactly those 80; the other 3 stay open for individual review.
-When a group is genuinely split, use the **Confirm only one** chips inside it to settle one
-person at a time.
+Selecting several cards (`S`, or the checkbox on hover) offers *"Confirm N as …"*. Nothing is
+ever pre-selected: every folder in a selection is one you touched.
 
-**Confirmation does not create sets.** Most suggested people are not yet in the app at all, so
-confirming registers who they are, not what they made. Sets still come from your normal path —
-curate the person, import their file, promote. The difference is that the archive then already
-knows which folders belong to them, and when you later create that person from their contact,
-the attributions follow.
+At group level only two verdicts remain, because only they are really about the whole group:
+**Not a person** (for `W4B | w4b magazine`, a magazine title across 204 folders) and **Skip**.
+
+#### Stage 2 — develop it or wait
+
+**Archive → Develop confirmed sets** lists folders whose person is settled but which have no
+staging set yet, grouped **by person**. Per folder: `E` develops it into a staging set with the
+participant attached, `W` parks it because you would rather it arrived with that person's import
+file. Nothing here is automatic.
+
+Confirming in stage 1 creates **no sets**. Most suggested people are not in the app at all, so
+confirming registers who they are — as **contacts** — not what they made. The contacts register
+shows the evidence: *"49 archive folders"* next to the usual mentions. When you later create the
+person, the attributions follow them.
 
 ### Why channel definitions matter
 
