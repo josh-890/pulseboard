@@ -6,7 +6,6 @@ import { useRouter } from 'next/navigation'
 import { Camera, Clock, Film, Loader2, Sparkles } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { PersonIdentity } from '@/components/shared/person-identity'
-import { useHoverImagePreview, HoverImagePreview } from '@/components/shared/hover-image-preview'
 import { developFolderAction, waitOnFolderAction } from '@/lib/actions/attribution-actions'
 
 export type DevelopFolder = {
@@ -53,6 +52,14 @@ export function DevelopQueueClient({ people }: { people: DevelopPersonRow[] }) {
   const [active, setActive] = useState<string | null>(people[0]?.icgId ?? null)
   const [focus, setFocus] = useState(0)
   const containerRef = useRef<HTMLDivElement>(null)
+  const gridRef = useRef<HTMLUListElement>(null)
+
+  /** Cards per row, read from the rendered grid so Up/Down move by a row. */
+  const columns = useCallback(() => {
+    const el = gridRef.current
+    if (!el) return 1
+    return Math.max(1, getComputedStyle(el).gridTemplateColumns.split(' ').filter(Boolean).length)
+  }, [])
 
   const visible = useMemo(
     () =>
@@ -107,6 +114,14 @@ export function DevelopQueueClient({ people }: { people: DevelopPersonRow[] }) {
           e.preventDefault()
           move(-1)
           break
+        case 'arrowdown':
+          e.preventDefault()
+          move(columns())
+          break
+        case 'arrowup':
+          e.preventDefault()
+          move(-columns())
+          break
         case 'e':
           if (f) {
             e.preventDefault()
@@ -121,7 +136,7 @@ export function DevelopQueueClient({ people }: { people: DevelopPersonRow[] }) {
           break
       }
     },
-    [current, focus, run],
+    [current, focus, run, columns],
   )
 
   return (
@@ -208,11 +223,11 @@ export function DevelopQueueClient({ people }: { people: DevelopPersonRow[] }) {
                   <span>contact only — not curated yet</span>
                 )}
                 <span className="ml-auto">
-                  <Kbd>J</Kbd>/<Kbd>K</Kbd> move · <Kbd>E</Kbd> develop · <Kbd>W</Kbd> wait
+                  <Kbd>←</Kbd><Kbd>→</Kbd><Kbd>↑</Kbd><Kbd>↓</Kbd> move · <Kbd>E</Kbd> develop · <Kbd>W</Kbd> wait
                 </span>
               </div>
 
-              <ul className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
+              <ul ref={gridRef} className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
                 {current.folders.map((f, i) => (
                   <DevelopCard
                     key={f.id}
@@ -257,7 +272,6 @@ function DevelopCard({
   onDevelop: () => void
   onWait: () => void
 }) {
-  const { ref, hover, pos, show, hide } = useHoverImagePreview(folder.coverUrl)
   const Icon = folder.isVideo ? Film : Camera
 
   return (
@@ -268,10 +282,12 @@ function DevelopCard({
         focused && 'ring-2 ring-primary ring-offset-1',
       )}
     >
-      <div ref={ref} className="relative aspect-[4/3] bg-muted" onMouseEnter={show} onMouseLeave={hide}>
+      <div className="relative aspect-[3/4] overflow-hidden bg-muted/60">
         {folder.coverUrl ? (
+          // Portrait and object-contain, matching the attribution grid: cropping a
+          // cover throws away the part that decides whether this set is wanted.
           // eslint-disable-next-line @next/next/no-img-element -- MinIO-signed URL, not a static asset
-          <img src={folder.coverUrl} alt="" className="h-full w-full object-cover" loading="lazy" />
+          <img src={folder.coverUrl} alt="" className="h-full w-full object-contain" loading="lazy" />
         ) : (
           <span className="flex h-full w-full items-center justify-center text-muted-foreground">
             <Icon className="h-6 w-6" />
@@ -331,9 +347,6 @@ function DevelopCard({
           )}
         </div>
       </div>
-      {hover && pos && folder.coverUrl && (
-        <HoverImagePreview url={folder.coverUrl} alt={folder.folderName} pos={pos} />
-      )}
     </li>
   )
 }

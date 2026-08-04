@@ -18,10 +18,10 @@ export default function DevelopLoading() {
 
         <div className="space-y-3">
           <div className="h-9 animate-pulse rounded-md bg-muted/40" />
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
             {Array.from({ length: 8 }).map((_, i) => (
               <div key={i} className="overflow-hidden rounded-md border border-border/60">
-                <div className="aspect-[4/3] animate-pulse bg-muted/40" />
+                <div className="aspect-[3/4] animate-pulse bg-muted/40" />
                 <div className="space-y-1.5 p-2">
                   <div className="h-3 w-full animate-pulse rounded bg-muted/30" />
                   <div className="h-5 w-14 animate-pulse rounded bg-muted/30" />

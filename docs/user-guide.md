@@ -1168,7 +1168,12 @@ different questions with different criteria.
 Folders are grouped by **channel + the name the folder carries**, and that grouping is context,
 not a decision. One alias can hide several people: `AA | Anna` covers genuinely different
 women, so **every folder is confirmed individually**. Expand a group and you get a contact sheet
-of its folders with covers — seeing them side by side is what reveals a collision.
+of its folders — seeing them side by side is what reveals a collision.
+
+Covers are shown **portrait and uncropped**, three or four across: judging "is this her" from a
+cropped square is guesswork, and a longer page is the better trade. The focused card is marked by
+a ring and nothing else — nothing grows or pops, so a keyboard pass stays calm to read and your
+eye never has to leave the card you are deciding on.
 
 Work it from the keyboard; that is where the speed is:
 

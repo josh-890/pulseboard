@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AlertTriangle, Camera, Check, Film, Loader2, SkipForward, Undo2, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { useHoverImagePreview, HoverImagePreview } from '@/components/shared/hover-image-preview'
 import { PersonIdentity } from '@/components/shared/person-identity'
 import { candidatesForFolder } from '@/lib/attribution-candidates'
 
@@ -68,7 +67,22 @@ export function AttributionGroupFolders({
   const [focus, setFocus] = useState(0)
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set())
   const containerRef = useRef<HTMLDivElement>(null)
+  const gridRef = useRef<HTMLUListElement>(null)
   const cardRefs = useRef<Map<string, HTMLLIElement>>(new Map())
+
+  /**
+   * How many cards sit in a row, read from the rendered grid.
+   *
+   * Up/Down have to move by a row or the arrow keys are a lie in a 2-D layout —
+   * and worse, they scroll the page instead. The column count is responsive
+   * (2/3/4), so it is measured rather than assumed.
+   */
+  const columns = useCallback(() => {
+    const el = gridRef.current
+    if (!el) return 1
+    const cols = getComputedStyle(el).gridTemplateColumns.split(' ').filter(Boolean).length
+    return Math.max(1, cols)
+  }, [])
 
   const openCount = useMemo(() => folders.filter((f) => f.identity === 'OPEN').length, [folders])
   const nameOf = useMemo(() => {
@@ -134,6 +148,26 @@ export function AttributionGroupFolders({
           if (e.shiftKey) toggleSelected(f.id)
           move(-1)
           break
+        // A grid needs vertical movement too. Without these the browser scrolls
+        // the page, which is both useless and disorienting mid-review.
+        case 'arrowdown':
+          e.preventDefault()
+          if (e.shiftKey) toggleSelected(f.id)
+          move(columns())
+          break
+        case 'arrowup':
+          e.preventDefault()
+          if (e.shiftKey) toggleSelected(f.id)
+          move(-columns())
+          break
+        case 'home':
+          e.preventDefault()
+          setFocus(0)
+          break
+        case 'end':
+          e.preventDefault()
+          setFocus(folders.length - 1)
+          break
         case 'a': {
           e.preventDefault()
           // Confirm everyone the folder ITSELF suggests — never the group's
@@ -165,7 +199,7 @@ export function AttributionGroupFolders({
           break
       }
     },
-    [folders, focus, candidates, nameOf, move, onConfirm, onReject, onSkip, onUndo, toggleSelected],
+    [folders, focus, candidates, nameOf, move, columns, onConfirm, onReject, onSkip, onUndo, toggleSelected],
   )
 
   if (folders.length === 0) {
@@ -185,7 +219,7 @@ export function AttributionGroupFolders({
     >
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-md bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
         <span className="font-medium text-foreground">{openCount} open</span>
-        <span><Key>J</Key>/<Key>K</Key> move</span>
+        <span><Key>←</Key><Key>→</Key><Key>↑</Key><Key>↓</Key> move</span>
         <span><Key>A</Key> confirm</span>
         <span><Key>X</Key> not this person</span>
         <span><Key>Space</Key> skip</span>
@@ -252,7 +286,9 @@ export function AttributionGroupFolders({
         </div>
       )}
 
-      <ul className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
+      {/* Portrait, uncropped, and only three across on a normal laptop. The page
+          gets longer; the covers get readable, which is what the decision needs. */}
+      <ul ref={gridRef} className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
         {folders.map((f, i) => (
           <FolderCard
             key={f.id}
@@ -323,7 +359,6 @@ function FolderCard({
   onSkip,
   onUndo,
 }: FolderCardProps) {
-  const { ref, hover, pos, show, hide } = useHoverImagePreview(folder.coverUrl)
   const demoted = folder.suggestions.some((s) => s.demotions.length > 0)
   const Icon = folder.isVideo ? Film : Camera
   const decided = folder.identity !== 'OPEN'
@@ -335,14 +370,20 @@ function FolderCard({
       className={cn(
         'group/card overflow-hidden rounded-md border bg-background/60 transition-shadow duration-150',
         STATE_STYLE[folder.identity],
-        focused && 'ring-2 ring-primary ring-offset-1',
         selected && !focused && 'ring-2 ring-primary/60',
+        // The focus marker is a ring and nothing else. No scaling, no preview
+        // panel: the covers are shown large and uncropped from the start, so
+        // there is nothing left to reveal — and a card that jumps in size on
+        // every keystroke makes a keyboard pass restless to read.
+        focused && 'ring-2 ring-primary ring-offset-2',
       )}
     >
-      <div ref={ref} className="relative aspect-[4/3] bg-muted" onMouseEnter={show} onMouseLeave={hide}>
+      <div className="relative aspect-[3/4] overflow-hidden bg-muted/60">
         {folder.coverUrl ? (
+          // object-contain, never object-cover: cropping a cover to a fixed box
+          // throws away exactly the part that decides whether this is the person.
           // eslint-disable-next-line @next/next/no-img-element -- MinIO-signed URL, not a static asset
-          <img src={folder.coverUrl} alt="" className="h-full w-full object-cover" loading="lazy" />
+          <img src={folder.coverUrl} alt="" className="h-full w-full object-contain" loading="lazy" />
         ) : (
           <span className="flex h-full w-full items-center justify-center text-muted-foreground">
             <Icon className="h-6 w-6" />
@@ -455,9 +496,6 @@ function FolderCard({
         </div>
       </div>
 
-      {hover && pos && folder.coverUrl && (
-        <HoverImagePreview url={folder.coverUrl} alt={folder.folderName} pos={pos} />
-      )}
     </li>
   )
 }
