@@ -1184,12 +1184,18 @@ Work it from the keyboard; that is where the speed is:
 | `X` | not this person — no attribution is written |
 | `Space` | skip for now |
 | `U` | undo this folder's decision |
-| `1`…`9` | confirm as the n-th person in the candidate strip |
+| `1`…`9` | confirm as the n-th person in the candidate strip, then move on |
+| `⇧`+`1`…`9` | **add** that person and stay — for a set with several participants |
 | `S` | add the folder to a selection |
 
 The candidate strip above the grid shows who the focused folder could be: its own suggestions
 first, then people the rest of the group points at. `2` on a folder whose suggestion is wrong is
 how you settle the second Anna without touching the first.
+
+**Several people in one set.** `A` confirms everyone the folder itself proposes, so a
+multi-participant set the catalogue already knows is a single keystroke. To build one up by hand,
+hold **Shift**: `⇧1` `⇧2` adds both and keeps the focus on the card, because confirming adds and
+never replaces. Move on with `→` when the cast is complete.
 
 **A person is always named `Name (ICG-ID)`, never by name alone.** There are many people called
 "Alisa"; only the key says which one. The group's own label is the **alias the folders carry**

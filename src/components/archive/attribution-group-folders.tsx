@@ -124,13 +124,20 @@ export function AttributionGroupFolders({
       const f = folders[focus]
       if (!f) return
 
-      // Digits pick the n-th candidate; everything else is a single-key verb.
-      if (/^[1-9]$/.test(e.key)) {
-        const c = candidates[Number(e.key) - 1]
+      // Digits pick the n-th candidate. Read from e.code, not e.key: with Shift
+      // held a digit key reports punctuation ("!"), and on a German layout it
+      // does so differently again — the physical key is the stable signal.
+      const digit = /^Digit([1-9])$/.exec(e.code)
+      if (digit) {
+        const c = candidates[Number(digit[1]) - 1]
         if (c) {
           e.preventDefault()
           onConfirm(f.id, [c.icgId], { [c.icgId]: c.name })
-          move(1)
+          // Shift ADDS a person and stays on the card, so a set with several
+          // participants is built up one key at a time. Confirming is additive —
+          // it upserts, it never replaces — so Shift+1 Shift+2 leaves both on the
+          // folder. Without Shift the common case stays one keystroke.
+          if (!e.shiftKey) move(1)
         }
         return
       }
@@ -224,7 +231,8 @@ export function AttributionGroupFolders({
         <span><Key>X</Key> not this person</span>
         <span><Key>Space</Key> skip</span>
         <span><Key>U</Key> undo</span>
-        <span><Key>1</Key>…<Key>9</Key> pick a person</span>
+        <span><Key>1</Key>…<Key>9</Key> one person</span>
+        <span><Key>⇧</Key>+<Key>1</Key>…<Key>9</Key> add another</span>
         <span><Key>S</Key> select</span>
       </div>
 
@@ -457,7 +465,7 @@ function FolderCard({
         {/* Always Name (ICG-ID): many people are called "Alisa", and only the key
             says which one this folder means. */}
         <div className="mt-0.5 flex flex-col gap-0.5 text-xs text-muted-foreground">
-          {decided && folder.attributions.length > 0 ? (
+          {folder.attributions.length > 0 ? (
             folder.attributions.map((a) => (
               <PersonIdentity
                 key={a.icgId}
