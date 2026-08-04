@@ -70,39 +70,66 @@ describe("folderPersonMatches", () => {
 });
 
 describe("scoreArchiveMatch", () => {
-  it("name match → HIGH regardless of title similarity (caveat b: alias may be unknown / title drift)", () => {
-    expect(scoreArchiveMatch({ titleSim: 0.0, nameMatch: true })).toBe("HIGH");
+  // Every suggestion must agree in at least one hard field. Measured on 2,733 live
+  // suggestions under the old rule: 14% agreed on neither date nor title.
+  it("a name match alone is NOT evidence", () => {
+    expect(scoreArchiveMatch({ titleSim: 0.0, nameMatch: true, isExactDay: false })).toBeNull();
   });
 
-  it("no name match but strong title → HIGH", () => {
-    expect(scoreArchiveMatch({ titleSim: HIGH_TITLE_THRESHOLD, nameMatch: false })).toBe("HIGH");
+  it("name match on the exact day → HIGH", () => {
+    expect(scoreArchiveMatch({ titleSim: 0.0, nameMatch: true, isExactDay: true })).toBe("HIGH");
   });
 
-  it("no name match, mid title → MEDIUM", () => {
-    expect(scoreArchiveMatch({ titleSim: MEDIUM_TITLE_THRESHOLD, nameMatch: false })).toBe("MEDIUM");
+  it("strong title carries a suggestion on its own, even off-day (archive dates are hand-typed)", () => {
+    expect(scoreArchiveMatch({ titleSim: HIGH_TITLE_THRESHOLD, nameMatch: false, isExactDay: false })).toBe("HIGH");
   });
 
-  it("no name match, weak title → no suggestion (kills same date+channel false positives)", () => {
-    expect(scoreArchiveMatch({ titleSim: 0.1, nameMatch: false })).toBeNull();
+  it("exact day with a weak title → MEDIUM, not nothing", () => {
+    expect(scoreArchiveMatch({ titleSim: 0.1, nameMatch: false, isExactDay: true })).toBe("MEDIUM");
+  });
+
+  // The rule that removes the noise: "Presenting" occurs 757 times in the archive,
+  // so a mid trigram score inside a channel+year window means nothing without a date.
+  it("mid title without the exact day → no suggestion", () => {
+    expect(scoreArchiveMatch({ titleSim: MEDIUM_TITLE_THRESHOLD, nameMatch: false, isExactDay: false })).toBeNull();
+  });
+
+  it("neither day nor title → no suggestion", () => {
+    expect(scoreArchiveMatch({ titleSim: 0.1, nameMatch: false, isExactDay: false })).toBeNull();
   });
 });
 
 describe("pickBestArchiveCandidate", () => {
   it("returns null when no candidate clears the gate", () => {
+    // Nothing agrees on a hard field: the day is wrong and the titles are weak.
     expect(
       pickBestArchiveCandidate([
-        { id: "a", titleSim: 0.1, nameMatch: false, isExactDay: true },
-        { id: "b", titleSim: 0.2, nameMatch: false, isExactDay: true },
+        { id: "a", titleSim: 0.1, nameMatch: false, isExactDay: false },
+        { id: "b", titleSim: 0.2, nameMatch: true, isExactDay: false },
       ]),
     ).toBeNull();
   });
 
-  it("prefers a name-match (HIGH) over an exact-day title-only MEDIUM", () => {
+  it("an exact day is itself agreement, so a weak title on the right day still qualifies", () => {
+    expect(
+      pickBestArchiveCandidate([{ id: "a", titleSim: 0.1, nameMatch: false, isExactDay: true }]),
+    ).toEqual({ id: "a", confidence: "MEDIUM" });
+  });
+
+  it("an off-day name match no longer beats an exact-day candidate — it no longer qualifies at all", () => {
     const best = pickBestArchiveCandidate([
       { id: "exactDayMedium", titleSim: 0.45, nameMatch: false, isExactDay: true },
-      { id: "nameMatch", titleSim: 0.1, nameMatch: true, isExactDay: false },
+      { id: "offDayNameMatch", titleSim: 0.1, nameMatch: true, isExactDay: false },
     ]);
-    expect(best).toEqual({ id: "nameMatch", confidence: "HIGH" });
+    expect(best).toEqual({ id: "exactDayMedium", confidence: "MEDIUM" });
+  });
+
+  it("on the same day, the name match promotes one candidate over a weak-title sibling", () => {
+    const best = pickBestArchiveCandidate([
+      { id: "weak", titleSim: 0.45, nameMatch: false, isExactDay: true },
+      { id: "named", titleSim: 0.2, nameMatch: true, isExactDay: true },
+    ]);
+    expect(best).toEqual({ id: "named", confidence: "HIGH" });
   });
 
   it("within the same confidence, prefers exact-day, then higher title similarity", () => {

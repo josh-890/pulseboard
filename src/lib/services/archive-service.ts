@@ -101,10 +101,41 @@ export type ArchiveMatchConfidence = 'HIGH' | 'MEDIUM' | null
  * similarity. Below the MEDIUM floor with no name match → no suggestion — this
  * is what kills the "any same date+channel set" false positives.
  */
-export function scoreArchiveMatch(args: { titleSim: number; nameMatch: boolean }): ArchiveMatchConfidence {
-  if (args.nameMatch) return 'HIGH'
-  if (args.titleSim >= HIGH_TITLE_THRESHOLD) return 'HIGH'
-  if (args.titleSim >= MEDIUM_TITLE_THRESHOLD) return 'MEDIUM'
+/**
+ * Gate a candidate. **Every suggestion must agree with the folder in at least one
+ * hard field — the exact day or the title.** A participant name alone is not
+ * evidence.
+ *
+ * Measured on 2,733 live suggestions before this rule existed: 14% agreed on
+ * neither date nor title, and MEDIUM was 95% noise. Both followed from the two
+ * holes closed here:
+ *
+ *   - `nameMatch` used to return HIGH on its own. Inside a channel+year window one
+ *     model has dozens of sets, so an arbitrary one of them was reported as a
+ *     confident match — "Feel Good" → "Feels Good", five months apart, HIGH.
+ *   - MEDIUM used to need no date at all: same channel, same year, trigram ≥ 0.4.
+ *     That is precisely where generic titles live ("Presenting" occurs 757 times
+ *     in the archive), so it matched "Presenting" to "Presenting Bogdana".
+ *
+ * The name keeps its job — it *promotes* an otherwise weak same-day match, and it
+ * still breaks same-day collisions between two people. It just cannot carry a
+ * suggestion by itself.
+ */
+export function scoreArchiveMatch(args: {
+  titleSim: number
+  nameMatch: boolean
+  isExactDay: boolean
+}): ArchiveMatchConfidence {
+  const strongTitle = args.titleSim >= HIGH_TITLE_THRESHOLD
+
+  if (args.isExactDay) {
+    // The day already agrees; a name or a decent title makes it confident.
+    if (args.nameMatch || strongTitle) return 'HIGH'
+    return 'MEDIUM'
+  }
+
+  // No date agreement — the title has to carry it alone, and weakly is not enough.
+  if (strongTitle) return 'HIGH'
   return null
 }
 
@@ -126,7 +157,7 @@ export function pickBestArchiveCandidate(
 ): { id: string; confidence: 'HIGH' | 'MEDIUM' } | null {
   let best: { id: string; confidence: 'HIGH' | 'MEDIUM'; rank: number; exact: number; sim: number } | null = null
   for (const c of candidates) {
-    const conf = scoreArchiveMatch({ titleSim: c.titleSim, nameMatch: c.nameMatch })
+    const conf = scoreArchiveMatch({ titleSim: c.titleSim, nameMatch: c.nameMatch, isExactDay: c.isExactDay })
     if (!conf) continue
     const rank = conf === 'HIGH' ? 1 : 0
     const exact = c.isExactDay ? 1 : 0

@@ -345,3 +345,53 @@ sweep that must be visually pre-verified, and it cannot go wrong at scale.
 which is the split the annotation evidence recommends and which the user had
 already reached independently. `ArchiveFolderReview` carries both states so a
 folder's position in either pass is explicit rather than inferred.
+
+## Addendum, 2026-08-04 — a suggestion is not a decision
+
+Two defects that looked separate turned out to be one, and they compounded.
+
+**The matcher guessed where there was nothing to find.** Profiled over 2,733 live
+`SUGGESTED` links:
+
+| | |
+|---|---:|
+| title exact + day exact | 62.8 % |
+| title exact, other day | 6.2 % |
+| day exact, weak title | 17.0 % |
+| **neither date nor title agrees** | **14.0 %** |
+
+By confidence, MEDIUM was **95 % noise** (289 of 305) and 94 HIGH suggestions
+agreed in no field. Both followed from `scoreArchiveMatch`: a participant name
+match returned HIGH on its own — inside a channel+year window one model has dozens
+of sets, so an arbitrary one was reported as confident ("Feel Good" → "Feels
+Good", five months apart) — and MEDIUM required no date at all, which is exactly
+where generic titles live ("Presenting" occurs 757 times; it matched "Presenting
+Bogdana").
+
+Notably the ranking was **not** at fault: where a perfect date+title match existed,
+the matcher chose it in all but 19 of 1,734 cases. The failure was the gate.
+
+**The exclusion made the guess unchallengeable.** Every attribution query — the
+queue, the group members, the develop list, *and the catalogue agent's worklist* —
+filtered on `archiveLink: null`. A `SUGGESTED` link is a guess, but it removed the
+folder from the pipeline as though it were settled. 2,733 folders on xpulse, of
+which **zero** had ever been sent to the catalogue agent. A bad suggestion did not
+merely add noise; it deleted the folder from the only view that could contradict it.
+
+**Decision.**
+
+1. Every suggestion must agree with the folder in at least one hard field — the
+   exact day or the title. A name is a *promoter* (it lifts a same-day match to
+   HIGH and still breaks same-day collisions between two people), never a carrier.
+2. Settled means **CONFIRMED**, not "linked". `UNSETTLED_FOLDER` is now the one
+   definition, used by every query that asks which folders still need a person.
+3. The matcher's own suggestion is *shown* on the review card, with which fields
+   it agrees on, so the operator judges it instead of being blocked by it.
+
+Measured effect: folders visible to the pipeline **29,322 → 32,055**; of the 2,733
+existing suggestions, 2,350 survive the new gate and 383 fall away.
+
+**Consequence.** Coming at the archive from the disk side, a folder may correspond
+to a StagingSet that arrived through a person's import and was never linked — 106
+such folders. `developFolder` therefore links to the existing set rather than
+creating a second copy of curated work.

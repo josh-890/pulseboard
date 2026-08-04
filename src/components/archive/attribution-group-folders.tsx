@@ -16,6 +16,15 @@ export type GroupFolder = {
   suggestions: { icgId: string; name: string; tier: string; demotions: string[] }[]
   attributions: { icgId: string; name: string }[]
   identity: 'OPEN' | 'CONFIRMED' | 'REJECTED' | 'SKIPPED'
+  matcherSuggestion: {
+    kind: 'staging' | 'set'
+    id: string
+    title: string
+    releaseDate: string | null
+    channelName: string | null
+    confidence: string | null
+    agrees: { date: boolean; title: boolean }
+  } | null
 }
 
 type Vote = { icgId: string; name: string; folders: number }
@@ -382,6 +391,28 @@ function FolderCard({
         <p className="truncate text-xs" title={folder.fullPath}>
           {folder.folderName}
         </p>
+
+        {/* What the archive matcher proposes — shown, never acted on. It used to
+            hide the folder from this queue entirely; 14% of live suggestions
+            agreed with their folder on neither date nor title. */}
+        {folder.matcherSuggestion && (
+          <p
+            className={cn(
+              'mt-1 truncate rounded px-1 py-0.5 text-[10px]',
+              folder.matcherSuggestion.agrees.date || folder.matcherSuggestion.agrees.title
+                ? 'bg-muted text-muted-foreground'
+                : 'bg-amber-500/15 text-amber-700 dark:text-amber-400',
+            )}
+            title={`Matcher suggests "${folder.matcherSuggestion.title}" (${folder.matcherSuggestion.releaseDate ?? 'no date'}${folder.matcherSuggestion.channelName ? `, ${folder.matcherSuggestion.channelName}` : ''})${
+              folder.matcherSuggestion.agrees.date || folder.matcherSuggestion.agrees.title
+                ? ''
+                : ' — agrees on neither the date nor the title'
+            }`}
+          >
+            link? {folder.matcherSuggestion.title}
+            {!folder.matcherSuggestion.agrees.date && !folder.matcherSuggestion.agrees.title && ' ⚠'}
+          </p>
+        )}
         {/* Always Name (ICG-ID): many people are called "Alisa", and only the key
             says which one this folder means. */}
         <div className="mt-0.5 flex flex-col gap-0.5 text-xs text-muted-foreground">

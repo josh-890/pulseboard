@@ -26,6 +26,7 @@ export default async function DevelopPage() {
             fullPath: f.fullPath,
             coverUrl: f.coverUrl,
             isVideo: f.isVideo,
+            existingStaging: f.existingStaging,
           })),
         }))}
       />

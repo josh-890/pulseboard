@@ -8,6 +8,7 @@
  *                 recall can be measured against pairs the app already knows
  */
 import { prisma } from '@/lib/db'
+import { UNSETTLED_FOLDER } from '@/lib/services/archive-unsettled'
 import { parseFolderParticipantRaw } from '@/lib/services/archive-service'
 
 export type AttributionOrphan = {
@@ -77,7 +78,7 @@ export async function getAttributionWorklist(
   opts: { limit?: number } = {},
 ): Promise<AttributionWorklist> {
   const orphanRows = await prisma.archiveFolder.findMany({
-    where: { missingOnDisk: false, archiveLink: null },
+    where: UNSETTLED_FOLDER,
     select: {
       archiveKey: true,
       folderName: true,

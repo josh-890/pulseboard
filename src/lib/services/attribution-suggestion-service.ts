@@ -8,6 +8,7 @@
  * run the agent repeatedly.
  */
 import { prisma } from '@/lib/db'
+import { UNSETTLED_FOLDER } from '@/lib/services/archive-unsettled'
 import type { SuggestionSource, SuggestionTier } from '@/generated/prisma/client'
 import { parseFolderParticipantRaw } from '@/lib/services/archive-service'
 import { normalizeForSearch } from '@/lib/normalize'
@@ -282,7 +283,7 @@ export async function getAttributionGroups(
   opts: { limit?: number; minFolders?: number } = {},
 ): Promise<AttributionGroup[]> {
   const rows = await prisma.archiveFolder.findMany({
-    where: { missingOnDisk: false, archiveLink: null },
+    where: UNSETTLED_FOLDER,
     select: {
       id: true,
       folderName: true,

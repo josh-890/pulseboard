@@ -25,6 +25,7 @@ import type {
 import { getAttributionGroups, type AttributionGroup } from '@/lib/services/attribution-suggestion-service'
 import { parseFolderParticipantRaw } from '@/lib/services/archive-service'
 import { buildUrl } from '@/lib/media-url'
+import { UNSETTLED_FOLDER } from '@/lib/services/archive-unsettled'
 export { candidatesForFolder, type FolderCandidate } from '@/lib/attribution-candidates'
 import { createStagingSetFromOrphan } from '@/lib/services/archive-service'
 import { addStagingSetParticipant } from '@/lib/services/staging-set-participants'
@@ -131,8 +132,7 @@ async function membersOfGroup(groupKey: string): Promise<GroupMember[]> {
   const [short] = groupKey.split('|')
   const rows = await prisma.archiveFolder.findMany({
     where: {
-      missingOnDisk: false,
-      archiveLink: null,
+      ...UNSETTLED_FOLDER,
       ...(short === '?' ? { parsedShortName: null } : { parsedShortName: { equals: short, mode: 'insensitive' } }),
     },
     select: {
@@ -442,13 +442,28 @@ export async function getGroupFolders(groupKey: string): Promise<
     suggestions: { icgId: string; name: string; tier: string; demotions: string[] }[]
     attributions: { icgId: string; name: string }[]
     identity: FolderIdentityStatus
+    /**
+     * What the archive matcher proposes for this folder, if anything.
+     *
+     * Shown rather than acted on. A suggestion is a guess: 14% of live ones agreed
+     * with their folder on neither date nor title. `agrees` says which hard fields
+     * actually line up, so a bad guess is visibly bad instead of quietly blocking.
+     */
+    matcherSuggestion: {
+      kind: 'staging' | 'set'
+      id: string
+      title: string
+      releaseDate: string | null
+      channelName: string | null
+      confidence: string | null
+      agrees: { date: boolean; title: boolean }
+    } | null
   }[]
 > {
   const [short] = groupKey.split('|')
   const rows = await prisma.archiveFolder.findMany({
     where: {
-      missingOnDisk: false,
-      archiveLink: null,
+      ...UNSETTLED_FOLDER,
       ...(short === '?' ? { parsedShortName: null } : { parsedShortName: { equals: short, mode: 'insensitive' } }),
     },
     select: {
@@ -461,6 +476,16 @@ export async function getGroupFolders(groupKey: string): Promise<
       suggestions: { select: { icgId: true, name: true, tier: true, demotions: true } },
       attributions: { select: { icgId: true, name: true } },
       review: { select: { identity: true } },
+      parsedDate: true,
+      parsedTitle: true,
+      archiveLink: {
+        select: {
+          status: true,
+          confidence: true,
+          stagingSet: { select: { id: true, title: true, releaseDate: true, channelName: true } },
+          set: { select: { id: true, title: true, releaseDate: true, channel: { select: { name: true } } } },
+        },
+      },
     },
     orderBy: { folderName: 'asc' },
   })
@@ -469,9 +494,10 @@ export async function getGroupFolders(groupKey: string): Promise<
       const alias = normalizeForSearch(parseFolderParticipantRaw(r.folderName) ?? '')
       return `${(r.parsedShortName ?? '?').toUpperCase()}|${alias}` === groupKey
     })
-    .map(({ parsedShortName: _short, coverKey, review, ...r }) => ({
+    .map(({ parsedShortName: _short, coverKey, review, archiveLink, parsedDate, parsedTitle, ...r }) => ({
       ...r,
       identity: review?.identity ?? ('OPEN' as FolderIdentityStatus),
+      matcherSuggestion: describeMatcherSuggestion(archiveLink, parsedDate, parsedTitle),
       coverUrl: coverKey ? buildUrl(coverKey) : null,
     }))
 }
@@ -485,6 +511,8 @@ export type DevelopCandidate = {
   parsedDate: Date | null
   parsedShortName: string | null
   parsedTitle: string | null
+  /** A StagingSet this folder almost certainly already is — link, do not duplicate. */
+  existingStaging: ExistingStagingMatch | null
 }
 
 export type DevelopPerson = {
@@ -507,7 +535,7 @@ export type DevelopPerson = {
 export async function getDevelopQueue(opts: { limit?: number } = {}): Promise<DevelopPerson[]> {
   const rows = await prisma.archiveFolderAttribution.findMany({
     where: {
-      archiveFolder: { missingOnDisk: false, archiveLink: null },
+      archiveFolder: UNSETTLED_FOLDER,
       OR: [{ archiveFolder: { review: null } }, { archiveFolder: { review: { develop: 'PENDING' } } }],
     },
     select: {
@@ -531,6 +559,11 @@ export async function getDevelopQueue(opts: { limit?: number } = {}): Promise<De
     orderBy: { archiveFolder: { folderName: 'asc' } },
   })
 
+  // One batched lookup for sets that already exist, rather than a query per card:
+  // a folder may correspond to a StagingSet that arrived through a person's import
+  // and was never linked, and developing it again would duplicate curated work.
+  const existingByFolder = await findExistingStagingSets(rows.map((r) => r.archiveFolder))
+
   const byPerson = new Map<string, DevelopPerson>()
   for (const r of rows) {
     let p = byPerson.get(r.icgId)
@@ -548,6 +581,7 @@ export async function getDevelopQueue(opts: { limit?: number } = {}): Promise<De
       parsedDate: f.parsedDate,
       parsedShortName: f.parsedShortName,
       parsedTitle: f.parsedTitle,
+      existingStaging: existingByFolder.get(f.id) ?? null,
     })
   }
 
@@ -565,13 +599,23 @@ export async function getDevelopQueue(opts: { limit?: number } = {}): Promise<De
  */
 export async function developFolder(
   folderId: string,
-): Promise<{ stagingSetId: string; participants: number }> {
+): Promise<{ stagingSetId: string; participants: number; linkedExisting: boolean }> {
   const attributions = await prisma.archiveFolderAttribution.findMany({
     where: { archiveFolderId: folderId },
     select: { icgId: true, name: true, personId: true },
   })
   if (attributions.length === 0) {
     throw new Error('Only a confirmed folder can be developed')
+  }
+
+  // Never create a set that already exists. We come at the archive from the disk
+  // side now, so a folder may well correspond to a StagingSet that arrived through
+  // a person's import and was simply never linked — measured at 106 such folders
+  // on xpulse. Creating a second one would be a duplicate of curated work.
+  const existing = await findExistingStagingSet(folderId)
+  if (existing) {
+    const participants = await linkFolderToStagingSet(folderId, existing.id)
+    return { stagingSetId: existing.id, participants, linkedExisting: true }
   }
 
   const { stagingSetId } = await createStagingSetFromOrphan(folderId)
@@ -590,7 +634,122 @@ export async function developFolder(
   await prisma.$transaction(async (tx) => {
     await setReview(tx, folderId, { develop: 'DEVELOPED' })
   })
-  return { stagingSetId, participants: attributions.length }
+  return { stagingSetId, participants: attributions.length, linkedExisting: false }
+}
+
+export type ExistingStagingMatch = {
+  id: string
+  title: string
+  releaseDate: string | null
+  channelName: string | null
+  /** False when only the date and title line up but the channel disagrees. */
+  channelAgrees: boolean
+}
+
+/**
+ * A StagingSet that is almost certainly this folder, and is not linked to any
+ * folder yet.
+ *
+ * Exact date + exact normalised title. The channel is reported, not required:
+ * folder codes and staging channel names diverge legitimately (`W4B` ↔
+ * `WATCH4BEAUTY`), but a genuine disagreement (`AA Mirka` against
+ * `MELENA MARIA RYA`) means the key coincided and the operator must look.
+ */
+export async function findExistingStagingSet(folderId: string): Promise<ExistingStagingMatch | null> {
+  const folder = await prisma.archiveFolder.findUnique({
+    where: { id: folderId },
+    select: { parsedDate: true, parsedTitle: true, parsedShortName: true, isVideo: true },
+  })
+  if (!folder?.parsedDate || !folder.parsedTitle) return null
+
+  const start = new Date(folder.parsedDate)
+  start.setHours(0, 0, 0, 0)
+  const end = new Date(start)
+  end.setDate(end.getDate() + 1)
+
+  const candidates = await prisma.stagingSet.findMany({
+    where: {
+      releaseDate: { gte: start, lt: end },
+      isVideo: folder.isVideo,
+      archiveLinks: { none: {} },
+    },
+    select: {
+      id: true,
+      title: true,
+      titleNorm: true,
+      releaseDate: true,
+      channelName: true,
+      channel: { select: { shortName: true } },
+    },
+  })
+
+  const wanted = normalizeForSearch(folder.parsedTitle)
+  const hit = candidates.find((c) => (c.titleNorm ?? normalizeForSearch(c.title)) === wanted)
+  if (!hit) return null
+
+  return {
+    id: hit.id,
+    title: hit.title,
+    releaseDate: isoDay(hit.releaseDate),
+    channelName: hit.channelName,
+    channelAgrees:
+      !folder.parsedShortName ||
+      (hit.channel?.shortName ?? '').toLowerCase() === folder.parsedShortName.toLowerCase(),
+  }
+}
+
+/**
+ * Attach the folder to a StagingSet that already exists, and top up its
+ * participants from the confirmed attributions.
+ *
+ * The link is CONFIRMED because the operator pressed the key — this is the same
+ * standing as confirming a suggestion in the archive workspace.
+ */
+export async function linkFolderToStagingSet(folderId: string, stagingSetId: string): Promise<number> {
+  const folder = await prisma.archiveFolder.findUnique({
+    where: { id: folderId },
+    select: { relativePath: true, tenant: true },
+  })
+  if (!folder) throw new Error('Archive folder not found')
+
+  await prisma.archiveLink.upsert({
+    where: { archiveFolderId: folderId },
+    create: {
+      archiveFolderId: folderId,
+      stagingSetId,
+      status: 'CONFIRMED',
+      confirmedAt: new Date(),
+      archivePath: folder.relativePath ?? undefined,
+      archiveStatus: folder.relativePath ? 'PENDING' : 'UNKNOWN',
+      tenant: folder.tenant,
+    },
+    update: {
+      stagingSetId,
+      setId: null,
+      status: 'CONFIRMED',
+      confirmedAt: new Date(),
+      archivePath: folder.relativePath ?? undefined,
+    },
+  })
+
+  const attributions = await prisma.archiveFolderAttribution.findMany({
+    where: { archiveFolderId: folderId },
+    select: { icgId: true, name: true, personId: true },
+  })
+  let added = 0
+  for (const a of attributions) {
+    const res = await addStagingSetParticipant(stagingSetId, {
+      name: a.name,
+      icgId: a.icgId,
+      ...(a.personId ? { personId: a.personId } : {}),
+    })
+    if (res.added) added++
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await setReview(tx, folderId, { develop: 'DEVELOPED' })
+  })
+  return added
 }
 
 /** Park a confirmed folder: the set will arrive via the person's import instead. */
@@ -598,4 +757,105 @@ export async function waitOnFolder(folderId: string): Promise<void> {
   await prisma.$transaction(async (tx) => {
     await setReview(tx, folderId, { develop: 'WAITING' })
   })
+}
+
+const isoDay = (d: Date | null): string | null => (d ? d.toISOString().slice(0, 10) : null)
+
+type LinkShape = {
+  status: string
+  confidence: string | null
+  stagingSet: { id: string; title: string; releaseDate: Date | null; channelName: string | null } | null
+  set: { id: string; title: string; releaseDate: Date | null; channel: { name: string } | null } | null
+} | null
+
+/** Describe the matcher's guess and say plainly which hard fields it agrees on. */
+function describeMatcherSuggestion(link: LinkShape, folderDate: Date | null, folderTitle: string | null) {
+  if (!link || link.status === 'CONFIRMED') return null
+  const t = link.stagingSet
+    ? {
+        kind: 'staging' as const,
+        id: link.stagingSet.id,
+        title: link.stagingSet.title,
+        releaseDate: link.stagingSet.releaseDate,
+        channelName: link.stagingSet.channelName,
+      }
+    : link.set
+      ? {
+          kind: 'set' as const,
+          id: link.set.id,
+          title: link.set.title,
+          releaseDate: link.set.releaseDate,
+          channelName: link.set.channel?.name ?? null,
+        }
+      : null
+  if (!t) return null
+  return {
+    kind: t.kind,
+    id: t.id,
+    title: t.title,
+    releaseDate: isoDay(t.releaseDate),
+    channelName: t.channelName,
+    confidence: link.confidence,
+    agrees: {
+      date: !!folderDate && isoDay(folderDate) === isoDay(t.releaseDate),
+      title: !!folderTitle && normalizeForSearch(folderTitle) === normalizeForSearch(t.title),
+    },
+  }
+}
+
+/**
+ * Batched counterpart of `findExistingStagingSet` for the develop queue.
+ *
+ * Same rule — exact date, exact normalised title, no archive link yet — resolved
+ * for many folders in two queries instead of two per card.
+ */
+async function findExistingStagingSets(
+  folders: { id: string; parsedDate: Date | null; parsedTitle: string | null; parsedShortName: string | null; isVideo: boolean }[],
+): Promise<Map<string, ExistingStagingMatch>> {
+  const out = new Map<string, ExistingStagingMatch>()
+  const dated = folders.filter((f) => f.parsedDate && f.parsedTitle)
+  if (dated.length === 0) return out
+
+  const times = dated.map((f) => f.parsedDate!.getTime())
+  const lo = new Date(Math.min(...times))
+  lo.setHours(0, 0, 0, 0)
+  const hi = new Date(Math.max(...times))
+  hi.setDate(hi.getDate() + 1)
+
+  const candidates = await prisma.stagingSet.findMany({
+    where: { releaseDate: { gte: lo, lt: hi }, archiveLinks: { none: {} } },
+    select: {
+      id: true,
+      title: true,
+      titleNorm: true,
+      releaseDate: true,
+      isVideo: true,
+      channelName: true,
+      channel: { select: { shortName: true } },
+    },
+  })
+
+  const byKey = new Map<string, typeof candidates>()
+  for (const c of candidates) {
+    const key = `${isoDay(c.releaseDate)}|${c.isVideo}|${c.titleNorm ?? normalizeForSearch(c.title)}`
+    const b = byKey.get(key)
+    if (b) b.push(c)
+    else byKey.set(key, [c])
+  }
+
+  for (const f of dated) {
+    const key = `${isoDay(f.parsedDate)}|${f.isVideo}|${normalizeForSearch(f.parsedTitle!)}`
+    const hit = byKey.get(key)?.[0]
+    if (!hit) continue
+    out.set(f.id, {
+      id: hit.id,
+      title: hit.title,
+      releaseDate: isoDay(hit.releaseDate),
+      channelName: hit.channelName,
+      channelAgrees:
+        !f.parsedShortName ||
+        (hit.channel?.shortName ?? '').toLowerCase() === f.parsedShortName.toLowerCase(),
+    })
+  }
+  return out
 }

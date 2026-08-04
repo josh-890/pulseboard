@@ -15,6 +15,14 @@ export type DevelopFolder = {
   fullPath: string
   coverUrl: string | null
   isVideo: boolean
+  /** A StagingSet this folder already is — develop links to it rather than duplicating. */
+  existingStaging: {
+    id: string
+    title: string
+    releaseDate: string | null
+    channelName: string | null
+    channelAgrees: boolean
+  } | null
 }
 
 export type DevelopPersonRow = {
@@ -67,11 +75,15 @@ export function DevelopQueueClient({ people }: { people: DevelopPersonRow[] }) {
         return
       }
       setDismissed((d) => new Set(d).add(folderId))
+      const linked = 'data' in res && res.data && 'linkedExisting' in res.data && res.data.linkedExisting
+      const n = 'data' in res && res.data && 'participants' in res.data ? res.data.participants : 1
       setFlash({
         text:
-          op === 'develop'
-            ? `Staging set created with ${'data' in res && res.data && 'participants' in res.data ? res.data.participants : 1} participant(s)`
-            : 'Parked — it will arrive with the person’s import',
+          op === 'wait'
+            ? 'Parked — it will arrive with the person’s import'
+            : linked
+              ? `Linked to the staging set that already existed (${n} participant(s) added)`
+              : `Staging set created with ${n} participant(s)`,
         tone: 'ok',
       })
       router.refresh()
@@ -270,6 +282,24 @@ function DevelopCard({
         <p className="truncate text-xs" title={folder.fullPath}>
           {folder.folderName}
         </p>
+        {/* This set already exists in staging — developing links to it instead of
+            creating a second copy of curated work. */}
+        {folder.existingStaging && (
+          <p
+            className={cn(
+              'mt-1 truncate rounded px-1 py-0.5 text-[10px]',
+              folder.existingStaging.channelAgrees
+                ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400'
+                : 'bg-amber-500/15 text-amber-700 dark:text-amber-400',
+            )}
+            title={`Already in staging: "${folder.existingStaging.title}" (${folder.existingStaging.releaseDate ?? 'no date'}${folder.existingStaging.channelName ? `, ${folder.existingStaging.channelName}` : ''})${
+              folder.existingStaging.channelAgrees ? '' : ' — but the channel disagrees, check before linking'
+            }`}
+          >
+            exists: {folder.existingStaging.title}
+            {!folder.existingStaging.channelAgrees && ' ⚠'}
+          </p>
+        )}
         <div className="mt-1.5 flex items-center gap-1">
           {busy ? (
             <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
@@ -280,8 +310,8 @@ function DevelopCard({
                   e.stopPropagation()
                   onDevelop()
                 }}
-                title="Develop into a staging set"
-                aria-label="Develop into a staging set"
+                title={folder.existingStaging ? 'Link to the existing staging set' : 'Develop into a staging set'}
+                aria-label={folder.existingStaging ? 'Link to the existing staging set' : 'Develop into a staging set'}
                 className="inline-flex items-center justify-center rounded p-1 text-emerald-700 transition-colors duration-150 hover:bg-emerald-500/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:text-emerald-400"
               >
                 <Sparkles className="h-3.5 w-3.5" />
