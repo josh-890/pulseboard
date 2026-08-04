@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { withTenantFromHeaders } from '@/lib/tenant-context'
 import { getStagingSetsFiltered } from '@/lib/services/import/staging-set-service'
-import { getSuggestedFoldersForStagingSets, getConflictingLinkIds } from '@/lib/services/archive-service'
+import { getSuggestedFoldersForStagingSets, getConflictingLinks } from '@/lib/services/archive-service'
 import type { ChannelTier, StagingSetStatus } from '@/generated/prisma/client'
 import type { ArchiveFilterValue } from '@/components/staging-sets/staging-set-filter-bar'
 
@@ -65,14 +65,18 @@ export async function GET(request: Request) {
 
       // Augment with suggested archive folder info + conflict detection (one batch query each)
       const stagingIds = result.items.map((i) => i.id)
-      const [suggestions, conflictIds] = await Promise.all([
+      const [suggestions, conflicts] = await Promise.all([
         getSuggestedFoldersForStagingSets(stagingIds),
-        getConflictingLinkIds(stagingIds),
+        getConflictingLinks(stagingIds),
       ])
       const augmentedItems = result.items.map((item) => ({
         ...item,
         suggestedArchiveFolder: suggestions.get(item.id) ?? null,
-        hasLinkConflict: conflictIds.has(item.id),
+        hasLinkConflict: conflicts.has(item.id),
+        // Which folder blocks it, and what that folder is linked to — a badge
+        // saying only "taken" leaves the operator searching the archive by hand
+        // for something this query already knows.
+        linkConflict: conflicts.get(item.id) ?? null,
       }))
 
       return NextResponse.json({ ...result, items: augmentedItems })

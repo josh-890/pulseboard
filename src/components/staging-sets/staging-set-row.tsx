@@ -5,6 +5,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { AlertTriangle, CalendarClock, Camera, CheckSquare, CheckCheck, Clock, Copy, ExternalLink, Film, Flag, FolderOpen, FolderSearch, FolderX, Check, Loader2, RotateCcw, X } from 'lucide-react'
 import { cn, getInitialsFromName } from '@/lib/utils'
+import { describeMatchLabel } from '@/lib/archive-match-label'
 import { useHoverImagePreview, HoverImagePreview } from '@/components/shared/hover-image-preview'
 import type { StagingSetWithRelations, ParticipantStatus } from '@/lib/services/import/staging-set-service'
 import type { StagingSetStatus } from '@/generated/prisma/client'
@@ -299,6 +300,15 @@ export const StagingSetRow = memo(function StagingSetRow({
     : (ss.archiveLinks?.find((l) => l.status === 'CONFIRMED') ?? null)
   const confirmedFolder = confirmedLink?.archiveFolder ?? null
   const suggestion = isPromoted ? null : (ss.suggestedArchiveFolder ?? null)
+  // Say what actually agrees, never what the confidence implies.
+  const archiveMatchLabel = suggestion
+    ? describeMatchLabel({
+        dateMatches: suggestion.dateMatches,
+        titleMatches: suggestion.titleMatches,
+        dayDelta: suggestion.dayDelta,
+        confidence: suggestion.confidence,
+      })
+    : null
   const hasArchiveLink = !!confirmedFolder
 
   // Expected path for the "no match" state (relative, no root prefix)
@@ -749,10 +759,15 @@ export const StagingSetRow = memo(function StagingSetRow({
           <span
             className={cn(
               'shrink-0 text-xs font-medium',
-              suggestion.confidence === 'HIGH' ? 'text-amber-600 dark:text-amber-400' : 'text-amber-500/70 dark:text-amber-400/60',
+              archiveMatchLabel!.tone === 'ok'
+                ? 'text-green-600 dark:text-green-400'
+                : archiveMatchLabel!.tone === 'warn'
+                  ? 'text-amber-600 dark:text-amber-400'
+                  : 'text-amber-500/70 dark:text-amber-400/60',
             )}
+            title={archiveMatchLabel!.title}
           >
-            {suggestion.confidence === 'HIGH' ? '✓ date+code' : '~ title match'}
+            {archiveMatchLabel!.text}
           </span>
           <FolderSearch
             size={11}
@@ -845,7 +860,23 @@ export const StagingSetRow = memo(function StagingSetRow({
         <div className="flex items-center gap-1.5 pl-3">
           <AlertTriangle size={11} className="shrink-0 text-amber-500" />
           <span className="shrink-0 text-xs font-medium text-amber-600 dark:text-amber-400">Folder taken</span>
-          <span className="shrink-0 text-xs text-muted-foreground/60">· linked to another set</span>
+          {/* Name the folder and what holds it. "Taken" on its own only tells the
+              operator that something is wrong, not where to look. */}
+          {ss.linkConflict ? (
+            <span
+              className="min-w-0 truncate text-xs text-muted-foreground"
+              title={`${ss.linkConflict.folderName} is already confirmed to ${
+                ss.linkConflict.linkedToTitle ?? 'another record'
+              }`}
+            >
+              · {ss.linkConflict.folderName}
+              {ss.linkConflict.linkedToTitle && (
+                <span className="text-muted-foreground/60"> → {ss.linkConflict.linkedToTitle}</span>
+              )}
+            </span>
+          ) : (
+            <span className="shrink-0 text-xs text-muted-foreground/60">· linked to another set</span>
+          )}
           <span className="w-3 shrink-0" />
           <button
             type="button"

@@ -1920,6 +1920,45 @@ export type SuggestedFolderInfo = {
   parsedDate: Date | null
   fullPath: string
   confidence: 'HIGH' | 'MEDIUM'
+  /**
+   * WHY this matched — computed against the target, never inferred from the
+   * confidence.
+   *
+   * The badge used to read `confidence === 'HIGH' ? 'date+code' : 'title match'`,
+   * which is a claim the confidence cannot support: a HIGH can be earned by an
+   * exact title alone. That mislabelled a real case as "date+code" when the dates
+   * were 2018-02-13 and 2018-02-10 — the operator confirms on trust, and the
+   * archive keeps a wrong date nobody noticed.
+   */
+  dateMatches: boolean
+  titleMatches: boolean
+  /** Folder date minus target date, in days. Null when either date is missing. */
+  dayDelta: number | null
+}
+
+
+const MS_PER_DAY = 86_400_000
+
+/** Day difference between two dates, ignoring time of day. Null if either is missing. */
+function dayDeltaBetween(a: Date | null, b: Date | null): number | null {
+  if (!a || !b) return null
+  const da = Date.UTC(a.getFullYear(), a.getMonth(), a.getDate())
+  const db = Date.UTC(b.getFullYear(), b.getMonth(), b.getDate())
+  return Math.round((da - db) / MS_PER_DAY)
+}
+
+/** Compare a folder against the entity it was suggested for, and say what agrees. */
+function describeAgreement(
+  folder: { parsedDate: Date | null; parsedTitle: string | null },
+  target: { releaseDate: Date | null; titleNorm: string | null; title: string },
+): { dateMatches: boolean; titleMatches: boolean; dayDelta: number | null } {
+  const delta = dayDeltaBetween(folder.parsedDate, target.releaseDate)
+  const targetNorm = target.titleNorm ?? normalizeForSearch(target.title)
+  return {
+    dateMatches: delta === 0,
+    titleMatches: !!folder.parsedTitle && normalizeForSearch(folder.parsedTitle) === targetNorm,
+    dayDelta: delta,
+  }
 }
 
 /**
@@ -1934,7 +1973,8 @@ export async function getSuggestedFoldersForStagingSets(
     where: { stagingSetId: { in: ids }, status: 'SUGGESTED' },
     select: {
       stagingSetId: true, confidence: true,
-      archiveFolder: { select: { id: true, folderName: true, fileCount: true, parsedDate: true, fullPath: true } },
+      archiveFolder: { select: { id: true, folderName: true, fileCount: true, parsedDate: true, parsedTitle: true, fullPath: true } },
+      stagingSet: { select: { releaseDate: true, titleNorm: true, title: true } },
     },
   })
   return new Map(
@@ -1947,6 +1987,9 @@ export async function getSuggestedFoldersForStagingSets(
         parsedDate: l.archiveFolder.parsedDate,
         fullPath: l.archiveFolder.fullPath,
         confidence: (l.confidence as 'HIGH' | 'MEDIUM') ?? 'HIGH',
+        ...(l.stagingSet
+          ? describeAgreement(l.archiveFolder, l.stagingSet)
+          : { dateMatches: false, titleMatches: false, dayDelta: null }),
       },
     ]),
   )
@@ -1964,7 +2007,8 @@ export async function getSuggestedFoldersForSets(
     where: { setId: { in: ids }, status: 'SUGGESTED' },
     select: {
       setId: true, confidence: true,
-      archiveFolder: { select: { id: true, folderName: true, fileCount: true, parsedDate: true, fullPath: true } },
+      archiveFolder: { select: { id: true, folderName: true, fileCount: true, parsedDate: true, parsedTitle: true, fullPath: true } },
+      set: { select: { releaseDate: true, titleNorm: true, title: true } },
     },
   })
   return new Map(
@@ -1977,29 +2021,60 @@ export async function getSuggestedFoldersForSets(
         parsedDate: l.archiveFolder.parsedDate,
         fullPath: l.archiveFolder.fullPath,
         confidence: (l.confidence as 'HIGH' | 'MEDIUM') ?? 'HIGH',
+        ...(l.set
+          ? describeAgreement(l.archiveFolder, l.set)
+          : { dateMatches: false, titleMatches: false, dayDelta: null }),
       },
     ]),
   )
 }
 
+/** Why a staging set can get no suggestion: its folder is spoken for. */
+export type BlockingFolderInfo = {
+  folderName: string
+  /** The title it is CONFIRMED to, so the operator can go and look at it. */
+  linkedToTitle: string | null
+  linkedToKind: 'staging' | 'set' | null
+  linkedToId: string | null
+}
+
 /**
- * For a batch of staging set IDs, return the subset whose matching archive
- * folder is CONFIRMED to a *different* entity (blocking a suggestion).
+ * For a batch of staging set IDs, the archive folder that would have matched but
+ * is already CONFIRMED to something else.
  *
- * Conflict criteria: the staging set has no CONFIRMED/SUGGESTED ArchiveLink
- * AND there exists an ArchiveFolder for the same date + channel shortName
- * that already has a CONFIRMED link (to any staging set or promoted set).
- *
- * Used to show a "🔒 Folder taken" warning badge in the staging sets list.
+ * Returns *which* folder and *what* it is linked to. The badge used to say only
+ * "Folder taken · linked to another set", which tells the operator that something
+ * is wrong and nothing about where to look — leaving them to search the archive
+ * by hand for a folder the query had already found.
  */
-export async function getConflictingLinkIds(ids: string[]): Promise<Set<string>> {
-  if (ids.length === 0) return new Set()
+export async function getConflictingLinks(ids: string[]): Promise<Map<string, BlockingFolderInfo>> {
+  if (ids.length === 0) return new Map()
   const idList = Prisma.join(ids.map((id) => Prisma.sql`${id}`))
-  type Row = { id: string }
+  type Row = {
+    id: string
+    folder_name: string
+    staging_title: string | null
+    staging_id: string | null
+    set_title: string | null
+    set_id: string | null
+  }
   const rows = await prisma.$queryRaw<Row[]>`
-    SELECT ss.id::text AS id
+    SELECT DISTINCT ON (ss.id)
+           ss.id::text        AS id,
+           af."folderName"    AS folder_name,
+           ss2.title          AS staging_title,
+           ss2.id::text       AS staging_id,
+           st.title           AS set_title,
+           st.id::text        AS set_id
     FROM   staging_set ss
     JOIN   "Channel" c ON c.id = ss."channelId"
+    JOIN   "archive_folder" af
+           ON  af."parsedDate" >= DATE_TRUNC('day', ss."releaseDate")
+           AND af."parsedDate" <  DATE_TRUNC('day', ss."releaseDate") + INTERVAL '1 day'
+           AND LOWER(af."parsedShortName") = LOWER(c."shortName")
+    JOIN   "ArchiveLink" al2 ON al2."archiveFolderId" = af.id AND al2.status = 'CONFIRMED'
+    LEFT JOIN staging_set ss2 ON ss2.id = al2."stagingSetId"
+    LEFT JOIN "Set" st ON st.id = al2."setId"
     WHERE  ss.id::text IN (${idList})
       AND  ss."releaseDate" IS NOT NULL
       AND  c."shortName" IS NOT NULL
@@ -2009,18 +2084,19 @@ export async function getConflictingLinkIds(ids: string[]): Promise<Set<string>>
              WHERE  al."stagingSetId" = ss.id
                AND  al.status IN ('CONFIRMED', 'SUGGESTED')
            )
-      -- but a matching folder IS CONFIRMED to something else
-      AND  EXISTS (
-             SELECT 1
-             FROM   "archive_folder" af
-             JOIN   "ArchiveLink" al2 ON al2."archiveFolderId" = af.id
-                    AND al2.status = 'CONFIRMED'
-             WHERE  af."parsedDate" >= DATE_TRUNC('day', ss."releaseDate")
-               AND  af."parsedDate" <  DATE_TRUNC('day', ss."releaseDate") + INTERVAL '1 day'
-               AND  LOWER(af."parsedShortName") = LOWER(c."shortName")
-           )
+    ORDER BY ss.id, af."folderName"
   `
-  return new Set(rows.map((r) => r.id))
+  return new Map(
+    rows.map((r) => [
+      r.id,
+      {
+        folderName: r.folder_name,
+        linkedToTitle: r.staging_title ?? r.set_title,
+        linkedToKind: r.staging_id ? ('staging' as const) : r.set_id ? ('set' as const) : null,
+        linkedToId: r.staging_id ?? r.set_id,
+      },
+    ]),
+  )
 }
 
 // ─── Archive Workspace Queries ────────────────────────────────────────────────

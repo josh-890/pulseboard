@@ -12,7 +12,7 @@ import { ArchiveLinkStatus } from '@/generated/prisma/client'
 import type { ChannelTier, DatePrecision, Prisma, StagingSet, StagingSetStatus } from '@/generated/prisma/client'
 import type { StagingWorkHistoryItem } from '@/lib/types'
 import { onSetPromoted } from '@/lib/services/coherence-service'
-import type { SuggestedFolderInfo } from '@/lib/services/archive-service'
+import type { BlockingFolderInfo, SuggestedFolderInfo } from '@/lib/services/archive-service'
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -51,6 +51,8 @@ export type StagingSetWithRelations = StagingSet & {
   suggestedArchiveFolder?: SuggestedFolderInfo | null
   /** True when a matching folder exists but is CONFIRMED to a different entity — indicates a mis-assigned link */
   hasLinkConflict?: boolean
+  /** Which folder blocks it and what holds that folder — so "taken" is actionable */
+  linkConflict?: BlockingFolderInfo | null
 }
 
 export type ParticipantStatus = {
