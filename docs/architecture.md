@@ -212,7 +212,7 @@ All import services in `src/lib/services/import/`.
 **`activity-service.ts`** — Activity feed queries
 **`setting-service.ts`** — App settings (profile image labels, skill level configs)
 **`cascade-helpers.ts`** — Transaction-based cascade delete helpers (`TxClient` type)
-**`database-maintenance-service.ts`** — Orphan cleanup, duplicate detection, view refresh, `auditIcgIdOrigins()` (ADR-0026 — read-only: external/self split, IDs matching neither shape, contacts carrying the reserved marker), `checkUndefinedArchiveChannels()` (read-only: archive short codes with no Channel behind them, plus channels missing a short code or an owning Label — all three make the join's cross-label guard fail open)
+**`database-maintenance-service.ts`** — Orphan cleanup, duplicate detection, view refresh, `auditIcgIdOrigins()` (ADR-0026 — read-only: external/self split, IDs matching neither shape, contacts carrying the reserved marker), `auditCatalogueAvatars()` (portrait coverage + the files the agent could not decode), `checkUndefinedArchiveChannels()` (read-only: archive short codes with no Channel behind them, plus channels missing a short code or an owning Label — all three make the join's cross-label guard fail open)
 
 ---
 

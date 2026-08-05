@@ -14,6 +14,10 @@ import { refreshAllParticipantStatuses } from "@/lib/services/import/participant
 import { resolveNationalityToIoc } from "@/lib/constants/countries";
 import { ICG_ID_EXTERNAL_RE, ICG_ID_LOCAL_RE, isSelfAssignedIcgId } from "@/lib/icg-id";
 import { getCoverStats, listCoverFailures } from "@/lib/services/archive-cover-service";
+import {
+  getCatalogueAvatarStats,
+  listCatalogueAvatarFailures,
+} from "@/lib/services/catalogue-avatar-service";
 
 export type MaintenanceResult = {
   found: number;
@@ -629,6 +633,51 @@ export async function checkUndefinedArchiveChannels(): Promise<MaintenanceResult
     fixed: 0,
     details,
   };
+}
+
+/**
+ * Catalogue portrait coverage (read-only).
+ *
+ * The attribution workbench compares an archive cover against a person's face,
+ * and it can only do that where a face exists. Before these portraits were
+ * imported, 84% of suggested identities had none — they are the ones with no
+ * Person and no Contact to hang an image off, which is exactly the population
+ * the operator has nothing else to go on for.
+ *
+ * The agent fails one person at a time and records why, so a single corrupt file
+ * never derails a 39,000-image run. This is where those failures become
+ * actionable — the promise the agent's own closing message makes.
+ */
+export async function auditCatalogueAvatars(): Promise<MaintenanceResult> {
+  const [stats, failures] = await Promise.all([
+    getCatalogueAvatarStats(),
+    listCatalogueAvatarFailures(),
+  ]);
+
+  const details: string[] = [
+    `${stats.withImage.toLocaleString()} portrait(s) stored; ${stats.failed} could not be read.`,
+  ];
+  for (const f of failures) details.push(`${f.icgId} — ${f.error}`);
+  if (stats.failed > failures.length) {
+    details.push(`(… ${stats.failed - failures.length} more not listed)`);
+  }
+
+  if (stats.failed === 0) {
+    details.push(
+      stats.withImage === 0
+        ? "No portraits yet. Run scripts/catalogue-avatar.ps1 on the catalogue host."
+        : "Every portrait the agent attempted was readable.",
+    );
+  } else {
+    // The established rule, and the reason it is not negotiable: a silently
+    // mangled portrait becomes the face someone is compared against.
+    details.push(
+      "These are damaged images. Clean or re-encode the listed files at the source — " +
+        "never loosen the decoder — then re-run catalogue-avatar.ps1 -RetryFailed.",
+    );
+  }
+
+  return { found: stats.failed, fixed: 0, details };
 }
 
 type ParticipantEntry = { name: string; icgId: string; url?: string };

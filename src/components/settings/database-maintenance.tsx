@@ -20,6 +20,7 @@ import {
   Fingerprint,
   ImageOff as ImageOffIcon,
   RadioTower,
+  UserSquare,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -36,6 +37,7 @@ import {
   auditIcgIdOriginsAction,
   auditArchiveCoversAction,
   checkUndefinedArchiveChannelsAction,
+  auditCatalogueAvatarsAction,
 } from "@/lib/actions/database-maintenance-actions";
 
 type ActionResult = {
@@ -144,6 +146,13 @@ const actions: ActionConfig[] = [
       "Which archive short codes have no Channel behind them. This is not a coverage gap — the catalogue join keys on date and title, so those folders still get suggestions. It is a guard gap: the cross-label check resolves the code to a Channel to find its owning Label, and an unresolvable code makes that check pass silently. Also flags channels missing a short code or an owning Label, which break the same guard. Read-only: define the channel, then re-run catalogue-join.ts --post.",
     icon: <RadioTower className="h-5 w-5 text-muted-foreground" />,
     action: checkUndefinedArchiveChannelsAction,
+  },
+  {
+    title: "Catalogue Portraits",
+    description:
+      "How many person portraits from the catalogue are stored, and which ones could not be read. The workbench compares an archive cover against a person's face; before these were imported 84% of suggested identities had none. The agent fails one person at a time and records why, so one corrupt file never derails a 39,000-image run \u2014 this is where those failures become actionable. Read-only: clean or re-encode the listed files, then re-run catalogue-avatar.ps1 -RetryFailed.",
+    icon: <UserSquare className="h-5 w-5 text-muted-foreground" />,
+    action: auditCatalogueAvatarsAction,
   },
 ];
 
