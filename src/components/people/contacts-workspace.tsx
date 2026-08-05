@@ -163,9 +163,20 @@ function ContactRowItem({ row }: { row: ContactRow }) {
         isPending && "pointer-events-none opacity-60",
       )}
     >
-      {/* Outlined avatar signals "ghost / not yet a Person" */}
-      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-dashed border-white/30 text-sm font-bold text-muted-foreground">
-        {initials}
+      {/* The DASHED outline is what signals "ghost / not yet a Person" — it stays
+          whether or not there is a face inside it. A face is worth showing: this
+          register is where you recognise someone, and initials recognise nobody.
+          Falls back to initials when neither a harvested thumbnail nor a
+          catalogue portrait exists. */}
+      <div className="h-10 w-10 shrink-0 overflow-hidden rounded-full border border-dashed border-white/30">
+        {row.avatarUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element -- remote/MinIO URL, not a static asset
+          <img src={row.avatarUrl} alt="" className="h-full w-full object-cover" loading="lazy" />
+        ) : (
+          <span className="flex h-full w-full items-center justify-center text-sm font-bold text-muted-foreground">
+            {initials}
+          </span>
+        )}
       </div>
 
       <div className="min-w-0 flex-1">

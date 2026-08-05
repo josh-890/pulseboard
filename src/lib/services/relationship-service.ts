@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { buildUrl } from "@/lib/media-url";
 import { normalizeForSearch } from "@/lib/normalize";
 import { getHeadshotsForPersons } from "@/lib/services/media-service";
 import type { RelationshipType } from "@/generated/prisma/client";
@@ -290,6 +291,8 @@ export type ContactRow = {
   mentionCount: number;
   /** Archive folders confirmed as this person — evidence the register would otherwise miss. */
   archiveFolderCount: number;
+  /** A face: the harvested thumbnail, else the catalogue portrait. */
+  avatarUrl: string | null;
   // Approved, archive-linked staging sets where THIS contact is the only
   // not-yet-curated participant — adding it unlocks that many sets for promotion.
   unlocksSetCount: number;
@@ -363,6 +366,7 @@ function buildContactRow(r: ContactWithCounts, unlock: number): ContactRow {
     relationshipCount: r._count.relationshipsTo,
     mentionCount: r._count.claims + r._count.relationshipsTo,
     archiveFolderCount: r._count.attributions,
+    avatarUrl: r.thumbUrl,
     unlocksSetCount: unlock,
     subjects: r.claims.map((c) => c.subjectPerson.aliases[0]?.name).filter((n): n is string => !!n),
   };
@@ -393,6 +397,35 @@ function contactSearchWhere(q?: string, includeIgnored?: boolean) {
   };
 }
 
+
+/**
+ * Fill in a face where the harvested thumbnail is missing.
+ *
+ * 7 of 1,383 contacts have no `thumbUrl` — and every contact the attribution
+ * workbench creates has none, because confirmation writes a name and an ICG-ID
+ * and nothing else. The catalogue portrait covers most of them, so the register
+ * shows a face instead of initials without any extra import.
+ *
+ * Batched per page: one query for the whole list, not one per row.
+ */
+async function withCatalogueAvatars(rows: ContactRow[]): Promise<ContactRow[]> {
+  const missing = rows.filter((r) => !r.avatarUrl && r.icgId).map((r) => r.icgId!);
+  if (missing.length === 0) return rows;
+
+  const portraits = await prisma.catalogueAvatar.findMany({
+    where: { icgId: { in: missing }, key: { not: null } },
+    select: { icgId: true, key: true },
+  });
+  if (portraits.length === 0) return rows;
+
+  const byIcg = new Map(portraits.map((p) => [p.icgId, p.key!]));
+  return rows.map((r) =>
+    r.avatarUrl || !r.icgId || !byIcg.has(r.icgId)
+      ? r
+      : { ...r, avatarUrl: buildUrl(byIcg.get(r.icgId)!) },
+  );
+}
+
 // Priority head: contacts that unlock ≥1 approved+archive set, ranked by impact.
 // Bounded by the staging sets (small), independent of total contact count.
 export async function getUnlockingContacts(opts: { q?: string; includeIgnored?: boolean } = {}): Promise<ContactRow[]> {
@@ -403,9 +436,11 @@ export async function getUnlockingContacts(opts: { q?: string; includeIgnored?: 
     include: contactInclude,
   });
   const taken = await takenIcgIdSet(refs);
-  return refs
-    .filter((r) => !(r.icgId && taken.has(r.icgId)))
-    .map((r) => buildContactRow(r, r.icgId ? (unlock.get(r.icgId) ?? 0) : 0))
+  return (await withCatalogueAvatars(
+    refs
+      .filter((r) => !(r.icgId && taken.has(r.icgId)))
+      .map((r) => buildContactRow(r, r.icgId ? (unlock.get(r.icgId) ?? 0) : 0)),
+  ))
     .sort(
       (a, b) =>
         b.unlocksSetCount - a.unlocksSetCount ||
@@ -444,7 +479,9 @@ export async function getContactsPage(opts: {
   const hasMore = refs.length > limit;
   const pageRefs = hasMore ? refs.slice(0, limit) : refs;
   const taken = await takenIcgIdSet(pageRefs);
-  const rows = pageRefs.filter((r) => !(r.icgId && taken.has(r.icgId))).map((r) => buildContactRow(r, 0));
+  const rows = await withCatalogueAvatars(
+    pageRefs.filter((r) => !(r.icgId && taken.has(r.icgId))).map((r) => buildContactRow(r, 0)),
+  );
   return { rows, nextOffset: hasMore ? offset + limit : null, total };
 }
 

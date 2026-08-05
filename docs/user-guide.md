@@ -1232,7 +1232,9 @@ file. Nothing here is automatic.
 
 Confirming in stage 1 creates **no sets**. Most suggested people are not in the app at all, so
 confirming registers who they are — as **contacts** — not what they made. The contacts register
-shows the evidence: *"49 archive folders"* next to the usual mentions. When you later create the
+shows the evidence: *"49 archive folders"* next to the usual mentions, and a **face** — the
+harvested thumbnail, or the portrait from the person catalogue. The dashed ring around it still
+means "not a person yet"; only the emptiness inside it is gone. When you later create the
 person, the attributions follow them.
 
 ### Why channel definitions matter
