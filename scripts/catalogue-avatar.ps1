@@ -83,25 +83,40 @@ $AVATAR_MAX_PX = 256
 $ICG_IN_NAME   = '\(([A-Z]{2}-[0-9]{2}[A-Z0-9@][A-Z0-9]*)\)'
 
 # ── Portrait selection ────────────────────────────────────────────────────────
+# The portrait lives in the person's `_meta` folder, beside the import file:
+#
+#   Saloma_(SX-00OWE)\_meta\Saloma_(SX-00OWE).jpg
+#
+# NOT in the person folder itself — that holds set folders. A first version looked
+# only in the person folder and found 40 portraits out of 39,104.
+#
+# `_meta` also contains `_Cover\` and `_Videos\`, which are full of SET covers.
+# Those must never be mistaken for a person's face, so this reads files directly
+# in `_meta` and never descends.
+#
 # Prefer a file whose own name carries this person's ICG-ID — that is the
-# convention and it is unambiguous. Otherwise fall back to a single image sitting
-# directly in the person folder. Never guess between several: two unrelated images
-# in a folder mean the convention was not followed, and picking one at random
-# would put a stranger's face on the comparison panel.
+# convention and it is unambiguous. Only when a single image is present is it
+# taken unnamed. Never guess between several: two unrelated images mean the
+# convention was not followed, and picking one at random would put a stranger's
+# face on the comparison panel.
 function Select-Portrait {
     param([string]$FolderPath, [string]$IcgId)
 
-    $files = @(Get-ChildItem -LiteralPath $FolderPath -File -ErrorAction SilentlyContinue |
-               Where-Object { $_.Name -match '\.(jpe?g|png|webp)$' })
-    if ($files.Count -eq 0) { return $null }
+    foreach ($dir in @((Join-Path $FolderPath "_meta"), $FolderPath)) {
+        if (-not (Test-Path -LiteralPath $dir -PathType Container)) { continue }
 
-    $keyed = @($files | Where-Object { $_.BaseName -like "*($IcgId)*" })
-    if ($keyed.Count -ge 1) {
-        # `Name_(ICG)_thumb.jpg` and `Name_(ICG).jpg` both occur; prefer the smaller
-        # (the thumb) since it is already sized for this purpose.
-        return ($keyed | Sort-Object Length | Select-Object -First 1).FullName
+        $files = @(Get-ChildItem -LiteralPath $dir -File -ErrorAction SilentlyContinue |
+                   Where-Object { $_.Name -match '\.(jpe?g|png|webp)$' })
+        if ($files.Count -eq 0) { continue }
+
+        $keyed = @($files | Where-Object { $_.BaseName -like "*($IcgId)*" })
+        if ($keyed.Count -ge 1) {
+            # `Name_(ICG).jpg` and `Name_(ICG)_thumb.jpg` both occur; prefer the
+            # smaller, which is the one already sized for this purpose.
+            return ($keyed | Sort-Object Length | Select-Object -First 1).FullName
+        }
+        if ($files.Count -eq 1) { return $files[0].FullName }
     }
-    if ($files.Count -eq 1) { return $files[0].FullName }
     return $null
 }
 
