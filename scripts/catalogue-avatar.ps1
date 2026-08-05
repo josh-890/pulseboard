@@ -163,16 +163,30 @@ function Report-Failure {
 }
 
 # ── Which portraits the app already has ───────────────────────────────────────
+# A missing route does not fail loudly: Next redirects (307) and Invoke-RestMethod
+# follows it, so an app without this endpoint answers 200 with a page of HTML.
+# `$resp.icgIds` is then simply absent and the run looks ready — which is how a
+# first attempt made 39,104 POSTs against a server that had never heard of them.
+# So the SHAPE is what is checked, not the fact that a request came back.
 $known = @{}
+try {
+    $resp = Invoke-RestMethod -Uri "$BaseUrl/api/catalogue/avatars" -Headers $headers -Method Get
+} catch {
+    Write-Error "Could not reach $BaseUrl/api/catalogue/avatars : $($_.Exception.Message)"
+    exit 1
+}
+if ($null -eq $resp.stats) {
+    Write-Error @"
+$BaseUrl answered, but not with a portrait list.
+The endpoint /api/catalogue/avatars is missing — the app has almost certainly not
+been rebuilt since it was added. Deploy it first; without it every upload below
+would fail with 405.
+"@
+    exit 1
+}
 if (-not $Force) {
-    try {
-        $resp = Invoke-RestMethod -Uri "$BaseUrl/api/catalogue/avatars" -Headers $headers -Method Get
-        foreach ($id in $resp.icgIds) { $known[$id] = $true }
-        Write-Host "App already holds $($known.Count) portrait(s); skipping those. Use -Force to re-upload."
-    } catch {
-        Write-Error "Could not read the existing portraits: $($_.Exception.Message)"
-        exit 1
-    }
+    foreach ($id in $resp.icgIds) { $known[$id] = $true }
+    Write-Host "App already holds $($known.Count) portrait(s); skipping those. Use -Force to re-upload."
 }
 
 # ── Walk ──────────────────────────────────────────────────────────────────────
@@ -185,10 +199,16 @@ $personDirs = @(Get-ChildItem -LiteralPath $CatalogueRoot -Directory -ErrorActio
 Write-Host "Found $($personDirs.Count) person folder(s)."
 
 $stats = @{ uploaded = 0; skipped = 0; noImage = 0; noIcgId = 0; failed = 0 }
+$attempted = 0
+$consecutiveFailures = 0
+# One bad image must fail one person — but a bad SERVER must not fail 39,104 of
+# them one at a time. After this many failures in a row the cause is systemic
+# (endpoint missing, wrong URL, auth, service down) and continuing only buries it.
+$MAX_CONSECUTIVE_FAILURES = 10
 $i = 0
 foreach ($dir in $personDirs) {
     $i++
-    if ($Limit -gt 0 -and $stats.uploaded -ge $Limit) { break }
+    if ($Limit -gt 0 -and $attempted -ge $Limit) { break }
 
     if ($dir.Name -notmatch $ICG_IN_NAME) { $stats.noIcgId++; continue }
     $icgId = $Matches[1]
@@ -201,6 +221,7 @@ foreach ($dir in $personDirs) {
     # screen is the only record of which file caused it.
     Write-Host ("[{0}/{1}] {2}" -f $i, $personDirs.Count, $portrait)
 
+    $attempted++
     if ($DryRun) { $stats.uploaded++; continue }
 
     $tmp = $null
@@ -210,11 +231,25 @@ foreach ($dir in $personDirs) {
         Invoke-RestMethod -Uri "$BaseUrl/api/catalogue/avatar/$icgId" `
             -Headers $headers -Method Post -ContentType "image/jpeg" -InFile $tmp | Out-Null
         $stats.uploaded++
+        $consecutiveFailures = 0
     } catch {
         $msg = $_.Exception.Message
         Write-Warning "  FAILED $icgId : $msg"
         Report-Failure -IcgId $icgId -Message "$portrait -- $msg"
         $stats.failed++
+        $consecutiveFailures++
+        if ($consecutiveFailures -ge $MAX_CONSECUTIVE_FAILURES) {
+            Write-Host ""
+            Write-Error @"
+$consecutiveFailures uploads failed in a row — the last error was:
+  $msg
+
+That is not a run of bad images, it is the server. Check that the app has been
+rebuilt with /api/catalogue/avatar, that $BaseUrl is right, and that the API key
+and tenant are accepted. Nothing further was attempted.
+"@
+            break
+        }
     } finally {
         if ($tmp -and (Test-Path -LiteralPath $tmp)) { Remove-Item -LiteralPath $tmp -Force -ErrorAction SilentlyContinue }
     }
