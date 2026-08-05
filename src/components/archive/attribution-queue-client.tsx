@@ -11,13 +11,14 @@ import {
   confirmFoldersAction,
   getGroupFoldersAction,
   markGroupNotAPersonAction,
-  rejectFolderAction,
+  rejectCandidateAction,
   skipFolderAction,
   skipGroupAction,
   undoAttributionGroupAction,
   undoFolderAction,
 } from '@/lib/actions/attribution-actions'
 import { AttributionGroupFolders, type GroupFolder } from './attribution-group-folders'
+import type { PersonReference } from './attribution-decision-bar'
 import { PersonIdentity } from '@/components/shared/person-identity'
 
 type AttributionQueueClientProps = {
@@ -54,7 +55,8 @@ export function AttributionQueueClient({ initialQueue, view }: AttributionQueueC
   const [dismissed, setDismissed] = useState<ReadonlySet<string>>(new Set())
   const groups = initialQueue.groups.filter((g) => !dismissed.has(g.key))
   const [expanded, setExpanded] = useState<string | null>(null)
-  const [folders, setFolders] = useState<Record<string, GroupFolder[]>>({})
+  // Folders and the reference faces for everyone they mention, keyed by group.
+  const [folders, setFolders] = useState<Record<string, { folders: GroupFolder[]; references: PersonReference[] }>>({})
   const [loadingFolders, setLoadingFolders] = useState<string | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
   const [flash, setFlash] = useState<{ key: string; text: string; tone: 'ok' | 'err' } | null>(null)
@@ -319,7 +321,8 @@ export function AttributionQueueClient({ initialQueue, view }: AttributionQueueC
                       </p>
                     ) : (
                       <AttributionGroupFolders
-                        folders={folders[g.key] ?? []}
+                        folders={folders[g.key]?.folders ?? []}
+                        references={folders[g.key]?.references ?? []}
                         votes={g.votes}
                         busy={folderBusy}
                         onConfirm={(folderId, icgIds, names) =>
@@ -328,7 +331,9 @@ export function AttributionQueueClient({ initialQueue, view }: AttributionQueueC
                         onConfirmMany={(folderIds, icgIds, names) =>
                           folderOp(g.key, folderIds[0], () => confirmFoldersAction(folderIds, icgIds, names))
                         }
-                        onReject={(folderId) => folderOp(g.key, folderId, () => rejectFolderAction(folderId))}
+                        onRejectCandidate={(folderId, icgId, remaining) =>
+                          folderOp(g.key, folderId, () => rejectCandidateAction(folderId, icgId, remaining))
+                        }
                         onSkip={(folderId) => folderOp(g.key, folderId, () => skipFolderAction(folderId))}
                         onUndo={(folderId) => folderOp(g.key, folderId, () => undoFolderAction(folderId))}
                       />

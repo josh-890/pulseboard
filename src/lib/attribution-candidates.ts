@@ -28,13 +28,21 @@ export type FolderCandidate = {
  * Deliberately NOT a name search. An ICG-ID must come from a real record, and
  * fuzzy person matching is forbidden in this project (it silently merged
  * different real people before it was removed in 2026-05-26).
+ *
+ * `rejected` removes candidates the operator has already dismissed for this
+ * folder, so pressing X repeatedly walks down the list instead of closing the
+ * card on the first "no".
  */
 export function candidatesForFolder(
   folderSuggestions: { icgId: string; name: string }[],
   groupVotes: { icgId: string; name: string; folders: number }[],
+  rejected: readonly string[] = [],
 ): FolderCandidate[] {
   const out: FolderCandidate[] = []
-  const seen = new Set<string>()
+  // Dismissed candidates are seeded as "seen" so they can never reappear from
+  // either source. An empty result is meaningful: it is the condition under which
+  // the folder is genuinely "none of these" and may be closed.
+  const seen = new Set<string>(rejected)
 
   for (const s of folderSuggestions) {
     if (seen.has(s.icgId)) continue

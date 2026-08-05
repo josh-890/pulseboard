@@ -54,6 +54,30 @@ describe('candidatesForFolder', () => {
     expect(first.map((c) => c.icgId)).toEqual(second.map((c) => c.icgId))
   })
 
+  // X drops the top candidate and keeps the card, so the list has to shrink by
+  // exactly one and keep its order — otherwise the digit keys shuffle under the
+  // operator's fingers between keystrokes.
+  it('drops a rejected candidate and keeps the rest in order', () => {
+    const out = candidatesForFolder([s('A', 'A')], [v('B', 'B', 9), v('C', 'C', 4)], ['A'])
+    expect(out.map((c) => c.icgId)).toEqual(['B', 'C'])
+  })
+
+  it('drops a rejected group vote as well as a rejected folder suggestion', () => {
+    const out = candidatesForFolder([s('A', 'A')], [v('B', 'B', 9)], ['B'])
+    expect(out.map((c) => c.icgId)).toEqual(['A'])
+  })
+
+  // The empty result is the signal that turns the folder into REJECTED: the
+  // question is exhausted, not merely unanswered.
+  it('returns empty when everything has been rejected', () => {
+    expect(candidatesForFolder([s('A', 'A')], [v('B', 'B', 1)], ['A', 'B'])).toEqual([])
+  })
+
+  it('ignores a rejection for someone who was never a candidate', () => {
+    const out = candidatesForFolder([s('A', 'A')], [], ['ZZ-99'])
+    expect(out.map((c) => c.icgId)).toEqual(['A'])
+  })
+
   it('does not mutate the votes it was given', () => {
     const votes = [v('B', 'B', 1), v('A', 'A', 9)]
     candidatesForFolder([], votes)

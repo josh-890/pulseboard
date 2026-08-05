@@ -10,7 +10,9 @@ import {
   undoFolderIdentity,
   decideAttributionGroup,
   undoAttributionGroup,
-  getGroupFolders,
+  getGroupFoldersWithReferences,
+  rejectCandidate,
+  searchAssignablePeople,
   developFolder,
   waitOnFolder,
   type ConfirmResult,
@@ -105,11 +107,36 @@ export async function undoAttributionGroupAction(
   return run(() => undoAttributionGroup(groupKey), BOTH)
 }
 
-/** Member folders of a group — loaded on expand, not with the list (up to 204 rows). */
+/**
+ * Member folders of a group plus a reference face per person — loaded on expand,
+ * not with the list (up to 204 rows).
+ */
 export async function getGroupFoldersAction(
   groupKey: string,
-): Promise<AttributionActionResult<Awaited<ReturnType<typeof getGroupFolders>>>> {
-  return run(() => getGroupFolders(groupKey), [])
+): Promise<AttributionActionResult<Awaited<ReturnType<typeof getGroupFoldersWithReferences>>>> {
+  return run(() => getGroupFoldersWithReferences(groupKey), [])
+}
+
+/**
+ * Dismiss one candidate for one folder.
+ *
+ * `remainingCandidates` comes from the client because the candidate list is
+ * assembled there from the folder's own suggestions plus the group's votes —
+ * exhausting it is what turns the folder into REJECTED.
+ */
+export async function rejectCandidateAction(
+  folderId: string,
+  icgId: string,
+  remainingCandidates: number,
+): Promise<AttributionActionResult<{ exhausted: boolean }>> {
+  return run(() => rejectCandidate(folderId, icgId, remainingCandidates), QUEUE)
+}
+
+/** Type-to-find a person the matcher never proposed. Read-only. */
+export async function searchAssignablePeopleAction(
+  q: string,
+): Promise<AttributionActionResult<Awaited<ReturnType<typeof searchAssignablePeople>>>> {
+  return run(() => searchAssignablePeople(q), [])
 }
 
 // ── Stage 2: development, a separate pass ───────────────────────────────────

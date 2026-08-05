@@ -25,6 +25,7 @@ import type {
 import { getAttributionGroups, type AttributionGroup } from '@/lib/services/attribution-suggestion-service'
 import { parseFolderParticipantRaw } from '@/lib/services/archive-service'
 import { buildUrl } from '@/lib/media-url'
+import { resolvePersonReferences } from '@/lib/services/person-reference-service'
 import { UNSETTLED_FOLDER } from '@/lib/services/archive-unsettled'
 export { candidatesForFolder, type FolderCandidate } from '@/lib/attribution-candidates'
 import { createStagingSetFromOrphan } from '@/lib/services/archive-service'
@@ -432,6 +433,16 @@ export async function getAttributionQueue(
  * letting it build the URL drags `node:async_hooks` into the browser bundle and
  * 500s the page — a mistake this codebase has already made once.
  */
+export async function getGroupFoldersWithReferences(groupKey: string) {
+  const folders = await getGroupFolders(groupKey)
+  const icgIds = [
+    ...new Set(folders.flatMap((f) => [...f.suggestions.map((s) => s.icgId), ...f.attributions.map((a) => a.icgId)])),
+  ]
+  const refs = await resolvePersonReferences(icgIds)
+  // Sent as an array: a Map does not survive the server/client boundary.
+  return { folders, references: [...refs.values()] }
+}
+
 export async function getGroupFolders(groupKey: string): Promise<
   {
     id: string
@@ -442,6 +453,8 @@ export async function getGroupFolders(groupKey: string): Promise<
     suggestions: { icgId: string; name: string; tier: string; demotions: string[] }[]
     attributions: { icgId: string; name: string }[]
     identity: FolderIdentityStatus
+    /** Candidates already dismissed here — X walks down the list, it does not close the card. */
+    rejectedIcgIds: string[]
     /**
      * What the archive matcher proposes for this folder, if anything.
      *
@@ -475,7 +488,7 @@ export async function getGroupFolders(groupKey: string): Promise<
       isVideo: true,
       suggestions: { select: { icgId: true, name: true, tier: true, demotions: true } },
       attributions: { select: { icgId: true, name: true } },
-      review: { select: { identity: true } },
+      review: { select: { identity: true, rejectedIcgIds: true } },
       parsedDate: true,
       parsedTitle: true,
       archiveLink: {
@@ -497,6 +510,7 @@ export async function getGroupFolders(groupKey: string): Promise<
     .map(({ parsedShortName: _short, coverKey, review, archiveLink, parsedDate, parsedTitle, ...r }) => ({
       ...r,
       identity: review?.identity ?? ('OPEN' as FolderIdentityStatus),
+      rejectedIcgIds: review?.rejectedIcgIds ?? [],
       matcherSuggestion: describeMatcherSuggestion(archiveLink, parsedDate, parsedTitle),
       coverUrl: coverKey ? buildUrl(coverKey) : null,
     }))
@@ -858,4 +872,134 @@ async function findExistingStagingSets(
     })
   }
   return out
+}
+
+/**
+ * Dismiss one candidate for one folder.
+ *
+ * digiKam's behaviour, and the reason for it: rejecting a suggestion answers
+ * "not this person" while leaving "then who?" wide open. Closing the card there
+ * loses the operator's place in the very question they were working on. So the
+ * candidate is dropped, the card stays, and only when nothing is left does the
+ * folder become REJECTED.
+ *
+ * Returns whether the folder ran out of candidates, so the caller knows whether
+ * to advance the focus.
+ */
+export async function rejectCandidate(
+  folderId: string,
+  icgId: string,
+  remainingCandidates: number,
+): Promise<{ exhausted: boolean }> {
+  const exhausted = remainingCandidates <= 1
+  await prisma.$transaction(async (tx) => {
+    const existing = await tx.archiveFolderReview.findUnique({
+      where: { archiveFolderId: folderId },
+      select: { rejectedIcgIds: true },
+    })
+    const rejected = [...new Set([...(existing?.rejectedIcgIds ?? []), icgId])]
+    const now = new Date()
+    await tx.archiveFolderReview.upsert({
+      where: { archiveFolderId: folderId },
+      create: {
+        archiveFolderId: folderId,
+        rejectedIcgIds: rejected,
+        ...(exhausted ? { identity: 'REJECTED' as FolderIdentityStatus, identityAt: now } : {}),
+      },
+      update: {
+        rejectedIcgIds: rejected,
+        ...(exhausted ? { identity: 'REJECTED' as FolderIdentityStatus, identityAt: now } : {}),
+      },
+    })
+    // A dismissed person must also lose any attribution they held here, or the
+    // card would keep showing them as confirmed while the candidate is gone.
+    await tx.archiveFolderAttribution.deleteMany({ where: { archiveFolderId: folderId, icgId } })
+  })
+  return { exhausted }
+}
+
+export type AssignablePerson = {
+  icgId: string
+  name: string
+  kind: 'person' | 'contact'
+  avatarUrl: string | null
+  personId: string | null
+}
+
+/**
+ * Search people the operator may assign — the gap Immich's users complain about
+ * loudest: a suggestion list is not an identity list, and sooner or later the
+ * right person is simply not among the proposals.
+ *
+ * Persons and Contacts both, because 98% of what this workbench deals with are
+ * Contacts. Name, alias and ICG-ID are all searchable; a bare name is not an
+ * identity, so every row carries its key.
+ *
+ * No creation path. An ICG-ID must come from a real record, and a keyboard flow
+ * built for speed is the wrong place to mint one.
+ */
+export async function searchAssignablePeople(q: string, limit = 20): Promise<AssignablePerson[]> {
+  const term = q.trim()
+  if (term.length < 2) return []
+
+  const [persons, contacts] = await Promise.all([
+    prisma.person.findMany({
+      where: {
+        OR: [
+          { icgId: { contains: term, mode: 'insensitive' } },
+          { aliases: { some: { name: { contains: term, mode: 'insensitive' } } } },
+        ],
+      },
+      select: {
+        id: true,
+        icgId: true,
+        aliases: { where: { isCommon: true }, take: 1, select: { name: true } },
+      },
+      take: limit,
+    }),
+    prisma.contact.findMany({
+      where: {
+        ignoredAt: null,
+        OR: [
+          { icgId: { contains: term, mode: 'insensitive' } },
+          { name: { contains: term, mode: 'insensitive' } },
+        ],
+      },
+      select: { icgId: true, name: true },
+      take: limit,
+    }),
+  ])
+
+  const icgIds = [
+    ...persons.map((p) => p.icgId),
+    ...contacts.map((c) => c.icgId).filter((x): x is string => !!x),
+  ]
+  const refs = await resolvePersonReferences(icgIds)
+
+  // A curated Person wins over a Contact carrying the same ICG-ID; the contact is
+  // a ghost of exactly that person and showing both would be a false choice.
+  const seen = new Set<string>()
+  const out: AssignablePerson[] = []
+  for (const p of persons) {
+    seen.add(p.icgId)
+    out.push({
+      icgId: p.icgId,
+      name: p.aliases[0]?.name ?? p.icgId,
+      kind: 'person',
+      avatarUrl: refs.get(p.icgId)?.avatarUrl ?? null,
+      personId: p.id,
+    })
+  }
+  for (const c of contacts) {
+    if (!c.icgId || seen.has(c.icgId)) continue
+    seen.add(c.icgId)
+    out.push({
+      icgId: c.icgId,
+      name: c.name,
+      kind: 'contact',
+      avatarUrl: refs.get(c.icgId)?.avatarUrl ?? null,
+      personId: null,
+    })
+  }
+  return out.slice(0, limit)
 }

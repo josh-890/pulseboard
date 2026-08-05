@@ -1170,6 +1170,21 @@ not a decision. One alias can hide several people: `AA | Anna` covers genuinely 
 women, so **every folder is confirmed individually**. Expand a group and you get a contact sheet
 of its folders — seeing them side by side is what reveals a collision.
 
+A bar at the top stays put while you scroll: progress, the `Open / All / Decided`
+switch, the candidate strip and the key legend. **Decided folders leave the grid** — and the
+keyboard's path with it — so the group gets shorter as you work. Switch to `All` or `Decided`
+to see what you have done.
+
+Beside the candidates you get a **comparison**: the person's face on the left, the folder's cover
+on the right. The face comes from whichever is known first — a curated person's headshot, a
+contact's thumbnail, the portrait from the person catalogue, or, failing all three, the covers of
+folders you have **already** confirmed as them. That last one costs nothing and gets better the
+longer you work.
+
+`X` no longer closes the card. It drops the top candidate and keeps you where you are, so the
+next one moves to `1`; only when no candidate is left does the folder become *not this person*
+and the focus move on.
+
 Covers are shown **portrait and uncropped**, three or four across: judging "is this her" from a
 cropped square is guesswork, and a longer page is the better trade. The focused card is marked by
 a ring and nothing else — nothing grows or pops, so a keyboard pass stays calm to read and your
@@ -1186,6 +1201,7 @@ Work it from the keyboard; that is where the speed is:
 | `U` | undo this folder's decision |
 | `1`…`9` | confirm as the n-th person in the candidate strip, then move on |
 | `⇧`+`1`…`9` | **add** that person and stay — for a set with several participants |
+| `/` | search for someone the matcher never proposed |
 | `S` | add the folder to a selection |
 
 The candidate strip above the grid shows who the focused folder could be: its own suggestions

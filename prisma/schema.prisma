@@ -2373,6 +2373,27 @@ enum FolderDevelopStatus {
   WAITING
 }
 
+/// A portrait from the person catalogue, keyed on the ICG-ID alone.
+///
+/// Deliberately not hung off Person or Contact: of 5,074 suggested identities on
+/// xpulse, 94 are curated Persons and 711 are Contacts — the other 4,269 have no
+/// app record at all, and those are exactly the ones where the operator most needs
+/// a face to compare against. The catalogue has one for almost every person.
+///
+/// Mirrors the archive-cover columns (`key`/`error`/`checkedAt`) so one corrupt
+/// image fails one person, is individually visible, and is retried on its own.
+model CatalogueAvatar {
+  id        String    @id @default(cuid())
+  icgId     String    @unique
+  /// MinIO key, null while only a failure is recorded.
+  key       String?
+  error     String?
+  checkedAt DateTime?
+  updatedAt DateTime  @updatedAt
+
+  @@map("catalogue_avatar")
+}
+
 model ArchiveFolderReview {
   id              String               @id @default(cuid())
   archiveFolderId String               @unique
@@ -2381,6 +2402,13 @@ model ArchiveFolderReview {
   develop         FolderDevelopStatus  @default(PENDING)
   identityAt      DateTime?
   developAt       DateTime?
+  /// Candidates the operator dismissed for THIS folder.
+  ///
+  /// Rejecting used to close the whole card, which answered "not this person"
+  /// while leaving "then who?" open. digiKam offers the next likely match
+  /// instead; so does this now, and the dismissal has to persist or the rejected
+  /// candidate returns on the next load.
+  rejectedIcgIds  String[]
   updatedAt       DateTime             @updatedAt
 
   @@index([identity])

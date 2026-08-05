@@ -395,3 +395,53 @@ existing suggestions, 2,350 survive the new gate and 383 fall away.
 to a StagingSet that arrived through a person's import and was never linked — 106
 such folders. `developFolder` therefore links to the existing set rather than
 creating a second copy of curated work.
+
+## Addendum, 2026-08-05 — the workbench needs a face
+
+The per-folder grid was correct and unusable at length: finished covers piled up,
+the candidate strip scrolled out of reach exactly when a long group needed it, and
+the only thing identifying a candidate was a name.
+
+Comparable systems agree on all three. **Lightroom Classic** moves tagged stacks
+out of *Unnamed People* so the working set shrinks as you work. **digiKam**
+presents the next likely match when a suggestion is rejected, rather than closing
+the item. **Immich's** loudest open request is assignment to an *existing* person —
+"you can assign faces just to new names". And every one of them — plus Google
+Photos' compare mode — puts a **reference image beside the candidate**, because
+identity is judged by looking, not by reading a name.
+
+The obstacle was coverage. Of 5,074 suggested identities on xpulse, 94 are curated
+Persons and 711 are Contacts; **4,269 have no app record at all**, and those are
+exactly the ones the operator has nothing to go on. So the reference resolves down
+a ladder:
+
+1. curated Person headshot
+2. `Contact.thumbUrl` (99 % of contacts carry one)
+3. **the person catalogue's own portrait**, `Alisa_(AI-00QAS)_thumb.jpg`, uploaded
+   by an agent and keyed on the ICG-ID **alone** — the only key that reaches an
+   identity with no record
+4. **covers of folders already confirmed as that person** — no import, no agent,
+   100 % coverage, and it improves as the operator works
+
+Rung 4 is the quiet one worth keeping: confirm three folders as Alisa and the
+fourth arrives with three reference images, entirely from work already done.
+
+**Decisions.**
+
+- `X` drops the top candidate and keeps the card. Only an exhausted candidate list
+  closes the folder. Rejection persists per (folder, person) in
+  `ArchiveFolderReview.rejectedIcgIds`, or the dismissed candidate returns on the
+  next load.
+- Decided folders leave both the grid and the keyboard's path, with an
+  `Open / All / Decided` switch. Hiding a card the cursor still walks through would
+  be worse than not hiding it.
+- The decision bar is sticky. The digit keys map to the candidate strip; losing it
+  mid-scroll makes them unreadable.
+- `/` searches Persons **and** Contacts by name, alias and ICG-ID. No identity is
+  ever minted here — an ICG-ID must come from a real record, and a flow built for
+  speed is the wrong place to create one.
+
+**Consequence.** The reference panel is only as good as its coverage, so
+`catalogue-avatar.ps1` has to run before the workbench can be judged. Until it
+does, rungs 1, 2 and 4 carry it — which is roughly 16 % plus whatever the operator
+has already confirmed.

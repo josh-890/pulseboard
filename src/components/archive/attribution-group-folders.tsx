@@ -5,6 +5,8 @@ import { AlertTriangle, Camera, Check, Film, Loader2, SkipForward, Undo2, X } fr
 import { cn } from '@/lib/utils'
 import { PersonIdentity } from '@/components/shared/person-identity'
 import { candidatesForFolder } from '@/lib/attribution-candidates'
+import { AttributionDecisionBar, type FolderFilter, type PersonReference } from './attribution-decision-bar'
+import { PersonAssignPicker, type AssignablePerson } from './person-assign-picker'
 
 export type GroupFolder = {
   id: string
@@ -15,6 +17,7 @@ export type GroupFolder = {
   suggestions: { icgId: string; name: string; tier: string; demotions: string[] }[]
   attributions: { icgId: string; name: string }[]
   identity: 'OPEN' | 'CONFIRMED' | 'REJECTED' | 'SKIPPED'
+  rejectedIcgIds: string[]
   matcherSuggestion: {
     kind: 'staging' | 'set'
     id: string
@@ -31,10 +34,11 @@ type Vote = { icgId: string; name: string; folders: number }
 type AttributionGroupFoldersProps = {
   folders: GroupFolder[]
   votes: Vote[]
+  references: PersonReference[]
   busy: string | null
   onConfirm: (folderId: string, icgIds: string[], names: Record<string, string>) => void
   onConfirmMany: (folderIds: string[], icgIds: string[], names: Record<string, string>) => void
-  onReject: (folderId: string) => void
+  onRejectCandidate: (folderId: string, icgId: string, remaining: number) => void
   onSkip: (folderId: string) => void
   onUndo: (folderId: string) => void
 }
@@ -57,13 +61,16 @@ type AttributionGroupFoldersProps = {
 export function AttributionGroupFolders({
   folders,
   votes,
+  references,
   busy,
   onConfirm,
   onConfirmMany,
-  onReject,
+  onRejectCandidate,
   onSkip,
   onUndo,
 }: AttributionGroupFoldersProps) {
+  const [filter, setFilter] = useState<FolderFilter>('open')
+  const [pickerOpen, setPickerOpen] = useState(false)
   const [focus, setFocus] = useState(0)
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set())
   const containerRef = useRef<HTMLDivElement>(null)
@@ -84,7 +91,25 @@ export function AttributionGroupFolders({
     return Math.max(1, cols)
   }, [])
 
-  const openCount = useMemo(() => folders.filter((f) => f.identity === 'OPEN').length, [folders])
+  const refMap = useMemo(() => new Map(references.map((r) => [r.icgId, r])), [references])
+
+  const counts = useMemo(() => {
+    const open = folders.filter((f) => f.identity === 'OPEN').length
+    return { open, decided: folders.length - open, total: folders.length }
+  }, [folders])
+
+  // Decided folders leave the working set — Lightroom's Named/Unnamed split. They
+  // leave the KEYBOARD's path too: hiding a card while the cursor still walks
+  // through it would be worse than not hiding it at all.
+  const visible = useMemo(
+    () =>
+      filter === 'all'
+        ? folders
+        : filter === 'decided'
+          ? folders.filter((f) => f.identity !== 'OPEN')
+          : folders.filter((f) => f.identity === 'OPEN'),
+    [folders, filter],
+  )
   const nameOf = useMemo(() => {
     const m: Record<string, string> = {}
     for (const v of votes) m[v.icgId] = v.name
@@ -92,15 +117,15 @@ export function AttributionGroupFolders({
     return m
   }, [folders, votes])
 
-  const focused = folders[focus]
+  const focused = visible[Math.min(focus, Math.max(0, visible.length - 1))]
   const candidates = useMemo(
-    () => (focused ? candidatesForFolder(focused.suggestions, votes) : []),
+    () => (focused ? candidatesForFolder(focused.suggestions, votes, focused.rejectedIcgIds) : []),
     [focused, votes],
   )
 
   const move = useCallback(
-    (delta: number) => setFocus((i) => Math.min(folders.length - 1, Math.max(0, i + delta))),
-    [folders.length],
+    (delta: number) => setFocus((i) => Math.min(visible.length - 1, Math.max(0, i + delta))),
+    [visible.length],
   )
 
   // Keep the focused card in view without yanking the whole page around.
@@ -121,7 +146,7 @@ export function AttributionGroupFolders({
   const onKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
       if (e.metaKey || e.ctrlKey || e.altKey) return
-      const f = folders[focus]
+      const f = visible[focus]
       if (!f) return
 
       // Digits pick the n-th candidate. Read from e.code, not e.key: with Shift
@@ -173,7 +198,7 @@ export function AttributionGroupFolders({
           break
         case 'end':
           e.preventDefault()
-          setFocus(folders.length - 1)
+          setFocus(visible.length - 1)
           break
         case 'a': {
           e.preventDefault()
@@ -186,10 +211,22 @@ export function AttributionGroupFolders({
           }
           break
         }
-        case 'x':
+        case 'x': {
           e.preventDefault()
-          onReject(f.id)
-          move(1)
+          // Drop the top candidate, not the card. Rejecting used to answer "not
+          // this person" and close the folder, losing the operator's place in the
+          // question they were actually working on. Only an empty candidate list
+          // closes it — and then the focus moves on by itself.
+          const top = candidates[0]
+          if (top) {
+            onRejectCandidate(f.id, top.icgId, candidates.length)
+            if (candidates.length <= 1) move(1)
+          }
+          break
+        }
+        case '/':
+          e.preventDefault()
+          setPickerOpen(true)
           break
         case ' ':
           e.preventDefault()
@@ -206,7 +243,7 @@ export function AttributionGroupFolders({
           break
       }
     },
-    [folders, focus, candidates, nameOf, move, columns, onConfirm, onReject, onSkip, onUndo, toggleSelected],
+    [visible, focus, candidates, nameOf, move, columns, onConfirm, onRejectCandidate, onSkip, onUndo, toggleSelected],
   )
 
   if (folders.length === 0) {
@@ -216,6 +253,7 @@ export function AttributionGroupFolders({
   const selectedIds = [...selected]
 
   return (
+    <>
     <div
       ref={containerRef}
       tabIndex={0}
@@ -224,45 +262,25 @@ export function AttributionGroupFolders({
       aria-label="Folders in this group"
       className="space-y-3 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring"
     >
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-md bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
-        <span className="font-medium text-foreground">{openCount} open</span>
-        <span><Key>←</Key><Key>→</Key><Key>↑</Key><Key>↓</Key> move</span>
-        <span><Key>A</Key> confirm</span>
-        <span><Key>X</Key> not this person</span>
-        <span><Key>Space</Key> skip</span>
-        <span><Key>U</Key> undo</span>
-        <span><Key>1</Key>…<Key>9</Key> one person</span>
-        <span><Key>⇧</Key>+<Key>1</Key>…<Key>9</Key> add another</span>
-        <span><Key>S</Key> select</span>
-      </div>
-
-      {/* Candidates for the focused card. Digits map to this list, in this order. */}
-      {focused && candidates.length > 0 && (
-        <div className="flex flex-wrap items-center gap-2 text-sm">
-          <span className="text-muted-foreground">Focused folder is:</span>
-          {candidates.slice(0, 9).map((c, i) => (
-            <button
-              key={c.icgId}
-              onClick={() => {
-                onConfirm(focused.id, [c.icgId], { [c.icgId]: c.name })
-                move(1)
-              }}
-              disabled={!!busy}
-              className={cn(
-                'inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs ring-1 transition-colors duration-150',
-                'hover:bg-primary hover:text-primary-foreground',
-                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-                'disabled:cursor-not-allowed disabled:opacity-50',
-                c.fromFolder ? 'bg-background ring-border' : 'bg-transparent ring-border/50',
-              )}
-              title={c.fromFolder ? 'Suggested for this folder' : 'Suggested elsewhere in this group'}
-            >
-              <Key>{String(i + 1)}</Key>
-              <PersonIdentity name={c.name} icgId={c.icgId} />
-            </button>
-          ))}
-        </div>
-      )}
+      <AttributionDecisionBar
+        filter={filter}
+        onFilter={(f) => {
+          setFilter(f)
+          setFocus(0)
+        }}
+        counts={counts}
+        candidates={candidates}
+        references={refMap}
+        focusedCoverUrl={focused?.coverUrl ?? null}
+        focusedName={focused?.folderName ?? null}
+        busy={!!busy}
+        onPick={(c) => {
+          if (!focused) return
+          onConfirm(focused.id, [c.icgId], { [c.icgId]: c.name })
+          move(1)
+        }}
+        onOpenPicker={() => setPickerOpen(true)}
+      />
 
       {selectedIds.length > 0 && (
         <div className="flex flex-wrap items-center gap-2 rounded-md border border-primary/40 bg-primary/5 px-3 py-2 text-sm">
@@ -297,7 +315,7 @@ export function AttributionGroupFolders({
       {/* Portrait, uncropped, and only three across on a normal laptop. The page
           gets longer; the covers get readable, which is what the decision needs. */}
       <ul ref={gridRef} className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
-        {folders.map((f, i) => (
+        {visible.map((f, i) => (
           <FolderCard
             key={f.id}
             folder={f}
@@ -317,19 +335,41 @@ export function AttributionGroupFolders({
               const own = [...new Set(f.suggestions.map((s) => s.icgId))]
               if (own.length > 0) onConfirm(f.id, own, nameOf)
             }}
-            onReject={() => onReject(f.id)}
+            onReject={() => {
+              const cs = candidatesForFolder(f.suggestions, votes, f.rejectedIcgIds)
+              if (cs[0]) onRejectCandidate(f.id, cs[0].icgId, cs.length)
+            }}
             onSkip={() => onSkip(f.id)}
             onUndo={() => onUndo(f.id)}
           />
         ))}
       </ul>
-    </div>
-  )
-}
 
-function Key({ children }: { children: React.ReactNode }) {
-  return (
-    <kbd className="rounded border border-border bg-background px-1 font-mono text-[10px] leading-4">{children}</kbd>
+    </div>
+
+      <PersonAssignPicker
+        open={pickerOpen}
+        targetLabel={
+          selectedIds.length > 0
+            ? `${selectedIds.length} selected folder(s)`
+            : (focused?.folderName ?? 'the focused folder')
+        }
+        onAssign={(p: AssignablePerson) => {
+          setPickerOpen(false)
+          if (selectedIds.length > 0) {
+            onConfirmMany(selectedIds, [p.icgId], { [p.icgId]: p.name })
+            setSelected(new Set())
+          } else if (focused) {
+            onConfirm(focused.id, [p.icgId], { [p.icgId]: p.name })
+          }
+          containerRef.current?.focus()
+        }}
+        onClose={() => {
+          setPickerOpen(false)
+          containerRef.current?.focus()
+        }}
+      />
+    </>
   )
 }
 
@@ -374,6 +414,8 @@ function FolderCard({
   return (
     <li
       ref={registerRef}
+      role="option"
+      aria-selected={focused}
       onClick={onFocus}
       className={cn(
         'group/card overflow-hidden rounded-md border bg-background/60 transition-shadow duration-150',
