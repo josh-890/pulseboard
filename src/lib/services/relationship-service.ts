@@ -291,7 +291,16 @@ export type ContactRow = {
   mentionCount: number;
   /** Archive folders confirmed as this person — evidence the register would otherwise miss. */
   archiveFolderCount: number;
-  /** A face: the harvested thumbnail, else the catalogue portrait. */
+  /**
+   * A face, from the catalogue portrait.
+   *
+   * NOT `Contact.thumbUrl`. That is a URL on the source site
+   * (`static.thenude.com`), and the site is hotlink-protected: it answers 200 to
+   * a request with no `Referer` and **403 to a browser**, which always sends one.
+   * All 1,376 stored thumbnails are therefore undisplayable — rendering them
+   * produces a broken-image icon, which is worse than initials. The field stays
+   * as import provenance; it is not a rendering source.
+   */
   avatarUrl: string | null;
   // Approved, archive-linked staging sets where THIS contact is the only
   // not-yet-curated participant — adding it unlocks that many sets for promotion.
@@ -366,7 +375,8 @@ function buildContactRow(r: ContactWithCounts, unlock: number): ContactRow {
     relationshipCount: r._count.relationshipsTo,
     mentionCount: r._count.claims + r._count.relationshipsTo,
     archiveFolderCount: r._count.attributions,
-    avatarUrl: r.thumbUrl,
+    // Filled in by withCatalogueAvatars — see the note on the field.
+    avatarUrl: null,
     unlocksSetCount: unlock,
     subjects: r.claims.map((c) => c.subjectPerson.aliases[0]?.name).filter((n): n is string => !!n),
   };
@@ -399,12 +409,12 @@ function contactSearchWhere(q?: string, includeIgnored?: boolean) {
 
 
 /**
- * Fill in a face where the harvested thumbnail is missing.
+ * Give each contact a face from the catalogue portraits.
  *
- * 7 of 1,383 contacts have no `thumbUrl` — and every contact the attribution
- * workbench creates has none, because confirmation writes a name and an ICG-ID
- * and nothing else. The catalogue portrait covers most of them, so the register
- * shows a face instead of initials without any extra import.
+ * The only source: `Contact.thumbUrl` points at the source site and is
+ * hotlink-protected, so it cannot render in a browser at all. Our own portraits
+ * cover 1,378 of 1,383 contacts; the remaining five fall back to initials, which
+ * is honest — we have no picture of them.
  *
  * Batched per page: one query for the whole list, not one per row.
  */

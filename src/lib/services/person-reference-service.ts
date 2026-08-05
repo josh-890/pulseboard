@@ -11,12 +11,15 @@
  * So the reference is resolved down a ladder, first hit wins:
  *
  *   1. curated Person  — the headshot the user chose
- *   2. Contact         — the thumbnail harvested at import (99% have one)
- *   3. catalogue       — the portrait from the person catalogue, keyed on ICG-ID
+ *   2. catalogue       — the portrait from the person catalogue, keyed on ICG-ID
  *                        alone, which is the only source that reaches the 4,269
- *   4. archive         — covers of folders ALREADY confirmed as this person
+ *   3. archive         — covers of folders ALREADY confirmed as this person
  *
- * Rung 4 is worth more than it looks: it needs no import and no agent, it is at
+ * `Contact.thumbUrl` is deliberately NOT a rung. It is a URL on the source site,
+ * which is hotlink-protected — 200 without a `Referer`, 403 to a browser, which
+ * always sends one. It renders as a broken image, never as a face.
+ *
+ * Rung 3 is worth more than it looks: it needs no import and no agent, it is at
  * 100% cover coverage, and it improves as the operator works — confirm three
  * folders as Alisa and the fourth arrives with three reference images.
  */
@@ -24,7 +27,7 @@ import { prisma } from '@/lib/db'
 import { buildUrl } from '@/lib/media-url'
 import { getHeadshotsForPersons } from '@/lib/services/media-service'
 
-export type PersonReferenceKind = 'person' | 'contact' | 'catalogue' | 'archive' | 'none'
+export type PersonReferenceKind = 'person' | 'catalogue' | 'archive' | 'none'
 
 export type PersonReference = {
   icgId: string
@@ -50,9 +53,8 @@ export async function resolvePersonReferences(icgIds: string[]): Promise<Map<str
   const out = new Map<string, PersonReference>()
   if (ids.length === 0) return out
 
-  const [persons, contacts, catalogue, attributions] = await Promise.all([
+  const [persons, catalogue, attributions] = await Promise.all([
     prisma.person.findMany({ where: { icgId: { in: ids } }, select: { id: true, icgId: true } }),
-    prisma.contact.findMany({ where: { icgId: { in: ids } }, select: { icgId: true, thumbUrl: true } }),
     prisma.catalogueAvatar.findMany({
       where: { icgId: { in: ids }, key: { not: null } },
       select: { icgId: true, key: true },
@@ -67,7 +69,6 @@ export async function resolvePersonReferences(icgIds: string[]): Promise<Map<str
 
   const headshots = await getHeadshotsForPersons(persons.map((p) => p.id))
   const personByIcg = new Map(persons.map((p) => [p.icgId, p]))
-  const contactByIcg = new Map(contacts.map((c) => [c.icgId!, c]))
   const catalogueByIcg = new Map(catalogue.map((c) => [c.icgId, c]))
 
   const coversByIcg = new Map<string, string[]>()
@@ -84,19 +85,16 @@ export async function resolvePersonReferences(icgIds: string[]): Promise<Map<str
   for (const icgId of ids) {
     const person = personByIcg.get(icgId)
     const headshot = person ? headshots.get(person.id) : undefined
-    const contact = contactByIcg.get(icgId)
     const cat = catalogueByIcg.get(icgId)
     const covers = coversByIcg.get(icgId) ?? []
 
     const [avatarUrl, kind]: [string | null, PersonReferenceKind] = headshot?.thumbUrl
       ? [headshot.thumbUrl, 'person']
-      : contact?.thumbUrl
-        ? [contact.thumbUrl, 'contact']
-        : cat?.key
-          ? [buildUrl(cat.key), 'catalogue']
-          : covers[0]
-            ? [covers[0], 'archive']
-            : [null, 'none']
+      : cat?.key
+        ? [buildUrl(cat.key), 'catalogue']
+        : covers[0]
+          ? [covers[0], 'archive']
+          : [null, 'none']
 
     out.set(icgId, {
       icgId,

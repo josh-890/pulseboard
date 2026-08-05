@@ -22,6 +22,43 @@ export function buildUrl(key: string): string {
   return `${getBaseUrl()}/${key}`;
 }
 
+
+/**
+ * Keep a stored URL only if it points at our own media.
+ *
+ * Harvested URL fields (`Contact.thumbUrl`, some `StagingSet.coverImageUrl`) are
+ * **provenance, not a rendering source**. They point at the source site, which is
+ * hotlink-protected: 200 to a request with no `Referer`, 403 to a browser, which
+ * always sends one. Rendering them produces a broken-image icon — worse than a
+ * placeholder — and every attempt leaks a referrer to a third party.
+ *
+ * `next.config.ts` already restricts `images.remotePatterns` to the MinIO host,
+ * but that binds `next/image` only; a raw `<img src>` walks straight past it.
+ * So the guard belongs where the URL leaves the service layer.
+ *
+ * Returns null for anything not ours, so callers fall back to initials or a
+ * placeholder. If a remote image is genuinely wanted, import it into MinIO with
+ * an agent instead of hotlinking it.
+ */
+export function localMediaUrlOrNull(url: string | null | undefined): string | null {
+  if (!url) return null;
+  // Same-origin paths are served by us.
+  if (url.startsWith("/")) return url;
+  let host: string;
+  try {
+    host = new URL(url).host;
+  } catch {
+    return null;
+  }
+  let ourHost: string;
+  try {
+    ourHost = new URL(getBaseUrl()).host;
+  } catch {
+    return null;
+  }
+  return host === ourHost ? url : null;
+}
+
 /** Build a full set of photo URLs from variants and optional fileRef fallback. */
 export function buildPhotoUrls(variants: PhotoVariants, fileRef?: string | null): PhotoUrls {
   // urls.original = best full-quality source (master_4000 for new uploads, original for legacy)

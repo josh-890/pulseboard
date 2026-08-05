@@ -7,7 +7,7 @@ import type { FolderCandidate } from '@/lib/attribution-candidates'
 export type PersonReference = {
   icgId: string
   avatarUrl: string | null
-  kind: 'person' | 'contact' | 'catalogue' | 'archive' | 'none'
+  kind: 'person' | 'catalogue' | 'archive' | 'none'
   sampleCovers: string[]
   personId: string | null
 }
@@ -161,7 +161,6 @@ export function AttributionDecisionBar({
 
 const REFERENCE_LABEL: Record<PersonReference['kind'], string | undefined> = {
   person: 'curated',
-  contact: 'contact',
   catalogue: 'catalogue',
   archive: 'from archive',
   none: undefined,

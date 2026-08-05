@@ -7,6 +7,7 @@
  */
 
 import { prisma } from '@/lib/db'
+import { localMediaUrlOrNull } from '@/lib/media-url'
 import { normalizeForSearch } from '@/lib/normalize'
 import { ArchiveLinkStatus } from '@/generated/prisma/client'
 import type { ChannelTier, DatePrecision, Prisma, StagingSet, StagingSetStatus } from '@/generated/prisma/client'
@@ -201,7 +202,10 @@ export async function getStagingWorkHistoryForPerson(personId: string): Promise<
       releaseDatePrecision: s.releaseDatePrecision,
       isVideo: s.isVideo,
       externalId: s.externalId,
-      coverImageUrl: s.coverImageUrl,
+      // Harvested cover URLs point at the source site, which is hotlink-protected
+      // (403 to any browser). Provenance stays in the column; only our own media
+      // is handed to the UI.
+      coverImageUrl: localMediaUrlOrNull(s.coverImageUrl),
       labelId: labelRow?.id ?? null,
       labelName: labelRow?.name ?? null,
       archiveStatus: confirmed?.archiveStatus ?? null,
