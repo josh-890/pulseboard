@@ -42,7 +42,8 @@
     .\archive-rebake.ps1 -BaseUrl http://10.66.20.65:3000 -ApiKey s3cr3t -Tenant pulse -DryRun
 
 .NOTES
-    Requires Windows PowerShell 5.1+ (uses System.Drawing / GDI+). No external deps.
+    Requires PowerShell 7+ on Windows: 7 for the `??` operator used below,
+    Windows for System.Drawing / GDI+. No external deps.
 #>
 
 [CmdletBinding()]

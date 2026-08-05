@@ -132,7 +132,8 @@
     .\archive-scan.ps1 -Mode Full
 
 .NOTES
-    Requires PowerShell 5.1 or later (Windows 10/11 built-in).
+    Requires PowerShell 7+ (the `??` operator below is 7-only; the 5.1 that ships
+    with Windows cannot parse this file).
     No external dependencies.
 
     Targeted mode:

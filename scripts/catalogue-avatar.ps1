@@ -29,7 +29,9 @@
       * decoding is never loosened to make a corrupt file pass; clean or re-encode
         the source instead
 
-    Requires Windows PowerShell 5.1+ (System.Drawing / GDI+). No external deps.
+    Requires PowerShell 7+ on Windows: 7 for the `??` operator used below,
+    Windows for System.Drawing / GDI+. No external deps. Run it from a pwsh
+    prompt — double-clicking a .ps1 opens it in an editor, it does not run it.
 
 .EXAMPLE
     .\catalogue-avatar.ps1 -CatalogueRoot "H:\Models\thenude"

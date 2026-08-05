@@ -45,7 +45,9 @@
     .\archive-cover.ps1 -BaseUrl http://10.66.20.65:3000 -Tenant xpulse -Limit 50 -DryRun
 
 .NOTES
-    Requires Windows PowerShell 5.1+ (System.Drawing / GDI+). No external deps.
+    Requires PowerShell 7+ on Windows: 7 for the `??` operator used below,
+    Windows for System.Drawing / GDI+. No external deps. Run it from a pwsh
+    prompt — double-clicking a .ps1 opens it in an editor, it does not run it.
 #>
 
 [CmdletBinding()]
