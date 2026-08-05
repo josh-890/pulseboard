@@ -4,7 +4,19 @@ import { isSingleTenantMode } from "@/lib/tenants";
 
 // Routes that don't require authentication
 const PUBLIC_PATHS = ["/login", "/api/health"];
-const PUBLIC_PREFIXES = ["/_next/", "/favicon.ico", "/flags/", "/api/archive/"];
+// "Public" here means "not behind the session cookie" — the agent endpoints do
+// their own auth with ARCHIVE_API_KEY. Every agent prefix must be listed, or the
+// middleware redirects the request to /login and the agent sees a 307 followed by
+// a page of HTML instead of its endpoint. That is not a loud failure: it looks
+// like a missing route, and it cost a full debugging round when
+// /api/catalogue/ was added without this line.
+const PUBLIC_PREFIXES = [
+  "/_next/",
+  "/favicon.ico",
+  "/flags/",
+  "/api/archive/",
+  "/api/catalogue/",
+];
 
 function isPublicPath(pathname: string): boolean {
   if (PUBLIC_PATHS.includes(pathname)) return true;
