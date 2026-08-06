@@ -10,9 +10,12 @@ export default function WorkbenchLoading() {
 
       <div className="flex min-h-0 flex-1">
         <div className="flex flex-1 flex-col p-4">
-          {/* The cover frame, with the identity overlay in its top corners. */}
+          {/* The title, centred directly above the cover; the face inset in the
+              frame's top-right corner. */}
+          <div className="flex h-14 w-full max-w-3xl flex-col justify-end self-center pb-1">
+            <div className="mx-auto h-4 w-72 animate-pulse rounded bg-muted/40" />
+          </div>
           <div className="relative min-h-0 w-full flex-1 animate-pulse rounded bg-muted/40">
-            <div className="absolute left-0 top-0 h-8 w-64 rounded-md bg-muted/60" />
             <div className="absolute right-0 top-0 h-24 w-40 rounded-md bg-muted/60" />
           </div>
         </div>

@@ -523,24 +523,29 @@ function useLetterboxColumn(ref: React.RefObject<HTMLImageElement | null>, cover
  * on the cover — about 10° of visual angle, where the useful field is 1–2°. Every
  * folder cost a look down and a look back: 30–120 ms of movement plus a ~200 ms
  * refractory period each way, twice per folder, across groups of 150. Lightroom's
- * Loupe Info overlay is the settled answer, and this is it — identity on the item,
- * top-left, with `I` cycling how much it says.
+ * Loupe Info overlay is the settled answer — identity next to the item, with `I`
+ * cycling how much it says.
  *
- * Two details carry the whole idea:
+ * Three details carry the whole idea:
  *
- * **The overlay is anchored to the frame, not to the photo.** A 3:4 cover in a
- * wide main area leaves empty letterbox columns — on a 832 × 512 frame they are
- * 224 px wide — and the corners of the *frame* fall inside them. So on the
- * portrait covers that dominate this archive nothing is occluded, even though a
- * portrait puts its face exactly where a naive top-left overlay would land. The
- * column is measured rather than assumed, because it depends on a cover's aspect:
- * when it is too narrow to hold text (a wide videoset still that fills the frame)
- * the blocks fall back to lying on the image, which is what their scrim and `I`
- * are for — the same escape hatch Lightroom gives.
+ * **The name sits directly above the cover, on its centre line.** An overlay in a
+ * corner is closer than the old caption but still off to one side; centred, the
+ * eye leaves the face straight upwards with no horizontal component, and the
+ * shortest saccade is the one that only moves in one axis. Above rather than on
+ * the picture also means it never covers the face being judged, whatever the
+ * cover's aspect.
  *
- * **The frame is a constant size.** Successive covers differ in aspect; if the box
- * resized per folder, the eye would have to re-find the subject after every
- * keystroke, spending back what the overlay saves.
+ * **The face inset is width-capped to the measured letterbox column.** A 3:4 cover
+ * in a wide frame leaves empty columns — 224 px on an 832 × 512 frame — and the
+ * inset lives in one of them. The column is measured rather than assumed because
+ * it depends on the cover; when it is too narrow (a wide videoset still that fills
+ * the frame) the inset falls back onto the image behind its scrim, which is what
+ * `I` is for — the same escape hatch Lightroom gives.
+ *
+ * **The frame is a constant size.** Successive covers differ in aspect, and the
+ * title row holds a fixed height per level, so the cover lands in the same place
+ * every time. If the box moved per folder the eye would have to re-find the
+ * subject after every keystroke, spending back what the placement saves.
  */
 function LoupeView({
   folder,
@@ -563,76 +568,80 @@ function LoupeView({
   const capped = column >= MIN_OVERLAY_WIDTH ? { maxWidth: column } : undefined
 
   return (
-    <div className="relative min-h-0 w-full flex-1">
-      {folder.coverUrl ? (
-        // eslint-disable-next-line @next/next/no-img-element -- MinIO URL
-        <img
-          ref={imgRef}
-          src={folder.coverUrl}
-          alt=""
-          className="absolute inset-0 h-full w-full object-contain"
-        />
-      ) : (
-        <span className="absolute inset-0 flex items-center justify-center text-muted-foreground">
-          <Icon className="h-8 w-8" />
-        </span>
+    <div className="flex min-h-0 w-full flex-1 flex-col items-center">
+      {/* Directly above the cover, on the cover's own centre line: the eye leaves
+          the face straight upwards, with no horizontal component at all.
+
+          The row keeps a fixed height per overlay level and hangs its content from
+          the bottom, so a folder with an extra line does not push the cover down —
+          the frame below must stay put from folder to folder. */}
+      {overlay !== 'off' && (
+        <div
+          className={cn(
+            'flex w-full max-w-3xl shrink-0 flex-col justify-end overflow-hidden px-2 pb-1 text-center',
+            overlay === 'detail' ? 'h-[4.5rem]' : 'h-14',
+          )}
+        >
+          <p className="line-clamp-2 text-sm font-medium leading-snug" title={folder.fullPath}>
+            {folder.folderName}
+          </p>
+          {folder.attributions.length > 0 && (
+            <p className="flex flex-wrap justify-center gap-x-2 text-xs text-emerald-700 dark:text-emerald-400">
+              {folder.attributions.map((a) => (
+                <PersonIdentity key={a.icgId} name={a.name} icgId={a.icgId} />
+              ))}
+            </p>
+          )}
+          {overlay === 'detail' && matcher && (
+            <p
+              className={cn(
+                'truncate text-xs leading-snug',
+                matcher.agrees.date || matcher.agrees.title
+                  ? 'text-muted-foreground'
+                  : 'text-amber-600 dark:text-amber-400',
+              )}
+            >
+              matcher: {matcher.title}
+              {matcher.channelName && ` · ${matcher.channelName}`}
+              {matcher.releaseDate && ` · ${matcher.releaseDate}`}
+            </p>
+          )}
+        </div>
       )}
 
-      {overlay !== 'off' && (
-        <>
-          {/* Top-left: what this folder is. */}
+      <div className="relative min-h-0 w-full flex-1">
+        {folder.coverUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element -- MinIO URL
+          <img
+            ref={imgRef}
+            src={folder.coverUrl}
+            alt=""
+            className="absolute inset-0 h-full w-full object-contain"
+          />
+        ) : (
+          <span className="absolute inset-0 flex items-center justify-center text-muted-foreground">
+            <Icon className="h-8 w-8" />
+          </span>
+        )}
+
+        {/* Top-right: who we are asking about — the face, within the same look. */}
+        {overlay !== 'off' && subject && (
           <div
             style={capped}
-            className="absolute left-0 top-0 max-w-[55%] rounded-md bg-background/75 px-2 py-1.5 backdrop-blur-sm"
+            className="absolute right-0 top-0 flex max-w-[35%] items-start gap-1.5 rounded-md bg-background/75 p-1.5 backdrop-blur-sm"
           >
-            {/* Three lines, because a capped column wraps a long folder name and
-                the name is the densest thing on the screen — clipping it would
-                undo the point of moving it here. */}
-            <p className="line-clamp-3 text-sm font-medium leading-snug" title={folder.fullPath}>
-              {folder.folderName}
-            </p>
-            {folder.attributions.length > 0 && (
-              <p className="mt-0.5 flex flex-wrap gap-x-2 text-xs text-emerald-700 dark:text-emerald-400">
-                {folder.attributions.map((a) => (
-                  <PersonIdentity key={a.icgId} name={a.name} icgId={a.icgId} />
-                ))}
-              </p>
+            {reference?.avatarUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element -- MinIO URL
+              <img src={reference.avatarUrl} alt="" className="h-24 w-16 shrink-0 rounded object-cover" />
+            ) : (
+              <span className="flex h-24 w-16 shrink-0 items-center justify-center rounded bg-muted text-center text-[10px] text-muted-foreground">
+                no face
+              </span>
             )}
-            {overlay === 'detail' && matcher && (
-              <p
-                className={cn(
-                  'mt-0.5 line-clamp-2 text-xs leading-snug',
-                  matcher.agrees.date || matcher.agrees.title
-                    ? 'text-muted-foreground'
-                    : 'text-amber-600 dark:text-amber-400',
-                )}
-              >
-                matcher: {matcher.title}
-                {matcher.channelName && ` · ${matcher.channelName}`}
-                {matcher.releaseDate && ` · ${matcher.releaseDate}`}
-              </p>
-            )}
+            <PersonIdentity name={subject.name} icgId={subject.icgId} className="min-w-0 pt-0.5 text-xs" />
           </div>
-
-          {/* Top-right: who we are asking about — the face, within the same look. */}
-          {subject && (
-            <div
-              style={capped}
-              className="absolute right-0 top-0 flex max-w-[35%] items-start gap-1.5 rounded-md bg-background/75 p-1.5 backdrop-blur-sm"
-            >
-              {reference?.avatarUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element -- MinIO URL
-                <img src={reference.avatarUrl} alt="" className="h-24 w-16 shrink-0 rounded object-cover" />
-              ) : (
-                <span className="flex h-24 w-16 shrink-0 items-center justify-center rounded bg-muted text-center text-[10px] text-muted-foreground">
-                  no face
-                </span>
-              )}
-              <PersonIdentity name={subject.name} icgId={subject.icgId} className="min-w-0 pt-0.5 text-xs" />
-            </div>
-          )}
-        </>
-      )}
+        )}
+      </div>
     </div>
   )
 }

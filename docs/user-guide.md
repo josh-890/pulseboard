@@ -1178,11 +1178,12 @@ At group level only two verdicts remain, because only they are really about a wh
 A large cover in the middle, the person on the right, a filmstrip of the whole group along the
 bottom so you never lose your place.
 
-Everything the decision needs sits **on** the cover: the folder name in the top-left corner, the
-face you are matching against in the top-right. It used to sit under the picture, which cost a
-look down and a look back for every single folder — a few hundred pixels each way, over groups
-of 150. Where the cover does not fill the frame the overlay lies in the empty column beside it
-and hides nothing; where it does, `I` gets it out of the way.
+Everything the decision needs sits with the cover: the folder name **centred directly above it**,
+the face you are matching against in the picture's top-right corner. The name used to sit under
+the picture, which cost a look down and a look back for every single folder — a few hundred
+pixels each way, over groups of 150. Above the cover and on its centre line, the eye moves
+straight up and back, and nothing ever covers the face you are judging. `I` gets it all out of
+the way when you want only the picture.
 
 It asks in one of two directions, and picks the right one for the group:
 
