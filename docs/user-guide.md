@@ -1176,8 +1176,15 @@ At group level only two verdicts remain, because only they are really about a wh
 ##### The workbench
 
 A large cover in the middle, the person on the right, a filmstrip of the whole group along the
-bottom so you never lose your place. It asks in one of two directions, and picks the right one
-for the group:
+bottom so you never lose your place.
+
+Everything the decision needs sits **on** the cover: the folder name in the top-left corner, the
+face you are matching against in the top-right. It used to sit under the picture, which cost a
+look down and a look back for every single folder — a few hundred pixels each way, over groups
+of 150. Where the cover does not fill the frame the overlay lies in the empty column beside it
+and hides nothing; where it does, `I` gets it out of the way.
+
+It asks in one of two directions, and picks the right one for the group:
 
 **Person-led** — when one person clearly dominates the group (`MPL | nata`: 80 of 83). Their
 face is pinned on the right and every folder asks the same yes-or-no question. This is the fast
@@ -1208,7 +1215,11 @@ And in both directions:
 | `/` | search for someone the matcher never proposed |
 | `M` | switch between the two directions |
 | `G` | contact sheet — for "are these the same person?" |
+| `I` | how much the overlay says: name → name, channel and date → off |
+| `T` | show or hide the filmstrip — nothing below the image at all |
 | `Esc` | back to the queue you came from |
+
+`I` and `T` are remembered, so a way of working set up once is still there next time.
 
 Decided folders leave the grid **and** the keyboard's path, so a group shortens as you work.
 The `open / all / decided` switch brings them back. When the last folder is answered, the

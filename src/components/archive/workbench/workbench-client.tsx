@@ -7,13 +7,21 @@ import { ArrowRight, Camera, Film, Grid2x2, Loader2, Rows3 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { candidatesForFolder, type FolderCandidate } from '@/lib/attribution-candidates'
 import {
+  DEFAULT_VIEW_PREFS,
+  MIN_OVERLAY_WIDTH,
   defaultMode,
   dominantCandidate,
+  letterboxColumn,
   nextIndexAfterDecision,
+  nextOverlayLevel,
   preloadWindow,
+  readViewPrefs,
   sessionFolders,
   sessionProgress,
+  writeViewPrefs,
+  type OverlayLevel,
   type WorkbenchMode,
+  type WorkbenchViewPrefs,
 } from '@/lib/workbench-session'
 import {
   confirmFolderAction,
@@ -83,7 +91,24 @@ export function WorkbenchClient({ data, from = 'open' }: { data: WorkbenchData; 
   const [busy, setBusy] = useState(false)
   const [pickerOpen, setPickerOpen] = useState(false)
   const [flash, setFlash] = useState<string | null>(null)
+  const [prefs, setPrefs] = useState<WorkbenchViewPrefs>(DEFAULT_VIEW_PREFS)
   const shellRef = useRef<HTMLDivElement>(null)
+
+  const store = () => (typeof window === 'undefined' ? undefined : window.localStorage)
+
+  // localStorage does not exist during SSR, so both sides render the defaults and
+  // the stored preference lands after mount — the codebase's usual mounted gate.
+  useEffect(() => {
+    setPrefs(readViewPrefs(store()))
+  }, [])
+
+  const updatePrefs = useCallback((patch: Partial<WorkbenchViewPrefs>) => {
+    setPrefs((p) => {
+      const next = { ...p, ...patch }
+      writeViewPrefs(store(), next)
+      return next
+    })
+  }, [])
 
   const refMap = useMemo(() => new Map(data.references.map((r) => [r.icgId, r])), [data.references])
   const visible = useMemo(() => sessionFolders(folders, filter), [folders, filter])
@@ -272,6 +297,16 @@ export function WorkbenchClient({ data, from = 'open' }: { data: WorkbenchData; 
           e.preventDefault()
           setView((v) => (v === 'grid' ? 'loupe' : 'grid'))
           break
+        case 'i':
+          // Lightroom's key for exactly this job: how much the overlay says.
+          e.preventDefault()
+          updatePrefs({ overlay: nextOverlayLevel(prefs.overlay) })
+          break
+        case 't':
+          // Nothing below the image at all, for a fast pass.
+          e.preventDefault()
+          updatePrefs({ filmstrip: !prefs.filmstrip })
+          break
         case '/':
           e.preventDefault()
           setPickerOpen(true)
@@ -282,7 +317,24 @@ export function WorkbenchClient({ data, from = 'open' }: { data: WorkbenchData; 
           break
       }
     },
-    [pickerOpen, candidates, visible.length, mode, pinned, current, nameOf, confirmWith, rejectTop, skip, undo, router, queueHref],
+    [
+      pickerOpen,
+      candidates,
+      visible.length,
+      mode,
+      pinned,
+      current,
+      nameOf,
+      confirmWith,
+      rejectTop,
+      skip,
+      undo,
+      router,
+      queueHref,
+      prefs.overlay,
+      prefs.filmstrip,
+      updatePrefs,
+    ],
   )
 
   const groupLabel = `${data.channelShortName ?? '?'} · alias "${data.aliasToken ?? '—'}"`
@@ -338,6 +390,20 @@ export function WorkbenchClient({ data, from = 'open' }: { data: WorkbenchData; 
           {mode === 'person' ? 'person-led' : 'folder-led'} · M
         </button>
         <button
+          onClick={() => updatePrefs({ overlay: nextOverlayLevel(prefs.overlay) })}
+          className="rounded border border-border/60 px-2 py-0.5 text-xs text-muted-foreground hover:text-foreground"
+          title="How much the overlay on the cover says (I)"
+        >
+          info: {prefs.overlay} · I
+        </button>
+        <button
+          onClick={() => updatePrefs({ filmstrip: !prefs.filmstrip })}
+          className="rounded border border-border/60 px-2 py-0.5 text-xs text-muted-foreground hover:text-foreground"
+          title="Show or hide the filmstrip (T)"
+        >
+          strip: {prefs.filmstrip ? 'on' : 'off'} · T
+        </button>
+        <button
           onClick={() => setView((v) => (v === 'grid' ? 'loupe' : 'grid'))}
           className="inline-flex items-center gap-1 rounded border border-border/60 px-2 py-0.5 text-xs text-muted-foreground hover:text-foreground"
           title="Grid compares folders against each other (G)"
@@ -351,7 +417,7 @@ export function WorkbenchClient({ data, from = 'open' }: { data: WorkbenchData; 
       </header>
 
       <div className="flex min-h-0 flex-1">
-        <main className="flex min-w-0 flex-1 flex-col items-center justify-center gap-2 p-4">
+        <main className="flex min-w-0 flex-1 flex-col items-center justify-center p-4">
           {progress.finished ? (
             <FinishedPanel
               nextHref={
@@ -364,7 +430,12 @@ export function WorkbenchClient({ data, from = 'open' }: { data: WorkbenchData; 
           ) : view === 'grid' ? (
             <GridView folders={visible} currentId={current?.id ?? null} onJump={(id) => setIndex(visible.findIndex((f) => f.id === id))} />
           ) : current ? (
-            <LoupeView folder={current} />
+            <LoupeView
+              folder={current}
+              overlay={prefs.overlay}
+              subject={subject}
+              reference={subject ? refMap.get(subject.icgId) : undefined}
+            />
           ) : (
             <p className="text-sm text-muted-foreground">Nothing in this view.</p>
           )}
@@ -388,11 +459,13 @@ export function WorkbenchClient({ data, from = 'open' }: { data: WorkbenchData; 
         />
       </div>
 
-      <WorkbenchFilmstrip
-        items={visible.map((f) => ({ id: f.id, coverUrl: f.coverUrl, identity: f.identity }))}
-        currentId={current?.id ?? null}
-        onJump={(id) => setIndex(visible.findIndex((f) => f.id === id))}
-      />
+      {prefs.filmstrip && (
+        <WorkbenchFilmstrip
+          items={visible.map((f) => ({ id: f.id, coverUrl: f.coverUrl, identity: f.identity }))}
+          currentId={current?.id ?? null}
+          onJump={(id) => setIndex(visible.findIndex((f) => f.id === id))}
+        />
+      )}
 
       <PersonAssignPicker
         open={pickerOpen}
@@ -411,46 +484,156 @@ export function WorkbenchClient({ data, from = 'open' }: { data: WorkbenchData; 
   )
 }
 
-/** The cover, as large as the screen allows and never cropped. */
-function LoupeView({ folder }: { folder: WorkbenchFolder }) {
+/**
+ * The measured width of one empty column beside the cover.
+ *
+ * Re-measured when the cover changes and when the frame resizes; nothing else can
+ * move it. The arithmetic itself lives in `letterboxColumn`, where it is tested.
+ */
+function useLetterboxColumn(ref: React.RefObject<HTMLImageElement | null>, coverUrl: string | null): number {
+  const [column, setColumn] = useState(0)
+
+  useEffect(() => {
+    const el = ref.current
+    const measure = () => {
+      if (!el) return setColumn(0)
+      const box = el.getBoundingClientRect()
+      setColumn(letterboxColumn(box, { width: el.naturalWidth, height: el.naturalHeight }))
+    }
+    // Measure straight away — a cached cover is already complete and will fire no
+    // load event — then again when one arrives, and whenever the frame resizes.
+    measure()
+    if (!el) return
+    el.addEventListener('load', measure)
+    const ro = new ResizeObserver(measure)
+    ro.observe(el)
+    return () => {
+      el.removeEventListener('load', measure)
+      ro.disconnect()
+    }
+  }, [ref, coverUrl])
+
+  return column
+}
+
+/**
+ * The cover, with everything the decision needs inside one fixation.
+ *
+ * The folder name used to sit under the image, ~370 px below where the eye rests
+ * on the cover — about 10° of visual angle, where the useful field is 1–2°. Every
+ * folder cost a look down and a look back: 30–120 ms of movement plus a ~200 ms
+ * refractory period each way, twice per folder, across groups of 150. Lightroom's
+ * Loupe Info overlay is the settled answer, and this is it — identity on the item,
+ * top-left, with `I` cycling how much it says.
+ *
+ * Two details carry the whole idea:
+ *
+ * **The overlay is anchored to the frame, not to the photo.** A 3:4 cover in a
+ * wide main area leaves empty letterbox columns — on a 832 × 512 frame they are
+ * 224 px wide — and the corners of the *frame* fall inside them. So on the
+ * portrait covers that dominate this archive nothing is occluded, even though a
+ * portrait puts its face exactly where a naive top-left overlay would land. The
+ * column is measured rather than assumed, because it depends on a cover's aspect:
+ * when it is too narrow to hold text (a wide videoset still that fills the frame)
+ * the blocks fall back to lying on the image, which is what their scrim and `I`
+ * are for — the same escape hatch Lightroom gives.
+ *
+ * **The frame is a constant size.** Successive covers differ in aspect; if the box
+ * resized per folder, the eye would have to re-find the subject after every
+ * keystroke, spending back what the overlay saves.
+ */
+function LoupeView({
+  folder,
+  overlay,
+  reference,
+  subject,
+}: {
+  folder: WorkbenchFolder
+  overlay: OverlayLevel
+  reference: PersonReference | undefined
+  /** Who the question is about — the pinned person, or this folder's best candidate. */
+  subject: FolderCandidate | null
+}) {
   const Icon = folder.isVideo ? Film : Camera
+  const matcher = folder.matcherSuggestion
+  const imgRef = useRef<HTMLImageElement>(null)
+  const column = useLetterboxColumn(imgRef, folder.coverUrl)
+  // Below this a column holds nothing legible, so the block is allowed onto the
+  // image instead of being squeezed into a word-per-line ribbon.
+  const capped = column >= MIN_OVERLAY_WIDTH ? { maxWidth: column } : undefined
+
   return (
-    <>
-      <div className="flex min-h-0 flex-1 items-center justify-center">
-        {folder.coverUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element -- MinIO URL
-          <img src={folder.coverUrl} alt="" className="max-h-full max-w-full object-contain" />
-        ) : (
-          <span className="flex h-64 w-48 items-center justify-center rounded bg-muted text-muted-foreground">
-            <Icon className="h-8 w-8" />
-          </span>
-        )}
-      </div>
-      <div className="w-full max-w-2xl shrink-0 space-y-0.5 text-center">
-        <p className="truncate text-sm" title={folder.fullPath}>
-          {folder.folderName}
-        </p>
-        {folder.attributions.length > 0 ? (
-          <p className="flex justify-center gap-2 text-xs text-emerald-700 dark:text-emerald-400">
-            {folder.attributions.map((a) => (
-              <PersonIdentity key={a.icgId} name={a.name} icgId={a.icgId} />
-            ))}
-          </p>
-        ) : folder.matcherSuggestion ? (
-          <p
-            className={cn(
-              'truncate text-xs',
-              folder.matcherSuggestion.agrees.date || folder.matcherSuggestion.agrees.title
-                ? 'text-muted-foreground'
-                : 'text-amber-600 dark:text-amber-400',
-            )}
+    <div className="relative min-h-0 w-full flex-1">
+      {folder.coverUrl ? (
+        // eslint-disable-next-line @next/next/no-img-element -- MinIO URL
+        <img
+          ref={imgRef}
+          src={folder.coverUrl}
+          alt=""
+          className="absolute inset-0 h-full w-full object-contain"
+        />
+      ) : (
+        <span className="absolute inset-0 flex items-center justify-center text-muted-foreground">
+          <Icon className="h-8 w-8" />
+        </span>
+      )}
+
+      {overlay !== 'off' && (
+        <>
+          {/* Top-left: what this folder is. */}
+          <div
+            style={capped}
+            className="absolute left-0 top-0 max-w-[55%] rounded-md bg-background/75 px-2 py-1.5 backdrop-blur-sm"
           >
-            matcher: {folder.matcherSuggestion.title}
-            {folder.matcherSuggestion.releaseDate && ` · ${folder.matcherSuggestion.releaseDate}`}
-          </p>
-        ) : null}
-      </div>
-    </>
+            {/* Three lines, because a capped column wraps a long folder name and
+                the name is the densest thing on the screen — clipping it would
+                undo the point of moving it here. */}
+            <p className="line-clamp-3 text-sm font-medium leading-snug" title={folder.fullPath}>
+              {folder.folderName}
+            </p>
+            {folder.attributions.length > 0 && (
+              <p className="mt-0.5 flex flex-wrap gap-x-2 text-xs text-emerald-700 dark:text-emerald-400">
+                {folder.attributions.map((a) => (
+                  <PersonIdentity key={a.icgId} name={a.name} icgId={a.icgId} />
+                ))}
+              </p>
+            )}
+            {overlay === 'detail' && matcher && (
+              <p
+                className={cn(
+                  'mt-0.5 line-clamp-2 text-xs leading-snug',
+                  matcher.agrees.date || matcher.agrees.title
+                    ? 'text-muted-foreground'
+                    : 'text-amber-600 dark:text-amber-400',
+                )}
+              >
+                matcher: {matcher.title}
+                {matcher.channelName && ` · ${matcher.channelName}`}
+                {matcher.releaseDate && ` · ${matcher.releaseDate}`}
+              </p>
+            )}
+          </div>
+
+          {/* Top-right: who we are asking about — the face, within the same look. */}
+          {subject && (
+            <div
+              style={capped}
+              className="absolute right-0 top-0 flex max-w-[35%] items-start gap-1.5 rounded-md bg-background/75 p-1.5 backdrop-blur-sm"
+            >
+              {reference?.avatarUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element -- MinIO URL
+                <img src={reference.avatarUrl} alt="" className="h-24 w-16 shrink-0 rounded object-cover" />
+              ) : (
+                <span className="flex h-24 w-16 shrink-0 items-center justify-center rounded bg-muted text-center text-[10px] text-muted-foreground">
+                  no face
+                </span>
+              )}
+              <PersonIdentity name={subject.name} icgId={subject.icgId} className="min-w-0 pt-0.5 text-xs" />
+            </div>
+          )}
+        </>
+      )}
+    </div>
   )
 }
 

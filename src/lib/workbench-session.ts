@@ -110,3 +110,93 @@ export function preloadWindow<T>(items: T[], index: number, ahead = 3, behind = 
   }
   return out
 }
+
+/**
+ * How much the on-cover overlay says.
+ *
+ * The folder name used to sit below the image — about 370 px from where the eye
+ * rests on the cover, roughly 10° of visual angle. Useful vision is 1–2°, and a
+ * saccade costs 30–120 ms of movement plus a ~200 ms refractory period with
+ * almost no intake in between; two of those per folder is a minute of pure eye
+ * travel over a 150-folder group. So the identity moves onto the item, which is
+ * what Lightroom's Loupe Info overlay has always done.
+ *
+ * `off` exists for the same reason Lightroom's does: on a cover that fills the
+ * frame the overlay lands on the picture, and sometimes the picture wins.
+ */
+export type OverlayLevel = 'off' | 'name' | 'detail'
+
+/** Cycles name → detail → off, so the useful states come first. */
+export function nextOverlayLevel(level: OverlayLevel): OverlayLevel {
+  return level === 'name' ? 'detail' : level === 'detail' ? 'off' : 'name'
+}
+
+export type WorkbenchViewPrefs = {
+  overlay: OverlayLevel
+  filmstrip: boolean
+}
+
+export const DEFAULT_VIEW_PREFS: WorkbenchViewPrefs = { overlay: 'name', filmstrip: true }
+
+const PREFS_KEY = 'pulseboard.workbench.view'
+
+/** A minimal storage shape, so the round-trip is testable without a browser. */
+export type PrefStore = Pick<Storage, 'getItem' | 'setItem'>
+
+/**
+ * View preferences survive the session.
+ *
+ * A habit formed while working through one group should still be there for the
+ * next one; having to press `T` again every time is its own small friction.
+ * Anything unparseable falls back to the defaults rather than throwing — a
+ * corrupted preference must never keep the workbench from opening.
+ */
+export function readViewPrefs(store: PrefStore | undefined): WorkbenchViewPrefs {
+  if (!store) return DEFAULT_VIEW_PREFS
+  try {
+    const raw = store.getItem(PREFS_KEY)
+    if (!raw) return DEFAULT_VIEW_PREFS
+    const parsed = JSON.parse(raw) as Partial<WorkbenchViewPrefs>
+    return {
+      overlay:
+        parsed.overlay === 'off' || parsed.overlay === 'name' || parsed.overlay === 'detail'
+          ? parsed.overlay
+          : DEFAULT_VIEW_PREFS.overlay,
+      filmstrip: typeof parsed.filmstrip === 'boolean' ? parsed.filmstrip : DEFAULT_VIEW_PREFS.filmstrip,
+    }
+  } catch {
+    return DEFAULT_VIEW_PREFS
+  }
+}
+
+export function writeViewPrefs(store: PrefStore | undefined, prefs: WorkbenchViewPrefs): void {
+  try {
+    store?.setItem(PREFS_KEY, JSON.stringify(prefs))
+  } catch {
+    // A full or blocked storage is not a reason to interrupt the work.
+  }
+}
+
+/**
+ * The width of one empty column beside a cover drawn with `object-contain`.
+ *
+ * The browser knows where it painted the photo but will not say, so it is derived
+ * from the natural size and the box it was fitted into. This is what decides
+ * whether the identity overlay can sit *beside* a portrait cover instead of on
+ * top of it — the difference between reading the folder name and hiding the face
+ * being judged.
+ *
+ * Returns 0 for anything degenerate (an image that has not loaded, a zero-sized
+ * box), which the caller reads as "no room" and falls back to the scrim.
+ */
+export function letterboxColumn(
+  box: { width: number; height: number },
+  natural: { width: number; height: number },
+): number {
+  if (box.width <= 0 || box.height <= 0 || natural.width <= 0 || natural.height <= 0) return 0
+  const scale = Math.min(box.width / natural.width, box.height / natural.height)
+  return Math.max(0, (box.width - natural.width * scale) / 2)
+}
+
+/** Narrower than this and a column holds no readable line, only a stack of words. */
+export const MIN_OVERLAY_WIDTH = 170

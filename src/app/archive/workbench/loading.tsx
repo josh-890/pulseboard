@@ -9,8 +9,12 @@ export default function WorkbenchLoading() {
       </div>
 
       <div className="flex min-h-0 flex-1">
-        <div className="flex flex-1 items-center justify-center p-4">
-          <div className="h-full max-h-[70vh] w-full max-w-md animate-pulse rounded bg-muted/40" />
+        <div className="flex flex-1 flex-col p-4">
+          {/* The cover frame, with the identity overlay in its top corners. */}
+          <div className="relative min-h-0 w-full flex-1 animate-pulse rounded bg-muted/40">
+            <div className="absolute left-0 top-0 h-8 w-64 rounded-md bg-muted/60" />
+            <div className="absolute right-0 top-0 h-24 w-40 rounded-md bg-muted/60" />
+          </div>
         </div>
         <div className="w-72 shrink-0 space-y-3 border-l border-border/60 p-3">
           <div className="flex gap-3">

@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import {
+  DEFAULT_VIEW_PREFS,
+  MIN_OVERLAY_WIDTH,
   PERSON_LED_THRESHOLD,
+  letterboxColumn,
+  nextOverlayLevel,
+  readViewPrefs,
+  writeViewPrefs,
   defaultMode,
   dominantCandidate,
   nextIndexAfterDecision,
@@ -8,7 +14,18 @@ import {
   sessionFolders,
   sessionProgress,
   type SessionFolder,
+  type WorkbenchViewPrefs,
 } from '@/lib/workbench-session'
+
+/** An in-memory Storage stand-in, so the round-trip needs no browser. */
+function memoryStore() {
+  const map = new Map<string, string>()
+  return {
+    getItem: (k: string) => map.get(k) ?? null,
+    setItem: (k: string, v: string) => void map.set(k, v),
+    raw: map,
+  }
+}
 
 const v = (icgId: string, folders: number) => ({ icgId, name: icgId, folders })
 const f = (id: string, identity: SessionFolder['identity'] = 'OPEN'): SessionFolder => ({
@@ -115,5 +132,80 @@ describe('preloadWindow', () => {
   it('copes with a single item and an empty list', () => {
     expect(preloadWindow(['only'], 0)).toEqual([])
     expect(preloadWindow([], 0)).toEqual([])
+  })
+})
+
+describe('nextOverlayLevel', () => {
+  it('cycles through the useful states first, then off', () => {
+    expect(nextOverlayLevel('name')).toBe('detail')
+    expect(nextOverlayLevel('detail')).toBe('off')
+    expect(nextOverlayLevel('off')).toBe('name')
+  })
+
+  it('returns to where it started after three presses', () => {
+    expect(nextOverlayLevel(nextOverlayLevel(nextOverlayLevel('name')))).toBe('name')
+  })
+})
+
+describe('view preferences', () => {
+  it('round-trips through storage', () => {
+    const store = memoryStore()
+    const prefs: WorkbenchViewPrefs = { overlay: 'detail', filmstrip: false }
+    writeViewPrefs(store, prefs)
+    expect(readViewPrefs(store)).toEqual(prefs)
+  })
+
+  it('falls back to the defaults when nothing is stored', () => {
+    expect(readViewPrefs(memoryStore())).toEqual(DEFAULT_VIEW_PREFS)
+    expect(readViewPrefs(undefined)).toEqual(DEFAULT_VIEW_PREFS)
+  })
+
+  // A corrupted preference must never keep the workbench from opening.
+  it('survives junk and half-written values', () => {
+    const store = memoryStore()
+    store.raw.set('pulseboard.workbench.view', '{not json')
+    expect(readViewPrefs(store)).toEqual(DEFAULT_VIEW_PREFS)
+
+    store.raw.set('pulseboard.workbench.view', JSON.stringify({ overlay: 'nonsense' }))
+    expect(readViewPrefs(store)).toEqual(DEFAULT_VIEW_PREFS)
+
+    store.raw.set('pulseboard.workbench.view', JSON.stringify({ filmstrip: false }))
+    expect(readViewPrefs(store)).toEqual({ overlay: 'name', filmstrip: false })
+  })
+
+  it('does not throw when storage refuses to write', () => {
+    const blocked = {
+      getItem: () => null,
+      setItem: () => {
+        throw new Error('QuotaExceededError')
+      },
+    }
+    expect(() => writeViewPrefs(blocked, DEFAULT_VIEW_PREFS)).not.toThrow()
+  })
+})
+
+describe('letterboxColumn', () => {
+  // The archive is overwhelmingly 3:4 covers, and the main area is wide: this is
+  // the case the whole overlay placement rests on.
+  it('leaves room beside a portrait cover in a wide frame', () => {
+    const column = letterboxColumn({ width: 832, height: 512 }, { width: 900, height: 1200 })
+    expect(column).toBe(224)
+    expect(column).toBeGreaterThanOrEqual(MIN_OVERLAY_WIDTH)
+  })
+
+  it('reports no room when the cover fills the frame', () => {
+    // A 16:9 still in a 1.63:1 frame is limited by width — no columns at all.
+    expect(letterboxColumn({ width: 832, height: 512 }, { width: 1920, height: 1080 })).toBe(0)
+  })
+
+  it('reports a column too narrow to use rather than pretending', () => {
+    const column = letterboxColumn({ width: 832, height: 512 }, { width: 1000, height: 700 })
+    expect(column).toBeGreaterThan(0)
+    expect(column).toBeLessThan(MIN_OVERLAY_WIDTH)
+  })
+
+  it('is 0 for an image that has not loaded or a collapsed box', () => {
+    expect(letterboxColumn({ width: 832, height: 512 }, { width: 0, height: 0 })).toBe(0)
+    expect(letterboxColumn({ width: 0, height: 0 }, { width: 900, height: 1200 })).toBe(0)
   })
 })
