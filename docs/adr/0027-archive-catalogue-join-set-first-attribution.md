@@ -445,3 +445,41 @@ fourth arrives with three reference images, entirely from work already done.
 `catalogue-avatar.ps1` has to run before the workbench can be judged. Until it
 does, rungs 1, 2 and 4 carry it — which is roughly 16 % plus whatever the operator
 has already confirmed.
+
+## Addendum, 2026-08-06 — the workbench gets a room of its own
+
+The decision surface had grown *inside* the queue: expanding a group rendered the
+grid, the keyboard, the candidate strip and the picker into a page whose job is to
+list groups. Two different tasks shared one layout, and the important one — putting
+people on sets — got whatever space the list left over.
+
+Microsoft's list-detail guidance names the reason to split them: separating
+overview from detail lets a user drill in *"while staying grounded regarding their
+position in the overall list"*. Lightroom Classic supplies the handoff shape —
+select, press a key, and the selection lands in a purpose-built mode (`C` Compare,
+`N` Survey), Compare even holding a **Select** against a **Candidate**. And
+Narrative Select supplies the anatomy: a UI that *"strips away anything not related
+to selection"*, large image, filmstrip beneath, the closeup **already on screen**
+because the judgement is made by looking.
+
+**Decision.** `/archive/attribution` is triage and nothing else; a row is a doorway
+to `/archive/workbench?group=…`, which owns the screen.
+
+**And the workbench asks in one of two directions**, chosen from the group rather
+than from taste:
+
+- **person-led** when one candidate carries ≥60 % of the group's suggested folders
+  (`MPL | nata`: 80 of 83). One face pinned, every folder a yes/no. This is where
+  the measured >10 % — >10× — annotation gain lives: the question stops changing.
+- **folder-led** otherwise (`AA | Anna`, several people behind one alias), where a
+  binary question is not merely slower but wrong.
+
+`M` switches. Both write through the same actions; only the question on screen
+differs. The 60 % threshold is deliberate — at 51 % nearly half the folders would
+answer "no", which is a folder-led pass wearing the wrong interface.
+
+**Consequence.** The catalogue's portraits are 130 × 195 px — the source files are
+themselves thumbnails, so there is nothing larger to fetch. The reference is
+therefore rendered at native size beside a large cover rather than as a matching
+frame. A face is recognisable at 130 × 195; upscaled it is mush, and the cover is
+what the decision actually needs space for.

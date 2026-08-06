@@ -1,24 +1,16 @@
 'use client'
 
-import { useCallback, useState, useTransition } from 'react'
+import { useState, useTransition } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { AlertTriangle, Check, ChevronDown, ChevronRight, Loader2, Undo2, UserX, X } from 'lucide-react'
+import { AlertTriangle, Loader2, Undo2, UserX, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { AttributionQueue, AttributionQueueGroup } from '@/lib/services/attribution-confirm-service'
 import {
-  confirmFolderAction,
-  confirmFoldersAction,
-  getGroupFoldersAction,
   markGroupNotAPersonAction,
-  rejectCandidateAction,
-  skipFolderAction,
   skipGroupAction,
   undoAttributionGroupAction,
-  undoFolderAction,
 } from '@/lib/actions/attribution-actions'
-import { AttributionGroupFolders, type GroupFolder } from './attribution-group-folders'
-import type { PersonReference } from './attribution-decision-bar'
 import { PersonIdentity } from '@/components/shared/person-identity'
 
 type AttributionQueueClientProps = {
@@ -33,15 +25,17 @@ const VIEWS = [
 ] as const
 
 /**
- * The confirmation queue for archive attribution (ADR-0027, plan slice 5).
+ * Triage for archive attribution (ADR-0027) — and *only* triage.
  *
- * Groups are ordered by leverage — folder count — because that is what makes
- * ~8.9k groups finite: the top 1,000 cover 14,090 folders. A group whose folders
- * all agree is one decision; the rest are where the judgement lives.
+ * This page answers one question: what do I work on next. Groups are ordered by
+ * leverage (folder count), because that is what makes ~8.9k groups finite — the
+ * top 1,000 cover 14,090 folders. Opening one hands it to `/archive/workbench`,
+ * which answers the different question of who is in each set and needs the whole
+ * screen to do it. The decision surface used to live here, inside a list, and the
+ * important task got whatever space the list left over.
  *
- * There is no "confirm all visible" button and that is deliberate. A single
- * confirmation can touch 204 folders, and until the real error rate is known the
- * rate limiter is the operator's hand.
+ * What stays are the two verdicts that really are about a whole group: "not a
+ * person" (`W4B | w4b magazine` is a magazine title across 204 folders) and skip.
  */
 export function AttributionQueueClient({ initialQueue, view }: AttributionQueueClientProps) {
   const router = useRouter()
@@ -54,10 +48,6 @@ export function AttributionQueueClient({ initialQueue, view }: AttributionQueueC
   // waiting for router.refresh() to land.
   const [dismissed, setDismissed] = useState<ReadonlySet<string>>(new Set())
   const groups = initialQueue.groups.filter((g) => !dismissed.has(g.key))
-  const [expanded, setExpanded] = useState<string | null>(null)
-  // Folders and the reference faces for everyone they mention, keyed by group.
-  const [folders, setFolders] = useState<Record<string, { folders: GroupFolder[]; references: PersonReference[] }>>({})
-  const [loadingFolders, setLoadingFolders] = useState<string | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
   const [flash, setFlash] = useState<{ key: string; text: string; tone: 'ok' | 'err' } | null>(null)
   const [, startTransition] = useTransition()
@@ -71,56 +61,10 @@ export function AttributionQueueClient({ initialQueue, view }: AttributionQueueC
     startTransition(() => router.push(`/archive/attribution?${params.toString()}`))
   }
 
-  // Folders are loaded on expand, not with the list: a group can hold 204 rows
-  // with covers, and shipping that for every visible group would be most of a
-  // megabyte nobody looks at.
-  const toggle = useCallback(
-    async (key: string) => {
-      if (expanded === key) {
-        setExpanded(null)
-        return
-      }
-      setExpanded(key)
-      if (folders[key]) return
-      setLoadingFolders(key)
-      const res = await getGroupFoldersAction(key)
-      setLoadingFolders(null)
-      if (res.success) setFolders((f) => ({ ...f, [key]: res.data }))
-    },
-    [expanded, folders],
-  )
-
   const afterDecision = (key: string, text: string) => {
     setFlash({ key, text, tone: 'ok' })
     setDismissed((d) => new Set(d).add(key))
-    setExpanded(null)
     startTransition(() => router.refresh())
-  }
-
-  // Per-folder decisions. The group no longer commits anything: `AA | Anna` holds
-  // several distinct people under one alias, so a group-wide confirm could attach
-  // the wrong person to dozens of sets at once.
-  const [folderBusy, setFolderBusy] = useState<string | null>(null)
-
-  const reloadFolders = async (key: string) => {
-    const res = await getGroupFoldersAction(key)
-    if (res.success) setFolders((f) => ({ ...f, [key]: res.data }))
-    startTransition(() => router.refresh())
-  }
-
-  const folderOp = async (
-    groupKey: string,
-    folderId: string,
-    op: () => Promise<{ success: true } | { success: false; error: string }>,
-  ) => {
-    setFolderBusy(folderId)
-    const res = await op()
-    setFolderBusy(null)
-    if (!res.success) {
-      setFlash({ key: groupKey, text: res.error, tone: 'err' })
-      return
-    }
-    await reloadFolders(groupKey)
   }
 
   const notAPerson = async (g: AttributionQueueGroup) => {
@@ -212,7 +156,6 @@ export function AttributionQueueClient({ initialQueue, view }: AttributionQueueC
       ) : (
         <ul className="space-y-2">
           {groups.map((g) => {
-            const isOpen = expanded === g.key
             const isBusy = busy === g.key
             const [short] = g.key.split('|')
             return (
@@ -221,22 +164,20 @@ export function AttributionQueueClient({ initialQueue, view }: AttributionQueueC
                 className="rounded-lg border border-border/60 bg-card/50 backdrop-blur transition-colors duration-150"
               >
                 <div className="flex flex-wrap items-center gap-3 p-3">
-                  <button
-                    onClick={() => toggle(g.key)}
-                    aria-expanded={isOpen}
-                    className="flex min-w-0 flex-1 items-center gap-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-md"
+                  {/* The row is a doorway, not a workspace. The queue answers
+                      "what next"; the workbench answers "who is in this set" and
+                      needs the screen to do it. */}
+                  <Link
+                    // Carry the queue's own view along, so leaving the workbench
+                    // returns to the list the operator was actually working from.
+                    href={`/archive/workbench?group=${encodeURIComponent(g.key)}&from=${view}`}
+                    className="flex min-w-0 flex-1 items-center gap-2 rounded-md text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   >
-                    {isOpen ? (
-                      <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
-                    ) : (
-                      <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
-                    )}
                     <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 font-mono text-xs">{short}</span>
-                    {/* The group's label is the ALIAS the folders carry, not a person.
-                        Which person it resolves to is the vote chips' job, and they
-                        always carry the ICG-ID. */}
                     <span className="shrink-0 text-xs text-muted-foreground">alias</span>
-                    <span className="truncate font-medium">{g.aliasToken || <em className="text-muted-foreground">none in folder name</em>}</span>
+                    <span className="truncate font-medium">
+                      {g.aliasToken || <em className="text-muted-foreground">none in folder name</em>}
+                    </span>
                     <span className="shrink-0 text-sm tabular-nums text-muted-foreground">
                       {g.folders} folder{g.folders === 1 ? '' : 's'}
                       {g.openFolders < g.folders && ` · ${g.openFolders} open`}
@@ -250,7 +191,7 @@ export function AttributionQueueClient({ initialQueue, view }: AttributionQueueC
                         {g.demotedFolders}
                       </span>
                     )}
-                  </button>
+                  </Link>
 
                   <div className="flex flex-wrap items-center gap-1.5">
                     {g.votes.length === 0 ? (
@@ -291,9 +232,8 @@ export function AttributionQueueClient({ initialQueue, view }: AttributionQueueC
                     ) : (
                       <>
                         {/* No group-level Confirm. Identity is decided per folder,
-                            inside the group — see AttributionGroupFolders. What
-                            remains here are the two verdicts that really are about
-                            the whole group. */}
+                            in the workbench. What remains here are the two verdicts
+                            that really are about the whole group. */}
                         <ActionButton onClick={() => notAPerson(g)} busy={isBusy} label="Not a person" icon={UserX} />
                         <ActionButton onClick={() => skip(g)} busy={isBusy} label="Skip" icon={X} />
                       </>
@@ -313,33 +253,6 @@ export function AttributionQueueClient({ initialQueue, view }: AttributionQueueC
                   </p>
                 )}
 
-                {isOpen && (
-                  <div className="border-t border-border/60 p-3">
-                    {loadingFolders === g.key ? (
-                      <p className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <Loader2 className="h-4 w-4 animate-spin" /> Loading folders…
-                      </p>
-                    ) : (
-                      <AttributionGroupFolders
-                        folders={folders[g.key]?.folders ?? []}
-                        references={folders[g.key]?.references ?? []}
-                        votes={g.votes}
-                        busy={folderBusy}
-                        onConfirm={(folderId, icgIds, names) =>
-                          folderOp(g.key, folderId, () => confirmFolderAction(folderId, icgIds, names))
-                        }
-                        onConfirmMany={(folderIds, icgIds, names) =>
-                          folderOp(g.key, folderIds[0], () => confirmFoldersAction(folderIds, icgIds, names))
-                        }
-                        onRejectCandidate={(folderId, icgId, remaining) =>
-                          folderOp(g.key, folderId, () => rejectCandidateAction(folderId, icgId, remaining))
-                        }
-                        onSkip={(folderId) => folderOp(g.key, folderId, () => skipFolderAction(folderId))}
-                        onUndo={(folderId) => folderOp(g.key, folderId, () => undoFolderAction(folderId))}
-                      />
-                    )}
-                  </div>
-                )}
               </li>
             )
           })}
@@ -354,7 +267,7 @@ type ActionButtonProps = {
   busy: boolean
   disabled?: boolean
   label: string
-  icon: typeof Check
+  icon: typeof UserX
   tone?: 'primary' | 'default'
 }
 

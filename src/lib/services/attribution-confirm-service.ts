@@ -25,7 +25,7 @@ import type {
 import { getAttributionGroups, type AttributionGroup } from '@/lib/services/attribution-suggestion-service'
 import { parseFolderParticipantRaw } from '@/lib/services/archive-service'
 import { buildUrl } from '@/lib/media-url'
-import { resolvePersonReferences } from '@/lib/services/person-reference-service'
+import { resolvePersonReferences, type PersonReference } from '@/lib/services/person-reference-service'
 import { UNSETTLED_FOLDER } from '@/lib/services/archive-unsettled'
 export { candidatesForFolder, type FolderCandidate } from '@/lib/attribution-candidates'
 import { createStagingSetFromOrphan } from '@/lib/services/archive-service'
@@ -1002,4 +1002,61 @@ export async function searchAssignablePeople(q: string, limit = 20): Promise<Ass
     })
   }
   return out.slice(0, limit)
+}
+
+export type WorkbenchGroup = {
+  key: string
+  channelShortName: string | null
+  aliasToken: string | null
+  votes: { icgId: string; name: string; folders: number }[]
+  votedFolders: number
+  folders: Awaited<ReturnType<typeof getGroupFolders>>
+  references: PersonReference[]
+  /** The next group with work left, so a finished session need not return to the queue. */
+  nextGroupKey: string | null
+}
+
+/**
+ * Everything one workbench session needs, in one call.
+ *
+ * The queue hands over a group and the workbench takes the whole screen from
+ * there; making it assemble its own state from three round trips would put a
+ * visible stutter exactly where the flow is supposed to feel immediate.
+ */
+export async function getWorkbenchGroup(groupKey: string): Promise<WorkbenchGroup | null> {
+  const [{ folders, references }, queue] = await Promise.all([
+    getGroupFoldersWithReferences(groupKey),
+    getAttributionQueue(),
+  ])
+  const group = queue.groups.find((g) => g.key === groupKey)
+  if (!group && folders.length === 0) return null
+
+  return {
+    key: groupKey,
+    channelShortName: group?.channelShortName ?? groupKey.split('|')[0] ?? null,
+    aliasToken: group?.aliasToken ?? null,
+    votes: group?.votes ?? [],
+    votedFolders: group?.votedFolders ?? 0,
+    folders,
+    references,
+    nextGroupKey: nextOpenGroupKey(queue.groups.map((g) => g.key), groupKey),
+  }
+}
+
+/**
+ * The next group in the queue's own order that still has work.
+ *
+ * Pure so the wrap-around is testable: after the last group it starts again from
+ * the top, and it never returns the group just finished.
+ */
+export function nextOpenGroupKey(openKeys: string[], afterKey: string): string | null {
+  const others = openKeys.filter((k) => k !== afterKey)
+  if (others.length === 0) return null
+  const at = openKeys.indexOf(afterKey)
+  if (at === -1) return others[0]
+  for (let i = 1; i <= openKeys.length; i++) {
+    const candidate = openKeys[(at + i) % openKeys.length]
+    if (candidate !== afterKey) return candidate
+  }
+  return null
 }

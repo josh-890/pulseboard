@@ -1165,63 +1165,61 @@ different questions with different criteria.
 
 #### Stage 1 — who is in it
 
-Folders are grouped by **channel + the name the folder carries**, and that grouping is context,
-not a decision. One alias can hide several people: `AA | Anna` covers genuinely different
-women, so **every folder is confirmed individually**. Expand a group and you get a contact sheet
-of its folders — seeing them side by side is what reveals a collision.
+The queue at **Archive → Attribution queue** answers one question: *what do I work on
+next.* Groups are ordered by size, because that is what makes ~8,900 groups finite. Opening one
+hands it to the **workbench**, which answers the different question — *who is in this set* — and
+takes the whole screen to do it.
 
-A bar at the top stays put while you scroll: progress, the `Open / All / Decided`
-switch, the candidate strip and the key legend. **Decided folders leave the grid** — and the
-keyboard's path with it — so the group gets shorter as you work. Switch to `All` or `Decided`
-to see what you have done.
-
-Beside the candidates you get a **comparison**: the person's face on the left, the folder's cover
-on the right. The face comes from whichever is known first — a curated person's headshot, a
-contact's thumbnail, the portrait from the person catalogue, or, failing all three, the covers of
-folders you have **already** confirmed as them. That last one costs nothing and gets better the
-longer you work.
-
-`X` no longer closes the card. It drops the top candidate and keeps you where you are, so the
-next one moves to `1`; only when no candidate is left does the folder become *not this person*
-and the focus move on.
-
-Covers are shown **portrait and uncropped**, three or four across: judging "is this her" from a
-cropped square is guesswork, and a longer page is the better trade. The focused card is marked by
-a ring and nothing else — nothing grows or pops, so a keyboard pass stays calm to read and your
-eye never has to leave the card you are deciding on.
-
-Work it from the keyboard; that is where the speed is:
-
-| Key | Action |
-|---|---|
-| `J` / `K` | move the focus |
-| `A` | confirm the folder's suggested person |
-| `X` | not this person — no attribution is written |
-| `Space` | skip for now |
-| `U` | undo this folder's decision |
-| `1`…`9` | confirm as the n-th person in the candidate strip, then move on |
-| `⇧`+`1`…`9` | **add** that person and stay — for a set with several participants |
-| `/` | search for someone the matcher never proposed |
-| `S` | add the folder to a selection |
-
-The candidate strip above the grid shows who the focused folder could be: its own suggestions
-first, then people the rest of the group points at. `2` on a folder whose suggestion is wrong is
-how you settle the second Anna without touching the first.
-
-**Several people in one set.** `A` confirms everyone the folder itself proposes, so a
-multi-participant set the catalogue already knows is a single keystroke. To build one up by hand,
-hold **Shift**: `⇧1` `⇧2` adds both and keeps the focus on the card, because confirming adds and
-never replaces. Move on with `→` when the cast is complete.
-
-**A person is always named `Name (ICG-ID)`, never by name alone.** There are many people called
-"Alisa"; only the key says which one. The group's own label is the **alias the folders carry**
-— marked as such — while the chips beside it are the *people* that alias might resolve to.
-
-Selecting several cards (`S`, or the checkbox on hover) offers *"Confirm N as …"*. Nothing is
-ever pre-selected: every folder in a selection is one you touched.
-
-At group level only two verdicts remain, because only they are really about the whole group:
+At group level only two verdicts remain, because only they are really about a whole group:
 **Not a person** (for `W4B | w4b magazine`, a magazine title across 204 folders) and **Skip**.
+
+##### The workbench
+
+A large cover in the middle, the person on the right, a filmstrip of the whole group along the
+bottom so you never lose your place. It asks in one of two directions, and picks the right one
+for the group:
+
+**Person-led** — when one person clearly dominates the group (`MPL | nata`: 80 of 83). Their
+face is pinned on the right and every folder asks the same yes-or-no question. This is the fast
+one: one glance, one key.
+
+| Key | |
+|---|---|
+| `J` | yes, this is them |
+| `N` | no, someone else — and the folder stays open for the real answer |
+
+**Folder-led** — when several people hide behind one alias (`AA | Anna`). The folder asks *who
+is this*, and the candidates sit on the number keys.
+
+| Key | |
+|---|---|
+| `1`…`9` | confirm the n-th candidate |
+| `⇧`+`1`…`9` | add a second person and stay on the folder |
+| `A` | confirm everyone the folder itself suggests |
+| `X` | drop the top candidate; the next moves up to `1` |
+
+And in both directions:
+
+| Key | |
+|---|---|
+| `←` `→` | move through the folders |
+| `Space` | skip for now |
+| `U` | undo this folder |
+| `/` | search for someone the matcher never proposed |
+| `M` | switch between the two directions |
+| `G` | contact sheet — for "are these the same person?" |
+| `Esc` | back to the queue you came from |
+
+Decided folders leave the grid **and** the keyboard's path, so a group shortens as you work.
+The `open / all / decided` switch brings them back. When the last folder is answered, the
+workbench offers the **next group with work**, so you need not return to the queue between
+groups.
+
+The face beside the person's name comes from whichever source is known first — a curated
+person's headshot, the portrait from the person catalogue, or, failing both, the covers of
+folders you have **already** confirmed as them. Which one it is, is written under the picture:
+a curated headshot is your own choice, a cover from a folder you confirmed is a hint that could
+still be circular.
 
 #### Stage 2 — develop it or wait
 
