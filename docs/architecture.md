@@ -195,7 +195,7 @@ All import services in `src/lib/services/import/`.
 
 **`archive-unsettled.ts`** — `UNSETTLED_FOLDER`, the single definition of "still needs a person": no **CONFIRMED** link. The pipeline previously excluded any folder carrying an `ArchiveLink` at all, `SUGGESTED` included — treating a machine guess as a decision. The two failure modes compounded: a wrong suggestion removed the folder from the only view that could contradict it. Measured before the change: **2,733 folders hidden this way, 14% of their suggestions agreed with the folder on neither date nor title, and 0 had ever reached the catalogue agent** (its worklist used the same filter).
 
-**Attribution ↔ link contradiction detector** — `getAttributionLinkAudit()` (`maintenance-service.ts`)
+**Attribution ↔ link contradiction detector** (ADR-0028) — `getAttributionLinkAudit()` (`maintenance-service.ts`)
 surfaces archive folders whose confirmed attribution names someone the linked StagingSet/Set does
 not list. The two truths are written independently and neither side reads the other:
 `confirmArchiveLink` ignores the attributions (the attributed person is silently dropped at
@@ -575,6 +575,8 @@ All searchable entities have `nameNorm`/`titleNorm` fields with `pg_trgm` trigra
 19. **Undated drawer (ADR-0006, Slice 9)** — The dateless draft Era (one per person, `date IS NULL && isDraft`) renders as an **"Undated changes"** card with soft-amber treatment. Each member delta gets an inline `Set date` affordance opening `ScalarDeltaInlineEditor` — a per-delta mini-form with value + 3-way intent radio + date + cause (if status-bearing). Saving via `editScalarDeltaAction` re-clusters the delta into a dated draft per Slice 8's routing.
 
 20. **`@` is reserved in ICG-IDs (ADR-0026)** — An ICG-ID is either **external** (mirrors the outside database, `[A-Z0-9]` only) or **self-assigned** (minted here, marked by `@` at a fixed offset). The two namespaces are disjoint *by enforcement*: `createPersonSchema.superRefine` rejects the marker on an ID entered as external, and `createStagingSetsForBatch` validates harvested participant IDs against `ICG_ID_EXTERNAL_RE` before creating a `Contact`. That disjointness is the whole guarantee — no ID the external database can issue in future can collide with a minted one. Origin is **derived** from the string (`isSelfAssignedIcgId`), never stored, so an ID correction reclassifies a person for free. Minting is server-side, probed against **both** `Person.icgId` and `Contact.icgId`, and mints once — never re-derived from a later-learned name or birth year.
+
+21. **A folder carries claims, a set has a cast (ADR-0028)** — `ArchiveFolderAttribution` is *your* assertion about an archive folder; `StagingSet.participants` (→ `SetParticipant`, a cache rebuilt from `SessionContribution`) is who the publisher credited. Linking places them side by side and **never merges them**. A person may be written into a cast only when that cast is **empty** (pure enrichment) or already names them; where it names a different cast, the contradiction stands and is decided per folder with the cover in view. No state records it: every answer mutates data, so `getAttributionLinkAudit()` — computed, not stored — *is* the queue, and it reports `checked`/`comparable` so a 0 can be told from "nothing was comparable". When an import collides with an already-linked staging set it runs into it rather than creating a twin; the cast then comes from the import, and whoever falls out survives as a claim on the folder.
 
 ---
 
