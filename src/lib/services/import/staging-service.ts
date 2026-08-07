@@ -18,6 +18,7 @@ import {
 import type { ParsedSet } from './parser'
 import { matchAllEntities } from './matcher'
 import { normalizeForSearch } from '@/lib/services/alias-service'
+import { findLinkedCollision, mergeIntoLinkedStagingSet } from './linked-set-merge'
 import { runMatchingForPerson } from './cover-basket-service'
 import { buildImportItemDecisions } from './build-decisions'
 import { isEmptyDiff, type ImportItemDecisions } from './diff'
@@ -446,6 +447,7 @@ export type StagingIngestSummary = {
   created: number
   skipped: number       // omitted — exact production match, nothing to review
   duplicated: number    // added but marked isDuplicate (already in staging for this person)
+  merged: number        // ran into the staging set the archive already holds (ADR-0028)
   suggestedDate: number // created with releaseDateSuggestion extracted from title
   noDate: number        // created with neither releaseDate nor suggestion
   byMatchType: { none: number; exact: number; probable: number }
@@ -461,6 +463,7 @@ async function createStagingSetsForBatch(
     created: 0,
     skipped: 0,
     duplicated: 0,
+    merged: 0,
     suggestedDate: 0,
     noDate: 0,
     byMatchType: { none: 0, exact: 0, probable: 0 },
@@ -664,6 +667,95 @@ async function createStagingSetsForBatch(
       subjectPersonId: person?.id ?? null,
       subjectIcgId,
       status: 'PENDING' as const,
+    }
+
+    // ── Does the archive already hold this set? ──────────────────────────────
+    //
+    // A folder developed from the archive left a stub StagingSet carrying the
+    // CONFIRMED link. Creating a second row here would split one real set into
+    // twins — one with the link, one with the import payload — so the import runs
+    // into the existing row instead: empty fields filled, the cast taken from the
+    // import, and anyone it does not credit written back as a claim on the folder
+    // (ADR-0028).
+    const importCast = set.modelsList.map((m) => ({ name: m.name, icgId: m.icgId }))
+    const mergeFields = {
+      externalId: set.externalId || null,
+      channelId,
+      description: set.description,
+      coverImageUrl: set.coverImageUrl,
+      artist: set.artist,
+      artistNorm: set.artist ? normalizeForSearch(set.artist) : null,
+      releaseDatePrecision,
+      releaseDateSuggestion: set.suggestedDate ?? null,
+      importBatchId: batchId,
+      importItemId: importItem.id,
+      subjectPersonId: person?.id ?? null,
+      subjectIcgId,
+    }
+
+    /** Returns the id of the row we ran into, or null when the archive has none. */
+    async function mergeIfArchiveHoldsIt(isVid: boolean, imageCount: number | null): Promise<string | null> {
+      const collision = await findLinkedCollision(channelId, safeDate, isVid, titleNorm)
+      if (!collision) return null
+      await mergeIntoLinkedStagingSet(
+        collision,
+        { ...mergeFields, imageCount },
+        importCast,
+        participantStatuses,
+      )
+      summary.merged++
+      return collision.id
+    }
+
+    /** Link the video side to its photo side without disturbing an existing pairing. */
+    async function pairSiblings(videoId: string, photoId: string) {
+      await prisma.stagingSet.updateMany({
+        where: { id: videoId, siblingId: null },
+        data: { siblingId: photoId },
+      })
+    }
+
+    if (needsSplit) {
+      // The archive files photosets and videosets separately, so it may hold one
+      // side, the other, or both. Each side is decided on its own.
+      const photoMergedId = await mergeIfArchiveHoldsIt(false, set.imageCount)
+      const videoMergedId = await mergeIfArchiveHoldsIt(true, null)
+
+      if (photoMergedId && videoMergedId) {
+        await pairSiblings(videoMergedId, photoMergedId)
+        continue
+      }
+
+      if (photoMergedId || videoMergedId) {
+        // Half-merged: the side the archive does not hold still has to exist, and
+        // the sibling link has to span the merged row and the new one.
+        const createdIsVideo = photoMergedId !== null
+        const created = await prisma.stagingSet.create({
+          data: {
+            ...commonData,
+            isDuplicate: createdIsVideo ? videoDup : photoDup,
+            isVideo: createdIsVideo,
+            imageCount: createdIsVideo ? null : set.imageCount,
+            ...(createdIsVideo
+              ? {
+                  matchedSetId: setMatch?.matchedEntityId ?? null,
+                  matchConfidence: setMatch?.matchConfidence ?? null,
+                  matchDetails: setMatch?.matchDetails ?? null,
+                }
+              : {}),
+          },
+          select: { id: true },
+        })
+        if (photoMergedId) await pairSiblings(created.id, photoMergedId)
+        else await pairSiblings(videoMergedId!, created.id)
+
+        summary.created++
+        if (set.suggestedDate) summary.suggestedDate++
+        else if (!safeDate) summary.noDate++
+        continue
+      }
+    } else if (await mergeIfArchiveHoldsIt(set.isVideo, set.imageCount)) {
+      continue
     }
 
     // When the import entry has BOTH Video:True AND Imagenumber>0 the set genuinely has

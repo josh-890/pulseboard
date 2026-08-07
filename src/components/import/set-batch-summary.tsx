@@ -53,6 +53,8 @@ export function SetBatchSummary({ batch }: SetBatchSummaryProps) {
     created: number
     skipped: number
     duplicated: number
+    /** Older batches predate the collision merge and simply have no value here. */
+    merged?: number
     byMatchType: { none: number; exact: number; probable: number }
   } | null
 
@@ -130,6 +132,12 @@ export function SetBatchSummary({ batch }: SetBatchSummaryProps) {
               )}
 
               {/* Duplicate / omitted info */}
+              {summary && (summary.merged ?? 0) > 0 && (
+                <p className="mt-2 text-xs text-emerald-500">
+                  {summary.merged} ran into the set the archive already holds (no duplicate created)
+                </p>
+              )}
+
               {summary && (summary.duplicated > 0 || summary.skipped > 0) && (
                 <div className="mt-2 space-y-1">
                   {summary.duplicated > 0 && (

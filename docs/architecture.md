@@ -204,6 +204,18 @@ cast. Withheld claims come back as `withheld` and the develop queue names them i
 null and a later import can never recognise the row (`scripts/backfill-staging-title-norm.ts`
 catches rows made before the fix). The attribution queue carries the open contradiction count.
 
+**Import ↔ archive collision (ADR-0028)** — `services/import/linked-set-merge.ts`. During ingest,
+`findLinkedCollision(channelId, date, isVideo, titleNorm)` looks for a StagingSet that already
+carries a **CONFIRMED** archive link on the same key `findProbableStagingDuplicate` and
+`findExistingStagingSet` use. On a hit the import **runs into that row** instead of creating a
+twin: `fieldsToFill` writes only what the stub lacks (empty string counts as absent; `UNKNOWN`
+precision counts as absent), `mergeCast` takes the cast from the import, and anyone it does not
+credit is written back as a folder claim — except a cast member with no ICG-ID, who stays in the
+cast because an attribution cannot represent them. Split imports (photo+video) decide each side on
+its own and re-pair siblings. Reported as `merged` in `StagingIngestSummary`. **Blind spot:** an
+import whose channel the matcher cannot resolve has no `channelId`, so no collision is detected —
+the same gap the existing duplicate detection has.
+
 **Attribution ↔ link contradiction detector** (ADR-0028) — `getAttributionLinkAudit()` (`maintenance-service.ts`)
 surfaces archive folders whose confirmed attribution names someone the linked StagingSet/Set does
 not list. The two truths are written independently and neither side reads the other:

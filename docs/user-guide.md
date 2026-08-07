@@ -1233,6 +1233,21 @@ folders you have **already** confirmed as them. Which one it is, is written unde
 a curated headshot is your own choice, a cover from a folder you confirmed is a hint that could
 still be circular.
 
+##### When the import brings a set you already hold
+
+If you developed an archive folder into a set and the person import later delivers that same set,
+the import no longer creates a second entry beside it. It **runs into the one you already have**:
+the fields only it can know — external id, description, cover, image count — fill the gaps, while
+the archive link and anything you edited stay as they are.
+
+The credits then come from the import, because that is who the publisher named. Anyone who falls
+out of the list is not lost: they go back to being a claim on the archive folder, and turn up in
+the contradiction session with the cover in view. The one exception is a person with no ICG-ID —
+there is nowhere else to keep them, so they stay in the credits.
+
+One gap worth knowing: this only works when the import's channel is one the app recognises. A set
+on an unknown channel still lands as a separate entry, exactly as duplicate detection does today.
+
 ##### When the set already credits someone else
 
 Developing a folder onto a set that came from an import used to add your person to that set's
