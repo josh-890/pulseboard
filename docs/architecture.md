@@ -195,6 +195,19 @@ All import services in `src/lib/services/import/`.
 
 **`archive-unsettled.ts`** — `UNSETTLED_FOLDER`, the single definition of "still needs a person": no **CONFIRMED** link. The pipeline previously excluded any folder carrying an `ArchiveLink` at all, `SUGGESTED` included — treating a machine guess as a decision. The two failure modes compounded: a wrong suggestion removed the folder from the only view that could contradict it. Measured before the change: **2,733 folders hidden this way, 14% of their suggestions agreed with the folder on neither date nor title, and 0 had ever reached the catalogue agent** (its worklist used the same filter).
 
+**Attribution ↔ link contradiction detector** — `getAttributionLinkAudit()` (`maintenance-service.ts`)
+surfaces archive folders whose confirmed attribution names someone the linked StagingSet/Set does
+not list. The two truths are written independently and neither side reads the other:
+`confirmArchiveLink` ignores the attributions (the attributed person is silently dropped at
+promote), while `linkFolderToStagingSet` unions them into the participants — so the outcome
+depends on which side was touched last. Read-only, takes no side (an import list can be
+incomplete; a folder attribution is the owner's assertion, ADR-0027), and returns `checked` /
+`comparable` alongside the rows so a 0 can be told apart from "nothing was comparable". Surfaced
+on `/maintenance`; `scripts/detect-attribution-conflicts.ts --prod` runs it per tenant.
+NOTE: the attribution queue only offers folders **without** a confirmed link (`UNSETTLED_FOLDER`),
+so today the two populations are disjoint by construction and the detector reads 0/0 — it goes
+live the moment an attributed folder is developed, linked or has a matcher suggestion confirmed.
+
 **`lib/workbench-session.ts`** — the rules a workbench session runs on, pure and unit-tested: `dominantCandidate` / `defaultMode` (a candidate must carry **≥60%** of the group's suggested folders before the binary question is the right one — at 51% nearly half the folders answer "no", which is a folder-led pass wearing the wrong interface), `sessionFolders`, `sessionProgress`, `nextIndexAfterDecision` (the answered folder leaves the pass, so the next one has taken the current index — advancing to index+1 would skip a folder on every decision), `preloadWindow`, `letterboxColumn` (how wide the empty column beside an `object-contain` cover
 is — what decides whether the identity overlay can sit *beside* a portrait cover instead of on
 top of it), `nextOverlayLevel` + `readViewPrefs`/`writeViewPrefs` (the `I`/`T` view preferences,

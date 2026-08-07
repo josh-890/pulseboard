@@ -4,12 +4,14 @@ import {
   getBaselineGapsByAttribute,
   getBaselineGapsByPerson,
   getBaselineGapTotals,
+  getAttributionLinkAudit,
   getCrossLabelMisMerges,
 } from "@/lib/services/maintenance-service";
 import { getHdRebakeEligibleCount } from "@/lib/services/hd-rebake-service";
 import { getDismissedSetDuplicates } from "@/lib/services/set-merge-service";
 import { DismissedDuplicatesList } from "@/components/maintenance/dismissed-duplicates-list";
 import { CrossLabelMisMergesList } from "@/components/maintenance/cross-label-mismerges-list";
+import { AttributionLinkConflictsList } from "@/components/maintenance/attribution-link-conflicts-list";
 import { BaselineGapsByAttributeTable } from "@/components/maintenance/baseline-gaps-by-attribute-table";
 import { BaselineGapsByPersonTable } from "@/components/maintenance/baseline-gaps-by-person-table";
 import { MaintenanceTabs } from "@/components/maintenance/maintenance-tabs";
@@ -25,13 +27,22 @@ export default async function MaintenancePage({ searchParams }: MaintenancePageP
     const { view: viewParam } = await searchParams;
     const view = viewParam === "by-person" ? "by-person" : "by-attribute";
 
-    const [totals, byAttribute, byPerson, hdEligible, dismissedDuplicates, crossLabelMisMerges] = await Promise.all([
+    const [
+      totals,
+      byAttribute,
+      byPerson,
+      hdEligible,
+      dismissedDuplicates,
+      crossLabelMisMerges,
+      attributionAudit,
+    ] = await Promise.all([
       getBaselineGapTotals(),
       view === "by-attribute" ? getBaselineGapsByAttribute() : Promise.resolve([]),
       view === "by-person" ? getBaselineGapsByPerson() : Promise.resolve([]),
       getHdRebakeEligibleCount(),
       getDismissedSetDuplicates(),
       getCrossLabelMisMerges(),
+      getAttributionLinkAudit(),
     ]);
 
     return (
@@ -52,7 +63,7 @@ export default async function MaintenancePage({ searchParams }: MaintenancePageP
         </div>
 
         {/* Top metrics */}
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-6">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
           <MetricCard
             label="Tier 1 warnings"
             value={totals.tier1PersonsWithGaps}
@@ -84,6 +95,13 @@ export default async function MaintenancePage({ searchParams }: MaintenancePageP
             tone={crossLabelMisMerges.length > 0 ? "warn" : undefined}
             hint="Staging sets wrongly promoted into a Set under a different owning label (ADR-0020). Should be 0 — any row needs a manual un-merge."
           />
+          <MetricCard
+            label="Attribution conflicts"
+            value={attributionAudit.conflicts.length}
+            suffix={`of ${attributionAudit.comparable} comparable`}
+            tone={attributionAudit.conflicts.length > 0 ? "warn" : undefined}
+            hint="Archive folders attributed to someone the set they are linked to does not list. Neither side is automatically right — but nothing asked, and on promote the set's own list wins."
+          />
         </div>
 
         {/* Tab toggle */}
@@ -98,6 +116,10 @@ export default async function MaintenancePage({ searchParams }: MaintenancePageP
 
         {crossLabelMisMerges.length > 0 && (
           <CrossLabelMisMergesList rows={crossLabelMisMerges} />
+        )}
+
+        {attributionAudit.conflicts.length > 0 && (
+          <AttributionLinkConflictsList rows={attributionAudit.conflicts} />
         )}
 
         {dismissedDuplicates.length > 0 && (

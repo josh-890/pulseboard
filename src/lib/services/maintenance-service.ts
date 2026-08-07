@@ -458,3 +458,125 @@ export async function getCrossLabelMisMerges(): Promise<CrossLabelMisMerge[]> {
     ORDER BY ss."updatedAt" DESC
   `;
 }
+
+// ─── Attribution ↔ link contradiction detector ──────────────────────────────
+//
+// Two truths about who is in a set can be written independently, and today
+// neither side reads the other:
+//
+//   ArchiveFolderAttribution  — you, in the workbench, about a folder on disk
+//   StagingSet.participants / SetParticipant — the person import, about a set
+//
+// A folder can be attributed to P and later linked to a set the import says is
+// {A, B}. `confirmArchiveLink` never looks at the attributions, so the
+// contradiction is written silently; on promote the Set takes the import's list
+// and P is dropped, while the attribution row lives on and keeps feeding P's
+// face ladder from a set P may not be in. `linkFolderToStagingSet` resolves the
+// same contradiction the opposite way — it unions P into the participants —
+// so the outcome depends on which side was touched last.
+//
+// This is read-only and takes no view on who is right: an import list can be
+// genuinely incomplete (an uncredited second model) and a folder attribution is
+// the archive owner's own assertion (ADR-0027). It only says: these two disagree,
+// and nobody was asked.
+
+export type AttributionLinkConflict = {
+  folderId: string;
+  folderName: string;
+  fullPath: string;
+  /** Who you attributed — always shown as Name (ICG-ID). */
+  attributedName: string;
+  attributedIcgId: string;
+  attributedAt: Date;
+  /** Which side the folder is linked to, and what that side says. */
+  kind: "staging" | "set";
+  targetId: string;
+  targetTitle: string;
+  targetParticipants: string | null;
+  linkedAt: Date | null;
+};
+
+export type AttributionLinkAudit = {
+  /** Attributions sitting on a folder with a CONFIRMED link — the population looked at. */
+  checked: number;
+  /** Of those, the ones whose linked set names somebody, so a comparison is possible. */
+  comparable: number;
+  conflicts: AttributionLinkConflict[];
+};
+
+/**
+ * Confirmed links whose set does not list the person the folder is attributed to.
+ *
+ * Only CONFIRMED links count — a SUGGESTED one is not a claim yet. Only sets that
+ * name *somebody* count: an empty participant list is missing information, not a
+ * contradiction, and folding those in would bury the real signal under a wall of
+ * "unknown".
+ *
+ * `checked` and `comparable` ship with the rows on purpose. A detector that
+ * returns 0 is worth nothing unless you can tell "nothing disagrees" from
+ * "nothing was in a position to disagree" — and while the archive is still mostly
+ * unlinked, the second is the likelier reading.
+ *
+ * Raw SQL because the comparison spans an array column on one side and a join
+ * table on the other; `archive_folder`, `archive_folder_attribution` and
+ * `staging_set` are @@map'd to snake_case.
+ */
+export async function getAttributionLinkAudit(): Promise<AttributionLinkAudit> {
+  const rows = await prisma.$queryRaw<(AttributionLinkConflict & { comparable: boolean; conflict: boolean })[]>`
+    WITH linked AS (
+      SELECT af.id                        AS "folderId",
+             af."folderName"              AS "folderName",
+             af."fullPath"                AS "fullPath",
+             a.name                       AS "attributedName",
+             a."icgId"                    AS "attributedIcgId",
+             a."confirmedAt"              AS "attributedAt",
+             al."confirmedAt"             AS "linkedAt",
+             CASE WHEN al."stagingSetId" IS NOT NULL THEN 'staging' ELSE 'set' END AS kind,
+             COALESCE(ss.id, s.id)        AS "targetId",
+             COALESCE(ss.title, s.title)  AS "targetTitle",
+             COALESCE(
+               ss."participantIcgIds",
+               (SELECT array_agg(p."icgId")
+                  FROM "SetParticipant" sp
+                  JOIN "Person" p ON p.id = sp."personId"
+                 WHERE sp."setId" = s.id),
+               '{}'::text[]
+             ) AS parts,
+             COALESCE(
+               CASE WHEN jsonb_typeof(ss.participants::jsonb) = 'array' THEN (
+                 SELECT string_agg(
+                          COALESCE(e->>'name', '?') || ' (' || COALESCE(NULLIF(e->>'icgId', ''), '—') || ')',
+                          ', ')
+                   FROM jsonb_array_elements(ss.participants::jsonb) e
+               ) END,
+               (SELECT string_agg(COALESCE(pa.name, p."icgId") || ' (' || p."icgId" || ')', ', ')
+                  FROM "SetParticipant" sp
+                  JOIN "Person" p ON p.id = sp."personId"
+                  LEFT JOIN "PersonAlias" pa ON pa."personId" = p.id AND pa."isCommon"
+                 WHERE sp."setId" = s.id)
+             ) AS "targetParticipants"
+        FROM archive_folder_attribution a
+        JOIN archive_folder af ON af.id = a."archiveFolderId"
+        JOIN "ArchiveLink" al ON al."archiveFolderId" = af.id AND al.status::text = 'CONFIRMED'
+        LEFT JOIN staging_set ss ON ss.id = al."stagingSetId"
+        LEFT JOIN "Set" s ON s.id = al."setId"
+    )
+    SELECT "folderId", "folderName", "fullPath",
+           "attributedName", "attributedIcgId", "attributedAt",
+           kind, "targetId", "targetTitle", "targetParticipants", "linkedAt",
+           cardinality(parts) > 0                                   AS comparable,
+           cardinality(parts) > 0
+             AND NOT ("attributedIcgId" = ANY (parts))              AS conflict
+      FROM linked
+     WHERE "targetId" IS NOT NULL
+     ORDER BY "linkedAt" DESC NULLS LAST
+  `;
+
+  return {
+    checked: rows.length,
+    comparable: rows.filter((r) => r.comparable).length,
+    conflicts: rows
+      .filter((r) => r.conflict)
+      .map(({ comparable: _c, conflict: _f, ...row }) => row),
+  };
+}
