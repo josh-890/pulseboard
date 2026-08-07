@@ -1243,8 +1243,24 @@ whom it did not add.
 
 Neither side is automatically right: an import list can be incomplete, and your attribution is
 your own assertion made with the cover in front of you. So the disagreement is kept rather than
-resolved — the attribution queue shows how many are open, and `Maintenance → Attribution
-conflicts` lists them with both claims side by side.
+resolved, and you settle it where you can see it: the attribution queue shows how many are open
+and links straight into the **contradiction session**, which puts the cover in the middle, your
+claim and the set's credits beside it, and asks one folder at a time.
+
+| Key | |
+|---|---|
+| `1` | the set is right — drop my claim, and never propose them for this folder again |
+| `2` | I am right — the credits were incomplete, add them to this set |
+| `3` | wrong link — this folder is not that set; unlink it, my claim stays |
+| `←` `→` | move through the contradictions · `Space` moves on without deciding |
+| `I` `T` | overlay and filmstrip, exactly as in the workbench |
+
+For a set that has already been **promoted**, `2` is a link rather than a key: a promoted set is
+credited through its session, so the app sends you there instead of writing into a cache that the
+next rebuild would wipe.
+
+There is deliberately no "leave it as it is": the list is computed from the data itself, so a row
+only disappears when something has actually been decided.
 
 #### Stage 2 — develop it or wait
 

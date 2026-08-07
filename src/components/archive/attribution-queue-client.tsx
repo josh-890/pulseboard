@@ -122,8 +122,8 @@ export function AttributionQueueClient({ initialQueue, view, conflicts }: Attrib
           <p className="mt-3 rounded-md bg-amber-500/10 px-3 py-2 text-sm text-amber-700 dark:text-amber-400">
             {conflicts.toLocaleString()} folder{conflicts === 1 ? '' : 's'} attributed to someone the
             set they are linked to does not credit.{' '}
-            <Link href="/maintenance" className="underline underline-offset-2">
-              Look at them
+            <Link href="/archive/conflicts" className="underline underline-offset-2">
+              Decide them
             </Link>
           </p>
         )}

@@ -32,6 +32,11 @@ async function run<T>(fn: () => Promise<T>, paths: string[]): Promise<Attributio
     }
   })
 }
+import {
+  resolveConflict,
+  type ConflictAnswer,
+  type ConflictResolution,
+} from '@/lib/services/conflict-session-service'
 
 const QUEUE = ['/archive/attribution']
 const BOTH = ['/archive/attribution', '/archive/develop', '/archive']
@@ -137,6 +142,26 @@ export async function searchAssignablePeopleAction(
   q: string,
 ): Promise<AttributionActionResult<Awaited<ReturnType<typeof searchAssignablePeople>>>> {
   return run(() => searchAssignablePeople(q), [])
+}
+
+/**
+ * Answer one contradiction between a folder's claim and its set's cast.
+ *
+ * Returns the resolution rather than throwing on the promoted-Set case: "I am
+ * right" cannot be applied to a Set from here, and a hand-off is a legitimate
+ * outcome, not a failure (ADR-0028).
+ */
+export async function resolveConflictAction(
+  folderId: string,
+  icgId: string,
+  answer: ConflictAnswer,
+): Promise<AttributionActionResult<ConflictResolution>> {
+  return run(() => resolveConflict(folderId, icgId, answer), [
+    '/archive/conflicts',
+    '/archive/attribution',
+    '/maintenance',
+    '/staging-sets',
+  ])
 }
 
 // ── Stage 2: development, a separate pass ───────────────────────────────────

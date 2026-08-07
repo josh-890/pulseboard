@@ -25,7 +25,11 @@ export function AttributionLinkConflictsList({ rows }: { rows: AttributionLinkCo
         You attributed these archive folders to a person the set they are linked to does
         not list. Neither side is automatically right — an import list can be incomplete,
         and a folder attribution is your own assertion — but nobody was asked, and on
-        promote the set&apos;s own list is what survives.
+        promote the set&apos;s own list is what survives.{" "}
+        <Link href="/archive/conflicts" className="underline underline-offset-2 hover:text-foreground">
+          Decide them with the covers in view
+        </Link>
+        .
       </p>
       <ul className="divide-y divide-white/5">
         {rows.map((r) => (
