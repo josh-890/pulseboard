@@ -48,7 +48,7 @@ export function DevelopQueueClient({ people }: { people: DevelopPersonRow[] }) {
   const router = useRouter()
   const [dismissed, setDismissed] = useState<ReadonlySet<string>>(new Set())
   const [busy, setBusy] = useState<string | null>(null)
-  const [flash, setFlash] = useState<{ text: string; tone: 'ok' | 'err' } | null>(null)
+  const [flash, setFlash] = useState<{ text: string; tone: 'ok' | 'err' | 'warn' } | null>(null)
   const [active, setActive] = useState<string | null>(people[0]?.icgId ?? null)
   const [focus, setFocus] = useState(0)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -82,8 +82,24 @@ export function DevelopQueueClient({ people }: { people: DevelopPersonRow[] }) {
         return
       }
       setDismissed((d) => new Set(d).add(folderId))
-      const linked = 'data' in res && res.data && 'linkedExisting' in res.data && res.data.linkedExisting
-      const n = 'data' in res && res.data && 'participants' in res.data ? res.data.participants : 1
+      const data = 'data' in res ? res.data : null
+      const linked = !!data && 'linkedExisting' in data && data.linkedExisting
+      const n = data && 'participants' in data ? data.participants : 1
+      const withheld = data && 'withheld' in data ? data.withheld : []
+
+      // The set already names someone else. Nothing was written into its cast —
+      // saying so here is the whole point, because the alternative (folding the
+      // person in) is what used to happen silently. ADR-0028.
+      if (withheld.length > 0) {
+        const who = withheld.map((w) => `${w.name} (${w.icgId})`).join(', ')
+        setFlash({
+          text: `Linked — but the set already credits someone else, so ${who} was not added to it. Decide it under Maintenance → Attribution conflicts.`,
+          tone: 'warn',
+        })
+        router.refresh()
+        return
+      }
+
       setFlash({
         text:
           op === 'wait'
@@ -165,7 +181,9 @@ export function DevelopQueueClient({ people }: { people: DevelopPersonRow[] }) {
             'mb-4 rounded-md px-3 py-2 text-sm',
             flash.tone === 'ok'
               ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400'
-              : 'bg-destructive/10 text-destructive',
+              : flash.tone === 'warn'
+                ? 'bg-amber-500/10 text-amber-700 dark:text-amber-400'
+                : 'bg-destructive/10 text-destructive',
           )}
           role="status"
         >

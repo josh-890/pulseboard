@@ -143,7 +143,9 @@ export async function searchAssignablePeopleAction(
 
 export async function developFolderAction(
   folderId: string,
-): Promise<AttributionActionResult<{ stagingSetId: string; participants: number }>> {
+): Promise<
+  AttributionActionResult<Awaited<ReturnType<typeof developFolder>>>
+> {
   return run(() => developFolder(folderId), ['/archive/develop', '/staging-sets', '/archive'])
 }
 

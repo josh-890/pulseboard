@@ -16,6 +16,8 @@ import { PersonIdentity } from '@/components/shared/person-identity'
 type AttributionQueueClientProps = {
   initialQueue: AttributionQueue
   view: 'open' | 'conflicted' | 'decided'
+  /** Folders whose attribution the set they are linked to contradicts (ADR-0028). */
+  conflicts: number
 }
 
 const VIEWS = [
@@ -37,7 +39,7 @@ const VIEWS = [
  * What stays are the two verdicts that really are about a whole group: "not a
  * person" (`W4B | w4b magazine` is a magazine title across 204 folders) and skip.
  */
-export function AttributionQueueClient({ initialQueue, view }: AttributionQueueClientProps) {
+export function AttributionQueueClient({ initialQueue, view, conflicts }: AttributionQueueClientProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
   // The list is DERIVED from props, never seeded into state. Switching views is a
@@ -111,6 +113,20 @@ export function AttributionQueueClient({ initialQueue, view }: AttributionQueueC
             </p>
           </div>
         </div>
+
+        {/* A contradiction is rare and easy to miss, and the only surface that
+            would otherwise show it is a maintenance page nobody visits by
+            reflex. It sits with the counters because this is where the work that
+            creates it happens (ADR-0028). */}
+        {conflicts > 0 && (
+          <p className="mt-3 rounded-md bg-amber-500/10 px-3 py-2 text-sm text-amber-700 dark:text-amber-400">
+            {conflicts.toLocaleString()} folder{conflicts === 1 ? '' : 's'} attributed to someone the
+            set they are linked to does not credit.{' '}
+            <Link href="/maintenance" className="underline underline-offset-2">
+              Look at them
+            </Link>
+          </p>
+        )}
 
         <dl className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-6">
           {[

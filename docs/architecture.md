@@ -195,6 +195,15 @@ All import services in `src/lib/services/import/`.
 
 **`archive-unsettled.ts`** — `UNSETTLED_FOLDER`, the single definition of "still needs a person": no **CONFIRMED** link. The pipeline previously excluded any folder carrying an `ArchiveLink` at all, `SUGGESTED` included — treating a machine guess as a decision. The two failure modes compounded: a wrong suggestion removed the folder from the only view that could contradict it. Measured before the change: **2,733 folders hidden this way, 14% of their suggestions agreed with the folder on neither date nor title, and 0 had ever reached the catalogue agent** (its worklist used the same filter).
 
+**Union rule (ADR-0028)** — `linkFolderToStagingSet` writes a folder's claims into a StagingSet's
+cast only when that cast is **empty** (pure enrichment, what the develop path is for) or already
+names the person (no-op). Emptiness is decided once, before anything is written, or the first
+claim would fill the cast and block the second; a cast named without ICG-IDs still counts as a
+cast. Withheld claims come back as `withheld` and the develop queue names them in an amber flash.
+`createStagingSetFromOrphan` sets `titleNorm` — without it `findProbableStagingDuplicate` returns
+null and a later import can never recognise the row (`scripts/backfill-staging-title-norm.ts`
+catches rows made before the fix). The attribution queue carries the open contradiction count.
+
 **Attribution ↔ link contradiction detector** (ADR-0028) — `getAttributionLinkAudit()` (`maintenance-service.ts`)
 surfaces archive folders whose confirmed attribution names someone the linked StagingSet/Set does
 not list. The two truths are written independently and neither side reads the other:

@@ -1233,6 +1233,19 @@ folders you have **already** confirmed as them. Which one it is, is written unde
 a curated headshot is your own choice, a cover from a folder you confirmed is a hint that could
 still be circular.
 
+##### When the set already credits someone else
+
+Developing a folder onto a set that came from an import used to add your person to that set's
+cast without asking — so a set credited to two people quietly became three. It no longer does.
+If the set already credits somebody and your person is not among them, the folder is still
+linked, but the cast is left exactly as the import delivered it, and the develop queue says
+whom it did not add.
+
+Neither side is automatically right: an import list can be incomplete, and your attribution is
+your own assertion made with the cover in front of you. So the disagreement is kept rather than
+resolved — the attribution queue shows how many are open, and `Maintenance → Attribution
+conflicts` lists them with both claims side by side.
+
 #### Stage 2 — develop it or wait
 
 **Archive → Develop confirmed sets** lists folders whose person is settled but which have no

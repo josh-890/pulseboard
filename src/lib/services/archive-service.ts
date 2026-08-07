@@ -2851,9 +2851,15 @@ export async function createStagingSetFromOrphan(
     }
   }
 
+  // titleNorm is not decoration: `findProbableStagingDuplicate` returns null on an
+  // empty one, so a staging set created here without it can NEVER be recognised
+  // by a later import of the same set — silent twins by construction, one holding
+  // the archive link and one holding the import payload (ADR-0028).
+  const title = folder.parsedTitle ?? folder.folderName
   const stagingSet = await prisma.stagingSet.create({
     data: {
-      title: folder.parsedTitle ?? folder.folderName,
+      title,
+      titleNorm: normalizeForSearch(title),
       channelName,
       channelId: channelId ?? null,
       releaseDate: folder.parsedDate ?? undefined,

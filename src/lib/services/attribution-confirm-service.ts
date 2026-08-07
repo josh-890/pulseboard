@@ -613,7 +613,13 @@ export async function getDevelopQueue(opts: { limit?: number } = {}): Promise<De
  */
 export async function developFolder(
   folderId: string,
-): Promise<{ stagingSetId: string; participants: number; linkedExisting: boolean }> {
+): Promise<{
+  stagingSetId: string
+  participants: number
+  linkedExisting: boolean
+  /** Claims the set's own cast contradicts — written nowhere, surfaced instead. */
+  withheld: WithheldClaim[]
+}> {
   const attributions = await prisma.archiveFolderAttribution.findMany({
     where: { archiveFolderId: folderId },
     select: { icgId: true, name: true, personId: true },
@@ -628,8 +634,8 @@ export async function developFolder(
   // on xpulse. Creating a second one would be a duplicate of curated work.
   const existing = await findExistingStagingSet(folderId)
   if (existing) {
-    const participants = await linkFolderToStagingSet(folderId, existing.id)
-    return { stagingSetId: existing.id, participants, linkedExisting: true }
+    const { added, withheld } = await linkFolderToStagingSet(folderId, existing.id)
+    return { stagingSetId: existing.id, participants: added, linkedExisting: true, withheld }
   }
 
   const { stagingSetId } = await createStagingSetFromOrphan(folderId)
@@ -648,7 +654,9 @@ export async function developFolder(
   await prisma.$transaction(async (tx) => {
     await setReview(tx, folderId, { develop: 'DEVELOPED' })
   })
-  return { stagingSetId, participants: attributions.length, linkedExisting: false }
+  // A set built from this folder starts with no cast of its own, so there is
+  // nothing here that the attributions could contradict.
+  return { stagingSetId, participants: attributions.length, linkedExisting: false, withheld: [] }
 }
 
 export type ExistingStagingMatch = {
@@ -712,14 +720,32 @@ export async function findExistingStagingSet(folderId: string): Promise<Existing
   }
 }
 
+/** A claim the linked set's cast does not name, and which was therefore not written. */
+export type WithheldClaim = { icgId: string; name: string }
+
 /**
- * Attach the folder to a StagingSet that already exists, and top up its
- * participants from the confirmed attributions.
+ * Attach the folder to a StagingSet that already exists, and top up its cast from
+ * the confirmed attributions — but only where that is not an argument.
  *
- * The link is CONFIRMED because the operator pressed the key — this is the same
- * standing as confirming a suggestion in the archive workspace.
+ * The link is CONFIRMED because the operator pressed the key — the same standing
+ * as confirming a suggestion in the archive workspace.
+ *
+ * A folder carries **claims**; a set has a **cast** (ADR-0028). This used to fold
+ * the first into the second unconditionally, so developing a folder attributed to
+ * P onto an imported set credited to {A, B} quietly produced a three-person set
+ * that nobody had agreed to. Now the claims are written only when the cast is
+ * **empty** — pure enrichment, which is what the develop path is for — or when
+ * the person already stands in it, which is a no-op. Where the set names a
+ * different cast, the claim is withheld and returned, so the disagreement stays
+ * visible instead of being resolved by whoever wrote last.
+ *
+ * Emptiness is decided ONCE, before anything is written: evaluating it per person
+ * would let the first claim fill the cast and then block the second.
  */
-export async function linkFolderToStagingSet(folderId: string, stagingSetId: string): Promise<number> {
+export async function linkFolderToStagingSet(
+  folderId: string,
+  stagingSetId: string,
+): Promise<{ added: number; withheld: WithheldClaim[] }> {
   const folder = await prisma.archiveFolder.findUnique({
     where: { id: folderId },
     select: { relativePath: true, tenant: true },
@@ -746,12 +772,29 @@ export async function linkFolderToStagingSet(folderId: string, stagingSetId: str
     },
   })
 
-  const attributions = await prisma.archiveFolderAttribution.findMany({
-    where: { archiveFolderId: folderId },
-    select: { icgId: true, name: true, personId: true },
-  })
+  const [attributions, staging] = await Promise.all([
+    prisma.archiveFolderAttribution.findMany({
+      where: { archiveFolderId: folderId },
+      select: { icgId: true, name: true, personId: true },
+    }),
+    prisma.stagingSet.findUnique({
+      where: { id: stagingSetId },
+      select: { participantIcgIds: true, participants: true },
+    }),
+  ])
+
+  const cast = new Set(staging?.participantIcgIds ?? [])
+  // A cast can name people without an ICG-ID, and those still make it a cast.
+  const castNamesSomebody =
+    cast.size > 0 || (Array.isArray(staging?.participants) && staging.participants.length > 0)
+
   let added = 0
+  const withheld: WithheldClaim[] = []
   for (const a of attributions) {
+    if (castNamesSomebody && !cast.has(a.icgId)) {
+      withheld.push({ icgId: a.icgId, name: a.name })
+      continue
+    }
     const res = await addStagingSetParticipant(stagingSetId, {
       name: a.name,
       icgId: a.icgId,
@@ -763,7 +806,7 @@ export async function linkFolderToStagingSet(folderId: string, stagingSetId: str
   await prisma.$transaction(async (tx) => {
     await setReview(tx, folderId, { develop: 'DEVELOPED' })
   })
-  return added
+  return { added, withheld }
 }
 
 /** Park a confirmed folder: the set will arrive via the person's import instead. */
