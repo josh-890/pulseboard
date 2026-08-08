@@ -1247,7 +1247,7 @@ scan — the app has no route to the archive filesystem.
 That means the archive answers on its own. With the database, MinIO or the whole server down:
 
 ```
-rg 'AI-00QAS' \\tower\photosets          # every set that person worked on
+rg 'AI-00QAS' I:\Sites L:\Sites02 L:\VSites   # every set that person worked on
 ```
 
 Each archive root also gets a generated `_pulseboard_index.tsv` — ICG-ID, name, standing, path —

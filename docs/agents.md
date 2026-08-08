@@ -36,6 +36,35 @@ Common to all of them:
 
 ---
 
+## Where the archive actually is
+
+Three roots, held in the app's settings (`archive.photosetRoot`, `archive.videosetRoot`)
+and mirrored in the agent's `.env`:
+
+```
+photosets   I:\Sites\        and  L:\Sites02\
+videosets   L:\VSites\
+```
+
+Under each root the layout is `{root}\{channelFolder}\{year}\{folderName}`:
+
+```
+I:\Sites\MTA-METArchive\1999\1999-10-08-MTA Katya - Wings
+L:\VSites\WX-Woodman\2012\2012-08-18-WX Lyen Parker - WCX Casting
+```
+
+Two things that catch people out. **Photosets live under two roots** — `I:\Sites` and
+`L:\Sites02` — so "the archive root" is not a single path, and a `-Path` has to name
+the one that channel is actually on. And **the same channel folder appears in both
+trees**: `MPL-MPLStudios` exists under `I:\Sites` for its photosets and under
+`L:\VSites` for its videosets.
+
+The biggest channel folders, for scoping a run: `FJ-FemJoy` (11,506 folders),
+`MPL-MPLStudios` (4,986), `MA-MetArt` (3,518), `W4B-Watch4Beauty` (3,181),
+`AA-AmourAngels` (2,657).
+
+---
+
 ## `archive-scan.ps1` — the filesystem walk
 
 Keeps `ArchiveFolder` in step with the disk, and since ADR-0029 also writes the
@@ -51,7 +80,7 @@ refreshes `_pulseboard_people.txt` and the per-root index.
 ```powershell
 .\archive-scan.ps1                                   # targeted, the routine run
 .\archive-scan.ps1 -Mode Full                        # the real reconciliation
-.\archive-scan.ps1 -Mode Full -Path "H:\Photosets\MPL-MPLStudios" -DryRun
+.\archive-scan.ps1 -Mode Full -Path "I:\Sites\MPL-MPLStudios" -DryRun
 .\archive-scan.ps1 -Mode Full -NoSidecarPrompt       # unattended / scheduled
 .\archive-scan.ps1 -Mode Full -Rebake                # then hand over to the re-bake
 ```
@@ -59,7 +88,7 @@ refreshes `_pulseboard_people.txt` and the per-root index.
 | Switch | What it does, and when you need it |
 |---|---|
 | `-Mode Full` | The bidirectional walk. Everything below applies to it |
-| `-Path <dir>` | Restrict the walk to a channel folder, a year, or a single leaf. Use it with `-Force` to keep a forced run quick |
+| `-Path <dir>` | Restrict the walk to a channel folder, a year, or a single leaf — a full path under one of the three roots, not a channel name. Use it with `-Force` to keep a forced run quick |
 | `-Force` | Re-read every leaf, ignoring the mtime shortcut. **Needed after editing a file inside a folder** — see the trap below |
 | `-NoSidecarPrompt` | Do not ask before writing `_pulseboard.json`; for scheduled runs |
 | `-SkipPeople` | Skip `_pulseboard_people.txt` and the index |
@@ -73,7 +102,7 @@ So an edited `_people.txt` is invisible to the mtime shortcut and a plain Full s
 will not see it. That is what `-Force` is for:
 
 ```powershell
-.\archive-scan.ps1 -Mode Full -Force -Path "H:\Photosets\MPL-MPLStudios\2011\2011-01-16-MPL Talia - The Delicate Edge"
+.\archive-scan.ps1 -Mode Full -Force -Path "I:\Sites\MPL-MPLStudios\2011\2011-01-16-MPL Talia - The Delicate Edge"
 ```
 
 ---
