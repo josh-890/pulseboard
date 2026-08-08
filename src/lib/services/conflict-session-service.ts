@@ -20,6 +20,7 @@ import { prisma } from '@/lib/db'
 import { buildUrl } from '@/lib/media-url'
 import { getAttributionLinkAudit } from '@/lib/services/maintenance-service'
 import { resolvePersonReferences, type PersonReference } from '@/lib/services/person-reference-service'
+import { loadCasts } from '@/lib/services/set-cast-service'
 
 export type ConflictPerson = { icgId: string; name: string }
 
@@ -58,7 +59,7 @@ export async function getConflictSession(): Promise<ConflictSession> {
   const stagingIds = [...new Set(conflicts.filter((c) => c.kind === 'staging').map((c) => c.targetId))]
   const setIds = [...new Set(conflicts.filter((c) => c.kind === 'set').map((c) => c.targetId))]
 
-  const [folders, claimCounts, stagingSets, sets] = await Promise.all([
+  const [folders, claimCounts, casts] = await Promise.all([
     prisma.archiveFolder.findMany({
       where: { id: { in: folderIds } },
       // coverUrl is resolved HERE: buildUrl reads the tenant bucket through
@@ -71,54 +72,13 @@ export async function getConflictSession(): Promise<ConflictSession> {
       where: { archiveFolderId: { in: folderIds } },
       _count: { _all: true },
     }),
-    stagingIds.length
-      ? prisma.stagingSet.findMany({
-          where: { id: { in: stagingIds } },
-          select: { id: true, title: true, participants: true },
-        })
-      : Promise.resolve([]),
-    setIds.length
-      ? prisma.set.findMany({
-          where: { id: { in: setIds } },
-          select: {
-            id: true,
-            title: true,
-            participants: {
-              select: {
-                person: {
-                  select: { icgId: true, aliases: { where: { isCommon: true }, select: { name: true }, take: 1 } },
-                },
-              },
-            },
-          },
-        })
-      : Promise.resolve([]),
+    // Both cast shapes — staging JSON and the SetParticipant cache — resolved by the
+    // reader the people files on disk use too (ADR-0029).
+    loadCasts(stagingIds, setIds),
   ])
 
   const folderById = new Map(folders.map((f) => [f.id, f]))
   const claimsById = new Map(claimCounts.map((c) => [c.archiveFolderId, c._count._all]))
-
-  const castById = new Map<string, ConflictPerson[]>()
-  for (const ss of stagingSets) {
-    const raw = Array.isArray(ss.participants) ? (ss.participants as { name?: string; icgId?: string }[]) : []
-    castById.set(
-      ss.id,
-      raw.map((p) => ({ name: p.name ?? '?', icgId: p.icgId ?? '' })),
-    )
-  }
-  for (const s of sets) {
-    castById.set(
-      s.id,
-      s.participants.map((p) => ({
-        name: p.person.aliases[0]?.name ?? p.person.icgId,
-        icgId: p.person.icgId,
-      })),
-    )
-  }
-  const titleById = new Map<string, string>([
-    ...stagingSets.map((s) => [s.id, s.title] as const),
-    ...sets.map((s) => [s.id, s.title] as const),
-  ])
 
   const rows: ConflictFolder[] = []
   for (const c of conflicts) {
@@ -136,8 +96,8 @@ export async function getConflictSession(): Promise<ConflictSession> {
       target: {
         kind: c.kind,
         id: c.targetId,
-        title: titleById.get(c.targetId) ?? c.targetTitle,
-        cast: castById.get(c.targetId) ?? [],
+        title: casts.get(c.targetId)?.title ?? c.targetTitle,
+        cast: casts.get(c.targetId)?.cast ?? [],
       },
     })
   }

@@ -204,6 +204,19 @@ cast. Withheld claims come back as `withheld` and the develop queue names them i
 null and a later import can never recognise the row (`scripts/backfill-staging-title-norm.ts`
 catches rows made before the fix). The attribution queue carries the open contradiction count.
 
+**People files on disk (ADR-0029)** — `lib/archive-people-file.ts` (pure: `renderPeopleFile`,
+`parsePeopleFile`, `peopleRevision` — first 16 hex of SHA-256, `EMPTY` when nobody is known) and
+`services/archive-people-service.ts` (`getPeopleRevisions`, `getPeopleFiles`). Two agent endpoints,
+`GET /api/archive/people-revisions` and `POST /api/archive/people-files`, both behind
+`ARCHIVE_API_KEY`. The app cannot reach the archive filesystem, so `archive-scan.ps1` pulls: one
+revision list per Full scan, header comparison per folder, batched body fetch, write or delete,
+then a derived `_pulseboard_index.tsv` per root. Inbound, the walk reads `_people.txt` and ships
+`folderPeople` / `folderPeopleErrors` on `FullIngestItem`; `upsertArchiveFolders` writes them as
+`FOLDER_ATTRIBUTION` suggestions at tier `EXACT` — **additive only**. Both fields pass through
+`coerceFolderPeople` / `coerceStrings`, the same PowerShell single-element-array collapse that
+`coerceVideoFiles` already guards. `services/set-cast-service.ts` (`loadCasts`) resolves both cast
+shapes and is shared with the contradiction session.
+
 **Import ↔ archive collision (ADR-0028)** — `services/import/linked-set-merge.ts`. During ingest,
 `findLinkedCollision(channelId, date, isVideo, titleNorm)` looks for a StagingSet that already
 carries a **CONFIRMED** archive link on the same key `findProbableStagingDuplicate` and

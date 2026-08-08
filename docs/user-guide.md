@@ -1233,6 +1233,53 @@ folders you have **already** confirmed as them. Which one it is, is written unde
 a curated headshot is your own choice, a cover from a folder you confirmed is a hint that could
 still be circular.
 
+##### Finding a person's sets without the app
+
+Every archive folder the app knows people for carries a small text file,
+`_pulseboard_people.txt`, listing them as `Name (ICG-ID)` in two labelled sections: `# credited`
+(who the publisher named for the linked set) and `# claimed` (what you asserted about the folder).
+It is written by the scan agent, so what you confirm today appears on disk after the next Full
+scan — the app has no route to the archive filesystem.
+
+That means the archive answers on its own. With the database, MinIO or the whole server down:
+
+```
+rg 'AI-00QAS' \\tower\photosets          # every set that person worked on
+```
+
+Each archive root also gets a generated `_pulseboard_index.tsv` — ICG-ID, name, standing, path —
+which answers the same question from one file you can copy onto a stick. It is derived from the
+per-folder files: if it ever looks wrong, delete it and grep the folders, which cannot go stale
+independently of the folders they sit in.
+
+None of this is a backup. `scripts/db-backup.sh` restores the database and restores far more.
+What these files give you is an archive that still describes itself when nothing else is running,
+and a folder that keeps its people when you copy it somewhere else.
+
+##### Telling the app about people from the filesystem
+
+Put a `_people.txt` in an archive folder, one `Common Name (ICG-ID)` per line — `#` comments and
+blank lines are ignored:
+
+```
+# shot at the same session as the Talia set
+Anna Y (AY-006S)
+BE-01QQ
+```
+
+The next scan turns those into candidates at the top of that folder's list in the workbench, above
+anything the catalogue proposed, and one keystroke confirms them. They are *not* written straight
+through: a mistyped ICG-ID usually points at a real other person, and one key is a cheap price for
+never attributing a stranger unseen. Lines that cannot be read are reported in the scan output
+rather than dropped.
+
+Two things worth knowing:
+
+- The file only ever **adds**. Removing a line takes nothing back — undo that in the app.
+- An **edited** `_people.txt` is invisible to the scan's shortcut, because Windows does not update
+  a folder's timestamp when a file inside it changes. After editing one, scan with `-Force`
+  (and `-Path` to keep it quick).
+
 ##### When the import brings a set you already hold
 
 If you developed an archive folder into a set and the person import later delivers that same set,

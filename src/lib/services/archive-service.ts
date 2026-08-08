@@ -309,6 +309,33 @@ export function coerceVideoFiles(value: unknown): string[] | null {
 }
 
 /**
+ * The same `ConvertTo-Json` hazard, one field over.
+ *
+ * A folder whose `_people.txt` names exactly **one** person arrives as an object
+ * rather than a one-element array — and a single-person set is the common case, so
+ * this is not an edge. Coercing at the ingest boundary is why the file on disk is
+ * plain text and only the transport is JSON.
+ */
+export function coerceFolderPeople(value: unknown): { name: string; icgId: string }[] {
+  if (value == null) return []
+  const arr = Array.isArray(value) ? value : [value]
+  return arr.flatMap((v) => {
+    if (typeof v !== 'object' || v === null) return []
+    const person = v as { name?: unknown; icgId?: unknown }
+    if (typeof person.icgId !== 'string' || !person.icgId) return []
+    const name = typeof person.name === 'string' && person.name ? person.name : person.icgId
+    return [{ name, icgId: person.icgId }]
+  })
+}
+
+/** Same collapse, for the reported bad lines. */
+export function coerceStrings(value: unknown): string[] {
+  if (value == null) return []
+  const arr = Array.isArray(value) ? value : [value]
+  return arr.filter((v): v is string => typeof v === 'string' && v.length > 0)
+}
+
+/**
  * Parse a stored `archiveVideoFiles` / `videoFiles` JSON column back into a
  * `string[]`, tolerating legacy rows that were persisted as a scalar (see
  * {@link coerceVideoFiles}) or as a bare unquoted filename.
@@ -940,6 +967,10 @@ export type FullIngestItem = {
   nameFormatOk: boolean               // false = folder name deviates from canonical format
   chanFolderName: string | null       // channel folder name (e.g. "RA-RylskyArt")
   sidecarKey?: string                 // contents of _pulseboard.json archiveKey field, if present
+  /** Parsed `_people.txt` entries — the owner's hand-written claims (ADR-0029). */
+  folderPeople?: { name: string; icgId: string }[]
+  /** Lines of `_people.txt` that were not usable. Reported, never silently dropped. */
+  folderPeopleErrors?: string[]
 }
 
 // ─── Archive Workspace Types ──────────────────────────────────────────────────
@@ -1188,9 +1219,28 @@ export function shouldSkipEmptyUpdate(
 export async function upsertArchiveFolders(
   items: FullIngestItem[],
   tenant: string,
-): Promise<{ created: number; updated: number; renamed: number; unchanged: number; skipped: number; errors: number; keyConflicts: KeyConflict[] }> {
+): Promise<{
+  created: number
+  updated: number
+  renamed: number
+  unchanged: number
+  skipped: number
+  errors: number
+  keyConflicts: KeyConflict[]
+  /** `_people.txt`: entries written as suggestions, and the lines that were not usable. */
+  folderPeople: { written: number; badLines: string[] }
+}> {
   const now = new Date()
-  const counts = { created: 0, updated: 0, renamed: 0, unchanged: 0, skipped: 0, errors: 0, keyConflicts: [] as KeyConflict[] }
+  const counts = {
+    created: 0,
+    updated: 0,
+    renamed: 0,
+    unchanged: 0,
+    skipped: 0,
+    errors: 0,
+    keyConflicts: [] as KeyConflict[],
+    folderPeople: { written: 0, badLines: [] as string[] },
+  }
 
   for (const item of items) {
     try {
@@ -1511,7 +1561,62 @@ export async function upsertArchiveFolders(
     }
   }
 
+  counts.folderPeople = await writeFolderPeopleSuggestions(items)
+
   return counts
+}
+
+/**
+ * Turn hand-written `_people.txt` entries into suggestions (ADR-0029).
+ *
+ * They arrive as `FOLDER_ATTRIBUTION` at tier `EXACT`, which puts them above
+ * catalogue and registry in the workbench and asks for no group vote — one keystroke
+ * confirms them. Not written straight through as attributions on purpose: a mistyped
+ * ICG-ID usually points at a *real other person*, and this codebase has shipped
+ * polluted ICG-IDs once already.
+ *
+ * **Additive only.** A person no longer named in the file keeps whatever standing
+ * they had: `ArchiveFolderAttribution` records no provenance, so an absent line
+ * cannot be told from "was never in the file" — and an unattended scan reading a
+ * truncated file would otherwise wipe confirmations made in the workbench.
+ */
+async function writeFolderPeopleSuggestions(
+  items: FullIngestItem[],
+): Promise<{ written: number; badLines: string[] }> {
+  const badLines: string[] = []
+  let written = 0
+
+  for (const item of items) {
+    // Both fields pass through the PowerShell JSON collapse — see coerceFolderPeople.
+    for (const line of coerceStrings(item.folderPeopleErrors)) {
+      badLines.push(`${item.fullPath}: ${line}`)
+    }
+    const people = coerceFolderPeople(item.folderPeople)
+    if (people.length === 0) continue
+
+    const folder = await prisma.archiveFolder.findUnique({
+      where: { fullPath: item.fullPath },
+      select: { id: true },
+    })
+    if (!folder) continue
+
+    const res = await prisma.archiveFolderSuggestion.createMany({
+      data: people.map((p) => ({
+        archiveFolderId: folder.id,
+        icgId: p.icgId,
+        name: p.name,
+        source: 'FOLDER_ATTRIBUTION' as const,
+        tier: 'EXACT' as const,
+        score: 1,
+        demotions: [],
+        evidence: { source: '_people.txt' } as never,
+      })),
+      skipDuplicates: true,
+    })
+    written += res.count
+  }
+
+  return { written, badLines }
 }
 
 /**

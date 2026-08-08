@@ -153,6 +153,23 @@
       Sidecars are written to ALL on-disk folders — not only linked ones.
       Existing sidecars are never overwritten.
 
+    People files (_pulseboard_people.txt) — ADR-0029:
+      Written after each Full scan (skip with -SkipPeople). Holds who the app knows
+      is in this set, so the archive answers that without app, database or MinIO:
+        # credited  — the cast of the linked set (who the publisher named)
+        # claimed   — the folder's own attributions (what you asserted)
+      Refreshed by comparing the file's `# revision:` header against the server;
+      deleted when the app knows nobody. A per-root _pulseboard_index.tsv is
+      generated from these files for one-grep lookup — derived, safe to delete.
+
+    Folder attribution (_people.txt) — hand-written, read-only to the app:
+      One `Common Name (ICG-ID)` per line; # comments and blank lines ignored.
+      Read on every visit and sent with the folder, where it becomes a top-ranked
+      suggestion. It only ever ADDS: removing a line takes nothing back.
+      NOTE: an *edited* _people.txt is invisible to the leaf-mtime skip, because
+      NTFS does not bump a directory's mtime when a file inside it changes. Use
+      -Force (with -Path to scope it) after editing one.
+
     Content signature (rename fingerprint):
       SHA256(sorted "filename:filesize" strings, "|"-delimited), first 16 hex chars.
       Photosets: files in leaf folder root.
@@ -181,6 +198,7 @@ param(
     [string]$Path          = "",  # Full mode: restrict the walk to this subtree (channel folder, year, or a single leaf)
     [switch]$Force,               # Full mode: re-read every leaf, ignoring the leaf-mtime skip
     [switch]$NoSidecarPrompt,  # skip interactive sidecar-write prompt after Full scan (for automation)
+    [switch]$SkipPeople,       # Full mode: skip writing _pulseboard_people.txt and the per-root index
     [switch]$DryRun,
     [switch]$SkipChanCache,  # retained for backward compatibility; no longer has any effect
     [switch]$Rebake,         # after the scan, run archive-rebake.ps1 (HD re-bake, ADR-0017) — paths are freshly verified
@@ -652,6 +670,38 @@ function Walk-Root {
                             }
                         }
                     } catch { <# silently ignore malformed sidecar #> }
+
+                # ── Read _people.txt (hand-written claims, ADR-0029) ─────────
+                # Your own assertion about who is in this set. Read on every visit
+                # to a leaf — but note that an *edited* file is invisible to the
+                # leaf-mtime skip below, because NTFS does not bump a directory's
+                # mtime when a file inside it changes. Picking up an edit needs
+                # -Force (with -Path to scope it).
+                $folderPeople       = @()
+                $folderPeopleErrors = @()
+                $peoplePath = Join-Path $lf.FullName "_people.txt"
+                if (Test-Path -LiteralPath $peoplePath -PathType Leaf) {
+                    foreach ($pline in (Get-Content -LiteralPath $peoplePath -ErrorAction SilentlyContinue)) {
+                        $ptrim = $pline.Trim()
+                        if (-not $ptrim -or $ptrim.StartsWith("#")) { continue }
+                        $pm = [regex]::Match($ptrim, '^(.*?)\s*\(([^()]+)\)\s*$')
+                        if ($pm.Success) {
+                            $pname = $pm.Groups[1].Value.Trim()
+                            $picg  = $pm.Groups[2].Value.Trim().ToUpperInvariant()
+                        } else {
+                            $pname = ""
+                            $picg  = $ptrim.ToUpperInvariant()
+                        }
+                        if ($picg -match '^[A-Z]{2}-[0-9]{2}[A-Z0-9@][A-Z0-9]+$') {
+                            if (-not $pname) { $pname = $picg }
+                            $folderPeople += [PSCustomObject]@{ name = $pname; icgId = $picg }
+                        } else {
+                            # Reported, never silently dropped: that is how
+                            # HTML-polluted ICG-IDs got into the data before.
+                            $folderPeopleErrors += $ptrim
+                        }
+                    }
+                }
                 }
 
                 # ── Level 3 skip: leaf mtime unchanged ──────────────────────
@@ -686,6 +736,12 @@ function Walk-Root {
                         # archiveKey on records that gained a sidecar between scans.
                         if ($sidecarKey) {
                             $item | Add-Member -NotePropertyName sidecarKey -NotePropertyValue $sidecarKey
+                        }
+                        if ($folderPeople.Count -gt 0) {
+                            $item | Add-Member -NotePropertyName folderPeople -NotePropertyValue @($folderPeople)
+                        }
+                        if ($folderPeopleErrors.Count -gt 0) {
+                            $item | Add-Member -NotePropertyName folderPeopleErrors -NotePropertyValue @($folderPeopleErrors)
                         }
                         # Flag stale sidecar: folderName in the JSON no longer matches the actual
                         # folder name on disk (e.g. after a case-only rename). The sidecar phase
@@ -764,6 +820,12 @@ function Walk-Root {
 
                 if ($sidecarKey) {
                     $item | Add-Member -NotePropertyName sidecarKey -NotePropertyValue $sidecarKey
+                }
+                if ($folderPeople.Count -gt 0) {
+                    $item | Add-Member -NotePropertyName folderPeople -NotePropertyValue @($folderPeople)
+                }
+                if ($folderPeopleErrors.Count -gt 0) {
+                    $item | Add-Member -NotePropertyName folderPeopleErrors -NotePropertyValue @($folderPeopleErrors)
                 }
                 if ($previousFullPath) {
                     $item | Add-Member -NotePropertyName previousFullPath -NotePropertyValue $previousFullPath
@@ -904,6 +966,190 @@ function Write-Sidecars {
     $summary = "  Sidecars written: $written | Updated (stale): $updated | Already current: $skipped"
     if ($errors -gt 0) { $summary += " | Errors: $errors" }
     Write-Host $summary
+}
+
+# ── FULL MODE — Write people files ────────────────────────────────────────────
+#
+# `_pulseboard_people.txt` per folder: who the app knows is in this set, so the
+# archive can answer that question with no app, no database and no MinIO running
+# (ADR-0029). Plain text on purpose — ConvertTo-Json collapses a one-element array
+# into a scalar, and a participant list is exactly that shape.
+
+function Write-PeopleFiles {
+    param([hashtable]$ByArchKey)
+
+    if ($ByArchKey.Count -eq 0) { return }
+
+    # One round trip for every folder's fingerprint. Comparing it against the header
+    # on disk is what stops these files decaying the way _pulseboard.json did:
+    # written once, then quietly wrong for months.
+    try {
+        $revResponse = Invoke-RestMethod -Uri "$BaseUrl/api/archive/people-revisions" -Headers $headers -Method Get
+    } catch {
+        Write-Warning "  Could not fetch people revisions: $_"
+        return
+    }
+
+    $wanted = @{}
+    foreach ($r in $revResponse.revisions) { $wanted[[string]$r.archiveKey] = [string]$r.revision }
+
+    $needed   = [System.Collections.ArrayList]::new()
+    $toDelete = [System.Collections.ArrayList]::new()
+    $matched  = 0
+
+    foreach ($ak in $ByArchKey.Keys) {
+        $folderPath = [string]$ByArchKey[$ak].fullPath
+        if (-not (Test-Path -LiteralPath $folderPath -PathType Container)) { continue }
+        $filePath = Join-Path $folderPath "_pulseboard_people.txt"
+        $want     = if ($wanted.ContainsKey($ak)) { $wanted[$ak] } else { "EMPTY" }
+        $exists   = Test-Path -LiteralPath $filePath -PathType Leaf
+
+        # EMPTY means the app knows nobody here. A file that has outlived its
+        # content is worse than none: it answers with a stand nobody holds.
+        if ($want -eq "EMPTY") {
+            if ($exists) { [void]$toDelete.Add($filePath) }
+            continue
+        }
+
+        $have = $null
+        if ($exists) {
+            foreach ($line in (Get-Content -LiteralPath $filePath -TotalCount 12 -ErrorAction SilentlyContinue)) {
+                $rm = [regex]::Match($line, '^#\s*revision\s*:\s*(\S+)\s*$')
+                if ($rm.Success) { $have = $rm.Groups[1].Value; break }
+            }
+        }
+
+        if ($have -eq $want) { $matched++ } else { [void]$needed.Add($ak) }
+    }
+
+    if ($DryRun) {
+        Write-Host "  [DRY-RUN] Would write/update $($needed.Count), delete $($toDelete.Count), leave $matched unchanged."
+        return
+    }
+
+    $written = 0
+    $deleted = 0
+    $errors  = 0
+
+    # Bodies come in batches: a few hundred UUIDs is a request, not a query string.
+    for ($i = 0; $i -lt $needed.Count; $i += 200) {
+        $chunk = @($needed[$i..([Math]::Min($i + 199, $needed.Count - 1))])
+        try {
+            $payload  = ConvertTo-Json -InputObject @{ archiveKeys = $chunk } -Depth 3
+            $response = Invoke-RestMethod `
+                -Uri "$BaseUrl/api/archive/people-files" `
+                -Headers $headers -Method Post -Body $payload -ContentType "application/json"
+        } catch {
+            Write-Warning "  Failed to fetch people files: $_"
+            $errors += $chunk.Count
+            continue
+        }
+
+        foreach ($file in $response.files) {
+            $ak = [string]$file.archiveKey
+            if (-not $ByArchKey.ContainsKey($ak)) { continue }
+            $filePath = Join-Path ([string]$ByArchKey[$ak].fullPath) "_pulseboard_people.txt"
+            try {
+                if ($null -eq $file.body) {
+                    if (Test-Path -LiteralPath $filePath -PathType Leaf) {
+                        Remove-Item -LiteralPath $filePath -Force
+                        $deleted++
+                    }
+                } else {
+                    [System.IO.File]::WriteAllText($filePath, [string]$file.body, [System.Text.Encoding]::UTF8)
+                    $written++
+                }
+            } catch {
+                Write-Warning "  Failed to write $filePath`: $_"
+                $errors++
+            }
+        }
+    }
+
+    foreach ($filePath in $toDelete) {
+        try {
+            Remove-Item -LiteralPath $filePath -Force
+            $deleted++
+        } catch {
+            Write-Warning "  Failed to delete $filePath`: $_"
+            $errors++
+        }
+    }
+
+    $summary = "  People files written: $written | Deleted: $deleted | Already current: $matched"
+    if ($errors -gt 0) { $summary += " | Errors: $errors" }
+    Write-Host $summary
+}
+
+# ── FULL MODE — Write the per-root index ──────────────────────────────────────
+#
+# Convenience, explicitly derived: one file per archive root that answers "which
+# sets has this person worked on" in a single grep, and can be copied off on its
+# own. Built by reading the per-folder files back, so it can never claim something
+# they do not — if it looks wrong, delete it and grep the folders.
+
+function Write-PeopleIndex {
+    param([hashtable]$ByArchKey, [string[]]$Roots)
+
+    if ($Roots.Count -eq 0) { return }
+
+    $rowsByRoot = @{}
+    foreach ($root in $Roots) { $rowsByRoot[$root] = [System.Collections.ArrayList]::new() }
+
+    foreach ($ak in $ByArchKey.Keys) {
+        $folderPath = [string]$ByArchKey[$ak].fullPath
+        $filePath   = Join-Path $folderPath "_pulseboard_people.txt"
+        if (-not (Test-Path -LiteralPath $filePath -PathType Leaf)) { continue }
+
+        $root = $null
+        foreach ($r in $Roots) {
+            if ($folderPath.ToLowerInvariant().StartsWith($r.TrimEnd("/\").ToLowerInvariant())) { $root = $r; break }
+        }
+        if (-not $root) { continue }
+        $relative = $folderPath.Substring($root.TrimEnd("/\").Length).TrimStart("/\")
+
+        $standing = "claimed"
+        foreach ($line in (Get-Content -LiteralPath $filePath -ErrorAction SilentlyContinue)) {
+            $t = $line.Trim()
+            if (-not $t) { continue }
+            if ($t.StartsWith("#")) {
+                if ($t -match '^#\s*credited\s*$') { $standing = "credited" }
+                elseif ($t -match '^#\s*claimed\s*$') { $standing = "claimed" }
+                continue
+            }
+            $m = [regex]::Match($t, '^(.*?)\s*\(([^()]+)\)\s*$')
+            if ($m.Success) {
+                $nm  = $m.Groups[1].Value.Trim()
+                $icg = $m.Groups[2].Value.Trim()
+            } else {
+                $nm  = $t
+                $icg = $t
+            }
+            [void]$rowsByRoot[$root].Add("$icg`t$nm`t$standing`t$relative")
+        }
+    }
+
+    foreach ($root in $Roots) {
+        $rows = $rowsByRoot[$root]
+        if ($rows.Count -eq 0) { continue }
+        $indexPath = Join-Path $root "_pulseboard_index.tsv"
+        if ($DryRun) {
+            Write-Host "  [DRY-RUN] Would write $indexPath ($($rows.Count) rows)"
+            continue
+        }
+        try {
+            $header = @(
+                "# pulseboard — generated index, derived from _pulseboard_people.txt. Delete it and grep the folders if in doubt.",
+                "# generated: $((Get-Date).ToUniversalTime().ToString('o'))",
+                "# rows: $($rows.Count)",
+                "# icgId`tname`tstanding`trelativePath"
+            )
+            [System.IO.File]::WriteAllLines($indexPath, @($header + @($rows | Sort-Object)), [System.Text.Encoding]::UTF8)
+            Write-Host "  Index: $indexPath ($($rows.Count) rows)"
+        } catch {
+            Write-Warning "  Failed to write $indexPath`: $_"
+        }
+    }
 }
 
 function Run-FullScan {
@@ -1147,6 +1393,16 @@ function Run-FullScan {
     } else {
         Write-Host ""
         Write-Host "All on-disk folders already have _pulseboard.json — nothing to write."
+    }
+
+    # ── Step 6: People files (ADR-0029) ─────────────────────────────────────
+    # No prompt: unlike a sidecar these are refreshed constantly by design, and a
+    # question asked every run is a question nobody reads.
+    if (-not $SkipPeople) {
+        Write-Host ""
+        Write-Host "Writing people files (_pulseboard_people.txt)..."
+        Write-PeopleFiles -ByArchKey $byArchKey
+        Write-PeopleIndex -ByArchKey $byArchKey -Roots @(@(Parse-Roots $PhotosetRoot) + @(Parse-Roots $VideosetRoot))
     }
 }
 
