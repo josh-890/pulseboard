@@ -420,8 +420,19 @@ function Run-TargetedScan {
     }
 
     if ($DryRun) {
-        Write-Host ""; Write-Host "Dry-run: would send:"
-        ConvertTo-Json -InputObject @($results) -Depth 5 | Write-Host
+        # A preview, not a dump. This used to print every record — 2,871 JSON
+        # objects for a full archive — which buries the one thing a dry run is for:
+        # the summary and whatever the write phases would do. Same shape as the Full
+        # mode preview, so both dry runs read alike.
+        Write-Host ""; Write-Host "Dry-run: would send $($results.Count) result(s)"
+        if (-not $AsSubPhase -and $results.Count -gt 0) {
+            $shown = [Math]::Min(3, $results.Count)
+            Write-Host "First items preview:"
+            ConvertTo-Json -InputObject @($results[0..($shown - 1)]) -Depth 5 | Write-Host
+            if ($results.Count -gt $shown) {
+                Write-Host "  … and $($results.Count - $shown) more (run without -DryRun to send them)"
+            }
+        }
     } else {
         Write-Host ""; Write-Host "Sending scan results..."
         try {
