@@ -1233,6 +1233,9 @@ folders you have **already** confirmed as them. Which one it is, is written unde
 a curated headshot is your own choice, a cover from a folder you confirmed is a hint that could
 still be circular.
 
+> The programs that run on the archive machine — scan, covers, HD re-bake, catalogue
+> avatars, catalogue join — are collected with their switches in **`docs/agents.md`**.
+
 ##### Finding a person's sets without the app
 
 Every archive folder the app knows people for carries a small text file,

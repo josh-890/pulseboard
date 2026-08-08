@@ -204,6 +204,9 @@ cast. Withheld claims come back as `withheld` and the develop queue names them i
 null and a later import can never recognise the row (`scripts/backfill-staging-title-norm.ts`
 catches rows made before the fix). The attribution queue carries the open contradiction count.
 
+> Agents (scan, cover, re-bake, catalogue avatar, catalogue join) have their own runbook:
+> **`docs/agents.md`** — switches, run order and the traps.
+
 **People files on disk (ADR-0029)** — `lib/archive-people-file.ts` (pure: `renderPeopleFile`,
 `parsePeopleFile`, `peopleRevision` — first 16 hex of SHA-256, `EMPTY` when nobody is known) and
 `services/archive-people-service.ts` (`getPeopleRevisions`, `getPeopleFiles`). Two agent endpoints,

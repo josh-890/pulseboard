@@ -117,6 +117,7 @@ src/
 - `docs/components.md` — Full component inventory with props
 - `docs/data-model.md` — Database schema and relationships
 - `docs/ux-ui-skill.md` — **UX/UI design skill** — apply to all UI work (layout, interactions, image handling, accessibility)
+- `docs/agents.md` — **Agent runbook** — the five programs that run outside the app (archive scan, cover, HD re-bake, catalogue avatar, catalogue join): which switches matter, in what order to run them, and the traps. **Keep it current** when an agent gains a switch or a step.
 - `docs/user-guide.md` — **User documentation** — comprehensive feature guide with workflows. **Keep this document up to date** when adding or changing features.
 
 ## Browser Verification (Playwright MCP)
