@@ -1152,6 +1152,81 @@ function Write-PeopleIndex {
     }
 }
 
+# ── FULL MODE — the write phases, and what they are allowed to touch ──────────
+#
+# -Path scopes the WHOLE run, these phases included. A switch that narrows the walk
+# and then touches all 34k folders anyway would mean very little, and on a scoped
+# run the I/O across three drives is the bulk of the time. Whatever falls outside
+# the scope catches up on the next unscoped Full run — the revision check finds it
+# by itself.
+
+function Write-WritePhases {
+    param([hashtable]$ByArchKey, [string]$ScopeNorm, [int]$StaleSidecar = 0)
+
+    $target = $ByArchKey
+    if ($ScopeNorm) {
+        $target = @{}
+        foreach ($ak in $ByArchKey.Keys) {
+            $np = Normalize-Path ([string]$ByArchKey[$ak].fullPath)
+            if ($np.StartsWith($ScopeNorm)) { $target[$ak] = $ByArchKey[$ak] }
+        }
+        Write-Host "  (scoped to -Path: $($target.Count) of $($ByArchKey.Count) folder(s))"
+    }
+
+    # Count what the sidecar phase would do, so the prompt can say it.
+    $needsSidecar = 0
+    foreach ($ak in $target.Keys) {
+        $folderPath  = [string]$target[$ak].fullPath
+        $sidecarPath = Join-Path $folderPath "_pulseboard.json"
+        if ((Test-Path -LiteralPath $folderPath -PathType Container) -and
+            -not (Test-Path -LiteralPath $sidecarPath -PathType Leaf)) {
+            $needsSidecar++
+        }
+    }
+
+    if (($needsSidecar + $StaleSidecar) -gt 0) {
+        Write-Host ""
+        $promptMsg = if ($needsSidecar -gt 0 -and $StaleSidecar -gt 0) {
+            "Write/update sidecars? ($needsSidecar missing, $StaleSidecar stale) [Y/n]"
+        } elseif ($needsSidecar -gt 0) {
+            "Write _pulseboard.json into $needsSidecar folder(s) missing a sidecar? [Y/n]"
+        } else {
+            "Update $StaleSidecar stale _pulseboard.json file(s) with new folder name? [Y/n]"
+        }
+        if ($NoSidecarPrompt -or $DryRun) {
+            $doWrite = $true
+        } else {
+            $answer  = Read-Host $promptMsg
+            $doWrite = ($answer -eq "" -or $answer -match "^[Yy]")
+        }
+        if ($doWrite) {
+            Write-Host "Writing sidecar files (_pulseboard.json)..."
+            Write-Sidecars -ByArchKey $target
+        } else {
+            Write-Host "  Sidecar write skipped."
+        }
+    } else {
+        Write-Host ""
+        Write-Host "All folders in scope already have _pulseboard.json."
+    }
+
+    if ($SkipPeople) { return }
+
+    # No prompt for these: unlike a sidecar they are refreshed constantly by
+    # design, and a question asked every run is a question nobody reads.
+    Write-Host ""
+    Write-Host "Writing people files (_pulseboard_people.txt)..."
+    Write-PeopleFiles -ByArchKey $target
+
+    # The index describes a whole root. Rebuilding it from a scoped run would
+    # replace a complete index with a partial one — worse than not touching it.
+    if ($ScopeNorm) {
+        Write-Host "  Index left alone (scoped run — it describes a whole root)."
+    } else {
+        Write-PeopleIndex -ByArchKey $target -Roots @(@(Parse-Roots $PhotosetRoot) + @(Parse-Roots $VideosetRoot))
+    }
+}
+
 function Run-FullScan {
     Write-Host "Mode: Full (smart — with mtime skip + rename detection)"
     Write-Host ""
@@ -1218,6 +1293,18 @@ function Run-FullScan {
             Write-Host "First items preview:"
             ConvertTo-Json -InputObject @($preview) -Depth 6 | Write-Host
         }
+        # Fall through to the write phases rather than returning here. They are
+        # read-only under -DryRun and they are usually the ones being tested — a
+        # dry run that stays silent about them is not a dry run. (The sidecar
+        # phase's own [DRY-RUN] branch was unreachable for exactly this reason.)
+        $staleSidecar = 0
+        foreach ($item in $allDelta) {
+            if ($item.staleSidecar -eq $true -and
+                (Test-Path -LiteralPath ([string]$item.fullPath) -PathType Container)) {
+                $staleSidecar++
+            }
+        }
+        Write-WritePhases -ByArchKey $byArchKey -ScopeNorm $scopeNorm -StaleSidecar $staleSidecar
         return
     }
 
@@ -1345,19 +1432,9 @@ function Run-FullScan {
     }
     }
 
-    # ── Step 5: Write sidecar files ─────────────────────────────────────────
-    # Count folders that need a new sidecar (missing) or an updated one (stale).
-    # Stale sidecars are detected during the walk: any folder where the sidecar's
-    # folderName no longer matches the actual folder name gets staleSidecar=$true.
-    $needsSidecar = 0
-    foreach ($ak in $byArchKey.Keys) {
-        $folderPath  = [string]$byArchKey[$ak].fullPath
-        $sidecarPath = Join-Path $folderPath "_pulseboard.json"
-        if ((Test-Path -LiteralPath $folderPath -PathType Container) -and
-            -not (Test-Path -LiteralPath $sidecarPath -PathType Leaf)) {
-            $needsSidecar++
-        }
-    }
+    # ── Steps 5 + 6: Write sidecars and people files ────────────────────────
+    # Stale sidecars are detected during the walk: any folder whose sidecar names a
+    # folder that no longer matches gets staleSidecar=$true on its delta item.
     $staleSidecar = 0
     foreach ($item in $allDelta) {
         if ($item.staleSidecar -eq $true -and
@@ -1365,45 +1442,8 @@ function Run-FullScan {
             $staleSidecar++
         }
     }
-    $totalSidecarWork = $needsSidecar + $staleSidecar
 
-    if ($totalSidecarWork -gt 0) {
-        Write-Host ""
-        $promptMsg = if ($needsSidecar -gt 0 -and $staleSidecar -gt 0) {
-            "Write/update sidecars? ($needsSidecar missing, $staleSidecar stale) [Y/n]"
-        } elseif ($needsSidecar -gt 0) {
-            "Write _pulseboard.json into $needsSidecar folder(s) missing a sidecar? [Y/n]"
-        } else {
-            "Update $staleSidecar stale _pulseboard.json file(s) with new folder name? [Y/n]"
-        }
-
-        if ($NoSidecarPrompt -or $DryRun) {
-            $doWrite = $true
-        } else {
-            $answer  = Read-Host $promptMsg
-            $doWrite = ($answer -eq "" -or $answer -match "^[Yy]")
-        }
-
-        if ($doWrite) {
-            Write-Host "Writing sidecar files (_pulseboard.json)..."
-            Write-Sidecars -ByArchKey $byArchKey
-        } else {
-            Write-Host "  Sidecar write skipped."
-        }
-    } else {
-        Write-Host ""
-        Write-Host "All on-disk folders already have _pulseboard.json — nothing to write."
-    }
-
-    # ── Step 6: People files (ADR-0029) ─────────────────────────────────────
-    # No prompt: unlike a sidecar these are refreshed constantly by design, and a
-    # question asked every run is a question nobody reads.
-    if (-not $SkipPeople) {
-        Write-Host ""
-        Write-Host "Writing people files (_pulseboard_people.txt)..."
-        Write-PeopleFiles -ByArchKey $byArchKey
-        Write-PeopleIndex -ByArchKey $byArchKey -Roots @(@(Parse-Roots $PhotosetRoot) + @(Parse-Roots $VideosetRoot))
-    }
+    Write-WritePhases -ByArchKey $byArchKey -ScopeNorm $scopeNorm -StaleSidecar $staleSidecar
 }
 
 # ── Main ──────────────────────────────────────────────────────────────────────

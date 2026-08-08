@@ -88,13 +88,18 @@ refreshes `_pulseboard_people.txt` and the per-root index.
 | Switch | What it does, and when you need it |
 |---|---|
 | `-Mode Full` | The bidirectional walk. Everything below applies to it |
-| `-Path <dir>` | Restrict the walk to a channel folder, a year, or a single leaf — a full path under one of the three roots, not a channel name. Use it with `-Force` to keep a forced run quick |
+| `-Path <dir>` | Restrict the **whole run** — walk, sidecars and people files — to a full path under one of the three roots, not a channel name. Use it with `-Force` to keep a forced run quick. The per-root index is left alone on a scoped run, since it describes a whole root |
 | `-Force` | Re-read every leaf, ignoring the mtime shortcut. **Needed after editing a file inside a folder** — see the trap below |
 | `-NoSidecarPrompt` | Do not ask before writing `_pulseboard.json`; for scheduled runs |
 | `-SkipPeople` | Skip `_pulseboard_people.txt` and the index |
 | `-Rebake` / `-RebakeForce` | Run `archive-rebake.ps1` afterwards, on paths this scan just verified |
 | `-BatchSize` | Folders per POST (default 200) |
-| `-DryRun` | Report only |
+| `-DryRun` | Report only — including what the sidecar and people phases *would* write |
+
+A dry run now goes all the way through: it walks, previews the delta it would send,
+and then reports what the sidecar and people phases would write, without touching
+anything. Until 2026-08-08 it returned right after the delta preview, so those two
+phases — usually the ones you want to test — stayed silent.
 
 **The trap that costs the most time:** NTFS does *not* update a folder's timestamp
 when a file **inside** it changes — only when an entry is added, removed or renamed.
