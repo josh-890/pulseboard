@@ -170,8 +170,21 @@
       NTFS does not bump a directory's mtime when a file inside it changes. Use
       -Force (with -Path to scope it) after editing one.
 
+    What counts as a file of a set:
+      Media only — images and videos. Sidecars, people files, Thumbs.db, desktop.ini
+      and stray text files are ignored by both the file count and the signature. They
+      belong to a tool, not to the set, and counting them made the count move when a
+      tool wrote something.
+
+    Re-baselining (-Baseline):
+      Use once after the counting rule changes: the reported counts are stored as the
+      new normal without deriving CHANGED from the difference. Without it, every
+      confirmed link reports a drop and is flagged as if someone had edited the set.
+
     Content signature (rename fingerprint):
       SHA256(sorted "filename:filesize" strings, "|"-delimited), first 16 hex chars.
+      Media files only — the fingerprint that recognises a moved folder must not
+      depend on files we write into it.
       Photosets: files in leaf folder root.
       Videosets: files in frames\ subfolder.
       Stable across: rename, move, copy+delete (file names/sizes preserved).
@@ -199,6 +212,7 @@ param(
     [switch]$Force,               # Full mode: re-read every leaf, ignoring the leaf-mtime skip
     [switch]$NoSidecarPrompt,  # skip interactive sidecar-write prompt after Full scan (for automation)
     [switch]$SkipPeople,       # Full mode: skip writing _pulseboard_people.txt and the per-root index
+    [switch]$Baseline,         # accept the reported counts as the new normal — do NOT derive CHANGED from them
     [switch]$DryRun,
     [switch]$SkipChanCache,  # retained for backward compatibility; no longer has any effect
     [switch]$Rebake,         # after the scan, run archive-rebake.ps1 (HD re-bake, ADR-0017) — paths are freshly verified
@@ -266,6 +280,23 @@ if ($Tenant) { $headers["x-tenant-id"] = $Tenant }
 # ── Shared helpers ────────────────────────────────────────────────────────────
 
 $VideoExtensions = @(".mp4", ".wmv", ".mkv", ".avi", ".mov", ".m4v", ".ts")
+$ImageExtensions = @(".jpg", ".jpeg", ".png", ".webp", ".bmp", ".gif", ".tif", ".tiff")
+
+# What counts as "a file of this set": media, and nothing else.
+#
+# A set is its images and videos. Everything else in the folder belongs to some
+# tool — our own _pulseboard.json and _pulseboard_people.txt, a hand-written
+# _people.txt, Thumbs.db, desktop.ini, a stray readme. Counting those made the file
+# count wrong and, worse, made it MOVE: writing a people file added one, and the app
+# concluded from the changed count that someone had touched the set (276 sets were
+# marked CHANGED that way). The content signature had the same flaw — the fingerprint
+# that recognises a moved folder must not depend on files we write into it.
+$MediaExtensions = $ImageExtensions + $VideoExtensions
+
+function Test-MediaFile {
+    param([System.IO.FileInfo]$File)
+    return $MediaExtensions -contains $File.Extension.ToLower()
+}
 
 # Returns an array of video file basenames (with extension) found in the given folder.
 function Get-VideoFiles {
@@ -315,7 +346,8 @@ function Check-ArchivePath {
             if ($IsVideo) {
                 $framesDir = Join-Path $ArchivePath "frames"
                 $fileCount = if (Test-Path -LiteralPath $framesDir -PathType Container) {
-                    (Get-ChildItem -LiteralPath $framesDir -File -ErrorAction SilentlyContinue).Count
+                    @(Get-ChildItem -LiteralPath $framesDir -File -ErrorAction SilentlyContinue |
+                      Where-Object { Test-MediaFile $_ }).Count
                 } else { 0 }
                 $foundFiles = Get-VideoFiles $ArchivePath
                 $videoFiles = $foundFiles
@@ -328,7 +360,8 @@ function Check-ArchivePath {
                     }).Count -gt 0
                 }
             } else {
-                $fileCount = (Get-ChildItem -LiteralPath $ArchivePath -File -ErrorAction SilentlyContinue).Count
+                $fileCount = @(Get-ChildItem -LiteralPath $ArchivePath -File -ErrorAction SilentlyContinue |
+                               Where-Object { Test-MediaFile $_ }).Count
             }
         }
     } catch {
@@ -437,7 +470,10 @@ function Run-TargetedScan {
         Write-Host ""; Write-Host "Sending scan results..."
         try {
             $body = ConvertTo-Json -InputObject @($results) -Depth 5
-            $response = Invoke-RestMethod -Uri "$BaseUrl/api/archive/ingest" -Headers $headers `
+            # -Baseline: the counts changed because the RULE changed, not because
+            # anyone touched a set. Without it a re-baseline marks every link CHANGED.
+            $ingestUrl = "$BaseUrl/api/archive/ingest" + $(if ($Baseline) { "?baseline=1" } else { "" })
+            $response = Invoke-RestMethod -Uri $ingestUrl -Headers $headers `
                 -Method Post -Body $body -ContentType "application/json"
             Write-Host "  Ingested $($response.count) result(s)"
         } catch {
@@ -466,6 +502,7 @@ function Compute-FolderSignature {
     }
 
     $parts = @(Get-ChildItem -LiteralPath $searchPath -File -ErrorAction SilentlyContinue |
+        Where-Object { Test-MediaFile $_ } |
         Sort-Object Name |
         ForEach-Object { "$($_.Name):$($_.Length)" })
 
@@ -484,11 +521,13 @@ function Get-FileCount {
     if ($IsVideo) {
         $framesDir = Join-Path $FolderPath "frames"
         if (Test-Path -LiteralPath $framesDir -PathType Container) {
-            return (Get-ChildItem -LiteralPath $framesDir -File -ErrorAction SilentlyContinue).Count
+            return @(Get-ChildItem -LiteralPath $framesDir -File -ErrorAction SilentlyContinue |
+                     Where-Object { Test-MediaFile $_ }).Count
         }
         return 0
     }
-    return (Get-ChildItem -LiteralPath $FolderPath -File -ErrorAction SilentlyContinue).Count
+    return @(Get-ChildItem -LiteralPath $FolderPath -File -ErrorAction SilentlyContinue |
+             Where-Object { Test-MediaFile $_ }).Count
 }
 
 function Get-VideoPresent {

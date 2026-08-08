@@ -601,7 +601,24 @@ export async function getArchivePaths(): Promise<ArchivePathEntry[]> {
 }
 
 /** Called by the ingest API route to store scan results. */
-export async function ingestScanResults(results: ScanResult[]): Promise<void> {
+/**
+ * Take the reported counts as the new normal instead of reading a difference as
+ * damage.
+ *
+ * `CHANGED` means "the set on disk is not the set we recorded", and it is derived
+ * purely from the file count moving. That inference only holds while the two counts
+ * were produced by the same rule — so when the rule itself changes (media-only
+ * counting, 2026-08-08), every link would report a drop and be flagged as edited.
+ * 276 sets were marked that way by nothing more than a people file appearing.
+ *
+ * Used once after such a change, with `archive-scan.ps1 -Baseline`.
+ */
+export type IngestOptions = { baseline?: boolean }
+
+export async function ingestScanResults(
+  results: ScanResult[],
+  options: IngestOptions = {},
+): Promise<void> {
   const now = new Date()
   const counts = { ok: 0, changed: 0, missing: 0, incomplete: 0, errors: 0 }
 
@@ -642,7 +659,11 @@ export async function ingestScanResults(results: ScanResult[]): Promise<void> {
 
     const prevCount = current.archiveFileCount ?? null
     const derivedStatus: ArchiveStatus =
-      status === 'OK' && prevCount !== null && r.fileCount !== null && r.fileCount !== prevCount
+      !options.baseline &&
+      status === 'OK' &&
+      prevCount !== null &&
+      r.fileCount !== null &&
+      r.fileCount !== prevCount
         ? 'CHANGED'
         : status
     if (derivedStatus === 'CHANGED') { counts.changed++; counts.ok-- }

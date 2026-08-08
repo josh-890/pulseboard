@@ -204,6 +204,14 @@ cast. Withheld claims come back as `withheld` and the develop queue names them i
 null and a later import can never recognise the row (`scripts/backfill-staging-title-norm.ts`
 catches rows made before the fix). The attribution queue carries the open contradiction count.
 
+**A set's file count is its media (2026-08-08)** — `archive-scan.ps1` counts and
+fingerprints only images and videos; sidecars, people files and OS clutter are ignored.
+`ArchiveLink.archiveStatus = CHANGED` is derived purely from that count moving
+(`ingestScanResults`), so counting tool-written files made the app read its own writes
+as damage: the first people-file run flagged 276 sets. `ingestScanResults(results, { baseline: true })`
+(`POST /api/archive/ingest?baseline=1`, agent switch `-Baseline`) stores the reported
+counts without that inference — for the one run after a counting rule changes.
+
 > Agents (scan, cover, re-bake, catalogue avatar, catalogue join) have their own runbook:
 > **`docs/agents.md`** — switches, run order and the traps.
 

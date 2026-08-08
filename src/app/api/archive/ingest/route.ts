@@ -36,7 +36,10 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Expected array of scan results' }, { status: 400 })
     }
 
-    await ingestScanResults(results)
-    return NextResponse.json({ ok: true, count: results.length })
+    // ?baseline=1 — store the reported counts without reading a difference as
+    // damage. For the one run after the counting rule itself changes.
+    const baseline = new URL(request.url).searchParams.get('baseline') === '1'
+    await ingestScanResults(results, { baseline })
+    return NextResponse.json({ ok: true, count: results.length, baseline })
   })
 }

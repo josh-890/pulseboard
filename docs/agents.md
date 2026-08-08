@@ -94,12 +94,28 @@ refreshes `_pulseboard_people.txt` and the per-root index.
 | `-SkipPeople` | Skip `_pulseboard_people.txt` and the index |
 | `-Rebake` / `-RebakeForce` | Run `archive-rebake.ps1` afterwards, on paths this scan just verified |
 | `-BatchSize` | Folders per POST (default 200) |
+| `-Baseline` | Store the reported counts as the new normal **without** deriving CHANGED from the difference. For the one run after the counting rule changes — see below |
 | `-DryRun` | Report only — including what the sidecar and people phases *would* write |
 
 A dry run now goes all the way through: it walks, previews the delta it would send,
 and then reports what the sidecar and people phases would write, without touching
 anything. Until 2026-08-08 it returned right after the delta preview, so those two
 phases — usually the ones you want to test — stayed silent.
+
+**What counts as a file of a set:** media only — images and videos. Sidecars, people
+files, `Thumbs.db`, `desktop.ini` and stray text files are ignored by the file count
+*and* by the content signature. They belong to a tool, not to the set. Counting them
+meant the number moved whenever a tool wrote something: writing the first people
+files added one file to 276 sets, and the app read that as "someone edited this set".
+The signature had the same flaw — the fingerprint that recognises a moved folder must
+not depend on files we write into it.
+
+That rule changed on 2026-08-08, so the stored counts are one or two too high. They
+are corrected by exactly one run:
+
+```powershell
+.\archive-scan.ps1 -Baseline          # once, after the rule changed
+```
 
 **The trap that costs the most time:** NTFS does *not* update a folder's timestamp
 when a file **inside** it changes — only when an entry is added, removed or renamed.
