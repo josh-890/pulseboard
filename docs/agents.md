@@ -75,7 +75,7 @@ there, how many files, is the video present. Cheap, safe to run often.
 
 **Full** walks the roots: detects new folders, renames, cross-drive moves (via the
 `archiveKey` in `_pulseboard.json`) and deletions, writes missing sidecars, then
-refreshes `_pulseboard_people.txt` and the per-root index.
+refreshes `_pulseboard_cast.txt` and the per-root index.
 
 ```powershell
 .\archive-scan.ps1                                   # targeted, the routine run
@@ -91,7 +91,7 @@ refreshes `_pulseboard_people.txt` and the per-root index.
 | `-Path <dir>` | Restrict the **whole run** — walk, sidecars and people files — to a full path under one of the three roots, not a channel name. Use it with `-Force` to keep a forced run quick. The per-root index is left alone on a scoped run, since it describes a whole root |
 | `-Force` | Re-read every leaf, ignoring the mtime shortcut. **Needed after editing a file inside a folder** — see the trap below |
 | `-NoSidecarPrompt` | Do not ask before writing `_pulseboard.json`; for scheduled runs |
-| `-SkipPeople` | Skip `_pulseboard_people.txt` and the index |
+| `-SkipPeople` | Skip `_pulseboard_cast.txt` and the index |
 | `-Rebake` / `-RebakeForce` | Run `archive-rebake.ps1` afterwards, on paths this scan just verified |
 | `-BatchSize` | Folders per POST (default 200) |
 | `-Baseline` | Store the reported counts as the new normal **without** deriving CHANGED from the difference. For the one run after the counting rule changes — see below |
@@ -119,7 +119,7 @@ are corrected by exactly one run:
 
 **The trap that costs the most time:** NTFS does *not* update a folder's timestamp
 when a file **inside** it changes — only when an entry is added, removed or renamed.
-So an edited `_people.txt` is invisible to the mtime shortcut and a plain Full scan
+So an edited `_cast.txt` is invisible to the mtime shortcut and a plain Full scan
 will not see it. That is what `-Force` is for:
 
 ```powershell

@@ -12,8 +12,9 @@ names carry one alias at best and nothing at all for a multi-person set.
 
 Three facts shaped the answer:
 
-1. **The reverse direction was already decided.** ADR-0027 §6 defines `_people.txt`:
-   one `Common Name (ICG-ID)` per line, hand-written, outranking catalogue and
+1. **The reverse direction was already decided.** ADR-0027 §6 defines the file (as
+   `_people.txt`; renamed `_cast.txt` on 2026-08-09, see §4):
+   one `Name (ICG-ID)` per line, hand-written, outranking catalogue and
    registry suggestions, deliberately a *separate* file from the app-written sidecar
    so neither side can overwrite the other. Never implemented.
 2. **The forward direction existed in embryo and already went stale.**
@@ -35,7 +36,7 @@ copied folder keeps its people), lookup with no infrastructure at all, survival 
 
 ### 1. The app writes its own file, in plain text
 
-`_pulseboard_people.txt`, next to `_pulseboard.json` rather than inside it. Two
+`_pulseboard_cast.txt`, next to `_pulseboard.json` rather than inside it. Two
 reasons, both evidenced:
 
 - The sidecar is the **identity anchor** — its `archiveKey` is what finds a folder
@@ -72,12 +73,19 @@ is the only honest way to tell a current file from an old one.
 
 ### 4. A hand-written line is a top-ranked suggestion, not a silent write
 
-`_people.txt` lands as an `ArchiveFolderSuggestion` with source `FOLDER_ATTRIBUTION`,
+`_cast.txt` lands as an `ArchiveFolderSuggestion` with source `FOLDER_ATTRIBUTION`,
 above catalogue and registry, needing no group vote — one keystroke in the workbench
 confirms it. ADR-0027 calls the file an assertion, and it is; but a mistyped ICG-ID
 usually points at a *real other person*, and this codebase has already shipped
 polluted ICG-IDs once. One key is a cheap price for never attributing a stranger
 without anyone looking. Malformed lines are reported, never silently dropped.
+
+The hand-written file is `_cast.txt` (renamed from `_people.txt` on 2026-08-09; the older name
+is still read). A name in it may use underscores or spaces, in any capitalisation —
+`Iveta_C_(IC-87VY)`, `Iveta C (IC-87VY)` and `iveta c (IC-87VY)` are one person. That works
+because the **ICG-ID is the identity** and the name is provenance; only the separators are
+normalised, and the letters stay as typed, since deciding that `iveta c` should read `Iveta C`
+is a guess a file has no business making.
 
 ### 5. The hand-written file only ever adds
 
@@ -98,7 +106,7 @@ per-folder files, which cannot go stale independently of the folders they sit in
 
 - What the app confirms today appears on disk after the next Full scan. That latency
   is inherent: the app has no route to the archive filesystem.
-- An *edited* `_people.txt` is invisible to the leaf-mtime skip, because NTFS does not
+- An *edited* `_cast.txt` is invisible to the leaf-mtime skip, because NTFS does not
   bump a directory's mtime when a file inside it changes. Picking it up needs
   `-Force` (with `-Path` to scope it) — the reason those switches exist.
 - Per-image people (XMP, MWG face regions — the Lightroom/digiKam standard) are a

@@ -3,6 +3,7 @@ import {
   EMPTY_REVISION,
   formatPerson,
   parsePeopleFile,
+  normalisePersonName,
   parsePersonLine,
   peopleRevision,
   renderPeopleFile,
@@ -35,6 +36,24 @@ describe('parsePersonLine', () => {
     expect(parsePersonLine('AY-006S')).toEqual({ name: 'AY-006S', icgId: 'AY-006S' })
   })
 
+  // The catalogue writes Iveta_C_(IC-87VY), a person types Iveta C (IC-87VY), and
+  // either may arrive lower-cased. All three are the same person — the ICG-ID says
+  // so — and they must not become three differently-spelled entries.
+  it('reads the same person from every written form of the name', () => {
+    const expected = { name: 'Iveta C', icgId: 'IC-87VY' }
+    expect(parsePersonLine('Iveta C (IC-87VY)')).toEqual(expected)
+    expect(parsePersonLine('Iveta_C_(IC-87VY)')).toEqual(expected)
+    expect(parsePersonLine('Iveta   C  (IC-87VY)')).toEqual(expected)
+    expect(parsePersonLine('iveta c (ic-87vy)')).toEqual({ name: 'iveta c', icgId: 'IC-87VY' })
+  })
+
+  // Letters stay as written: this is a display name, and title-casing it would be a
+  // guess the file has no business making.
+  it('normalises the separators, not the spelling', () => {
+    expect(normalisePersonName('Iveta_C_')).toBe('Iveta C')
+    expect(normalisePersonName('  anna   y  ')).toBe('anna y')
+  })
+
   it('accepts a self-assigned ID (ADR-0026 marks them with @)', () => {
     expect(parsePersonLine('Someone (ZZ-90@AAA)')).toEqual({ name: 'Someone', icgId: 'ZZ-90@AAA' })
   })
@@ -49,6 +68,12 @@ describe('parsePersonLine', () => {
 })
 
 describe('parsePeopleFile', () => {
+  // One person, three spellings, one entry — the dedupe keys on the ICG-ID.
+  it('does not list one person three times for three spellings', () => {
+    const parsed = parsePeopleFile('Iveta C (IC-87VY)\nIveta_C_(IC-87VY)\niveta c (ic-87vy)\n')
+    expect(parsed.claimed).toEqual([{ name: 'Iveta C', icgId: 'IC-87VY' }])
+  })
+
   it('reads back what it wrote, sections intact', () => {
     const text = render([anna, bella], [paula])!
     const parsed = parsePeopleFile(text)
@@ -66,7 +91,7 @@ describe('parsePeopleFile', () => {
     expect(parsed.claimed).toEqual([])
   })
 
-  // A hand-written _people.txt carries no section markers at all, and everything in
+  // A hand-written _cast.txt carries no section markers at all, and everything in
   // it is a claim about the folder.
   it('treats an unmarked file as claims', () => {
     const parsed = parsePeopleFile('# my notes\n\nAnna Y (AY-006S)\nPA-00X1\n')
@@ -120,7 +145,7 @@ describe('renderPeopleFile', () => {
   })
 
   it('says where hand-written entries belong', () => {
-    expect(render([anna], [])!).toContain('_people.txt')
+    expect(render([anna], [])!).toContain('_cast.txt')
   })
 })
 

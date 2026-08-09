@@ -221,7 +221,7 @@ counts without that inference — for the one run after a counting rule changes.
 `GET /api/archive/people-revisions` and `POST /api/archive/people-files`, both behind
 `ARCHIVE_API_KEY`. The app cannot reach the archive filesystem, so `archive-scan.ps1` pulls: one
 revision list per Full scan, header comparison per folder, batched body fetch, write or delete,
-then a derived `_pulseboard_index.tsv` per root. Inbound, the walk reads `_people.txt` and ships
+then a derived `_pulseboard_index.tsv` per root. Inbound, the walk reads `_cast.txt` and ships
 `folderPeople` / `folderPeopleErrors` on `FullIngestItem`; `upsertArchiveFolders` writes them as
 `FOLDER_ATTRIBUTION` suggestions at tier `EXACT` — **additive only**. Both fields pass through
 `coerceFolderPeople` / `coerceStrings`, the same PowerShell single-element-array collapse that

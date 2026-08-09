@@ -153,7 +153,7 @@
       Sidecars are written to ALL on-disk folders — not only linked ones.
       Existing sidecars are never overwritten.
 
-    People files (_pulseboard_people.txt) — ADR-0029:
+    Cast files (_pulseboard_cast.txt) — ADR-0029:
       Written after each Full scan (skip with -SkipPeople). Holds who the app knows
       is in this set, so the archive answers that without app, database or MinIO:
         # credited  — the cast of the linked set (who the publisher named)
@@ -162,11 +162,15 @@
       deleted when the app knows nobody. A per-root _pulseboard_index.tsv is
       generated from these files for one-grep lookup — derived, safe to delete.
 
-    Folder attribution (_people.txt) — hand-written, read-only to the app:
-      One `Common Name (ICG-ID)` per line; # comments and blank lines ignored.
+    Folder attribution (_cast.txt) — hand-written, read-only to the app:
+      One `Name (ICG-ID)` per line; # comments and blank lines ignored. The name may
+      use underscores or spaces and any capitalisation — "Iveta_C_(IC-87VY)",
+      "Iveta C (IC-87VY)" and "iveta c (IC-87VY)" are the same person, because the
+      ICG-ID is the identity and the name is provenance.
+      The older name _people.txt (ADR-0027) is still read.
       Read on every visit and sent with the folder, where it becomes a top-ranked
       suggestion. It only ever ADDS: removing a line takes nothing back.
-      NOTE: an *edited* _people.txt is invisible to the leaf-mtime skip, because
+      NOTE: an *edited* _cast.txt is invisible to the leaf-mtime skip, because
       NTFS does not bump a directory's mtime when a file inside it changes. Use
       -Force (with -Path to scope it) after editing one.
 
@@ -211,7 +215,7 @@ param(
     [string]$Path          = "",  # Full mode: restrict the walk to this subtree (channel folder, year, or a single leaf)
     [switch]$Force,               # Full mode: re-read every leaf, ignoring the leaf-mtime skip
     [switch]$NoSidecarPrompt,  # skip interactive sidecar-write prompt after Full scan (for automation)
-    [switch]$SkipPeople,       # Full mode: skip writing _pulseboard_people.txt and the per-root index
+    [switch]$SkipPeople,       # Full mode: skip writing _pulseboard_cast.txt and the per-root index
     [switch]$Baseline,         # accept the reported counts as the new normal — do NOT derive CHANGED from them
     [switch]$DryRun,
     [switch]$SkipChanCache,  # retained for backward compatibility; no longer has any effect
@@ -285,8 +289,8 @@ $ImageExtensions = @(".jpg", ".jpeg", ".png", ".webp", ".bmp", ".gif", ".tif", "
 # What counts as "a file of this set": media, and nothing else.
 #
 # A set is its images and videos. Everything else in the folder belongs to some
-# tool — our own _pulseboard.json and _pulseboard_people.txt, a hand-written
-# _people.txt, Thumbs.db, desktop.ini, a stray readme. Counting those made the file
+# tool — our own _pulseboard.json and _pulseboard_cast.txt, a hand-written
+# _cast.txt, Thumbs.db, desktop.ini, a stray readme. Counting those made the file
 # count wrong and, worse, made it MOVE: writing a people file added one, and the app
 # concluded from the changed count that someone had touched the set (276 sets were
 # marked CHANGED that way). The content signature had the same flaw — the fingerprint
@@ -721,7 +725,7 @@ function Walk-Root {
                         }
                     } catch { <# silently ignore malformed sidecar #> }
 
-                # ── Read _people.txt (hand-written claims, ADR-0029) ─────────
+                # ── Read _cast.txt (hand-written claims, ADR-0029) ───────────
                 # Your own assertion about who is in this set. Read on every visit
                 # to a leaf — but note that an *edited* file is invisible to the
                 # leaf-mtime skip below, because NTFS does not bump a directory's
@@ -729,14 +733,25 @@ function Walk-Root {
                 # -Force (with -Path to scope it).
                 $folderPeople       = @()
                 $folderPeopleErrors = @()
-                $peoplePath = Join-Path $lf.FullName "_people.txt"
-                if (Test-Path -LiteralPath $peoplePath -PathType Leaf) {
-                    foreach ($pline in (Get-Content -LiteralPath $peoplePath -ErrorAction SilentlyContinue)) {
+                # _people.txt is read too: it was the name in ADR-0027 before the
+                # file became _cast.txt, and a hand-written file must never be
+                # ignored just because it carries the older name.
+                $castPath = Join-Path $lf.FullName "_cast.txt"
+                if (-not (Test-Path -LiteralPath $castPath -PathType Leaf)) {
+                    $castPath = Join-Path $lf.FullName "_people.txt"
+                }
+                if (Test-Path -LiteralPath $castPath -PathType Leaf) {
+                    foreach ($pline in (Get-Content -LiteralPath $castPath -ErrorAction SilentlyContinue)) {
                         $ptrim = $pline.Trim()
                         if (-not $ptrim -or $ptrim.StartsWith("#")) { continue }
                         $pm = [regex]::Match($ptrim, '^(.*?)\s*\(([^()]+)\)\s*$')
                         if ($pm.Success) {
-                            $pname = $pm.Groups[1].Value.Trim()
+                            # "Iveta_C_(IC-87VY)", "Iveta C (IC-87VY)" and the
+                            # lower-cased form all name the same person — the ICG-ID
+                            # is the identity, the name is provenance. Only the
+                            # separators are normalised; letters stay as written.
+                            $pname = ($pm.Groups[1].Value -replace '_', ' ') -replace '\s+', ' '
+                            $pname = $pname.Trim()
                             $picg  = $pm.Groups[2].Value.Trim().ToUpperInvariant()
                         } else {
                             $pname = ""
@@ -1020,7 +1035,7 @@ function Write-Sidecars {
 
 # ── FULL MODE — Write people files ────────────────────────────────────────────
 #
-# `_pulseboard_people.txt` per folder: who the app knows is in this set, so the
+# `_pulseboard_cast.txt` per folder: who the app knows is in this set, so the
 # archive can answer that question with no app, no database and no MinIO running
 # (ADR-0029). Plain text on purpose — ConvertTo-Json collapses a one-element array
 # into a scalar, and a participant list is exactly that shape.
@@ -1050,12 +1065,16 @@ function Write-PeopleFiles {
     foreach ($ak in $ByArchKey.Keys) {
         $folderPath = [string]$ByArchKey[$ak].fullPath
         if (-not (Test-Path -LiteralPath $folderPath -PathType Container)) { continue }
-        $filePath = Join-Path $folderPath "_pulseboard_people.txt"
+        $filePath = Join-Path $folderPath "_pulseboard_cast.txt"
         $want     = if ($wanted.ContainsKey($ak)) { $wanted[$ak] } else { "EMPTY" }
         $exists   = Test-Path -LiteralPath $filePath -PathType Leaf
 
         # EMPTY means the app knows nobody here. A file that has outlived its
-        # content is worse than none: it answers with a stand nobody holds.
+        # content is worse than none: it answers with a stand nobody holds. The
+        # pre-2026-08-09 name goes the same way, whether or not it is EMPTY now.
+        $legacyPath = Join-Path $folderPath "_pulseboard_people.txt"
+        if (Test-Path -LiteralPath $legacyPath -PathType Leaf) { [void]$toDelete.Add($legacyPath) }
+
         if ($want -eq "EMPTY") {
             if ($exists) { [void]$toDelete.Add($filePath) }
             continue
@@ -1098,7 +1117,8 @@ function Write-PeopleFiles {
         foreach ($file in $response.files) {
             $ak = [string]$file.archiveKey
             if (-not $ByArchKey.ContainsKey($ak)) { continue }
-            $filePath = Join-Path ([string]$ByArchKey[$ak].fullPath) "_pulseboard_people.txt"
+            $folderPath = [string]$ByArchKey[$ak].fullPath
+            $filePath   = Join-Path $folderPath "_pulseboard_cast.txt"
             try {
                 if ($null -eq $file.body) {
                     if (Test-Path -LiteralPath $filePath -PathType Leaf) {
@@ -1126,7 +1146,7 @@ function Write-PeopleFiles {
         }
     }
 
-    $summary = "  People files written: $written | Deleted: $deleted | Already current: $matched"
+    $summary = "  Cast files written: $written | Deleted: $deleted | Already current: $matched"
     if ($errors -gt 0) { $summary += " | Errors: $errors" }
     Write-Host $summary
 }
@@ -1148,7 +1168,7 @@ function Write-PeopleIndex {
 
     foreach ($ak in $ByArchKey.Keys) {
         $folderPath = [string]$ByArchKey[$ak].fullPath
-        $filePath   = Join-Path $folderPath "_pulseboard_people.txt"
+        $filePath   = Join-Path $folderPath "_pulseboard_cast.txt"
         if (-not (Test-Path -LiteralPath $filePath -PathType Leaf)) { continue }
 
         $root = $null
@@ -1189,7 +1209,7 @@ function Write-PeopleIndex {
         }
         try {
             $header = @(
-                "# pulseboard — generated index, derived from _pulseboard_people.txt. Delete it and grep the folders if in doubt.",
+                "# pulseboard — generated index, derived from _pulseboard_cast.txt. Delete it and grep the folders if in doubt.",
                 "# generated: $((Get-Date).ToUniversalTime().ToString('o'))",
                 "# rows: $($rows.Count)",
                 "# icgId`tname`tstanding`trelativePath"
@@ -1265,7 +1285,7 @@ function Write-WritePhases {
     # No prompt for these: unlike a sidecar they are refreshed constantly by
     # design, and a question asked every run is a question nobody reads.
     Write-Host ""
-    Write-Host "Writing people files (_pulseboard_people.txt)..."
+    Write-Host "Writing cast files (_pulseboard_cast.txt)..."
     Write-PeopleFiles -ByArchKey $target
 
     # The index describes a whole root. Rebuilding it from a scoped run would

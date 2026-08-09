@@ -1239,7 +1239,7 @@ still be circular.
 ##### Finding a person's sets without the app
 
 Every archive folder the app knows people for carries a small text file,
-`_pulseboard_people.txt`, listing them as `Name (ICG-ID)` in two labelled sections: `# credited`
+`_pulseboard_cast.txt`, listing them as `Name (ICG-ID)` in two labelled sections: `# credited`
 (who the publisher named for the linked set) and `# claimed` (what you asserted about the folder).
 It is written by the scan agent, so what you confirm today appears on disk after the next Full
 scan — the app has no route to the archive filesystem.
@@ -1261,8 +1261,8 @@ and a folder that keeps its people when you copy it somewhere else.
 
 ##### Telling the app about people from the filesystem
 
-Put a `_people.txt` in an archive folder, one `Common Name (ICG-ID)` per line — `#` comments and
-blank lines are ignored:
+Put a `_cast.txt` in an archive folder, one `Name (ICG-ID)` per line — `#` comments and blank
+lines are ignored:
 
 ```
 # shot at the same session as the Talia set
@@ -1276,10 +1276,16 @@ through: a mistyped ICG-ID usually points at a real other person, and one key is
 never attributing a stranger unseen. Lines that cannot be read are reported in the scan output
 rather than dropped.
 
-Two things worth knowing:
+The name may be written however it comes to hand. `Iveta_C_(IC-87VY)` — the form the catalogue
+uses for its folders — `Iveta C (IC-87VY)` and `iveta c (IC-87VY)` are all the same person: the
+ICG-ID is what identifies anyone, the name only says how the source spelled it. Underscores
+become spaces on read, and one person written three ways still lands as one entry.
+
+Three things worth knowing:
 
 - The file only ever **adds**. Removing a line takes nothing back — undo that in the app.
-- An **edited** `_people.txt` is invisible to the scan's shortcut, because Windows does not update
+- The older name `_people.txt` (from ADR-0027) is still read, so nothing written under it is lost.
+- An **edited** `_cast.txt` is invisible to the scan's shortcut, because Windows does not update
   a folder's timestamp when a file inside it changes. After editing one, scan with `-Force`
   (and `-Path` to keep it quick).
 
