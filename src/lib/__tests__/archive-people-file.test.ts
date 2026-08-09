@@ -2,11 +2,12 @@ import { describe, expect, it } from 'vitest'
 import {
   EMPTY_REVISION,
   formatPerson,
-  parsePeopleFile,
   normalisePersonName,
+  parseCastFile,
+  parseCastMarkerName,
   parsePersonLine,
   peopleRevision,
-  renderPeopleFile,
+  renderCastFile,
   type FilePerson,
 } from '@/lib/archive-people-file'
 
@@ -15,10 +16,10 @@ const bella: FilePerson = { name: 'Bella', icgId: 'BE-01QQ' }
 const paula: FilePerson = { name: 'Paula', icgId: 'PA-00X1' }
 
 const render = (credited: FilePerson[], claimed: FilePerson[]) =>
-  renderPeopleFile({
+  renderCastFile({
     archiveKey: '3f6c9e02-0000-4000-8000-000000000001',
     folderName: '2011-01-16-MPL Talia - The Delicate Edge',
-    setLine: 'MPL · 2011-01-16 · "The Delicate Edge"',
+    set: { channel: 'MPL', releaseDate: '2011-01-16', title: 'The Delicate Edge' },
     credited,
     claimed,
     generatedAt: new Date('2026-08-08T10:12:00.000Z'),
@@ -67,48 +68,72 @@ describe('parsePersonLine', () => {
   })
 })
 
-describe('parsePeopleFile', () => {
-  // One person, three spellings, one entry — the dedupe keys on the ICG-ID.
-  it('does not list one person three times for three spellings', () => {
-    const parsed = parsePeopleFile('Iveta C (IC-87VY)\nIveta_C_(IC-87VY)\niveta c (ic-87vy)\n')
-    expect(parsed.claimed).toEqual([{ name: 'Iveta C', icgId: 'IC-87VY' }])
+describe('parseCastMarkerName', () => {
+  const iveta = { name: 'Iveta C', icgId: 'IC-87VY' }
+
+  // The whole statement is the filename, and it arrives in whatever form the
+  // operator's hands produced — including Explorer's "New → Text Document", which
+  // appends .txt. Dropping a claim over an extension would be silent data loss.
+  it('reads a person from every form a marker can take', () => {
+    expect(parseCastMarkerName('Iveta_C_(IC-87VY)')).toEqual(iveta)
+    expect(parseCastMarkerName('Iveta C (IC-87VY)')).toEqual(iveta)
+    expect(parseCastMarkerName('Iveta C (IC-87VY).txt')).toEqual(iveta)
+    expect(parseCastMarkerName('iveta c (ic-87vy)')).toEqual({ name: 'iveta c', icgId: 'IC-87VY' })
   })
 
+  it('accepts a bare ICG-ID, with or without an extension', () => {
+    expect(parseCastMarkerName('IC-87VY')).toEqual({ name: 'IC-87VY', icgId: 'IC-87VY' })
+    expect(parseCastMarkerName('ic-87vy.txt')).toEqual({ name: 'IC-87VY', icgId: 'IC-87VY' })
+  })
+
+  // Our own files share the folder with the markers. If any of them parsed, the app
+  // would invent a person out of its own bookkeeping.
+  it('never mistakes one of our own files for a person', () => {
+    expect(parseCastMarkerName('pulseboard.json')).toBeNull()
+    expect(parseCastMarkerName('cast.json')).toBeNull()
+    expect(parseCastMarkerName('index.tsv')).toBeNull()
+    expect(parseCastMarkerName('.media-date-plan.json')).toBeNull()
+  })
+
+  it('refuses a malformed ID rather than guessing', () => {
+    expect(parseCastMarkerName('Iveta (IC-87)')).toBeNull()
+    expect(parseCastMarkerName('Iveta C')).toBeNull()
+    expect(parseCastMarkerName('')).toBeNull()
+  })
+})
+
+describe('the generated cast.json', () => {
   it('reads back what it wrote, sections intact', () => {
-    const text = render([anna, bella], [paula])!
-    const parsed = parsePeopleFile(text)
+    const parsed = parseCastFile(render([anna, bella], [paula])!)
     expect(parsed.credited).toEqual([anna, bella])
     expect(parsed.claimed).toEqual([paula])
     expect(parsed.revision).toBe(peopleRevision([anna, bella], [paula]))
     expect(parsed.errors).toEqual([])
   })
 
-  // The shape that breaks in PowerShell JSON: a single-element list. Text cannot
-  // collapse it, and this asserts that it does not.
+  // The agent compares 34k folders per scan by reading the first lines of each
+  // file. That only works while revision is the first key.
+  it('writes revision as the very first key', () => {
+    const first = render([anna], [])!.split('\n')[1]
+    expect(first).toContain('"revision"')
+  })
+
   it('round-trips a one-person set', () => {
-    const parsed = parsePeopleFile(render([anna], [])!)
+    const parsed = parseCastFile(render([anna], [])!)
     expect(parsed.credited).toEqual([anna])
     expect(parsed.claimed).toEqual([])
   })
 
-  // A hand-written _cast.txt carries no section markers at all, and everything in
-  // it is a claim about the folder.
-  it('treats an unmarked file as claims', () => {
-    const parsed = parsePeopleFile('# my notes\n\nAnna Y (AY-006S)\nPA-00X1\n')
-    expect(parsed.claimed).toEqual([anna, { name: 'PA-00X1', icgId: 'PA-00X1' }])
-    expect(parsed.credited).toEqual([])
-    expect(parsed.revision).toBeNull()
+  it('says where hand-written entries belong', () => {
+    expect(render([anna], [])!).toContain('marker files')
   })
 
-  it('reports malformed lines instead of dropping them', () => {
-    const parsed = parsePeopleFile('Anna Y (AY-006S)\nwho even is this\n')
-    expect(parsed.claimed).toEqual([anna])
-    expect(parsed.errors).toEqual(['who even is this'])
-  })
-
-  it('ignores comments and blank lines, and does not repeat a person', () => {
-    const parsed = parsePeopleFile('# comment\n\nAnna Y (AY-006S)\n\nAnna Y (AY-006S)\n')
-    expect(parsed.claimed).toEqual([anna])
+  // The file lives on a disk that gets moved, copied and restored. Half a file is
+  // not a reason to fail a scan.
+  it('survives a truncated or foreign file without throwing', () => {
+    expect(parseCastFile('{"revision": "abc"').errors).toEqual(['unreadable cast.json'])
+    expect(parseCastFile('[]')).toEqual({ credited: [], claimed: [], revision: null, errors: [] })
+    expect(parseCastFile('{"credited": [{"name": "No id"}]}').credited).toEqual([])
   })
 })
 
@@ -133,19 +158,9 @@ describe('peopleRevision', () => {
   })
 })
 
-describe('renderPeopleFile', () => {
+describe('renderCastFile', () => {
   it('writes nothing at all when there is nobody', () => {
     expect(render([], [])).toBeNull()
-  })
-
-  it('omits a section that has no one in it', () => {
-    const text = render([anna], [])!
-    expect(text).toContain('# credited')
-    expect(text).not.toContain('# claimed')
-  })
-
-  it('says where hand-written entries belong', () => {
-    expect(render([anna], [])!).toContain('_cast.txt')
   })
 })
 

@@ -1,5 +1,5 @@
 /**
- * What the app puts on disk about who is in a set (ADR-0029).
+ * What the app puts on disk about who is in a set (ADR-0029, ADR-0030).
  *
  * The app cannot write to the archive — only the scan agent can — so this serves
  * two endpoints and the agent does the writing:
@@ -8,15 +8,16 @@
  *                            round trip which files are out of date
  *   `getPeopleFiles(keys)` — the rendered bodies for the ones that differ
  *
- * The fingerprint is what keeps this from repeating `_pulseboard.json`'s silent
- * decay: that file is written once and only ever patched for a folder rename, so its
- * `setId` is wrong the moment a link is confirmed later and nothing says so.
+ * The fingerprint is what keeps this from repeating the identity anchor's silent
+ * decay: `pulseboard.json` is written once and only ever patched for a folder
+ * rename, so its `setId` is wrong the moment a link is confirmed later, and nothing
+ * says so.
  */
 import { prisma } from '@/lib/db'
 import {
   EMPTY_REVISION,
   peopleRevision,
-  renderPeopleFile,
+  renderCastFile,
   type FilePerson,
 } from '@/lib/archive-people-file'
 import { loadCasts } from '@/lib/services/set-cast-service'
@@ -27,7 +28,7 @@ export type PeopleFile = { archiveKey: string; body: string | null }
 type FolderPeople = {
   archiveKey: string
   folderName: string
-  setLine: string | null
+  set: { channel: string | null; releaseDate: string | null; title: string } | null
   credited: FilePerson[]
   claimed: FilePerson[]
 }
@@ -93,9 +94,7 @@ async function loadFolderPeople(archiveKeys?: string[]): Promise<FolderPeople[]>
     return {
       archiveKey: folder.archiveKey,
       folderName: folder.folderName,
-      setLine: entry
-        ? [channel, day, `"${entry.title}"`].filter(Boolean).join(' · ')
-        : null,
+      set: entry ? { channel, releaseDate: day, title: entry.title } : null,
       // A cast member the import gave no ICG-ID cannot be found again by grep, and
       // an unidentifiable name is exactly what these files exist to avoid.
       credited: (entry?.cast ?? []).filter((p) => p.icgId),
@@ -124,10 +123,10 @@ export async function getPeopleFiles(archiveKeys: string[]): Promise<PeopleFile[
   const generatedAt = new Date()
   return people.map((p) => ({
     archiveKey: p.archiveKey,
-    body: renderPeopleFile({
+    body: renderCastFile({
       archiveKey: p.archiveKey,
       folderName: p.folderName,
-      setLine: p.setLine,
+      set: p.set,
       credited: p.credited,
       claimed: p.claimed,
       generatedAt,

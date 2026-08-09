@@ -7,7 +7,7 @@ import {
   upsertArchiveFolders,
   type FullIngestItem,
 } from "@/lib/services/archive-service";
-import { parsePeopleFile, EMPTY_REVISION } from "@/lib/archive-people-file";
+import { parseCastFile, EMPTY_REVISION } from "@/lib/archive-people-file";
 import { normalizeForSearch } from "@/lib/normalize";
 
 // DB-integration test for the people files on disk (ADR-0029), both directions.
@@ -83,7 +83,7 @@ describe("what the app puts on disk", () => {
 
     const body = await bodyOf(folder.archiveKey);
     expect(body).not.toBeNull();
-    const parsed = parsePeopleFile(body!);
+    const parsed = parseCastFile(body!);
     expect(parsed.credited).toEqual([{ name: "Anna", icgId: "ZZ-80@AAA" }]);
     expect(parsed.claimed).toEqual([{ name: "Paula", icgId: "ZZ-80@PPP" }]);
     // The header identifies the folder and the set it belongs to, so a copied
@@ -141,7 +141,7 @@ describe("what the app puts on disk", () => {
 
     // A person without an ID cannot be found again by grep, and an unidentifiable
     // name is what these files exist to avoid.
-    const parsed = parsePeopleFile((await bodyOf(folder.archiveKey))!);
+    const parsed = parseCastFile((await bodyOf(folder.archiveKey))!);
     expect(parsed.credited).toEqual([{ name: "Anna", icgId: "ZZ-80@AAA" }]);
   });
 });

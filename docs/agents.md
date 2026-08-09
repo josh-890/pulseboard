@@ -75,7 +75,7 @@ there, how many files, is the video present. Cheap, safe to run often.
 
 **Full** walks the roots: detects new folders, renames, cross-drive moves (via the
 `archiveKey` in `_pulseboard.json`) and deletions, writes missing sidecars, then
-refreshes `_pulseboard_cast.txt` and the per-root index.
+refreshes `.pulseboard\cast.json` and the per-root index.
 
 ```powershell
 .\archive-scan.ps1                                   # targeted, the routine run
@@ -91,9 +91,10 @@ refreshes `_pulseboard_cast.txt` and the per-root index.
 | `-Path <dir>` | Restrict the **whole run** — walk, sidecars and people files — to a full path under one of the three roots, not a channel name. Use it with `-Force` to keep a forced run quick. The per-root index is left alone on a scoped run, since it describes a whole root |
 | `-Force` | Re-read every leaf, ignoring the mtime shortcut. **Needed after editing a file inside a folder** — see the trap below |
 | `-NoSidecarPrompt` | Do not ask before writing `_pulseboard.json`; for scheduled runs |
-| `-SkipPeople` | Skip `_pulseboard_cast.txt` and the index |
+| `-SkipPeople` | Skip `.pulseboard\cast.json` and the per-root index |
 | `-Rebake` / `-RebakeForce` | Run `archive-rebake.ps1` afterwards, on paths this scan just verified |
 | `-BatchSize` | Folders per POST (default 200) |
+| `-MigrateCast` | One-off: convert `_cast.txt` / `_people.txt` into markers in `.pulseboard\` |
 | `-Baseline` | Store the reported counts as the new normal **without** deriving CHANGED from the difference. For the one run after the counting rule changes — see below |
 | `-DryRun` | Report only — including what the sidecar and people phases *would* write |
 
@@ -102,20 +103,43 @@ and then reports what the sidecar and people phases would write, without touchin
 anything. Until 2026-08-08 it returned right after the delta preview, so those two
 phases — usually the ones you want to test — stayed silent.
 
-**What counts as a file of a set:** media only — images and videos. Sidecars, people
-files, `Thumbs.db`, `desktop.ini` and stray text files are ignored by the file count
-*and* by the content signature. They belong to a tool, not to the set. Counting them
-meant the number moved whenever a tool wrote something: writing the first people
-files added one file to 276 sets, and the app read that as "someone edited this set".
-The signature had the same flaw — the fingerprint that recognises a moved folder must
-not depend on files we write into it.
+**What counts as a file of a set:** media only — images and videos. Everything
+tool-written now lives in `.pulseboard\` inside the folder, so the media plane holds
+only the set and `frames\`:
 
-That rule changed on 2026-08-08, so the stored counts are one or two too high. They
-are corrected by exactly one run:
+```
+2011-01-16-MPL Talia - The Delicate Edge\
+    …the images…
+    .pulseboard\
+        pulseboard.json        identity anchor — the archiveKey that survives a move
+        cast.json              generated: who the app knows is in this set
+        Iveta_C_(IC-87VY)      your own marker (see below)
+```
+
+One exclude rule (`.pulseboard\`) covers backup, dedup and verification runs. Per
+archive root there is a derived `{root}\.pulseboard\index.tsv` — delete it and grep
+the folders if it ever looks wrong.
+
+The counting rule changed on 2026-08-08 and the layout on 2026-08-09, so stored
+counts are one or two too high. Both are corrected by exactly one run:
 
 ```powershell
-.\archive-scan.ps1 -Baseline          # once, after the rule changed
+.\archive-scan.ps1 -Mode Full -Force -Baseline -MigrateCast
 ```
+
+**Telling the app who is in a set** — put one empty file per person into
+`.pulseboard\`, named `Name (ICG-ID)`:
+
+```
+.pulseboard\Iveta_C_(IC-87VY)
+.pulseboard\Anna Y (AY-006S)
+```
+
+The name is the whole statement — content is never read, any extension is fine, and
+underscores, spaces and capitalisation make no difference. Knowing that one person is
+in twelve sets is twelve pastes of one file; a second person in a set is a second
+file, with nothing to merge. Markers only **add**: deleting one takes nothing back.
+`-MigrateCast` converts an older `_cast.txt` into markers, once.
 
 **The trap that costs the most time:** NTFS does *not* update a folder's timestamp
 when a file **inside** it changes — only when an entry is added, removed or renamed.

@@ -1238,11 +1238,15 @@ still be circular.
 
 ##### Finding a person's sets without the app
 
-Every archive folder the app knows people for carries a small text file,
-`_pulseboard_cast.txt`, listing them as `Name (ICG-ID)` in two labelled sections: `# credited`
-(who the publisher named for the linked set) and `# claimed` (what you asserted about the folder).
-It is written by the scan agent, so what you confirm today appears on disk after the next Full
-scan — the app has no route to the archive filesystem.
+Every archive folder the app knows people for carries a small file,
+`.pulseboard\cast.json`, naming them as `Name (ICG-ID)` in two labelled lists: **credited**
+(who the publisher named for the linked set) and **claimed** (what you asserted about the
+folder). It is written by the scan agent, so what you confirm today appears on disk after the
+next Full scan — the app has no route to the archive filesystem.
+
+Everything the app writes lives in that `.pulseboard\` folder, next to the identity anchor.
+The set folder itself holds only the set, which is what makes it possible to exclude all of it
+from a backup or verification run with a single rule.
 
 That means the archive answers on its own. With the database, MinIO or the whole server down:
 
@@ -1250,7 +1254,7 @@ That means the archive answers on its own. With the database, MinIO or the whole
 rg 'AI-00QAS' I:\Sites L:\Sites02 L:\VSites   # every set that person worked on
 ```
 
-Each archive root also gets a generated `_pulseboard_index.tsv` — ICG-ID, name, standing, path —
+Each archive root also gets a generated `.pulseboard\index.tsv` — ICG-ID, name, standing, path —
 which answers the same question from one file you can copy onto a stick. It is derived from the
 per-folder files: if it ever looks wrong, delete it and grep the folders, which cannot go stale
 independently of the folders they sit in.
@@ -1261,33 +1265,31 @@ and a folder that keeps its people when you copy it somewhere else.
 
 ##### Telling the app about people from the filesystem
 
-Put a `_cast.txt` in an archive folder, one `Name (ICG-ID)` per line — `#` comments and blank
-lines are ignored:
+Put one **empty file per person** into the folder's `.pulseboard\`, named `Name (ICG-ID)`:
 
 ```
-# shot at the same session as the Talia set
-Anna Y (AY-006S)
-BE-01QQ
+.pulseboard\Iveta_C_(IC-87VY)
+.pulseboard\Anna Y (AY-006S)
 ```
 
-The next scan turns those into candidates at the top of that folder's list in the workbench, above
-anything the catalogue proposed, and one keystroke confirms them. They are *not* written straight
-through: a mistyped ICG-ID usually points at a real other person, and one key is a cheap price for
-never attributing a stranger unseen. Lines that cannot be read are reported in the scan output
-rather than dropped.
+The filename is the whole statement — the file's content is never read. That is what makes the
+common case cheap: if you know one person is in twelve sets, you copy **one file** into twelve
+folders. A set with two people is simply two files, with nothing to merge and nothing to edit.
 
 The name may be written however it comes to hand. `Iveta_C_(IC-87VY)` — the form the catalogue
-uses for its folders — `Iveta C (IC-87VY)` and `iveta c (IC-87VY)` are all the same person: the
-ICG-ID is what identifies anyone, the name only says how the source spelled it. Underscores
-become spaces on read, and one person written three ways still lands as one entry.
+uses for its own folders — `Iveta C (IC-87VY)` and `iveta c (ic-87vy)` are all the same person:
+the ICG-ID identifies, the name only says how the source spelled it. An extension makes no
+difference either, so a file Windows created as `Iveta C (IC-87VY).txt` still counts.
 
-Three things worth knowing:
+The next scan turns each marker into a candidate at the top of that folder's list in the
+workbench, above anything the catalogue proposed, and one keystroke confirms it. Names it cannot
+read are reported in the scan output rather than dropped.
 
-- The file only ever **adds**. Removing a line takes nothing back — undo that in the app.
-- The older name `_people.txt` (from ADR-0027) is still read, so nothing written under it is lost.
-- An **edited** `_cast.txt` is invisible to the scan's shortcut, because Windows does not update
-  a folder's timestamp when a file inside it changes. After editing one, scan with `-Force`
-  (and `-Path` to keep it quick).
+Two things worth knowing:
+
+- Markers only **add**. Deleting one takes nothing back — undo that in the app.
+- If you used the older `_cast.txt`, one run of `archive-scan.ps1 -MigrateCast` converts it into
+  markers and removes the file.
 
 ##### When the import brings a set you already hold
 

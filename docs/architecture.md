@@ -215,13 +215,22 @@ counts without that inference — for the one run after a counting rule changes.
 > Agents (scan, cover, re-bake, catalogue avatar, catalogue join) have their own runbook:
 > **`docs/agents.md`** — switches, run order and the traps.
 
+**Metadata folder `.pulseboard\` (ADR-0030)** — all tool-written files live inside the set
+folder's `.pulseboard\`: `pulseboard.json` (identity anchor), `cast.json` (generated mirror,
+`revision` first so the agent's 34k-folder staleness check stays a line scan) and the operator's
+cast markers. `lib/archive-people-file.ts` owns the names (`META_DIR`, `ANCHOR_FILE`,
+`APP_CAST_FILE`), the JSON render/parse and `parseCastMarkerName`. The agent reports
+`max(leaf, .pulseboard\)` as the leaf mtime — without it a marker dropped into an existing
+`.pulseboard\` would never be seen, because NTFS bumps only the direct parent. `-MigrateCast`
+converts the older line files once.
+
 **People files on disk (ADR-0029)** — `lib/archive-people-file.ts` (pure: `renderPeopleFile`,
 `parsePeopleFile`, `peopleRevision` — first 16 hex of SHA-256, `EMPTY` when nobody is known) and
 `services/archive-people-service.ts` (`getPeopleRevisions`, `getPeopleFiles`). Two agent endpoints,
 `GET /api/archive/people-revisions` and `POST /api/archive/people-files`, both behind
 `ARCHIVE_API_KEY`. The app cannot reach the archive filesystem, so `archive-scan.ps1` pulls: one
 revision list per Full scan, header comparison per folder, batched body fetch, write or delete,
-then a derived `_pulseboard_index.tsv` per root. Inbound, the walk reads `_cast.txt` and ships
+then a derived `{root}\.pulseboard\index.tsv`. Inbound, the walk reads the cast markers and ships
 `folderPeople` / `folderPeopleErrors` on `FullIngestItem`; `upsertArchiveFolders` writes them as
 `FOLDER_ATTRIBUTION` suggestions at tier `EXACT` — **additive only**. Both fields pass through
 `coerceFolderPeople` / `coerceStrings`, the same PowerShell single-element-array collapse that

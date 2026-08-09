@@ -153,37 +153,27 @@
       Sidecars are written to ALL on-disk folders — not only linked ones.
       Existing sidecars are never overwritten.
 
-    Cast files (_pulseboard_cast.txt) — ADR-0029:
-      Written after each Full scan (skip with -SkipPeople). Holds who the app knows
-      is in this set, so the archive answers that without app, database or MinIO:
-        # credited  — the cast of the linked set (who the publisher named)
-        # claimed   — the folder's own attributions (what you asserted)
-      Refreshed by comparing the file's `# revision:` header against the server;
-      deleted when the app knows nobody. A per-root _pulseboard_index.tsv is
-      generated from these files for one-grep lookup — derived, safe to delete.
+    Metadata folder (.pulseboard\ inside each set folder) — ADR-0030:
+      Everything tool-written lives here, so the set folder holds only media and
+      frames\. One exclude rule covers it in backup, dedup and verification runs:
+        .pulseboard\pulseboard.json   identity anchor (archiveKey) — survives moves
+        .pulseboard\cast.json         generated: who the app knows is in this set
+        .pulseboard\Name (ICG-ID)     YOUR marker files, see below
+      Per archive root: {root}\.pulseboard\index.tsv — derived from the cast files,
+      safe to delete. Files from before the move are removed where found.
 
-    Folder attribution (_cast.txt) — hand-written, read-only to the app:
-      One `Name (ICG-ID)` per line; # comments and blank lines ignored. The name may
-      use underscores or spaces and any capitalisation — "Iveta_C_(IC-87VY)",
-      "Iveta C (IC-87VY)" and "iveta c (IC-87VY)" are the same person, because the
-      ICG-ID is the identity and the name is provenance.
-      The older name _people.txt (ADR-0027) is still read.
-      Read on every visit and sent with the folder, where it becomes a top-ranked
-      suggestion. It only ever ADDS: removing a line takes nothing back.
-      NOTE: an *edited* _cast.txt is invisible to the leaf-mtime skip, because
-      NTFS does not bump a directory's mtime when a file inside it changes. Use
-      -Force (with -Path to scope it) after editing one.
+    Cast markers (your own claims) — ADR-0030:
+      One empty file per person in .pulseboard\, named "Name (ICG-ID)". The name is
+      the whole statement: content is never read, an extension makes no difference,
+      and "Iveta_C_(IC-87VY)", "Iveta C (IC-87VY)" and "iveta c (ic-87vy)" are the
+      same person — the ICG-ID identifies, the name is provenance. Knowing that one
+      person is in twelve sets is then twelve pastes, and a second person in a set is
+      simply a second file. Markers only ADD: deleting one takes nothing back.
+      -MigrateCast converts an older _cast.txt / _people.txt into markers, once.
 
-    What counts as a file of a set:
-      Media only — images and videos. Sidecars, people files, Thumbs.db, desktop.ini
-      and stray text files are ignored by both the file count and the signature. They
-      belong to a tool, not to the set, and counting them made the count move when a
-      tool wrote something.
-
-    Re-baselining (-Baseline):
-      Use once after the counting rule changes: the reported counts are stored as the
-      new normal without deriving CHANGED from the difference. Without it, every
-      confirmed link reports a drop and is flagged as if someone had edited the set.
+      NOTE: adding a marker to an existing .pulseboard\ does NOT bump the set
+      folder's own mtime — NTFS only updates the direct parent. The scan therefore
+      reports the LATER of the two timestamps, so a new marker is always seen.
 
     Content signature (rename fingerprint):
       SHA256(sorted "filename:filesize" strings, "|"-delimited), first 16 hex chars.
@@ -215,8 +205,9 @@ param(
     [string]$Path          = "",  # Full mode: restrict the walk to this subtree (channel folder, year, or a single leaf)
     [switch]$Force,               # Full mode: re-read every leaf, ignoring the leaf-mtime skip
     [switch]$NoSidecarPrompt,  # skip interactive sidecar-write prompt after Full scan (for automation)
-    [switch]$SkipPeople,       # Full mode: skip writing _pulseboard_cast.txt and the per-root index
+    [switch]$SkipPeople,       # Full mode: skip writing .pulseboard\cast.json and the per-root index
     [switch]$Baseline,         # accept the reported counts as the new normal — do NOT derive CHANGED from them
+    [switch]$MigrateCast,      # one-off: convert _cast.txt / _people.txt into markers in .pulseboard\
     [switch]$DryRun,
     [switch]$SkipChanCache,  # retained for backward compatibility; no longer has any effect
     [switch]$Rebake,         # after the scan, run archive-rebake.ps1 (HD re-bake, ADR-0017) — paths are freshly verified
@@ -289,13 +280,28 @@ $ImageExtensions = @(".jpg", ".jpeg", ".png", ".webp", ".bmp", ".gif", ".tif", "
 # What counts as "a file of this set": media, and nothing else.
 #
 # A set is its images and videos. Everything else in the folder belongs to some
-# tool — our own _pulseboard.json and _pulseboard_cast.txt, a hand-written
-# _cast.txt, Thumbs.db, desktop.ini, a stray readme. Counting those made the file
+# tool — our own .pulseboard\ folder, Thumbs.db, desktop.ini, a stray readme. Counting those made the file
 # count wrong and, worse, made it MOVE: writing a people file added one, and the app
 # concluded from the changed count that someone had touched the set (276 sets were
 # marked CHANGED that way). The content signature had the same flaw — the fingerprint
 # that recognises a moved folder must not depend on files we write into it.
 $MediaExtensions = $ImageExtensions + $VideoExtensions
+
+# Where everything tool-written lives, one per set folder (ADR-0030). Named for its
+# owner: another tool's metadata is not ours to host.
+$META_DIR = ".pulseboard"
+# Our own files inside it. Anything else in there with an ICG-ID in its name is a
+# cast marker written by hand.
+$OWN_META_FILES = @("pulseboard.json", "cast.json", "index.tsv")
+# Mirrors ICG_ID_RE in src/lib/icg-id.ts.
+$ICG_ID_PATTERN = '^[A-Z]{2}-[0-9]{2}[A-Z0-9@][A-Z0-9]+$'
+# Generated files from before the move into .pulseboard\. Removed wherever they are
+# found, so no folder ever carries two answers to the same question. The old anchor
+# (_pulseboard.json) is NOT in this list — it is moved, never deleted.
+$LEGACY_CAST_FILES = @("_pulseboard_cast.txt", "_pulseboard_people.txt")
+$LEGACY_HAND_FILES = @("_cast.txt", "_people.txt")
+# Counted across the walk so -MigrateCast can report what it did.
+$script:MigrateStats = @{ files = 0; markers = 0; bad = 0 }
 
 function Test-MediaFile {
     param([System.IO.FileInfo]$File)
@@ -707,13 +713,23 @@ function Walk-Root {
 
                 $existing  = $ByPath[$normPath]  # exact path match
 
-                # ── Read sidecar (_pulseboard.json) ──────────────────────────
-                # The sidecar contains a stable archiveKey UUID written by a previous
-                # scan pass. Sending it lets the server detect cross-drive folder moves
-                # (action=create with sidecarKey → server finds existing record by key).
+                # ── The metadata folder (.pulseboard\, ADR-0030) ─────────────
+                # Everything tool-written lives here so the set folder holds only
+                # media. The anchor's archiveKey is what lets the server recognise a
+                # folder that moved to another drive; the old location is still read
+                # so a folder keeps its identity mid-migration.
+                $metaDir     = Join-Path $lf.FullName $META_DIR
+                $metaMtime   = $null
+                if (Test-Path -LiteralPath $metaDir -PathType Container) {
+                    $metaMtime = (Get-Item -LiteralPath $metaDir).LastWriteTimeUtc
+                }
+
                 $sidecarKey = $null
-                $sidecarObj = $null  # reset per folder so stale-check below is clean
-                $sidecarPath = Join-Path $lf.FullName "_pulseboard.json"
+                $sidecarObj = $null  # reset per folder so the stale-check below is clean
+                $sidecarPath = Join-Path $metaDir "pulseboard.json"
+                if (-not (Test-Path -LiteralPath $sidecarPath -PathType Leaf)) {
+                    $sidecarPath = Join-Path $lf.FullName "_pulseboard.json"
+                }
                 if (Test-Path -LiteralPath $sidecarPath -PathType Leaf) {
                     try {
                         $sidecarJson = Get-Content -LiteralPath $sidecarPath -Raw -ErrorAction SilentlyContinue
@@ -723,51 +739,112 @@ function Walk-Root {
                                 $sidecarKey = [string]$sidecarObj.archiveKey
                             }
                         }
-                    } catch { <# silently ignore malformed sidecar #> }
+                    } catch { <# silently ignore a malformed anchor #> }
+                }
 
-                # ── Read _cast.txt (hand-written claims, ADR-0029) ───────────
-                # Your own assertion about who is in this set. Read on every visit
-                # to a leaf — but note that an *edited* file is invisible to the
-                # leaf-mtime skip below, because NTFS does not bump a directory's
-                # mtime when a file inside it changes. Picking up an edit needs
-                # -Force (with -Path to scope it).
+                # ── One-off: line file → markers (-MigrateCast, ADR-0030) ───
+                # Runs before the markers are read, so the same scan already sends
+                # what it converted. Only on request: rewriting a hand-authored file
+                # is not something a routine scan should do behind your back.
+                if ($MigrateCast) {
+                    foreach ($legacyName in $LEGACY_HAND_FILES) {
+                        $legacyHand = Join-Path $lf.FullName $legacyName
+                        if (-not (Test-Path -LiteralPath $legacyHand -PathType Leaf)) { continue }
+
+                        $made = 0
+                        foreach ($mline in (Get-Content -LiteralPath $legacyHand -ErrorAction SilentlyContinue)) {
+                            $mt = $mline.Trim()
+                            if (-not $mt -or $mt.StartsWith("#")) { continue }
+                            $lm = [regex]::Match($mt, '^(.*?)\s*\(([^()]+)\)\s*$')
+                            if ($lm.Success) {
+                                $lname = (($lm.Groups[1].Value -replace '_', ' ') -replace '\s+', ' ').Trim()
+                                $licg  = $lm.Groups[2].Value.Trim().ToUpperInvariant()
+                            } else {
+                                $lname = ""
+                                $licg  = $mt.ToUpperInvariant()
+                            }
+                            if ($licg -notmatch $ICG_ID_PATTERN) {
+                                Write-Warning "  [MigrateCast] $($lf.FullName): cannot read `"$mt`""
+                                $script:MigrateStats.bad++
+                                continue
+                            }
+                            if (-not $lname) { $lname = $licg }
+
+                            $markerName = "$lname ($licg)"
+                            $markerPath = Join-Path $metaDir $markerName
+                            if ($DryRun) { $made++; continue }
+                            try {
+                                if (-not (Test-Path -LiteralPath $metaDir -PathType Container)) {
+                                    [void](New-Item -ItemType Directory -LiteralPath $metaDir -Force)
+                                }
+                                if (-not (Test-Path -LiteralPath $markerPath -PathType Leaf)) {
+                                    [void](New-Item -ItemType File -LiteralPath $markerPath -Force)
+                                }
+                                $made++
+                            } catch {
+                                Write-Warning "  [MigrateCast] failed to write $markerPath`: $_"
+                                $script:MigrateStats.bad++
+                            }
+                        }
+
+                        # The text file goes only once every line it held has become a
+                        # marker — otherwise a failed write would lose the claim.
+                        if ($DryRun) {
+                            Write-Host "  [DRY-RUN] Would convert $legacyName ($made marker(s)): $($lf.FullName)"
+                        } elseif ($script:MigrateStats.bad -eq 0 -or $made -gt 0) {
+                            try { Remove-Item -LiteralPath $legacyHand -Force } catch {
+                                Write-Warning "  [MigrateCast] could not remove $legacyHand`: $_"
+                            }
+                        }
+                        $script:MigrateStats.files++
+                        $script:MigrateStats.markers += $made
+                        if (Test-Path -LiteralPath $metaDir -PathType Container) {
+                            $metaMtime = (Get-Item -LiteralPath $metaDir).LastWriteTimeUtc
+                        }
+                    }
+                }
+
+                # ── Read the cast markers (your own claims, ADR-0030) ────────
+                # One empty file per person, named "Name (ICG-ID)". The name is the
+                # whole statement, so content is never read and an extension makes no
+                # difference — Explorer's "New → Text Document" appends .txt.
                 $folderPeople       = @()
                 $folderPeopleErrors = @()
-                # _people.txt is read too: it was the name in ADR-0027 before the
-                # file became _cast.txt, and a hand-written file must never be
-                # ignored just because it carries the older name.
-                $castPath = Join-Path $lf.FullName "_cast.txt"
-                if (-not (Test-Path -LiteralPath $castPath -PathType Leaf)) {
-                    $castPath = Join-Path $lf.FullName "_people.txt"
-                }
-                if (Test-Path -LiteralPath $castPath -PathType Leaf) {
-                    foreach ($pline in (Get-Content -LiteralPath $castPath -ErrorAction SilentlyContinue)) {
-                        $ptrim = $pline.Trim()
-                        if (-not $ptrim -or $ptrim.StartsWith("#")) { continue }
-                        $pm = [regex]::Match($ptrim, '^(.*?)\s*\(([^()]+)\)\s*$')
+                if ($metaMtime) {
+                    foreach ($mf in (Get-ChildItem -LiteralPath $metaDir -File -ErrorAction SilentlyContinue)) {
+                        if ($OWN_META_FILES -contains $mf.Name.ToLowerInvariant()) { continue }
+
+                        $mname = $mf.Name
+                        $pm = [regex]::Match($mname, '^(.*?)[\s_]*\(([^()]+)\)')
                         if ($pm.Success) {
                             # "Iveta_C_(IC-87VY)", "Iveta C (IC-87VY)" and the
-                            # lower-cased form all name the same person — the ICG-ID
-                            # is the identity, the name is provenance. Only the
+                            # lower-cased form name the same person — the ICG-ID is
+                            # the identity, the name is provenance. Only the
                             # separators are normalised; letters stay as written.
                             $pname = ($pm.Groups[1].Value -replace '_', ' ') -replace '\s+', ' '
                             $pname = $pname.Trim()
                             $picg  = $pm.Groups[2].Value.Trim().ToUpperInvariant()
                         } else {
                             $pname = ""
-                            $picg  = $ptrim.ToUpperInvariant()
+                            $picg  = ($mname -replace '\.[A-Za-z0-9]{1,8}$', '').Trim().ToUpperInvariant()
                         }
-                        if ($picg -match '^[A-Z]{2}-[0-9]{2}[A-Z0-9@][A-Z0-9]+$') {
+
+                        if ($picg -match $ICG_ID_PATTERN) {
                             if (-not $pname) { $pname = $picg }
                             $folderPeople += [PSCustomObject]@{ name = $pname; icgId = $picg }
                         } else {
                             # Reported, never silently dropped: that is how
                             # HTML-polluted ICG-IDs got into the data before.
-                            $folderPeopleErrors += $ptrim
+                            $folderPeopleErrors += $mname
                         }
                     }
                 }
-                }
+
+                # A marker added to an existing .pulseboard\ does NOT bump the set
+                # folder's mtime — NTFS only updates the direct parent — so the skip
+                # below would hide it for ever. Reporting the later of the two makes
+                # anything that appears in there visible on the next run.
+                if ($metaMtime -and $metaMtime -gt $lfMtime) { $lfMtime = $metaMtime }
 
                 # ── Level 3 skip: leaf mtime unchanged ──────────────────────
                 # -Force disables it. Needed because NTFS does NOT bump a
@@ -933,7 +1010,7 @@ function Write-Sidecars {
         return
     }
 
-    Write-Host "  Checking $linked folder(s) for missing or stale _pulseboard.json..."
+    Write-Host "  Checking $linked folder(s) for a missing or stale identity anchor..."
     $written  = 0
     $updated  = 0
     $skipped  = 0
@@ -942,11 +1019,37 @@ function Write-Sidecars {
     foreach ($ak in $ByArchKey.Keys) {
         $rec         = $ByArchKey[$ak]
         $folderPath  = [string]$rec.fullPath
-        $sidecarPath = Join-Path $folderPath "_pulseboard.json"
 
         # Skip if folder doesn't exist on this machine
         if (-not (Test-Path -LiteralPath $folderPath -PathType Container)) {
             continue
+        }
+
+        $metaDir     = Join-Path $folderPath $META_DIR
+        $sidecarPath = Join-Path $metaDir "pulseboard.json"
+        $legacyPath  = Join-Path $folderPath "_pulseboard.json"
+
+        # The anchor from before the move: carry it across rather than write a second
+        # copy, so the archiveKey is never re-issued and never duplicated.
+        if ((Test-Path -LiteralPath $legacyPath -PathType Leaf) -and
+            -not (Test-Path -LiteralPath $sidecarPath -PathType Leaf)) {
+            if ($DryRun) {
+                Write-Host "  [DRY-RUN] Would move anchor into $META_DIR\: $folderPath"
+                $updated++
+                continue
+            }
+            try {
+                if (-not (Test-Path -LiteralPath $metaDir -PathType Container)) {
+                    [void](New-Item -ItemType Directory -LiteralPath $metaDir -Force)
+                }
+                Move-Item -LiteralPath $legacyPath -Destination $sidecarPath -Force
+                $updated++
+                continue
+            } catch {
+                Write-Warning "  Failed to move $legacyPath`: $_"
+                $errors++
+                continue
+            }
         }
 
         if (Test-Path -LiteralPath $sidecarPath -PathType Leaf) {
@@ -1016,6 +1119,9 @@ function Write-Sidecars {
         }
 
         try {
+            if (-not (Test-Path -LiteralPath $metaDir -PathType Container)) {
+                [void](New-Item -ItemType Directory -LiteralPath $metaDir -Force)
+            }
             $json = ConvertTo-Json -InputObject $content -Depth 4
             [System.IO.File]::WriteAllText($sidecarPath, $json, [System.Text.Encoding]::UTF8)
             $written++
@@ -1035,7 +1141,7 @@ function Write-Sidecars {
 
 # ── FULL MODE — Write people files ────────────────────────────────────────────
 #
-# `_pulseboard_cast.txt` per folder: who the app knows is in this set, so the
+# `.pulseboard\cast.json` per folder: who the app knows is in this set, so the
 # archive can answer that question with no app, no database and no MinIO running
 # (ADR-0029). Plain text on purpose — ConvertTo-Json collapses a one-element array
 # into a scalar, and a participant list is exactly that shape.
@@ -1065,15 +1171,17 @@ function Write-PeopleFiles {
     foreach ($ak in $ByArchKey.Keys) {
         $folderPath = [string]$ByArchKey[$ak].fullPath
         if (-not (Test-Path -LiteralPath $folderPath -PathType Container)) { continue }
-        $filePath = Join-Path $folderPath "_pulseboard_cast.txt"
+        $filePath = Join-Path $folderPath $META_DIR "cast.json"
         $want     = if ($wanted.ContainsKey($ak)) { $wanted[$ak] } else { "EMPTY" }
         $exists   = Test-Path -LiteralPath $filePath -PathType Leaf
 
         # EMPTY means the app knows nobody here. A file that has outlived its
-        # content is worse than none: it answers with a stand nobody holds. The
-        # pre-2026-08-09 name goes the same way, whether or not it is EMPTY now.
-        $legacyPath = Join-Path $folderPath "_pulseboard_people.txt"
-        if (Test-Path -LiteralPath $legacyPath -PathType Leaf) { [void]$toDelete.Add($legacyPath) }
+        # content is worse than none: it answers with a stand nobody holds. Any
+        # generated file from before the move into .pulseboard\ goes the same way.
+        foreach ($legacyName in $LEGACY_CAST_FILES) {
+            $legacyPath = Join-Path $folderPath $legacyName
+            if (Test-Path -LiteralPath $legacyPath -PathType Leaf) { [void]$toDelete.Add($legacyPath) }
+        }
 
         if ($want -eq "EMPTY") {
             if ($exists) { [void]$toDelete.Add($filePath) }
@@ -1118,8 +1226,12 @@ function Write-PeopleFiles {
             $ak = [string]$file.archiveKey
             if (-not $ByArchKey.ContainsKey($ak)) { continue }
             $folderPath = [string]$ByArchKey[$ak].fullPath
-            $filePath   = Join-Path $folderPath "_pulseboard_cast.txt"
+            $metaDir    = Join-Path $folderPath $META_DIR
+            $filePath   = Join-Path $metaDir "cast.json"
             try {
+                if (-not (Test-Path -LiteralPath $metaDir -PathType Container)) {
+                    [void](New-Item -ItemType Directory -LiteralPath $metaDir -Force)
+                }
                 if ($null -eq $file.body) {
                     if (Test-Path -LiteralPath $filePath -PathType Leaf) {
                         Remove-Item -LiteralPath $filePath -Force
@@ -1168,7 +1280,7 @@ function Write-PeopleIndex {
 
     foreach ($ak in $ByArchKey.Keys) {
         $folderPath = [string]$ByArchKey[$ak].fullPath
-        $filePath   = Join-Path $folderPath "_pulseboard_cast.txt"
+        $filePath   = Join-Path $folderPath $META_DIR "cast.json"
         if (-not (Test-Path -LiteralPath $filePath -PathType Leaf)) { continue }
 
         $root = $null
@@ -1178,122 +1290,52 @@ function Write-PeopleIndex {
         if (-not $root) { continue }
         $relative = $folderPath.Substring($root.TrimEnd("/\").Length).TrimStart("/\")
 
-        $standing = "claimed"
-        foreach ($line in (Get-Content -LiteralPath $filePath -ErrorAction SilentlyContinue)) {
-            $t = $line.Trim()
-            if (-not $t) { continue }
-            if ($t.StartsWith("#")) {
-                if ($t -match '^#\s*credited\s*$') { $standing = "credited" }
-                elseif ($t -match '^#\s*claimed\s*$') { $standing = "claimed" }
-                continue
+        # Reading JSON is safe — the one-element collapse is a serialisation bug, and
+        # nothing here serialises. Only folders that HAVE a cast file are parsed.
+        try {
+            $cast = Get-Content -LiteralPath $filePath -Raw -ErrorAction SilentlyContinue | ConvertFrom-Json -ErrorAction Stop
+        } catch {
+            continue
+        }
+        if (-not $cast) { continue }
+
+        foreach ($standing in @("credited", "claimed")) {
+            foreach ($person in @($cast.$standing)) {
+                if (-not $person -or -not $person.icgId) { continue }
+                $nm = if ($person.name) { [string]$person.name } else { [string]$person.icgId }
+                [void]$rowsByRoot[$root].Add("$([string]$person.icgId)`t$nm`t$standing`t$relative")
             }
-            $m = [regex]::Match($t, '^(.*?)\s*\(([^()]+)\)\s*$')
-            if ($m.Success) {
-                $nm  = $m.Groups[1].Value.Trim()
-                $icg = $m.Groups[2].Value.Trim()
-            } else {
-                $nm  = $t
-                $icg = $t
-            }
-            [void]$rowsByRoot[$root].Add("$icg`t$nm`t$standing`t$relative")
         }
     }
 
     foreach ($root in $Roots) {
         $rows = $rowsByRoot[$root]
         if ($rows.Count -eq 0) { continue }
-        $indexPath = Join-Path $root "_pulseboard_index.tsv"
+        $indexDir  = Join-Path $root $META_DIR
+        $indexPath = Join-Path $indexDir "index.tsv"
         if ($DryRun) {
             Write-Host "  [DRY-RUN] Would write $indexPath ($($rows.Count) rows)"
             continue
         }
         try {
+            if (-not (Test-Path -LiteralPath $indexDir -PathType Container)) {
+                [void](New-Item -ItemType Directory -LiteralPath $indexDir -Force)
+            }
             $header = @(
-                "# pulseboard — generated index, derived from _pulseboard_cast.txt. Delete it and grep the folders if in doubt.",
+                "# pulseboard — generated index, derived from $META_DIR\cast.json. Delete it and grep the folders if in doubt.",
                 "# generated: $((Get-Date).ToUniversalTime().ToString('o'))",
                 "# rows: $($rows.Count)",
                 "# icgId`tname`tstanding`trelativePath"
             )
             [System.IO.File]::WriteAllLines($indexPath, @($header + @($rows | Sort-Object)), [System.Text.Encoding]::UTF8)
             Write-Host "  Index: $indexPath ($($rows.Count) rows)"
+
+            # The index from before the move sat at the root itself.
+            $legacyIndex = Join-Path $root "_pulseboard_index.tsv"
+            if (Test-Path -LiteralPath $legacyIndex -PathType Leaf) { Remove-Item -LiteralPath $legacyIndex -Force }
         } catch {
             Write-Warning "  Failed to write $indexPath`: $_"
         }
-    }
-}
-
-# ── FULL MODE — the write phases, and what they are allowed to touch ──────────
-#
-# -Path scopes the WHOLE run, these phases included. A switch that narrows the walk
-# and then touches all 34k folders anyway would mean very little, and on a scoped
-# run the I/O across three drives is the bulk of the time. Whatever falls outside
-# the scope catches up on the next unscoped Full run — the revision check finds it
-# by itself.
-
-function Write-WritePhases {
-    param([hashtable]$ByArchKey, [string]$ScopeNorm, [int]$StaleSidecar = 0)
-
-    $target = $ByArchKey
-    if ($ScopeNorm) {
-        $target = @{}
-        foreach ($ak in $ByArchKey.Keys) {
-            $np = Normalize-Path ([string]$ByArchKey[$ak].fullPath)
-            if ($np.StartsWith($ScopeNorm)) { $target[$ak] = $ByArchKey[$ak] }
-        }
-        Write-Host "  (scoped to -Path: $($target.Count) of $($ByArchKey.Count) folder(s))"
-    }
-
-    # Count what the sidecar phase would do, so the prompt can say it.
-    $needsSidecar = 0
-    foreach ($ak in $target.Keys) {
-        $folderPath  = [string]$target[$ak].fullPath
-        $sidecarPath = Join-Path $folderPath "_pulseboard.json"
-        if ((Test-Path -LiteralPath $folderPath -PathType Container) -and
-            -not (Test-Path -LiteralPath $sidecarPath -PathType Leaf)) {
-            $needsSidecar++
-        }
-    }
-
-    if (($needsSidecar + $StaleSidecar) -gt 0) {
-        Write-Host ""
-        $promptMsg = if ($needsSidecar -gt 0 -and $StaleSidecar -gt 0) {
-            "Write/update sidecars? ($needsSidecar missing, $StaleSidecar stale) [Y/n]"
-        } elseif ($needsSidecar -gt 0) {
-            "Write _pulseboard.json into $needsSidecar folder(s) missing a sidecar? [Y/n]"
-        } else {
-            "Update $StaleSidecar stale _pulseboard.json file(s) with new folder name? [Y/n]"
-        }
-        if ($NoSidecarPrompt -or $DryRun) {
-            $doWrite = $true
-        } else {
-            $answer  = Read-Host $promptMsg
-            $doWrite = ($answer -eq "" -or $answer -match "^[Yy]")
-        }
-        if ($doWrite) {
-            Write-Host "Writing sidecar files (_pulseboard.json)..."
-            Write-Sidecars -ByArchKey $target
-        } else {
-            Write-Host "  Sidecar write skipped."
-        }
-    } else {
-        Write-Host ""
-        Write-Host "All folders in scope already have _pulseboard.json."
-    }
-
-    if ($SkipPeople) { return }
-
-    # No prompt for these: unlike a sidecar they are refreshed constantly by
-    # design, and a question asked every run is a question nobody reads.
-    Write-Host ""
-    Write-Host "Writing cast files (_pulseboard_cast.txt)..."
-    Write-PeopleFiles -ByArchKey $target
-
-    # The index describes a whole root. Rebuilding it from a scoped run would
-    # replace a complete index with a partial one — worse than not touching it.
-    if ($ScopeNorm) {
-        Write-Host "  Index left alone (scoped run — it describes a whole root)."
-    } else {
-        Write-PeopleIndex -ByArchKey $target -Roots @(@(Parse-Roots $PhotosetRoot) + @(Parse-Roots $VideosetRoot))
     }
 }
 
@@ -1514,6 +1556,11 @@ function Run-FullScan {
     }
 
     Write-WritePhases -ByArchKey $byArchKey -ScopeNorm $scopeNorm -StaleSidecar $staleSidecar
+
+    if ($MigrateCast) {
+        Write-Host ""
+        Write-Host "  Cast migration: $($script:MigrateStats.files) file(s) converted into $($script:MigrateStats.markers) marker(s)$(if ($script:MigrateStats.bad -gt 0) { " | unreadable lines: $($script:MigrateStats.bad)" })"
+    }
 }
 
 # ── Main ──────────────────────────────────────────────────────────────────────
