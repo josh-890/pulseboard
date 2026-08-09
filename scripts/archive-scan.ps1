@@ -171,6 +171,12 @@
       simply a second file. Markers only ADD: deleting one takes nothing back.
       -MigrateCast converts an older _cast.txt / _people.txt into markers, once.
 
+    After moving folders between roots:
+      The targeted sub-phase checks the paths the app currently records, so it reports
+      every moved folder as MISSING — correct about the old path, and corrected by the
+      walk moments later. Use -SkipTargeted for that one run to avoid writing the
+      transient verdict, then scan normally afterwards.
+
       NOTE: adding a marker to an existing .pulseboard\ does NOT bump the set
       folder's own mtime — NTFS only updates the direct parent. The scan therefore
       reports the LATER of the two timestamps, so a new marker is always seen.
@@ -208,6 +214,7 @@ param(
     [switch]$SkipPeople,       # Full mode: skip writing .pulseboard\cast.json and the per-root index
     [switch]$Baseline,         # accept the reported counts as the new normal — do NOT derive CHANGED from them
     [switch]$MigrateCast,      # one-off: convert _cast.txt / _people.txt into markers in .pulseboard\
+    [switch]$SkipTargeted,     # Full mode: skip the targeted sub-phase (use right after moving folders)
     [switch]$DryRun,
     [switch]$SkipChanCache,  # retained for backward compatibility; no longer has any effect
     [switch]$Rebake,         # after the scan, run archive-rebake.ps1 (HD re-bake, ADR-0017) — paths are freshly verified
@@ -775,10 +782,12 @@ function Walk-Root {
                             if ($DryRun) { $made++; continue }
                             try {
                                 if (-not (Test-Path -LiteralPath $metaDir -PathType Container)) {
-                                    [void](New-Item -ItemType Directory -LiteralPath $metaDir -Force)
+                                    [void][System.IO.Directory]::CreateDirectory($metaDir)
                                 }
                                 if (-not (Test-Path -LiteralPath $markerPath -PathType Leaf)) {
-                                    [void](New-Item -ItemType File -LiteralPath $markerPath -Force)
+                                    # A real 0-byte file: the name is the statement,
+                                    # so there is nothing to write into it.
+                                    [System.IO.File]::Create($markerPath).Dispose()
                                 }
                                 $made++
                             } catch {
@@ -1040,7 +1049,7 @@ function Write-Sidecars {
             }
             try {
                 if (-not (Test-Path -LiteralPath $metaDir -PathType Container)) {
-                    [void](New-Item -ItemType Directory -LiteralPath $metaDir -Force)
+                    [void][System.IO.Directory]::CreateDirectory($metaDir)
                 }
                 Move-Item -LiteralPath $legacyPath -Destination $sidecarPath -Force
                 $updated++
@@ -1120,7 +1129,7 @@ function Write-Sidecars {
 
         try {
             if (-not (Test-Path -LiteralPath $metaDir -PathType Container)) {
-                [void](New-Item -ItemType Directory -LiteralPath $metaDir -Force)
+                [void][System.IO.Directory]::CreateDirectory($metaDir)
             }
             $json = ConvertTo-Json -InputObject $content -Depth 4
             [System.IO.File]::WriteAllText($sidecarPath, $json, [System.Text.Encoding]::UTF8)
@@ -1230,7 +1239,7 @@ function Write-PeopleFiles {
             $filePath   = Join-Path $metaDir "cast.json"
             try {
                 if (-not (Test-Path -LiteralPath $metaDir -PathType Container)) {
-                    [void](New-Item -ItemType Directory -LiteralPath $metaDir -Force)
+                    [void][System.IO.Directory]::CreateDirectory($metaDir)
                 }
                 if ($null -eq $file.body) {
                     if (Test-Path -LiteralPath $filePath -PathType Leaf) {
@@ -1319,7 +1328,7 @@ function Write-PeopleIndex {
         }
         try {
             if (-not (Test-Path -LiteralPath $indexDir -PathType Container)) {
-                [void](New-Item -ItemType Directory -LiteralPath $indexDir -Force)
+                [void][System.IO.Directory]::CreateDirectory($indexDir)
             }
             $header = @(
                 "# pulseboard — generated index, derived from $META_DIR\cast.json. Delete it and grep the folders if in doubt.",
@@ -1344,7 +1353,15 @@ function Run-FullScan {
     Write-Host ""
 
     # ── Phase 0: Targeted scan — keep confirmed link file counts current ──────
-    Run-TargetedScan -AsSubPhase
+    # It runs BEFORE the walk, so it checks the paths the app currently records. Just
+    # after folders were moved between roots, every one of them is reported MISSING —
+    # true of the old path, but about to be corrected by the walk a minute later.
+    # -SkipTargeted avoids writing that transient verdict at all.
+    if ($SkipTargeted) {
+        Write-Host "Targeted sub-phase skipped (-SkipTargeted) — the walk will refresh the paths."
+    } else {
+        Run-TargetedScan -AsSubPhase
+    }
     Write-Host ""
 
     # Capture scan start time before any filesystem walk so ghost detection is accurate

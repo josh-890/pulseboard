@@ -95,6 +95,7 @@ refreshes `.pulseboard\cast.json` and the per-root index.
 | `-Rebake` / `-RebakeForce` | Run `archive-rebake.ps1` afterwards, on paths this scan just verified |
 | `-BatchSize` | Folders per POST (default 200) |
 | `-MigrateCast` | One-off: convert `_cast.txt` / `_people.txt` into markers in `.pulseboard\` |
+| `-SkipTargeted` | Skip the targeted sub-phase. Use for the first run **after moving folders between roots** — see below |
 | `-Baseline` | Store the reported counts as the new normal **without** deriving CHANGED from the difference. For the one run after the counting rule changes — see below |
 | `-DryRun` | Report only — including what the sidecar and people phases *would* write |
 
@@ -140,6 +141,17 @@ underscores, spaces and capitalisation make no difference. Knowing that one pers
 in twelve sets is twelve pastes of one file; a second person in a set is a second
 file, with nothing to merge. Markers only **add**: deleting one takes nothing back.
 `-MigrateCast` converts an older `_cast.txt` into markers, once.
+
+**Right after moving folders between roots:** a Full run starts with the targeted
+sub-phase, which checks the paths the app currently records — so every moved folder
+is reported `MISSING`. That verdict is true of the old path and is corrected by the
+walk a minute later, but it is written to the database in between. For that one run:
+
+```powershell
+.\archive-scan.ps1 -Mode Full -Force -SkipTargeted
+```
+
+Then scan normally; the targeted phase will find everything at its new path.
 
 **The trap that costs the most time:** NTFS does *not* update a folder's timestamp
 when a file **inside** it changes — only when an entry is added, removed or renamed.
