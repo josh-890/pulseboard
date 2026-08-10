@@ -1348,6 +1348,81 @@ function Write-PeopleIndex {
     }
 }
 
+# ── FULL MODE — the write phases, and what they are allowed to touch ──────────
+#
+# -Path scopes the WHOLE run, these phases included. A switch that narrows the walk
+# and then touches all 34k folders anyway would mean very little, and on a scoped
+# run the I/O across three drives is the bulk of the time. Whatever falls outside
+# the scope catches up on the next unscoped Full run — the revision check finds it
+# by itself.
+
+function Write-WritePhases {
+    param([hashtable]$ByArchKey, [string]$ScopeNorm, [int]$StaleSidecar = 0)
+
+    $target = $ByArchKey
+    if ($ScopeNorm) {
+        $target = @{}
+        foreach ($ak in $ByArchKey.Keys) {
+            $np = Normalize-Path ([string]$ByArchKey[$ak].fullPath)
+            if ($np.StartsWith($ScopeNorm)) { $target[$ak] = $ByArchKey[$ak] }
+        }
+        Write-Host "  (scoped to -Path: $($target.Count) of $($ByArchKey.Count) folder(s))"
+    }
+
+    # Count what the sidecar phase would do, so the prompt can say it.
+    $needsSidecar = 0
+    foreach ($ak in $target.Keys) {
+        $folderPath  = [string]$target[$ak].fullPath
+        $sidecarPath = Join-Path $folderPath $META_DIR "pulseboard.json"
+        if ((Test-Path -LiteralPath $folderPath -PathType Container) -and
+            -not (Test-Path -LiteralPath $sidecarPath -PathType Leaf)) {
+            $needsSidecar++
+        }
+    }
+
+    if (($needsSidecar + $StaleSidecar) -gt 0) {
+        Write-Host ""
+        $promptMsg = if ($needsSidecar -gt 0 -and $StaleSidecar -gt 0) {
+            "Write/update anchors? ($needsSidecar missing, $StaleSidecar stale) [Y/n]"
+        } elseif ($needsSidecar -gt 0) {
+            "Write the identity anchor into $needsSidecar folder(s) that lack one? [Y/n]"
+        } else {
+            "Update $StaleSidecar stale anchor(s) with the new folder name? [Y/n]"
+        }
+        if ($NoSidecarPrompt -or $DryRun) {
+            $doWrite = $true
+        } else {
+            $answer  = Read-Host $promptMsg
+            $doWrite = ($answer -eq "" -or $answer -match "^[Yy]")
+        }
+        if ($doWrite) {
+            Write-Host "Writing identity anchors ($META_DIR\pulseboard.json)..."
+            Write-Sidecars -ByArchKey $target
+        } else {
+            Write-Host "  Anchor write skipped."
+        }
+    } else {
+        Write-Host ""
+        Write-Host "All folders in scope already carry their identity anchor."
+    }
+
+    if ($SkipPeople) { return }
+
+    # No prompt for these: unlike an anchor they are refreshed constantly by design,
+    # and a question asked every run is a question nobody reads.
+    Write-Host ""
+    Write-Host "Writing cast files ($META_DIR\cast.json)..."
+    Write-PeopleFiles -ByArchKey $target
+
+    # The index describes a whole root. Rebuilding it from a scoped run would
+    # replace a complete index with a partial one — worse than not touching it.
+    if ($ScopeNorm) {
+        Write-Host "  Index left alone (scoped run — it describes a whole root)."
+    } else {
+        Write-PeopleIndex -ByArchKey $target -Roots @(@(Parse-Roots $PhotosetRoot) + @(Parse-Roots $VideosetRoot))
+    }
+}
+
 function Run-FullScan {
     Write-Host "Mode: Full (smart — with mtime skip + rename detection)"
     Write-Host ""
