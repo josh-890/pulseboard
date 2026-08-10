@@ -1021,6 +1021,7 @@ function Write-Sidecars {
 
     Write-Host "  Checking $linked folder(s) for a missing or stale identity anchor..."
     $written  = 0
+    $moved    = 0
     $updated  = 0
     $skipped  = 0
     $errors   = 0
@@ -1044,7 +1045,7 @@ function Write-Sidecars {
             -not (Test-Path -LiteralPath $sidecarPath -PathType Leaf)) {
             if ($DryRun) {
                 Write-Host "  [DRY-RUN] Would move anchor into $META_DIR\: $folderPath"
-                $updated++
+                $moved++
                 continue
             }
             try {
@@ -1052,7 +1053,7 @@ function Write-Sidecars {
                     [void][System.IO.Directory]::CreateDirectory($metaDir)
                 }
                 Move-Item -LiteralPath $legacyPath -Destination $sidecarPath -Force
-                $updated++
+                $moved++
                 continue
             } catch {
                 Write-Warning "  Failed to move $legacyPath`: $_"
@@ -1143,7 +1144,9 @@ function Write-Sidecars {
         }
     }
 
-    $summary = "  Sidecars written: $written | Updated (stale): $updated | Already current: $skipped"
+    # A move is not a rewrite, and 34,669 of them read as "stale" told the operator
+    # nothing about the one operation that mattered in that run.
+    $summary = "  Anchors: $moved moved into $META_DIR\ | $written newly written | $updated renamed-folder fix | $skipped already current"
     if ($errors -gt 0) { $summary += " | Errors: $errors" }
     Write-Host $summary
 }
@@ -1369,26 +1372,29 @@ function Write-WritePhases {
         Write-Host "  (scoped to -Path: $($target.Count) of $($ByArchKey.Count) folder(s))"
     }
 
-    # Count what the sidecar phase would do, so the prompt can say it.
+    # Count what the anchor phase would do, split by what it actually IS: a folder
+    # whose anchor only needs relocating is not a folder without one.
     $needsSidecar = 0
+    $needsMove    = 0
     foreach ($ak in $target.Keys) {
         $folderPath  = [string]$target[$ak].fullPath
+        if (-not (Test-Path -LiteralPath $folderPath -PathType Container)) { continue }
         $sidecarPath = Join-Path $folderPath $META_DIR "pulseboard.json"
-        if ((Test-Path -LiteralPath $folderPath -PathType Container) -and
-            -not (Test-Path -LiteralPath $sidecarPath -PathType Leaf)) {
+        if (Test-Path -LiteralPath $sidecarPath -PathType Leaf) { continue }
+        if (Test-Path -LiteralPath (Join-Path $folderPath "_pulseboard.json") -PathType Leaf) {
+            $needsMove++
+        } else {
             $needsSidecar++
         }
     }
 
-    if (($needsSidecar + $StaleSidecar) -gt 0) {
+    if (($needsSidecar + $needsMove + $StaleSidecar) -gt 0) {
         Write-Host ""
-        $promptMsg = if ($needsSidecar -gt 0 -and $StaleSidecar -gt 0) {
-            "Write/update anchors? ($needsSidecar missing, $StaleSidecar stale) [Y/n]"
-        } elseif ($needsSidecar -gt 0) {
-            "Write the identity anchor into $needsSidecar folder(s) that lack one? [Y/n]"
-        } else {
-            "Update $StaleSidecar stale anchor(s) with the new folder name? [Y/n]"
-        }
+        $parts = @()
+        if ($needsMove -gt 0)    { $parts += "$needsMove to move into $META_DIR\" }
+        if ($needsSidecar -gt 0) { $parts += "$needsSidecar missing" }
+        if ($StaleSidecar -gt 0) { $parts += "$StaleSidecar stale" }
+        $promptMsg = "Write identity anchors? ($($parts -join ', ')) [Y/n]"
         if ($NoSidecarPrompt -or $DryRun) {
             $doWrite = $true
         } else {
