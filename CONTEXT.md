@@ -99,6 +99,10 @@ In the normal case they coincide (the set is published through a channel owned b
 _Avoid_: "co-production" (retired — there is one producer per session); fabricating a production link to represent a cross-label *publication*.
 _Retired:_ `SetLabelEvidence` — a set's labels are fully derivable (producer via session, publisher via channel), so the soft Set→Label evidence table is no longer used.
 
+**Staged set vs. Set — who owns what after promotion** (sharpened 2026-08-10):
+Two records, deliberately. A **StagingSet** is the import's receipt and the work item: what the source delivered (raw participants, `externalId`, batch/item provenance, duplicate flags), alive until promoted or skipped. A **Set** is the curated record. **Promotion moves ownership**: the cast becomes `SetParticipant` (via sessions), and the **archive link moves from the StagingSet to the Set** — `StagingSet.promotedSetId` is all that ties them afterwards. So decisions before promotion belong in the staged-sets browser, and everything after belongs on the Set. A promoted row in that browser is a receipt with a link: it may *name* a waiting archive suggestion, but it does not act on it.
+_Avoid_: reading a promoted staging set's archive state from its own `archiveLinks` (they are empty — that is how a HIGH-confidence suggestion came to display as "not in archive"); offering the same write in both places.
+
 **Set** (code model & DB table: `Set`):
 A **publication** — a *packaged subset* of a Session's media, released via **one Channel** on a publication date. **Publication-level, not production-level.** One Session → many Sets: different subsets on different dates, subsets via different channels of the same label, or *the same subset* via different channels. Carries its publication Channel as a hard FK (`Set.channelId`). Because the underlying media is owned by the Session, two Sets publishing the same subset are two *publications* of **one** body of production media — not duplicated media.
 _Avoid_: treating a Set as the production object (that is the Session); equating "two channel releases of the same shoot" with "two productions".

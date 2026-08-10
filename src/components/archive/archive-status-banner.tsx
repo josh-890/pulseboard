@@ -182,7 +182,14 @@ export function ArchiveStatusBanner({
           )}
         </div>
 
-        {/* Row 3: Confirm / Skip */}
+        {/* Row 3: Confirm / Skip — or, where this panel may not decide, a sentence
+            saying who may. A greyed-out button explains nothing; a promoted set's
+            archive link belongs to the Set, and that is where it is settled. */}
+        {!stagingSetId ? (
+          <p className="mt-2 text-[11px] text-muted-foreground">
+            Suggestion waiting — this set is promoted, so decide it on the set itself.
+          </p>
+        ) : (
         <div className="mt-2 flex items-center gap-1.5">
           <button
             type="button"
@@ -221,6 +228,7 @@ export function ArchiveStatusBanner({
             Skip
           </button>
         </div>
+        )}
       </div>
     )
   }

@@ -724,6 +724,10 @@ export const StagingSetRow = memo(function StagingSetRow({
             </>
           ) : suggestion ? (
             <>
+              {/* Named, not actionable. Once a set is promoted the Set owns its
+                  archive link, and its own panel is where that is decided — two
+                  places writing the same thing is how the promoted row came to
+                  ignore this suggestion in the first place. */}
               <FolderSearch size={11} className="shrink-0 text-amber-500" />
               <span
                 className="min-w-0 truncate text-xs text-amber-600 dark:text-amber-400"
@@ -739,45 +743,9 @@ export const StagingSetRow = memo(function StagingSetRow({
                   · {archiveMatchLabel.text}
                 </span>
               )}
-              <button
-                type="button"
-                disabled={isConfirming || isRejecting}
-                onClick={(e) => {
-                  e.stopPropagation()
-                  startConfirm(async () => {
-                    // Target the promoted Set: that is where the link lives once a
-                    // staging set has been promoted.
-                    await confirmArchiveFolderLinkAction(suggestion.folderId, ss.promotedSet!.id, 'set')
-                    onArchiveChange?.()
-                  })
-                }}
-                className={cn(
-                  'flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium transition-colors',
-                  'bg-green-500/15 text-green-700 hover:bg-green-500/30 dark:text-green-400',
-                  'disabled:pointer-events-none disabled:opacity-40',
-                )}
-              >
-                <Check size={10} />
-                Confirm
-              </button>
-              <button
-                type="button"
-                disabled={isConfirming || isRejecting}
-                onClick={(e) => {
-                  e.stopPropagation()
-                  startReject(async () => {
-                    await rejectArchiveSuggestionAction(suggestion.folderId)
-                    onArchiveChange?.()
-                  })
-                }}
-                className={cn(
-                  'flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium transition-colors',
-                  'bg-red-500/10 text-red-600 hover:bg-red-500/20 dark:text-red-400',
-                  'disabled:pointer-events-none disabled:opacity-40',
-                )}
-              >
-                <X size={10} />
-              </button>
+              <span className="shrink-0 text-[10px] text-muted-foreground/60">
+                · suggestion waiting — decide it on the set
+              </span>
             </>
           ) : (
             <>
