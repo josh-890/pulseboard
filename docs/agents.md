@@ -260,12 +260,27 @@ node catalogue-join.mjs --catalogue "H:\Models\thenude" --cache catalogue.json
 |---|---|
 | `--catalogue DIR` | Required (or `PERSON_CATALOGUE_ROOT`) |
 | `--cache FILE` | **Use it.** The walk over 39k person folders takes ~30 minutes; every metric recomputes from the cache in seconds |
-| `--rewalk` | Force a fresh walk even when the cache exists |
+| `--rewalk` | Force a fresh walk even when the cache exists — see *When the cache is stale* below |
 | `--limit N` | Cap the orphans fetched — a quick first look |
 | `--examples N` | Example lines per section (default 8) |
 | `--post` | **Write the suggestions back.** Without it the run only reports |
 | `--post-batch N` | Suggestions per request (default 500) |
 | `--base-url`, `--api-key`, `--tenant` | Default to the `ARCHIVE_*` env vars |
+
+**When the cache is stale.** The cache holds one thing: the **person catalogue as parsed
+from disk**. Nothing about the app or the archive is in it — the archive side is pulled
+fresh from the app on every run. So the question is never "did I import something", it is
+"did `H:\Models\thenude` itself change":
+
+| What you did | `--rewalk`? |
+|---|---|
+| Imported a person **into Pulseboard** (uploaded a file) | **No** — the catalogue on disk is untouched by that |
+| Added new sets to the **archive** | **No** — the archive side comes fresh from the app each run |
+| **Updated or re-downloaded the catalogue** on disk | **Yes** — new person folders or new `_meta` covers are invisible until it is re-read |
+
+The run says which it did: it prints how many set rows it read from the cache, or that it is
+walking. Comparing `catalogue.json`'s timestamp with the catalogue tree's answers it too. A
+needless rewalk is never *wrong*, only expensive — about 30 minutes over 39k person folders.
 
 Report first, `--post` second. Even with `--post` nothing is materialised: the
 suggestions are a queue an operator confirms in the workbench — never a set, a
