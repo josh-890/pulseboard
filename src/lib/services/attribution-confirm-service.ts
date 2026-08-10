@@ -357,6 +357,8 @@ export type AttributionQueue = {
     conflicted: number
     silent: number
     decided: number
+    /** Groups holding at least one folder marked by hand. */
+    marked: number
     notAPerson: number
     /** Folders still awaiting a decision, across every group. */
     openFolders: number
@@ -369,7 +371,7 @@ export type AttributionQueue = {
  * Decided groups are filtered out by default rather than deleted: a decision must
  * survive the agent's next run, which rewrites every suggestion.
  */
-export type AttributionView = 'open' | 'conflicted' | 'decided'
+export type AttributionView = 'open' | 'conflicted' | 'decided' | 'marked'
 
 export async function getAttributionQueue(
   opts: { limit?: number; view?: AttributionView } = {},
@@ -410,6 +412,9 @@ export async function getAttributionQueue(
     conflicted: enriched.filter((g) => isOpen(g) && g.votedFolders > 0 && !g.unanimous).length,
     silent: enriched.filter((g) => isOpen(g) && g.votedFolders === 0).length,
     decided: enriched.filter((g) => !isOpen(g)).length,
+    // Groups holding a folder you marked by hand. The highest-ranked source in the
+    // system, and until now the only one with no way to find it again.
+    marked: enriched.filter((g) => isOpen(g) && g.handMarked > 0).length,
     notAPerson: enriched.filter((g) => g.decision === 'NOT_A_PERSON').length,
     openFolders: enriched.reduce((n, g) => n + (g.decision ? 0 : g.openFolders), 0),
   }
@@ -420,7 +425,13 @@ export async function getAttributionQueue(
       ? enriched.filter((g) => !isOpen(g))
       : view === 'conflicted'
         ? enriched.filter((g) => isOpen(g) && g.votedFolders > 0 && !g.unanimous)
-        : enriched.filter(isOpen)
+        : view === 'marked'
+          // Most-marked first: the order that matches how the markers were made —
+          // one person across a run of folders.
+          ? enriched
+              .filter((g) => isOpen(g) && g.handMarked > 0)
+              .sort((a, b) => b.handMarked - a.handMarked)
+          : enriched.filter(isOpen)
 
   return { groups: opts.limit ? visible.slice(0, opts.limit) : visible, counts }
 }

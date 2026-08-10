@@ -1285,6 +1285,12 @@ The next scan turns each marker into a candidate at the top of that folder's lis
 workbench, above anything the catalogue proposed, and one keystroke confirms it. Names it cannot
 read are reported in the scan output rather than dropped.
 
+**Where they turn up:** `Archive → Attribution queue`, in the **My markers** view. It lists only
+the groups holding a folder you marked yourself, most-marked first, with a green hand badge
+saying how many. Opening one goes straight to the workbench, where one keystroke confirms.
+Without that view your markers would be scattered across ~8,900 groups ordered by leverage —
+the highest-ranked source in the system, and the only one you could not look up.
+
 Two things worth knowing:
 
 - Markers only **add**. Deleting one takes nothing back — undo that in the app.

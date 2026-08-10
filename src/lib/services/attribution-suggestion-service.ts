@@ -185,6 +185,15 @@ export type AttributionGroup = {
   folderIds: string[]
   /** Folders carrying at least one suggestion — the ones a vote could come from. */
   votedFolders: number
+  /**
+   * Folders you marked by hand (`FOLDER_ATTRIBUTION`).
+   *
+   * The highest-ranked source in the system was also the only one that could not
+   * be found again: a marker dropped into one folder lands in a queue of ~8,900
+   * groups ordered by leverage, where ten scattered groups are unreachable by
+   * scrolling. Counting them per group is what makes them addressable.
+   */
+  handMarked: number
   /** Who the group's folders point at, highest first. */
   votes: { icgId: string; name: string; folders: number }[]
   /**
@@ -206,7 +215,7 @@ export type GroupableFolder = {
   id: string
   folderName: string
   parsedShortName: string | null
-  suggestions: { icgId: string; name: string; demotions: string[] }[]
+  suggestions: { icgId: string; name: string; demotions: string[]; source: SuggestionSource }[]
 }
 
 /**
@@ -240,6 +249,7 @@ export function aggregateAttributionGroups(
         folders: 0,
         folderIds: [],
         votedFolders: 0,
+        handMarked: 0,
         demotedFolders: 0,
         voteMap: new Map(),
       }
@@ -248,6 +258,7 @@ export function aggregateAttributionGroups(
     g.folders++
     g.folderIds.push(r.id)
     if (r.suggestions.length > 0) g.votedFolders++
+    if (r.suggestions.some((s) => s.source === 'FOLDER_ATTRIBUTION')) g.handMarked++
     if (r.suggestions.some((s) => s.demotions.length > 0)) g.demotedFolders++
     // One vote per folder per person: a folder carrying the same person from two
     // sources is one folder agreeing, not two.
@@ -288,7 +299,7 @@ export async function getAttributionGroups(
       id: true,
       folderName: true,
       parsedShortName: true,
-      suggestions: { select: { icgId: true, name: true, demotions: true } },
+      suggestions: { select: { icgId: true, name: true, demotions: true, source: true } },
     },
   })
   return aggregateAttributionGroups(rows, opts)

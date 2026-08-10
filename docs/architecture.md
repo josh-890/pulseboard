@@ -215,6 +215,12 @@ counts without that inference — for the one run after a counting rule changes.
 > Agents (scan, cover, re-bake, catalogue avatar, catalogue join) have their own runbook:
 > **`docs/agents.md`** — switches, run order and the traps.
 
+**`AttributionGroup.handMarked`** — folders in a group carrying a `FOLDER_ATTRIBUTION`
+suggestion, counted in the pure `aggregateAttributionGroups` (one per folder, however many
+markers it holds). Drives the queue's fourth view `?view=marked`, sorted most-marked first, and
+the green badge on the group row. Without it a hand-placed marker is unreachable among ~8,900
+leverage-ordered groups.
+
 **Metadata folder `.pulseboard\` (ADR-0030)** — all tool-written files live inside the set
 folder's `.pulseboard\`: `pulseboard.json` (identity anchor), `cast.json` (generated mirror,
 `revision` first so the agent's 34k-folder staleness check stays a line scan) and the operator's

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import type { SuggestionSource } from '@/generated/prisma/client'
 import {
   aggregateAttributionGroups,
   parseSuggestionBatch,
@@ -9,12 +10,17 @@ let folderSeq = 0
 const folder = (
   folderName: string,
   parsedShortName: string | null,
-  suggestions: { icgId: string; name: string; demotions?: string[] }[] = [],
+  suggestions: { icgId: string; name: string; demotions?: string[]; source?: SuggestionSource }[] = [],
 ): GroupableFolder => ({
   id: `f${++folderSeq}`,
   folderName,
   parsedShortName,
-  suggestions: suggestions.map((s) => ({ ...s, demotions: s.demotions ?? [] })),
+  // CATALOGUE unless a test says otherwise: it is what almost every suggestion is.
+  suggestions: suggestions.map((s) => ({
+    ...s,
+    demotions: s.demotions ?? [],
+    source: s.source ?? ('CATALOGUE' as SuggestionSource),
+  })),
 })
 
 describe('parseSuggestionBatch', () => {
@@ -219,5 +225,39 @@ describe('aggregateAttributionGroups', () => {
     expect(aggregateAttributionGroups(rows).map((g) => g.folders)).toEqual([3, 2, 1])
     expect(aggregateAttributionGroups(rows, { minFolders: 2 })).toHaveLength(2)
     expect(aggregateAttributionGroups(rows, { limit: 1 })).toHaveLength(1)
+  })
+})
+
+describe('aggregateAttributionGroups — hand-marked folders', () => {
+  it('counts the folders you marked yourself, separately from what was derived', () => {
+    const [group] = aggregateAttributionGroups([
+      folder('2010-04-19-KPC Lilly - Lilly', 'KPC', [
+        { icgId: 'IA-91KP', name: 'Irina Ann', source: 'FOLDER_ATTRIBUTION' as SuggestionSource },
+      ]),
+      folder('2010-05-25-KPC Lilly - Lilly', 'KPC', [{ icgId: 'LI-00AA', name: 'Lilly' }]),
+    ])
+    expect(group.folders).toBe(2)
+    expect(group.handMarked).toBe(1)
+  })
+
+  // A group nobody marked must not surface in the "my markers" view, or the view
+  // is just the queue again.
+  it('is zero when everything came from the catalogue', () => {
+    const [group] = aggregateAttributionGroups([
+      folder('2011-01-16-MPL Talia - Edge', 'MPL', [{ icgId: 'TA-01', name: 'Talia' }]),
+    ])
+    expect(group.handMarked).toBe(0)
+  })
+
+  // Two markers in one folder is one marked folder, not two — the same one-vote-per
+  // -folder rule the votes follow.
+  it('counts a folder once however many markers it carries', () => {
+    const [group] = aggregateAttributionGroups([
+      folder('2007-09-10-MA Iveta C - Hellikan', 'MA', [
+        { icgId: 'IC-87VY', name: 'Iveta C', source: 'FOLDER_ATTRIBUTION' as SuggestionSource },
+        { icgId: 'LX-87BJ', name: 'Lizel', source: 'FOLDER_ATTRIBUTION' as SuggestionSource },
+      ]),
+    ])
+    expect(group.handMarked).toBe(1)
   })
 })

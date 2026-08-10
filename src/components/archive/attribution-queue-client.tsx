@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { AlertTriangle, Loader2, Undo2, UserX, X } from 'lucide-react'
+import { AlertTriangle, Hand, Loader2, Undo2, UserX, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { AttributionQueue, AttributionQueueGroup } from '@/lib/services/attribution-confirm-service'
 import {
@@ -15,7 +15,7 @@ import { PersonIdentity } from '@/components/shared/person-identity'
 
 type AttributionQueueClientProps = {
   initialQueue: AttributionQueue
-  view: 'open' | 'conflicted' | 'decided'
+  view: 'open' | 'conflicted' | 'decided' | 'marked'
   /** Folders whose attribution the set they are linked to contradicts (ADR-0028). */
   conflicts: number
 }
@@ -23,6 +23,9 @@ type AttributionQueueClientProps = {
 const VIEWS = [
   { id: 'open', label: 'Open' },
   { id: 'conflicted', label: 'Needs a decision' },
+  // Your own markers: the highest-ranked suggestions in the system, and until this
+  // view the only ones with no way to find them among ~8,900 groups.
+  { id: 'marked', label: 'My markers' },
   { id: 'decided', label: 'Decided' },
 ] as const
 
@@ -128,13 +131,14 @@ export function AttributionQueueClient({ initialQueue, view, conflicts }: Attrib
           </p>
         )}
 
-        <dl className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-6">
+        <dl className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-7">
           {[
             { label: 'Open groups', value: counts.open },
             { label: 'Folders left', value: counts.openFolders },
             { label: 'Unanimous', value: counts.unanimous },
             { label: 'Needs a decision', value: counts.conflicted },
             { label: 'No suggestion', value: counts.silent },
+            { label: 'My markers', value: counts.marked },
             { label: 'Decided', value: counts.decided },
           ].map((s) => (
             <div key={s.label} className="rounded-lg border border-border/60 bg-card/50 px-3 py-2 backdrop-blur">
@@ -198,6 +202,15 @@ export function AttributionQueueClient({ initialQueue, view, conflicts }: Attrib
                       {g.folders} folder{g.folders === 1 ? '' : 's'}
                       {g.openFolders < g.folders && ` · ${g.openFolders} open`}
                     </span>
+                    {g.handMarked > 0 && (
+                      <span
+                        className="inline-flex shrink-0 items-center gap-1 rounded bg-emerald-500/15 px-1.5 py-0.5 text-xs text-emerald-700 dark:text-emerald-400"
+                        title={`${g.handMarked} folder(s) here carry a marker you placed yourself — your own assertion, above anything derived`}
+                      >
+                        <Hand className="h-3 w-3" />
+                        {g.handMarked}
+                      </span>
+                    )}
                     {g.demotedFolders > 0 && (
                       <span
                         className="inline-flex shrink-0 items-center gap-1 rounded bg-amber-500/15 px-1.5 py-0.5 text-xs text-amber-700 dark:text-amber-400"
