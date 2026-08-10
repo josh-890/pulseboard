@@ -277,6 +277,34 @@ the current one prints a WRITE-BACK banner when `--post` is active.
 
 ---
 
+## When you have added new sets to the archive
+
+```powershell
+.\archive-scan.ps1 -Mode Full                                              # register them
+.\archive-cover.ps1                                                        # thumbnails
+node catalogue-join.mjs --catalogue "H:\Models\thenude" --cache catalogue.json          # read the report
+node catalogue-join.mjs --catalogue "H:\Models\thenude" --cache catalogue.json --post   # then write it
+.\catalogue-avatar.ps1                                                     # only if the join named faceless people
+```
+
+Then in the app: **Attribution queue → workbench**, then **Develop**.
+
+Use `--cache` and **not** `--rewalk`: the cache holds the *catalogue* side, which has not
+changed — only your archive grew, and the agent pulls that from the app each run. That turns a
+30-minute walk into seconds.
+
+Nothing else belongs in this sequence. `-Force` is for a file edited *inside* an unchanged
+folder, `-Path` narrows a run and switches deletion detection off, `-Baseline` and
+`-MigrateCast` were one-off migrations, `-SkipTargeted` is for the run right after moving
+folders between roots, and `archive-rebake.ps1` has nothing to do with new sets.
+
+One loop closes a round later: step 1 writes `.pulseboard\cast.json` only for folders the app
+already knows people for. For brand-new folders it does not yet, so their cast files appear on
+the **next** Full scan, after you have confirmed the attributions. That delay is inherent — the
+app has no route to the archive filesystem.
+
+---
+
 ## A routine round, in order
 
 1. `.\archive-scan.ps1 -Mode Full` — the disk truth first; everything else works
