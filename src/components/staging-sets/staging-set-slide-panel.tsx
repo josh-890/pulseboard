@@ -141,7 +141,9 @@ function PanelContent({
     ? (stagingSet.promotedSet?.archiveLinks?.find((l) => l.status === 'CONFIRMED') ?? stagingSet.archiveLinks?.find((l) => l.status === 'CONFIRMED') ?? null)
     : (stagingSet.archiveLinks?.find((l) => l.status === 'CONFIRMED') ?? null)
   const confirmedFolder = confirmedLink?.archiveFolder ?? null
-  const suggestion = isPromoted ? null : (!confirmedFolder ? (stagingSet.suggestedArchiveFolder ?? null) : null)
+  // Same as the row: a promoted set's suggestion lives on the Set, and dropping it
+  // here hid a HIGH-confidence proposal behind "not in archive".
+  const suggestion = confirmedFolder ? null : (stagingSet.suggestedArchiveFolder ?? null)
   const dateStr = stagingSet.releaseDate
     ? new Date(stagingSet.releaseDate).toISOString().split('T')[0]
     : null

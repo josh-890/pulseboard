@@ -2095,17 +2095,37 @@ export async function getSuggestedFoldersForStagingSets(
   ids: string[],
 ): Promise<Map<string, SuggestedFolderInfo>> {
   if (ids.length === 0) return new Map()
+
+  // Promotion moves the archive link from the StagingSet to the Set. Looking only
+  // at stagingSetId therefore finds nothing for a promoted row — which then reads
+  // as "not in archive" while a HIGH-confidence proposal sits on the Set, with no
+  // way to act on it. Measured: "Set 383932 AMATEURS" had exactly that.
+  const promoted = await prisma.stagingSet.findMany({
+    where: { id: { in: ids }, promotedSetId: { not: null } },
+    select: { id: true, promotedSetId: true },
+  })
+  const stagingIdBySetId = new Map(promoted.map((p) => [p.promotedSetId!, p.id]))
+
   const links = await prisma.archiveLink.findMany({
-    where: { stagingSetId: { in: ids }, status: 'SUGGESTED' },
+    where: {
+      status: 'SUGGESTED',
+      OR: [{ stagingSetId: { in: ids } }, { setId: { in: [...stagingIdBySetId.keys()] } }],
+    },
     select: {
-      stagingSetId: true, confidence: true,
+      stagingSetId: true, setId: true, confidence: true,
       archiveFolder: { select: { id: true, folderName: true, fileCount: true, parsedDate: true, parsedTitle: true, fullPath: true } },
       stagingSet: { select: { releaseDate: true, titleNorm: true, title: true } },
+      set: { select: { releaseDate: true, titleNorm: true, title: true } },
     },
   })
   return new Map(
-    links.map((l) => [
-      l.stagingSetId!,
+    links.flatMap((l) => {
+      // Key on the staging set either way: the caller asked about staging rows.
+      const key = l.stagingSetId ?? (l.setId ? stagingIdBySetId.get(l.setId) : undefined)
+      if (!key) return []
+      const target = l.stagingSet ?? l.set
+      return [[
+      key,
       {
         folderId: l.archiveFolder.id,
         folderName: l.archiveFolder.folderName,
@@ -2113,11 +2133,12 @@ export async function getSuggestedFoldersForStagingSets(
         parsedDate: l.archiveFolder.parsedDate,
         fullPath: l.archiveFolder.fullPath,
         confidence: (l.confidence as 'HIGH' | 'MEDIUM') ?? 'HIGH',
-        ...(l.stagingSet
-          ? describeAgreement(l.archiveFolder, l.stagingSet)
+        ...(target
+          ? describeAgreement(l.archiveFolder, target)
           : { dateMatches: false, titleMatches: false, dayDelta: null }),
       },
-    ]),
+    ] as const]
+    }),
   )
 }
 

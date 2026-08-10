@@ -299,7 +299,10 @@ export const StagingSetRow = memo(function StagingSetRow({
     ? (ss.promotedSet?.archiveLinks?.find((l) => l.status === 'CONFIRMED') ?? ss.archiveLinks?.find((l) => l.status === 'CONFIRMED') ?? null)
     : (ss.archiveLinks?.find((l) => l.status === 'CONFIRMED') ?? null)
   const confirmedFolder = confirmedLink?.archiveFolder ?? null
-  const suggestion = isPromoted ? null : (ss.suggestedArchiveFolder ?? null)
+  // A promoted row used to discard its suggestion, so a HIGH-confidence proposal on
+  // the promoted Set showed as "Not in archive" — the same wording as a set nobody
+  // knows anything about, and with no way to act on it.
+  const suggestion = confirmedFolder ? null : (ss.suggestedArchiveFolder ?? null)
   // Say what actually agrees, never what the confidence implies.
   const archiveMatchLabel = suggestion
     ? describeMatchLabel({
@@ -718,6 +721,63 @@ export const StagingSetRow = memo(function StagingSetRow({
             <>
               <Clock size={11} className="shrink-0 text-blue-400" />
               <span className="text-xs text-blue-500">Linked · scan pending</span>
+            </>
+          ) : suggestion ? (
+            <>
+              <FolderSearch size={11} className="shrink-0 text-amber-500" />
+              <span
+                className="min-w-0 truncate text-xs text-amber-600 dark:text-amber-400"
+                title={suggestion.fullPath ?? suggestion.folderName}
+              >
+                {suggestion.folderName}
+              </span>
+              {archiveMatchLabel && (
+                <span
+                  className="shrink-0 text-[10px] text-muted-foreground"
+                  title={archiveMatchLabel.title}
+                >
+                  · {archiveMatchLabel.text}
+                </span>
+              )}
+              <button
+                type="button"
+                disabled={isConfirming || isRejecting}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  startConfirm(async () => {
+                    // Target the promoted Set: that is where the link lives once a
+                    // staging set has been promoted.
+                    await confirmArchiveFolderLinkAction(suggestion.folderId, ss.promotedSet!.id, 'set')
+                    onArchiveChange?.()
+                  })
+                }}
+                className={cn(
+                  'flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium transition-colors',
+                  'bg-green-500/15 text-green-700 hover:bg-green-500/30 dark:text-green-400',
+                  'disabled:pointer-events-none disabled:opacity-40',
+                )}
+              >
+                <Check size={10} />
+                Confirm
+              </button>
+              <button
+                type="button"
+                disabled={isConfirming || isRejecting}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  startReject(async () => {
+                    await rejectArchiveSuggestionAction(suggestion.folderId)
+                    onArchiveChange?.()
+                  })
+                }}
+                className={cn(
+                  'flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium transition-colors',
+                  'bg-red-500/10 text-red-600 hover:bg-red-500/20 dark:text-red-400',
+                  'disabled:pointer-events-none disabled:opacity-40',
+                )}
+              >
+                <X size={10} />
+              </button>
             </>
           ) : (
             <>
