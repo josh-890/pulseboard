@@ -1161,6 +1161,27 @@ The refresh button on the **staged-sets** page is a different thing: it updates
 participant statuses and checks whether a staged set already exists as a
 production Set. It never looks at the archive.
 
+### Who is in a folder
+
+Every folder row in the archive list shows the people it is said to hold:
+
+- **solid green** — your own attribution, made in the workbench or raised from a
+  marker file in `.pulseboard\`
+- **outlined grey** — the cast of the set behind a confirmed link, i.e. who the
+  publisher credited
+
+The two are never merged. A folder settled by an import usually shows only the
+second: its people were answered by the set, which is why nothing needs doing.
+
+The pencil beside them opens **that one folder** in the workbench — the only way
+to reach a folder whose link was confirmed long ago, since the attribution queue
+only offers folders still waiting for an answer. There you can add people (same
+keys as a group session), remove them one at a time, and leave with `Esc`.
+
+Adding somebody the linked set does not credit is allowed, and you will be asked
+first: the claim and the cast then disagree, and that disagreement is settled in
+**Archive → Conflicts** rather than by quietly changing the set.
+
 ### Archive Status Dots
 
 Every Set card and Staging Set row shows a small status dot for its archive folder link:
@@ -1234,6 +1255,8 @@ is this*, and the candidates sit on the number keys.
 |---|---|
 | `1`…`9` | confirm the n-th candidate |
 | `⇧`+`1`…`9` | add a further person and stay on the folder (right-click a candidate does the same) |
+| `C` | **single person ⇄ multiple people.** In *multiple people* every key adds and the folder stays open until you finish it — Shift latched, for a run of sets with more than one person in each. The mode is shown at the cover and remembered between sessions |
+| `Enter` | done with this folder — only meaningful while one is being built up |
 | `A` | confirm everyone the folder itself suggests |
 | `X` | drop the top candidate; the next moves up to `1` |
 

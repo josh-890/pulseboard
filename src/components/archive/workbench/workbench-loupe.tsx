@@ -101,11 +101,14 @@ export function LoupeView({
   overlay,
   reference,
   subject,
+  collecting = false,
 }: {
   folder: LoupeFolder
   overlay: OverlayLevel
   reference: LoupeReference
   subject: LoupeSubject | null
+  /** Collect mode is on: every key adds, nothing advances until Enter. */
+  collecting?: boolean
 }) {
   const Icon = folder.isVideo ? Film : Camera
   const matcher = folder.matcherSuggestion
@@ -133,8 +136,15 @@ export function LoupeView({
           <p className="line-clamp-2 text-sm font-medium leading-snug" title={folder.fullPath}>
             {folder.folderName}
           </p>
-          {folder.attributions.length > 0 && (
-            <p className="flex flex-wrap justify-center gap-x-2 text-xs text-emerald-700 dark:text-emerald-400">
+          {(folder.attributions.length > 0 || collecting) && (
+            <p className="flex flex-wrap items-baseline justify-center gap-x-2 text-xs text-emerald-700 dark:text-emerald-400">
+              {/* The mode belongs where the eye already is. In the header alone it
+                  is invisible at the moment it changes what a keystroke does. */}
+              {collecting && (
+                <span className="rounded bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-amber-700 dark:text-amber-400">
+                  collecting · Enter when done
+                </span>
+              )}
               {folder.attributions.map((a) => (
                 <PersonIdentity key={a.icgId} name={a.name} icgId={a.icgId} />
               ))}

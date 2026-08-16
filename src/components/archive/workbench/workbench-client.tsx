@@ -21,6 +21,8 @@ import {
   rejectCandidateAction,
   skipFolderAction,
   undoFolderAction,
+  checkCastAgreementAction,
+  removeFolderAttributionAction,
 } from '@/lib/actions/attribution-actions'
 import { PersonAssignPicker, type AssignablePerson } from '@/components/archive/person-assign-picker'
 import { WorkbenchFilmstrip } from './workbench-filmstrip'
@@ -47,7 +49,8 @@ export type WorkbenchFolder = {
 }
 
 export type WorkbenchData = {
-  key: string
+  /** `null` = a single-folder session opened from the archive list, not a group. */
+  key: string | null
   channelShortName: string | null
   aliasToken: string | null
   votes: { icgId: string; name: string; folders: number }[]
@@ -74,12 +77,24 @@ type Filter = 'open' | 'all' | 'decided'
  * cannot.
  */
 export function WorkbenchClient({ data, from = 'open' }: { data: WorkbenchData; from?: string }) {
-  /** The queue view the operator came from, so leaving returns them to it. */
-  const queueHref = from === 'open' ? '/archive/attribution' : `/archive/attribution?view=${from}`
+  // A session about one folder has no group behind it: no votes to pin a person
+  // on, no progress worth a bar, no next group. It came from the archive list and
+  // that is where leaving returns to, with the row marked.
+  const singleFolder = data.key === null
+  /** The view the operator came from, so leaving returns them to it. */
+  const queueHref = singleFolder
+    ? `/archive?highlight=${data.folders[0]?.id ?? ''}`
+    : from === 'open'
+      ? '/archive/attribution'
+      : `/archive/attribution?view=${from}`
   const router = useRouter()
   const [folders, setFolders] = useState(data.folders)
-  const [filter, setFilter] = useState<Filter>('open')
-  const [mode, setMode] = useState<WorkbenchMode>(() => defaultMode(data.votes, data.votedFolders))
+  const [filter, setFilter] = useState<Filter>(data.key === null ? 'all' : 'open')
+  const [mode, setMode] = useState<WorkbenchMode>(() =>
+    // Person-led needs a candidate carrying ≥60 % of a group; one folder is
+    // always 100 % of itself, which would make the question meaningless.
+    data.key === null ? 'folder' : defaultMode(data.votes, data.votedFolders),
+  )
   const [view, setView] = useState<'loupe' | 'grid'>('loupe')
   const [index, setIndex] = useState(0)
   const [busy, setBusy] = useState(false)
@@ -91,7 +106,23 @@ export function WorkbenchClient({ data, from = 'open' }: { data: WorkbenchData; 
   const refMap = useMemo(() => new Map(data.references.map((r) => [r.icgId, r])), [data.references])
   const visible = useMemo(() => sessionFolders(folders, filter), [folders, filter])
   const progress = useMemo(() => sessionProgress(folders), [folders])
-  const current = visible[Math.min(index, Math.max(0, visible.length - 1))] as WorkbenchFolder | undefined
+
+  /**
+   * The folder being built up, held under the cursor by id.
+   *
+   * Confirming marks a folder CONFIRMED, and the open pass drops it the moment it
+   * is — so "add a person and stay here" moved the cursor onto the *next* folder
+   * and attributed everyone after the first to that one. Nothing on screen said
+   * so. While a folder is sticky it stays current no matter what the filter says;
+   * finishing it (or moving by hand) releases it.
+   */
+  const [sticky, setSticky] = useState<string | null>(null)
+  const stickyFolder = useMemo(
+    () => (sticky ? (folders.find((f) => f.id === sticky) ?? null) : null),
+    [sticky, folders],
+  )
+  const current = (stickyFolder ??
+    visible[Math.min(index, Math.max(0, visible.length - 1))]) as WorkbenchFolder | undefined
 
   /** The person pinned in person-led mode — the group's dominant candidate. */
   const pinned = useMemo(() => {
@@ -155,10 +186,31 @@ export function WorkbenchClient({ data, from = 'open' }: { data: WorkbenchData; 
     [router],
   )
 
-  const confirmWith = useCallback(
-    (icgIds: string[], names: Record<string, string>, keepFocus = false) => {
-      if (!current || icgIds.length === 0) return
-      const folderId = current.id
+  /**
+   * Ask before writing a claim the linked set does not know.
+   *
+   * ADR-0028 keeps claims and casts apart, and a disagreement is a decision, not
+   * an error — so this asks rather than blocks, and the contradiction session
+   * picks up whatever you confirm. Only a folder with a confirmed link can
+   * disagree with anything; for an orphan the check returns nothing and no
+   * dialog appears.
+   */
+  const castObjection = useCallback(
+    async (folderId: string, icgIds: string[], names: Record<string, string>): Promise<boolean> => {
+      const res = await checkCastAgreementAction(folderId, icgIds)
+      if (!res.success || !res.data || res.data.missing.length === 0) return true
+      const who = res.data.missing.map((id) => `${names[id] ?? id} (${id})`).join(', ')
+      const setName = res.data.setTitle ? `"${res.data.setTitle}"` : 'the linked set'
+      return window.confirm(
+        `${setName} does not credit ${who}.\n\n` +
+          'Recording it anyway leaves a contradiction to settle in Archive → Conflicts. Continue?',
+      )
+    },
+    [],
+  )
+
+  const doConfirm = useCallback(
+    (folderId: string, icgIds: string[], names: Record<string, string>, keepFocus: boolean) => {
       void run(
         () => confirmFolderAction(folderId, icgIds, names),
         () => {
@@ -178,12 +230,60 @@ export function WorkbenchClient({ data, from = 'open' }: { data: WorkbenchData; 
               }
             }),
           )
-          if (!keepFocus) advanceAfterDecision()
+          if (keepFocus) setSticky(folderId)
+          else {
+            setSticky(null)
+            advanceAfterDecision()
+          }
         },
       )
     },
-    [current, run, advanceAfterDecision],
+    [run, advanceAfterDecision],
   )
+
+  const confirmWith = useCallback(
+    (icgIds: string[], names: Record<string, string>, keepFocus = false) => {
+      if (!current || icgIds.length === 0) return
+      const folderId = current.id
+      void (async () => {
+        if (!(await castObjection(folderId, icgIds, names))) return
+        doConfirm(folderId, icgIds, names, keepFocus)
+      })()
+    },
+    [current, castObjection, doConfirm],
+  )
+
+  /** Take one person off this folder; the last one leaves it unanswered again. */
+  const removePerson = useCallback(
+    (icgId: string) => {
+      if (!current) return
+      const folderId = current.id
+      void run(
+        () => removeFolderAttributionAction(folderId, icgId),
+        () => {
+          setFolders((fs) =>
+            fs.map((f) => {
+              if (f.id !== folderId) return f
+              const attributions = f.attributions.filter((a) => a.icgId !== icgId)
+              return {
+                ...f,
+                attributions,
+                identity: attributions.length === 0 ? ('OPEN' as const) : f.identity,
+              }
+            }),
+          )
+        },
+      )
+    },
+    [current, run],
+  )
+
+  /** Done with this folder: let it go and move on. The write already happened. */
+  const finishFolder = useCallback(() => {
+    if (!sticky) return
+    setSticky(null)
+    advanceAfterDecision()
+  }, [sticky, advanceAfterDecision])
 
   const rejectTop = useCallback(() => {
     if (!current) return
@@ -240,7 +340,8 @@ export function WorkbenchClient({ data, from = 'open' }: { data: WorkbenchData; 
           e.preventDefault()
           // Shift adds a person and holds the folder — a set with several
           // participants is built up one key at a time. Confirming is additive.
-          confirmWith([c.icgId], { [c.icgId]: c.name }, e.shiftKey)
+          // Collect mode is that Shift latched: every key adds, `Enter` finishes.
+          confirmWith([c.icgId], { [c.icgId]: c.name }, e.shiftKey || prefs.collect)
         }
         return
       }
@@ -249,21 +350,35 @@ export function WorkbenchClient({ data, from = 'open' }: { data: WorkbenchData; 
         case 'arrowright':
         case 'l':
           e.preventDefault()
+          // Moving by hand releases the folder being built up — the cursor is
+          // yours again.
+          setSticky(null)
           setIndex((i) => Math.min(visible.length - 1, i + 1))
           break
         case 'arrowleft':
         case 'h':
           e.preventDefault()
+          setSticky(null)
           setIndex((i) => Math.max(0, i - 1))
+          break
+        case 'enter':
+          e.preventDefault()
+          finishFolder()
+          break
+        case 'c':
+          e.preventDefault()
+          updatePrefs({ collect: !prefs.collect })
           break
         case 'j':
           e.preventDefault()
-          if (mode === 'person' && pinned) confirmWith([pinned.icgId], { [pinned.icgId]: pinned.name })
+          if (mode === 'person' && pinned) {
+            confirmWith([pinned.icgId], { [pinned.icgId]: pinned.name }, prefs.collect)
+          }
           break
         case 'a': {
           e.preventDefault()
           const own = [...new Set(current?.suggestions.map((s) => s.icgId) ?? [])]
-          if (own.length > 0) confirmWith(own, nameOf)
+          if (own.length > 0) confirmWith(own, nameOf, prefs.collect)
           break
         }
         case 'n':
@@ -323,11 +438,15 @@ export function WorkbenchClient({ data, from = 'open' }: { data: WorkbenchData; 
       queueHref,
       prefs.overlay,
       prefs.filmstrip,
+      prefs.collect,
+      finishFolder,
       updatePrefs,
     ],
   )
 
-  const groupLabel = `${data.channelShortName ?? '?'} · alias "${data.aliasToken ?? '—'}"`
+  const groupLabel = singleFolder
+    ? (data.folders[0]?.folderName ?? 'One folder')
+    : `${data.channelShortName ?? '?'} · alias "${data.aliasToken ?? '—'}"`
 
   return (
     <div
@@ -339,19 +458,26 @@ export function WorkbenchClient({ data, from = 'open' }: { data: WorkbenchData; 
       {/* Header: where you are, how far, and the way out. */}
       <header className="flex flex-wrap items-center gap-x-4 gap-y-1 border-b border-border/60 px-3 py-2 text-sm">
         <Link href={queueHref} className="text-muted-foreground hover:text-foreground">
-          ← queue
+          {singleFolder ? '← archive' : '← queue'}
         </Link>
         <span className="font-medium">{groupLabel}</span>
-        <span className="tabular-nums text-muted-foreground">
-          {progress.decided} / {progress.total} decided
-        </span>
-        <div className="h-1 w-24 overflow-hidden rounded-full bg-muted" aria-hidden>
-          <div
-            className="h-full bg-primary transition-[width] duration-200"
-            style={{ width: `${progress.total ? (progress.decided / progress.total) * 100 : 0}%` }}
-          />
-        </div>
+        {/* Progress over a single folder is 0/1 then 1/1 — noise, not information. */}
+        {!singleFolder && (
+          <>
+            <span className="tabular-nums text-muted-foreground">
+              {progress.decided} / {progress.total} decided
+            </span>
+            <div className="h-1 w-24 overflow-hidden rounded-full bg-muted" aria-hidden>
+              <div
+                className="h-full bg-primary transition-[width] duration-200"
+                style={{ width: `${progress.total ? (progress.decided / progress.total) * 100 : 0}%` }}
+              />
+            </div>
+          </>
+        )}
 
+        {/* Nothing to filter when the session is one folder. */}
+        {!singleFolder && (
         <div className="flex gap-1" role="tablist" aria-label="Which folders to show">
           {(['open', 'all', 'decided'] as const).map((f) => (
             <button
@@ -371,13 +497,32 @@ export function WorkbenchClient({ data, from = 'open' }: { data: WorkbenchData; 
             </button>
           ))}
         </div>
+        )}
 
+        {!singleFolder && (
+          <button
+            onClick={() => setMode((m) => (m === 'person' ? 'folder' : 'person'))}
+            className="rounded border border-border/60 px-2 py-0.5 text-xs text-muted-foreground hover:text-foreground"
+            title="Switch between asking about a person and asking about a folder (M)"
+          >
+            {mode === 'person' ? 'person-led' : 'folder-led'} · M
+          </button>
+        )}
+
+        {/* The mode that changes what every other key does — stated, not hidden
+            in a preference. */}
         <button
-          onClick={() => setMode((m) => (m === 'person' ? 'folder' : 'person'))}
-          className="rounded border border-border/60 px-2 py-0.5 text-xs text-muted-foreground hover:text-foreground"
-          title="Switch between asking about a person and asking about a folder (M)"
+          onClick={() => updatePrefs({ collect: !prefs.collect })}
+          aria-pressed={prefs.collect}
+          className={cn(
+            'rounded border px-2 py-0.5 text-xs transition-colors',
+            prefs.collect
+              ? 'border-amber-500/60 bg-amber-500/15 font-medium text-amber-700 dark:text-amber-400'
+              : 'border-border/60 text-muted-foreground hover:text-foreground',
+          )}
+          title="Collect several people per folder; Enter finishes the folder (C)"
         >
-          {mode === 'person' ? 'person-led' : 'folder-led'} · M
+          {prefs.collect ? 'multiple people · C' : 'single person · C'}
         </button>
         <button
           onClick={() => updatePrefs({ overlay: nextOverlayLevel(prefs.overlay) })}
@@ -386,15 +531,18 @@ export function WorkbenchClient({ data, from = 'open' }: { data: WorkbenchData; 
         >
           info: {prefs.overlay} · I
         </button>
-        <button
-          onClick={() => updatePrefs({ filmstrip: !prefs.filmstrip })}
-          className="rounded border border-border/60 px-2 py-0.5 text-xs text-muted-foreground hover:text-foreground"
-          title="Show or hide the filmstrip (T)"
-        >
-          strip: {prefs.filmstrip ? 'on' : 'off'} · T
-        </button>
+        {!singleFolder && (
+          <button
+            onClick={() => updatePrefs({ filmstrip: !prefs.filmstrip })}
+            className="rounded border border-border/60 px-2 py-0.5 text-xs text-muted-foreground hover:text-foreground"
+            title="Show or hide the filmstrip (T)"
+          >
+            strip: {prefs.filmstrip ? 'on' : 'off'} · T
+          </button>
+        )}
         <button
           onClick={() => setView((v) => (v === 'grid' ? 'loupe' : 'grid'))}
+          hidden={singleFolder}
           className="inline-flex items-center gap-1 rounded border border-border/60 px-2 py-0.5 text-xs text-muted-foreground hover:text-foreground"
           title="Grid compares folders against each other (G)"
         >
@@ -408,7 +556,7 @@ export function WorkbenchClient({ data, from = 'open' }: { data: WorkbenchData; 
 
       <div className="flex min-h-0 flex-1">
         <main className="flex min-w-0 flex-1 flex-col items-center justify-center p-4">
-          {progress.finished ? (
+          {progress.finished && !singleFolder ? (
             <FinishedPanel
               nextHref={
                 data.nextGroupKey
@@ -425,6 +573,7 @@ export function WorkbenchClient({ data, from = 'open' }: { data: WorkbenchData; 
               overlay={prefs.overlay}
               subject={subject}
               reference={subject ? refMap.get(subject.icgId) : undefined}
+              collecting={prefs.collect || sticky === current.id}
             />
           ) : (
             <p className="text-sm text-muted-foreground">Nothing in this view.</p>
@@ -437,11 +586,15 @@ export function WorkbenchClient({ data, from = 'open' }: { data: WorkbenchData; 
           reference={subject ? refMap.get(subject.icgId) : undefined}
           candidates={candidates}
           references={refMap}
+          attributions={current?.attributions ?? []}
+          collecting={prefs.collect || sticky === current?.id}
+          onRemove={removePerson}
+          onFinish={finishFolder}
           decided={!!current && current.identity !== 'OPEN'}
           busy={busy}
-          onYes={() => pinned && confirmWith([pinned.icgId], { [pinned.icgId]: pinned.name })}
+          onYes={() => pinned && confirmWith([pinned.icgId], { [pinned.icgId]: pinned.name }, prefs.collect)}
           onNo={rejectTop}
-          onPick={(c) => confirmWith([c.icgId], { [c.icgId]: c.name })}
+          onPick={(c) => confirmWith([c.icgId], { [c.icgId]: c.name }, prefs.collect)}
           onAddPick={(c) => confirmWith([c.icgId], { [c.icgId]: c.name }, true)}
           onSkip={skip}
           onUndo={undo}
@@ -449,7 +602,7 @@ export function WorkbenchClient({ data, from = 'open' }: { data: WorkbenchData; 
         />
       </div>
 
-      {prefs.filmstrip && (
+      {prefs.filmstrip && !singleFolder && (
         <WorkbenchFilmstrip
           items={visible.map((f) => ({ id: f.id, coverUrl: f.coverUrl, identity: f.identity }))}
           currentId={current?.id ?? null}

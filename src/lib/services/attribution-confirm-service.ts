@@ -21,6 +21,7 @@ import type {
   AttributionDecision,
   FolderDevelopStatus,
   FolderIdentityStatus,
+  Prisma,
 } from '@/generated/prisma/client'
 import { getAttributionGroups, type AttributionGroup } from '@/lib/services/attribution-suggestion-service'
 import { archiveFieldsFromFolder, parseFolderParticipantRaw } from '@/lib/services/archive-service'
@@ -30,6 +31,7 @@ import { UNSETTLED_FOLDER } from '@/lib/services/archive-unsettled'
 export { candidatesForFolder, type FolderCandidate } from '@/lib/attribution-candidates'
 import { createStagingSetFromOrphan } from '@/lib/services/archive-service'
 import { addStagingSetParticipant } from '@/lib/services/staging-set-participants'
+import { loadCasts } from '@/lib/services/set-cast-service'
 
 export type ConfirmResult = {
   groupKey: string
@@ -303,6 +305,34 @@ export async function undoFolderIdentity(folderId: string): Promise<{ removedAtt
 }
 
 /**
+ * Take one person off a folder.
+ *
+ * The counterpart of adding one: without it, correcting a cast of four meant
+ * `U`, which drops all four, and typing the other three again. Removing the last
+ * one leaves the folder unanswered — the state `U` produces, so no new one is
+ * invented.
+ *
+ * The ghost `Contact` minted when the person was first attributed stays. It is
+ * shared: other folders may rest on it, and deleting it here would take their
+ * identity with it (the group undo settled this the same way).
+ */
+export async function removeFolderAttribution(
+  folderId: string,
+  icgId: string,
+): Promise<{ removed: boolean; remaining: number }> {
+  return prisma.$transaction(async (tx) => {
+    const removed = await tx.archiveFolderAttribution.deleteMany({
+      where: { archiveFolderId: folderId, icgId },
+    })
+    const remaining = await tx.archiveFolderAttribution.count({ where: { archiveFolderId: folderId } })
+    if (remaining === 0) {
+      await tx.archiveFolderReview.deleteMany({ where: { archiveFolderId: folderId } })
+    }
+    return { removed: removed.count > 0, remaining }
+  })
+}
+
+/**
  * Rule a group out without attributing anyone.
  *
  * `NOT_A_PERSON` is not polish. The single largest group in the archive is
@@ -454,63 +484,82 @@ export async function getGroupFoldersWithReferences(groupKey: string) {
   return { folders, references: [...refs.values()] }
 }
 
-export async function getGroupFolders(groupKey: string): Promise<
-  {
+export type WorkbenchFolderRow = {
+  id: string
+  folderName: string
+  fullPath: string
+  coverUrl: string | null
+  isVideo: boolean
+  suggestions: { icgId: string; name: string; tier: string; demotions: string[] }[]
+  attributions: { icgId: string; name: string }[]
+  identity: FolderIdentityStatus
+  /** Candidates already dismissed here — X walks down the list, it does not close the card. */
+  rejectedIcgIds: string[]
+  /**
+   * What the archive matcher proposes for this folder, if anything.
+   *
+   * Shown rather than acted on. A suggestion is a guess: 14% of live ones agreed
+   * with their folder on neither date nor title. `agrees` says which hard fields
+   * actually line up, so a bad guess is visibly bad instead of quietly blocking.
+   */
+  matcherSuggestion: {
+    kind: 'staging' | 'set'
     id: string
-    folderName: string
-    fullPath: string
-    coverUrl: string | null
-    isVideo: boolean
-    suggestions: { icgId: string; name: string; tier: string; demotions: string[] }[]
-    attributions: { icgId: string; name: string }[]
-    identity: FolderIdentityStatus
-    /** Candidates already dismissed here — X walks down the list, it does not close the card. */
-    rejectedIcgIds: string[]
-    /**
-     * What the archive matcher proposes for this folder, if anything.
-     *
-     * Shown rather than acted on. A suggestion is a guess: 14% of live ones agreed
-     * with their folder on neither date nor title. `agrees` says which hard fields
-     * actually line up, so a bad guess is visibly bad instead of quietly blocking.
-     */
-    matcherSuggestion: {
-      kind: 'staging' | 'set'
-      id: string
-      title: string
-      releaseDate: string | null
-      channelName: string | null
-      confidence: string | null
-      agrees: { date: boolean; title: boolean }
-    } | null
-  }[]
-> {
+    title: string
+    releaseDate: string | null
+    channelName: string | null
+    confidence: string | null
+    agrees: { date: boolean; title: boolean }
+  } | null
+}
+
+/** Everything a workbench row needs, in one place — see `toWorkbenchFolder`. */
+const WORKBENCH_FOLDER_SELECT = {
+  id: true,
+  folderName: true,
+  fullPath: true,
+  parsedShortName: true,
+  coverKey: true,
+  isVideo: true,
+  suggestions: { select: { icgId: true, name: true, tier: true, demotions: true } },
+  attributions: { select: { icgId: true, name: true } },
+  review: { select: { identity: true, rejectedIcgIds: true } },
+  parsedDate: true,
+  parsedTitle: true,
+  archiveLink: {
+    select: {
+      status: true,
+      confidence: true,
+      stagingSet: { select: { id: true, title: true, releaseDate: true, channelName: true } },
+      set: { select: { id: true, title: true, releaseDate: true, channel: { select: { name: true } } } },
+    },
+  },
+} as const
+
+type WorkbenchFolderSource = Prisma.ArchiveFolderGetPayload<{ select: typeof WORKBENCH_FOLDER_SELECT }>
+
+/** The one place a folder row is shaped, shared by the group and single-folder loaders. */
+function toWorkbenchFolder(row: WorkbenchFolderSource): WorkbenchFolderRow {
+  const { parsedShortName: _short, coverKey, review, archiveLink, parsedDate, parsedTitle, ...rest } = row
+  return {
+    ...rest,
+    identity: review?.identity ?? ('OPEN' as FolderIdentityStatus),
+    rejectedIcgIds: review?.rejectedIcgIds ?? [],
+    matcherSuggestion: describeMatcherSuggestion(archiveLink, parsedDate, parsedTitle),
+    coverUrl: coverKey ? buildUrl(coverKey) : null,
+  }
+}
+
+export async function getGroupFolders(groupKey: string): Promise<WorkbenchFolderRow[]> {
   const [short] = groupKey.split('|')
   const rows = await prisma.archiveFolder.findMany({
+    // The queue offers work, so a folder somebody has settled is not in it.
+    // `getWorkbenchFolder` deliberately does the opposite — see the note there.
     where: {
       ...UNSETTLED_FOLDER,
       ...(short === '?' ? { parsedShortName: null } : { parsedShortName: { equals: short, mode: 'insensitive' } }),
     },
-    select: {
-      id: true,
-      folderName: true,
-      fullPath: true,
-      parsedShortName: true,
-      coverKey: true,
-      isVideo: true,
-      suggestions: { select: { icgId: true, name: true, tier: true, demotions: true } },
-      attributions: { select: { icgId: true, name: true } },
-      review: { select: { identity: true, rejectedIcgIds: true } },
-      parsedDate: true,
-      parsedTitle: true,
-      archiveLink: {
-        select: {
-          status: true,
-          confidence: true,
-          stagingSet: { select: { id: true, title: true, releaseDate: true, channelName: true } },
-          set: { select: { id: true, title: true, releaseDate: true, channel: { select: { name: true } } } },
-        },
-      },
-    },
+    select: WORKBENCH_FOLDER_SELECT,
     orderBy: { folderName: 'asc' },
   })
   return rows
@@ -518,13 +567,25 @@ export async function getGroupFolders(groupKey: string): Promise<
       const alias = normalizeForSearch(parseFolderParticipantRaw(r.folderName) ?? '')
       return `${(r.parsedShortName ?? '?').toUpperCase()}|${alias}` === groupKey
     })
-    .map(({ parsedShortName: _short, coverKey, review, archiveLink, parsedDate, parsedTitle, ...r }) => ({
-      ...r,
-      identity: review?.identity ?? ('OPEN' as FolderIdentityStatus),
-      rejectedIcgIds: review?.rejectedIcgIds ?? [],
-      matcherSuggestion: describeMatcherSuggestion(archiveLink, parsedDate, parsedTitle),
-      coverUrl: coverKey ? buildUrl(coverKey) : null,
-    }))
+    .map(toWorkbenchFolder)
+}
+
+/**
+ * One folder, whatever state it is in.
+ *
+ * **This is the only loader that does not apply `UNSETTLED_FOLDER`, and that is
+ * the point.** The queue answers "what is still open"; this answers "I mean *this*
+ * folder" — reached from the archive list, typically for a folder whose link was
+ * confirmed long ago and which therefore cannot be found anywhere else. Wiring it
+ * into the queue would put settled folders back in front of the operator as work,
+ * so `attribution-confirm-service.test.ts` guards the distinction.
+ */
+export async function getWorkbenchFolder(folderId: string): Promise<WorkbenchFolderRow | null> {
+  const row = await prisma.archiveFolder.findUnique({
+    where: { id: folderId },
+    select: WORKBENCH_FOLDER_SELECT,
+  })
+  return row ? toWorkbenchFolder(row) : null
 }
 
 export type DevelopCandidate = {
@@ -1066,12 +1127,13 @@ export async function searchAssignablePeople(q: string, limit = 20): Promise<Ass
 }
 
 export type WorkbenchGroup = {
-  key: string
+  /** `null` for a single-folder session: there is no group, and nothing may pretend there is. */
+  key: string | null
   channelShortName: string | null
   aliasToken: string | null
   votes: { icgId: string; name: string; folders: number }[]
   votedFolders: number
-  folders: Awaited<ReturnType<typeof getGroupFolders>>
+  folders: WorkbenchFolderRow[]
   references: PersonReference[]
   /** The next group with work left, so a finished session need not return to the queue. */
   nextGroupKey: string | null
@@ -1110,6 +1172,83 @@ export async function getWorkbenchGroup(groupKey: string): Promise<WorkbenchGrou
  * Pure so the wrap-around is testable: after the last group it starts again from
  * the top, and it never returns the group just finished.
  */
+/**
+ * A workbench session about one folder, reached from the archive list.
+ *
+ * Same shell, no group: no votes, no group progress, no next group — and no
+ * person-led mode, which needs a candidate carrying ≥60 % of a group and is
+ * meaningless when the group is one folder.
+ */
+export async function getWorkbenchFolderSession(folderId: string): Promise<WorkbenchGroup | null> {
+  const folder = await getWorkbenchFolder(folderId)
+  if (!folder) return null
+
+  const icgIds = [
+    ...new Set([...folder.suggestions.map((s) => s.icgId), ...folder.attributions.map((a) => a.icgId)]),
+  ]
+  const refs = await resolvePersonReferences(icgIds)
+
+  return {
+    key: null,
+    channelShortName: null,
+    aliasToken: null,
+    votes: [],
+    votedFolders: 0,
+    folders: [folder],
+    references: [...refs.values()],
+    nextGroupKey: null,
+  }
+}
+
+/**
+ * Who the set behind this folder credits — the other half of ADR-0028.
+ *
+ * Read before a claim is written, so a person the set does not name can be
+ * queried while the operator is still looking at the cover, rather than turning
+ * up in the contradiction session days later.
+ */
+export async function getFolderCast(folderId: string): Promise<{
+  linked: boolean
+  setTitle: string | null
+  cast: { icgId: string; name: string }[]
+}> {
+  const link = await prisma.archiveLink.findFirst({
+    where: { archiveFolderId: folderId, status: 'CONFIRMED' },
+    select: { stagingSetId: true, setId: true },
+  })
+  if (!link) return { linked: false, setTitle: null, cast: [] }
+
+  const targetId = link.stagingSetId ?? link.setId
+  if (!targetId) return { linked: false, setTitle: null, cast: [] }
+
+  const casts = await loadCasts(
+    link.stagingSetId ? [link.stagingSetId] : [],
+    link.setId ? [link.setId] : [],
+  )
+  const entry = casts.get(targetId)
+  return {
+    linked: true,
+    setTitle: entry?.title ?? null,
+    cast: (entry?.cast ?? []).filter((p): p is { icgId: string; name: string } => !!p.icgId),
+  }
+}
+
+/**
+ * The people a cast does not name — pure, so the rule is testable without data.
+ *
+ * An unlinked folder disagrees with nothing: there is no cast to contradict, and
+ * treating "no set" as "the set says no" would warn on every orphan.
+ */
+export function castDisagreement(
+  cast: { icgId: string }[],
+  icgIds: string[],
+  linked: boolean,
+): string[] {
+  if (!linked) return []
+  const known = new Set(cast.map((c) => c.icgId))
+  return icgIds.filter((id) => !known.has(id))
+}
+
 export function nextOpenGroupKey(openKeys: string[], afterKey: string): string | null {
   const others = openKeys.filter((k) => k !== afterKey)
   if (others.length === 0) return null

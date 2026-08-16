@@ -134,9 +134,16 @@ export function nextOverlayLevel(level: OverlayLevel): OverlayLevel {
 export type WorkbenchViewPrefs = {
   overlay: OverlayLevel
   filmstrip: boolean
+  /**
+   * Collect mode: every assignment adds and holds the folder, and `Enter`
+   * finishes it — Shift latched, for a run of sets with several people in each.
+   * Off by default, because the common folder has exactly one person and one
+   * keystroke should still answer it.
+   */
+  collect: boolean
 }
 
-export const DEFAULT_VIEW_PREFS: WorkbenchViewPrefs = { overlay: 'name', filmstrip: true }
+export const DEFAULT_VIEW_PREFS: WorkbenchViewPrefs = { overlay: 'name', filmstrip: true, collect: false }
 
 const PREFS_KEY = 'pulseboard.workbench.view'
 
@@ -163,6 +170,7 @@ export function readViewPrefs(store: PrefStore | undefined): WorkbenchViewPrefs 
           ? parsed.overlay
           : DEFAULT_VIEW_PREFS.overlay,
       filmstrip: typeof parsed.filmstrip === 'boolean' ? parsed.filmstrip : DEFAULT_VIEW_PREFS.filmstrip,
+      collect: typeof parsed.collect === 'boolean' ? parsed.collect : DEFAULT_VIEW_PREFS.collect,
     }
   } catch {
     return DEFAULT_VIEW_PREFS

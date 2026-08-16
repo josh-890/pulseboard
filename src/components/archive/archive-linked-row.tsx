@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { ExternalLink, CheckCircle2, TriangleAlert, Trash2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { ArchiveCoverThumb } from './archive-cover-thumb'
+import { ArchiveRowPeople } from './archive-row-people'
 import type { ArchiveFolderEntry } from '@/lib/services/archive-service'
 import { deleteArchiveFolderAction } from '@/lib/actions/archive-actions'
 
@@ -51,7 +52,7 @@ export function ArchiveLinkedRow({ item }: Props) {
 
   return (
     <div className={cn(
-      'flex items-center gap-3 rounded-xl border px-4 py-3 shadow-sm backdrop-blur-sm transition-all',
+      'flex flex-col gap-1 rounded-xl border px-4 py-3 shadow-sm backdrop-blur-sm transition-all',
       hasMismatch
         ? 'border-red-500/30 bg-red-500/8'
         : hasWarning
@@ -59,6 +60,7 @@ export function ArchiveLinkedRow({ item }: Props) {
         : 'border-border/40 bg-card/70',
       pending && 'opacity-60',
     )}>
+      <div className="flex min-w-0 items-center gap-3">
       {/* Linked indicator */}
       <CheckCircle2 size={14} className="shrink-0 text-green-500" />
 
@@ -163,6 +165,18 @@ export function ArchiveLinkedRow({ item }: Props) {
       >
         <Trash2 size={13} />
       </button>
+      </div>
+
+      {/* Who is in it. A linked folder usually answers this through its set's
+          cast rather than through a claim of yours — both are shown, apart. */}
+      {(item.people.claims.length > 0 || item.people.cast.length > 0) && (
+        <ArchiveRowPeople
+          folderId={item.id}
+          claims={item.people.claims}
+          cast={item.people.cast}
+          className="pl-5"
+        />
+      )}
     </div>
   )
 }

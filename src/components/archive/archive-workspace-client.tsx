@@ -85,6 +85,7 @@ const PAGE_SIZE      = 200
 const LINKED_H       = 52   // linked row: py-3 + single line + wrapper
 const ORPHAN_H       = 72   // orphan row: py-3 + main + path line + wrapper
 const ORPHAN_SUG_H   = 124  // orphan row when suggestion banner is visible
+const PEOPLE_H       = 22   // the people line, added to whichever row shows one
 const FLAT_ITEM_H    = 56   // phantom / untracked rows
 const CHANNEL_H      = 38   // channel header: py-2.5 + content
 const YEAR_H         = 24   // year subheader: py-1 + content
@@ -509,10 +510,14 @@ export function ArchiveWorkspaceClient({
       if (row.kind === 'flat-item') return FLAT_ITEM_H
       if (row.kind === 'folder-item') {
         const isLinked = !!(row.item.linkedSetId || row.item.linkedStagingId)
-        if (tab === 'linked' || (tab === 'all' && isLinked)) return LINKED_H
+        // The people line only exists where somebody is recorded, so folders
+        // nobody has touched stay as compact as they were — 5,320 of them.
+        const people =
+          row.item.people.claims.length > 0 || row.item.people.cast.length > 0 ? PEOPLE_H : 0
+        if (tab === 'linked' || (tab === 'all' && isLinked)) return LINKED_H + people
         if (tab === 'orphan' || (tab === 'all' && !isLinked)) {
           const hasSug = !!(row.item.suggestedSetId || row.item.suggestedStagingId)
-          return hasSug ? ORPHAN_SUG_H : ORPHAN_H
+          return (hasSug ? ORPHAN_SUG_H : ORPHAN_H) + people
         }
       }
       return ORPHAN_H

@@ -23,6 +23,12 @@ const PROVENANCE: Record<PersonReference['kind'], string> = {
 
 type InspectorProps = {
   mode: WorkbenchMode
+  /** Who is already recorded for this folder — the cast being built. */
+  attributions: { icgId: string; name: string }[]
+  /** Collect mode is on, or this folder is being held open while it is built up. */
+  collecting: boolean
+  onRemove: (icgId: string) => void
+  onFinish: () => void
   /** In person-led mode the pinned person; in folder-led the likeliest candidate. */
   subject: FolderCandidate | null
   reference: PersonReference | undefined
@@ -54,6 +60,10 @@ type InspectorProps = {
  */
 export function WorkbenchInspector({
   mode,
+  attributions,
+  collecting,
+  onRemove,
+  onFinish,
   subject,
   reference,
   candidates,
@@ -70,6 +80,42 @@ export function WorkbenchInspector({
 }: InspectorProps) {
   return (
     <aside className="flex w-72 shrink-0 flex-col gap-3 border-l border-border/60 bg-card/40 p-3">
+      {/* Recorded for this folder. Shown wherever there is something to show, so
+          the cast being built is visible while it is built — and each entry can
+          be taken off on its own instead of undoing all of them. */}
+      {attributions.length > 0 && (
+        <div className="space-y-1 rounded border border-emerald-600/30 bg-emerald-500/5 p-2">
+          <p className="text-[10px] uppercase tracking-wide text-emerald-700 dark:text-emerald-400">
+            Recorded ({attributions.length})
+          </p>
+          {attributions.map((a) => (
+            <div key={a.icgId} className="flex items-center gap-1">
+              <PersonIdentity name={a.name} icgId={a.icgId} className="min-w-0 flex-1 text-xs" />
+              <button
+                type="button"
+                onClick={() => onRemove(a.icgId)}
+                disabled={busy}
+                title={`Remove ${a.name} from this folder`}
+                aria-label={`Remove ${a.name} from this folder`}
+                className="shrink-0 rounded p-0.5 text-muted-foreground transition-colors hover:bg-destructive hover:text-destructive-foreground disabled:opacity-50"
+              >
+                <X size={12} />
+              </button>
+            </div>
+          ))}
+          {collecting && (
+            <button
+              type="button"
+              onClick={onFinish}
+              disabled={busy}
+              className="mt-1 w-full rounded bg-primary px-2 py-1 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
+            >
+              Done with this folder · Enter
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Who */}
       {subject ? (
         <div className="flex gap-3">

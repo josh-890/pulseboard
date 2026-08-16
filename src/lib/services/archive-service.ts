@@ -13,6 +13,7 @@ import { prisma } from '@/lib/db'
 import { getSetting, setSetting } from '@/lib/services/setting-service'
 import { normalizeForSearch } from '@/lib/normalize'
 import { buildUrl } from '@/lib/media-url'
+import { loadCasts } from '@/lib/services/set-cast-service'
 import { escapeLike } from '@/lib/prisma-like'
 import { ArchiveLinkStatus, Prisma } from '@/generated/prisma/client'
 import type { ArchiveStatus } from '@/generated/prisma/client'
@@ -1036,7 +1037,19 @@ export type ArchiveFolderEntry = {
    */
   coverUrl: string | null
   coverError: string | null
+  /**
+   * Who this folder is said to hold, from both sides and never merged (ADR-0028).
+   *
+   * `claims` are yours — `ArchiveFolderAttribution`, written in the workbench or
+   * raised from a marker file. `cast` is the credit list of the set behind a
+   * confirmed link. A settled folder usually has only the second: its people were
+   * settled by the import, and a row showing claims alone would look empty for
+   * exactly the folders that are finished.
+   */
+  people: { claims: FolderPerson[]; cast: FolderPerson[] }
 }
+
+export type FolderPerson = { icgId: string; name: string }
 
 export type PhantomEntry = {
   id: string
@@ -2264,6 +2277,67 @@ export async function getConflictingLinks(ids: string[]): Promise<Map<string, Bl
 /**
  * Returns tab counts + paginated items for the /archive workspace page.
  */
+/**
+ * Fill in `people` for a page of folder rows.
+ *
+ * A post-step over the finished list rather than three more `include`s: the entry
+ * is assembled at three call sites (one per tab), and the cast cannot be reached
+ * by a join anyway — it lives behind the link, in one of two shapes, which
+ * `loadCasts` already reconciles.
+ *
+ * Two queries for up to 200 rows. Nothing is merged: claims and cast stay apart,
+ * because a claim the cast does not name is a contradiction to decide, not a
+ * duplicate to fold away (ADR-0028).
+ */
+type FolderEntryBase = Omit<ArchiveFolderEntry, 'people'>
+
+async function attachFolderPeople(items: FolderEntryBase[]): Promise<ArchiveFolderEntry[]> {
+  if (items.length === 0) return []
+  const ids = items.map((i) => i.id)
+
+  const [attributions, links] = await Promise.all([
+    prisma.archiveFolderAttribution.findMany({
+      where: { archiveFolderId: { in: ids } },
+      select: { archiveFolderId: true, icgId: true, name: true },
+      orderBy: { confirmedAt: 'asc' },
+    }),
+    prisma.archiveLink.findMany({
+      where: { archiveFolderId: { in: ids }, status: 'CONFIRMED' },
+      select: { archiveFolderId: true, stagingSetId: true, setId: true },
+    }),
+  ])
+
+  const casts = await loadCasts(
+    links.map((l) => l.stagingSetId).filter((id): id is string => !!id),
+    links.map((l) => l.setId).filter((id): id is string => !!id),
+  )
+
+  const claimsBy = new Map<string, FolderPerson[]>()
+  for (const a of attributions) {
+    const list = claimsBy.get(a.archiveFolderId) ?? []
+    list.push({ icgId: a.icgId, name: a.name })
+    claimsBy.set(a.archiveFolderId, list)
+  }
+
+  const castBy = new Map<string, FolderPerson[]>()
+  for (const l of links) {
+    const targetId = l.stagingSetId ?? l.setId
+    const entry = targetId ? casts.get(targetId) : undefined
+    if (!entry) continue
+    castBy.set(
+      l.archiveFolderId,
+      entry.cast
+        .filter((p) => p.icgId)
+        .map((p) => ({ icgId: p.icgId!, name: p.name })),
+    )
+  }
+
+  return items.map((item) => ({
+    ...item,
+    people: { claims: claimsBy.get(item.id) ?? [], cast: castBy.get(item.id) ?? [] },
+  }))
+}
+
 export async function getArchiveWorkspace(filters: WorkspaceFilters): Promise<WorkspacePage> {
   const pageSize = filters.pageSize ?? 200
   const offset = filters.offset ?? 0
@@ -2427,7 +2501,7 @@ export async function getArchiveWorkspace(filters: WorkspaceFilters): Promise<Wo
     const setMapAll = new Map<string, SuggestedSetAll>(suggestedSets.map((s) => [s.id, s]))
     const stagingMapAll = new Map<string, SuggestedStagingAll>(suggestedStagings.map((s) => [s.id, s]))
 
-    const items: ArchiveFolderEntry[] = rows.map((r) => {
+    const items: FolderEntryBase[] = rows.map((r) => {
       const { linkedSetId, linkedStagingId, suggestedSetId, suggestedStagingId, suggestedConfidence } = mapLinkFields(r)
       const ss = suggestedSetId ? setMapAll.get(suggestedSetId) : undefined
       const sg = suggestedStagingId ? stagingMapAll.get(suggestedStagingId) : undefined
@@ -2468,7 +2542,7 @@ export async function getArchiveWorkspace(filters: WorkspaceFilters): Promise<Wo
       }
     })
 
-    return { items, total, counts, hasMore: paginate && rows.length === pageSize }
+    return { items: await attachFolderPeople(items), total, counts, hasMore: paginate && rows.length === pageSize }
   }
 
   if (filters.tab === 'orphan') {
@@ -2580,7 +2654,7 @@ export async function getArchiveWorkspace(filters: WorkspaceFilters): Promise<Wo
     const setMap = new Map<string, SuggestedSet>(suggestedSets.map((s) => [s.id, s]))
     const stagingMap = new Map<string, SuggestedStaging>(suggestedStagings.map((s) => [s.id, s]))
 
-    const items: ArchiveFolderEntry[] = rows.map((r) => {
+    const items: FolderEntryBase[] = rows.map((r) => {
       const { linkedSetId, linkedStagingId, suggestedSetId, suggestedStagingId, suggestedConfidence } = mapLinkFields(r)
       const ss = suggestedSetId ? setMap.get(suggestedSetId) : undefined
       const sg = suggestedStagingId ? stagingMap.get(suggestedStagingId) : undefined
@@ -2621,7 +2695,7 @@ export async function getArchiveWorkspace(filters: WorkspaceFilters): Promise<Wo
       }
     })
 
-    return { items, total, counts, hasMore: paginate && rows.length === pageSize }
+    return { items: await attachFolderPeople(items), total, counts, hasMore: paginate && rows.length === pageSize }
   }
 
   if (filters.tab === 'linked') {
@@ -2660,7 +2734,7 @@ export async function getArchiveWorkspace(filters: WorkspaceFilters): Promise<Wo
       }),
     ])
 
-    const items: ArchiveFolderEntry[] = rows.map((r) => {
+    const items: FolderEntryBase[] = rows.map((r) => {
       const { linkedSetId, linkedStagingId } = mapLinkFields(r)
       return {
         id: r.id,
@@ -2697,7 +2771,7 @@ export async function getArchiveWorkspace(filters: WorkspaceFilters): Promise<Wo
       }
     })
 
-    return { items, total, counts, hasMore: paginate && rows.length === pageSize }
+    return { items: await attachFolderPeople(items), total, counts, hasMore: paginate && rows.length === pageSize }
   }
 
   if (filters.tab === 'phantom') {

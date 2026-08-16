@@ -150,7 +150,7 @@ describe('nextOverlayLevel', () => {
 describe('view preferences', () => {
   it('round-trips through storage', () => {
     const store = memoryStore()
-    const prefs: WorkbenchViewPrefs = { overlay: 'detail', filmstrip: false }
+    const prefs: WorkbenchViewPrefs = { overlay: 'detail', filmstrip: false, collect: true }
     writeViewPrefs(store, prefs)
     expect(readViewPrefs(store)).toEqual(prefs)
   })
@@ -170,7 +170,12 @@ describe('view preferences', () => {
     expect(readViewPrefs(store)).toEqual(DEFAULT_VIEW_PREFS)
 
     store.raw.set('pulseboard.workbench.view', JSON.stringify({ filmstrip: false }))
-    expect(readViewPrefs(store)).toEqual({ overlay: 'name', filmstrip: false })
+    expect(readViewPrefs(store)).toEqual({ overlay: 'name', filmstrip: false, collect: false })
+
+    // Collect mode is off unless it says so: a half-written preference must not
+    // silently latch Shift for a whole pass.
+    store.raw.set('pulseboard.workbench.view', JSON.stringify({ collect: 'yes' }))
+    expect(readViewPrefs(store).collect).toBe(false)
   })
 
   it('does not throw when storage refuses to write', () => {

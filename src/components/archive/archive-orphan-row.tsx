@@ -11,6 +11,7 @@ import {
   rejectArchiveSuggestionAction,
   deleteArchiveFolderAction,
 } from '@/lib/actions/archive-actions'
+import { ArchiveRowPeople } from './archive-row-people'
 import { ArchiveSetPicker } from './archive-set-picker'
 import { CreateKnownSetSheet } from '@/components/staging-sets/create-known-set-sheet'
 
@@ -200,6 +201,17 @@ export function ArchiveOrphanRow({ item, onRemoved }: Props) {
       <div className="truncate pl-5 text-[11px] text-muted-foreground/50" title={item.fullPath}>
         {item.fullPath}
       </div>
+
+      {/* Who is in it — only when somebody is, so a folder nobody has touched
+          stays as compact as it was. The row height constants follow this. */}
+      {(item.people.claims.length > 0 || item.people.cast.length > 0) && (
+        <ArchiveRowPeople
+          folderId={item.id}
+          claims={item.people.claims}
+          cast={item.people.cast}
+          className="pl-5"
+        />
+      )}
 
       {/* Suggestion detail row */}
       {hasSuggestion && !dismissed && (

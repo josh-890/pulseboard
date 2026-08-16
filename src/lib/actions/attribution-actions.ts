@@ -3,8 +3,11 @@
 import { revalidatePath } from 'next/cache'
 import { withTenantFromHeaders } from '@/lib/tenant-context'
 import {
+  castDisagreement,
   confirmFolderIdentity,
   confirmFoldersIdentity,
+  getFolderCast,
+  removeFolderAttribution,
   rejectFolderIdentity,
   skipFolderIdentity,
   undoFolderIdentity,
@@ -69,6 +72,31 @@ export async function confirmFoldersAction(
   names?: Record<string, string>,
 ): Promise<AttributionActionResult<ConfirmResult>> {
   return run(() => confirmFoldersIdentity(folderIds, icgIds, names), QUEUE)
+}
+
+/** Take one person off a folder — the counterpart of adding one. */
+export async function removeFolderAttributionAction(
+  folderId: string,
+  icgId: string,
+): Promise<AttributionActionResult<{ removed: boolean; remaining: number }>> {
+  return run(() => removeFolderAttribution(folderId, icgId), BOTH)
+}
+
+/**
+ * What the set behind this folder credits, asked before a claim is written.
+ *
+ * A claim the cast does not name is a contradiction (ADR-0028) — legitimate, and
+ * decided in `/archive/conflicts`, but the operator should learn of it while the
+ * cover is still in front of them, not days later in a list.
+ */
+export async function checkCastAgreementAction(
+  folderId: string,
+  icgIds: string[],
+): Promise<AttributionActionResult<{ setTitle: string | null; missing: string[] }>> {
+  return run(async () => {
+    const { linked, setTitle, cast } = await getFolderCast(folderId)
+    return { setTitle, missing: castDisagreement(cast, icgIds, linked) }
+  }, [])
 }
 
 export async function rejectFolderAction(folderId: string): Promise<AttributionActionResult<null>> {
