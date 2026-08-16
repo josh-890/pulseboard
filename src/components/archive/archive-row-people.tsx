@@ -1,12 +1,9 @@
 'use client'
 
-import Link from 'next/link'
-import { UserPen } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { FolderPerson } from '@/lib/services/archive-service'
 
 type Props = {
-  folderId: string
   claims: FolderPerson[]
   cast: FolderPerson[]
   className?: string
@@ -24,11 +21,11 @@ const SHOWN = 4
  * alone would leave exactly the finished folders looking empty, which is the
  * reading that has already cost a debugging round.
  *
- * The edit link goes to the workbench scoped to this folder, which is the only
- * way to reach a folder whose link was confirmed long ago: the attribution queue
- * offers open work, and this folder is not that.
+ * Chips only. The way into the editor sits in the row's action cluster instead,
+ * because this line is rendered only where somebody is recorded — and the folder
+ * you most need to open is the one where nobody is.
  */
-export function ArchiveRowPeople({ folderId, claims, cast, className }: Props) {
+export function ArchiveRowPeople({ claims, cast, className }: Props) {
   const shownClaims = claims.slice(0, SHOWN)
   const room = Math.max(0, SHOWN - shownClaims.length)
   const claimed = new Set(claims.map((c) => c.icgId))
@@ -62,17 +59,6 @@ export function ArchiveRowPeople({ folderId, claims, cast, className }: Props) {
 
       {hidden > 0 && <span className="shrink-0 text-muted-foreground">+{hidden}</span>}
 
-      {claims.length === 0 && cast.length === 0 && (
-        <span className="text-muted-foreground/60">nobody recorded</span>
-      )}
-
-      <Link
-        href={`/archive/workbench?folder=${folderId}`}
-        title="Edit the people on this folder"
-        className="ml-1 shrink-0 rounded p-0.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-      >
-        <UserPen size={12} />
-      </Link>
     </div>
   )
 }

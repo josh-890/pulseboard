@@ -3,7 +3,7 @@
 import { useTransition } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ExternalLink, CheckCircle2, TriangleAlert, Trash2 } from 'lucide-react'
+import { ExternalLink, CheckCircle2, TriangleAlert, Trash2, UserPen } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { ArchiveCoverThumb } from './archive-cover-thumb'
 import { ArchiveRowPeople } from './archive-row-people'
@@ -155,6 +155,16 @@ export function ArchiveLinkedRow({ item }: Props) {
         </Link>
       )}
 
+      {/* Edit the people on this folder — always reachable, whether or not
+          anybody is recorded yet. */}
+      <Link
+        href={`/archive/workbench?folder=${item.id}`}
+        title="Edit the people on this folder"
+        className="shrink-0 text-muted-foreground/50 transition-colors hover:text-foreground"
+      >
+        <UserPen size={13} />
+      </Link>
+
       {/* Delete stale record */}
       <button
         type="button"
@@ -171,7 +181,6 @@ export function ArchiveLinkedRow({ item }: Props) {
           cast rather than through a claim of yours — both are shown, apart. */}
       {(item.people.claims.length > 0 || item.people.cast.length > 0) && (
         <ArchiveRowPeople
-          folderId={item.id}
           claims={item.people.claims}
           cast={item.people.cast}
           className="pl-5"

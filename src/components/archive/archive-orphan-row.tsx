@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import Link from 'next/link'
-import { Check, X, Plus, ExternalLink, TriangleAlert, Trash2, Link2 } from 'lucide-react'
+import { Check, X, Plus, ExternalLink, TriangleAlert, Trash2, Link2, UserPen } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { ArchiveCoverThumb } from './archive-cover-thumb'
 import type { ArchiveFolderEntry } from '@/lib/services/archive-service'
@@ -185,6 +185,17 @@ export function ArchiveOrphanRow({ item, onRemoved }: Props) {
           Link to…
         </button>
 
+        {/* Who is in it. In the action cluster, not on the people line: that line
+            only exists where somebody is recorded, and the folder you most want to
+            open is the one where nobody is. */}
+        <Link
+          href={`/archive/workbench?folder=${item.id}`}
+          title="Edit the people on this folder"
+          className="shrink-0 text-muted-foreground/50 transition-colors hover:text-foreground"
+        >
+          <UserPen size={13} />
+        </Link>
+
         {/* Delete stale record */}
         <button
           type="button"
@@ -206,7 +217,6 @@ export function ArchiveOrphanRow({ item, onRemoved }: Props) {
           stays as compact as it was. The row height constants follow this. */}
       {(item.people.claims.length > 0 || item.people.cast.length > 0) && (
         <ArchiveRowPeople
-          folderId={item.id}
           claims={item.people.claims}
           cast={item.people.cast}
           className="pl-5"
