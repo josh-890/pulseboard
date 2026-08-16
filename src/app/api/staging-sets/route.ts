@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server'
 import { withTenantFromHeaders } from '@/lib/tenant-context'
+import { buildUrl } from '@/lib/media-url'
+import { archiveCoverKeyFor } from '@/lib/services/import/staging-set-service'
 import { getStagingSetsFiltered } from '@/lib/services/import/staging-set-service'
 import { getSuggestedFoldersForStagingSets, getConflictingLinks } from '@/lib/services/archive-service'
 import type { ChannelTier, StagingSetStatus } from '@/generated/prisma/client'
@@ -71,6 +73,13 @@ export async function GET(request: Request) {
       ])
       const augmentedItems = result.items.map((item) => ({
         ...item,
+        // A set developed from an archive folder has no cover of its own — the one
+        // that belongs to it is the folder's, already in MinIO. Resolved here
+        // because buildUrl needs the tenant bucket from AsyncLocalStorage.
+        archiveCoverUrl: (() => {
+          const key = archiveCoverKeyFor(item)
+          return key ? buildUrl(key) : null
+        })(),
         suggestedArchiveFolder: suggestions.get(item.id) ?? null,
         hasLinkConflict: conflicts.has(item.id),
         // Which folder blocks it, and what that folder is linked to — a badge

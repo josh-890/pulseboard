@@ -427,9 +427,17 @@ export const StagingSetRow = memo(function StagingSetRow({
           // In inline-cover mode, a "local cover" is either a freshly-uploaded override
           // or an existing URL stored in MinIO (path contains '/staging/').
           // External/imported URLs (e.g. thenude.com) are treated as "no cover" here.
+          // A set developed from an archive folder has no cover of its own; the
+          // folder's is local media and belongs to exactly this set, so it stands
+          // in rather than leaving a grey box (ADR-0029's local-media-only rule
+          // rules out the harvested URL, which is hotlink-protected anyway).
           const hasLocalCover = !!inlineCoverMode?.overrideCoverUrl ||
-            (!!ss.coverImageUrl && ss.coverImageUrl.includes('/staging/'))
-          const effectiveCoverUrl = inlineCoverMode?.overrideCoverUrl ?? (hasLocalCover ? ss.coverImageUrl : null)
+            (!!ss.coverImageUrl && ss.coverImageUrl.includes('/staging/')) ||
+            !!ss.archiveCoverUrl
+          const ownCover = (!!ss.coverImageUrl && ss.coverImageUrl.includes('/staging/'))
+            ? ss.coverImageUrl
+            : (ss.archiveCoverUrl ?? null)
+          const effectiveCoverUrl = inlineCoverMode?.overrideCoverUrl ?? (hasLocalCover ? ownCover : null)
           if (inlineCoverMode && !hasLocalCover) {
             return (
               <div
@@ -522,7 +530,7 @@ export const StagingSetRow = memo(function StagingSetRow({
           }
           return (
             <CoverThumbnail
-              coverImageUrl={rotatedCoverUrl ?? ss.coverImageUrl}
+              coverImageUrl={rotatedCoverUrl ?? ss.coverImageUrl ?? ss.archiveCoverUrl ?? null}
               title={ss.title}
               isVideo={ss.isVideo}
               imgError={imgError}

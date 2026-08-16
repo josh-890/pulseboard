@@ -30,7 +30,7 @@ type ArchiveLinkMini = {
   archiveFileCountPrev: number | null
   archiveLastChecked: Date | null
   archiveVideoPresent: boolean | null
-  archiveFolder: { id: string; folderName: string; fullPath: string; scannedAt: Date } | null
+  archiveFolder: { id: string; folderName: string; fullPath: string; scannedAt: Date; coverKey: string | null } | null
 }
 
 export type PromotedSetArchiveMini = {
@@ -50,6 +50,14 @@ export type StagingSetWithRelations = StagingSet & {
   siblingOf: { id: string; isVideo: boolean } | null
   /** Populated server-side after main query via getSuggestedFoldersForStagingSets */
   suggestedArchiveFolder?: SuggestedFolderInfo | null
+  /**
+   * The linked archive folder's cover, resolved server-side.
+   *
+   * Built in the route, not here: `buildUrl` reads the tenant bucket through
+   * AsyncLocalStorage, and handing a client component a raw key drags
+   * `node:async_hooks` into the browser bundle.
+   */
+  archiveCoverUrl?: string | null
   /** True when a matching folder exists but is CONFIRMED to a different entity — indicates a mis-assigned link */
   hasLinkConflict?: boolean
   /** Which folder blocks it and what holds that folder — so "taken" is actionable */
@@ -115,7 +123,11 @@ const ARCHIVE_LINK_SELECT = {
   archiveFileCountPrev: true,
   archiveLastChecked: true,
   archiveVideoPresent: true,
-  archiveFolder: { select: { id: true, folderName: true, fullPath: true, scannedAt: true } },
+  // coverKey rides along so a set born from the archive can show the folder's own
+  // cover. A set that came from an import has the publisher's image; one developed
+  // from a folder has none of its own, and the picture that belongs to it is
+  // sitting right there in MinIO.
+  archiveFolder: { select: { id: true, folderName: true, fullPath: true, scannedAt: true, coverKey: true } },
 } as const
 
 const STAGING_SET_INCLUDE = {
@@ -137,6 +149,24 @@ const STAGING_SET_INCLUDE = {
   sibling: { select: { id: true, isVideo: true } },
   siblingOf: { select: { id: true, isVideo: true } },
 } as const
+
+/**
+ * The archive folder whose cover stands in for a set that has none of its own.
+ *
+ * A set developed from a folder never had a publisher's image, and the picture that
+ * belongs to it is already in MinIO under that folder. Only a **confirmed** link
+ * counts — a suggestion is not yet a claim about which folder this is — and the
+ * promoted Set is asked first, because promotion moves the link there.
+ *
+ * Pure: the URL is built in the route, where the tenant bucket is in scope.
+ */
+export function archiveCoverKeyFor(item: {
+  archiveLinks: { status: string; archiveFolder: { coverKey: string | null } | null }[]
+  promotedSet: { archiveLinks: { status: string; archiveFolder: { coverKey: string | null } | null }[] } | null
+}): string | null {
+  const links = [...(item.promotedSet?.archiveLinks ?? []), ...item.archiveLinks]
+  return links.find((l) => l.status === 'CONFIRMED')?.archiveFolder?.coverKey ?? null
+}
 
 export async function getStagingSetsForBatch(batchId: string): Promise<StagingSetWithRelations[]> {
   return prisma.stagingSet.findMany({
