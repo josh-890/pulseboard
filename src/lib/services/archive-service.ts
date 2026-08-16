@@ -3011,6 +3011,12 @@ export async function createStagingSetFromOrphan(
       channelId: channelId ?? null,
       releaseDate: folder.parsedDate ?? undefined,
       isVideo: folder.isVideo,
+      // A set born here has no publisher image, and the picture that belongs to it
+      // is already in MinIO under this folder. Writing it now rather than only
+      // rendering it means the rest of the pipeline needs no special case: the
+      // list shows it, and promotion carries it into the Set through the transfer
+      // that already exists.
+      coverImageUrl: folder.coverKey ? buildUrl(folder.coverKey) : null,
     },
     select: { id: true },
   })
