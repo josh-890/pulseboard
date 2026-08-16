@@ -7,6 +7,7 @@ import { useVirtualizer } from '@tanstack/react-virtual'
 import { getAppScrollEl } from '@/lib/scroll-container'
 import { FolderSearch, Camera, Film, ChevronDown, Search, ChevronsDownUp, ChevronsUpDown, RefreshCw } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import type { RematchStatus } from '@/lib/services/archive-rematch-status'
 import { getArchiveItemsAction, getArchiveChannelSummariesAction, reparseFolderNamesAction, scanArchiveForAliasesAction } from '@/lib/actions/archive-actions'
 import { ArchiveOrphanRow } from './archive-orphan-row'
 import { ArchiveLinkedRow } from './archive-linked-row'
@@ -669,21 +670,82 @@ export function ArchiveWorkspaceClient({
   }
 
   // ── Re-run matching pass ───────────────────────────────────────────────────
+  //
+  // The pass outlives the request that starts it, so the button reads its state
+  // back from the server instead of remembering it: reopening the page shows a
+  // run still in flight, and a finished run reports what it actually did. The old
+  // version said "Matching pass started…" and then knew nothing — a run that
+  // linked nothing was indistinguishable from one that never ran.
   const [rematching, setRematching] = useState(false)
   const [rematchMsg, setRematchMsg] = useState<string | null>(null)
 
+  const describeRematch = useCallback((status: RematchStatus | null, running: boolean): string | null => {
+    if (!status) return null
+    if (status.error) return `Matching pass failed: ${status.error}`
+    if (running) {
+      const pct = status.total > 0 ? Math.round((status.processed / status.total) * 100) : 0
+      return `Matching ${status.processed.toLocaleString()} / ${status.total.toLocaleString()} folders (${pct}%) · ${status.suggested} linked`
+    }
+    if (status.finishedAt) {
+      // Report a finished run to whoever comes back for it, then let it go: the
+      // record is permanent, and a result from last week on every page load is
+      // noise pretending to be news.
+      const age = Date.now() - Date.parse(status.finishedAt)
+      if (age > 30 * 60_000) return null
+      return `Matching pass done — ${status.suggested} suggestion(s) from ${status.total.toLocaleString()} folders`
+    }
+    // Started, no heartbeat for minutes: the process is gone (a restart, say).
+    return 'Matching pass stopped before finishing — start it again'
+  }, [])
+
+  const pollRematch = useCallback(async () => {
+    try {
+      const res = await fetch('/api/archive/rematch')
+      if (!res.ok) return false
+      const data = (await res.json()) as { status: RematchStatus | null; running: boolean }
+      setRematchMsg(describeRematch(data.status, data.running))
+      setRematching(data.running)
+      return data.running
+    } catch {
+      return false
+    }
+  }, [describeRematch])
+
+  // Pick up a run that is already in flight — including one this browser started
+  // before navigating away.
+  useEffect(() => {
+    let timer: ReturnType<typeof setInterval> | null = null
+    void pollRematch().then((running) => {
+      if (!running) return
+      timer = setInterval(() => {
+        void pollRematch().then((stillRunning) => {
+          if (!stillRunning && timer) { clearInterval(timer); timer = null }
+        })
+      }, 3000)
+    })
+    return () => { if (timer) clearInterval(timer) }
+  }, [pollRematch])
+
   async function handleRematch() {
     setRematching(true)
-    setRematchMsg(null)
+    setRematchMsg('Starting…')
     try {
       const res = await fetch('/api/archive/rematch', { method: 'POST' })
-      if (!res.ok) throw new Error('Failed')
-      setRematchMsg('Matching pass started…')
+      if (res.status === 409) {
+        setRematchMsg('A matching pass is already running')
+      } else if (!res.ok) {
+        throw new Error('Failed')
+      }
     } catch {
       setRematchMsg('Failed to start matching pass')
+      setRematching(false)
+      return
     }
-    setRematching(false)
-    setTimeout(() => setRematchMsg(null), 5000)
+    // From here the server owns the answer.
+    const timer = setInterval(() => {
+      void pollRematch().then((running) => { if (!running) clearInterval(timer) })
+    }, 3000)
+    void pollRematch()
   }
 
   // ── Summary total for tree mode ────────────────────────────────────────────

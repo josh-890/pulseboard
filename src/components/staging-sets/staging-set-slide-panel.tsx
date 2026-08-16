@@ -14,6 +14,7 @@ import {
   FolderOpen,
   FolderCheck,
   FolderX,
+  RefreshCw,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -26,7 +27,7 @@ import type { StagingSetWithRelations, StagingSetComparison, DuplicateCandidate 
 import type { StagingSetStatus, ArchiveStatus } from '@/generated/prisma/client'
 // (recordArchivePathAction / clearArchivePathAction removed — scan-first workflow only)
 import { acceptDateSuggestionAction, dismissDateSuggestionAction, removeStagingSetParticipantAction, addStagingSetParticipantAction, rejectStagingSetMatchAction } from '@/lib/actions/staging-set-actions'
-import { unlinkArchiveFolderAction } from '@/lib/actions/archive-actions'
+import { unlinkArchiveFolderAction, rematchItemAction } from '@/lib/actions/archive-actions'
 import Link from 'next/link'
 
 // ─── Constants ─────────────────────────────────────────────────────────────
@@ -718,6 +719,8 @@ type ArchiveSectionProps = {
 function ArchiveSection({ stagingSet, onRefresh }: ArchiveSectionProps) {
   const [isExpanded, setIsExpanded] = useState(true)
   const [isUnlinking, setIsUnlinking] = useState(false)
+  const [rematching, setRematching] = useState(false)
+  const [rematchMsg, setRematchMsg] = useState<string | null>(null)
   const isPromoted = stagingSet.status === 'PROMOTED'
   // Match the rest of the codebase: filter to CONFIRMED. Using [0] could
   // bleed a leftover SUGGESTED link into the "linked" rendering path.
@@ -740,6 +743,28 @@ function ArchiveSection({ stagingSet, onRefresh }: ArchiveSectionProps) {
       setIsUnlinking(false)
     }
   }, [archiveFolder?.id, onRefresh])
+
+  // After promotion the archive link lives on the Set, so that is what the
+  // matcher must be asked about — matching the staging row would write a link
+  // nothing reads.
+  const handleRematch = useCallback(async () => {
+    setRematching(true)
+    setRematchMsg(null)
+    try {
+      const res = isPromoted && stagingSet.promotedSetId
+        ? await rematchItemAction(stagingSet.promotedSetId, 'set')
+        : await rematchItemAction(stagingSet.id, 'staging')
+      if (res.error) setRematchMsg(res.error)
+      else if (res.matched) {
+        setRematchMsg(`Found a ${res.confidence} match`)
+        onRefresh()
+      } else {
+        setRematchMsg('No folder matched')
+      }
+    } finally {
+      setRematching(false)
+    }
+  }, [isPromoted, stagingSet.id, stagingSet.promotedSetId, onRefresh])
 
   return (
     <div className="rounded-lg border border-border/50 bg-card/50">
@@ -812,11 +837,24 @@ function ArchiveSection({ stagingSet, onRefresh }: ArchiveSectionProps) {
               )}
             </>
           ) : (
-            <p className="text-[10px] text-muted-foreground/60">
-              {isPromoted
-                ? 'No archive folder linked to this set yet. Run the archive scanner to link automatically.'
-                : 'No archive folder linked. Archive scanner will link automatically when found.'}
-            </p>
+            <div className="space-y-2">
+              <p className="text-[10px] text-muted-foreground/60">
+                No archive folder linked. The scanner finds folders; matching them to
+                this set is a separate step — run it here for this one set.
+              </p>
+              <button
+                type="button"
+                onClick={handleRematch}
+                disabled={rematching}
+                className="flex items-center gap-1.5 rounded-md border border-border/60 px-2 py-1 text-[10px] font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-50"
+              >
+                {rematching
+                  ? <Loader2 size={10} className="animate-spin" />
+                  : <RefreshCw size={10} />}
+                {rematching ? 'Searching…' : 'Search archive'}
+              </button>
+              {rematchMsg && <p className="text-[10px] text-muted-foreground">{rematchMsg}</p>}
+            </div>
           )}
         </div>
       )}

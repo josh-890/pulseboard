@@ -673,12 +673,15 @@ export function StagingSetsWorkspace() {
           Known set
         </Button>
 
-        {/* Refresh statuses + matches */}
+        {/* Refresh participant statuses + staged↔production Set matches.
+            Named for what it does: it never touches the archive — that is the
+            Re-match button on /archive, and the two were confused in a real
+            session, which made a working archive matcher look broken. */}
         <Button
           variant="ghost"
           size="icon"
           className="h-8 w-8"
-          title="Refresh statuses and matches"
+          title="Refresh participant statuses and Set matches (not the archive)"
           disabled={isRefreshing}
           onClick={async () => {
             setIsRefreshing(true)

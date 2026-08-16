@@ -3,7 +3,7 @@
 import { useState, useCallback, useTransition } from 'react'
 import {
   FolderOpen, FolderCheck, FolderX,
-  Check, X, Flag, Film, FolderSearch,
+  Check, X, Flag, Film, FolderSearch, RefreshCw,
 } from 'lucide-react'
 import { ArchiveFolderPicker } from '@/components/staging-sets/archive-folder-picker'
 import { Button } from '@/components/ui/button'
@@ -14,6 +14,7 @@ import {
   confirmVideoFileAction,
   confirmArchiveFolderLinkAction,
   rejectArchiveSuggestionAction,
+  rematchItemAction,
 } from '@/lib/actions/archive-actions'
 import type { ArchiveStatus } from '@/generated/prisma/client'
 import { cn } from '@/lib/utils'
@@ -120,6 +121,8 @@ export function SetArchivePanel(props: SetArchivePanelProps) {
   const [mediaQueueAt, setMediaQueueAt] = useState(initialQueueAt)
   const [confirmingVideo, setConfirmingVideo] = useState(false)
   const [isUnlinking, setIsUnlinking] = useState(false)
+  const [rematching, setRematching] = useState(false)
+  const [rematchMsg, setRematchMsg] = useState<string | null>(null)
 
   const hasPath = !!archivePath
   const inQueue = !!mediaQueueAt
@@ -138,6 +141,26 @@ export function SetArchivePanel(props: SetArchivePanelProps) {
       setIsUnlinking(false)
     }
   }, [archiveFolderId, router])
+
+  // Ask the archive about *this* set. The global pass on /archive walks 39,000
+  // folders to answer the same question, which is why nobody ran it for one set.
+  const handleRematch = useCallback(async () => {
+    setRematching(true)
+    setRematchMsg(null)
+    try {
+      const res = await rematchItemAction(setId, 'set')
+      if (res.error) setRematchMsg(res.error)
+      else if (res.matched) {
+        setRematchMsg(`Found a ${res.confidence} match`)
+        router.refresh()
+      } else {
+        setRematchMsg('No folder matched')
+      }
+    } finally {
+      setRematching(false)
+      setTimeout(() => setRematchMsg(null), 6000)
+    }
+  }, [setId, router])
 
   const handleQueueToggle = useCallback(async () => {
     const newInQueue = !inQueue
@@ -188,6 +211,25 @@ export function SetArchivePanel(props: SetArchivePanelProps) {
         </div>
 
         <div className="flex items-center gap-2">
+          {rematchMsg && (
+            <span className="text-[11px] text-muted-foreground">{rematchMsg}</span>
+          )}
+
+          {/* Search the archive for this one set — only meaningful while nothing
+              is linked; a confirmed link makes the matcher a no-op. */}
+          {!hasPath && (
+            <button
+              type="button"
+              onClick={handleRematch}
+              disabled={rematching}
+              className="flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-50"
+              title="Look for a matching archive folder for this set"
+            >
+              <RefreshCw size={13} className={rematching ? 'animate-spin' : ''} />
+              {rematching ? 'Searching…' : 'Search archive'}
+            </button>
+          )}
+
           {/* Manual link / change folder */}
           <button
             type="button"

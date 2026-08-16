@@ -1668,6 +1668,7 @@ async function _computeRelativePath(fullPath: string, isVideo: boolean): Promise
  */
 export async function runMatchingPass(
   tenant: string,
+  onProgress?: (p: { processed: number; total: number; suggested: number }) => Promise<void> | void,
 ): Promise<{ linked: number; suggested: number }> {
   // Load folders that have no CONFIRMED ArchiveLink yet
   const folders = await prisma.archiveFolder.findMany({
@@ -1699,7 +1700,17 @@ export async function runMatchingPass(
 
   const linked = 0; let suggested = 0
 
+  // Every ~100 folders, which is a few seconds — often enough for a progress bar
+  // to move, rare enough that the heartbeat write is noise next to the pass.
+  const PROGRESS_EVERY = 100 // heartbeat cadence
+  let processed = 0
+  await onProgress?.({ processed: 0, total: folders.length, suggested: 0 })
+
   for (const folder of folders) {
+    processed++
+    if (processed % PROGRESS_EVERY === 0) {
+      await onProgress?.({ processed, total: folders.length, suggested })
+    }
     let relativePath = folder.relativePath
     if (!relativePath) {
       const roots = folder.isVideo ? videoRoots : photoRoots
@@ -1838,6 +1849,8 @@ export async function runMatchingPass(
       }
     }
   }
+
+  await onProgress?.({ processed, total: folders.length, suggested })
 
   // linked is always 0 now — we no longer do exact path matching
   return { linked, suggested }

@@ -1144,6 +1144,23 @@ Once you pick a cover yourself, it is yours: no upload ever displaces it.
 
 The Archive workspace shows the filesystem scan results — a record of every folder found in the configured archive root(s) and its link status to DB records.
 
+### Finding the folder for a set
+
+Scanning and matching are two different steps. The **scan** records what is on
+disk; **matching** proposes which folder belongs to which set. A set imported
+after the last scan therefore shows "not in archive" until matching runs again —
+the folder is known, nobody has compared it to the new set yet.
+
+| Where | Button | Scope |
+|---|---|---|
+| `/archive` | **Re-match** | Every folder without a confirmed link (~36,000 — minutes). Shows progress while it runs, and the result when it finishes; you can leave the page, the run continues and the page picks it up again |
+| Set page → Archive card | **Search archive** | Just this set — instant. Appears while no folder is linked |
+| Staged set → Archive section | **Search archive** | Just this staged set (or, once promoted, its Set) |
+
+The refresh button on the **staged-sets** page is a different thing: it updates
+participant statuses and checks whether a staged set already exists as a
+production Set. It never looks at the archive.
+
 ### Archive Status Dots
 
 Every Set card and Staging Set row shows a small status dot for its archive folder link:

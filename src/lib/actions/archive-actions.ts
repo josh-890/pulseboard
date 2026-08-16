@@ -253,7 +253,11 @@ export async function rematchItemAction(
     try {
       const tenant = getCurrentTenantId()
       const result = await runMatchingPassForItem(id, type, tenant)
+      // The caller may be any of the three surfaces that show an archive link,
+      // not just the queue this was first written for.
       revalidatePath('/shopping-list')
+      revalidatePath('/staging-sets')
+      revalidatePath(type === 'set' ? `/sets/${id}` : '/sets')
       return result
     } catch {
       return { matched: false, error: 'Failed to run matching pass' }
