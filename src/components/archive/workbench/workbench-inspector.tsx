@@ -100,7 +100,8 @@ export function WorkbenchInspector({
         </div>
       ) : (
         <p className="rounded bg-muted/50 px-2 py-3 text-xs text-muted-foreground">
-          No candidate for this folder. Press <Kbd>/</Kbd> to find someone.
+          No candidate for this folder. Press <Kbd>/</Kbd> to find someone —
+          <Kbd>⇧</Kbd>+Enter there adds without closing the folder, for a set with several people.
         </p>
       )}
 
@@ -169,7 +170,8 @@ export function WorkbenchInspector({
             )
           })}
           <p className="pt-1 text-[10px] text-muted-foreground">
-            <Kbd>⇧</Kbd>+digit adds a second person · right-click does the same
+            <Kbd>⇧</Kbd>+digit adds a further person and holds the folder · right-click does the
+            same · <Kbd>/</Kbd> then <Kbd>⇧</Kbd>+Enter for anyone not listed
           </p>
         </div>
       )}

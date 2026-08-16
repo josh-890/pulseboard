@@ -162,15 +162,27 @@ export function WorkbenchClient({ data, from = 'open' }: { data: WorkbenchData; 
       void run(
         () => confirmFolderAction(folderId, icgIds, names),
         () => {
-          applyLocal(folderId, {
-            identity: 'CONFIRMED',
-            attributions: icgIds.map((id) => ({ icgId: id, name: names[id] ?? id })),
-          })
+          // Merge, do not replace: the write is additive (an upsert per person,
+          // nothing removed), so a screen that shows only the last one added
+          // says the second person replaced the first. Building a cast with
+          // Shift+digit then looked broken while the database was right.
+          const added = icgIds.map((id) => ({ icgId: id, name: names[id] ?? id }))
+          setFolders((fs) =>
+            fs.map((f) => {
+              if (f.id !== folderId) return f
+              const seen = new Set(f.attributions.map((a) => a.icgId))
+              return {
+                ...f,
+                identity: 'CONFIRMED' as const,
+                attributions: [...f.attributions, ...added.filter((a) => !seen.has(a.icgId))],
+              }
+            }),
+          )
           if (!keepFocus) advanceAfterDecision()
         },
       )
     },
-    [current, run, applyLocal, advanceAfterDecision],
+    [current, run, advanceAfterDecision],
   )
 
   const rejectTop = useCallback(() => {
@@ -448,10 +460,12 @@ export function WorkbenchClient({ data, from = 'open' }: { data: WorkbenchData; 
       <PersonAssignPicker
         open={pickerOpen}
         targetLabel={current?.folderName ?? 'this folder'}
-        onAssign={(p: AssignablePerson) => {
-          setPickerOpen(false)
-          confirmWith([p.icgId], { [p.icgId]: p.name })
-          shellRef.current?.focus()
+        onAssign={(p: AssignablePerson, { keepOpen }) => {
+          // Shift keeps the picker up and the folder open, so a set with several
+          // people none of whom were proposed can be entered in one go.
+          if (!keepOpen) setPickerOpen(false)
+          confirmWith([p.icgId], { [p.icgId]: p.name }, keepOpen)
+          if (!keepOpen) shellRef.current?.focus()
         }}
         onClose={() => {
           setPickerOpen(false)

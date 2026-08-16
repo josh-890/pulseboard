@@ -18,7 +18,12 @@ type PersonAssignPickerProps = {
   open: boolean
   /** What the assignment will apply to, shown so the target is never ambiguous. */
   targetLabel: string
-  onAssign: (person: AssignablePerson) => void
+  /**
+   * `keepOpen` means "this set has more people": the caller adds the person and
+   * leaves the folder open instead of closing it and moving on. Held Shift, or
+   * Shift+Enter on the keyboard — the same gesture as Shift+digit on a candidate.
+   */
+  onAssign: (person: AssignablePerson, opts: { keepOpen: boolean }) => void
   onClose: () => void
 }
 
@@ -73,11 +78,12 @@ export function PersonAssignPicker({ open, targetLabel, onAssign, onClose }: Per
 
   if (!open) return null
 
-  const choose = (p: AssignablePerson | undefined) => {
+  const choose = (p: AssignablePerson | undefined, keepOpen = false) => {
     if (!p) return
-    onAssign(p)
+    onAssign(p, { keepOpen })
     setQuery('')
     setResults([])
+    if (keepOpen) inputRef.current?.focus()
   }
 
   return (
@@ -115,7 +121,7 @@ export function PersonAssignPicker({ open, targetLabel, onAssign, onClose }: Per
                 setCursor((c) => Math.max(0, c - 1))
               } else if (e.key === 'Enter') {
                 e.preventDefault()
-                choose(results[cursor])
+                choose(results[cursor], e.shiftKey)
               }
             }}
             placeholder="Name, alias or ICG-ID…"
@@ -137,7 +143,7 @@ export function PersonAssignPicker({ open, targetLabel, onAssign, onClose }: Per
             results.map((p, i) => (
               <li key={`${p.kind}-${p.icgId}`}>
                 <button
-                  onClick={() => choose(p)}
+                  onClick={(e) => choose(p, e.shiftKey)}
                   onMouseEnter={() => setCursor(i)}
                   className={cn(
                     'flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors duration-150',
@@ -166,7 +172,9 @@ export function PersonAssignPicker({ open, targetLabel, onAssign, onClose }: Per
         </ul>
 
         <p className="border-t border-border/60 px-3 py-1.5 text-[11px] text-muted-foreground">
-          ↑↓ move · Enter assign · Esc close — new identities are created from a catalogue import, not here
+          ↑↓ move · Enter assign · <span className="font-medium">Shift+Enter</span> add and keep the folder open · Esc close
+          <br />
+          New identities come from a catalogue import, not from here.
         </p>
       </div>
     </div>

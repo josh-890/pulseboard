@@ -1233,7 +1233,7 @@ is this*, and the candidates sit on the number keys.
 | Key | |
 |---|---|
 | `1`…`9` | confirm the n-th candidate |
-| `⇧`+`1`…`9` | add a second person and stay on the folder |
+| `⇧`+`1`…`9` | add a further person and stay on the folder (right-click a candidate does the same) |
 | `A` | confirm everyone the folder itself suggests |
 | `X` | drop the top candidate; the next moves up to `1` |
 
@@ -1244,7 +1244,7 @@ And in both directions:
 | `←` `→` | move through the folders |
 | `Space` | skip for now |
 | `U` | undo this folder |
-| `/` | search for someone the matcher never proposed |
+| `/` | search for someone the matcher never proposed — `⇧`+`Enter` there adds them **and keeps the folder open**, so a set with several unproposed people is entered in one pass |
 | `M` | switch between the two directions |
 | `G` | contact sheet — for "are these the same person?" |
 | `I` | how much the overlay says: name → name, channel and date → off |
