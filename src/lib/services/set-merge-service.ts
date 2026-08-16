@@ -160,7 +160,7 @@ export async function mergeSetRecords(
     prisma.set.findUniqueOrThrow({
       where: { id: setIdA },
       select: {
-        id: true, title: true, externalId: true, channelId: true, type: true, isComplete: true, coverMediaItemId: true,
+        id: true, title: true, externalId: true, channelId: true, type: true, isComplete: true, coverMediaItemId: true, coverIsProvisional: true,
         channel: { select: { labelId: true } },
         _count: { select: { setMediaItems: true } },
         archiveLinks: { select: { status: true, archivePath: true } },
@@ -170,7 +170,7 @@ export async function mergeSetRecords(
     prisma.set.findUniqueOrThrow({
       where: { id: setIdB },
       select: {
-        id: true, title: true, externalId: true, channelId: true, type: true, isComplete: true, coverMediaItemId: true,
+        id: true, title: true, externalId: true, channelId: true, type: true, isComplete: true, coverMediaItemId: true, coverIsProvisional: true,
         channel: { select: { labelId: true } },
         _count: { select: { setMediaItems: true } },
         archiveLinks: { select: { status: true, archivePath: true } },
@@ -338,7 +338,12 @@ export async function mergeSetRecords(
     const updates: Record<string, unknown> = {}
     if (!surviving.externalId && absorbed.externalId) updates.externalId = absorbed.externalId
     if (!surviving.isComplete && absorbed.isComplete) updates.isComplete = true
-    if (!surviving.coverMediaItemId && absorbed.coverMediaItemId) updates.coverMediaItemId = absorbed.coverMediaItemId
+    // An inherited cover keeps its standing: a stand-in stays a stand-in, so a
+    // later upload into the surviving set can still take the place over.
+    if (!surviving.coverMediaItemId && absorbed.coverMediaItemId) {
+      updates.coverMediaItemId = absorbed.coverMediaItemId
+      updates.coverIsProvisional = absorbed.coverIsProvisional
+    }
     if (Object.keys(updates).length > 0) {
       await tx.set.update({ where: { id: survivingId }, data: updates })
     }

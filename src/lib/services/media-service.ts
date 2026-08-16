@@ -368,6 +368,13 @@ type CreateMediaItemDirectInput = {
   sourceVideoRef?: string;
   sourceTimecodeMs?: number;
   isAnnotation?: boolean;
+  /**
+   * This image is a stand-in for a cover, not one of the set's own pictures —
+   * today only the thumbnail carried over from a staged set at promotion. It
+   * still takes an empty cover slot, but marks it as unclaimed so the first
+   * real image may take it over. See Set.coverIsProvisional.
+   */
+  provisionalCover?: boolean;
 };
 
 export async function createMediaItemDirect(
@@ -434,15 +441,19 @@ export async function createMediaItemDirect(
         },
       });
 
-      // Auto-assign cover if the set doesn't have one yet
+      // Auto-assign the cover if the set has none — or if what sits there is a
+      // stand-in and this is a real picture of the set. A provisional cover
+      // never displaces another one: the first stand-in stays until something
+      // better than a stand-in arrives.
       const set = await tx.set.findUnique({
         where: { id: input.setId },
-        select: { coverMediaItemId: true },
+        select: { coverMediaItemId: true, coverIsProvisional: true },
       });
-      if (set && !set.coverMediaItemId) {
+      const isProvisional = input.provisionalCover ?? false;
+      if (set && (!set.coverMediaItemId || (set.coverIsProvisional && !isProvisional))) {
         await tx.set.update({
           where: { id: input.setId },
-          data: { coverMediaItemId: mediaItemId },
+          data: { coverMediaItemId: mediaItemId, coverIsProvisional: isProvisional },
         });
       }
 

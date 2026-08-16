@@ -151,10 +151,11 @@ export async function cascadeHardDeleteMediaItems(
 ): Promise<PhotoVariants[]> {
   if (mediaItemIds.length === 0) return [];
 
-  // 1. NULL out coverMediaItemId on any sets referencing these items
+  // 1. NULL out coverMediaItemId on any sets referencing these items.
+  //    An empty slot is not a provisional one — the flag describes an occupant.
   await tx.set.updateMany({
     where: { coverMediaItemId: { in: mediaItemIds } },
-    data: { coverMediaItemId: null },
+    data: { coverMediaItemId: null, coverIsProvisional: false },
   });
 
   // 2. Hard-delete SetMediaItem

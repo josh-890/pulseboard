@@ -1122,6 +1122,20 @@ In a (non-promoted) staging set's slide panel, the **Participants** block lets y
 3. Click **"Promote"** — creates or updates a production Set, marks the staging set PROMOTED
 4. The `archiveKey` from the staging set is copied to the promoted Set and linked ArchiveFolder
 
+**The cover comes along.** If the staged set has one and the Set has none, the
+cover is copied into the Set's session as an ordinary image — so it sits with the
+set's other pictures and can be replaced, favourited or deleted like any of them.
+
+What happens when you upload the set's images afterwards depends on where that
+cover came from:
+
+| The cover came from | On upload |
+|---|---|
+| The **import** (the publisher's cover art) | It stays the cover. It is a picture of its own, not one of your files, and nothing else in the set shows it. |
+| The **archive** (a thumbnail the app made of the folder's own image) | The first uploaded image takes the cover over. The thumbnail was only holding the place until the real picture arrived — it stays in the gallery, where you can delete it. |
+
+Once you pick a cover yourself, it is yours: no upload ever displaces it.
+
 ---
 
 ## 13. Archive

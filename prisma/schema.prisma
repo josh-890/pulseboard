@@ -1069,6 +1069,11 @@ model Set {
   releaseDateSource    String?
   coverMediaItemId     String?
   coverMediaItem       MediaItem?    @relation("SetCoverMedia", fields: [coverMediaItemId], references: [id])
+  // The cover is a stand-in nobody chose: the 512 px thumbnail carried over from
+  // the staged set at promotion. Without this flag the first-come rule keeps it
+  // for ever, so a set whose full-size images arrive later still shows the
+  // thumbnail. A real upload takes the place over; an explicit pick clears it.
+  coverIsProvisional   Boolean       @default(false)
   category             String?
   genre                String?
   tags                 String[]
