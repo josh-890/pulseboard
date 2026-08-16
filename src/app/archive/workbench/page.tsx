@@ -25,6 +25,10 @@ export default async function WorkbenchPage({ searchParams }: { searchParams: Se
   if (!groupKey && !folderId) notFound()
   const fromRaw = one(sp.from)
   const from = fromRaw === 'conflicted' || fromRaw === 'decided' ? fromRaw : 'open'
+  // Only an internal path: a `back` from the query string is user input, and an
+  // absolute URL here would be an open redirect.
+  const backRaw = one(sp.back)
+  const back = backRaw && backRaw.startsWith('/') && !backRaw.startsWith('//') ? backRaw : undefined
 
   return withTenantFromHeaders(async () => {
     const data = folderId
@@ -37,6 +41,7 @@ export default async function WorkbenchPage({ searchParams }: { searchParams: Se
     return (
       <WorkbenchClient
         from={from}
+        back={back}
         data={{
           key: data.key,
           channelShortName: data.channelShortName,

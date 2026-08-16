@@ -4,9 +4,11 @@ import {
   castDisagreement,
   confirmFolderIdentity,
   getWorkbenchFolder,
+  getWorkbenchFolderSession,
   removeFolderAttribution,
 } from "@/lib/services/attribution-confirm-service";
 import { normalizeForSearch } from "@/lib/normalize";
+import { escapeLike } from "@/lib/prisma-like";
 
 // Editing the people on one folder, from the archive list.
 //
@@ -25,12 +27,21 @@ const PREFIX = "FPE-TEST";
 const TENANT = "test";
 
 afterEach(async () => {
+  // Keyed on fullPath, not folderName: a seed may need a realistic folder name
+  // (`2016-02-06-KCQ Katya - …`) which does not start with the prefix, and rows
+  // left behind collide on the next run through the unique fullPath.
+  //
+  // Through `escapeLike`, because the path contains backslashes and Postgres
+  // reads those as LIKE escapes — the filter matched nothing, the folders
+  // survived, and the *second* run of this file failed on the unique fullPath
+  // while the first passed. Exactly what `prisma-like.ts` warns about.
   const folders = await prisma.archiveFolder.findMany({
-    where: { folderName: { startsWith: PREFIX } },
+    where: { fullPath: { startsWith: escapeLike(`X:\\${PREFIX}`) } },
     select: { id: true },
   });
   const ids = folders.map((f) => f.id);
   if (ids.length) {
+    await prisma.archiveFolderSuggestion.deleteMany({ where: { archiveFolderId: { in: ids } } });
     await prisma.archiveFolderAttribution.deleteMany({ where: { archiveFolderId: { in: ids } } });
     await prisma.archiveFolderReview.deleteMany({ where: { archiveFolderId: { in: ids } } });
     await prisma.archiveLink.deleteMany({ where: { archiveFolderId: { in: ids } } });
@@ -40,11 +51,11 @@ afterEach(async () => {
   await prisma.set.deleteMany({ where: { title: { startsWith: PREFIX } } });
 });
 
-async function seedFolder(name: string) {
+async function seedFolder(name: string, folderName?: string) {
   return prisma.archiveFolder.create({
     data: {
       fullPath: `X:\\${PREFIX}\\${name}`,
-      folderName: `${PREFIX} ${name}`,
+      folderName: folderName ?? `${PREFIX} ${name}`,
       isVideo: false,
       scannedAt: new Date(),
       tenant: TENANT,
@@ -78,6 +89,40 @@ describe("getWorkbenchFolder", () => {
 
   it("returns null for an id that is not a folder", async () => {
     expect(await getWorkbenchFolder("no-such-folder")).toBeNull();
+  });
+});
+
+describe("getWorkbenchFolderSession", () => {
+  // A folder that suggests nobody still has candidates: they come from the other
+  // folders sharing its alias, which is what the queue shows. Opening the folder
+  // directly used to drop them and answer "no candidate for this folder" where
+  // the queue answered with a name (seen on "KC Katya - Ibiza Backstage Part 1",
+  // which carries no suggestion of its own).
+  it("carries the alias group's votes for a folder that suggests nobody", async () => {
+    const quiet = await seedFolder("quiet", `2016-02-06-${PREFIX}Q Katya - Quiet One`);
+    const loud = await seedFolder("loud", `2016-03-06-${PREFIX}Q Katya - Loud One`);
+    await prisma.archiveFolder.updateMany({
+      where: { id: { in: [quiet.id, loud.id] } },
+      data: { parsedShortName: `${PREFIX}Q` },
+    });
+    await prisma.archiveFolderSuggestion.create({
+      data: {
+        archiveFolderId: loud.id,
+        icgId: "KY-0001",
+        name: "Katya Clover",
+        source: "CATALOGUE",
+        tier: "EXACT",
+        score: 1,
+        demotions: [],
+      },
+    });
+
+    const session = await getWorkbenchFolderSession(quiet.id);
+    expect(session?.folders[0]?.suggestions).toEqual([]);
+    expect(session?.votes.map((v) => v.icgId)).toEqual(["KY-0001"]);
+    // Still a single-folder session: no group progress, no next group.
+    expect(session?.key).toBeNull();
+    expect(session?.nextGroupKey).toBeNull();
   });
 });
 

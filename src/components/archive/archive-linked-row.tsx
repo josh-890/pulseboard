@@ -16,9 +16,11 @@ const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000
 
 type Props = {
   item: ArchiveFolderEntry
+  /** Where the folder editor returns to — the list exactly as you left it. */
+  backHref?: string
 }
 
-export function ArchiveLinkedRow({ item }: Props) {
+export function ArchiveLinkedRow({ item, backHref }: Props) {
   const [pending, startTransition] = useTransition()
   const router = useRouter()
 
@@ -158,7 +160,7 @@ export function ArchiveLinkedRow({ item }: Props) {
       {/* Edit the people on this folder — always reachable, whether or not
           anybody is recorded yet. */}
       <Link
-        href={`/archive/workbench?folder=${item.id}`}
+        href={`/archive/workbench?folder=${item.id}${backHref ? `&back=${encodeURIComponent(backHref)}` : ''}`}
         title="Edit the people on this folder"
         className="shrink-0 text-muted-foreground/50 transition-colors hover:text-foreground"
       >

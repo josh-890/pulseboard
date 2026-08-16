@@ -23,7 +23,11 @@ import type {
   FolderIdentityStatus,
   Prisma,
 } from '@/generated/prisma/client'
-import { getAttributionGroups, type AttributionGroup } from '@/lib/services/attribution-suggestion-service'
+import {
+  aggregateAttributionGroups,
+  getAttributionGroups,
+  type AttributionGroup,
+} from '@/lib/services/attribution-suggestion-service'
 import { archiveFieldsFromFolder, parseFolderParticipantRaw } from '@/lib/services/archive-service'
 import { buildUrl } from '@/lib/media-url'
 import { resolvePersonReferences, type PersonReference } from '@/lib/services/person-reference-service'
@@ -1183,17 +1187,53 @@ export async function getWorkbenchFolderSession(folderId: string): Promise<Workb
   const folder = await getWorkbenchFolder(folderId)
   if (!folder) return null
 
+  // The folder's alias group still votes here.
+  //
+  // Most folders suggest nobody themselves — "2016-02-06-KC Katya - Ibiza
+  // Backstage Part 1" has no suggestion at all, and the candidate the queue
+  // offers for it (Katya Clover) comes from the other folders sharing its alias.
+  // Opening one folder must not throw that away, or the direct route answers
+  // "no candidate" where the queue answers with a name.
+  const meta = await prisma.archiveFolder.findUnique({
+    where: { id: folderId },
+    select: { parsedShortName: true },
+  })
+  const short = (meta?.parsedShortName ?? '?').toUpperCase()
+  const groupKey = `${short}|${normalizeForSearch(parseFolderParticipantRaw(folder.folderName) ?? '')}`
+
+  // Scoped to the channel rather than the whole archive: same aggregation as the
+  // queue, a fraction of the rows.
+  const siblings = await prisma.archiveFolder.findMany({
+    where: {
+      ...UNSETTLED_FOLDER,
+      ...(short === '?' ? { parsedShortName: null } : { parsedShortName: { equals: short, mode: 'insensitive' } }),
+    },
+    select: {
+      id: true,
+      folderName: true,
+      parsedShortName: true,
+      suggestions: { select: { icgId: true, name: true, demotions: true, source: true } },
+    },
+  })
+  const group = aggregateAttributionGroups(siblings).find((g) => g.key === groupKey) ?? null
+
   const icgIds = [
-    ...new Set([...folder.suggestions.map((s) => s.icgId), ...folder.attributions.map((a) => a.icgId)]),
+    ...new Set([
+      ...folder.suggestions.map((s) => s.icgId),
+      ...folder.attributions.map((a) => a.icgId),
+      ...(group?.votes ?? []).map((v) => v.icgId),
+    ]),
   ]
   const refs = await resolvePersonReferences(icgIds)
 
   return {
+    // Null keeps the client in single-folder shape (no progress, no next group);
+    // the votes still arrive, so the candidate list is the queue's.
     key: null,
-    channelShortName: null,
-    aliasToken: null,
-    votes: [],
-    votedFolders: 0,
+    channelShortName: group?.channelShortName ?? null,
+    aliasToken: group?.aliasToken ?? null,
+    votes: group?.votes ?? [],
+    votedFolders: group?.votedFolders ?? 0,
     folders: [folder],
     references: [...refs.values()],
     nextGroupKey: null,

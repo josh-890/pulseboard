@@ -76,14 +76,23 @@ type Filter = 'open' | 'all' | 'decided'
  * "are these the same person?", which a contact sheet answers and a single image
  * cannot.
  */
-export function WorkbenchClient({ data, from = 'open' }: { data: WorkbenchData; from?: string }) {
+export function WorkbenchClient({
+  data,
+  from = 'open',
+  back,
+}: {
+  data: WorkbenchData
+  from?: string
+  /** The list this session was opened from, restored exactly on the way out. */
+  back?: string
+}) {
   // A session about one folder has no group behind it: no votes to pin a person
   // on, no progress worth a bar, no next group. It came from the archive list and
   // that is where leaving returns to, with the row marked.
   const singleFolder = data.key === null
   /** The view the operator came from, so leaving returns them to it. */
   const queueHref = singleFolder
-    ? `/archive?highlight=${data.folders[0]?.id ?? ''}`
+    ? (back ?? `/archive?highlight=${data.folders[0]?.id ?? ''}`)
     : from === 'open'
       ? '/archive/attribution'
       : `/archive/attribution?view=${from}`

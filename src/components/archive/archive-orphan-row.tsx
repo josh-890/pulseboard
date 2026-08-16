@@ -20,9 +20,11 @@ type Props = {
   /** Called after the folder leaves the orphan list (linked or deleted) so the parent
    *  can drop it from its client-fetched state — router.refresh() can't (see workspace). */
   onRemoved?: (id: string) => void
+  /** Where the folder editor returns to — the list exactly as you left it. */
+  backHref?: string
 }
 
-export function ArchiveOrphanRow({ item, onRemoved }: Props) {
+export function ArchiveOrphanRow({ item, onRemoved, backHref }: Props) {
   const [pending, startTransition] = useTransition()
   const [dismissed, setDismissed] = useState(false)
   const [pickerOpen, setPickerOpen] = useState(false)
@@ -189,7 +191,7 @@ export function ArchiveOrphanRow({ item, onRemoved }: Props) {
             only exists where somebody is recorded, and the folder you most want to
             open is the one where nobody is. */}
         <Link
-          href={`/archive/workbench?folder=${item.id}`}
+          href={`/archive/workbench?folder=${item.id}${backHref ? `&back=${encodeURIComponent(backHref)}` : ''}`}
           title="Edit the people on this folder"
           className="shrink-0 text-muted-foreground/50 transition-colors hover:text-foreground"
         >

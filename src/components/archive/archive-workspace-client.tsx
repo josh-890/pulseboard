@@ -3,6 +3,7 @@
 import Link from 'next/link'
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
+import { usePathname, useSearchParams } from 'next/navigation'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { getAppScrollEl } from '@/lib/scroll-container'
 import { FolderSearch, Camera, Film, ChevronDown, Search, ChevronsDownUp, ChevronsUpDown, RefreshCw } from 'lucide-react'
@@ -279,6 +280,16 @@ export function ArchiveWorkspaceClient({
 
   // Highlight: transient ring on a specific folder row
   const [activeHighlight, setActiveHighlight] = useState<string | undefined>(highlightId)
+
+  // Where "back" leads out of the folder editor. Taken from the live URL rather
+  // than assumed to be /archive: the tab, the search and the video filter live
+  // there, and returning to a bare /archive throws all three away.
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
+  const backHref = useMemo(() => {
+    const qs = searchParams.toString()
+    return qs ? `${pathname}?${qs}` : pathname
+  }, [pathname, searchParams])
 
   const listRef = useRef<HTMLDivElement>(null)
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -1011,7 +1022,7 @@ export function ArchiveWorkspaceClient({
                         'py-0.5 rounded-xl transition-all duration-500',
                         activeHighlight === row.item.id && 'ring-2 ring-amber-400 ring-offset-1',
                       )}>
-                        <ArchiveOrphanRow item={row.item} onRemoved={removeFolderItem} />
+                        <ArchiveOrphanRow item={row.item} onRemoved={removeFolderItem} backHref={backHref} />
                       </div>
                     )}
                     {row.kind === 'folder-item' && (tab === 'linked' || (tab === 'all' && !!(row.item.linkedSetId || row.item.linkedStagingId))) && (
@@ -1019,7 +1030,7 @@ export function ArchiveWorkspaceClient({
                         'py-0.5 rounded-xl transition-all duration-500',
                         activeHighlight === row.item.id && 'ring-2 ring-amber-400 ring-offset-1',
                       )}>
-                        <ArchiveLinkedRow item={row.item} />
+                        <ArchiveLinkedRow item={row.item} backHref={backHref} />
                       </div>
                     )}
                     {row.kind === 'flat-item' && row.itemType === 'phantom' && (
