@@ -23,7 +23,7 @@ import type {
   FolderIdentityStatus,
 } from '@/generated/prisma/client'
 import { getAttributionGroups, type AttributionGroup } from '@/lib/services/attribution-suggestion-service'
-import { parseFolderParticipantRaw } from '@/lib/services/archive-service'
+import { archiveFieldsFromFolder, parseFolderParticipantRaw } from '@/lib/services/archive-service'
 import { buildUrl } from '@/lib/media-url'
 import { resolvePersonReferences, type PersonReference } from '@/lib/services/person-reference-service'
 import { UNSETTLED_FOLDER } from '@/lib/services/archive-unsettled'
@@ -759,9 +759,17 @@ export async function linkFolderToStagingSet(
 ): Promise<{ added: number; withheld: WithheldClaim[] }> {
   const folder = await prisma.archiveFolder.findUnique({
     where: { id: folderId },
-    select: { relativePath: true, tenant: true },
+    select: {
+      relativePath: true, fullPath: true, fileCount: true,
+      videoPresent: true, missingOnDisk: true, tenant: true,
+    },
   })
   if (!folder) throw new Error('Archive folder not found')
+
+  // The link inherits what the scan already established about the folder, rather
+  // than reporting PENDING until some later scan repeats it — see
+  // `archiveFieldsFromFolder`.
+  const archiveFields = archiveFieldsFromFolder(folder)
 
   await prisma.archiveLink.upsert({
     where: { archiveFolderId: folderId },
@@ -770,16 +778,15 @@ export async function linkFolderToStagingSet(
       stagingSetId,
       status: 'CONFIRMED',
       confirmedAt: new Date(),
-      archivePath: folder.relativePath ?? undefined,
-      archiveStatus: folder.relativePath ? 'PENDING' : 'UNKNOWN',
       tenant: folder.tenant,
+      ...archiveFields,
     },
     update: {
       stagingSetId,
       setId: null,
       status: 'CONFIRMED',
       confirmedAt: new Date(),
-      archivePath: folder.relativePath ?? undefined,
+      ...archiveFields,
     },
   })
 

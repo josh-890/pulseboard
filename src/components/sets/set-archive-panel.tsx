@@ -59,7 +59,7 @@ type SetArchivePanelProps = {
 
 const ARCHIVE_STATUS_CONFIG: Record<ArchiveStatus, { label: string; dot: string; icon: React.ReactNode }> = {
   UNKNOWN:    { label: 'No path',    dot: 'bg-gray-400',   icon: <FolderOpen size={14} className="text-gray-400" /> },
-  PENDING:    { label: 'Pending',    dot: 'bg-blue-400',   icon: <FolderOpen size={14} className="text-blue-400" /> },
+  PENDING:    { label: 'Not scanned',    dot: 'bg-blue-400',   icon: <FolderOpen size={14} className="text-blue-400" /> },
   OK:         { label: 'OK',         dot: 'bg-green-500',  icon: <FolderCheck size={14} className="text-green-500" /> },
   CHANGED:    { label: 'Changed',    dot: 'bg-amber-500',  icon: <FolderCheck size={14} className="text-amber-500" /> },
   MISSING:    { label: 'Missing',    dot: 'bg-red-500',    icon: <FolderX size={14} className="text-red-500" /> },

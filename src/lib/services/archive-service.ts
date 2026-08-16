@@ -2809,6 +2809,47 @@ export async function getArchiveWorkspace(filters: WorkspaceFilters): Promise<Wo
 
 // ─── Workspace Actions ────────────────────────────────────────────────────────
 
+/** What a link can say about the folder behind it, the moment the link is made. */
+export type FolderArchiveFacts = {
+  relativePath: string | null
+  fullPath: string
+  fileCount: number | null
+  videoPresent: boolean | null
+  missingOnDisk: boolean
+}
+
+/**
+ * The archive fields a new link inherits from its folder.
+ *
+ * `PENDING` means "a path was recorded, nothing has looked at it yet" — true of a
+ * path that came from an import file, never of an `ArchiveFolder`: that row exists
+ * *because* a scan created it (`scannedAt` is non-nullable) and it carries the file
+ * count. Linking to one and then reporting PENDING states less than the app knows,
+ * and it reads as "this link is unconfirmed" on the set page, where the only
+ * remedy on offer — a confirm button — is absent, because the link *is* confirmed.
+ * Seen on "Exploring Myself Color": developed from its folder, 105 files counted,
+ * displayed as pending until the next targeted scan happened to run.
+ *
+ * A folder the last full scan could not find is reported as MISSING, not OK. The
+ * link may well be right; the folder is still gone, and that is what the status
+ * describes.
+ */
+export function archiveFieldsFromFolder(folder: FolderArchiveFacts): {
+  archivePath: string
+  archiveStatus: ArchiveStatus
+  archiveFileCount: number | null
+  archiveVideoPresent: boolean | null
+} {
+  return {
+    // Fall back to fullPath when no configured root matched: verbose but truthful,
+    // and the matcher pass tightens it on the next scan.
+    archivePath: folder.relativePath ?? folder.fullPath,
+    archiveStatus: folder.missingOnDisk ? 'MISSING' : 'OK',
+    archiveFileCount: folder.fileCount ?? null,
+    archiveVideoPresent: folder.videoPresent ?? null,
+  }
+}
+
 /**
  * Confirm a suggested (or manually chosen) link between an ArchiveFolder and a DB set.
  * Creates/updates a CONFIRMED ArchiveLink record and writes archive fields into it.
@@ -2820,7 +2861,7 @@ export async function confirmArchiveFolderLink(
 ): Promise<void> {
   const folder = await prisma.archiveFolder.findUnique({
     where: { id: folderId },
-    select: { relativePath: true, fullPath: true, isVideo: true, fileCount: true, videoPresent: true, tenant: true },
+    select: { relativePath: true, fullPath: true, isVideo: true, fileCount: true, videoPresent: true, missingOnDisk: true, tenant: true },
   })
   if (!folder) throw new Error('Archive folder not found')
 
@@ -2865,16 +2906,7 @@ export async function confirmArchiveFolderLink(
     }
   }
 
-  // Manual confirm is the user's explicit "this folder is the one" — record
-  // OK status unconditionally. Fall back to fullPath for archivePath if no
-  // configured root matched (relativePath still null); display is verbose
-  // but truthful, and the matcher pass will tighten it on next scan.
-  const archiveFields = {
-    archivePath: relativePath ?? folder.fullPath,
-    archiveStatus: 'OK' as const,
-    archiveFileCount: folder.fileCount ?? null,
-    archiveVideoPresent: folder.videoPresent ?? null,
-  }
+  const archiveFields = archiveFieldsFromFolder({ ...folder, relativePath })
 
   await prisma.archiveLink.upsert({
     where: { archiveFolderId: folderId },
@@ -3021,16 +3053,17 @@ export async function createStagingSetFromOrphan(
     select: { id: true },
   })
 
-  // Create CONFIRMED ArchiveLink
+  // Create CONFIRMED ArchiveLink. The set is being made *from* this folder, so the
+  // link inherits what the scan already established about it — see
+  // `archiveFieldsFromFolder`.
   await prisma.archiveLink.create({
     data: {
       archiveFolderId: folderId,
       stagingSetId: stagingSet.id,
       status: 'CONFIRMED',
       confirmedAt: new Date(),
-      archivePath: folder.relativePath ?? undefined,
-      archiveStatus: folder.relativePath ? 'PENDING' : 'UNKNOWN',
       tenant: folder.tenant,
+      ...archiveFieldsFromFolder(folder),
     },
   })
 

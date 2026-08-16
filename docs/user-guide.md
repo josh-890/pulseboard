@@ -1154,7 +1154,7 @@ Every Set card and Staging Set row shows a small status dot for its archive fold
 | 🟡 Amber | **Suggestion** | Matching folder found (not yet confirmed) |
 | 🟠 Orange | **Incomplete** | Folder found but file count below expected |
 | 🔴 Red | **Missing** | Previously linked folder no longer found on disk |
-| 🔵 Blue | **Pending** | Path recorded, not yet scanned |
+| 🔵 Blue | **Not scanned** | A path was recorded, but no scan has looked at it. Only happens for a path that came from an import file — a link you made to a folder in the Archive inherits that folder's file count straight away |
 | ⬜ Empty outline | **None** | No archive folder linked |
 
 Hover the dot for a tooltip with folder name, path, and file count.
