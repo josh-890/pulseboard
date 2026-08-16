@@ -202,6 +202,18 @@ export function AttributionQueueClient({ initialQueue, view, conflicts }: Attrib
                       {g.folders} folder{g.folders === 1 ? '' : 's'}
                       {g.openFolders < g.folders && ` · ${g.openFolders} open`}
                     </span>
+                    {/* Work done folder-by-folder in the workbench never gives the
+                        group a decision, so `attributedFolders` stayed invisible and a
+                        group 98% finished looked untouched. Say where that work went:
+                        a confirmed folder is not done, it is waiting in Develop. */}
+                    {g.attributedFolders > 0 && (
+                      <span
+                        className="shrink-0 text-xs tabular-nums text-emerald-700 dark:text-emerald-400"
+                        title={`${g.attributedFolders} folder(s) here are attributed and waiting in Develop (stage 2)`}
+                      >
+                        · {g.attributedFolders} confirmed
+                      </span>
+                    )}
                     {g.handMarked > 0 && (
                       <span
                         className="inline-flex shrink-0 items-center gap-1 rounded bg-emerald-500/15 px-1.5 py-0.5 text-xs text-emerald-700 dark:text-emerald-400"
