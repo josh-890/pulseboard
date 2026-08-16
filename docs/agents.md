@@ -320,6 +320,40 @@ app has no route to the archive filesystem.
 
 ---
 
+## Importing a person you have already marked in the archive
+
+Her markers and her import meet in four records that live on four pages — the
+Person, her staged sets, the marked folders, and the links between them. When the
+result looks wrong the question is always which of the four disagrees, so take a
+snapshot at each step:
+
+```bash
+npx tsx scripts/import-test-snapshot.ts <ICG-ID>          # xpulse; --dev for the dev DB
+```
+
+1. **Before the import.** How many folders propose her, which of them carry your
+   own markers, whether a ghost `Contact` already exists. This is the baseline.
+2. **Import the file.** The snapshot should now show the Person, her staged sets,
+   and no Contact — the import retires the ghost.
+3. **Match.** Nothing links itself: the scan records folders, matching compares
+   them to sets. Newly imported sets need **Re-match** on `/archive`, or *Search
+   archive* on the single set. Expect HIGH for a folder whose name carries one of
+   her aliases on the set's release day; the snapshot marks anything below HIGH
+   with ⚠, which is where a same-day folder for a *different* person shows up.
+4. **Confirm the links.** A confirmed link settles the folder, so it leaves the
+   attribution queue — including "My markers". That is correct and not a loss:
+   the linked set's cast now answers "who is in this folder", and the next Full
+   scan writes her into the folder's `cast.json`. A marker only becomes a claim
+   for folders no set ever arrives for.
+5. **Promote.** The archive link moves to the Set; the staged cover is copied into
+   the Set's session. A publisher cover stays the cover; an archive thumbnail is a
+   stand-in that the first uploaded image replaces (ADR-0031).
+
+The snapshot earns its keep on the tangled ones — a person spread over many
+channels, or credited under a different name in every folder.
+
+---
+
 ## A routine round, in order
 
 1. `.\archive-scan.ps1 -Mode Full` — the disk truth first; everything else works

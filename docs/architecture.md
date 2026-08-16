@@ -267,6 +267,10 @@ depends on which side was touched last. Read-only, takes no side (an import list
 incomplete; a folder attribution is the owner's assertion, ADR-0027), and returns `checked` /
 `comparable` alongside the rows so a 0 can be told apart from "nothing was comparable". Surfaced
 on `/maintenance`; `scripts/detect-attribution-conflicts.ts --prod` runs it per tenant.
+`scripts/import-test-snapshot.ts <ICG-ID>` (read-only) puts the four records that meet here — the
+Person, her staged sets, the folders proposing her, and the links — on one screen, and flags the
+cases that have gone wrong before: a link below HIGH, a folder proposing more than one person, a
+ghost `Contact` left standing beside a Person. Runbook: `docs/agents.md`.
 NOTE: the attribution queue only offers folders **without** a confirmed link (`UNSETTLED_FOLDER`),
 so today the two populations are disjoint by construction and the detector reads 0/0 — it goes
 live the moment an attributed folder is developed, linked or has a matcher suggestion confirmed.
