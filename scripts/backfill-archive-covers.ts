@@ -76,12 +76,30 @@ async function backfill(tenant: string) {
     await prisma.stagingSet.update({ where: { id: s.id }, data: { coverImageUrl: url } })
     filled++
 
-    // A Set promoted before this ran has no cover either. The transfer skips one
-    // that already has a cover, so running it twice is harmless.
+    // A Set promoted before this ran may have no cover either. The transfer skips
+    // one that already has a cover — rightly: a cover from an upload is the real
+    // thing and an archive thumbnail must not overwrite it.
+    //
+    // It reports nothing, so the effect is read from the Set itself. Counting calls
+    // instead of effects made this script claim it had handed covers to four Sets
+    // that all already had one.
     if (s.promotedSetId) {
+      const before = await prisma.set.findUnique({
+        where: { id: s.promotedSetId },
+        select: { coverMediaItemId: true },
+      })
+      if (before?.coverMediaItemId) {
+        console.log('    Set already has a cover — left alone')
+        continue
+      }
       try {
         await transferStagingCoverToSet(url, s.promotedSetId)
-        handedOn++
+        const after = await prisma.set.findUnique({
+          where: { id: s.promotedSetId },
+          select: { coverMediaItemId: true },
+        })
+        if (after?.coverMediaItemId) handedOn++
+        else console.log('    transfer did nothing (no primary session yet)')
       } catch (err) {
         console.warn(`    transfer failed for ${s.title}:`, err)
       }
@@ -89,7 +107,7 @@ async function backfill(tenant: string) {
   }
 
   if (!apply && candidates.length > 0) console.log('  (dry run — pass --apply to write)')
-  else if (apply) console.log(`  filled ${filled}, handed on to ${handedOn} Set(s)`)
+  else if (apply) console.log(`  filled ${filled} staging cover(s); ${handedOn} Set(s) actually gained one`)
 }
 
 async function main() {
