@@ -1256,7 +1256,7 @@ is this*, and the candidates sit on the number keys.
 | `1`…`9` | confirm the n-th candidate |
 | `⇧`+`1`…`9` | add a further person and stay on the folder (right-click a candidate does the same) |
 | `C` | **single person ⇄ multiple people.** In *multiple people* every key adds and the folder stays open until you finish it — Shift latched, for a run of sets with more than one person in each. The mode is shown at the cover and remembered between sessions |
-| `Enter` | done with this folder — only meaningful while one is being built up |
+| `Enter` | done with this folder: the next one in a group session, **back to the archive list** when you opened a single folder |
 | `A` | confirm everyone the folder itself suggests |
 | `X` | drop the top candidate; the next moves up to `1` |
 

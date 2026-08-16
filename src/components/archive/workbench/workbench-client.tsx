@@ -287,12 +287,23 @@ export function WorkbenchClient({
     [current, run],
   )
 
-  /** Done with this folder: let it go and move on. The write already happened. */
+  /**
+   * Done with this folder. The write already happened; this only decides where
+   * you end up.
+   *
+   * In a group session that is the next folder. In a single-folder session there
+   * is no next folder, so "done" means leaving — without this, Enter and the
+   * button both did nothing visible, which reads as broken.
+   */
   const finishFolder = useCallback(() => {
+    if (singleFolder) {
+      router.push(queueHref)
+      return
+    }
     if (!sticky) return
     setSticky(null)
     advanceAfterDecision()
-  }, [sticky, advanceAfterDecision])
+  }, [singleFolder, router, queueHref, sticky, advanceAfterDecision])
 
   const rejectTop = useCallback(() => {
     if (!current) return
@@ -596,7 +607,13 @@ export function WorkbenchClient({
           candidates={candidates}
           references={refMap}
           attributions={current?.attributions ?? []}
-          collecting={prefs.collect || sticky === current?.id}
+          // A single-folder session always offers the way out once somebody is
+          // recorded; a group session only while a folder is being built up.
+          showFinish={
+            (current?.attributions.length ?? 0) > 0 &&
+            (singleFolder || prefs.collect || sticky === current?.id)
+          }
+          finishLabel={singleFolder ? 'Done — back to the archive · Enter' : 'Done with this folder · Enter'}
           onRemove={removePerson}
           onFinish={finishFolder}
           decided={!!current && current.identity !== 'OPEN'}

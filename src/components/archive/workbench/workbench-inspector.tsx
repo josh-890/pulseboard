@@ -25,8 +25,9 @@ type InspectorProps = {
   mode: WorkbenchMode
   /** Who is already recorded for this folder — the cast being built. */
   attributions: { icgId: string; name: string }[]
-  /** Collect mode is on, or this folder is being held open while it is built up. */
-  collecting: boolean
+  /** Whether to offer the way out of this folder, and what it is called. */
+  showFinish: boolean
+  finishLabel: string
   onRemove: (icgId: string) => void
   onFinish: () => void
   /** In person-led mode the pinned person; in folder-led the likeliest candidate. */
@@ -61,7 +62,8 @@ type InspectorProps = {
 export function WorkbenchInspector({
   mode,
   attributions,
-  collecting,
+  showFinish,
+  finishLabel,
   onRemove,
   onFinish,
   subject,
@@ -103,14 +105,14 @@ export function WorkbenchInspector({
               </button>
             </div>
           ))}
-          {collecting && (
+          {showFinish && (
             <button
               type="button"
               onClick={onFinish}
               disabled={busy}
               className="mt-1 w-full rounded bg-primary px-2 py-1 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
             >
-              Done with this folder · Enter
+              {finishLabel}
             </button>
           )}
         </div>
