@@ -87,6 +87,42 @@ describe("createStagingSetFromFolder", () => {
     expect(review?.develop, "the folder leaves the develop queue").toBe("DEVELOPED");
   });
 
+  // A date without a precision is a date the app refuses to use: `computeProductionAge`
+  // returns nothing when the precision is UNKNOWN, so a set developed from a folder
+  // showed no participant ages at all — on the set page and on the session page —
+  // although the release date and the birthdate were both on file.
+  it("gives the folder's date its precision", async () => {
+    const folder = await seedFolder("Dated");
+    const res = await createStagingSetFromFolder(folder.id, { participants: [] });
+    const ss = await prisma.stagingSet.findUniqueOrThrow({
+      where: { id: res.stagingSetId },
+      select: { releaseDate: true, releaseDatePrecision: true },
+    });
+    expect(ss.releaseDate?.toISOString().slice(0, 10)).toBe("2016-02-06");
+    expect(ss.releaseDatePrecision, "the folder name carries a full YYYY-MM-DD").toBe("DAY");
+  });
+
+  it("leaves the precision unknown when the folder has no date", async () => {
+    const folder = await prisma.archiveFolder.create({
+      data: {
+        fullPath: `X:\\${PREFIX}\\Undated`,
+        folderName: `${PREFIX} Undated`,
+        isVideo: false,
+        scannedAt: new Date(),
+        tenant: TENANT,
+        parsedTitle: `${PREFIX} Undated`,
+        parsedShortName: "SSF",
+      },
+    });
+    const res = await createStagingSetFromFolder(folder.id, { participants: [] });
+    const ss = await prisma.stagingSet.findUniqueOrThrow({
+      where: { id: res.stagingSetId },
+      select: { releaseDate: true, releaseDatePrecision: true },
+    });
+    expect(ss.releaseDate).toBeNull();
+    expect(ss.releaseDatePrecision).toBe("UNKNOWN");
+  });
+
   it("takes the operator's corrections over what the folder name said", async () => {
     const folder = await seedFolder("Mis Parsed");
     const channel = await prisma.channel.create({

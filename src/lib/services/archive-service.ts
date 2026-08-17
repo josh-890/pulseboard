@@ -3194,7 +3194,12 @@ export async function createStagingSetFromOrphan(
       channelName,
       channelId: channelId ?? null,
       releaseDate: releaseDate ?? undefined,
-      ...(overrides.releaseDatePrecision ? { releaseDatePrecision: overrides.releaseDatePrecision } : {}),
+      // A date without a precision is a date the app refuses to use: the age of a
+      // participant is computed from the session or release date and returns
+      // nothing when the precision is UNKNOWN, so a set developed from a folder
+      // showed no ages at all. Both sources here are day-precise — the folder
+      // name carries a full YYYY-MM-DD, and the dialogue's date field is a day.
+      releaseDatePrecision: overrides.releaseDatePrecision ?? (releaseDate ? 'DAY' : 'UNKNOWN'),
       isVideo: overrides.isVideo ?? folder.isVideo,
       ...(overrides.externalId ? { externalId: overrides.externalId } : {}),
       ...(overrides.notes ? { notes: overrides.notes } : {}),
