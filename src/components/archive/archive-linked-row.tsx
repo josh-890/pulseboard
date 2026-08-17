@@ -181,10 +181,13 @@ export function ArchiveLinkedRow({ item, backHref }: Props) {
 
       {/* Who is in it. A linked folder usually answers this through its set's
           cast rather than through a claim of yours — both are shown, apart. */}
-      {(item.people.claims.length > 0 || item.people.cast.length > 0) && (
+      {(item.people.claims.length > 0 ||
+        item.people.cast.length > 0 ||
+        item.people.markers.length > 0) && (
         <ArchiveRowPeople
           claims={item.people.claims}
           cast={item.people.cast}
+          markers={item.people.markers}
           className="pl-5"
         />
       )}

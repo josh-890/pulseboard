@@ -524,7 +524,11 @@ export function ArchiveWorkspaceClient({
         // The people line only exists where somebody is recorded, so folders
         // nobody has touched stay as compact as they were — 5,320 of them.
         const people =
-          row.item.people.claims.length > 0 || row.item.people.cast.length > 0 ? PEOPLE_H : 0
+          row.item.people.claims.length > 0 ||
+          row.item.people.cast.length > 0 ||
+          row.item.people.markers.length > 0
+            ? PEOPLE_H
+            : 0
         if (tab === 'linked' || (tab === 'all' && isLinked)) return LINKED_H + people
         if (tab === 'orphan' || (tab === 'all' && !isLinked)) {
           const hasSug = !!(row.item.suggestedSetId || row.item.suggestedStagingId)

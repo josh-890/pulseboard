@@ -1187,10 +1187,11 @@ a marker or a confirmed claim.
 
 Every folder row in the archive list shows the people it is said to hold:
 
-- **solid green** — your own attribution, made in the workbench or raised from a
-  marker file in `.pulseboard\`
+- **solid green** — your own attribution, recorded
 - **outlined grey** — the cast of the set behind a confirmed link, i.e. who the
   publisher credited
+- **dashed violet, with a `?`** — a marker file in `.pulseboard\` that nobody has
+  confirmed yet. It is waiting for you in **Attribution queue → My markers**
 
 The two are never merged. A folder settled by an import usually shows only the
 second: its people were answered by the set, which is why nothing needs doing.

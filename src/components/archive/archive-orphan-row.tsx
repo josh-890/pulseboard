@@ -217,10 +217,13 @@ export function ArchiveOrphanRow({ item, onRemoved, backHref }: Props) {
 
       {/* Who is in it — only when somebody is, so a folder nobody has touched
           stays as compact as it was. The row height constants follow this. */}
-      {(item.people.claims.length > 0 || item.people.cast.length > 0) && (
+      {(item.people.claims.length > 0 ||
+        item.people.cast.length > 0 ||
+        item.people.markers.length > 0) && (
         <ArchiveRowPeople
           claims={item.people.claims}
           cast={item.people.cast}
+          markers={item.people.markers}
           className="pl-5"
         />
       )}

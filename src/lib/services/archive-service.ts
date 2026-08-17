@@ -1045,8 +1045,12 @@ export type ArchiveFolderEntry = {
    * confirmed link. A settled folder usually has only the second: its people were
    * settled by the import, and a row showing claims alone would look empty for
    * exactly the folders that are finished.
+   *
+   * `markers` are hand markers from `.pulseboard\` that nobody has confirmed yet
+   * — the work waiting in **My markers**. Kept apart from `claims` because the
+   * difference is exactly what the row has to show: recorded, or still asking.
    */
-  people: { claims: FolderPerson[]; cast: FolderPerson[] }
+  people: { claims: FolderPerson[]; cast: FolderPerson[]; markers: FolderPerson[] }
 }
 
 export type FolderPerson = { icgId: string; name: string }
@@ -2295,11 +2299,15 @@ async function attachFolderPeople(items: FolderEntryBase[]): Promise<ArchiveFold
   if (items.length === 0) return []
   const ids = items.map((i) => i.id)
 
-  const [attributions, links] = await Promise.all([
+  const [attributions, markerRows, links] = await Promise.all([
     prisma.archiveFolderAttribution.findMany({
       where: { archiveFolderId: { in: ids } },
       select: { archiveFolderId: true, icgId: true, name: true },
       orderBy: { confirmedAt: 'asc' },
+    }),
+    prisma.archiveFolderSuggestion.findMany({
+      where: { archiveFolderId: { in: ids }, source: 'FOLDER_ATTRIBUTION' },
+      select: { archiveFolderId: true, icgId: true, name: true },
     }),
     prisma.archiveLink.findMany({
       where: { archiveFolderId: { in: ids }, status: 'CONFIRMED' },
@@ -2332,9 +2340,25 @@ async function attachFolderPeople(items: FolderEntryBase[]): Promise<ArchiveFold
     )
   }
 
+  // A marker already confirmed is a claim, and showing it twice would make the
+  // row say "still asking" about something already settled.
+  const markersBy = new Map<string, FolderPerson[]>()
+  for (const m of markerRows) {
+    const claimed = new Set((claimsBy.get(m.archiveFolderId) ?? []).map((c) => c.icgId))
+    if (claimed.has(m.icgId)) continue
+    const list = markersBy.get(m.archiveFolderId) ?? []
+    if (list.some((p) => p.icgId === m.icgId)) continue
+    list.push({ icgId: m.icgId, name: m.name })
+    markersBy.set(m.archiveFolderId, list)
+  }
+
   return items.map((item) => ({
     ...item,
-    people: { claims: claimsBy.get(item.id) ?? [], cast: castBy.get(item.id) ?? [] },
+    people: {
+      claims: claimsBy.get(item.id) ?? [],
+      cast: castBy.get(item.id) ?? [],
+      markers: markersBy.get(item.id) ?? [],
+    },
   }))
 }
 
