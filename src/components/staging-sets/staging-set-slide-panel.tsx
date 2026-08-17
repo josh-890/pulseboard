@@ -28,7 +28,7 @@ import type { StagingSetStatus, ArchiveStatus } from '@/generated/prisma/client'
 // (recordArchivePathAction / clearArchivePathAction removed — scan-first workflow only)
 import { acceptDateSuggestionAction, dismissDateSuggestionAction, removeStagingSetParticipantAction, addStagingSetParticipantAction, rejectStagingSetMatchAction } from '@/lib/actions/staging-set-actions'
 import { unlinkArchiveFolderAction, rematchItemAction } from '@/lib/actions/archive-actions'
-import { channelLabel } from '@/lib/channel-label'
+import { channelDisplay } from '@/lib/channel-label'
 import Link from 'next/link'
 
 // ─── Constants ─────────────────────────────────────────────────────────────
@@ -489,7 +489,15 @@ function PanelContent({
             </div>
             <FieldRow label="Title" value={stagingSet.title} />
             <FieldRow label="External ID" value={stagingSet.externalId} />
-            <FieldRow label="Channel" value={channelLabel(stagingSet)} warn={!stagingSet.channelId} />
+            <FieldRow
+              label="Channel"
+              value={
+                channelDisplay(stagingSet).importedAs
+                  ? `${channelDisplay(stagingSet).label} · imported as "${channelDisplay(stagingSet).importedAs}"`
+                  : channelDisplay(stagingSet).label
+              }
+              warn={!stagingSet.channelId}
+            />
             {dateSuggestion && !stagingSet.releaseDate && (
               <div className="mb-1 flex items-center justify-between rounded-md border border-amber-500/30 bg-amber-500/10 px-2.5 py-1.5">
                 <span className="flex items-center gap-1.5 text-xs text-amber-500">

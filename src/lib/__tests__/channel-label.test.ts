@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { channelLabel } from "@/lib/channel-label";
+import { channelDisplay, channelLabel } from "@/lib/channel-label";
 
 // Which of two channel names goes on screen.
 //
@@ -30,5 +30,45 @@ describe("channelLabel", () => {
 
   it("uses the record even when both agree", () => {
     expect(channelLabel({ channelName: "MetArt", channel: { name: "MetArt" } })).toBe("MetArt");
+  });
+});
+
+// The second kind of disagreement, and the one that must survive: two import
+// names deliberately mapped to one channel — a base channel and its archive or
+// cover feed. 1,955 rows across 42 channels on xpulse. Folding those into the
+// canonical name would erase a distinction the operator made on purpose, and
+// would hide a wrong mapping ("ALSANGELS" → ALSScan) along with it.
+describe("channelDisplay", () => {
+  it("says nothing extra when the import merely spelled it differently", () => {
+    for (const raw of ["KATYA CLOVER", "katyaclover", "Katya-Clover", "KATYA  CLOVER"]) {
+      expect(channelDisplay({ channelName: raw, channel: { name: "KatyaClover" } })).toEqual({
+        label: "KatyaClover",
+        importedAs: null,
+      });
+    }
+  });
+
+  it("keeps a materially different import name beside the record", () => {
+    expect(channelDisplay({ channelName: "ALS ARCHIVE", channel: { name: "ALSScan" } })).toEqual({
+      label: "ALSScan",
+      importedAs: "ALS ARCHIVE",
+    });
+    expect(channelDisplay({ channelName: "ONLYTEASE COVERS", channel: { name: "OnlyTease" } }))
+      .toEqual({ label: "OnlyTease", importedAs: "ONLYTEASE COVERS" });
+  });
+
+  // A mapping that is simply wrong stays visible for the same reason.
+  it("shows a name that does not belong to the channel it was mapped to", () => {
+    expect(channelDisplay({ channelName: "ALSANGELS", channel: { name: "ALSScan" } }).importedAs)
+      .toBe("ALSANGELS");
+  });
+
+  // An unresolved row's label already *is* the file's name; repeating it would
+  // render "FOO · FOO".
+  it("does not repeat itself when nothing resolved", () => {
+    expect(channelDisplay({ channelName: "FOO", channel: null })).toEqual({
+      label: "FOO",
+      importedAs: null,
+    });
   });
 });

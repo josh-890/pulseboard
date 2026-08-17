@@ -12,7 +12,7 @@ import type { ArchivePerson } from '@/lib/archive-cast-gap'
 import type { StagingSetStatus } from '@/generated/prisma/client'
 import { confirmArchiveFolderLinkAction, rejectArchiveSuggestionAction } from '@/lib/actions/archive-actions'
 import { acceptDateSuggestionAction, dismissDateSuggestionAction, confirmAndApproveStagingSetAction } from '@/lib/actions/staging-set-actions'
-import { channelLabel } from '@/lib/channel-label'
+import { channelDisplay } from '@/lib/channel-label'
 import { ArchiveFolderPicker } from './archive-folder-picker'
 import { StagingSetCoverUpload } from './staging-set-cover-upload'
 import { StagingSetStatusMenu } from './staging-set-status-menu'
@@ -276,6 +276,7 @@ export const StagingSetRow = memo(function StagingSetRow({
   const [dateSuggestion, setDateSuggestion] = useState(ss.releaseDateSuggestion ?? null)
   const [isDateSuggestionPending, setIsDateSuggestionPending] = useState(false)
   const statuses = (ss.participantStatuses as ParticipantStatus[] | null) ?? []
+  const channel = channelDisplay(ss)
   const dateStr = ss.releaseDate
     ? new Date(ss.releaseDate).toISOString().split('T')[0]
     : dateSuggestion
@@ -598,8 +599,19 @@ export const StagingSetRow = memo(function StagingSetRow({
                 !ss.channelId && 'text-amber-500',
               )}
             >
-              {channelLabel(ss)}
+              {channel.label}
             </span>
+            {/* The import file's own name, only when it is not just a respelling:
+                "ALS ARCHIVE" under ALSScan is a feed you mapped on purpose, and
+                a wrong mapping is visible for the same reason. */}
+            {channel.importedAs && (
+              <span
+                className="shrink-0 truncate text-muted-foreground/70"
+                title={`Imported as "${channel.importedAs}"`}
+              >
+                · {channel.importedAs}
+              </span>
+            )}
             {ss.isVideo && (
               <span className="shrink-0 text-violet-400" title="Video">
                 <Film size={11} />
