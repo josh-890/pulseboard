@@ -32,6 +32,7 @@ export async function GET(request: Request) {
       const noDate = url.searchParams.get('noDate') === 'true' || undefined
       const hasDateSuggestion = url.searchParams.get('hasDateSuggestion') === 'true' || undefined
       const noCover = url.searchParams.get('noCover') === 'true' || undefined
+      const archiveNamesOthers = url.searchParams.get('archiveNamesOthers') === 'true' || undefined
 
       const showDuplicates = url.searchParams.get('showDuplicates') === 'true' || undefined
 
@@ -48,6 +49,7 @@ export async function GET(request: Request) {
         noDate,
         hasDateSuggestion,
         noCover,
+        archiveNamesOthers,
         personId: url.searchParams.get('personId') || undefined,
         channelId: url.searchParams.get('channelId') || undefined,
         channelTier,

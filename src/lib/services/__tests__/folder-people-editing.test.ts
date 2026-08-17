@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/db";
+import { getAttributionQueue } from "@/lib/services/attribution-confirm-service";
 import {
   castDisagreement,
   confirmFolderIdentity,
@@ -123,6 +124,48 @@ describe("getWorkbenchFolderSession", () => {
     // Still a single-folder session: no group progress, no next group.
     expect(session?.key).toBeNull();
     expect(session?.nextGroupKey).toBeNull();
+  });
+});
+
+describe("the marked view", () => {
+  // A marker written *after* the folder was answered is new work. It used to
+  // count as done — the folder was ruled on, so it left every view while the
+  // person on disk had never been recorded. Seen with "Gina Gerson" on a folder
+  // whose other two people had just been confirmed in the workbench.
+  it("still offers a folder whose marker nobody confirmed, even once it is answered", async () => {
+    // A channel code without a hyphen: the folder-name parser reads
+    // `YYYY-MM-DD-SHORT Alias - Title`, and a hyphen inside SHORT makes the alias
+    // unparseable, which would put the folder in the `FPEM|` group instead.
+    const folder = await seedFolder("marked", "2016-02-06-FPEM Katya - Ibiza");
+    await prisma.archiveFolder.update({
+      where: { id: folder.id },
+      data: { parsedShortName: "FPEM" },
+    });
+    // Answered: one person confirmed.
+    await confirmFolderIdentity(folder.id, ["ZZ-0001"], { "ZZ-0001": `${PREFIX} Answered` });
+    // And then a marker naming somebody else.
+    await prisma.archiveFolderSuggestion.create({
+      data: {
+        archiveFolderId: folder.id,
+        icgId: "GX-0002",
+        name: `${PREFIX} Marked`,
+        source: "FOLDER_ATTRIBUTION",
+        tier: "EXACT",
+        score: 1,
+        demotions: [],
+      },
+    });
+
+    const group = (await getAttributionQueue({ view: "marked" })).groups.find(
+      (g) => g.key === "FPEM|katya",
+    );
+    expect(group, "the group must be offered under My markers").toBeDefined();
+    expect(group?.unclaimedMarked).toBe(1);
+
+    // Confirming the marker settles it: the group leaves the view.
+    await confirmFolderIdentity(folder.id, ["GX-0002"], { "GX-0002": `${PREFIX} Marked` });
+    const after = await getAttributionQueue({ view: "marked" });
+    expect(after.groups.some((g) => g.key === "FPEM|katya")).toBe(false);
   });
 });
 

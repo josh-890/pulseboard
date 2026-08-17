@@ -24,7 +24,8 @@ export default async function WorkbenchPage({ searchParams }: { searchParams: Se
   const folderId = one(sp.folder)
   if (!groupKey && !folderId) notFound()
   const fromRaw = one(sp.from)
-  const from = fromRaw === 'conflicted' || fromRaw === 'decided' ? fromRaw : 'open'
+  const from =
+    fromRaw === 'conflicted' || fromRaw === 'decided' || fromRaw === 'marked' ? fromRaw : 'open'
   // Only an internal path: a `back` from the query string is user input, and an
   // absolute URL here would be an open redirect.
   const backRaw = one(sp.back)

@@ -1161,6 +1161,28 @@ The refresh button on the **staged-sets** page is a different thing: it updates
 participant statuses and checks whether a staged set already exists as a
 production Set. It never looks at the archive.
 
+### When the archive and a set disagree
+
+Your statement about a folder — a **marker** on disk or a **confirmed** attribution
+— and the **cast** of the set it is linked to are two different records, and
+neither overwrites the other (ADR-0028). Where they disagree, the app says so:
+
+| Where | What you see | What you can do |
+|---|---|---|
+| **Staged sets** browser | a dashed violet avatar beside the cast, and the filter **Archive names others** | **Add to cast** per person, in the slide panel |
+| **Set** page → Archive card | "The archive names N people this set does not credit" | nothing directly — see below |
+| **Archive → Attribution queue → My markers** | groups holding a marker nobody has confirmed | confirm it |
+
+**A promoted set is different, and the reason is not laziness.** Its cast is
+`SetParticipant`, a cache rebuilt from the session's contributions, and both need
+a curated **Person**. So somebody known only as a Contact — the usual case for a
+freshly marked name — cannot be added at all. The card says which of the two you
+are looking at: *"add a session contribution"* when the person exists, *"not
+imported yet"* when they do not. Import them first; the shortcut does not exist.
+
+Catalogue suggestions never trigger any of this. Only what **you** wrote counts —
+a marker or a confirmed claim.
+
 ### Who is in a folder
 
 Every folder row in the archive list shows the people it is said to hold:

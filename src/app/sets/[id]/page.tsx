@@ -14,6 +14,7 @@ import { deleteSet } from "@/lib/actions/set-actions";
 import { SetActionsMenu } from "@/components/sets/set-actions-menu";
 import { SetHero } from "@/components/sets/set-hero";
 import { SetArchivePanel } from "@/components/sets/set-archive-panel";
+import { getSetArchiveCastGap } from "@/lib/services/attribution-confirm-service";
 import { SetArchiveChipSheet } from "@/components/sets/set-archive-chip-sheet";
 import { SetAboutCard } from "@/components/sets/set-about-card";
 import { CreditsPanel } from "@/components/sets/credits-panel";
@@ -87,6 +88,9 @@ export default async function SetDetailPage({ params }: SetDetailPageProps) {
     const archiveStatus = al?.archiveStatus ?? "UNKNOWN";
     const archiveFileCount = al?.archiveFileCount ?? null;
     const hasSuggestion = archiveSuggestions.length > 0;
+    // Who the archive names for this set's folder and the set does not credit.
+    // Reported, never resolved here: the cast is a cache of SessionContribution.
+    const archiveCastGap = await getSetArchiveCastGap(id);
     const showArchivePanel = archiveStatus !== "OK" || hasSuggestion;
     // Seeds for the manual "Link folder" picker (improves folder-search matching).
     const releaseYear = setData.releaseDate ? new Date(setData.releaseDate).getFullYear() : null;
@@ -288,6 +292,7 @@ export default async function SetDetailPage({ params }: SetDetailPageProps) {
                 mediaPriority={setData.mediaPriority ?? null}
                 mediaQueueAt={setData.mediaQueueAt ?? null}
                 archiveSuggestions={archiveSuggestions}
+                archiveCastGap={archiveCastGap}
                 setTitle={setData.title}
                 releaseYear={releaseYear}
               />

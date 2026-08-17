@@ -36,6 +36,7 @@ export { candidatesForFolder, type FolderCandidate } from '@/lib/attribution-can
 import { createStagingSetFromOrphan } from '@/lib/services/archive-service'
 import { addStagingSetParticipant } from '@/lib/services/staging-set-participants'
 import { loadCasts } from '@/lib/services/set-cast-service'
+import { archivePeopleMissingFromCast } from '@/lib/archive-cast-gap'
 
 export type ConfirmResult = {
   groupKey: string
@@ -410,7 +411,7 @@ export type AttributionView = 'open' | 'conflicted' | 'decided' | 'marked'
 export async function getAttributionQueue(
   opts: { limit?: number; view?: AttributionView } = {},
 ): Promise<AttributionQueue> {
-  const [groups, decisions, reviewed] = await Promise.all([
+  const [groups, decisions, reviewed, unclaimedMarkers] = await Promise.all([
     getAttributionGroups(),
     prisma.attributionGroupDecision.findMany({
       select: { groupKey: true, decision: true, icgIds: true },
@@ -421,10 +422,25 @@ export async function getAttributionQueue(
       where: { identity: { not: 'OPEN' } },
       select: { archiveFolderId: true, identity: true },
     }),
+    // Folders carrying a hand marker nobody has confirmed yet. A marker written
+    // *after* the folder was answered is new work, and counting it as answered
+    // hid it everywhere: the folder is ruled on, so it left every view, while the
+    // person on disk was never recorded (seen with "Gina Gerson" on a folder
+    // whose other two people had just been confirmed).
+    prisma.$queryRaw<{ archiveFolderId: string }[]>`
+      SELECT DISTINCT s."archiveFolderId"
+      FROM archive_folder_suggestion s
+      WHERE s.source = 'FOLDER_ATTRIBUTION'
+        AND NOT EXISTS (
+          SELECT 1 FROM archive_folder_attribution a
+          WHERE a."archiveFolderId" = s."archiveFolderId" AND a."icgId" = s."icgId"
+        )
+    `,
   ])
 
   const decisionOf = new Map(decisions.map((d) => [d.groupKey, d]))
   const ruledOn = new Set(reviewed.map((r) => r.archiveFolderId))
+  const unclaimed = new Set(unclaimedMarkers.map((r) => r.archiveFolderId))
   const confirmed = new Set(reviewed.filter((r) => r.identity === 'CONFIRMED').map((r) => r.archiveFolderId))
 
   const enriched: AttributionQueueGroup[] = groups.map((g) => {
@@ -435,6 +451,7 @@ export async function getAttributionQueue(
       decidedIcgIds: d?.icgIds ?? [],
       attributedFolders: g.folderIds.filter((id) => confirmed.has(id)).length,
       openFolders: g.folderIds.filter((id) => !ruledOn.has(id)).length,
+      unclaimedMarked: g.folderIds.filter((id) => unclaimed.has(id)).length,
     }
   })
 
@@ -446,9 +463,10 @@ export async function getAttributionQueue(
     conflicted: enriched.filter((g) => isOpen(g) && g.votedFolders > 0 && !g.unanimous).length,
     silent: enriched.filter((g) => isOpen(g) && g.votedFolders === 0).length,
     decided: enriched.filter((g) => !isOpen(g)).length,
-    // Groups holding a folder you marked by hand. The highest-ranked source in the
-    // system, and until now the only one with no way to find it again.
-    marked: enriched.filter((g) => isOpen(g) && g.handMarked > 0).length,
+    // Groups holding a marker nobody has confirmed — deliberately NOT gated on
+    // the group being otherwise open. A marker added to a folder you already
+    // answered is exactly the case that had nowhere to appear.
+    marked: enriched.filter((g) => (g.unclaimedMarked ?? 0) > 0).length,
     notAPerson: enriched.filter((g) => g.decision === 'NOT_A_PERSON').length,
     openFolders: enriched.reduce((n, g) => n + (g.decision ? 0 : g.openFolders), 0),
   }
@@ -463,8 +481,8 @@ export async function getAttributionQueue(
           // Most-marked first: the order that matches how the markers were made —
           // one person across a run of folders.
           ? enriched
-              .filter((g) => isOpen(g) && g.handMarked > 0)
-              .sort((a, b) => b.handMarked - a.handMarked)
+              .filter((g) => (g.unclaimedMarked ?? 0) > 0)
+              .sort((a, b) => (b.unclaimedMarked ?? 0) - (a.unclaimedMarked ?? 0))
           : enriched.filter(isOpen)
 
   return { groups: opts.limit ? visible.slice(0, opts.limit) : visible, counts }
@@ -1271,6 +1289,55 @@ export async function getFolderCast(folderId: string): Promise<{
     setTitle: entry?.title ?? null,
     cast: (entry?.cast ?? []).filter((p): p is { icgId: string; name: string } => !!p.icgId),
   }
+}
+
+/**
+ * What the archive names for a Set that the Set does not credit.
+ *
+ * The Set-page counterpart of the staged-sets badge, sharing the same rule. The
+ * resolution differs, and the schema decides it: a promoted Set's cast is
+ * `SetParticipant`, a cache of `SessionContribution`, and both require a curated
+ * `Person`. So a person known only as a `Contact` cannot be added at all — this
+ * reports the disagreement and whether that step is even available.
+ */
+export async function getSetArchiveCastGap(
+  setId: string,
+): Promise<{ icgId: string; name: string; confirmed: boolean; isPerson: boolean }[]> {
+  const link = await prisma.archiveLink.findFirst({
+    where: { setId, status: 'CONFIRMED' },
+    select: {
+      archiveFolder: {
+        select: {
+          attributions: { select: { icgId: true, name: true } },
+          suggestions: { where: { source: 'FOLDER_ATTRIBUTION' }, select: { icgId: true, name: true } },
+        },
+      },
+    },
+  })
+  if (!link?.archiveFolder) return []
+
+  const archive = [
+    ...link.archiveFolder.attributions.map((a) => ({ ...a, confirmed: true })),
+    ...link.archiveFolder.suggestions.map((s) => ({ ...s, confirmed: false })),
+  ]
+  if (archive.length === 0) return []
+
+  const set = await prisma.set.findUnique({
+    where: { id: setId },
+    select: { participants: { select: { person: { select: { icgId: true } } } } },
+  })
+  const missing = archivePeopleMissingFromCast(
+    archive,
+    (set?.participants ?? []).map((p) => ({ icgId: p.person.icgId })),
+  )
+  if (missing.length === 0) return []
+
+  const persons = await prisma.person.findMany({
+    where: { icgId: { in: missing.map((m) => m.icgId) } },
+    select: { icgId: true },
+  })
+  const known = new Set(persons.map((p) => p.icgId))
+  return missing.map((m) => ({ ...m, isPerson: known.has(m.icgId) }))
 }
 
 /**

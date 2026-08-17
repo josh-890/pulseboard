@@ -194,6 +194,15 @@ export type AttributionGroup = {
    * scrolling. Counting them per group is what makes them addressable.
    */
   handMarked: number
+  /**
+   * Folders whose hand marker names somebody who is not yet a claim there.
+   *
+   * `handMarked` counts markers; this counts *unanswered* ones. Filled by
+   * `getAttributionQueue`, which is the only caller that can see attributions.
+   * The distinction is what makes a marker dropped onto an already-answered
+   * folder findable — see the note on the `marked` view.
+   */
+  unclaimedMarked?: number
   /** Who the group's folders point at, highest first. */
   votes: { icgId: string; name: string; folders: number }[]
   /**

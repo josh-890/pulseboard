@@ -522,7 +522,7 @@ function PanelContent({
         )}
 
         {/* Participants */}
-        {(participants.length > 0 || !isPromoted) && (
+        {(participants.length > 0 || !isPromoted || (stagingSet.archiveCastGap ?? []).length > 0) && (
           <div className="rounded-lg border border-border/50 bg-card/50 p-3">
             <h3 className="mb-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
               Participants ({participants.length})
@@ -547,6 +547,58 @@ function PanelContent({
                 )}
               </div>
             ))}
+
+            {/* What the archive says and this set does not.
+                Per person, never as one sweep (a set with four people is four
+                decisions). On a promoted set nothing is offered: the cast there is
+                a cache of SessionContribution, which requires a curated Person —
+                so the honest move is to name the missing step, not to fake a
+                shortcut. */}
+            {(stagingSet.archiveCastGap ?? []).length > 0 && (
+              <div className="mt-2 space-y-1 rounded border border-violet-500/40 bg-violet-500/5 p-2">
+                <p className="text-[10px] uppercase tracking-wide text-violet-700 dark:text-violet-400">
+                  Named by the archive, not credited here
+                </p>
+                {(stagingSet.archiveCastGap ?? []).map((g) => (
+                  <div key={g.icgId} className="flex items-center gap-2">
+                    <span className="min-w-0 flex-1 truncate text-xs">
+                      {g.name}{' '}
+                      <span className="text-[10px] text-muted-foreground">
+                        ({g.icgId}) · {g.confirmed ? 'confirmed' : 'your marker'}
+                      </span>
+                    </span>
+                    {isPromoted ? (
+                      <Link
+                        href={stagingSet.promotedSetId ? `/sets/${stagingSet.promotedSetId}` : '#'}
+                        className="shrink-0 text-[10px] text-muted-foreground underline underline-offset-2 hover:text-foreground"
+                      >
+                        open the set
+                      </Link>
+                    ) : (
+                      <button
+                        type="button"
+                        className="shrink-0 rounded border border-border/60 px-1.5 py-0.5 text-[10px] transition-colors hover:bg-muted"
+                        onClick={async () => {
+                          const res = await addStagingSetParticipantAction(stagingSet.id, {
+                            name: g.name,
+                            icgId: g.icgId,
+                          })
+                          if (res.success) onRefresh()
+                        }}
+                      >
+                        Add to cast
+                      </button>
+                    )}
+                  </div>
+                ))}
+                {isPromoted && (
+                  <p className="text-[10px] text-muted-foreground">
+                    A promoted set&apos;s cast is built from session contributions and needs a
+                    curated Person — import them first, then add the contribution on the set.
+                  </p>
+                )}
+              </div>
+            )}
 
             {/* Add / exchange a participant (non-promoted only) */}
             {!isPromoted && (

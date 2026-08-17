@@ -5,6 +5,7 @@ import {
   FolderOpen, FolderCheck, FolderX,
   Check, X, Flag, Film, FolderSearch, RefreshCw,
 } from 'lucide-react'
+import Link from 'next/link'
 import { ArchiveFolderPicker } from '@/components/staging-sets/archive-folder-picker'
 import { Button } from '@/components/ui/button'
 import {
@@ -50,6 +51,8 @@ type SetArchivePanelProps = {
   mediaQueueAt: Date | null
   folderName?: string | null
   archiveSuggestions?: ArchiveSuggestionProp[]
+  /** People the linked folder names that this set does not credit (ADR-0028). */
+  archiveCastGap?: { icgId: string; name: string; confirmed: boolean; isPerson: boolean }[]
   // Seeds for the manual "Link folder" picker
   setTitle?: string | null
   channelShortName?: string | null
@@ -98,6 +101,7 @@ export function SetArchivePanel(props: SetArchivePanelProps) {
     mediaQueueAt: initialQueueAt,
     folderName,
     archiveSuggestions = [],
+    archiveCastGap = [],
     setTitle,
     channelShortName,
     releaseYear,
@@ -290,6 +294,45 @@ export function SetArchivePanel(props: SetArchivePanelProps) {
 
       {/* Divider */}
       <div className="border-t border-border/40" />
+
+      {/* The archive disagrees with the cast (ADR-0028).
+          Shown, not resolved: this set's cast is SetParticipant, a cache of
+          SessionContribution, and both require a curated Person — so for somebody
+          known only as a Contact there is no shortcut to offer, only the missing
+          step to name. */}
+      {archiveCastGap.length > 0 && (
+        <div className="space-y-1.5 rounded-lg border border-violet-500/40 bg-violet-500/5 p-2.5">
+          <p className="text-xs font-medium text-violet-700 dark:text-violet-400">
+            The archive names {archiveCastGap.length}{' '}
+            {archiveCastGap.length === 1 ? 'person' : 'people'} this set does not credit
+          </p>
+          {archiveCastGap.map((g) => (
+            <div key={g.icgId} className="flex items-center gap-2 text-xs">
+              <span className="min-w-0 flex-1 truncate">
+                {g.name} <span className="text-[10px] text-muted-foreground">({g.icgId})</span>
+                <span className="ml-1 text-[10px] text-muted-foreground">
+                  · {g.confirmed ? 'confirmed claim' : 'your marker'}
+                </span>
+              </span>
+              {g.isPerson ? (
+                <span className="shrink-0 text-[10px] text-muted-foreground">
+                  add a session contribution
+                </span>
+              ) : (
+                <span className="shrink-0 rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] text-amber-700 dark:text-amber-400">
+                  not imported yet
+                </span>
+              )}
+            </div>
+          ))}
+          <Link
+            href="/archive/conflicts"
+            className="inline-block text-[11px] text-muted-foreground underline underline-offset-2 hover:text-foreground"
+          >
+            Settle it in the contradiction session
+          </Link>
+        </div>
+      )}
 
       {/* Possible archive match list — shown when no path is set and suggestions exist */}
       {visibleSuggestions.length > 0 && archiveStatus === 'UNKNOWN' && (

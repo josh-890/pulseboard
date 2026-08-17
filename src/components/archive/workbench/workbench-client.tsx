@@ -98,7 +98,12 @@ export function WorkbenchClient({
       : `/archive/attribution?view=${from}`
   const router = useRouter()
   const [folders, setFolders] = useState(data.folders)
-  const [filter, setFilter] = useState<Filter>(data.key === null ? 'all' : 'open')
+  // Arriving from "My markers" means the work is a marker nobody confirmed — and
+  // that folder may well be *answered* already, so the open pass would not show
+  // it. Start on "all" there, and for a single-folder session.
+  const [filter, setFilter] = useState<Filter>(
+    data.key === null || from === 'marked' ? 'all' : 'open',
+  )
   const [mode, setMode] = useState<WorkbenchMode>(() =>
     // Person-led needs a candidate carrying ≥60 % of a group; one folder is
     // always 100 % of itself, which would make the question meaningless.

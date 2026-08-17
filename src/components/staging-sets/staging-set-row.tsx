@@ -3,11 +3,12 @@
 import { memo, useState, useCallback, useTransition } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
-import { AlertTriangle, CalendarClock, Camera, CheckSquare, CheckCheck, Clock, Copy, ExternalLink, Film, Flag, FolderOpen, FolderSearch, FolderX, Check, Loader2, RotateCcw, X } from 'lucide-react'
+import { AlertTriangle, CalendarClock, Camera, CheckSquare, CheckCheck, Clock, Copy, ExternalLink, Film, Flag, FolderOpen, FolderSearch, FolderX, Check, Loader2, RotateCcw, UserSearch, X } from 'lucide-react'
 import { cn, getInitialsFromName } from '@/lib/utils'
 import { describeMatchLabel } from '@/lib/archive-match-label'
 import { useHoverImagePreview, HoverImagePreview } from '@/components/shared/hover-image-preview'
 import type { StagingSetWithRelations, ParticipantStatus } from '@/lib/services/import/staging-set-service'
+import type { ArchivePerson } from '@/lib/archive-cast-gap'
 import type { StagingSetStatus } from '@/generated/prisma/client'
 import { confirmArchiveFolderLinkAction, rejectArchiveSuggestionAction } from '@/lib/actions/archive-actions'
 import { acceptDateSuggestionAction, dismissDateSuggestionAction, confirmAndApproveStagingSetAction } from '@/lib/actions/staging-set-actions'
@@ -62,6 +63,26 @@ const STATUS_BORDER: Record<ParticipantStatus['status'], string> = {
   known: 'border-emerald-500',
   candidate: 'border-amber-500',
   new: 'border-red-500',
+}
+
+/**
+ * Somebody the archive names for this set's folder, whom the set does not credit.
+ *
+ * Drawn beside the cast, in a colour none of the cast statuses uses and with a
+ * dashed edge: it is not a participant, it is a disagreement waiting for you.
+ */
+function ArchiveGapAvatar({ p }: { p: ArchivePerson }) {
+  return (
+    <div
+      title={`${p.name} (${p.icgId}) — named by the archive folder${p.confirmed ? ' (confirmed)' : ' (your marker)'}, not credited by this set`}
+      className="flex flex-col items-center gap-0.5"
+    >
+      <div className="flex h-12 w-12 items-center justify-center rounded-full border-2 border-dashed border-violet-500 bg-violet-500/10 text-violet-600 dark:text-violet-400">
+        <UserSearch size={18} />
+      </div>
+      <span className="max-w-14 truncate text-[10px] text-violet-600 dark:text-violet-400">{p.name}</span>
+    </div>
+  )
 }
 
 function participantTooltip(p: ParticipantStatus): string {
@@ -597,7 +618,7 @@ export const StagingSetRow = memo(function StagingSetRow({
         </div>
 
         {/* Avatar stack */}
-        {statuses.length > 0 && (
+        {(statuses.length > 0 || (ss.archiveCastGap?.length ?? 0) > 0) && (
           <div className="flex shrink-0 items-center gap-2">
             {visibleAvatars.map((p) => (
               <div
@@ -610,6 +631,9 @@ export const StagingSetRow = memo(function StagingSetRow({
                   {p.name}
                 </span>
               </div>
+            ))}
+            {(ss.archiveCastGap ?? []).map((p) => (
+              <ArchiveGapAvatar key={`gap-${p.icgId}`} p={p} />
             ))}
             {overflowCount > 0 && (
               <div

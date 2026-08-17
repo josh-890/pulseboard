@@ -14,6 +14,7 @@ import type { ChannelTier, DatePrecision, Prisma, StagingSet, StagingSetStatus }
 import type { StagingWorkHistoryItem } from '@/lib/types'
 import { onSetPromoted } from '@/lib/services/coherence-service'
 import type { BlockingFolderInfo, SuggestedFolderInfo } from '@/lib/services/archive-service'
+import { archivePeopleMissingFromCast, type ArchivePerson } from '@/lib/archive-cast-gap'
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -50,6 +51,14 @@ export type StagingSetWithRelations = StagingSet & {
   siblingOf: { id: string; isVideo: boolean } | null
   /** Populated server-side after main query via getSuggestedFoldersForStagingSets */
   suggestedArchiveFolder?: SuggestedFolderInfo | null
+  /**
+   * People the linked archive folder names that this set does not credit.
+   *
+   * Filled per page by `attachArchiveCastGap`. Empty for a set with no confirmed
+   * archive link — nothing to disagree with — and empty when the two agree,
+   * which is the normal case.
+   */
+  archiveCastGap?: ArchivePerson[]
   /**
    * The linked archive folder's cover, resolved server-side.
    *
@@ -666,6 +675,8 @@ export type StagingSetFilters = {
   archiveFilter?: 'hasPath' | 'ok' | 'changed' | 'missing' | 'inQueue' | 'needsMedia'
   readyForPromotion?: boolean
   noCover?: boolean
+  /** Only sets whose linked archive folder names somebody the set does not credit. */
+  archiveNamesOthers?: boolean
   search?: string
   sort?: 'date' | 'title' | 'priority' | 'importDate' | 'undatedFirst'
   sortDir?: 'asc' | 'desc'
@@ -814,6 +825,14 @@ export async function getStagingSetsFiltered(filters: StagingSetFilters): Promis
     }
   }
 
+  if (filters.archiveNamesOthers) {
+    // The comparison is per row and cannot be expressed as a Prisma filter: the
+    // cast lives in JSON for a staged set and in SetParticipant for a promoted
+    // one, and the archive side spans two tables. Resolved to a set of ids here,
+    // the same way `readyForPromotion` handles its own cross-shape question.
+    conditions.push({ id: { in: await stagingSetIdsWhereArchiveNamesOthers() } })
+  }
+
   if (filters.noDate) {
     conditions.push({ releaseDate: null, releaseDateSuggestion: null })
   }
@@ -889,10 +908,161 @@ export async function getStagingSetsFiltered(filters: StagingSetFilters): Promis
   if (hasMore) items.pop()
 
   return {
-    items,
+    items: await attachArchiveCastGap(items),
     total,
     nextCursor: hasMore ? items[items.length - 1].id : null,
   }
+}
+
+/**
+ * The ids of every staged set whose archive folder names somebody it does not credit.
+ *
+ * One pass over confirmed links that carry archive people — a few thousand rows —
+ * rather than a filter Prisma cannot express. Used only when the filter is on.
+ */
+export async function stagingSetIdsWhereArchiveNamesOthers(): Promise<string[]> {
+  const links = await prisma.archiveLink.findMany({
+    where: {
+      status: 'CONFIRMED',
+      archiveFolder: {
+        OR: [{ attributions: { some: {} } }, { suggestions: { some: { source: 'FOLDER_ATTRIBUTION' } } }],
+      },
+    },
+    select: {
+      stagingSetId: true,
+      setId: true,
+      archiveFolder: {
+        select: {
+          attributions: { select: { icgId: true, name: true } },
+          suggestions: { where: { source: 'FOLDER_ATTRIBUTION' }, select: { icgId: true, name: true } },
+        },
+      },
+    },
+  })
+  if (links.length === 0) return []
+
+  const stagingIds = links.map((l) => l.stagingSetId).filter((id): id is string => !!id)
+  const setIds = links.map((l) => l.setId).filter((id): id is string => !!id)
+
+  const [staged, promoted] = await Promise.all([
+    stagingIds.length
+      ? prisma.stagingSet.findMany({
+          where: { id: { in: stagingIds } },
+          select: { id: true, participantIcgIds: true },
+        })
+      : Promise.resolve([]),
+    setIds.length
+      ? prisma.stagingSet.findMany({
+          where: { promotedSetId: { in: setIds } },
+          select: {
+            id: true,
+            promotedSetId: true,
+            promotedSet: { select: { participants: { select: { person: { select: { icgId: true } } } } } },
+          },
+        })
+      : Promise.resolve([]),
+  ])
+
+  const castByStaging = new Map<string, { icgId: string }[]>()
+  for (const s of staged) castByStaging.set(s.id, (s.participantIcgIds ?? []).map((icgId) => ({ icgId })))
+  const stagingBySet = new Map<string, { id: string; cast: { icgId: string }[] }>()
+  for (const s of promoted) {
+    if (!s.promotedSetId) continue
+    stagingBySet.set(s.promotedSetId, {
+      id: s.id,
+      cast: (s.promotedSet?.participants ?? []).map((p) => ({ icgId: p.person.icgId })),
+    })
+  }
+
+  const out: string[] = []
+  for (const l of links) {
+    if (!l.archiveFolder) continue
+    const archive: ArchivePerson[] = [
+      ...l.archiveFolder.attributions.map((a) => ({ ...a, confirmed: true })),
+      ...l.archiveFolder.suggestions.map((s) => ({ ...s, confirmed: false })),
+    ]
+    const target = l.stagingSetId
+      ? { id: l.stagingSetId, cast: castByStaging.get(l.stagingSetId) ?? [] }
+      : l.setId
+        ? stagingBySet.get(l.setId)
+        : undefined
+    if (!target) continue
+    if (archivePeopleMissingFromCast(archive, target.cast).length > 0) out.push(target.id)
+  }
+  return out
+}
+
+/**
+ * Fill `archiveCastGap` for a page of rows.
+ *
+ * One question per row — "does the archive name somebody this set does not?" —
+ * answered in two queries for the whole page. A promoted row is asked about its
+ * Set, because promotion moves the archive link there.
+ *
+ * The comparison itself is `archivePeopleMissingFromCast`, shared with the Set
+ * page so both surfaces cannot drift.
+ */
+export async function attachArchiveCastGap(
+  items: StagingSetWithRelations[],
+): Promise<StagingSetWithRelations[]> {
+  if (items.length === 0) return items
+
+  const stagingIds = items.map((i) => i.id)
+  const setIds = items.map((i) => i.promotedSetId).filter((id): id is string => !!id)
+
+  const links = await prisma.archiveLink.findMany({
+    where: {
+      status: 'CONFIRMED',
+      OR: [{ stagingSetId: { in: stagingIds } }, ...(setIds.length ? [{ setId: { in: setIds } }] : [])],
+    },
+    select: {
+      stagingSetId: true,
+      setId: true,
+      archiveFolder: {
+        select: {
+          attributions: { select: { icgId: true, name: true } },
+          suggestions: {
+            where: { source: 'FOLDER_ATTRIBUTION' },
+            select: { icgId: true, name: true },
+          },
+        },
+      },
+    },
+  })
+  if (links.length === 0) return items
+
+  // Keyed by whichever side the link hangs on; both are cuids, so one map serves.
+  const archiveBy = new Map<string, ArchivePerson[]>()
+  for (const l of links) {
+    const key = l.stagingSetId ?? l.setId
+    if (!key || !l.archiveFolder) continue
+    archiveBy.set(key, [
+      ...l.archiveFolder.attributions.map((a) => ({ ...a, confirmed: true })),
+      ...l.archiveFolder.suggestions.map((s) => ({ ...s, confirmed: false })),
+    ])
+  }
+
+  // A promoted set's cast lives in SetParticipant; an unpromoted one carries the
+  // import's own list.
+  const participantsBySet = new Map<string, { icgId: string }[]>()
+  if (setIds.length > 0) {
+    const rows = await prisma.set.findMany({
+      where: { id: { in: setIds } },
+      select: { id: true, participants: { select: { person: { select: { icgId: true } } } } },
+    })
+    for (const r of rows) {
+      participantsBySet.set(r.id, r.participants.map((p) => ({ icgId: p.person.icgId })))
+    }
+  }
+
+  return items.map((item) => {
+    const archive = archiveBy.get(item.id) ?? (item.promotedSetId ? archiveBy.get(item.promotedSetId) : undefined)
+    if (!archive || archive.length === 0) return item
+    const cast = item.promotedSetId
+      ? (participantsBySet.get(item.promotedSetId) ?? [])
+      : (item.participantIcgIds ?? []).map((icgId) => ({ icgId }))
+    return { ...item, archiveCastGap: archivePeopleMissingFromCast(archive, cast) }
+  })
 }
 
 // ─── Stats ─────────────────────────────────────────────────────────────────
