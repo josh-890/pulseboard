@@ -163,6 +163,9 @@ export function SetComparisonGrid({ comparison, onConfirmMatch, onClearMatch, on
         <FieldRow
           label="Channel"
           existingValue={matchedSet.channel?.name}
+          // Deliberately the raw import value, not `channelLabel`: this row
+          // compares what the file said against what the set holds, and
+          // substituting the catalogue's spelling would compare it with itself.
           importedValue={stagingSet.channelName}
           isSame={channelIsSame}
         />

@@ -12,6 +12,7 @@ import type { ArchivePerson } from '@/lib/archive-cast-gap'
 import type { StagingSetStatus } from '@/generated/prisma/client'
 import { confirmArchiveFolderLinkAction, rejectArchiveSuggestionAction } from '@/lib/actions/archive-actions'
 import { acceptDateSuggestionAction, dismissDateSuggestionAction, confirmAndApproveStagingSetAction } from '@/lib/actions/staging-set-actions'
+import { channelLabel } from '@/lib/channel-label'
 import { ArchiveFolderPicker } from './archive-folder-picker'
 import { StagingSetCoverUpload } from './staging-set-cover-upload'
 import { StagingSetStatusMenu } from './staging-set-status-menu'
@@ -597,7 +598,7 @@ export const StagingSetRow = memo(function StagingSetRow({
                 !ss.channelId && 'text-amber-500',
               )}
             >
-              {ss.channelName}
+              {channelLabel(ss)}
             </span>
             {ss.isVideo && (
               <span className="shrink-0 text-violet-400" title="Video">

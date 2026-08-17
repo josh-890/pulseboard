@@ -6,6 +6,7 @@ import { ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown, ImageIcon, L
 import { cn } from '@/lib/utils'
 import { StagingSetRow } from './staging-set-row'
 import type { StagingSetWithRelations } from '@/lib/services/import/staging-set-service'
+import { channelLabel } from '@/lib/channel-label'
 import type { StagingSetStatus } from '@/generated/prisma/client'
 
 // ─── Types ─────────────────────────────────────────────────────────────────
@@ -56,7 +57,7 @@ const STATUS_ORDER: Record<string, number> = {
 function getGroupKey(item: StagingSetWithRelations, mode: GroupByMode): string {
   switch (mode) {
     case 'channel':
-      return item.channelName || 'Unknown Channel'
+      return channelLabel(item)
     case 'person': {
       const participants = (item.participants as Array<{ name: string }>) ?? []
       return participants[0]?.name || 'Unknown Person'

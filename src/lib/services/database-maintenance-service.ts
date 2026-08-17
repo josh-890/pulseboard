@@ -552,6 +552,86 @@ export async function auditArchiveCovers(): Promise<MaintenanceResult> {
  * Channel-scoped aliases (ADR-0024) need a Channel row too, and confirmation
  * (slice 5) cannot promote a set on a channel that does not exist.
  */
+/**
+ * Channels that look like the same channel twice.
+ *
+ * Two publications under one name is a real possibility, so this reports rather
+ * than fixes. It looks for the two shapes that have actually occurred:
+ *
+ *   **the same name** once separators and case are ignored — "TeamSkeet" exists
+ *   twice on xpulse under the codes TMSK and TSKT, with 5 staged sets on one and
+ *   none on the other. Nothing prevents it: `Channel.nameNorm` has no unique
+ *   constraint, and the codes differ, so every identity check passes.
+ *
+ *   **the same archive folder**, which is *not* by itself a duplicate: ATK,
+ *   ATKPremium, ATKPetites, ATKExotics and ATKArchives all live under `ATK-ATK`
+ *   by design. Listed so the operator can tell the two cases apart, never merged.
+ *
+ * Read-only. Merging two channels moves sets, staged sets, aliases and label maps
+ * — a decision, not a sweep.
+ */
+export async function auditChannelDuplicates(): Promise<MaintenanceResult> {
+  const channels = await prisma.channel.findMany({
+    select: {
+      id: true,
+      name: true,
+      shortName: true,
+      channelFolder: true,
+      labelId: true,
+      _count: { select: { sets: true, stagingSets: true } },
+    },
+  });
+
+  // Separators are the difference that matters here: "Katya Clover" and
+  // "KatyaClover" are one channel spelled twice, which `nameNorm` (which keeps
+  // spaces) cannot see.
+  const squash = (s: string) =>
+    s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "");
+
+  const byName = new Map<string, typeof channels>();
+  for (const c of channels) {
+    const key = squash(c.name);
+    byName.set(key, [...(byName.get(key) ?? []), c]);
+  }
+  const nameGroups = [...byName.values()].filter((g) => g.length > 1);
+
+  const byFolder = new Map<string, typeof channels>();
+  for (const c of channels) {
+    if (!c.channelFolder) continue;
+    const key = c.channelFolder.toLowerCase();
+    byFolder.set(key, [...(byFolder.get(key) ?? []), c]);
+  }
+  const folderGroups = [...byFolder.values()].filter((g) => g.length > 1);
+
+  const describe = (c: (typeof channels)[number]) =>
+    `"${c.name}" [${c.shortName ?? "no code"}] — ${c._count.sets} set(s), ${c._count.stagingSets} staged`;
+
+  const details: string[] = [`${channels.length} channel(s) defined.`];
+
+  if (nameGroups.length === 0) {
+    details.push("No two channels share a name once separators and case are ignored.");
+  } else {
+    details.push(`${nameGroups.length} name collision(s) — the same channel entered twice:`);
+    for (const g of nameGroups) details.push("   " + g.map(describe).join("   ↔   "));
+    details.push(
+      "Merging is a decision: pick the row to keep, move its sets, staged sets and import " +
+        "aliases across, then delete the other. The emptier side is usually the accident.",
+    );
+  }
+
+  if (folderGroups.length > 0) {
+    details.push(
+      `${folderGroups.length} group(s) share an archive folder. This is legitimate when one ` +
+        "directory holds several publications — listed so it can be told apart from a duplicate:",
+    );
+    for (const g of folderGroups.slice(0, 10)) {
+      details.push(`   ${g[0].channelFolder}: ` + g.map((c) => c.name).join(", "));
+    }
+  }
+
+  return { found: nameGroups.length, fixed: 0, details };
+}
+
 export async function checkUndefinedArchiveChannels(): Promise<MaintenanceResult> {
   const [channels, folders] = await Promise.all([
     prisma.channel.findMany({ select: { name: true, shortName: true, labelId: true } }),

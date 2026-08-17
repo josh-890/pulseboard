@@ -10,7 +10,7 @@ import { normalizeForSearch } from '@/lib/normalize'
 import { reconcileContacts } from '@/lib/services/relationship-service'
 import type { ImportItem, Prisma } from '@/generated/prisma/client'
 import { createLabelRecord } from '@/lib/services/label-service'
-import { createChannelRecord } from '@/lib/services/channel-service'
+import { addChannelImportAlias, createChannelRecord } from '@/lib/services/channel-service'
 import { createPersonRecord } from '@/lib/services/person-service'
 import { createAlias, linkAliasToChannels } from '@/lib/services/alias-service'
 import { createDigitalIdentity } from '@/lib/services/digital-identity-service'
@@ -113,6 +113,18 @@ export async function importLabel(item: ImportItem): Promise<ImportResult> {
 
     // If already matched, just mark as imported
     if (item.matchedEntityId) {
+      // Remember the spelling this file used.
+      //
+      // The alias register is what keeps one channel from becoming two: the
+      // matcher's normaliser lowercases and strips accents but keeps separators,
+      // so "KATYA CLOVER" never matches the stored "katyaclover" on the exact
+      // tier — only the alias does. Until now that register was hand-maintained
+      // on the channel page, so every fuzzy-resolved spelling had to be typed in
+      // or the next import repeated the same uncertain step.
+      //
+      // Learned only here, where a match was *acted upon* — never from
+      // `matchChannel`, which also runs for guesses nobody has confirmed.
+      await rememberChannelSpelling(item.matchedEntityId, name)
       await markItemImported(item.id, item.matchedEntityId)
       return { success: true, entityId: item.matchedEntityId, error: null }
     }
@@ -127,6 +139,27 @@ export async function importLabel(item: ImportItem): Promise<ImportResult> {
   }
 }
 
+/**
+ * Record the name an import file used for a channel, unless it is already known.
+ *
+ * Never fails the import: an alias is a convenience for the next run, and losing
+ * it is not worth aborting a confirmed match over.
+ */
+async function rememberChannelSpelling(channelId: string, rawName: string): Promise<void> {
+  try {
+    const channel = await prisma.channel.findUnique({
+      where: { id: channelId },
+      select: { name: true, importAliases: true },
+    })
+    if (!channel) return
+    const spelling = rawName.trim()
+    if (!spelling || spelling === channel.name || channel.importAliases.includes(spelling)) return
+    await addChannelImportAlias(channelId, spelling)
+  } catch (err) {
+    console.error('[importChannel] could not record the import spelling:', err)
+  }
+}
+
 // ─── Import: Channel ────────────────────────────────────────────────────────
 
 export async function importChannel(item: ImportItem): Promise<ImportResult> {
@@ -135,6 +168,18 @@ export async function importChannel(item: ImportItem): Promise<ImportResult> {
     const name = data.name as string
 
     if (item.matchedEntityId) {
+      // Remember the spelling this file used.
+      //
+      // The alias register is what keeps one channel from becoming two: the
+      // matcher's normaliser lowercases and strips accents but keeps separators,
+      // so "KATYA CLOVER" never matches the stored "katyaclover" on the exact
+      // tier — only the alias does. Until now that register was hand-maintained
+      // on the channel page, so every fuzzy-resolved spelling had to be typed in
+      // or the next import repeated the same uncertain step.
+      //
+      // Learned only here, where a match was *acted upon* — never from
+      // `matchChannel`, which also runs for guesses nobody has confirmed.
+      await rememberChannelSpelling(item.matchedEntityId, name)
       await markItemImported(item.id, item.matchedEntityId)
       return { success: true, entityId: item.matchedEntityId, error: null }
     }

@@ -15,6 +15,7 @@ import {
   checkCurrentStateIntegrity,
   auditIcgIdOrigins,
   auditArchiveCovers,
+  auditChannelDuplicates,
   checkUndefinedArchiveChannels,
   auditCatalogueAvatars,
 } from "@/lib/services/database-maintenance-service";
@@ -179,6 +180,20 @@ export async function auditCatalogueAvatarsAction(): Promise<MaintenanceActionRe
     try {
       // Read-only — nothing to revalidate.
       const result = await auditCatalogueAvatars();
+      return { success: true, ...result };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unexpected error";
+      return { success: false, error: message };
+    }
+  });
+}
+
+export async function auditChannelDuplicatesAction(): Promise<MaintenanceActionResult> {
+  return withTenantFromHeaders(async () => {
+    try {
+      // Read-only: merging two channels moves sets, staged sets, aliases and
+      // label maps — a decision, not a sweep.
+      const result = await auditChannelDuplicates();
       return { success: true, ...result };
     } catch (err) {
       const message = err instanceof Error ? err.message : "Unexpected error";

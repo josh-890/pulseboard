@@ -36,6 +36,7 @@ import {
   checkCurrentStateIntegrityAction,
   auditIcgIdOriginsAction,
   auditArchiveCoversAction,
+  auditChannelDuplicatesAction,
   checkUndefinedArchiveChannelsAction,
   auditCatalogueAvatarsAction,
 } from "@/lib/actions/database-maintenance-actions";
@@ -139,6 +140,13 @@ const actions: ActionConfig[] = [
       "How many archive folders have a cover thumbnail, and which ones failed. The cover agent fails one folder at a time and records why, so a single corrupt image never derails a full run \u2014 this is where those failures become actionable. Read-only: clean or re-encode the listed files, then re-run archive-cover.ps1 -RetryFailed.",
     icon: <ImageOffIcon className="h-5 w-5 text-muted-foreground" />,
     action: auditArchiveCoversAction,
+  },
+  {
+    title: "Duplicate Channels",
+    description:
+      "Two channel records for the same channel. Looks for names that are identical once separators and case are ignored (\"KatyaClover\" vs \"Katya Clover\") — nothing prevents this today, since nameNorm keeps spaces and has no unique constraint. Also lists channels sharing one archive folder, which is legitimate when a directory holds several publications (ATK-ATK holds five) and is shown so the two cases can be told apart. Read-only: merging moves sets, staged sets, aliases and label maps, so it stays a decision.",
+    icon: <RadioTower className="h-5 w-5 text-muted-foreground" />,
+    action: auditChannelDuplicatesAction,
   },
   {
     title: "Undefined Archive Channels",

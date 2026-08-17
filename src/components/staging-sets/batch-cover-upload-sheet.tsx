@@ -12,6 +12,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import type { StagingSetWithRelations } from '@/lib/services/import/staging-set-service'
+import { channelLabel } from '@/lib/channel-label'
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
@@ -354,7 +355,7 @@ export function BatchCoverUploadSheet({
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-medium">{set.title}</p>
                         <p className="truncate text-[11px] text-muted-foreground">
-                          {set.externalId} · {set.channelName}
+                          {set.externalId} · {channelLabel(set)}
                           {set.releaseDate && ` · ${new Date(set.releaseDate).toISOString().split('T')[0]}`}
                         </p>
                       </div>
@@ -384,7 +385,7 @@ export function BatchCoverUploadSheet({
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm">{set.title}</p>
                       <p className="truncate text-[11px] text-muted-foreground">
-                        {set.externalId ?? '—'} · {set.channelName}
+                        {set.externalId ?? '—'} · {channelLabel(set)}
                       </p>
                     </div>
                     <ConfidenceBadge confidence="none" />
