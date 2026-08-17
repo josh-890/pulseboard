@@ -1144,6 +1144,26 @@ Once you pick a cover yourself, it is yours: no upload ever displaces it.
 
 The Archive workspace shows the filesystem scan results — a record of every folder found in the configured archive root(s) and its link status to DB records.
 
+### Making a set out of an archive folder
+
+Two ways in, one outcome:
+
+| Where | Gesture |
+|---|---|
+| **Archive → Attribution queue → Develop confirmed sets** | one click per folder — for folders whose people you have already confirmed |
+| **Archive list → `+ Create`** | a dialogue, so you can fix a mis-parsed title, channel or date first |
+
+Either way the new staged set gets the folder's **cover**, a confirmed **archive
+link**, status **Pending** (it goes through review like any other), and the
+folder leaves the develop queue. The people come from the folder's **confirmed
+attributions** — with their ICG-ID, and resolved to a Person where one exists —
+not from the name in the folder path; the alias from the path is kept as the
+*credited as* name.
+
+If a staged set for that folder already exists — typically one that arrived
+through a person's import and was never linked — the dialogue says so when it
+opens, and saving **links to it** instead of creating a second one.
+
 ### Finding the folder for a set
 
 Scanning and matching are two different steps. The **scan** records what is on

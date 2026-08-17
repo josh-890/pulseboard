@@ -190,7 +190,12 @@ export async function createManualStagingSetAction(
       select: { id: true },
     })
 
-    // Link the source archive folder (CONFIRMED) when created from the Archive Browser.
+    // Link the source archive folder (CONFIRMED) if one was named.
+    //
+    // The Archive Browser no longer comes through here — a folder goes through
+    // `createStagingSetFromFolder`, which also brings the cover, the duplicate
+    // guard, the review state and PENDING. This branch remains for any caller
+    // that has a folder but wants the plain manual creation.
     if (input.archiveFolderId) {
       await confirmArchiveFolderLink(input.archiveFolderId, stagingSet.id, 'staging')
     }

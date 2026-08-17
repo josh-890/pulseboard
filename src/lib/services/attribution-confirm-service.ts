@@ -33,8 +33,14 @@ import { buildUrl } from '@/lib/media-url'
 import { resolvePersonReferences, type PersonReference } from '@/lib/services/person-reference-service'
 import { UNSETTLED_FOLDER } from '@/lib/services/archive-unsettled'
 export { candidatesForFolder, type FolderCandidate } from '@/lib/attribution-candidates'
-import { createStagingSetFromOrphan } from '@/lib/services/archive-service'
-import { addStagingSetParticipant } from '@/lib/services/staging-set-participants'
+import {
+  createStagingSetFromOrphan,
+  type StagingSetFromFolderOverrides,
+} from '@/lib/services/archive-service'
+import {
+  addStagingSetParticipant,
+  type StagingParticipantInput,
+} from '@/lib/services/staging-set-participants'
 import { loadCasts } from '@/lib/services/set-cast-service'
 import { archivePeopleMissingFromCast } from '@/lib/archive-cast-gap'
 
@@ -722,6 +728,41 @@ export async function developFolder(
     throw new Error('Only a confirmed folder can be developed')
   }
 
+  return createStagingSetFromFolder(folderId, {
+    participants: attributions.map((a) => ({
+      name: a.name,
+      icgId: a.icgId,
+      ...(a.personId ? { personId: a.personId } : {}),
+    })),
+  })
+}
+
+/**
+ * Turn one archive folder into a staged set — the single path, whatever the entry.
+ *
+ * The develop queue calls it with the folder's confirmed attributions and no
+ * overrides (one click). The archive row's dialogue calls it with whatever the
+ * operator corrected and whichever people they settled on. Everything else —
+ * reusing an existing staged set instead of creating a twin, the cover, the
+ * CONFIRMED link, the review state, `PENDING` — happens here, once, so the two
+ * entry points cannot drift the way they had:
+ *
+ *   the dialogue built its own StagingSet and produced one with the participant
+ *   unresolved (it searched the folder-name alias instead of reading the
+ *   attribution), no cover, no duplicate guard, no review state, and APPROVED.
+ */
+export async function createStagingSetFromFolder(
+  folderId: string,
+  input: {
+    participants: StagingParticipantInput[]
+    overrides?: StagingSetFromFolderOverrides
+  },
+): Promise<{
+  stagingSetId: string
+  participants: number
+  linkedExisting: boolean
+  withheld: WithheldClaim[]
+}> {
   // Never create a set that already exists. We come at the archive from the disk
   // side now, so a folder may well correspond to a StagingSet that arrived through
   // a person's import and was simply never linked — measured at 106 such folders
@@ -732,25 +773,23 @@ export async function developFolder(
     return { stagingSetId: existing.id, participants: added, linkedExisting: true, withheld }
   }
 
-  const { stagingSetId } = await createStagingSetFromOrphan(folderId)
+  const { stagingSetId } = await createStagingSetFromOrphan(folderId, input.overrides)
 
   // Participants are written through the staging service's own shape so the
   // derived fields (participantIcgIds, participantNamesNorm, statuses) stay
   // consistent with every other path that touches a staging set.
-  for (const a of attributions) {
-    await addStagingSetParticipant(stagingSetId, {
-      name: a.name,
-      icgId: a.icgId,
-      ...(a.personId ? { personId: a.personId } : {}),
-    })
+  let added = 0
+  for (const p of input.participants) {
+    const res = await addStagingSetParticipant(stagingSetId, p)
+    if (res.added) added++
   }
 
   await prisma.$transaction(async (tx) => {
     await setReview(tx, folderId, { develop: 'DEVELOPED' })
   })
   // A set built from this folder starts with no cast of its own, so there is
-  // nothing here that the attributions could contradict.
-  return { stagingSetId, participants: attributions.length, linkedExisting: false, withheld: [] }
+  // nothing here that the given people could contradict.
+  return { stagingSetId, participants: added, linkedExisting: false, withheld: [] }
 }
 
 export type ExistingStagingMatch = {

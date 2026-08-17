@@ -332,6 +332,7 @@ export function ArchiveOrphanRow({ item, onRemoved, backHref }: Props) {
         initialReleaseDatePrecision={dateStr ? 'DAY' : 'UNKNOWN'}
         initialIsVideo={item.isVideo}
         initialParticipantName={item.parsedParticipant}
+        initialParticipants={item.people.claims}
         archiveFolderId={item.id}
         onCreated={() => onRemoved?.(item.id)}
       />

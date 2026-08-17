@@ -14,6 +14,13 @@ export type StagingParticipantInput = {
   name: string
   icgId?: string
   personId?: string
+  /**
+   * The alias this person appeared under in this set (ADR-0024), distinct from
+   * their identity name. Carried here because every path that adds a participant
+   * goes through this writer — one that dropped it would lose the credited-as
+   * name silently.
+   */
+  usedName?: string
 }
 
 export type AddParticipantResult = { added: boolean; reason?: 'not-found' | 'duplicate' }
@@ -46,6 +53,9 @@ export async function addStagingSetParticipant(
       icgId: icg,
       status: participant.personId ? ('known' as const) : ('candidate' as const),
       ...(participant.personId ? { personId: participant.personId } : {}),
+      ...(participant.usedName && participant.usedName !== participant.name
+        ? { usedName: participant.usedName }
+        : {}),
     },
   ]
 

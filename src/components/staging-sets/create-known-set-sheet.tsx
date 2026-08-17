@@ -18,6 +18,10 @@ import { Label } from "@/components/ui/label";
 import { EntityCombobox } from "@/components/shared/entity-combobox";
 import { PartialDateInput } from "@/components/shared/partial-date-input";
 import { createManualStagingSetAction } from "@/lib/actions/staging-set-actions";
+import {
+  createStagingSetFromFolderAction,
+  findExistingStagingSetAction,
+} from "@/lib/actions/attribution-actions";
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
@@ -54,6 +58,15 @@ export type CreateKnownSetSheetProps = {
   initialReleaseDatePrecision?: DatePrecision;
   initialIsVideo?: boolean;
   initialParticipantName?: string | null;
+  /**
+   * The folder's **confirmed** people, when it has any.
+   *
+   * Outranks `initialParticipantName`, which is only the alias parsed out of the
+   * folder name: an attribution carries the ICG-ID and, where the person is
+   * curated, the `personId` — so they arrive resolved instead of as an
+   * "unresolved" candidate the operator has to look up again (ADR-0027).
+   */
+  initialParticipants?: { icgId: string; name: string; personId?: string | null }[];
   /** When set, the created staging set is linked (CONFIRMED) to this archive folder. */
   archiveFolderId?: string;
 };
@@ -71,6 +84,7 @@ export function CreateKnownSetSheet({
   initialReleaseDatePrecision,
   initialIsVideo,
   initialParticipantName,
+  initialParticipants,
   archiveFolderId,
 }: CreateKnownSetSheetProps) {
   const [isPending, startTransition] = useTransition();
@@ -153,10 +167,54 @@ export function CreateKnownSetSheet({
     if (match) setChannelId(match.id);
   }, [open, initialChannelShortName, channels]);
 
+  /**
+   * The staged set this folder probably already is.
+   *
+   * Asked when the sheet opens, so a twin can be prevented rather than cleaned up:
+   * a folder often corresponds to a set that arrived through a person's import
+   * and was never linked (106 such folders measured on xpulse). Saving anyway is
+   * allowed — the service links instead of duplicating — but seeing it first is
+   * what stops the operator filling in a form for nothing.
+   */
+  const [existingMatch, setExistingMatch] = useState<{
+    id: string
+    title: string
+    channelName: string | null
+    releaseDate: string | null
+    channelAgrees: boolean
+  } | null>(null);
+  useEffect(() => {
+    if (!open || !archiveFolderId) return;
+    let cancelled = false;
+    findExistingStagingSetAction(archiveFolderId).then((res) => {
+      if (!cancelled && res.success) setExistingMatch(res.data);
+    });
+    return () => { cancelled = true; };
+  }, [open, archiveFolderId]);
+
+  // The folder's confirmed people, when it has them: no search, no guessing —
+  // the ICG-ID and personId are already the answer.
+  useEffect(() => {
+    if (!open || !initialParticipants?.length) return;
+    setParticipants(
+      initialParticipants.map((p) => ({
+        key: p.icgId,
+        name: p.name,
+        icgId: p.icgId,
+        ...(p.personId ? { personId: p.personId } : {}),
+        // The alias off the folder name is what this set credited them as.
+        ...(initialParticipantName ? { usedName: initialParticipantName } : {}),
+      })),
+    );
+  }, [open, initialParticipants, initialParticipantName]);
+
   // Resolve the participant parsed from the folder name: exact alias match → known,
   // otherwise a candidate row to resolve (never fuzzy-auto-merge).
+  //
+  // Only when nobody is confirmed for the folder — a parsed alias must never
+  // overwrite an attribution.
   useEffect(() => {
-    if (!open || !initialParticipantName) return;
+    if (!open || !initialParticipantName || initialParticipants?.length) return;
     const name = initialParticipantName;
     let cancelled = false;
     fetch(`/api/people/search?q=${encodeURIComponent(name)}`)
@@ -174,7 +232,7 @@ export function CreateKnownSetSheet({
         if (!cancelled) setParticipants([{ key: `cand-${name}`, name, usedName: name }]);
       });
     return () => { cancelled = true; };
-  }, [open, initialParticipantName]);
+  }, [open, initialParticipantName, initialParticipants]);
 
   // Debounced person search
   useEffect(() => {
@@ -257,26 +315,52 @@ export function CreateKnownSetSheet({
     }
     setError(null);
 
+    const people = participants.map((p) => ({
+      name: p.name,
+      icgId: p.icgId,
+      personId: p.personId,
+      usedName: p.usedName?.trim() || undefined,
+    }));
+
     startTransition(async () => {
-      const result = await createManualStagingSetAction({
-        title: title.trim(),
-        channelId,
-        releaseDate: releaseDate || undefined,
-        releaseDatePrecision: releaseDatePrecision,
-        isVideo,
-        externalId: externalId.trim() || undefined,
-        notes: notes.trim() || undefined,
-        participants: participants.map((p) => ({
-          name: p.name,
-          icgId: p.icgId,
-          personId: p.personId,
-          usedName: p.usedName?.trim() || undefined,
-        })),
-        archiveFolderId,
-      });
+      // A folder goes through the archive's own path — the same one the develop
+      // queue uses — so the set gets the folder's cover, a CONFIRMED link, the
+      // review state and PENDING, and an existing staged set is reused rather
+      // than duplicated. `createManualStagingSetAction` stays the path for a set
+      // that has no folder at all.
+      const result = archiveFolderId
+        ? await createStagingSetFromFolderAction(archiveFolderId, {
+            participants: people,
+            overrides: {
+              title: title.trim(),
+              channelId,
+              releaseDate: releaseDate || undefined,
+              releaseDatePrecision,
+              isVideo,
+              externalId: externalId.trim() || undefined,
+              notes: notes.trim() || undefined,
+            },
+          })
+        : await createManualStagingSetAction({
+            title: title.trim(),
+            channelId,
+            releaseDate: releaseDate || undefined,
+            releaseDatePrecision: releaseDatePrecision,
+            isVideo,
+            externalId: externalId.trim() || undefined,
+            notes: notes.trim() || undefined,
+            participants: people,
+          });
 
       if (result.success) {
-        toast.success(archiveFolderId ? "Staging set created from folder." : "Staging set created.");
+        const linked = 'data' in result && result.data?.linkedExisting;
+        toast.success(
+          linked
+            ? 'Linked to the staging set that already existed.'
+            : archiveFolderId
+              ? 'Staging set created from folder.'
+              : 'Staging set created.',
+        );
         onCreated?.();
         onOpenChange(false);
       } else {
@@ -295,6 +379,25 @@ export function CreateKnownSetSheet({
         </SheetHeader>
 
         <div className="flex-1 space-y-5 overflow-y-auto px-4 py-4">
+          {/* This folder is probably a set you already have. Saving links to it
+              rather than creating a twin — said before the form is filled in. */}
+          {existingMatch && (
+            <div className="rounded-lg border border-amber-500/50 bg-amber-500/10 p-3 text-xs">
+              <p className="font-medium text-amber-700 dark:text-amber-400">
+                A staging set for this folder already exists
+              </p>
+              <p className="mt-1 text-muted-foreground">
+                {existingMatch.title}
+                {existingMatch.releaseDate ? ` · ${existingMatch.releaseDate}` : ""}
+                {existingMatch.channelName ? ` · ${existingMatch.channelName}` : ""}
+                {!existingMatch.channelAgrees && " · different channel"}
+              </p>
+              <p className="mt-1 text-muted-foreground">
+                Saving links the folder to it and adds the people — nothing is duplicated.
+              </p>
+            </div>
+          )}
+
           {/* Title */}
           <div className="space-y-1.5">
             <Label htmlFor="ks-title">Title <span className="text-destructive">*</span></Label>

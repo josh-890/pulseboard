@@ -16,7 +16,7 @@ import { buildUrl } from '@/lib/media-url'
 import { loadCasts } from '@/lib/services/set-cast-service'
 import { escapeLike } from '@/lib/prisma-like'
 import { ArchiveLinkStatus, Prisma } from '@/generated/prisma/client'
-import type { ArchiveStatus } from '@/generated/prisma/client'
+import type { ArchiveStatus, DatePrecision } from '@/generated/prisma/client'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -1053,7 +1053,12 @@ export type ArchiveFolderEntry = {
   people: { claims: FolderPerson[]; cast: FolderPerson[]; markers: FolderPerson[] }
 }
 
-export type FolderPerson = { icgId: string; name: string }
+export type FolderPerson = {
+  icgId: string
+  name: string
+  /** Set on a claim once the ICG-ID resolves to a curated Person; null for a ghost Contact. */
+  personId?: string | null
+}
 
 export type PhantomEntry = {
   id: string
@@ -2302,7 +2307,9 @@ async function attachFolderPeople(items: FolderEntryBase[]): Promise<ArchiveFold
   const [attributions, markerRows, links] = await Promise.all([
     prisma.archiveFolderAttribution.findMany({
       where: { archiveFolderId: { in: ids } },
-      select: { archiveFolderId: true, icgId: true, name: true },
+      // personId rides along so the create-set dialogue can mark the person
+      // *known* instead of searching for their name again and finding nothing.
+      select: { archiveFolderId: true, icgId: true, name: true, personId: true },
       orderBy: { confirmedAt: 'asc' },
     }),
     prisma.archiveFolderSuggestion.findMany({
@@ -2323,7 +2330,7 @@ async function attachFolderPeople(items: FolderEntryBase[]): Promise<ArchiveFold
   const claimsBy = new Map<string, FolderPerson[]>()
   for (const a of attributions) {
     const list = claimsBy.get(a.archiveFolderId) ?? []
-    list.push({ icgId: a.icgId, name: a.name })
+    list.push({ icgId: a.icgId, name: a.name, personId: a.personId })
     claimsBy.set(a.archiveFolderId, list)
   }
 
@@ -3116,13 +3123,33 @@ export async function rejectArchiveSuggestion(folderId: string): Promise<void> {
   })
 }
 
+/** What the operator may correct before a folder becomes a staged set. */
+export type StagingSetFromFolderOverrides = {
+  title?: string
+  channelId?: string
+  releaseDate?: string
+  releaseDatePrecision?: DatePrecision
+  isVideo?: boolean
+  externalId?: string
+  notes?: string
+}
+
 /**
  * Create a minimal StagingSet from an orphan ArchiveFolder.
  * Pre-populates title (folder name), channelName (parsed short name), releaseDate,
  * and creates a CONFIRMED ArchiveLink for the folder.
+ *
+ * **The only place a folder becomes a staged set.** Both entry points come
+ * through here — the one-click develop queue with no overrides, and the archive
+ * row's dialogue with whatever the operator corrected — so the cover, the
+ * `titleNorm` a later import needs to recognise the row, the CONFIRMED link and
+ * its `archiveFieldsFromFolder` cannot drift apart between them. They did: the
+ * dialogue used to build its own StagingSet and produced one without a cover, a
+ * duplicate guard, or a review state.
  */
 export async function createStagingSetFromOrphan(
   folderId: string,
+  overrides: StagingSetFromFolderOverrides = {},
 ): Promise<{ stagingSetId: string }> {
   const folder = await prisma.archiveFolder.findUnique({ where: { id: folderId } })
   if (!folder) throw new Error('Archive folder not found')
@@ -3141,19 +3168,36 @@ export async function createStagingSetFromOrphan(
     }
   }
 
+  // A channel chosen in the dialogue wins over the one parsed from the folder:
+  // the operator is looking at the set, the parser at a path fragment.
+  if (overrides.channelId) {
+    const chosen = await prisma.channel.findUnique({
+      where: { id: overrides.channelId },
+      select: { id: true, name: true },
+    })
+    if (chosen) {
+      channelId = chosen.id
+      channelName = chosen.name
+    }
+  }
+
   // titleNorm is not decoration: `findProbableStagingDuplicate` returns null on an
   // empty one, so a staging set created here without it can NEVER be recognised
   // by a later import of the same set — silent twins by construction, one holding
   // the archive link and one holding the import payload (ADR-0028).
-  const title = folder.parsedTitle ?? folder.folderName
+  const title = overrides.title?.trim() || folder.parsedTitle || folder.folderName
+  const releaseDate = overrides.releaseDate ? new Date(overrides.releaseDate) : folder.parsedDate
   const stagingSet = await prisma.stagingSet.create({
     data: {
       title,
       titleNorm: normalizeForSearch(title),
       channelName,
       channelId: channelId ?? null,
-      releaseDate: folder.parsedDate ?? undefined,
-      isVideo: folder.isVideo,
+      releaseDate: releaseDate ?? undefined,
+      ...(overrides.releaseDatePrecision ? { releaseDatePrecision: overrides.releaseDatePrecision } : {}),
+      isVideo: overrides.isVideo ?? folder.isVideo,
+      ...(overrides.externalId ? { externalId: overrides.externalId } : {}),
+      ...(overrides.notes ? { notes: overrides.notes } : {}),
       // A set born here has no publisher image, and the picture that belongs to it
       // is already in MinIO under this folder. Writing it now rather than only
       // rendering it means the rest of the pipeline needs no special case: the

@@ -5,6 +5,9 @@ import { withTenantFromHeaders } from '@/lib/tenant-context'
 import {
   castDisagreement,
   confirmFolderIdentity,
+  createStagingSetFromFolder,
+  findExistingStagingSet,
+  type ExistingStagingMatch,
   confirmFoldersIdentity,
   getFolderCast,
   removeFolderAttribution,
@@ -20,6 +23,7 @@ import {
   waitOnFolder,
   type ConfirmResult,
 } from '@/lib/services/attribution-confirm-service'
+import type { StagingSetFromFolderOverrides } from '@/lib/services/archive-service'
 
 export type AttributionActionResult<T> = { success: true; data: T } | { success: false; error: string }
 
@@ -97,6 +101,38 @@ export async function checkCastAgreementAction(
     const { linked, setTitle, cast } = await getFolderCast(folderId)
     return { setTitle, missing: castDisagreement(cast, icgIds, linked) }
   }, [])
+}
+
+/**
+ * Create a staged set from a folder, with the operator's corrections.
+ *
+ * The archive row's dialogue saves through this rather than through
+ * `createManualStagingSetAction`: that one is the "Add known set" form for a set
+ * with no folder at all, and it knows nothing about attributions, covers, the
+ * duplicate guard or the review state.
+ */
+export async function createStagingSetFromFolderAction(
+  folderId: string,
+  input: {
+    participants: { name: string; icgId?: string; personId?: string; usedName?: string }[]
+    overrides?: StagingSetFromFolderOverrides
+  },
+): Promise<AttributionActionResult<{ stagingSetId: string; participants: number; linkedExisting: boolean }>> {
+  return run(async () => {
+    const res = await createStagingSetFromFolder(folderId, input)
+    return {
+      stagingSetId: res.stagingSetId,
+      participants: res.participants,
+      linkedExisting: res.linkedExisting,
+    }
+  }, BOTH)
+}
+
+/** Is there already a staged set this folder belongs to? Read-only, asked before saving. */
+export async function findExistingStagingSetAction(
+  folderId: string,
+): Promise<AttributionActionResult<ExistingStagingMatch | null>> {
+  return run(() => findExistingStagingSet(folderId), [])
 }
 
 export async function rejectFolderAction(folderId: string): Promise<AttributionActionResult<null>> {
