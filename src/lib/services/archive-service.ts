@@ -190,6 +190,124 @@ export function pickBestArchiveCandidate(
   return best ? { id: best.id, confidence: best.confidence } : null
 }
 
+/**
+ * May a challenger take a staged set that another folder already holds?
+ *
+ * The matcher streams folder by folder and, until now, skipped any set already
+ * carrying a link — so the *first* folder to arrive kept it, however badly it
+ * fitted. Measured on xpulse: of 2,837 suggested links, **550 hold a set whose
+ * day they do not even share**, and for **271** of those a folder that does share
+ * the day is sitting unlinked. Two of the four blocked cases found by hand were
+ * five months and four months off.
+ *
+ * Only a **categorical** improvement displaces an incumbent:
+ *
+ *   - the challenger shares the release day and the incumbent does not, or
+ *   - the day is equally (un)matched and the challenger carries a person you
+ *     confirmed while the incumbent does not.
+ *
+ * A better title similarity never displaces anything. That is the signal this
+ * codebase has already been burned by — "Feel Good" against "Feels Good", five
+ * months apart — and swapping one guess for a slightly higher-scoring guess is
+ * churn, not progress. A CONFIRMED link is never contested at all.
+ *
+ * Equal evidence leaves the incumbent in place, which also makes the pass
+ * order-independent: no pair can take a set back and forth.
+ */
+export function beatsIncumbent(
+  challenger: { isExactDay: boolean; personConfirmed?: boolean },
+  incumbent: { isExactDay: boolean; personConfirmed?: boolean },
+): boolean {
+  if (challenger.isExactDay !== incumbent.isExactDay) return challenger.isExactDay
+  return !!challenger.personConfirmed && !incumbent.personConfirmed
+}
+
+/**
+ * Candidates best-first, by the same order `pickBestArchiveCandidate` picks with.
+ *
+ * Exposed because a contested candidate may have to be passed over: if the best
+ * one is held by a folder that cannot be beaten, the second best is still worth
+ * having, and giving up entirely is how a folder ends with no suggestion while a
+ * free set sat one line below.
+ */
+export function rankArchiveCandidates(
+  candidates: ScoredArchiveCandidate[],
+): { id: string; confidence: 'HIGH' | 'MEDIUM'; isExactDay: boolean; personConfirmed: boolean }[] {
+  return candidates
+    .flatMap((c) => {
+      const conf = scoreArchiveMatch({ titleSim: c.titleSim, nameMatch: c.nameMatch, isExactDay: c.isExactDay })
+      return conf
+        ? [{
+            id: c.id,
+            confidence: conf,
+            isExactDay: c.isExactDay,
+            personConfirmed: !!c.personConfirmed,
+            titleSim: c.titleSim,
+          }]
+        : []
+    })
+    .sort(
+      (a, b) =>
+        (b.confidence === 'HIGH' ? 1 : 0) - (a.confidence === 'HIGH' ? 1 : 0) ||
+        Number(b.isExactDay) - Number(a.isExactDay) ||
+        Number(b.personConfirmed) - Number(a.personConfirmed) ||
+        b.titleSim - a.titleSim,
+    )
+    .map(({ id, confidence, isExactDay, personConfirmed }) => ({ id, confidence, isExactDay, personConfirmed }))
+}
+
+/**
+ * The best candidate this folder may actually claim.
+ *
+ * A candidate already held by another folder's *suggestion* is contested rather
+ * than skipped, and only a categorical improvement wins it (`beatsIncumbent`).
+ * When the best is unwinnable the next one is tried: giving up on the whole
+ * folder is how it ends with no suggestion while a free set sits one line below.
+ */
+async function firstClaimable(
+  ranked: { id: string; confidence: 'HIGH' | 'MEDIUM'; isExactDay: boolean; personConfirmed: boolean }[],
+  rows: { id: string; release_date: Date | null; participant_icg_ids: string[]; held_by: string | null }[],
+): Promise<{ id: string; confidence: 'HIGH' | 'MEDIUM' } | null> {
+  const rowById = new Map(rows.map((r) => [r.id, r]))
+  const contestedFolderIds = [
+    ...new Set(
+      ranked
+        .map((c) => rowById.get(c.id)?.held_by)
+        .filter((id): id is string => !!id),
+    ),
+  ]
+
+  // One query for every incumbent in play, and only when something is contested.
+  const incumbents = contestedFolderIds.length
+    ? await prisma.archiveFolder.findMany({
+        where: { id: { in: contestedFolderIds } },
+        select: { id: true, parsedDate: true, attributions: { select: { icgId: true } } },
+      })
+    : []
+  const incumbentById = new Map(incumbents.map((f) => [f.id, f]))
+
+  const sameDay = (a: Date | null, b: Date | null) =>
+    !!a && !!b && a.toISOString().slice(0, 10) === b.toISOString().slice(0, 10)
+
+  for (const candidate of ranked) {
+    const row = rowById.get(candidate.id)
+    if (!row) continue
+    if (!row.held_by) return { id: candidate.id, confidence: candidate.confidence }
+
+    const incumbent = incumbentById.get(row.held_by)
+    // An incumbent we cannot read is left alone: silence is not evidence.
+    if (!incumbent) continue
+
+    const claims = new Set(incumbent.attributions.map((a) => a.icgId))
+    const beaten = beatsIncumbent(candidate, {
+      isExactDay: sameDay(incumbent.parsedDate, row.release_date),
+      personConfirmed: (row.participant_icg_ids ?? []).some((icg) => claims.has(icg)),
+    })
+    if (beaten) return { id: candidate.id, confidence: candidate.confidence }
+  }
+  return null
+}
+
 /** Split a comma-joined participantNamesNorm into individual normalized names. */
 function _splitNamesNorm(participantNamesNorm: string | null): string[] {
   if (!participantNamesNorm) return []
@@ -1796,23 +1914,33 @@ export async function runMatchingPass(
       is_exact_day: boolean
       participant_names_norm: string | null
       participant_icg_ids: string[]
+      release_date: Date | null
+      held_by: string | null
     }
     const stagingCands = await prisma.$queryRaw<StagingCandRow[]>`
       SELECT ss.id,
              similarity(${ptNorm}, ss."titleNorm") AS sim,
              (ss."releaseDate" >= ${dateStart} AND ss."releaseDate" < ${dateEnd}) AS is_exact_day,
              ss."participantNamesNorm" AS participant_names_norm,
-             ss."participantIcgIds" AS participant_icg_ids
+             ss."participantIcgIds" AS participant_icg_ids,
+             ss."releaseDate" AS release_date,
+             (SELECT al."archiveFolderId" FROM "ArchiveLink" al
+               WHERE al."stagingSetId" = ss.id
+                 AND al.status = 'SUGGESTED'
+                 AND al."archiveFolderId" <> ${folder.id}
+               LIMIT 1) AS held_by
       FROM staging_set ss
       JOIN "Channel" c ON c.id = ss."channelId"
       WHERE LOWER(c."shortName") = LOWER(${folder.parsedShortName})
         AND EXTRACT(YEAR FROM ss."releaseDate") = ${year}
         AND ss."isVideo" = ${folder.isVideo}
         AND ss.status NOT IN ('PROMOTED', 'SKIPPED')
+        -- A confirmed link is somebody's decision and is never contested; a
+        -- merely suggested one is a guess this folder may be able to beat.
         AND NOT EXISTS (
           SELECT 1 FROM "ArchiveLink" al
           WHERE al."stagingSetId" = ss.id
-            AND al.status IN ('CONFIRMED', 'SUGGESTED')
+            AND al.status = 'CONFIRMED'
             AND al."archiveFolderId" <> ${folder.id}
         )
         AND (
@@ -1839,13 +1967,18 @@ export async function runMatchingPass(
           personConfirmed: (c.participant_icg_ids ?? []).some((icg) => claimed.has(icg)),
         }
       })
-      const best = pickBestArchiveCandidate(scored)
+      const best = await firstClaimable(rankArchiveCandidates(scored), stagingCands)
+
       if (best) {
         await prisma.archiveLink.upsert({
           where: { archiveFolderId: folder.id },
           create: { archiveFolderId: folder.id, stagingSetId: best.id, status: 'SUGGESTED', confidence: best.confidence, tenant },
           update: { stagingSetId: best.id, setId: null, status: 'SUGGESTED', confidence: best.confidence },
         })
+        // The displaced folder loses its suggestion here. It keeps whatever else
+        // it could match on the next pass; it is not re-queued now, because the
+        // pass streams folders once and re-entrancy would buy little: the link it
+        // lost was, by the rule above, the worse of the two.
         await prisma.archiveLink.deleteMany({
           where: { stagingSetId: best.id, status: ArchiveLinkStatus.SUGGESTED, archiveFolderId: { not: folder.id } },
         })

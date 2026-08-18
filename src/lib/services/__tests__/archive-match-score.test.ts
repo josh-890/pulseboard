@@ -5,6 +5,8 @@ import {
   folderPersonMatches,
   scoreArchiveMatch,
   pickBestArchiveCandidate,
+  beatsIncumbent,
+  rankArchiveCandidates,
   HIGH_TITLE_THRESHOLD,
   MEDIUM_TITLE_THRESHOLD,
 } from "@/lib/services/archive-service";
@@ -167,5 +169,67 @@ describe("pickBestArchiveCandidate", () => {
       { id: "exactDay", titleSim: 0.65, nameMatch: false, isExactDay: true },
     ]);
     expect(best).toEqual({ id: "exactDay", confidence: "HIGH" });
+  });
+});
+
+// Who keeps a staged set when two folders want it.
+//
+// The pass streams folder by folder and used to skip any set already linked, so
+// the first arrival kept it however badly it fitted. Measured on xpulse: 550 of
+// 2,837 suggested links hold a set whose day they do not share, and for 271 of
+// those a folder that *does* share the day sits unlinked. Two of the four cases
+// found by hand were four and five months off.
+describe("beatsIncumbent", () => {
+  it("takes the set when only the challenger shares the day", () => {
+    expect(beatsIncumbent({ isExactDay: true }, { isExactDay: false })).toBe(true);
+  });
+
+  it("never takes it from a folder that shares the day when the challenger does not", () => {
+    expect(beatsIncumbent({ isExactDay: false }, { isExactDay: true })).toBe(false);
+  });
+
+  // Title similarity is exactly the signal this project has been burned by
+  // ("Feel Good" against "Feels Good", five months apart). Swapping one guess for
+  // a slightly better-scoring guess is churn, not progress.
+  it("does not displace on evidence it cannot see — equal day, equal person", () => {
+    expect(beatsIncumbent({ isExactDay: true }, { isExactDay: true })).toBe(false);
+    expect(beatsIncumbent({ isExactDay: false }, { isExactDay: false })).toBe(false);
+  });
+
+  it("breaks an equal-day stand-off in favour of a confirmed person", () => {
+    expect(
+      beatsIncumbent({ isExactDay: true, personConfirmed: true }, { isExactDay: true }),
+    ).toBe(true);
+    expect(
+      beatsIncumbent({ isExactDay: true }, { isExactDay: true, personConfirmed: true }),
+    ).toBe(false);
+  });
+
+  // Equal evidence leaves the incumbent alone, so no two folders can trade a set
+  // back and forth and the pass does not depend on the order folders arrive in.
+  it("is stable: two folders with identical evidence cannot swap the set", () => {
+    const a = { isExactDay: true, personConfirmed: true };
+    const b = { isExactDay: true, personConfirmed: true };
+    expect(beatsIncumbent(a, b)).toBe(false);
+    expect(beatsIncumbent(b, a)).toBe(false);
+  });
+});
+
+describe("rankArchiveCandidates", () => {
+  it("drops what does not qualify and orders the rest best-first", () => {
+    const ranked = rankArchiveCandidates([
+      { id: "weak", titleSim: 0.1, nameMatch: false, isExactDay: false },
+      { id: "mediumDay", titleSim: 0.2, nameMatch: false, isExactDay: true },
+      { id: "highDayName", titleSim: 0.2, nameMatch: true, isExactDay: true },
+    ]);
+    expect(ranked.map((c) => c.id)).toEqual(["highDayName", "mediumDay"]);
+  });
+
+  it("agrees with pickBestArchiveCandidate about the winner", () => {
+    const cands = [
+      { id: "a", titleSim: 0.9, nameMatch: false, isExactDay: true },
+      { id: "b", titleSim: 0.2, nameMatch: true, isExactDay: true },
+    ];
+    expect(rankArchiveCandidates(cands)[0]?.id).toBe(pickBestArchiveCandidate(cands)?.id);
   });
 });

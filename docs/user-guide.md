@@ -1181,6 +1181,15 @@ The refresh button on the **staged-sets** page is a different thing: it updates
 participant statuses and checks whether a staged set already exists as a
 production Set. It never looks at the archive.
 
+### Working a fresh import quickly
+
+Two filters in the staged-sets bar sort the work by how much you can trust it:
+
+- **Person confirmed** — the suggested folder carries a person you confirmed or
+  marked, and this set credits them. The fast yes-clicks; do these first.
+- **Archive names others** — the linked folder names somebody the set does not
+  credit. The ones that need a decision.
+
 ### The archive suggestion on a staged set
 
 Beside the proposed folder the row shows two things that answer different questions:

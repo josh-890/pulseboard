@@ -677,6 +677,8 @@ export type StagingSetFilters = {
   noCover?: boolean
   /** Only sets whose linked archive folder names somebody the set does not credit. */
   archiveNamesOthers?: boolean
+  /** Only sets whose *suggested* folder carries your claim or marker for someone in the cast. */
+  hasPersonEvidence?: boolean
   search?: string
   sort?: 'date' | 'title' | 'priority' | 'importDate' | 'undatedFirst'
   sortDir?: 'asc' | 'desc'
@@ -825,6 +827,14 @@ export async function getStagingSetsFiltered(filters: StagingSetFilters): Promis
     }
   }
 
+  if (filters.hasPersonEvidence) {
+    // The suggestions you can accept fastest: the proposed folder carries a
+    // person you established, and this set credits them. Same shape of question
+    // as archiveNamesOthers and equally impossible as a Prisma filter — the two
+    // sides live in different tables and the cast has two shapes.
+    conditions.push({ id: { in: await stagingSetIdsWithPersonEvidence() } })
+  }
+
   if (filters.archiveNamesOthers) {
     // The comparison is per row and cannot be expressed as a Prisma filter: the
     // cast lives in JSON for a staged set and in SetParticipant for a promoted
@@ -912,6 +922,85 @@ export async function getStagingSetsFiltered(filters: StagingSetFilters): Promis
     total,
     nextCursor: hasMore ? items[items.length - 1].id : null,
   }
+}
+
+/**
+ * The ids of every staged set whose SUGGESTED folder carries your own statement
+ * about somebody the set credits — a confirmed claim or a marker file.
+ *
+ * Measured on xpulse: 68 with a claim, 30 with a marker, out of 2,841 open
+ * suggestions. Those are the fast yes-clicks, and finding them by scrolling a
+ * list of 2,841 is not finding them.
+ */
+export async function stagingSetIdsWithPersonEvidence(): Promise<string[]> {
+  const links = await prisma.archiveLink.findMany({
+    where: {
+      status: 'SUGGESTED',
+      archiveFolder: {
+        OR: [{ attributions: { some: {} } }, { suggestions: { some: { source: 'FOLDER_ATTRIBUTION' } } }],
+      },
+    },
+    select: {
+      stagingSetId: true,
+      setId: true,
+      archiveFolder: {
+        select: {
+          attributions: { select: { icgId: true } },
+          suggestions: { where: { source: 'FOLDER_ATTRIBUTION' }, select: { icgId: true } },
+        },
+      },
+    },
+  })
+  if (links.length === 0) return []
+
+  const stagingIds = links.map((l) => l.stagingSetId).filter((id): id is string => !!id)
+  const setIds = links.map((l) => l.setId).filter((id): id is string => !!id)
+
+  const [staged, promoted] = await Promise.all([
+    stagingIds.length
+      ? prisma.stagingSet.findMany({
+          where: { id: { in: stagingIds } },
+          select: { id: true, participantIcgIds: true },
+        })
+      : Promise.resolve([]),
+    setIds.length
+      ? prisma.stagingSet.findMany({
+          where: { promotedSetId: { in: setIds } },
+          select: {
+            id: true,
+            promotedSetId: true,
+            promotedSet: { select: { participants: { select: { person: { select: { icgId: true } } } } } },
+          },
+        })
+      : Promise.resolve([]),
+  ])
+
+  const castByStaging = new Map(staged.map((s) => [s.id, s.participantIcgIds ?? []]))
+  const bySet = new Map(
+    promoted
+      .filter((s) => s.promotedSetId)
+      .map((s) => [
+        s.promotedSetId!,
+        { id: s.id, cast: (s.promotedSet?.participants ?? []).map((p) => p.person.icgId) },
+      ]),
+  )
+
+  const out: string[] = []
+  for (const l of links) {
+    if (!l.archiveFolder) continue
+    const target = l.stagingSetId
+      ? { id: l.stagingSetId, cast: castByStaging.get(l.stagingSetId) ?? [] }
+      : l.setId
+        ? bySet.get(l.setId)
+        : undefined
+    if (!target) continue
+    const mine = new Set([
+      ...l.archiveFolder.attributions.map((a) => a.icgId),
+      ...l.archiveFolder.suggestions.map((s) => s.icgId),
+    ])
+    if (target.cast.some((icg) => mine.has(icg))) out.push(target.id)
+  }
+  return out
 }
 
 /**

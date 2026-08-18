@@ -18,6 +18,8 @@ export type StagingSetFilterState = {
   hasDateSuggestion: boolean
   /** The archive names somebody this set does not credit (marker or confirmed claim). */
   archiveNamesOthers: boolean
+  /** The suggested folder carries your claim or marker for somebody in the cast. */
+  hasPersonEvidence: boolean
   showDuplicates: boolean
   matchType: 'exact' | 'probable' | 'none' | undefined
   search: string
@@ -41,6 +43,7 @@ export const DEFAULT_FILTERS: StagingSetFilterState = {
   noDate: false,
   hasDateSuggestion: false,
   archiveNamesOthers: false,
+  hasPersonEvidence: false,
   showDuplicates: false,
   matchType: undefined,
   search: '',
@@ -216,7 +219,7 @@ export function StagingSetFilterBar({ filters, onChange, stats }: StagingSetFilt
     filters.channelTier.length !== DEFAULT_STAGING_TIERS.length ||
     !DEFAULT_STAGING_TIERS.every((t) => filters.channelTier.includes(t))
 
-  const hasActiveFilters = filters.search || filters.noDate || filters.archiveNamesOthers || filters.showDuplicates ||
+  const hasActiveFilters = filters.search || filters.noDate || filters.archiveNamesOthers || filters.hasPersonEvidence || filters.showDuplicates ||
     filters.matchType || filters.channelId || filters.dateFrom || filters.dateTo ||
     filters.priority.length > 0 || filters.batchId || tierDiffersFromDefault || !!filters.personId
 
@@ -293,6 +296,21 @@ export function StagingSetFilterBar({ filters, onChange, stats }: StagingSetFilt
           {(stats?.dateSuggestionCount ?? 0) > 0 && (
             <span className="text-[10px] text-muted-foreground">{stats!.dateSuggestionCount}</span>
           )}
+        </button>
+
+        {/* The proposal is backed by your own statement about that folder — the
+            fastest yes in the list. */}
+        <button
+          onClick={() => onChange({ ...filters, hasPersonEvidence: !filters.hasPersonEvidence })}
+          title="The suggested archive folder carries a person you confirmed or marked, and this set credits them"
+          className={cn(
+            'flex items-center gap-1 rounded-full border px-2 py-1 text-xs transition-colors',
+            filters.hasPersonEvidence
+              ? 'border-emerald-500/50 bg-emerald-500/15 text-emerald-700 dark:text-emerald-400'
+              : 'border-slate-200 bg-slate-50 text-muted-foreground hover:bg-slate-100 hover:text-foreground dark:border-border/50 dark:bg-muted/50 dark:hover:border-border dark:hover:bg-muted',
+          )}
+        >
+          Person confirmed
         </button>
 
         {/* The archive disagrees with the cast — your own statement about the
