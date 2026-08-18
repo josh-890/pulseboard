@@ -25,6 +25,8 @@ import { BodyRegionFilterWrapper } from "@/components/people/body-region-filter-
 import { AddPersonSheet } from "@/components/people/add-person-sheet";
 import { PeopleSearchPage } from "@/components/people/people-search-page";
 import { ratingFilterOptions } from "@/components/shared/rating-filter-options";
+import { FlagImage } from "@/components/shared/flag-image";
+import { findCountryByCode } from "@/lib/constants/countries";
 
 const ADVANCED_PREFIXES = ["cat.", "range.", "presence.", "region.", "text.", "attr."];
 function hasAdvancedParams(params: Record<string, unknown>): boolean {
@@ -48,6 +50,7 @@ type PeoplePageProps = {
     hairColor?: string;
     bodyType?: string;
     ethnicity?: string;
+    nationality?: string;
     bodyRegions?: string;
     bodyRegionMatch?: string;
     loaded?: string;
@@ -123,7 +126,8 @@ export default async function PeoplePage({ searchParams }: PeoplePageProps) {
     }
     const {
       q, status, watching: watchingParam, favorite: favoriteParam, idOrigin: idOriginParam,
-      hairColor, bodyType, ethnicity, bodyRegions: bodyRegionsParam,
+      hairColor, bodyType, ethnicity, nationality: nationalityParam,
+      bodyRegions: bodyRegionsParam,
       bodyRegionMatch: bodyRegionMatchParam, loaded,
       slot: slotParam, sort: sortParam, completeness: completenessParam,
       birthdateFrom: birthdateFromParam, birthdateTo: birthdateToParam,
@@ -170,6 +174,7 @@ export default async function PeoplePage({ searchParams }: PeoplePageProps) {
     naturalHairColor: hairColor || undefined,
     bodyType: bodyType || undefined,
     ethnicity: ethnicity || undefined,
+    nationalities: nationalityParam?.split(",").filter(Boolean),
     bodyRegions: resolvedBodyRegions?.length ? resolvedBodyRegions : undefined,
     bodyRegionMatch: resolvedBodyRegionMatch,
     ratings: resolvedRatings,
@@ -296,6 +301,35 @@ export default async function PeoplePage({ searchParams }: PeoplePageProps) {
         label: c,
         count: facetCounts.naturalHairColor[c],
       })),
+    });
+  }
+
+  // Only nations somebody in the list actually carries — the facet counts are
+  // already computed under the other filters, so an empty option can never
+  // appear. Sorted A–Z here; the dropdown can re-sort by count.
+  const nationalityOptions = Object.entries(facetCounts.nationality)
+    .map(([code, count]) => ({ code, count, country: findCountryByCode(code) }))
+    .sort((a, b) => (a.country?.name ?? a.code).localeCompare(b.country?.name ?? b.code))
+    .map(({ code, count, country }) => ({
+      value: code,
+      label: country?.name ?? code,
+      displayLabel: (
+        <span className="flex min-w-0 items-center gap-2">
+          <FlagImage code={code} size={16} className="shrink-0" />
+          <span className="truncate">{country?.name ?? code}</span>
+        </span>
+      ),
+      count,
+    }));
+
+  if (nationalityOptions.length > 0) {
+    filterGroups.push({
+      type: "multifacet",
+      param: "nationality",
+      label: "Nationality",
+      searchable: true,
+      sortable: true,
+      options: nationalityOptions,
     });
   }
 

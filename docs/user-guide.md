@@ -1266,6 +1266,19 @@ Adding somebody the linked set does not credit is allowed, and you will be asked
 first: the claim and the cast then disagree, and that disagreement is settled in
 **Archive → Conflicts** rather than by quietly changing the set.
 
+### Filtering people by nationality
+
+The **Nationality** filter lists only the nations somebody in the current list
+actually has, each with its flag and how many people carry it. Pick several to
+combine them.
+
+The small button above the list switches between **A–Z** (find the nation you
+have in mind) and **by count** (see where the weight sits). That order is a way
+of looking, not a filter — it is not carried in the URL.
+
+Nationality is stored as the 3-letter IOC code, so the filter compares exactly
+rather than guessing at spellings.
+
 ### Archive Status Dots
 
 Every Set card and Staging Set row shows a small status dot for its archive folder link:

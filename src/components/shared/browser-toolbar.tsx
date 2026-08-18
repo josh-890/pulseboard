@@ -78,6 +78,15 @@ type MultiFacetFilter = {
   /** Show currently-selected options at the top of the list (frozen while the
    *  dropdown is open) so they're easy to find and unselect. For long lists. */
   sortSelectedFirst?: boolean;
+  /**
+   * Offer a A-Z ⇄ count switch inside the dropdown.
+   *
+   * For facets where both orders answer a real question: alphabetical to find
+   * the one you have in mind, by count to see where the weight sits. The
+   * options arrive in alphabetical order; the switch re-sorts them in the
+   * client and is not part of the URL — it is a way of looking, not a filter.
+   */
+  sortable?: boolean;
 };
 
 type ToggleFilter = {
@@ -846,13 +855,17 @@ export function MultiFacetDropdown({
   // Selection snapshot taken when the dropdown opens, so selected-first ordering
   // stays stable while the user toggles (items don't jump under the cursor).
   const [pinned, setPinned] = useState<string[]>(selected);
+  const [byCount, setByCount] = useState(false);
   const activeCount = selected.length;
 
+  const sorted = byCount
+    ? [...filter.options].sort((a, b) => (b.count ?? 0) - (a.count ?? 0) || a.label.localeCompare(b.label))
+    : filter.options;
   const orderedOptions = filter.sortSelectedFirst
-    ? [...filter.options].sort(
+    ? [...sorted].sort(
         (a, b) => Number(pinned.includes(b.value)) - Number(pinned.includes(a.value)),
       )
-    : filter.options;
+    : sorted;
 
   return (
     <Popover open={open} onOpenChange={(o) => { if (o) setPinned(selected); setOpen(o); }}>
@@ -875,6 +888,18 @@ export function MultiFacetDropdown({
         <Command>
           {filter.searchable !== false && filter.options.length > 6 && (
             <CommandInput placeholder={`Search ${filter.label.toLowerCase()}...`} />
+          )}
+          {filter.sortable && (
+            <div className="flex items-center justify-end gap-1 border-b border-border/50 px-2 py-1">
+              <button
+                type="button"
+                onClick={() => setByCount((v) => !v)}
+                className="rounded px-1.5 py-0.5 text-[10px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                title={byCount ? 'Sorted by count — switch to A–Z' : 'Sorted A–Z — switch to count'}
+              >
+                {byCount ? 'by count ↓' : 'A–Z'}
+              </button>
+            </div>
           )}
           <CommandList>
             <CommandEmpty>No results.</CommandEmpty>

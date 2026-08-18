@@ -125,6 +125,14 @@ export type PersonFilters = {
   naturalHairColor?: string;
   bodyType?: string;
   ethnicity?: string;
+  /**
+   * IOC codes (`CZE`, `RUS`, …), several allowed.
+   *
+   * Stored canonically on `Person.nationality` — always the 3-letter IOC code,
+   * never alpha-2 and never a country name, so a filter can compare exactly
+   * rather than guess.
+   */
+  nationalities?: string[];
   bodyRegions?: string[];
   bodyRegionMatch?: "any" | "all";
   // Multi-select star rating. Numeric values 1..5 select Persons rated
@@ -172,6 +180,10 @@ export async function getPersons(filters: PersonFilters = {}): Promise<PersonWit
   }
 
   Object.assign(where, idOriginWhere(filters.idOrigin) ?? {});
+
+  if (filters.nationalities && filters.nationalities.length > 0) {
+    where.nationality = { in: filters.nationalities };
+  }
 
   const currentStateWhere: Prisma.PersonCurrentStateWhereInput = {};
   if (naturalHairColor) {
@@ -2136,6 +2148,10 @@ export async function getPersonsPaginated(
 
   Object.assign(where, idOriginWhere(filters.idOrigin) ?? {});
 
+  if (filters.nationalities && filters.nationalities.length > 0) {
+    where.nationality = { in: filters.nationalities };
+  }
+
   // Multi-select rating filter. Buckets: 1..5 (exact match) + "unrated"
   // (IS NULL). Translates to `rating IN (...) OR rating IS NULL`
   // depending on which sentinels are selected.
@@ -2428,6 +2444,8 @@ export type PersonFacetCounts = {
   naturalHairColor: Record<string, number>;
   bodyType: Record<string, number>;
   ethnicity: Record<string, number>;
+  /** Keyed by IOC code. Only nations somebody actually carries appear. */
+  nationality: Record<string, number>;
   // Keyed by 1..5 (numeric strings) + "unrated" for null. Each value is
   // the count of Persons in that bucket under the OTHER current filters
   // (per the facet-counts pattern: each facet excludes its own selection
@@ -2438,11 +2456,14 @@ export type PersonFacetCounts = {
 };
 
 export async function getPersonFacetCounts(filters: Omit<PersonFilters, "sort" | "bodyRegions" | "bodyRegionMatch" | "completeness">): Promise<PersonFacetCounts> {
-  function buildBase(overrides: Partial<Pick<PersonFilters, "status" | "naturalHairColor" | "bodyType" | "ethnicity" | "ratings" | "idOrigin">> = {}): Prisma.PersonWhereInput {
+  function buildBase(overrides: Partial<Pick<PersonFilters, "status" | "naturalHairColor" | "bodyType" | "ethnicity" | "ratings" | "idOrigin" | "nationalities">> = {}): Prisma.PersonWhereInput {
     const merged = { ...filters, ...overrides };
     const w: Prisma.PersonWhereInput = {};
     if (merged.status && merged.status !== "all") w.status = merged.status;
     Object.assign(w, idOriginWhere(merged.idOrigin) ?? {});
+    if (merged.nationalities && merged.nationalities.length > 0) {
+      w.nationality = { in: merged.nationalities };
+    }
     const cs: Prisma.PersonCurrentStateWhereInput = {};
     if (merged.naturalHairColor) cs.currentHairColor = { equals: merged.naturalHairColor, mode: "insensitive" };
     if (merged.bodyType) cs.currentBuild = { equals: merged.bodyType, mode: "insensitive" };
@@ -2491,7 +2512,7 @@ export async function getPersonFacetCounts(filters: Omit<PersonFilters, "sort" |
   // grouped — two counts under the other filters, per the facet-count pattern
   // where each facet ignores its own selection.
   const originBase = buildBase({ idOrigin: undefined });
-  const [statusGroups, hairGroups, bodyTypeGroups, ethnicityRows, ratingGroups, selfAssignedCount, externalCount] = await Promise.all([
+  const [statusGroups, hairGroups, bodyTypeGroups, ethnicityRows, nationalityGroups, ratingGroups, selfAssignedCount, externalCount] = await Promise.all([
     prisma.person.groupBy({ by: ["status"], where: buildBase({ status: undefined }), _count: { _all: true } }),
     prisma.personCurrentState.groupBy({ by: ["currentHairColor"], where: { person: buildBase({ naturalHairColor: undefined }) }, _count: { _all: true } }),
     prisma.personCurrentState.groupBy({ by: ["currentBuild"], where: { person: buildBase({ bodyType: undefined }) }, _count: { _all: true } }),
@@ -2504,6 +2525,11 @@ export async function getPersonFacetCounts(filters: Omit<PersonFilters, "sort" |
       },
       _count: { _all: true },
     }),
+    prisma.person.groupBy({
+      by: ["nationality"],
+      where: { ...buildBase({ nationalities: undefined }), nationality: { not: null } },
+      _count: { _all: true },
+    }),
     prisma.person.groupBy({ by: ["rating"], where: buildBase({ ratings: undefined }), _count: { _all: true } }),
     prisma.person.count({ where: { ...originBase, ...idOriginWhere("self") } }),
     prisma.person.count({ where: { ...originBase, ...idOriginWhere("external") } }),
@@ -2514,6 +2540,9 @@ export async function getPersonFacetCounts(filters: Omit<PersonFilters, "sort" |
     naturalHairColor: Object.fromEntries(hairGroups.filter((r) => r.currentHairColor).map((r) => [r.currentHairColor!, r._count._all])),
     bodyType: Object.fromEntries(bodyTypeGroups.filter((r) => r.currentBuild).map((r) => [r.currentBuild!, r._count._all])),
     ethnicity: Object.fromEntries(ethnicityRows.map((r) => [r.value, r._count._all])),
+    nationality: Object.fromEntries(
+      nationalityGroups.filter((r) => r.nationality).map((r) => [r.nationality!, r._count._all]),
+    ),
     rating: Object.fromEntries(
       ratingGroups.map((r) => [r.rating === null ? "unrated" : String(r.rating), r._count._all]),
     ),
