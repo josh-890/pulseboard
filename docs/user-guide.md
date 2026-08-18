@@ -1181,6 +1181,21 @@ The refresh button on the **staged-sets** page is a different thing: it updates
 participant statuses and checks whether a staged set already exists as a
 production Set. It never looks at the archive.
 
+### Confirming a folder ↔ set match
+
+The suggestion under a folder row shows the proposed set's title, date and
+channel — and, when you have already said who is in that folder, whether the two
+agree:
+
+| Badge | Meaning |
+|---|---|
+| **✓ person** | the set credits the person you recorded for this folder — corroboration beyond date and title |
+| **⚠ not \<name\>** | the set does **not** credit somebody you recorded. Worth a second look before confirming |
+| *(nothing)* | you have said nothing about this folder, so there is nothing to compare |
+
+Only your own statements count — a confirmed attribution or a marker file.
+Catalogue suggestions never trigger it.
+
 ### When the archive and a set disagree
 
 Your statement about a folder — a **marker** on disk or a **confirmed** attribution

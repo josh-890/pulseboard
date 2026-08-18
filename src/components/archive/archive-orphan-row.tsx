@@ -12,6 +12,7 @@ import {
   deleteArchiveFolderAction,
 } from '@/lib/actions/archive-actions'
 import { ArchiveRowPeople } from './archive-row-people'
+import { castVerdict } from '@/lib/archive-cast-gap'
 import { ArchiveSetPicker } from './archive-set-picker'
 import { CreateKnownSetSheet } from '@/components/staging-sets/create-known-set-sheet'
 
@@ -46,6 +47,15 @@ export function ArchiveOrphanRow({ item, onRemoved, backHref }: Props) {
   const suggestedDateStr  = suggestedDate
     ? new Date(suggestedDate).toISOString().split('T')[0]
     : null
+
+  // What you established about the folder — a confirmed claim or a marker you
+  // wrote — against the cast of the set being proposed. Identity is the ICG-ID,
+  // never the name.
+  const ownPeople = [
+    ...item.people.claims.map((p) => ({ ...p, confirmed: true })),
+    ...item.people.markers.map((p) => ({ ...p, confirmed: false })),
+  ]
+  const { verdict: castResult, missing: castMissing } = castVerdict(ownPeople, item.suggestedCastIcgIds)
 
   function handleConfirmSuggestion() {
     if (!suggestedId) return
@@ -260,6 +270,28 @@ export function ArchiveOrphanRow({ item, onRemoved, backHref }: Props) {
           {suggestedPeople.length > 0 && (
             <span className="shrink-0 text-[10px] text-muted-foreground/70">
               {suggestedPeople.join(', ')}
+            </span>
+          )}
+
+          {/* Does the proposal agree with what you already said about this folder?
+              The strongest evidence available at this moment, and until now the
+              only one not on screen: the banner compared date and title, while
+              the operator held the answer in their head. Silent when you have
+              said nothing about the folder — there is nothing to agree with. */}
+          {castResult === 'agrees' && (
+            <span
+              className="shrink-0 rounded-full bg-emerald-500/15 px-1.5 py-px text-[10px] font-medium text-emerald-700 dark:text-emerald-400"
+              title="The set credits the person you recorded for this folder"
+            >
+              ✓ person
+            </span>
+          )}
+          {castResult === 'missing' && (
+            <span
+              className="shrink-0 rounded-full bg-amber-500/20 px-1.5 py-px text-[10px] font-medium text-amber-700 dark:text-amber-400"
+              title={`This set does not credit ${castMissing.map((p) => `${p.name} (${p.icgId})`).join(', ')}`}
+            >
+              ⚠ not {castMissing.map((p) => p.name).join(', ')}
             </span>
           )}
 

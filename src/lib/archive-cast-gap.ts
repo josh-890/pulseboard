@@ -28,6 +28,27 @@ export type ArchivePerson = {
 }
 
 /**
+ * How a proposed match sits with what you already established about the folder.
+ *
+ *   `unknown` — you have said nothing about this folder, so there is nothing to
+ *               agree with. Silent: 2,742 of 2,841 live proposals are in this
+ *               state, and a badge on all of them would be wallpaper.
+ *   `agrees`  — the set credits everyone you recorded. Corroboration the banner
+ *               could not show before: it compared date and title only.
+ *   `missing` — the set does not credit somebody you recorded. Worth doubting
+ *               *before* confirming, rather than finding it in the gap list
+ *               afterwards.
+ */
+export function castVerdict(
+  own: ArchivePerson[],
+  castIcgIds: string[],
+): { verdict: 'unknown' | 'agrees' | 'missing'; missing: ArchivePerson[] } {
+  if (own.length === 0) return { verdict: 'unknown', missing: [] }
+  const missing = archivePeopleMissingFromCast(own, castIcgIds.map((icgId) => ({ icgId })))
+  return { verdict: missing.length === 0 ? 'agrees' : 'missing', missing }
+}
+
+/**
  * The archive's people that the cast does not name.
  *
  * A person claimed *and* marked appears once, as confirmed — the stronger of the

@@ -36,10 +36,12 @@ const SHOWN = 4
 export function ArchiveRowPeople({ claims, cast, markers = [], className }: Props) {
   const shownClaims = claims.slice(0, SHOWN)
   const room = Math.max(0, SHOWN - shownClaims.length)
-  const claimed = new Set(claims.map((c) => c.icgId))
-  // A person the cast and a claim both name is one person, listed once — as a
-  // claim, because that is the stronger statement.
-  const castOnly = cast.filter((c) => !claimed.has(c.icgId))
+  // A person named twice is one person. The cast chip yields to both of the
+  // operator's own statements: a claim is the stronger word, and a marker's "?"
+  // is the informative state — printing the name again in grey beside it said
+  // nothing and read as two people.
+  const own = new Set([...claims, ...markers].map((p) => p.icgId))
+  const castOnly = cast.filter((c) => !own.has(c.icgId))
   const shownCast = castOnly.slice(0, room)
   const hidden = claims.length - shownClaims.length + (castOnly.length - shownCast.length)
 

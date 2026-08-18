@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { archivePeopleMissingFromCast, type ArchivePerson } from "@/lib/archive-cast-gap";
+import { archivePeopleMissingFromCast, castVerdict, type ArchivePerson } from "@/lib/archive-cast-gap";
 
 // What the archive says about a set that the set does not say about itself.
 //
@@ -47,5 +47,33 @@ describe("archivePeopleMissingFromCast", () => {
   // showing it would put a nameless chip on the row for ever.
   it("ignores an entry with no ICG-ID", () => {
     expect(archivePeopleMissingFromCast([{ icgId: "", name: "Nobody", confirmed: true }], [])).toEqual([]);
+  });
+});
+
+// The same rule one step earlier: shown on the suggestion banner, where a
+// folder↔set match is confirmed. Until now that banner compared date and title
+// while the operator held the person in their head — and 98 of 2,841 live
+// proposals can be corroborated this way, one contradicted.
+describe("castVerdict", () => {
+  it("says nothing about a folder you have said nothing about", () => {
+    expect(castVerdict([], ["CX-00L3"])).toEqual({ verdict: "unknown", missing: [] });
+  });
+
+  it("corroborates a match whose set credits your person", () => {
+    expect(castVerdict([claim("CX-00L3", "Iveta C")], ["CX-00L3", "ZZ-1"])).toEqual({
+      verdict: "agrees",
+      missing: [],
+    });
+  });
+
+  it("warns when the set does not credit somebody you recorded", () => {
+    const res = castVerdict([marker("IA-91KP", "Irina Ann")], ["PL-0001"]);
+    expect(res.verdict).toBe("missing");
+    expect(res.missing.map((p) => p.name)).toEqual(["Irina Ann"]);
+  });
+
+  // A proposal to a set that credits nobody cannot corroborate anything.
+  it("treats an empty cast as a disagreement, not as agreement", () => {
+    expect(castVerdict([claim("CX-00L3")], []).verdict).toBe("missing");
   });
 });

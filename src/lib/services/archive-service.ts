@@ -1023,6 +1023,15 @@ export type ArchiveFolderEntry = {
   suggestedStagingChannel: string | null
   suggestedSetParticipants: string[]
   suggestedStagingParticipants: string[]
+  /**
+   * The ICG-IDs the suggested set credits.
+   *
+   * Names alone cannot be compared with what you established about the folder —
+   * identity is the ICG-ID, never a name (the one rule this project does not
+   * bend). Carried so the row can say whether the proposal agrees with your own
+   * claim or marker *before* it is confirmed.
+   */
+  suggestedCastIcgIds: string[]
   scannedAt: Date
   lastRenamedAt: Date | null
   lastRenamedFrom: string | null
@@ -2501,10 +2510,11 @@ export async function getArchiveWorkspace(filters: WorkspaceFilters): Promise<Wo
     type SuggestedSetAll = {
       id: string; title: string; releaseDate: Date | null
       channel: { name: string } | null
-      participants: { person: { aliases: { name: string }[] } }[]
+      participants: { person: { icgId: string; aliases: { name: string }[] } }[]
     }
     type SuggestedStagingAll = {
       id: string; title: string; releaseDate: Date | null; channelName: string; artist: string | null
+      participantIcgIds: string[]
     }
 
     const [suggestedSets, suggestedStagings] = await Promise.all([
@@ -2516,7 +2526,7 @@ export async function getArchiveWorkspace(filters: WorkspaceFilters): Promise<Wo
               channel: { select: { name: true } },
               participants: {
                 take: 4,
-                select: { person: { select: { aliases: { where: { isCommon: true }, select: { name: true }, take: 1 } } } },
+                select: { person: { select: { icgId: true, aliases: { where: { isCommon: true }, select: { name: true }, take: 1 } } } },
               },
             },
           }) as Promise<SuggestedSetAll[]>
@@ -2524,7 +2534,7 @@ export async function getArchiveWorkspace(filters: WorkspaceFilters): Promise<Wo
       suggestedStagingIds.length > 0
         ? prisma.stagingSet.findMany({
             where: { id: { in: suggestedStagingIds } },
-            select: { id: true, title: true, releaseDate: true, channelName: true, artist: true },
+            select: { id: true, title: true, releaseDate: true, channelName: true, artist: true, participantIcgIds: true },
           }) as Promise<SuggestedStagingAll[]>
         : Promise.resolve([] as SuggestedStagingAll[]),
     ])
@@ -2568,6 +2578,9 @@ export async function getArchiveWorkspace(filters: WorkspaceFilters): Promise<Wo
           ? ss.participants.map((p) => p.person.aliases[0]?.name).filter(Boolean) as string[]
           : [],
         suggestedStagingParticipants: sg?.artist ? [sg.artist] : [],
+        suggestedCastIcgIds: ss
+          ? ss.participants.map((p) => p.person.icgId).filter(Boolean)
+          : (sg?.participantIcgIds ?? []),
         coverUrl: r.coverKey ? buildUrl(r.coverKey) : null,
         coverError: r.coverError,
       }
@@ -2632,7 +2645,7 @@ export async function getArchiveWorkspace(filters: WorkspaceFilters): Promise<Wo
       title: string
       releaseDate: Date | null
       channel: { name: string } | null
-      participants: { person: { aliases: { name: string }[] } }[]
+      participants: { person: { icgId: string; aliases: { name: string }[] } }[]
     }
     type SuggestedStaging = {
       id: string
@@ -2640,6 +2653,7 @@ export async function getArchiveWorkspace(filters: WorkspaceFilters): Promise<Wo
       releaseDate: Date | null
       channelName: string
       artist: string | null
+      participantIcgIds: string[]
     }
 
     const [suggestedSets, suggestedStagings] = await Promise.all([
@@ -2656,6 +2670,7 @@ export async function getArchiveWorkspace(filters: WorkspaceFilters): Promise<Wo
                 select: {
                   person: {
                     select: {
+                      icgId: true,
                       aliases: {
                         where: { isCommon: true },
                         select: { name: true },
@@ -2677,6 +2692,7 @@ export async function getArchiveWorkspace(filters: WorkspaceFilters): Promise<Wo
               releaseDate: true,
               channelName: true,
               artist: true,
+              participantIcgIds: true,
             },
           }) as Promise<SuggestedStaging[]>
         : Promise.resolve([] as SuggestedStaging[]),
@@ -2721,6 +2737,9 @@ export async function getArchiveWorkspace(filters: WorkspaceFilters): Promise<Wo
           ? ss.participants.map((p) => p.person.aliases[0]?.name).filter(Boolean) as string[]
           : [],
         suggestedStagingParticipants: sg?.artist ? [sg.artist] : [],
+        suggestedCastIcgIds: ss
+          ? ss.participants.map((p) => p.person.icgId).filter(Boolean)
+          : (sg?.participantIcgIds ?? []),
         coverUrl: r.coverKey ? buildUrl(r.coverKey) : null,
         coverError: r.coverError,
       }
@@ -2799,6 +2818,7 @@ export async function getArchiveWorkspace(filters: WorkspaceFilters): Promise<Wo
         coverUrl: r.coverKey ? buildUrl(r.coverKey) : null,
         coverError: r.coverError,
         suggestedStagingParticipants: [],
+        suggestedCastIcgIds: [],
       }
     })
 
