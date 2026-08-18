@@ -1181,6 +1181,23 @@ The refresh button on the **staged-sets** page is a different thing: it updates
 participant statuses and checks whether a staged set already exists as a
 production Set. It never looks at the archive.
 
+### The archive suggestion on a staged set
+
+Beside the proposed folder the row shows two things that answer different questions:
+
+- **exact / approx** — how well the *structure* agrees: the release day, the title
+  in the right channel.
+- **a person badge** — whether **you** have already established who is in that
+  folder, and this set credits them. Green with a person icon for a confirmed
+  attribution, dashed violet with a `?` for a marker file you have not confirmed
+  yet. Nothing at all when you have said nothing about the folder.
+
+The second is the stronger of the two and the fastest decision in the list: the
+structure can coincide, an ICG-ID you confirmed cannot. It is kept out of the
+confidence on purpose — the confidence measures date and title, and mixing the two
+would make a structurally sound proposal look weak just because you have not
+worked that folder yet.
+
 ### Confirming a folder ↔ set match
 
 The suggestion under a folder row shows the proposed set's title, date and

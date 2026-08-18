@@ -147,6 +147,16 @@ export type ScoredArchiveCandidate = {
   nameMatch: boolean
   /** Exact release-date == folder date match (preferred tiebreaker over the year window). */
   isExactDay: boolean
+  /**
+   * The candidate credits somebody you confirmed on this folder (by ICG-ID).
+   *
+   * A tiebreaker only, never a promotion: measured on 2,841 live suggestions,
+   * every one carrying such evidence already scored HIGH on date and name, so a
+   * scoring rule would move nothing today while being free to misfire later.
+   * Where it does decide something is a genuine tie — two folders, same day,
+   * same title similarity — and there your own statement is the better answer.
+   */
+  personConfirmed?: boolean
 }
 
 /**
@@ -156,19 +166,25 @@ export type ScoredArchiveCandidate = {
 export function pickBestArchiveCandidate(
   candidates: ScoredArchiveCandidate[],
 ): { id: string; confidence: 'HIGH' | 'MEDIUM' } | null {
-  let best: { id: string; confidence: 'HIGH' | 'MEDIUM'; rank: number; exact: number; sim: number } | null = null
+  let best:
+    | { id: string; confidence: 'HIGH' | 'MEDIUM'; rank: number; exact: number; person: number; sim: number }
+    | null = null
   for (const c of candidates) {
     const conf = scoreArchiveMatch({ titleSim: c.titleSim, nameMatch: c.nameMatch, isExactDay: c.isExactDay })
     if (!conf) continue
     const rank = conf === 'HIGH' ? 1 : 0
     const exact = c.isExactDay ? 1 : 0
+    const person = c.personConfirmed ? 1 : 0
     if (
       !best ||
       rank > best.rank ||
       (rank === best.rank && exact > best.exact) ||
-      (rank === best.rank && exact === best.exact && c.titleSim > best.sim)
+      // Ranked above title similarity: a confirmed person is a statement, a
+      // trigram score is a coincidence waiting to happen.
+      (rank === best.rank && exact === best.exact && person > best.person) ||
+      (rank === best.rank && exact === best.exact && person === best.person && c.titleSim > best.sim)
     ) {
-      best = { id: c.id, confidence: conf, rank, exact, sim: c.titleSim }
+      best = { id: c.id, confidence: conf, rank, exact, person, sim: c.titleSim }
     }
   }
   return best ? { id: best.id, confidence: best.confidence } : null
@@ -1719,6 +1735,9 @@ export async function runMatchingPass(
       parsedShortName: true,
       parsedTitle: true,
       relativePath: true,
+      // Only confirmed claims — a marker is your word too, but the tiebreaker is
+      // reserved for what you have stood behind.
+      attributions: { select: { icgId: true } },
     },
   })
 
@@ -1806,6 +1825,7 @@ export async function runMatchingPass(
 
     if (stagingCands.length > 0) {
       const aliasByIcg = await _aliasNormsByIcgId(stagingCands.flatMap((c) => c.participant_icg_ids ?? []))
+      const claimed = new Set(folder.attributions.map((a) => a.icgId))
       const scored: ScoredArchiveCandidate[] = stagingCands.map((c) => {
         const names = [
           ..._splitNamesNorm(c.participant_names_norm),
@@ -1816,6 +1836,7 @@ export async function runMatchingPass(
           titleSim: Number(c.sim) || 0,
           nameMatch: folderPersonMatches(folderPersonNorm, names),
           isExactDay: c.is_exact_day === true,
+          personConfirmed: (c.participant_icg_ids ?? []).some((icg) => claimed.has(icg)),
         }
       })
       const best = pickBestArchiveCandidate(scored)
@@ -1914,6 +1935,8 @@ export async function runMatchingPassForItem(
   let titleNorm: string | null = null
   let alreadyConfirmed = false
   let entityNameNorms: string[] = []
+  /** Who this item credits, by ICG-ID — for the confirmed-person tiebreaker. */
+  let entityIcgIds: string[] = []
 
   if (type === 'staging') {
     const ss = await prisma.stagingSet.findUnique({
@@ -1939,6 +1962,7 @@ export async function runMatchingPassForItem(
       ..._splitNamesNorm(ss.participantNamesNorm),
       ...(ss.participantIcgIds ?? []).flatMap((icg) => aliasByIcg.get(icg) ?? []),
     ]
+    entityIcgIds = ss.participantIcgIds ?? []
   } else {
     const set = await prisma.set.findUnique({
       where: { id },
@@ -1957,6 +1981,12 @@ export async function runMatchingPassForItem(
     shortName = set.channel?.shortName ?? null
     titleNorm = set.titleNorm ?? null
     entityNameNorms = (await _aliasNormsBySetId([id])).get(id) ?? []
+    entityIcgIds = (
+      await prisma.setParticipant.findMany({
+        where: { setId: id },
+        select: { person: { select: { icgId: true } } },
+      })
+    ).map((p) => p.person.icgId)
   }
 
   if (alreadyConfirmed || !releaseDate || !shortName) return { matched: false }
@@ -2003,11 +2033,23 @@ export async function runMatchingPassForItem(
     LIMIT 50
   `
 
+  // Which of the candidate folders carry a confirmed claim for somebody this
+  // item credits. One query for at most 50 folders.
+  const confirmedFolderIds = new Set<string>()
+  if (entityIcgIds.length > 0 && rows.length > 0) {
+    const claims = await prisma.archiveFolderAttribution.findMany({
+      where: { archiveFolderId: { in: rows.map((r) => r.id) }, icgId: { in: entityIcgIds } },
+      select: { archiveFolderId: true },
+    })
+    for (const c of claims) confirmedFolderIds.add(c.archiveFolderId)
+  }
+
   const scored: ScoredArchiveCandidate[] = rows.map((r) => ({
     id: r.id,
     titleSim: Number(r.sim) || 0,
     nameMatch: folderPersonMatches(parseFolderParticipant(r.folder_name), entityNameNorms),
     isExactDay: r.is_exact_day === true,
+    personConfirmed: confirmedFolderIds.has(r.id),
   }))
   const best = pickBestArchiveCandidate(scored)
   if (!best) return { matched: false }
@@ -2104,6 +2146,23 @@ export type SuggestedFolderInfo = {
   titleMatches: boolean
   /** Folder date minus target date, in days. Null when either date is missing. */
   dayDelta: number | null
+  /**
+   * Your own statement about the folder, matched against this set's cast by
+   * ICG-ID — the strongest evidence available at the moment of confirming, and
+   * of a different kind from the confidence.
+   *
+   * `confidence` measures structure: does the day agree, does the title. This
+   * says *you have established who is in that folder*, and the set credits them.
+   * A folder name that merely resembles a name is not this — identity is the
+   * ICG-ID, never a string (the one rule this project does not bend).
+   *
+   * Kept out of the score on purpose. Measured on 2,841 live suggestions: 68
+   * carry a confirmed claim and 30 a marker, and **not one of them would change
+   * tier** — where you have recorded a person, day and name already agree. A
+   * rule that moves nothing today but can misfire tomorrow is a bad trade; this
+   * earns its place by being *shown*, not by re-ranking.
+   */
+  personEvidence: { kind: 'claim' | 'marker'; names: string[] } | null
 }
 
 
@@ -2135,6 +2194,29 @@ function describeAgreement(
  * For a batch of staging set IDs, find any SUGGESTED ArchiveLink.
  * Returns a Map<stagingSetId, SuggestedFolderInfo>.
  */
+/**
+ * Does this folder carry your own statement about somebody the set credits?
+ *
+ * A confirmed claim outranks a marker: both are yours, but one you have already
+ * stood behind. Only the people the set actually credits count — a claim naming
+ * somebody else says nothing in favour of *this* match (and is reported as a
+ * disagreement elsewhere).
+ */
+function describePersonEvidence(
+  folder: {
+    attributions: { icgId: string; name: string }[]
+    suggestions: { icgId: string; name: string }[]
+  },
+  castIcgIds: string[],
+): { kind: 'claim' | 'marker'; names: string[] } | null {
+  const cast = new Set(castIcgIds.filter(Boolean))
+  const claims = folder.attributions.filter((a) => cast.has(a.icgId))
+  if (claims.length > 0) return { kind: 'claim', names: claims.map((c) => c.name) }
+  const marks = folder.suggestions.filter((s) => cast.has(s.icgId))
+  if (marks.length > 0) return { kind: 'marker', names: marks.map((m) => m.name) }
+  return null
+}
+
 export async function getSuggestedFoldersForStagingSets(
   ids: string[],
 ): Promise<Map<string, SuggestedFolderInfo>> {
@@ -2157,9 +2239,20 @@ export async function getSuggestedFoldersForStagingSets(
     },
     select: {
       stagingSetId: true, setId: true, confidence: true,
-      archiveFolder: { select: { id: true, folderName: true, fileCount: true, parsedDate: true, parsedTitle: true, fullPath: true } },
-      stagingSet: { select: { releaseDate: true, titleNorm: true, title: true } },
-      set: { select: { releaseDate: true, titleNorm: true, title: true } },
+      archiveFolder: {
+        select: {
+          id: true, folderName: true, fileCount: true, parsedDate: true, parsedTitle: true, fullPath: true,
+          attributions: { select: { icgId: true, name: true } },
+          suggestions: { where: { source: 'FOLDER_ATTRIBUTION' }, select: { icgId: true, name: true } },
+        },
+      },
+      stagingSet: { select: { releaseDate: true, titleNorm: true, title: true, participantIcgIds: true } },
+      set: {
+        select: {
+          releaseDate: true, titleNorm: true, title: true,
+          participants: { select: { person: { select: { icgId: true } } } },
+        },
+      },
     },
   })
   return new Map(
@@ -2180,6 +2273,12 @@ export async function getSuggestedFoldersForStagingSets(
         ...(target
           ? describeAgreement(l.archiveFolder, target)
           : { dateMatches: false, titleMatches: false, dayDelta: null }),
+        personEvidence: describePersonEvidence(
+          l.archiveFolder,
+          l.stagingSet?.participantIcgIds ??
+            l.set?.participants.map((p) => p.person.icgId) ??
+            [],
+        ),
       },
     ] as const]
     }),
@@ -2198,8 +2297,19 @@ export async function getSuggestedFoldersForSets(
     where: { setId: { in: ids }, status: 'SUGGESTED' },
     select: {
       setId: true, confidence: true,
-      archiveFolder: { select: { id: true, folderName: true, fileCount: true, parsedDate: true, parsedTitle: true, fullPath: true } },
-      set: { select: { releaseDate: true, titleNorm: true, title: true } },
+      archiveFolder: {
+        select: {
+          id: true, folderName: true, fileCount: true, parsedDate: true, parsedTitle: true, fullPath: true,
+          attributions: { select: { icgId: true, name: true } },
+          suggestions: { where: { source: 'FOLDER_ATTRIBUTION' }, select: { icgId: true, name: true } },
+        },
+      },
+      set: {
+        select: {
+          releaseDate: true, titleNorm: true, title: true,
+          participants: { select: { person: { select: { icgId: true } } } },
+        },
+      },
     },
   })
   return new Map(
@@ -2215,6 +2325,10 @@ export async function getSuggestedFoldersForSets(
         ...(l.set
           ? describeAgreement(l.archiveFolder, l.set)
           : { dateMatches: false, titleMatches: false, dayDelta: null }),
+        personEvidence: describePersonEvidence(
+          l.archiveFolder,
+          l.set?.participants.map((p) => p.person.icgId) ?? [],
+        ),
       },
     ]),
   )

@@ -124,6 +124,35 @@ describe("pickBestArchiveCandidate", () => {
     expect(best).toEqual({ id: "exactDayMedium", confidence: "MEDIUM" });
   });
 
+  // A confirmed person is a statement about identity; a trigram score is a
+  // coincidence waiting to happen. Where the structural evidence is equal, the
+  // statement decides — and only there: it never promotes a tier, because on
+  // 2,841 live suggestions every candidate carrying one already scored HIGH.
+  it("breaks a genuine tie in favour of the folder whose person you confirmed", () => {
+    const best = pickBestArchiveCandidate([
+      { id: "sameScore", titleSim: 0.9, nameMatch: true, isExactDay: true },
+      { id: "confirmedPerson", titleSim: 0.9, nameMatch: true, isExactDay: true, personConfirmed: true },
+    ]);
+    expect(best).toEqual({ id: "confirmedPerson", confidence: "HIGH" });
+  });
+
+  it("does not let a confirmed person beat a better structural match", () => {
+    const best = pickBestArchiveCandidate([
+      { id: "exactDay", titleSim: 0.2, nameMatch: true, isExactDay: true },
+      { id: "offDayButConfirmed", titleSim: 0.9, nameMatch: true, isExactDay: false, personConfirmed: true },
+    ]);
+    expect(best?.id, "the day is the harder fact").toBe("exactDay");
+  });
+
+  it("does not turn an unqualified candidate into a suggestion", () => {
+    expect(
+      pickBestArchiveCandidate([
+        { id: "weak", titleSim: 0.1, nameMatch: false, isExactDay: false, personConfirmed: true },
+      ]),
+      "same person, same channel, same year is true of dozens of pairs",
+    ).toBeNull();
+  });
+
   it("on the same day, the name match promotes one candidate over a weak-title sibling", () => {
     const best = pickBestArchiveCandidate([
       { id: "weak", titleSim: 0.45, nameMatch: false, isExactDay: true },

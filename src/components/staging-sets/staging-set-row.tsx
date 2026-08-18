@@ -3,7 +3,7 @@
 import { memo, useState, useCallback, useTransition } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
-import { AlertTriangle, CalendarClock, Camera, CheckSquare, CheckCheck, Clock, Copy, ExternalLink, Film, Flag, FolderOpen, FolderSearch, FolderX, Check, Loader2, RotateCcw, UserSearch, X } from 'lucide-react'
+import { AlertTriangle, CalendarClock, Camera, CheckSquare, CheckCheck, Clock, Copy, ExternalLink, Film, Flag, FolderOpen, FolderSearch, FolderX, Check, Loader2, RotateCcw, UserCheck, UserSearch, X } from 'lucide-react'
 import { cn, getInitialsFromName } from '@/lib/utils'
 import { describeMatchLabel } from '@/lib/archive-match-label'
 import { useHoverImagePreview, HoverImagePreview } from '@/components/shared/hover-image-preview'
@@ -842,6 +842,31 @@ export const StagingSetRow = memo(function StagingSetRow({
           >
             {archiveMatchLabel!.text}
           </span>
+
+          {/* Your own statement about that folder, matched to this set's cast by
+              ICG-ID. A different kind of evidence from the confidence beside it:
+              that one measures date and title, this one says you have already
+              established who is in there — the fastest yes in the list. */}
+          {suggestion.personEvidence && (
+            <span
+              className={cn(
+                'inline-flex shrink-0 items-center gap-1 rounded-full px-1.5 py-px text-[10px] font-medium',
+                suggestion.personEvidence.kind === 'claim'
+                  ? 'bg-emerald-500/20 text-emerald-700 dark:text-emerald-400'
+                  : 'border border-dashed border-violet-500 bg-violet-500/10 text-violet-700 dark:text-violet-400',
+              )}
+              title={
+                suggestion.personEvidence.kind === 'claim'
+                  ? `You confirmed ${suggestion.personEvidence.names.join(', ')} on this folder, and this set credits them`
+                  : `Your marker names ${suggestion.personEvidence.names.join(', ')} on this folder, and this set credits them — not confirmed yet`
+              }
+            >
+              <UserCheck size={10} />
+              {suggestion.personEvidence.names.join(', ')}
+              {suggestion.personEvidence.kind === 'marker' && ' ?'}
+            </span>
+          )}
+
           <FolderSearch
             size={11}
             className={cn(
