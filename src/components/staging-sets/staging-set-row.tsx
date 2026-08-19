@@ -1,6 +1,7 @@
 'use client'
 
 import { memo, useState, useCallback, useTransition } from 'react'
+import { toast } from 'sonner'
 import Image from 'next/image'
 import Link from 'next/link'
 import { AlertTriangle, CalendarClock, Camera, CheckSquare, CheckCheck, Clock, Copy, ExternalLink, Film, Flag, FolderOpen, FolderSearch, FolderX, Check, Loader2, RotateCcw, UserCheck, UserSearch, X } from 'lucide-react'
@@ -119,7 +120,12 @@ type StagingSetRowProps = {
   onSelect: (id: string) => void
   onToggleCheck: (id: string) => void
   onQueueToggle?: (id: string) => void
-  onArchiveChange?: () => void
+  /**
+   * Refetch the list. Awaited by the archive buttons, so the pending state lasts
+   * until the refreshed row is on screen — a click that produced no visible
+   * change was indistinguishable from a click that never registered.
+   */
+  onArchiveChange?: () => void | Promise<void>
   onStatusChange?: (id: string, status: StagingSetStatus) => void | Promise<void>
   onPromote?: (id: string) => void | Promise<void>
   inlineCoverMode?: InlineCoverMode
@@ -899,8 +905,12 @@ export const StagingSetRow = memo(function StagingSetRow({
                   // single authoritative refetch. Avoids the optimistic status
                   // write racing/clobbering the archive-link refetch (which left
                   // the link invisible until a manual page refresh).
-                  await confirmAndApproveStagingSetAction(suggestion.folderId, ss.id)
-                  onArchiveChange?.()
+                  const res = await confirmAndApproveStagingSetAction(suggestion.folderId, ss.id)
+                  if (!res.success) {
+                    toast.error(res.error ?? 'Failed to confirm & approve')
+                    return
+                  }
+                  await onArchiveChange?.()
                 })
               }}
               className={cn(
@@ -919,8 +929,12 @@ export const StagingSetRow = memo(function StagingSetRow({
             onClick={(e) => {
               e.stopPropagation()
               startConfirm(async () => {
-                await confirmArchiveFolderLinkAction(suggestion.folderId, ss.id, 'staging')
-                onArchiveChange?.()
+                const res = await confirmArchiveFolderLinkAction(suggestion.folderId, ss.id, 'staging')
+                if (!res.success) {
+                  toast.error(res.error ?? 'Failed to confirm link')
+                  return
+                }
+                await onArchiveChange?.()
               })
             }}
             className={cn(
@@ -938,8 +952,12 @@ export const StagingSetRow = memo(function StagingSetRow({
             onClick={(e) => {
               e.stopPropagation()
               startReject(async () => {
-                await rejectArchiveSuggestionAction(suggestion.folderId)
-                onArchiveChange?.()
+                const res = await rejectArchiveSuggestionAction(suggestion.folderId)
+                if (!res.success) {
+                  toast.error(res.error ?? 'Failed to reject suggestion')
+                  return
+                }
+                await onArchiveChange?.()
               })
             }}
             className={cn(

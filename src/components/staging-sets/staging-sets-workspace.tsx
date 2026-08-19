@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useSearchParams } from 'next/navigation'
+import { toast } from 'sonner'
 import {
   Loader2,
   Check,
@@ -279,6 +280,9 @@ export function StagingSetsWorkspace() {
         // Stats should reflect all items, not just current page
         !append ? fetch(`/api/staging-sets/stats${filters.batchId ? `?batchId=${filters.batchId}` : ''}`) : Promise.resolve(null),
       ])
+      // fetch() does not throw on 5xx: without this the error body ({ error })
+      // would be stored as the list and wipe the grid instead of reporting.
+      if (!listRes.ok) throw new Error(`staging-sets ${listRes.status}`)
       const listData = (await listRes.json()) as FetchResult
 
       // A newer fetch started while this one was in flight — discard this result.
@@ -304,8 +308,13 @@ export function StagingSetsWorkspace() {
         const statsData = (await statsRes.json()) as StagingSetStats
         setStats(statsData)
       }
-    } catch {
-      // Silently fail
+    } catch (err) {
+      // Never silently: a dropped refresh left the row showing its old state,
+      // which reads as "the click did nothing" even though the write landed.
+      if (seq === fetchSeqRef.current) {
+        console.error('Staging sets fetch failed', err)
+        toast.error('Could not refresh the list — reload the page to see the current state')
+      }
     } finally {
       // Only the latest fetch clears the loading flags, so a superseded response
       // can't switch the skeleton off while a newer fetch is still running.

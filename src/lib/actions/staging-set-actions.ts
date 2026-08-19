@@ -89,8 +89,10 @@ export async function confirmAndApproveStagingSetAction(
       revalidatePath('/sets')
       revalidatePath('/shopping-list')
       return { success: true }
-    } catch {
-      return { success: false, error: 'Failed to confirm & approve' }
+    } catch (err) {
+      // Logged, not swallowed: the caller only ever saw "nothing happened".
+      console.error('confirmAndApproveStagingSetAction failed', { folderId, stagingSetId }, err)
+      return { success: false, error: err instanceof Error ? err.message : 'Failed to confirm & approve' }
     }
   })
 }
