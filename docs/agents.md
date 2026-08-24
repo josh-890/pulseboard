@@ -142,6 +142,13 @@ in twelve sets is twelve pastes of one file; a second person in a set is a secon
 file, with nothing to merge. Markers only **add**: deleting one takes nothing back.
 `-MigrateCast` converts an older `_cast.txt` into markers, once.
 
+A `.pulseboard\` that Explorer draws **faded** carries the DOS hidden attribute —
+Samba puts it on every dot-name, so a meta folder created from Linux, WSL or over the
+share arrives hidden. The scan reads it with `-Force` and does not care, and neither
+should you: the attribute is cosmetic, and clearing it is optional. (Before that fix
+the walk died on the first hidden one with `Get-Item: Could not find item …
+\.pulseboard`, because `Test-Path` sees hidden items and `Get-Item` does not.)
+
 **Right after moving folders between roots:** a Full run starts with the targeted
 sub-phase, which checks the paths the app currently records — so every moved folder
 is reported `MISSING`. That verdict is true of the old path and is corrected by the

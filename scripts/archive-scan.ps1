@@ -300,6 +300,10 @@ $META_DIR = ".pulseboard"
 # Our own files inside it. Anything else in there with an ICG-ID in its name is a
 # cast marker written by hand.
 $OWN_META_FILES = @("pulseboard.json", "cast.json", "index.tsv")
+# Windows/Explorer droppings. The meta folder is read with -Force (see
+# Get-MetaDirMtimeUtc), which surfaces hidden and system files, so these have to be
+# named explicitly or every set with a Thumbs.db in there reports an unreadable marker.
+$META_JUNK_FILES = @("thumbs.db", "desktop.ini", ".ds_store")
 # Mirrors ICG_ID_RE in src/lib/icg-id.ts.
 $ICG_ID_PATTERN = '^[A-Z]{2}-[0-9]{2}[A-Z0-9@][A-Z0-9]+$'
 # Generated files from before the move into .pulseboard\. Removed wherever they are
@@ -328,6 +332,23 @@ function Get-VideoFiles {
 function Normalize-Path {
     param([string]$P)
     return $P.TrimEnd("/\").ToLower().Replace("/","\")
+}
+
+# mtime of a set's .pulseboard\, or $null when there is none.
+#
+# The folder frequently carries the DOS hidden attribute: Samba sets it on dot-names
+# (`hide dot files` is on by default), so any meta folder created from Linux, WSL or
+# over the share arrives hidden, and Explorer draws it faded. Test-Path sees a hidden
+# item but Get-Item and Get-ChildItem do NOT without -Force — so "Test-Path says the
+# folder is there, Get-Item says Could not find item" is precisely what a hidden meta
+# folder looks like, and it crashed the walk on the first set that had one. Reading it
+# with -Force is the fix; the attribute itself is harmless and left alone.
+function Get-MetaDirMtimeUtc {
+    param([string]$MetaDir)
+    if (-not (Test-Path -LiteralPath $MetaDir -PathType Container)) { return $null }
+    $item = Get-Item -LiteralPath $MetaDir -Force -ErrorAction SilentlyContinue
+    if (-not $item) { return $null }
+    return $item.LastWriteTimeUtc
 }
 
 # Invoke-RestMethod in PS 5.1 may auto-convert ISO date strings to [DateTime] objects.
@@ -726,10 +747,7 @@ function Walk-Root {
                 # folder that moved to another drive; the old location is still read
                 # so a folder keeps its identity mid-migration.
                 $metaDir     = Join-Path $lf.FullName $META_DIR
-                $metaMtime   = $null
-                if (Test-Path -LiteralPath $metaDir -PathType Container) {
-                    $metaMtime = (Get-Item -LiteralPath $metaDir).LastWriteTimeUtc
-                }
+                $metaMtime   = Get-MetaDirMtimeUtc $metaDir
 
                 $sidecarKey = $null
                 $sidecarObj = $null  # reset per folder so the stale-check below is clean
@@ -807,9 +825,7 @@ function Walk-Root {
                         }
                         $script:MigrateStats.files++
                         $script:MigrateStats.markers += $made
-                        if (Test-Path -LiteralPath $metaDir -PathType Container) {
-                            $metaMtime = (Get-Item -LiteralPath $metaDir).LastWriteTimeUtc
-                        }
+                        $metaMtime = Get-MetaDirMtimeUtc $metaDir
                     }
                 }
 
@@ -820,8 +836,13 @@ function Walk-Root {
                 $folderPeople       = @()
                 $folderPeopleErrors = @()
                 if ($metaMtime) {
-                    foreach ($mf in (Get-ChildItem -LiteralPath $metaDir -File -ErrorAction SilentlyContinue)) {
-                        if ($OWN_META_FILES -contains $mf.Name.ToLowerInvariant()) { continue }
+                    # -Force for the same reason the folder itself needs it: a marker
+                    # that arrived over the share can be hidden too, and a marker the
+                    # walk cannot see is a claim silently dropped.
+                    foreach ($mf in (Get-ChildItem -LiteralPath $metaDir -File -Force -ErrorAction SilentlyContinue)) {
+                        $mfLower = $mf.Name.ToLowerInvariant()
+                        if ($OWN_META_FILES -contains $mfLower) { continue }
+                        if ($META_JUNK_FILES -contains $mfLower) { continue }
 
                         $mname = $mf.Name
                         $pm = [regex]::Match($mname, '^(.*?)[\s_]*\(([^()]+)\)')
