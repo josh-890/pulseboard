@@ -176,6 +176,26 @@ function parseModelsList(raw: string): ParsedModelRef[] {
 
 type Section = 'header' | 'links' | 'channels' | 'sets' | 'comodels'
 
+/**
+ * The first line that belongs to a section after the header.
+ *
+ * The header used to end at exactly one thing: the `=== Links aus 'Other Links' ===`
+ * marker. That section is **optional** — the extractor emits it only for a model who
+ * has external links — so a file without one had no way to end the header at all. The
+ * header loop then ran to EOF and every later section parsed against an exhausted
+ * cursor: 454 sets, 31 channel appearances and 27 co-models silently became zero,
+ * and the import completed "successfully" with two items (Hilary C, AX-00ET,
+ * 2026-08-27; first such file in 129 imports).
+ *
+ * So the header ends at the marker *or* at the first line of whatever section
+ * actually follows. Both of these are already the transitions the identities loop
+ * dispatches on, which is why breaking here needs no `section` assignment: leave the
+ * cursor on the line and let that loop classify it.
+ */
+function isPostHeaderSectionStart(trimmed: string): boolean {
+  return /^Channel\s*:/.test(trimmed) || /^Titeltxt\s*:/.test(trimmed)
+}
+
 export function parseImportFile(content: string): ParsedImportData {
   const lines = content.split('\n')
 
@@ -217,6 +237,12 @@ export function parseImportFile(content: string): ParsedImportData {
     if (trimmed.startsWith("=== Links aus 'Other Links' ===")) {
       section = 'links'
       i++
+      break
+    }
+
+    // No "Other Links" for this model — the header ends where the next section
+    // begins. The cursor stays on the line so the loop below classifies it.
+    if (isPostHeaderSectionStart(trimmed)) {
       break
     }
 
