@@ -16,6 +16,7 @@ import {
   ArrowRight,
   Play,
   Check,
+  AlertTriangle,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -267,6 +268,19 @@ export function ImportWorkspace({ batch }: ImportWorkspaceProps) {
             </Button>
           </div>
         </div>
+
+        {/* A file the parser could not fully read says so for as long as the batch
+            exists. The upload modal is seen once; this is what is still here when
+            the counts look wrong a week later. */}
+        {batch.notes && (
+          <div
+            role="alert"
+            className="mt-3 flex items-start gap-2.5 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2"
+          >
+            <AlertTriangle size={15} className="mt-0.5 shrink-0 text-amber-500" aria-hidden="true" />
+            <p className="text-xs text-amber-600 dark:text-amber-200">{batch.notes}</p>
+          </div>
+        )}
 
       </div>
 

@@ -14,8 +14,10 @@ import {
   extractUniqueChannels,
   extractUniqueCoModels,
   detectPotentialDuplicates,
+  checkParseCoverage,
+  describeShortfalls,
 } from './parser'
-import type { ParsedSet } from './parser'
+import type { ParsedSet, ParseShortfall } from './parser'
 import { matchAllEntities } from './matcher'
 import { normalizeForSearch } from '@/lib/services/alias-service'
 import { findLinkedCollision, mergeIntoLinkedStagingSet } from './linked-set-merge'
@@ -58,6 +60,15 @@ async function findProbableStagingDuplicate(
 
 export type ImportBatchWithItems = ImportBatch & {
   items: ImportItem[]
+}
+
+/**
+ * A freshly created batch, plus what the parser could not read out of the file.
+ * Empty on a clean parse; `ImportBatch.notes` carries the same thing in prose so
+ * the warning outlives the upload modal.
+ */
+export type CreatedBatch = ImportBatchWithItems & {
+  parseShortfalls: ParseShortfall[]
 }
 
 /**
@@ -140,9 +151,15 @@ export type ImportBatchSummary = {
 export async function createBatch(
   filename: string,
   rawContent: string,
-): Promise<ImportBatchWithItems> {
+): Promise<CreatedBatch> {
   const filenameMeta = parseFilename(filename)
   const parsed = parseImportFile(rawContent)
+
+  // A section the file plainly contains must not come out empty without saying so.
+  // Everything that parsed is still imported — the shortfall rides on the batch so
+  // it survives the upload modal and is still there tomorrow.
+  const shortfalls = checkParseCoverage(rawContent, parsed)
+
   const matches = await matchAllEntities(parsed)
   const duplicates = detectPotentialDuplicates(parsed.sets)
 
@@ -410,6 +427,7 @@ export async function createBatch(
       status: 'REVIEW',
       rawContent,
       parsedAt: new Date(),
+      notes: shortfalls.length > 0 ? describeShortfalls(shortfalls) : null,
       extractionDate: filenameMeta.extractionDate
         ? new Date(filenameMeta.extractionDate)
         : null,
@@ -435,10 +453,11 @@ export async function createBatch(
     .catch(() => undefined)
 
   // Re-fetch with updated statuses
-  return prisma.importBatch.findUniqueOrThrow({
+  const created = await prisma.importBatch.findUniqueOrThrow({
     where: { id: batch.id },
     include: { items: { orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }] } },
   })
+  return { ...created, parseShortfalls: shortfalls }
 }
 
 // ─── Create StagingSet Records ──────────────────────────────────────────────

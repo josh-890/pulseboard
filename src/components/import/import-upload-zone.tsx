@@ -2,15 +2,17 @@
 
 import { useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { Upload, FileText, Loader2 } from 'lucide-react'
+import { Upload, FileText, Loader2, AlertTriangle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { ImportCompleteModal } from './import-complete-modal'
 import type { StagingIngestSummary } from '@/lib/services/import/staging-service'
+import type { ParseShortfall } from '@/lib/services/import/parser'
 
 type CompletedUpload = {
   id: string
   subjectName: string
   summary: StagingIngestSummary
+  shortfalls: ParseShortfall[]
 }
 
 export function ImportUploadZone() {
@@ -41,8 +43,14 @@ export function ImportUploadZone() {
 
         const data = await res.json()
         setIsUploading(false)
-        if (data.stagingSummary) {
-          setCompleted({ id: data.id, subjectName: data.subjectName, summary: data.stagingSummary })
+        const shortfalls: ParseShortfall[] = data.parseShortfalls ?? []
+        if (data.stagingSummary || shortfalls.length > 0) {
+          setCompleted({
+            id: data.id,
+            subjectName: data.subjectName,
+            summary: data.stagingSummary,
+            shortfalls,
+          })
         } else {
           router.push(`/import/${data.id}`)
         }
@@ -134,7 +142,20 @@ export function ImportUploadZone() {
         )}
 
         {error && (
-          <p className="mt-3 text-sm text-destructive">{error}</p>
+          <div
+            role="alert"
+            className="mt-3 flex items-start gap-2.5 rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2.5 text-left"
+          >
+            <AlertTriangle
+              size={16}
+              className="mt-0.5 shrink-0 text-destructive"
+              aria-hidden="true"
+            />
+            <div>
+              <p className="text-sm font-medium text-destructive">Upload failed</p>
+              <p className="mt-0.5 text-xs text-muted-foreground">{error}</p>
+            </div>
+          </div>
         )}
       </div>
 
@@ -143,6 +164,7 @@ export function ImportUploadZone() {
           batchId={completed.id}
           subjectName={completed.subjectName}
           summary={completed.summary}
+          shortfalls={completed.shortfalls}
           onClose={() => setCompleted(null)}
         />
       )}

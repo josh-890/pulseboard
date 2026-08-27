@@ -575,6 +575,134 @@ export function parseImportFile(content: string): ParsedImportData {
   }
 }
 
+// ─── Parse Coverage ─────────────────────────────────────────────────────────
+
+export type ParseShortfall = {
+  section: 'sets' | 'channelAppearances' | 'coModels' | 'digitalIdentities'
+  label: string
+  found: number
+}
+
+/** Lines, minus the trailing \r these Windows-written files carry. */
+function toTrimmedLines(content: string): string[] {
+  return content.split('\n').map((l) => l.trim())
+}
+
+/** Index of the next non-blank line at or after `from`, or -1. */
+function nextNonBlank(lines: string[], from: number): number {
+  for (let i = from; i < lines.length; i++) {
+    if (lines[i]) return i
+  }
+  return -1
+}
+
+/**
+ * Count the block shapes the parser itself keys on, straight off the raw text.
+ *
+ * These are deliberately the *same* signals the parser matches, not looser ones. A
+ * count that is high because it recognises something the parser never would turns
+ * this guard into a source of false rejections, which is worse than the silence it
+ * replaces: it would block files that are entirely fine.
+ */
+export function countRawSectionSignals(content: string): Record<ParseShortfall['section'], number> {
+  const lines = toTrimmedLines(content)
+
+  let sets = 0
+  let channelAppearances = 0
+  let coModels = 0
+  let digitalIdentities = 0
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]
+
+    if (/^Titeltxt\s*:/.test(line)) {
+      sets++
+      continue
+    }
+
+    // A channel appearance is "Channel : X" answered by "Name : Y". Inside a set
+    // block the line after Channel is Artist or Coverimg, never Name, so set blocks
+    // cannot inflate this.
+    if (/^Channel\s*:/.test(line)) {
+      const j = nextNonBlank(lines, i + 1)
+      if (j !== -1 && /^Name\s*:/.test(lines[j]) && !lines[j].startsWith('Name (')) {
+        channelAppearances++
+      }
+      continue
+    }
+
+    // A co-model is "Name : X" answered by "ID : Y" — the same lookahead the sets
+    // loop uses to recognise the end of its own section. The header's
+    // "Name (extrahiert):" has no whitespace before the colon and is excluded.
+    if (/^Name\s+:/.test(line) && !line.startsWith('Name (')) {
+      const j = nextNonBlank(lines, i + 1)
+      if (j !== -1 && /^ID\s*:/.test(lines[j])) coModels++
+      continue
+    }
+
+    // Identities are only counted inside the Other Links region, and only when they
+    // carry a URL the parser would accept. A malformed link line is not evidence
+    // that parsing failed — the parser is right to drop it.
+    if (line.startsWith("=== Links aus 'Other Links' ===")) {
+      for (let j = i + 1; j < lines.length; j++) {
+        const l = lines[j]
+        if (/^Channel\s*:/.test(l) || /^Titeltxt\s*:/.test(l)) break
+        if (l.startsWith('Text:')) continue
+        const idx = l.indexOf(' : ')
+        if (idx !== -1 && /^https?:\/\//.test(l.slice(idx + 3).trim())) digitalIdentities++
+      }
+    }
+  }
+
+  return { sets, channelAppearances, coModels, digitalIdentities }
+}
+
+/**
+ * Sections the file demonstrably contains that the parser returned nothing for.
+ *
+ * This is a total-failure check, not a completeness one. A shortfall of a few rows
+ * is a data question and belongs in review; a section with hundreds of blocks that
+ * yields zero is the parser having lost the file, and there is no reading of that
+ * which the operator should have to notice for themselves. Hilary C reached REVIEW
+ * with 454 set blocks parsed as 0, and the upload said "Import complete".
+ *
+ * Reporting, never refusing. A broken section says nothing about the sections that
+ * did parse, and throwing the file away would discard a person, her aliases and
+ * hundreds of good sets to protest one section the parser could not read. The batch
+ * is created with everything that parsed and carries the shortfall on its face.
+ */
+export function checkParseCoverage(
+  content: string,
+  parsed: ParsedImportData,
+): ParseShortfall[] {
+  const raw = countRawSectionSignals(content)
+  const shortfalls: ParseShortfall[] = []
+
+  const check = (
+    section: ParseShortfall['section'],
+    label: string,
+    parsedCount: number,
+  ) => {
+    if (raw[section] > 0 && parsedCount === 0) {
+      shortfalls.push({ section, label, found: raw[section] })
+    }
+  }
+
+  check('sets', 'set blocks', parsed.sets.length)
+  check('channelAppearances', 'channel appearances', parsed.channelAppearances.length)
+  check('coModels', 'co-models', parsed.coModels.length)
+  check('digitalIdentities', 'external links', parsed.digitalIdentities.length)
+
+  return shortfalls
+}
+
+/** One sentence naming what the file holds and the parser did not read. */
+export function describeShortfalls(shortfalls: ParseShortfall[]): string {
+  return `This file was not fully read: ${shortfalls
+    .map((s) => `${s.found} ${s.label} found, none parsed`)
+    .join('; ')}. Everything else was imported.`
+}
+
 // ─── Duplicate Detection ────────────────────────────────────────────────────
 
 export type DuplicateGroup = {

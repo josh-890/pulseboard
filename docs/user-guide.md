@@ -938,6 +938,14 @@ The import pipeline enables semi-automatic data ingestion from structured text f
 
 **Filename format:** `YYYY-MM-DD_Name_(ICG-ID).txt` — the date is used as the extraction date for versioning.
 
+**If part of the file could not be read:** the upload still imports everything it *could*
+read — a section the app fails on says nothing about the rest — but it will not call the
+result complete. The summary is headed **"Imported, but not all of the file was read"** and
+names each section with its count, e.g. *454 set blocks in the file, none parsed*. The same
+note stays on the batch page for as long as the batch exists, so it is still there when the
+numbers look wrong a week later. Treat it as a bug report: the file is fine, the app is not
+reading it. Re-uploading the file after a fix picks up everything that was missed.
+
 ### Import List & Batch Status
 
 The Import page is a **triage inbox**, grouped by person and split into two sections:

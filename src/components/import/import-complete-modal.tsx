@@ -1,13 +1,16 @@
 'use client'
 
-import { CheckCircle2, SkipForward, CalendarClock, CalendarOff, ArrowRight, FolderOpen } from 'lucide-react'
+import { CheckCircle2, SkipForward, CalendarClock, CalendarOff, ArrowRight, FolderOpen, AlertTriangle } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import type { StagingIngestSummary } from '@/lib/services/import/staging-service'
+import type { ParseShortfall } from '@/lib/services/import/parser'
 
 type ImportCompleteModalProps = {
   batchId: string
   subjectName: string
-  summary: StagingIngestSummary
+  summary: StagingIngestSummary | null
+  /** Sections the file holds that the parser read as empty. */
+  shortfalls?: ParseShortfall[]
   onClose: () => void
 }
 
@@ -15,6 +18,7 @@ export function ImportCompleteModal({
   batchId,
   subjectName,
   summary,
+  shortfalls = [],
   onClose,
 }: ImportCompleteModalProps) {
   const router = useRouter()
@@ -29,16 +33,46 @@ export function ImportCompleteModal({
     router.push(`/import/${batchId}`)
   }
 
+  const incomplete = shortfalls.length > 0
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
       <div className="w-full max-w-sm rounded-xl border border-white/10 bg-zinc-900 shadow-2xl">
-        {/* Header */}
+        {/* Header — a file the parser could not fully read must never read as clean */}
         <div className="border-b border-white/10 px-6 py-4">
-          <p className="text-sm font-semibold text-white">Import complete</p>
+          <p className="text-sm font-semibold text-white">
+            {incomplete ? 'Imported, but not all of the file was read' : 'Import complete'}
+          </p>
           <p className="mt-0.5 text-xs text-zinc-400">{subjectName}</p>
         </div>
 
+        {/* What the file holds that came out empty. Named per section with the
+            count, because "something went wrong" is what made the last one
+            invisible — the operator could not tell 0 sets from no sets. */}
+        {incomplete && (
+          <div
+            role="alert"
+            className="mx-6 mt-4 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2.5"
+          >
+            <div className="flex items-start gap-2.5">
+              <AlertTriangle size={15} className="mt-0.5 shrink-0 text-amber-400" aria-hidden="true" />
+              <div className="space-y-1">
+                {shortfalls.map((s) => (
+                  <p key={s.section} className="text-xs text-amber-200">
+                    <span className="font-semibold tabular-nums">{s.found}</span>{' '}
+                    {s.label} in the file, <span className="font-semibold">none parsed</span>
+                  </p>
+                ))}
+                <p className="pt-0.5 text-[11px] text-amber-200/70">
+                  Everything else was imported. This note stays on the batch.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Counts */}
+        {summary && (
         <div className="space-y-1 px-6 py-4">
           <Row
             icon={<CheckCircle2 size={14} className="text-emerald-400" />}
@@ -69,6 +103,7 @@ export function ImportCompleteModal({
             />
           )}
         </div>
+        )}
 
         {/* Actions */}
         <div className="flex gap-2 border-t border-white/10 px-6 py-4">

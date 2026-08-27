@@ -47,6 +47,10 @@ export async function POST(request: Request) {
         subjectIcgId: batch.subjectIcgId,
         itemCount: batch.items.length,
         stagingSummary: batch.stagingSummary ?? null,
+        // Sections the file holds that the parser read as empty. The batch was
+        // still created with everything else; this is what the modal must not
+        // let pass as a clean run.
+        parseShortfalls: batch.parseShortfalls,
       })
     } catch (err) {
       console.error('Import upload error:', err)
