@@ -696,10 +696,19 @@ export function checkParseCoverage(
   return shortfalls
 }
 
+/**
+ * "1 co-model" / "27 co-models". Every label here is a regular -s plural, which is
+ * the only reason trimming one letter is enough.
+ */
+export function countedLabel(shortfall: ParseShortfall): string {
+  const noun = shortfall.found === 1 ? shortfall.label.replace(/s$/, '') : shortfall.label
+  return `${shortfall.found} ${noun}`
+}
+
 /** One sentence naming what the file holds and the parser did not read. */
 export function describeShortfalls(shortfalls: ParseShortfall[]): string {
   return `This file was not fully read: ${shortfalls
-    .map((s) => `${s.found} ${s.label} found, none parsed`)
+    .map((s) => `${countedLabel(s)} found, none parsed`)
     .join('; ')}. Everything else was imported.`
 }
 

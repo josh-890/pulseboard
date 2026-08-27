@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   checkParseCoverage,
   countRawSectionSignals,
+  describeShortfalls,
   parseImportFile,
 } from '../parser'
 
@@ -142,6 +143,15 @@ describe('checkParseCoverage', () => {
       { section: 'channelAppearances', label: 'channel appearances', found: 1 },
       { section: 'coModels', label: 'co-models', found: 1 },
     ])
+  })
+
+  it('counts singular and plural correctly in the message', () => {
+    expect(
+      describeShortfalls([{ section: 'coModels', label: 'co-models', found: 1 }]),
+    ).toContain('1 co-model found')
+    expect(
+      describeShortfalls([{ section: 'sets', label: 'set blocks', found: 454 }]),
+    ).toContain('454 set blocks found')
   })
 
   // Partial is a data question, not a parser failure — it belongs in review.

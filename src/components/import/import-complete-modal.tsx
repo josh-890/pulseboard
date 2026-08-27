@@ -3,7 +3,7 @@
 import { CheckCircle2, SkipForward, CalendarClock, CalendarOff, ArrowRight, FolderOpen, AlertTriangle } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import type { StagingIngestSummary } from '@/lib/services/import/staging-service'
-import type { ParseShortfall } from '@/lib/services/import/parser'
+import { countedLabel, type ParseShortfall } from '@/lib/services/import/parser'
 
 type ImportCompleteModalProps = {
   batchId: string
@@ -59,8 +59,8 @@ export function ImportCompleteModal({
               <div className="space-y-1">
                 {shortfalls.map((s) => (
                   <p key={s.section} className="text-xs text-amber-200">
-                    <span className="font-semibold tabular-nums">{s.found}</span>{' '}
-                    {s.label} in the file, <span className="font-semibold">none parsed</span>
+                    <span className="font-semibold tabular-nums">{countedLabel(s)}</span>{' '}
+                    in the file, <span className="font-semibold">none parsed</span>
                   </p>
                 ))}
                 <p className="pt-0.5 text-[11px] text-amber-200/70">
