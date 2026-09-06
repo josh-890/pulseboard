@@ -469,8 +469,10 @@ function CreditRow({
 
   return (
     <div className="rounded-lg border border-white/15 bg-card/60 p-3 space-y-2">
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2 min-w-0">
+      {/* Wraps so the status pill keeps its width instead of being squeezed
+          under the action buttons in the narrow set-detail side panel. */}
+      <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1.5">
+        <div className="flex items-center gap-2 min-w-0 flex-1 basis-40">
           <span className="text-sm font-medium truncate">{credit.rawName}</span>
           {credit.resolutionStatus === "UNRESOLVED" && (
             <Badge
@@ -498,7 +500,7 @@ function CreditRow({
           )}
         </div>
 
-        <div className="flex items-center gap-1 shrink-0">
+        <div className="flex items-center gap-1 shrink-0 ml-auto">
           {isLoading && <Loader2 size={14} className="animate-spin text-muted-foreground" />}
           {!isLoading && credit.resolutionStatus === "UNRESOLVED" && (
             <>
