@@ -45,7 +45,7 @@ test.describe("Staging Sets Workspace UI", () => {
     const count = await summary.count();
     if (count > 0) {
       // Cards should be visible in the grid
-      const cards = page.locator("button[class*='rounded-xl']");
+      const cards = page.locator("div[role='button'][class*='rounded-xl']");
       await expect(cards.first()).toBeVisible({ timeout: 5000 });
     }
   });
@@ -54,7 +54,7 @@ test.describe("Staging Sets Workspace UI", () => {
     await page.goto("/staging-sets");
     await page.waitForLoadState("networkidle");
 
-    const cards = page.locator("button[class*='rounded-xl']");
+    const cards = page.locator("div[role='button'][class*='rounded-xl']");
     if (await cards.count() === 0) {
       test.skip();
       return;
@@ -72,7 +72,7 @@ test.describe("Staging Sets Workspace UI", () => {
     await page.goto("/staging-sets");
     await page.waitForLoadState("networkidle");
 
-    const cards = page.locator("button[class*='rounded-xl']");
+    const cards = page.locator("div[role='button'][class*='rounded-xl']");
     if (await cards.count() === 0) {
       test.skip();
       return;

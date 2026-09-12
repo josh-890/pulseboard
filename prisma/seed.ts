@@ -26,7 +26,7 @@ async function main() {
       birthPlace: "Chicago, IL",
       birthdate: new Date("1996-03-14"),
       birthdatePrecision: "DAY",
-      nationality: "US",
+      nationality: "USA",
       ethnicity: "Caucasian",
     },
     create: {
@@ -39,7 +39,7 @@ async function main() {
       birthPlace: "Chicago, IL",
       birthdate: new Date("1996-03-14"),
       birthdatePrecision: "DAY",
-      nationality: "US",
+      nationality: "USA",
       ethnicity: "Caucasian",
     },
   });
@@ -55,7 +55,7 @@ async function main() {
       sexAtBirth: "male",
       birthdate: new Date("1988-07-22"),
       birthdatePrecision: "DAY",
-      nationality: "US",
+      nationality: "USA",
     },
     create: {
       id: "seed-person-2",
@@ -66,7 +66,7 @@ async function main() {
       sexAtBirth: "male",
       birthdate: new Date("1988-07-22"),
       birthdatePrecision: "DAY",
-      nationality: "US",
+      nationality: "USA",
     },
   });
 

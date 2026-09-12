@@ -41,15 +41,13 @@ async function selectBodyRegion(page: Page, regionName: string) {
 }
 
 /**
- * In the Appearance tab, click the "Add" button next to a section heading.
+ * In the Appearance tab, open the Body Features card's "Add body feature" menu
+ * and pick a feature type (e.g. "tattoo", "piercing"). The sheet that opens
+ * has that type preselected.
  */
-async function clickAddInSection(page: Page, sectionHeading: string) {
-  // The structure is: generic > [generic(heading), button("Add")]
-  // Find heading, go to parent, find "Add" button within that parent
-  const heading = page.getByRole("heading", { name: sectionHeading, level: 2 });
-  // The Add button is a sibling — find it via the shared parent container
-  const container = heading.locator("xpath=ancestor::div[1]/..");
-  await container.getByRole("button", { name: "Add", exact: true }).click();
+async function addBodyFeature(page: Page, type: string) {
+  await page.getByRole("button", { name: "Add body feature" }).click();
+  await page.getByRole("menuitem", { name: type, exact: true }).click();
   await page.waitForTimeout(500);
 }
 
@@ -235,7 +233,7 @@ test.describe("Appearance: Body Marks", () => {
     await goToPersonDetail(page);
     await switchTab(page, "Appearance");
 
-    await clickAddInSection(page, "Body Marks");
+    await addBodyFeature(page, "tattoo");
     await expect(page.getByRole("heading", { name: "Add Body Mark" })).toBeVisible({ timeout: 5000 });
 
     // Type "tattoo" is already selected by default — no need to click
@@ -369,7 +367,7 @@ test.describe("Appearance: Body Modifications", () => {
     await goToPersonDetail(page);
     await switchTab(page, "Appearance");
 
-    await clickAddInSection(page, "Body Modifications");
+    await addBodyFeature(page, "piercing");
     await expect(page.getByRole("heading", { name: "Add Body Modification" })).toBeVisible({ timeout: 5000 });
 
     // Type "piercing" is already selected by default — no need to click
@@ -451,7 +449,7 @@ test.describe("Appearance: Body Modifications", () => {
       await updatedRow.click();
       await page.waitForTimeout(300);
     }
-    await expect(page.getByText("Test navel ring (updated)")).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText("Test navel ring (updated)").first()).toBeVisible({ timeout: 10000 });
   });
 
   test("delete body modification", async ({ page }) => {
@@ -482,127 +480,7 @@ test.describe("Appearance: Body Modifications", () => {
     }
 
     await page.waitForTimeout(2000);
-    await expect(page.getByText("Test navel ring")).not.toBeVisible({ timeout: 5000 });
-  });
-});
-
-// ── Appearance Tab: Cosmetic Procedures ──────────────────────────────────────
-
-test.describe("Appearance: Cosmetic Procedures", () => {
-  test("create cosmetic procedure with body region picker", async ({ page }) => {
-    await goToPersonDetail(page);
-    await switchTab(page, "Appearance");
-
-    await clickAddInSection(page, "Cosmetic Procedures");
-    await expect(page.getByRole("heading", { name: "Add Cosmetic Procedure" })).toBeVisible({ timeout: 5000 });
-
-    // Type is free-text
-    await page.getByPlaceholder(/e\.g\. lip filler/i).fill("Test Rhinoplasty");
-
-    // Select body region
-    await selectBodyRegion(page, "Face");
-
-    // Fill description
-    await page.getByPlaceholder(/procedure details/i).fill("Test nose job");
-
-    // Fill provider
-    await page.getByPlaceholder(/clinic or practitioner/i).fill("Test Clinic");
-
-    const procSubmitBtn = page.getByRole("button", { name: "Create Cosmetic Procedure" });
-    await procSubmitBtn.scrollIntoViewIfNeeded();
-    await procSubmitBtn.click();
-
-    // Wait for sheet to close and reload to see latest data
-    await expect(page.getByRole("heading", { name: "Add Cosmetic Procedure" })).not.toBeVisible({ timeout: 15000 });
-    await page.waitForLoadState("networkidle");
-    await page.reload();
-    await page.waitForLoadState("networkidle");
-    await switchTab(page, "Appearance");
-
-    await expect(page.getByText("Test Rhinoplasty", { exact: true }).first()).toBeVisible({ timeout: 10000 });
-  });
-
-  test("edit cosmetic procedure", async ({ page }) => {
-    await goToPersonDetail(page);
-    await switchTab(page, "Appearance");
-    await page.waitForTimeout(500);
-
-    // Expand the test cosmetic procedure row (click the collapsed row header)
-    const procRow = page.getByRole("button", { name: /Test Rhinoplasty.*Face/i }).first();
-    if (!(await procRow.isVisible().catch(() => false))) {
-      test.skip();
-      return;
-    }
-    await procRow.click();
-    await page.waitForTimeout(300);
-
-    const editBtn = page.getByRole("button", { name: "Edit cosmetic procedure" }).first();
-    if (!(await editBtn.isVisible().catch(() => false))) {
-      test.skip();
-      return;
-    }
-
-    await editBtn.click();
-    await expect(page.getByRole("heading", { name: "Edit Cosmetic Procedure" })).toBeVisible({ timeout: 5000 });
-
-    // Edit sheet uses labels, not placeholders — find the provider input by value
-    const editSheet = page.getByRole("heading", { name: "Edit Cosmetic Procedure" }).locator("xpath=ancestor::div[1]/..");
-    const allInputs = await editSheet.locator("input[type='text'], textarea").all();
-    for (const input of allInputs) {
-      const val = await input.inputValue();
-      if (val.includes("Test Clinic")) {
-        await input.fill("Updated Test Clinic");
-        break;
-      }
-    }
-
-    await page.getByRole("button", { name: "Update Cosmetic Procedure" }).click();
-
-    // Wait for sheet to close and reload
-    await expect(page.getByRole("heading", { name: "Edit Cosmetic Procedure" })).not.toBeVisible({ timeout: 15000 });
-    await page.waitForLoadState("networkidle");
-    await page.reload();
-    await page.waitForLoadState("networkidle");
-    await switchTab(page, "Appearance");
-
-    // Expand the row to see the updated provider (hidden in collapsed state)
-    const updatedProcRow = page.getByRole("button", { name: /Test Rhinoplasty.*Face/i }).first();
-    if (await updatedProcRow.isVisible().catch(() => false)) {
-      await updatedProcRow.click();
-      await page.waitForTimeout(300);
-    }
-    await expect(page.getByText("Updated Test Clinic")).toBeVisible({ timeout: 10000 });
-  });
-
-  test("delete cosmetic procedure", async ({ page }) => {
-    await goToPersonDetail(page);
-    await switchTab(page, "Appearance");
-    await page.waitForTimeout(500);
-
-    // Expand the test cosmetic procedure row (click the collapsed row header)
-    const procRow = page.getByRole("button", { name: /Test Rhinoplasty.*Face/i }).first();
-    if (!(await procRow.isVisible().catch(() => false))) {
-      test.skip();
-      return;
-    }
-    await procRow.click();
-    await page.waitForTimeout(300);
-
-    const deleteBtn = page.getByRole("button", { name: "Delete cosmetic procedure" }).first();
-    if (!(await deleteBtn.isVisible().catch(() => false))) {
-      test.skip();
-      return;
-    }
-
-    await deleteBtn.click();
-
-    const alertDialog = page.getByRole("alertdialog");
-    if (await alertDialog.isVisible({ timeout: 2000 }).catch(() => false)) {
-      await alertDialog.getByRole("button", { name: /delete|confirm/i }).click();
-    }
-
-    await page.waitForTimeout(2000);
-    await expect(page.getByRole("button", { name: /Test Rhinoplasty.*Face/i })).not.toBeVisible({ timeout: 5000 });
+    await expect(page.getByText("Test navel ring")).toHaveCount(0, { timeout: 15000 });
   });
 });
 

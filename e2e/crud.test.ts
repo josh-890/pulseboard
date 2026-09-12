@@ -22,14 +22,17 @@ test.describe("People CRUD", () => {
     await page.getByRole("button", { name: /add person/i }).click();
 
     // Sheet opens
-    await expect(page.getByRole("dialog")).toBeVisible();
+    const dialog = page.getByRole("dialog");
+    await expect(dialog).toBeVisible();
 
     // ADR-0026: the default mode is "Not in external DB", so the ICG-ID is
     // minted server-side once the display name loses focus.
     const ts = Date.now();
     const name = `Test Person ${ts}`;
-    const icgIdField = page.getByLabel("ICG-ID");
-    await page.getByLabel("Display Name").fill(name);
+    // The textbox itself: "ICG-ID" also labels the origin radiogroup, the mint
+    // button, and the people browser's "Filter by ICG-ID" group behind the sheet.
+    const icgIdField = dialog.getByRole("textbox", { name: /^ICG-ID/ });
+    await dialog.getByLabel("Display Name").fill(name);
     await icgIdField.click(); // blur the name field
     await expect(icgIdField).toHaveValue(/^[A-Z]{2}-[0-9]{2}@[A-Z0-9]{3}$/);
 
@@ -45,14 +48,15 @@ test.describe("People CRUD", () => {
   test("create person with an external ICG-ID rejects the reserved marker", async ({ page }) => {
     await page.goto("/people");
     await page.getByRole("button", { name: /add person/i }).click();
-    await expect(page.getByRole("dialog")).toBeVisible();
+    const dialog = page.getByRole("dialog");
+    await expect(dialog).toBeVisible();
 
     const ts = Date.now();
     const name = `Test External ${ts}`;
-    await page.getByLabel("Display Name").fill(name);
-    await page.getByRole("radio", { name: "Has an external ICG-ID" }).click();
+    await dialog.getByLabel("Display Name").fill(name);
+    await dialog.getByRole("radio", { name: "Has an external ICG-ID" }).click();
 
-    const icgIdField = page.getByLabel("ICG-ID");
+    const icgIdField = dialog.getByRole("textbox", { name: /^ICG-ID/ });
     // '@' is reserved for self-assigned IDs — an external one must be refused.
     await icgIdField.fill("AB-12@XY");
     await page.getByRole("button", { name: /create person/i }).click();
@@ -455,8 +459,8 @@ test.describe("Sessions CRUD", () => {
 test.describe("Video sets", () => {
   test("video set detail shows Video type chip", async ({ page }) => {
     await page.goto("/sets/seed-set-video-1");
-    // "Video" type chip should be visible
-    await expect(page.getByText("Video", { exact: true })).toBeVisible();
+    // The hero's type chip is an icon labelled "Video set"
+    await expect(page.getByLabel("Video set")).toBeVisible();
     // Media count should appear
     await expect(page.getByText(/\d+ media/)).toBeVisible();
   });
@@ -503,8 +507,8 @@ test.describe("Video sets", () => {
     await expect(dialog.getByText(/add credits/i)).toBeVisible({ timeout: 8000 });
     await dialog.getByRole("button", { name: /skip/i }).click();
 
-    // Verify set appears in list
-    await page.goto("/sets");
+    // Verify set appears in list — /sets shows photo sets unless asked for videos
+    await page.goto("/sets?type=video");
     await expect(page.getByText(title, { exact: false })).toBeVisible();
   });
 });

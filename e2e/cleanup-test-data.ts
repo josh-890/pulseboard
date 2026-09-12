@@ -177,9 +177,9 @@ async function cleanupTestData() {
         // Relationships
         await tx.$executeRaw`
           DELETE FROM "RelationshipEvent" WHERE "relationshipId" IN (
-            SELECT id FROM "PersonRelationship" WHERE "personAId" = ${id} OR "personBId" = ${id}
+            SELECT id FROM "PersonRelationship" WHERE "personId" = ${id} OR "toPersonId" = ${id}
           )`;
-        await tx.$executeRaw`DELETE FROM "PersonRelationship" WHERE "personAId" = ${id} OR "personBId" = ${id}`;
+        await tx.$executeRaw`DELETE FROM "PersonRelationship" WHERE "personId" = ${id} OR "toPersonId" = ${id}`;
 
         // Education, awards, interests
         await tx.$executeRaw`DELETE FROM "PersonEducation" WHERE "personId" = ${id}`;
