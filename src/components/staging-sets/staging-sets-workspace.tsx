@@ -24,7 +24,8 @@ import { StagingSetSlidePanel } from './staging-set-slide-panel'
 import { useGridKeyboardNav } from '@/hooks/use-grid-keyboard-nav'
 import type { StagingSetFilterState } from './staging-set-filter-bar'
 import type { StagingSetWithRelations, StagingSetStats } from '@/lib/services/import/staging-set-service'
-import type { StagingSetStatus } from '@/generated/prisma/client'
+import type { ChannelTier, StagingSetStatus } from '@/generated/prisma/client'
+import { CHANNEL_TIER_VALUES } from '@/lib/constants/channel-tier'
 import {
   refreshAllStagingDataAction,
   autoRefreshStagingDataAction,
@@ -37,6 +38,13 @@ type FetchResult = {
   items: StagingSetWithRelations[]
   total: number
   nextCursor: string | null
+}
+
+// ?channelTier=LOW,TRASH → the known tiers it names; null when absent or unusable.
+function parseTierParam(value: string | null): ChannelTier[] | null {
+  if (!value) return null
+  const tiers = value.split(',').filter((t): t is ChannelTier => (CHANNEL_TIER_VALUES as string[]).includes(t))
+  return tiers.length > 0 ? tiers : null
 }
 
 // ─── Component ─────────────────────────────────────────────────────────────
@@ -79,6 +87,10 @@ export function StagingSetsWorkspace() {
         personId: searchParams.get('personId') || undefined,
         personLabel: searchParams.get('personLabel') || undefined,
         channelId: searchParams.get('channelId') || undefined,
+        channelLabel: searchParams.get('channelLabel') || undefined,
+        // A deep link to one channel carries that channel's tier: the default
+        // tier filter (A/B/C) would otherwise hide every set of a D/E channel.
+        channelTier: parseTierParam(searchParams.get('channelTier')) ?? DEFAULT_FILTERS.channelTier,
         dateFrom: searchParams.get('dateFrom') || undefined,
         dateTo: searchParams.get('dateTo') || undefined,
       }

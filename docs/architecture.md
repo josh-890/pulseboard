@@ -62,7 +62,7 @@ Media path:
 | `/atlas` | `getAtlasLocusCategories()` | Cross-person comparison index — locus categories that have an Alignment Template, with aligned-image counts + sample thumbs (ADR-0014) |
 | `/settings` | `getAllSkillGroups()`, `getAllCategoryGroups()`, `getAllContributionRoleGroups()` | `SkillCatalogManager`, `MediaCategoryManager`, `ContributionRoleManager` |
 | `/import` | `getImportInbox({ q, sort })` | `ImportUploadZone`, `BrowserToolbar`, `ImportInboxWorkspace` — triage inbox grouped per person (Needs review head + name/recent-sorted paginated Done tail, `loadMoreImportInboxAction`); rows show an honest state pill + auto-flow chips + re-import `vN` chain |
-| `/staging-sets` | (client-fetched via `/api/staging-sets` — augmented with `suggestedArchiveFolder` from `getSuggestedFoldersForStagingSets`) | `StagingSetsWorkspace` → `StagingSetFilterBar`, `StagingSetGrid` → `StagingSetRow` (with inline archive section + `ArchiveFolderPicker`), `StagingSetSlidePanel` |
+| `/staging-sets` | (client-fetched via `/api/staging-sets` — augmented with `suggestedArchiveFolder` from `getSuggestedFoldersForStagingSets`) | `StagingSetsWorkspace` → `StagingSetFilterBar`, `StagingSetGrid` → `StagingSetRow` (with inline archive section + `ArchiveFolderPicker`), `StagingSetSlidePanel`. Deep-link params: `type` (photo/video tab), `select` (open panel); when `status`, `batchId` or `select` is present the URL seeds the filters (skipping the sessionStorage restore) — `status`, `batchId`, `search`, `sort`, `groupBy`, `personId`+`personLabel`, `channelId`+`channelLabel`, `channelTier`, `dateFrom`, `dateTo`. `personLabel`/`channelLabel` are display-only and render the removable person/channel chips in the filter bar |
 
 ### Detail Pages
 
@@ -76,7 +76,7 @@ Media path:
 | `/atlas/[id]` | `getAtlasGridForCategory()` | `AtlasGrid` — every person's Aligned image in one locus, ordered by person, with a person-name filter; tiles link to the person |
 | `/projects/[id]` | `getProjectById()`, `getProjectSessions()` | `ProjectDetail`, `EditProjectSheet` |
 | `/labels/[id]` | `getLabelById()` | `LabelDetail`, `EditLabelSheet` |
-| `/channels/[id]` | `getChannelById()` | `ChannelDetail`, `EditChannelSheet` |
+| `/channels/[id]` | `getChannelById()`, `getChannelPipeline()` | `ChannelDetail`, `EditChannelSheet`; **In pipeline** section — staged sets of the channel not yet promoted, deep-linked into `/staging-sets` (`channelId`, `channelLabel`, `channelTier`, `status`, `type`, `select`) |
 | `/artists/[id]` | `getArtistById()`, `getArtistStats()`, `getArtistCareer()` | `ArtistDetailHeader`, `EditArtistSheet` |
 | `/networks/[id]` | `getNetworkById()` | `NetworkDetail`, `EditNetworkSheet` |
 | `/import/[id]` | `refreshBatchMatches()` | `ImportWorkspace` → `ImportItemDetail`, `ImportStatusBadge`, `SetBatchSummary` (SET tab) |
@@ -119,7 +119,7 @@ All services in `src/lib/services/`. All functions are async, return Promises. S
 
 ### Entity Services
 
-**`label-service.ts`**, **`network-service.ts`**, **`channel-service.ts`**, **`project-service.ts`** — Standard CRUD for each entity
+**`label-service.ts`**, **`network-service.ts`**, **`channel-service.ts`**, **`project-service.ts`** — Standard CRUD for each entity. `channel-service.ts` also has `getChannelPipeline(channelId, take)` → `{ total, photo, video, byStatus, items }`: the channel's StagingSets in `CHANNEL_PIPELINE_STATUSES` (APPROVED/REVIEWING/PENDING). `getChannelById().sets` holds **promoted** Sets only, so without it a channel whose work is all staged reads as empty. The predicate deliberately equals the `/staging-sets` default view (duplicates included, no match filter) so the counts equal what the deep link lists; the link carries the channel's own tier because the workspace's default tier filter (A/B/C) would otherwise hide a Low/Trash channel. The staging workspace reads `channelTier` and `channelLabel` from the URL and shows a removable channel chip in the filter bar
 
 **`artist-service.ts`** — Artist CRUD, search, stats (set/channel/media counts from resolved credits), career listing (sets grouped by channel). Artists are lightweight behind-camera entities (name, nationality, bio) separate from the deep Person model. Linked via `SetCreditRaw.resolvedArtistId` — bypass SessionContribution chain entirely.
 

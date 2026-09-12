@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db";
-import type { Prisma, ChannelTier } from "@/generated/prisma/client";
+import type { Prisma, ChannelTier, StagingSetStatus } from "@/generated/prisma/client";
 import { normalizeForSearch } from "@/lib/normalize";
 import { generateChannelShortName } from "@/lib/utils";
 import { refreshPersonAffiliations } from "@/lib/services/view-service";
@@ -44,6 +44,53 @@ export async function getChannelById(id: string) {
       },
     },
   });
+}
+
+// The statuses /staging-sets shows by default — the channel's pipeline.
+export const CHANNEL_PIPELINE_STATUSES = [
+  "APPROVED",
+  "REVIEWING",
+  "PENDING",
+] as const satisfies readonly StagingSetStatus[];
+
+export type ChannelPipelineStatus = (typeof CHANNEL_PIPELINE_STATUSES)[number];
+
+// Staged sets of this channel still in the pipeline. `channel.sets` holds only
+// promoted Sets, so a channel whose work is all staged reads as empty without
+// this. Same predicate as the /staging-sets default view (duplicates included,
+// no match filter) so the counts equal what the page's deep link lists.
+export async function getChannelPipeline(channelId: string, take = 50) {
+  const where: Prisma.StagingSetWhereInput = {
+    channelId,
+    status: { in: [...CHANNEL_PIPELINE_STATUSES] },
+  };
+  const [groups, items] = await Promise.all([
+    prisma.stagingSet.groupBy({
+      by: ["status", "isVideo"],
+      where,
+      _count: { _all: true },
+    }),
+    prisma.stagingSet.findMany({
+      where,
+      select: { id: true, title: true, status: true, isVideo: true, releaseDate: true },
+      orderBy: [{ releaseDate: { sort: "desc", nulls: "last" } }, { title: "asc" }],
+      take,
+    }),
+  ]);
+
+  const byStatus: Record<ChannelPipelineStatus, number> = { APPROVED: 0, REVIEWING: 0, PENDING: 0 };
+  let photo = 0;
+  let video = 0;
+  for (const g of groups) {
+    const n = g._count._all;
+    if (g.isVideo) video += n;
+    else photo += n;
+    if (g.status === "APPROVED" || g.status === "REVIEWING" || g.status === "PENDING") {
+      byStatus[g.status] += n;
+    }
+  }
+
+  return { total: photo + video, photo, video, byStatus, items };
 }
 
 export async function removeChannelImportAlias(channelId: string, alias: string) {

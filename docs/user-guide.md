@@ -787,8 +787,9 @@ Channel cards show: name, parent label, and set count.
 ### Channel Detail
 
 - Header with name, linked label
-- **Stats:** Set count
-- **Sets** — all sets published through this channel. Click to navigate to set detail.
+- **Stats:** Set count · In pipeline count (click to jump to the section)
+- **In pipeline** — staged sets from this channel that are not promoted yet (Pending, In review, Approved). Shows a count per status, a link to the photo sets and to the videos in **Staging Sets** already filtered to this channel, and the 50 most recent staged sets. Click a row to open that set in Staging Sets. A channel can show 0 sets and still have work here: sets only count once promoted.
+- **Sets** — all promoted sets published through this channel. Click to navigate to set detail.
 - **Edit & Delete** buttons
 
 ---
@@ -1098,6 +1099,7 @@ Only folders not yet linked to any Set or StagingSet appear in results.
 - **Match buttons** — Exact match, Probable, No match, No date
 - **Duplicate button** — shows sets flagged as exact or probable duplicates
 - **Channel tier buttons** — A, B, C, D, E
+- **Channel chip** — appears when the list is narrowed to one channel (e.g. from a channel's **In pipeline** section, which also selects that channel's tier so Low/Trash channels aren't hidden). Click it to remove the channel filter.
 - **Archive filter row** — Has path, Verified, Changed, Missing, In queue, Needs media
 - **Search** — free-text on title, channel, artist, person name
 - **Date range** — from/to date filter

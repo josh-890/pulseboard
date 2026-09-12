@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { Search, CalendarDays, X, HardDrive, CheckCheck, User } from 'lucide-react'
+import { Search, CalendarDays, X, HardDrive, CheckCheck, User, Radio } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
 import type { ChannelTier, StagingSetStatus } from '@/generated/prisma/client'
@@ -24,6 +24,8 @@ export type StagingSetFilterState = {
   matchType: 'exact' | 'probable' | 'none' | undefined
   search: string
   channelId: string | undefined
+  /** Display name for channelId — set by deep links (e.g. the channel page); never sent to the API. */
+  channelLabel: string | undefined
   channelTier: ChannelTier[]
   dateFrom: string | undefined
   dateTo: string | undefined
@@ -48,6 +50,7 @@ export const DEFAULT_FILTERS: StagingSetFilterState = {
   matchType: undefined,
   search: '',
   channelId: undefined,
+  channelLabel: undefined,
   channelTier: [...DEFAULT_STAGING_TIERS],
   dateFrom: undefined,
   dateTo: undefined,
@@ -363,6 +366,18 @@ export function StagingSetFilterBar({ filters, onChange, stats }: StagingSetFilt
             </button>
           )
         })}
+
+        {filters.channelId && (
+          <button
+            onClick={() => onChange({ ...filters, channelId: undefined, channelLabel: undefined })}
+            aria-label={`Remove channel filter ${filters.channelLabel ?? filters.channelId}`}
+            className="flex items-center gap-1.5 rounded-full border border-sky-500/50 bg-sky-500/15 px-2.5 py-1 text-xs text-sky-700 transition-colors hover:bg-sky-500/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:text-sky-400"
+          >
+            <Radio size={10} aria-hidden="true" />
+            {filters.channelLabel ?? 'Channel'}
+            <X size={10} aria-hidden="true" />
+          </button>
+        )}
 
         {filters.personId && (
           <button

@@ -28,10 +28,53 @@ export default function ChannelDetailLoading() {
       </div>
 
       {/* Stats bar */}
-      <div className="grid grid-cols-1 gap-4">
-        <div className="rounded-2xl border border-white/20 bg-card/70 p-4 text-center shadow-md backdrop-blur-sm">
-          <Skeleton className="mx-auto h-7 w-8" />
-          <Skeleton className="mx-auto mt-1 h-3 w-10" />
+      <div className="grid grid-cols-2 gap-4">
+        {Array.from({ length: 2 }).map((_, i) => (
+          <div
+            key={i}
+            className="rounded-2xl border border-white/20 bg-card/70 p-4 text-center shadow-md backdrop-blur-sm"
+          >
+            <Skeleton className="mx-auto h-7 w-8" />
+            <Skeleton className="mx-auto mt-1 h-3 w-16" />
+          </div>
+        ))}
+      </div>
+
+      {/* Archive folder + import aliases sections */}
+      {Array.from({ length: 2 }).map((_, i) => (
+        <div
+          key={i}
+          className="rounded-2xl border border-white/20 bg-card/70 p-6 shadow-md backdrop-blur-sm"
+        >
+          <Skeleton className="mb-4 h-5 w-32" />
+          <Skeleton className="h-9 w-full max-w-md rounded-md" />
+        </div>
+      ))}
+
+      {/* In pipeline section */}
+      <div className="rounded-2xl border border-white/20 bg-card/70 p-6 shadow-md backdrop-blur-sm">
+        <Skeleton className="mb-4 h-5 w-36" />
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex gap-2">
+            <Skeleton className="h-5 w-24 rounded-full" />
+            <Skeleton className="h-5 w-20 rounded-full" />
+          </div>
+          <Skeleton className="h-6 w-28 rounded-full" />
+        </div>
+        <div className="space-y-2">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div
+              key={i}
+              className="flex items-center justify-between gap-3 rounded-xl border border-white/15 bg-card/40 px-4 py-2.5"
+            >
+              <div className="flex items-center gap-3">
+                <Skeleton className="h-4 w-4 shrink-0" />
+                <Skeleton className="h-3 w-20" />
+                <Skeleton className="h-4 w-40" />
+              </div>
+              <Skeleton className="h-4 w-16 rounded-full" />
+            </div>
+          ))}
         </div>
       </div>
 
