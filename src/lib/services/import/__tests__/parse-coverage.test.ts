@@ -139,18 +139,18 @@ describe('checkParseCoverage', () => {
     const shortfalls = checkParseCoverage(content, truncated)
 
     expect(shortfalls).toEqual([
-      { section: 'sets', label: 'set blocks', found: 1 },
-      { section: 'channelAppearances', label: 'channel appearances', found: 1 },
-      { section: 'coModels', label: 'co-models', found: 1 },
+      { kind: 'section', section: 'sets', label: 'set blocks', found: 1 },
+      { kind: 'section', section: 'channelAppearances', label: 'channel appearances', found: 1 },
+      { kind: 'section', section: 'coModels', label: 'co-models', found: 1 },
     ])
   })
 
   it('counts singular and plural correctly in the message', () => {
     expect(
-      describeShortfalls([{ section: 'coModels', label: 'co-models', found: 1 }]),
+      describeShortfalls([{ kind: 'section', section: 'coModels', label: 'co-models', found: 1 }]),
     ).toContain('1 co-model found')
     expect(
-      describeShortfalls([{ section: 'sets', label: 'set blocks', found: 454 }]),
+      describeShortfalls([{ kind: 'section', section: 'sets', label: 'set blocks', found: 454 }]),
     ).toContain('454 set blocks found')
   })
 
@@ -159,5 +159,114 @@ describe('checkParseCoverage', () => {
     const content = build(HEADER, SET_BLOCK, SET_BLOCK, SET_BLOCK)
     const partial = { ...parseImportFile(content), sets: [parseImportFile(content).sets[0]] }
     expect(checkParseCoverage(content, partial)).toEqual([])
+  })
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// The Matilda Bae shape (MB-003G, xpulse, 2026-09-15).
+//
+// The header has no terminator of its own — the loop runs to the "Other Links"
+// marker or the first `Channel :` / `Titeltxt :`. When the scrape fails to strip
+// tags at `Biography :`, the rest of the page lands ahead of those, and every
+// gallery credit on thenude.com is an anchor whose title attribute carries a
+// newline:
+//
+//     <a href="…" title="Matilda Bae
+//     ICGID: MB-003G" class="model-title">Matilda Bae</a>
+//
+// The second physical line starts with ICGID. With plain assignment the last of
+// 93 such lines won, so 111 staged sets were filed under an ICG-ID with HTML
+// welded to it, none resolved to a person, and the cover basket matched nothing.
+// 4 of 164 xpulse files carry this shape.
+
+const POLLUTED_CREDIT = [
+  '                        <a href="https://www.thenude.com/Matilda Bae_29205.htm" title="Matilda Bae',
+  'ICGID: MB-003G" class="model-title">Matilda Bae</a>',
+  '                        <div class="model-name">as Magdalena</div>',
+]
+
+const CLEAN_HEADER = [
+  'URL: https://www.thenude.com/Matilda%20Bae_29205.htm',
+  'Name (extrahiert): Matilda Bae',
+  'ICGID       : MB-003G',
+  'AKA         : Julietta, Magdalena',
+  'Height      : 160 cm, 5 ft 3 in',
+  'Biography   : Julietta or Magdalena?    </p>',
+]
+
+describe('header keys are single-valued', () => {
+  it('keeps the real ICG-ID when the HTML spill repeats the key', () => {
+    const content = build(CLEAN_HEADER, POLLUTED_CREDIT, CHANNELS, SET_BLOCK)
+    expect(parseImportFile(content).person.icgId).toBe('MB-003G')
+  })
+
+  it('survives the key repeating many times, as the real files do', () => {
+    const content = build(
+      CLEAN_HEADER,
+      ...Array.from({ length: 92 }, () => POLLUTED_CREDIT),
+      CHANNELS,
+      SET_BLOCK,
+    )
+    expect(parseImportFile(content).person.icgId).toBe('MB-003G')
+  })
+
+  it('protects every other header field too, not just ICGID', () => {
+    const content = build(CLEAN_HEADER, [
+      'URL: https://evil.example/overwritten',
+      'Name (extrahiert): Overwritten',
+      'AKA         : Overwritten',
+      'Height      : 999 cm, 9 ft 9 in',
+    ])
+    const { person } = parseImportFile(content)
+    expect(person.sourceUrl).toBe('https://www.thenude.com/Matilda%20Bae_29205.htm')
+    expect(person.name).toBe('Matilda Bae')
+    expect(person.aliases).toEqual(['Julietta', 'Magdalena'])
+    expect(person.heightCm).toBe(160)
+  })
+
+  it('still reads a normal file exactly as before', () => {
+    const content = build(HEADER, LINKS, CHANNELS, SET_BLOCK, COMODEL)
+    const { person, sets, channelAppearances, coModels } = parseImportFile(content)
+    expect(person.icgId).toBe('AX-00ET')
+    expect(person.name).toBe('Hilary C')
+    expect(person.aliases).toEqual(['Amy', 'Jenna'])
+    expect(sets).toHaveLength(1)
+    expect(channelAppearances).toHaveLength(1)
+    expect(coModels).toHaveLength(1)
+  })
+})
+
+describe('malformed ICG-ID', () => {
+  it('is reported when the parser read something that is not an ICG-ID', () => {
+    const parsed = parseImportFile(build(CLEAN_HEADER))
+    const polluted = {
+      ...parsed,
+      person: { ...parsed.person, icgId: 'MB-003G" class="model-title">Matilda Bae</a>' },
+    }
+    expect(checkParseCoverage(build(CLEAN_HEADER), polluted)).toEqual([
+      { kind: 'malformedIcgId', value: 'MB-003G" class="model-title">Matilda Bae</a>' },
+    ])
+  })
+
+  it('says what is wrong and what to do about it', () => {
+    const message = describeShortfalls([{ kind: 'malformedIcgId', value: 'MB-003G"><a>' }])
+    expect(message).toContain('MB-003G"><a>')
+    expect(message).toContain('Change ICG-ID')
+  })
+
+  it('stays quiet for both ICG-ID namespaces', () => {
+    for (const icgId of ['MB-003G', 'AX-00ET', 'CR-00KI7', 'JD-95@K7R']) {
+      const parsed = parseImportFile(build(CLEAN_HEADER))
+      const withId = { ...parsed, person: { ...parsed.person, icgId } }
+      expect(checkParseCoverage(build(CLEAN_HEADER), withId)).toEqual([])
+    }
+  })
+
+  it('stays quiet when the file carries no ICG-ID at all', () => {
+    const noId = build([
+      'URL: https://www.thenude.com/x.htm',
+      'Name (extrahiert): No Id',
+    ])
+    expect(checkParseCoverage(noId, parseImportFile(noId))).toEqual([])
   })
 })

@@ -57,12 +57,24 @@ export function ImportCompleteModal({
             <div className="flex items-start gap-2.5">
               <AlertTriangle size={15} className="mt-0.5 shrink-0 text-amber-400" aria-hidden="true" />
               <div className="space-y-1">
-                {shortfalls.map((s) => (
-                  <p key={s.section} className="text-xs text-amber-200">
-                    <span className="font-semibold tabular-nums">{countedLabel(s)}</span>{' '}
-                    in the file, <span className="font-semibold">none parsed</span>
-                  </p>
-                ))}
+                {shortfalls.map((s) =>
+                  s.kind === 'section' ? (
+                    <p key={s.section} className="text-xs text-amber-200">
+                      <span className="font-semibold tabular-nums">{countedLabel(s)}</span>{' '}
+                      in the file, <span className="font-semibold">none parsed</span>
+                    </p>
+                  ) : (
+                    /* Not a shortfall of rows but of identity: the key every staged
+                       set is filed under is not an ICG-ID, so none of them resolve
+                       to a person until it is corrected. */
+                    <p key="malformed-icg-id" className="text-xs text-amber-200">
+                      The <span className="font-semibold">ICG-ID</span> read from this file is not one:{' '}
+                      <span className="break-all font-mono font-semibold">{s.value}</span>. Nothing
+                      will resolve to a person until you fix it with{' '}
+                      <span className="font-semibold">Change ICG-ID</span>.
+                    </p>
+                  ),
+                )}
                 <p className="pt-0.5 text-[11px] text-amber-200/70">
                   Everything else was imported. This note stays on the batch.
                 </p>

@@ -947,6 +947,15 @@ note stays on the batch page for as long as the batch exists, so it is still the
 numbers look wrong a week later. Treat it as a bug report: the file is fine, the app is not
 reading it. Re-uploading the file after a fix picks up everything that was missed.
 
+**If the ICG-ID in the file is not an ICG-ID:** the same amber panel says so and shows the
+value it read. This one is worth acting on immediately. The ICG-ID is the key every staged
+set is filed under and the person lookup is an exact match on it, so a malformed value does
+not make the import *worse* — it makes it **detached**: the sets stage normally, but none of
+them resolve to the person, they will not appear on her Career tab, and her cover basket will
+match nothing at all because it has no candidates to match against. Fix it with **Change
+ICG-ID** on the person, which rewrites the batch and every staged set with it, then press
+**Re-match** in the cover basket.
+
 ### Import List & Batch Status
 
 The Import page is a **triage inbox**, grouped by person and split into two sections:

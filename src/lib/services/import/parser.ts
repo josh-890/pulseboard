@@ -6,6 +6,8 @@
  * Source: thenude.com extraction via PowerShell script.
  */
 
+import { ICG_ID_FORMAT_HINT, ICG_ID_RE } from '@/lib/icg-id'
+
 // ─── Types ──────────────────────────────────────────────────────────────────
 
 export type ParsedPersonData = {
@@ -230,6 +232,35 @@ export function parseImportFile(content: string): ParsedImportData {
   let i = 0
 
   // ── Parse Header Section ──────────────────────────────────────────────
+  //
+  // Header keys are single-valued, so the FIRST occurrence of each wins.
+  //
+  // This is not tidiness. The header has no terminator of its own: the loop runs
+  // until the "Other Links" marker or the first `Channel :` / `Titeltxt :`, and
+  // when the scrape fails to strip tags at the `Biography :` field the rest of the
+  // page pours into the file ahead of those. thenude.com renders every gallery
+  // credit as an anchor whose title attribute contains a newline —
+  //
+  //     <a href="…" title="Matilda Bae
+  //     ICGID: MB-003G" class="model-title">Matilda Bae</a>
+  //
+  // — so the second physical line reads `ICGID: MB-003G" class="model-title">…`,
+  // matches `startsWith('ICGID')`, and with plain assignment the LAST of 93 such
+  // lines won. Matilda Bae (MB-003G) imported 111 staging sets keyed on an ICG-ID
+  // with HTML welded to it; every one of them resolved to no person, and the cover
+  // basket could not match a single file. Hand-correcting the real header line
+  // could not help — it was overwritten 92 times further down.
+  //
+  // Guarding assignment rather than guessing where the header ends keeps every
+  // field immune without changing where the cursor lands for files that parse
+  // correctly today.
+  const headerKeysSeen = new Set<string>()
+  const takeHeaderKey = (key: string): boolean => {
+    if (headerKeysSeen.has(key)) return false
+    headerKeysSeen.add(key)
+    return true
+  }
+
   while (i < lines.length) {
     const line = lines[i]
     const trimmed = line.trim()
@@ -247,50 +278,70 @@ export function parseImportFile(content: string): ParsedImportData {
     }
 
     if (trimmed.startsWith('URL:')) {
-      person.sourceUrl = trimValue(line, 'URL')
+      if (takeHeaderKey('URL')) person.sourceUrl = trimValue(line, 'URL')
     } else if (trimmed.startsWith('Name (extrahiert):')) {
-      person.name = line.slice(line.indexOf(':') + 1).trim()
+      if (takeHeaderKey('Name (extrahiert)')) person.name = line.slice(line.indexOf(':') + 1).trim()
     } else if (trimmed.startsWith('Slug:')) {
-      person.slug = trimValue(line, 'Slug')
+      if (takeHeaderKey('Slug')) person.slug = trimValue(line, 'Slug')
     } else if (trimmed.startsWith('ICGID')) {
-      person.icgId = trimValue(line, 'ICGID')
+      if (takeHeaderKey('ICGID')) person.icgId = trimValue(line, 'ICGID')
     } else if (trimmed.startsWith('AKA')) {
-      const akaStr = trimValue(line, 'AKA')
-      if (!isEmptyValue(akaStr)) {
-        person.aliases = akaStr.split(',').map((a) => a.trim()).filter(Boolean)
+      if (takeHeaderKey('AKA')) {
+        const akaStr = trimValue(line, 'AKA')
+        if (!isEmptyValue(akaStr)) {
+          person.aliases = akaStr.split(',').map((a) => a.trim()).filter(Boolean)
+        }
       }
     } else if (trimmed.startsWith('Born')) {
-      const born = parseBorn(trimValue(line, 'Born'))
-      person.birthMonth = born.month
-      person.birthYear = born.year
+      if (takeHeaderKey('Born')) {
+        const born = parseBorn(trimValue(line, 'Born'))
+        person.birthMonth = born.month
+        person.birthYear = born.year
+      }
     } else if (trimmed.startsWith('Birthplace')) {
-      const val = trimValue(line, 'Birthplace')
-      person.nationality = isEmptyValue(val) ? null : val
+      if (takeHeaderKey('Birthplace')) {
+        const val = trimValue(line, 'Birthplace')
+        person.nationality = isEmptyValue(val) ? null : val
+      }
     } else if (trimmed.startsWith('First Seen')) {
-      const val = trimValue(line, 'First Seen')
-      person.activeFromYear = isEmptyValue(val) ? null : val
+      if (takeHeaderKey('First Seen')) {
+        const val = trimValue(line, 'First Seen')
+        person.activeFromYear = isEmptyValue(val) ? null : val
+      }
     } else if (trimmed.startsWith('Measurements')) {
-      const val = trimValue(line, 'Measurements')
-      person.measurements = isEmptyValue(val) ? null : val
+      if (takeHeaderKey('Measurements')) {
+        const val = trimValue(line, 'Measurements')
+        person.measurements = isEmptyValue(val) ? null : val
+      }
     } else if (trimmed.startsWith('Height')) {
-      const val = trimValue(line, 'Height')
-      if (!isEmptyValue(val)) {
-        const h = parseHeight(val)
-        person.heightCm = h.cm
-        person.heightFtIn = h.ftIn
+      if (takeHeaderKey('Height')) {
+        const val = trimValue(line, 'Height')
+        if (!isEmptyValue(val)) {
+          const h = parseHeight(val)
+          person.heightCm = h.cm
+          person.heightFtIn = h.ftIn
+        }
       }
     } else if (trimmed.startsWith('Breasts')) {
-      const val = trimValue(line, 'Breasts')
-      person.breastDescription = isEmptyValue(val) ? null : val
+      if (takeHeaderKey('Breasts')) {
+        const val = trimValue(line, 'Breasts')
+        person.breastDescription = isEmptyValue(val) ? null : val
+      }
     } else if (trimmed.startsWith('Hair Colour')) {
-      const val = trimValue(line, 'Hair Colour')
-      person.hairColor = isEmptyValue(val) ? null : normalizeHairColor(val)
+      if (takeHeaderKey('Hair Colour')) {
+        const val = trimValue(line, 'Hair Colour')
+        person.hairColor = isEmptyValue(val) ? null : normalizeHairColor(val)
+      }
     } else if (trimmed.startsWith('Tattoos')) {
-      const val = trimValue(line, 'Tattoos')
-      person.tattoos = isEmptyValue(val) ? null : val
+      if (takeHeaderKey('Tattoos')) {
+        const val = trimValue(line, 'Tattoos')
+        person.tattoos = isEmptyValue(val) ? null : val
+      }
     } else if (trimmed.startsWith('Activities')) {
-      const val = trimValue(line, 'Activities')
-      person.activities = isEmptyValue(val) ? null : val
+      if (takeHeaderKey('Activities')) {
+        const val = trimValue(line, 'Activities')
+        person.activities = isEmptyValue(val) ? null : val
+      }
     } else if (trimmed.startsWith('Biographies')) {
       // Multiline biography block — collect lines until blank line or === section
       const bioLines: string[] = []
@@ -324,7 +375,9 @@ export function parseImportFile(content: string): ParsedImportData {
           i++
         }
       }
-      if (bioLines.length > 0) {
+      // The block is consumed either way — skipping it would leave its lines to be
+      // reclassified by the branches above. Only the assignment is first-wins.
+      if (bioLines.length > 0 && takeHeaderKey('Biographies')) {
         const bioText = bioLines.join('\n').trim()
         person.biographies = bioText || person.biographies
         // Extract retirement/active status from biographies text
@@ -337,8 +390,10 @@ export function parseImportFile(content: string): ParsedImportData {
         }
       }
     } else if (trimmed.startsWith('Biography')) {
-      const val = trimValue(line, 'Biography')
-      person.biography = isEmptyValue(val) ? null : val
+      if (takeHeaderKey('Biography')) {
+        const val = trimValue(line, 'Biography')
+        person.biography = isEmptyValue(val) ? null : val
+      }
     }
 
     i++
@@ -577,11 +632,31 @@ export function parseImportFile(content: string): ParsedImportData {
 
 // ─── Parse Coverage ─────────────────────────────────────────────────────────
 
-export type ParseShortfall = {
-  section: 'sets' | 'channelAppearances' | 'coModels' | 'digitalIdentities'
-  label: string
-  found: number
-}
+/**
+ * Two different ways a file can fail to say what it appears to say.
+ *
+ * `section` — the file demonstrably holds blocks of a kind the parser returned
+ * nothing for. A total-failure check; see `checkParseCoverage`.
+ *
+ * `malformedIcgId` — the parser read something as the ICG-ID that cannot be one.
+ * The ICG-ID is the canonical Person key (ADR-0026): every staged set is filed
+ * under it and the person lookup is an exact match on it, so a malformed value
+ * does not degrade the import, it detaches it. Reported, never repaired — the
+ * parser has no way to know which part of a polluted string was meant.
+ */
+export type ParseShortfall =
+  | {
+      kind: 'section'
+      section: 'sets' | 'channelAppearances' | 'coModels' | 'digitalIdentities'
+      label: string
+      found: number
+    }
+  | {
+      kind: 'malformedIcgId'
+      value: string
+    }
+
+export type SectionShortfall = Extract<ParseShortfall, { kind: 'section' }>
 
 /** Lines, minus the trailing \r these Windows-written files carry. */
 function toTrimmedLines(content: string): string[] {
@@ -604,7 +679,7 @@ function nextNonBlank(lines: string[], from: number): number {
  * this guard into a source of false rejections, which is worse than the silence it
  * replaces: it would block files that are entirely fine.
  */
-export function countRawSectionSignals(content: string): Record<ParseShortfall['section'], number> {
+export function countRawSectionSignals(content: string): Record<SectionShortfall['section'], number> {
   const lines = toTrimmedLines(content)
 
   let sets = 0
@@ -679,12 +754,12 @@ export function checkParseCoverage(
   const shortfalls: ParseShortfall[] = []
 
   const check = (
-    section: ParseShortfall['section'],
+    section: SectionShortfall['section'],
     label: string,
     parsedCount: number,
   ) => {
     if (raw[section] > 0 && parsedCount === 0) {
-      shortfalls.push({ section, label, found: raw[section] })
+      shortfalls.push({ kind: 'section', section, label, found: raw[section] })
     }
   }
 
@@ -693,6 +768,13 @@ export function checkParseCoverage(
   check('coModels', 'co-models', parsed.coModels.length)
   check('digitalIdentities', 'external links', parsed.digitalIdentities.length)
 
+  // The identity key itself. A value that is not an ICG-ID cannot become one by
+  // being stored, and it is the one field whose corruption is silent: the import
+  // succeeds, the sets stage, and nothing resolves to a person.
+  if (parsed.person.icgId && !ICG_ID_RE.test(parsed.person.icgId)) {
+    shortfalls.push({ kind: 'malformedIcgId', value: parsed.person.icgId })
+  }
+
   return shortfalls
 }
 
@@ -700,16 +782,34 @@ export function checkParseCoverage(
  * "1 co-model" / "27 co-models". Every label here is a regular -s plural, which is
  * the only reason trimming one letter is enough.
  */
-export function countedLabel(shortfall: ParseShortfall): string {
+export function countedLabel(shortfall: SectionShortfall): string {
   const noun = shortfall.found === 1 ? shortfall.label.replace(/s$/, '') : shortfall.label
   return `${shortfall.found} ${noun}`
 }
 
-/** One sentence naming what the file holds and the parser did not read. */
+/** What the file holds and the parser did not read, plus an identity key that is not one. */
 export function describeShortfalls(shortfalls: ParseShortfall[]): string {
-  return `This file was not fully read: ${shortfalls
-    .map((s) => `${countedLabel(s)} found, none parsed`)
-    .join('; ')}. Everything else was imported.`
+  const sections = shortfalls.filter((s): s is SectionShortfall => s.kind === 'section')
+  const parts: string[] = []
+
+  if (sections.length > 0) {
+    parts.push(
+      `This file was not fully read: ${sections
+        .map((s) => `${countedLabel(s)} found, none parsed`)
+        .join('; ')}. Everything else was imported.`,
+    )
+  }
+
+  for (const s of shortfalls) {
+    if (s.kind !== 'malformedIcgId') continue
+    parts.push(
+      `The ICG-ID read from this file is not one: "${s.value}". ${ICG_ID_FORMAT_HINT}. ` +
+        `It was imported as read and is the key every staged set here is filed under, ` +
+        `so nothing will resolve to a person until it is corrected with Change ICG-ID.`,
+    )
+  }
+
+  return parts.join(' ')
 }
 
 // ─── Duplicate Detection ────────────────────────────────────────────────────
