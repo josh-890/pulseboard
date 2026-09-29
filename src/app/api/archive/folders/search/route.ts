@@ -8,9 +8,10 @@
  *
  * Query params:
  *   q          — free-text search on folderName/parsedTitle
- *   shortName  — filter by chanFolderName (partial) OR parsedShortName (exact),
- *                case-insensitive. Handles multiple archive roots where chanFolderName
- *                may be null for shallow paths.
+ *   shortName  — the target's channel code. Widened to every channel under the same
+ *                owning Label (ADR-0020), then matched against chanFolderName (partial)
+ *                OR parsedShortName (exact), case-insensitive. Handles multiple archive
+ *                roots where chanFolderName may be null for shallow paths.
  *   year       — filter by parsedDate year
  *   limit      — max results per list (default 20, max 50)
  *
@@ -23,6 +24,7 @@ import { NextResponse } from 'next/server'
 import { withTenantFromHeaders } from '@/lib/tenant-context'
 import { prisma } from '@/lib/db'
 import { Prisma } from '@/generated/prisma/client'
+import { sameLabelChannelCodes } from '@/lib/services/archive-service'
 
 type FolderRow = {
   id: string
@@ -67,8 +69,18 @@ export async function GET(request: Request) {
         // (extracted from folder name, e.g. "NBL"). chanFolderName may be null when
         // multiple archive roots are configured and paths are shallow — falling back to
         // parsedShortName ensures those folders still appear in the linked section.
+        // Any code under the same owning Label counts: a NubileFilms (NBLF) set is
+        // filed under NBL-Nubiles on disk.
         filters.push(
-          Prisma.sql`AND (af."chanFolderName" ILIKE ${`%${shortName}%`} OR af."parsedShortName" ILIKE ${shortName})`,
+          Prisma.sql`AND (
+            af."chanFolderName" ILIKE ${`%${shortName}%`}
+            OR af."parsedShortName" ILIKE ${shortName}
+            OR EXISTS (
+              SELECT 1 FROM (${sameLabelChannelCodes(Prisma.sql`${shortName}`)}) AS codes(code)
+              WHERE LOWER(af."parsedShortName") = codes.code
+                 OR af."chanFolderName" ILIKE '%' || codes.code || '%'
+            )
+          )`,
         )
       }
 

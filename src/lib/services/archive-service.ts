@@ -33,6 +33,31 @@ export const ARCHIVE_LAST_SCAN_SUMMARY_KEY = 'archive.lastScanSummary'
 // the participant — `YYYY-MM-DD-CODE Person - Title` — which is a strong
 // disambiguator, so we factor a person-name match in alongside a title floor.
 
+/**
+ * The channel codes that count as the same producer as `code` (ADR-0020): every
+ * channel sharing its owning Label, or the channel alone when it has none. A
+ * subquery yielding lower-cased `shortName`s, for `LOWER(x) IN (…)`.
+ *
+ * The folder code names the disk branch, not the publication channel — Nubiles
+ * files its NubileFilms sets under `NBL-Nubiles`, so a NubileFilms (`NBLF`) staged
+ * set and its `NBL` folder only meet through the Label. Matching on code equality
+ * made that pair unreachable to the matcher and to the manual picker alike.
+ *
+ * The matcher only lets a sibling code in on the exact release day. On xpulse the
+ * year-wide title window across a Label added 1,076 pairs, mostly generic titles
+ * months apart ("Pretty" ↔ "Pretty Girl"); the exact day adds 161, nearly all the
+ * same set under two channel names.
+ */
+export function sameLabelChannelCodes(code: Prisma.Sql): Prisma.Sql {
+  return Prisma.sql`
+    SELECT LOWER(sib."shortName")
+    FROM   "Channel" own
+    JOIN   "Channel" sib
+           ON sib.id = own.id OR (own."labelId" IS NOT NULL AND sib."labelId" = own."labelId")
+    WHERE  LOWER(own."shortName") = LOWER(${code})
+      AND  sib."shortName" IS NOT NULL`
+}
+
 /** Title trigram floor to suggest at HIGH confidence on title alone. */
 export const HIGH_TITLE_THRESHOLD = 0.6
 /** Title trigram floor for a MEDIUM suggestion. */
@@ -1931,7 +1956,7 @@ export async function runMatchingPass(
                LIMIT 1) AS held_by
       FROM staging_set ss
       JOIN "Channel" c ON c.id = ss."channelId"
-      WHERE LOWER(c."shortName") = LOWER(${folder.parsedShortName})
+      WHERE LOWER(c."shortName") IN (${sameLabelChannelCodes(Prisma.sql`${folder.parsedShortName}`)})
         AND EXTRACT(YEAR FROM ss."releaseDate") = ${year}
         AND ss."isVideo" = ${folder.isVideo}
         AND ss.status NOT IN ('PROMOTED', 'SKIPPED')
@@ -1945,7 +1970,10 @@ export async function runMatchingPass(
         )
         AND (
           (ss."releaseDate" >= ${dateStart} AND ss."releaseDate" < ${dateEnd})
-          OR similarity(${ptNorm}, ss."titleNorm") >= ${MEDIUM_TITLE_THRESHOLD}
+          -- A sibling channel under the same Label has to share the day: across a
+          -- whole Label a similar title within the year is mostly noise.
+          OR (LOWER(c."shortName") = LOWER(${folder.parsedShortName})
+              AND similarity(${ptNorm}, ss."titleNorm") >= ${MEDIUM_TITLE_THRESHOLD})
         )
       ORDER BY is_exact_day DESC, sim DESC
       LIMIT 50
@@ -1996,7 +2024,7 @@ export async function runMatchingPass(
              (s."releaseDate" >= ${dateStart} AND s."releaseDate" < ${dateEnd}) AS is_exact_day
       FROM "Set" s
       JOIN "Channel" c ON c.id = s."channelId"
-      WHERE LOWER(c."shortName") = LOWER(${folder.parsedShortName})
+      WHERE LOWER(c."shortName") IN (${sameLabelChannelCodes(Prisma.sql`${folder.parsedShortName}`)})
         AND EXTRACT(YEAR FROM s."releaseDate") = ${year}
         AND s.type = ${setTypeStr}::"SetType"
         AND NOT EXISTS (
@@ -2006,7 +2034,8 @@ export async function runMatchingPass(
         )
         AND (
           (s."releaseDate" >= ${dateStart} AND s."releaseDate" < ${dateEnd})
-          OR similarity(${ptNorm}, s."titleNorm") >= ${MEDIUM_TITLE_THRESHOLD}
+          OR (LOWER(c."shortName") = LOWER(${folder.parsedShortName})
+              AND similarity(${ptNorm}, s."titleNorm") >= ${MEDIUM_TITLE_THRESHOLD})
         )
       ORDER BY is_exact_day DESC, sim DESC
       LIMIT 50
@@ -2051,8 +2080,10 @@ function _normPath(p: string): string {
  * Run the archive matching pass for a single StagingSet or Set.
  * Inverse of runMatchingPass: given an item, find matching ArchiveFolders.
  *
- * Step 1 (HIGH): exact parsedDate + exact parsedShortName, ordered by title similarity.
- * Step 2 (MEDIUM): same year + same shortName + trigram similarity ≥ 0.4.
+ * Step 1 (HIGH): exact parsedDate + a folder code under the same owning Label,
+ * ordered by title similarity.
+ * Step 2 (MEDIUM): same year + the item's own code + trigram similarity ≥ 0.4.
+ * A sibling channel's folder must share the day.
  *
  * Clears any existing SUGGESTED link before matching. No-ops if item already has a
  * CONFIRMED link.
@@ -2150,7 +2181,7 @@ export async function runMatchingPassForItem(
            (af."parsedDate" >= ${dateStart} AND af."parsedDate" < ${dateEnd}) AS is_exact_day
     FROM archive_folder af
     WHERE af.tenant = ${tenant}
-      AND LOWER(af."parsedShortName") = LOWER(${shortName})
+      AND LOWER(af."parsedShortName") IN (${sameLabelChannelCodes(Prisma.sql`${shortName}`)})
       AND EXTRACT(YEAR FROM af."parsedDate") = ${year}
       AND af."isVideo" = ${isVideo}
       AND af."missingOnDisk" = false
@@ -2160,7 +2191,9 @@ export async function runMatchingPassForItem(
       )
       AND (
         (af."parsedDate" >= ${dateStart} AND af."parsedDate" < ${dateEnd})
-        OR similarity(${titleCmp}, COALESCE(af."parsedTitle", '')) >= ${MEDIUM_TITLE_THRESHOLD}
+        -- Sibling-coded folders (same Label, other channel) need the exact day.
+        OR (LOWER(af."parsedShortName") = LOWER(${shortName})
+            AND similarity(${titleCmp}, COALESCE(af."parsedTitle", '')) >= ${MEDIUM_TITLE_THRESHOLD})
       )
     ORDER BY is_exact_day DESC, sim DESC
     LIMIT 50
@@ -2509,7 +2542,7 @@ export async function getConflictingLinks(ids: string[]): Promise<Map<string, Bl
     JOIN   "archive_folder" af
            ON  af."parsedDate" >= DATE_TRUNC('day', ss."releaseDate")
            AND af."parsedDate" <  DATE_TRUNC('day', ss."releaseDate") + INTERVAL '1 day'
-           AND LOWER(af."parsedShortName") = LOWER(c."shortName")
+           AND LOWER(af."parsedShortName") IN (${sameLabelChannelCodes(Prisma.sql`c."shortName"`)})
     JOIN   "ArchiveLink" al2 ON al2."archiveFolderId" = af.id AND al2.status = 'CONFIRMED'
     LEFT JOIN staging_set ss2 ON ss2.id = al2."stagingSetId"
     LEFT JOIN "Set" st ON st.id = al2."setId"
