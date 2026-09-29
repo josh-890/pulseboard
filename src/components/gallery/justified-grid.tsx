@@ -9,6 +9,7 @@ import {
   MOBILE_TARGET,
 } from "@/lib/gallery-layout";
 import { GalleryThumbnail } from "./gallery-thumbnail";
+import type { SelectModifiers } from "./gallery-thumbnail";
 
 type JustifiedGridProps = {
   items: GalleryItem[];
@@ -18,10 +19,12 @@ type JustifiedGridProps = {
   /** Enable drag-and-drop on thumbnails */
   draggable?: boolean;
   onSelect?: (id: string, e: React.MouseEvent) => void;
-  onToggleSelect?: (id: string) => void;
+  onToggleSelect?: (id: string, mods: SelectModifiers) => void;
   onOpen: (id: string) => void;
   /** Show the per-tile favorite heart badge (default true). */
   showFavoriteBadge?: boolean;
+  /** Hover "open" button on each tile, for grids where a click selects. */
+  showOpenButton?: boolean;
 };
 
 export function JustifiedGrid({
@@ -33,6 +36,7 @@ export function JustifiedGrid({
   onToggleSelect,
   onOpen,
   showFavoriteBadge = true,
+  showOpenButton = false,
 }: JustifiedGridProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [containerWidth, setContainerWidth] = useState(0);
@@ -86,6 +90,7 @@ export function JustifiedGrid({
                 onToggleSelect={onToggleSelect}
                 onOpen={onOpen}
                 showFavoriteBadge={showFavoriteBadge}
+                showOpenButton={showOpenButton}
               />
             );
           })}

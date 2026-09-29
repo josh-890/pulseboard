@@ -904,10 +904,36 @@ galleries with 2+ cast) lets you record this **per image**:
 **Where you see it:**
 - **Thumbnail badge** — a small `shown/total` people badge appears **only on images that
   aren't showing the full cast** (a subset). Full-cast images stay clean.
-- **Filter** — a "Shows:" chip row above the grid filters to *only the images showing* a
-  chosen person.
+- **Filter (set & session galleries)** — two rows above the grid:
+  - **Groups** lists every combination of people that actually occurs, with its count —
+    e.g. `Anna alone 42 · Bea alone 30 · Anna + Bea 18 · Nobody 3`. One click shows exactly
+    that combination ("Anna and nobody else"); click it again to clear.
+  - **Shows** has one chip per person that cycles **off → ✓ must be shown → ✗ must not be
+    shown**. Chips combine with AND: ✓Anna alone means "Anna, whoever else"; ✓Anna ✓Bea means
+    both; ✓Anna ✗Bea means Anna without Bea. The number on a chip counts the images in the
+    current view that show that person.
 - **Bulk** — select several images, then **People shown** in the action bar to Show/Hide a
-  person across all of them at once (e.g. "these 20 frames show only Person A").
+  person across all of them at once (e.g. "these 20 frames show only Person A"). Images the
+  change moves out of the current filter also leave the selection.
+
+**Selecting many images (set & session galleries):**
+
+| Gesture | Effect |
+|---|---|
+| Checkbox on a tile | Select / deselect that image; it becomes the **anchor** |
+| **Shift**+click (checkbox or image) | Extend from the anchor to here, in the order shown. The range takes the anchor's state — if your last click *deselected*, the Shift range deselects |
+| Click an image while something is selected | Selects/deselects it instead of opening it. Open with a **double-click** or the ⤢ button on hover |
+| Checkbox on a group header (session / clip on a set; set / *Session only* under **Group by Set** on a session) | Select the whole group, or clear it when it is fully selected |
+| **Ctrl/Cmd+A** or **Select all** | Every image currently visible — respects the people filter |
+| **Invert** | Swap selected and unselected among the visible images |
+| **Esc** or **Clear** | Clear the selection |
+| **Space** on a focused tile | Toggle it (Shift+Space extends) |
+
+Changing the people filter drops hidden images from the selection, so Delete or a bulk
+action never reaches an image you can't see.
+
+Typical run: click **Anna + Bea** → **Ctrl+A** → **People shown ▸ hide Bea** — the images
+move to *Anna alone* in front of you.
 
 Note: v1 is deselect-only. If someone appears who isn't credited, add them to the session's
 credits first.

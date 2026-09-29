@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { Check, Frame, Heart, Users } from "lucide-react";
+import { Check, Frame, Heart, Maximize2, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { GalleryItem } from "@/lib/types";
 import {
@@ -12,6 +12,9 @@ import {
   MediaSetCountBadge,
 } from "@/components/media/media-badge";
 
+/** The modifier keys a selection gesture carries (mouse or keyboard). */
+export type SelectModifiers = { shiftKey: boolean; metaKey: boolean; ctrlKey: boolean };
+
 type GalleryThumbnailProps = {
   item: GalleryItem;
   width: number;
@@ -21,9 +24,11 @@ type GalleryThumbnailProps = {
   isMultiSelectMode?: boolean;
   draggable?: boolean;
   onSelect?: (id: string, e: React.MouseEvent) => void;
-  onToggleSelect?: (id: string) => void;
+  onToggleSelect?: (id: string, mods: SelectModifiers) => void;
   onOpen: (id: string) => void;
   showFavoriteBadge?: boolean;
+  /** A hover button that opens the lightbox — for grids where a click selects. */
+  showOpenButton?: boolean;
 };
 
 export function GalleryThumbnail({
@@ -38,6 +43,7 @@ export function GalleryThumbnail({
   onToggleSelect,
   onOpen,
   showFavoriteBadge = true,
+  showOpenButton = false,
 }: GalleryThumbnailProps) {
   const imgSrc = item.urls.gallery_512 ?? item.urls.original;
   if (!imgSrc) return null;
@@ -74,7 +80,7 @@ export function GalleryThumbnail({
 
   function handleCheckboxClick(e: React.MouseEvent) {
     e.stopPropagation();
-    onToggleSelect?.(item.id);
+    onToggleSelect?.(item.id, e);
   }
 
   return (
@@ -92,8 +98,17 @@ export function GalleryThumbnail({
       }
       onClick={handleClick}
       onDoubleClick={handleDoubleClick}
+      onMouseDown={(e) => {
+        // Shift+click extends a selection; without this the browser also
+        // highlights the text between the two clicks.
+        if (selectable && e.shiftKey) e.preventDefault();
+      }}
       onKeyDown={(e) => {
         if (e.key === "Enter") onOpen(item.id);
+        else if (e.key === " " && selectable && onToggleSelect) {
+          e.preventDefault();
+          onToggleSelect(item.id, e);
+        }
       }}
       className={cn(
         "group relative shrink-0 overflow-hidden rounded-lg transition-shadow duration-150 focus-visible:outline-2 focus-visible:outline-primary",
@@ -146,10 +161,33 @@ export function GalleryThumbnail({
         </span>
       )}
 
+      {/* Open in lightbox — the click itself may be busy selecting */}
+      {showOpenButton && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onOpen(item.id);
+          }}
+          className={cn(
+            "absolute right-1.5 top-1.5 flex h-6 w-6 items-center justify-center rounded bg-black/55 text-white",
+            "opacity-0 transition-opacity duration-150 group-hover:opacity-100 focus-visible:opacity-100",
+            "hover:bg-black/75 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+          )}
+          aria-label="Open image"
+          title="Open"
+        >
+          <Maximize2 size={12} />
+        </button>
+      )}
+
       {/* Favorite badge (top-right) — ADR-0019 global favorite */}
       {showFavoriteBadge && item.isFavorite && (
         <span
-          className="absolute top-1.5 right-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-red-500/90 text-white pointer-events-none"
+          className={cn(
+            "absolute top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-red-500/90 text-white pointer-events-none",
+            showOpenButton ? "right-9" : "right-1.5",
+          )}
           aria-label="Favorite"
         >
           <Heart size={10} fill="currentColor" />

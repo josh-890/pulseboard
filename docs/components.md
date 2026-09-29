@@ -128,6 +128,23 @@ Reused across person and set detail pages.
 
 ---
 
+## Gallery Components (`components/gallery/`)
+
+The image grid used by the set and session galleries. Selection and the people-shown
+filter live in shared hooks (`lib/hooks/use-gallery-selection.ts`,
+`lib/hooks/use-people-filter.ts`) over pure, unit-tested helpers
+(`lib/gallery-selection.ts`, `lib/gallery-people-filter.ts`).
+
+| Component | Type | Props | Description |
+|---|---|---|---|
+| `JustifiedGrid` | Client | `items`, `onOpen`, `selectable?`, `selectedIds?`, `onSelect?`, `onToggleSelect?(id, mods)`, `showOpenButton?`, `draggable?`, `showFavoriteBadge?` | Justified-row layout of `GalleryThumbnail`s. The selection checkbox is shown on every tile once anything is selected |
+| `GalleryThumbnail` | Client | as above, per item | One tile. The checkbox and Space pass their modifier keys (`SelectModifiers`) so Shift can extend a range; Shift+mousedown suppresses text selection; `showOpenButton` adds a hover ⤢ that opens the lightbox for grids where a click selects |
+| `PeopleFilterBar` | Client | `cast`, `items`, `visibleItems`, `filter`, `onChange` | ADR-0023 filter: a **Groups** row of the people combinations that occur (with counts; one click = exactly that group) and **Shows** chips cycling off → must show → must not show, combined with AND |
+| `GroupSelectToggle` | Client | `state` (`all`/`some`/`none`), `label`, `onToggle` | Tri-state checkbox on a gallery group header (session, clip, set, "Session only") |
+| `BulkPeopleShownControl` | Client | `cast`, `selectedIds`, `onApplied` | Selection-bar popover: show / hide a person across the selected images |
+
+---
+
 ## Shared Components (`components/shared/`)
 
 | Component | Type | Props | Description |

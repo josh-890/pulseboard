@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
-import { Layers, Plus, Trash2, Upload, X } from "lucide-react";
+import { ArrowLeftRight, CheckSquare, Layers, Plus, Trash2, Upload, X } from "lucide-react";
 import type { GalleryItem } from "@/lib/types";
 import type { GalleryCastMember } from "@/lib/types/gallery";
 import { JustifiedGrid } from "@/components/gallery/justified-grid";
@@ -23,8 +23,12 @@ import {
 import { deleteMediaItemsAction } from "@/lib/actions/media-actions";
 import { setSessionCover } from "@/lib/actions/session-actions";
 import { applyGallerySort, GALLERY_SORT_OPTIONS } from "@/lib/gallery-sort";
-import { cn } from "@/lib/utils";
 import { BulkPeopleShownControl } from "@/components/gallery/bulk-people-shown";
+import { GroupSelectToggle } from "@/components/gallery/group-select-toggle";
+import { PeopleFilterBar } from "@/components/gallery/people-filter-bar";
+import { useGallerySelection } from "@/lib/hooks/use-gallery-selection";
+import { usePeopleFilter } from "@/lib/hooks/use-people-filter";
+import type { PeopleFilter } from "@/lib/gallery-people-filter";
 import type { GallerySortMode } from "@/lib/gallery-sort";
 import {
   Select,
@@ -48,9 +52,6 @@ export function SessionProductionGallery({ items: initialItems, sessionId, cover
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [collections, setCollections] = useState<{ id: string; name: string }[]>([]);
   const [isDragOver, setIsDragOver] = useState(false);
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  // Per-image "people shown" filter (ADR-0023).
-  const [filterPersonId, setFilterPersonId] = useState<string | null>(null);
   const [sortMode, setSortMode] = useState<GallerySortMode>(() => {
     if (typeof window === "undefined") return "newest";
     return (localStorage.getItem("gallery_sort_session") as GallerySortMode) ?? "newest";
@@ -129,15 +130,14 @@ export function SessionProductionGallery({ items: initialItems, sessionId, cover
     return map;
   }, [displayItems]);
 
-  // People-shown filter: images whose shown set (session cast minus exclusions) includes the person.
-  const filteredItems = useMemo(() => {
-    if (!filterPersonId) return displayItems;
-    return displayItems.filter(
-      (it) =>
-        (it.sessionCastIds ?? []).includes(filterPersonId) &&
-        !(it.hiddenPersonIds ?? []).includes(filterPersonId),
-    );
-  }, [displayItems, filterPersonId]);
+  // People-shown filter (ADR-0023): include / exclude per cast member.
+  const {
+    filter: peopleFilter,
+    setFilter: setPeopleFilter,
+    active: filterActive,
+    filteredItems,
+    filterItems,
+  } = usePeopleFilter(displayItems, cast);
 
   // Group items by their first set link (for "Group by Set" mode)
   const grouped = useMemo(() => {
@@ -165,16 +165,46 @@ export function SessionProductionGallery({ items: initialItems, sessionId, cover
     if (sessionId) setSessionCover(sessionId, mediaItemId);
   }, [sessionId]);
 
-  const handleToggleSelect = useCallback((id: string) => {
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  }, []);
+  // The images in the order the grid draws them — what a Shift range, Select all
+  // and Invert run over.
+  const visibleOrder = useMemo(() => {
+    if (filterActive) return filteredItems.map((it) => it.id);
+    if (grouped) return [...grouped.groups.flatMap((g) => g.items), ...grouped.sessionOnly].map((it) => it.id);
+    return displayItems.map((it) => it.id);
+  }, [filterActive, filteredItems, grouped, displayItems]);
 
-  const clearSelection = useCallback(() => setSelectedIds(new Set()), []);
+  const openInLightbox = useCallback(
+    (id: string) => {
+      const idx = indexMap.get(id);
+      if (idx !== undefined) setLightboxIndex(idx);
+    },
+    [indexMap],
+  );
+  const {
+    selectedIds,
+    toggle: handleToggleSelect,
+    tileClick: handleTileClick,
+    clear: clearSelection,
+    selectAll: selectAllVisible,
+    invert: invertSelection,
+    toggleGroup,
+    groupState,
+    pruneToVisible,
+  } = useGallerySelection({
+    visibleOrder,
+    onOpen: openInLightbox,
+    keyboardEnabled: lightboxIndex === null && !deleteDialogOpen,
+  });
+
+  // A filter change drops what it hides from the selection: a bulk action must
+  // never reach an image you can no longer see.
+  const handlePeopleFilterChange = useCallback(
+    (next: PeopleFilter) => {
+      setPeopleFilter(next);
+      pruneToVisible(filterItems(displayItems, next).map((it) => it.id));
+    },
+    [setPeopleFilter, pruneToVisible, filterItems, displayItems],
+  );
 
   const handleDeleteConfirm = useCallback(() => {
     const idsToDelete = Array.from(selectedIds);
@@ -203,7 +233,19 @@ export function SessionProductionGallery({ items: initialItems, sessionId, cover
         <div className="mb-3 flex items-center gap-2">
           {hasSelection ? (
             <>
-              <span className="text-sm text-muted-foreground">{selectedIds.size} selected</span>
+              <span className="text-sm text-muted-foreground" aria-live="polite">
+                {selectedIds.size} of {visibleOrder.length} selected
+              </span>
+              {selectedIds.size < visibleOrder.length && (
+                <Button variant="ghost" size="sm" className="gap-1.5" onClick={selectAllVisible} title="Select all (Ctrl+A)">
+                  <CheckSquare size={14} />
+                  Select all
+                </Button>
+              )}
+              <Button variant="ghost" size="sm" className="gap-1.5" onClick={invertSelection}>
+                <ArrowLeftRight size={14} />
+                Invert
+              </Button>
               <Button variant="destructive" size="sm" className="gap-1.5" onClick={() => setDeleteDialogOpen(true)}>
                 <Trash2 size={14} />
                 Delete
@@ -212,30 +254,41 @@ export function SessionProductionGallery({ items: initialItems, sessionId, cover
                 <BulkPeopleShownControl
                   cast={cast}
                   selectedIds={[...selectedIds]}
-                  onApplied={(pid, mode) =>
-                    setLocalItems((prev) =>
-                      prev.map((it) =>
-                        selectedIds.has(it.id)
-                          ? {
-                              ...it,
-                              hiddenPersonIds:
-                                mode === "hide"
-                                  ? [...new Set([...(it.hiddenPersonIds ?? []), pid])]
-                                  : (it.hiddenPersonIds ?? []).filter((x) => x !== pid),
-                            }
-                          : it,
-                      ),
-                    )
-                  }
+                  onApplied={(pid, mode) => {
+                    const apply = (it: GalleryItem): GalleryItem =>
+                      selectedIds.has(it.id)
+                        ? {
+                            ...it,
+                            hiddenPersonIds:
+                              mode === "hide"
+                                ? [...new Set([...(it.hiddenPersonIds ?? []), pid])]
+                                : (it.hiddenPersonIds ?? []).filter((x) => x !== pid),
+                          }
+                        : it;
+                    setLocalItems((prev) => prev.map(apply));
+                    // Images the change moved out of the filtered view leave the selection too.
+                    if (filterActive) pruneToVisible(filterItems(displayItems.map(apply)).map((it) => it.id));
+                  }}
                 />
               )}
-              <Button variant="ghost" size="sm" className="gap-1.5" onClick={clearSelection}>
+              <Button variant="ghost" size="sm" className="gap-1.5" onClick={clearSelection} title="Clear selection (Esc)">
                 <X size={14} />
                 Clear
               </Button>
             </>
           ) : (
-            <div className="flex items-center gap-2 ml-auto">
+            <div className="flex w-full items-center gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="gap-1.5"
+                onClick={selectAllVisible}
+                title="Select all visible images (Ctrl+A) · Shift+click selects a range"
+              >
+                <CheckSquare size={14} />
+                Select all
+              </Button>
+              <div className="ml-auto" />
               {hasSetLinks && (
                 <button
                   type="button"
@@ -273,49 +326,26 @@ export function SessionProductionGallery({ items: initialItems, sessionId, cover
 
       {/* People-shown filter (ADR-0023) — only when the session has ≥2 contributors */}
       {cast && cast.length >= 2 && displayItems.length > 0 && (
-        <div className="mb-3 flex flex-wrap items-center gap-1.5">
-          <span className="mr-1 text-xs text-muted-foreground">Shows:</span>
-          {cast.map((c) => {
-            const active = filterPersonId === c.id;
-            return (
-              <button
-                key={c.id}
-                type="button"
-                onClick={() => setFilterPersonId(active ? null : c.id)}
-                aria-pressed={active}
-                className={cn(
-                  "rounded-full border px-2.5 py-1 text-xs font-medium transition-all",
-                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                  active
-                    ? "border-primary bg-primary text-primary-foreground shadow-sm"
-                    : "border-white/20 bg-card/50 text-muted-foreground hover:border-white/30 hover:text-foreground",
-                )}
-              >
-                {c.name}
-              </button>
-            );
-          })}
-          {filterPersonId && (
-            <button
-              type="button"
-              onClick={() => setFilterPersonId(null)}
-              className="ml-1 text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
-            >
-              Clear
-            </button>
-          )}
-        </div>
+        <PeopleFilterBar
+          cast={cast}
+          items={displayItems}
+          visibleItems={filteredItems}
+          filter={peopleFilter}
+          onChange={handlePeopleFilterChange}
+        />
       )}
 
       {displayItems.length === 0 ? (
         <p className="text-sm italic text-muted-foreground/70">No media items in this session.</p>
-      ) : filterPersonId ? (
+      ) : filterActive ? (
         filteredItems.length > 0 ? (
           <JustifiedGrid
             items={filteredItems}
             selectable
             selectedIds={selectedIds}
             onToggleSelect={handleToggleSelect}
+            onSelect={handleTileClick}
+            showOpenButton
             onOpen={(id) => {
               const idx = indexMap.get(id);
               if (idx !== undefined) setLightboxIndex(idx);
@@ -323,7 +353,7 @@ export function SessionProductionGallery({ items: initialItems, sessionId, cover
           />
         ) : (
           <p className="py-8 text-center text-sm text-muted-foreground">
-            No images show the selected person.
+            No images match this combination of people.
           </p>
         )
       ) : grouped ? (
@@ -331,6 +361,11 @@ export function SessionProductionGallery({ items: initialItems, sessionId, cover
           {grouped.groups.map((group) => (
             <div key={group.setId}>
               <div className="mb-2 flex items-center gap-2 border-b border-white/10 pb-1.5">
+                <GroupSelectToggle
+                  state={groupState(group.items.map((it) => it.id))}
+                  label={group.setTitle}
+                  onToggle={() => toggleGroup(group.items.map((it) => it.id))}
+                />
                 <Layers size={12} className="text-entity-session/60 shrink-0" />
                 <Link
                   href={`/sets/${group.setId}`}
@@ -345,6 +380,8 @@ export function SessionProductionGallery({ items: initialItems, sessionId, cover
                 selectable
                 selectedIds={selectedIds}
                 onToggleSelect={handleToggleSelect}
+            onSelect={handleTileClick}
+            showOpenButton
                 onOpen={(id) => {
                   const idx = indexMap.get(id);
                   if (idx !== undefined) setLightboxIndex(idx);
@@ -355,6 +392,11 @@ export function SessionProductionGallery({ items: initialItems, sessionId, cover
           {grouped.sessionOnly.length > 0 && (
             <div>
               <div className="mb-2 flex items-center gap-2 border-b border-white/10 pb-1.5">
+                <GroupSelectToggle
+                  state={groupState(grouped.sessionOnly.map((it) => it.id))}
+                  label="Session only"
+                  onToggle={() => toggleGroup(grouped.sessionOnly.map((it) => it.id))}
+                />
                 <Layers size={12} className="text-muted-foreground/50 shrink-0" />
                 <span className="text-sm font-medium text-muted-foreground">Session only</span>
                 <span className="text-xs text-muted-foreground">{grouped.sessionOnly.length}</span>
@@ -364,6 +406,8 @@ export function SessionProductionGallery({ items: initialItems, sessionId, cover
                 selectable
                 selectedIds={selectedIds}
                 onToggleSelect={handleToggleSelect}
+            onSelect={handleTileClick}
+            showOpenButton
                 onOpen={(id) => {
                   const idx = indexMap.get(id);
                   if (idx !== undefined) setLightboxIndex(idx);
@@ -378,6 +422,8 @@ export function SessionProductionGallery({ items: initialItems, sessionId, cover
           selectable
           selectedIds={selectedIds}
           onToggleSelect={handleToggleSelect}
+            onSelect={handleTileClick}
+            showOpenButton
           onOpen={(id) => {
             const idx = indexMap.get(id);
             if (idx !== undefined) setLightboxIndex(idx);
