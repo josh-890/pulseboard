@@ -142,6 +142,25 @@ in twelve sets is twelve pastes of one file; a second person in a set is a secon
 file, with nothing to merge. Markers only **add**: deleting one takes nothing back.
 `-MigrateCast` converts an older `_cast.txt` into markers, once.
 
+**Marking a stub** (ADR-0032) — a folder filed on purpose as a placeholder (few
+media, low quality) until the real set arrives. Put an empty file named `STUB` into
+`.pulseboard\` (an extension such as `.txt` is fine; any text inside becomes the
+note):
+
+```
+.pulseboard\STUB
+```
+
+The next Full run marks the folder as a stub in the app. It works the other way too:
+mark or end a stub in the app and the next Full run writes or removes `STUB` — the
+**only** file the scan ever changes for this; `pulseboard.json`, `cast.json` and your
+markers are not touched. To upgrade, replace the **media** in the same folder and
+leave `.pulseboard\` alone; the stub ends when you delete `STUB` or press **End
+stub** in the app, never because media changed. A folder carrying `STUB` is listed in
+full on every run, because media overwritten under the same names do not move the
+folder's mtime. A targeted run does not look at `STUB` at all. The summary line
+reports `Stubs from STUB` / `Stubs ended` when either happened.
+
 A `.pulseboard\` that Explorer draws **faded** carries the DOS hidden attribute —
 Samba puts it on every dot-name, so a meta folder created from Linux, WSL or over the
 share arrives hidden. The scan reads it with `-Force` and does not care, and neither

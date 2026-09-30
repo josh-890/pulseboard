@@ -1354,8 +1354,11 @@ the finished thing (ADR-0032).
   optional note (e.g. "12 of 80 images, 800 px").
 - **Mark on disk:** put an empty file named `STUB` into the set folder's
   `.pulseboard\` (an extension such as `.txt` is fine; any text inside becomes the
-  note). The next archive scan picks it up. *(Disk side: arriving with the next
-  scan-agent update.)*
+  note). The next **Full** archive scan picks it up. A stub marked this way has no
+  reason yet — the pill says "reason not given" until you pick one in the app.
+- Either side follows the other: mark or end a stub in the app and the next Full
+  scan writes or removes `STUB` (only that one file — nothing else in
+  `.pulseboard\` is touched).
 - A violet **Stub** pill then shows on the set page, the staged-set row and panel,
   and the archive row. Hover it for the reason, note and date. Click it to change
   the reason or note.

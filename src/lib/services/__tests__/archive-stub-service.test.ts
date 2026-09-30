@@ -3,7 +3,9 @@ import { prisma } from "@/lib/db";
 import {
   dismissStubEnded,
   endArchiveFolderStub,
+  getStubWrites,
   markArchiveFolderStub,
+  reconcileStubsFromScan,
 } from "@/lib/services/archive-stub-service";
 import { escapeLike } from "@/lib/prisma-like";
 
@@ -34,7 +36,7 @@ function seedFolder(name: string, coverKey: string | null = null) {
 const read = (id: string) =>
   prisma.archiveFolder.findUniqueOrThrow({
     where: { id },
-    select: { stubSince: true, stubReason: true, stubNote: true, stubEndedAt: true, coverKey: true },
+    select: { stubSince: true, stubReason: true, stubNote: true, stubEndedAt: true, stubDiskState: true, coverKey: true },
   });
 
 describe("markArchiveFolderStub", () => {
@@ -76,5 +78,58 @@ describe("endArchiveFolderStub", () => {
     const r = await read(f.id);
     expect(r.stubEndedAt).toBeNull();
     expect(r.coverKey, "a normal folder keeps its cover").toBe(`archive/${PREFIX}/cover-2.jpg`);
+  });
+});
+
+describe("the disk side (reconcileStubsFromScan + getStubWrites)", () => {
+  const ours = async () => (await getStubWrites()).filter((w) => w.fullPath.startsWith(`X:\\${PREFIX}`));
+
+  it("STUB dropped on disk makes a stub — reason open, note from the file", async () => {
+    const f = await seedFolder("disk-mark");
+    const counts = await reconcileStubsFromScan([{ fullPath: f.fullPath, stubOnDisk: true, stubNote: " 12 of 80 " }]);
+    expect(counts).toMatchObject({ markedFromDisk: 1, toWrite: 0 });
+    const r = await read(f.id);
+    expect(r.stubSince).toBeInstanceOf(Date);
+    expect(r).toMatchObject({ stubReason: null, stubNote: "12 of 80", stubDiskState: true });
+    expect(await ours(), "the disk already holds it").toEqual([]);
+  });
+
+  it("ended in the app → the agent is asked to remove STUB, then the next scan settles", async () => {
+    const f = await seedFolder("app-end");
+    await reconcileStubsFromScan([{ fullPath: f.fullPath, stubOnDisk: true }]);
+    await endArchiveFolderStub(f.id);
+
+    expect(await ours()).toEqual([{ fullPath: f.fullPath, want: false, note: null }]);
+
+    // The agent removed the file; the next Full scan reports it gone.
+    const counts = await reconcileStubsFromScan([{ fullPath: f.fullPath, stubOnDisk: false }]);
+    expect(counts).toMatchObject({ markedFromDisk: 0, endedFromDisk: 0 });
+    expect(await read(f.id)).toMatchObject({ stubSince: null, stubDiskState: false });
+    expect(await ours()).toEqual([]);
+  });
+
+  it("STUB deleted on disk ends the stub — with the same consequences as the button", async () => {
+    const f = await seedFolder("disk-end", `archive/${PREFIX}/cover-3.jpg`);
+    await reconcileStubsFromScan([{ fullPath: f.fullPath, stubOnDisk: true }]);
+    const counts = await reconcileStubsFromScan([{ fullPath: f.fullPath, stubOnDisk: false }]);
+    expect(counts.endedFromDisk).toBe(1);
+    const r = await read(f.id);
+    expect(r).toMatchObject({ stubSince: null, coverKey: null, stubDiskState: false });
+    expect(r.stubEndedAt).toBeInstanceOf(Date);
+  });
+
+  it("marked in the app before any scan saw the folder → the agent writes STUB with the note", async () => {
+    const f = await seedFolder("app-first");
+    await markArchiveFolderStub(f.id, { reason: "FEW_MEDIA", note: "12 of 80" });
+    expect(await ours()).toEqual([{ fullPath: f.fullPath, want: true, note: "12 of 80" }]);
+  });
+
+  it("an item without stubOnDisk (targeted scan, older agent) changes nothing", async () => {
+    const f = await seedFolder("not-looked");
+    await markArchiveFolderStub(f.id, { reason: "BOTH" });
+    await reconcileStubsFromScan([{ fullPath: f.fullPath }]);
+    const r = await read(f.id);
+    expect(r.stubSince, "not looked is not deleted").toBeInstanceOf(Date);
+    expect(r.stubDiskState).toBeNull();
   });
 });

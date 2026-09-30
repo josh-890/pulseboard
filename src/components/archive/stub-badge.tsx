@@ -1,6 +1,6 @@
 import { Hourglass } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { STUB_REASON_LABEL } from "@/lib/archive-stub";
+import { stubReasonLabel } from "@/lib/archive-stub";
 import type { ArchiveStub } from "@/lib/archive-stub";
 
 type StubBadgeProps = {
@@ -14,7 +14,7 @@ type StubBadgeProps = {
  */
 export function StubBadge({ stub, className }: StubBadgeProps) {
   const title = [
-    `Stub — ${STUB_REASON_LABEL[stub.reason]}`,
+    `Stub — ${stubReasonLabel(stub.reason)}`,
     stub.note,
     `since ${new Date(stub.since).toLocaleDateString()}`,
   ]
@@ -23,7 +23,7 @@ export function StubBadge({ stub, className }: StubBadgeProps) {
   return (
     <span
       title={title}
-      aria-label={`Stub archive copy: ${STUB_REASON_LABEL[stub.reason]}`}
+      aria-label={`Stub archive copy: ${stubReasonLabel(stub.reason)}`}
       className={cn(
         "inline-flex shrink-0 items-center gap-1 rounded-full bg-violet-500/15 px-1.5 py-0.5 text-[10px] font-medium",
         "text-violet-700 dark:text-violet-300",

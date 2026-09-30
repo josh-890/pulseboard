@@ -159,6 +159,7 @@
         .pulseboard\pulseboard.json   identity anchor (archiveKey) — survives moves
         .pulseboard\cast.json         generated: who the app knows is in this set
         .pulseboard\Name (ICG-ID)     YOUR marker files, see below
+        .pulseboard\STUB              YOUR stub marker, see below (ADR-0032)
       Per archive root: {root}\.pulseboard\index.tsv — derived from the cast files,
       safe to delete. Files from before the move are removed where found.
 
@@ -170,6 +171,15 @@
       person is in twelve sets is then twelve pastes, and a second person in a set is
       simply a second file. Markers only ADD: deleting one takes nothing back.
       -MigrateCast converts an older _cast.txt / _people.txt into markers, once.
+
+    Stub marker (a deliberate placeholder copy) — ADR-0032:
+      An empty file named STUB in .pulseboard\ (any extension, any case) says "this
+      folder is a stub — few media or a low-quality copy, to be upgraded in place".
+      Text inside it becomes the note. The app can set or end a stub as well; this
+      script then writes or removes STUB (the only file it ever changes for this).
+      Deleting STUB ends the stub; swapping the media does not. A folder carrying
+      STUB is listed in full on every run — media overwritten under the same names
+      leave the folder's mtime untouched, and the skip below would hide them.
 
     After moving folders between roots:
       The targeted sub-phase checks the paths the app currently records, so it reports
@@ -192,6 +202,7 @@
 
     Skip logic (directory LastWriteTime comparison):
       leafDirModifiedAt unchanged → skip file listing (action = unchanged)
+      …except for a folder carrying .pulseboard\STUB, which is always read.
 
       Channel-folder and year-dir level caching have been removed: NTFS only
       propagates mtime one level up, making those caches unreliable for detecting
@@ -304,6 +315,10 @@ $OWN_META_FILES = @("pulseboard.json", "cast.json", "index.tsv")
 # Get-MetaDirMtimeUtc), which surfaces hidden and system files, so these have to be
 # named explicitly or every set with a Thumbs.db in there reports an unreadable marker.
 $META_JUNK_FILES = @("thumbs.db", "desktop.ini", ".ds_store")
+# A stub marker (ADR-0032): "this folder is a deliberate placeholder copy". Matched
+# on the base name, any extension, any case — Explorer's "New → Text Document"
+# appends .txt. Mirrors isStubMarkerName in src/lib/archive-stub.ts.
+$STUB_MARKER = "stub"
 # Mirrors ICG_ID_RE in src/lib/icg-id.ts.
 $ICG_ID_PATTERN = '^[A-Z]{2}-[0-9]{2}[A-Z0-9@][A-Z0-9]+$'
 # Generated files from before the move into .pulseboard\. Removed wherever they are
@@ -835,6 +850,8 @@ function Walk-Root {
                 # difference — Explorer's "New → Text Document" appends .txt.
                 $folderPeople       = @()
                 $folderPeopleErrors = @()
+                $stubOnDisk         = $false
+                $stubNote           = $null
                 if ($metaMtime) {
                     # -Force for the same reason the folder itself needs it: a marker
                     # that arrived over the share can be hidden too, and a marker the
@@ -843,6 +860,18 @@ function Walk-Root {
                         $mfLower = $mf.Name.ToLowerInvariant()
                         if ($OWN_META_FILES -contains $mfLower) { continue }
                         if ($META_JUNK_FILES -contains $mfLower) { continue }
+
+                        # The stub marker (ADR-0032) carries no ICG-ID — it must not be
+                        # reported as an unreadable cast marker. Its text is the note.
+                        if (($mfLower -replace '\.[^.]*$', '') -eq $STUB_MARKER) {
+                            $stubOnDisk = $true
+                            try {
+                                $raw = Get-Content -LiteralPath $mf.FullName -Raw -Encoding UTF8 -ErrorAction Stop
+                                if ($raw) { $stubNote = ([string]$raw).Trim() }
+                                if ($stubNote -and $stubNote.Length -gt 500) { $stubNote = $stubNote.Substring(0, 500) }
+                            } catch { <# an unreadable note is no reason to lose the mark #> }
+                            continue
+                        }
 
                         $mname = $mf.Name
                         $pm = [regex]::Match($mname, '^(.*?)[\s_]*\(([^()]+)\)')
@@ -882,7 +911,10 @@ function Walk-Root {
                 # entry is added, removed or renamed. So a hand-edited file in an
                 # otherwise untouched folder is invisible to the skip, and the only
                 # way to pick it up is to re-read regardless.
-                if (-not $Force -and $existing -and $existing.leafDirModifiedAt) {
+                # A stub folder is never skipped (ADR-0032 §5): its media are replaced
+                # in place, and media overwritten under the same names leave the
+                # folder's mtime untouched — the upgrade would stay invisible for ever.
+                if (-not $Force -and -not $stubOnDisk -and $existing -and $existing.leafDirModifiedAt) {
                     $storedLfMtime = To-UtcDateTime $existing.leafDirModifiedAt
                     if ([Math]::Abs(($lfMtime - $storedLfMtime).TotalSeconds) -lt 2) {
                         # Still need to update parent mtimes if they changed.
@@ -915,6 +947,9 @@ function Walk-Root {
                         if ($folderPeopleErrors.Count -gt 0) {
                             $item | Add-Member -NotePropertyName folderPeopleErrors -NotePropertyValue @($folderPeopleErrors)
                         }
+                        # Always sent on a Full run: $false is a statement (a deleted
+                        # marker ends the stub), not an absence.
+                        $item | Add-Member -NotePropertyName stubOnDisk -NotePropertyValue $stubOnDisk
                         # Flag stale sidecar: folderName in the JSON no longer matches the actual
                         # folder name on disk (e.g. after a case-only rename). The sidecar phase
                         # will rewrite it even if no other work is needed this scan.
@@ -998,6 +1033,10 @@ function Walk-Root {
                 }
                 if ($folderPeopleErrors.Count -gt 0) {
                     $item | Add-Member -NotePropertyName folderPeopleErrors -NotePropertyValue @($folderPeopleErrors)
+                }
+                $item | Add-Member -NotePropertyName stubOnDisk -NotePropertyValue $stubOnDisk
+                if ($stubNote) {
+                    $item | Add-Member -NotePropertyName stubNote -NotePropertyValue $stubNote
                 }
                 if ($previousFullPath) {
                     $item | Add-Member -NotePropertyName previousFullPath -NotePropertyValue $previousFullPath
@@ -1372,6 +1411,75 @@ function Write-PeopleIndex {
     }
 }
 
+# ── FULL MODE — Write stub markers (ADR-0032) ─────────────────────────────────
+# The app may set or end a stub too. This phase makes .pulseboard\STUB follow: it
+# creates the file (the note as its text) or removes it — and touches nothing else
+# in .pulseboard\. The next Full run reports what the disk then holds and the
+# server's reconciliation settles it, so a failed write simply comes round again.
+
+function Write-StubMarkers {
+    param([string]$ScopeNorm)
+
+    try {
+        $resp = Invoke-RestMethod -Uri "$BaseUrl/api/archive/stub-writes" -Headers $headers -Method Get
+    } catch {
+        Write-Warning "  Could not load stub writes: $_"
+        return
+    }
+    $writes = @($resp.writes | Where-Object { $_ })
+    if ($ScopeNorm) {
+        $writes = @($writes | Where-Object { (Normalize-Path ([string]$_.fullPath)).StartsWith($ScopeNorm) })
+    }
+    if ($writes.Count -eq 0) {
+        Write-Host "  Stub markers already match the app."
+        return
+    }
+
+    $made = 0; $removed = 0; $failed = 0
+    $utf8 = New-Object System.Text.UTF8Encoding $false
+    foreach ($w in $writes) {
+        $folderPath = [string]$w.fullPath
+        if (-not (Test-Path -LiteralPath $folderPath -PathType Container)) { continue }
+        $metaDir = Join-Path $folderPath $META_DIR
+        $existingMarkers = @()
+        if (Test-Path -LiteralPath $metaDir -PathType Container) {
+            $existingMarkers = @(Get-ChildItem -LiteralPath $metaDir -File -Force -ErrorAction SilentlyContinue |
+                Where-Object { ($_.Name.ToLowerInvariant() -replace '\.[^.]*$', '') -eq $STUB_MARKER })
+        }
+
+        if ($w.want -eq $true) {
+            if ($existingMarkers.Count -gt 0) { continue }
+            $target = Join-Path $metaDir "STUB"
+            if ($DryRun) { Write-Host "  [DRY-RUN] Would write $target"; $made++; continue }
+            try {
+                if (-not (Test-Path -LiteralPath $metaDir -PathType Container)) {
+                    [void][System.IO.Directory]::CreateDirectory($metaDir)
+                }
+                $text = if ($w.note) { [string]$w.note } else { "" }
+                [System.IO.File]::WriteAllText($target, $text, $utf8)
+                $made++
+            } catch {
+                Write-Warning "  Failed to write $target`: $_"
+                $failed++
+            }
+        } else {
+            foreach ($m in $existingMarkers) {
+                if ($DryRun) { Write-Host "  [DRY-RUN] Would remove $($m.FullName)"; $removed++; continue }
+                try {
+                    # -ErrorAction Stop: without it a failed delete is non-terminating,
+                    # skips the catch, and would be counted as removed.
+                    Remove-Item -LiteralPath $m.FullName -Force -ErrorAction Stop
+                    $removed++
+                } catch {
+                    Write-Warning "  Failed to remove $($m.FullName)`: $_"
+                    $failed++
+                }
+            }
+        }
+    }
+    Write-Host "  Stub markers: $made written, $removed removed$(if ($failed -gt 0) { ", $failed failed" })"
+}
+
 # ── FULL MODE — the write phases, and what they are allowed to touch ──────────
 #
 # -Path scopes the WHOLE run, these phases included. A switch that narrows the walk
@@ -1432,6 +1540,12 @@ function Write-WritePhases {
         Write-Host ""
         Write-Host "All folders in scope already carry their identity anchor."
     }
+
+    # No prompt: the app asked for exactly these, one file each, and nothing else in
+    # .pulseboard\ is touched.
+    Write-Host ""
+    Write-Host "Writing stub markers ($META_DIR\STUB)..."
+    Write-StubMarkers -ScopeNorm $ScopeNorm
 
     if ($SkipPeople) { return }
 
@@ -1541,6 +1655,7 @@ function Run-FullScan {
 
     # ── Step 3: POST delta in batches (skip if nothing to send) ─────────────
     $totCre = 0; $totUpd = 0; $totRen = 0; $totUnch = 0; $totSkip = 0
+    $totStubMarked = 0; $totStubEnded = 0
     $allKeyConflicts = [System.Collections.ArrayList]::new()
 
     if ($totalDelta -eq 0) {
@@ -1568,6 +1683,10 @@ function Run-FullScan {
                 $totRen  += [int]$resp.renamed
                 $totUnch += [int]$resp.unchanged
                 $totSkip += [int]$resp.skipped
+                if ($resp.stubs) {
+                    $totStubMarked += [int]$resp.stubs.markedFromDisk
+                    $totStubEnded  += [int]$resp.stubs.endedFromDisk
+                }
                 # Accumulate any sidecar key conflicts reported by the server
                 if ($resp.keyConflicts -and $resp.keyConflicts.Count -gt 0) {
                     foreach ($kc in $resp.keyConflicts) {
@@ -1590,6 +1709,8 @@ function Run-FullScan {
         Write-Host ("  Renamed:          " + $totRen)
         Write-Host ("  Unchanged (mtime):" + $totUnch)
         if ($totSkip -gt 0) { Write-Host ("  Skipped (empty):  " + $totSkip) }
+        if ($totStubMarked -gt 0) { Write-Host ("  Stubs from STUB:  " + $totStubMarked) }
+        if ($totStubEnded -gt 0)  { Write-Host ("  Stubs ended:      " + $totStubEnded + " (STUB removed on disk)") }
         if ($totCre -gt 0) {
             Write-Host "  Matching pass:    running in background on server"
         }

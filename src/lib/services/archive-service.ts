@@ -16,6 +16,8 @@ import { buildUrl } from '@/lib/media-url'
 import { loadCasts } from '@/lib/services/set-cast-service'
 import { escapeLike } from '@/lib/prisma-like'
 import { toArchiveStub } from '@/lib/archive-stub'
+import { reconcileStubsFromScan } from '@/lib/services/archive-stub-service'
+import type { StubScanCounts } from '@/lib/services/archive-stub-service'
 import type { ArchiveStub } from '@/lib/archive-stub'
 import { ArchiveLinkStatus, Prisma } from '@/generated/prisma/client'
 import type { ArchiveStatus, DatePrecision } from '@/generated/prisma/client'
@@ -1154,6 +1156,14 @@ export type FullIngestItem = {
   folderPeople?: { name: string; icgId: string }[]
   /** Lines of `_people.txt` that were not usable. Reported, never silently dropped. */
   folderPeopleErrors?: string[]
+  /**
+   * Is `.pulseboard\STUB` there (ADR-0032)? Sent for every leaf of a Full run, so
+   * `false` is a statement — a deleted marker ends the stub. Absent (targeted mode,
+   * an agent from before stubs) means "not looked", and nothing is reconciled.
+   */
+  stubOnDisk?: boolean
+  /** The text inside `STUB`, if any — becomes the note when the disk sets the stub. */
+  stubNote?: string | null
 }
 
 // ─── Archive Workspace Types ──────────────────────────────────────────────────
@@ -1444,6 +1454,8 @@ export async function upsertArchiveFolders(
   keyConflicts: KeyConflict[]
   /** `_people.txt`: entries written as suggestions, and the lines that were not usable. */
   folderPeople: { written: number; badLines: string[] }
+  /** `.pulseboard\STUB` reconciliation (ADR-0032). */
+  stubs: StubScanCounts
 }> {
   const now = new Date()
   const counts = {
@@ -1455,6 +1467,7 @@ export async function upsertArchiveFolders(
     errors: 0,
     keyConflicts: [] as KeyConflict[],
     folderPeople: { written: 0, badLines: [] as string[] },
+    stubs: { markedFromDisk: 0, endedFromDisk: 0, toWrite: 0 } as StubScanCounts,
   }
 
   for (const item of items) {
@@ -1777,6 +1790,7 @@ export async function upsertArchiveFolders(
   }
 
   counts.folderPeople = await writeFolderPeopleSuggestions(items)
+  counts.stubs = await reconcileStubsFromScan(items)
 
   return counts
 }

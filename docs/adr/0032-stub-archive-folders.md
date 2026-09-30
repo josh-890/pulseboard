@@ -101,7 +101,8 @@ its own column. `/archive` gets a **Stubs** view — the Cutoff Unmet list.
 
 - One migration (`archive_folder`: `stubSince`, `stubReason`, `stubNote`,
   `stubDiskState`, `stubEndedAt`), applied to every tenant.
-- `archive-scan.ps1` reports `STUB` (presence + text) and removes it on request;
+- `archive-scan.ps1` reports `STUB` (presence + text) and writes/removes it on
+  request (`GET /api/archive/stub-writes`);
   the TypeScript scanner does not handle `.pulseboard\` and is unaffected.
 - The reconciliation is a pure function, unit-tested over all four cases.
 

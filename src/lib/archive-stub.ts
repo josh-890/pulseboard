@@ -12,7 +12,8 @@ export const STUB_MARKER = 'STUB'
 
 export type ArchiveStub = {
   since: Date
-  reason: StubReason
+  /** Null when the stub came from a `STUB` file — the file says that, not why. */
+  reason: StubReason | null
   note: string | null
 }
 
@@ -24,6 +25,11 @@ export const STUB_REASON_LABEL: Record<StubReason, string> = {
 
 export const STUB_REASONS: StubReason[] = ['FEW_MEDIA', 'LOW_QUALITY', 'BOTH']
 
+/** "Few media", or "reason not given" for a stub set by a file on disk. */
+export function stubReasonLabel(reason: StubReason | null): string {
+  return reason ? STUB_REASON_LABEL[reason] : 'reason not given'
+}
+
 /** The stub a folder row describes, or null. */
 export function toArchiveStub(folder: {
   stubSince: Date | null
@@ -31,7 +37,7 @@ export function toArchiveStub(folder: {
   stubNote: string | null
 }): ArchiveStub | null {
   if (!folder.stubSince) return null
-  return { since: folder.stubSince, reason: folder.stubReason ?? 'BOTH', note: folder.stubNote }
+  return { since: folder.stubSince, reason: folder.stubReason, note: folder.stubNote }
 }
 
 /**
