@@ -53,6 +53,12 @@ relevant to the data model:
 
 ---
 
+- **Stub** (ADR-0032) — `ArchiveFolder.stubSince` (+ `stubReason`, `stubNote`):
+  the archive *copy* is a deliberate placeholder, upgraded in place later. Not
+  `Set.isComplete`, not `ArchiveStatus.INCOMPLETE`. `stubDiskState` remembers what
+  `.pulseboard\STUB` said at the last reconciliation; `stubEndedAt` raises the
+  re-import offer after a stub ends.
+
 ## Production layer
 
 The work-recording layer connecting people to released material:

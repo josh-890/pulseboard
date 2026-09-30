@@ -1,6 +1,8 @@
 import Image from "next/image";
 import Link from "next/link";
 import { Camera, Film, FolderCheck, FolderOpen, FolderX } from "lucide-react";
+import { StubBadge } from "@/components/archive/stub-badge";
+import type { ArchiveStub } from "@/lib/archive-stub";
 import { focalStyle, formatPartialDateISO, computeProductionAge } from "@/lib/utils";
 import { SetInlineTitle } from "@/components/sets/set-detail-header";
 import { SetCompleteBadge } from "@/components/sets/set-complete-badge";
@@ -37,6 +39,8 @@ type SetHeroProps = {
   // passes this in when an archive link exists, so users can manage even a
   // healthy link without surfacing the full panel inline.
   archiveOkChip?: React.ReactNode;
+  /** The archive copy is a deliberate placeholder (ADR-0032). */
+  archiveStub?: ArchiveStub | null;
 };
 
 export function SetHero({
@@ -50,6 +54,7 @@ export function SetHero({
   archiveFileCount,
   hasSuggestion = false,
   archiveOkChip,
+  archiveStub = null,
 }: SetHeroProps) {
   const typeLabel = set.type === "video" ? "Video" : "Photo";
   const participantCount = set.participants.length;
@@ -227,6 +232,7 @@ export function SetHero({
               Archive changed
             </span>
           )}
+          {archiveStub && <StubBadge stub={archiveStub} className="text-[11px]" />}
           {archiveStatus === "INCOMPLETE" && !hasSuggestion && (
             <span className="inline-flex items-center gap-1 rounded-full border border-orange-500/20 bg-orange-500/10 px-2 py-0.5 text-[11px] text-orange-600 dark:text-orange-400">
               <FolderX size={11} />

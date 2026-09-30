@@ -237,6 +237,10 @@ _Avoid_: "archive set" (a folder is a candidate; the Set lives in the app); trea
 **Sidecar** (`_pulseboard.json`, one per archive folder):
 The app's own file inside an archive folder. Today it carries only the `archiveKey`, which is what makes a moved or renamed folder recognisable. It is the archive's only app-written artifact.
 
+**Stub** (archive folder flag, ADR-0032):
+An archive folder filed *on purpose* as a placeholder — few media, low quality, or both — until the real set is obtained. A property of the **copy**, not of the Set: the publication is complete, only the folder falls short. Set in the app or by a `.pulseboard\STUB` file; ended only explicitly (the button, or deleting the file) — swapping media in a stub does not end it. Upgraded **in place**: the media are replaced inside the same folder, `.pulseboard\` is left alone, so identity, markers and link survive.
+_Avoid_: "incomplete" (that is `ArchiveStatus.INCOMPLETE`, a video the scan could not find, and `Set.isComplete`, a statement about the set); "placeholder set" (the Set is real — only the copy is a stand-in).
+
 **Person catalogue** (external, on the archive host):
 The second, **person-centric** catalogue: a `<Common_Name_(ICG-ID)>` folder per externally-known person, each holding CSVs of the Sets that person worked on (photosets and videosets separately). Irregularly updated. It is the source the per-person import files come from, and it is **vastly larger than anything the app should hold** — ~40k persons, most of whom will never be curated. Its channel↔alias data is known-unreliable (missing or ambiguous aliases, unnormalised characters), and a Set listed under its first-publication channel may sit under a different channel in the archive. Therefore **date + title are the load-bearing join keys; channel is corroboration and collision tiebreaker, never a gate.** See ADR-0027.
 _Avoid_: "import source" (says what it's used for, not what it is); treating its channel attribution as authoritative.

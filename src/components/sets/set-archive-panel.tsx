@@ -18,6 +18,8 @@ import {
   rematchItemAction,
 } from '@/lib/actions/archive-actions'
 import type { ArchiveStatus } from '@/generated/prisma/client'
+import { ArchiveStubControl } from '@/components/archive/archive-stub-control'
+import type { ArchiveStub } from '@/lib/archive-stub'
 import { cn } from '@/lib/utils'
 import { ArchiveStatusBanner } from '@/components/archive/archive-status-banner'
 import { useRouter } from 'next/navigation'
@@ -53,6 +55,8 @@ type SetArchivePanelProps = {
   archiveSuggestions?: ArchiveSuggestionProp[]
   /** People the linked folder names that this set does not credit (ADR-0028). */
   archiveCastGap?: { icgId: string; name: string; confirmed: boolean; isPerson: boolean }[]
+  /** The linked folder is a deliberate placeholder copy (ADR-0032). */
+  archiveStub?: ArchiveStub | null
   // Seeds for the manual "Link folder" picker
   setTitle?: string | null
   channelShortName?: string | null
@@ -102,6 +106,7 @@ export function SetArchivePanel(props: SetArchivePanelProps) {
     folderName,
     archiveSuggestions = [],
     archiveCastGap = [],
+    archiveStub = null,
     setTitle,
     channelShortName,
     releaseYear,
@@ -211,6 +216,9 @@ export function SetArchivePanel(props: SetArchivePanelProps) {
             )}>
               {statusCfg.label}
             </span>
+          )}
+          {hasPath && archiveFolderId && (
+            <ArchiveStubControl folderId={archiveFolderId} stub={archiveStub} />
           )}
         </div>
 
@@ -400,6 +408,7 @@ export function SetArchivePanel(props: SetArchivePanelProps) {
       <ArchiveStatusBanner
         archiveStatus={archiveStatus}
         folderName={folderName ?? archivePath?.split(/[\\/]/).pop() ?? null}
+        stub={archiveStub}
         fileCount={archiveFileCount}
         lastChecked={archiveLastChecked}
       />

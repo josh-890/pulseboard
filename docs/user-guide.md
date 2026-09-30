@@ -1333,6 +1333,7 @@ Every Set card and Staging Set row shows a small status dot for its archive fold
 | Dot | Status | Meaning |
 |-----|--------|---------|
 | 🟢 Green | **Verified (OK)** | Folder confirmed, file count matches expectation |
+| 🟣 Violet | **Stub** | Folder confirmed, but it is a deliberate placeholder copy — see *Stub archive copies* below (staged-set rows) |
 | 🟡 Amber | **Suggestion** | Matching folder found (not yet confirmed) |
 | 🟠 Orange | **Incomplete** | Folder found but file count below expected |
 | 🔴 Red | **Missing** | Previously linked folder no longer found on disk |
@@ -1340,6 +1341,34 @@ Every Set card and Staging Set row shows a small status dot for its archive fold
 | ⬜ Empty outline | **None** | No archive folder linked |
 
 Hover the dot for a tooltip with folder name, path, and file count.
+
+### Stub archive copies
+
+Sometimes you file a set on purpose as a **stub**: a handful of images, or a low-quality
+copy, standing in until you get the real set. Mark the folder so it isn't mistaken for
+the finished thing (ADR-0032).
+
+- **Mark in the app:** **Mark as stub** in an archive row (`/archive`), in a set's
+  **Archive** panel (open it from the *In archive* chip), or in a staged set's
+  **Archive** section. Pick why: *Few media*, *Low quality* or both, plus an
+  optional note (e.g. "12 of 80 images, 800 px").
+- **Mark on disk:** put an empty file named `STUB` into the set folder's
+  `.pulseboard\` (an extension such as `.txt` is fine; any text inside becomes the
+  note). The next archive scan picks it up. *(Disk side: arriving with the next
+  scan-agent update.)*
+- A violet **Stub** pill then shows on the set page, the staged-set row and panel,
+  and the archive row. Hover it for the reason, note and date. Click it to change
+  the reason or note.
+
+**Upgrading:** replace the **media** inside the same folder and leave `.pulseboard\`
+alone — the folder keeps its identity, its people and its link. Changing media does
+not end a stub by itself (you may swap a few images and still have a stub). A stub
+ends only when you say so:
+
+- click the pill → **End stub…** → **Yes, it's the real set**, or
+- delete `.pulseboard\STUB` on disk.
+
+Either way the folder cover is rebuilt from the new media on the next cover run.
 
 ### Suggestion Confidence
 

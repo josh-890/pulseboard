@@ -5,6 +5,8 @@ import Link from 'next/link'
 import { FolderCheck, FolderX, Link2, FolderSearch, Check, X } from 'lucide-react'
 import { cn, formatRelativeTime } from '@/lib/utils'
 import { confirmArchiveFolderLinkAction, rejectArchiveSuggestionAction } from '@/lib/actions/archive-actions'
+import type { ArchiveStub } from '@/lib/archive-stub'
+import { StubBadge } from './stub-badge'
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -12,6 +14,8 @@ type ArchiveStatusBannerProps = {
   // Confirmed link state
   archiveStatus?: string | null         // OK | MISSING | CHANGED | INCOMPLETE | LINKED | PENDING | UNKNOWN
   folderName?: string | null
+  /** The linked folder is a deliberate placeholder copy (ADR-0032). */
+  stub?: ArchiveStub | null
   fileCount?: number | null
   lastChecked?: Date | string | null
   archiveFolderId?: string | null       // for "→ Archive" deep-link
@@ -51,6 +55,7 @@ const STATUS_CHIP_LABELS: Record<string, string> = {
 export function ArchiveStatusBanner({
   archiveStatus,
   folderName,
+  stub = null,
   fileCount,
   lastChecked,
   archiveFolderId,
@@ -119,6 +124,7 @@ export function ArchiveStatusBanner({
         {(folderName || fileCount != null || checkedDate) && (
           <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground">
             {folderName && <span className="truncate font-medium max-w-[200px]" title={folderName}>{folderName}</span>}
+            {stub && <StubBadge stub={stub} />}
             {folderName && fileCount != null && <span className="opacity-40">·</span>}
             {fileCount != null && <span className="shrink-0">{fileCount} files</span>}
             {(folderName || fileCount != null) && checkedDate && <span className="opacity-40">·</span>}

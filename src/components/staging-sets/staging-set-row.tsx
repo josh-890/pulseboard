@@ -1,5 +1,7 @@
 'use client'
 
+import { StubBadge } from '@/components/archive/stub-badge'
+import { toArchiveStub } from '@/lib/archive-stub'
 import { memo, useState, useCallback, useTransition } from 'react'
 import { toast } from 'sonner'
 import Image from 'next/image'
@@ -328,6 +330,7 @@ export const StagingSetRow = memo(function StagingSetRow({
     ? (ss.promotedSet?.archiveLinks?.find((l) => l.status === 'CONFIRMED') ?? ss.archiveLinks?.find((l) => l.status === 'CONFIRMED') ?? null)
     : (ss.archiveLinks?.find((l) => l.status === 'CONFIRMED') ?? null)
   const confirmedFolder = confirmedLink?.archiveFolder ?? null
+  const confirmedStub = confirmedFolder ? toArchiveStub(confirmedFolder) : null
   // A promoted row used to discard its suggestion, so a HIGH-confidence proposal on
   // the promoted Set showed as "Not in archive" — the same wording as a set nobody
   // knows anything about, and with no way to act on it.
@@ -710,8 +713,8 @@ export const StagingSetRow = memo(function StagingSetRow({
           {/* Archive status dot — confirmed only; suggestion/no-match handled below the row */}
           {hasArchiveLink && (
             <span
-              className="h-2 w-2 shrink-0 rounded-full bg-green-500"
-              title={`Archive: ${confirmedFolder!.folderName}`}
+              className={cn('h-2 w-2 shrink-0 rounded-full', confirmedStub ? 'bg-violet-500' : 'bg-green-500')}
+              title={`Archive: ${confirmedFolder!.folderName}${confirmedStub ? ' — stub copy' : ''}`}
             />
           )}
           {!hasArchiveLink && suggestion && (
@@ -762,6 +765,7 @@ export const StagingSetRow = memo(function StagingSetRow({
               <span className="min-w-0 truncate text-xs font-medium text-green-600 dark:text-green-400">
                 {confirmedFolder.folderName}
               </span>
+              {confirmedStub && <StubBadge stub={confirmedStub} />}
               {confirmedLink?.archiveFileCount != null && (
                 <span className="shrink-0 text-xs text-muted-foreground">
                   · {confirmedLink.archiveFileCount} files
@@ -824,6 +828,7 @@ export const StagingSetRow = memo(function StagingSetRow({
         <div className="flex items-center gap-1.5 pl-3 text-xs text-green-600 dark:text-green-400">
           <FolderOpen size={11} className="shrink-0" />
           <span className="truncate font-medium">{confirmedFolder!.folderName}</span>
+          {confirmedStub && <StubBadge stub={confirmedStub} />}
           {confirmedLink?.archiveFileCount != null && (
             <span className="shrink-0 text-muted-foreground">
               · {confirmedLink.archiveFileCount} files

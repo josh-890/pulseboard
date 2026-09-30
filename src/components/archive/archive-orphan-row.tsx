@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import Link from 'next/link'
+import { ArchiveStubControl } from './archive-stub-control'
 import { Check, X, Plus, ExternalLink, TriangleAlert, Trash2, Link2, UserPen } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { ArchiveCoverThumb } from './archive-cover-thumb'
@@ -28,6 +29,7 @@ type Props = {
 export function ArchiveOrphanRow({ item, onRemoved, backHref }: Props) {
   const [pending, startTransition] = useTransition()
   const [dismissed, setDismissed] = useState(false)
+  const [stub, setStub] = useState(item.stub)
   const [pickerOpen, setPickerOpen] = useState(false)
   const [sheetOpen, setSheetOpen] = useState(false)
 
@@ -139,6 +141,9 @@ export function ArchiveOrphanRow({ item, onRemoved, backHref }: Props) {
             )}
           </span>
         )}
+
+        {/* Stub — a deliberate placeholder copy (ADR-0032) */}
+        <ArchiveStubControl folderId={item.id} stub={stub} onChanged={setStub} />
 
         {/* Shortname/channel folder mismatch */}
         {hasMismatch && (

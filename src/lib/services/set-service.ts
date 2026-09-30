@@ -439,7 +439,7 @@ export async function getSetById(id: string) {
           archiveVideoPresent: true,
           archiveVideoFiles: true,
           archiveVideoFilename: true,
-          archiveFolder: { select: { id: true, folderName: true, fullPath: true } },
+          archiveFolder: { select: { id: true, folderName: true, fullPath: true, stubSince: true, stubReason: true, stubNote: true } },
         },
         take: 1,
       },

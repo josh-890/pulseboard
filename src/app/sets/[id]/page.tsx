@@ -15,6 +15,7 @@ import { SetActionsMenu } from "@/components/sets/set-actions-menu";
 import { SetHero } from "@/components/sets/set-hero";
 import { SetArchivePanel } from "@/components/sets/set-archive-panel";
 import { getSetArchiveCastGap } from "@/lib/services/attribution-confirm-service";
+import { toArchiveStub } from "@/lib/archive-stub";
 import { SetArchiveChipSheet } from "@/components/sets/set-archive-chip-sheet";
 import { SetAboutCard } from "@/components/sets/set-about-card";
 import { CreditsPanel } from "@/components/sets/credits-panel";
@@ -185,6 +186,7 @@ export default async function SetDetailPage({ params }: SetDetailPageProps) {
           archiveStatus={archiveStatus}
           archiveFileCount={archiveFileCount}
           hasSuggestion={hasSuggestion}
+          archiveStub={al?.archiveFolder ? toArchiveStub(al.archiveFolder) : null}
           archiveOkChip={al ? (
             <SetArchiveChipSheet
               setId={id}
@@ -202,6 +204,7 @@ export default async function SetDetailPage({ params }: SetDetailPageProps) {
               mediaPriority={setData.mediaPriority ?? null}
               mediaQueueAt={setData.mediaQueueAt ?? null}
               folderName={al.archiveFolder?.folderName ?? null}
+              archiveStub={al.archiveFolder ? toArchiveStub(al.archiveFolder) : null}
               archiveSuggestions={archiveSuggestions}
               fileCount={archiveFileCount}
               setTitle={setData.title}
@@ -293,6 +296,7 @@ export default async function SetDetailPage({ params }: SetDetailPageProps) {
                 mediaQueueAt={setData.mediaQueueAt ?? null}
                 archiveSuggestions={archiveSuggestions}
                 archiveCastGap={archiveCastGap}
+                archiveStub={al?.archiveFolder ? toArchiveStub(al.archiveFolder) : null}
                 setTitle={setData.title}
                 releaseYear={releaseYear}
               />

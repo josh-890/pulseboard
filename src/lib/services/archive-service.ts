@@ -15,6 +15,8 @@ import { normalizeForSearch } from '@/lib/normalize'
 import { buildUrl } from '@/lib/media-url'
 import { loadCasts } from '@/lib/services/set-cast-service'
 import { escapeLike } from '@/lib/prisma-like'
+import { toArchiveStub } from '@/lib/archive-stub'
+import type { ArchiveStub } from '@/lib/archive-stub'
 import { ArchiveLinkStatus, Prisma } from '@/generated/prisma/client'
 import type { ArchiveStatus, DatePrecision } from '@/generated/prisma/client'
 
@@ -1205,6 +1207,8 @@ export type ArchiveFolderEntry = {
    */
   coverUrl: string | null
   coverError: string | null
+  /** A deliberate placeholder copy, upgraded in place later (ADR-0032). */
+  stub: ArchiveStub | null
   /**
    * Who this folder is said to hold, from both sides and never merged (ADR-0028).
    *
@@ -2733,6 +2737,9 @@ export async function getArchiveWorkspace(filters: WorkspaceFilters): Promise<Wo
     chanFolderName: true,
     coverKey: true,
     coverError: true,
+    stubSince: true,
+    stubReason: true,
+    stubNote: true,
   } satisfies Prisma.ArchiveFolderSelect
 
   // Helper to map archiveLink fields to ArchiveFolderEntry link fields
@@ -2863,6 +2870,7 @@ export async function getArchiveWorkspace(filters: WorkspaceFilters): Promise<Wo
           : (sg?.participantIcgIds ?? []),
         coverUrl: r.coverKey ? buildUrl(r.coverKey) : null,
         coverError: r.coverError,
+        stub: toArchiveStub(r),
       }
     })
 
@@ -3022,6 +3030,7 @@ export async function getArchiveWorkspace(filters: WorkspaceFilters): Promise<Wo
           : (sg?.participantIcgIds ?? []),
         coverUrl: r.coverKey ? buildUrl(r.coverKey) : null,
         coverError: r.coverError,
+        stub: toArchiveStub(r),
       }
     })
 
@@ -3097,6 +3106,7 @@ export async function getArchiveWorkspace(filters: WorkspaceFilters): Promise<Wo
         suggestedSetParticipants: [],
         coverUrl: r.coverKey ? buildUrl(r.coverKey) : null,
         coverError: r.coverError,
+        stub: toArchiveStub(r),
         suggestedStagingParticipants: [],
         suggestedCastIcgIds: [],
       }

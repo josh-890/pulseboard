@@ -1,5 +1,8 @@
 'use client'
 
+import { ArchiveStubControl } from '@/components/archive/archive-stub-control'
+import { StubBadge } from '@/components/archive/stub-badge'
+import { toArchiveStub } from '@/lib/archive-stub'
 import { useState, useEffect, useCallback } from 'react'
 import {
   CalendarClock,
@@ -651,6 +654,7 @@ function PanelContent({
         <ArchiveStatusBanner
           archiveStatus={confirmedLink?.archiveStatus ?? null}
           folderName={confirmedFolder?.folderName ?? null}
+          stub={confirmedFolder ? toArchiveStub(confirmedFolder) : null}
           fileCount={confirmedLink?.archiveFileCount ?? null}
           lastChecked={confirmedFolder?.scannedAt ?? null}
           archiveFolderId={confirmedFolder?.id ?? null}
@@ -789,6 +793,7 @@ function ArchiveSection({ stagingSet, onRefresh }: ArchiveSectionProps) {
     ? (stagingSet.promotedSet?.archiveLinks?.find((l) => l.status === 'CONFIRMED') ?? stagingSet.archiveLinks?.find((l) => l.status === 'CONFIRMED') ?? null)
     : (stagingSet.archiveLinks?.find((l) => l.status === 'CONFIRMED') ?? null)
   const archiveFolder = archiveLink?.archiveFolder ?? null
+  const archiveStub = archiveFolder ? toArchiveStub(archiveFolder) : null
   const archiveStatus = (archiveLink?.archiveStatus ?? 'UNKNOWN') as ArchiveStatus
   const statusCfg = ARCHIVE_STATUS_CONFIG[archiveStatus]
   const hasPath = !!archiveLink?.archivePath
@@ -850,6 +855,7 @@ function ArchiveSection({ stagingSet, onRefresh }: ArchiveSectionProps) {
               {pendingScan ? 'Scan pending' : statusCfg.label}
             </span>
           )}
+          {archiveStub && <StubBadge stub={archiveStub} />}
         </div>
         <span className="text-[10px] text-muted-foreground">{isExpanded ? '▲' : '▼'}</span>
       </button>
@@ -863,6 +869,9 @@ function ArchiveSection({ stagingSet, onRefresh }: ArchiveSectionProps) {
                   {archiveLink!.archivePath}
                 </code>
               </div>
+              {archiveFolder && (
+                <ArchiveStubControl folderId={archiveFolder.id} stub={archiveStub} onChanged={() => onRefresh()} />
+              )}
               {archiveLink?.archiveLastChecked && (
                 <div className="space-y-0.5 text-[10px] text-muted-foreground">
                   <div>Last checked: {new Date(archiveLink.archiveLastChecked).toLocaleString()}</div>

@@ -2161,6 +2161,13 @@ enum ArchiveStatus {
   INCOMPLETE
 }
 
+/// Why an archive folder is a stub (ADR-0032).
+enum StubReason {
+  FEW_MEDIA
+  LOW_QUALITY
+  BOTH
+}
+
 enum ArchiveLinkStatus {
   SUGGESTED
   CONFIRMED
@@ -2308,6 +2315,17 @@ model ArchiveFolder {
   suggestions  ArchiveFolderSuggestion[]
   attributions ArchiveFolderAttribution[]
   review       ArchiveFolderReview?
+
+  // Stub (ADR-0032): a deliberate placeholder copy, upgraded in place later.
+  // stubSince set = is a stub. stubDiskState = what .pulseboard\STUB said at the
+  // last reconciliation (null = the scan has not reported it yet); comparing it
+  // with the disk now and with stubSince tells which side changed.
+  stubSince     DateTime?
+  stubReason    StubReason?
+  stubNote      String?
+  stubDiskState Boolean?
+  // When the last stub ended — drives the "re-import media" offer until dismissed.
+  stubEndedAt   DateTime?
 
   coverKey       String? // MinIO key, archive/{archiveKey}/cover-{ts}.jpg
   coverError     String? // last failure reason; null once a cover succeeds

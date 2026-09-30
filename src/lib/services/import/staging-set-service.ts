@@ -10,7 +10,7 @@ import { prisma } from '@/lib/db'
 import { localMediaUrlOrNull } from '@/lib/media-url'
 import { normalizeForSearch } from '@/lib/normalize'
 import { ArchiveLinkStatus } from '@/generated/prisma/client'
-import type { ChannelTier, DatePrecision, Prisma, StagingSet, StagingSetStatus } from '@/generated/prisma/client'
+import type { ChannelTier, DatePrecision, Prisma, StagingSet, StagingSetStatus, StubReason } from '@/generated/prisma/client'
 import type { StagingWorkHistoryItem } from '@/lib/types'
 import { onSetPromoted } from '@/lib/services/coherence-service'
 import type { BlockingFolderInfo, SuggestedFolderInfo } from '@/lib/services/archive-service'
@@ -31,7 +31,11 @@ type ArchiveLinkMini = {
   archiveFileCountPrev: number | null
   archiveLastChecked: Date | null
   archiveVideoPresent: boolean | null
-  archiveFolder: { id: string; folderName: string; fullPath: string; scannedAt: Date; coverKey: string | null } | null
+  archiveFolder: {
+    id: string; folderName: string; fullPath: string; scannedAt: Date; coverKey: string | null
+    // ADR-0032: the copy is a deliberate placeholder
+    stubSince: Date | null; stubReason: StubReason | null; stubNote: string | null
+  } | null
 }
 
 export type PromotedSetArchiveMini = {
@@ -136,7 +140,7 @@ const ARCHIVE_LINK_SELECT = {
   // cover. A set that came from an import has the publisher's image; one developed
   // from a folder has none of its own, and the picture that belongs to it is
   // sitting right there in MinIO.
-  archiveFolder: { select: { id: true, folderName: true, fullPath: true, scannedAt: true, coverKey: true } },
+  archiveFolder: { select: { id: true, folderName: true, fullPath: true, scannedAt: true, coverKey: true, stubSince: true, stubReason: true, stubNote: true } },
 } as const
 
 const STAGING_SET_INCLUDE = {
