@@ -5,12 +5,12 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Plus, X } from "lucide-react";
+import { Plus } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Badge } from "@/components/ui/badge";
+import { TagPicker } from "@/components/shared/tag-picker";
 import {
   Sheet,
   SheetContent,
@@ -53,26 +53,14 @@ function SectionHeader({ children }: { children: React.ReactNode }) {
 export function AddProjectSheet() {
   const router = useRouter();
   const [open, setOpen] = useState(false);
-  const [tagInput, setTagInput] = useState("");
 
   const form = useForm<CreateProjectFormValues, unknown, CreateProjectInput>({
     resolver: zodResolver(createProjectSchema),
-    defaultValues: { name: "", description: "", status: "active", tags: [] },
+    defaultValues: { name: "", description: "", status: "active", tagIds: [] },
   });
 
   const { isSubmitting } = form.formState;
-  const tags = form.watch("tags") ?? [];
-
-  function addTag() {
-    const trimmed = tagInput.trim();
-    if (!trimmed || tags.includes(trimmed)) return;
-    form.setValue("tags", [...tags, trimmed]);
-    setTagInput("");
-  }
-
-  function removeTag(tag: string) {
-    form.setValue("tags", tags.filter((t) => t !== tag));
-  }
+  const tagIds = form.watch("tagIds") ?? [];
 
   async function onSubmit(values: CreateProjectInput) {
     const result = await createProject(values);
@@ -81,7 +69,6 @@ export function AddProjectSheet() {
       toast.success("Project created");
       router.push(`/projects/${result.id}`);
       form.reset();
-      setTagInput("");
       setOpen(false);
       return;
     }
@@ -168,39 +155,15 @@ export function AddProjectSheet() {
                       )}
                     />
 
-                    {/* Tags */}
+                    {/* Tags — structured; written as ProjectTag rows after create */}
                     <FormItem>
                       <FormLabel>Tags</FormLabel>
-                      <div className="flex gap-2">
-                        <Input
-                          placeholder="Add a tag…"
-                          value={tagInput}
-                          onChange={(e) => setTagInput(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter") { e.preventDefault(); addTag(); }
-                          }}
-                        />
-                        <Button type="button" variant="outline" size="sm" onClick={addTag}>
-                          Add
-                        </Button>
-                      </div>
-                      {tags.length > 0 && (
-                        <div className="mt-2 flex flex-wrap gap-1.5">
-                          {tags.map((tag) => (
-                            <Badge key={tag} variant="secondary" className="gap-1">
-                              {tag}
-                              <button
-                                type="button"
-                                onClick={() => removeTag(tag)}
-                                className="ml-0.5 rounded-full outline-none hover:text-destructive focus-visible:ring-1 focus-visible:ring-ring"
-                                aria-label={`Remove tag ${tag}`}
-                              >
-                                <X size={10} />
-                              </button>
-                            </Badge>
-                          ))}
-                        </div>
-                      )}
+                      <TagPicker
+                        scope="PROJECT"
+                        selectedTagIds={tagIds}
+                        onChange={(ids) => form.setValue("tagIds", ids)}
+                        placeholder="Add tags…"
+                      />
                     </FormItem>
                   </div>
                 </section>
@@ -211,7 +174,7 @@ export function AddProjectSheet() {
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => { form.reset(); setTagInput(""); setOpen(false); }}
+                onClick={() => { form.reset(); setOpen(false); }}
                 disabled={isSubmitting}
               >
                 Cancel

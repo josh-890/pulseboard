@@ -36,7 +36,6 @@ export type GalleryItem = {
   urls: PhotoUrls;
   focalX: number | null;
   focalY: number | null;
-  tags: string[];
   isFavorite: boolean;
   sortOrder: number;
   isCover: boolean;

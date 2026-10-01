@@ -325,7 +325,6 @@ export async function getSkillEventMediaAsGalleryItems(
       urls: buildPhotoUrls(variants, item.fileRef),
       focalX: item.focalX,
       focalY: item.focalY,
-      tags: item.tags,
       isFavorite: false,
       isAvatar: false,
       sortOrder: row.sortOrder,

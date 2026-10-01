@@ -35,7 +35,7 @@ export type PersonWithCommonAlias = {
   watching: boolean;
   isFavorite: boolean;
   rating: number | null;
-  tags: string[];
+  tags: import("./tag").TagChipData[];
   naturalHairColor: string | null;
   bodyType: string | null;
   ethnicity: string | null;

@@ -43,6 +43,7 @@ import { onMediaImportChanged } from "@/lib/services/coherence-service";
 import { getLabels } from "@/lib/services/label-service";
 import { createAlias, getPersonChannelAliases } from "@/lib/services/alias-service";
 import { normalizeForSearch } from "@/lib/normalize";
+import { addTagsToEntity } from "@/lib/services/entity-tag-service";
 import { prisma } from "@/lib/db";
 import { z } from "zod";
 import type { CrudActionResult, SimpleActionResult } from "@/lib/types";
@@ -59,7 +60,9 @@ export async function createSetStandalone(raw: unknown): Promise<SetIdResult> {
     }
 
     try {
-      const result = await createSetStandaloneRecord(parsed.data);
+      const { tagIds, ...fields } = parsed.data;
+      const result = await createSetStandaloneRecord(fields);
+      await addTagsToEntity("SET", result.setId, tagIds);
 
       // Log session creation activity
       await prisma.activity.create({

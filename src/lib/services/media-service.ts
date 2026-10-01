@@ -94,7 +94,6 @@ export type MediaItemForGallery = {
   fileRef: string | null;
   focalX: number | null;
   focalY: number | null;
-  tags: string[];
   sessionId: string;
   sourceVideoRef: string | null;
   sourceTimecodeMs: number | null;
@@ -158,7 +157,6 @@ export function mapMediaItemToGalleryItem(
     urls: buildPhotoUrls(variants, item.fileRef),
     focalX: item.focalX,
     focalY: item.focalY,
-    tags: item.tags,
     isFavorite: item.isFavorite,
     sortOrder: firstLink?.sortOrder ?? 0,
     isCover: opts?.coverMediaItemId === item.id,
@@ -242,7 +240,6 @@ type CreateMediaItemInput = {
   originalHeight: number;
   variants: PhotoVariants;
   caption?: string;
-  tags?: string[];
 };
 
 export async function createMediaItemFromPhoto(
@@ -264,7 +261,6 @@ export async function createMediaItemFromPhoto(
         originalHeight: input.originalHeight,
         variants: input.variants as unknown as Record<string, string>,
         caption: input.caption,
-        tags: input.tags ?? [],
       },
     });
 
@@ -272,75 +268,6 @@ export async function createMediaItemFromPhoto(
       data: {
         setId: input.setId,
         mediaItemId,
-      },
-    });
-  });
-
-  return mediaItemId;
-}
-
-// ─── Person bridge (new) ─────────────────────────────────────────────────────
-
-type CreatePersonMediaItemInput = {
-  sessionId: string;
-  personId: string;
-  filename: string;
-  mimeType: string;
-  size: number;
-  originalWidth: number;
-  originalHeight: number;
-  variants: PhotoVariants;
-  caption?: string;
-  tags?: string[];
-  usage?: PersonMediaUsage;
-  bodyRegion?: string;
-  bodyMarkId?: string;
-  bodyModificationId?: string;
-  cosmeticProcedureId?: string;
-};
-
-function inferUsageFromTags(tags?: string[]): PersonMediaUsage {
-  if (!tags || tags.length === 0) return "PROFILE";
-  const tagSet = new Set(tags.map((t) => t.toLowerCase()));
-  if (tagSet.has("portrait") || tagSet.has("headshot")) return "HEADSHOT";
-  if (tagSet.has("profile")) return "PROFILE";
-  if (tagSet.has("portfolio")) return "PORTFOLIO";
-  return "PROFILE";
-}
-
-export async function createMediaItemForPerson(
-  input: CreatePersonMediaItemInput,
-): Promise<string> {
-  assertValidVariants(input.variants);
-  const mediaItemId = randomUUID();
-  const usage = input.usage ?? inferUsageFromTags(input.tags);
-
-  await prisma.$transaction(async (tx) => {
-    await tx.mediaItem.create({
-      data: {
-        id: mediaItemId,
-        sessionId: input.sessionId,
-        mediaType: "PHOTO",
-        filename: input.filename,
-        mimeType: input.mimeType,
-        size: input.size,
-        originalWidth: input.originalWidth,
-        originalHeight: input.originalHeight,
-        variants: input.variants as unknown as Record<string, string>,
-        caption: input.caption,
-        tags: input.tags ?? [],
-      },
-    });
-
-    await tx.personMediaLink.create({
-      data: {
-        personId: input.personId,
-        mediaItemId,
-        usage,
-        bodyRegion: input.bodyRegion,
-        bodyMarkId: input.bodyMarkId,
-        bodyModificationId: input.bodyModificationId,
-        cosmeticProcedureId: input.cosmeticProcedureId,
       },
     });
   });
@@ -396,7 +323,6 @@ export async function createMediaItemDirect(
         originalHeight: input.originalHeight,
         variants: input.variants as unknown as Record<string, string>,
         caption: input.caption,
-        tags: [],
         hash: input.hash,
         phash: input.phash,
         sourceVideoRef: input.sourceVideoRef,
@@ -817,7 +743,6 @@ export async function copyMediaToReferenceSession(
       originalWidth: source.originalWidth,
       originalHeight: source.originalHeight,
       variants: newVariants as Record<string, string>,
-      tags: [],
       hash: source.hash,
       phash: source.phash,
       isAnnotation: false,
@@ -1208,7 +1133,6 @@ export async function getMediaItemsWithLinks(
         originalWidth: item.originalWidth,
         originalHeight: item.originalHeight,
         caption: item.caption,
-        tags: item.tags,
         notes: item.notes,
         createdAt: item.createdAt,
         urls: buildPhotoUrls(variants, item.fileRef),

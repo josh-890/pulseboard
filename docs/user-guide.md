@@ -546,7 +546,7 @@ Click **"Add Set"** to open the creation sheet:
 | Description | No | |
 | Category | No | |
 | Genre | No | |
-| Tags | No | Comma-separated |
+| Tags | No | Pick from the tag catalog (Content groups); saved once the set exists |
 
 Creating a set automatically creates a linked Draft session (the "primary session") and a SetSession link.
 
@@ -612,7 +612,7 @@ Tracks who participated in the set (models, photographers).
 
 #### Tags
 
-Read-only display of the set's tags.
+The set's own tags as coloured chips (group colour). Edit them in **Edit** → Tags.
 
 #### Edit & Delete
 
@@ -716,14 +716,14 @@ Click **"Add Project"** to open the creation form:
 | Status | Yes | Active, Paused, or Completed |
 | Description | No | |
 | Labels | No | Multiple label selection |
-| Tags | No | |
+| Tags | No | Pick from the tag catalog (Project / Any groups) |
 
 ### Project Detail
 
 - Header with icon, name, status badge, description
 - **Stats:** Session count, total participant count across sessions
 - **Labels** — linked labels with navigation
-- **Tags** — display pills
+- **Tags** — coloured chips (group colour); edit in **Edit**
 - **Sessions list** — each session shows name (linked), date, participant count, and participants with role badges. Click participant names to navigate to person detail.
 - **Edit & Delete** buttons
 
@@ -870,7 +870,7 @@ The lightbox opens when clicking any media thumbnail in a gallery. It provides f
 - Info panel toggle
 
 **Info panel — standard sections:**
-- **Tags** — content tags: Portrait, Diploma, Tattoo, Document, General, Outtake
+- **Tags** — the image's own tags from the tag catalog; type to search, pick to add
 - **Caption & notes** — click to edit
 
 **Info panel — reference context (person reference sessions only):**
@@ -1841,6 +1841,39 @@ The default reflects history: a fresh person opens with **baseline** preselected
 - **Restored** (green badge) — the winning delta is `Reversal` (explant), or a surgical kind exists in history but a later natural delta overrode it
 
 **Operations:** Add group, add definition to group, edit definition, delete definition (blocked if in use), reorder.
+
+### Tag Catalog
+
+**Settings → Catalogs → Tags.** Tags are organised in **groups**; each group has a colour.
+
+**Group settings:**
+- **Domain** — where its tags may be applied. This is a hard rule.
+  - **Content** — sessions, sets and images.
+  - **Person**
+  - **Project**
+  - **Any**
+- **Typical level** (Content groups only) — Session, Set or Image. This only decides which tags the picker shows first; any content tag can still go on any of the three levels.
+  - Location and Mood are session tags.
+  - Outfit is a set tag.
+  - Pose and Framing are image tags.
+- **Exclusive** — at most one tag of the group per item. Picking another one replaces it. (Setting: Indoor / Outdoor / Studio.)
+- **Workflow markers** — the group holds to-dos (needs-crop, check-cast, …) rather than descriptions.
+
+**Tag settings:**
+- **Parent** — a tag can sit under another tag of its group, e.g. Bikini under Swimwear. Filtering by Swimwear will also find Bikini. A tag cannot become its own ancestor.
+- **Level** — overrides the group's typical level for this one tag.
+- **Aliases** — other spellings that find the tag in search ("outdoors", "outside" → Outdoor).
+
+**Starter vocabulary:**
+- Setting, Location, Mood & Light, Outfit, Pose, Framing, Publication theme
+- Person traits
+- Workflow, Judgment
+
+Rename, extend or delete freely.
+
+**Clean-up tools:**
+- **Orphaned tags** — never used.
+- **Near-duplicates** — similar names, with a one-click **Merge**. Merging moves every assignment to the target. The merged name becomes an alias, and sub-tags move under the target.
 
 ---
 

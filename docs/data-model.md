@@ -159,6 +159,33 @@ MediaItem ──< PersonMediaLink >── Person     (usage / category / slot)
 
 ---
 
+## Tagging (ADR-0033)
+
+```
+TagGroup (domain · typicalLevel? · kind · isExclusive · color)
+   └──< TagDefinition (parentId? → TagDefinition · typicalLevel?) ──< TagAlias
+            ├──< PersonTag    >── Person
+            ├──< SessionTag   >── Session
+            ├──< SetTag       >── Set
+            ├──< MediaItemTag >── MediaItem
+            └──< ProjectTag   >── Project
+```
+
+- `TagDomain` (`PERSON | CONTENT | PROJECT | ANY`) is the hard rule: which entities
+  a group's tags may sit on. CONTENT = Session, Set, MediaItem.
+- `TagLevel` (`SESSION | SET | MEDIA_ITEM`) — typical level inside the content
+  chain; ranking hint only. Tag value overrides the group's.
+- `TagGroupKind` (`DESCRIPTIVE | WORKFLOW`) — workflow markers never inherit.
+- `TagDefinition` is unique by `(groupId, name)` and `(groupId, slug)`; `parentId`
+  is an acyclic implication chain. `TagAlias.slug` is globally unique.
+- Join rows carry `source` (`MANUAL | IMPORT | AUTO`). They are the only store —
+  there is no copied `tags` array on any entity.
+- Inheritance (computed, never stored): Session → Set (via `SetSession`),
+  Session → MediaItem, Set → MediaItem (via `SetMediaItem`); nearest level wins
+  inside an exclusive group.
+
+---
+
 ## Catalog & reference data
 
 - **PhysicalAttributeGroup** / **PhysicalAttributeDefinition** — typed catalog

@@ -1,6 +1,6 @@
 import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/db";
-import type { PersonWithCommonAlias } from "@/lib/types";
+import type { PersonWithCommonAlias, TagChipData } from "@/lib/types";
 import type {
   AttributeFilter,
   CategoricalFilter,
@@ -385,7 +385,7 @@ type RawPersonRow = {
   watching: boolean;
   isFavorite: boolean;
   rating: number | null;
-  tags: string[];
+  tags: TagChipData[] | null;
   naturalHairColor: string | null;
   bodyType: string | null;
   ethnicity: string | null;
@@ -444,7 +444,15 @@ export async function searchPeople(
       p.watching,
       p."isFavorite",
       p.rating,
-      p.tags,
+      -- Tag chips straight from the join table (ADR-0033: no copied name array)
+      (SELECT json_agg(
+                json_build_object('id', td.id, 'name', td.name,
+                                  'group', json_build_object('name', tg.name, 'color', tg.color))
+                ORDER BY tg."sortOrder", td."sortOrder")
+         FROM person_tag pt
+         JOIN tag_definition td ON td.id = pt."tagDefinitionId"
+         JOIN tag_group tg ON tg.id = td."groupId"
+        WHERE pt."personId" = p.id) AS tags,
       mv."currentHairColor" AS "naturalHairColor",
       mv."currentBuild" AS "bodyType",
       -- Slice 16C T2: ethnicity rebuilt from the catalog as

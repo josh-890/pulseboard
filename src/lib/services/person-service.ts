@@ -28,6 +28,7 @@ import type {
 import { parsePhotoVariants } from "@/lib/types";
 import type { PersonStatus, Prisma } from "@/generated/prisma/client";
 import { normalizeForSearch } from "@/lib/normalize";
+import { TAG_CHIP_JOIN_SELECT, toTagChips } from "@/lib/tag-chip";
 
 // Phase G Slice 16C T2: Ethnicity moved off Person.ethnicity into the catalog
 // as two SCALAR attributes — ethnicity-broad (SINGLE_SELECT) + ethnicity-specific
@@ -225,6 +226,7 @@ export async function getPersons(filters: PersonFilters = {}): Promise<PersonWit
         where: { OR: [{ isCommon: true }, { isBirth: true }] },
       },
       currentState: true,
+      personTags: TAG_CHIP_JOIN_SELECT,
     },
     orderBy: { createdAt: "asc" },
   });
@@ -236,7 +238,7 @@ export async function getPersons(filters: PersonFilters = {}): Promise<PersonWit
     watching: p.watching,
     isFavorite: p.isFavorite,
     rating: p.rating,
-    tags: p.tags,
+    tags: toTagChips(p.personTags),
     naturalHairColor: p.currentState?.currentHairColor ?? null,
     bodyType: p.currentState?.currentBuild ?? null,
     ethnicity: ethnicityFromCurrentAttrs(p.currentState?.currentAttributes),
@@ -2243,6 +2245,7 @@ export async function getPersonsPaginated(
   type RawPerson = Awaited<ReturnType<typeof prisma.person.findMany>>[number] & {
     aliases: { isCommon: boolean; isBirth: boolean; name: string; nameNorm: string | null }[];
     currentState: { currentHairColor: string | null; currentBuild: string | null; currentAttributes: Prisma.JsonValue } | null;
+    personTags: Parameters<typeof toTagChips>[0];
   };
 
   function mapPerson(p: RawPerson, score: number, q?: string): PersonWithCommonAlias {
@@ -2259,7 +2262,7 @@ export async function getPersonsPaginated(
       watching: p.watching,
       isFavorite: p.isFavorite,
       rating: p.rating,
-      tags: p.tags,
+      tags: toTagChips(p.personTags),
       naturalHairColor: p.currentState?.currentHairColor ?? null,
       bodyType: p.currentState?.currentBuild ?? null,
       ethnicity: ethnicityFromCurrentAttrs(p.currentState?.currentAttributes),
@@ -2294,6 +2297,7 @@ export async function getPersonsPaginated(
               : { OR: [{ isCommon: true }, { isBirth: true }] },
           },
           currentState: { select: { currentHairColor: true, currentBuild: true, currentAttributes: true } },
+          personTags: TAG_CHIP_JOIN_SELECT,
         },
       }),
     ]);
@@ -2369,6 +2373,7 @@ export async function getPersonsPaginated(
             : { OR: [{ isCommon: true }, { isBirth: true }] },
         },
           currentState: { select: { currentHairColor: true, currentBuild: true, currentAttributes: true } },
+          personTags: TAG_CHIP_JOIN_SELECT,
       },
       orderBy,
       take: limit + 1,

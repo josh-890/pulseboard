@@ -14,8 +14,6 @@ type CarouselHeaderProps = {
   fallbackColor?: string;
   fallbackInitials?: string;
   onFavoriteToggle?: (itemId: string) => void;
-  onTagsChanged?: (itemId: string, newTags: string[]) => void;
-  onUpdateTags?: (itemId: string, tags: string[]) => Promise<{ success: boolean }>;
   onSetCover?: (mediaItemId: string | null) => void;
   coverMediaItemId?: string | null;
   width?: number;
@@ -34,8 +32,6 @@ export function CarouselHeader({
   fallbackColor,
   fallbackInitials,
   onFavoriteToggle,
-  onTagsChanged,
-  onUpdateTags,
   onSetCover,
   coverMediaItemId,
   width = 200,
@@ -154,8 +150,6 @@ export function CarouselHeader({
           initialIndex={lightboxIndex}
           onClose={() => setLightboxIndex(null)}
           onFavoriteToggle={onFavoriteToggle}
-          onTagsChanged={onTagsChanged}
-          onUpdateTags={onUpdateTags}
           onSetCover={onSetCover}
           coverMediaItemId={coverMediaItemId}
           sessionId={sessionId}

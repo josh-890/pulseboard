@@ -318,7 +318,6 @@ model Person {
   isFavorite           Boolean       @default(false) // ADR-0019: favorite person (★) — filter facet
   notes                String?
   bio                  String?
-  tags                 String[]
   // Claimed catalogue size from the imported biography ("… Y photosets, Z videos").
   // Covers (= photosets + videos) is always derived, never stored. The Career-tab
   // stats strip compares these to promoted + staged counts. claimedStatsUserSet is
@@ -986,7 +985,6 @@ model Project {
   nameNorm    String?
   description String?
   status      ProjectStatus @default(active)
-  tags        String[]
   labelId     String?
   label       Label?        @relation("PrimaryLabel", fields: [labelId], references: [id])
   createdAt   DateTime      @default(now())
@@ -1037,7 +1035,6 @@ model Session {
   coverMediaItemId String?
   coverMediaItem   MediaItem? @relation("SessionCoverMedia", fields: [coverMediaItemId], references: [id])
 
-  tags            String[]              @default([])
   mediaItems      MediaItem[]
   contributions   SessionContribution[]
   setSessionLinks SetSession[]
@@ -1050,7 +1047,6 @@ model Session {
   @@index([type])
   @@index([status])
   @@index([nameNorm])
-  @@index([tags], type: Gin)
   @@index([coverMediaItemId])
 }
 
@@ -1076,7 +1072,6 @@ model Set {
   coverIsProvisional   Boolean       @default(false)
   category             String?
   genre                String?
-  tags                 String[]
   isCompilation        Boolean       @default(false)
   isComplete           Boolean       @default(false)
   imageCount           Int?
@@ -1161,7 +1156,6 @@ model MediaItem {
   sourceTimecodeMs Int? // timecode offset (ms) at which this frame was extracted
 
   caption      String?
-  tags         String[]
   notes        String?
   isAnnotation Boolean  @default(false) // Derived/edited photos — hidden from main gallery
   // Global per-image favorite (ADR-0019). One app-wide flag feeding /favorites;
@@ -1207,7 +1201,6 @@ model MediaItem {
   @@index([hash])
   @@index([phash])
   @@index([mediaType])
-  @@index([tags], type: Gin)
   @@index([copiedFromMediaItemId])
   @@index([motifTemplateId])
   @@index([isFavorite])
@@ -1833,33 +1826,63 @@ model ContributionSkill {
 
 // ─── Tagging System ──────────────────────────────────────────────────────────
 
+// A group is a coloured namespace (ADR-0033). `domain` is a hard rule — which
+// kind of entity its tags may sit on; `typicalLevel` is only a hint inside the
+// CONTENT chain (session → set → image) that ranks the picker and presets the
+// filter source. A WORKFLOW group holds to-do markers: never inherited, kept
+// out of descriptive facets.
+enum TagDomain {
+  PERSON
+  CONTENT
+  PROJECT
+  ANY
+}
+
+enum TagLevel {
+  SESSION
+  SET
+  MEDIA_ITEM
+}
+
+enum TagGroupKind {
+  DESCRIPTIVE
+  WORKFLOW
+}
+
 model TagGroup {
-  id          String          @id @default(cuid())
-  name        String          @unique
-  slug        String          @unique
-  color       String          @default("#6b7280")
-  description String?
-  isExclusive Boolean         @default(false)
-  sortOrder   Int             @default(0)
-  createdAt   DateTime        @default(now())
-  tags        TagDefinition[]
+  id           String          @id @default(cuid())
+  name         String          @unique
+  slug         String          @unique
+  color        String          @default("#6b7280")
+  description  String?
+  isExclusive  Boolean         @default(false)
+  domain       TagDomain       @default(ANY)
+  typicalLevel TagLevel?
+  kind         TagGroupKind    @default(DESCRIPTIVE)
+  sortOrder    Int             @default(0)
+  createdAt    DateTime        @default(now())
+  tags         TagDefinition[]
 
   @@index([sortOrder])
   @@map("tag_group")
 }
 
+// `parentId` is implication: a tag counts as its parent when filtering
+// (swimwear finds bikini). One parent, acyclic — enforced in tag-service.
 model TagDefinition {
-  id            String         @id @default(cuid())
+  id            String          @id @default(cuid())
   groupId       String
-  group         TagGroup       @relation(fields: [groupId], references: [id])
+  group         TagGroup        @relation(fields: [groupId], references: [id])
+  parentId      String?
+  parent        TagDefinition?  @relation("TagHierarchy", fields: [parentId], references: [id])
+  children      TagDefinition[] @relation("TagHierarchy")
   name          String
-  slug          String         @unique
+  slug          String
   nameNorm      String?
-  status        String         @default("active")
   description   String?
-  scope         String[]       @default(["PERSON", "SESSION", "MEDIA_ITEM", "SET", "PROJECT"])
-  sortOrder     Int            @default(0)
-  createdAt     DateTime       @default(now())
+  typicalLevel  TagLevel?
+  sortOrder     Int             @default(0)
+  createdAt     DateTime        @default(now())
   personTags    PersonTag[]
   sessionTags   SessionTag[]
   mediaItemTags MediaItemTag[]
@@ -1868,10 +1891,11 @@ model TagDefinition {
   aliases       TagAlias[]
 
   @@unique([groupId, name])
+  @@unique([groupId, slug])
   @@index([groupId])
+  @@index([parentId])
   @@index([sortOrder])
   @@index([nameNorm])
-  @@index([status])
   @@map("tag_definition")
 }
 

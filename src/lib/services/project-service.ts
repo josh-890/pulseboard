@@ -78,7 +78,6 @@ export async function createProjectRecord(data: {
   name: string;
   description?: string;
   status?: ProjectStatus;
-  tags?: string[];
 }) {
   return prisma.project.create({
     data: {
@@ -86,7 +85,6 @@ export async function createProjectRecord(data: {
       nameNorm: normalizeForSearch(data.name),
       description: data.description,
       status: data.status ?? "active",
-      tags: data.tags ?? [],
     },
   });
 }
@@ -95,7 +93,6 @@ export async function updateProjectRecord(id: string, data: {
   name?: string;
   description?: string | null;
   status?: ProjectStatus;
-  tags?: string[];
 }) {
   return prisma.project.update({
     where: { id },
@@ -104,7 +101,6 @@ export async function updateProjectRecord(id: string, data: {
       nameNorm: data.name ? normalizeForSearch(data.name) : undefined,
       description: data.description,
       status: data.status,
-      tags: data.tags,
     },
   });
 }

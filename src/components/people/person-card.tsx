@@ -169,10 +169,10 @@ export function PersonCard({
                 <div className="flex flex-wrap gap-0.5">
                   {person.tags.slice(0, 2).map((tag) => (
                     <span
-                      key={tag}
+                      key={tag.id}
                       className="inline-flex items-center rounded-full bg-white/20 px-1.5 py-px text-[9px] text-white"
                     >
-                      {tag}
+                      {tag.name}
                     </span>
                   ))}
                 </div>
@@ -375,10 +375,10 @@ export function PersonCard({
             <div className="mt-1.5 flex flex-wrap gap-1">
               {person.tags.slice(0, 3).map((tag) => (
                 <span
-                  key={tag}
+                  key={tag.id}
                   className="inline-flex items-center rounded-full border border-white/10 bg-muted/60 px-1.5 py-0.5 text-[10px] text-muted-foreground"
                 >
-                  {tag}
+                  {tag.name}
                 </span>
               ))}
               {person.tags.length > 3 && (

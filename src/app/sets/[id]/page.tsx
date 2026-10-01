@@ -1,3 +1,4 @@
+import { TagChips } from "@/components/shared/tag-chips";
 import { withTenantFromHeaders } from "@/lib/tenant-context";
 import { Suspense } from "react";
 import { notFound } from "next/navigation";
@@ -151,7 +152,6 @@ export default async function SetDetailPage({ params }: SetDetailPageProps) {
                 releaseDatePrecision: setData.releaseDatePrecision,
                 category: setData.category,
                 genre: setData.genre,
-                tags: setData.tags,
                 isCompilation: setData.isCompilation,
                 isComplete: setData.isComplete,
                 imageCount: setData.imageCount,
@@ -259,22 +259,13 @@ export default async function SetDetailPage({ params }: SetDetailPageProps) {
               publisherLabel={setData.channel?.label ? { id: setData.channel.label.id, name: setData.channel.label.name } : null}
             />
 
-            {setData.tags.length > 0 && (
+            {setTags.length > 0 && (
               <div className="rounded-2xl border border-white/20 bg-card/70 p-4 shadow-md backdrop-blur-sm">
                 <div className="mb-3 flex items-center gap-2">
                   <Tag size={14} className="text-muted-foreground" aria-hidden="true" />
                   <h2 className="text-sm font-semibold">Tags</h2>
                 </div>
-                <div className="flex flex-wrap gap-1.5">
-                  {setData.tags.map((tag) => (
-                    <span
-                      key={tag}
-                      className="inline-flex items-center rounded-full border border-white/10 bg-muted/60 px-2.5 py-0.5 text-xs font-medium text-foreground"
-                    >
-                      {tag}
-                    </span>
-                  ))}
-                </div>
+                <TagChips tags={setTags} />
               </div>
             )}
 

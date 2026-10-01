@@ -387,32 +387,6 @@ export function MediaMetadataPanel({
         </div>
       )}
 
-
-      {/* Tags */}
-      <SectionHeader
-        title="Tags"
-        icon={<Tag size={14} />}
-        section="tags"
-        expanded={expandedSections.has("tags")}
-        onToggle={toggleSection}
-      />
-      {expandedSections.has("tags") && single && (
-        <div className="flex flex-wrap gap-1 pb-2">
-          {single.tags.length > 0 ? (
-            single.tags.map((tag) => (
-              <span
-                key={tag}
-                className="rounded-full border border-white/15 bg-muted/50 px-2 py-0.5 text-xs"
-              >
-                {tag}
-              </span>
-            ))
-          ) : (
-            <p className="text-xs text-muted-foreground italic">No tags</p>
-          )}
-        </div>
-      )}
-
       {/* Categories */}
       {categoryGroups.length > 0 && (
         <>
@@ -1080,31 +1054,6 @@ function BatchPanel({
         onBatchComplete={onBatchComplete}
       />
 
-      {/* Common Tags */}
-      <SectionHeader
-        title="Common Tags"
-        icon={<Tag size={14} />}
-        section="tags"
-        expanded={expandedSections.has("tags")}
-        onToggle={toggleSection}
-      />
-      {expandedSections.has("tags") && (
-        <div className="flex flex-wrap gap-1 pb-2">
-          {getCommonTags(items).length > 0 ? (
-            getCommonTags(items).map((tag) => (
-              <span
-                key={tag}
-                className="rounded-full border border-white/15 bg-muted/50 px-2 py-0.5 text-xs"
-              >
-                {tag}
-              </span>
-            ))
-          ) : (
-            <p className="text-xs text-muted-foreground italic">No common tags</p>
-          )}
-        </div>
-      )}
-
       {/* Delete button */}
       {onRequestDelete && (
         <div className="pt-2">
@@ -1291,13 +1240,6 @@ function BatchBodyRegionSection({
         </div>
       )}
     </>
-  );
-}
-
-function getCommonTags(items: MediaItemWithLinks[]): string[] {
-  if (items.length === 0) return [];
-  return items[0].tags.filter((tag) =>
-    items.every((item) => item.tags.includes(tag)),
   );
 }
 

@@ -288,6 +288,41 @@ An ephemeral selection of scannable identity pages, exported as one URL file per
 **Needs rescan**:
 A derived per-person signal: an archive-born set (a `StagingSet` with no import batch, created manually from the Archive) has a release date newer than the person's newest scanned-through date — evidence of releases not yet pulled from the source pages.
 
+### Tagging (added 2026-10-01, ADR-0033)
+
+**Tag group** (code model & DB table: `TagGroup` / `tag_group`):
+A coloured namespace of tags (Setting, Outfit, Workflow…). It carries:
+- the **domain** (`PERSON | CONTENT | PROJECT | ANY`), a hard rule for which entities its tags may sit on;
+- an optional **typical level**;
+- a **kind** (`DESCRIPTIVE | WORKFLOW`);
+- `isExclusive`: at most one of its tags per entity.
+
+_Avoid_: "scope" — the per-tag allow-list is retired; applicability lives on the group.
+
+**Content chain**:
+Session (production) → Set (publication) → Image. The levels CONTENT tags apply to, and the direction inheritance flows.
+
+**Typical level**:
+The level of the content chain a tag usually belongs to (Location → session, Outfit → set, Pose → image). It is a **hint only**: it ranks the picker and presets a filter's source, and never blocks tagging. Set on the group; a tag may override it.
+
+**Parent tag**:
+Implication: a tag with a parent counts as the parent when filtering (Bikini ⊂ Swimwear). There is one parent per tag and the chain is acyclic. `=tag` in a query means "exactly this tag, without children".
+
+**Direct vs inherited tag / effective tags**:
+A **direct** tag is a row on the entity itself. An image's **effective tags** are its direct tags plus those **inherited** from its session and from every set containing it (a set also inherits from its sessions). Inherited tags are **computed, never copied**.
+- In an **exclusive** group the **nearest level wins** (image > set > session).
+- Workflow tags never inherit.
+- Person tags never flow into content.
+
+**Strict vs anywhere (filter source)**:
+Each tag criterion in a filter matches either **anywhere** (effective tags, the default) or **strictly** at one level (`@image:` / `@set:` / `@session:`).
+
+**Workflow tag**:
+A tag in a `WORKFLOW` group: a to-do marker (needs-crop, check-cast) that is removed when done. It is never inherited, kept out of descriptive facets, and listed in the To-do inbox.
+
+**Smart collection**:
+A saved media filter, shown next to the static **Collections**: live, never hand-maintained. It can be **frozen** into a static collection. Distinct from a **Collection** (hand-curated membership) and from **Favorites** (a flag, ADR-0019).
+
 ## Flagged ambiguities
 
 - **"Persona"** — In the wider domain a "persona" usually means a stage identity / working name. In Pulseboard it does **not**: stage names are **Aliases** (`PersonAlias`). The concept is an **Era** — a phase on the Person's development timeline. The legacy `Persona` Prisma model + DB table were renamed to `Era` in May 2026 — no Persona references remain in current code or docs. If you find one, it's either inside `prisma/migrations/` (historical) or it's drift worth fixing.

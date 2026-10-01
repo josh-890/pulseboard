@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import type { TagChipData } from "@/components/shared/tag-chips";
+import type { TagChipData } from "@/lib/types/tag";
 
 const MAX_RECENT = 20;
 const DISPLAY_LIMIT = 5;

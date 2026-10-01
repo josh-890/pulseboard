@@ -56,11 +56,6 @@ type GalleryLightboxProps = {
   onFavoriteToggle?: (itemId: string) => void;
   onSetCover?: (mediaItemId: string | null) => void;
   coverMediaItemId?: string | null;
-  onTagsChanged?: (itemId: string, newTags: string[]) => void;
-  onUpdateTags?: (
-    itemId: string,
-    tags: string[],
-  ) => Promise<{ success: boolean }>;
   // Person headshot context
   // Find similar
   onFindSimilar?: (mediaItemId: string) => void;
@@ -121,8 +116,6 @@ function SimpleLightbox({
   onFavoriteToggle,
   onSetCover,
   coverMediaItemId,
-  onTagsChanged,
-  onUpdateTags,
   onFindSimilar,
   sessionId,
   referenceContext,
@@ -543,8 +536,6 @@ function SimpleLightbox({
     onSetCover,
     coverMediaItemId,
     onFavoriteToggle: handleFavorite,
-    onUpdateTags,
-    onTagsChanged,
     onFindSimilar,
     sessionId,
     onFocalPointChange: handleFocalPointChange,

@@ -123,7 +123,6 @@ export async function getAtlasGridForCategory(categoryId: string): Promise<Atlas
           fileRef: true,
           focalX: true,
           focalY: true,
-          tags: true,
           sessionId: true,
           sourceVideoRef: true,
           sourceTimecodeMs: true,

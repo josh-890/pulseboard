@@ -1,12 +1,69 @@
 import { prisma } from "@/lib/db";
-import type { TagSource } from "@/generated/prisma/client";
+import type { TagDomain, TagSource } from "@/generated/prisma/client";
 import type { TagDefinitionWithGroup } from "./tag-service";
 
 export type TaggableEntity = "PERSON" | "SESSION" | "MEDIA_ITEM" | "SET" | "PROJECT";
 
 type TxClient = Parameters<Parameters<typeof prisma.$transaction>[0]>[0];
 
-const GROUP_SELECT = { id: true, name: true, slug: true, color: true, isExclusive: true } as const;
+const GROUP_SELECT = {
+  id: true,
+  name: true,
+  slug: true,
+  color: true,
+  isExclusive: true,
+  domain: true,
+  typicalLevel: true,
+  kind: true,
+} as const;
+
+/** The group domains whose tags may sit on an entity type (ADR-0033). */
+export function domainsForEntity(entityType: TaggableEntity): TagDomain[] {
+  switch (entityType) {
+    case "PERSON":
+      return ["PERSON", "ANY"];
+    case "PROJECT":
+      return ["PROJECT", "ANY"];
+    case "SESSION":
+    case "SET":
+    case "MEDIA_ITEM":
+      return ["CONTENT", "ANY"];
+  }
+}
+
+/**
+ * Validate and normalise the tags about to be written to one entity type.
+ * Rejects a tag whose group domain does not admit the entity (the hard rule),
+ * and collapses several tags of one exclusive group to the last one given —
+ * the picker's "a new pick replaces the old" semantics, applied server-side so
+ * no caller can store two.
+ */
+async function prepareTagIds(
+  tx: TxClient,
+  entityType: TaggableEntity,
+  tagDefinitionIds: string[],
+): Promise<string[]> {
+  const unique = [...new Set(tagDefinitionIds)];
+  if (unique.length === 0) return [];
+  const defs = await tx.tagDefinition.findMany({
+    where: { id: { in: unique } },
+    select: { id: true, name: true, group: { select: { id: true, isExclusive: true, domain: true } } },
+  });
+  const byId = new Map(defs.map((d) => [d.id, d]));
+  const allowed = domainsForEntity(entityType);
+  const exclusivePick = new Map<string, string>();
+  const result: string[] = [];
+  for (const id of unique) {
+    const def = byId.get(id);
+    if (!def) throw new Error(`Unknown tag ${id}`);
+    if (!allowed.includes(def.group.domain)) {
+      throw new Error(`Tag "${def.name}" (${def.group.domain}) cannot be applied to ${entityType}`);
+    }
+    if (def.group.isExclusive) exclusivePick.set(def.group.id, id);
+    else result.push(id);
+  }
+  return [...result, ...exclusivePick.values()];
+}
 
 // ─── Exclusive Group Enforcement ─────────────────────────────────────────────
 
@@ -78,6 +135,7 @@ export async function addTagsToEntity(
 ) {
   if (tagDefinitionIds.length === 0) return;
   await prisma.$transaction(async (tx) => {
+    tagDefinitionIds = await prepareTagIds(tx, entityType, tagDefinitionIds);
     await enforceExclusiveGroups(tx, entityType, entityId, tagDefinitionIds);
     switch (entityType) {
       case "PERSON":
@@ -131,7 +189,6 @@ export async function addTagsToEntity(
         });
         break;
     }
-    await syncEntityTagCacheTx(tx, entityType, entityId);
   });
 }
 
@@ -160,7 +217,6 @@ export async function removeTagsFromEntity(
         await tx.projectTag.deleteMany({ where: { projectId: entityId, ...where } });
         break;
     }
-    await syncEntityTagCacheTx(tx, entityType, entityId);
   });
 }
 
@@ -171,6 +227,7 @@ export async function setEntityTags(
   source: TagSource = "MANUAL",
 ) {
   await prisma.$transaction(async (tx) => {
+    tagDefinitionIds = await prepareTagIds(tx, entityType, tagDefinitionIds);
     // Delete all existing tags for this entity
     switch (entityType) {
       case "PERSON":
@@ -242,7 +299,6 @@ export async function setEntityTags(
           break;
       }
     }
-    await syncEntityTagCacheTx(tx, entityType, entityId);
   });
 }
 
@@ -258,6 +314,7 @@ export async function bulkAddTagsToEntities(
 
   await prisma.$transaction(
     async (tx) => {
+      tagDefinitionIds = await prepareTagIds(tx, entityType, tagDefinitionIds);
       for (const entityId of entityIds) {
         await enforceExclusiveGroups(tx, entityType, entityId, tagDefinitionIds);
         switch (entityType) {
@@ -292,8 +349,7 @@ export async function bulkAddTagsToEntities(
             });
             break;
         }
-        await syncEntityTagCacheTx(tx, entityType, entityId);
-      }
+          }
     },
     { timeout: 30000 },
   );
@@ -327,8 +383,7 @@ export async function bulkRemoveTagsFromEntities(
             await tx.projectTag.deleteMany({ where: { projectId: entityId, ...where } });
             break;
         }
-        await syncEntityTagCacheTx(tx, entityType, entityId);
-      }
+          }
     },
     { timeout: 30000 },
   );
@@ -380,66 +435,4 @@ export async function getEntityTagIds(
 ): Promise<string[]> {
   const tags = await getEntityTags(entityType, entityId);
   return tags.map((t) => t.id);
-}
-
-// ─── Cache Sync ─────────────────────────────────────────────────────────────
-
-async function syncEntityTagCacheTx(
-  tx: TxClient,
-  entityType: TaggableEntity,
-  entityId: string,
-) {
-  const include = { tagDefinition: { select: { name: true } } };
-  let tagNames: string[];
-
-  switch (entityType) {
-    case "PERSON": {
-      const rows = await tx.personTag.findMany({ where: { personId: entityId }, include });
-      tagNames = rows.map((r) => r.tagDefinition.name);
-      await tx.person.update({ where: { id: entityId }, data: { tags: tagNames } });
-      break;
-    }
-    case "SESSION": {
-      const rows = await tx.sessionTag.findMany({ where: { sessionId: entityId }, include });
-      tagNames = rows.map((r) => r.tagDefinition.name);
-      await tx.session.update({ where: { id: entityId }, data: { tags: tagNames } });
-      break;
-    }
-    case "MEDIA_ITEM": {
-      const rows = await tx.mediaItemTag.findMany({ where: { mediaItemId: entityId }, include });
-      tagNames = rows.map((r) => r.tagDefinition.name);
-      await tx.mediaItem.update({ where: { id: entityId }, data: { tags: tagNames } });
-      break;
-    }
-    case "SET": {
-      const rows = await tx.setTag.findMany({ where: { setId: entityId }, include });
-      tagNames = rows.map((r) => r.tagDefinition.name);
-      await tx.set.update({ where: { id: entityId }, data: { tags: tagNames } });
-      break;
-    }
-    case "PROJECT": {
-      const rows = await tx.projectTag.findMany({ where: { projectId: entityId }, include });
-      tagNames = rows.map((r) => r.tagDefinition.name);
-      await tx.project.update({ where: { id: entityId }, data: { tags: tagNames } });
-      break;
-    }
-  }
-}
-
-export async function syncEntityTagCache(
-  entityType: TaggableEntity,
-  entityId: string,
-) {
-  await prisma.$transaction(async (tx) => {
-    await syncEntityTagCacheTx(tx, entityType, entityId);
-  });
-}
-
-export async function bulkSyncTagCaches(
-  entityType: TaggableEntity,
-  entityIds: string[],
-) {
-  for (const entityId of entityIds) {
-    await syncEntityTagCache(entityType, entityId);
-  }
 }

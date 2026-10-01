@@ -88,7 +88,6 @@ function toEntityGalleryItem(photo: EntityPhotoGroup["photos"][number]): Gallery
     },
     focalX: photo.focalX,
     focalY: photo.focalY,
-    tags: [],
     isFavorite: false,
     sortOrder: 0,
     isCover: false,

@@ -1,3 +1,4 @@
+import { TagChips } from "@/components/shared/tag-chips";
 import { withTenantFromHeaders } from "@/lib/tenant-context";
 import { notFound } from "next/navigation";
 import Link from "next/link";
@@ -49,6 +50,12 @@ export default async function ProjectDetailPage({
     0,
   );
 
+  const projectTags = project.projectTags.map((pt) => ({
+    id: pt.tagDefinition.id,
+    name: pt.tagDefinition.name,
+    group: pt.tagDefinition.group,
+  }));
+
   return (
     <div className="space-y-6">
       {/* Back link + actions row */}
@@ -61,14 +68,7 @@ export default async function ProjectDetailPage({
           Back to Projects
         </Link>
         <div className="flex items-center gap-2">
-          <EditProjectSheet
-            project={project}
-            entityTags={project.projectTags.map((pt) => ({
-              id: pt.tagDefinition.id,
-              name: pt.tagDefinition.name,
-              group: pt.tagDefinition.group,
-            }))}
-          />
+          <EditProjectSheet project={project} entityTags={projectTags} />
           <DeleteButton
             title="Delete project?"
             description="This will permanently remove the project and all associated sessions and sets. This action cannot be undone."
@@ -137,17 +137,10 @@ export default async function ProjectDetailPage({
         )}
 
         {/* Tags */}
-        {project.tags.length > 0 && (
+        {projectTags.length > 0 && (
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <Tag size={13} className="text-muted-foreground" aria-hidden="true" />
-            {project.tags.map((tag) => (
-              <span
-                key={tag}
-                className="inline-flex items-center rounded-full border border-white/10 bg-muted/60 px-2.5 py-0.5 text-xs font-medium text-foreground"
-              >
-                {tag}
-              </span>
-            ))}
+            <TagChips tags={projectTags} />
           </div>
         )}
       </div>

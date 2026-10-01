@@ -660,7 +660,6 @@ export function AppearanceTab({
       urls: p.urls,
       focalX: p.focalX,
       focalY: p.focalY,
-      tags: [] as string[],
       isFavorite: false,
       isAvatar: false,
       sortOrder: 0,

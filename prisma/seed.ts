@@ -1,6 +1,7 @@
 import "dotenv/config";
 import { PrismaClient } from "../src/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
+import { applyTagVocabulary } from "../src/lib/tag-vocabulary";
 
 const connectionString = process.env.DATABASE_URL!;
 const adapter = new PrismaPg({ connectionString });
@@ -355,7 +356,6 @@ async function main() {
       nameNorm: "sample project",
       description: "A sample production project",
       status: "active",
-      tags: ["sample"],
       labelId: label.id,
     },
   });
@@ -469,7 +469,6 @@ async function main() {
       hash: "abc123def456",
       capturedAt: new Date("2025-01-15T10:30:00Z"),
       capturedAtPrecision: "DAY",
-      tags: ["portrait", "studio"],
       caption: "Studio portrait",
     },
   });
@@ -489,7 +488,6 @@ async function main() {
       hash: "def789ghi012",
       capturedAt: new Date("2025-01-15T11:00:00Z"),
       capturedAtPrecision: "DAY",
-      tags: ["portrait", "outdoor"],
       caption: "Outdoor portrait",
     },
   });
@@ -508,7 +506,6 @@ async function main() {
       originalWidth: 1024,
       originalHeight: 1024,
       hash: "headshot123",
-      tags: ["headshot"],
       caption: "Jane — 2025 headshot",
     },
   });
@@ -531,7 +528,6 @@ async function main() {
       releaseDate: new Date("2025-02-01"),
       releaseDatePrecision: "DAY",
       coverMediaItemId: media1.id,
-      tags: ["sample"],
     },
   });
 
@@ -577,7 +573,6 @@ async function main() {
       titleNorm: "sample video frames",
       releaseDate: new Date("2025-03-10"),
       releaseDatePrecision: "DAY",
-      tags: ["sample", "video"],
     },
   });
 
@@ -599,7 +594,6 @@ async function main() {
       capturedAtPrecision: "DAY",
       sourceVideoRef: "interview_take3.mp4",
       sourceTimecodeMs: 1400,
-      tags: [],
     },
   });
 
@@ -621,7 +615,6 @@ async function main() {
       capturedAtPrecision: "DAY",
       sourceVideoRef: "interview_take3.mp4",
       sourceTimecodeMs: 3267,
-      tags: [],
     },
   });
 
@@ -643,7 +636,6 @@ async function main() {
       capturedAtPrecision: "DAY",
       sourceVideoRef: "b_roll_kitchen.mp4",
       sourceTimecodeMs: 700,
-      tags: [],
     },
   });
 
@@ -898,153 +890,8 @@ async function main() {
 
   // ─── Tag Catalog ──────────────────────────────────────────────────────────
 
-  type SeedTag = {
-    name: string;
-    scope: string[];
-    description?: string;
-    aliases?: string[];
-  };
-
-  const tagGroups: {
-    slug: string;
-    name: string;
-    color: string;
-    description: string;
-    isExclusive?: boolean;
-    tags: SeedTag[];
-  }[] = [
-    {
-      slug: "content-type",
-      name: "Content Type",
-      color: "#3b82f6",
-      description: "What type of content this is",
-      tags: [
-        { name: "portrait", scope: ["MEDIA_ITEM"], description: "Head/face focused photo" },
-        { name: "diploma", scope: ["MEDIA_ITEM"], description: "Certificate or diploma document" },
-        { name: "tattoo", scope: ["MEDIA_ITEM"], description: "Tattoo detail or documentation" },
-        { name: "document", scope: ["MEDIA_ITEM"], description: "Scanned document or paperwork" },
-        { name: "general", scope: ["MEDIA_ITEM"], description: "General purpose media" },
-        { name: "outtake", scope: ["MEDIA_ITEM"], description: "Unused or rejected take" },
-      ],
-    },
-    {
-      slug: "style",
-      name: "Style",
-      color: "#10b981",
-      description: "Visual style or setting",
-      tags: [
-        { name: "studio", scope: ["MEDIA_ITEM", "SESSION"], description: "Shot in a controlled studio environment" },
-        { name: "outdoor", scope: ["MEDIA_ITEM", "SESSION"], description: "Shot outdoors or on location", aliases: ["outdoors", "outside", "exterior"] },
-        { name: "candid", scope: ["MEDIA_ITEM", "SESSION"], description: "Unposed, natural moment" },
-        { name: "editorial", scope: ["MEDIA_ITEM", "SESSION"], description: "Styled editorial or fashion shoot" },
-        { name: "test", scope: ["MEDIA_ITEM", "SESSION"], description: "Test shoot or audition" },
-      ],
-    },
-    {
-      slug: "status",
-      name: "Status",
-      color: "#f59e0b",
-      description: "Person classification",
-      isExclusive: true,
-      tags: [
-        { name: "VIP", scope: ["PERSON"], description: "High-priority person requiring special attention" },
-        { name: "new", scope: ["PERSON"], description: "Recently added to the system" },
-        { name: "established", scope: ["PERSON"], description: "Well-known with extensive history" },
-        { name: "retired", scope: ["PERSON"], description: "No longer active in the industry" },
-      ],
-    },
-    {
-      slug: "tier",
-      name: "Tier",
-      color: "#8b5cf6",
-      description: "Ranking tier — only one can be applied per entity",
-      isExclusive: true,
-      tags: [
-        { name: "A-list", scope: ["PERSON", "SET"], description: "Top tier" },
-        { name: "B-list", scope: ["PERSON", "SET"], description: "Mid tier" },
-        { name: "C-list", scope: ["PERSON", "SET"], description: "Lower tier" },
-      ],
-    },
-    {
-      slug: "uncategorized",
-      name: "Uncategorized",
-      color: "#9ca3af",
-      description: "Tags not yet assigned to a group",
-      tags: [],
-    },
-  ];
-
-  const slugify = (name: string) =>
-    name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
-
-  for (let gi = 0; gi < tagGroups.length; gi++) {
-    const g = tagGroups[gi];
-    const group = await prisma.tagGroup.upsert({
-      where: { slug: g.slug },
-      create: {
-        name: g.name,
-        slug: g.slug,
-        color: g.color,
-        description: g.description,
-        isExclusive: g.isExclusive ?? false,
-        sortOrder: gi,
-      },
-      update: {
-        name: g.name,
-        color: g.color,
-        description: g.description,
-        isExclusive: g.isExclusive ?? false,
-        sortOrder: gi,
-      },
-    });
-
-    for (let ti = 0; ti < g.tags.length; ti++) {
-      const t = g.tags[ti];
-      const slug = slugify(t.name);
-      const tagDef = await prisma.tagDefinition.upsert({
-        where: { slug },
-        create: {
-          groupId: group.id,
-          name: t.name,
-          slug,
-          nameNorm: t.name.toLowerCase(),
-          scope: t.scope,
-          description: t.description ?? null,
-          status: "active",
-          sortOrder: ti,
-        },
-        update: {
-          groupId: group.id,
-          name: t.name,
-          nameNorm: t.name.toLowerCase(),
-          scope: t.scope,
-          description: t.description ?? null,
-          sortOrder: ti,
-        },
-      });
-
-      // Seed aliases
-      if (t.aliases) {
-        for (const aliasName of t.aliases) {
-          const aliasSlug = slugify(aliasName);
-          await prisma.tagAlias.upsert({
-            where: { slug: aliasSlug },
-            create: {
-              tagDefinitionId: tagDef.id,
-              name: aliasName,
-              nameNorm: aliasName.toLowerCase(),
-              slug: aliasSlug,
-            },
-            update: {
-              tagDefinitionId: tagDef.id,
-              name: aliasName,
-              nameNorm: aliasName.toLowerCase(),
-            },
-          });
-        }
-      }
-    }
-  }
+  // Same starter vocabulary every tenant gets (ADR-0033)
+  await applyTagVocabulary(prisma);
 
   console.log("Tag catalog seeded.");
 

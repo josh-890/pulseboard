@@ -12,8 +12,6 @@ import {
   deleteTagDefinition,
   mergeTagDefinitions,
   reorderTagDefinitions,
-  approveTag,
-  rejectTag,
   createTagAlias,
   deleteTagAlias,
 } from "@/lib/services/tag-service";
@@ -31,22 +29,20 @@ import {
   createTagDefinitionSchema,
   updateTagDefinitionSchema,
   createTagAliasSchema,
+  type CreateTagGroupInput,
+  type UpdateTagGroupInput,
+  type CreateTagDefinitionInput,
+  type UpdateTagDefinitionInput,
 } from "@/lib/validations/tag";
-import { prisma } from "@/lib/db";
 
 type SimpleActionResult = { success: boolean; error?: string };
 
 // ─── Group CRUD ─────────────────────────────────────────────────────────────
 
-export async function createTagGroupAction(
-  name: string,
-  color?: string,
-  description?: string,
-  isExclusive?: boolean,
-): Promise<SimpleActionResult> {
+export async function createTagGroupAction(input: CreateTagGroupInput): Promise<SimpleActionResult> {
   return withTenantFromHeaders(async () => {
     try {
-      const data = createTagGroupSchema.parse({ name, color, description, isExclusive });
+      const data = createTagGroupSchema.parse(input);
       await createTagGroup(data);
       revalidatePath("/settings");
       return { success: true };
@@ -59,7 +55,7 @@ export async function createTagGroupAction(
 
 export async function updateTagGroupAction(
   id: string,
-  data: { name?: string; color?: string; description?: string | null; isExclusive?: boolean },
+  data: UpdateTagGroupInput,
 ): Promise<SimpleActionResult> {
   return withTenantFromHeaders(async () => {
     try {
@@ -103,15 +99,11 @@ export async function reorderTagGroupsAction(orderedIds: string[]): Promise<Simp
 // ─── Definition CRUD ────────────────────────────────────────────────────────
 
 export async function createTagDefinitionAction(
-  groupId: string,
-  name: string,
-  scope?: string[],
-  description?: string,
-  status?: string,
+  input: CreateTagDefinitionInput,
 ): Promise<SimpleActionResult & { id?: string }> {
   return withTenantFromHeaders(async () => {
     try {
-      const data = createTagDefinitionSchema.parse({ groupId, name, scope, description, status });
+      const data = createTagDefinitionSchema.parse(input);
       const tag = await createTagDefinition(data);
       revalidatePath("/settings");
       return { success: true, id: tag.id };
@@ -124,7 +116,7 @@ export async function createTagDefinitionAction(
 
 export async function updateTagDefinitionAction(
   id: string,
-  data: { name?: string; scope?: string[]; sortOrder?: number; description?: string | null; status?: string },
+  data: UpdateTagDefinitionInput,
 ): Promise<SimpleActionResult> {
   return withTenantFromHeaders(async () => {
     try {
@@ -181,71 +173,26 @@ export async function reorderTagDefinitionsAction(orderedIds: string[]): Promise
   });
 }
 
-// ─── Governance ─────────────────────────────────────────────────────────────
-
-export async function approveTagAction(id: string): Promise<SimpleActionResult> {
-  return withTenantFromHeaders(async () => {
-    try {
-      await approveTag(id);
-      revalidatePath("/settings");
-      return { success: true };
-    } catch (e) {
-      return { success: false, error: e instanceof Error ? e.message : "Failed to approve tag" };
-    }
-
-  });
-}
-
-export async function rejectTagAction(id: string): Promise<SimpleActionResult> {
-  return withTenantFromHeaders(async () => {
-    try {
-      await rejectTag(id);
-      revalidatePath("/settings");
-      return { success: true };
-    } catch (e) {
-      return { success: false, error: e instanceof Error ? e.message : "Failed to reject tag" };
-    }
-
-  });
-}
-
 // ─── Inline Tag Creation ────────────────────────────────────────────────────
 
+/**
+ * Create a tag from the picker/palette while tagging. Active at once (no
+ * pending review — ADR-0033); the caller names the group. Apply it to the
+ * entity with the usual add action afterwards.
+ */
 export async function createInlineTagAction(
+  groupId: string,
   name: string,
-  scope: string,
 ): Promise<SimpleActionResult & { id?: string }> {
   return withTenantFromHeaders(async () => {
     try {
-      // Find or create the Uncategorized group
-      let uncategorized = await prisma.tagGroup.findFirst({
-        where: { slug: "uncategorized" },
-      });
-      if (!uncategorized) {
-        uncategorized = await prisma.tagGroup.create({
-          data: {
-            name: "Uncategorized",
-            slug: "uncategorized",
-            color: "#9ca3af",
-            description: "Tags not yet assigned to a group",
-            sortOrder: 999,
-          },
-        });
-      }
-
-      const tag = await createTagDefinition({
-        groupId: uncategorized.id,
-        name,
-        scope: [scope],
-        status: "pending",
-      });
-
+      const data = createTagDefinitionSchema.parse({ groupId, name: name.trim() });
+      const tag = await createTagDefinition(data);
       revalidatePath("/settings");
       return { success: true, id: tag.id };
     } catch (e) {
       return { success: false, error: e instanceof Error ? e.message : "Failed to create tag" };
     }
-
   });
 }
 

@@ -49,7 +49,7 @@ import { BodyRegionCompact } from "@/components/shared/body-region-picker";
 import { SKILL_EVENT_STYLES } from "@/lib/constants/skill";
 import { TagPicker } from "@/components/shared/tag-picker";
 import { TagChips } from "@/components/shared/tag-chips";
-import type { TagChipData } from "@/components/shared/tag-chips";
+import type { TagChipData } from "@/lib/types/tag";
 import { addTagsToEntityAction, removeTagsFromEntityAction } from "@/lib/actions/tag-actions";
 import type { TagDefinitionWithGroup } from "@/lib/services/tag-service";
 
@@ -59,15 +59,6 @@ function formatTimecode(ms: number): string {
   const seconds = totalSeconds % 60;
   return `${minutes}m ${seconds.toString().padStart(2, "0")}s`;
 }
-
-const CONTENT_TAGS = [
-  { value: "portrait", label: "Portrait" },
-  { value: "diploma", label: "Diploma" },
-  { value: "tattoo", label: "Tattoo" },
-  { value: "document", label: "Document" },
-  { value: "general", label: "General" },
-  { value: "outtake", label: "Outtake" },
-] as const;
 
 const TOGGLEABLE_USAGES: PersonMediaUsage[] = [
   "PROFILE",
@@ -153,11 +144,6 @@ type GalleryInfoPanelProps = {
   coverMediaItemId?: string | null;
   // Common actions
   onFavoriteToggle?: (itemId: string) => void;
-  onUpdateTags?: (
-    itemId: string,
-    tags: string[],
-  ) => Promise<{ success: boolean }>;
-  onTagsChanged?: (itemId: string, newTags: string[]) => void;
   // Find similar
   onFindSimilar?: (mediaItemId: string) => void;
   // Focal point
@@ -185,8 +171,6 @@ export function GalleryInfoPanel({
   onSetCover,
   coverMediaItemId,
   onFavoriteToggle,
-  onUpdateTags,
-  onTagsChanged,
   onFindSimilar,
   sessionId,
   onFocalPointChange,
@@ -200,7 +184,7 @@ export function GalleryInfoPanel({
   onSetHiddenPersons,
 }: GalleryInfoPanelProps) {
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
-    new Set(["cover", "headshot", "favorite", "usage", "people-shown", "tags", "structuredTags", "focal", "info", "source"]),
+    new Set(["cover", "headshot", "favorite", "usage", "people-shown", "structuredTags", "focal", "info", "source"]),
   );
   const [isPending, startTransition] = useTransition();
   const [isFocalPending, startFocalTransition] = useTransition();
@@ -219,13 +203,6 @@ export function GalleryInfoPanel({
   }, []);
 
   const isCover = coverMediaItemId === item.id;
-  const hasTags = onUpdateTags && onTagsChanged;
-  const showTags = hasTags || item.tags.length > 0;
-
-  const contentTagValues = CONTENT_TAGS.map((t) => t.value) as string[];
-  const activeContentTags = item.tags.filter((t) =>
-    contentTagValues.includes(t),
-  );
 
   // Reference context helpers
   const links = useMemo(() => item.links ?? [], [item.links]);
@@ -238,30 +215,6 @@ export function GalleryInfoPanel({
   const getLinkForUsage = useCallback(
     (usage: PersonMediaUsage) => links.find((l) => l.usage === usage) ?? null,
     [links],
-  );
-
-  const handleContentTagToggle = useCallback(
-    (tag: string) => {
-      if (!onTagsChanged || !onUpdateTags) return;
-      const isActive = activeContentTags.includes(tag);
-      const newContentTags = isActive
-        ? activeContentTags.filter((t) => t !== tag)
-        : [...activeContentTags, tag];
-      const nonContentTags = item.tags.filter(
-        (t) => !contentTagValues.includes(t),
-      );
-      const newTags = [...newContentTags, ...nonContentTags];
-
-      onTagsChanged(item.id, newTags);
-
-      startTransition(async () => {
-        const result = await onUpdateTags(item.id, newTags);
-        if (!result.success) {
-          onTagsChanged(item.id, item.tags);
-        }
-      });
-    },
-    [activeContentTags, contentTagValues, item, onTagsChanged, onUpdateTags],
   );
 
   // ── Reference context handlers ──
@@ -1241,61 +1194,9 @@ export function GalleryInfoPanel({
         </>
       )}
 
-      {/* Tags */}
-      {showTags && (
-        <>
-          <SectionHeader
-            title="Tags"
-            icon={<Tag size={14} />}
-            section="tags"
-            expanded={expandedSections.has("tags")}
-            onToggle={toggleSection}
-          />
-          {expandedSections.has("tags") && (
-            <div className="pb-2">
-              {hasTags ? (
-                <div className="flex flex-wrap gap-1.5">
-                  {CONTENT_TAGS.map(({ value, label }) => {
-                    const isActive = activeContentTags.includes(value);
-                    return (
-                      <button
-                        key={value}
-                        type="button"
-                        onClick={() => handleContentTagToggle(value)}
-                        disabled={isPending}
-                        className={cn(
-                          "rounded-full px-2.5 py-1 text-xs font-medium transition-all",
-                          isActive
-                            ? "bg-amber-500/20 text-amber-400"
-                            : "bg-white/10 text-white/60 hover:bg-white/15 hover:text-white",
-                          isPending && "opacity-60",
-                        )}
-                      >
-                        {label}
-                      </button>
-                    );
-                  })}
-                </div>
-              ) : (
-                <div className="flex flex-wrap gap-1">
-                  {item.tags.map((tag) => (
-                    <span
-                      key={tag}
-                      className="rounded-full border border-white/15 bg-white/5 px-2 py-0.5 text-xs text-white/70"
-                    >
-                      {tag}
-                    </span>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-        </>
-      )}
-
-      {/* Structured Entity Tags */}
+      {/* Tags (join table — ADR-0033) */}
       <SectionHeader
-        title="Structured Tags"
+        title="Tags"
         icon={<Tag size={14} />}
         section="structuredTags"
         expanded={expandedSections.has("structuredTags")}

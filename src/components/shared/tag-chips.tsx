@@ -2,12 +2,7 @@
 
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
-
-export type TagChipData = {
-  id: string;
-  name: string;
-  group: { name: string; color: string };
-};
+import type { TagChipData } from "@/lib/types/tag";
 
 type TagChipsProps = {
   tags: TagChipData[];

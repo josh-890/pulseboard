@@ -41,7 +41,7 @@ import { updateProject } from "@/lib/actions/project-actions";
 import { setEntityTagsAction } from "@/lib/actions/tag-actions";
 import type { ProjectStatus } from "@/lib/types";
 import { TagPicker } from "@/components/shared/tag-picker";
-import type { TagChipData } from "@/components/shared/tag-chips";
+import type { TagChipData } from "@/lib/types/tag";
 
 type EditProjectSheetProps = {
   project: {
@@ -49,7 +49,6 @@ type EditProjectSheetProps = {
     name: string;
     description: string | null;
     status: ProjectStatus;
-    tags: string[];
   };
   entityTags?: TagChipData[];
 };
@@ -73,7 +72,6 @@ export function EditProjectSheet({ project, entityTags = [] }: EditProjectSheetP
     name: project.name,
     description: project.description ?? "",
     status: project.status,
-    tags: project.tags,
   });
 
   const form = useForm<UpdateProjectFormValues, unknown, UpdateProjectInput>({

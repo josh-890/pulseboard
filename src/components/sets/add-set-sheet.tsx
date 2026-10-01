@@ -4,13 +4,13 @@
 import { useState, useCallback, useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Plus, X, Check, XCircle, ChevronDown, ChevronUp } from "lucide-react";
+import { Plus, Check, XCircle, ChevronDown, ChevronUp } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Badge } from "@/components/ui/badge";
+import { TagPicker } from "@/components/shared/tag-picker";
 import {
   Sheet,
   SheetContent,
@@ -80,7 +80,6 @@ export function AddSetSheet({ channels, recentChannelIds = [], defaultType, role
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState<1 | 2>(1);
   const [createdSetId, setCreatedSetId] = useState<string | null>(null);
-  const [tagInput, setTagInput] = useState("");
   const [showMore, setShowMore] = useState(false);
 
   // Label evidence from ChannelLabelMap suggestions
@@ -97,14 +96,14 @@ export function AddSetSheet({ channels, recentChannelIds = [], defaultType, role
       notes: "",
       category: "",
       genre: "",
-      tags: [],
+      tagIds: [],
       isCompilation: false,
       isComplete: false,
     },
   });
 
   const { isSubmitting } = form.formState;
-  const tags = form.watch("tags") ?? [];
+  const tagIds = form.watch("tagIds") ?? [];
   const watchedType = form.watch("type");
 
   // Sort channels: recent first, then alphabetical
@@ -148,17 +147,6 @@ export function AddSetSheet({ channels, recentChannelIds = [], defaultType, role
     });
   }
 
-  function addTag() {
-    const trimmed = tagInput.trim();
-    if (!trimmed || tags.includes(trimmed)) return;
-    form.setValue("tags", [...tags, trimmed]);
-    setTagInput("");
-  }
-
-  function removeTag(tag: string) {
-    form.setValue("tags", tags.filter((t) => t !== tag));
-  }
-
   function handleClose() {
     setOpen(false);
     setStep(1);
@@ -174,11 +162,10 @@ export function AddSetSheet({ channels, recentChannelIds = [], defaultType, role
       notes: "",
       category: "",
       genre: "",
-      tags: [],
+      tagIds: [],
       isCompilation: false,
       isComplete: false,
     });
-    setTagInput("");
   }
 
   async function onSubmit(values: CreateSetStandaloneInput) {
@@ -529,39 +516,15 @@ export function AddSetSheet({ channels, recentChannelIds = [], defaultType, role
                           )}
                         />
 
-                        {/* Tags */}
+                        {/* Tags — structured; written as SetTag rows after create */}
                         <FormItem>
                           <FormLabel>Tags</FormLabel>
-                          <div className="flex gap-2">
-                            <Input
-                              placeholder="Add a tag…"
-                              value={tagInput}
-                              onChange={(e) => setTagInput(e.target.value)}
-                              onKeyDown={(e) => {
-                                if (e.key === "Enter") { e.preventDefault(); addTag(); }
-                              }}
-                            />
-                            <Button type="button" variant="outline" size="sm" onClick={addTag}>
-                              Add
-                            </Button>
-                          </div>
-                          {tags.length > 0 && (
-                            <div className="mt-2 flex flex-wrap gap-1.5">
-                              {tags.map((tag) => (
-                                <Badge key={tag} variant="secondary" className="gap-1">
-                                  {tag}
-                                  <button
-                                    type="button"
-                                    onClick={() => removeTag(tag)}
-                                    className="ml-0.5 rounded-full outline-none hover:text-destructive focus-visible:ring-1 focus-visible:ring-ring"
-                                    aria-label={`Remove tag ${tag}`}
-                                  >
-                                    <X size={10} />
-                                  </button>
-                                </Badge>
-                              ))}
-                            </div>
-                          )}
+                          <TagPicker
+                            scope="SET"
+                            selectedTagIds={tagIds}
+                            onChange={(ids) => form.setValue("tagIds", ids)}
+                            placeholder="Add tags…"
+                          />
                         </FormItem>
                       </div>
                     </section>

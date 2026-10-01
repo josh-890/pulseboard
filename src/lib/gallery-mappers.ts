@@ -30,7 +30,6 @@ export type MediaItemWithLinks = {
   originalWidth: number;
   originalHeight: number;
   caption: string | null;
-  tags: string[];
   notes: string | null;
   createdAt: Date;
   urls: PhotoUrls;
@@ -92,7 +91,6 @@ export function toGalleryItem(
     urls: item.urls,
     focalX: item.focalX,
     focalY: item.focalY,
-    tags: item.tags,
     isFavorite: item.isFavorite,
     sortOrder: firstLink?.sortOrder ?? 0,
     isCover: opts?.coverMediaItemId === item.id,

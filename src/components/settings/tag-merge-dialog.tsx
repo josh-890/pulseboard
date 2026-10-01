@@ -11,19 +11,21 @@ type TagMergeDialogProps = {
   onClose: () => void;
   sourceTags: TagDefinitionWithGroup[];
   allTags: TagDefinitionWithGroup[];
+  /** Preselected target (e.g. the other tag of a near-duplicate pair) */
+  initialTargetId?: string | null;
 };
 
-export function TagMergeDialog({ open, onClose, sourceTags, allTags }: TagMergeDialogProps) {
+export function TagMergeDialog({ open, onClose, sourceTags, allTags, initialTargetId = null }: TagMergeDialogProps) {
   const router = useRouter();
   const [search, setSearch] = useState("");
-  const [targetId, setTargetId] = useState<string | null>(null);
+  const [targetId, setTargetId] = useState<string | null>(initialTargetId);
   const [isPending, startTransition] = useTransition();
 
   const sourceIds = new Set(sourceTags.map((t) => t.id));
 
   // Filter out source tags and match search
   const candidates = allTags.filter(
-    (t) => !sourceIds.has(t.id) && t.status === "active" && t.name.toLowerCase().includes(search.toLowerCase()),
+    (t) => !sourceIds.has(t.id) && t.name.toLowerCase().includes(search.toLowerCase()),
   );
 
   const target = targetId ? allTags.find((t) => t.id === targetId) : null;

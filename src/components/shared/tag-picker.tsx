@@ -11,7 +11,7 @@ import {
 import { Plus, Search, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { TagDefinitionWithGroup } from "@/lib/services/tag-service";
-import type { TagChipData } from "@/components/shared/tag-chips";
+import type { TagChipData } from "@/lib/types/tag";
 import { useRecentTags } from "@/hooks/use-recent-tags";
 
 type TagPickerProps = {
@@ -349,11 +349,6 @@ export function TagPicker({
       <span className="min-w-0 flex-1">
         <span className="flex items-center gap-1.5">
           {tag.name}
-          {tag.status === "pending" && (
-            <span className="inline-flex items-center rounded-full bg-amber-500/20 px-1.5 py-0.5 text-[9px] font-medium text-amber-600 dark:text-amber-400">
-              pending
-            </span>
-          )}
         </span>
         {tag.description && (
           <span className="block text-[10px] leading-tight text-muted-foreground/60">
@@ -458,23 +453,10 @@ export function TagPicker({
                   key={tag.id}
                   type="button"
                   onClick={() => {
-                    // Need to fetch full tag data for exclusive group logic
+                    // Full tag data carries the exclusive-group flag; chip data is the fallback
                     const fullTag = popularTags.find((p) => p.id === tag.id) ??
                       results.find((r) => r.id === tag.id);
-                    if (fullTag) {
-                      selectTag(fullTag);
-                    } else {
-                      // Fallback: use chip data
-                      selectTag({
-                        ...tag,
-                        slug: "",
-                        status: "active",
-                        description: null,
-                        scope: [],
-                        sortOrder: 0,
-                        group: { ...tag.group, id: "", slug: "", isExclusive: false },
-                      } as TagDefinitionWithGroup);
-                    }
+                    selectTag(fullTag ?? tag);
                   }}
                   className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs transition-colors hover:bg-muted/30"
                 >

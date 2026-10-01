@@ -535,7 +535,6 @@ export async function createSetStandaloneRecord(data: {
   releaseDatePrecision?: string;
   category?: string;
   genre?: string;
-  tags?: string[];
   isCompilation?: boolean;
   isComplete?: boolean;
   imageCount?: number;
@@ -575,7 +574,6 @@ export async function createSetStandaloneRecord(data: {
         releaseDatePrecision: (data.releaseDatePrecision as "UNKNOWN" | "YEAR" | "MONTH" | "DAY") ?? "UNKNOWN",
         category: data.category,
         genre: data.genre,
-        tags: data.tags ?? [],
         isCompilation: data.isCompilation ?? false,
         isComplete: data.isComplete ?? false,
         imageCount: data.imageCount ?? null,
@@ -614,7 +612,6 @@ export async function updateSetRecord(id: string, data: {
   releaseDatePrecision?: string;
   category?: string | null;
   genre?: string | null;
-  tags?: string[];
   isCompilation?: boolean;
   isComplete?: boolean;
   imageCount?: number | null;
@@ -631,7 +628,6 @@ export async function updateSetRecord(id: string, data: {
     releaseDatePrecision: (data.releaseDatePrecision as "UNKNOWN" | "YEAR" | "MONTH" | "DAY") ?? undefined,
     category: data.category,
     genre: data.genre,
-    tags: data.tags,
     isCompilation: data.isCompilation,
     isComplete: data.isComplete,
     imageCount: data.imageCount,

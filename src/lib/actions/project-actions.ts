@@ -8,6 +8,7 @@ import {
   updateProjectRecord,
   deleteProjectRecord,
 } from "@/lib/services/project-service";
+import { addTagsToEntity } from "@/lib/services/entity-tag-service";
 import type { CrudActionResult, SimpleActionResult } from "@/lib/types";
 
 export async function createProject(raw: unknown): Promise<CrudActionResult> {
@@ -18,7 +19,9 @@ export async function createProject(raw: unknown): Promise<CrudActionResult> {
     }
 
     try {
-      const project = await createProjectRecord(parsed.data);
+      const { tagIds, ...fields } = parsed.data;
+      const project = await createProjectRecord(fields);
+      await addTagsToEntity("PROJECT", project.id, tagIds);
       revalidatePath("/projects");
       return { success: true, id: project.id };
     } catch {

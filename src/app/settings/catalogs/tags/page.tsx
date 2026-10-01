@@ -4,7 +4,6 @@ import { withTenantFromHeaders } from "@/lib/tenant-context";
 import { TagSettingsSection } from "@/components/settings/tag-settings-section";
 import {
   getAllTagGroups,
-  getPendingTags,
   getOrphanedTags,
   getNearDuplicateTags,
   getTagUsageBreakdown,
@@ -12,10 +11,9 @@ import {
 
 export default async function TagsPage() {
   return withTenantFromHeaders(async () => {
-    const [tagGroups, pendingTags, orphanedTags, nearDuplicates, usageBreakdown] =
+    const [tagGroups, orphanedTags, nearDuplicates, usageBreakdown] =
       await Promise.all([
         getAllTagGroups(),
-        getPendingTags(),
         getOrphanedTags(),
         getNearDuplicateTags(),
         getTagUsageBreakdown(),
@@ -26,13 +24,14 @@ export default async function TagsPage() {
         <div>
           <h1 className="text-2xl font-bold">Tag Catalog</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Define tag groups and tags. Tags can be applied to people, sessions, media items,
-            sets, and projects. Each group has a color; each tag has a configurable scope.
+            Define tag groups and tags. A group&apos;s domain decides where its tags may be applied
+            (persons, content — sessions, sets and images — or projects); inside content its typical
+            level only ranks the picker. Tags can have a parent: filtering by a parent also finds
+            its children.
           </p>
         </div>
         <TagSettingsSection
           groups={tagGroups}
-          pendingTags={pendingTags}
           orphanedTags={orphanedTags}
           nearDuplicates={nearDuplicates}
           usageBreakdown={usageBreakdown}

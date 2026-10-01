@@ -7,7 +7,6 @@ import type { MediaItemWithLinks } from "@/lib/services/media-service";
 import {
   MediaUsageBadge,
   MediaAnchorBadge,
-  MediaTagCountBadge,
   MediaLinkIcon,
   MediaCollectionIcon,
   MediaSetCountBadge,
@@ -124,9 +123,6 @@ export function MediaThumbnail({
         {item.links.map((link) => (
             <MediaUsageBadge key={link.id} usage={link.usage} />
           ))}
-        {item.tags.length > 0 && (
-          <MediaTagCountBadge count={item.tags.length} />
-        )}
         {hasEntityLink && <MediaLinkIcon />}
         {item.collectionIds.length > 0 && <MediaCollectionIcon />}
         {item.isFavorite && (

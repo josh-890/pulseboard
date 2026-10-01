@@ -69,6 +69,7 @@ export { parsePhotoVariants } from "./photo";
 export type { TagSource } from "@/generated/prisma/client";
 export type { TagGroupWithDefinitions, TagDefinitionWithGroup } from "@/lib/services/tag-service";
 export type { TaggableEntity } from "@/lib/services/entity-tag-service";
+export type { TagChipData } from "./tag";
 
 export type {
   MediaItem,

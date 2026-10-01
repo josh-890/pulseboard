@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { TagPicker } from "@/components/shared/tag-picker";
 import { setEntityTagsAction } from "@/lib/actions/tag-actions";
-import type { TagChipData } from "@/components/shared/tag-chips";
+import type { TagChipData } from "@/lib/types/tag";
 
 type SessionTagSectionProps = {
   sessionId: string;

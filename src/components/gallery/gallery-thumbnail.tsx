@@ -6,7 +6,6 @@ import { cn } from "@/lib/utils";
 import type { GalleryItem } from "@/lib/types";
 import {
   MediaUsageBadge,
-  MediaTagCountBadge,
   MediaLinkIcon,
   MediaCollectionIcon,
   MediaSetCountBadge,
@@ -48,7 +47,6 @@ export function GalleryThumbnail({
   const imgSrc = item.urls.gallery_512 ?? item.urls.original;
   if (!imgSrc) return null;
 
-  const tagCount = item.tags.filter((t) => !t.startsWith("p-img")).length;
   const hasEntityLink = item.links?.some(
     (l) => l.bodyMarkId || l.bodyModificationId || l.cosmeticProcedureId,
   );
@@ -217,7 +215,6 @@ export function GalleryThumbnail({
         {item.links?.map((link) => (
           <MediaUsageBadge key={link.id} usage={link.usage} />
         ))}
-        <MediaTagCountBadge count={tagCount} />
         {hasEntityLink && <MediaLinkIcon />}
         {hasCollections && <MediaCollectionIcon />}
       </div>

@@ -17,7 +17,6 @@ const commonSetFields = {
   releaseDatePrecision: datePrecisionEnum,
   category: z.string().optional(),
   genre: z.string().optional(),
-  tags: z.array(z.string()).default([]),
   isCompilation: z.boolean().default(false),
   isComplete: z.boolean().default(false),
   imageCount: z.number().int().positive().optional(),
@@ -37,6 +36,8 @@ export const createSetStandaloneSchema = z.object({
   type: z.enum(["photo", "video"], { error: "Type is required" }),
   title: z.string().min(1, "Title is required"),
   ...commonSetFields,
+  // Tag ids from the picker; the action writes SetTag rows once the set exists (ADR-0033)
+  tagIds: z.array(z.string()).default([]),
 });
 
 export const creditEntrySchema = z.object({

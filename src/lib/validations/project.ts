@@ -4,7 +4,8 @@ export const createProjectSchema = z.object({
   name: z.string().min(1, "Name is required"),
   description: z.string().optional(),
   status: z.enum(["active", "paused", "completed"]).default("active"),
-  tags: z.array(z.string()).default([]),
+  // Tag ids from the picker; written as ProjectTag rows after create (ADR-0033)
+  tagIds: z.array(z.string()).default([]),
 });
 
 export const updateProjectSchema = z.object({
@@ -12,7 +13,6 @@ export const updateProjectSchema = z.object({
   name: z.string().min(1, "Name is required"),
   description: z.string().optional(),
   status: z.enum(["active", "paused", "completed"]).default("active"),
-  tags: z.array(z.string()).default([]),
 });
 
 export type CreateProjectFormValues = z.input<typeof createProjectSchema>;

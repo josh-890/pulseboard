@@ -5,13 +5,16 @@ import {
   ChevronDown,
   ChevronRight,
   GripVertical,
+  ListTodo,
   Lock,
   Pencil,
   Plus,
   Trash2,
   X,
 } from "lucide-react";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import type { TagDomain, TagGroupKind, TagLevel } from "@/generated/prisma/client";
 import type { TagGroupWithDefinitions } from "@/lib/services/tag-service";
 import {
   createTagGroupAction,
@@ -28,13 +31,38 @@ type TagCatalogManagerProps = {
   groups: TagGroupWithDefinitions[];
 };
 
-const SCOPE_OPTIONS = [
-  { value: "PERSON", label: "Person", short: "P" },
-  { value: "SESSION", label: "Session", short: "S" },
-  { value: "MEDIA_ITEM", label: "Media", short: "M" },
-  { value: "SET", label: "Set", short: "Set" },
-  { value: "PROJECT", label: "Project", short: "Prj" },
-] as const;
+type GroupFields = {
+  domain: TagDomain;
+  typicalLevel: TagLevel | null;
+  kind: TagGroupKind;
+};
+
+const DEFAULT_GROUP_FIELDS: GroupFields = { domain: "ANY", typicalLevel: null, kind: "DESCRIPTIVE" };
+
+const DOMAIN_OPTIONS: { value: TagDomain; label: string }[] = [
+  { value: "CONTENT", label: "Content (session · set · image)" },
+  { value: "PERSON", label: "Person" },
+  { value: "PROJECT", label: "Project" },
+  { value: "ANY", label: "Any" },
+];
+
+const LEVEL_OPTIONS: { value: TagLevel; label: string }[] = [
+  { value: "SESSION", label: "Session" },
+  { value: "SET", label: "Set" },
+  { value: "MEDIA_ITEM", label: "Image" },
+];
+
+const DOMAIN_SHORT: Record<TagDomain, string> = {
+  CONTENT: "Content",
+  PERSON: "Person",
+  PROJECT: "Project",
+  ANY: "Any",
+};
+
+const LEVEL_SHORT: Record<TagLevel, string> = { SESSION: "session", SET: "set", MEDIA_ITEM: "image" };
+
+const SELECT_CLASS =
+  "rounded-md border border-white/15 bg-background/50 px-1.5 py-1 text-xs text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring";
 
 const PRESET_COLORS = [
   "#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6",
@@ -50,55 +78,123 @@ function ColorDot({ color, size = 10 }: { color: string; size?: number }) {
   );
 }
 
-function ScopeBadges({ scope }: { scope: string[] }) {
+function GroupFieldsEditor({
+  value,
+  onChange,
+}: {
+  value: GroupFields;
+  onChange: (value: GroupFields) => void;
+}) {
   return (
-    <div className="flex gap-0.5">
-      {SCOPE_OPTIONS.map((opt) => (
-        <span
-          key={opt.value}
-          className={cn(
-            "rounded px-1 py-0.5 text-[9px] font-medium leading-none",
-            scope.includes(opt.value)
-              ? "bg-primary/20 text-primary"
-              : "bg-muted/20 text-muted-foreground/30",
-          )}
+    <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+      <label className="flex items-center gap-1">
+        Domain
+        <select
+          value={value.domain}
+          onChange={(e) => {
+            const domain = e.target.value as TagDomain;
+            // A typical level only means something inside the content chain
+            onChange({ ...value, domain, typicalLevel: domain === "CONTENT" ? value.typicalLevel : null });
+          }}
+          className={SELECT_CLASS}
         >
-          {opt.short}
-        </span>
-      ))}
+          {DOMAIN_OPTIONS.map((o) => (
+            <option key={o.value} value={o.value}>{o.label}</option>
+          ))}
+        </select>
+      </label>
+      {value.domain === "CONTENT" && (
+        <label className="flex items-center gap-1">
+          Typical level
+          <select
+            value={value.typicalLevel ?? ""}
+            onChange={(e) => onChange({ ...value, typicalLevel: (e.target.value || null) as TagLevel | null })}
+            className={SELECT_CLASS}
+          >
+            <option value="">—</option>
+            {LEVEL_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>{o.label}</option>
+            ))}
+          </select>
+        </label>
+      )}
+      <label className="flex items-center gap-1">
+        <input
+          type="checkbox"
+          checked={value.kind === "WORKFLOW"}
+          onChange={(e) => onChange({ ...value, kind: e.target.checked ? "WORKFLOW" : "DESCRIPTIVE" })}
+          className="h-3 w-3 rounded border-white/20 bg-background/50"
+        />
+        <ListTodo size={11} className="text-muted-foreground/50" />
+        Workflow markers (never inherited)
+      </label>
     </div>
   );
 }
 
-function ScopeCheckboxes({
-  scope,
+function GroupFieldBadges({ group }: { group: GroupFields }) {
+  return (
+    <span className="flex items-center gap-1">
+      <span className="rounded bg-primary/15 px-1 py-0.5 text-[9px] font-medium leading-none text-primary">
+        {DOMAIN_SHORT[group.domain]}
+        {group.typicalLevel ? ` · ${LEVEL_SHORT[group.typicalLevel]}` : ""}
+      </span>
+      {group.kind === "WORKFLOW" && (
+        <span className="rounded bg-amber-500/20 px-1 py-0.5 text-[9px] font-medium leading-none text-amber-600 dark:text-amber-400">
+          workflow
+        </span>
+      )}
+    </span>
+  );
+}
+
+function TagStructureFields({
+  tagId,
+  group,
+  parentId,
+  typicalLevel,
   onChange,
 }: {
-  scope: string[];
-  onChange: (scope: string[]) => void;
+  tagId: string | null;
+  group: TagGroupWithDefinitions;
+  parentId: string | null;
+  typicalLevel: TagLevel | null;
+  onChange: (value: { parentId: string | null; typicalLevel: TagLevel | null }) => void;
 }) {
+  // A tag can only be parented within its own group; the server rejects cycles
+  const candidates = group.tags.filter((t) => t.id !== tagId);
   return (
-    <div className="flex flex-wrap gap-2">
-      {SCOPE_OPTIONS.map((opt) => (
-        <label
-          key={opt.value}
-          className="flex items-center gap-1 text-xs text-muted-foreground"
+    <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+      <label className="flex items-center gap-1">
+        Parent
+        <select
+          value={parentId ?? ""}
+          onChange={(e) => onChange({ parentId: e.target.value || null, typicalLevel })}
+          className={SELECT_CLASS}
         >
-          <input
-            type="checkbox"
-            checked={scope.includes(opt.value)}
-            onChange={(e) => {
-              if (e.target.checked) {
-                onChange([...scope, opt.value]);
-              } else {
-                onChange(scope.filter((s) => s !== opt.value));
-              }
-            }}
-            className="h-3 w-3 rounded border-white/20 bg-background/50"
-          />
-          {opt.label}
+          <option value="">— none —</option>
+          {candidates.map((t) => (
+            <option key={t.id} value={t.id}>{t.name}</option>
+          ))}
+        </select>
+      </label>
+      {group.domain === "CONTENT" && (
+        <label className="flex items-center gap-1">
+          Level
+          <select
+            value={typicalLevel ?? ""}
+            onChange={(e) => onChange({ parentId, typicalLevel: (e.target.value || null) as TagLevel | null })}
+            className={SELECT_CLASS}
+          >
+            <option value="">
+              {group.typicalLevel ? `group default (${LEVEL_SHORT[group.typicalLevel]})` : "group default"}
+            </option>
+            {LEVEL_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>{o.label}</option>
+            ))}
+          </select>
         </label>
-      ))}
+      )}
     </div>
   );
 }
@@ -151,6 +247,7 @@ export function TagCatalogManager({
   const [newGroupColor, setNewGroupColor] = useState("#6b7280");
   const [newGroupDescription, setNewGroupDescription] = useState("");
   const [newGroupExclusive, setNewGroupExclusive] = useState(false);
+  const [newGroupFields, setNewGroupFields] = useState<GroupFields>(DEFAULT_GROUP_FIELDS);
 
   // ── Edit group ──
   const [editingGroupId, setEditingGroupId] = useState<string | null>(null);
@@ -158,19 +255,22 @@ export function TagCatalogManager({
   const [editGroupColor, setEditGroupColor] = useState("");
   const [editGroupDescription, setEditGroupDescription] = useState("");
   const [editGroupExclusive, setEditGroupExclusive] = useState(false);
+  const [editGroupFields, setEditGroupFields] = useState<GroupFields>(DEFAULT_GROUP_FIELDS);
 
   // ── Add tag ──
   const [addingTagGroupId, setAddingTagGroupId] = useState<string | null>(null);
   const [newTagName, setNewTagName] = useState("");
-  const [newTagScope, setNewTagScope] = useState<string[]>([
-    "PERSON", "SESSION", "MEDIA_ITEM", "SET", "PROJECT",
-  ]);
+  const [newTagStructure, setNewTagStructure] = useState<{ parentId: string | null; typicalLevel: TagLevel | null }>(
+    { parentId: null, typicalLevel: null },
+  );
   const [newTagDescription, setNewTagDescription] = useState("");
 
   // ── Edit tag ──
   const [editingTagId, setEditingTagId] = useState<string | null>(null);
   const [editTagName, setEditTagName] = useState("");
-  const [editTagScope, setEditTagScope] = useState<string[]>([]);
+  const [editTagStructure, setEditTagStructure] = useState<{ parentId: string | null; typicalLevel: TagLevel | null }>(
+    { parentId: null, typicalLevel: null },
+  );
   const [editTagDescription, setEditTagDescription] = useState("");
 
   // ── Alias input ──
@@ -194,18 +294,20 @@ export function TagCatalogManager({
     const color = newGroupColor;
     const description = newGroupDescription.trim() || undefined;
     const isExclusive = newGroupExclusive;
+    const fields = newGroupFields;
     startTransition(async () => {
-      const result = await createTagGroupAction(name, color, description, isExclusive);
+      const result = await createTagGroupAction({ name, color, description, isExclusive, ...fields });
       if (result.success) {
         setNewGroupName("");
         setNewGroupColor("#6b7280");
         setNewGroupDescription("");
         setNewGroupExclusive(false);
+        setNewGroupFields(DEFAULT_GROUP_FIELDS);
         setShowAddGroup(false);
         window.location.reload();
       }
     });
-  }, [newGroupName, newGroupColor, newGroupDescription, newGroupExclusive]);
+  }, [newGroupName, newGroupColor, newGroupDescription, newGroupExclusive, newGroupFields]);
 
   const handleUpdateGroup = useCallback(
     (id: string) => {
@@ -216,6 +318,7 @@ export function TagCatalogManager({
           color: editGroupColor,
           description: editGroupDescription.trim() || null,
           isExclusive: editGroupExclusive,
+          ...editGroupFields,
         });
         setGroups((prev) =>
           prev.map((g) =>
@@ -226,6 +329,7 @@ export function TagCatalogManager({
                   color: editGroupColor,
                   description: editGroupDescription.trim() || null,
                   isExclusive: editGroupExclusive,
+                  ...editGroupFields,
                 }
               : g,
           ),
@@ -233,7 +337,7 @@ export function TagCatalogManager({
         setEditingGroupId(null);
       });
     },
-    [editGroupName, editGroupColor, editGroupDescription, editGroupExclusive],
+    [editGroupName, editGroupColor, editGroupDescription, editGroupExclusive, editGroupFields],
   );
 
   const handleDeleteGroup = useCallback((id: string) => {
@@ -251,37 +355,41 @@ export function TagCatalogManager({
     (groupId: string) => {
       if (!newTagName.trim()) return;
       const name = newTagName.trim();
-      const scope = newTagScope;
+      const structure = newTagStructure;
       const description = newTagDescription.trim() || undefined;
       startTransition(async () => {
-        const result = await createTagDefinitionAction(groupId, name, scope, description);
+        const result = await createTagDefinitionAction({ groupId, name, description, ...structure });
         if (result.success) {
           setNewTagName("");
-          setNewTagScope(["PERSON", "SESSION", "MEDIA_ITEM", "SET", "PROJECT"]);
+          setNewTagStructure({ parentId: null, typicalLevel: null });
           setNewTagDescription("");
           setAddingTagGroupId(null);
           window.location.reload();
         }
       });
     },
-    [newTagName, newTagScope, newTagDescription],
+    [newTagName, newTagStructure, newTagDescription],
   );
 
   const handleUpdateTag = useCallback(
     (id: string) => {
       if (!editTagName.trim()) return;
       startTransition(async () => {
-        await updateTagDefinitionAction(id, {
+        const result = await updateTagDefinitionAction(id, {
           name: editTagName.trim(),
-          scope: editTagScope,
+          ...editTagStructure,
           description: editTagDescription.trim() || null,
         });
+        if (!result.success) {
+          toast.error(result.error ?? "Failed to update tag");
+          return;
+        }
         setGroups((prev) =>
           prev.map((g) => ({
             ...g,
             tags: g.tags.map((t) =>
               t.id === id
-                ? { ...t, name: editTagName.trim(), scope: editTagScope, description: editTagDescription.trim() || null }
+                ? { ...t, name: editTagName.trim(), ...editTagStructure, description: editTagDescription.trim() || null }
                 : t,
             ),
           })),
@@ -289,7 +397,7 @@ export function TagCatalogManager({
         setEditingTagId(null);
       });
     },
-    [editTagName, editTagScope, editTagDescription],
+    [editTagName, editTagStructure, editTagDescription],
   );
 
   const handleDeleteTag = useCallback((id: string) => {
@@ -336,7 +444,6 @@ export function TagCatalogManager({
         const isExpanded = expandedGroups.has(group.id);
         const isEditing = editingGroupId === group.id;
         const hasTags = group.tags.length > 0;
-        const pendingCount = group.tags.filter((t) => t.status === "pending").length;
 
         return (
           <div
@@ -405,6 +512,7 @@ export function TagCatalogManager({
                     <Lock size={11} className="text-muted-foreground/50" />
                     Exclusive (only one tag per entity)
                   </label>
+                  <GroupFieldsEditor value={editGroupFields} onChange={setEditGroupFields} />
                 </div>
               ) : (
                 <>
@@ -419,11 +527,7 @@ export function TagCatalogManager({
                       {group.description}
                     </span>
                   )}
-                  {pendingCount > 0 && (
-                    <span className="rounded-full bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-medium text-amber-600 dark:text-amber-400">
-                      {pendingCount} pending
-                    </span>
-                  )}
+                  <GroupFieldBadges group={group} />
                   <span className="mr-1 text-xs text-muted-foreground">
                     {group.tags.length} {group.tags.length === 1 ? "tag" : "tags"}
                   </span>
@@ -435,6 +539,11 @@ export function TagCatalogManager({
                       setEditGroupColor(group.color);
                       setEditGroupDescription(group.description ?? "");
                       setEditGroupExclusive(group.isExclusive);
+                      setEditGroupFields({
+                        domain: group.domain,
+                        typicalLevel: group.typicalLevel,
+                        kind: group.kind,
+                      });
                     }}
                     className="rounded-md p-1 text-muted-foreground transition-colors hover:text-foreground"
                     aria-label="Edit group"
@@ -501,9 +610,12 @@ export function TagCatalogManager({
                             <X size={12} />
                           </button>
                         </div>
-                        <ScopeCheckboxes
-                          scope={editTagScope}
-                          onChange={setEditTagScope}
+                        <TagStructureFields
+                          tagId={tag.id}
+                          group={group}
+                          parentId={editTagStructure.parentId}
+                          typicalLevel={editTagStructure.typicalLevel}
+                          onChange={setEditTagStructure}
                         />
                         <textarea
                           value={editTagDescription}
@@ -572,9 +684,14 @@ export function TagCatalogManager({
                       <div className="flex flex-1 flex-col min-w-0">
                         <span className="flex items-center gap-1.5 text-sm">
                           {tag.name}
-                          {tag.status === "pending" && (
-                            <span className="rounded-full bg-amber-500/20 px-1.5 py-0.5 text-[9px] font-medium text-amber-600 dark:text-amber-400">
-                              pending
+                          {tag.parentId && (
+                            <span className="text-[10px] text-muted-foreground/50">
+                              ⊂ {group.tags.find((t) => t.id === tag.parentId)?.name}
+                            </span>
+                          )}
+                          {tag.typicalLevel && (
+                            <span className="rounded bg-muted/40 px-1 py-0.5 text-[9px] leading-none text-muted-foreground">
+                              {LEVEL_SHORT[tag.typicalLevel]}
                             </span>
                           )}
                         </span>
@@ -589,13 +706,12 @@ export function TagCatalogManager({
                           </span>
                         )}
                       </div>
-                      <ScopeBadges scope={tag.scope} />
                       <button
                         type="button"
                         onClick={() => {
                           setEditingTagId(tag.id);
                           setEditTagName(tag.name);
-                          setEditTagScope([...tag.scope]);
+                          setEditTagStructure({ parentId: tag.parentId, typicalLevel: tag.typicalLevel });
                           setEditTagDescription(tag.description ?? "");
                           setAliasTagId(tag.id);
                         }}
@@ -644,7 +760,7 @@ export function TagCatalogManager({
                         onClick={() => {
                           setAddingTagGroupId(null);
                           setNewTagName("");
-                          setNewTagScope(["PERSON", "SESSION", "MEDIA_ITEM", "SET", "PROJECT"]);
+                          setNewTagStructure({ parentId: null, typicalLevel: null });
                           setNewTagDescription("");
                         }}
                         className="rounded-md p-1 text-muted-foreground hover:text-foreground"
@@ -652,7 +768,13 @@ export function TagCatalogManager({
                         <X size={12} />
                       </button>
                     </div>
-                    <ScopeCheckboxes scope={newTagScope} onChange={setNewTagScope} />
+                    <TagStructureFields
+                      tagId={null}
+                      group={group}
+                      parentId={newTagStructure.parentId}
+                      typicalLevel={newTagStructure.typicalLevel}
+                      onChange={setNewTagStructure}
+                    />
                     <input
                       type="text"
                       value={newTagDescription}
@@ -708,6 +830,7 @@ export function TagCatalogManager({
                 setNewGroupColor("#6b7280");
                 setNewGroupDescription("");
                 setNewGroupExclusive(false);
+                setNewGroupFields(DEFAULT_GROUP_FIELDS);
               }}
               className="rounded-md p-1 text-muted-foreground hover:text-foreground"
             >
@@ -732,6 +855,7 @@ export function TagCatalogManager({
             <Lock size={11} className="text-muted-foreground/50" />
             Exclusive (only one tag per entity)
           </label>
+          <GroupFieldsEditor value={newGroupFields} onChange={setNewGroupFields} />
         </div>
       ) : (
         <button

@@ -44,7 +44,7 @@ import { setEntityTagsAction } from "@/lib/actions/tag-actions";
 import type { SetType } from "@/lib/types";
 import { PartialDateInput } from "@/components/shared/partial-date-input";
 import { TagPicker } from "@/components/shared/tag-picker";
-import type { TagChipData } from "@/components/shared/tag-chips";
+import type { TagChipData } from "@/lib/types/tag";
 
 type ChannelOption = { id: string; name: string; labelName: string | null };
 
@@ -60,7 +60,6 @@ type EditSetSheetProps = {
     releaseDatePrecision: string;
     category: string | null;
     genre: string | null;
-    tags: string[];
     isCompilation: boolean;
     isComplete: boolean;
     imageCount: number | null;
@@ -95,7 +94,6 @@ export function EditSetSheet({ set, channels, entityTags = [] }: EditSetSheetPro
     releaseDatePrecision: (set.releaseDatePrecision as "UNKNOWN" | "YEAR" | "MONTH" | "DAY") ?? "UNKNOWN",
     category: set.category ?? "",
     genre: set.genre ?? "",
-    tags: set.tags,
     isCompilation: set.isCompilation,
     isComplete: set.isComplete,
     imageCount: set.imageCount && set.imageCount > 0 ? set.imageCount : undefined,

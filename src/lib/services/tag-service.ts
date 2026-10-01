@@ -1,4 +1,6 @@
 import { prisma } from "@/lib/db";
+import type { TagDomain, TagGroupKind, TagLevel } from "@/generated/prisma/client";
+import { domainsForEntity, type TaggableEntity } from "./entity-tag-service";
 
 function slugify(name: string): string {
   return name
@@ -21,11 +23,20 @@ export type TagDefinitionWithGroup = {
   id: string;
   name: string;
   slug: string;
-  status: string;
   description: string | null;
-  scope: string[];
+  parentId: string | null;
+  typicalLevel: TagLevel | null;
   sortOrder: number;
-  group: { id: string; name: string; slug: string; color: string; isExclusive: boolean };
+  group: {
+    id: string;
+    name: string;
+    slug: string;
+    color: string;
+    isExclusive: boolean;
+    domain: TagDomain;
+    typicalLevel: TagLevel | null;
+    kind: TagGroupKind;
+  };
   aliases?: { name: string }[];
 };
 
@@ -50,7 +61,53 @@ export type NearDuplicatePair = {
 
 // ─── Group Includes ─────────────────────────────────────────────────────────
 
-const GROUP_SELECT = { id: true, name: true, slug: true, color: true, isExclusive: true } as const;
+const GROUP_SELECT = {
+  id: true,
+  name: true,
+  slug: true,
+  color: true,
+  isExclusive: true,
+  domain: true,
+  typicalLevel: true,
+  kind: true,
+} as const;
+
+/** The level a tag is typically applied at: its own override, else its group's. */
+export function effectiveTypicalLevel(tag: Pick<TagDefinitionWithGroup, "typicalLevel" | "group">): TagLevel | null {
+  return tag.typicalLevel ?? tag.group.typicalLevel;
+}
+
+/**
+ * Picker ranking for an entity type: inside the content chain, tags whose
+ * typical level is this entity come first (a soft hint — nothing is hidden).
+ * Stable otherwise, so group/tag sort order survives.
+ */
+export function rankForEntity<T extends Pick<TagDefinitionWithGroup, "typicalLevel" | "group">>(
+  tags: T[],
+  entityType: TaggableEntity,
+): T[] {
+  if (entityType === "PERSON" || entityType === "PROJECT") return tags;
+  const fits = (t: T) => (effectiveTypicalLevel(t) === entityType ? 0 : 1);
+  return tags
+    .map((t, i) => ({ t, i }))
+    .sort((a, b) => fits(a.t) - fits(b.t) || a.i - b.i)
+    .map(({ t }) => t);
+}
+
+/** Reject a parent assignment that would make the hierarchy cyclic. */
+async function assertNoCycle(tagId: string, parentId: string | null): Promise<void> {
+  if (!parentId) return;
+  if (parentId === tagId) throw new Error("A tag cannot be its own parent");
+  const rows = await prisma.$queryRaw<Array<{ id: string }>>`
+    WITH RECURSIVE ancestors AS (
+      SELECT id, "parentId" FROM tag_definition WHERE id = ${parentId}
+      UNION
+      SELECT td.id, td."parentId" FROM tag_definition td JOIN ancestors a ON td.id = a."parentId"
+    )
+    SELECT id FROM ancestors WHERE id = ${tagId}
+  `;
+  if (rows.length > 0) throw new Error("That parent would create a cycle");
+}
 
 // ─── Group CRUD ─────────────────────────────────────────────────────────────
 
@@ -66,12 +123,18 @@ export async function getAllTagGroups() {
   });
 }
 
+type TagGroupFields = {
+  domain?: TagDomain;
+  typicalLevel?: TagLevel | null;
+  kind?: TagGroupKind;
+};
+
 export async function createTagGroup(data: {
   name: string;
   color?: string;
   description?: string;
   isExclusive?: boolean;
-}) {
+} & TagGroupFields) {
   const maxOrder = await prisma.tagGroup.aggregate({
     _max: { sortOrder: true },
   });
@@ -82,6 +145,9 @@ export async function createTagGroup(data: {
       color: data.color ?? "#6b7280",
       description: data.description ?? null,
       isExclusive: data.isExclusive ?? false,
+      domain: data.domain ?? "ANY",
+      typicalLevel: data.typicalLevel ?? null,
+      kind: data.kind ?? "DESCRIPTIVE",
       sortOrder: (maxOrder._max.sortOrder ?? 0) + 1,
     },
   });
@@ -89,7 +155,7 @@ export async function createTagGroup(data: {
 
 export async function updateTagGroup(
   id: string,
-  data: { name?: string; color?: string; description?: string | null; isExclusive?: boolean },
+  data: { name?: string; color?: string; description?: string | null; isExclusive?: boolean } & TagGroupFields,
 ) {
   const updateData: Record<string, unknown> = {};
   if (data.name !== undefined) {
@@ -99,6 +165,9 @@ export async function updateTagGroup(
   if (data.color !== undefined) updateData.color = data.color;
   if (data.description !== undefined) updateData.description = data.description;
   if (data.isExclusive !== undefined) updateData.isExclusive = data.isExclusive;
+  if (data.domain !== undefined) updateData.domain = data.domain;
+  if (data.typicalLevel !== undefined) updateData.typicalLevel = data.typicalLevel;
+  if (data.kind !== undefined) updateData.kind = data.kind;
 
   return prisma.tagGroup.update({
     where: { id },
@@ -129,9 +198,9 @@ export async function reorderTagGroups(orderedIds: string[]) {
 export async function createTagDefinition(data: {
   groupId: string;
   name: string;
-  scope?: string[];
   description?: string;
-  status?: string;
+  parentId?: string | null;
+  typicalLevel?: TagLevel | null;
 }) {
   const maxOrder = await prisma.tagDefinition.aggregate({
     where: { groupId: data.groupId },
@@ -143,9 +212,9 @@ export async function createTagDefinition(data: {
       name: data.name,
       slug: slugify(data.name),
       nameNorm: normalize(data.name),
-      scope: data.scope ?? ["PERSON", "SESSION", "MEDIA_ITEM", "SET", "PROJECT"],
       description: data.description ?? null,
-      status: data.status ?? "active",
+      parentId: data.parentId ?? null,
+      typicalLevel: data.typicalLevel ?? null,
       sortOrder: (maxOrder._max.sortOrder ?? 0) + 1,
     },
   });
@@ -153,18 +222,25 @@ export async function createTagDefinition(data: {
 
 export async function updateTagDefinition(
   id: string,
-  data: { name?: string; scope?: string[]; sortOrder?: number; description?: string | null; status?: string },
+  data: {
+    name?: string;
+    sortOrder?: number;
+    description?: string | null;
+    parentId?: string | null;
+    typicalLevel?: TagLevel | null;
+  },
 ) {
+  if (data.parentId !== undefined) await assertNoCycle(id, data.parentId);
   const updateData: Record<string, unknown> = {};
   if (data.name !== undefined) {
     updateData.name = data.name;
     updateData.slug = slugify(data.name);
     updateData.nameNorm = normalize(data.name);
   }
-  if (data.scope !== undefined) updateData.scope = data.scope;
   if (data.sortOrder !== undefined) updateData.sortOrder = data.sortOrder;
   if (data.description !== undefined) updateData.description = data.description;
-  if (data.status !== undefined) updateData.status = data.status;
+  if (data.parentId !== undefined) updateData.parentId = data.parentId;
+  if (data.typicalLevel !== undefined) updateData.typicalLevel = data.typicalLevel;
 
   return prisma.tagDefinition.update({
     where: { id },
@@ -174,6 +250,9 @@ export async function updateTagDefinition(
 
 export async function deleteTagDefinition(id: string) {
   return prisma.$transaction(async (tx) => {
+    // Children move up to the deleted tag's parent, keeping their implication chain
+    const doomed = await tx.tagDefinition.findUniqueOrThrow({ where: { id }, select: { parentId: true } });
+    await tx.tagDefinition.updateMany({ where: { parentId: id }, data: { parentId: doomed.parentId } });
     // Delete aliases first
     await tx.tagAlias.deleteMany({ where: { tagDefinitionId: id } });
     // Delete all join table rows
@@ -278,7 +357,19 @@ export async function mergeTagDefinitions(sourceIds: string[], targetId: string)
       });
     }
 
-    // ── 6. Delete source aliases and source definitions ───────────────────────
+    // ── 6. Children of the sources now hang under the target ─────────────────
+    // Detach the target first when its own parent is a source, or it would
+    // become its own parent below.
+    await tx.tagDefinition.updateMany({
+      where: { id: targetId, parentId: { in: sourceIds } },
+      data: { parentId: null },
+    });
+    await tx.tagDefinition.updateMany({
+      where: { parentId: { in: sourceIds } },
+      data: { parentId: targetId },
+    });
+
+    // ── 7. Delete source aliases and source definitions ───────────────────────
     await tx.tagAlias.deleteMany({ where: { tagDefinitionId: { in: sourceIds } } });
     await tx.tagDefinition.deleteMany({ where: { id: { in: sourceIds } } });
   });
@@ -294,40 +385,49 @@ export async function reorderTagDefinitions(orderedIds: string[]) {
 
 // ─── Search ─────────────────────────────────────────────────────────────────
 
-export async function getTagDefinitionsForScope(scope: string): Promise<TagDefinitionWithGroup[]> {
-  return prisma.tagDefinition.findMany({
-    where: { scope: { has: scope } },
-    include: {
-      group: { select: GROUP_SELECT },
-      aliases: { select: { name: true } },
-    },
+const DEFINITION_INCLUDE = {
+  group: { select: GROUP_SELECT },
+  aliases: { select: { name: true } },
+} as const;
+
+/** Every tag that may sit on this entity type, ranked by typical level. */
+export async function getTagDefinitionsForEntity(entityType: TaggableEntity): Promise<TagDefinitionWithGroup[]> {
+  const tags = await prisma.tagDefinition.findMany({
+    where: { group: { domain: { in: domainsForEntity(entityType) } } },
+    include: DEFINITION_INCLUDE,
     orderBy: [{ group: { sortOrder: "asc" } }, { sortOrder: "asc" }],
   });
+  return rankForEntity(tags, entityType);
 }
 
-export async function searchTagDefinitions(query: string, scope?: string): Promise<TagDefinitionWithGroup[]> {
+export async function searchTagDefinitions(
+  query: string,
+  entityType?: TaggableEntity,
+): Promise<TagDefinitionWithGroup[]> {
   const norm = normalize(query);
-  return prisma.tagDefinition.findMany({
+  const tags = await prisma.tagDefinition.findMany({
     where: {
       OR: [
         { nameNorm: { contains: norm } },
         { aliases: { some: { nameNorm: { contains: norm } } } },
       ],
-      ...(scope ? { scope: { has: scope } } : {}),
+      ...(entityType ? { group: { domain: { in: domainsForEntity(entityType) } } } : {}),
     },
-    include: {
-      group: { select: GROUP_SELECT },
-      aliases: { select: { name: true } },
-    },
+    include: DEFINITION_INCLUDE,
     orderBy: [{ group: { sortOrder: "asc" } }, { sortOrder: "asc" }],
     take: 30,
   });
+  return entityType ? rankForEntity(tags, entityType) : tags;
 }
 
 // ─── Popular Tags ───────────────────────────────────────────────────────────
 
-export async function getPopularTagsForScope(scope: string, limit = 10): Promise<TagDefinitionWithGroup[]> {
-  // Raw SQL to count usage across all 5 join tables for tags in this scope
+export async function getPopularTagsForEntity(
+  entityType: TaggableEntity,
+  limit = 10,
+): Promise<TagDefinitionWithGroup[]> {
+  const domains = domainsForEntity(entityType);
+  // Usage across all 5 join tables for tags this entity type may carry
   const rows = await prisma.$queryRaw<Array<{ id: string; cnt: bigint }>>`
     SELECT td.id, (
       COALESCE((SELECT count(*) FROM person_tag WHERE "tagDefinitionId" = td.id), 0) +
@@ -337,7 +437,8 @@ export async function getPopularTagsForScope(scope: string, limit = 10): Promise
       COALESCE((SELECT count(*) FROM project_tag WHERE "tagDefinitionId" = td.id), 0)
     )::bigint AS cnt
     FROM tag_definition td
-    WHERE ${scope} = ANY(td.scope)
+    JOIN tag_group tg ON tg.id = td."groupId"
+    WHERE tg.domain::text = ANY(${domains})
     ORDER BY cnt DESC, td."sortOrder" ASC
     LIMIT ${limit}
   `;
@@ -347,39 +448,12 @@ export async function getPopularTagsForScope(scope: string, limit = 10): Promise
   const ids = rows.map((r) => r.id);
   const tags = await prisma.tagDefinition.findMany({
     where: { id: { in: ids } },
-    include: {
-      group: { select: GROUP_SELECT },
-      aliases: { select: { name: true } },
-    },
+    include: DEFINITION_INCLUDE,
   });
 
   // Preserve the order from the raw query
   const tagMap = new Map(tags.map((t) => [t.id, t]));
-  return ids.map((id) => tagMap.get(id)).filter(Boolean) as TagDefinitionWithGroup[];
-}
-
-// ─── Governance ─────────────────────────────────────────────────────────────
-
-export async function getPendingTags() {
-  return prisma.tagDefinition.findMany({
-    where: { status: "pending" },
-    include: {
-      group: { select: GROUP_SELECT },
-      aliases: { select: { id: true, name: true } },
-    },
-    orderBy: { createdAt: "desc" },
-  });
-}
-
-export async function approveTag(id: string) {
-  return prisma.tagDefinition.update({
-    where: { id },
-    data: { status: "active" },
-  });
-}
-
-export async function rejectTag(id: string) {
-  return deleteTagDefinition(id);
+  return ids.map((id) => tagMap.get(id)).filter((t): t is (typeof tags)[number] => t !== undefined);
 }
 
 // ─── Alias CRUD ─────────────────────────────────────────────────────────────
@@ -434,10 +508,7 @@ export async function getOrphanedTags(): Promise<TagDefinitionWithGroup[]> {
 
   return prisma.tagDefinition.findMany({
     where: { id: { in: rows.map((r) => r.id) } },
-    include: {
-      group: { select: GROUP_SELECT },
-      aliases: { select: { name: true } },
-    },
+    include: DEFINITION_INCLUDE,
     orderBy: { name: "asc" },
   });
 }

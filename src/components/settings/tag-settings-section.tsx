@@ -2,14 +2,12 @@
 
 import { useState } from "react";
 import { TagCatalogManager } from "@/components/settings/tag-catalog-manager";
-import { TagPendingSection } from "@/components/settings/tag-pending-section";
 import { TagMergeDialog } from "@/components/settings/tag-merge-dialog";
 import { TagAnalytics } from "@/components/settings/tag-analytics";
 import type { TagGroupWithDefinitions, TagDefinitionWithGroup, TagUsageBreakdown, NearDuplicatePair } from "@/lib/services/tag-service";
 
 type TagSettingsSectionProps = {
   groups: TagGroupWithDefinitions[];
-  pendingTags: TagDefinitionWithGroup[];
   orphanedTags: TagDefinitionWithGroup[];
   nearDuplicates: NearDuplicatePair[];
   usageBreakdown: TagUsageBreakdown[];
@@ -17,13 +15,13 @@ type TagSettingsSectionProps = {
 
 export function TagSettingsSection({
   groups,
-  pendingTags,
   orphanedTags,
   nearDuplicates,
   usageBreakdown,
 }: TagSettingsSectionProps) {
   const [mergeOpen, setMergeOpen] = useState(false);
   const [mergeSources, setMergeSources] = useState<TagDefinitionWithGroup[]>([]);
+  const [mergeTargetId, setMergeTargetId] = useState<string | null>(null);
   const [mergeKey, setMergeKey] = useState(0);
 
   // Flatten all tags for the merge dialog target picker
@@ -32,26 +30,31 @@ export function TagSettingsSection({
       id: t.id,
       name: t.name,
       slug: t.slug,
-      status: t.status,
       description: t.description,
-      scope: t.scope,
+      parentId: t.parentId,
+      typicalLevel: t.typicalLevel,
       sortOrder: t.sortOrder,
-      group: { id: g.id, name: g.name, slug: g.slug, color: g.color, isExclusive: g.isExclusive },
+      group: {
+        id: g.id,
+        name: g.name,
+        slug: g.slug,
+        color: g.color,
+        isExclusive: g.isExclusive,
+        domain: g.domain,
+        typicalLevel: g.typicalLevel,
+        kind: g.kind,
+      },
       aliases: t.aliases,
     })),
   );
-
-  function openMergeFromPending(tag: TagDefinitionWithGroup) {
-    setMergeSources([tag]);
-    setMergeKey((k) => k + 1);
-    setMergeOpen(true);
-  }
 
   function openMergeFromDuplicates(tagA: { id: string; name: string }, tagB: { id: string; name: string }) {
     const a = allTags.find((t) => t.id === tagA.id);
     const b = allTags.find((t) => t.id === tagB.id);
     if (a && b) {
+      // A merges into B by default; the dialog lets you pick another target
       setMergeSources([a]);
+      setMergeTargetId(b.id);
       setMergeKey((k) => k + 1);
       setMergeOpen(true);
     }
@@ -59,7 +62,6 @@ export function TagSettingsSection({
 
   return (
     <div className="space-y-4">
-      <TagPendingSection pendingTags={pendingTags} onMerge={openMergeFromPending} />
       <TagCatalogManager groups={groups} />
       <TagAnalytics
         orphanedTags={orphanedTags}
@@ -73,6 +75,7 @@ export function TagSettingsSection({
         onClose={() => setMergeOpen(false)}
         sourceTags={mergeSources}
         allTags={allTags}
+        initialTargetId={mergeTargetId}
       />
     </div>
   );
