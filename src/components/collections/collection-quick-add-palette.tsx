@@ -86,7 +86,7 @@ export function CollectionQuickAddPalette({
     <CommandDialog open={open} onOpenChange={handleOpenChange} title="Add to collection">
       <CommandInput placeholder="Add to or create a collection…" value={query} onValueChange={setQuery} />
       <CommandList>
-        <CommandEmpty>No collections found.</CommandEmpty>
+        {!showCreate && <CommandEmpty>No collections found.</CommandEmpty>}
         <CommandGroup>
           {collections.map((c) => {
             const isIn = collectionIds.includes(c.id);
@@ -102,7 +102,8 @@ export function CollectionQuickAddPalette({
           })}
         </CommandGroup>
         {showCreate && (
-          <CommandGroup heading="Create">
+          // forceMount on the group too: cmdk hides a group whose items all failed the filter
+          <CommandGroup heading="Create" forceMount>
             <CommandItem key="__create__" value={`__create__ ${trimmed}`} forceMount onSelect={createAndAdd}>
               <Plus className="mr-2 h-4 w-4" />
               <span className="flex-1">
