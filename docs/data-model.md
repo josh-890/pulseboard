@@ -180,6 +180,8 @@ TagGroup (domain · typicalLevel? · kind · isExclusive · color)
   is an acyclic implication chain. `TagAlias.slug` is globally unique.
 - `TagSlotSet` (name, `isActive` — at most one) ──< `TagSlot` (position 1–9 → TagDefinition):
   quick-tag key bindings. Deleting a tag or set cascades to its slots; merging repoints them.
+- `SavedFilter` (scope, name, params, pinned): saved browser views; scope `media` rows are
+  Smart Collections (an image tag query, evaluated live — no stored members).
 - Join rows carry `source` (`MANUAL | IMPORT | AUTO`). They are the only store —
   there is no copied `tags` array on any entity.
 - Inheritance (computed, never stored): Session → Set (via `SetSession`),

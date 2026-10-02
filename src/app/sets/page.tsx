@@ -1,4 +1,5 @@
 import { withTenantFromHeaders } from "@/lib/tenant-context";
+import { listSavedFilters } from "@/lib/services/saved-filter-service";
 import { Suspense } from "react";
 import { ImageIcon } from "lucide-react";
 import { getSetsPaginated, getChannelsWithLabelMaps, getRecentChannels, getLastUsedSetType, getSetFacetCounts } from "@/lib/services/set-service";
@@ -385,7 +386,7 @@ export default async function SetsPage({ searchParams }: SetsPageProps) {
 
       {/* Saved views */}
       <Suspense>
-        <SavedViewsBar storageKey="pulseboard-views-/sets" basePath="/sets" />
+        <SavedViewsBar scope="sets" basePath="/sets" views={await listSavedFilters("sets")} legacyStorageKey="pulseboard-views-/sets" />
       </Suspense>
 
       {/* Unified toolbar */}

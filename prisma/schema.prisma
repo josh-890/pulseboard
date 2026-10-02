@@ -2722,6 +2722,24 @@ model ColorCatalog {
 
 // ─── Saved Searches ──────────────────────────────────────────────────────────
 
+// A saved browser filter (ADR-0033, S6): the URL parameters of a view on
+// /people, /sets or /sessions, or — scope "media" — a Smart Collection, whose
+// params hold the image tag query (`tags=…`) evaluated live against the library.
+model SavedFilter {
+  id        String   @id @default(cuid())
+  scope     String // "people" | "sets" | "sessions" | "media"
+  name      String
+  params    String // URL query string, without "?"
+  pinned    Boolean  @default(false)
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([scope, name])
+  @@index([scope])
+  @@map("saved_filter")
+}
+
 model SavedSearch {
   id         String   @id @default(cuid())
   name       String

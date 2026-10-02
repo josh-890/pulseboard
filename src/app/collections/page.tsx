@@ -1,10 +1,13 @@
 import { Suspense } from "react";
 import Link from "next/link";
-import { Library, Heart, Star, ImageIcon } from "lucide-react";
+import { Library, Heart, Star, ImageIcon, Zap } from "lucide-react";
 import { withTenantFromHeaders } from "@/lib/tenant-context";
 import { getAllCollections, type CollectionSummary } from "@/lib/services/collection-service";
 import { countFavoriteMediaItems } from "@/lib/services/media-service";
 import { AddCollectionDialog } from "@/components/collections/add-collection-dialog";
+import { SmartCollectionDialog } from "@/components/collections/smart-collection-dialog";
+import { getSmartCollections } from "@/lib/services/saved-filter-service";
+import { getTagFacets } from "@/lib/services/tag-filter-service";
 import { CollectionCard } from "@/components/collections/collection-card";
 import { BrowserToolbar, type BrowserToolbarConfig, type FilterGroup } from "@/components/shared/browser-toolbar";
 
@@ -77,9 +80,11 @@ export default async function CollectionsPage({ searchParams }: CollectionsPageP
     };
     const sort = sp.sort || "updated";
 
-    const [all, favoriteCount] = await Promise.all([
+    const [all, favoriteCount, smartCollections, mediaFacets] = await Promise.all([
       getAllCollections(),
       countFavoriteMediaItems(),
+      getSmartCollections(),
+      getTagFacets("MEDIA_ITEM"),
     ]);
 
     const target = all.find((c) => c.isTarget) ?? null;
@@ -159,7 +164,10 @@ export default async function CollectionsPage({ searchParams }: CollectionsPageP
               </p>
             </div>
           </div>
-          <AddCollectionDialog />
+          <div className="flex flex-wrap items-center gap-2">
+            <SmartCollectionDialog facets={mediaFacets} />
+            <AddCollectionDialog />
+          </div>
         </div>
 
         {/* Smart row — Favorites virtual album + ★ target collection */}
@@ -176,6 +184,25 @@ export default async function CollectionsPage({ searchParams }: CollectionsPageP
               <div className="text-xs text-muted-foreground">{favoriteCount} image{favoriteCount !== 1 ? "s" : ""}</div>
             </div>
           </Link>
+          {/* Smart collections (ADR-0033 S6): saved image tag queries, evaluated live */}
+          {smartCollections.map((sc) => (
+            <Link
+              key={sc.id}
+              href={`/collections/smart/${sc.id}`}
+              className="group flex max-w-xs items-center gap-3 rounded-xl border border-amber-500/20 bg-amber-500/5 px-4 py-3 transition-colors hover:border-amber-500/40"
+              title={sc.query}
+            >
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-amber-500/15">
+                <Zap size={16} className="text-amber-400" />
+              </div>
+              <div className="min-w-0">
+                <div className="truncate text-sm font-semibold leading-tight group-hover:text-primary">{sc.name}</div>
+                <div className="truncate text-xs text-muted-foreground">
+                  {sc.count} image{sc.count !== 1 ? "s" : ""} · <span className="font-mono">{sc.query}</span>
+                </div>
+              </div>
+            </Link>
+          ))}
           {target && (
             <Link
               href={`/collections/${target.id}`}

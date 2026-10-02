@@ -1,4 +1,5 @@
 import { withTenantFromHeaders } from "@/lib/tenant-context";
+import { listSavedFilters } from "@/lib/services/saved-filter-service";
 import { Suspense } from "react";
 import Link from "next/link";
 import { Sparkles, Users, BookUser } from "lucide-react";
@@ -431,7 +432,7 @@ export default async function PeoplePage({ searchParams }: PeoplePageProps) {
 
       {/* Saved views */}
       <Suspense>
-        <SavedViewsBar storageKey="pulseboard-views-/people" basePath="/people" />
+        <SavedViewsBar scope="people" basePath="/people" views={await listSavedFilters("people")} legacyStorageKey="pulseboard-views-/people" />
       </Suspense>
 
       {/* Unified toolbar */}

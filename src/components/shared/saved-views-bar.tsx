@@ -1,70 +1,100 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Bookmark, Plus, X, Check } from "lucide-react";
+import { toast } from "sonner";
+import {
+  createSavedFilterAction,
+  deleteSavedFilterAction,
+  importSavedFiltersAction,
+} from "@/lib/actions/saved-filter-actions";
+import type { SavedFilterRow } from "@/lib/services/saved-filter-service";
 import { cn } from "@/lib/utils";
 
-type SavedView = {
-  id: string;
-  name: string;
-  params: string;
-};
-
 type SavedViewsBarProps = {
-  storageKey: string;
+  /** "people" | "sets" | "sessions" */
+  scope: string;
   basePath: string;
+  /** Saved views from the DB (ADR-0033 S6) */
+  views: SavedFilterRow[];
+  /** localStorage key the pre-S6 views lived under — imported once, then removed */
+  legacyStorageKey?: string;
 };
 
-const MAX_VIEWS = 10;
+const MAX_VIEWS = 20;
 
-export function SavedViewsBar({ storageKey, basePath }: SavedViewsBarProps) {
+/** The view part of a query string — paging is not part of a view */
+function viewParams(params: string): string {
+  const p = new URLSearchParams(params);
+  p.delete("loaded");
+  return p.toString();
+}
+
+export function SavedViewsBar({ scope, basePath, views, legacyStorageKey }: SavedViewsBarProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [views, setViews] = useState<SavedView[]>([]);
   const [naming, setNaming] = useState(false);
   const [nameInput, setNameInput] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
+  const [, startTransition] = useTransition();
 
+  // One-time move of the views this browser kept in localStorage into the DB
   useEffect(() => {
+    if (!legacyStorageKey) return;
+    let raw: string | null = null;
     try {
-      const raw = localStorage.getItem(storageKey);
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      if (raw) setViews(JSON.parse(raw) as SavedView[]);
+      raw = localStorage.getItem(legacyStorageKey);
     } catch {
-      // ignore
+      return;
     }
-  }, [storageKey]);
-
-  function persist(next: SavedView[]) {
-    setViews(next);
+    if (!raw) return;
+    let legacy: { name: string; params: string }[] = [];
     try {
-      localStorage.setItem(storageKey, JSON.stringify(next));
+      legacy = (JSON.parse(raw) as { name: string; params: string }[]).filter((v) => v && typeof v.name === "string");
     } catch {
-      // ignore
+      legacy = [];
     }
-  }
+    importSavedFiltersAction(scope, legacy.map((v) => ({ name: v.name, params: v.params ?? "" }))).then((res) => {
+      if (!res.success) return;
+      try {
+        localStorage.removeItem(legacyStorageKey);
+      } catch {
+        // ignore
+      }
+      if (res.added) {
+        toast.success(`Moved ${res.added} saved view${res.added === 1 ? "" : "s"} from this browser`);
+        router.refresh();
+      }
+    });
+  }, [legacyStorageKey, scope, router]);
 
   function handleSave() {
     const trimmed = nameInput.trim();
     if (!trimmed) return;
-    const currentParams = searchParams.toString();
-    const newView: SavedView = {
-      id: crypto.randomUUID(),
-      name: trimmed,
-      params: currentParams,
-    };
-    persist([...views, newView]);
-    setNaming(false);
-    setNameInput("");
+    const params = searchParams.toString();
+    startTransition(async () => {
+      const res = await createSavedFilterAction(scope, trimmed, params);
+      if (!res.success) {
+        toast.error(res.error ?? "Could not save the view");
+        return;
+      }
+      setNaming(false);
+      setNameInput("");
+      router.refresh();
+    });
   }
 
-  function handleApply(view: SavedView) {
-    router.push(`${basePath}?${view.params}`);
+  function handleApply(view: SavedFilterRow) {
+    router.push(view.params ? `${basePath}?${view.params}` : basePath);
   }
 
   function handleDelete(id: string) {
-    persist(views.filter((v) => v.id !== id));
+    startTransition(async () => {
+      const res = await deleteSavedFilterAction(id, scope);
+      if (!res.success) toast.error(res.error ?? "Could not delete the view");
+      router.refresh();
+    });
   }
 
   function startNaming() {
@@ -73,7 +103,7 @@ export function SavedViewsBar({ storageKey, basePath }: SavedViewsBarProps) {
     setTimeout(() => inputRef.current?.focus(), 0);
   }
 
-  const currentParams = searchParams.toString();
+  const currentParams = viewParams(searchParams.toString());
   const hasFilters = !!currentParams;
   const atLimit = views.length >= MAX_VIEWS;
 

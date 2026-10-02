@@ -1,4 +1,5 @@
 import { withTenantFromHeaders } from "@/lib/tenant-context";
+import { listSavedFilters } from "@/lib/services/saved-filter-service";
 import { Suspense } from "react";
 import { Clapperboard } from "lucide-react";
 import { getSessionsPaginated, getSessionFacetCounts } from "@/lib/services/session-service";
@@ -232,7 +233,7 @@ export default async function SessionsPage({ searchParams }: SessionsPageProps) 
 
       {/* Saved views */}
       <Suspense>
-        <SavedViewsBar storageKey="pulseboard-views-/sessions" basePath="/sessions" />
+        <SavedViewsBar scope="sessions" basePath="/sessions" views={await listSavedFilters("sessions")} legacyStorageKey="pulseboard-views-/sessions" />
       </Suspense>
 
       {/* Unified toolbar */}

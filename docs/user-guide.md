@@ -732,6 +732,20 @@ A condition that does not apply to the page (`type:video` on /people) shows as a
 
 Reordering a set's images is switched off while a tag filter is active, since it would only re-sort the visible ones.
 
+### Saved views and Smart Collections (ADR-0033)
+
+**Saved views** — the bookmark row above the toolbar on /people, /sets and /sessions:
+- It saves the whole current filter (tags, conditions, sort and every other filter) under a name.
+- Saved views are now kept in the database, so they are the same on every device. Views this browser kept earlier move there by themselves the first time you open the page.
+
+**Smart Collections** are saved image filters kept up to date automatically, across the whole library.
+- **Create one** with **Save as smart collection** next to any gallery's tag filter (it starts with that filter), or **New Smart Collection** on /collections.
+- **On /collections** they show as ⚡ cards with their live image count and query.
+- **The smart collection's page** shows every matching image, newest first (the newest 1000 when there are more). The viewer works as everywhere else, and an image you untag leaves the grid when you close the viewer.
+- **Change the query** with the Tags button, the chips or the query box. The page previews the result; **Save query** keeps it, **Revert** drops it.
+- **Freeze** copies today's matches into an ordinary static collection, which then never changes by itself. The smart collection stays live.
+- **Delete** removes only the saved query; no image is touched.
+
 ### Tagging many at once (ADR-0033)
 
 Select images in a set or session gallery, or people, sets or sessions in their browsers. The

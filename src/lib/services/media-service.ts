@@ -653,6 +653,28 @@ export async function getGalleryCastDirectory(personIds: string[]): Promise<Gall
     .sort((a, b) => a.name.localeCompare(b.name));
 }
 
+// ─── Media by id (Smart Collections, ADR-0033 S6) ─────────────────────────────
+
+/** Gallery items for the given ids, newest first (the order a smart collection shows). */
+export async function getMediaGalleryItemsByIds(ids: string[]): Promise<GalleryItem[]> {
+  if (ids.length === 0) return [];
+  const items = await prisma.mediaItem.findMany({
+    where: { id: { in: ids } },
+    include: {
+      session: { select: { id: true, name: true } },
+      collectionItems: { select: { collectionId: true } },
+      mediaItemTags: TAG_CHIP_JOIN_SELECT,
+    },
+    orderBy: { createdAt: "desc" },
+  });
+  const results: GalleryItem[] = [];
+  for (const it of items) {
+    const base = mapMediaItemToGalleryItem(it);
+    if (base) results.push(base);
+  }
+  return results;
+}
+
 // ─── Favorites (ADR-0019) ─────────────────────────────────────────────────────
 
 // Global Favorite Images gallery. Optional person filter (images linked to that

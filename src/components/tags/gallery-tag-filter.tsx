@@ -7,6 +7,7 @@ import { parseTagQuery, serializeTagQuery, type TagQuery } from "@/lib/tag-query
 import { TagFilterButton } from "./tag-filter-button";
 import { TagFilterChips } from "./tag-filter-chips";
 import { TagQueryBox } from "./tag-query-box";
+import { SmartCollectionDialog } from "@/components/collections/smart-collection-dialog";
 
 export type GalleryTagFilterProps = {
   facets: TagFacetGroup[];
@@ -14,27 +15,32 @@ export type GalleryTagFilterProps = {
   /** Images shown / in the gallery, for the summary */
   shown: number;
   total: number;
+  /** Offer "Save as smart collection" for the current query (default true) */
+  allowSmartSave?: boolean;
+  /** Query shown when the URL has no `tags=` (a smart collection's stored query) */
+  value?: string;
 };
 
 // Tag filter for an image gallery page (ADR-0033, S4). Lives in the URL as
 // `tags=…` like the browsers; the page resolves it on the server and hands the
 // gallery the matching image ids.
-export function GalleryTagFilter({ facets, problems, shown, total }: GalleryTagFilterProps) {
+export function GalleryTagFilter({ facets, problems, shown, total, allowSmartSave = true, value }: GalleryTagFilterProps) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const text = searchParams.get("tags") ?? "";
+  const text = searchParams.get("tags") ?? value ?? "";
   const query = parseTagQuery(text).query;
 
   const setText = useCallback(
     (next: string) => {
       const params = new URLSearchParams(searchParams.toString());
-      if (next) params.set("tags", next);
+      // With a stored query (`value`), an emptied filter must stay explicit in the URL
+      if (next || value !== undefined) params.set("tags", next);
       else params.delete("tags");
       const qs = params.toString();
       router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
     },
-    [router, pathname, searchParams],
+    [router, pathname, searchParams, value],
   );
   const onChange = useCallback((q: TagQuery) => setText(serializeTagQuery(q)), [setText]);
 
@@ -48,6 +54,7 @@ export function GalleryTagFilter({ facets, problems, shown, total }: GalleryTagF
           <span className="text-xs text-muted-foreground" aria-live="polite">
             {shown === 0 ? "No image matches these tags" : `${shown} of ${total} images`}
           </span>
+          {allowSmartSave && <SmartCollectionDialog variant="compact" initialQuery={text} facets={facets} />}
         </>
       )}
     </div>
