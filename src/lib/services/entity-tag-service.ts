@@ -1,8 +1,12 @@
 import { prisma } from "@/lib/db";
-import type { TagDomain, TagSource } from "@/generated/prisma/client";
+import { Prisma } from "@/generated/prisma/client";
+import type { TagSource } from "@/generated/prisma/client";
+import { domainsForEntity, type TaggableEntity } from "@/lib/tag-domains";
+
+export { domainsForEntity };
+export type { TaggableEntity };
 import type { TagDefinitionWithGroup } from "./tag-service";
 
-export type TaggableEntity = "PERSON" | "SESSION" | "MEDIA_ITEM" | "SET" | "PROJECT";
 
 type TxClient = Parameters<Parameters<typeof prisma.$transaction>[0]>[0];
 
@@ -17,19 +21,6 @@ const GROUP_SELECT = {
   kind: true,
 } as const;
 
-/** The group domains whose tags may sit on an entity type (ADR-0033). */
-export function domainsForEntity(entityType: TaggableEntity): TagDomain[] {
-  switch (entityType) {
-    case "PERSON":
-      return ["PERSON", "ANY"];
-    case "PROJECT":
-      return ["PROJECT", "ANY"];
-    case "SESSION":
-    case "SET":
-    case "MEDIA_ITEM":
-      return ["CONTENT", "ANY"];
-  }
-}
 
 /**
  * Validate and normalise the tags about to be written to one entity type.
@@ -436,3 +427,33 @@ export async function getEntityTagIds(
   const tags = await getEntityTags(entityType, entityId);
   return tags.map((t) => t.id);
 }
+
+// ─── Selection state ─────────────────────────────────────────────────────────
+
+/**
+ * For a selection of entities: how many of them carry each tag directly.
+ * Drives the tri-state bulk palette (all / some / none).
+ */
+export async function getSelectionTagCounts(
+  entityType: TaggableEntity,
+  entityIds: string[],
+): Promise<Record<string, number>> {
+  if (entityIds.length === 0) return {};
+  const t = JOIN_TABLE[entityType];
+  const rows = await prisma.$queryRaw<Array<{ id: string; cnt: bigint }>>(Prisma.sql`
+    SELECT "tagDefinitionId" AS id, count(*)::bigint AS cnt
+    FROM ${Prisma.raw(`"${t.table}"`)}
+    WHERE ${Prisma.raw(`"${t.column}"`)} = ANY(${entityIds})
+    GROUP BY 1
+  `);
+  return Object.fromEntries(rows.map((r) => [r.id, Number(r.cnt)]));
+}
+
+// Join table + entity column per taggable entity (raw SQL uses the @@map names)
+const JOIN_TABLE: Record<TaggableEntity, { table: string; column: string }> = {
+  PERSON: { table: "person_tag", column: "personId" },
+  SESSION: { table: "session_tag", column: "sessionId" },
+  MEDIA_ITEM: { table: "media_item_tag", column: "mediaItemId" },
+  SET: { table: "set_tag", column: "setId" },
+  PROJECT: { table: "project_tag", column: "projectId" },
+};

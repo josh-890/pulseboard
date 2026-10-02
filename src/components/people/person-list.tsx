@@ -468,7 +468,6 @@ export function PersonList({
         <BulkSelectionBar
           selectedIds={bulk.selectedIds}
           entityType="PERSON"
-          scope="PERSON"
           onClear={bulk.clear}
           totalCount={totalCount}
           onSelectAll={() => bulk.selectAll(persons.map((p) => p.id))}

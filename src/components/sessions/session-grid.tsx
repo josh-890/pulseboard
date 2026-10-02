@@ -311,7 +311,6 @@ export function SessionGrid({
         <BulkSelectionBar
           selectedIds={bulk.selectedIds}
           entityType="SESSION"
-          scope="SESSION"
           onClear={bulk.clear}
           totalCount={totalCount}
           onSelectAll={() => bulk.selectAll(sessions.map((s) => s.id))}

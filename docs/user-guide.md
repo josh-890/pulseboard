@@ -672,6 +672,30 @@ In the image viewer:
 - The filmstrip toggle moved to <kbd>S</kbd> (in the viewer, the archive workbench and the
   contradictions view alike).
 
+### Tagging many at once (ADR-0033)
+
+Select images in a set or session gallery, or people, sets or sessions in their browsers. The
+selection bar then offers:
+
+- **Tags** (<kbd>T</kbd>) — the tag palette for the whole selection. Each tag shows whether the
+  selection has it:
+  - **✓** all of the selected items carry it; choosing it **removes** it from all.
+  - **–** some carry it (with a count such as *3/12*); choosing it **adds** it to the rest.
+  - **blank** none carry it; choosing it **adds** it to all.
+- **Quick-tag slots** <kbd>1</kbd>–<kbd>9</kbd> — nine tags on the number keys, Lightroom-style.
+  A key toggles its tag: on the current image in the viewer, or on the whole selection here
+  (removes it when everything already has it, adds it otherwise).
+  - **Set them up** with the pencil in the **Slots** popover (or under Tags in the viewer's info panel).
+    Click a slot to choose its tag; ✕ empties it.
+  - **Slot sets:** keep several named sets, e.g. *Poses* or *Review*, and switch between them
+    with the drop-down. Adding a set makes it the active one.
+  - A slot whose tag cannot go on the item (a person trait on an image) is greyed out.
+  - On /people with people selected, the number keys work the slots instead of the card-framing chips.
+- **Armed tag** (painter) — <kbd>Shift</kbd>+<kbd>T</kbd> picks a tag to hold ready.
+  - <kbd>P</kbd> puts it on the current image or the selection; <kbd>Shift</kbd>+<kbd>P</kbd> takes it off.
+  - The armed tag shows in the selection bar and the info panel; ✕ disarms it.
+  - It is remembered in this browser.
+
 ### Collections List
 
 A card grid showing all collections with:

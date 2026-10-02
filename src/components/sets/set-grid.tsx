@@ -552,7 +552,6 @@ export function SetGrid({
         <BulkSelectionBar
           selectedIds={bulk.selectedIds}
           entityType="SET"
-          scope="SET"
           onClear={bulk.clear}
           totalCount={totalCount}
           onSelectAll={() => bulk.selectAll(sets.map((s) => s.id))}

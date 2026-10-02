@@ -369,6 +369,9 @@ export async function mergeTagDefinitions(sourceIds: string[], targetId: string)
       data: { parentId: targetId },
     });
 
+    // Quick-tag slots keep pointing at the merged tag (the FK would cascade-delete them)
+    await tx.tagSlot.updateMany({ where: { tagDefinitionId: { in: sourceIds } }, data: { tagDefinitionId: targetId } });
+
     // ── 7. Delete source aliases and source definitions ───────────────────────
     await tx.tagAlias.deleteMany({ where: { tagDefinitionId: { in: sourceIds } } });
     await tx.tagDefinition.deleteMany({ where: { id: { in: sourceIds } } });

@@ -152,12 +152,19 @@ filter live in shared hooks (`lib/hooks/use-gallery-selection.ts`,
 | `TagPalette` | Client | `open`, `onOpenChange`, `entityType`, `selectedTagIds`, `onToggle(tag, on)` | cmdk palette (twin of the ADR-0019 collection palette). Fuzzy-finds by name, alias or group; Enter toggles and the palette stays open. Groups whose typical level fits the entity come first. An unknown name offers **Create … in <group>** — Tab / Shift+Tab cycles the group, the last one used is remembered per entity type (localStorage). Data from `/api/tags/palette` (cached per page life) |
 | `EntityTagList` | Client | `tags` (`EffectiveTag[]`), `isLoading?`, `onRemove?`, `onAdd?`, `showHotkey?`, `tone?` | Effective tags: direct chips removable; inherited dashed + dimmed with "from set/session …"; overridden (exclusive group shadowed by a nearer level) struck through; workflow tags as amber badges whose ✕ reads "done" |
 | `EntityTagsPanel` | Client | `entityType`, `entityId`, `initialTags?` | `EntityTagList` + `TagPalette` over `useEntityTags` — used on the person, session, set and project pages |
+| `TagSlotBar` | Client | `entityType`, `onApplySlot(tag)`, `stateOf?`, `tone?` | Quick-tag slots 1–9 of the active slot set + set switcher; pencil mode assigns/clears slots (pick-mode palette) and adds/renames/deletes sets. Slots whose tag's domain does not fit `entityType` are disabled |
+| `ArmedTagChip` | Client | `entityType`, `onArmRequest`, `tone?` | The armed tag (painter) with its `P` hint and ✕ to disarm, or an "Arm tag" button |
+| `BulkTagControls` | Client | `entityType`, `entityIds`, `onApplied?`, `hotkeysEnabled?` | Selection-bar tagging: tri-state palette (`T`), Slots popover, armed chip; keys 1–9 / T / Shift+T / P / Shift+P act on the selection. Used by the set + session galleries and `BulkSelectionBar` (people/sets/sessions) |
 | `TagDotStrip` | Server-safe | `tags?` (`TagChipData[]`), `max?` | One dot per **direct** tag in its group colour on gallery/media tiles; names in tooltip + aria-label |
 
 `useEntityTags(entityType, entityId, initialTags?)` (`hooks/use-entity-tags.ts`) is the
 controller: effective tags, optimistic `toggle`/`remove` through add/remove actions (never a
 full replace), then a re-read so inherited/overridden flags stay right. The lightbox owns one
 for the current image and shares it between the info panel and its `T` palette.
+`useBulkTagging` (selection counts + add-to-all / remove-from-all), `useTagSlots` (module-level
+slot-set store), `useArmedTag` (localStorage, `useSyncExternalStore`) and `useTagHotkeys` (same
+dialog/typing guard as the gallery selection keys) back the S3 controls; `applyTagChangeToItems`
+(`lib/gallery-tag-update.ts`) updates gallery tiles after a bulk change.
 
 ---
 

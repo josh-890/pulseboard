@@ -6,6 +6,10 @@ import { addToCollectionAction } from "@/lib/actions/collection-actions";
 import { CollectionQuickAddPalette } from "@/components/collections/collection-quick-add-palette";
 import { TagPalette } from "@/components/tags";
 import { useEntityTags } from "@/hooks/use-entity-tags";
+import { useArmedTag } from "@/hooks/use-armed-tag";
+import { useTagSlots } from "@/hooks/use-tag-slots";
+import type { PaletteTag } from "@/lib/services/tag-service";
+import { tagFitsEntity } from "@/lib/tag-domains";
 import { DetailAssignSheet, type AssignPerson } from "@/components/people/detail-assign-sheet";
 import { createPortal } from "react-dom";
 import { toast } from "sonner";
@@ -202,6 +206,27 @@ function SimpleLightbox({
   // One controller for the current image's tags: the info panel lists them,
   // the `T` palette edits them — both see the same optimistic state.
   const tagController = useEntityTags("MEDIA_ITEM", item?.id ?? null);
+  // S3: quick-tag slots (1–9) and the armed tag (Shift+T / P) on the current image
+  const tagSlots = useTagSlots();
+  const { armed: armedTag, arm: armTag } = useArmedTag();
+  const [armPaletteOpen, setArmPaletteOpen] = useState(false);
+  const applyTagToCurrent = useCallback(
+    (tag: PaletteTag, on?: boolean) => {
+      if (!tagController) return;
+      if (!tagFitsEntity(tag.group.domain, "MEDIA_ITEM")) {
+        toast.message(`${tag.name} cannot be applied to an image`);
+        return;
+      }
+      const has = tagController.directTagIds.includes(tag.id);
+      const next = on ?? !has;
+      if (next === has) {
+        toast.message(has ? `Already tagged ${tag.name}` : `Not tagged ${tag.name}`);
+        return;
+      }
+      tagController.toggle(tag, next);
+    },
+    [tagController],
+  );
 
   // ADR-0019: toggle the global favorite. Optimistic local override + either the
   // parent's handler (keeps its own state in sync) or a self-handled persist.
@@ -464,12 +489,39 @@ function SimpleLightbox({
           break;
         case "t":
         case "T":
-          // ADR-0033: tag palette for the current image.
+          // ADR-0033: tag palette for the current image; Shift+T arms a tag.
           if (item) {
             e.preventDefault();
-            setTagPaletteOpen(true);
+            if (e.shiftKey) setArmPaletteOpen(true);
+            else setTagPaletteOpen(true);
           }
           break;
+        case "p":
+        case "P":
+          // ADR-0033 painter: P puts the armed tag on, Shift+P takes it off.
+          if (item) {
+            e.preventDefault();
+            if (!armedTag) toast.message("No tag armed — Shift+T to arm one");
+            else applyTagToCurrent(armedTag, !e.shiftKey);
+          }
+          break;
+        case "1":
+        case "2":
+        case "3":
+        case "4":
+        case "5":
+        case "6":
+        case "7":
+        case "8":
+        case "9": {
+          // ADR-0033 quick-tag slots: toggle the slot's tag on the current image.
+          if (!item || e.metaKey || e.ctrlKey || e.altKey) break;
+          e.preventDefault();
+          const slotTag = tagSlots.slotTag(Number(e.key));
+          if (slotTag) applyTagToCurrent(slotTag);
+          else toast.message(`Slot ${e.key} is empty`);
+          break;
+        }
         case "f":
         case "F":
           if (hasFocalPointSupport) setFocalOverlay((p) => !p);
@@ -516,7 +568,7 @@ function SimpleLightbox({
     }
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [onClose, goNext, goPrev, handleToggleInfoPanel, hasFocalPointSupport, canCopyToReference, handleCopyTrigger, handleFavorite, addToTarget, item]);
+  }, [onClose, goNext, goPrev, handleToggleInfoPanel, hasFocalPointSupport, canCopyToReference, handleCopyTrigger, handleFavorite, addToTarget, item, armedTag, applyTagToCurrent, tagSlots]);
 
   useEffect(() => {
     const original = document.body.style.overflow;
@@ -554,6 +606,8 @@ function SimpleLightbox({
     onFavoriteToggle: handleFavorite,
     tagController,
     onOpenTagPalette: () => setTagPaletteOpen(true),
+    onApplySlot: (tag: PaletteTag) => applyTagToCurrent(tag),
+    onArmRequest: () => setArmPaletteOpen(true),
     onFindSimilar,
     sessionId,
     onFocalPointChange: handleFocalPointChange,
@@ -886,6 +940,13 @@ function SimpleLightbox({
       </AlertDialog>
 
       {/* ADR-0019: collection quick-add palette (hotkey b / toolbar) */}
+      <TagPalette
+        open={armPaletteOpen}
+        onOpenChange={setArmPaletteOpen}
+        entityType="MEDIA_ITEM"
+        title="Arm a tag to paint with P"
+        onPick={armTag}
+      />
       {tagController && (
         <TagPalette
           open={tagPaletteOpen}

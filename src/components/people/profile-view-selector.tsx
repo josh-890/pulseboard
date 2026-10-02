@@ -49,6 +49,8 @@ export function ProfileViewSelector({ framings }: ProfileViewSelectorProps) {
       const tag = (e.target as HTMLElement)?.tagName;
       if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
       if (e.metaKey || e.ctrlKey || e.altKey) return;
+      // With people selected, 1–9 are the quick-tag slots (ADR-0033)
+      if (document.querySelector("[data-tag-selection-active]")) return;
       const d = parseInt(e.key, 10);
       if (Number.isNaN(d) || d < 1 || d > framings.length) return;
       e.preventDefault();

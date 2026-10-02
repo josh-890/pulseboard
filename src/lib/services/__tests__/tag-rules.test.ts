@@ -3,8 +3,16 @@ import { prisma } from "@/lib/db";
 import {
   addTagsToEntity,
   getEntityTagIds,
+  getSelectionTagCounts,
   setEntityTags,
 } from "@/lib/services/entity-tag-service";
+import {
+  createSlotSet,
+  deleteSlotSet,
+  getSlotSets,
+  setActiveSlotSet,
+  setSlot,
+} from "@/lib/services/tag-slot-service";
 import {
   mergeTagDefinitions,
   rankForEntity,
@@ -47,6 +55,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  await prisma.tagSlotSet.deleteMany({ where: { name: { startsWith: RUN } } });
   const groupIds = [contentGroupId, exclusiveGroupId, personGroupId].filter(Boolean);
   const tagIds = (await prisma.tagDefinition.findMany({ where: { groupId: { in: groupIds } }, select: { id: true } }))
     .map((t) => t.id);
@@ -137,5 +146,50 @@ describe("picker ranking by typical level", () => {
     const input = tags as unknown as RankInput[];
     expect(rankForEntity(input, "MEDIA_ITEM").map((t) => t.id)).toEqual(["b", "c", "a", "d"]);
     expect(rankForEntity(input, "PERSON").map((t) => t.id)).toEqual(["a", "b", "c", "d"]);
+  });
+});
+
+describe("selection counts (tri-state bulk palette)", () => {
+  it("counts how many selected entities carry each tag", async () => {
+    const extra = await prisma.session.create({ data: { name: `${RUN} session 2` } });
+    try {
+      const location = await makeTag(contentGroupId, "loc-count");
+      await addTagsToEntity("SESSION", sessionId, [location.id]);
+      const counts = await getSelectionTagCounts("SESSION", [sessionId, extra.id]);
+      expect(counts[location.id]).toBe(1);
+      await addTagsToEntity("SESSION", extra.id, [location.id]);
+      expect((await getSelectionTagCounts("SESSION", [sessionId, extra.id]))[location.id]).toBe(2);
+    } finally {
+      await prisma.sessionTag.deleteMany({ where: { sessionId: extra.id } });
+      await prisma.session.delete({ where: { id: extra.id } });
+    }
+  });
+});
+
+describe("quick-tag slot sets", () => {
+  it("keeps exactly one set active and follows a merged tag", async () => {
+    const before = (await getSlotSets()).find((s) => s.isActive)?.id;
+    const a = await createSlotSet(`${RUN} A`);
+    const b = await createSlotSet(`${RUN} B`);
+    let sets = await getSlotSets();
+    expect(sets.filter((s) => s.isActive).map((s) => s.id)).toEqual([b]);
+    await setActiveSlotSet(a);
+    sets = await getSlotSets();
+    expect(sets.filter((s) => s.isActive).map((s) => s.id)).toEqual([a]);
+
+    const src = await makeTag(contentGroupId, "slot-src");
+    const dst = await makeTag(contentGroupId, "slot-dst");
+    await setSlot(a, 3, src.id);
+    await expect(setSlot(a, 10, src.id)).rejects.toThrow(/1–9/);
+    await mergeTagDefinitions([src.id], dst.id);
+    const slot = await prisma.tagSlot.findUniqueOrThrow({ where: { slotSetId_position: { slotSetId: a, position: 3 } } });
+    expect(slot.tagDefinitionId).toBe(dst.id);
+
+    // Deleting the active set hands "active" on
+    await deleteSlotSet(a);
+    sets = await getSlotSets();
+    expect(sets.filter((s) => s.isActive)).toHaveLength(1);
+    await deleteSlotSet(b);
+    if (before) await setActiveSlotSet(before).catch(() => {});
   });
 });

@@ -51,6 +51,10 @@ export function useEntityTags(
   const [, startTransition] = useTransition();
   // Per-entity request sequence: a slow older response never overwrites a newer one
   const fetchSeq = useRef(new Map<string, number>());
+  // Writes still in flight per entity. While any is pending a re-read would
+  // show a state from before it (keys pressed in quick succession flicker), so
+  // results are ignored and one re-read follows the last write.
+  const pending = useRef(new Map<string, number>());
 
   const refetch = useCallback(
     (id: string) => {
@@ -59,7 +63,7 @@ export function useEntityTags(
       fetch(`/api/tags/entity?entityType=${entityType}&entityId=${encodeURIComponent(id)}`)
         .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
         .then((tags: EffectiveTag[]) => {
-          if (fetchSeq.current.get(id) !== seq) return;
+          if (fetchSeq.current.get(id) !== seq || (pending.current.get(id) ?? 0) > 0) return;
           setByEntity((m) => new Map(m).set(id, tags));
         })
         .catch(() => {
@@ -67,6 +71,21 @@ export function useEntityTags(
         });
     },
     [entityType],
+  );
+
+  /** Run one write, counting it as pending; the last one to finish re-reads. */
+  const track = useCallback(
+    async <T,>(id: string, write: () => Promise<T>): Promise<T> => {
+      pending.current.set(id, (pending.current.get(id) ?? 0) + 1);
+      try {
+        return await write();
+      } finally {
+        const left = (pending.current.get(id) ?? 1) - 1;
+        pending.current.set(id, left);
+        if (left === 0) refetch(id);
+      }
+    },
+    [refetch],
   );
 
   const known = entityId ? byEntity.has(entityId) : true;
@@ -93,14 +112,13 @@ export function useEntityTags(
         return new Map(m).set(id, next);
       });
       startTransition(async () => {
-        const res = on
-          ? await addTagsToEntityAction(entityType, id, [tag.id])
-          : await removeTagsFromEntityAction(entityType, id, [tag.id]);
+        const res = await track(id, () =>
+          on ? addTagsToEntityAction(entityType, id, [tag.id]) : removeTagsFromEntityAction(entityType, id, [tag.id]),
+        );
         if (!res.success) toast.error(res.error ?? "Failed to update tags");
-        refetch(id);
       });
     },
-    [entityId, entityType, refetch],
+    [entityId, entityType, track],
   );
 
   const remove = useCallback(
@@ -109,12 +127,11 @@ export function useEntityTags(
       const id = entityId;
       setByEntity((m) => new Map(m).set(id, (m.get(id) ?? []).filter((t) => !(t.source === "DIRECT" && t.id === tagId))));
       startTransition(async () => {
-        const res = await removeTagsFromEntityAction(entityType, id, [tagId]);
+        const res = await track(id, () => removeTagsFromEntityAction(entityType, id, [tagId]));
         if (!res.success) toast.error(res.error ?? "Failed to remove tag");
-        refetch(id);
       });
     },
-    [entityId, entityType, refetch],
+    [entityId, entityType, track],
   );
 
   if (!entityId) return null;

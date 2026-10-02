@@ -1,6 +1,7 @@
 "use client";
 
-import { EntityTagList } from "@/components/tags";
+import { ArmedTagChip, EntityTagList, TagSlotBar } from "@/components/tags";
+import type { PaletteTag } from "@/lib/services/tag-service";
 import type { EntityTagsController } from "@/hooks/use-entity-tags";
 import { useCallback, useMemo, useState, useTransition } from "react";
 import {
@@ -144,6 +145,9 @@ type GalleryInfoPanelProps = {
   // Tags of this image (ADR-0033) — owned by the lightbox, shared with its `T` palette
   tagController?: EntityTagsController | null;
   onOpenTagPalette?: () => void;
+  /** Quick-tag slot click (keys 1–9) and "arm a tag" — owned by the lightbox */
+  onApplySlot?: (tag: PaletteTag) => void;
+  onArmRequest?: () => void;
   // Find similar
   onFindSimilar?: (mediaItemId: string) => void;
   // Focal point
@@ -173,6 +177,8 @@ export function GalleryInfoPanel({
   onFavoriteToggle,
   tagController,
   onOpenTagPalette,
+  onApplySlot,
+  onArmRequest,
   onFindSimilar,
   sessionId,
   onFocalPointChange,
@@ -1217,6 +1223,17 @@ export function GalleryInfoPanel({
             />
           ) : (
             <p className="text-xs text-white/40">Tags unavailable here.</p>
+          )}
+          {tagController && onApplySlot && (
+            <div className="mt-3 space-y-2 border-t border-white/10 pt-2">
+              <TagSlotBar
+                entityType="MEDIA_ITEM"
+                onApplySlot={onApplySlot}
+                stateOf={(tagId) => (tagController.directTagIds.includes(tagId) ? "all" : "none")}
+                tone="onDark"
+              />
+              {onArmRequest && <ArmedTagChip entityType="MEDIA_ITEM" onArmRequest={onArmRequest} tone="onDark" />}
+            </div>
           )}
         </div>
       )}

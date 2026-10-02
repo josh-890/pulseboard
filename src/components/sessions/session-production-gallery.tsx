@@ -24,6 +24,8 @@ import { deleteMediaItemsAction } from "@/lib/actions/media-actions";
 import { setSessionCover } from "@/lib/actions/session-actions";
 import { applyGallerySort, GALLERY_SORT_OPTIONS } from "@/lib/gallery-sort";
 import { BulkPeopleShownControl } from "@/components/gallery/bulk-people-shown";
+import { BulkTagControls } from "@/components/tags";
+import { applyTagChangeToItems } from "@/lib/gallery-tag-update";
 import { GroupSelectToggle } from "@/components/gallery/group-select-toggle";
 import { PeopleFilterBar } from "@/components/gallery/people-filter-bar";
 import { useGallerySelection } from "@/lib/hooks/use-gallery-selection";
@@ -250,6 +252,12 @@ export function SessionProductionGallery({ items: initialItems, sessionId, cover
                 <Trash2 size={14} />
                 Delete
               </Button>
+              <BulkTagControls
+                entityType="MEDIA_ITEM"
+                entityIds={[...selectedIds]}
+                onApplied={(change) => setLocalItems((prev) => applyTagChangeToItems(prev, change))}
+                hotkeysEnabled={lightboxIndex === null && !deleteDialogOpen}
+              />
               {cast && cast.length > 0 && (
                 <BulkPeopleShownControl
                   cast={cast}

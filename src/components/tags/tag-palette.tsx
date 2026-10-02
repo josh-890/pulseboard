@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState, useTransition, type KeyboardEvent } from "react";
-import { Check, ListTodo, Lock, Plus } from "lucide-react";
+import { Check, ListTodo, Lock, Minus, Plus } from "lucide-react";
 import { toast } from "sonner";
 import {
   CommandDialog,
@@ -60,22 +60,62 @@ const ENTITY_NOUN: Record<TaggableEntity, string> = {
   PROJECT: "project",
 };
 
+const ENTITY_PLURAL: Record<TaggableEntity, string> = {
+  PERSON: "people",
+  SESSION: "sessions",
+  SET: "sets",
+  MEDIA_ITEM: "images",
+  PROJECT: "projects",
+};
+
 export type TagPaletteProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   entityType: TaggableEntity;
-  /** Direct tags of the item(s) being tagged */
-  selectedTagIds: string[];
+  /** Direct tags of the single item being tagged */
+  selectedTagIds?: string[];
   /** Toggle one tag; the palette stays open for the next one */
-  onToggle: (tag: PaletteTag, on: boolean) => void;
+  onToggle?: (tag: PaletteTag, on: boolean) => void;
+  /**
+   * Bulk mode: how many of the `selectionSize` selected items carry each tag.
+   * Rows show ✓ (all) / – (some) / blank (none); choosing a row adds the tag
+   * to all, or removes it when every item already has it.
+   */
+  selectionCounts?: Record<string, number>;
+  selectionSize?: number;
+  /** Pick mode: choosing a tag hands it over and closes (arming, slot setup) */
+  onPick?: (tag: PaletteTag) => void;
+  /** Overrides the dialog title */
+  title?: string;
 };
+
+type RowState = "all" | "some" | "none";
 
 // ADR-0033 tag palette (cmdk), the tagging twin of the collection quick-add
 // palette (ADR-0019). Type to fuzzy-find by name, alias or group; Enter
 // toggles. A name nobody has yet offers "Create … in <group>" — Tab cycles the
 // group, and the last group used is remembered per entity type. The fuzzy
 // matches above the Create row are the "did you mean".
-export function TagPalette({ open, onOpenChange, entityType, selectedTagIds, onToggle }: TagPaletteProps) {
+export function TagPalette({
+  open,
+  onOpenChange,
+  entityType,
+  selectedTagIds = [],
+  onToggle,
+  selectionCounts,
+  selectionSize,
+  onPick,
+  title,
+}: TagPaletteProps) {
+  const isBulk = selectionCounts !== undefined && selectionSize !== undefined;
+  const rowState = (tagId: string): RowState => {
+    if (onPick) return "none";
+    if (isBulk) {
+      const n = selectionCounts[tagId] ?? 0;
+      return n === 0 ? "none" : n >= selectionSize ? "all" : "some";
+    }
+    return selectedTagIds.includes(tagId) ? "all" : "none";
+  };
   const [data, setData] = useState<PaletteData | null>(null);
   const [query, setQuery] = useState("");
   const [createGroupId, setCreateGroupId] = useState<string | null>(null);
@@ -144,8 +184,14 @@ export function TagPalette({ open, onOpenChange, entityType, selectedTagIds, onT
     }
   };
 
-  const toggle = (tag: PaletteTag) => {
-    onToggle(tag, !selectedTagIds.includes(tag.id));
+  const choose = (tag: PaletteTag) => {
+    if (onPick) {
+      onPick(tag);
+      handleOpenChange(false);
+      return;
+    }
+    // Some or none → add to all; all → remove from all
+    onToggle?.(tag, rowState(tag.id) !== "all");
     setQuery("");
   };
 
@@ -184,16 +230,27 @@ export function TagPalette({ open, onOpenChange, entityType, selectedTagIds, onT
       // Every palette (any entity type) re-reads the catalogue next time
       paletteCache.clear();
       setData((d) => (d ? { ...d, tags: [...d.tags, created] } : d));
-      onToggle(created, true);
-      setQuery("");
+      if (onPick) {
+        onPick(created);
+        handleOpenChange(false);
+      } else {
+        onToggle?.(created, true);
+        setQuery("");
+      }
       toast.success(`Created “${name}” in ${group.name}`);
     });
   };
 
+  const dialogTitle =
+    title ??
+    (isBulk
+      ? `Tag ${selectionSize} ${selectionSize === 1 ? ENTITY_NOUN[entityType] : ENTITY_PLURAL[entityType]}`
+      : `Tag this ${ENTITY_NOUN[entityType]}`);
+
   return (
-    <CommandDialog open={open} onOpenChange={handleOpenChange} title={`Tag this ${ENTITY_NOUN[entityType]}`}>
+    <CommandDialog open={open} onOpenChange={handleOpenChange} title={dialogTitle}>
       <CommandInput
-        placeholder={`Tag this ${ENTITY_NOUN[entityType]} — type to find or create…`}
+        placeholder={`${dialogTitle} — type to find or create…`}
         value={query}
         onValueChange={setQuery}
         onKeyDown={handleInputKeyDown}
@@ -221,17 +278,22 @@ export function TagPalette({ open, onOpenChange, entityType, selectedTagIds, onT
               }
             >
               {tags.map((t) => {
-                const isOn = selectedTagIds.includes(t.id);
+                const state = rowState(t.id);
                 const parentName = t.parentId ? nameById.get(t.parentId) : undefined;
                 return (
                   <CommandItem
                     key={t.id}
                     value={`${g.name}/${t.name}`}
                     keywords={[t.name, g.name, ...(t.aliases ?? []).map((a) => a.name)]}
-                    onSelect={() => toggle(t)}
+                    onSelect={() => choose(t)}
                     className="gap-2 py-2"
+                    aria-checked={onPick ? undefined : state === "all" ? true : state === "some" ? "mixed" : false}
                   >
-                    <Check className={cn("size-4 shrink-0", isOn ? "opacity-100" : "opacity-0")} aria-hidden="true" />
+                    {state === "some" ? (
+                      <Minus className="size-4 shrink-0" aria-hidden="true" />
+                    ) : (
+                      <Check className={cn("size-4 shrink-0", state === "all" ? "opacity-100" : "opacity-0")} aria-hidden="true" />
+                    )}
                     <span className="min-w-0 flex-1 truncate">
                       {t.name}
                       {parentName && <span className="ml-1.5 text-xs text-muted-foreground">⊂ {parentName}</span>}
@@ -241,7 +303,11 @@ export function TagPalette({ open, onOpenChange, entityType, selectedTagIds, onT
                         </span>
                       )}
                     </span>
-                    <span className="text-xs tabular-nums text-muted-foreground/70">{t.usageCount || ""}</span>
+                    <span className="text-xs tabular-nums text-muted-foreground/70">
+                      {isBulk && state !== "none"
+                        ? `${selectionCounts[t.id] ?? 0}/${selectionSize}`
+                        : t.usageCount || ""}
+                    </span>
                   </CommandItem>
                 );
               })}

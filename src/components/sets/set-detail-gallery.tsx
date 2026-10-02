@@ -21,6 +21,8 @@ import {
 import { toast } from "sonner";
 import { JustifiedGrid } from "@/components/gallery/justified-grid";
 import { BulkPeopleShownControl } from "@/components/gallery/bulk-people-shown";
+import { BulkTagControls } from "@/components/tags";
+import { applyTagChangeToItems } from "@/lib/gallery-tag-update";
 import { GroupSelectToggle } from "@/components/gallery/group-select-toggle";
 import { PeopleFilterBar } from "@/components/gallery/people-filter-bar";
 import { SortableGallery } from "@/components/gallery/sortable-gallery";
@@ -695,6 +697,12 @@ export function SetDetailGallery({
                 Split to Session
               </Button>
             )}
+            <BulkTagControls
+              entityType="MEDIA_ITEM"
+              entityIds={[...selectedIds]}
+              onApplied={(change) => setLocalItems((prev) => applyTagChangeToItems(prev, change))}
+              hotkeysEnabled={lightboxIndex === null && !deleteDialogOpen && !splitDialogOpen && !pickerOpen && !isReordering}
+            />
             {cast && cast.length > 0 && (
               <BulkPeopleShownControl
                 cast={cast}

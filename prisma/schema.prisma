@@ -1889,6 +1889,7 @@ model TagDefinition {
   setTags       SetTag[]
   projectTags   ProjectTag[]
   aliases       TagAlias[]
+  slots         TagSlot[]
 
   @@unique([groupId, name])
   @@unique([groupId, slug])
@@ -1897,6 +1898,31 @@ model TagDefinition {
   @@index([sortOrder])
   @@index([nameNorm])
   @@map("tag_definition")
+}
+
+// Quick-tag slots (ADR-0033): named sets of up to nine tags bound to the keys
+// 1–9 (Lightroom's keyword sets). One set is active at a time.
+model TagSlotSet {
+  id        String    @id @default(cuid())
+  name      String    @unique
+  isActive  Boolean   @default(false)
+  sortOrder Int       @default(0)
+  createdAt DateTime  @default(now())
+  slots     TagSlot[]
+
+  @@map("tag_slot_set")
+}
+
+model TagSlot {
+  slotSetId       String
+  position        Int // 1…9
+  tagDefinitionId String
+  slotSet         TagSlotSet    @relation(fields: [slotSetId], references: [id], onDelete: Cascade)
+  tagDefinition   TagDefinition @relation(fields: [tagDefinitionId], references: [id], onDelete: Cascade)
+
+  @@id([slotSetId, position])
+  @@index([tagDefinitionId])
+  @@map("tag_slot")
 }
 
 model TagAlias {

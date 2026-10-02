@@ -1,6 +1,6 @@
 # ADR-0033: Tagging — group domains, computed inheritance, one shared query
 
-- **Status:** Accepted (S1 foundation landed; S2–S7 follow)
+- **Status:** Accepted (S1–S3 landed; S4–S7 follow)
 - **Date:** 2026-10-01
 
 ## Context

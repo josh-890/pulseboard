@@ -24,6 +24,13 @@ import {
 } from "@/lib/services/entity-tag-service";
 import type { TaggableEntity } from "@/lib/services/entity-tag-service";
 import {
+  createSlotSet,
+  deleteSlotSet,
+  renameSlotSet,
+  setActiveSlotSet,
+  setSlot,
+} from "@/lib/services/tag-slot-service";
+import {
   createTagGroupSchema,
   updateTagGroupSchema,
   createTagDefinitionSchema,
@@ -355,5 +362,68 @@ export async function bulkRemoveTagsFromEntitiesAction(
       return { success: false, error: e instanceof Error ? e.message : "Failed to bulk remove tags" };
     }
 
+  });
+}
+
+// ─── Quick-tag slot sets (S3) ───────────────────────────────────────────────
+
+export async function setSlotAction(
+  slotSetId: string,
+  position: number,
+  tagDefinitionId: string | null,
+): Promise<SimpleActionResult> {
+  return withTenantFromHeaders(async () => {
+    try {
+      await setSlot(slotSetId, position, tagDefinitionId);
+      return { success: true };
+    } catch (e) {
+      return { success: false, error: e instanceof Error ? e.message : "Failed to set slot" };
+    }
+  });
+}
+
+export async function createSlotSetAction(name: string): Promise<SimpleActionResult & { id?: string }> {
+  return withTenantFromHeaders(async () => {
+    try {
+      if (!name.trim()) return { success: false, error: "Name required" };
+      const id = await createSlotSet(name);
+      return { success: true, id };
+    } catch (e) {
+      return { success: false, error: e instanceof Error ? e.message : "Failed to create slot set" };
+    }
+  });
+}
+
+export async function renameSlotSetAction(id: string, name: string): Promise<SimpleActionResult> {
+  return withTenantFromHeaders(async () => {
+    try {
+      if (!name.trim()) return { success: false, error: "Name required" };
+      await renameSlotSet(id, name);
+      return { success: true };
+    } catch (e) {
+      return { success: false, error: e instanceof Error ? e.message : "Failed to rename slot set" };
+    }
+  });
+}
+
+export async function deleteSlotSetAction(id: string): Promise<SimpleActionResult> {
+  return withTenantFromHeaders(async () => {
+    try {
+      await deleteSlotSet(id);
+      return { success: true };
+    } catch (e) {
+      return { success: false, error: e instanceof Error ? e.message : "Failed to delete slot set" };
+    }
+  });
+}
+
+export async function setActiveSlotSetAction(id: string): Promise<SimpleActionResult> {
+  return withTenantFromHeaders(async () => {
+    try {
+      await setActiveSlotSet(id);
+      return { success: true };
+    } catch (e) {
+      return { success: false, error: e instanceof Error ? e.message : "Failed to switch slot set" };
+    }
   });
 }
