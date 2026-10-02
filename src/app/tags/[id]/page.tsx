@@ -2,7 +2,12 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, CornerDownRight, Filter, ListTodo, Lock } from "lucide-react";
 import { withTenantFromHeaders } from "@/lib/tenant-context";
-import { getTagCarriers, getTagDetail, getTagImages } from "@/lib/services/tag-browse-service";
+import { getTagCarriers, getTagDetail, getTagImages, getTagMatchIdsFor } from "@/lib/services/tag-browse-service";
+import { getSetsPaginated, type SetFilters } from "@/lib/services/set-service";
+import { getSessionsPaginated, type SessionFilters } from "@/lib/services/session-service";
+import { getCoverPhotosForSessions, getCoverPhotosForSets, getHeadshotsForPersons } from "@/lib/services/media-service";
+import { SetGrid } from "@/components/sets/set-grid";
+import { SessionGrid } from "@/components/sessions/session-grid";
 import { FavoritesGallery } from "@/components/gallery/favorites-gallery";
 import { cn } from "@/lib/utils";
 
@@ -45,8 +50,57 @@ export default async function TagDetailPage({ params, searchParams }: TagDetailP
       people: `/people?tags=${encodeURIComponent(query)}`,
     };
     const tabHref = (t: TabKey, own = ownOnly) => `/tags/${id}?tab=${t}${own ? "&own=1" : ""}`;
-    const list = tab === "sets" ? carriers.sets : tab === "sessions" ? carriers.sessions : tab === "people" ? carriers.people : [];
-    const shownList = ownOnly ? list.filter((r) => r.own) : list;
+    const shownList = tab === "people" ? carriers.people : [];
+
+    // Sets and sessions render as in their browsers: the same grids, fed the
+    // tag's matches through the browsers' own id restriction (paging included).
+    // The set filters read an empty id list as "no restriction" — hence the sentinel.
+    const restrict = (ids: string[]) => (ids.length > 0 ? ids : ["__no_tag_match__"]);
+    let setsGrid: React.ReactNode = null;
+    let sessionsGrid: React.ReactNode = null;
+    if (tab === "sets") {
+      const ids = await getTagMatchIdsFor(id, "SET", ownOnly ? "set" : "any");
+      const filters: SetFilters = { ids: restrict(ids), type: "all" };
+      const paginated = await getSetsPaginated(filters, undefined, 50);
+      const personIds = [...new Set(paginated.items.flatMap((s) => s.participants.map((p) => p.personId)))];
+      const [covers, headshots] = await Promise.all([
+        getCoverPhotosForSets(paginated.items.map((s) => s.id)),
+        getHeadshotsForPersons(personIds),
+      ]);
+      counts.sets = ids.length;
+      setsGrid = ids.length === 0 ? null : (
+        <SetGrid
+          key={`${id}-${ownOnly}`}
+          sets={paginated.items}
+          photoMap={Object.fromEntries(covers)}
+          headshotMap={Object.fromEntries(headshots)}
+          nextCursor={paginated.nextCursor}
+          totalCount={paginated.totalCount}
+          filters={filters}
+        />
+      );
+    }
+    if (tab === "sessions") {
+      const ids = await getTagMatchIdsFor(id, "SESSION", "any");
+      const filters: SessionFilters = { ids, status: "all", type: "all" };
+      const paginated = await getSessionsPaginated(filters, undefined, 50);
+      const personIds = [...new Set(paginated.items.flatMap((s) => s.contributions.map((c) => c.person.id)))];
+      const [covers, headshots] = await Promise.all([
+        getCoverPhotosForSessions(paginated.items.map((s) => s.id)),
+        getHeadshotsForPersons(personIds),
+      ]);
+      sessionsGrid = ids.length === 0 ? null : (
+        <SessionGrid
+          key={id}
+          sessions={paginated.items}
+          photoMap={Object.fromEntries(covers)}
+          headshotMap={Object.fromEntries(headshots)}
+          nextCursor={paginated.nextCursor}
+          totalCount={paginated.totalCount}
+          filters={filters}
+        />
+      );
+    }
 
     return (
       <div className="space-y-6">
@@ -134,6 +188,12 @@ export default async function TagDetailPage({ params, searchParams }: TagDetailP
               )}
               <FavoritesGallery items={images.items} />
             </>
+          )
+        ) : tab === "sets" || tab === "sessions" ? (
+          (tab === "sets" ? setsGrid : sessionsGrid) ?? (
+            <p className="rounded-2xl border border-white/10 bg-card/40 p-10 text-center text-sm text-muted-foreground">
+              No {tab} carry this tag{ownOnly ? " themselves" : ""}.
+            </p>
           )
         ) : shownList.length === 0 ? (
           <p className="rounded-2xl border border-white/10 bg-card/40 p-10 text-center text-sm text-muted-foreground">Nothing here carries this tag.</p>

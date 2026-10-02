@@ -92,49 +92,34 @@ async function carriersQuery(tagId: string, source: TagSourceFilter): Promise<Re
   return { all: [{ any: [term] }], none: [], unknown: [] };
 }
 
+/** Ids of the entities carrying the tag or a sub-tag — at `source` ("any" = own + inherited) */
+export async function getTagMatchIdsFor(tagId: string, entity: TaggableEntity, source: TagSourceFilter): Promise<string[]> {
+  const q = await carriersQuery(tagId, source);
+  return q ? findTagMatchIds(entity, q) : [];
+}
+
 const LIST_CAP = 200;
 const IMAGE_CAP = 500;
 
 export type CarrierRow = { id: string; label: string; sublabel: string | null; href: string; own: boolean };
 
-async function ownIds(entity: TaggableEntity, tagId: string, ownSource: TagSourceFilter): Promise<Set<string>> {
-  const q = await carriersQuery(tagId, ownSource);
-  return new Set(q ? await findTagMatchIds(entity, q) : []);
-}
 
-/** People, sessions, sets carrying the tag (or a sub-tag); sets include inherited ones, flagged */
+/** People carrying the tag (or a sub-tag), plus how many people / sessions / sets carry it (own + inherited) */
 export async function getTagCarriers(tagId: string): Promise<{
   people: CarrierRow[];
-  sessions: CarrierRow[];
-  sets: CarrierRow[];
   totals: { people: number; sessions: number; sets: number };
 }> {
   const any = await carriersQuery(tagId, "any");
-  if (!any) return { people: [], sessions: [], sets: [], totals: { people: 0, sessions: 0, sets: 0 } };
-  const [personIds, sessionIds, setIds, ownSetIds] = await Promise.all([
+  if (!any) return { people: [], totals: { people: 0, sessions: 0, sets: 0 } };
+  const [personIds, sessionIds, setIds] = await Promise.all([
     findTagMatchIds("PERSON", any),
     findTagMatchIds("SESSION", any),
     findTagMatchIds("SET", any),
-    ownIds("SET", tagId, "set"),
   ]);
-
-  const [persons, sessions, sets] = await Promise.all([
-    prisma.person.findMany({
-      where: { id: { in: personIds.slice(0, LIST_CAP) } },
-      select: { id: true, icgId: true, aliases: { where: { isCommon: true }, take: 1, select: { name: true } } },
-    }),
-    prisma.session.findMany({
-      where: { id: { in: sessionIds.slice(0, LIST_CAP) } },
-      select: { id: true, name: true, date: true },
-      orderBy: { date: "desc" },
-    }),
-    prisma.set.findMany({
-      where: { id: { in: setIds.slice(0, LIST_CAP) } },
-      select: { id: true, title: true, releaseDate: true, channel: { select: { name: true } } },
-      orderBy: { releaseDate: "desc" },
-    }),
-  ]);
-
+  const persons = await prisma.person.findMany({
+    where: { id: { in: personIds.slice(0, LIST_CAP) } },
+    select: { id: true, icgId: true, aliases: { where: { isCommon: true }, take: 1, select: { name: true } } },
+  });
   return {
     people: persons
       .map((p) => ({
@@ -146,20 +131,6 @@ export async function getTagCarriers(tagId: string): Promise<{
         own: true,
       }))
       .sort((a, b) => a.label.localeCompare(b.label)),
-    sessions: sessions.map((s) => ({
-      id: s.id,
-      label: s.name,
-      sublabel: s.date ? s.date.toISOString().slice(0, 10) : null,
-      href: `/sessions/${s.id}`,
-      own: true,
-    })),
-    sets: sets.map((s) => ({
-      id: s.id,
-      label: s.title,
-      sublabel: [s.channel?.name, s.releaseDate?.toISOString().slice(0, 10)].filter(Boolean).join(" · ") || null,
-      href: `/sets/${s.id}`,
-      own: ownSetIds.has(s.id),
-    })),
     totals: { people: personIds.length, sessions: sessionIds.length, sets: setIds.length },
   };
 }

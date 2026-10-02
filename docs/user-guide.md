@@ -745,9 +745,9 @@ Reordering a set's images is switched off while a tag filter is active, since it
 
 **A tag's page** (click its name):
 - Its group, its parent, its description, its aliases and its sub-tags. Sub-tags count as the tag.
-- **Images**, **Sets**, **Sessions**, **People** tabs list what carries it.
+- **Images**, **Sets**, **Sessions**, **People** tabs show what carries it.
+  - Images, sets and sessions appear as galleries, exactly like their browsers: the same cards and layout, plus selection and bulk tagging.
   - Images and sets include inherited tags. **Own only** switches to the item's own tags.
-  - Sets inherited from their session are marked "from session".
   - **Open as filter** jumps to the browser filtered by this tag.
 
 **To-do** — every item carrying a workflow tag (needs-crop, check-cast, …), per tag. **Done** removes the tag from that item. The tab shows the number of open to-dos.
