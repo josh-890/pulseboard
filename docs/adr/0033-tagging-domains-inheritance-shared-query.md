@@ -1,6 +1,6 @@
 # ADR-0033: Tagging — group domains, computed inheritance, one shared query
 
-- **Status:** Accepted (S1–S6 landed; S7 follows)
+- **Status:** Accepted — implemented (S1–S7, 2026-10-01…03)
 - **Date:** 2026-10-01
 
 ## Context
@@ -107,6 +107,7 @@ That chain is Pulseboard's own.
 - Deleting a tag re-parents its children to its own parent. Merging moves the
   sources' children to the target.
 - Gallery tiles lost their legacy tag-count badge until S2's join-backed tag dots.
+- Settings › Catalogs › Tags keeps tag editing next to the group set-up (it costs nothing to keep); `/tags` is the day-to-day place.
 - Facet counts (S4 v1) count every entity of the type carrying the tag (galleries: within the gallery), not the result narrowed by the other filters — the filter itself still ANDs with all of them.
 - Follow-up slices:
   - S2: tag palette (`T`) and display with inherited tags.

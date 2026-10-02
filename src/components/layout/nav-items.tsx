@@ -19,6 +19,7 @@ import {
   Eye,
   Heart,
   BookUser,
+  Tag,
 } from "lucide-react";
 import { getBrowseReturnUrl } from "@/lib/browse-context";
 
@@ -41,6 +42,7 @@ export const navItems: NavItem[] = [
   { href: "/sets", icon: <ImageIcon size={20} />, label: "Sets" },
   { href: "/collections", icon: <Library size={20} />, label: "Collections" },
   { href: "/favorites", icon: <Heart size={20} />, label: "Favorites" },
+  { href: "/tags", icon: <Tag size={20} />, label: "Tags" },
   { href: "/atlas", icon: <LayoutGrid size={20} />, label: "Atlas" },
   { href: "/people", icon: <Users size={20} />, label: "People", resolveHref: getBrowseReturnUrl },
   { href: "/people/contacts", icon: <BookUser size={20} />, label: "Contacts" },

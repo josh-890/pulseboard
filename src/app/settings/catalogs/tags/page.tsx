@@ -1,5 +1,6 @@
 export const dynamic = "force-dynamic";
 
+import Link from "next/link";
 import { withTenantFromHeaders } from "@/lib/tenant-context";
 import { TagSettingsSection } from "@/components/settings/tag-settings-section";
 import {
@@ -28,6 +29,11 @@ export default async function TagsPage() {
             (persons, content — sessions, sets and images — or projects); inside content its typical
             level only ranks the picker. Tags can have a parent: filtering by a parent also finds
             its children.
+          </p>
+          <p className="mt-2 text-sm">
+            <Link href="/tags" className="text-primary hover:underline">
+              Browse tags, see what carries them, and work the To-do list → /tags
+            </Link>
           </p>
         </div>
         <TagSettingsSection

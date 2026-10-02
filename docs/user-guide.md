@@ -732,6 +732,26 @@ A condition that does not apply to the page (`type:video` on /people) shows as a
 
 Reordering a set's images is switched off while a tag filter is active, since it would only re-sort the visible ones.
 
+### The tag browser (/tags, ADR-0033)
+
+**Tags** in the sidebar opens the tag browser.
+
+**Catalogue** — every group with its tags as a tree (sub-tags indented).
+- Next to each tag: how many people (P), sessions (Se), sets (S), images (I) and projects (Pr) carry it themselves.
+- Find a tag with the search box.
+- Hover a row to rename it, move it **under** another tag of its group, **merge** it into another tag, or delete it. Deleting moves its sub-tags up one level.
+- **Drag** a tag onto another tag of the same group, then choose: make it a **sub-tag**, or **merge** the two.
+- **Groups & settings** opens Settings › Tags for the group setup (domain, typical level, colour, one-per-item).
+
+**A tag's page** (click its name):
+- Its group, its parent, its description, its aliases and its sub-tags. Sub-tags count as the tag.
+- **Images**, **Sets**, **Sessions**, **People** tabs list what carries it.
+  - Images and sets include inherited tags. **Own only** switches to the item's own tags.
+  - Sets inherited from their session are marked "from session".
+  - **Open as filter** jumps to the browser filtered by this tag.
+
+**To-do** — every item carrying a workflow tag (needs-crop, check-cast, …), per tag. **Done** removes the tag from that item. The tab shows the number of open to-dos.
+
 ### Saved views and Smart Collections (ADR-0033)
 
 **Saved views** — the bookmark row above the toolbar on /people, /sets and /sessions:

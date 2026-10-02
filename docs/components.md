@@ -162,6 +162,8 @@ filter live in shared hooks (`lib/hooks/use-gallery-selection.ts`,
 | `SmartCollectionActions` (collections/) | Client | `id`, `name`, `dirty`, `preview`, `total` | Save query / Revert (while previewing), Rename, Freeze, Delete |
 | `TagQueryBox` | Client | `value`, `onSubmit(text)`, `facets`, `entityType` | Text form of the tag filter with caret-token autocomplete (groups, tags, levels, predicates — `lib/tag-query/complete.ts`); ↑/↓, Tab/Enter take, Enter applies, Esc reverts; follows the applied value when chips change it |
 | `GalleryTagFilter` | Client | `facets`, `problems?`, `shown`, `total`, `allowSmartSave?`, `value?` | Tag filter row for image galleries (set, session, favorites), reading/writing `?tags=` |
+| `TagCatalogTree` | Client | `groups` (`TagTreeGroup[]`) | /tags catalogue: groups → tag tree with own-use counts per entity type; search; inline rename, move-under select, merge (`TagMergeDialog`), delete; drag a tag onto another of its group → sub-tag / merge dialog |
+| `TodoInbox` | Client | `todos` (`TodoTag[]`) | Workflow To-do: per workflow tag, its items (list + image thumbnails) with **Done** (removes that tag) |
 | `TagDotStrip` | Server-safe | `tags?` (`TagChipData[]`), `max?` | One dot per **direct** tag in its group colour on gallery/media tiles; names in tooltip + aria-label |
 
 `useEntityTags(entityType, entityId, initialTags?)` (`hooks/use-entity-tags.ts`) is the
