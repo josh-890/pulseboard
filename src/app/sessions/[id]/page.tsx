@@ -17,6 +17,12 @@ import { mergeSessionContributors, type SessionContributor } from "@/lib/service
 import { getAllSkillGroups } from "@/lib/services/skill-catalog-service";
 import { getAllContributionRoleGroups } from "@/lib/services/contribution-role-service";
 import { getEffectiveTags } from "@/lib/services/tag-effective-service";
+import {
+  findTagMatchIds,
+  getTagFacets,
+  resolveTagFilterParam,
+  type TagFacetGroup,
+} from "@/lib/services/tag-filter-service";
 import { prisma } from "@/lib/db";
 import { cn, formatPartialDateISO } from "@/lib/utils";
 import { EditSessionSheet } from "@/components/sessions/edit-session-sheet";
@@ -37,7 +43,7 @@ export const dynamic = "force-dynamic";
 
 type SessionDetailPageProps = {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ tab?: string }>;
+  searchParams: Promise<{ tab?: string; tags?: string }>;
 };
 
 // ── Sub-components ──────────────────────────────────────────────────────────
@@ -109,6 +115,7 @@ export default async function SessionDetailPage({ params, searchParams }: Sessio
 
   // Load data for reference sessions (MediaManager) vs regular sessions (SessionMediaGallery)
   let mediaItems: Awaited<ReturnType<typeof getSessionMediaGallery>> = [];
+  let galleryTagFilter: { facets: TagFacetGroup[]; matchIds: string[] | null; problems: string[] } | undefined;
   let mediaManagerData: {
     items: Awaited<ReturnType<typeof getMediaItemsWithLinks>>;
     collections: Awaited<ReturnType<typeof getCollectionsForPerson>>;
@@ -195,6 +202,17 @@ export default async function SessionDetailPage({ params, searchParams }: Sessio
     };
   } else {
     mediaItems = await getSessionMediaGallery(id);
+    // ADR-0033: tag filter over this session's images (facet counts within it)
+    const galleryIds = mediaItems.map((m) => m.id);
+    const [tagFilter, facets] = await Promise.all([
+      resolveTagFilterParam(resolvedSearchParams.tags),
+      getTagFacets("MEDIA_ITEM", galleryIds),
+    ]);
+    galleryTagFilter = {
+      facets,
+      matchIds: tagFilter ? await findTagMatchIds("MEDIA_ITEM", tagFilter.resolved, galleryIds) : null,
+      problems: tagFilter?.problems ?? [],
+    };
   }
 
   // Reference sessions → dedicated page component
@@ -363,6 +381,7 @@ export default async function SessionDetailPage({ params, searchParams }: Sessio
                 coverMediaItemId={session.coverMediaItemId ?? null}
                 productionContext={productionContext}
                 cast={castDirectory}
+                tagFilter={galleryTagFilter}
               />
             </SectionCard>
 

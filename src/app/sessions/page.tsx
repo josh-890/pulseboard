@@ -7,6 +7,7 @@ import { getCoverPhotosForSessions, getHeadshotsForPersons } from "@/lib/service
 import { getLabels } from "@/lib/services/label-service";
 import { getProjects } from "@/lib/services/project-service";
 import { SessionGrid } from "@/components/sessions/session-grid";
+import { findTagMatchIds, getTagFacets, resolveTagFilterParam } from "@/lib/services/tag-filter-service";
 import { BrowserToolbar } from "@/components/shared/browser-toolbar";
 import type { BrowserToolbarConfig, FilterGroup } from "@/components/shared/browser-toolbar";
 import { SavedViewsBar } from "@/components/shared/saved-views-bar";
@@ -32,6 +33,7 @@ type SessionsPageProps = {
     createdFrom?: string;
     createdTo?: string;
     loaded?: string;
+    tags?: string;
   }>;
 };
 
@@ -72,6 +74,7 @@ export default async function SessionsPage({ searchParams }: SessionsPageProps) 
       dateFrom: dateFromParam, dateTo: dateToParam,
       createdFrom: createdFromParam, createdTo: createdToParam,
       loaded,
+      tags: tagsParam,
     } = await searchParams;
 
   const limit = Math.min(
@@ -86,7 +89,12 @@ export default async function SessionsPage({ searchParams }: SessionsPageProps) 
   const createdFrom = parseDate(createdFromParam);
   const createdTo = parseDate(createdToParam);
 
+  // ADR-0033: tag filter → matching session ids, ANDed with the other filters
+  const tagFilter = await resolveTagFilterParam(tagsParam);
+  const tagMatchIds = tagFilter ? await findTagMatchIds("SESSION", tagFilter.resolved) : undefined;
+
   const filters = {
+    ids: tagMatchIds,
     q: q?.trim() || undefined,
     status: resolvedStatus ?? ("all" as const),
     type: "PRODUCTION" as const,
@@ -100,11 +108,12 @@ export default async function SessionsPage({ searchParams }: SessionsPageProps) 
     sort: resolvedSort,
   };
 
-  const [paginated, labels, projects, facetCounts] = await Promise.all([
+  const [paginated, labels, projects, facetCounts, tagFacets] = await Promise.all([
     getSessionsPaginated(filters, undefined, limit),
     getLabels(),
     getProjects(),
     getSessionFacetCounts(filters),
+    getTagFacets("SESSION"),
   ]);
 
   // Batch-load cover photos and contributor headshots
@@ -182,6 +191,15 @@ export default async function SessionsPage({ searchParams }: SessionsPageProps) 
       searchable: true,
     });
   }
+
+  filterGroups.push({
+    type: "tags",
+    param: "tags",
+    entityType: "SESSION",
+    facets: tagFacets,
+    countNoun: "sessions",
+    problems: tagFilter?.problems,
+  });
 
   const toolbarConfig: BrowserToolbarConfig = {
     basePath: "/sessions",

@@ -149,6 +149,8 @@ export type PersonFilters = {
   birthdateTo?: Date;
   createdFrom?: Date;
   createdTo?: Date;
+  /** Restrict to these ids — the tag filter's matches (ADR-0033); undefined = no restriction */
+  ids?: string[];
 };
 
 /**
@@ -2136,6 +2138,8 @@ export async function getPersonsPaginated(
 
   const where: Prisma.PersonWhereInput = {};
 
+  if (filters.ids) where.id = { in: filters.ids };
+
   if (status && status !== "all") {
     where.status = status;
   }
@@ -2464,6 +2468,7 @@ export async function getPersonFacetCounts(filters: Omit<PersonFilters, "sort" |
   function buildBase(overrides: Partial<Pick<PersonFilters, "status" | "naturalHairColor" | "bodyType" | "ethnicity" | "ratings" | "idOrigin" | "nationalities">> = {}): Prisma.PersonWhereInput {
     const merged = { ...filters, ...overrides };
     const w: Prisma.PersonWhereInput = {};
+    if (filters.ids) w.id = { in: filters.ids };
     if (merged.status && merged.status !== "all") w.status = merged.status;
     Object.assign(w, idOriginWhere(merged.idOrigin) ?? {});
     if (merged.nationalities && merged.nationalities.length > 0) {

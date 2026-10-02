@@ -10,6 +10,7 @@ import { getHeroBackdropEnabled } from "@/lib/services/setting-service";
 import { getAllContributionRoleGroups } from "@/lib/services/contribution-role-service";
 import { SetDetailGallery } from "@/components/sets/set-detail-gallery";
 import { getEffectiveTags } from "@/lib/services/tag-effective-service";
+import { findTagMatchIds, getTagFacets, resolveTagFilterParam } from "@/lib/services/tag-filter-service";
 import { EditSetSheet } from "@/components/sets/edit-set-sheet";
 import { deleteSet } from "@/lib/actions/set-actions";
 import { SetActionsMenu } from "@/components/sets/set-actions-menu";
@@ -29,11 +30,12 @@ export const dynamic = "force-dynamic";
 
 type SetDetailPageProps = {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ tags?: string }>;
 };
 
-export default async function SetDetailPage({ params }: SetDetailPageProps) {
+export default async function SetDetailPage({ params, searchParams }: SetDetailPageProps) {
   return withTenantFromHeaders(async () => {
-    const { id } = await params;
+    const [{ id }, { tags: tagsParam }] = await Promise.all([params, searchParams]);
 
     const [set, channels, roleGroups, setEntityTags, backdropEnabled, archiveSuggestions] = await Promise.all([
       getSetById(id),
@@ -121,6 +123,14 @@ export default async function SetDetailPage({ params }: SetDetailPageProps) {
         ? { id: c.resolvedContact.id, name: c.resolvedContact.name, icgId: c.resolvedContact.icgId }
         : null,
     }));
+
+    // ADR-0033: tag filter over this set's images (facet counts within the set)
+    const galleryIds = galleryItems.map((g) => g.id);
+    const [tagFilter, galleryTagFacets] = await Promise.all([
+      resolveTagFilterParam(tagsParam),
+      getTagFacets("MEDIA_ITEM", galleryIds),
+    ]);
+    const tagMatchIds = tagFilter ? await findTagMatchIds("MEDIA_ITEM", tagFilter.resolved, galleryIds) : null;
 
     return (
       <div className="space-y-6">
@@ -215,6 +225,7 @@ export default async function SetDetailPage({ params }: SetDetailPageProps) {
           {/* Left column: gallery */}
           <SetDetailGallery
             items={galleryItems}
+            tagFilter={{ facets: galleryTagFacets, matchIds: tagMatchIds, problems: tagFilter?.problems ?? [] }}
             entityId={id}
             primarySessionId={setData.sessionLinks?.find((l) => l.isPrimary)?.sessionId}
             coverMediaItemId={setData.coverMediaItemId}

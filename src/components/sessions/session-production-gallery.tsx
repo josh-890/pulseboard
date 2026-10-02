@@ -24,7 +24,8 @@ import { deleteMediaItemsAction } from "@/lib/actions/media-actions";
 import { setSessionCover } from "@/lib/actions/session-actions";
 import { applyGallerySort, GALLERY_SORT_OPTIONS } from "@/lib/gallery-sort";
 import { BulkPeopleShownControl } from "@/components/gallery/bulk-people-shown";
-import { BulkTagControls } from "@/components/tags";
+import { BulkTagControls, GalleryTagFilter } from "@/components/tags";
+import type { TagFacetGroup } from "@/lib/services/tag-filter-service";
 import { applyTagChangeToItems } from "@/lib/gallery-tag-update";
 import { GroupSelectToggle } from "@/components/gallery/group-select-toggle";
 import { PeopleFilterBar } from "@/components/gallery/people-filter-bar";
@@ -46,9 +47,11 @@ type SessionProductionGalleryProps = {
   coverMediaItemId?: string | null;
   productionContext?: ProductionContext;
   cast?: GalleryCastMember[];
+  /** ADR-0033 tag filter: facets for the panel, and the matching image ids (null = no filter) */
+  tagFilter?: { facets: TagFacetGroup[]; matchIds: string[] | null; problems: string[] };
 };
 
-export function SessionProductionGallery({ items: initialItems, sessionId, coverMediaItemId: initialCoverId, productionContext, cast }: SessionProductionGalleryProps) {
+export function SessionProductionGallery({ items: initialItems, sessionId, coverMediaItemId: initialCoverId, productionContext, cast, tagFilter }: SessionProductionGalleryProps) {
   const [localItems, setLocalItems] = useState(initialItems);
   const [coverId, setCoverId] = useState(initialCoverId ?? null);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
@@ -124,7 +127,12 @@ export function SessionProductionGallery({ items: initialItems, sessionId, cover
     [collections],
   );
 
-  const displayItems = useMemo(() => applyGallerySort(localItems, sortMode), [localItems, sortMode]);
+  // The tag filter narrows the base list, so every view shows only matching images
+  const tagMatchSet = useMemo(() => (tagFilter?.matchIds ? new Set(tagFilter.matchIds) : null), [tagFilter]);
+  const displayItems = useMemo(
+    () => applyGallerySort(tagMatchSet ? localItems.filter((it) => tagMatchSet.has(it.id)) : localItems, sortMode),
+    [localItems, sortMode, tagMatchSet],
+  );
 
   const indexMap = useMemo(() => {
     const map = new Map<string, number>();
@@ -230,6 +238,14 @@ export function SessionProductionGallery({ items: initialItems, sessionId, cover
 
   return (
     <div ref={containerRef} className="relative">
+      {tagFilter && localItems.length > 0 && (
+        <GalleryTagFilter
+          facets={tagFilter.facets}
+          problems={tagFilter.problems}
+          shown={displayItems.length}
+          total={localItems.length}
+        />
+      )}
       {/* Toolbar */}
       {localItems.length > 0 && (
         <div className="mb-3 flex items-center gap-2">

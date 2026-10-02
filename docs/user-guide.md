@@ -672,6 +672,51 @@ In the image viewer:
 - The filmstrip toggle moved to <kbd>S</kbd> (in the viewer, the archive workbench and the
   contradictions view alike).
 
+### Filtering by tags (ADR-0033)
+
+**Tags** filter button:
+- **Browsers:** /people, /sets, /sessions.
+- **Image galleries:** /favorites, and the galleries on a set's and a session's page.
+
+**Clicking in the panel:**
+- **Click** a tag to include it; click again to drop it.
+- **Alt-click**, right-click or the ⊘ button excludes it: "not Studio".
+
+**How tags combine:**
+- Tags of one group match **any** of them (Beach *or* Pool).
+- With two or more tags of a group picked, the group's **any / all** switch makes it **all** of them.
+- Different groups must **all** match (Beach *and* Bikini).
+- A parent tag finds its sub-tags: *Swimwear* also finds *Bikini*.
+
+**Counts:**
+- Browsers: how many people/sets/sessions carry the tag, own or inherited.
+- Galleries: counted within the gallery.
+- Tags nobody uses are hidden unless you tick **unused**.
+
+**Chips:** each active filter shows as a chip in the *Filtered view* bar. ✕ removes it. On image and set filters, the chip has a **level** choice:
+
+| Level | Matches when the tag is… |
+|---|---|
+| anywhere (default) | on the item or inherited (images inherit from their session and sets, sets from their sessions). In a one-per-item group the closest level wins: an image tagged *Studio* in an *Outdoor* session counts as Studio only. |
+| on the image / on the set | on the item itself |
+| on its set / on its session | on that level, whatever the item says |
+
+**URL:** the filter is part of the address (`?tags=…`), so filtered views can be bookmarked and shared. It also combines with every other filter on the page.
+
+**Syntax:** you can also write the filter yourself:
+
+| Example | Meaning |
+|---|---|
+| `beach` | a tag by name or alias, in any group |
+| `location:beach,pool` | Beach or Pool (group:tag) |
+| `outfit:*` | any outfit tag |
+| `=swimwear` | exactly Swimwear, not its sub-tags |
+| `-setting:studio` | not Studio |
+| `@session:setting:outdoor` | the session must carry Outdoor |
+| `~pool ~bikini` | Pool or Bikini, across groups |
+
+Reordering a set's images is switched off while a tag filter is active, since it would only re-sort the visible ones.
+
 ### Tagging many at once (ADR-0033)
 
 Select images in a set or session gallery, or people, sets or sessions in their browsers. The

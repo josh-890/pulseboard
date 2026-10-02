@@ -155,12 +155,17 @@ filter live in shared hooks (`lib/hooks/use-gallery-selection.ts`,
 | `TagSlotBar` | Client | `entityType`, `onApplySlot(tag)`, `stateOf?`, `tone?` | Quick-tag slots 1–9 of the active slot set + set switcher; pencil mode assigns/clears slots (pick-mode palette) and adds/renames/deletes sets. Slots whose tag's domain does not fit `entityType` are disabled |
 | `ArmedTagChip` | Client | `entityType`, `onArmRequest`, `tone?` | The armed tag (painter) with its `P` hint and ✕ to disarm, or an "Arm tag" button |
 | `BulkTagControls` | Client | `entityType`, `entityIds`, `onApplied?`, `hotkeysEnabled?` | Selection-bar tagging: tri-state palette (`T`), Slots popover, armed chip; keys 1–9 / T / Shift+T / P / Shift+P act on the selection. Used by the set + session galleries and `BulkSelectionBar` (people/sets/sessions) |
+| `TagFacetPanel` | Client | `facets`, `query`, `onChange`, `countNoun` | Facet panel: click include / Alt-click, right-click, ⊘ exclude; per-group any/all switch (≥2 included); sub-tags indented; counts; search + "unused" toggle |
+| `TagFilterButton` | Client | `facets`, `query`, `onChange`, `countNoun` | "Tags" toolbar button (active count badge) opening the facet panel in a popover |
+| `TagFilterChips` | Client | `entityType`, `facets`, `query`, `onChange`, `problems?` | Active tag filters as chips: one per clause with a level `<select>` (images: anywhere/image/set/session; sets: anywhere/set/session), one per exclusion, plus unresolved-term warnings |
+| `GalleryTagFilter` | Client | `facets`, `problems?`, `shown`, `total` | Tag filter row for image galleries (set, session, favorites), reading/writing `?tags=` |
 | `TagDotStrip` | Server-safe | `tags?` (`TagChipData[]`), `max?` | One dot per **direct** tag in its group colour on gallery/media tiles; names in tooltip + aria-label |
 
 `useEntityTags(entityType, entityId, initialTags?)` (`hooks/use-entity-tags.ts`) is the
 controller: effective tags, optimistic `toggle`/`remove` through add/remove actions (never a
 full replace), then a re-read so inherited/overridden flags stay right. The lightbox owns one
 for the current image and shares it between the info panel and its `T` palette.
+`BrowserToolbar` accepts a `tags` filter group (`entityType`, `facets`, `countNoun`, `problems`) and renders `TagFilterButton` + `TagFilterChips` from the `tags` URL param.
 `useBulkTagging` (selection counts + add-to-all / remove-from-all), `useTagSlots` (module-level
 slot-set store), `useArmedTag` (localStorage, `useSyncExternalStore`) and `useTagHotkeys` (same
 dialog/typing guard as the gallery selection keys) back the S3 controls; `applyTagChangeToItems`

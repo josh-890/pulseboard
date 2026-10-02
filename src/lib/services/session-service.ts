@@ -36,6 +36,8 @@ export type SessionFilters = {
   createdFrom?: Date;
   createdTo?: Date;
   sort?: SessionSort;
+  /** Restrict to these ids — the tag filter's matches (ADR-0033) */
+  ids?: string[];
 };
 
 export async function getSessions(filters: SessionFilters = {}) {
@@ -131,6 +133,8 @@ export async function getSessionsPaginated(
   const { q, status, type, labelId, projectId, personId, dateFrom, dateTo, createdFrom, createdTo, sort } = filters;
 
   const where: Prisma.SessionWhereInput = {};
+
+  if (filters.ids) where.id = { in: filters.ids };
 
   if (status && status !== "all") {
     where.status = status;
@@ -291,6 +295,7 @@ export async function getSessionFacetCounts(filters: Omit<SessionFilters, "sort"
   // Base where: type always PRODUCTION, includes q/person/date filters but NOT the three facets
   function baseWhere(overrides: Partial<Pick<SessionFilters, "status" | "labelId" | "projectId">> = {}): Prisma.SessionWhereInput {
     const w: Prisma.SessionWhereInput = { type: "PRODUCTION" };
+    if (filters.ids) w.id = { in: filters.ids };
     const merged = { ...filters, ...overrides };
     if (merged.status && merged.status !== "all") w.status = merged.status;
     if (merged.labelId) w.labelId = merged.labelId;

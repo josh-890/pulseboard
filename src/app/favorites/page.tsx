@@ -6,21 +6,28 @@ import {
 } from "@/lib/services/media-service";
 import { FavoritesGallery } from "@/components/gallery/favorites-gallery";
 import { FavoritesPersonFilter } from "@/components/gallery/favorites-person-filter";
+import { GalleryTagFilter } from "@/components/tags";
+import { findTagMatchIds, getTagFacets, resolveTagFilterParam } from "@/lib/services/tag-filter-service";
 
 export const dynamic = "force-dynamic";
 
 type FavoritesPageProps = {
-  searchParams: Promise<{ person?: string; favPersons?: string }>;
+  searchParams: Promise<{ person?: string; favPersons?: string; tags?: string }>;
 };
 
 export default async function FavoritesPage({ searchParams }: FavoritesPageProps) {
   return withTenantFromHeaders(async () => {
-    const { person, favPersons } = await searchParams;
+    const { person, favPersons, tags } = await searchParams;
     const favoritePersonsOnly = favPersons === "true";
-    const [items, persons] = await Promise.all([
+    const [allItems, persons] = await Promise.all([
       getFavoriteMediaItems({ personId: person || undefined, favoritePersonsOnly }),
       getPersonsWithFavoriteMedia(),
     ]);
+    // ADR-0033: tag filter over the favorites (facet counts within them)
+    const allIds = allItems.map((i) => i.id);
+    const [tagFilter, tagFacets] = await Promise.all([resolveTagFilterParam(tags), getTagFacets("MEDIA_ITEM", allIds)]);
+    const matchIds = tagFilter ? new Set(await findTagMatchIds("MEDIA_ITEM", tagFilter.resolved, allIds)) : null;
+    const items = matchIds ? allItems.filter((i) => matchIds.has(i.id)) : allItems;
 
     return (
       <div className="space-y-6">
@@ -40,7 +47,20 @@ export default async function FavoritesPage({ searchParams }: FavoritesPageProps
           <FavoritesPersonFilter persons={persons} favoritePersonsOnly={favoritePersonsOnly} />
         </div>
 
-        {items.length === 0 ? (
+        {allItems.length > 0 && (
+          <GalleryTagFilter
+            facets={tagFacets}
+            problems={tagFilter?.problems}
+            shown={items.length}
+            total={allItems.length}
+          />
+        )}
+
+        {items.length === 0 && matchIds ? (
+          <div className="rounded-2xl border border-white/10 bg-card/40 p-12 text-center text-sm text-muted-foreground">
+            No favorite matches these tags.
+          </div>
+        ) : items.length === 0 ? (
           <div className="rounded-2xl border border-white/10 bg-card/40 p-12 text-center text-sm text-muted-foreground">
             No favorites yet. Tap the heart on any image (or press <kbd>.</kbd> in the
             viewer) to add it here.

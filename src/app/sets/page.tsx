@@ -4,6 +4,7 @@ import { ImageIcon } from "lucide-react";
 import { getSetsPaginated, getChannelsWithLabelMaps, getRecentChannels, getLastUsedSetType, getSetFacetCounts } from "@/lib/services/set-service";
 import { getSuggestedFoldersForSets } from "@/lib/services/archive-service";
 import { getPotentialDuplicatePairs } from "@/lib/services/set-merge-service";
+import { findTagMatchIds, getTagFacets, resolveTagFilterParam } from "@/lib/services/tag-filter-service";
 import type { SetSort, SetFilters, CastCountBucket } from "@/lib/services/set-service";
 import { getCoverPhotosForSets, getHeadshotsForPersons } from "@/lib/services/media-service";
 import { getAllContributionRoleGroups } from "@/lib/services/contribution-role-service";
@@ -40,6 +41,7 @@ type SetsPageProps = {
     releaseDateTo?: string;
     rating?: string;
     groupBy?: string;
+    tags?: string;
   }>;
 };
 
@@ -98,6 +100,7 @@ export default async function SetsPage({ searchParams }: SetsPageProps) {
       releaseDateTo: releaseDateToParam,
       rating: ratingParam,
       groupBy: groupByParam,
+      tags: tagsParam,
     } = await searchParams;
 
   const groupBy = groupByParam && VALID_GROUP_BYS.has(groupByParam) ? groupByParam : "none";
@@ -131,6 +134,13 @@ export default async function SetsPage({ searchParams }: SetsPageProps) {
     duplicatePairs.flatMap((p) => [[p.idA, p.idB], [p.idB, p.idA]]),
   );
 
+  // ADR-0033: tag filter → matching set ids (within the duplicates view when on).
+  // The set filters read an empty id list as "no restriction", so no match is
+  // passed as an id that cannot exist.
+  const tagFilter = await resolveTagFilterParam(tagsParam);
+  const tagMatchIds = tagFilter ? await findTagMatchIds("SET", tagFilter.resolved, duplicateSetIds) : undefined;
+  const restrictIds = tagMatchIds ? (tagMatchIds.length > 0 ? tagMatchIds : ["__no_tag_match__"]) : duplicateSetIds;
+
   // Parse rating multifacet param: comma-separated "1".."5" + "unrated".
   const resolvedRatings = ratingParam
     ? ratingParam.split(",").filter(Boolean).map((v) => (v === "unrated" ? ("unrated" as const) : parseInt(v, 10)))
@@ -156,7 +166,7 @@ export default async function SetsPage({ searchParams }: SetsPageProps) {
     sort: resolvedSort,
     archiveFilter,
     noArchiveLink: noArchiveLinkParam === 'true' ? true : undefined,
-    ids: duplicateSetIds,
+    ids: restrictIds,
     ratings: resolvedRatings,
     releaseDateFrom,
     releaseDateTo,
@@ -323,6 +333,15 @@ export default async function SetsPage({ searchParams }: SetsPageProps) {
       { value: "missing",     label: "Missing" },
       { value: "notImported", label: "Not imported" },
     ],
+  });
+
+  filterGroups.push({
+    type: "tags",
+    param: "tags",
+    entityType: "SET",
+    facets: await getTagFacets("SET"),
+    countNoun: "sets",
+    problems: tagFilter?.problems,
   });
 
   const toolbarConfig: BrowserToolbarConfig = {

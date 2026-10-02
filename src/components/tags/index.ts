@@ -6,3 +6,7 @@ export { TagDotStrip } from "./tag-dot-strip";
 export { TagSlotBar } from "./tag-slot-bar";
 export { ArmedTagChip } from "./armed-tag-chip";
 export { BulkTagControls } from "./bulk-tag-controls";
+export { TagFacetPanel } from "./tag-facet-panel";
+export { TagFilterChips } from "./tag-filter-chips";
+export { TagFilterButton } from "./tag-filter-button";
+export { GalleryTagFilter } from "./gallery-tag-filter";

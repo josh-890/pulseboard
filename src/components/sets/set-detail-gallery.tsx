@@ -21,7 +21,8 @@ import {
 import { toast } from "sonner";
 import { JustifiedGrid } from "@/components/gallery/justified-grid";
 import { BulkPeopleShownControl } from "@/components/gallery/bulk-people-shown";
-import { BulkTagControls } from "@/components/tags";
+import { BulkTagControls, GalleryTagFilter } from "@/components/tags";
+import type { TagFacetGroup } from "@/lib/services/tag-filter-service";
 import { applyTagChangeToItems } from "@/lib/gallery-tag-update";
 import { GroupSelectToggle } from "@/components/gallery/group-select-toggle";
 import { PeopleFilterBar } from "@/components/gallery/people-filter-bar";
@@ -134,6 +135,8 @@ type SetDetailGalleryProps = {
   }>;
   // Per-image "people shown" cast directory (ADR-0023).
   cast?: GalleryCastMember[];
+  /** ADR-0033 tag filter: facets for the panel, and the matching image ids (null = no filter) */
+  tagFilter?: { facets: TagFacetGroup[]; matchIds: string[] | null; problems: string[] };
 };
 
 export function SetDetailGallery({
@@ -147,6 +150,7 @@ export function SetDetailGallery({
   sessionLinks,
   copyToReferenceTargets,
   cast,
+  tagFilter,
 }: SetDetailGalleryProps) {
   const router = useRouter();
   const [coverId, setCoverId] = useState(initialCoverId ?? null);
@@ -265,13 +269,18 @@ export function SetDetailGallery({
   }, [splitDialogOpen]);
 
   // Merge cover flag into local items, then apply sort
+  // The tag filter narrows the base list, so every view (flat, by session, by
+  // clip, people filter) shows only matching images.
+  const tagMatchSet = useMemo(() => (tagFilter?.matchIds ? new Set(tagFilter.matchIds) : null), [tagFilter]);
   const items = useMemo(
     () =>
       applyGallerySort(
-        localItems.map((item) => ({ ...item, isCover: item.id === coverId })),
+        localItems
+          .filter((item) => !tagMatchSet || tagMatchSet.has(item.id))
+          .map((item) => ({ ...item, isCover: item.id === coverId })),
         sortMode,
       ),
-    [localItems, coverId, sortMode],
+    [localItems, coverId, sortMode, tagMatchSet],
   );
 
   const indexMap = useMemo(() => {
@@ -526,6 +535,14 @@ export function SetDetailGallery({
 
   return (
     <div ref={containerRef} className="relative">
+      {tagFilter && !isReordering && (
+        <GalleryTagFilter
+          facets={tagFilter.facets}
+          problems={tagFilter.problems}
+          shown={items.length}
+          total={localItems.length}
+        />
+      )}
       {/* People-shown filter (ADR-0023) — only when the set has ≥2 cast members */}
       {cast && cast.length >= 2 && !isReordering && (
         <PeopleFilterBar
@@ -797,7 +814,8 @@ export function SetDetailGallery({
                 ))}
               </SelectContent>
             </Select>
-            {items.length > 1 && sortMode === "user" && (
+            {/* Reordering a tag-filtered subset would re-sort only what is visible */}
+            {items.length > 1 && sortMode === "user" && !tagMatchSet && (
               <Button
                 variant={isReordering ? "default" : "outline"}
                 size="sm"

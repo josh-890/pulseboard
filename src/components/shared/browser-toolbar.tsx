@@ -30,6 +30,10 @@ import {
 } from "@/components/ui/command";
 import { cn } from "@/lib/utils";
 import { clearBrowseContext } from "@/lib/browse-context";
+import { TagFilterButton, TagFilterChips } from "@/components/tags";
+import type { TagFacetGroup } from "@/lib/services/tag-filter-service";
+import type { TaggableEntity } from "@/lib/tag-domains";
+import { parseTagQuery, serializeTagQuery, type TagQuery } from "@/lib/tag-query";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -115,7 +119,19 @@ type TypeaheadFilter = {
   inline?: boolean;
 };
 
-type FilterGroup = PillFilter | FacetFilter | MultiFacetFilter | ToggleFilter | DateRangeFilter | TypeaheadFilter;
+// ADR-0033 tag filter: the URL holds the tag query text (`tags=location:beach,pool -setting:studio`).
+type TagsFilter = {
+  type: "tags";
+  param: string;
+  entityType: TaggableEntity;
+  facets: TagFacetGroup[];
+  /** "people", "sets"… — for the counts' tooltip */
+  countNoun: string;
+  /** Unparseable or unknown terms in the current query, shown as warnings */
+  problems?: string[];
+};
+
+type FilterGroup = PillFilter | FacetFilter | MultiFacetFilter | ToggleFilter | DateRangeFilter | TypeaheadFilter | TagsFilter;
 
 type GroupByOption = {
   value: string;
@@ -148,6 +164,7 @@ export type {
   ToggleFilter,
   DateRangeFilter,
   TypeaheadFilter,
+  TagsFilter,
   SortOption,
   GroupByOption,
 };
@@ -457,11 +474,23 @@ export function BrowserToolbar({ config, children }: BrowserToolbarProps) {
     }
   }
 
+  const tagGroups = [...filterGroups, ...advancedFilterGroups].filter((g): g is TagsFilter => g.type === "tags");
+  const activeTagGroups = tagGroups.filter((g) => !!searchParams.get(g.param));
+
   const hasActiveFilters =
     activeChips.length > 0 ||
+    activeTagGroups.length > 0 ||
     currentSort !== defaultSort ||
     currentGroupBy !== defaultGroupBy ||
     searchParams.has("q");
+
+  function setTagQuery(param: string, q: TagQuery) {
+    const text = serializeTagQuery(q);
+    updateParams((p) => {
+      if (text) p.set(param, text);
+      else p.delete(param);
+    });
+  }
 
   function handleClearAll() {
     setSearchValue("");
@@ -587,6 +616,18 @@ export function BrowserToolbar({ config, children }: BrowserToolbarProps) {
           isActive={isActive}
           allowPartial={group.allowPartial}
           onChange={(from, to) => handleDateRangeChange(group.paramFrom, group.paramTo, from, to)}
+        />
+      );
+    }
+
+    if (group.type === "tags") {
+      return (
+        <TagFilterButton
+          key={group.param}
+          facets={group.facets}
+          query={parseTagQuery(searchParams.get(group.param) ?? "").query}
+          onChange={(q) => setTagQuery(group.param, q)}
+          countNoun={group.countNoun}
         />
       );
     }
@@ -748,6 +789,16 @@ export function BrowserToolbar({ config, children }: BrowserToolbarProps) {
               {config.groupByOptions?.find((o) => o.value === currentGroupBy)?.label ?? currentGroupBy}
             </span>
           )}
+          {activeTagGroups.map((g) => (
+            <TagFilterChips
+              key={g.param}
+              entityType={g.entityType}
+              facets={g.facets}
+              query={parseTagQuery(searchParams.get(g.param) ?? "").query}
+              onChange={(q) => setTagQuery(g.param, q)}
+              problems={g.problems}
+            />
+          ))}
           {activeChips.map((chip) => (
             <button
               key={chip.key}
