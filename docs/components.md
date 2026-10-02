@@ -145,11 +145,29 @@ filter live in shared hooks (`lib/hooks/use-gallery-selection.ts`,
 
 ---
 
+## Tag Components (`components/tags/`, ADR-0033)
+
+| Component | Type | Props | Description |
+|---|---|---|---|
+| `TagPalette` | Client | `open`, `onOpenChange`, `entityType`, `selectedTagIds`, `onToggle(tag, on)` | cmdk palette (twin of the ADR-0019 collection palette). Fuzzy-finds by name, alias or group; Enter toggles and the palette stays open. Groups whose typical level fits the entity come first. An unknown name offers **Create … in <group>** — Tab / Shift+Tab cycles the group, the last one used is remembered per entity type (localStorage). Data from `/api/tags/palette` (cached per page life) |
+| `EntityTagList` | Client | `tags` (`EffectiveTag[]`), `isLoading?`, `onRemove?`, `onAdd?`, `showHotkey?`, `tone?` | Effective tags: direct chips removable; inherited dashed + dimmed with "from set/session …"; overridden (exclusive group shadowed by a nearer level) struck through; workflow tags as amber badges whose ✕ reads "done" |
+| `EntityTagsPanel` | Client | `entityType`, `entityId`, `initialTags?` | `EntityTagList` + `TagPalette` over `useEntityTags` — used on the person, session, set and project pages |
+| `TagDotStrip` | Server-safe | `tags?` (`TagChipData[]`), `max?` | One dot per **direct** tag in its group colour on gallery/media tiles; names in tooltip + aria-label |
+
+`useEntityTags(entityType, entityId, initialTags?)` (`hooks/use-entity-tags.ts`) is the
+controller: effective tags, optimistic `toggle`/`remove` through add/remove actions (never a
+full replace), then a re-read so inherited/overridden flags stay right. The lightbox owns one
+for the current image and shares it between the info panel and its `T` palette.
+
+---
+
 ## Shared Components (`components/shared/`)
 
 | Component | Type | Props | Description |
 |---|---|---|---|
 | `TagInput` | Client | `value`, `onChange`, `placeholder?` | Tokenizer — press Enter to add tag badges |
+| `TagPicker` | Client | `scope`, `selectedTagIds`, `onChange`, … | Inline search-and-pick for tag ids before an entity exists (set/project create sheets) and in the bulk bar |
+| `TagChips` | Client | `tags`, `onRemove?`, `compact?` | Plain coloured chips |
 | `DeleteButton` | Client | `onDelete`, `label?` | Destructive button with confirmation AlertDialog |
 
 ---

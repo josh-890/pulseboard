@@ -1,4 +1,5 @@
 import { randomUUID } from "crypto";
+import { TAG_CHIP_JOIN_SELECT, toTagChips } from "@/lib/tag-chip";
 import { prisma } from "@/lib/db";
 import type { PhotoVariants } from "@/lib/types";
 import { parsePhotoVariants } from "@/lib/types";
@@ -120,6 +121,8 @@ export type MediaItemForGallery = {
   }>;
   collectionItems?: Array<{ collectionId: string }>;
   skillEventMedia?: Array<{ skillEventId: string }>;
+  /** Direct tags (join rows) — tile dots + info panel seed (ADR-0033) */
+  mediaItemTags?: Parameters<typeof toTagChips>[0];
   session?: { id: string; name: string | null } | null;
   copiedFromMediaItem?: {
     id: string;
@@ -166,6 +169,7 @@ export function mapMediaItemToGalleryItem(
     links: item.personMediaLinks,
     collectionIds: item.collectionItems?.map((ci) => ci.collectionId),
     skillEventIds: item.skillEventMedia?.map((sem) => sem.skillEventId),
+    tags: item.mediaItemTags ? toTagChips(item.mediaItemTags) : undefined,
     setCount: item.setMediaItems?.length,
     setLinks: item.setMediaItems?.map((smi) => ({
       setId: smi.set.id,
@@ -193,6 +197,7 @@ export async function getSessionMediaGallery(sessionId: string): Promise<Gallery
     where: { sessionId },
     include: {
       setMediaItems: { select: { setId: true, set: { select: { id: true, title: true } } } },
+      mediaItemTags: TAG_CHIP_JOIN_SELECT,
       // Provenance JOIN — only populated when the item was copied here from
       // a production set's MediaItem. We follow that source's first
       // SetMediaItem so the info panel can show "from [SetName]". One
@@ -426,6 +431,7 @@ export async function getPersonMediaGallery(
       personMediaLinks: {
         where: { personId },
       },
+      mediaItemTags: TAG_CHIP_JOIN_SELECT,
       // Provenance breadcrumb — surfaces "from [SetName]" in the lightbox
       // info panel for images that were copied here from a production set.
       // One shallow hop: source MediaItem → its first SetMediaItem → set.
@@ -533,6 +539,7 @@ export async function getPersonMediaAcrossSessions(
     },
     include: {
       personMediaLinks: { where: { personId } },
+      mediaItemTags: TAG_CHIP_JOIN_SELECT,
       session: { select: { id: true, name: true, date: true, personId: true } },
     },
     orderBy: { createdAt: 'desc' },
@@ -569,6 +576,7 @@ export async function getSetMediaGallery(
         include: {
           session: { select: { id: true, name: true } },
           collectionItems: { select: { collectionId: true } },
+          mediaItemTags: TAG_CHIP_JOIN_SELECT,
         },
       },
     },
@@ -666,6 +674,7 @@ export async function getFavoriteMediaItems(
     include: {
       session: { select: { id: true, name: true } },
       collectionItems: { select: { collectionId: true } },
+      mediaItemTags: TAG_CHIP_JOIN_SELECT,
     },
     orderBy: { createdAt: "desc" },
   });
@@ -1107,6 +1116,7 @@ export async function getMediaItemsWithLinks(
       setMediaItems: {
         select: { setId: true },
       },
+      mediaItemTags: TAG_CHIP_JOIN_SELECT,
       copiedFromMediaItem: {
         select: {
           id: true,
@@ -1157,6 +1167,7 @@ export async function getMediaItemsWithLinks(
         })),
         collectionIds: item.collectionItems.map((ci) => ci.collectionId),
         skillEventIds: item.skillEventMedia.map((sem) => sem.skillEventId),
+        tags: toTagChips(item.mediaItemTags),
         setCount: item.setMediaItems.length,
         sourceVideoRef: item.sourceVideoRef,
         sourceTimecodeMs: item.sourceTimecodeMs,

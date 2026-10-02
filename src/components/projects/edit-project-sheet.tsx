@@ -38,10 +38,7 @@ import {
   type UpdateProjectInput,
 } from "@/lib/validations/project";
 import { updateProject } from "@/lib/actions/project-actions";
-import { setEntityTagsAction } from "@/lib/actions/tag-actions";
 import type { ProjectStatus } from "@/lib/types";
-import { TagPicker } from "@/components/shared/tag-picker";
-import type { TagChipData } from "@/lib/types/tag";
 
 type EditProjectSheetProps = {
   project: {
@@ -50,7 +47,6 @@ type EditProjectSheetProps = {
     description: string | null;
     status: ProjectStatus;
   };
-  entityTags?: TagChipData[];
 };
 
 function SectionHeader({ children }: { children: React.ReactNode }) {
@@ -62,10 +58,9 @@ function SectionHeader({ children }: { children: React.ReactNode }) {
   );
 }
 
-export function EditProjectSheet({ project, entityTags = [] }: EditProjectSheetProps) {
+export function EditProjectSheet({ project }: EditProjectSheetProps) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
-  const [entityTagIds, setEntityTagIds] = useState(entityTags.map((t) => t.id));
 
   const getDefaults = () => ({
     id: project.id,
@@ -97,7 +92,7 @@ export function EditProjectSheet({ project, entityTags = [] }: EditProjectSheetP
   return (
     <Sheet open={open} onOpenChange={(v) => {
       setOpen(v);
-      if (v) { form.reset(getDefaults()); setEntityTagIds(entityTags.map((t) => t.id)); }
+      if (v) { form.reset(getDefaults()); }
     }}>
       <Button size="sm" variant="outline" onClick={() => setOpen(true)}>
         <Pencil size={16} />
@@ -176,21 +171,6 @@ export function EditProjectSheet({ project, entityTags = [] }: EditProjectSheetP
                       )}
                     />
 
-                    {/* Tags */}
-                    <FormItem>
-                      <FormLabel>Tags</FormLabel>
-                      <TagPicker
-                        scope="PROJECT"
-                        selectedTagIds={entityTagIds}
-                        onChange={(newIds) => {
-                          setEntityTagIds(newIds);
-                          setEntityTagsAction("PROJECT", project.id, newIds);
-                        }}
-                        selectedTags={entityTags}
-                        placeholder="Add tags…"
-                        compact
-                      />
-                    </FormItem>
                   </div>
                 </section>
               </div>

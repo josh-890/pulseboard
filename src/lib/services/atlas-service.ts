@@ -8,6 +8,7 @@
  * `MediaItem.motifTemplateId` (ADR-0013), linked to the locus via a DETAIL link.
  */
 
+import { TAG_CHIP_JOIN_SELECT } from "@/lib/tag-chip";
 import { prisma } from "@/lib/db";
 import { buildUrl } from "@/lib/media-url";
 import { getDisplayName } from "@/lib/utils";
@@ -128,6 +129,7 @@ export async function getAtlasGridForCategory(categoryId: string): Promise<Atlas
           sourceTimecodeMs: true,
           isFavorite: true,
           collectionItems: { select: { collectionId: true } },
+          mediaItemTags: TAG_CHIP_JOIN_SELECT,
         },
       },
       person: {

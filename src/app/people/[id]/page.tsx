@@ -22,7 +22,7 @@ import { getPersonDigitalIdentities } from "@/lib/services/digital-identity-serv
 import { getPersonResearch } from "@/lib/services/research-service";
 import { getStagingWorkHistoryForPerson } from "@/lib/services/import/staging-set-service";
 import { getImportHistoryForPerson } from "@/lib/services/import/staging-service";
-import { getEntityTags } from "@/lib/services/entity-tag-service";
+import { getEffectiveTags } from "@/lib/services/tag-effective-service";
 import { getPersonEraContributions } from "@/lib/services/era-service";
 import {
   getCareerTimeline,
@@ -141,7 +141,7 @@ export default async function PersonDetailPage({ params, searchParams }: PersonD
       getPersonProductionSessions(id),
       getPersonEntityMedia(id),
       getAllPhysicalAttributeGroups(),
-      getEntityTags("PERSON", id),
+      getEffectiveTags("PERSON", id),
       getPersonDigitalIdentities(id),
       getPersonResearch(id),
       getStagingWorkHistoryForPerson(id),
@@ -302,11 +302,7 @@ export default async function PersonDetailPage({ params, searchParams }: PersonD
         careerActiveStatuses={activeStatuses}
         careerActiveSort={careerSort}
         eraContributions={eraContributions}
-        entityTags={personEntityTags.map((t) => ({
-          id: t.id,
-          name: t.name,
-          group: t.group,
-        }))}
+        entityTags={personEntityTags}
       />
     </div>
     );

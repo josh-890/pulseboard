@@ -1,5 +1,6 @@
 "use client";
 
+import { TagDotStrip } from "@/components/tags";
 import Image from "next/image";
 import { Check, Heart } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -125,6 +126,7 @@ export function MediaThumbnail({
           ))}
         {hasEntityLink && <MediaLinkIcon />}
         {item.collectionIds.length > 0 && <MediaCollectionIcon />}
+        <TagDotStrip tags={item.tags} />
         {item.isFavorite && (
           <Heart size={11} className="text-red-500" fill="currentColor" aria-label="Favorite" />
         )}

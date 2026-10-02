@@ -37,6 +37,8 @@ export type GalleryItem = {
   focalX: number | null;
   focalY: number | null;
   isFavorite: boolean;
+  /** The image's direct tags (not inherited) — tile dots; absent when not loaded */
+  tags?: import("./tag").TagChipData[];
   sortOrder: number;
   isCover: boolean;
   /** Present only in MediaManager contexts */

@@ -1,5 +1,6 @@
 "use client";
 
+import { TagDotStrip } from "@/components/tags";
 import Image from "next/image";
 import { Check, Frame, Heart, Maximize2, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -217,6 +218,7 @@ export function GalleryThumbnail({
         ))}
         {hasEntityLink && <MediaLinkIcon />}
         {hasCollections && <MediaCollectionIcon />}
+        <TagDotStrip tags={item.tags} />
       </div>
     </div>
   );

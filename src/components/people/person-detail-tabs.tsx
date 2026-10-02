@@ -79,8 +79,8 @@ import {
   setMediaFavoriteAction,
 } from "@/lib/actions/media-actions";
 import { updatePersonBio, updatePersonPgrade, updatePersonRating } from "@/lib/actions/person-actions";
-import { setEntityTagsAction } from "@/lib/actions/tag-actions";
-import { TagPicker } from "@/components/shared/tag-picker";
+import { EntityTagsPanel } from "@/components/tags";
+import type { EffectiveTag } from "@/lib/effective-tags";
 import ReactMarkdown from "react-markdown";
 import { EditAppearanceSheet } from "@/components/people/edit-appearance-sheet";
 
@@ -117,7 +117,7 @@ type PersonDetailTabsProps = {
   plausibilityIssues?: PlausibilityIssue[];
   digitalIdentities?: PersonDigitalIdentityItem[];
   initialTab?: string;
-  entityTags?: { id: string; name: string; group: { name: string; color: string } }[];
+  entityTags?: EffectiveTag[];
   researchEntries?: PersonResearchItem[];
   importHistory?: PersonImportHistory;
   stagingWorkHistory?: StagingWorkHistoryItem[];
@@ -1490,13 +1490,12 @@ function OverviewTab({
   referencePhotos?: GalleryItem[];
   plausibilityIssues?: PlausibilityIssue[];
   onTabSwitch?: (tab: string) => void;
-  entityTags?: { id: string; name: string; group: { name: string; color: string } }[];
+  entityTags?: EffectiveTag[];
   eraContributions?: Record<string, EraContributionInfo>;
   // Slice 16E: catalog defs for NewEraSheet's hair-color routing.
   attributeGroups?: PhysicalAttributeGroupWithDefinitions[];
 }) {
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
-  const [tagIds, setTagIds] = useState(entityTags.map((t) => t.id));
   const hasHistory = person.eras.length > 0;
   const recentWork = (sessionWorkHistory ?? []).slice(0, 3);
   const recentPhotos = (referencePhotos ?? []).slice(0, 8);
@@ -1586,17 +1585,7 @@ function OverviewTab({
       {/* 5. Notes & Tags */}
       <SectionCard title="Notes & Tags" icon={<Tag size={18} />}>
         <div className="mb-3">
-          <TagPicker
-            scope="PERSON"
-            selectedTagIds={tagIds}
-            onChange={(newIds) => {
-              setTagIds(newIds);
-              setEntityTagsAction("PERSON", person.id, newIds);
-            }}
-            selectedTags={entityTags}
-            placeholder="Add tags…"
-            compact
-          />
+          <EntityTagsPanel entityType="PERSON" entityId={person.id} initialTags={entityTags} />
         </div>
         {person.notes && (
           <p className="whitespace-pre-wrap text-sm leading-relaxed text-muted-foreground">

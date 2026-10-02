@@ -1,4 +1,5 @@
-import { TagChips } from "@/components/shared/tag-chips";
+import { EntityTagsPanel } from "@/components/tags";
+import { getEffectiveTags } from "@/lib/services/tag-effective-service";
 import { withTenantFromHeaders } from "@/lib/tenant-context";
 import { notFound } from "next/navigation";
 import Link from "next/link";
@@ -45,16 +46,12 @@ export default async function ProjectDetailPage({
 
   if (!project) notFound();
 
+  const projectTags = await getEffectiveTags("PROJECT", id);
+
   const totalContributions = project.sessions.reduce(
     (sum: number, session: (typeof project.sessions)[number]) => sum + session.contributions.length,
     0,
   );
-
-  const projectTags = project.projectTags.map((pt) => ({
-    id: pt.tagDefinition.id,
-    name: pt.tagDefinition.name,
-    group: pt.tagDefinition.group,
-  }));
 
   return (
     <div className="space-y-6">
@@ -68,7 +65,7 @@ export default async function ProjectDetailPage({
           Back to Projects
         </Link>
         <div className="flex items-center gap-2">
-          <EditProjectSheet project={project} entityTags={projectTags} />
+          <EditProjectSheet project={project} />
           <DeleteButton
             title="Delete project?"
             description="This will permanently remove the project and all associated sessions and sets. This action cannot be undone."
@@ -137,12 +134,10 @@ export default async function ProjectDetailPage({
         )}
 
         {/* Tags */}
-        {projectTags.length > 0 && (
-          <div className="mt-3 flex flex-wrap items-center gap-2">
-            <Tag size={13} className="text-muted-foreground" aria-hidden="true" />
-            <TagChips tags={projectTags} />
-          </div>
-        )}
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <Tag size={13} className="text-muted-foreground" aria-hidden="true" />
+          <EntityTagsPanel entityType="PROJECT" entityId={project.id} initialTags={projectTags} />
+        </div>
       </div>
 
       {/* Sessions */}

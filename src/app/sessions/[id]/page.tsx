@@ -16,7 +16,7 @@ import { getSessionContributions, getContributionSkillMediaMap, getContributorsW
 import { mergeSessionContributors, type SessionContributor } from "@/lib/services/session-contributors";
 import { getAllSkillGroups } from "@/lib/services/skill-catalog-service";
 import { getAllContributionRoleGroups } from "@/lib/services/contribution-role-service";
-import { getEntityTags } from "@/lib/services/entity-tag-service";
+import { getEffectiveTags } from "@/lib/services/tag-effective-service";
 import { prisma } from "@/lib/db";
 import { cn, formatPartialDateISO } from "@/lib/utils";
 import { EditSessionSheet } from "@/components/sessions/edit-session-sheet";
@@ -89,12 +89,7 @@ export default async function SessionDetailPage({ params, searchParams }: Sessio
 
   if (!session) notFound();
 
-  const sessionEntityTags = await getEntityTags("SESSION", id);
-  const sessionTags = sessionEntityTags.map((t) => ({
-    id: t.id,
-    name: t.name,
-    group: t.group,
-  }));
+  const sessionTags = await getEffectiveTags("SESSION", id);
 
   const isReference = session.type === "REFERENCE";
   const labelOptions = labels.map(({ id, name }) => ({ id, name }));

@@ -42,15 +42,6 @@ export async function getProjectById(id: string) {
       labels: {
         include: { label: true },
       },
-      projectTags: {
-        include: {
-          tagDefinition: {
-            include: {
-              group: { select: { id: true, name: true, slug: true, color: true } },
-            },
-          },
-        },
-      },
       sessions: {
         include: {
           contributions: {

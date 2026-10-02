@@ -4,6 +4,8 @@ import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from
 import { setMediaFavoriteAction, setMediaShownPeopleAction } from "@/lib/actions/media-actions";
 import { addToCollectionAction } from "@/lib/actions/collection-actions";
 import { CollectionQuickAddPalette } from "@/components/collections/collection-quick-add-palette";
+import { TagPalette } from "@/components/tags";
+import { useEntityTags } from "@/hooks/use-entity-tags";
 import { DetailAssignSheet, type AssignPerson } from "@/components/people/detail-assign-sheet";
 import { createPortal } from "react-dom";
 import { toast } from "sonner";
@@ -21,6 +23,7 @@ import {
   Pencil,
   Rows3,
   Columns2,
+  Tag,
   Trash2,
   X,
 } from "lucide-react";
@@ -158,6 +161,8 @@ function SimpleLightbox({
   const [, startHiddenTransition] = useTransition();
   // ADR-0019: quick-add palette + target collection.
   const [paletteOpen, setPaletteOpen] = useState(false);
+  // ADR-0033: tag palette (`T`) for the current image.
+  const [tagPaletteOpen, setTagPaletteOpen] = useState(false);
   const [assignOpen, setAssignOpen] = useState(false);
   const [paletteCollections, setPaletteCollections] = useState<
     { id: string; name: string; isTarget?: boolean }[]
@@ -194,6 +199,9 @@ function SimpleLightbox({
   );
 
   const item = localItems[currentIndex];
+  // One controller for the current image's tags: the info panel lists them,
+  // the `T` palette edits them — both see the same optimistic state.
+  const tagController = useEntityTags("MEDIA_ITEM", item?.id ?? null);
 
   // ADR-0019: toggle the global favorite. Optimistic local override + either the
   // parent's handler (keeps its own state in sync) or a self-handled persist.
@@ -450,9 +458,17 @@ function SimpleLightbox({
         case "I":
           handleToggleInfoPanel();
           break;
+        case "s":
+        case "S":
+          setShowFilmstrip((p) => !p);
+          break;
         case "t":
         case "T":
-          setShowFilmstrip((p) => !p);
+          // ADR-0033: tag palette for the current image.
+          if (item) {
+            e.preventDefault();
+            setTagPaletteOpen(true);
+          }
           break;
         case "f":
         case "F":
@@ -536,6 +552,8 @@ function SimpleLightbox({
     onSetCover,
     coverMediaItemId,
     onFavoriteToggle: handleFavorite,
+    tagController,
+    onOpenTagPalette: () => setTagPaletteOpen(true),
     onFindSimilar,
     sessionId,
     onFocalPointChange: handleFocalPointChange,
@@ -595,7 +613,7 @@ function SimpleLightbox({
                   : "bg-white/10 text-white/70 hover:bg-white/20 hover:text-white",
               )}
               aria-label={showFilmstrip ? "Hide filmstrip" : "Show filmstrip"}
-              title="Filmstrip (T)"
+              title="Filmstrip (S)"
             >
               <Rows3 size={16} />
             </button>
@@ -623,6 +641,17 @@ function SimpleLightbox({
               title="Add to collection (B)"
             >
               <FolderPlus size={16} />
+            </button>
+          )}
+          {item && (
+            <button
+              type="button"
+              onClick={() => setTagPaletteOpen(true)}
+              className="rounded-full p-2 bg-white/10 text-white/70 transition-colors hover:bg-white/20 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50"
+              aria-label="Tag this image"
+              title="Tag (T)"
+            >
+              <Tag size={16} />
             </button>
           )}
           {item && (
@@ -857,6 +886,15 @@ function SimpleLightbox({
       </AlertDialog>
 
       {/* ADR-0019: collection quick-add palette (hotkey b / toolbar) */}
+      {tagController && (
+        <TagPalette
+          open={tagPaletteOpen}
+          onOpenChange={setTagPaletteOpen}
+          entityType="MEDIA_ITEM"
+          selectedTagIds={tagController.directTagIds}
+          onToggle={tagController.toggle}
+        />
+      )}
       <CollectionQuickAddPalette
         open={paletteOpen}
         onOpenChange={setPaletteOpen}

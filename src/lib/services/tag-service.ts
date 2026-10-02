@@ -420,6 +420,62 @@ export async function searchTagDefinitions(
   return entityType ? rankForEntity(tags, entityType) : tags;
 }
 
+// ─── Palette ────────────────────────────────────────────────────────────────
+
+export type PaletteGroup = {
+  id: string;
+  name: string;
+  color: string;
+  isExclusive: boolean;
+  kind: TagGroupKind;
+  typicalLevel: TagLevel | null;
+};
+
+export type PaletteTag = TagDefinitionWithGroup & { usageCount: number };
+
+/** How many entities (all five kinds together) carry each tag. */
+export async function getTagUsageCountMap(): Promise<Map<string, number>> {
+  const rows = await prisma.$queryRaw<Array<{ id: string; cnt: bigint }>>`
+    SELECT "tagDefinitionId" AS id, count(*)::bigint AS cnt FROM (
+      SELECT "tagDefinitionId" FROM person_tag
+      UNION ALL SELECT "tagDefinitionId" FROM session_tag
+      UNION ALL SELECT "tagDefinitionId" FROM media_item_tag
+      UNION ALL SELECT "tagDefinitionId" FROM set_tag
+      UNION ALL SELECT "tagDefinitionId" FROM project_tag
+    ) u
+    GROUP BY 1
+  `;
+  return new Map(rows.map((r) => [r.id, Number(r.cnt)]));
+}
+
+/**
+ * Everything the tag palette needs for one entity type: the groups it may use
+ * (empty ones too — inline creation needs a target) and their tags with usage
+ * counts. Groups whose typical level is this entity come first.
+ */
+export async function getTagPaletteData(
+  entityType: TaggableEntity,
+): Promise<{ groups: PaletteGroup[]; tags: PaletteTag[] }> {
+  const [groups, tags, usage] = await Promise.all([
+    prisma.tagGroup.findMany({
+      where: { domain: { in: domainsForEntity(entityType) } },
+      select: { id: true, name: true, color: true, isExclusive: true, kind: true, typicalLevel: true },
+      orderBy: { sortOrder: "asc" },
+    }),
+    getTagDefinitionsForEntity(entityType),
+    getTagUsageCountMap(),
+  ]);
+  const fits = (g: PaletteGroup) => (g.typicalLevel === entityType ? 0 : 1);
+  const rankedGroups = groups
+    .map((g, i) => ({ g, i }))
+    .sort((a, b) => fits(a.g) - fits(b.g) || a.i - b.i)
+    .map(({ g }) => g);
+  return {
+    groups: rankedGroups,
+    tags: tags.map((t) => ({ ...t, usageCount: usage.get(t.id) ?? 0 })),
+  };
+}
+
 // ─── Popular Tags ───────────────────────────────────────────────────────────
 
 export async function getPopularTagsForEntity(

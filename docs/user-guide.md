@@ -612,7 +612,9 @@ Tracks who participated in the set (models, photographers).
 
 #### Tags
 
-The set's own tags as coloured chips (group colour). Edit them in **Edit** → Tags.
+The set's tags, edited right here with **+ Tag** (a palette — type to find or create). Tags
+the set inherits from its **sessions** show dashed and dimmed; remove those on the session.
+Everything shown here also applies to the set's images.
 
 #### Edit & Delete
 
@@ -649,6 +651,26 @@ In the image viewer:
   one-key destination; press <kbd>G</kbd> in the viewer to add the current image to it.
 - **Convert to favorites** — a collection's ♥ button marks all its images as favorites (used to
   retire a hand-made "FAV" collection, which you can then delete).
+
+### Tagging images in the viewer (ADR-0033)
+
+- Press <kbd>T</kbd> (or the tag toolbar button) to open the **tag palette**. Type to find a tag
+  by name, alias or group and press Enter to toggle it. The palette **stays open**, so you can
+  add several tags in a row. Esc closes it.
+- Groups that fit images (Pose, Framing) are listed first. Every content tag can still be put on
+  an image, e.g. one *Outdoor* image in a *Studio* session.
+- **New tag:** type a name nobody has used yet and choose **Create “…” in <group>**.
+  - <kbd>Tab</kbd> / <kbd>Shift</kbd>+<kbd>Tab</kbd> picks the group.
+  - The last group you created a tag in is remembered.
+  - The fuzzy matches above the Create row are the "did you mean" — check them first.
+- The info panel's **Tags** section shows the image's tags:
+  - **Solid chips** are the image's own tags; ✕ removes one.
+  - **Dashed, dimmed chips** come from the image's **session** or one of its **sets**. Hover one to see where it comes from. Remove it on that session or set.
+  - **Struck-through chips** are inherited tags that the image overrides. In an exclusive group (Setting, Framing) the closest level wins: image over set over session.
+  - **Amber badges** are workflow to-dos. Their ✕ means "done".
+- Gallery tiles show one small dot per own tag, in the group's colour. Hover the dots for the names.
+- The filmstrip toggle moved to <kbd>S</kbd> (in the viewer, the archive workbench and the
+  contradictions view alike).
 
 ### Collections List
 
@@ -723,7 +745,7 @@ Click **"Add Project"** to open the creation form:
 - Header with icon, name, status badge, description
 - **Stats:** Session count, total participant count across sessions
 - **Labels** — linked labels with navigation
-- **Tags** — coloured chips (group colour); edit in **Edit**
+- **Tags** — coloured chips with **+ Tag** to add (palette) and ✕ to remove
 - **Sessions list** — each session shows name (linked), date, participant count, and participants with role badges. Click participant names to navigate to person detail.
 - **Edit & Delete** buttons
 
@@ -860,7 +882,7 @@ The lightbox opens when clicking any media thumbnail in a gallery. It provides f
 
 **Navigation:**
 - Left/right arrow buttons or keyboard arrows
-- Filmstrip toggle (thumbnail strip at bottom)
+- Filmstrip toggle (thumbnail strip at bottom) — <kbd>S</kbd>
 - Escape to close
 
 **Standard features (all contexts):**
@@ -870,7 +892,7 @@ The lightbox opens when clicking any media thumbnail in a gallery. It provides f
 - Info panel toggle
 
 **Info panel — standard sections:**
-- **Tags** — the image's own tags from the tag catalog; type to search, pick to add
+- **Tags** — own and inherited tags; <kbd>T</kbd> or **+ Tag** opens the tag palette (see *Tagging images in the viewer*)
 - **Caption & notes** — click to edit
 
 **Info panel — reference context (person reference sessions only):**
@@ -1447,10 +1469,10 @@ And in both directions:
 | `M` | switch between the two directions |
 | `G` | contact sheet — for "are these the same person?" |
 | `I` | how much the overlay says: name → name, channel and date → off |
-| `T` | show or hide the filmstrip — nothing below the image at all |
+| `S` | show or hide the filmstrip — nothing below the image at all |
 | `Esc` | back to the queue you came from |
 
-`I` and `T` are remembered, so a way of working set up once is still there next time.
+`I` and `S` are remembered, so a way of working set up once is still there next time.
 
 Decided folders leave the grid **and** the keyboard's path, so a group shortens as you work.
 The `open / all / decided` switch brings them back. When the last folder is answered, the
@@ -1562,7 +1584,7 @@ claim and the set's credits beside it, and asks one folder at a time.
 | `2` | I am right — the credits were incomplete, add them to this set |
 | `3` | wrong link — this folder is not that set; unlink it, my claim stays |
 | `←` `→` | move through the contradictions · `Space` moves on without deciding |
-| `I` `T` | overlay and filmstrip, exactly as in the workbench |
+| `I` `S` | overlay and filmstrip, exactly as in the workbench |
 
 For a set that has already been **promoted**, `2` is a link rather than a key: a promoted set is
 credited through its session, so the app sends you there instead of writing into a cache that the

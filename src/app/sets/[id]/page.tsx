@@ -1,4 +1,4 @@
-import { TagChips } from "@/components/shared/tag-chips";
+import { EntityTagsPanel } from "@/components/tags";
 import { withTenantFromHeaders } from "@/lib/tenant-context";
 import { Suspense } from "react";
 import { notFound } from "next/navigation";
@@ -9,7 +9,7 @@ import { getSetMediaGallery, getCoverPhotosForSets, getHeadshotsForPersons, getG
 import { getHeroBackdropEnabled } from "@/lib/services/setting-service";
 import { getAllContributionRoleGroups } from "@/lib/services/contribution-role-service";
 import { SetDetailGallery } from "@/components/sets/set-detail-gallery";
-import { getEntityTags } from "@/lib/services/entity-tag-service";
+import { getEffectiveTags } from "@/lib/services/tag-effective-service";
 import { EditSetSheet } from "@/components/sets/edit-set-sheet";
 import { deleteSet } from "@/lib/actions/set-actions";
 import { SetActionsMenu } from "@/components/sets/set-actions-menu";
@@ -39,18 +39,13 @@ export default async function SetDetailPage({ params }: SetDetailPageProps) {
       getSetById(id),
       getChannelsForSelect(),
       getAllContributionRoleGroups(),
-      getEntityTags("SET", id),
+      getEffectiveTags("SET", id),
       getHeroBackdropEnabled(),
       getArchiveSuggestionsForSet(id),
     ]);
 
     if (!set) notFound();
 
-    const setTags = setEntityTags.map((t) => ({
-      id: t.id,
-      name: t.name,
-      group: t.group,
-    }));
 
     const { participants: _participants, ...setData } = set;
     const participants = set.participants;
@@ -159,7 +154,6 @@ export default async function SetDetailPage({ params }: SetDetailPageProps) {
                 externalId: setData.externalId,
               }}
               channels={channels}
-              entityTags={setTags}
             />
             <SetActionsMenu
               setId={id}
@@ -259,15 +253,14 @@ export default async function SetDetailPage({ params }: SetDetailPageProps) {
               publisherLabel={setData.channel?.label ? { id: setData.channel.label.id, name: setData.channel.label.name } : null}
             />
 
-            {setTags.length > 0 && (
-              <div className="rounded-2xl border border-white/20 bg-card/70 p-4 shadow-md backdrop-blur-sm">
-                <div className="mb-3 flex items-center gap-2">
-                  <Tag size={14} className="text-muted-foreground" aria-hidden="true" />
-                  <h2 className="text-sm font-semibold">Tags</h2>
-                </div>
-                <TagChips tags={setTags} />
+            <div className="rounded-2xl border border-white/20 bg-card/70 p-4 shadow-md backdrop-blur-sm">
+              <div className="mb-3 flex items-center gap-2">
+                <Tag size={14} className="text-muted-foreground" aria-hidden="true" />
+                <h2 className="text-sm font-semibold">Tags</h2>
               </div>
-            )}
+              {/* Own tags + those inherited from the set's sessions (ADR-0033) */}
+              <EntityTagsPanel entityType="SET" entityId={id} initialTags={setEntityTags} />
+            </div>
 
             {showArchivePanel && (
               <SetArchivePanel

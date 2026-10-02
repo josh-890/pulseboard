@@ -432,7 +432,7 @@ export function WorkbenchClient({
           e.preventDefault()
           updatePrefs({ overlay: nextOverlayLevel(prefs.overlay) })
           break
-        case 't':
+        case 's':
           // Nothing below the image at all, for a fast pass.
           e.preventDefault()
           updatePrefs({ filmstrip: !prefs.filmstrip })
@@ -560,7 +560,7 @@ export function WorkbenchClient({
           <button
             onClick={() => updatePrefs({ filmstrip: !prefs.filmstrip })}
             className="rounded border border-border/60 px-2 py-0.5 text-xs text-muted-foreground hover:text-foreground"
-            title="Show or hide the filmstrip (T)"
+            title="Show or hide the filmstrip (S)"
           >
             strip: {prefs.filmstrip ? 'on' : 'off'} · T
           </button>

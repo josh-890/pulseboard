@@ -40,11 +40,8 @@ import {
   type UpdateSetInput,
 } from "@/lib/validations/set";
 import { updateSet } from "@/lib/actions/set-actions";
-import { setEntityTagsAction } from "@/lib/actions/tag-actions";
 import type { SetType } from "@/lib/types";
 import { PartialDateInput } from "@/components/shared/partial-date-input";
-import { TagPicker } from "@/components/shared/tag-picker";
-import type { TagChipData } from "@/lib/types/tag";
 
 type ChannelOption = { id: string; name: string; labelName: string | null };
 
@@ -67,7 +64,6 @@ type EditSetSheetProps = {
     externalId: string | null;
   };
   channels: ChannelOption[];
-  entityTags?: TagChipData[];
 };
 
 function SectionHeader({ children }: { children: React.ReactNode }) {
@@ -79,10 +75,9 @@ function SectionHeader({ children }: { children: React.ReactNode }) {
   );
 }
 
-export function EditSetSheet({ set, channels, entityTags = [] }: EditSetSheetProps) {
+export function EditSetSheet({ set, channels }: EditSetSheetProps) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
-  const [entityTagIds, setEntityTagIds] = useState(entityTags.map((t) => t.id));
 
   const getDefaults = () => ({
     id: set.id,
@@ -126,7 +121,7 @@ export function EditSetSheet({ set, channels, entityTags = [] }: EditSetSheetPro
   return (
     <Sheet open={open} onOpenChange={(v) => {
       setOpen(v);
-      if (v) { form.reset(getDefaults()); setEntityTagIds(entityTags.map((t) => t.id)); }
+      if (v) { form.reset(getDefaults()); }
     }}>
       <Button size="sm" variant="outline" onClick={() => setOpen(true)}>
         <Pencil size={16} />
@@ -351,21 +346,6 @@ export function EditSetSheet({ set, channels, entityTags = [] }: EditSetSheetPro
                       )}
                     />
 
-                    {/* Tags */}
-                    <FormItem>
-                      <FormLabel>Tags</FormLabel>
-                      <TagPicker
-                        scope="SET"
-                        selectedTagIds={entityTagIds}
-                        onChange={(newIds) => {
-                          setEntityTagIds(newIds);
-                          setEntityTagsAction("SET", set.id, newIds);
-                        }}
-                        selectedTags={entityTags}
-                        placeholder="Add tags…"
-                        compact
-                      />
-                    </FormItem>
                   </div>
                 </section>
 

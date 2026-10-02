@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { TAG_CHIP_JOIN_SELECT } from "@/lib/tag-chip";
 import type { GalleryItem, PhotoVariants } from "@/lib/types";
 import { buildUrl } from "@/lib/media-url";
 import { mapMediaItemToGalleryItem } from "@/lib/services/media-service";
@@ -181,6 +182,7 @@ export async function getCollectionGalleryItems(collectionId: string): Promise<G
       mediaItem: {
         include: {
           collectionItems: { select: { collectionId: true } },
+          mediaItemTags: TAG_CHIP_JOIN_SELECT,
         },
       },
     },
