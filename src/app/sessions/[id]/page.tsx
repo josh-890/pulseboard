@@ -205,7 +205,7 @@ export default async function SessionDetailPage({ params, searchParams }: Sessio
     // ADR-0033: tag filter over this session's images (facet counts within it)
     const galleryIds = mediaItems.map((m) => m.id);
     const [tagFilter, facets] = await Promise.all([
-      resolveTagFilterParam(resolvedSearchParams.tags),
+      resolveTagFilterParam(resolvedSearchParams.tags, "MEDIA_ITEM"),
       getTagFacets("MEDIA_ITEM", galleryIds),
     ]);
     galleryTagFilter = {

@@ -158,6 +158,7 @@ filter live in shared hooks (`lib/hooks/use-gallery-selection.ts`,
 | `TagFacetPanel` | Client | `facets`, `query`, `onChange`, `countNoun` | Facet panel: click include / Alt-click, right-click, ⊘ exclude; per-group any/all switch (≥2 included); sub-tags indented; counts; search + "unused" toggle |
 | `TagFilterButton` | Client | `facets`, `query`, `onChange`, `countNoun` | "Tags" toolbar button (active count badge) opening the facet panel in a popover |
 | `TagFilterChips` | Client | `entityType`, `facets`, `query`, `onChange`, `problems?` | Active tag filters as chips: one per clause with a level `<select>` (images: anywhere/image/set/session; sets: anywhere/set/session), one per exclusion, plus unresolved-term warnings |
+| `TagQueryBox` | Client | `value`, `onSubmit(text)`, `facets`, `entityType` | Text form of the tag filter with caret-token autocomplete (groups, tags, levels, predicates — `lib/tag-query/complete.ts`); ↑/↓, Tab/Enter take, Enter applies, Esc reverts; follows the applied value when chips change it |
 | `GalleryTagFilter` | Client | `facets`, `problems?`, `shown`, `total` | Tag filter row for image galleries (set, session, favorites), reading/writing `?tags=` |
 | `TagDotStrip` | Server-safe | `tags?` (`TagChipData[]`), `max?` | One dot per **direct** tag in its group colour on gallery/media tiles; names in tooltip + aria-label |
 

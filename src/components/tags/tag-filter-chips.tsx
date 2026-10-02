@@ -4,8 +4,10 @@ import { AlertTriangle, X } from "lucide-react";
 import type { TagFacetGroup } from "@/lib/services/tag-filter-service";
 import type { TaggableEntity } from "@/lib/tag-domains";
 import {
+  predicateLabel,
   removeClause,
   removeExclusion,
+  removePredicate,
   setClauseSource,
   type TagQuery,
   type TagSourceFilter,
@@ -101,6 +103,18 @@ export function TagFilterChips({ entityType, facets, query, onChange, problems =
           aria-label={`Remove exclusion ${label(t)}`}
         >
           not {groupName(t)}: {label(t)}
+          <X size={10} />
+        </button>
+      ))}
+      {query.predicates.map((p, i) => (
+        <button
+          key={`p${i}`}
+          type="button"
+          onClick={() => onChange(removePredicate(query, i))}
+          className="inline-flex items-center gap-1 rounded-full border border-sky-500/25 bg-sky-500/10 px-2.5 py-1 text-xs font-medium text-sky-400 transition-colors hover:bg-sky-500/20 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          aria-label={`Remove filter ${predicateLabel(p)}`}
+        >
+          {predicateLabel(p)}
           <X size={10} />
         </button>
       ))}

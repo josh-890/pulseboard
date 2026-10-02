@@ -703,7 +703,12 @@ In the image viewer:
 
 **URL:** the filter is part of the address (`?tags=…`), so filtered views can be bookmarked and shared. It also combines with every other filter on the page.
 
-**Syntax:** you can also write the filter yourself:
+**Query box:** next to the Tags button.
+- It shows the active filter as text and applies what you type on <kbd>Enter</kbd>. The chips and the panel edit the same text.
+- **Suggestions** follow the word at the cursor: groups (`location:`), tags (`location:beach`), levels (`@session:`) and conditions (`is:fav`).
+- <kbd>↑</kbd>/<kbd>↓</kbd> choose a suggestion, <kbd>Tab</kbd> takes it, <kbd>Esc</kbd> throws away what you typed.
+
+**Syntax:** the filter text itself:
 
 | Example | Meaning |
 |---|---|
@@ -714,6 +719,16 @@ In the image viewer:
 | `-setting:studio` | not Studio |
 | `@session:setting:outdoor` | the session must carry Outdoor |
 | `~pool ~bikini` | Pool or Bikini, across groups |
+| `is:fav` | favorites (images, people) |
+| `is:untagged` | items without own tags |
+| `has:workflow` | items with a to-do tag |
+| `rating>=4` (also `>`, `<=`, `<`, `=`) | by rating (sets, people) |
+| `person:AB-1234` | images showing that person (session cast minus "not shown", or linked directly); sets/sessions with them in the cast; on /people that person |
+| `persontag:fitness` | images, sets or sessions whose cast carries a person tag |
+| `label:Nubiles` | by label (sessions: producer; sets: the channel's owning label; images: either) |
+| `type:video` | videos (images, sets) |
+
+A condition that does not apply to the page (`type:video` on /people) shows as a warning chip and is ignored. So does an unknown ICG-ID, tag or label.
 
 Reordering a set's images is switched off while a tag filter is active, since it would only re-sort the visible ones.
 

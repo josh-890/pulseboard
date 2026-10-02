@@ -85,3 +85,7 @@ export function removeClause(q: TagQuery, index: number): TagQuery {
 export function removeExclusion(q: TagQuery, index: number): TagQuery {
   return { ...q, none: q.none.filter((_, i) => i !== index) };
 }
+
+export function removePredicate(q: TagQuery, index: number): TagQuery {
+  return { ...q, predicates: q.predicates.filter((_, i) => i !== index) };
+}

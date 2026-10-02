@@ -30,7 +30,7 @@ import {
 } from "@/components/ui/command";
 import { cn } from "@/lib/utils";
 import { clearBrowseContext } from "@/lib/browse-context";
-import { TagFilterButton, TagFilterChips } from "@/components/tags";
+import { TagFilterButton, TagFilterChips, TagQueryBox } from "@/components/tags";
 import type { TagFacetGroup } from "@/lib/services/tag-filter-service";
 import type { TaggableEntity } from "@/lib/tag-domains";
 import { parseTagQuery, serializeTagQuery, type TagQuery } from "@/lib/tag-query";
@@ -484,12 +484,16 @@ export function BrowserToolbar({ config, children }: BrowserToolbarProps) {
     currentGroupBy !== defaultGroupBy ||
     searchParams.has("q");
 
-  function setTagQuery(param: string, q: TagQuery) {
-    const text = serializeTagQuery(q);
+  function setTagText(param: string, text: string) {
     updateParams((p) => {
       if (text) p.set(param, text);
       else p.delete(param);
     });
+  }
+
+  // Panel and chips edit the parsed query; the box writes the text as typed
+  function setTagQuery(param: string, q: TagQuery) {
+    setTagText(param, serializeTagQuery(q));
   }
 
   function handleClearAll() {
@@ -621,14 +625,22 @@ export function BrowserToolbar({ config, children }: BrowserToolbarProps) {
     }
 
     if (group.type === "tags") {
+      const text = searchParams.get(group.param) ?? "";
       return (
-        <TagFilterButton
-          key={group.param}
-          facets={group.facets}
-          query={parseTagQuery(searchParams.get(group.param) ?? "").query}
-          onChange={(q) => setTagQuery(group.param, q)}
-          countNoun={group.countNoun}
-        />
+        <div key={group.param} className="flex min-w-0 flex-1 basis-full items-center gap-2 sm:basis-auto">
+          <TagFilterButton
+            facets={group.facets}
+            query={parseTagQuery(text).query}
+            onChange={(q) => setTagQuery(group.param, q)}
+            countNoun={group.countNoun}
+          />
+          <TagQueryBox
+            value={text}
+            onSubmit={(next) => setTagText(group.param, next)}
+            facets={group.facets}
+            entityType={group.entityType}
+          />
+        </div>
       );
     }
 

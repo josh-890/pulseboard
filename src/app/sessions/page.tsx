@@ -90,7 +90,7 @@ export default async function SessionsPage({ searchParams }: SessionsPageProps) 
   const createdTo = parseDate(createdToParam);
 
   // ADR-0033: tag filter → matching session ids, ANDed with the other filters
-  const tagFilter = await resolveTagFilterParam(tagsParam);
+  const tagFilter = await resolveTagFilterParam(tagsParam, "SESSION");
   const tagMatchIds = tagFilter ? await findTagMatchIds("SESSION", tagFilter.resolved) : undefined;
 
   const filters = {

@@ -11,6 +11,7 @@ import {
   type TagQuery,
 } from "@/lib/tag-query";
 import { domainsForEntity, type TaggableEntity } from "@/lib/tag-domains";
+import { predicateSql, resolvePredicates } from "./tag-predicates";
 
 // Tag filtering in SQL (ADR-0033, S4). Same rules as `resolveEffectiveTags`
 // (lib/effective-tags.ts), written as correlated EXISTS so a filter costs a
@@ -61,17 +62,27 @@ export type TagFilter = {
   problems: string[];
 };
 
-/** Parse + resolve the `tags=` parameter; null when there is nothing to filter by. */
-export async function resolveTagFilterParam(text: string | undefined | null): Promise<TagFilter | null> {
+/**
+ * Parse + resolve the `tags=` parameter for one browser; null when there is
+ * nothing to filter by. Predicates are resolved too — one the browser cannot
+ * answer becomes a problem, not a silent no-op.
+ */
+export async function resolveTagFilterParam(
+  text: string | undefined | null,
+  entity: TaggableEntity,
+): Promise<TagFilter | null> {
   const trimmed = text?.trim();
   if (!trimmed) return null;
   const { query, errors } = parseTagQuery(trimmed);
-  const resolved = resolveTagQuery(query, await loadTagCatalog());
+  const catalog = await loadTagCatalog();
+  const resolved = resolveTagQuery(query, catalog);
+  const predicates = await resolvePredicates(query.predicates, catalog, entity);
+  resolved.predicates = predicates.resolved;
   return {
     text: trimmed,
     query,
     resolved,
-    problems: [...errors, ...resolved.unknown.map((u) => `No tag “${u}”`)],
+    problems: [...errors, ...resolved.unknown.map((u) => `No tag “${u}”`), ...predicates.problems],
   };
 }
 
@@ -160,6 +171,7 @@ export function tagQueryCondition(entity: TaggableEntity, q: ResolvedTagQuery, x
   return and([
     ...q.all.map((c) => or(c.any.map((t) => termCondition(entity, t, x)))),
     ...q.none.map((t) => Prisma.sql`NOT ${termCondition(entity, t, x)}`),
+    ...(q.predicates ?? []).map((p) => predicateSql(entity, p, x)),
   ]);
 }
 

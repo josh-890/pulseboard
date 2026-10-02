@@ -25,7 +25,7 @@ export default async function FavoritesPage({ searchParams }: FavoritesPageProps
     ]);
     // ADR-0033: tag filter over the favorites (facet counts within them)
     const allIds = allItems.map((i) => i.id);
-    const [tagFilter, tagFacets] = await Promise.all([resolveTagFilterParam(tags), getTagFacets("MEDIA_ITEM", allIds)]);
+    const [tagFilter, tagFacets] = await Promise.all([resolveTagFilterParam(tags, "MEDIA_ITEM"), getTagFacets("MEDIA_ITEM", allIds)]);
     const matchIds = tagFilter ? new Set(await findTagMatchIds("MEDIA_ITEM", tagFilter.resolved, allIds)) : null;
     const items = matchIds ? allItems.filter((i) => matchIds.has(i.id)) : allItems;
 

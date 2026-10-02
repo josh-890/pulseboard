@@ -1,7 +1,12 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/db";
 import { parseTagQuery, resolveTagQuery } from "@/lib/tag-query";
-import { findTagMatchIds, getTagFacetCounts, loadTagCatalog } from "@/lib/services/tag-filter-service";
+import {
+  findTagMatchIds,
+  getTagFacetCounts,
+  loadTagCatalog,
+  resolveTagFilterParam,
+} from "@/lib/services/tag-filter-service";
 import { getEffectiveTags } from "@/lib/services/tag-effective-service";
 
 // ADR-0033 S4: the SQL filter must answer exactly what resolveEffectiveTags
@@ -54,10 +59,33 @@ beforeAll(async () => {
   });
   await prisma.setTag.create({ data: { setId: set.id, tagDefinitionId: ids.bikini } });
   await prisma.mediaItemTag.create({ data: { mediaItemId: ids.m1, tagDefinitionId: ids.studio } });
+
+  // S5 predicates: an on-camera person in S (hidden on m2), tagged with a person trait
+  const traits = await group("traits", { domain: "ANY" });
+  await tag(traits, "fitness");
+  const person = await prisma.person.create({ data: { icgId: `${RUN}-P`.toUpperCase() } });
+  ids.P = person.id;
+  ids.icg = person.icgId;
+  await prisma.personTag.create({ data: { personId: person.id, tagDefinitionId: ids.fitness } });
+  const role = await prisma.contributionRoleDefinition.findFirstOrThrow({
+    where: { group: { name: { not: "Behind Camera" } } },
+  });
+  await prisma.sessionContribution.create({ data: { sessionId: session.id, personId: person.id, roleDefinitionId: role.id } });
+  await prisma.setParticipant.create({ data: { setId: set.id, personId: person.id, roleDefinitionId: role.id } });
+  await prisma.mediaItemHiddenPerson.create({ data: { mediaItemId: ids.m2, personId: person.id } });
+  await prisma.mediaItem.update({ where: { id: ids.m3 }, data: { isFavorite: true } });
+  await prisma.set.update({ where: { id: set.id }, data: { rating: 4 } });
 });
 
 afterAll(async () => {
   const media = [ids.m1, ids.m2, ids.m3].filter(Boolean);
+  if (ids.P) {
+    await prisma.mediaItemHiddenPerson.deleteMany({ where: { personId: ids.P } });
+    await prisma.setParticipant.deleteMany({ where: { personId: ids.P } });
+    await prisma.sessionContribution.deleteMany({ where: { personId: ids.P } });
+    await prisma.personTag.deleteMany({ where: { personId: ids.P } });
+    await prisma.person.delete({ where: { id: ids.P } }).catch(() => {});
+  }
   await prisma.mediaItemTag.deleteMany({ where: { mediaItemId: { in: media } } });
   await prisma.setMediaItem.deleteMany({ where: { mediaItemId: { in: media } } });
   await prisma.mediaItem.deleteMany({ where: { id: { in: media } } });
@@ -141,5 +169,46 @@ describe("facet counts agree with getEffectiveTags", () => {
       }
     }
     expect(counts).toEqual(expected);
+  });
+});
+
+async function matchText(entity: "MEDIA_ITEM" | "SET", text: string, within: string[]) {
+  const filter = await resolveTagFilterParam(text, entity);
+  if (!filter) throw new Error("empty filter");
+  const found = await findTagMatchIds(entity, filter.resolved, within);
+  return {
+    names: Object.entries(ids)
+      .filter(([k, id]) => found.includes(id) && /^(m\d|A)$/.test(k))
+      .map(([name]) => name)
+      .sort(),
+    problems: filter.problems,
+  };
+}
+
+describe("predicates (S5)", () => {
+  it("person: an image shows its session's on-camera cast unless hidden", async () => {
+    expect((await matchText("MEDIA_ITEM", `person:${ids.icg}`, MEDIA())).names).toEqual(["m1", "m3"]);
+    expect((await matchText("SET", `person:${ids.icg}`, [ids.A])).names).toEqual(["A"]);
+  });
+
+  it("persontag: images / sets whose cast carries the tag", async () => {
+    expect((await matchText("MEDIA_ITEM", `persontag:${g("traits")}:fitness`, MEDIA())).names).toEqual(["m1", "m3"]);
+    expect((await matchText("SET", `persontag:${g("traits")}:fitness`, [ids.A])).names).toEqual(["A"]);
+  });
+
+  it("is:fav, is:untagged, type:, rating combine with tags", async () => {
+    expect((await matchText("MEDIA_ITEM", "is:fav", MEDIA())).names).toEqual(["m3"]);
+    expect((await matchText("MEDIA_ITEM", "is:untagged", MEDIA())).names).toEqual(["m2", "m3"]);
+    expect((await matchText("MEDIA_ITEM", "type:photo is:untagged", MEDIA())).names).toEqual(["m2", "m3"]);
+    expect((await matchText("MEDIA_ITEM", "type:video", MEDIA())).names).toEqual([]);
+    expect((await matchText("SET", "rating>=4", [ids.A])).names).toEqual(["A"]);
+    expect((await matchText("SET", "rating>4", [ids.A])).names).toEqual([]);
+  });
+
+  it("reports predicates a browser cannot answer, and unknown persons", async () => {
+    const r = await matchText("MEDIA_ITEM", "rating>=4 person:NOPE-0000", MEDIA());
+    expect(r.problems).toHaveLength(2);
+    // Both dropped: nothing left to filter by, so everything matches
+    expect(r.names).toEqual(["m1", "m2", "m3"]);
   });
 });

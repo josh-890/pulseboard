@@ -11,12 +11,14 @@ import type { QueryPredicate, TagClause, TagQuery, TagSourceFilter, TagTerm } fr
 //   -setting:studio        must not match
 //   ~pool ~beach           every ~token joins one OR clause
 //   @image:close-up        strictly at a level: @image / @set / @session
-//   is:fav  rating>=4      predicates (keys below) — evaluated in S5
+//   is:fav  rating>=4      predicates: is:fav · is:untagged · has:workflow ·
+//                          rating>=N (> < <= =) · person:ICG-ID · persontag:tag ·
+//                          label:name · type:photo|video
 //
 // Prefix order: [-|~] [@level:] [=] reference. Unparseable tokens are reported,
 // never silently dropped into a different meaning.
 
-export const PREDICATE_KEYS = new Set(["is", "has", "rating", "person", "persontag", "label", "type", "untagged"]);
+export const PREDICATE_KEYS = new Set(["is", "has", "rating", "person", "persontag", "label", "type"]);
 
 const SOURCES: Record<string, TagSourceFilter> = { image: "image", set: "set", session: "session" };
 

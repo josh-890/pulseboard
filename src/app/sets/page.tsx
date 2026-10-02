@@ -137,7 +137,7 @@ export default async function SetsPage({ searchParams }: SetsPageProps) {
   // ADR-0033: tag filter → matching set ids (within the duplicates view when on).
   // The set filters read an empty id list as "no restriction", so no match is
   // passed as an id that cannot exist.
-  const tagFilter = await resolveTagFilterParam(tagsParam);
+  const tagFilter = await resolveTagFilterParam(tagsParam, "SET");
   const tagMatchIds = tagFilter ? await findTagMatchIds("SET", tagFilter.resolved, duplicateSetIds) : undefined;
   const restrictIds = tagMatchIds ? (tagMatchIds.length > 0 ? tagMatchIds : ["__no_tag_match__"]) : duplicateSetIds;
 

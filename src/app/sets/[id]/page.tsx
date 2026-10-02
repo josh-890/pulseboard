@@ -127,7 +127,7 @@ export default async function SetDetailPage({ params, searchParams }: SetDetailP
     // ADR-0033: tag filter over this set's images (facet counts within the set)
     const galleryIds = galleryItems.map((g) => g.id);
     const [tagFilter, galleryTagFacets] = await Promise.all([
-      resolveTagFilterParam(tagsParam),
+      resolveTagFilterParam(tagsParam, "MEDIA_ITEM"),
       getTagFacets("MEDIA_ITEM", galleryIds),
     ]);
     const tagMatchIds = tagFilter ? await findTagMatchIds("MEDIA_ITEM", tagFilter.resolved, galleryIds) : null;

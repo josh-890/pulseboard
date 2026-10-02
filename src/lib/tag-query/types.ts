@@ -40,3 +40,14 @@ export const EMPTY_TAG_QUERY: TagQuery = { all: [], none: [], predicates: [] };
 export function isEmptyTagQuery(q: TagQuery): boolean {
   return q.all.length === 0 && q.none.length === 0 && q.predicates.length === 0;
 }
+
+/** A predicate checked against the catalogue / DB, ready for SQL (S5) */
+export type ResolvedPredicate =
+  | { kind: "fav" }
+  | { kind: "untagged" }
+  | { kind: "workflow" }
+  | { kind: "rating"; op: ">=" | "<=" | ">" | "<" | "="; value: number }
+  | { kind: "person"; personIds: string[] }
+  | { kind: "persontag"; tagIds: string[] }
+  | { kind: "label"; labelIds: string[] }
+  | { kind: "type"; value: "photo" | "video" };

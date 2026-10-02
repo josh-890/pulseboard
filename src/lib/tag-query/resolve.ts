@@ -1,5 +1,5 @@
 import type { TagGroupKind } from "@/generated/prisma/client";
-import type { TagQuery, TagSourceFilter, TagTerm } from "./types";
+import type { ResolvedPredicate, TagQuery, TagSourceFilter, TagTerm } from "./types";
 
 // Map a TagQuery onto tag ids (ADR-0033). Pure: the catalogue is passed in.
 //   - a bare name matches tag name, alias or slug in any group (several
@@ -31,6 +31,8 @@ export type ResolvedTagQuery = {
   none: ResolvedTerm[];
   /** Terms that matched no tag, as written */
   unknown: string[];
+  /** Non-tag conditions, resolved by the service (S5); absent = none */
+  predicates?: ResolvedPredicate[];
 };
 
 function descendants(catalog: CatalogTag[], rootIds: Set<string>): Set<string> {
@@ -96,5 +98,5 @@ export function resolveTagQuery(query: TagQuery, catalog: CatalogTag[]): Resolve
 }
 
 export function isEmptyResolved(q: ResolvedTagQuery): boolean {
-  return q.all.length === 0 && q.none.length === 0;
+  return q.all.length === 0 && q.none.length === 0 && (q.predicates?.length ?? 0) === 0;
 }

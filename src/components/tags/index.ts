@@ -10,3 +10,4 @@ export { TagFacetPanel } from "./tag-facet-panel";
 export { TagFilterChips } from "./tag-filter-chips";
 export { TagFilterButton } from "./tag-filter-button";
 export { GalleryTagFilter } from "./gallery-tag-filter";
+export { TagQueryBox } from "./tag-query-box";

@@ -169,7 +169,7 @@ export default async function PeoplePage({ searchParams }: PeoplePageProps) {
     : undefined;
 
   // ADR-0033: tag filter → the matching person ids, ANDed with every other filter
-  const tagFilter = await resolveTagFilterParam(tagsParam);
+  const tagFilter = await resolveTagFilterParam(tagsParam, "PERSON");
   const tagMatchIds = tagFilter ? await findTagMatchIds("PERSON", tagFilter.resolved) : undefined;
 
   const filters = {

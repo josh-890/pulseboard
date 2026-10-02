@@ -6,6 +6,7 @@ import type { TagFacetGroup } from "@/lib/services/tag-filter-service";
 import { parseTagQuery, serializeTagQuery, type TagQuery } from "@/lib/tag-query";
 import { TagFilterButton } from "./tag-filter-button";
 import { TagFilterChips } from "./tag-filter-chips";
+import { TagQueryBox } from "./tag-query-box";
 
 export type GalleryTagFilterProps = {
   facets: TagFacetGroup[];
@@ -25,10 +26,9 @@ export function GalleryTagFilter({ facets, problems, shown, total }: GalleryTagF
   const text = searchParams.get("tags") ?? "";
   const query = parseTagQuery(text).query;
 
-  const onChange = useCallback(
-    (q: TagQuery) => {
+  const setText = useCallback(
+    (next: string) => {
       const params = new URLSearchParams(searchParams.toString());
-      const next = serializeTagQuery(q);
       if (next) params.set("tags", next);
       else params.delete("tags");
       const qs = params.toString();
@@ -36,12 +36,12 @@ export function GalleryTagFilter({ facets, problems, shown, total }: GalleryTagF
     },
     [router, pathname, searchParams],
   );
-
-  if (facets.length === 0 && !text) return null;
+  const onChange = useCallback((q: TagQuery) => setText(serializeTagQuery(q)), [setText]);
 
   return (
     <div className="mb-3 flex flex-wrap items-center gap-2">
       <TagFilterButton facets={facets} query={query} onChange={onChange} countNoun="images" />
+      <TagQueryBox value={text} onSubmit={setText} facets={facets} entityType="MEDIA_ITEM" />
       {text && (
         <>
           <TagFilterChips entityType="MEDIA_ITEM" facets={facets} query={query} onChange={onChange} problems={problems} />
