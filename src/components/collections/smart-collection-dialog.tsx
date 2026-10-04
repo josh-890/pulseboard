@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { TagQueryBox } from "@/components/tags/tag-query-box";
 import { createSavedFilterAction } from "@/lib/actions/saved-filter-actions";
+import { cn } from "@/lib/utils";
 import type { TagFacetGroup } from "@/lib/services/tag-filter-service";
 
 export type SmartCollectionDialogProps = {
@@ -17,12 +18,18 @@ export type SmartCollectionDialogProps = {
   facets: TagFacetGroup[];
   /** "button" = labelled header button; "compact" = small ⚡ save button */
   variant?: "button" | "compact";
+  /**
+   * Compact only: when set, the button shows dimmed and a click explains this
+   * hint instead of opening (no filter to save yet). Kept focusable and with a
+   * tooltip — a real `disabled` button gives neither.
+   */
+  inactiveHint?: string;
 };
 
 // Create a Smart Collection (ADR-0033, S6): a name + an image tag query that is
 // evaluated live. From /collections it starts empty; from a gallery's tag
 // filter it starts with that query.
-export function SmartCollectionDialog({ initialQuery = "", facets, variant = "button" }: SmartCollectionDialogProps) {
+export function SmartCollectionDialog({ initialQuery = "", facets, variant = "button", inactiveHint }: SmartCollectionDialogProps) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
@@ -54,9 +61,20 @@ export function SmartCollectionDialog({ initialQuery = "", facets, variant = "bu
       ) : (
         <button
           type="button"
-          onClick={() => { setQuery(initialQuery); setOpen(true); }}
-          className="inline-flex h-8 items-center gap-1 rounded-lg border border-white/15 px-2 text-xs text-muted-foreground transition-colors hover:border-amber-400/40 hover:text-amber-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          title="Save this filter as a smart collection across all images"
+          onClick={() => {
+            if (inactiveHint) {
+              toast.message(inactiveHint);
+              return;
+            }
+            setQuery(initialQuery);
+            setOpen(true);
+          }}
+          aria-disabled={inactiveHint ? true : undefined}
+          className={cn(
+            "inline-flex h-8 items-center gap-1 rounded-lg border border-white/15 px-2 text-xs text-muted-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+            inactiveHint ? "cursor-not-allowed opacity-50" : "hover:border-amber-400/40 hover:text-amber-300",
+          )}
+          title={inactiveHint ?? "Save this filter as a smart collection across all images"}
         >
           <Zap size={12} aria-hidden="true" />
           Save as smart collection

@@ -759,7 +759,7 @@ Reordering a set's images is switched off while a tag filter is active, since it
 - Saved views are now kept in the database, so they are the same on every device. Views this browser kept earlier move there by themselves the first time you open the page.
 
 **Smart Collections** are saved image filters kept up to date automatically, across the whole library.
-- **Create one** with **Save as smart collection** next to any gallery's tag filter (it starts with that filter), or **New Smart Collection** on /collections.
+- **Create one** with **Save as smart collection** next to the tag filter of a set's, a session's or the favorites gallery (it starts with that filter), or **New Smart Collection** on /collections. The gallery button is always there; it stays dimmed until a tag filter is applied (pick a tag under **Tags**, or type a query and press Enter).
 - **On /collections** they show as ⚡ cards with their live image count and query.
 - **The smart collection's page** shows every matching image, newest first (the newest 1000 when there are more). The viewer works as everywhere else, and an image you untag leaves the grid when you close the viewer.
 - **Change the query** with the Tags button, the chips or the query box. The page previews the result; **Save query** keeps it, **Revert** drops it.

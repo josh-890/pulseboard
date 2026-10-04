@@ -54,8 +54,20 @@ export function GalleryTagFilter({ facets, problems, shown, total, allowSmartSav
           <span className="text-xs text-muted-foreground" aria-live="polite">
             {shown === 0 ? "No image matches these tags" : `${shown} of ${total} images`}
           </span>
-          {allowSmartSave && <SmartCollectionDialog variant="compact" initialQuery={text} facets={facets} />}
         </>
+      )}
+      {/* Always shown so it can be found; inactive until a filter is applied */}
+      {allowSmartSave && (
+        <SmartCollectionDialog
+          variant="compact"
+          initialQuery={text}
+          facets={facets}
+          inactiveHint={
+            text.trim()
+              ? undefined
+              : "Set a tag filter first: click Tags and pick a tag, or type a query and press Enter"
+          }
+        />
       )}
     </div>
   );
