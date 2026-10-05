@@ -160,6 +160,7 @@ export async function reconcileFolderTagsFromScan(items: TagScanItem[]): Promise
       diskNow: disk.ids,
       lastSeen: f.tagsDiskSeen && sameOwner ? prior.filter(outsideConflict) : null,
       appNow: appNow.filter(outsideConflict),
+      holdDiskRemovals: disk.unknown.length > 0,
     });
 
     if (r.appAdd.length) await addTagsToEntity(owner.type, owner.id, r.appAdd, "IMPORT");

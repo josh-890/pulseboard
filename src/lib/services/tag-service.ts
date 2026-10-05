@@ -244,9 +244,22 @@ export async function updateTagDefinition(
   if (data.parentId !== undefined) updateData.parentId = data.parentId;
   if (data.typicalLevel !== undefined) updateData.typicalLevel = data.typicalLevel;
 
-  return prisma.tagDefinition.update({
-    where: { id },
-    data: updateData,
+  return prisma.$transaction(async (tx) => {
+    const before = await tx.tagDefinition.findUniqueOrThrow({ where: { id }, select: { name: true } });
+    const updated = await tx.tagDefinition.update({ where: { id }, data: updateData });
+    // A rename keeps the old name as an alias: `#OldName` files in the archive
+    // (ADR-0034) and saved queries still mean this tag. Skipped when the slug did
+    // not change or another alias already owns it.
+    const oldSlug = slugify(before.name);
+    if (data.name !== undefined && oldSlug && oldSlug !== updated.slug) {
+      const taken = await tx.tagAlias.findUnique({ where: { slug: oldSlug }, select: { id: true } });
+      if (!taken) {
+        await tx.tagAlias.create({
+          data: { tagDefinitionId: id, name: before.name, nameNorm: normalize(before.name), slug: oldSlug },
+        });
+      }
+    }
+    return updated;
   });
 }
 
@@ -569,14 +582,15 @@ export async function deleteTagAlias(id: string) {
 export async function getTagUsageCounts(tagDefinitionIds: string[]) {
   const counts: Record<string, number> = {};
   for (const id of tagDefinitionIds) {
-    const [person, session, media, set, project] = await Promise.all([
+    const [person, session, media, set, project, folder] = await Promise.all([
       prisma.personTag.count({ where: { tagDefinitionId: id } }),
       prisma.sessionTag.count({ where: { tagDefinitionId: id } }),
       prisma.mediaItemTag.count({ where: { tagDefinitionId: id } }),
       prisma.setTag.count({ where: { tagDefinitionId: id } }),
       prisma.projectTag.count({ where: { tagDefinitionId: id } }),
+      prisma.archiveFolderTag.count({ where: { tagDefinitionId: id } }),
     ]);
-    counts[id] = person + session + media + set + project;
+    counts[id] = person + session + media + set + project + folder;
   }
   return counts;
 }

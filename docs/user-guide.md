@@ -1533,6 +1533,11 @@ ever) promoting it. Tag the folder there (ADR-0034):
   name is tagged at once.
 - **Conflicts:** two tags of one exclusive group (`#indoor` + `#outdoor`) adopt
   neither and show a red warning; delete the wrong file.
+- **Renaming is safe:** a renamed tag keeps its old name as an alias, so old
+  `#…` files still work; a renamed group doesn't matter as long as the tag name is
+  unique. While a folder shows an unknown `#…` chip, deleting another `#…` file
+  there takes effect only after you resolve the chip — the app never drops a tag
+  it might just not recognise.
 - **Promotion:** once a folder is confirmed to a Set, its tags move to the Set
   (the row shows *set* in front of them) and the files follow the Set's tags from then
   on.

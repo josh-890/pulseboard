@@ -58,6 +58,20 @@ export type MarkerResolution = {
 
 const FOLDER_DOMAINS = new Set(["CONTENT", "ANY"]);
 
+const inFolderDomain = (t: CatalogTag) => !t.domain || FOLDER_DOMAINS.has(t.domain);
+
+/**
+ * The tags a marker may mean. The group part only tells shared names apart: when
+ * it names no group any more (the group was renamed) but the name alone is
+ * unambiguous, the name decides — a group rename must not orphan its markers.
+ */
+function candidates(m: ParsedTagMarker, catalog: CatalogTag[]): CatalogTag[] {
+  const qualified = catalog.filter((t) => matches(t, m)).filter(inFolderDomain);
+  if (qualified.length > 0 || m.group === null) return qualified;
+  const byName = catalog.filter((t) => matches(t, { ...m, group: null })).filter(inFolderDomain);
+  return byName.length === 1 ? byName : [];
+}
+
 /** Map a folder's marker file names onto tag ids */
 export function resolveTagMarkers(fileNames: string[], catalog: CatalogTag[]): MarkerResolution {
   const unknown: string[] = [];
@@ -65,8 +79,7 @@ export function resolveTagMarkers(fileNames: string[], catalog: CatalogTag[]): M
   for (const f of fileNames) {
     const m = parseTagMarker(f);
     if (!m) continue;
-    const hits = catalog.filter((t) => matches(t, m));
-    const allowed = hits.filter((t) => !t.domain || FOLDER_DOMAINS.has(t.domain));
+    const allowed = candidates(m, catalog);
     if (allowed.length !== 1) unknown.push(m.raw);
     else if (!found.some((x) => x.tag.id === allowed[0].id)) found.push({ tag: allowed[0], raw: m.raw });
   }
@@ -106,6 +119,12 @@ export type TagReconcileInput = {
   /** null = the disk was never reported for this folder */
   lastSeen: string[] | null;
   appNow: string[];
+  /**
+   * The folder holds markers the app cannot place. One of them may be a tag whose
+   * name or group was renamed, so a tag missing from the disk is not taken as
+   * deleted until they are resolved — a missing tag is held, never dropped.
+   */
+  holdDiskRemovals?: boolean;
 };
 
 export type TagReconcileResult = {
@@ -123,10 +142,11 @@ export type TagReconcileResult = {
  * Per-tag three-way reconciliation — the ADR-0032 STUB rule applied to each tag's
  * presence. Disk changed, app did not → the app follows; app changed, disk did
  * not → the disk follows; both changed from the same value → they agree. Never
- * reported (lastSeen null) → both sides are united, nothing is removed.
+ * reported (lastSeen null) → both sides are united, nothing is removed. With
+ * `holdDiskRemovals` a tag the disk last carried counts as still there.
  */
-export function reconcileTagSet({ diskNow, lastSeen, appNow }: TagReconcileInput): TagReconcileResult {
-  const disk = new Set(diskNow);
+export function reconcileTagSet({ diskNow, lastSeen, appNow, holdDiskRemovals }: TagReconcileInput): TagReconcileResult {
+  const disk = new Set(holdDiskRemovals && lastSeen ? [...diskNow, ...lastSeen] : diskNow);
   const app = new Set(appNow);
   const seen = lastSeen === null ? null : new Set(lastSeen);
   const all = new Set([...disk, ...app, ...(seen ?? [])]);

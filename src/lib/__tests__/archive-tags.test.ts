@@ -63,6 +63,12 @@ describe("resolveTagMarkers", () => {
     expect(r.unknown).toEqual(["#glow", "#outdor", "#fitness"]);
   });
 
+  it("falls back to the name when the group part names no group (renamed group)", () => {
+    expect(resolveTagMarkers(["#Publication theme=Bikini", "#old group=Indoor"], CATALOG).ids).toEqual(["bik", "in"]);
+    // A shared name stays unknown: the group was the only thing telling them apart
+    expect(resolveTagMarkers(["#old group=glow"], CATALOG).unknown).toEqual(["#old group=glow"]);
+  });
+
   it("leaves an exclusive group with two markers out, reporting both", () => {
     const r = resolveTagMarkers(["#indoor", "#outdoor", "#bikini"], CATALOG);
     expect(r.ids).toEqual(["bik"]);
@@ -99,6 +105,16 @@ describe("reconcileTagSet (ADR-0032 rule per tag)", () => {
   it("agrees when both sides made the same change", () => {
     expect(reconcileTagSet({ diskNow: ["a"], lastSeen: [], appNow: ["a"] })).toMatchObject({ appAdd: [], appRemove: [], diskWanted: ["a"] });
     expect(reconcileTagSet({ diskNow: [], lastSeen: ["a"], appNow: [] })).toMatchObject({ appAdd: [], appRemove: [], diskWanted: [] });
+  });
+
+  it("holds a tag missing from disk while unknown markers might be its renamed name", () => {
+    const r = reconcileTagSet({ diskNow: [], lastSeen: ["a"], appNow: ["a"], holdDiskRemovals: true });
+    expect(r).toMatchObject({ appAdd: [], appRemove: [], diskWanted: ["a"], lastSeenNext: ["a"] });
+    // An app-side removal still goes through
+    expect(reconcileTagSet({ diskNow: [], lastSeen: ["a"], appNow: [], holdDiskRemovals: true })).toMatchObject({
+      appRemove: [],
+      diskWanted: [],
+    });
   });
 
   it("unites both sides when the disk was never reported", () => {

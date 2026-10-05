@@ -71,5 +71,15 @@ under the current owner.
   promotion without retyping.
 - The filter, bulk tagging, workbench `T` and the To-do inbox for folders are a
   second stage (they reuse the ADR-0033 machinery with `ARCHIVE_FOLDER`).
-- Marker names are stable only while tag names are: renaming a tag makes the next
-  write phase rename its files (the old name is still recognised if kept as alias).
+- **Renames never strip tags.** Marker files carry names, so a rename must not make
+  the sync read "file gone, tag deleted". Three rules (2026-10-05, after the hole was
+  found before first use):
+  1. Renaming a tag keeps its old name as an alias (`updateTagDefinition`), so
+     `#OldName` files — and saved queries — still mean it. The files keep the old
+     name; nothing is rewritten on disk.
+  2. The group part of `#group=name` only disambiguates: if it names no group any
+     more (the group was renamed) and the name alone is unambiguous, the name decides.
+  3. While a folder holds markers the app cannot place, no tag is removed from it
+     because its marker is "missing" (`holdDiskRemovals`) — the unknown marker may be
+     that tag under a name the catalogue no longer knows. Removal from disk takes
+     effect once the unknown markers are resolved. App-side removals still sync.

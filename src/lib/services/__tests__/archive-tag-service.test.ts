@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/db";
 import { addTagsToEntity, getEntityTagIds, removeTagsFromEntity } from "@/lib/services/entity-tag-service";
+import { updateTagDefinition, updateTagGroup } from "@/lib/services/tag-service";
 import {
   absorbFolderTagsIntoSets,
   getFolderTagViews,
@@ -40,13 +41,14 @@ beforeAll(async () => {
   await folder("f1");
   await folder("f2");
   await folder("f3");
+  await folder("f4");
   ids.set = (await prisma.set.create({ data: { type: "photo", title: `${RUN} set` } })).id;
 });
 
 afterAll(async () => {
-  await prisma.archiveLink.deleteMany({ where: { archiveFolderId: { in: [ids.f1, ids.f2, ids.f3] } } });
+  await prisma.archiveLink.deleteMany({ where: { archiveFolderId: { in: [ids.f1, ids.f2, ids.f3, ids.f4] } } });
   // By id: `startsWith` is a LIKE, and the backslash in the path is its escape character
-  await prisma.archiveFolder.deleteMany({ where: { id: { in: [ids.f1, ids.f2, ids.f3] } } });
+  await prisma.archiveFolder.deleteMany({ where: { id: { in: [ids.f1, ids.f2, ids.f3, ids.f4] } } });
   await prisma.setTag.deleteMany({ where: { setId: ids.set } });
   await prisma.set.deleteMany({ where: { id: ids.set } });
   const groups = [ids.group, ids.groupX];
@@ -137,5 +139,31 @@ describe("folder → set", () => {
     await scan(path("f3"), [`#${RUN}beach`, `#${RUN}pool`]);
     expect((await folderTags(ids.f3)).sort()).toEqual([ids[`${RUN}beach`], ids[`${RUN}pool`]].sort());
     expect(await writeFor(path("f3"))).toBeUndefined();
+  });
+});
+
+describe("renames never strip tags", () => {
+  it("a renamed group: its qualified markers still resolve by name", async () => {
+    await scan(path("f4"), [`#${RUN}=${RUN}beach`]);
+    expect(await folderTags(ids.f4)).toEqual([ids[`${RUN}beach`]]);
+    await updateTagGroup(ids.group, { name: `${RUN}renamed` });
+    await scan(path("f4"), [`#${RUN}=${RUN}beach`]);
+    expect(await folderTags(ids.f4)).toEqual([ids[`${RUN}beach`]]);
+  });
+
+  it("a renamed tag keeps its old name as alias, so its marker still resolves", async () => {
+    await updateTagDefinition(ids[`${RUN}beach`], { name: `${RUN}shore` });
+    expect(await prisma.tagAlias.count({ where: { tagDefinitionId: ids[`${RUN}beach`], name: `${RUN}beach` } })).toBe(1);
+    await scan(path("f4"), [`#${RUN}=${RUN}beach`]);
+    expect(await folderTags(ids.f4)).toEqual([ids[`${RUN}beach`]]);
+  });
+
+  it("an unresolvable marker holds the tag instead of dropping it", async () => {
+    await prisma.tagAlias.deleteMany({ where: { tagDefinitionId: ids[`${RUN}beach`] } });
+    await scan(path("f4"), [`#${RUN}=${RUN}beach`]);
+    expect(await folderTags(ids.f4)).toEqual([ids[`${RUN}beach`]]);
+    const f = await prisma.archiveFolder.findUniqueOrThrow({ where: { id: ids.f4 } });
+    expect(f.tagMarkersUnknown).toEqual([`#${RUN}=${RUN}beach`]);
+    expect(await writeFor(path("f4"))).toBeUndefined();
   });
 });
