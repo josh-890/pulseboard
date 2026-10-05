@@ -24,6 +24,7 @@ const NOUN: Record<TaggableEntity, string> = {
   SESSION: "sessions",
   PERSON: "people",
   PROJECT: "projects",
+  ARCHIVE_FOLDER: "archive folders",
 };
 
 const text = (p: QueryPredicate) => `${p.key}${p.op}${p.value}`;
@@ -133,6 +134,7 @@ function castIncludes(entity: TaggableEntity, x: Prisma.Sql, people: Prisma.Sql)
     case "PERSON":
       return Prisma.sql`${x} IN (${people})`;
     case "PROJECT":
+    case "ARCHIVE_FOLDER":
       return Prisma.sql`FALSE`;
   }
 }
@@ -143,6 +145,7 @@ const OWN_TAGS: Record<TaggableEntity, { table: string; column: string }> = {
   SESSION: { table: "session_tag", column: "sessionId" },
   PERSON: { table: "person_tag", column: "personId" },
   PROJECT: { table: "project_tag", column: "projectId" },
+  ARCHIVE_FOLDER: { table: "archive_folder_tag", column: "archiveFolderId" },
 };
 
 /** SQL for one resolved predicate on row `x` of the entity */

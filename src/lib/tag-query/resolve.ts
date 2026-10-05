@@ -1,4 +1,4 @@
-import type { TagGroupKind } from "@/generated/prisma/client";
+import type { TagDomain, TagGroupKind } from "@/generated/prisma/client";
 import type { ResolvedPredicate, TagQuery, TagSourceFilter, TagTerm } from "./types";
 
 // Map a TagQuery onto tag ids (ADR-0033). Pure: the catalogue is passed in.
@@ -19,6 +19,10 @@ export type CatalogTag = {
   groupSlug: string;
   isExclusive: boolean;
   kind: TagGroupKind;
+  /** Group domain — optional so pure callers/tests may omit it */
+  domain?: TagDomain;
+  /** Group display name */
+  groupName?: string;
 };
 
 /** Tags of one group a term matches — exclusivity is decided per group */

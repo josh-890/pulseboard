@@ -39,6 +39,11 @@ export async function getEffectiveTags(entityType: TaggableEntity, entityId: str
       const rows = await prisma.personTag.findMany({ where: { personId: entityId }, ...FACT_SELECT });
       return resolveEffectiveTags(facts(rows), []);
     }
+    case "ARCHIVE_FOLDER": {
+      // A folder has no content chain above it — own tags only (ADR-0034)
+      const rows = await prisma.archiveFolderTag.findMany({ where: { archiveFolderId: entityId }, ...FACT_SELECT });
+      return resolveEffectiveTags(facts(rows), []);
+    }
     case "PROJECT": {
       const rows = await prisma.projectTag.findMany({ where: { projectId: entityId }, ...FACT_SELECT });
       return resolveEffectiveTags(facts(rows), []);
@@ -85,4 +90,33 @@ export async function getEffectiveTags(entityType: TaggableEntity, entityId: str
       return resolveEffectiveTags(facts(item.mediaItemTags), inherited);
     }
   }
+}
+
+/**
+ * Direct tags of many folders or sets at once, for list rows (ADR-0034) — the
+ * archive list shows each folder's tag owner without a request per row.
+ */
+export async function getDirectTagsBatch(
+  entityType: "ARCHIVE_FOLDER" | "SET",
+  ids: string[],
+): Promise<Map<string, EffectiveTag[]>> {
+  const out = new Map<string, EffectiveTag[]>();
+  if (ids.length === 0) return out;
+  const grouped = new Map<string, TagFact[]>();
+  const push = (id: string, fact: TagFact) => grouped.set(id, [...(grouped.get(id) ?? []), fact]);
+  if (entityType === "ARCHIVE_FOLDER") {
+    const rows = await prisma.archiveFolderTag.findMany({
+      where: { archiveFolderId: { in: ids } },
+      select: { archiveFolderId: true, ...FACT_SELECT.select },
+    });
+    for (const r of rows) push(r.archiveFolderId, r.tagDefinition);
+  } else {
+    const rows = await prisma.setTag.findMany({
+      where: { setId: { in: ids } },
+      select: { setId: true, ...FACT_SELECT.select },
+    });
+    for (const r of rows) push(r.setId, r.tagDefinition);
+  }
+  for (const [id, list] of grouped) out.set(id, resolveEffectiveTags(list, []));
+  return out;
 }

@@ -17,6 +17,8 @@ export type EntityTagsController = {
   /** Add or remove one direct tag; optimistic, then re-read the effective set */
   toggle: (tag: PaletteTag, on: boolean) => void;
   remove: (tagId: string) => void;
+  /** Re-read after a change made elsewhere (e.g. a resolved disk marker) */
+  refresh: () => void;
 };
 
 function fromPaletteTag(tag: PaletteTag): EffectiveTag {
@@ -135,5 +137,6 @@ export function useEntityTags(
   );
 
   if (!entityId) return null;
-  return { entityType, entityId, tags, directTagIds, isLoading: !known, toggle, remove };
+  const id = entityId;
+  return { entityType, entityId, tags, directTagIds, isLoading: !known, toggle, remove, refresh: () => refetch(id) };
 }

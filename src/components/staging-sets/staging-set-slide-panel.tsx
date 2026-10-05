@@ -2,6 +2,7 @@
 
 import { ArchiveStubControl } from '@/components/archive/archive-stub-control'
 import { StubBadge } from '@/components/archive/stub-badge'
+import { ArchiveFolderTagsLoader } from '@/components/archive/archive-folder-tags-loader'
 import { toArchiveStub } from '@/lib/archive-stub'
 import { useState, useEffect, useCallback } from 'react'
 import {
@@ -684,6 +685,17 @@ function PanelContent({
         <div className="rounded-lg border border-border/50 bg-card/50 p-3">
           <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Annotations</h3>
           <div className="space-y-2">
+            {/* Tags live on the archive folder until promotion (ADR-0034) */}
+            <div className="flex items-start gap-3">
+              <span className="w-16 shrink-0 pt-0.5 text-xs font-medium text-muted-foreground">Tags</span>
+              {confirmedFolder ? (
+                <ArchiveFolderTagsLoader folderId={confirmedFolder.id} className="min-w-0 flex-1" />
+              ) : (
+                <span className="pt-0.5 text-xs text-muted-foreground">
+                  Link an archive folder to tag this set — tags live on the folder until promotion.
+                </span>
+              )}
+            </div>
             <div className="flex items-center gap-3">
               <span className="w-16 text-xs font-medium text-muted-foreground">Priority</span>
               <select

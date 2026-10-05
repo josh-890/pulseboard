@@ -161,6 +161,24 @@ full on every run, because media overwritten under the same names do not move th
 folder's mtime. A targeted run does not look at `STUB` at all. The summary line
 reports `Stubs from STUB` / `Stubs ended` when either happened.
 
+**Tagging a folder** (ADR-0034) — put one empty file per tag into `.pulseboard\`,
+named `#` + the tag name; qualify with the group when two groups share a name:
+
+```
+.pulseboard\#outdoor
+.pulseboard\#outfit=bikini
+```
+
+Case, `_` for space and a short extension (`#outdoor.txt`) make no difference; an
+alias of the tag works too. The next Full run hands the names to the app, which
+tags the folder — or its Set, once the folder is confirmed to one. It works both
+ways, per tag, like `STUB`: delete a file and the tag goes; add or remove a tag in the
+app and the write phase (after the stub markers) creates or deletes the matching
+`#…` file. It touches **only** `#…` files. A name the app does not know stays on disk
+and shows on the archive row as a question; two files of one exclusive group
+(`#indoor` + `#outdoor`) adopt neither and show a warning. A targeted run does not
+read tags. The summary reports tags adopted / removed / unknown / conflicts.
+
 A `.pulseboard\` that Explorer draws **faded** carries the DOS hidden attribute —
 Samba puts it on every dot-name, so a meta folder created from Linux, WSL or over the
 share arrives hidden. The scan reads it with `-Force` and does not care, and neither

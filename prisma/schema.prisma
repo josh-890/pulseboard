@@ -1890,6 +1890,7 @@ model TagDefinition {
   projectTags   ProjectTag[]
   aliases       TagAlias[]
   slots         TagSlot[]
+  archiveFolderTags ArchiveFolderTag[]
 
   @@unique([groupId, name])
   @@unique([groupId, slug])
@@ -1976,6 +1977,21 @@ model MediaItemTag {
   @@id([mediaItemId, tagDefinitionId])
   @@index([tagDefinitionId])
   @@map("media_item_tag")
+}
+
+// An archive folder's own tags before promotion (ADR-0034). Mirrored on disk as
+// `.pulseboard\#name` markers; moved to SetTag when the folder is linked to a Set.
+model ArchiveFolderTag {
+  archiveFolderId String
+  tagDefinitionId String
+  source          TagSource     @default(MANUAL)
+  createdAt       DateTime      @default(now())
+  archiveFolder   ArchiveFolder @relation(fields: [archiveFolderId], references: [id], onDelete: Cascade)
+  tagDefinition   TagDefinition @relation(fields: [tagDefinitionId], references: [id], onDelete: Cascade)
+
+  @@id([archiveFolderId, tagDefinitionId])
+  @@index([tagDefinitionId])
+  @@map("archive_folder_tag")
 }
 
 // Per-image "people shown" appearance, stored as EXCLUSIONS (ADR-0023).
@@ -2376,6 +2392,22 @@ model ArchiveFolder {
   stubDiskState Boolean?
   // When the last stub ended — drives the "re-import media" offer until dismissed.
   stubEndedAt   DateTime?
+
+  // Tags (ADR-0034). Before promotion a folder carries its own tags; once linked to
+  // a Set they live on the Set and the disk follows those. tagsDiskState = the tag
+  // ids the `.pulseboard\#…` markers said at the last reconciliation; tagsDiskSeen
+  // false = the scan has never reported this folder's markers (then both sides are
+  // united, nothing is removed). Unknown marker names and exclusive-group conflicts
+  // are kept as warnings until resolved.
+  tags                ArchiveFolderTag[]
+  tagsDiskSeen        Boolean  @default(false)
+  tagsDiskState       String[] @default([])
+  // Whose tags tagsDiskState was reconciled against: "folder" or a Set id. When the
+  // owner changes (link removed, set deleted) the remembered state no longer
+  // describes it, so the next reconciliation unites instead of deleting markers.
+  tagsSyncedOwner     String?
+  tagMarkersUnknown   String[] @default([])
+  tagMarkersConflicts String[] @default([])
 
   coverKey       String? // MinIO key, archive/{archiveKey}/cover-{ts}.jpg
   coverError     String? // last failure reason; null once a cover succeeds

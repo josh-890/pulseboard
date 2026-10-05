@@ -58,6 +58,7 @@ const ENTITY_NOUN: Record<TaggableEntity, string> = {
   SET: "set",
   MEDIA_ITEM: "image",
   PROJECT: "project",
+  ARCHIVE_FOLDER: "folder",
 };
 
 const ENTITY_PLURAL: Record<TaggableEntity, string> = {
@@ -66,6 +67,7 @@ const ENTITY_PLURAL: Record<TaggableEntity, string> = {
   SET: "sets",
   MEDIA_ITEM: "images",
   PROJECT: "projects",
+  ARCHIVE_FOLDER: "folders",
 };
 
 export type TagPaletteProps = {
@@ -87,6 +89,8 @@ export type TagPaletteProps = {
   onPick?: (tag: PaletteTag) => void;
   /** Overrides the dialog title */
   title?: string;
+  /** Search text to start with (read on mount — mount the palette per use) */
+  initialQuery?: string;
 };
 
 type RowState = "all" | "some" | "none";
@@ -106,6 +110,7 @@ export function TagPalette({
   selectionSize,
   onPick,
   title,
+  initialQuery,
 }: TagPaletteProps) {
   const isBulk = selectionCounts !== undefined && selectionSize !== undefined;
   const rowState = (tagId: string): RowState => {
@@ -117,7 +122,7 @@ export function TagPalette({
     return selectedTagIds.includes(tagId) ? "all" : "none";
   };
   const [data, setData] = useState<PaletteData | null>(null);
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(initialQuery ?? "");
   const [createGroupId, setCreateGroupId] = useState<string | null>(null);
   const [isCreating, startCreate] = useTransition();
 

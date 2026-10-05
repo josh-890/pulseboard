@@ -18,9 +18,10 @@ const COUNT_LABELS: { key: keyof TagCounts; short: string; long: string }[] = [
   { key: "set", short: "S", long: "sets" },
   { key: "media", short: "I", long: "images" },
   { key: "project", short: "Pr", long: "projects" },
+  { key: "archive", short: "A", long: "archive folders (not yet a set)" },
 ];
 
-const total = (c: TagCounts) => c.person + c.session + c.set + c.media + c.project;
+const total = (c: TagCounts) => c.person + c.session + c.set + c.media + c.project + c.archive;
 
 /** Tags of a group in tree order (parents before their sub-tags) with depth */
 function treeOrder(tags: TagTreeTag[]): { tag: TagTreeTag; depth: number }[] {

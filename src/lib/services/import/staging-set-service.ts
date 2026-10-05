@@ -6,6 +6,7 @@
  * progressive enrichment of existing Sets.
  */
 
+import { absorbFolderTagsIntoSets } from '@/lib/services/archive-tag-service'
 import { prisma } from '@/lib/db'
 import { localMediaUrlOrNull } from '@/lib/media-url'
 import { normalizeForSearch } from '@/lib/normalize'
@@ -643,6 +644,15 @@ export async function markStagingSetPromoted(
       where: { stagingSetId: id },
       data: { setId: promotedSetId, stagingSetId: null },
     })
+  }
+
+  // ADR-0034: the folder's tags move to the Set with the link
+  const linkedFolders = await prisma.archiveLink.findMany({
+    where: { setId: promotedSetId, status: 'CONFIRMED' },
+    select: { archiveFolderId: true },
+  })
+  if (linkedFolders.length > 0) {
+    await absorbFolderTagsIntoSets(linkedFolders.map((l) => l.archiveFolderId))
   }
 
   void onSetPromoted(id, promotedSetId)

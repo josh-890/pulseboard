@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { TAGGABLE_ENTITIES } from "@/lib/tag-domains";
 import {
   searchTagDefinitions,
   getTagDefinitionsForEntity,
@@ -7,7 +8,7 @@ import {
 import type { TaggableEntity } from "@/lib/services/entity-tag-service";
 import { withTenantFromHeaders } from "@/lib/tenant-context";
 
-const ENTITY_TYPES: readonly TaggableEntity[] = ["PERSON", "SESSION", "MEDIA_ITEM", "SET", "PROJECT"];
+const ENTITY_TYPES: readonly TaggableEntity[] = TAGGABLE_ENTITIES;
 
 function parseEntityType(value: string | null): TaggableEntity | undefined {
   return ENTITY_TYPES.find((t) => t === value);

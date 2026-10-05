@@ -37,7 +37,7 @@ export async function loadTagCatalog(): Promise<CatalogTag[]> {
       parentId: true,
       groupId: true,
       aliases: { select: { name: true } },
-      group: { select: { slug: true, isExclusive: true, kind: true } },
+      group: { select: { slug: true, name: true, isExclusive: true, kind: true, domain: true } },
     },
   });
   return tags.map((t) => ({
@@ -50,6 +50,8 @@ export async function loadTagCatalog(): Promise<CatalogTag[]> {
     groupSlug: t.group.slug,
     isExclusive: t.group.isExclusive,
     kind: t.group.kind,
+    domain: t.group.domain,
+    groupName: t.group.name,
   }));
 }
 
@@ -118,6 +120,10 @@ function levelHas(entity: TaggableEntity, level: "self" | "set" | "session", x: 
       return level === "self"
         ? Prisma.sql`EXISTS (SELECT 1 FROM project_tag d WHERE d."projectId" = ${x} AND d."tagDefinitionId" IN (${ids}))`
         : FALSE;
+    case "ARCHIVE_FOLDER":
+      return level === "self"
+        ? Prisma.sql`EXISTS (SELECT 1 FROM archive_folder_tag d WHERE d."archiveFolderId" = ${x} AND d."tagDefinitionId" IN (${ids}))`
+        : FALSE;
   }
 }
 
@@ -131,6 +137,7 @@ const SELF_SOURCE: Record<TaggableEntity, string> = {
   SESSION: "session",
   PERSON: "any",
   PROJECT: "any",
+  ARCHIVE_FOLDER: "any",
 };
 
 function partCondition(entity: TaggableEntity, part: ResolvedGroupPart, source: ResolvedTerm["source"], x: Prisma.Sql): Prisma.Sql {
@@ -145,7 +152,7 @@ function partCondition(entity: TaggableEntity, part: ResolvedGroupPart, source: 
   }
 
   // Effective (anywhere)
-  if (entity === "SESSION" || entity === "PERSON" || entity === "PROJECT" || part.workflow) return self;
+  if (entity === "SESSION" || entity === "PERSON" || entity === "PROJECT" || entity === "ARCHIVE_FOLDER" || part.workflow) return self;
 
   const viaSet = entity === "MEDIA_ITEM" ? levelHas(entity, "set", x, ids) : FALSE;
   const viaSession = levelHas(entity, "session", x, ids);
@@ -181,6 +188,7 @@ const ENTITY_TABLE: Record<TaggableEntity, string> = {
   SESSION: `"Session"`,
   PERSON: `"Person"`,
   PROJECT: `"Project"`,
+  ARCHIVE_FOLDER: `archive_folder`,
 };
 
 /**
@@ -211,6 +219,8 @@ function clauseCandidates(entity: TaggableEntity, clause: ResolvedTagQuery["all"
       return Prisma.sql`SELECT "personId" AS id FROM person_tag WHERE "tagDefinitionId" IN (${ids})`;
     case "PROJECT":
       return Prisma.sql`SELECT "projectId" AS id FROM project_tag WHERE "tagDefinitionId" IN (${ids})`;
+    case "ARCHIVE_FOLDER":
+      return Prisma.sql`SELECT "archiveFolderId" AS id FROM archive_folder_tag WHERE "tagDefinitionId" IN (${ids})`;
   }
 }
 
@@ -282,6 +292,9 @@ export async function getTagFacetCounts(entity: TaggableEntity, ids: string[] | 
       break;
     case "PROJECT":
       raw = Prisma.sql`SELECT d."projectId" AS eid, d."tagDefinitionId" AS tid, 0 AS lvl FROM project_tag d WHERE TRUE ${inIds(Prisma.sql`d."projectId"`)}`;
+      break;
+    case "ARCHIVE_FOLDER":
+      raw = Prisma.sql`SELECT d."archiveFolderId" AS eid, d."tagDefinitionId" AS tid, 0 AS lvl FROM archive_folder_tag d WHERE TRUE ${inIds(Prisma.sql`d."archiveFolderId"`)}`;
       break;
   }
 

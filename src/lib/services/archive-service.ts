@@ -17,6 +17,7 @@ import { loadCasts } from '@/lib/services/set-cast-service'
 import { escapeLike } from '@/lib/prisma-like'
 import { toArchiveStub } from '@/lib/archive-stub'
 import { reconcileStubsFromScan } from '@/lib/services/archive-stub-service'
+import { getFolderTagViews, reconcileFolderTagsFromScan, type FolderTagsView, type TagScanCounts } from '@/lib/services/archive-tag-service'
 import type { StubScanCounts } from '@/lib/services/archive-stub-service'
 import type { ArchiveStub } from '@/lib/archive-stub'
 import { ArchiveLinkStatus, Prisma } from '@/generated/prisma/client'
@@ -1164,6 +1165,11 @@ export type FullIngestItem = {
   stubOnDisk?: boolean
   /** The text inside `STUB`, if any — becomes the note when the disk sets the stub. */
   stubNote?: string | null
+  /**
+   * The `.pulseboard\#…` tag marker file names (ADR-0034). Sent for every leaf of a
+   * Full run — an empty array is a statement (all markers gone). Absent = not looked.
+   */
+  tagMarkers?: string[] | string
 }
 
 // ─── Archive Workspace Types ──────────────────────────────────────────────────
@@ -1233,6 +1239,12 @@ export type ArchiveFolderEntry = {
    * difference is exactly what the row has to show: recorded, or still asking.
    */
   people: { claims: FolderPerson[]; cast: FolderPerson[]; markers: FolderPerson[] }
+  /**
+   * Tags (ADR-0034): the folder's own before promotion, its Set's once a
+   * confirmed link joins them — plus `.pulseboard\#…` markers the app could not
+   * place (unknown name, two of one exclusive group).
+   */
+  tags: FolderTagsView
 }
 
 export type FolderPerson = {
@@ -1456,6 +1468,7 @@ export async function upsertArchiveFolders(
   folderPeople: { written: number; badLines: string[] }
   /** `.pulseboard\STUB` reconciliation (ADR-0032). */
   stubs: StubScanCounts
+  tags: TagScanCounts
 }> {
   const now = new Date()
   const counts = {
@@ -1468,6 +1481,7 @@ export async function upsertArchiveFolders(
     keyConflicts: [] as KeyConflict[],
     folderPeople: { written: 0, badLines: [] as string[] },
     stubs: { markedFromDisk: 0, endedFromDisk: 0, toWrite: 0 } as StubScanCounts,
+    tags: { adopted: 0, removed: 0, unknown: 0, conflicts: 0, toWrite: 0 } as TagScanCounts,
   }
 
   for (const item of items) {
@@ -1791,6 +1805,7 @@ export async function upsertArchiveFolders(
 
   counts.folderPeople = await writeFolderPeopleSuggestions(items)
   counts.stubs = await reconcileStubsFromScan(items)
+  counts.tags = await reconcileFolderTagsFromScan(items)
 
   return counts
 }
@@ -2605,13 +2620,13 @@ export async function getConflictingLinks(ids: string[]): Promise<Map<string, Bl
  * because a claim the cast does not name is a contradiction to decide, not a
  * duplicate to fold away (ADR-0028).
  */
-type FolderEntryBase = Omit<ArchiveFolderEntry, 'people'>
+type FolderEntryBase = Omit<ArchiveFolderEntry, 'people' | 'tags'>
 
 async function attachFolderPeople(items: FolderEntryBase[]): Promise<ArchiveFolderEntry[]> {
   if (items.length === 0) return []
   const ids = items.map((i) => i.id)
 
-  const [attributions, markerRows, links] = await Promise.all([
+  const [attributions, markerRows, links, tagViews] = await Promise.all([
     prisma.archiveFolderAttribution.findMany({
       where: { archiveFolderId: { in: ids } },
       // personId rides along so the create-set dialogue can mark the person
@@ -2627,6 +2642,7 @@ async function attachFolderPeople(items: FolderEntryBase[]): Promise<ArchiveFold
       where: { archiveFolderId: { in: ids }, status: 'CONFIRMED' },
       select: { archiveFolderId: true, stagingSetId: true, setId: true },
     }),
+    getFolderTagViews(ids),
   ])
 
   const casts = await loadCasts(
@@ -2673,6 +2689,7 @@ async function attachFolderPeople(items: FolderEntryBase[]): Promise<ArchiveFold
       cast: castBy.get(item.id) ?? [],
       markers: markersBy.get(item.id) ?? [],
     },
+    tags: tagViews.get(item.id) ?? { owner: { type: 'ARCHIVE_FOLDER', id: item.id }, tags: [], unknown: [], conflicts: [] },
   }))
 }
 

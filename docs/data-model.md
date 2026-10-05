@@ -168,7 +168,8 @@ TagGroup (domain · typicalLevel? · kind · isExclusive · color)
             ├──< SessionTag   >── Session
             ├──< SetTag       >── Set
             ├──< MediaItemTag >── MediaItem
-            └──< ProjectTag   >── Project
+            ├──< ProjectTag   >── Project
+            └──< ArchiveFolderTag >── ArchiveFolder   (ADR-0034)
 ```
 
 - `TagDomain` (`PERSON | CONTENT | PROJECT | ANY`) is the hard rule: which entities
@@ -187,6 +188,13 @@ TagGroup (domain · typicalLevel? · kind · isExclusive · color)
 - Inheritance (computed, never stored): Session → Set (via `SetSession`),
   Session → MediaItem, Set → MediaItem (via `SetMediaItem`); nearest level wins
   inside an exclusive group.
+- `ArchiveFolderTag` (ADR-0034): tags of an archive folder before promotion
+  (CONTENT/ANY only, no inheritance). Once a CONFIRMED link joins the folder to a
+  Set the tags live on `SetTag` instead. Sync state on `ArchiveFolder`:
+  `tagsDiskSeen` / `tagsDiskState` (tag ids the `.pulseboard\#…` files carried at
+  the last reconcile), `tagsSyncedOwner` (`folder` or the set id the state was
+  compared with), `tagMarkersUnknown` / `tagMarkersConflicts` (markers the app
+  could not place).
 
 ---
 

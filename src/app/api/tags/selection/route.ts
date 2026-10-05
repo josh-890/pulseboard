@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
+import { TAGGABLE_ENTITIES } from "@/lib/tag-domains";
 import { getSelectionTagCounts, type TaggableEntity } from "@/lib/services/entity-tag-service";
 import { withTenantFromHeaders } from "@/lib/tenant-context";
 
-const ENTITY_TYPES: readonly TaggableEntity[] = ["PERSON", "SESSION", "MEDIA_ITEM", "SET", "PROJECT"];
+const ENTITY_TYPES: readonly TaggableEntity[] = TAGGABLE_ENTITIES;
 
 // How many of the selected entities carry each tag — the tri-state bulk palette.
 // POST because a selection can be thousands of ids.

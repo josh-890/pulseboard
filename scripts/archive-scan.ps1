@@ -852,6 +852,8 @@ function Walk-Root {
                 $folderPeopleErrors = @()
                 $stubOnDisk         = $false
                 $stubNote           = $null
+                # Tag markers (ADR-0034): one empty file per tag, `#name` or `#group=name`
+                $tagMarkers         = @()
                 if ($metaMtime) {
                     # -Force for the same reason the folder itself needs it: a marker
                     # that arrived over the share can be hidden too, and a marker the
@@ -870,6 +872,13 @@ function Walk-Root {
                                 if ($raw) { $stubNote = ([string]$raw).Trim() }
                                 if ($stubNote -and $stubNote.Length -gt 500) { $stubNote = $stubNote.Substring(0, 500) }
                             } catch { <# an unreadable note is no reason to lose the mark #> }
+                            continue
+                        }
+
+                        # Tag markers (ADR-0034) carry no ICG-ID either; the app resolves
+                        # the names, so they are sent as written.
+                        if ($mf.Name.StartsWith('#')) {
+                            $tagMarkers += $mf.Name
                             continue
                         }
 
@@ -950,6 +959,8 @@ function Walk-Root {
                         # Always sent on a Full run: $false is a statement (a deleted
                         # marker ends the stub), not an absence.
                         $item | Add-Member -NotePropertyName stubOnDisk -NotePropertyValue $stubOnDisk
+                        # Same for tags: an empty list says every marker is gone.
+                        $item | Add-Member -NotePropertyName tagMarkers -NotePropertyValue @($tagMarkers)
                         # Flag stale sidecar: folderName in the JSON no longer matches the actual
                         # folder name on disk (e.g. after a case-only rename). The sidecar phase
                         # will rewrite it even if no other work is needed this scan.
@@ -1035,6 +1046,7 @@ function Walk-Root {
                     $item | Add-Member -NotePropertyName folderPeopleErrors -NotePropertyValue @($folderPeopleErrors)
                 }
                 $item | Add-Member -NotePropertyName stubOnDisk -NotePropertyValue $stubOnDisk
+                $item | Add-Member -NotePropertyName tagMarkers -NotePropertyValue @($tagMarkers)
                 if ($stubNote) {
                     $item | Add-Member -NotePropertyName stubNote -NotePropertyValue $stubNote
                 }
@@ -1480,6 +1492,81 @@ function Write-StubMarkers {
     Write-Host "  Stub markers: $made written, $removed removed$(if ($failed -gt 0) { ", $failed failed" })"
 }
 
+# Tag markers (ADR-0034): `.pulseboard\#name` files, compared the way the app reads
+# them — case-insensitive, `_` = space, a short extension ignored.
+function Get-TagMarkerKey {
+    param([string]$Name)
+    return (($Name -replace '\.[A-Za-z0-9]{1,4}$', '') -replace '_', ' ').Trim().ToLowerInvariant()
+}
+
+function Write-TagMarkers {
+    param([string]$ScopeNorm)
+
+    try {
+        $resp = Invoke-RestMethod -Uri "$BaseUrl/api/archive/tag-writes" -Headers $headers -Method Get
+    } catch {
+        Write-Warning "  Could not load tag writes: $_"
+        return
+    }
+    $writes = @($resp.writes | Where-Object { $_ })
+    if ($ScopeNorm) {
+        $writes = @($writes | Where-Object { (Normalize-Path ([string]$_.fullPath)).StartsWith($ScopeNorm) })
+    }
+    if ($writes.Count -eq 0) {
+        Write-Host "  Tag markers already match the app."
+        return
+    }
+
+    $made = 0; $removed = 0; $failed = 0
+    $utf8 = New-Object System.Text.UTF8Encoding $false
+    foreach ($w in $writes) {
+        $folderPath = [string]$w.fullPath
+        if (-not (Test-Path -LiteralPath $folderPath -PathType Container)) { continue }
+        $metaDir = Join-Path $folderPath $META_DIR
+
+        # The complete set the folder should hold. @() undoes ConvertTo-Json's habit
+        # of collapsing a one-element array into a bare string.
+        $wanted = @{}
+        foreach ($n in @($w.want)) {
+            if ($n) { $wanted[(Get-TagMarkerKey ([string]$n))] = [string]$n }
+        }
+
+        $present = @{}
+        if (Test-Path -LiteralPath $metaDir -PathType Container) {
+            foreach ($f in @(Get-ChildItem -LiteralPath $metaDir -File -Force -ErrorAction SilentlyContinue |
+                    Where-Object { $_.Name.StartsWith('#') })) {
+                $key = Get-TagMarkerKey $f.Name
+                if ($wanted.ContainsKey($key)) { $present[$key] = $true; continue }
+                if ($DryRun) { Write-Host "  [DRY-RUN] Would remove $($f.FullName)"; $removed++; continue }
+                try {
+                    Remove-Item -LiteralPath $f.FullName -Force -ErrorAction Stop
+                    $removed++
+                } catch {
+                    Write-Warning "  Failed to remove $($f.FullName)`: $_"
+                    $failed++
+                }
+            }
+        }
+
+        foreach ($key in $wanted.Keys) {
+            if ($present.ContainsKey($key)) { continue }
+            $target = Join-Path $metaDir $wanted[$key]
+            if ($DryRun) { Write-Host "  [DRY-RUN] Would write $target"; $made++; continue }
+            try {
+                if (-not (Test-Path -LiteralPath $metaDir -PathType Container)) {
+                    [void][System.IO.Directory]::CreateDirectory($metaDir)
+                }
+                [System.IO.File]::WriteAllText($target, "", $utf8)
+                $made++
+            } catch {
+                Write-Warning "  Failed to write $target`: $_"
+                $failed++
+            }
+        }
+    }
+    Write-Host "  Tag markers: $made written, $removed removed$(if ($failed -gt 0) { ", $failed failed" })"
+}
+
 # ── FULL MODE — the write phases, and what they are allowed to touch ──────────
 #
 # -Path scopes the WHOLE run, these phases included. A switch that narrows the walk
@@ -1546,6 +1633,11 @@ function Write-WritePhases {
     Write-Host ""
     Write-Host "Writing stub markers ($META_DIR\STUB)..."
     Write-StubMarkers -ScopeNorm $ScopeNorm
+
+    # Same contract: only `#` files, exactly the set the app asked for (ADR-0034).
+    Write-Host ""
+    Write-Host "Writing tag markers ($META_DIR\#...)..."
+    Write-TagMarkers -ScopeNorm $ScopeNorm
 
     if ($SkipPeople) { return }
 
@@ -1656,6 +1748,7 @@ function Run-FullScan {
     # ── Step 3: POST delta in batches (skip if nothing to send) ─────────────
     $totCre = 0; $totUpd = 0; $totRen = 0; $totUnch = 0; $totSkip = 0
     $totStubMarked = 0; $totStubEnded = 0
+    $totTagAdopted = 0; $totTagRemoved = 0; $totTagUnknown = 0; $totTagConflicts = 0
     $allKeyConflicts = [System.Collections.ArrayList]::new()
 
     if ($totalDelta -eq 0) {
@@ -1686,6 +1779,12 @@ function Run-FullScan {
                 if ($resp.stubs) {
                     $totStubMarked += [int]$resp.stubs.markedFromDisk
                     $totStubEnded  += [int]$resp.stubs.endedFromDisk
+                    if ($resp.tags) {
+                        $totTagAdopted   += [int]$resp.tags.adopted
+                        $totTagRemoved   += [int]$resp.tags.removed
+                        $totTagUnknown   += [int]$resp.tags.unknown
+                        $totTagConflicts += [int]$resp.tags.conflicts
+                    }
                 }
                 # Accumulate any sidecar key conflicts reported by the server
                 if ($resp.keyConflicts -and $resp.keyConflicts.Count -gt 0) {
@@ -1711,6 +1810,11 @@ function Run-FullScan {
         if ($totSkip -gt 0) { Write-Host ("  Skipped (empty):  " + $totSkip) }
         if ($totStubMarked -gt 0) { Write-Host ("  Stubs from STUB:  " + $totStubMarked) }
         if ($totStubEnded -gt 0)  { Write-Host ("  Stubs ended:      " + $totStubEnded + " (STUB removed on disk)") }
+        if (($totTagAdopted + $totTagRemoved + $totTagUnknown + $totTagConflicts) -gt 0) {
+            Write-Host ("  Tags from #files: " + $totTagAdopted + " adopted, " + $totTagRemoved + " removed" +
+                $(if ($totTagUnknown -gt 0) { ", $totTagUnknown unknown names (resolve in /archive)" } else { "" }) +
+                $(if ($totTagConflicts -gt 0) { ", $totTagConflicts folders with conflicting markers" } else { "" }))
+        }
         if ($totCre -gt 0) {
             Write-Host "  Matching pass:    running in background on server"
         }

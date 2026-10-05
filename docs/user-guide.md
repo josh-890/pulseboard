@@ -1513,6 +1513,30 @@ ends only when you say so:
 
 Either way the folder cover is rebuilt from the new media on the next cover run.
 
+### Tagging folders before import
+
+You often know a set's tags while filing it in Explorer — long before (or without
+ever) promoting it. Tag the folder there (ADR-0034):
+
+- **On disk:** put an empty file per tag into the folder's `.pulseboard\`:
+  `#outdoor`, `#bikini`. If two groups share a name, add the group: `#outfit=bikini`.
+  `_` stands for a space, case and a `.txt` extension don't matter, aliases work.
+  The next **Full** archive scan picks them up.
+- **In the app:** each archive row (`/archive`) shows the folder's tags with a
+  **+ Tag** button; a staged set's panel shows them under **Annotations → Tags**
+  (it edits the linked folder; a staged set without a folder can't be tagged yet).
+- **Both ways:** add or remove a tag in the app and the next Full scan creates or
+  deletes the `#…` file; delete a file and the tag goes. Nothing else in
+  `.pulseboard\` is touched.
+- **Unknown names** show as an amber `#name ?` chip. Click it, then pick the tag it
+  means (the name becomes an alias) or create it — every folder carrying that
+  name is tagged at once.
+- **Conflicts:** two tags of one exclusive group (`#indoor` + `#outdoor`) adopt
+  neither and show a red warning; delete the wrong file.
+- **Promotion:** once a folder is confirmed to a Set, its tags move to the Set
+  (the row shows *set* in front of them) and the files follow the Set's tags from then
+  on.
+
 ### Suggestion Confidence
 
 The matching system runs two tiers:

@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react'
 import Link from 'next/link'
 import { ArchiveStubControl } from './archive-stub-control'
+import { ArchiveFolderTags } from './archive-folder-tags'
 import { Check, X, Plus, ExternalLink, TriangleAlert, Trash2, Link2, UserPen } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { ArchiveCoverThumb } from './archive-cover-thumb'
@@ -144,6 +145,9 @@ export function ArchiveOrphanRow({ item, onRemoved, backHref }: Props) {
 
         {/* Stub — a deliberate placeholder copy (ADR-0032) */}
         <ArchiveStubControl folderId={item.id} stub={stub} onChanged={setStub} />
+
+        {/* Tags — the folder's own, or its Set's once linked (ADR-0034) */}
+        <ArchiveFolderTags view={item.tags} className="min-w-0 max-w-[35%] shrink" />
 
         {/* Shortname/channel folder mismatch */}
         {hasMismatch && (

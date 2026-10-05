@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
+import { TAGGABLE_ENTITIES } from "@/lib/tag-domains";
 import { getTagPaletteData } from "@/lib/services/tag-service";
 import type { TaggableEntity } from "@/lib/services/entity-tag-service";
 import { withTenantFromHeaders } from "@/lib/tenant-context";
 
-const ENTITY_TYPES: readonly TaggableEntity[] = ["PERSON", "SESSION", "MEDIA_ITEM", "SET", "PROJECT"];
+const ENTITY_TYPES: readonly TaggableEntity[] = TAGGABLE_ENTITIES;
 
 // Groups + tags (with usage counts) the tag palette offers for one entity type.
 export async function GET(request: NextRequest) {

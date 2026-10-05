@@ -30,6 +30,7 @@ const SOURCES: Record<TaggableEntity, { value: TagSourceFilter; label: string }[
   SESSION: [],
   PERSON: [],
   PROJECT: [],
+  ARCHIVE_FOLDER: [],
 };
 
 export type TagFilterChipsProps = {

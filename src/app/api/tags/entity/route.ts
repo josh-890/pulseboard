@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
+import { TAGGABLE_ENTITIES } from "@/lib/tag-domains";
 import type { TaggableEntity } from "@/lib/services/entity-tag-service";
 import { getEffectiveTags } from "@/lib/services/tag-effective-service";
 import { withTenantFromHeaders } from "@/lib/tenant-context";
 
-const ENTITY_TYPES: readonly TaggableEntity[] = ["PERSON", "SESSION", "MEDIA_ITEM", "SET", "PROJECT"];
+const ENTITY_TYPES: readonly TaggableEntity[] = TAGGABLE_ENTITIES;
 
 // An entity's effective tags (ADR-0033): direct ones plus those inherited down
 // the content chain, each carrying its source level and `overridden` flag.

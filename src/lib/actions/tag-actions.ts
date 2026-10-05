@@ -256,6 +256,10 @@ function revalidateEntity(entityType: TaggableEntity, entityId: string) {
       revalidatePath("/projects");
       revalidatePath(`/projects/${entityId}`);
       break;
+    case "ARCHIVE_FOLDER":
+      revalidatePath("/archive");
+      revalidatePath("/staging-sets");
+      break;
   }
 }
 
@@ -325,6 +329,10 @@ function revalidateBrowse(entityType: TaggableEntity) {
       break;
     case "PROJECT":
       revalidatePath("/projects");
+      break;
+    case "ARCHIVE_FOLDER":
+      revalidatePath("/archive");
+      revalidatePath("/staging-sets");
       break;
     case "MEDIA_ITEM":
       break;

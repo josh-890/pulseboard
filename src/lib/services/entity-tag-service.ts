@@ -112,6 +112,9 @@ async function enforceExclusiveGroups(
       case "PROJECT":
         await tx.projectTag.deleteMany({ where: { projectId: entityId, ...where } });
         break;
+      case "ARCHIVE_FOLDER":
+        await tx.archiveFolderTag.deleteMany({ where: { archiveFolderId: entityId, ...where } });
+        break;
     }
   }
 }
@@ -179,6 +182,16 @@ export async function addTagsToEntity(
           skipDuplicates: true,
         });
         break;
+      case "ARCHIVE_FOLDER":
+        await tx.archiveFolderTag.createMany({
+          data: tagDefinitionIds.map((tagDefinitionId) => ({
+            archiveFolderId: entityId,
+            tagDefinitionId,
+            source,
+          })),
+          skipDuplicates: true,
+        });
+        break;
     }
   });
 }
@@ -206,6 +219,9 @@ export async function removeTagsFromEntity(
         break;
       case "PROJECT":
         await tx.projectTag.deleteMany({ where: { projectId: entityId, ...where } });
+        break;
+      case "ARCHIVE_FOLDER":
+        await tx.archiveFolderTag.deleteMany({ where: { archiveFolderId: entityId, ...where } });
         break;
     }
   });
@@ -235,6 +251,9 @@ export async function setEntityTags(
         break;
       case "PROJECT":
         await tx.projectTag.deleteMany({ where: { projectId: entityId } });
+        break;
+      case "ARCHIVE_FOLDER":
+        await tx.archiveFolderTag.deleteMany({ where: { archiveFolderId: entityId } });
         break;
     }
 
@@ -283,6 +302,15 @@ export async function setEntityTags(
           await tx.projectTag.createMany({
             data: tagDefinitionIds.map((tagDefinitionId) => ({
               projectId: entityId,
+              tagDefinitionId,
+              source,
+            })),
+          });
+          break;
+        case "ARCHIVE_FOLDER":
+          await tx.archiveFolderTag.createMany({
+            data: tagDefinitionIds.map((tagDefinitionId) => ({
+              archiveFolderId: entityId,
               tagDefinitionId,
               source,
             })),
@@ -339,6 +367,12 @@ export async function bulkAddTagsToEntities(
               skipDuplicates: true,
             });
             break;
+          case "ARCHIVE_FOLDER":
+            await tx.archiveFolderTag.createMany({
+              data: tagDefinitionIds.map((tagDefinitionId) => ({ archiveFolderId: entityId, tagDefinitionId, source })),
+              skipDuplicates: true,
+            });
+            break;
         }
           }
     },
@@ -372,6 +406,9 @@ export async function bulkRemoveTagsFromEntities(
             break;
           case "PROJECT":
             await tx.projectTag.deleteMany({ where: { projectId: entityId, ...where } });
+            break;
+          case "ARCHIVE_FOLDER":
+            await tx.archiveFolderTag.deleteMany({ where: { archiveFolderId: entityId, ...where } });
             break;
         }
           }
@@ -412,6 +449,9 @@ export async function getEntityTags(
       break;
     case "PROJECT":
       rows = await prisma.projectTag.findMany({ where: { projectId: entityId }, include });
+      break;
+    case "ARCHIVE_FOLDER":
+      rows = await prisma.archiveFolderTag.findMany({ where: { archiveFolderId: entityId }, include });
       break;
     default:
       rows = [];
@@ -456,4 +496,5 @@ const JOIN_TABLE: Record<TaggableEntity, { table: string; column: string }> = {
   MEDIA_ITEM: { table: "media_item_tag", column: "mediaItemId" },
   SET: { table: "set_tag", column: "setId" },
   PROJECT: { table: "project_tag", column: "projectId" },
+  ARCHIVE_FOLDER: { table: "archive_folder_tag", column: "archiveFolderId" },
 };

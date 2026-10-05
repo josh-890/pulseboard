@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react'
 import Link from 'next/link'
 import { ArchiveStubControl } from './archive-stub-control'
+import { ArchiveFolderTags } from './archive-folder-tags'
 import { useRouter } from 'next/navigation'
 import { ExternalLink, CheckCircle2, TriangleAlert, Trash2, UserPen } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -108,6 +109,9 @@ export function ArchiveLinkedRow({ item, backHref }: Props) {
 
       {/* Stub — a deliberate placeholder copy (ADR-0032) */}
       <ArchiveStubControl folderId={item.id} stub={stub} onChanged={setStub} />
+
+      {/* Tags — the folder's own, or its Set's once linked (ADR-0034) */}
+      <ArchiveFolderTags view={item.tags} className="min-w-0 max-w-[35%] shrink" />
 
       {/* Shortname/channel folder mismatch — highest priority warning */}
       {hasMismatch && (

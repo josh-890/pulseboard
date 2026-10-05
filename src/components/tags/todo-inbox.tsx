@@ -14,6 +14,7 @@ const KIND: Record<TodoEntry["entityType"], string> = {
   SET: "Set",
   MEDIA_ITEM: "Image",
   PROJECT: "Project",
+  ARCHIVE_FOLDER: "Folder",
 };
 
 // The workflow To-do inbox (ADR-0033, S7): every item carrying a workflow tag,

@@ -11,7 +11,7 @@ import { getTagUsageBreakdown, type TagDefinitionWithGroup } from "./tag-service
 
 // ─── Catalogue tree ──────────────────────────────────────────────────────────
 
-export type TagCounts = { person: number; session: number; set: number; media: number; project: number };
+export type TagCounts = { person: number; session: number; set: number; media: number; project: number; archive: number };
 
 export type TagTreeTag = TagDefinitionWithGroup & { counts: TagCounts };
 
@@ -27,7 +27,7 @@ export type TagTreeGroup = {
   tags: TagTreeTag[];
 };
 
-const ZERO: TagCounts = { person: 0, session: 0, set: 0, media: 0, project: 0 };
+const ZERO: TagCounts = { person: 0, session: 0, set: 0, media: 0, project: 0, archive: 0 };
 
 export async function getTagTree(): Promise<TagTreeGroup[]> {
   const [groups, usage] = await Promise.all([
@@ -39,7 +39,7 @@ export async function getTagTree(): Promise<TagTreeGroup[]> {
     }),
     getTagUsageBreakdown(),
   ]);
-  const counts = new Map(usage.map((u) => [u.id, { person: u.person, session: u.session, set: u.set, media: u.media, project: u.project }]));
+  const counts = new Map(usage.map((u) => [u.id, { person: u.person, session: u.session, set: u.set, media: u.media, project: u.project, archive: u.archive }]));
   return groups.map((g) => {
     const group = {
       id: g.id,

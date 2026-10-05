@@ -50,6 +50,8 @@ export type TagUsageBreakdown = {
   media: number;
   set: number;
   project: number;
+  /** Archive folders carrying it before promotion (ADR-0034) */
+  archive: number;
   total: number;
 };
 
@@ -261,6 +263,9 @@ export async function deleteTagDefinition(id: string) {
     await tx.mediaItemTag.deleteMany({ where: { tagDefinitionId: id } });
     await tx.setTag.deleteMany({ where: { tagDefinitionId: id } });
     await tx.projectTag.deleteMany({ where: { tagDefinitionId: id } });
+    await tx.archiveFolderTag.deleteMany({ where: { tagDefinitionId: id } });
+    // Folders forget the tag ever was on disk; a marker still there reads as unknown next scan
+    await tx.$executeRaw`UPDATE archive_folder SET "tagsDiskState" = array_remove("tagsDiskState", ${id}) WHERE ${id} = ANY("tagsDiskState")`;
     return tx.tagDefinition.delete({ where: { id } });
   });
 }
@@ -338,6 +343,31 @@ export async function mergeTagDefinitions(sourceIds: string[], targetId: string)
       tx.setTag.deleteMany({ where: { tagDefinitionId: { in: sourceIds } } }),
       tx.projectTag.deleteMany({ where: { tagDefinitionId: { in: sourceIds } } }),
     ]);
+
+    // Archive folders (ADR-0034): move rows, and let the remembered disk state follow
+    // the merge — the old marker name resolves through its new alias, so the disk
+    // needs no rewrite.
+    const targetFolderIds = new Set(
+      (await tx.archiveFolderTag.findMany({ where: { tagDefinitionId: targetId }, select: { archiveFolderId: true } })).map(
+        (r) => r.archiveFolderId,
+      ),
+    );
+    const sourceFolderRows = await tx.archiveFolderTag.findMany({ where: { tagDefinitionId: { in: sourceIds } } });
+    await tx.archiveFolderTag.createMany({
+      data: sourceFolderRows
+        .filter((r) => !targetFolderIds.has(r.archiveFolderId))
+        .map((r) => ({ archiveFolderId: r.archiveFolderId, tagDefinitionId: targetId, source: r.source })),
+      skipDuplicates: true,
+    });
+    await tx.archiveFolderTag.deleteMany({ where: { tagDefinitionId: { in: sourceIds } } });
+    for (const sourceId of sourceIds) {
+      await tx.$executeRaw`
+        UPDATE archive_folder
+        SET "tagsDiskState" = CASE WHEN ${targetId} = ANY("tagsDiskState")
+                                   THEN array_remove("tagsDiskState", ${sourceId})
+                                   ELSE array_replace("tagsDiskState", ${sourceId}, ${targetId}) END
+        WHERE ${sourceId} = ANY("tagsDiskState")`;
+    }
 
     // ── 5. Convert source tag names into aliases on the target ───────────────
     const candidateAliases = sourceTags.map(t => ({
@@ -445,6 +475,7 @@ export async function getTagUsageCountMap(): Promise<Map<string, number>> {
       UNION ALL SELECT "tagDefinitionId" FROM media_item_tag
       UNION ALL SELECT "tagDefinitionId" FROM set_tag
       UNION ALL SELECT "tagDefinitionId" FROM project_tag
+      UNION ALL SELECT "tagDefinitionId" FROM archive_folder_tag
     ) u
     GROUP BY 1
   `;
@@ -493,7 +524,8 @@ export async function getPopularTagsForEntity(
       COALESCE((SELECT count(*) FROM session_tag WHERE "tagDefinitionId" = td.id), 0) +
       COALESCE((SELECT count(*) FROM media_item_tag WHERE "tagDefinitionId" = td.id), 0) +
       COALESCE((SELECT count(*) FROM set_tag WHERE "tagDefinitionId" = td.id), 0) +
-      COALESCE((SELECT count(*) FROM project_tag WHERE "tagDefinitionId" = td.id), 0)
+      COALESCE((SELECT count(*) FROM project_tag WHERE "tagDefinitionId" = td.id), 0) +
+      COALESCE((SELECT count(*) FROM archive_folder_tag WHERE "tagDefinitionId" = td.id), 0)
     )::bigint AS cnt
     FROM tag_definition td
     JOIN tag_group tg ON tg.id = td."groupId"
@@ -560,6 +592,7 @@ export async function getOrphanedTags(): Promise<TagDefinitionWithGroup[]> {
       AND NOT EXISTS (SELECT 1 FROM media_item_tag WHERE "tagDefinitionId" = td.id)
       AND NOT EXISTS (SELECT 1 FROM set_tag WHERE "tagDefinitionId" = td.id)
       AND NOT EXISTS (SELECT 1 FROM project_tag WHERE "tagDefinitionId" = td.id)
+      AND NOT EXISTS (SELECT 1 FROM archive_folder_tag WHERE "tagDefinitionId" = td.id)
     ORDER BY td.name ASC
   `;
 
@@ -616,6 +649,7 @@ export async function getTagUsageBreakdown(): Promise<TagUsageBreakdown[]> {
       media_count: bigint;
       set_count: bigint;
       project_count: bigint;
+      archive_count: bigint;
     }>
   >`
     SELECT
@@ -627,7 +661,8 @@ export async function getTagUsageBreakdown(): Promise<TagUsageBreakdown[]> {
       COALESCE((SELECT count(*) FROM session_tag WHERE "tagDefinitionId" = td.id), 0)::bigint AS session_count,
       COALESCE((SELECT count(*) FROM media_item_tag WHERE "tagDefinitionId" = td.id), 0)::bigint AS media_count,
       COALESCE((SELECT count(*) FROM set_tag WHERE "tagDefinitionId" = td.id), 0)::bigint AS set_count,
-      COALESCE((SELECT count(*) FROM project_tag WHERE "tagDefinitionId" = td.id), 0)::bigint AS project_count
+      COALESCE((SELECT count(*) FROM project_tag WHERE "tagDefinitionId" = td.id), 0)::bigint AS project_count,
+      COALESCE((SELECT count(*) FROM archive_folder_tag WHERE "tagDefinitionId" = td.id), 0)::bigint AS archive_count
     FROM tag_definition td
     JOIN tag_group tg ON td."groupId" = tg.id
     ORDER BY tg."sortOrder", td."sortOrder"
@@ -643,11 +678,13 @@ export async function getTagUsageBreakdown(): Promise<TagUsageBreakdown[]> {
     media: Number(r.media_count),
     set: Number(r.set_count),
     project: Number(r.project_count),
+    archive: Number(r.archive_count),
     total:
       Number(r.person_count) +
       Number(r.session_count) +
       Number(r.media_count) +
       Number(r.set_count) +
-      Number(r.project_count),
+      Number(r.project_count) +
+      Number(r.archive_count),
   }));
 }
