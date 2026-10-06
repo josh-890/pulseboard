@@ -347,6 +347,25 @@ export const BODY_AND_OUTFIT_VOCABULARY: VocabularyGroup[] = [
     ],
   },
   {
+    // The person's on-camera persona and the focus of their work — what neither
+    // the person attributes nor status/rating describe. Extends the starter group.
+    slug: "person-traits",
+    name: "Person traits",
+    color: "#8b5cf6",
+    description: "Characterises a person; grows as you tag",
+    domain: "PERSON",
+    tags: [
+      { name: "persona-girl-next-door" },
+      { name: "persona-glamour" },
+      { name: "persona-sporty" },
+      { name: "persona-artistic" },
+      { name: "focus-solo" },
+      { name: "focus-art-nude" },
+      { name: "focus-fitness" },
+      { name: "focus-fashion" },
+    ],
+  },
+  {
     // Direction to the camera — a dimension of its own, combined with any pose
     // (`squatting view-front`, `standing view-back`)
     slug: "view",
