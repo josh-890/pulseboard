@@ -11,6 +11,7 @@ import { TagMergeDialog } from "@/components/settings/tag-merge-dialog";
 import { deleteTagDefinitionAction, mergeTagDefinitionsAction, updateTagDefinitionAction } from "@/lib/actions/tag-actions";
 import type { TagCounts, TagTreeGroup, TagTreeTag } from "@/lib/services/tag-browse-service";
 import { cn } from "@/lib/utils";
+import { TagNameClashHint } from "./tag-name-clash-hint";
 
 const COUNT_LABELS: { key: keyof TagCounts; short: string; long: string }[] = [
   { key: "person", short: "P", long: "people" },
@@ -59,6 +60,12 @@ export function TagCatalogTree({ groups }: TagCatalogTreeProps) {
   const norm = search.trim().toLowerCase();
 
   const allTags = useMemo(() => groups.flatMap((g) => g.tags), [groups]);
+  // Names carried by tags in more than one group (naming guide: names should be unique)
+  const sharedName = useMemo(() => {
+    const m = new Map<string, string[]>();
+    for (const g of groups) for (const t of g.tags) m.set(t.name.toLowerCase(), [...(m.get(t.name.toLowerCase()) ?? []), g.name]);
+    return m;
+  }, [groups]);
 
   const run = (fn: () => Promise<{ success: boolean; error?: string }>, ok?: string) =>
     startTransition(async () => {
@@ -149,7 +156,7 @@ export function TagCatalogTree({ groups }: TagCatalogTreeProps) {
                       }}
                       onDrop={(e) => onDrop(e, tag)}
                       className={cn(
-                        "group/row flex items-center gap-1.5 rounded-md py-1 pr-1 text-sm transition-colors duration-150 hover:bg-muted/40",
+                        "group/row flex flex-wrap items-center gap-1.5 rounded-md py-1 pr-1 text-sm transition-colors duration-150 hover:bg-muted/40",
                         dragId === tag.id && "opacity-40",
                       )}
                       style={{ paddingLeft: `${0.25 + depth * 1.1}rem` }}
@@ -173,6 +180,14 @@ export function TagCatalogTree({ groups }: TagCatalogTreeProps) {
                         <Link href={`/tags/${tag.id}`} className="min-w-0 truncate hover:underline focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
                           {tag.name}
                         </Link>
+                      )}
+                      {(sharedName.get(tag.name.toLowerCase()) ?? []).length > 1 && (
+                        <span
+                          title={`“${tag.name}” is a tag in ${(sharedName.get(tag.name.toLowerCase()) ?? []).join(" and ")} — ambiguous on its own (use group:name, #group=name). Renaming one makes it unique.`}
+                          className="shrink-0 rounded-full border border-amber-500/40 bg-amber-500/10 px-1.5 text-[10px] text-amber-700 dark:text-amber-300"
+                        >
+                          ambiguous
+                        </span>
                       )}
                       {(tag.aliases ?? []).length > 0 && (
                         <span className="hidden truncate text-[10px] text-muted-foreground/60 sm:inline">
@@ -235,6 +250,15 @@ export function TagCatalogTree({ groups }: TagCatalogTreeProps) {
                           <Trash2 size={11} />
                         </button>
                       </span>
+                      {renaming?.id === tag.id && (
+                        <TagNameClashHint
+                          name={renaming.value}
+                          groupName={g.name}
+                          excludeId={tag.id}
+                          onUseSuggestion={(v) => setRenaming({ id: tag.id, value: v })}
+                          className="basis-full"
+                        />
+                      )}
                     </li>
                   ))}
                 </ul>

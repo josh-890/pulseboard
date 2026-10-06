@@ -16,6 +16,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import type { TagDomain, TagGroupKind, TagLevel } from "@/generated/prisma/client";
 import type { TagGroupWithDefinitions } from "@/lib/services/tag-service";
+import { TagNameClashHint } from "@/components/tags/tag-name-clash-hint";
 import {
   createTagGroupAction,
   updateTagGroupAction,
@@ -610,6 +611,12 @@ export function TagCatalogManager({
                             <X size={12} />
                           </button>
                         </div>
+                        <TagNameClashHint
+                          name={editTagName}
+                          groupName={group.name}
+                          excludeId={tag.id}
+                          onUseSuggestion={setEditTagName}
+                        />
                         <TagStructureFields
                           tagId={tag.id}
                           group={group}
@@ -768,6 +775,7 @@ export function TagCatalogManager({
                         <X size={12} />
                       </button>
                     </div>
+                    <TagNameClashHint name={newTagName} groupName={group.name} onUseSuggestion={setNewTagName} />
                     <TagStructureFields
                       tagId={null}
                       group={group}

@@ -15,7 +15,9 @@ import {
   reorderTagDefinitions,
   createTagAlias,
   deleteTagAlias,
+  findTagNameClashes,
 } from "@/lib/services/tag-service";
+import type { TagNameClash } from "@/lib/tag-names";
 import {
   addTagsToEntity,
   removeTagsFromEntity,
@@ -451,4 +453,9 @@ export async function getTagFilterProblemsAction(text: string, entityType: Tagga
 /** The facet panel's groups + counts, for client-rendered browsers (/staging-sets) */
 export async function getTagFacetsAction(entityType: TaggableEntity): Promise<TagFacetGroup[]> {
   return withTenantFromHeaders(() => getTagFacets(entityType));
+}
+
+/** Tags a name would collide with — for the naming hint while creating or renaming */
+export async function findTagNameClashesAction(name: string, excludeId?: string): Promise<TagNameClash[]> {
+  return withTenantFromHeaders(() => findTagNameClashes(name, { excludeId }));
 }

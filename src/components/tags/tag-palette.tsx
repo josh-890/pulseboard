@@ -12,6 +12,7 @@ import {
   CommandList,
 } from "@/components/ui/command";
 import { createInlineTagAction } from "@/lib/actions/tag-actions";
+import { TagNameClashHint } from "./tag-name-clash-hint";
 import type { TaggableEntity } from "@/lib/services/entity-tag-service";
 import type { PaletteGroup, PaletteTag } from "@/lib/services/tag-service";
 import { cn } from "@/lib/utils";
@@ -344,6 +345,12 @@ export function TagPalette({
                 <kbd className="rounded border border-white/15 px-1 text-[10px] text-muted-foreground">Tab</kbd>
               )}
             </CommandItem>
+            <TagNameClashHint
+              name={trimmed}
+              groupName={effectiveCreateGroup.name}
+              onUseSuggestion={setQuery}
+              className="mx-2 mb-1"
+            />
           </CommandGroup>
         )}
       </CommandList>

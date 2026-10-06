@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/db";
 import type { TagDomain, TagGroupKind, TagLevel } from "@/generated/prisma/client";
 import { domainsForEntity, type TaggableEntity } from "./entity-tag-service";
+import type { TagNameClash } from "@/lib/tag-names";
 
 function slugify(name: string): string {
   return name
@@ -220,6 +221,34 @@ export async function createTagDefinition(data: {
       sortOrder: (maxOrder._max.sortOrder ?? 0) + 1,
     },
   });
+}
+
+/**
+ * Other tags a name would collide with — same name or slug in another group, or
+ * an alias that already means something else. A hint, not a rule: two groups may
+ * share a name, it just makes the name ambiguous (`group:name`, `#group=name`).
+ */
+export async function findTagNameClashes(
+  name: string,
+  opts: { excludeId?: string } = {},
+): Promise<TagNameClash[]> {
+  const key = slugify(name);
+  if (!key) return [];
+  const notSelf = opts.excludeId ? { not: opts.excludeId } : undefined;
+  const [byName, byAlias] = await Promise.all([
+    prisma.tagDefinition.findMany({
+      where: { id: notSelf, OR: [{ slug: key }, { nameNorm: normalize(name) }] },
+      select: { id: true, name: true, group: { select: { name: true } } },
+    }),
+    prisma.tagAlias.findMany({
+      where: { slug: key, tagDefinitionId: notSelf },
+      select: { tagDefinition: { select: { id: true, name: true, group: { select: { name: true } } } } },
+    }),
+  ]);
+  return [
+    ...byName.map((t) => ({ tagId: t.id, tagName: t.name, groupName: t.group.name, via: "name" as const })),
+    ...byAlias.map(({ tagDefinition: t }) => ({ tagId: t.id, tagName: t.name, groupName: t.group.name, via: "alias" as const })),
+  ];
 }
 
 export async function updateTagDefinition(

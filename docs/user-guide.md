@@ -732,6 +732,41 @@ A condition that does not apply to the page (`type:video` on /people) shows as a
 
 Reordering a set's images is switched off while a tag filter is active, since it would only re-sort the visible ones.
 
+### Naming tags
+
+A good catalogue stays searchable as it grows. The rules:
+
+1. **A tag name is unique across the whole catalogue.** Groups *order* tags, they do
+   not tell them apart: `#name` files, the query box and the **T** palette all go by
+   name, and a name used in two groups has to be written `group:name` /
+   `#group=name` everywhere.
+2. **A property of a thing → one tag naming the thing first, then the value**, in the
+   thing's group. Nail polish colour and outfit colour are two dimensions:
+   `nailpolish-red`, `nailpolish-black` (group *Nails*), `outfit-red`, `outfit-black`
+   (group *Outfit color*). Never two loose tags *Nail polish* + *Red* — a set with a
+   red dress and black nails would then match "red nail polish". Only create the
+   combinations you will search for.
+3. **Hierarchy only for "is a"**: `nailpolish-red` is a `nails-polished`, Bikini is a
+   Swimwear — filtering by the parent finds all its sub-tags. Never for "has":
+   *Red* is not a kind of *Nails*. Two levels are nearly always enough.
+4. **Exclusive groups** only for single-valued dimensions (Setting, Framing). Colours,
+   outfits, nails are not exclusive (two-tone polish, a red-and-black outfit).
+5. **Synonyms are aliases**, never a second tag: `rote-naegel` → `nailpolish-red`
+   (an alias also works as a `#…` file on disk).
+6. **"Everything red"** is a saved filter / smart collection —
+   `nailpolish-red OR outfit-red` — not a parent tag *Red* (a tag has one parent, and
+   `nailpolish-red` needs it for "is polished nails").
+7. **One spelling style** (here: lower case with hyphens, like `needs-crop`), English,
+   no `/ : * ? " < > |` (they cannot be file names).
+8. **Level:** tag where the property holds — nail polish usually on the set or
+   folder (images inherit it), an outfit colour on the images when it changes within
+   the set.
+
+**The app helps:** creating or renaming a tag whose name already exists in another
+group (or is an alias) shows a hint with a one-click unambiguous name
+(`red` in *Outfit color* → `outfit-color-red`); creating anyway stays possible. The
+catalogue in `/tags` marks names used in more than one group as **ambiguous**.
+
 ### The tag browser (/tags, ADR-0033)
 
 **Tags** in the sidebar opens the tag browser.

@@ -294,6 +294,10 @@ A derived per-person signal: an archive-born set (a `StagingSet` with no import 
 
 ### Tagging (added 2026-10-01, ADR-0033)
 
+**Attribute tag** (naming guide, 2026-10-06):
+A tag for a property *of a thing*, named thing-first: `nailpolish-red`, `outfit-red`. One tag per (thing, value) actually searched for, in the thing's group; never two loose tags (*Nail polish* + *Red*), which lose which thing is red. Tag names are unique across the catalogue — the group orders, it does not identify. Hierarchy (`parentId`) only for "is a" (`nailpolish-red` → `nails-polished`).
+_Avoid_: the same value name in several groups (`Red` in *Nails* and in *Outfit color*) — ambiguous in the query box, the palette and as a `#…` file.
+
 **Tag group** (code model & DB table: `TagGroup` / `tag_group`):
 A coloured namespace of tags (Setting, Outfit, Workflow…). It carries:
 - the **domain** (`PERSON | CONTENT | PROJECT | ANY`), a hard rule for which entities its tags may sit on;
