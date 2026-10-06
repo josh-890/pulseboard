@@ -58,3 +58,18 @@ describe("the one spelling is enforced on save", () => {
     await expect(createTagDefinition({ groupId: ids.a, name: "!!!" })).rejects.toThrow(/no letters or digits/);
   });
 });
+
+describe("renaming a group", () => {
+  it("keeps the slug when only the spelling changes, recomputes it on a real rename", async () => {
+    const { updateTagGroup } = await import("@/lib/services/tag-service");
+    const g = await prisma.tagGroup.create({ data: { name: `${RUN} Mood & Light`, slug: `${RUN}-mood-light`, domain: "CONTENT" } });
+    try {
+      const a = await updateTagGroup(g.id, { name: `${RUN} Mood & light` });
+      expect(a.slug).toBe(`${RUN}-mood-light`);
+      const b = await updateTagGroup(g.id, { name: `${RUN} Atmosphere` });
+      expect(b.slug).toBe(`${RUN}-atmosphere`);
+    } finally {
+      await prisma.tagGroup.delete({ where: { id: g.id } });
+    }
+  });
+});

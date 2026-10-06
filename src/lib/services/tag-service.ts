@@ -165,7 +165,12 @@ export async function updateTagGroup(
   const updateData: Record<string, unknown> = {};
   if (data.name !== undefined) {
     updateData.name = data.name;
-    updateData.slug = slugify(data.name);
+    // The slug is what queries (`mood-light:`), saved filters and `#group=…` files
+    // use. A spelling-only change ("Mood & Light" → "Mood & light") keeps it — the
+    // slug rule changed over time (`&` became "and"), so recomputing it would
+    // silently break all of them.
+    const before = await prisma.tagGroup.findUniqueOrThrow({ where: { id }, select: { name: true } });
+    if (slugify(before.name) !== slugify(data.name)) updateData.slug = slugify(data.name);
   }
   if (data.color !== undefined) updateData.color = data.color;
   if (data.description !== undefined) updateData.description = data.description;
