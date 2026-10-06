@@ -776,6 +776,34 @@ group (or is an alias) shows a hint with a one-click unambiguous name
 (`red` in *Outfit color* → `outfit-color-red`); creating anyway stays possible. The
 catalogue in `/tags` marks names used in more than one group as **ambiguous**.
 
+### Body and outfit tags
+
+Tags describe how someone **appears in this material**; the person attributes
+(hair colour and length, skin tone, freckles, build, sizes, eyes, vision aids) and
+body marks/modifications (tattoos, piercings) describe **the person** and are tracked
+over time. So the hair *style* is a tag, the hair *colour* an attribute; a tan or tan
+lines in this shoot are tags, the skin tone an attribute; glasses worn in a shoot are
+an accessory, "wears glasses" is the vision-aids attribute.
+
+| Group | Examples | Note |
+|---|---|---|
+| Skin | `skin-tanlines`, `skin-tanned`, `skin-oiled`, `skin-wet` | visible state, per shoot |
+| Hair styling | `hair-ponytail`, `hair-braids`, `hair-up`, `hair-wet` | often per image |
+| Makeup | `makeup-none`, `makeup-natural`, `makeup-glam`, `makeup-red-lips` | |
+| Nails | `nails-natural`, `nails-polished` ⊃ `nailpolish-red`, `nailpolish-black`, `nails-french` | a polish colour implies polished |
+| Grooming | `grooming-shaved`, `grooming-trimmed`, `grooming-natural` | exclusive — one per shoot |
+| Body decoration | `decoration-body-paint`, `decoration-glitter`, `decoration-temporary-tattoo` | real tattoos are body marks |
+| Outfit | `lingerie` ⊃ `corset`, `babydoll`; `nightwear`, `top`, `skirt`, `shorts`, `bodysuit`, `uniform`, … | garments |
+| Outfit color | `outfit-red`, `outfit-black`, `outfit-white`, … `outfit-multicolor` | main colour |
+| Outfit material | `material-lace`, `material-leather`, `material-latex`, `material-sheer`, … | |
+| Footwear | `footwear-heels`, `footwear-boots`, `footwear-barefoot` | |
+| Legwear | `legwear-stockings`, `legwear-pantyhose`, `legwear-fishnets`, `legwear-socks` | |
+| Accessories | `accessory-glasses`, `accessory-sunglasses`, `accessory-choker`, `accessory-hat` | |
+
+Added per tenant by `scripts/add-body-outfit-tags.ts` (add-only: existing groups and
+tags are never changed). It also moved `tanlines` from Theme into `skin-tanlines` —
+`tanlines` stays an alias, so `#tanlines` files keep working.
+
 ### The tag browser (/tags, ADR-0033)
 
 **Tags** in the sidebar opens the tag browser.
