@@ -1,4 +1,5 @@
 import type { PrismaClient, TagDomain, TagGroupKind, TagLevel } from "@/generated/prisma/client";
+import { toTagName } from "@/lib/tag-names";
 
 // The starter tag vocabulary (ADR-0033). Seeded into every tenant by
 // `scripts/seed-tag-vocabulary.ts` and into a fresh dev DB by `prisma/seed.ts`.
@@ -71,7 +72,7 @@ export const TAG_VOCABULARY: VocabularyGroup[] = [
       { name: "Night" },
       { name: "Low-key" },
       { name: "High-key" },
-      { name: "B&W", aliases: ["black and white", "monochrome"] },
+      { name: "black-and-white", aliases: ["B&W", "monochrome"] },
     ],
   },
   {
@@ -175,12 +176,8 @@ export const TAG_VOCABULARY: VocabularyGroup[] = [
   },
 ];
 
-export function slugifyTagName(name: string): string {
-  return name
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-|-$/g, "");
-}
+/** The tag-name rule (kebab-case) — vocabulary names are written in it */
+export const slugifyTagName = toTagName;
 
 type TagClient = Pick<PrismaClient, "tagGroup" | "tagDefinition" | "tagAlias">;
 
@@ -217,13 +214,13 @@ export async function applyTagVocabulary(client: TagClient): Promise<void> {
         where: { groupId_slug: { groupId: group.id, slug } },
         create: {
           groupId: group.id,
-          name: t.name,
+          name: slug,
           slug,
-          nameNorm: t.name.toLowerCase().trim(),
+          nameNorm: slug,
           description: t.description ?? null,
           sortOrder: i,
         },
-        update: { name: t.name, nameNorm: t.name.toLowerCase().trim() },
+        update: { name: slug, nameNorm: slug },
       });
       idByName.set(t.name, def.id);
 

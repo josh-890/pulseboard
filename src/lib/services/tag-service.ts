@@ -1,13 +1,15 @@
 import { prisma } from "@/lib/db";
 import type { TagDomain, TagGroupKind, TagLevel } from "@/generated/prisma/client";
 import { domainsForEntity, type TaggableEntity } from "./entity-tag-service";
-import type { TagNameClash } from "@/lib/tag-names";
+import { toTagName, type TagNameClash } from "@/lib/tag-names";
 
-function slugify(name: string): string {
-  return name
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-|-$/g, "");
+/** Slugs follow the tag-name rule (kebab-case, umlauts transliterated) */
+const slugify = toTagName;
+
+function requireTagName(input: string): string {
+  const name = toTagName(input);
+  if (!name) throw new Error(`“${input}” has no letters or digits to make a tag name from`);
+  return name;
 }
 
 function normalize(name: string): string {
@@ -205,6 +207,8 @@ export async function createTagDefinition(data: {
   parentId?: string | null;
   typicalLevel?: TagLevel | null;
 }) {
+  // One spelling for every tag, whichever path creates it (palette, settings, disk)
+  const name = requireTagName(data.name);
   const maxOrder = await prisma.tagDefinition.aggregate({
     where: { groupId: data.groupId },
     _max: { sortOrder: true },
@@ -212,9 +216,9 @@ export async function createTagDefinition(data: {
   return prisma.tagDefinition.create({
     data: {
       groupId: data.groupId,
-      name: data.name,
-      slug: slugify(data.name),
-      nameNorm: normalize(data.name),
+      name,
+      slug: name,
+      nameNorm: name,
       description: data.description ?? null,
       parentId: data.parentId ?? null,
       typicalLevel: data.typicalLevel ?? null,
@@ -264,9 +268,10 @@ export async function updateTagDefinition(
   if (data.parentId !== undefined) await assertNoCycle(id, data.parentId);
   const updateData: Record<string, unknown> = {};
   if (data.name !== undefined) {
-    updateData.name = data.name;
-    updateData.slug = slugify(data.name);
-    updateData.nameNorm = normalize(data.name);
+    const name = requireTagName(data.name);
+    updateData.name = name;
+    updateData.slug = name;
+    updateData.nameNorm = name;
   }
   if (data.sortOrder !== undefined) updateData.sortOrder = data.sortOrder;
   if (data.description !== undefined) updateData.description = data.description;

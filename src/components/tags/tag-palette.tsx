@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/command";
 import { createInlineTagAction } from "@/lib/actions/tag-actions";
 import { TagNameClashHint } from "./tag-name-clash-hint";
+import { toTagName } from "@/lib/tag-names";
 import type { TaggableEntity } from "@/lib/services/entity-tag-service";
 import type { PaletteGroup, PaletteTag } from "@/lib/services/tag-service";
 import { cn } from "@/lib/utils";
@@ -162,15 +163,20 @@ export function TagPalette({
 
   const trimmed = query.trim();
   const norm = trimmed.toLowerCase();
+  // The name a Create would save — the one spelling (kebab-case)
+  const asTagName = toTagName(trimmed);
   const exactMatch = useMemo(
     () =>
       !!norm &&
       (data?.tags ?? []).some(
-        (t) => t.name.toLowerCase() === norm || (t.aliases ?? []).some((a) => a.name.toLowerCase() === norm),
+        (t) =>
+          t.name.toLowerCase() === norm ||
+          t.slug === asTagName ||
+          (t.aliases ?? []).some((a) => a.name.toLowerCase() === norm || toTagName(a.name) === asTagName),
       ),
-    [data, norm],
+    [data, norm, asTagName],
   );
-  const showCreate = !!trimmed && !exactMatch && groups.length > 0;
+  const showCreate = !!asTagName && !exactMatch && groups.length > 0;
 
   const effectiveCreateGroup = useMemo(() => {
     const preferred = createGroupId ?? readLastGroup(entityType);
@@ -203,8 +209,8 @@ export function TagPalette({
 
   const create = () => {
     const group = effectiveCreateGroup;
-    if (!group || !trimmed) return;
-    const name = trimmed;
+    if (!group || !asTagName) return;
+    const name = asTagName;
     startCreate(async () => {
       const res = await createInlineTagAction(group.id, name);
       if (!res.success || !res.id) {
@@ -215,7 +221,7 @@ export function TagPalette({
       const created: PaletteTag = {
         id: res.id,
         name,
-        slug: "",
+        slug: name,
         description: null,
         parentId: null,
         typicalLevel: null,
@@ -332,7 +338,7 @@ export function TagPalette({
             >
               <Plus className="size-4 shrink-0" aria-hidden="true" />
               <span className="min-w-0 flex-1 truncate">
-                Create “<span className="font-medium">{trimmed}</span>” in{" "}
+                Create “<span className="font-mono font-medium">{asTagName}</span>” in{" "}
                 <span className="inline-flex items-center gap-1 font-medium">
                   <span
                     className="inline-block size-2 rounded-full"

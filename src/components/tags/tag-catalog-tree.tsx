@@ -12,6 +12,7 @@ import { deleteTagDefinitionAction, mergeTagDefinitionsAction, updateTagDefiniti
 import type { TagCounts, TagTreeGroup, TagTreeTag } from "@/lib/services/tag-browse-service";
 import { cn } from "@/lib/utils";
 import { TagNameClashHint } from "./tag-name-clash-hint";
+import { toTagName } from "@/lib/tag-names";
 
 const COUNT_LABELS: { key: keyof TagCounts; short: string; long: string }[] = [
   { key: "person", short: "P", long: "people" },
@@ -77,8 +78,9 @@ export function TagCatalogTree({ groups }: TagCatalogTreeProps) {
 
   const rename = (tag: TagTreeTag, value: string) => {
     setRenaming(null);
-    if (!value.trim() || value.trim() === tag.name) return;
-    run(() => updateTagDefinitionAction(tag.id, { name: value.trim() }), `Renamed to “${value.trim()}”`);
+    const name = toTagName(value);
+    if (!name || name === tag.name) return;
+    run(() => updateTagDefinitionAction(tag.id, { name }), `Renamed to “${name}”`);
   };
 
   const moveUnder = (tag: TagTreeTag, parentId: string | null) =>

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { TriangleAlert } from "lucide-react";
 import { findTagNameClashesAction } from "@/lib/actions/tag-actions";
-import { qualifiedTagName, type TagNameClash } from "@/lib/tag-names";
+import { qualifiedTagName, toTagName, type TagNameClash } from "@/lib/tag-names";
 import { cn } from "@/lib/utils";
 
 export type TagNameClashHintProps = {
@@ -24,7 +24,8 @@ export type TagNameClashHintProps = {
 // anyway stays possible — two groups may share a name.
 export function TagNameClashHint({ name, groupName, excludeId, onUseSuggestion, className }: TagNameClashHintProps) {
   const [result, setResult] = useState<{ name: string; clashes: TagNameClash[] }>({ name: "", clashes: [] });
-  const trimmed = name.trim();
+  // Compare and suggest in the one spelling the name will be saved in
+  const trimmed = toTagName(name);
 
   useEffect(() => {
     if (!trimmed) return;
@@ -42,9 +43,25 @@ export function TagNameClashHint({ name, groupName, excludeId, onUseSuggestion, 
     };
   }, [trimmed, excludeId]);
 
-  if (!trimmed || result.name !== trimmed || result.clashes.length === 0) return null;
+  const reformatted = !!name.trim() && trimmed !== name.trim();
+  const clashes = trimmed && result.name === trimmed ? result.clashes : [];
+  if (!reformatted && clashes.length === 0) return null;
+  if (clashes.length === 0) {
+    return (
+      <p role="status" className={cn("text-[11px] text-muted-foreground", className)}>
+        {trimmed ? (
+          <>
+            Saved as <code className="rounded bg-muted px-1 font-mono text-foreground">{trimmed}</code> — tag names are
+            lower case with hyphens
+          </>
+        ) : (
+          "A tag name needs letters or digits"
+        )}
+      </p>
+    );
+  }
   const suggestion = qualifiedTagName(trimmed, groupName);
-  const where = result.clashes
+  const where = clashes
     .map((c) => (c.via === "alias" ? `alias of ${c.tagName} (${c.groupName})` : c.groupName))
     .join(", ");
 

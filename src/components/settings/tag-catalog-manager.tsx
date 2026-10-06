@@ -17,6 +17,7 @@ import { cn } from "@/lib/utils";
 import type { TagDomain, TagGroupKind, TagLevel } from "@/generated/prisma/client";
 import type { TagGroupWithDefinitions } from "@/lib/services/tag-service";
 import { TagNameClashHint } from "@/components/tags/tag-name-clash-hint";
+import { toTagName } from "@/lib/tag-names";
 import {
   createTagGroupAction,
   updateTagGroupAction,
@@ -390,7 +391,7 @@ export function TagCatalogManager({
             ...g,
             tags: g.tags.map((t) =>
               t.id === id
-                ? { ...t, name: editTagName.trim(), ...editTagStructure, description: editTagDescription.trim() || null }
+                ? { ...t, name: toTagName(editTagName), ...editTagStructure, description: editTagDescription.trim() || null }
                 : t,
             ),
           })),

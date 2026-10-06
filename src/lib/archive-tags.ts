@@ -1,5 +1,6 @@
 import { reconcileStub } from "@/lib/archive-stub";
 import type { CatalogTag } from "@/lib/tag-query";
+import { toTagName } from "@/lib/tag-names";
 
 // Archive folder tags on disk (ADR-0034). A tag is an empty file in the folder's
 // `.pulseboard\` named `#name` — or `#group=name` when two groups share the name
@@ -28,8 +29,8 @@ export function parseTagMarker(fileName: string): ParsedTagMarker | null {
   return { raw, group: null, name: body.toLowerCase() };
 }
 
-/** `slugify` of the catalogue (tag-service / tag-vocabulary) */
-const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+/** `slugify` of the catalogue — the tag-name rule */
+const slug = toTagName;
 
 function matches(t: CatalogTag, m: ParsedTagMarker): boolean {
   if (m.group !== null) {

@@ -12,18 +12,39 @@ export type TagNameClash = {
   via: "name" | "alias";
 };
 
-/** The catalogue's slug rule (tag-service `slugify`) */
-export function tagNameKey(name: string): string {
-  return name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
-}
+const TRANSLITERATE: Record<string, string> = { ä: "ae", ö: "oe", ü: "ue", ß: "ss", Ä: "ae", Ö: "oe", Ü: "ue" };
 
 /**
- * A name that says which thing it describes: the group first, then the value.
- * Follows the style the name is written in — `red` in "Outfit color" becomes
- * `outfit-color-red`, `Red` becomes `Outfit color Red`.
+ * The one spelling of a tag name (2026-10-06): kebab-case — lower case, `a-z 0-9`,
+ * one hyphen per word gap, as on Stack Overflow / GitHub topics. What is shown is
+ * what is typed: in the query box (no quotes), as a `#…` file, in the palette.
+ * German umlauts transliterate (`nägel` → `naegel`), other accents drop, `&` reads
+ * "and". Also the catalogue's slug rule, so a tag's name and slug are the same.
+ */
+export function toTagName(input: string): string {
+  return input
+    .trim()
+    .replace(/[äöüßÄÖÜ]/g, (c) => TRANSLITERATE[c] ?? c)
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/&/g, " and ")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+/** Already in the one spelling */
+export function isTagName(name: string): boolean {
+  return name.length > 0 && name === toTagName(name);
+}
+
+/** The catalogue's slug rule — the same as the name rule */
+export const tagNameKey = toTagName;
+
+/**
+ * A name that says which thing it describes: the group first, then the value —
+ * `red` in "Outfit color" becomes `outfit-color-red`.
  */
 export function qualifiedTagName(name: string, groupName: string): string {
-  const trimmed = name.trim();
-  if (/^[a-z0-9-]+$/.test(trimmed)) return tagNameKey(`${groupName} ${trimmed}`);
-  return `${groupName.trim()} ${trimmed}`;
+  return toTagName(`${groupName} ${name}`);
 }

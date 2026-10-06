@@ -294,6 +294,10 @@ A derived per-person signal: an archive-born set (a `StagingSet` with no import 
 
 ### Tagging (added 2026-10-01, ADR-0033)
 
+**Tag name** (2026-10-06):
+The one spelling of a tag: kebab-case (`natural-light`, `nailpolish-red`) — lower case, `a-z 0-9`, hyphen per word gap, umlauts transliterated (`toTagName`, `lib/tag-names.ts`). Enforced on every save; name and slug are the same string. Other spellings live on as **aliases** (renaming keeps the old one when the slug changes). Group names are not tag names — they stay readable headings.
+_Avoid_: Title Case or spaces in tag names (`Natural light`) — they need quotes in queries and drift into variants.
+
 **Attribute tag** (naming guide, 2026-10-06):
 A tag for a property *of a thing*, named thing-first: `nailpolish-red`, `outfit-red`. One tag per (thing, value) actually searched for, in the thing's group; never two loose tags (*Nail polish* + *Red*), which lose which thing is red. Tag names are unique across the catalogue — the group orders, it does not identify. Hierarchy (`parentId`) only for "is a" (`nailpolish-red` → `nails-polished`).
 _Avoid_: the same value name in several groups (`Red` in *Nails* and in *Outfit color*) — ambiguous in the query box, the palette and as a `#…` file.

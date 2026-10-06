@@ -756,13 +756,22 @@ A good catalogue stays searchable as it grows. The rules:
 6. **"Everything red"** is a saved filter / smart collection —
    `nailpolish-red OR outfit-red` — not a parent tag *Red* (a tag has one parent, and
    `nailpolish-red` needs it for "is polished nails").
-7. **One spelling style** (here: lower case with hyphens, like `needs-crop`), English,
-   no `/ : * ? " < > |` (they cannot be file names).
+7. **One spelling, enforced: kebab-case** — lower case, `a-z 0-9`, one hyphen per
+   word gap: `natural-light`, `upload-hd`, `black-and-white`, `nailpolish-red`. The
+   app saves every new or renamed tag in this form, whatever you type
+   (`Golden Hour` → `golden-hour`, `Rote Nägel` → `rote-naegel`, `&` → `and`), and
+   shows the result before saving. English names; acronyms in lower case; no digits
+   standing in for words (`skimpy-to-nude`, not `Skimpy2Nude`). What you see is what
+   you type — in the query box (no quotes needed), as a `#…` file, in the palette.
+   **Aliases** may keep any spelling (`B&W`, German words): they are how other
+   spellings find the tag. **Group names** stay readable headings (`Mood & Light`);
+   in a query you type their short form (`mood-light:`).
 8. **Level:** tag where the property holds — nail polish usually on the set or
    folder (images inherit it), an outfit colour on the images when it changes within
    the set.
 
-**The app helps:** creating or renaming a tag whose name already exists in another
+**The app helps:** every name field shows the spelling it will be saved in. Creating
+or renaming a tag whose name already exists in another
 group (or is an alias) shows a hint with a one-click unambiguous name
 (`red` in *Outfit color* → `outfit-color-red`); creating anyway stays possible. The
 catalogue in `/tags` marks names used in more than one group as **ambiguous**.
