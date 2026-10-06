@@ -1,13 +1,22 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/db";
-import { addTagsToEntity, getEntityTagIds, removeTagsFromEntity } from "@/lib/services/entity-tag-service";
+import {
+  addTagsToEntity,
+  bulkAddTagsToEntities,
+  bulkRemoveTagsFromEntities,
+  getEntityTagIds,
+  getSelectionTagCounts,
+  removeTagsFromEntity,
+} from "@/lib/services/entity-tag-service";
 import { updateTagDefinition, updateTagGroup } from "@/lib/services/tag-service";
+import { findTagMatchIds, resolveTagFilterParam } from "@/lib/services/tag-filter-service";
 import {
   absorbFolderTagsIntoSets,
   getFolderTagViews,
   getTagWrites,
   reconcileFolderTagsFromScan,
   resolveDiskTagName,
+  stagingSetIdsForTagQuery,
 } from "@/lib/services/archive-tag-service";
 
 // ADR-0034 end to end against the dev DB: a folder's `#` markers reach the app,
@@ -42,15 +51,21 @@ beforeAll(async () => {
   await folder("f2");
   await folder("f3");
   await folder("f4");
+  await folder("f5");
+  await folder("f6");
+  ids.set2 = (await prisma.set.create({ data: { type: "photo", title: `${RUN} set2` } })).id;
+  ids.staged = (await prisma.stagingSet.create({ data: { title: `${RUN} staged`, channelName: RUN, participantIcgIds: [] } })).id;
   ids.set = (await prisma.set.create({ data: { type: "photo", title: `${RUN} set` } })).id;
 });
 
 afterAll(async () => {
-  await prisma.archiveLink.deleteMany({ where: { archiveFolderId: { in: [ids.f1, ids.f2, ids.f3, ids.f4] } } });
+  const folderIds = [ids.f1, ids.f2, ids.f3, ids.f4, ids.f5, ids.f6];
+  await prisma.archiveLink.deleteMany({ where: { archiveFolderId: { in: folderIds } } });
+  await prisma.stagingSet.deleteMany({ where: { id: ids.staged } });
   // By id: `startsWith` is a LIKE, and the backslash in the path is its escape character
-  await prisma.archiveFolder.deleteMany({ where: { id: { in: [ids.f1, ids.f2, ids.f3, ids.f4] } } });
-  await prisma.setTag.deleteMany({ where: { setId: ids.set } });
-  await prisma.set.deleteMany({ where: { id: ids.set } });
+  await prisma.archiveFolder.deleteMany({ where: { id: { in: folderIds } } });
+  await prisma.setTag.deleteMany({ where: { setId: { in: [ids.set, ids.set2] } } });
+  await prisma.set.deleteMany({ where: { id: { in: [ids.set, ids.set2] } } });
   const groups = [ids.group, ids.groupX];
   await prisma.tagAlias.deleteMany({ where: { tagDefinition: { groupId: { in: groups } } } });
   await prisma.tagDefinition.deleteMany({ where: { groupId: { in: groups } } });
@@ -165,5 +180,46 @@ describe("renames never strip tags", () => {
     const f = await prisma.archiveFolder.findUniqueOrThrow({ where: { id: ids.f4 } });
     expect(f.tagMarkersUnknown).toEqual([`#${RUN}=${RUN}beach`]);
     expect(await writeFor(path("f4"))).toBeUndefined();
+  });
+});
+
+describe("stage 2: filter and bulk across folder and Set", () => {
+  // f5 owns its tags; f6 is confirmed to set2, so its tags live on set2; the
+  // staged set is confirmed to f5.
+  const pool = () => ids[`${RUN}pool`];
+  const match = async (text: string) => {
+    const f = await resolveTagFilterParam(text, "ARCHIVE_FOLDER");
+    return (await findTagMatchIds("ARCHIVE_FOLDER", f!.resolved)).filter((id) => id === ids.f5 || id === ids.f6).sort();
+  };
+
+  beforeAll(async () => {
+    await prisma.archiveLink.create({ data: { archiveFolderId: ids.f6, setId: ids.set2, status: "CONFIRMED", tenant: "default" } });
+    await prisma.archiveLink.create({ data: { archiveFolderId: ids.f5, stagingSetId: ids.staged, status: "CONFIRMED", tenant: "default" } });
+  });
+
+  it("bulk add routes a set-linked folder to its Set, counts per folder", async () => {
+    await bulkAddTagsToEntities("ARCHIVE_FOLDER", [ids.f5, ids.f6], [pool()]);
+    expect(await folderTags(ids.f5)).toEqual([pool()]);
+    expect(await folderTags(ids.f6)).toEqual([]);
+    expect(await getEntityTagIds("SET", ids.set2)).toEqual([pool()]);
+    expect((await getSelectionTagCounts("ARCHIVE_FOLDER", [ids.f5, ids.f6]))[pool()]).toBe(2);
+  });
+
+  it("the folder filter sees the Set's tags of a linked folder", async () => {
+    const name = (await prisma.tagDefinition.findUniqueOrThrow({ where: { id: pool() } })).slug;
+    expect(await match(name)).toEqual([ids.f5, ids.f6].sort());
+    expect(await match(`-${name}`)).toEqual([]);
+  });
+
+  it("a staged set matches through its folder", async () => {
+    const name = (await prisma.tagDefinition.findUniqueOrThrow({ where: { id: pool() } })).slug;
+    expect(await stagingSetIdsForTagQuery(name)).toContain(ids.staged);
+    expect(await stagingSetIdsForTagQuery("")).toBeNull();
+  });
+
+  it("bulk remove reaches both owners", async () => {
+    await bulkRemoveTagsFromEntities("ARCHIVE_FOLDER", [ids.f5, ids.f6], [pool()]);
+    expect(await folderTags(ids.f5)).toEqual([]);
+    expect(await getEntityTagIds("SET", ids.set2)).toEqual([]);
   });
 });

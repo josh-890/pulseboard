@@ -13,3 +13,4 @@ export { GalleryTagFilter } from "./gallery-tag-filter";
 export { TagQueryBox } from "./tag-query-box";
 export { TagCatalogTree } from "./tag-catalog-tree";
 export { TodoInbox } from "./todo-inbox";
+export { TagFilterInline } from "./tag-filter-inline";

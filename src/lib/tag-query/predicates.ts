@@ -7,8 +7,8 @@ import type { QueryPredicate, ResolvedPredicate } from "./types";
 
 export const PREDICATE_SUPPORT: Record<ResolvedPredicate["kind"], TaggableEntity[]> = {
   fav: ["MEDIA_ITEM", "PERSON"],
-  untagged: ["MEDIA_ITEM", "SET", "SESSION", "PERSON", "PROJECT"],
-  workflow: ["MEDIA_ITEM", "SET", "SESSION", "PERSON", "PROJECT"],
+  untagged: ["MEDIA_ITEM", "SET", "SESSION", "PERSON", "PROJECT", "ARCHIVE_FOLDER"],
+  workflow: ["MEDIA_ITEM", "SET", "SESSION", "PERSON", "PROJECT", "ARCHIVE_FOLDER"],
   rating: ["SET", "PERSON"],
   person: ["MEDIA_ITEM", "SET", "SESSION", "PERSON"],
   persontag: ["MEDIA_ITEM", "SET", "SESSION"],

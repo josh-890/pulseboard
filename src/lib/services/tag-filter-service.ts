@@ -121,8 +121,11 @@ function levelHas(entity: TaggableEntity, level: "self" | "set" | "session", x: 
         ? Prisma.sql`EXISTS (SELECT 1 FROM project_tag d WHERE d."projectId" = ${x} AND d."tagDefinitionId" IN (${ids}))`
         : FALSE;
     case "ARCHIVE_FOLDER":
+      // A folder's tags are its own, or its Set's once a confirmed link joins them (ADR-0034)
       return level === "self"
-        ? Prisma.sql`EXISTS (SELECT 1 FROM archive_folder_tag d WHERE d."archiveFolderId" = ${x} AND d."tagDefinitionId" IN (${ids}))`
+        ? Prisma.sql`(EXISTS (SELECT 1 FROM archive_folder_tag d WHERE d."archiveFolderId" = ${x} AND d."tagDefinitionId" IN (${ids}))
+            OR EXISTS (SELECT 1 FROM "ArchiveLink" l JOIN set_tag st ON st."setId" = l."setId"
+                       WHERE l."archiveFolderId" = ${x} AND l.status = 'CONFIRMED' AND st."tagDefinitionId" IN (${ids})))`
         : FALSE;
   }
 }
@@ -220,7 +223,10 @@ function clauseCandidates(entity: TaggableEntity, clause: ResolvedTagQuery["all"
     case "PROJECT":
       return Prisma.sql`SELECT "projectId" AS id FROM project_tag WHERE "tagDefinitionId" IN (${ids})`;
     case "ARCHIVE_FOLDER":
-      return Prisma.sql`SELECT "archiveFolderId" AS id FROM archive_folder_tag WHERE "tagDefinitionId" IN (${ids})`;
+      return Prisma.sql`
+        SELECT "archiveFolderId" AS id FROM archive_folder_tag WHERE "tagDefinitionId" IN (${ids})
+        UNION SELECT l."archiveFolderId" FROM set_tag st JOIN "ArchiveLink" l ON l."setId" = st."setId" AND l.status = 'CONFIRMED'
+              WHERE st."tagDefinitionId" IN (${ids})`;
   }
 }
 
@@ -294,7 +300,11 @@ export async function getTagFacetCounts(entity: TaggableEntity, ids: string[] | 
       raw = Prisma.sql`SELECT d."projectId" AS eid, d."tagDefinitionId" AS tid, 0 AS lvl FROM project_tag d WHERE TRUE ${inIds(Prisma.sql`d."projectId"`)}`;
       break;
     case "ARCHIVE_FOLDER":
-      raw = Prisma.sql`SELECT d."archiveFolderId" AS eid, d."tagDefinitionId" AS tid, 0 AS lvl FROM archive_folder_tag d WHERE TRUE ${inIds(Prisma.sql`d."archiveFolderId"`)}`;
+      raw = Prisma.sql`
+        SELECT d."archiveFolderId" AS eid, d."tagDefinitionId" AS tid, 0 AS lvl FROM archive_folder_tag d WHERE TRUE ${inIds(Prisma.sql`d."archiveFolderId"`)}
+        UNION ALL
+        SELECT l."archiveFolderId", st."tagDefinitionId", 0 FROM "ArchiveLink" l JOIN set_tag st ON st."setId" = l."setId"
+        WHERE l.status = 'CONFIRMED' ${inIds(Prisma.sql`l."archiveFolderId"`)}`;
       break;
   }
 

@@ -29,6 +29,7 @@ import { WorkbenchFilmstrip } from './workbench-filmstrip'
 import { LoupeView } from './workbench-loupe'
 import { useViewPrefs } from './use-view-prefs'
 import { WorkbenchInspector, type PersonReference } from './workbench-inspector'
+import { ArchiveFolderTagsLoader } from '../archive-folder-tags-loader'
 
 export type WorkbenchFolder = {
   id: string
@@ -113,6 +114,7 @@ export function WorkbenchClient({
   const [index, setIndex] = useState(0)
   const [busy, setBusy] = useState(false)
   const [pickerOpen, setPickerOpen] = useState(false)
+  const [tagsOpen, setTagsOpen] = useState(false)
   const [flash, setFlash] = useState<string | null>(null)
   const [prefs, updatePrefs] = useViewPrefs()
   const shellRef = useRef<HTMLDivElement>(null)
@@ -356,7 +358,10 @@ export function WorkbenchClient({
 
   const onKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
-      if (e.metaKey || e.ctrlKey || e.altKey || pickerOpen) return
+      if (e.metaKey || e.ctrlKey || e.altKey || pickerOpen || tagsOpen) return
+      // A key from a dialog (portalled outside the shell) bubbles here through the
+      // React tree — Escape closing the tag palette must not also leave the folder
+      if (!e.currentTarget.contains(e.target as Node)) return
 
       const digit = /^Digit([1-9])$/.exec(e.code)
       if (digit) {
@@ -441,6 +446,13 @@ export function WorkbenchClient({
           e.preventDefault()
           setPickerOpen(true)
           break
+        case 't':
+          // Tag the folder (ADR-0034) — the same key as everywhere else
+          if (current) {
+            e.preventDefault()
+            setTagsOpen(true)
+          }
+          break
         case 'escape':
           e.preventDefault()
           router.push(queueHref)
@@ -449,6 +461,7 @@ export function WorkbenchClient({
     },
     [
       pickerOpen,
+      tagsOpen,
       candidates,
       visible.length,
       mode,
@@ -630,6 +643,20 @@ export function WorkbenchClient({
           onSkip={skip}
           onUndo={undo}
           onSearch={() => setPickerOpen(true)}
+          tags={
+            current ? (
+              <ArchiveFolderTagsLoader
+                key={current.id}
+                folderId={current.id}
+                paletteOpen={tagsOpen}
+                onPaletteOpenChange={(o) => {
+                  setTagsOpen(o)
+                  // After the dialog's own focus restore, so the workbench keys work on
+                  if (!o) requestAnimationFrame(() => shellRef.current?.focus())
+                }}
+              />
+            ) : undefined
+          }
         />
       </div>
 

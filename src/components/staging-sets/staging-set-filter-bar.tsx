@@ -7,6 +7,9 @@ import { cn } from '@/lib/utils'
 import type { ChannelTier, StagingSetStatus } from '@/generated/prisma/client'
 import type { StagingSetStats } from '@/lib/services/import/staging-set-service'
 import { CHANNEL_TIER_CONFIG, DEFAULT_STAGING_TIERS } from '@/lib/constants/channel-tier'
+import { TagFilterInline } from '@/components/tags/tag-filter-inline'
+import { getTagFacetsAction } from '@/lib/actions/tag-actions'
+import type { TagFacetGroup } from '@/lib/services/tag-filter-service'
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
@@ -23,6 +26,8 @@ export type StagingSetFilterState = {
   showDuplicates: boolean
   matchType: 'exact' | 'probable' | 'none' | undefined
   search: string
+  /** Tag query over the set's archive folder tags (ADR-0034) */
+  tags: string
   channelId: string | undefined
   /** Display name for channelId — set by deep links (e.g. the channel page); never sent to the API. */
   channelLabel: string | undefined
@@ -49,6 +54,7 @@ export const DEFAULT_FILTERS: StagingSetFilterState = {
   showDuplicates: false,
   matchType: undefined,
   search: '',
+  tags: '',
   channelId: undefined,
   channelLabel: undefined,
   channelTier: [...DEFAULT_STAGING_TIERS],
@@ -119,6 +125,15 @@ const GROUP_OPTIONS = [
 type PersonResult = { id: string; displayName: string; icgId: string; matchedAlias?: string | null }
 
 export function StagingSetFilterBar({ filters, onChange, stats }: StagingSetFilterBarProps) {
+  // Tag facets of archive folders — a staged set answers through its folder (ADR-0034)
+  const [tagFacets, setTagFacets] = useState<TagFacetGroup[]>([])
+  useEffect(() => {
+    let alive = true
+    getTagFacetsAction('ARCHIVE_FOLDER')
+      .then((f) => { if (alive) setTagFacets(f) })
+      .catch(() => {})
+    return () => { alive = false }
+  }, [])
   const [searchInput, setSearchInput] = useState(filters.search)
   const [prevCommittedSearch, setPrevCommittedSearch] = useState(filters.search)
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined)
@@ -565,6 +580,15 @@ export function StagingSetFilterBar({ filters, onChange, stats }: StagingSetFilt
           ))}
         </select>
       </div>
+
+      {/* Row 3: tags of the linked archive folder (ADR-0034) */}
+      <TagFilterInline
+        entityType="ARCHIVE_FOLDER"
+        facets={tagFacets}
+        value={filters.tags}
+        onChange={(tags) => onChange({ ...filters, tags })}
+        countNoun="folders"
+      />
     </div>
   )
 }

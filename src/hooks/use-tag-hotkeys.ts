@@ -30,7 +30,9 @@ export function useTagHotkeys(enabled: boolean, handlers: TagHotkeyHandlers) {
     function onKey(e: KeyboardEvent) {
       if (e.metaKey || e.ctrlKey || e.altKey) return;
       const t = e.target as HTMLElement | null;
-      if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
+      // Text entry keeps its keys; a checkbox (a selection tick) does not type
+      const ticks = t instanceof HTMLInputElement && (t.type === "checkbox" || t.type === "radio");
+      if (t && !ticks && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
       if (document.querySelector('[role="dialog"], [data-lightbox-open]')) return;
       const h = ref.current;
       const key = e.key.toLowerCase();

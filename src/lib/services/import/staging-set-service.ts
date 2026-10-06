@@ -6,7 +6,7 @@
  * progressive enrichment of existing Sets.
  */
 
-import { absorbFolderTagsIntoSets } from '@/lib/services/archive-tag-service'
+import { absorbFolderTagsIntoSets, stagingSetIdsForTagQuery } from '@/lib/services/archive-tag-service'
 import { prisma } from '@/lib/db'
 import { localMediaUrlOrNull } from '@/lib/media-url'
 import { normalizeForSearch } from '@/lib/normalize'
@@ -694,6 +694,8 @@ export type StagingSetFilters = {
   /** Only sets whose *suggested* folder carries your claim or marker for someone in the cast. */
   hasPersonEvidence?: boolean
   search?: string
+  /** Tag query (ADR-0033 syntax) over the tags of the set's archive folder (ADR-0034) */
+  tags?: string
   sort?: 'date' | 'title' | 'priority' | 'importDate' | 'undatedFirst'
   sortDir?: 'asc' | 'desc'
   cursor?: string
@@ -855,6 +857,11 @@ export async function getStagingSetsFiltered(filters: StagingSetFilters): Promis
     // one, and the archive side spans two tables. Resolved to a set of ids here,
     // the same way `readyForPromotion` handles its own cross-shape question.
     conditions.push({ id: { in: await stagingSetIdsWhereArchiveNamesOthers() } })
+  }
+
+  if (filters.tags) {
+    const ids = await stagingSetIdsForTagQuery(filters.tags)
+    if (ids) conditions.push({ id: { in: ids } })
   }
 
   if (filters.noDate) {

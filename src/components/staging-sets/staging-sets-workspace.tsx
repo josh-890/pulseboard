@@ -21,6 +21,7 @@ import { CreateKnownSetSheet } from './create-known-set-sheet'
 import { CoverBasketsTab } from './cover-baskets-tab'
 import { StagingSetFilterBar, DEFAULT_FILTERS } from './staging-set-filter-bar'
 import { StagingSetSlidePanel } from './staging-set-slide-panel'
+import { BulkTagControls } from '@/components/tags/bulk-tag-controls'
 import { useGridKeyboardNav } from '@/hooks/use-grid-keyboard-nav'
 import type { StagingSetFilterState } from './staging-set-filter-bar'
 import type { StagingSetWithRelations, StagingSetStats } from '@/lib/services/import/staging-set-service'
@@ -260,6 +261,7 @@ export function StagingSetsWorkspace() {
     // need a cover regardless of workflow status (service excludes PROMOTED/INACTIVE).
     if (filters.status.length && activeTab !== 'missing-cover') params.set('status', filters.status.join(','))
     if (filters.search) params.set('search', filters.search)
+    if (filters.tags) params.set('tags', filters.tags)
     if (filters.batchId) params.set('batchId', filters.batchId)
     if (filters.noDate) params.set('noDate', 'true')
     if (filters.archiveNamesOthers) params.set('archiveNamesOthers', 'true')
@@ -486,6 +488,19 @@ export function StagingSetsWorkspace() {
   }, [])
 
   // ── Bulk actions ──────────────────────────────────────────────────────
+  // The archive folders behind the checked sets — what bulk tagging writes to
+  const checkedFolderIds = useMemo(() => {
+    const ids: string[] = []
+    for (const item of data?.items ?? []) {
+      if (!checkedIds.has(item.id)) continue
+      const link = item.status === 'PROMOTED'
+        ? (item.promotedSet?.archiveLinks?.find((l) => l.status === 'CONFIRMED') ?? item.archiveLinks?.find((l) => l.status === 'CONFIRMED'))
+        : item.archiveLinks?.find((l) => l.status === 'CONFIRMED')
+      if (link?.archiveFolder) ids.push(link.archiveFolder.id)
+    }
+    return ids
+  }, [data, checkedIds])
+
   const handleBulkStatus = useCallback(async (status: StagingSetStatus) => {
     if (checkedIds.size === 0) return
     setIsProcessing(true)
@@ -832,6 +847,13 @@ export function StagingSetsWorkspace() {
             {checkedIds.size === data?.items.length ? 'Deselect all' : 'Select all'}
           </button>
           <span className="text-xs font-medium">{checkedIds.size} selected</span>
+          {/* Tags go on the archive folder of each set (ADR-0034) */}
+          <BulkTagControls entityType="ARCHIVE_FOLDER" entityIds={checkedFolderIds} />
+          {checkedIds.size > checkedFolderIds.length && (
+            <span className="text-[11px] text-muted-foreground" title="Tags live on the archive folder — link a folder to tag these">
+              {checkedIds.size - checkedFolderIds.length} without folder — not tagged
+            </span>
+          )}
           <div className="ml-auto flex items-center gap-2">
             <Button size="sm" variant="outline" onClick={() => handleBulkStatus('APPROVED')} disabled={isProcessing}>
               <Check size={14} /> Approve

@@ -31,6 +31,12 @@ export default function ArchiveLoading() {
           ))}
         </div>
 
+        {/* Tag filter row skeleton (Tags button + query box) */}
+        <div className="mb-3 flex gap-2">
+          <div className="h-8 w-16 animate-pulse rounded-lg bg-muted/30" />
+          <div className="h-8 w-64 animate-pulse rounded-lg bg-muted/30" />
+        </div>
+
         {/* Row skeletons */}
         <div className="flex flex-col gap-2">
           {Array.from({ length: 10 }).map((_, i) => (

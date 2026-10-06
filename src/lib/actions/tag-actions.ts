@@ -2,6 +2,7 @@
 
 import { withTenantFromHeaders } from "@/lib/tenant-context";
 import { revalidatePath } from "next/cache";
+import { getTagFacets, resolveTagFilterParam, type TagFacetGroup } from "@/lib/services/tag-filter-service";
 import {
   createTagGroup,
   updateTagGroup,
@@ -434,4 +435,20 @@ export async function setActiveSlotSetAction(id: string): Promise<SimpleActionRe
       return { success: false, error: e instanceof Error ? e.message : "Failed to switch slot set" };
     }
   });
+}
+
+// ─── Filter feedback (client-managed browsers) ─────────────────────────────
+
+/**
+ * What a tag query cannot do — parse errors, names no tag answers to, predicates
+ * the browser cannot answer — for browsers that filter in the client
+ * (/archive, /staging-sets) and so do not get the problems from the page.
+ */
+export async function getTagFilterProblemsAction(text: string, entityType: TaggableEntity): Promise<string[]> {
+  return withTenantFromHeaders(async () => (await resolveTagFilterParam(text, entityType))?.problems ?? []);
+}
+
+/** The facet panel's groups + counts, for client-rendered browsers (/staging-sets) */
+export async function getTagFacetsAction(entityType: TaggableEntity): Promise<TagFacetGroup[]> {
+  return withTenantFromHeaders(() => getTagFacets(entityType));
 }

@@ -21,7 +21,7 @@ export type EntityTagsController = {
   refresh: () => void;
 };
 
-function fromPaletteTag(tag: PaletteTag): EffectiveTag {
+export function fromPaletteTag(tag: PaletteTag): EffectiveTag {
   return {
     id: tag.id,
     name: tag.name,

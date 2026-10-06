@@ -6,10 +6,15 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { usePathname, useSearchParams } from 'next/navigation'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { getAppScrollEl } from '@/lib/scroll-container'
-import { FolderSearch, Camera, Film, ChevronDown, Search, ChevronsDownUp, ChevronsUpDown, RefreshCw } from 'lucide-react'
+import { FolderSearch, Camera, Film, ChevronDown, Search, ChevronsDownUp, ChevronsUpDown, RefreshCw, CheckSquare } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { RematchStatus } from '@/lib/services/archive-rematch-status'
 import { getArchiveItemsAction, getArchiveChannelSummariesAction, reparseFolderNamesAction, scanArchiveForAliasesAction } from '@/lib/actions/archive-actions'
+import { TagFilterInline } from '@/components/tags/tag-filter-inline'
+import { BulkTagControls } from '@/components/tags/bulk-tag-controls'
+import { fromPaletteTag } from '@/hooks/use-entity-tags'
+import type { BulkTagChange } from '@/hooks/use-bulk-tagging'
+import type { TagFacetGroup } from '@/lib/services/tag-filter-service'
 import { ArchiveOrphanRow } from './archive-orphan-row'
 import { ArchiveLinkedRow } from './archive-linked-row'
 import { ArchivePhantomRow } from './archive-phantom-row'
@@ -54,6 +59,9 @@ type Props = {
   highlightId?: string
   /** Pre-fetched channel summaries for the tree view (orphan/linked tabs only). */
   initialChannelSummaries: ChannelSummary[] | null
+  /** Tag query from the URL (`tags=`), and the facets its panel offers (ADR-0034) */
+  initialTags?: string
+  tagFacets: TagFacetGroup[]
 }
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
@@ -237,6 +245,8 @@ export function ArchiveWorkspaceClient({
   initialHasSuggestion,
   highlightId,
   initialChannelSummaries,
+  initialTags,
+  tagFacets,
 }: Props) {
   const [tab, setTab] = useState<Tab>(initialTab)
   const [counts, setCounts] = useState<WorkspaceCounts>(initialPage.counts)
@@ -271,6 +281,24 @@ export function ArchiveWorkspaceClient({
   const [hasSuggestion, setHasSuggestion] = useState(initialHasSuggestion ?? false)
   const [search, setSearch] = useState('')
   const [searchInput, setSearchInput] = useState('')
+  const [tags, setTagsState] = useState(initialTags ?? '')
+
+  // Selection (ADR-0034, stage 2): tag many folders at once
+  const [selectMode, setSelectMode] = useState(false)
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const selectedIds = useMemo(() => [...selected], [selected])
+  function toggleSelected(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+  function endSelectMode() {
+    setSelectMode(false)
+    setSelected(new Set())
+  }
 
   // Collapse model — default collapsed (tree-first UX)
   const [collapseModel, setCollapseModel] = useState<CollapseModel>({
@@ -342,12 +370,13 @@ export function ArchiveWorkspaceClient({
     isVideo,
     hasSuggestion: hasSuggestion || undefined,
     search: search || undefined,
+    tags: tags || undefined,
     sort,
     sortDir,
     groupBy,
     offset,
     pageSize: PAGE_SIZE,
-  }), [tab, isVideo, hasSuggestion, search, sort, sortDir, groupBy])
+  }), [tab, isVideo, hasSuggestion, search, tags, sort, sortDir, groupBy])
 
   // ── Load channel leaves (tree mode) ────────────────────────────────────────
   const loadChannelLeaves = useCallback((chanFolderName: string) => {
@@ -364,6 +393,7 @@ export function ArchiveWorkspaceClient({
       isVideo,
       hasSuggestion: hasSuggestion || undefined,
       search: search || undefined,
+      tags: tags || undefined,
       groupBy: 'channelYear',
       chanFolderName,
     }).then((page) => {
@@ -379,7 +409,7 @@ export function ArchiveWorkspaceClient({
         return next
       })
     })
-  }, [tab, isVideo, hasSuggestion, search])
+  }, [tab, isVideo, hasSuggestion, search, tags])
 
   // Optimistically drop a folder row after it's linked (Create / Confirm) or deleted.
   // The workspace list is client-fetched (channelLeaves / folderItems), so a server
@@ -405,6 +435,39 @@ export function ArchiveWorkspaceClient({
     setCounts((prev) => ({ ...prev, [tab]: Math.max(0, prev[tab] - 1) }))
   }, [tab])
 
+  // A bulk tag change, shown on the rows at once (the write follows in the
+  // background; the next fetch reads the stored state)
+  const patchTags = useCallback((change: BulkTagChange) => {
+    const ids = new Set(change.entityIds)
+    const patch = (it: ArchiveFolderEntry): ArchiveFolderEntry => {
+      if (!ids.has(it.id)) return it
+      const rest = it.tags.tags.filter((t) =>
+        t.id !== change.tag.id && !(change.on && change.tag.group.isExclusive && t.groupId === change.tag.group.id))
+      return { ...it, tags: { ...it.tags, tags: change.on ? [...rest, fromPaletteTag(change.tag)] : rest } }
+    }
+    setFolderItems((prev) => prev.map(patch))
+    setChannelLeaves((prev) => {
+      const next = new Map(prev)
+      for (const [key, leaf] of prev) {
+        if (leaf.status === 'loaded' && leaf.items.some((it) => ids.has(it.id))) {
+          next.set(key, { status: 'loaded', items: leaf.items.map(patch) })
+        }
+      }
+      return next
+    })
+  }, [])
+
+  // Channels left open (restored from the session, or open while a filter
+  // changed) lose their folders when the summaries reload; fetch them again so an
+  // open channel never shows up empty.
+  const collapseRef = useRef(collapseModel)
+  useEffect(() => { collapseRef.current = collapseModel }, [collapseModel])
+  const loadOpenChannels = useCallback((summaries: ChannelSummary[]) => {
+    for (const sm of summaries) {
+      if (!isCollapsed(collapseRef.current, `ch::${sm.chanFolderName}`)) loadChannelLeaves(sm.chanFolderName)
+    }
+  }, [loadChannelLeaves])
+
   // ── Data fetching ──────────────────────────────────────────────────────────
   useEffect(() => {
     if (!hydrated) return
@@ -418,11 +481,13 @@ export function ArchiveWorkspaceClient({
         isVideo,
         hasSuggestion: hasSuggestion || undefined,
         search: search || undefined,
+        tags: tags || undefined,
       }).then((data) => {
         if (cancelled) return
         setChannelSummaries(data.summaries)
         setCounts(data.counts)
         setSummariesLoading(false)
+        loadOpenChannels(data.summaries)
       }).catch(() => { if (!cancelled) setSummariesLoading(false) })
     } else {
       // Flat mode: existing offset-based fetch
@@ -445,7 +510,7 @@ export function ArchiveWorkspaceClient({
 
     return () => { cancelled = true }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab, isVideo, hasSuggestion, search, sort, sortDir, groupBy, hydrated])
+  }, [tab, isVideo, hasSuggestion, search, tags, sort, sortDir, groupBy, hydrated])
 
   const loadMore = useCallback(() => {
     if (loading || !hasMore) return
@@ -577,6 +642,7 @@ export function ArchiveWorkspaceClient({
     setHasMore(false)
     setSearch('')
     setSearchInput('')
+    setSelected(new Set())
   }
 
   // ── Filter helpers ─────────────────────────────────────────────────────────
@@ -587,6 +653,15 @@ export function ArchiveWorkspaceClient({
     setSortDirState(next); persistFilters({ sortDir: next })
   }
   function setIsVideo(v: boolean | undefined) { setIsVideoState(v); persistFilters({ isVideo: v ?? null }) }
+  // Tags live in the URL (`tags=`) so a link — and "back" from the folder editor — keeps them
+  function setTags(v: string) {
+    setTagsState(v)
+    const params = new URLSearchParams(window.location.search)
+    if (v) params.set('tags', v)
+    else params.delete('tags')
+    const qs = params.toString()
+    window.history.replaceState(null, '', qs ? `${pathname}?${qs}` : pathname)
+  }
 
   // ── Search debounce ────────────────────────────────────────────────────────
   function handleSearchChange(val: string) {
@@ -653,11 +728,12 @@ export function ArchiveWorkspaceClient({
       if (isTreeMode) {
         // Reload summaries + clear leaves
         getArchiveChannelSummariesAction(tab as 'all' | 'orphan' | 'linked', {
-          isVideo, hasSuggestion: hasSuggestion || undefined, search: search || undefined,
+          isVideo, hasSuggestion: hasSuggestion || undefined, search: search || undefined, tags: tags || undefined,
         }).then((data) => {
           setChannelSummaries(data.summaries)
           setCounts(data.counts)
           setChannelLeaves(new Map())
+          loadOpenChannels(data.summaries)
         })
       } else {
         getArchiveItemsAction(buildFilters(0)).then((page) => {
@@ -867,6 +943,22 @@ export function ArchiveWorkspaceClient({
                 </button>
               )}
 
+              {isFolderTab && (
+                <button
+                  onClick={() => (selectMode ? endSelectMode() : setSelectMode(true))}
+                  aria-pressed={selectMode}
+                  className={cn(
+                    'flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-medium transition-colors',
+                    selectMode
+                      ? 'border-primary/50 bg-primary/15 text-primary'
+                      : 'border-border/50 bg-muted/40 text-muted-foreground hover:bg-muted/60',
+                  )}
+                >
+                  <CheckSquare size={11} />
+                  {selectMode ? 'Done selecting' : 'Select'}
+                </button>
+              )}
+
               {(tab === 'orphan' || tab === 'linked') && (
                 <div className="ml-auto flex items-center gap-1.5 rounded-full border border-border/50 bg-muted/30 px-2.5 py-0.5">
                   <Search size={11} className="text-muted-foreground/60" />
@@ -880,6 +972,17 @@ export function ArchiveWorkspaceClient({
                 </div>
               )}
             </div>
+
+            {/* Tags — the folder's own, or its Set's once linked (ADR-0034) */}
+            {isFolderTab && (
+              <TagFilterInline
+                entityType="ARCHIVE_FOLDER"
+                facets={tagFacets}
+                value={tags}
+                onChange={setTags}
+                countNoun="folders"
+              />
+            )}
 
             {/* Row 2: groupBy + sort + collapse */}
             {showGroupControls && (
@@ -1026,7 +1129,20 @@ export function ArchiveWorkspaceClient({
                         'py-0.5 rounded-xl transition-all duration-500',
                         activeHighlight === row.item.id && 'ring-2 ring-amber-400 ring-offset-1',
                       )}>
-                        <ArchiveOrphanRow item={row.item} onRemoved={removeFolderItem} backHref={backHref} />
+                        {selectMode ? (
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="checkbox"
+                              checked={selected.has(row.item.id)}
+                              onChange={() => toggleSelected(row.item.id)}
+                              aria-label={`Select ${row.item.folderName}`}
+                              className="size-4 shrink-0 cursor-pointer accent-primary"
+                            />
+                            <div className="min-w-0 flex-1"><ArchiveOrphanRow item={row.item} onRemoved={removeFolderItem} backHref={backHref} /></div>
+                          </div>
+                        ) : (
+                          <ArchiveOrphanRow item={row.item} onRemoved={removeFolderItem} backHref={backHref} />
+                        )}
                       </div>
                     )}
                     {row.kind === 'folder-item' && (tab === 'linked' || (tab === 'all' && !!(row.item.linkedSetId || row.item.linkedStagingId))) && (
@@ -1034,7 +1150,20 @@ export function ArchiveWorkspaceClient({
                         'py-0.5 rounded-xl transition-all duration-500',
                         activeHighlight === row.item.id && 'ring-2 ring-amber-400 ring-offset-1',
                       )}>
-                        <ArchiveLinkedRow item={row.item} backHref={backHref} />
+                        {selectMode ? (
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="checkbox"
+                              checked={selected.has(row.item.id)}
+                              onChange={() => toggleSelected(row.item.id)}
+                              aria-label={`Select ${row.item.folderName}`}
+                              className="size-4 shrink-0 cursor-pointer accent-primary"
+                            />
+                            <div className="min-w-0 flex-1"><ArchiveLinkedRow item={row.item} backHref={backHref} /></div>
+                          </div>
+                        ) : (
+                          <ArchiveLinkedRow item={row.item} backHref={backHref} />
+                        )}
                       </div>
                     )}
                     {row.kind === 'flat-item' && row.itemType === 'phantom' && (
@@ -1064,6 +1193,24 @@ export function ArchiveWorkspaceClient({
             </div>
           )}
         </div>
+
+        {/* Selection bar — tags for the selected folders (or their Sets) */}
+        {selectMode && (
+          <div className="sticky bottom-0 z-20 flex flex-wrap items-center gap-3 rounded-b-xl border-t border-border/50 bg-background/90 px-4 py-2 backdrop-blur-md">
+            <span className="text-xs font-medium">{selected.size} selected</span>
+            {selected.size > 0 && (
+              <>
+                <BulkTagControls entityType="ARCHIVE_FOLDER" entityIds={selectedIds} onApplied={patchTags} />
+                <button onClick={() => setSelected(new Set())} className="text-xs text-muted-foreground hover:text-foreground">
+                  Clear
+                </button>
+              </>
+            )}
+            {selected.size === 0 && (
+              <span className="text-xs text-muted-foreground">Tick folders to tag them together · T palette · 1–9 slots</span>
+            )}
+          </div>
+        )}
 
         {/* Status bar */}
         <div className="border-t border-border/30 px-4 py-1.5 text-[10px] text-muted-foreground">

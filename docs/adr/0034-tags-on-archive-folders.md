@@ -69,8 +69,13 @@ under the current owner.
 
 - Tags can be given at filing time, months before a set is promoted, and survive
   promotion without retyping.
-- The filter, bulk tagging, workbench `T` and the To-do inbox for folders are a
-  second stage (they reuse the ADR-0033 machinery with `ARCHIVE_FOLDER`).
+- **Stage 2 (2026-10-06)** reuses the ADR-0033 machinery with `ARCHIVE_FOLDER`:
+  the tag filter on `/archive` and `/staging-sets`, bulk tagging from a selection,
+  workbench `T`, folders in the workflow To-do. A folder's tags for filtering, facets,
+  `is:untagged` / `has:workflow` and bulk counts are its own **or** its confirmed
+  Set's — the same owner rule as the sync — and bulk writes route a set-linked folder
+  to its Set. A staged set has no tags of its own and answers through its confirmed
+  folder (a promoted one through its Set's folder).
 - **Renames never strip tags.** Marker files carry names, so a rename must not make
   the sync read "file gone, tag deleted". Three rules (2026-10-05, after the hole was
   found before first use):

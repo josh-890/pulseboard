@@ -1,5 +1,6 @@
 import { withTenantFromHeaders } from '@/lib/tenant-context'
 import { getArchiveWorkspace, getArchiveChannelSummaries } from '@/lib/services/archive-service'
+import { getTagFacets } from '@/lib/services/tag-filter-service'
 import { ArchiveWorkspaceClient } from '@/components/archive/archive-workspace-client'
 import type { WorkspaceFilters } from '@/lib/services/archive-service'
 
@@ -21,11 +22,13 @@ export default async function ArchivePage({ searchParams }: { searchParams: Sear
   const isVideo = rawIsVideo === 'true' ? true : rawIsVideo === 'false' ? false : undefined
 
   const hasSuggestion = getString(sp.hasSuggestion) === 'true'
+  const tags = getString(sp.tags)?.trim() || undefined
 
   const filters: WorkspaceFilters = {
     tab,
     isVideo,
     hasSuggestion: hasSuggestion || undefined,
+    tags,
     groupBy: 'channelYear',
     pageSize: 200,
     offset: 0,
@@ -38,11 +41,12 @@ export default async function ArchivePage({ searchParams }: { searchParams: Sear
     // For phantom/untracked we still use the flat page for the initial render.
     const isFolderTab = tab === 'all' || tab === 'orphan' || tab === 'linked'
 
-    const [page, channelData] = await Promise.all([
+    const [page, channelData, tagFacets] = await Promise.all([
       getArchiveWorkspace(filters),
       isFolderTab
-        ? getArchiveChannelSummaries(tab as 'all' | 'orphan' | 'linked', { isVideo, hasSuggestion: hasSuggestion || undefined })
+        ? getArchiveChannelSummaries(tab as 'all' | 'orphan' | 'linked', { isVideo, hasSuggestion: hasSuggestion || undefined, tags })
         : null,
+      getTagFacets('ARCHIVE_FOLDER'),
     ])
 
     return (
@@ -53,6 +57,8 @@ export default async function ArchivePage({ searchParams }: { searchParams: Sear
         initialHasSuggestion={hasSuggestion || undefined}
         highlightId={highlightId}
         initialChannelSummaries={channelData?.summaries ?? null}
+        initialTags={tags}
+        tagFacets={tagFacets}
       />
     )
   })

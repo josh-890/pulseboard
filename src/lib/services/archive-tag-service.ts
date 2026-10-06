@@ -6,7 +6,8 @@ import {
 } from "@/lib/archive-tags";
 import type { CatalogTag } from "@/lib/tag-query";
 import { addTagsToEntity, removeTagsFromEntity } from "./entity-tag-service";
-import { loadTagCatalog } from "./tag-filter-service";
+import { findTagMatchIds, loadTagCatalog, resolveTagFilterParam } from "./tag-filter-service";
+import { isEmptyResolved } from "@/lib/tag-query";
 import { getDirectTagsBatch } from "./tag-effective-service";
 import type { EffectiveTag } from "@/lib/effective-tags";
 import { createTagAlias, createTagDefinition } from "./tag-service";
@@ -361,4 +362,29 @@ export async function getFolderTagViews(folderIds: string[]): Promise<Map<string
     });
   }
   return out;
+}
+
+// ─── Filtering staged sets ───────────────────────────────────────────────────
+
+/**
+ * Staged sets whose tags match a tag query (ADR-0034, stage 2). A staged set
+ * has no tags of its own: it answers through its CONFIRMED archive folder, and a
+ * promoted one through the folder of its Set. A staged set without a folder
+ * matches nothing — not even a NOT-only query. null = the query filters nothing.
+ */
+export async function stagingSetIdsForTagQuery(text: string | undefined): Promise<string[] | null> {
+  const filter = await resolveTagFilterParam(text, "ARCHIVE_FOLDER");
+  if (!filter || isEmptyResolved(filter.resolved)) return null;
+  const folderIds = await findTagMatchIds("ARCHIVE_FOLDER", filter.resolved);
+  if (folderIds.length === 0) return [];
+  const links = await prisma.archiveLink.findMany({
+    where: { archiveFolderId: { in: folderIds }, status: "CONFIRMED" },
+    select: { stagingSetId: true, setId: true },
+  });
+  const staged = links.map((l) => l.stagingSetId).filter((id): id is string => !!id);
+  const setIds = links.map((l) => l.setId).filter((id): id is string => !!id);
+  const promoted = setIds.length
+    ? await prisma.stagingSet.findMany({ where: { promotedSetId: { in: setIds } }, select: { id: true } })
+    : [];
+  return [...new Set([...staged, ...promoted.map((p) => p.id)])];
 }

@@ -44,6 +44,8 @@ type InspectorProps = {
   onSkip: () => void
   onUndo: () => void
   onSearch: () => void
+  /** The folder's tags (ADR-0034), shown first; `T` opens their palette */
+  tags?: React.ReactNode
 }
 
 /**
@@ -79,9 +81,18 @@ export function WorkbenchInspector({
   onSkip,
   onUndo,
   onSearch,
+  tags,
 }: InspectorProps) {
   return (
     <aside className="flex w-72 shrink-0 flex-col gap-3 border-l border-border/60 bg-card/40 p-3">
+      {tags && (
+        <div className="space-y-1">
+          <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
+            Tags <Kbd>T</Kbd>
+          </p>
+          {tags}
+        </div>
+      )}
       {/* Recorded for this folder. Shown wherever there is something to show, so
           the cast being built is visible while it is built — and each entry can
           be taken off on its own instead of undoing all of them. */}

@@ -18,6 +18,8 @@ import { escapeLike } from '@/lib/prisma-like'
 import { toArchiveStub } from '@/lib/archive-stub'
 import { reconcileStubsFromScan } from '@/lib/services/archive-stub-service'
 import { getFolderTagViews, reconcileFolderTagsFromScan, type FolderTagsView, type TagScanCounts } from '@/lib/services/archive-tag-service'
+import { findTagMatchIds, resolveTagFilterParam } from '@/lib/services/tag-filter-service'
+import { isEmptyResolved } from '@/lib/tag-query'
 import type { StubScanCounts } from '@/lib/services/archive-stub-service'
 import type { ArchiveStub } from '@/lib/archive-stub'
 import { ArchiveLinkStatus, Prisma } from '@/generated/prisma/client'
@@ -1323,6 +1325,8 @@ export type WorkspaceFilters = {
   pageSize?: number
   /** When set, fetch only leaves for this specific channel folder (tree mode). */
   chanFolderName?: string
+  /** Tag query (ADR-0033 syntax) over folder tags — own, or the confirmed Set's (ADR-0034) */
+  tags?: string
 }
 
 export type WorkspacePage = {
@@ -2693,9 +2697,23 @@ async function attachFolderPeople(items: FolderEntryBase[]): Promise<ArchiveFold
   }))
 }
 
+/**
+ * The folders a tag query admits, as a where-clause fragment; null when the query
+ * filters nothing (empty, or only names no tag answers to — those are reported
+ * by the filter bar, not silently turned into "everything" or "nothing").
+ */
+async function archiveTagScope(tags: string | undefined): Promise<Prisma.ArchiveFolderWhereInput | null> {
+  const filter = await resolveTagFilterParam(tags, 'ARCHIVE_FOLDER')
+  if (!filter || isEmptyResolved(filter.resolved)) return null
+  return { id: { in: await findTagMatchIds('ARCHIVE_FOLDER', filter.resolved) } }
+}
+
 export async function getArchiveWorkspace(filters: WorkspaceFilters): Promise<WorkspacePage> {
   const pageSize = filters.pageSize ?? 200
   const offset = filters.offset ?? 0
+  const tagScope = filters.tab === 'all' || filters.tab === 'orphan' || filters.tab === 'linked'
+    ? await archiveTagScope(filters.tags)
+    : null
 
   // Always compute all tab counts together
   const [allCount, orphanCount, linkedCount, phantomCount, untrackedCount, ghostCount] = await Promise.all([
@@ -2786,6 +2804,7 @@ export async function getArchiveWorkspace(filters: WorkspaceFilters): Promise<Wo
   if (filters.tab === 'all') {
     const where: Prisma.ArchiveFolderWhereInput = {
       missingOnDisk: false,
+      ...(tagScope ?? {}),
       ...(filters.isVideo !== undefined ? { isVideo: filters.isVideo } : {}),
       ...(filters.shortName ? { parsedShortName: { equals: filters.shortName, mode: 'insensitive' as const } } : {}),
       ...(filters.year ? {
@@ -2918,6 +2937,7 @@ export async function getArchiveWorkspace(filters: WorkspaceFilters): Promise<Wo
       },
     ]
     if (filters.hasSuggestion) andClauses.push({ archiveLink: { status: ArchiveLinkStatus.SUGGESTED } })
+    if (tagScope) andClauses.push(tagScope)
     if (filters.search) {
       andClauses.push({
         OR: [
@@ -3072,6 +3092,7 @@ export async function getArchiveWorkspace(filters: WorkspaceFilters): Promise<Wo
     const where: Prisma.ArchiveFolderWhereInput = {
       archiveLink: { status: ArchiveLinkStatus.CONFIRMED },
       missingOnDisk: false,
+      ...(tagScope ?? {}),
       ...(filters.isVideo !== undefined ? { isVideo: filters.isVideo } : {}),
       ...(filters.shortName ? { parsedShortName: { equals: filters.shortName, mode: 'insensitive' as const } } : {}),
       ...(filters.year ? {
@@ -3755,8 +3776,9 @@ export async function markGhostFolders(
  */
 export async function getArchiveChannelSummaries(
   tab: 'all' | 'orphan' | 'linked',
-  filters: Pick<WorkspaceFilters, 'isVideo' | 'search' | 'hasSuggestion'>,
+  filters: Pick<WorkspaceFilters, 'isVideo' | 'search' | 'hasSuggestion' | 'tags'>,
 ): Promise<{ summaries: ChannelSummary[]; counts: WorkspaceCounts }> {
+  const tagScope = await archiveTagScope(filters.tags)
   let where: Prisma.ArchiveFolderWhereInput
   if (tab === 'orphan') {
     const andClauses: Prisma.ArchiveFolderWhereInput[] = [
@@ -3768,6 +3790,7 @@ export async function getArchiveChannelSummaries(
       },
     ]
     if (filters.hasSuggestion) andClauses.push({ archiveLink: { status: ArchiveLinkStatus.SUGGESTED } })
+    if (tagScope) andClauses.push(tagScope)
     if (filters.search) {
       andClauses.push({
         OR: [
@@ -3785,6 +3808,7 @@ export async function getArchiveChannelSummaries(
     where = {
       archiveLink: { status: ArchiveLinkStatus.CONFIRMED },
       missingOnDisk: false,
+      ...(tagScope ?? {}),
       ...(filters.isVideo !== undefined ? { isVideo: filters.isVideo } : {}),
       ...(filters.search ? {
         OR: [
@@ -3796,6 +3820,7 @@ export async function getArchiveChannelSummaries(
   } else {
     where = {
       missingOnDisk: false,
+      ...(tagScope ?? {}),
       ...(filters.isVideo !== undefined ? { isVideo: filters.isVideo } : {}),
       ...(filters.search ? {
         OR: [

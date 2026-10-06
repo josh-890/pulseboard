@@ -15,6 +15,9 @@ import { cn } from '@/lib/utils'
 type ArchiveFolderTagsProps = {
   view: FolderTagsView
   className?: string
+  /** Control the palette from outside (workbench `T`); internal state otherwise */
+  paletteOpen?: boolean
+  onPaletteOpenChange?: (open: boolean) => void
 }
 
 /**
@@ -24,10 +27,15 @@ type ArchiveFolderTagsProps = {
  * `.pulseboard\` as `#name` files. Markers the app could not place are shown
  * apart: an unknown name opens the palette to say which tag it means.
  */
-export function ArchiveFolderTags({ view, className }: ArchiveFolderTagsProps) {
+export function ArchiveFolderTags({ view, className, paletteOpen: openProp, onPaletteOpenChange }: ArchiveFolderTagsProps) {
   const router = useRouter()
   const controller = useEntityTags(view.owner.type, view.owner.id, view.tags)
-  const [paletteOpen, setPaletteOpen] = useState(false)
+  const [openState, setOpenState] = useState(false)
+  const paletteOpen = openProp ?? openState
+  const setPaletteOpen = (o: boolean) => {
+    setOpenState(o)
+    onPaletteOpenChange?.(o)
+  }
   const [resolving, setResolving] = useState<string | null>(null)
   const [unknown, setUnknown] = useState(view.unknown)
   const [isPending, startTransition] = useTransition()

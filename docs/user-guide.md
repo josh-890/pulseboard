@@ -1542,6 +1542,23 @@ ever) promoting it. Tag the folder there (ADR-0034):
   (the row shows *set* in front of them) and the files follow the Set's tags from then
   on.
 
+**Working with folder tags in bulk**
+
+- **Filter:** `/archive` (folder tabs) and `/staging-sets` have the same tag filter as the
+  other browsers — the **Tags** button (facets), the query box (`beach -studio`,
+  `is:untagged`, `has:workflow`) and removable chips. A folder confirmed to a Set
+  matches through the Set's tags; a staged set matches through its archive folder
+  (staged sets without a folder never match). On `/archive` the filter is part of
+  the URL, so a link — and **← archive** from the workbench — keeps it.
+- **Select:** on `/archive` press **Select**, tick folders, then **T** (palette,
+  ✓/–/blank tri-state), **1–9** (quick-tag slots) or the armed tag, exactly as in a
+  gallery. On `/staging-sets` the existing **Select** bar has the same controls; they
+  write to each set's archive folder — sets without a folder are counted and skipped.
+- **Workbench:** **T** tags the folder in front of you; its tags are listed at the
+  top of the right rail.
+- **To-do:** a workflow tag (`needs-crop`, …) on a folder lists it in `/tags` →
+  To-do; the entry opens the folder in the workbench, **Done** takes the tag off.
+
 ### Suggestion Confidence
 
 The matching system runs two tiers:

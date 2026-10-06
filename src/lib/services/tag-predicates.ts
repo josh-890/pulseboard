@@ -139,33 +139,40 @@ function castIncludes(entity: TaggableEntity, x: Prisma.Sql, people: Prisma.Sql)
   }
 }
 
-const OWN_TAGS: Record<TaggableEntity, { table: string; column: string }> = {
+const OWN_TAGS: Record<Exclude<TaggableEntity, "ARCHIVE_FOLDER">, { table: string; column: string }> = {
   MEDIA_ITEM: { table: "media_item_tag", column: "mediaItemId" },
   SET: { table: "set_tag", column: "setId" },
   SESSION: { table: "session_tag", column: "sessionId" },
   PERSON: { table: "person_tag", column: "personId" },
   PROJECT: { table: "project_tag", column: "projectId" },
-  ARCHIVE_FOLDER: { table: "archive_folder_tag", column: "archiveFolderId" },
 };
+
+/** The tag ids row `x` carries directly — a folder's own, or its confirmed Set's (ADR-0034) */
+function ownTagIds(entity: TaggableEntity, x: Prisma.Sql): Prisma.Sql {
+  if (entity === "ARCHIVE_FOLDER") {
+    return Prisma.sql`SELECT "tagDefinitionId" AS tid FROM archive_folder_tag WHERE "archiveFolderId" = ${x}
+      UNION ALL SELECT st."tagDefinitionId" FROM "ArchiveLink" l JOIN set_tag st ON st."setId" = l."setId"
+      WHERE l."archiveFolderId" = ${x} AND l.status = 'CONFIRMED'`;
+  }
+  const own = OWN_TAGS[entity];
+  return Prisma.sql`SELECT "tagDefinitionId" AS tid FROM ${Prisma.raw(`"${own.table}"`)} WHERE ${Prisma.raw(`"${own.column}"`)} = ${x}`;
+}
 
 /** SQL for one resolved predicate on row `x` of the entity */
 export function predicateSql(entity: TaggableEntity, p: ResolvedPredicate, x: Prisma.Sql): Prisma.Sql {
-  const own = OWN_TAGS[entity];
-  const ownTable = Prisma.raw(`"${own.table}"`);
-  const ownCol = Prisma.raw(`"${own.column}"`);
   switch (p.kind) {
     case "fav":
       return entity === "PERSON"
         ? Prisma.sql`EXISTS (SELECT 1 FROM "Person" f WHERE f.id = ${x} AND f."isFavorite")`
         : Prisma.sql`EXISTS (SELECT 1 FROM "MediaItem" f WHERE f.id = ${x} AND f."isFavorite")`;
     case "untagged":
-      return Prisma.sql`NOT EXISTS (SELECT 1 FROM ${ownTable} t WHERE t.${ownCol} = ${x})`;
+      return Prisma.sql`NOT EXISTS (${ownTagIds(entity, x)})`;
     case "workflow":
       return Prisma.sql`EXISTS (
-        SELECT 1 FROM ${ownTable} t
-        JOIN tag_definition td ON td.id = t."tagDefinitionId"
+        SELECT 1 FROM (${ownTagIds(entity, x)}) t
+        JOIN tag_definition td ON td.id = t.tid
         JOIN tag_group tg ON tg.id = td."groupId"
-        WHERE t.${ownCol} = ${x} AND tg.kind = 'WORKFLOW')`;
+        WHERE tg.kind = 'WORKFLOW')`;
     case "rating": {
       const op = Prisma.raw(RATING_OPS.has(p.op) ? p.op : "=");
       const table = Prisma.raw(entity === "PERSON" ? `"Person"` : `"Set"`);

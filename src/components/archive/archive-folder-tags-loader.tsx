@@ -8,10 +8,12 @@ import { ArchiveFolderTags } from './archive-folder-tags'
 type ArchiveFolderTagsLoaderProps = {
   folderId: string
   className?: string
+  paletteOpen?: boolean
+  onPaletteOpenChange?: (open: boolean) => void
 }
 
 /** `ArchiveFolderTags` for a folder known only by id (staging slide panel) */
-export function ArchiveFolderTagsLoader({ folderId, className }: ArchiveFolderTagsLoaderProps) {
+export function ArchiveFolderTagsLoader({ folderId, className, paletteOpen, onPaletteOpenChange }: ArchiveFolderTagsLoaderProps) {
   const [loaded, setLoaded] = useState<{ folderId: string; view: FolderTagsView | null } | null>(null)
 
   useEffect(() => {
@@ -32,5 +34,13 @@ export function ArchiveFolderTagsLoader({ folderId, className }: ArchiveFolderTa
     return <span className="text-xs text-muted-foreground">Loading tags…</span>
   }
   if (!loaded.view) return <span className="text-xs text-muted-foreground">Tags unavailable</span>
-  return <ArchiveFolderTags key={folderId} view={loaded.view} className={className} />
+  return (
+    <ArchiveFolderTags
+      key={folderId}
+      view={loaded.view}
+      className={className}
+      paletteOpen={paletteOpen}
+      onPaletteOpenChange={onPaletteOpenChange}
+    />
+  )
 }

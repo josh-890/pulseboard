@@ -111,7 +111,12 @@ export function ArchiveLinkedRow({ item, backHref }: Props) {
       <ArchiveStubControl folderId={item.id} stub={stub} onChanged={setStub} />
 
       {/* Tags — the folder's own, or its Set's once linked (ADR-0034) */}
-      <ArchiveFolderTags view={item.tags} className="min-w-0 max-w-[35%] shrink" />
+      <ArchiveFolderTags
+          // Fresh data (a bulk change elsewhere) remounts it with the new tags
+          key={`${item.tags.owner.id}:${item.tags.tags.map((t) => t.id).join(',')}:${item.tags.unknown.join(',')}`}
+          view={item.tags}
+          className="min-w-0 max-w-[35%] shrink"
+        />
 
       {/* Shortname/channel folder mismatch — highest priority warning */}
       {hasMismatch && (

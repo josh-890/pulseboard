@@ -175,7 +175,7 @@ export async function getWorkflowTodo(): Promise<TodoTag[]> {
   return Promise.all(
     tags.map(async (t) => {
       const where = { tagDefinitionId: t.id };
-      const [persons, sessions, sets, media, projects] = await Promise.all([
+      const [persons, sessions, sets, media, projects, folders] = await Promise.all([
         prisma.personTag.findMany({
           where,
           take: TODO_CAP,
@@ -186,6 +186,13 @@ export async function getWorkflowTodo(): Promise<TodoTag[]> {
         prisma.setTag.findMany({ where, take: TODO_CAP, orderBy: { createdAt: "asc" }, select: { set: { select: { id: true, title: true } } } }),
         prisma.mediaItemTag.findMany({ where, take: TODO_CAP, orderBy: { createdAt: "asc" }, select: { mediaItemId: true } }),
         prisma.projectTag.findMany({ where, take: TODO_CAP, orderBy: { createdAt: "asc" }, select: { project: { select: { id: true, name: true } } } }),
+        // Archive folders not yet promoted (ADR-0034); a promoted folder's to-do is on its Set
+        prisma.archiveFolderTag.findMany({
+          where,
+          take: TODO_CAP,
+          orderBy: { createdAt: "asc" },
+          select: { archiveFolder: { select: { id: true, folderName: true } } },
+        }),
       ]);
       const gallery = await getMediaGalleryItemsByIds(media.map((m) => m.mediaItemId));
       const counts = await Promise.all([
@@ -194,6 +201,7 @@ export async function getWorkflowTodo(): Promise<TodoTag[]> {
         prisma.setTag.count({ where }),
         prisma.mediaItemTag.count({ where }),
         prisma.projectTag.count({ where }),
+        prisma.archiveFolderTag.count({ where }),
       ]);
       const entries: TodoEntry[] = [
         ...persons.map(({ person: p }) => ({
@@ -213,6 +221,13 @@ export async function getWorkflowTodo(): Promise<TodoTag[]> {
           thumbnail: g.urls.gallery_512 ?? g.urls.original ?? null,
         })),
         ...projects.map(({ project: p }) => ({ entityType: "PROJECT" as const, entityId: p.id, label: p.name, href: `/projects/${p.id}`, thumbnail: null })),
+        ...folders.map(({ archiveFolder: f }) => ({
+          entityType: "ARCHIVE_FOLDER" as const,
+          entityId: f.id,
+          label: f.folderName,
+          href: `/archive/workbench?folder=${f.id}&back=${encodeURIComponent("/tags?view=todo")}`,
+          thumbnail: null,
+        })),
       ];
       return {
         id: t.id,
@@ -233,7 +248,8 @@ export async function countOpenTodos(): Promise<number> {
       (SELECT count(*) FROM session_tag x JOIN tag_definition d ON d.id = x."tagDefinitionId" JOIN tag_group g ON g.id = d."groupId" WHERE g.kind = 'WORKFLOW') +
       (SELECT count(*) FROM set_tag x JOIN tag_definition d ON d.id = x."tagDefinitionId" JOIN tag_group g ON g.id = d."groupId" WHERE g.kind = 'WORKFLOW') +
       (SELECT count(*) FROM media_item_tag x JOIN tag_definition d ON d.id = x."tagDefinitionId" JOIN tag_group g ON g.id = d."groupId" WHERE g.kind = 'WORKFLOW') +
-      (SELECT count(*) FROM project_tag x JOIN tag_definition d ON d.id = x."tagDefinitionId" JOIN tag_group g ON g.id = d."groupId" WHERE g.kind = 'WORKFLOW')
+      (SELECT count(*) FROM project_tag x JOIN tag_definition d ON d.id = x."tagDefinitionId" JOIN tag_group g ON g.id = d."groupId" WHERE g.kind = 'WORKFLOW') +
+      (SELECT count(*) FROM archive_folder_tag x JOIN tag_definition d ON d.id = x."tagDefinitionId" JOIN tag_group g ON g.id = d."groupId" WHERE g.kind = 'WORKFLOW')
     )::bigint AS n
   `;
   return Number(rows[0]?.n ?? 0);

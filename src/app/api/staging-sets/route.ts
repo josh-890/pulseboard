@@ -62,6 +62,7 @@ export async function GET(request: Request) {
         archiveFilter: (url.searchParams.get('archiveFilter') as ArchiveFilterValue) || undefined,
         readyForPromotion: url.searchParams.get('readyForPromotion') === 'true' || undefined,
         search: url.searchParams.get('search') || undefined,
+        tags: url.searchParams.get('tags') || undefined,
         sort: (url.searchParams.get('sort') as 'date' | 'title' | 'priority' | 'importDate' | 'undatedFirst') || undefined,
         sortDir: (url.searchParams.get('sortDir') as 'asc' | 'desc') || undefined,
         cursor: url.searchParams.get('cursor') || undefined,

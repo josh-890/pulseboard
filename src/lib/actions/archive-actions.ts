@@ -52,7 +52,7 @@ export async function getArchiveItemsAction(filters: WorkspaceFilters): Promise<
 
 export async function getArchiveChannelSummariesAction(
   tab: 'all' | 'orphan' | 'linked',
-  filters: Pick<WorkspaceFilters, 'isVideo' | 'search' | 'hasSuggestion'>,
+  filters: Pick<WorkspaceFilters, 'isVideo' | 'search' | 'hasSuggestion' | 'tags'>,
 ): Promise<{ summaries: ChannelSummary[]; counts: WorkspaceCounts }> {
   return withTenantFromHeaders(() => getArchiveChannelSummaries(tab, filters))
 }

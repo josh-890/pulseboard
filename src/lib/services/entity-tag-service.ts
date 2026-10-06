@@ -323,6 +323,22 @@ export async function setEntityTags(
 
 // ─── Bulk Operations ────────────────────────────────────────────────────────
 
+/**
+ * A folder confirmed to a Set carries its tags on the Set (ADR-0034): split a
+ * folder selection into folders that own their tags and the Sets that own the rest.
+ */
+async function splitFolderOwners(folderIds: string[]): Promise<{ folders: string[]; sets: string[] }> {
+  const links = await prisma.archiveLink.findMany({
+    where: { archiveFolderId: { in: folderIds }, status: "CONFIRMED", setId: { not: null } },
+    select: { archiveFolderId: true, setId: true },
+  });
+  const onSet = new Set(links.map((l) => l.archiveFolderId));
+  return {
+    folders: folderIds.filter((id) => !onSet.has(id)),
+    sets: [...new Set(links.map((l) => l.setId).filter((id): id is string => !!id))],
+  };
+}
+
 export async function bulkAddTagsToEntities(
   entityType: TaggableEntity,
   entityIds: string[],
@@ -330,6 +346,12 @@ export async function bulkAddTagsToEntities(
   source: TagSource = "MANUAL",
 ) {
   if (entityIds.length === 0 || tagDefinitionIds.length === 0) return;
+  if (entityType === "ARCHIVE_FOLDER") {
+    const { folders, sets } = await splitFolderOwners(entityIds);
+    if (sets.length) await bulkAddTagsToEntities("SET", sets, tagDefinitionIds, source);
+    entityIds = folders;
+    if (entityIds.length === 0) return;
+  }
 
   await prisma.$transaction(
     async (tx) => {
@@ -386,6 +408,12 @@ export async function bulkRemoveTagsFromEntities(
   tagDefinitionIds: string[],
 ) {
   if (entityIds.length === 0 || tagDefinitionIds.length === 0) return;
+  if (entityType === "ARCHIVE_FOLDER") {
+    const { folders, sets } = await splitFolderOwners(entityIds);
+    if (sets.length) await bulkRemoveTagsFromEntities("SET", sets, tagDefinitionIds);
+    entityIds = folders;
+    if (entityIds.length === 0) return;
+  }
 
   await prisma.$transaction(
     async (tx) => {
@@ -479,6 +507,18 @@ export async function getSelectionTagCounts(
   entityIds: string[],
 ): Promise<Record<string, number>> {
   if (entityIds.length === 0) return {};
+  if (entityType === "ARCHIVE_FOLDER") {
+    // Per folder: its own tags, or its confirmed Set's
+    const rows = await prisma.$queryRaw<Array<{ id: string; cnt: bigint }>>(Prisma.sql`
+      SELECT tid AS id, count(DISTINCT fid)::bigint AS cnt FROM (
+        SELECT "archiveFolderId" AS fid, "tagDefinitionId" AS tid FROM archive_folder_tag WHERE "archiveFolderId" = ANY(${entityIds})
+        UNION ALL
+        SELECT l."archiveFolderId", st."tagDefinitionId" FROM "ArchiveLink" l JOIN set_tag st ON st."setId" = l."setId"
+        WHERE l."archiveFolderId" = ANY(${entityIds}) AND l.status = 'CONFIRMED'
+      ) x GROUP BY tid
+    `);
+    return Object.fromEntries(rows.map((r) => [r.id, Number(r.cnt)]));
+  }
   const t = JOIN_TABLE[entityType];
   const rows = await prisma.$queryRaw<Array<{ id: string; cnt: bigint }>>(Prisma.sql`
     SELECT "tagDefinitionId" AS id, count(*)::bigint AS cnt
