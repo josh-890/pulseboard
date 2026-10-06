@@ -106,7 +106,7 @@ export const TAG_VOCABULARY: VocabularyGroup[] = [
       { name: "Sitting" },
       { name: "Lying" },
       { name: "Kneeling" },
-      { name: "Squat front" },
+      { name: "squatting", aliases: ["squat-front", "squat"] },
     ],
   },
   {
@@ -344,6 +344,22 @@ export const BODY_AND_OUTFIT_VOCABULARY: VocabularyGroup[] = [
       { name: "decoration-body-paint" },
       { name: "decoration-glitter" },
       { name: "decoration-temporary-tattoo" },
+    ],
+  },
+  {
+    // Direction to the camera — a dimension of its own, combined with any pose
+    // (`squatting view-front`, `standing view-back`)
+    slug: "view",
+    name: "View",
+    color: "#7c83fd",
+    description: "Which side of the model faces the camera",
+    domain: "CONTENT",
+    typicalLevel: "MEDIA_ITEM",
+    isExclusive: true,
+    tags: [
+      { name: "view-front", aliases: ["from-front"] },
+      { name: "view-back", aliases: ["from-behind", "rear-view"] },
+      { name: "view-side", aliases: ["profile-view"] },
     ],
   },
   {

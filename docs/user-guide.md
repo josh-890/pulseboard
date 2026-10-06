@@ -799,6 +799,7 @@ an accessory, "wears glasses" is the vision-aids attribute.
 | Footwear | `footwear-heels`, `footwear-boots`, `footwear-barefoot` | |
 | Legwear | `legwear-stockings`, `legwear-pantyhose`, `legwear-fishnets`, `legwear-socks` | |
 | Accessories | `accessory-glasses`, `accessory-sunglasses`, `accessory-choker`, `accessory-hat` | |
+| View | `view-front`, `view-back`, `view-side` | exclusive, per image — combine with a pose: `squatting view-front` |
 
 Added per tenant by `scripts/add-body-outfit-tags.ts` (add-only: existing groups and
 tags are never changed). It also moved `tanlines` from Theme into `skin-tanlines` —
